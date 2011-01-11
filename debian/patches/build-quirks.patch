@@ -1,0 +1,28 @@
+Bug-Vendor: https://issues.apache.org/jira/browse/TS-627
+Author: Arno Toell <debian@toell.net>
+Last-Update: 01.11.11
+Description: Upstream buils by default by using the gcc flag "-Werror".
+	This breaks the build process as `make checks' includes some non clean casts.
+Applied-Upstream: The current SVN trunk has fixed this issue for 2.1.6
+
+* configure.ac: Disable -Werror
+--- a/configure.ac
++++ b/configure.ac
+@@ -40,7 +40,7 @@
+ AC_CONFIG_AUX_DIR([build/aux])
+ AC_CONFIG_SRCDIR([proxy/Main.cc])
+ AC_CONFIG_MACRO_DIR([build])
+-AM_INIT_AUTOMAKE([-Wall -Werror foreign no-installinfo no-installman 1.9.2])
++AM_INIT_AUTOMAKE([-Wall foreign no-installinfo no-installman 1.9.2])
+ AM_CONFIG_HEADER([lib/ts/ink_autoconf.h])
+ 
+ # Not sure this is needed, and seems to break with some versions of automake
+@@ -553,7 +553,7 @@
+     else # gcc
+     # This is useful for finding odd conversions
+     #    common_opt="-pipe -Wall -Werror -Wconversion -Wno-sign-conversion"
+-      common_opt="-pipe -Wall -Werror"
++      common_opt="-pipe -Wall"
+       debug_opt="-ggdb3 $common_opt"
+       release_opt="-g $common_opt -O3 -feliminate-unused-debug-symbols -fno-strict-aliasing"
+       cxx_opt="-Wno-invalid-offsetof"

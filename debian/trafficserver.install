@@ -1,0 +1,5 @@
+debian/tmp/var/log/*
+debian/tmp/var/cache/*
+debian/tmp/var/run/*
+debian/tmp/usr/bin/traffic_*
+debian/tmp/etc/trafficserver/*

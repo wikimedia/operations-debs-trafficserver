@@ -1,0 +1,31 @@
+Source: trafficserver
+Section: web
+Priority: extra
+Maintainer: Arno Toell <debian@toell.net>
+Build-Depends: debhelper (>= 7.0.50~), libssl-dev, tcl-dev, libexpat1-dev,
+	libpcre3-dev, libsqlite3-dev, autoconf
+Standards-Version: 3.9.1
+Homepage: http://trafficserver.apache.org/
+#Vcs-Git: git://git.debian.org/collab-maint/trafficserver.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/trafficserver.git;a=summary
+
+Package: trafficserver
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14)
+Description: A fast, scalable and extensible HTTP/1.1 compliant caching proxy server. 
+ This package provides the Apache Traffic Server. A fast, scalable reverse
+ proxy server which may operate as forward proxy as well. Apache Traffic Server
+ supports:
+ .
+ * Caching: Improvess response time by caching and reusing frequently-requested web content.
+ * Proxying: Supports filtering, anonymization, load balancing and more
+ * Scaling: Scales well on modern SMP hardware
+ * Extensions: Use the API to modify anything from the HTTP headers to your own cache algorithm.
+
+Package: trafficserver-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, trafficserver (= ${binary:Version})
+Description: Apache Traffic Server Software Developers Kit (SDK)
+ This package provides development header and libraries needed to write your
+ own plug-ins for Apache Traffic Server
+

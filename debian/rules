@@ -1,0 +1,58 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+
+build: build-stamp
+build-stamp:
+	dh build --before auto_configure
+	autoreconf -i
+	./configure --prefix=/usr --sysconfdir=/etc/trafficserver \
+		--localstatedir=/var/run --includedir=/usr/include \
+		--libdir=/usr/lib --datadir=/var/cache/trafficserver \
+		--enable-layout=Debian --with-user=www-data \
+		--with-group=www-data
+	dh build --after auto_configure
+	touch $@
+
+install: install-stamp
+install-stamp: build-stamp
+	dh --before dh_auto_install install
+	dh_auto_install
+	rm -f debian/tmp/usr/bin/trafficserver # We install our own
+	dh --after dh_auto_install install
+	touch $@
+
+binary-arch: install
+	dh $@
+
+binary: binary-arch binary-indep
+
+override_dh_install:
+	dh_install --fail-missing
+	# fix permissions for etc/trafficserver. TS needs write permissions
+	install -d -m 0644 -o www-data -g www-data debian/traffivserver/var/log/trafficserver
+	chmod 0751 debian/traffivserver/etc/trafficserver debian/trafficserver/var/run/trafficserver
+	chown www-data:www-data debian/trafficserver/etc/trafficserver
+	chown www-data:www-data debian/trafficserver/var/run/trafficserver
+
+override_dh_clean:
+	dh_clean
+	find \( -name Makefile.in -o -name Makefile \) -exec rm -f {} \;
+	rm -rf build/aux/
+	rm -f build/libtool.m4 build/ltoptions.m4 build/ltsugar.m4 build/ltversion.m4 \
+		build/lt~obsolete.m4 aclocal.m4 example/app-template/records.config \
+		lib/ts/ink_autoconf.h.in
+	rm -f config.nice configure
+
+override_dh_fixperms:
+	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
+		-X var/log/trafficserver
+
+
+%:
+	dh $@

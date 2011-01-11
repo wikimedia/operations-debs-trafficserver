@@ -1,0 +1,32 @@
+Bug-Vendor: https://issues.apache.org/jira/browse/TS-634
+Author: Arno Toell <debian@toell.net> 
+Last-Update: 01.11.11
+Description: `make install' installs web-ui configuration files regardless it is enabled or not
+	Upstreams `make install' target installs web-ui configuration files regardless `--enable-ui' is passed or not. 
+	As this will confuse users it is favorable not to install that file at all, if the UI is not compiled. 
+
+* proxy/config/Makefile.am: Add conditional
+
+
+--- a/proxy/config/Makefile.am
++++ b/proxy/config/Makefile.am
+@@ -26,8 +26,10 @@
+   records.config \
+   storage.config
+ 
++ui_conf = \
++  admin_access.config
++
+ dist_sysconf_DATA =	\
+-  admin_access.config \
+   ae_ua.config \
+   cache.config \
+   cluster.config \
+@@ -51,3 +53,7 @@
+   update.config \
+   vaddrs.config
+ 
++
++if BUILD_WEBUI
++  dist_sysconf_DATA += $(ui_conf)
++endif

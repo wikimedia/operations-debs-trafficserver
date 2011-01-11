@@ -1,0 +1,34 @@
+# Defaults for trafficserver initscript
+# sourced by /etc/init.d/trafficserver
+# installed at /etc/default/trafficserver by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+
+
+# RUNDIR=/var/run/trafficserver
+
+# TC_START=yes
+# TC_DAEMON_ARGS=""
+# TC_PIDFILE=$RUNDIR/cop.lock
+
+
+##
+## NOTICE: 
+##          Everything from here and below should not be changed
+##          unless you set TC_START=no
+##          This is because traffic_manager and traffic_server
+##          are started by the traffic_cop watchdog by default!
+##          Don't start those daemons through the init script if
+##          traffic_cop starts them as well! This causes problems.
+
+# TM_START=no
+# TM_DAEMON_ARGS=""
+# TM_PIDFILE=$RUNDIR/manager.lock
+
+
+# TS_START=no
+# TS_DAEMON_ARGS=""
+# TS_PIDFILE=$RUNDIR/server.lock
+
