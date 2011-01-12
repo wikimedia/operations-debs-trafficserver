@@ -10,6 +10,40 @@ be careful when editing them, chances are Traffic Server WILL OVERWRITE them.
 This is especially true for comments which are not kept when using 
 `traffic_line' (as explained below). 
 
+* -----------------------------------------------------------------------------
+  SECURITY WARNING 
+  -----------------------------------------------------------------------------
+
+  Apache Traffic Server will open four listening sockets on your machine.
+  Chances are you may want to have at least the listening process of `traffic_-
+  server' public facing. 
+  See below for instructions on how to restrict this interface to an IP address
+  and port. By default `traffic_server' will listen on 0.0.0.0:8080.
+
+  However, running `traffic_manager' will open three more ports on your host.
+  Those are by default:
+    + 0.0.0.0:8083 - A health check for cluster peers
+    + 0.0.0.0:8084 - The process management port
+    + 0.0.0.0:8088 - A CLI like remote configuration interface
+  
+  While you are able to change the listening port for those connections, it is
+  currently not possible to restrict the listening interface as well. Yes, this
+  means Apache Traffic Manager may be remotely controlled. Please note though, 
+  the default behaviour is not to accept intructions from any source different
+  than `localhost'. THIS CHANGES AS SOON AS YOU ENABLE CLUSTER SUPPORT. THAT 
+  IS, IF YOU CHANGE THE VALUE OF 
+
+    LOCAL proxy.local.cluster.type INT 3
+
+  TO ANY VALUE DIFFERENT THAN 3 (= NOT CLUSTERING) TRAFFIC MANAGER MAY BE CONT-
+  ROLLED REMOTELY AS WELL. MAKE SURE YOU HAVE A FIREWALL, FILTERING UNAUTHOR-
+  IZED ACCESS. THERE IS CURRENTLY NO AUTHENTICATION TAKING PLACE HERE!
+  
+  If you do not need any of `traffic_manager''s features you may want to dis-
+  able it completely (in that case you have to disable `traffic_cop' as well).
+  See [5] for functionality added by `traffic_manager'.
+  -----------------------------------------------------------------------------
+
 * To get a general idea about traffic server and its architecture, read [4]. It is 
   crucial to understand the internal architecture before trying to start.
 
@@ -35,6 +69,11 @@ This is especially true for comments which are not kept when using
 
     # Configure the cluster interface
     CONFIG proxy.config.cluster.ethernet_interface STRING eth0
+
+
+    # You may also want to bind your proxy server to a specific IP:
+    # Please note the security warning below as well
+    CONFIG proxy.local.incoming_ip_to_bind 1.2.3.4
 
     # Next configure the listening port for incoming connections
     CONFIG proxy.config.http.server_port INT 80
@@ -65,6 +104,17 @@ This is especially true for comments which are not kept when using
 * For a more comprehensive documentation about Traffic Server and its
   configuration directives consult [3]. 
 
+  Yet the documentation on the web page can not be considered up to date. Feel
+  free to ask for help on the Apache Traffic Server mailing list:
+
+  E-Mail <users@trafficserver.apache.org> 
+  URL: <http://mail-archives.apache.org/mod_mbox/trafficserver-users/>
+
+  or #traffic-server on irc.freenode.net. 
+  More and more information can be found in the Wiki as well:
+ 
+  URL: https://cwiki.apache.org/TS/traffic-server.html
+
 * Proxy server can basically act in two modes: As forward proxy and as a 
   reverse proxy. Traffic Servers primary purpose is to act as reverse proxy
   (e.g. different to Squid). Nonetheless you can Traffic Server still instruct
@@ -80,5 +130,6 @@ This is especially true for comments which are not kept when using
 [2] https://cwiki.apache.org/TS/squidconfigtranslation.html
 [3] http://trafficserver.apache.org/docs/v2/admin/files.htm#records.config
 [4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
+[5] http://trafficserver.apache.org/docs/v2/admin/index.html
 
  -- Arno Toell <debian@toell.net>  Tue, 11 Jan 2011 12:49:18 +0100

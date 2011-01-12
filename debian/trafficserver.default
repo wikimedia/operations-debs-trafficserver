@@ -6,9 +6,13 @@
 # This is a POSIX shell fragment
 #
 
+##
+## SECURITY WARNING: 
+##                   Make sure you read `/usr/share/doc/trafficserver/
+##                   CONFIGURATION.Debian' before going on.
+##
 
 # RUNDIR=/var/run/trafficserver
-
 # TC_START=yes
 # TC_DAEMON_ARGS=""
 # TC_PIDFILE=$RUNDIR/cop.lock
@@ -22,6 +26,8 @@
 ##          are started by the traffic_cop watchdog by default!
 ##          Don't start those daemons through the init script if
 ##          traffic_cop starts them as well! This causes problems.
+##
+##          Choose either alternative, but do not mix up both.
 
 # TM_START=no
 # TM_DAEMON_ARGS=""
