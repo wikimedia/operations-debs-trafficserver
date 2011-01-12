@@ -32,6 +32,7 @@ Description: Apache Traffic Server conf_remap plugin
 
 Package: trafficserver-dev
 Architecture: all
+Depends: ${misc:Depends}
 Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides development header and libraries needed to write your
