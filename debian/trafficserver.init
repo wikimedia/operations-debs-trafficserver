@@ -106,7 +106,7 @@ start_cmd()
 {
 	# Args
 	DAEMON=$1
-	DAEMON_ARGS= $2
+	DAEMON_ARGS=$2
 	PID=$3
 	
 	#echo "\n\n"
@@ -173,6 +173,17 @@ do_start() {
 
 	## Starting TS and TM is usually not needed as TC takes care!
 
+
+	if [ "x$TM_START" != "xno" ]; then
+		[ "$VERBOSE" != no ] && log_daemon_msg "\t$TM_NAME"
+		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
+		case "$?" in
+			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		esac
+	fi
+
+
 	if [ "x$TS_START" != "xno" ]; then
 		[ "$VERBOSE" != no ] && log_daemon_msg "\ŧ$TS_NAME"
 		start_cmd "$TS_DAEMON" "$TS_DAEMON_ARGS" "$TS_PIDFILE"
@@ -183,15 +194,6 @@ do_start() {
 
 	fi
 
-
-	if [ "x$TM_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_daemon_msg "\t$TM_NAME"
-		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
-		case "$?" in
-			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
-		esac
-	fi
 
 }
 

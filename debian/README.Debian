@@ -16,6 +16,10 @@ trafficserver for Debian
   some components of Traffic Server may behave differently than indicated in
   documentation and some configuration options may not be honored.
 
+  There may be some legacy code paths that are not supposed to be working any-
+  more. If you find something not working or some weird errors consider filing
+  a bug report. Major features are working though. 
+
   I tried to point out some issues you will likely run into when modifying
   the default/trafficserver or init.d/trafficserver scripts.
 
