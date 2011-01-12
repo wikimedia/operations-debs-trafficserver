@@ -24,9 +24,15 @@ Description: A fast, scalable and extensible HTTP/1.1 compliant caching proxy se
    * Extensions: Use the API to modify anything from the HTTP headers to your
      own cache algorithm.
 
-Package: trafficserver-dev
-Architecture: any
+Package: trafficserver-plugin-conf-remap
+Architecture: all
 Depends: ${shlibs:Depends}, ${misc:Depends}, trafficserver (= ${binary:Version})
+Description: Apache Traffic Server conf_remap plugin
+ This package provides the conf_remap plugin for Apache Traffic Server.
+
+Package: trafficserver-dev
+Architecture: all
+Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides development header and libraries needed to write your
  own plug-ins for Apache Traffic Server

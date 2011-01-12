@@ -89,7 +89,7 @@ createdir() {
 
 # Make sure $RUNDIR exists as the underlying file system
 # may be volatile (see § 9.3.2 from DPM)
-[ ! -d $RUNDIR ] || createdir www-data www-data 0751 $RUNDIR
+[ ! -d $RUNDIR ] || createdir www-data www-data 0755 $RUNDIR
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
