@@ -25,7 +25,7 @@ Description: A fast, scalable and extensible HTTP/1.1 compliant caching proxy se
      own cache algorithm.
 
 Package: trafficserver-plugin-conf-remap
-Architecture: all
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, trafficserver (= ${binary:Version})
 Description: Apache Traffic Server conf_remap plugin
  This package provides the conf_remap plugin for Apache Traffic Server.
