@@ -2,10 +2,11 @@ trafficserver (2.1.5-unstable-1) unstable; urgency=low
 
   * Initial release (Closes: #609285)
   * This is a first attempt to package Apache Traffic Server for 
-    Debian. Known Limitations so far:
+    Debian. Feel free to install and gain some knowledge about
+    Apache Traffic Server. 
     + The package ships without manpages (upstream does not pro-
       vide)
     + Some non standard behaviour. Consult `/usr/share/doc/
-      trafficserver/README.Debian' for details
+      trafficserver/README.Debian' for detailed information
 
- -- Arno Toell <debian@toell.net>  Tue, 11 Jan 2011 11:49:18 +0100
+ -- Arno Toell <debian@toell.net>  Tue, 13 Jan 2011 11:49:18 +0100
