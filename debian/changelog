@@ -1,12 +1,16 @@
 trafficserver (2.1.5-unstable-1) unstable; urgency=low
 
   * Initial release (Closes: #609285)
-  * This is a first attempt to package Apache Traffic Server for 
-    Debian. Feel free to install and gain some knowledge about
-    Apache Traffic Server. 
-    + The package ships without manpages (upstream does not pro-
-      vide)
-    + Some non standard behaviour. Consult `/usr/share/doc/
-      trafficserver/README.Debian' for detailed information
+  * Added some configuration and informational hints
+  * New upstream release. Major features:
+    + Better AMD64 support
+    + Override configuration per transaction
+    + IPv6
+    + Support ARM architectures
+    + SDK-API changes
+  * Differences to upstream version:
+    + Ship some documentation. Well, really a few hints
+    + Split source into three packages (core, plug-in, SDK)
+    + Ship our own init script 
 
  -- Arno Toell <debian@toell.net>  Tue, 13 Jan 2011 11:49:18 +0100
