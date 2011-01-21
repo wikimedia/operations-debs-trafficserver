@@ -12,8 +12,9 @@
 ##                   CONFIGURATION.Debian' before going on.
 ##
 
+
+TC_START=no
 # RUNDIR=/var/run/trafficserver
-# TC_START=yes
 # TC_DAEMON_ARGS=""
 # TC_PIDFILE=$RUNDIR/cop.lock
 
