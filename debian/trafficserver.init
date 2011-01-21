@@ -51,7 +51,7 @@ eval TS_BASE="`echo $TS_ROOT | ${ESED} -e 's;/usr$;;'`"
 
 RUNDIR=${RUNDIR:-$TS_BASE/var/run/trafficserver}
 
-TC_START=${TC_NAME:-no}
+TC_START=${TC_START:-no}
 TC_NAME=${TC_NAME:-traffic_cop}
 TC_DAEMON=${TC_DAEMON:-$TS_BASE/usr/bin/traffic_cop}
 TC_DAEMON_ARGS=""
