@@ -1,0 +1,18 @@
+#! /usr/bin/env sh
+
+USER='trafficserver'
+USER_HOME='/var/run/trafficserver'
+
+if ! getent passwd $USER >/dev/null 2>&1 ; then
+    adduser --home $USER_HOME \
+       --system \
+       --disabled-password \
+       --gecos "Debian Traffic Server user" \
+	$USER
+fi
+
+install -d -m 0755 -o $USER -g nogroup /var/log/trafficserver
+chmod 0755 /etc/trafficserver /var/run/trafficserver
+chown -R $USER:nogroup /etc/trafficserver
+chown $USER:nogroup /var/run/trafficserver
+
