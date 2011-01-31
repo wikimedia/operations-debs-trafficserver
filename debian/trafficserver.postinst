@@ -22,7 +22,7 @@ set -e
 
 USER='trafficserver'
 USER_HOME='/var/run/trafficserver'
-OWNER=$(/usr/bin/env stat -c '%U' /etc/trafficserver)
+OWNER=$(env stat -c '%U' /etc/trafficserver)
 
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
