@@ -11,7 +11,8 @@ Homepage: http://trafficserver.apache.org/
 
 Package: trafficserver
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
+	coreutils
 Description: a fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well. Apache Traffic Server
