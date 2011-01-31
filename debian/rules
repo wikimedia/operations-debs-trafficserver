@@ -35,6 +35,8 @@ binary: binary-arch binary-indep
 override_dh_install:
 	dh_install --fail-missing
 	# fix permissions for etc/trafficserver. TS needs write permissions
+	sed -r -i 's/CONFIG proxy.config.(alarm_email|admin.user_id)\s+STRING\s+nobody/CONFIG proxy.config.\1 STRING trafficserver/' \
+		debian/trafficserver/etc/trafficserver/records.config
 	#install -d -m 0755 -o www-data -g www-data debian/trafficserver/var/log/trafficserver
 	#chmod 0755 debian/trafficserver/etc/trafficserver debian/trafficserver/var/run/trafficserver
 	#chown www-data:www-data debian/trafficserver/etc/trafficserver
