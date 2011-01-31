@@ -1,4 +1,4 @@
-#! /usr/bin/env sh
+#! /usr/bin/sh
 # postinst script for trafficserver
 #
 # see: dh_installdeb(1)
