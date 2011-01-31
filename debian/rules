@@ -14,7 +14,7 @@ build-stamp:
 	./configure --prefix=/usr --sysconfdir=/etc/trafficserver \
 		--localstatedir=/var/run --includedir=/usr/include \
 		--libdir=/usr/lib --datadir=/var/cache/trafficserver \
-		--enable-layout=Debian --with-user=trafficserver \
+		--enable-layout=Debian --with-user=nobody \
 		--with-group=nogroup
 	dh build --after auto_configure
 	touch $@
