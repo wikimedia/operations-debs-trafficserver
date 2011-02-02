@@ -55,7 +55,7 @@ configure)
 		$USER
 	fi
 
-	if [ -d /etc/trafficserver ] && [ "x$OWNER" = "xnobody" ] ; then
+	if [ -d /etc/trafficserver ] && [ "x$OWNER" = "xroot" ] ; then
 		# Ok, I admit I am lazy. I don't check every permission
 		# the user may have changed. If he didn't for /etc I can
 		# safely assume he neither has for other directories (I 
