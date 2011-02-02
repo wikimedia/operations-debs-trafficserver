@@ -71,7 +71,7 @@ configure)
 		fi
 
 
-		find /etc/trafficserver -not -owner $USER -exec \
+		find /etc/trafficserver -not -user $USER -exec \
 			chown -h $USER:$GROUP {} \;
 
 
