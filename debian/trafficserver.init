@@ -213,8 +213,12 @@ do_stop() {
 
 case "$1" in
   start)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC"
-	do_start
+	if [ "x$TC_START" = "xno" ] && [ "x$TM_START" = "xno" ] && [ "x$TS_START" = "xno" ]; then
+		[ "$VERBOSE" != no ] && log_warning_msg "Not starting $DESC"
+	else
+		[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC"
+		do_start
+	fi
 	;;
   stop)
 	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC"
