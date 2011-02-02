@@ -150,7 +150,7 @@ stop_cmd()
 do_start() {
 
 	if [ "x$TC_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_daemon_msg "\t$TC_NAME"
+		[ "$VERBOSE" != no ] && log_progress_msg "$TC_NAME"
 		start_cmd "$TC_DAEMON" "$TC_DAEMON_ARGS" "$TC_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -162,7 +162,7 @@ do_start() {
 
 
 	if [ "x$TM_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_daemon_msg "\t$TM_NAME"
+		[ "$VERBOSE" != no ] && log_progress_msg "$TM_NAME"
 		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -172,7 +172,7 @@ do_start() {
 
 
 	if [ "x$TS_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_daemon_msg "\ŧ$TS_NAME"
+		[ "$VERBOSE" != no ] && log_progress_msg "$TS_NAME"
 		start_cmd "$TS_DAEMON" "$TS_DAEMON_ARGS" "$TS_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -186,7 +186,7 @@ do_start() {
 
 
 do_stop() {
-	[ "$VERBOSE" != no ] && log_daemon_msg "\t$TC_NAME"
+	[ "$VERBOSE" != no ] && log_progress_msg "$TC_NAME"
 	stop_cmd "$TC_NAME" "$TC_DAEMON" "$TC_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -195,7 +195,7 @@ do_stop() {
 
 
 	
-	[ "$VERBOSE" != no ] && log_daemon_msg "\t$TM_NAME"
+	[ "$VERBOSE" != no ] && log_progress_msg "$TM_NAME"
 	stop_cmd "$TM_NAME" "$TM_DAEMON" "$TM_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -203,7 +203,7 @@ do_stop() {
 	esac
 
 
-	[ "$VERBOSE" != no ] && log_daemon_msg "\t$TS_NAME"
+	[ "$VERBOSE" != no ] && log_progress_msg "$TS_NAME"
 	stop_cmd "$TS_NAME" "$TS_DAEMON" "$TS_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -213,11 +213,11 @@ do_stop() {
 
 case "$1" in
   start)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME\n"
+	[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC"
 	do_start
 	;;
   stop)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME\n"
+	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC"
 	do_stop
 	;;
   status)
