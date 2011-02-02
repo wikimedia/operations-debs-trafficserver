@@ -70,9 +70,6 @@ configure)
 			dpkg-statoverride --update --add $USER adm 0750 /var/log/trafficserver
 		fi
 
-		if ! dpkg-statoverride --list /var/run/trafficserver >/dev/null 2>&1; then
-			dpkg-statoverride --update --add $USER $GROUP 0750 /var/run/trafficserver
-		fi
 
 		find /etc/trafficserver -not -owner $USER -exec \
 			chown -h $USER:$GROUP {} \;
