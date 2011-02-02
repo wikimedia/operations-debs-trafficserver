@@ -71,25 +71,12 @@ TS_DAEMON_ARGS=""
 TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 
 
-# stolen from cyrus-imapd.init
-createdir() {
-# $1 = user
-# $2 = group
-# $3 = permissions (octal)
-# $4 = path to directory
-       [ -d "$4" ] || mkdir -p "$4"
-       chown -c -h "$1:$2" "$4"
-       chmod -c "$3" "$4"
-}
-
-
-
 # Exit if the package is not installed
 [ -x "$TC_DAEMON" ] || exit 0
 
 # Make sure $RUNDIR exists as the underlying file system
 # may be volatile (see § 9.3.2 from DPM)
-[ ! -d $RUNDIR ] || createdir trafficserver trafficserver 0755 $RUNDIR
+[ ! -d $RUNDIR ] || install -o trafficserver -g trafficserver -m 0755 "$RUNDIR"
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
