@@ -76,7 +76,7 @@ TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 
 # Make sure $RUNDIR exists as the underlying file system
 # may be volatile (see § 9.3.2 from DPM)
-[ ! -d $RUNDIR ] || install -o trafficserver -g trafficserver -m 0755 "$RUNDIR"
+[ ! -d $RUNDIR ] || install -d -o trafficserver -g trafficserver -m 0755 "$RUNDIR"
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
