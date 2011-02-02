@@ -21,6 +21,7 @@
 set -e
 
 USER='trafficserver'
+GROUP='trafficserver'
 USER_HOME='/var/run/trafficserver'
 OWNER=$(env stat -c '%U' /etc/trafficserver)
 
@@ -46,6 +47,7 @@ configure)
 
 	if ! getent passwd $USER >/dev/null 2>&1 ; then
 	adduser --home $USER_HOME \
+		--group \
 		--system \
 		--disabled-password \
 		--no-create-home \
@@ -59,8 +61,23 @@ configure)
 		# safely assume he neither has for other directories (I 
 		# hope, since /etc requires write permissions by ATS). 
 		echo 'Fixing permissions ...'
-		chown -R $USER:nogroup /etc/trafficserver \
-			/var/log/trafficserver /var/run/trafficserver
+
+		if ! dpkg-statoverride --list /etc/trafficserver >/dev/null 2>&1; then
+		    dpkg-statoverride --update --add $USER $GROUP 0755 /etc/trafficserver
+		fi
+
+		if ! dpkg-statoverride --list /var/log/trafficserver >/dev/null 2>&1; then
+			dpkg-statoverride --update --add $USER adm 0750 /var/log/trafficserver
+		fi
+
+		if ! dpkg-statoverride --list /var/run/trafficserver >/dev/null 2>&1; then
+			dpkg-statoverride --update --add $USER $GROUP 0750 /var/run/trafficserver
+		fi
+
+		find /etc/trafficserver -not -owner $USER -exec \
+			chown -h $USER:$GROUP {} \;
+
+
 	fi
 ;;
 
