@@ -6,8 +6,8 @@ Build-Depends: debhelper (>= 7.0.50~), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool
 Standards-Version: 3.9.1
 Homepage: http://trafficserver.apache.org/
-#Vcs-Git: git://git.debian.org/collab-maint/trafficserver.git
-#Vcs-Browser: http://git.debian.org/?p=collab-maint/trafficserver.git;a=summary
+Vcs-Svn: svn+ssh://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver
+Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/?root=collab-maint
 
 Package: trafficserver
 Architecture: any
