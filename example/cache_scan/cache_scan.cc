@@ -130,7 +130,7 @@ handle_scan(TSCont contp, TSEvent event, void *edata)
     const char s1[] = "URL: ", s2[] = "\n";
     cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, s1, sizeof(s1) - 1);
     TSCacheHttpInfoReqGet(cache_infop, &req_bufp, &req_hdr_loc);
-    url_loc = TSHttpHdrUrlGet(req_bufp, req_hdr_loc);
+    TSHttpHdrUrlGet(req_bufp, req_hdr_loc, &url_loc);
     url = TSUrlStringGet(req_bufp, url_loc, &url_len);
 
     cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, url, url_len);
@@ -222,18 +222,14 @@ cleanup(TSCont contp)
   if (cstate) {
     // cancel any pending cache scan actions, since we will be destroying the
     // continuation
-    if (cstate->pending_action) {
+    if (cstate->pending_action)
       TSActionCancel(cstate->pending_action);
-    }
 
-    if (cstate->net_vc) {
+    if (cstate->net_vc)
       TSVConnShutdown(cstate->net_vc, 1, 1);
-    }
 
     if (cstate->req_buffer) {
-      if (TSIOBufferDestroy(cstate->req_buffer) == TS_ERROR) {
-        TSError("failed to destroy req_buffer");
-      }
+      TSIOBufferDestroy(cstate->req_buffer);
       cstate->req_buffer = NULL;
     }
 
@@ -245,16 +241,11 @@ cleanup(TSCont contp)
     }
 
     if (cstate->resp_buffer) {
-      if (TSIOBufferDestroy(cstate->resp_buffer) == TS_ERROR) {
-        TSError("failed to destroy resp_buffer");
-      }
+      TSIOBufferDestroy(cstate->resp_buffer);
       cstate->resp_buffer = NULL;
     }
 
-    if (TSVConnClose(cstate->net_vc) == TS_ERROR) {
-      TSError("TSVConnClose failed");
-    }
-
+    TSVConnClose(cstate->net_vc);
     TSfree(cstate);
   }
   TSContDestroy(contp);
@@ -271,39 +262,23 @@ handle_io(TSCont contp, TSEvent event, void *edata)
   case TS_EVENT_VCONN_READ_COMPLETE:
     {
       //we don't care about the request, so just shut down the read vc
-      if (TSVConnShutdown(cstate->net_vc, 1, 0) == TS_ERROR) {
-        TSError("TSVConnShutdown failed");
-        cleanup(contp);
-        return 0;
-      }
+      TSVConnShutdown(cstate->net_vc, 1, 0);
       //setup the response headers so we are ready to write body
       char hdrs[] = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n";
       cstate->total_bytes = TSIOBufferWrite(cstate->resp_buffer, hdrs, sizeof(hdrs) - 1);
 
       if (cstate->key_to_delete) {
         TSAction actionp = TSCacheRemove(contp, cstate->key_to_delete);
-        if (actionp != TS_ERROR_PTR) {
-          if (!TSActionDone(actionp)) {
-            cstate->pending_action = actionp;
-          }
-        } else {
-          TSError("CacheRemove action failed");
-          cleanup(contp);
-          return 0;
+        if (!TSActionDone(actionp)) {
+          cstate->pending_action = actionp;
         }
       } else {
         char head[] = "<h3>Cache Contents:</h3>\n<p><pre>\n";
         cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, head, sizeof(head) - 1);
         //start scan
         TSAction actionp = TSCacheScan(contp, 0, 512000);
-        if (actionp != TS_ERROR_PTR) {
-          if (!TSActionDone(actionp)) {
-            cstate->pending_action = actionp;
-          }
-        } else {
-          TSError("CacheScan action failed");
-          cleanup(contp);
-          return 0;
+        if (!TSActionDone(actionp)) {
+          cstate->pending_action = actionp;
         }
       }
 
@@ -416,16 +391,17 @@ setup_request(TSCont contp, TSHttpTxn txnp)
 
   TSAssert(contp == global_contp);
 
-  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
+  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve client request header");
-    return TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    return TS_SUCCESS;
   }
 
-  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
-  if (!url_loc) {
+  if (TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve request url");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-    return TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    return TS_SUCCESS;
   }
 
   path = TSUrlPathGet(bufp, url_loc, &path_len);
@@ -433,19 +409,15 @@ setup_request(TSCont contp, TSHttpTxn txnp)
     TSError("couldn't retrieve request path");
     TSHandleMLocRelease(bufp, hdr_loc, url_loc);
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-    return TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    return TS_SUCCESS;
   }
 
   query = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
 
   if (path_len == 10 && !strncmp(path, "show-cache", 10)) {
-
     scan_contp = TSContCreate(cache_intercept, TSMutexCreate());
-    if (TSHttpTxnIntercept(scan_contp, txnp) != TS_SUCCESS) {
-      TSError("HttpTxnIntercept failed");
-      TSContDestroy(scan_contp);
-      goto Ldone;
-    }
+    TSHttpTxnIntercept(scan_contp, txnp);
     cstate = (cache_scan_state *) TSmalloc(sizeof(cache_scan_state));
     memset(cstate, 0, sizeof(cache_scan_state));
     cstate->http_txnp = txnp;
@@ -466,20 +438,15 @@ setup_request(TSCont contp, TSHttpTxn txnp)
         del_url_len = unescapifyStr(start);
         end = start + del_url_len;
 
-        if (TSCacheKeyCreate(&cstate->key_to_delete) != TS_SUCCESS) {
-          TSError("CacheKeyCreate failed");
-          TSfree(cstate);
-          goto Ldone;
-        }
-
+        cstate->key_to_delete = TSCacheKeyCreate();
         TSDebug("cache_iter", "deleting url: %s", start);
 
         TSMBuffer urlBuf = TSMBufferCreate();
-        TSMLoc urlLoc = TSUrlCreate(urlBuf);
+        TSMLoc urlLoc;
 
-        if (TSUrlParse(urlBuf, urlLoc, (const char **) &start, end) != TS_PARSE_DONE
-            || TSCacheKeyDigestFromUrlSet(cstate->key_to_delete, urlLoc)
-            != TS_SUCCESS) {
+        TSUrlCreate(urlBuf, &urlLoc);
+        if (TSUrlParse(urlBuf, urlLoc, (const char **) &start, end) != TS_PARSE_DONE ||
+            TSCacheKeyDigestFromUrlSet(cstate->key_to_delete, urlLoc) != TS_SUCCESS) {
           TSError("CacheKeyDigestFromUrlSet failed");
           TSfree(cstate);
           TSUrlDestroy(urlBuf, urlLoc);
@@ -492,11 +459,7 @@ setup_request(TSCont contp, TSHttpTxn txnp)
       }
     }
 
-    if (TSContDataSet(scan_contp, cstate) != TS_SUCCESS) {
-      TSError("ContDataSet failed");
-      TSfree(cstate);
-      goto Ldone;
-    }
+    TSContDataSet(scan_contp, cstate);
     TSDebug("cache_iter", "setup cache intercept");
   } else {
     TSDebug("cache_iter", "not a cache iter request");
@@ -505,8 +468,8 @@ setup_request(TSCont contp, TSHttpTxn txnp)
 Ldone:
   TSHandleMLocRelease(bufp, hdr_loc, url_loc);
   TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-
-  return TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+  TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+  return TS_SUCCESS;
 }
 
 //----------------------------------------------------------------------------
@@ -520,7 +483,8 @@ cache_print_plugin(TSCont contp, TSEvent event, void *edata)
   default:
     break;
   }
-  return TSHttpTxnReenable((TSHttpTxn) edata, TS_EVENT_HTTP_CONTINUE);
+  TSHttpTxnReenable((TSHttpTxn) edata, TS_EVENT_HTTP_CONTINUE);
+  return TS_SUCCESS;
 }
 
 //----------------------------------------------------------------------------

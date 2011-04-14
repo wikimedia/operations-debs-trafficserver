@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[2.1.5-unstable])
-m4_define([TS_VERSION_N],[2001005])
+m4_define([TS_VERSION_S],[2.1.7-unstable])
+m4_define([TS_VERSION_N],[2001007])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -123,12 +123,13 @@ AC_ARG_WITH([user],
   ]
 )
 
+default_group="`id -ng $with_user`"
 AC_ARG_WITH([group],
-  [AS_HELP_STRING([--with-group],[specify the system group [default: nogroup]])],
+  [AS_HELP_STRING([--with-group],[specify the system group [default: nobody]])],
   [
   with_group="$withval"
   ],[
-  with_group="nobody"
+  with_group=${default_group:-nobody}
   ]
 )
 AC_SUBST([pkgsysuser],[$with_user])
@@ -150,49 +151,60 @@ AC_ARG_ENABLE([debug],
 AC_MSG_RESULT([$enable_debug])
 
 #
+# Fast SDK APIs, this disables the parameter checks (assert)
+# on all APIs.
+#
+
+AC_MSG_CHECKING([whether to enable fast SDK APIs])
+AC_ARG_ENABLE([fast-sdk],
+  [AS_HELP_STRING([--enable-fast-sdk],[enable fast SDK APIs (no input parameter sanity checks)])],
+  [],
+  [enable_fast_sdk=no]
+)
+AC_MSG_RESULT([$enable_fast_sdk])
+TS_ARG_ENABLE_VAR([use], [fast-sdk])
+AC_SUBST(use_fast_sdk)
+
+#
 # Diags
 #
 
-use_diags=0
 AC_MSG_CHECKING([whether to enable diags])
 AC_ARG_ENABLE([diags],
   [AS_HELP_STRING([--disable-diags],[turn off diags])],
   [],
-  [enable_diags="yes"
-   use_diags=1
-  ]
+  [enable_diags=yes]
 )
 AC_MSG_RESULT([$enable_diags])
+TS_ARG_ENABLE_VAR([use], [diags])
 AC_SUBST(use_diags)
 
 #
 # Build regression tests?
 #
 
-has_tests=0
 AC_MSG_CHECKING([whether to enable regression tests])
 AC_ARG_ENABLE([tests],
   [AS_HELP_STRING([--disable-tests],[turn off regression tests])],
   [],
-  [enable_tests="yes"
-   has_tests=1
-  ]
+  [enable_tests=yes]
 )
 AC_MSG_RESULT([$enable_tests])
+TS_ARG_ENABLE_VAR([has], [tests])
 AC_SUBST(has_tests)
-AM_CONDITIONAL([BUILD_TESTS], [test "x$enable_tests" = "xyes"])
+AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 
 #
 # Purify
 #
-has_purify=0
 AC_MSG_CHECKING([whether to enable purify])
 AC_ARG_ENABLE([purify],
   [AS_HELP_STRING([--enable-purify],[enable support for Purify])],
-  [has_purify=1],
+  [],
   [enable_purify=no]
 )
 AC_MSG_RESULT([$enable_purify])
+TS_ARG_ENABLE_VAR([has], [purify])
 AC_SUBST(has_purify)
 
 #
@@ -207,45 +219,43 @@ AC_ARG_ENABLE([libev],
 )
 AC_MSG_RESULT([$enable_libev])
 
-
 #
 # Micro
 #
-is_micro_build=0
 AC_MSG_CHECKING([whether to enable micro-TS])
 AC_ARG_ENABLE([micro],
   [AS_HELP_STRING([--enable-micro],[enable micro-TS build [default: no]])],
-  [is_micro_build=1],
+  [],
   [enable_micro=no]
 )
-AC_SUBST(is_micro_build)
 AC_MSG_RESULT([$enable_micro])
+AS_IF([test "x$enable_micro" = "xyes"], [is_micro_build=1], [is_micro_build=0])
+AC_SUBST(is_micro_build)
 
 #
 # Standalone iocore
 #
-has_standalone_iocore=0
 AC_MSG_CHECKING([whether to build a standalone iocore])
 AC_ARG_ENABLE([standalone-iocore],
   [AS_HELP_STRING([--enable-standalone-iocore],[build just standalone iocore])],
-  [has_standalone_iocore=1],
+  [],
   [enable_standalone_iocore=no]
 )
 AC_MSG_RESULT([$enable_standalone_iocore])
+TS_ARG_ENABLE_VAR([has],[standalone-iocore])
 AC_SUBST(has_standalone_iocore)
-AS_IF([test "x$enable_standalone_iocore" = "xyes"],
+AS_IF([test 0 -ne $has_standalone_iocore],
   [AC_SUBST([IOCORE_MODULARIZED_DEFS],[""])
    AC_SUBST([ink_with_modules_def],["-DREC_BUILD_STAND_ALONE"])
    AC_SUBST([ink_with_modules_local],[""])
    AC_SUBST([ink_with_modules_process],[""])
-   AC_SUBST([hdr_dirs],"proxy/hdrs")
   ],
-  [AC_SUBST([ink_with_modules_def],["-DREC_BUILD_MGMT2"])
+  [AC_SUBST([ink_with_modules_def],["-DREC_BUILD_MGMT"])
    AC_SUBST([ink_with_modules_local],["-DLOCAL_MANAGER"])
    AC_SUBST([ink_with_modules_process],["-DPROCESS_MANAGER"])
   ]
 )
-AM_CONDITIONAL([STANDALONE_IOCORE], [test "x$enable_standalone_iocore" = "xyes"])
+AM_CONDITIONAL([STANDALONE_IOCORE], [test 0 -ne $has_standalone_iocore])
 
 #
 # Remote Coverity Prevent commit
@@ -262,89 +272,57 @@ AC_SUBST([enable_remote_cov_commit])
 #
 # WebUI
 #
-has_webui=0
 AC_MSG_CHECKING([whether to enable Web UI])
 AC_ARG_ENABLE([webui],
   [AS_HELP_STRING([--enable-webui],[enable Web UI [default: no]])],
-  [has_webui=1],
+  [],
   [enable_webui=no]
 )
 AC_MSG_RESULT([$enable_webui])
+TS_ARG_ENABLE_VAR([has],[webui])
 AC_SUBST(has_webui)
-AM_CONDITIONAL([BUILD_WEBUI], [test "x$enable_webui" = "xyes"])
+AM_CONDITIONAL([BUILD_WEBUI], [test 0 -ne $has_webui])
 
 #
 # API
 #
-has_inkapi=1
 AC_MSG_CHECKING([whether to enable API and plugin support])
 AC_ARG_ENABLE([api],
   [AS_HELP_STRING([--disable-api],[do not enable API and plugin support])],
-  [has_inkapi=0],
+  [],
   [enable_api=yes]
 )
 AC_MSG_RESULT([$enable_api])
+AS_IF([test "x$enable_api" = "xyes"], [has_inkapi=1], [has_inkapi=0])
 AC_SUBST(has_inkapi)
 
 #
 # Detailed Logging (for debugging purposes)
 #
-has_detailed_log=0
 AC_MSG_CHECKING([whether to enable detailed logging for debugging purposes])
 AC_ARG_ENABLE([detailed-log],
   [AS_HELP_STRING([--enable-detailed-log],[enable detailed logging])],
-  [has_detailed_log=1],
+  [],
   [enable_detailed_log=no]
 )
 AC_MSG_RESULT([$enable_detailed_log])
+TS_ARG_ENABLE_VAR([has],[detailed-log])
 AC_SUBST(has_detailed_log)
-AM_CONDITIONAL([BUILD_DETAILED_LOG], [test "x$enable_detailed_log" = "xyes"])
-
-#
-# Cli2
-#
-has_cli2=1
-AC_MSG_CHECKING([whether to enable cli2])
-AC_ARG_ENABLE([cli2],
-  [AS_HELP_STRING([--disable-cli2],[do not compile cli2])],
-  [has_cli2=0],
-  [enable_cli2=yes]
-)
-AC_MSG_RESULT([$enable_cli2])
-AS_IF([test "x$enable_cli2" = "xyes"],
-  [AC_SUBST([CLI_DIR],[cli2])]
-)
-AC_SUBST(has_cli2)
-
-#
-# Experimental V2 stats APIs (for plugins)
-#
-has_v2stats=0
-AC_MSG_CHECKING([whether to enable the experimental V2 stats subsystem for plugin APIs])
-AC_ARG_ENABLE([v2stats],
-  [AS_HELP_STRING([--enable-v2stats],[enable experimental V2 stats API])],
-  [has_v2stats=1],
-  [enable_v2stats=no]
-)
-AC_MSG_RESULT([$enable_v2stats])
-AC_SUBST(has_v2stats)
-AM_CONDITIONAL([BUILD_V2STATS], [test "x$enable_v2stats" = "xyes"])
+AM_CONDITIONAL([BUILD_DETAILED_LOG], [test 0 -ne $has_detailed_log])
 
 #
 # WCCP
 #
-has_wccp=0
 AC_MSG_CHECKING([whether to enable WCCP v2 support])
 AC_ARG_ENABLE([wccp],
   [AS_HELP_STRING([--enable-wccp],[enable WCCP v2])],
-  [
-    has_wccp=1
-  ],
+  [],
   [enable_wccp=no]
 )
 AC_MSG_RESULT([$enable_wccp])
+TS_ARG_ENABLE_VAR([has],[wccp])
 AC_SUBST(has_wccp)
-AM_CONDITIONAL([BUILD_WCCP], [test "x$enable_wccp" = "xyes"])
+AM_CONDITIONAL([BUILD_WCCP], [test 0 -ne $has_wccp])
 
 # Google profiler
 AC_MSG_CHECKING([whether to enable profiler])
@@ -474,7 +452,6 @@ TS_SUBST([pkgcachedir])
 
 REAL_CFLAGS="${CFLAGS}"
 REAL_CXXFLAGS="${CXXFLAGS}"
-REAL_CCASFLAGS="${CCASFLAGS}"
 
 AC_PROG_CC
 AC_PROG_CXX
@@ -522,7 +499,6 @@ AC_ARG_VAR([PERL], [full path of Perl executable])
 
 CFLAGS="${REAL_CFLAGS}"
 CXXFLAGS="${REAL_CXXFLAGS}"
-CCASFLAGS="${REAL_CCASFLAGS}"
 
 base_cc=`basename $CC`
 # These are shortcuts used in combination for the compiler options below
@@ -577,7 +553,6 @@ case $host_os in
   solaris*)
     if test "x${base_cc}" = "xcc"; then
       common_opt="-mt -m64 -D__WORDSIZE=64" # FIXME: arch should be detected
-      CCASFLAGS="-Wa,-32" # TODO: add 64bit support to atomic ops
       debug_opt="-g $common_opt"
       release_opt="-g $common_opt -xO3"
       cxx_opt="-library=stlport4"
@@ -747,7 +722,6 @@ fi
 # -----------------------------------------------------------------------------
 # 4. CHECK FOR LIBRARIES
 
-AC_CHECK_LIB([m],[sin],[AC_SUBST([LIBM],["-lm"])])
 AC_CHECK_LIB([exc],[exc_capture_context],[AC_SUBST([LIBEXC],["-lexc"])])
 AC_CHECK_LIB([mld],[MLD_demangle_string],[AC_SUBST([LIBMLD],["-lmld"])])
 AC_CHECK_LIB([dl],[dlopen],[AC_SUBST([LIBDL],["-ldl"])])
@@ -821,23 +795,6 @@ TS_CHECK_XML
 if test "x${enable_xml}" != "xyes"; then
   AC_MSG_ERROR([Need at least one XML library, --with-expat is supported])
 fi
-
-#
-# Check for default sqlite3 DB backend
-#
-use_sqlite3=1
-use_libdb=0
-TS_CHECK_SQLITE3
-if test "x${enable_sqlite3}" != "xyes"; then
-  TS_CHECK_BDB
-  if test "x${enable_libdb}" != "xyes"; then
-    AC_MSG_ERROR([Need at least one DB backend, --with-sqlite3 and --with-libdb are supported])
-  fi
-  use_sqlite3=0
-  use_libdb=1
-fi
-AC_SUBST(use_sqlite3)
-AC_SUBST(use_libdb)
 
 TS_FLAG_FUNCS([clock_gettime kqueue epoll_ctl posix_memalign posix_fadvise lrand48_r srand48_r port_create])
 TS_FLAG_FUNCS([strndup strlcpy strlcat])
@@ -1190,14 +1147,12 @@ MGMT_DEFS="$MGMT_DEFS -DMGMT_USE_SYSLOG"
 AC_MSG_NOTICE([Build using CC=$CC])
 AC_MSG_NOTICE([Build using CXX=$CXX])
 AC_MSG_NOTICE([Build using CPP=$CPP])
-AC_MSG_NOTICE([Build using CCAS=$CCAS])
 AC_MSG_NOTICE([Build using CFLAGS=$CFLAGS])
 AC_MSG_NOTICE([Build using SHARED_CFLAGS=$SHARED_CFLAGS])
 AC_MSG_NOTICE([Build using CXXFLAGS=$CXXFLAGS])
 AC_MSG_NOTICE([Build using SHARED_CXXFLAGS=$SHARED_CXXFLAGS])
 AC_MSG_NOTICE([Build using SHARED_CXXLINKFLAGS=$SHARED_LINKCXXFLAGS])
 AC_MSG_NOTICE([Build using CPPFLAGS=$CPPFLAGS])
-AC_MSG_NOTICE([Build using CCASFLAGS=$CCASFLAGS])
 AC_MSG_NOTICE([Build using LDFLAGS=$LDFLAGS])
 AC_MSG_NOTICE([Build using SHARED_LDFLAGS=$SHARED_LDFLAGS])
 AC_MSG_NOTICE([Build using EXTRA_CC_LDFLAGS=$EXTRA_CC_LDFLAGS])
@@ -1226,7 +1181,7 @@ AC_SUBST([TFW_PACKAGE_SUFFIX])
 # 6. OUTPUT FILES
 
 AC_CONFIG_FILES([lib/ts/ink_config.h proxy/api/ts/ts.h])
-AC_CONFIG_FILES([tsxs])
+AC_CONFIG_FILES([tools/tsxs])
 AC_CONFIG_FILES([doc/Doxyfile])
 AC_CONFIG_FILES([doc/Makefile])
 AC_CONFIG_FILES([rc/Makefile])
@@ -1251,40 +1206,39 @@ AC_CONFIG_FILES([proxy/config/records.config proxy/config/storage.config])
 AC_CONFIG_FILES([proxy/config/Makefile])
 AC_CONFIG_FILES([proxy/congest/Makefile])
 AC_CONFIG_FILES([proxy/hdrs/Makefile])
-AC_CONFIG_FILES([proxy/http2/Makefile])
-AC_CONFIG_FILES([proxy/http2/remap/Makefile])
+AC_CONFIG_FILES([proxy/http/Makefile])
+AC_CONFIG_FILES([proxy/http/remap/Makefile])
 AC_CONFIG_FILES([proxy/logging/Makefile])
 AC_CONFIG_FILES([proxy/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/api2/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/api2/remote/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/cli2/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/cli/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/cluster/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/cop/Makefile])
+AC_CONFIG_FILES([mgmt/api/Makefile])
+AC_CONFIG_FILES([mgmt/api/remote/Makefile])
+AC_CONFIG_FILES([mgmt/api/include/Makefile])
+AC_CONFIG_FILES([mgmt/cli/Makefile])
+AC_CONFIG_FILES([mgmt/cluster/Makefile])
 AS_IF([test "x$enable_webui" = "xyes"],
-  [AC_CONFIG_FILES([proxy/mgmt2/html2/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/agent-installer/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/charting/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/configure/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/configure/helper/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/images/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/include/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/monitor/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/mrtg/Makefile])
-   AC_CONFIG_FILES([proxy/mgmt2/html2/tune/Makefile])
+  [AC_CONFIG_FILES([mgmt/html2/Makefile])
+   AC_CONFIG_FILES([mgmt/html2/configure/Makefile])
+   AC_CONFIG_FILES([mgmt/html2/images/Makefile])
+   AC_CONFIG_FILES([mgmt/html2/include/Makefile])
+   AC_CONFIG_FILES([mgmt/html2/monitor/Makefile])
+   AC_CONFIG_FILES([mgmt/html2/mrtg/Makefile])
 ])
-AC_CONFIG_FILES([proxy/mgmt2/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/preparse/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/stats/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/tools/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/utils/Makefile])
-AC_CONFIG_FILES([proxy/mgmt2/web2/Makefile])
+AC_CONFIG_FILES([mgmt/Makefile])
+AC_CONFIG_FILES([mgmt/preparse/Makefile])
+AC_CONFIG_FILES([mgmt/stats/Makefile])
+AC_CONFIG_FILES([mgmt/tools/Makefile])
+AC_CONFIG_FILES([mgmt/utils/Makefile])
+AC_CONFIG_FILES([mgmt/web2/Makefile])
 AC_CONFIG_FILES([proxy/stats/Makefile])
-AC_CONFIG_FILES([proxy/wccp/Makefile])
+AC_CONFIG_FILES([lib/wccp/Makefile])
 AC_CONFIG_FILES([proxy/api/ts/Makefile])
+# Traffic Cop
+AC_CONFIG_FILES([cop/Makefile])
 # production plugins
 AC_CONFIG_FILES([plugins/Makefile])
 AC_CONFIG_FILES([plugins/conf_remap/Makefile])
+# various tools
+AC_CONFIG_FILES([tools/Makefile])
 # example plugins
 AC_CONFIG_FILES([example/Makefile])
 AC_CONFIG_FILES([example/add-header/Makefile])

@@ -16,16 +16,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+# Note that hdrs is targeted from ../Makefile.am
 if STANDALONE_IOCORE
 noinst_LIBRARIES = libTrafficServerStandalone.a
 bin_PROGRAMS =
 noinst_PROGRAMS =
 else
-SUBDIRS = congest http2 hdrs logging
-if BUILD_WCCP
-SUBDIRS += wccp
-endif
-SUBDIRS += mgmt2 config stats
+SUBDIRS = congest http logging config stats
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -37,27 +34,24 @@ endif
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
-  -I$(srcdir)/http2 \
+  -I$(srcdir)/http \
   -I$(srcdir)/logging \
-  -I$(srcdir)/http2/remap  \
+  -I$(srcdir)/http/remap  \
   -I$(srcdir)/hdrs \
-  -I$(srcdir)/mgmt2 \
-  -I$(srcdir)/mgmt2/preparse \
-  -I$(srcdir)/mgmt2/utils \
-  -I$(srcdir)/api/ts
+  -I$(top_srcdir)/mgmt \
+  -I$(top_srcdir)/mgmt/preparse \
+  -I$(top_srcdir)/mgmt/utils \
+  -I$(srcdir)/api/ts \
+  -I$(top_srcdir)/lib
 
 noinst_HEADERS = \
   ConfigParse.h \
-  NTDefs.h \
   Show.h
 
 EXTRA_PROGRAMS = \
-  test_StateEventLogger \
-  test_ClusterHashStandalone \
   test_xml_parser
 
 EXTRA_LIBRARIES	= \
-  libClusterHashStandalone.a \
   libTrafficServerStandalone.a
 
 EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
@@ -121,16 +115,11 @@ traffic_server_SOURCES = \
   StatPages.h \
   StatSystem.cc \
   StatSystem.h \
-  StatAPITypes.cc \
   Transform.cc \
   Transform.h \
   TransformInternal.h \
   Update.cc \
   Update.h
-
-if BUILD_V2STATS
-  traffic_server_SOURCES += StatSystemV2.cc
-endif
 
 if BUILD_TESTS
   traffic_server_SOURCES +=  InkAPITest.cc  \
@@ -141,15 +130,16 @@ endif
 
 traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 traffic_server_LDADD = \
-  http2/libhttp.a \
-  http2/remap/libhttp_remap.a \
+  http/libhttp.a \
+  http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
   logging/liblogging.a \
+  logging/liblogcollation.a \
   stats/libstats.a \
   hdrs/libhdrs.a  \
-  mgmt2/preparse/libpreparse.a \
-  mgmt2/utils/libutils_p.a \
-  mgmt2/libmgmt_p.a \
+  $(top_builddir)/mgmt/preparse/libpreparse.a \
+  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/iocore/utils/libinkutils.a \
   $(top_builddir)/iocore/cluster/libinkcluster.a \
   $(top_builddir)/iocore/dns/libinkdns.a \
@@ -162,73 +152,29 @@ traffic_server_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/ts/libts.a \
+  $(top_builddir)/lib/ts/.libs/libtsutil.a \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBDB@ @LIBSQLITE3@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
+  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ \
-  @LIBMLD@ @LIBEXC@ @LIBM@ @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
+  @LIBMLD@ @LIBEXC@ -lm @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
 
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 traffic_logcat_LDADD = \
-  ICP.o \
-  ICPConfig.o \
-  ICPProcessor.o \
-  ICPStats.o \
-  IPAllow.o \
-  ParentSelection.o \
-  ControlBase.o \
-  ControlMatcher.o CacheControl.o  \
-  StatSystem.o \
-  StatAPITypes.o \
-  ReverseProxy.o \
-  ProxyConfig.o \
   signals.o \
-  Error.o \
-  EventName.o \
-  DiagsConfig.o \
-  StatPages.o \
-  PluginVC.o \
-  AbstractBuffer.o \
-  Transform.o \
-  Prefetch.o \
-  Update.o \
-  Plugin.o \
-  PluginDB.o \
-  InkAPI.o \
-  FetchSM.o \
-  InkIOCoreAPI.o \
   InkXml.o \
-  http2/libhttp.a \
-  http2/remap/libhttp_remap.a \
+  DiagsConfig.o \
+  UglyLogStubs.o \
   logging/liblogging.a \
-  stats/libstats.a \
-  hdrs/libhdrs.a \
-  congest/libCongestionControl.a \
-  mgmt2/preparse/libpreparse.a \
-  mgmt2/utils/libutils_p.a \
-  mgmt2/libmgmt_p.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/hostdb/libinkhostdb.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/cache/libinkcache.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/aio/libinkaio.a \
-  $(top_builddir)/iocore/net/libinknet.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/ts/libts.a \
+  $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBDB@ @LIBSQLITE3@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ @LIBM@ @LIBPROFILER@ \
+  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
-
-if BUILD_V2STATS
-  traffic_logcat_LDADD += StatSystemV2.o
-endif
 
 if BUILD_TESTS
   traffic_logcat_LDADD += RegressionSM.o \
@@ -238,71 +184,20 @@ endif
 traffic_logstats_SOURCES = logstats.cc
 traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 traffic_logstats_LDADD = \
-  ICP.o \
-  ICPConfig.o \
-  ICPProcessor.o \
-  ICPStats.o \
-  IPAllow.o \
-  ParentSelection.o \
-  ControlBase.o \
-  ControlMatcher.o \
-  CacheControl.o  \
-  StatSystem.o \
-  StatAPITypes.o \
-  ReverseProxy.o \
-  ProxyConfig.o \
   signals.o \
-  Error.o \
-  EventName.o \
-  DiagsConfig.o \
-  StatPages.o \
-  PluginVC.o \
-  AbstractBuffer.o \
-  Transform.o \
-  Prefetch.o \
-  Update.o \
-  Plugin.o \
-  PluginDB.o \
-  InkAPI.o \
-  FetchSM.o \
-  InkIOCoreAPI.o \
   InkXml.o \
-  http2/libhttp.a \
-  http2/remap/libhttp_remap.a \
+  DiagsConfig.o \
+  UglyLogStubs.o \
   logging/liblogging.a \
-  stats/libstats.a \
-  hdrs/libhdrs.a \
-  congest/libCongestionControl.a \
-  mgmt2/preparse/libpreparse.a \
-  mgmt2/utils/libutils_p.a \
-  mgmt2/libmgmt_p.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/hostdb/libinkhostdb.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/cache/libinkcache.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/aio/libinkaio.a \
-  $(top_builddir)/iocore/net/libinknet.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/ts/libts.a \
+  $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBDB@ @LIBSQLITE3@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ @LIBM@ @LIBPROFILER@ \
+  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
-
-if BUILD_V2STATS
-  traffic_logstats_LDADD += StatSystemV2.o
-endif
-
-if BUILD_TESTS
-  traffic_logstats_LDADD += RegressionSM.o \
-    TestHook.o
-endif
 
 traffic_sac_SOURCES = sac.cc
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@
@@ -317,7 +212,6 @@ traffic_sac_LDADD = \
   ControlMatcher.o \
   CacheControl.o \
   StatSystem.o \
-  StatAPITypes.o \
   ReverseProxy.o \
   ProxyConfig.o \
   signals.o \
@@ -336,16 +230,16 @@ traffic_sac_LDADD = \
   FetchSM.o \
   InkIOCoreAPI.o \
   InkXml.o \
-  http2/libhttp.a \
-  http2/remap/libhttp_remap.a \
+  http/libhttp.a \
+  http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
   logging/liblogging.a \
+  logging/liblogcollation.a \
   stats/libstats.a \
   hdrs/libhdrs.a \
-  mgmt2/preparse/libpreparse.a \
-  mgmt2/utils/libutils_p.a \
-  mgmt2/libmgmt_p.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
+  $(top_builddir)/mgmt/preparse/libpreparse.a \
+  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/iocore/cluster/libinkcluster.a \
   $(top_builddir)/iocore/dns/libinkdns.a \
   $(top_builddir)/iocore/hostdb/libinkhostdb.a \
@@ -356,24 +250,16 @@ traffic_sac_LDADD = \
   $(top_builddir)/iocore/net/libinknet.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
-  $(top_builddir)/lib/ts/libts.a \
+  $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBDB@ @LIBSQLITE3@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ @LIBM@ @LIBPROFILER@ \
+  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ @LIBEV@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
-
-if BUILD_V2STATS
-  traffic_sac_LDADD += StatSystemV2.o
-endif
 
 if BUILD_TESTS
   traffic_sac_LDADD += RegressionSM.o \
     TestHook.o
 endif
-
-libClusterHashStandalone_a_SOURCES = \
-  ClusterHashStandalone.cc \
-  $(top_srcdir)/lib/ts/ParseRules.cc
 
 libTrafficServerStandalone_a_SOURCES = \
   signals.cc \
@@ -383,19 +269,9 @@ libTrafficServerStandalone_a_SOURCES = \
   DiagsConfig.cc \
   StatPages.cc \
   StatSystem.cc \
-  StatAPITypes.cc \
   AbstractBuffer.cc \
   Initialize.cc
 
-if BUILD_V2STATS
-  libTrafficServerStandalone_a_SOURCES += StatSystemV2.cc
-endif
-
-
-test_StateEventLogger_SOURCES =	StateEventLogger.cc
-
-test_ClusterHashStandalone_SOURCES = test_ClusterHashStandalone.c
-test_ClusterHashStandalone_LDADD = libClusterHashStandalone.a
 
 test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc DiagsConfig.cc
 

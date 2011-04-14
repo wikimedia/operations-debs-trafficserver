@@ -53,6 +53,6 @@ load_http_hdr_SOURCES = \
   MIME.h
 
 load_http_hdr_LDADD = -L. -lhdrs \
-  $(top_builddir)/lib/ts/libts.a \
+  $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTCL@ @LIBRT@ @LIBTHREAD@
 load_http_hdr_LDFLAGS = @EXTRA_CXX_LDFLAGS@

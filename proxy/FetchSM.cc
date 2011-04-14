@@ -41,7 +41,9 @@ FetchSM::cleanUp()
   http_parser_clear(&http_parser);
   client_response_hdr.destroy();
   xfree(client_response);
+
   PluginVC *vc = (PluginVC *) http_vc;
+
   vc->do_io_close();
   FetchSMAllocator.free(this);
 }
@@ -50,40 +52,45 @@ void
 FetchSM::httpConnect()
 {
   Debug(DEBUG_TAG, "[%s] calling httpconnect write", __FUNCTION__);
-  TSHttpConnect(_ip, _port, &(http_vc));
+  http_vc = TSHttpConnect(_ip, _port);
+
   PluginVC *vc = (PluginVC *) http_vc;
+
   read_vio = vc->do_io_read(this, INT64_MAX, resp_buffer);
   write_vio = vc->do_io_write(this, getReqLen(), req_reader);
 }
 
 char* FetchSM::resp_get(int *length) {
-*length = client_bytes;
-return client_response;
+  *length = client_bytes;
+  return client_response;
 }
 
 int FetchSM::InvokePlugin(int event, void *data)
 {
-  Continuation *cont = (Continuation*) contp;
   EThread *mythread = this_ethread();
-  MUTEX_TAKE_LOCK(cont->mutex,mythread);
-  int ret = cont->handleEvent(event,data);
-  MUTEX_UNTAKE_LOCK(cont->mutex,mythread);
+
+  MUTEX_TAKE_LOCK(contp->mutex,mythread);
+
+  int ret = contp->handleEvent(event,data);
+
+  MUTEX_UNTAKE_LOCK(contp->mutex,mythread);
+
   return ret;
 }
 void
-FetchSM::get_info_from_buffer(TSIOBufferReader the_reader)
+FetchSM::get_info_from_buffer(IOBufferReader *the_reader)
 {
   char *info;
 //  char *info_start;
 
   int64_t read_avail, read_done;
-  TSIOBufferBlock blk;
+  IOBufferBlock *blk;
   char *buf;
 
   if (!the_reader)
     return ;
 
-  read_avail = TSIOBufferReaderAvail(the_reader);
+  read_avail = the_reader->read_avail();
   Debug(DEBUG_TAG, "[%s] total avail " PRId64 , __FUNCTION__, read_avail);
   //size_t hdr_size = _headers.size();
   //info = (char *) xmalloc(sizeof(char) * (read_avail+1) + hdr_size);
@@ -96,22 +103,26 @@ FetchSM::get_info_from_buffer(TSIOBufferReader the_reader)
 
   /* Read the data out of the reader */
   while (read_avail > 0) {
-    blk = TSIOBufferReaderStart(the_reader);
-    buf = (char *) TSIOBufferBlockReadStart(blk, the_reader, &read_done);
-    memcpy(info, buf, read_done);
+    if (the_reader->block != NULL)
+      the_reader->skip_empty_blocks();
+    blk = the_reader->block;
+
+    // This is the equivalent of TSIOBufferBlockReadStart()
+    buf = blk->start() + the_reader->start_offset;
+    read_done = blk->read_avail() - the_reader->start_offset;
+
     if (read_done > 0) {
-      TSIOBufferReaderConsume(the_reader, read_done);
+      memcpy(info, buf, read_done);
+      the_reader->consume(read_done);
       read_avail -= read_done;
       info += read_done;
     }
   }
-
 }
 
 void
 FetchSM::process_fetch_read(int event)
 {
-
   Debug(DEBUG_TAG, "[%s] I am here read", __FUNCTION__);
   int64_t bytes;
   int bytes_used;

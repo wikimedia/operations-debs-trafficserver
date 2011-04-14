@@ -221,10 +221,10 @@ generate_request(int test_case)
 			     "X-Request-ID: %d\r\n" \
                              "Accept-Language: English,French\r\n" \
                              "\r\n"
-#define HTTP_REQUEST_FORMAT9 "GET http://www.inktomi.com/format9.html HTTP/1.0\r\n" \
+#define HTTP_REQUEST_FORMAT9 "GET http://trafficserver.apache.org/format9.html HTTP/1.0\r\n" \
 			     "X-Request-ID: %d\r\n" \
                              "\r\n"
-#define HTTP_REQUEST_FORMAT10 "GET http://www.inktomi.com/format10.html HTTP/1.0\r\n" \
+#define HTTP_REQUEST_FORMAT10 "GET http://trafficserver.apache.org/format10.html HTTP/1.0\r\n" \
 			      "X-Request-ID: %d\r\n" \
                               "\r\n"
 
@@ -401,24 +401,18 @@ get_request_id(TSHttpTxn txnp)
   TSMBuffer bufp;
   TSMLoc hdr_loc, id_loc;
   int id = -1;
-  int ret_val;
 
-  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
+  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     return -1;
   }
 
   id_loc = TSMimeHdrFieldFind(bufp, hdr_loc, X_REQUEST_ID, -1);
-  if ((id_loc == TS_NULL_MLOC) || (id_loc == TS_ERROR_PTR)) {
+  if (id_loc == TS_NULL_MLOC) {
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     return -1;
   }
 
-  ret_val = TSMimeHdrFieldValueIntGet(bufp, hdr_loc, id_loc, 0, &id);
-  if (ret_val == TS_ERROR) {
-    TSHandleMLocRelease(bufp, hdr_loc, id_loc);
-    TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-    return -1;
-  }
+  id = TSMimeHdrFieldValueIntGet(bufp, hdr_loc, id_loc, 0);
 
   TSHandleMLocRelease(bufp, hdr_loc, id_loc);
   TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
@@ -437,7 +431,7 @@ synclient_txn_create(void)
   TSMgmtInt proxy_port;
 
   ClientTxn *txn = (ClientTxn *) TSmalloc(sizeof(ClientTxn));
-  if (!TSMgmtIntGet(PROXY_CONFIG_NAME_HTTP_PORT, &proxy_port)) {
+  if (TSMgmtIntGet(PROXY_CONFIG_NAME_HTTP_PORT, &proxy_port) != TS_SUCCESS) {
     proxy_port = PROXY_HTTP_DEFAULT_PORT;
   }
   txn->connect_port = (int) proxy_port;
@@ -501,7 +495,7 @@ synclient_txn_send_request(ClientTxn * txn, char *request)
   TSCont cont;
 
   TSAssert(txn->magic == MAGIC_ALIVE);
-  txn->request = strdup(request);
+  txn->request = xstrdup(request);
   SET_TEST_HANDLER(txn->current_handler, synclient_txn_connect_handler);
 
   cont = TSContCreate(synclient_txn_main_handler, TSMutexCreate());
@@ -516,7 +510,7 @@ synclient_txn_send_request_to_vc(ClientTxn * txn, char *request, TSVConn vc)
 {
   TSCont cont;
   TSAssert(txn->magic == MAGIC_ALIVE);
-  txn->request = strdup(request);
+  txn->request = xstrdup(request);
   SET_TEST_HANDLER(txn->current_handler, synclient_txn_connect_handler);
 
   cont = TSContCreate(synclient_txn_main_handler, TSMutexCreate());

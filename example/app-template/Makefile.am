@@ -39,11 +39,11 @@ tsapp_LDADD =  \
         $(top_builddir)/iocore/utils/libinkutils.a \
         $(top_builddir)/iocore/eventsystem/libinkevent.a \
         $(top_builddir)/lib/records/librecprocess.a \
-        $(top_builddir)/lib/ts/libts.a \
+        $(top_builddir)/lib/ts/libtsutil.la \
 	  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-	  @LIBPCRE@ @LIBDB@ @LIBSQLITE3@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
+	  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
 	  @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ \
-	  @LIBMLD@ @LIBEXC@ @LIBM@ @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
+	  @LIBMLD@ @LIBEXC@ -lm @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
 
 EXTRA_DIST = records.config.in
 sysconfdir = $(pkgsysconfdir)

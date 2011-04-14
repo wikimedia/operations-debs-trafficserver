@@ -650,8 +650,7 @@ LogObject::roll_files_if_needed(long time_now)
       // remaining until the next roll, but we calculate this figure
       // every time ...
       //
-      int secs_to_next = LogUtils::seconds_to_next_roll(time_now, m_rolling_offset_hr,
-                                                        m_rolling_interval_sec);
+      int secs_to_next = LogUtils::seconds_to_next_roll(time_now, m_rolling_offset_hr, m_rolling_interval_sec);
 
       // ... likewise, we make sure we compute the absolute value
       // of the seconds since the last roll (which would otherwise
@@ -1172,7 +1171,7 @@ size_t LogObjectManager::flush_buffers(size_t * to_disk, size_t * to_net, size_t
 }
 
 
-int
+bool
 LogObjectManager::unmanage_api_object(LogObject * logObject)
 {
   ACQUIRE_API_MUTEX("A LogObjectManager::unmanage_api_object");
@@ -1189,11 +1188,11 @@ LogObjectManager::unmanage_api_object(LogObject * logObject)
 
       --_numAPIobjects;
       RELEASE_API_MUTEX("R LogObjectManager::unmanage_api_object");
-      return 1;
+      return true;
     }
   }
   RELEASE_API_MUTEX("R LogObjectManager::unmanage_api_object");
-  return 0;
+  return false;
 }
 
 void

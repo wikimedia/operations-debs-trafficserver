@@ -347,7 +347,6 @@ public:
 #endif
 
 #if defined(_IOCORE_WIN32)
-#include "NTUDPConnection.h"
 void initialize_thread_for_udp_net(EThread * thread);
 
 class UDPQueue;
@@ -444,7 +443,7 @@ public:
   };
   ~UDPWorkContinuation() {
   };
-  void init(Continuation * c, int numPairs, unsigned int my_ip, unsigned int dest_ip, int s_bufsize, int r_bufsize);
+  void init(Continuation * c, int num_pairs, unsigned int my_ip, unsigned int dest_ip, int s_bufsize, int r_bufsize);
   int StateCreatePortPairs(int event, void *data);
   int StateDoCallback(int event, void *data);
 

@@ -22,16 +22,16 @@ AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/proxy \
-  -I$(top_srcdir)/proxy/http2 \
-  -I$(top_srcdir)/proxy/http2/remap \
-  -I$(top_srcdir)/proxy/mgmt2 \
-  -I$(top_srcdir)/proxy/mgmt2/preparse \
-  -I$(top_srcdir)/proxy/mgmt2/utils \
-  -I$(top_srcdir)/proxy/hdrs
+  -I$(top_srcdir)/proxy/http \
+  -I$(top_srcdir)/proxy/http/remap \
+  -I$(top_srcdir)/proxy/hdrs \
+  -I$(top_srcdir)/mgmt \
+  -I$(top_srcdir)/mgmt/preparse \
+  -I$(top_srcdir)/mgmt/utils
 
 EXTRA_DIST = LogStandalone.cc
 
-noinst_LIBRARIES = liblogging.a
+noinst_LIBRARIES = liblogging.a liblogcollation.a
 
 liblogging_a_SOURCES = \
   LogAccess.cc \
@@ -46,13 +46,6 @@ liblogging_a_SOURCES = \
   LogBufferV1.h \
   Log.cc \
   Log.h \
-  LogCollationAccept.cc \
-  LogCollationAccept.h \
-  LogCollationBase.h \
-  LogCollationClientSM.cc \
-  LogCollationClientSM.h \
-  LogCollationHostSM.cc \
-  LogCollationHostSM.h \
   LogConfig.cc \
   LogConfig.h \
   LogFieldAliasMap.cc \
@@ -66,12 +59,22 @@ liblogging_a_SOURCES = \
   LogFormat.cc \
   LogFormat.h \
   LogFormatType.h \
-  LogHost.cc \
-  LogHost.h \
   LogLimits.h \
   LogObject.cc \
   LogObject.h \
   LogSock.cc \
   LogSock.h \
+  LogHost.cc \
+  LogHost.h \
   LogUtils.cc \
   LogUtils.h
+
+liblogcollation_a_SOURCES = \
+  LogConfigCollation.cc \
+  LogCollationAccept.cc \
+  LogCollationAccept.h \
+  LogCollationBase.h \
+  LogCollationClientSM.cc \
+  LogCollationClientSM.h \
+  LogCollationHostSM.cc \
+  LogCollationHostSM.h

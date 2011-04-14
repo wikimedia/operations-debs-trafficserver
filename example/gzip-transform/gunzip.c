@@ -137,9 +137,8 @@ gzip_data_destroy(GzipData * data)
       TSError("gunzip-transform: ERROR: inflateEnd (%d)!", err);
     }
 
-    if (data->output_buffer) {
+    if (data->output_buffer)
       TSIOBufferDestroy(data->output_buffer);
-    }
     TSfree(data);
   }
 }
@@ -296,7 +295,6 @@ gzip_transform_do(TSCont contp)
      as well as the continuation we are to call when the buffer is
      empty. */
   write_vio = TSVConnWriteVIOGet(contp);
-
   length = data->output_length;
 
   /* We also check to see if the write vio's buffer is non-NULL. A
@@ -443,12 +441,7 @@ gzip_transformable(TSHttpTxn txnp, int server)
     return -4;
   }
 
-  if (TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &value, NULL) == TS_ERROR) {
-    TSHandleMLocRelease(bufp, hdr_loc, field_loc);
-    TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-    return -5;
-  }
-
+  value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, NULL);
   if (value && (strncasecmp(value, "deflate", sizeof("deflate") - 1) == 0)) {
     TSHandleMLocRelease(bufp, hdr_loc, field_loc);
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
@@ -490,7 +483,7 @@ transform_plugin(TSCont contp, TSEvent event, void *edata)
       TSMLoc ae_loc;           /* for the accept encoding mime field */
 
       TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc);
-      ae_loc = TSMimeHdrFieldCreate(bufp, hdr_loc);
+      TSMimeHdrFieldCreate(bufp, hdr_loc, &ae_loc); /* Probably should check for errors */
       TSMimeHdrFieldNameSet(bufp, hdr_loc, ae_loc, "Accept-Encoding", -1);
       TSMimeHdrFieldValueAppend(bufp, hdr_loc, ae_loc, -1, "deflate", -1);
       TSMimeHdrFieldAppend(bufp, hdr_loc, ae_loc);
