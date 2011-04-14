@@ -2,13 +2,17 @@
 
     TS Configuration utilities for Errata and logging.
 
-    Copyright 2010 Network Geographics, Inc.
+    @section license License
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
@@ -147,21 +151,21 @@ logf_errno(Errata::Code code, char const* format, ...) {
   Errata zret;
   va_list rest;
   va_start(rest, format);
-  return vlogf_errno(zret, Errata::Id(), code, format, rest);
+  return vlogf_errno(zret, 0, code, format, rest);
 }
 
 Errata
 logf_errno(Errata& errata, Errata::Code code, char const* format, ...) {
   va_list rest;
   va_start(rest, format);
-  return vlogf_errno(errata, Errata::Id(), code, format, rest);
+  return vlogf_errno(errata, 0, code, format, rest);
 }
 
 Errata
 logf_errno(RvBase& rv, Errata::Code code, char const* format, ...) {
     va_list rest;
     va_start(rest, format);
-    return vlogf_errno(rv._errata, Errata::Id(), code, format, rest);
+    return vlogf_errno(rv._errata, 0, code, format, rest);
 }
 // ------------------------------------------------------
 }} // namespace ts::msg

@@ -76,24 +76,24 @@ struct EvacuationBlock;
 
 #define VC_LOCK_RETRY_EVENT() \
   do { \
-    trigger = mutex->thread_holding->schedule_in_local(this,MUTEX_RETRY_DELAY,event); \
+    trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay), event); \
     return EVENT_CONT; \
   } while (0)
 
 #define VC_SCHED_LOCK_RETRY() \
   do { \
-    trigger = mutex->thread_holding->schedule_in_local(this,MUTEX_RETRY_DELAY); \
+    trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay)); \
     return EVENT_CONT; \
   } while (0)
 
 #define CONT_SCHED_LOCK_RETRY_RET(_c) \
   do { \
-    _c->mutex->thread_holding->schedule_in_local(_c, MUTEX_RETRY_DELAY); \
+    _c->mutex->thread_holding->schedule_in_local(_c, HRTIME_MSECONDS(cache_config_mutex_retry_delay)); \
     return EVENT_CONT; \
   } while (0)
 
 #define CONT_SCHED_LOCK_RETRY(_c) \
-  _c->mutex->thread_holding->schedule_in_local(_c, MUTEX_RETRY_DELAY)
+  _c->mutex->thread_holding->schedule_in_local(_c, HRTIME_MSECONDS(cache_config_mutex_retry_delay))
 
 #define VC_SCHED_WRITER_RETRY() \
   do { \
@@ -228,6 +228,7 @@ extern int cache_config_hit_evacuate_size_limit;
 #endif
 extern int cache_config_force_sector_size;
 extern int cache_config_target_fragment_size;
+extern int cache_config_mutex_retry_delay;
 
 // CacheVC
 struct CacheVC: public CacheVConnection
@@ -242,10 +243,7 @@ struct CacheVC: public CacheVConnection
   void reenable_re(VIO *avio);
   bool get_data(int i, void *data);
   bool set_data(int i, void *data);
-  Action *action()
-  {
-    return &_action;
-  }
+
   bool is_ram_cache_hit()
   {
     ink_assert(vio.op == VIO::READ);
@@ -689,7 +687,7 @@ CacheVC::handleWriteLock(int event, Event *e)
     CACHE_TRY_LOCK(lock, part->mutex, mutex->thread_holding);
     if (!lock) {
       set_agg_write_in_progress();
-      trigger = mutex->thread_holding->schedule_in_local(this, MUTEX_RETRY_DELAY);
+      trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay));
       return EVENT_CONT;
     }
     ret = handleWrite(EVENT_CALL, e);
@@ -858,10 +856,8 @@ dir_overwrite_lock(CacheKey *key, Part *d, Dir *to_part, ProxyMutex *m, Dir *ove
 void TS_INLINE
 rand_CacheKey(CacheKey *next_key, ProxyMutex *mutex)
 {
-  uint32_t *b = (uint32_t *) & next_key->b[0];
-  InkRand & g = mutex->thread_holding->generator;
-  for (int i = 0; i < 4; i++)
-    b[i] = (uint32_t) g.random();
+  next_key->b[0] = mutex->thread_holding->generator.random();
+  next_key->b[1] = mutex->thread_holding->generator.random();
 }
 
 extern uint8_t CacheKey_next_table[];
@@ -976,7 +972,6 @@ struct Cache
   Action *open_write(Continuation *cont, URL *url, CacheHTTPHdr *request,
                      CacheHTTPInfo *old_info, time_t pin_in_cache = (time_t) 0,
                      CacheFragType type = CACHE_FRAG_TYPE_HTTP);
-  Action *remove(Continuation *cont, URL *url, CacheFragType type);
   static void generate_key(INK_MD5 *md5, URL *url, CacheHTTPHdr *request);
 #endif
 
@@ -1176,6 +1171,7 @@ TS_INLINE Action *
 CacheProcessor::remove(Continuation *cont, CacheKey *key, CacheFragType frag_type,
                        bool rm_user_agents, bool rm_link, char *hostname, int host_len)
 {
+  Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %u", cache_hash(*key));
 #ifdef CLUSTER_CACHE
   if (cache_clustering_enabled > 0) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));

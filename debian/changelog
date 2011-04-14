@@ -1,3 +1,9 @@
+trafficserver (2.1.7-unstable-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Arno Toell <debian@toell.net>  Thu, 14 Apr 2011 08:48:31 -0400
+
 trafficserver (2.1.5-unstable-1) unstable; urgency=low
 
   * Initial release (Closes: #609285)

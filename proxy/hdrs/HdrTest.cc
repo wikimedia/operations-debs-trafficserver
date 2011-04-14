@@ -56,10 +56,10 @@ HdrTest::go(RegressionTest * t, int atype)
 
   int status = 1;
 
-  hdrtoken_init(NULL);
-  url_init(NULL);
-  mime_init(NULL);
-  http_init(NULL);
+  hdrtoken_init();
+  url_init();
+  mime_init();
+  http_init();
 
   status = status & test_error_page_selection();
   status = status & test_http_hdr_print_and_copy();
@@ -358,7 +358,7 @@ HdrTest::test_url()
     "http://some.place/path;params?query#fragment",
 
     // Start with an easy one...
-    "http://www.inktomi.com/index.html",
+    "http://trafficserver.apache.org/index.html",
 
     // "cheese://bogosity",         This fails, but it's not clear it should work...
 
@@ -393,7 +393,7 @@ HdrTest::test_url()
     "http://foo:bar@some.place",
     "http://foo:bar@some.place/",
 
-    "mms://sm02.tsqa.inktomi.com/0102rally.asf",
+    "mms://sm02.tsqa.example.com/0102rally.asf",
     "pnm://foo:bar@some.place:80/path;params?query#fragment",
     "rtsp://foo:bar@some.place:80/path;params?query#fragment",
     "rtspu://foo:bar@some.place:80/path;params?query#fragment",
@@ -1542,15 +1542,15 @@ HdrTest::test_regex()
   
   const char *test_harness[] = {
     "foo",
-    "(.*\\.inktomi\\.com)",
-    "(.*\\.inktomi\\.org)"
+    "(.*\\.apache\\.org)",
+    "(.*\\.example\\.com)"
   };
   
   bri_box("test_regex");
   
   dfa.compile(test_harness,SIZEOF(test_harness));
-  status = status & (dfa.match("www.inktomi.com") == 1);
-  status = status & (dfa.match("www.inktomi.org") == 2);
+  status = status & (dfa.match("trafficserver.apache.org") == 1);
+  status = status & (dfa.match("www.example.com") == 2);
   status = status & (dfa.match("aaaaaafooooooooinktomi....com.org") == -1);
   status = status & (dfa.match("foo") == 0);
 

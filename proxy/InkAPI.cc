@@ -59,10 +59,6 @@
 #include "HttpAccept.h"
 #include "PluginVC.h"
 #include "FetchSM.h"
-#if TS_HAS_V2STATS
-#include <string> // TODO: Do we really need STL strings?
-#include "StatSystemV2.h"
-#endif
 #include "HttpDebugNames.h"
 #include "I_AIO.h"
 #include "I_Tasks.h"
@@ -110,10 +106,15 @@ tsapi const char *TS_URL_SCHEME_MAILTO;
 tsapi const char *TS_URL_SCHEME_NEWS;
 tsapi const char *TS_URL_SCHEME_NNTP;
 tsapi const char *TS_URL_SCHEME_PROSPERO;
+tsapi const char *TS_URL_SCHEME_TELNET;
+tsapi const char *TS_URL_SCHEME_TUNNEL;
+tsapi const char *TS_URL_SCHEME_WAIS;
+tsapi const char *TS_URL_SCHEME_PNM;
 tsapi const char *TS_URL_SCHEME_RTSP;
 tsapi const char *TS_URL_SCHEME_RTSPU;
-tsapi const char *TS_URL_SCHEME_TELNET;
-tsapi const char *TS_URL_SCHEME_WAIS;
+tsapi const char *TS_URL_SCHEME_MMS;
+tsapi const char *TS_URL_SCHEME_MMSU;
+tsapi const char *TS_URL_SCHEME_MMST;
 
 /* URL schemes string lengths */
 tsapi int TS_URL_LEN_FILE;
@@ -126,7 +127,14 @@ tsapi int TS_URL_LEN_NEWS;
 tsapi int TS_URL_LEN_NNTP;
 tsapi int TS_URL_LEN_PROSPERO;
 tsapi int TS_URL_LEN_TELNET;
+tsapi int TS_URL_LEN_TUNNEL;
 tsapi int TS_URL_LEN_WAIS;
+tsapi int TS_URL_LEN_PNM;
+tsapi int TS_URL_LEN_RTSP;
+tsapi int TS_URL_LEN_RTSPU;
+tsapi int TS_URL_LEN_MMS;
+tsapi int TS_URL_LEN_MMSU;
+tsapi int TS_URL_LEN_MMST;
 
 /* MIME fields */
 tsapi const char *TS_MIME_FIELD_ACCEPT;
@@ -361,8 +369,6 @@ static ClassAllocator<INKContInternal> INKContAllocator("INKContAllocator");
 static ClassAllocator<INKVConnInternal> INKVConnAllocator("INKVConnAllocator");
 static ClassAllocator<MIMEFieldSDKHandle> mHandleAllocator("MIMEFieldSDKHandle");
 
-// Error Ptr.
-tsapi const void *TS_ERROR_PTR = (const void *) 0x00000bad;
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -406,6 +412,15 @@ _TSAssert(const char *text, const char *file, int line)
 
   return 0;
 }
+
+// This assert is for internal API use only.
+#if TS_USE_FAST_SDK
+#define sdk_assert(EX) (void)(EX)
+#else
+#define sdk_assert(EX)                                          \
+  (void)((EX) || (_TSReleaseAssert(#EX, __FILE__, __LINE__)))
+#endif
+
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -481,214 +496,138 @@ _hdr_mloc_to_mime_hdr_impl(TSMLoc mloc)
   return _hdr_obj_to_mime_hdr_impl((HdrHeapObjImpl *) mloc);
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_field_handle(TSMLoc field, TSMLoc parent_hdr = NULL)
 {
-#ifdef DEBUG
-  if ((field == TS_NULL_MLOC) || (field == TS_ERROR_PTR)) {
+  if (field == TS_NULL_MLOC)
     return TS_ERROR;
-  }
+
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_FIELD_SDK_HANDLE) {
+  if (field_handle->m_type != HDR_HEAP_OBJ_FIELD_SDK_HANDLE)
     return TS_ERROR;
-  }
+
   if (parent_hdr != NULL) {
     MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(parent_hdr);
-    if (field_handle->mh != mh) {
+    if (field_handle->mh != mh)
       return TS_ERROR;
-    }
   }
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(field);
-  NOWARN_UNUSED(parent_hdr);
-  return TS_SUCCESS;
-#endif
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_mbuffer(TSMBuffer bufp)
 {
-#ifdef DEBUG
   HdrHeapSDKHandle *handle = (HdrHeapSDKHandle *) bufp;
-  if ((handle == NULL) ||
-      (handle == TS_ERROR_PTR) || (handle->m_heap == NULL) || (handle->m_heap->m_magic != HDR_BUF_MAGIC_ALIVE)) {
+  if ((handle == NULL) || (handle->m_heap == NULL) || (handle->m_heap->m_magic != HDR_BUF_MAGIC_ALIVE))
     return TS_ERROR;
-  }
+
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(bufp);
-  return TS_SUCCESS;
-#endif
 }
 
 TSReturnCode
 sdk_sanity_check_mime_hdr_handle(TSMLoc field)
 {
-#ifdef DEBUG
-  if ((field == TS_NULL_MLOC) || (field == TS_ERROR_PTR)) {
+  if (field == TS_NULL_MLOC)
     return TS_ERROR;
-  }
+
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_MIME_HEADER) {
+  if (field_handle->m_type != HDR_HEAP_OBJ_MIME_HEADER)
     return TS_ERROR;
-  }
+
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(field);
-  return TS_SUCCESS;
-#endif
 }
 
 TSReturnCode
 sdk_sanity_check_url_handle(TSMLoc field)
 {
-#ifdef DEBUG
-  if ((field == TS_NULL_MLOC) || (field == TS_ERROR_PTR)) {
+  if (field == TS_NULL_MLOC)
     return TS_ERROR;
-  }
+
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_URL) {
+  if (field_handle->m_type != HDR_HEAP_OBJ_URL)
     return TS_ERROR;
-  }
+
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(field);
-  return TS_SUCCESS;
-#endif
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_http_hdr_handle(TSMLoc field)
 {
-#ifdef DEBUG
-  if ((field == TS_NULL_MLOC) || (field == TS_ERROR_PTR)) {
+  if (field == TS_NULL_MLOC)
     return TS_ERROR;
-  }
+
   HTTPHdrImpl *field_handle = (HTTPHdrImpl *) field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_HTTP_HEADER) {
+  if (field_handle->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
     return TS_ERROR;
-  }
+
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(field);
-  return TS_SUCCESS;
-#endif
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_continuation(TSCont cont)
 {
-#ifdef DEBUG
-  if ((cont != NULL) && (cont != TS_ERROR_PTR) &&
-      (((INKContInternal *) cont)->m_free_magic != INKCONT_INTERN_MAGIC_DEAD)) {
-    return TS_SUCCESS;
-  } else {
+  if ((cont == NULL) || (((INKContInternal *) cont)->m_free_magic == INKCONT_INTERN_MAGIC_DEAD))
     return TS_ERROR;
-  }
-#else
-  NOWARN_UNUSED(cont);
+
   return TS_SUCCESS;
-#endif
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_http_ssn(TSHttpSsn ssnp)
 {
-#ifdef DEBUG
-  if ((ssnp != NULL) && (ssnp != TS_ERROR_PTR)) {
-    return TS_SUCCESS;
-  } else {
+  if (ssnp == NULL)
     return TS_ERROR;
-  }
-#else
-  NOWARN_UNUSED(ssnp);
+
   return TS_SUCCESS;
-#endif
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_txn(TSHttpTxn txnp)
 {
-#ifdef DEBUG
-  if ((txnp != NULL) && (txnp != TS_ERROR_PTR) && (((HttpSM *) txnp)->magic == HTTP_SM_MAGIC_ALIVE)) {
+  if ((txnp != NULL) && (((HttpSM *) txnp)->magic == HTTP_SM_MAGIC_ALIVE))
     return TS_SUCCESS;
-  } else {
-    return TS_ERROR;
-  }
-#else
-  NOWARN_UNUSED(txnp);
-  return TS_SUCCESS;
-#endif
+  return TS_ERROR;
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_mime_parser(TSMimeParser parser)
 {
-#ifdef DEBUG
-  if ((parser != NULL) && (parser != TS_ERROR_PTR)) {
-    return TS_SUCCESS;
-  } else {
+  if (parser == NULL)
     return TS_ERROR;
-  }
-#endif
-  NOWARN_UNUSED(parser);
   return TS_SUCCESS;
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_http_parser(TSHttpParser parser)
 {
-#ifdef DEBUG
-  if ((parser != NULL) && (parser != TS_ERROR_PTR)) {
-    return TS_SUCCESS;
-  } else {
+  if (parser == NULL)
     return TS_ERROR;
-  }
-#endif
-  NOWARN_UNUSED(parser);
   return TS_SUCCESS;
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_alt_info(TSHttpAltInfo info)
 {
-#ifdef DEBUG
-  if ((info != NULL) && (info != TS_ERROR_PTR)) {
-    return TS_SUCCESS;
-  } else {
+  if (info == NULL)
     return TS_ERROR;
-  }
-#endif
-  NOWARN_UNUSED(info);
   return TS_SUCCESS;
 }
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_hook_id(TSHttpHookID id)
 {
-#ifdef DEBUG
   if (id<TS_HTTP_READ_REQUEST_HDR_HOOK || id> TS_HTTP_LAST_HOOK)
     return TS_ERROR;
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(id);
-  return TS_SUCCESS;
-#endif
 }
 
 
-inline TSReturnCode
+TSReturnCode
 sdk_sanity_check_null_ptr(void *ptr)
 {
-#ifdef DEBUG
   if (ptr == NULL)
     return TS_ERROR;
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(ptr);
-  return TS_SUCCESS;
-#endif
 }
 
 /**
@@ -709,18 +648,18 @@ isWriteable(TSMBuffer bufp)
 /******************************************************/
 /* Allocators for field handles and standalone fields */
 /******************************************************/
-
 static MIMEFieldSDKHandle *
 sdk_alloc_field_handle(TSMBuffer bufp, MIMEHdrImpl *mh)
 {
-  if (sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) {
-    MIMEFieldSDKHandle *handle = mHandleAllocator.alloc();
+  MIMEFieldSDKHandle *handle = mHandleAllocator.alloc();
 
-    obj_init_header(handle, HDR_HEAP_OBJ_FIELD_SDK_HANDLE, sizeof(MIMEFieldSDKHandle), 0);
-    handle->mh = mh;
-    return handle;
-  }
-  return NULL;
+  // TODO: Should remove this when memory allocation can't fail.
+  sdk_assert(sdk_sanity_check_null_ptr((void*)handle) == TS_SUCCESS);
+
+  obj_init_header(handle, HDR_HEAP_OBJ_FIELD_SDK_HANDLE, sizeof(MIMEFieldSDKHandle), 0);
+  handle->mh = mh;
+
+  return handle;
 }
 
 static void
@@ -737,11 +676,9 @@ sdk_free_field_handle(TSMBuffer bufp, MIMEFieldSDKHandle *field_handle)
 // FileImpl
 //
 ////////////////////////////////////////////////////////////////////
-
 FileImpl::FileImpl()
-:m_fd(-1), m_mode(CLOSED), m_buf(NULL), m_bufsize(0), m_bufpos(0)
-{
-}
+  : m_fd(-1), m_mode(CLOSED), m_buf(NULL), m_bufsize(0), m_bufpos(0)
+{ }
 
 FileImpl::~FileImpl()
 {
@@ -968,15 +905,14 @@ FileImpl::fgets(char *buf, int length)
 ////////////////////////////////////////////////////////////////////
 
 INKContInternal::INKContInternal()
- : DummyVConnection(NULL), mdata(NULL), m_event_func(NULL), m_event_count(0), m_closed(1), m_deletable(0), m_deleted(0),
-   m_free_magic(INKCONT_INTERN_MAGIC_ALIVE)
-{
-}
+  : DummyVConnection(NULL), mdata(NULL), m_event_func(NULL), m_event_count(0), m_closed(1), m_deletable(0),
+    m_deleted(0), m_free_magic(INKCONT_INTERN_MAGIC_ALIVE)
+{ }
 
 INKContInternal::INKContInternal(TSEventFunc funcp, TSMutex mutexp)
- : DummyVConnection((ProxyMutex *) mutexp),
-   mdata(NULL), m_event_func(funcp), m_event_count(0), m_closed(1), m_deletable(0), m_deleted(0),
-   m_free_magic(INKCONT_INTERN_MAGIC_ALIVE)
+  : DummyVConnection((ProxyMutex *) mutexp),
+    mdata(NULL), m_event_func(funcp), m_event_count(0), m_closed(1), m_deletable(0), m_deleted(0),
+    m_free_magic(INKCONT_INTERN_MAGIC_ALIVE)
 {
   SET_HANDLER(&INKContInternal::handle_event);
 }
@@ -1003,7 +939,8 @@ INKContInternal::destroy()
     INKContAllocator.free(this);
   } else {
     // TODO: Should this schedule on some other "thread" ?
-    TSContSchedule(this, 0, TS_THREAD_POOL_DEFAULT);
+    // TODO: we don't care about the return action?
+    TSContSchedule((TSCont)this, 0, TS_THREAD_POOL_DEFAULT);
   }
 }
 
@@ -1023,36 +960,6 @@ INKContInternal::handle_event_count(int event)
     m_deletable = m_deletable && (val == 1);
   }
 }
-
-#if TS_HAS_V2STATS
-void INKContInternal::setName(const char *name) {
-  cont_name = name;
-
-  cont_time_stats.resize((int)(TS_HTTP_LAST_HOOK + 1));
-  cont_calls.resize((int)(TS_HTTP_LAST_HOOK + 1));
-
-  for(TSHttpHookID cur_hook_id = TS_HTTP_READ_REQUEST_HDR_HOOK; cur_hook_id <= TS_HTTP_LAST_HOOK; cur_hook_id = TSHttpHookID(cur_hook_id+1)) {
-    // TODO: Fix the name of these stats to be something appropriate, e.g. proxy.x.y.z or some such (for now at least)
-    // TODO: Get rid of std::string (snprintf anyone?)
-    std::string stat_base = "cont." + cont_name + "." + HttpDebugNames::get_api_hook_name(cur_hook_id);
-    // TODO: This needs to be supported with non-V2 APIs as well.
-    cont_time_stats[cur_hook_id].init(stat_base + ".time_spent", 64000);
-
-    StatSystemV2::registerStat((stat_base + ".calls").c_str(), &cont_calls[cur_hook_id]);
-  }
-  stats_enabled = true;
-}
-
-const char *INKContInternal::getName() {
-  return cont_name.c_str();
-}
-
-void INKContInternal::statCallsMade(TSHttpHookID hook_id) {
-  if(cont_name == "")
-    return;
-  StatSystemV2::increment(cont_calls[hook_id]);
-}
-#endif
 
 int
 INKContInternal::handle_event(int event, void *edata)
@@ -1241,17 +1148,18 @@ INKVConnInternal::retry(unsigned int delay)
   mutex->thread_holding->schedule_in(this, HRTIME_MSECONDS(delay));
 }
 
-bool INKVConnInternal::get_data(int id, void *data)
+bool
+INKVConnInternal::get_data(int id, void *data)
 {
   switch (id) {
   case TS_API_DATA_READ_VIO:
-    *((TSVIO *) data) = &m_read_vio;
+    *((TSVIO *) data) = reinterpret_cast<TSVIO>(&m_read_vio);
     return true;
   case TS_API_DATA_WRITE_VIO:
-    *((TSVIO *) data) = &m_write_vio;
+    *((TSVIO *) data) = reinterpret_cast<TSVIO>(&m_write_vio);
     return true;
   case TS_API_DATA_OUTPUT_VC:
-    *((TSVConn *) data) = m_output_vc;
+    *((TSVConn *) data) = reinterpret_cast<TSVConn>(m_output_vc);
     return true;
   case TS_API_DATA_CLOSED:
     *((int *) data) = m_closed;
@@ -1395,20 +1303,12 @@ ConfigUpdateCbTable::~ConfigUpdateCbTable()
 }
 
 void
-ConfigUpdateCbTable::insert(INKContInternal *contp, const char *name, const char *config_path)
+ConfigUpdateCbTable::insert(INKContInternal *contp, const char *name)
 {
   ink_assert(cb_table != NULL);
 
-  if (contp != NULL) {
-    if (name != NULL) {
-      ink_hash_table_insert(cb_table, (InkHashTableKey) name, (InkHashTableValue) contp);
-      if (config_path != NULL) {
-        char buffer[1024];
-        snprintf(buffer, sizeof(buffer), "%s\t%s", name, config_path);
-        RecSignalManager(MGMT_SIGNAL_PLUGIN_CONFIG_REG, buffer);
-      }
-    }
-  }
+  if (contp && name)
+    ink_hash_table_insert(cb_table, (InkHashTableKey) name, (InkHashTableValue) contp);
 }
 
 void
@@ -1424,7 +1324,7 @@ ConfigUpdateCbTable::invoke(const char *name)
     if (strcmp(name, "*") == 0) {
       ht_entry = ink_hash_table_iterator_first(cb_table, &ht_iter);
       while (ht_entry != NULL) {
-        contp = (INKContInternal *) ink_hash_table_entry_value(cb_table, ht_entry);
+        contp = (INKContInternal *)ink_hash_table_entry_value(cb_table, ht_entry);
         ink_assert(contp != NULL);
         invoke(contp);
         ht_entry = ink_hash_table_iterator_next(cb_table, &ht_iter);
@@ -1443,7 +1343,7 @@ ConfigUpdateCbTable::invoke(const char *name)
 void
 ConfigUpdateCbTable::invoke(INKContInternal *contp)
 {
-  eventProcessor.schedule_imm(NEW(new ConfigUpdateCallback(contp)), ET_NET);
+  eventProcessor.schedule_imm(NEW(new ConfigUpdateCallback(contp)), ET_TASK);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1840,17 +1740,15 @@ TSPluginDirGet(void)
 //
 ////////////////////////////////////////////////////////////////////
 
-int
+TSReturnCode
 TSPluginRegister(TSSDKVersion sdk_version, TSPluginRegistrationInfo *plugin_info)
 {
   PluginSDKVersion version = (PluginSDKVersion)sdk_version;
 
-  ink_assert(plugin_reg_current != NULL);
   if (!plugin_reg_current)
-    return 0;
+    return TS_ERROR;
 
-  if (sdk_sanity_check_null_ptr((void *) plugin_info) != TS_SUCCESS)
-    return 0;
+  sdk_assert(sdk_sanity_check_null_ptr((void*) plugin_info) == TS_SUCCESS);
 
   plugin_reg_current->plugin_registered = true;
 
@@ -1860,42 +1758,6 @@ TSPluginRegister(TSSDKVersion sdk_version, TSPluginRegistrationInfo *plugin_info
   } else {
     plugin_reg_current->sdk_version = PLUGIN_SDK_VERSION_UNKNOWN;
   }
-
-  if (plugin_info->plugin_name) {
-    plugin_reg_current->plugin_name = xstrdup(plugin_info->plugin_name);
-  }
-
-  if (plugin_info->vendor_name) {
-    plugin_reg_current->vendor_name = xstrdup(plugin_info->vendor_name);
-  }
-
-  if (plugin_info->support_email) {
-    plugin_reg_current->support_email = xstrdup(plugin_info->support_email);
-  }
-
-  return 1;
-}
-
-////////////////////////////////////////////////////////////////////
-//
-// Plugin info registration - coded in 2.0, but not documented
-//
-////////////////////////////////////////////////////////////////////
-
-TSReturnCode
-TSPluginInfoRegister(TSPluginRegistrationInfo *plugin_info)
-{
-  if (sdk_sanity_check_null_ptr((void *) plugin_info) == TS_ERROR)
-    return TS_ERROR;
-
-  ink_assert(plugin_reg_current != NULL);
-  if (!plugin_reg_current)
-    return TS_ERROR;
-
-  plugin_reg_current->plugin_registered = true;
-
-  /* version is not used. kept a value for backward compatibility */
-  plugin_reg_current->sdk_version = PLUGIN_SDK_VERSION_UNKNOWN;
 
   if (plugin_info->plugin_name) {
     plugin_reg_current->plugin_name = xstrdup(plugin_info->plugin_name);
@@ -1929,7 +1791,7 @@ TSfopen(const char *filename, const char *mode)
     return NULL;
   }
 
-  return (TSFile) file;
+  return (TSFile)file;
 }
 
 void
@@ -1983,8 +1845,7 @@ TSHandleMLocRelease(TSMBuffer bufp, TSMLoc parent, TSMLoc mloc)
   if (mloc == TS_NULL_MLOC)
     return TS_SUCCESS;
 
-  if (sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
 
   switch (obj->m_type) {
   case HDR_HEAP_OBJ_URL:
@@ -2016,16 +1877,15 @@ TSHandleMLocRelease(TSMBuffer bufp, TSMLoc parent, TSMLoc mloc)
 // TSMBuffer: pointers to HdrHeapSDKHandle objects
 
 TSMBuffer
-TSMBufferCreate()
+TSMBufferCreate(void)
 {
   TSMBuffer bufp;
   HdrHeapSDKHandle *new_heap = NEW(new HdrHeapSDKHandle);
+
   new_heap->m_heap = new_HdrHeap();
-  bufp = (TSMBuffer) new_heap;
-  if (sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) {
-    delete new_heap;
-    return (TSMBuffer) TS_ERROR_PTR;
-  }
+  bufp = (TSMBuffer)new_heap;
+  // TODO: Should remove this when memory allocation is guaranteed to fail.
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   return bufp;
 }
 
@@ -2036,16 +1896,14 @@ TSMBufferDestroy(TSMBuffer bufp)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if (isWriteable(bufp)) {
-    if (sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) {
-      HdrHeapSDKHandle *sdk_heap = (HdrHeapSDKHandle *) bufp;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-      sdk_heap->m_heap->destroy();
-      delete sdk_heap;
-      return TS_SUCCESS;
-    }
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  HdrHeapSDKHandle *sdk_heap = (HdrHeapSDKHandle *)bufp;
+  sdk_heap->m_heap->destroy();
+  delete sdk_heap;
+  return TS_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -2056,29 +1914,27 @@ TSMBufferDestroy(TSMBuffer bufp)
 
 // TSMBuffer: pointers to HdrHeapSDKHandle objects
 // TSMLoc:    pointers to URLImpl objects
-
-TSMLoc
-TSUrlCreate(TSMBuffer bufp)
+TSReturnCode
+TSUrlCreate(TSMBuffer bufp, TSMLoc *locp)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If not allowed, return TS_ERROR_PTR.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) && isWriteable(bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr(locp) == TS_SUCCESS);
+
+  if (isWriteable(bufp)) {
     HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
-    return ((TSMLoc) (url_create(heap)));
+    *locp = (TSMLoc)url_create(heap);
+    return TS_SUCCESS;
   }
-  return (TSMLoc) TS_ERROR_PTR;
+  return TS_ERROR;
 }
 
 TSReturnCode
 TSUrlDestroy(TSMBuffer bufp, TSMLoc url_loc)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
-  // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(url_loc) == TS_SUCCESS) && isWriteable(bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(url_loc) == TS_SUCCESS);
+
+  if (isWriteable(bufp)) {
     // No more objects counts in heap or deallocation so do nothing!
     // FIX ME - Did this free the MBuffer in Pete's old system?
     return TS_SUCCESS;
@@ -2086,72 +1942,68 @@ TSUrlDestroy(TSMBuffer bufp, TSMLoc url_loc)
   return TS_ERROR;
 }
 
-TSMLoc
-TSUrlClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_url)
+TSReturnCode
+TSUrlClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_url, TSMLoc *locp)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If not allowed, return NULL.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(src_url) == TS_SUCCESS) && isWriteable(dest_bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(src_url) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr(locp) == TS_SUCCESS);
 
-    HdrHeap *s_heap, *d_heap;
-    URLImpl *s_url, *d_url;
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_url = (URLImpl *) src_url;
+  HdrHeap *s_heap, *d_heap;
+  URLImpl *s_url, *d_url;
 
-    d_url = url_copy(s_url, s_heap, d_heap, (s_heap != d_heap));
-    return ((TSMLoc) d_url);
-  }
-  return (TSMLoc) TS_ERROR_PTR;
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_url = (URLImpl *) src_url;
+
+  d_url = url_copy(s_url, s_heap, d_heap, (s_heap != d_heap));
+  *locp = (TSMLoc)d_url;
+  return TS_SUCCESS;
 }
 
 TSReturnCode
 TSUrlCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc src_obj)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
-  // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(src_obj) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(dest_obj) == TS_SUCCESS) && isWriteable(dest_bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(src_obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(dest_obj) == TS_SUCCESS);
 
-    HdrHeap *s_heap, *d_heap;
-    URLImpl *s_url, *d_url;
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_url = (URLImpl *) src_obj;
-    d_url = (URLImpl *) dest_obj;
+  HdrHeap *s_heap, *d_heap;
+  URLImpl *s_url, *d_url;
 
-    url_copy_onto(s_url, s_heap, d_url, d_heap, (s_heap != d_heap));
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_url = (URLImpl *) src_obj;
+  d_url = (URLImpl *) dest_obj;
+
+  url_copy_onto(s_url, s_heap, d_url, d_heap, (s_heap != d_heap));
+  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSUrlPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
 {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(iobufp) == TS_SUCCESS);
+
   MIOBuffer *b = (MIOBuffer *) iobufp;
   IOBufferBlock *blk;
   int bufindex;
   int tmp, dumpoffset;
   int done;
-
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_url_handle(obj) != TS_SUCCESS) || (sdk_sanity_check_iocore_structure(iobufp) != TS_SUCCESS))
-    return TS_ERROR;
-
   URL u;
+
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
-
   dumpoffset = 0;
 
   do {
@@ -2169,44 +2021,45 @@ TSUrlPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
     dumpoffset += bufindex;
     b->fill(bufindex);
   } while (!done);
-  return TS_SUCCESS;
 }
 
-int
+TSParseResult
 TSUrlParse(TSMBuffer bufp, TSMLoc obj, const char **start, const char *end)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_url_handle(obj) != TS_SUCCESS) ||
-      (start == NULL) || (*start == NULL) ||
-      sdk_sanity_check_null_ptr((void *) end) != TS_SUCCESS || (!isWriteable(bufp)))
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)*start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)end) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
     return TS_PARSE_ERROR;
 
   URL u;
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
   url_clear(u.m_url_impl);
-  return u.parse(start, end);
+  return (TSParseResult)u.parse(start, end);
 }
 
 int
 TSUrlLengthGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_url_handle(obj) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
   URLImpl *url_impl = (URLImpl *) obj;
-
   return url_length_get(url_impl);
 }
 
 char *
 TSUrlStringGet(TSMBuffer bufp, TSMLoc obj, int *length)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_url_handle(obj) != TS_SUCCESS))
-    return (char *) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
   URLImpl *url_impl = (URLImpl *) obj;
-
   return url_string_get(url_impl, NULL, length, NULL);
 }
 
@@ -2216,26 +2069,26 @@ typedef void (URL::*URLPartSetF) (const char *value, int length);
 static const char *
 URLPartGet(TSMBuffer bufp, TSMLoc obj, int *length, URLPartGetF url_f)
 {
-
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_url_handle(obj) != TS_SUCCESS) || (length == NULL))
-    return (const char *) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
   URL u;
 
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
 
-  return (u.*url_f) (length);
+  return (u.*url_f)(length);
 }
 
 static TSReturnCode
 URLPartSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length, URLPartSetF url_f)
 {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_url_handle(obj) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void *) value) != TS_SUCCESS) || (!isWriteable(bufp)))
+  if (!isWriteable(bufp))
     return TS_ERROR;
 
   URL u;
@@ -2258,9 +2111,7 @@ TSUrlSchemeGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlSchemeSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::scheme_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::scheme_set);
 }
 
 /* Internet specific URLs */
@@ -2286,9 +2137,7 @@ TSUrlPasswordGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlPasswordSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::password_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::password_set);
 }
 
 const char *
@@ -2300,16 +2149,14 @@ TSUrlHostGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlHostSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::host_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::host_set);
 }
 
 int
 TSUrlPortGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_url_handle(obj) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
   URL u;
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
@@ -2321,20 +2168,18 @@ TSUrlPortGet(TSMBuffer bufp, TSMLoc obj)
 TSReturnCode
 TSUrlPortSet(TSMBuffer bufp, TSMLoc obj, int port)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
-  // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(obj) == TS_SUCCESS) && isWriteable(bufp) && (port > 0)) {
-    URL u;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
-    u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
-    u.m_url_impl = (URLImpl *) obj;
-    u.port_set(port);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp) || (port <= 0))
+    return TS_ERROR;
+
+  URL u;
+
+  u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  u.m_url_impl = (URLImpl *) obj;
+  u.port_set(port);
+  return TS_SUCCESS;
 }
 
 /* FTP and HTTP specific URLs  */
@@ -2348,9 +2193,7 @@ TSUrlPathGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlPathSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::path_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::path_set);
 }
 
 /* FTP specific URLs */
@@ -2358,8 +2201,8 @@ TSUrlPathSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 int
 TSUrlFtpTypeGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_url_handle(obj) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
   URL u;
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
@@ -2370,18 +2213,13 @@ TSUrlFtpTypeGet(TSMBuffer bufp, TSMLoc obj)
 TSReturnCode
 TSUrlFtpTypeSet(TSMBuffer bufp, TSMLoc obj, int type)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
-  // return value of function from void to TSReturnCode.
-
   //The valid values are : 0, 65('A'), 97('a'),
   //69('E'), 101('e'), 73 ('I') and 105('i').
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(obj) == TS_SUCCESS) &&
-      (type == 0 || type == 'A' || type == 'E' || type == 'I' || type == 'a' || type == 'i' || type == 'e') &&
-      isWriteable(bufp)) {
+
+  if ((type == 0 || type=='A' || type=='E' || type=='I' || type=='a' || type=='i' || type=='e') && isWriteable(bufp)) {
     URL u;
 
     u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
@@ -2389,6 +2227,7 @@ TSUrlFtpTypeSet(TSMBuffer bufp, TSMLoc obj, int type)
     u.type_set(type);
     return TS_SUCCESS;
   }
+
   return TS_ERROR;
 }
 
@@ -2403,10 +2242,7 @@ TSUrlHttpParamsGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlHttpParamsSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::params_set);
-  return TS_ERROR;
-
+  return URLPartSet(bufp, obj, value, length, &URL::params_set);
 }
 
 const char *
@@ -2418,9 +2254,7 @@ TSUrlHttpQueryGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlHttpQuerySet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::query_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::query_set);
 }
 
 const char *
@@ -2432,10 +2266,9 @@ TSUrlHttpFragmentGet(TSMBuffer bufp, TSMLoc obj, int *length)
 TSReturnCode
 TSUrlHttpFragmentSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 {
-  if (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)
-    return URLPartSet(bufp, obj, value, length, &URL::fragment_set);
-  return TS_ERROR;
+  return URLPartSet(bufp, obj, value, length, &URL::fragment_set);
 }
+
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -2448,39 +2281,33 @@ TSUrlHttpFragmentSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
 /**************/
 
 TSMimeParser
-TSMimeParserCreate()
+TSMimeParserCreate(void)
 {
   TSMimeParser parser;
 
-  parser = xmalloc(sizeof(MIMEParser));
-  if (sdk_sanity_check_mime_parser(parser) != TS_SUCCESS) {
-    xfree(parser);
-    return (TSMimeParser) TS_ERROR_PTR;
-  }
-  mime_parser_init((MIMEParser *) parser);
+  parser = reinterpret_cast<TSMimeParser>(xmalloc(sizeof(MIMEParser)));
+  // TODO: Should remove this when memory allocation can't fail.
+  sdk_assert(sdk_sanity_check_mime_parser(parser) == TS_SUCCESS);
 
+  mime_parser_init((MIMEParser *) parser);
   return parser;
 }
 
-TSReturnCode
+void
 TSMimeParserClear(TSMimeParser parser)
 {
-  if (sdk_sanity_check_mime_parser(parser) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mime_parser(parser) == TS_SUCCESS);
 
   mime_parser_clear((MIMEParser *) parser);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSMimeParserDestroy(TSMimeParser parser)
 {
-  if (sdk_sanity_check_mime_parser(parser) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mime_parser(parser) == TS_SUCCESS);
 
   mime_parser_clear((MIMEParser *) parser);
   xfree(parser);
-  return TS_SUCCESS;
 }
 
 /***********/
@@ -2490,16 +2317,20 @@ TSMimeParserDestroy(TSMimeParser parser)
 // TSMBuffer: pointers to HdrHeapSDKHandle objects
 // TSMLoc:    pointers to MIMEFieldSDKHandle objects
 
-TSMLoc
-TSMimeHdrCreate(TSMBuffer bufp)
+TSReturnCode
+TSMimeHdrCreate(TSMBuffer bufp, TSMLoc *locp)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If not allowed, return NULL.
-  // Changed the return value for SDK3.0 from NULL to TS_ERROR_PTR.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) && isWriteable(bufp))
-    return (TSMLoc) mime_hdr_create(((HdrHeapSDKHandle *) bufp)->m_heap);
-  return (TSMLoc) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)locp) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  *locp = reinterpret_cast<TSMLoc>(mime_hdr_create(((HdrHeapSDKHandle *) bufp)->m_heap));
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -2509,38 +2340,45 @@ TSMimeHdrDestroy(TSMBuffer bufp, TSMLoc obj)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS))
-      && isWriteable(bufp)) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-    mime_hdr_destroy(((HdrHeapSDKHandle *) bufp)->m_heap, mh);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+
+  mime_hdr_destroy(((HdrHeapSDKHandle *) bufp)->m_heap, mh);
+  return TS_SUCCESS;
 }
 
-TSMLoc
-TSMimeHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr)
+TSReturnCode
+TSMimeHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc *locp)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If not allowed, return NULL.
-  if ((sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS)) &&
-      isWriteable(dest_bufp)) {
-    HdrHeap *s_heap, *d_heap;
-    MIMEHdrImpl *s_mh, *d_mh;
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)locp) == TS_SUCCESS);
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_mh = _hdr_mloc_to_mime_hdr_impl(src_hdr);
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    d_mh = mime_hdr_clone(s_mh, s_heap, d_heap, (s_heap != d_heap));
-    return ((TSMLoc) d_mh);
-  }
-  return (TSMLoc) TS_ERROR_PTR;
+  HdrHeap *s_heap, *d_heap;
+  MIMEHdrImpl *s_mh, *d_mh;
+
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_mh = _hdr_mloc_to_mime_hdr_impl(src_hdr);
+
+  d_mh = mime_hdr_clone(s_mh, s_heap, d_heap, (s_heap != d_heap));
+  *locp = (TSMLoc)d_mh;
+
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -2550,113 +2388,116 @@ TSMimeHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc s
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(src_obj) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(src_obj) == TS_SUCCESS)) &&
-      ((sdk_sanity_check_mime_hdr_handle(dest_obj) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS)) && isWriteable(dest_bufp)) {
-    HdrHeap *s_heap, *d_heap;
-    MIMEHdrImpl *s_mh, *d_mh;
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(src_obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(src_obj) == TS_SUCCESS));
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(dest_obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS));
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_mh = _hdr_mloc_to_mime_hdr_impl(src_obj);
-    d_mh = _hdr_mloc_to_mime_hdr_impl(dest_obj);
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    mime_hdr_fields_clear(d_heap, d_mh);
-    mime_hdr_copy_onto(s_mh, s_heap, d_mh, d_heap, (s_heap != d_heap));
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HdrHeap *s_heap, *d_heap;
+  MIMEHdrImpl *s_mh, *d_mh;
+
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_mh = _hdr_mloc_to_mime_hdr_impl(src_obj);
+  d_mh = _hdr_mloc_to_mime_hdr_impl(dest_obj);
+
+  mime_hdr_fields_clear(d_heap, d_mh);
+  mime_hdr_copy_onto(s_mh, s_heap, d_mh, d_heap, (s_heap != d_heap));
+  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSMimeHdrPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS)) &&
-      (sdk_sanity_check_iocore_structure(iobufp) == TS_SUCCESS)) {
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
-    MIOBuffer *b = (MIOBuffer *) iobufp;
-    IOBufferBlock *blk;
-    int bufindex;
-    int tmp, dumpoffset = 0;
-    int done;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_iocore_structure(iobufp) == TS_SUCCESS);
 
-    do {
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  MIOBuffer *b = (MIOBuffer *) iobufp;
+  IOBufferBlock *blk;
+  int bufindex;
+  int tmp, dumpoffset = 0;
+  int done;
+
+  do {
+    blk = b->get_current_block();
+    if (!blk || blk->write_avail() == 0) {
+      b->add_block();
       blk = b->get_current_block();
-      if (!blk || blk->write_avail() == 0) {
-        b->add_block();
-        blk = b->get_current_block();
-      }
+    }
 
-      bufindex = 0;
-      tmp = dumpoffset;
-      done = mime_hdr_print(heap, mh, blk->end(), blk->write_avail(), &bufindex, &tmp);
+    bufindex = 0;
+    tmp = dumpoffset;
+    done = mime_hdr_print(heap, mh, blk->end(), blk->write_avail(), &bufindex, &tmp);
 
-      dumpoffset += bufindex;
-      b->fill(bufindex);
-    } while (!done);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+    dumpoffset += bufindex;
+    b->fill(bufindex);
+  } while (!done);
 }
 
-int
+TSParseResult
 TSMimeHdrParse(TSMimeParser parser, TSMBuffer bufp, TSMLoc obj, const char **start, const char *end)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      ((sdk_sanity_check_mime_hdr_handle(obj) != TS_SUCCESS) && (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS))
-      || (start == NULL) || (*start == NULL) || (!isWriteable(bufp)))
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_null_ptr((void*)start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)*start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)end) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
     return TS_PARSE_ERROR;
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
 
-  return mime_parser_parse((MIMEParser *) parser, ((HdrHeapSDKHandle *) bufp)->m_heap, mh, start, end, false, false);
+  return (TSParseResult)mime_parser_parse((MIMEParser *) parser, ((HdrHeapSDKHandle *) bufp)->m_heap, mh,
+                                          start, end, false, false);
 }
 
 int
 TSMimeHdrLengthGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS))) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-    return mime_hdr_length_get(mh);
-  }
-  return TS_ERROR;
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  return mime_hdr_length_get(mh);
 }
 
 TSReturnCode
 TSMimeHdrFieldsClear(TSMBuffer bufp, TSMLoc obj)
 {
-  // Allow to modify the buffer only
-  // if bufp is modifiable. If bufp is not modifiable return
-  // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
-  // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS))
-      && isWriteable(bufp)) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-    mime_hdr_fields_clear(((HdrHeapSDKHandle *) bufp)->m_heap, mh);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+
+  mime_hdr_fields_clear(((HdrHeapSDKHandle *) bufp)->m_heap, mh);
+  return TS_SUCCESS;
 }
 
 int
 TSMimeHdrFieldsCount(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS))) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-    return mime_hdr_fields_count(mh);
-  }
-  return TS_ERROR;
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
+  return mime_hdr_fields_count(mh);
 }
 
 // The following three helper functions should not be used in plugins! Since they are not used
@@ -2704,16 +2545,6 @@ TSMimeFieldValueInsert(TSMBuffer bufp, TSMLoc field_obj, const char *value, int 
   mime_field_value_insert_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
 }
 
-// This is completely deprecated (never needed)
-TSReturnCode
-TSHandleStringRelease(TSMBuffer bufp, TSMLoc parent, const char *str)
-{
-  NOWARN_UNUSED(bufp);
-  NOWARN_UNUSED(parent);
-  NOWARN_UNUSED(str);
-  return TS_SUCCESS;
-}
-
 
 /****************/
 /* MimeHdrField */
@@ -2725,60 +2556,59 @@ TSHandleStringRelease(TSMBuffer bufp, TSMLoc parent, const char *str)
 int
 TSMimeHdrFieldEqual(TSMBuffer bufp, TSMLoc hdr_obj, TSMLoc field1_obj, TSMLoc field2_obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_field_handle(field1_obj, hdr_obj) == TS_SUCCESS) &&
-      (sdk_sanity_check_field_handle(field2_obj, hdr_obj) == TS_SUCCESS)) {
-    MIMEFieldSDKHandle *field1_handle = (MIMEFieldSDKHandle *) field1_obj;
-    MIMEFieldSDKHandle *field2_handle = (MIMEFieldSDKHandle *) field2_obj;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_field_handle(field1_obj, hdr_obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_field_handle(field2_obj, hdr_obj) == TS_SUCCESS);
 
-    if ((field1_handle == NULL) || (field2_handle == NULL))
-      return (field1_handle == field2_handle);
-    return (field1_handle->field_ptr == field2_handle->field_ptr);
-  }
-  return 0;
+  MIMEFieldSDKHandle *field1_handle = (MIMEFieldSDKHandle *) field1_obj;
+  MIMEFieldSDKHandle *field2_handle = (MIMEFieldSDKHandle *) field2_obj;
+
+  if ((field1_handle == NULL) || (field2_handle == NULL))
+    return (field1_handle == field2_handle);
+  return (field1_handle->field_ptr == field2_handle->field_ptr);
 }
 
 TSMLoc
 TSMimeHdrFieldGet(TSMBuffer bufp, TSMLoc hdr_obj, int idx)
 {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr_obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr_obj) == TS_SUCCESS));
+  sdk_assert(idx >= 0);
 
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr_obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr_obj) == TS_SUCCESS)) &&
-      (idx >= 0)) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
-    MIMEField *f = mime_hdr_field_get(mh, idx);
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
+  MIMEField *f = mime_hdr_field_get(mh, idx);
 
-    if (f == NULL)
-      return TS_NULL_MLOC;
+  if (f == NULL)
+    return TS_NULL_MLOC;
 
-    MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
+  MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
 
-    h->field_ptr = f;
-    return h;
-  }
-  return (TSMLoc)TS_ERROR_PTR;
+  h->field_ptr = f;
+  return reinterpret_cast<TSMLoc>(h);
 }
 
 TSMLoc
 TSMimeHdrFieldFind(TSMBuffer bufp, TSMLoc hdr_obj, const char *name, int length)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr_obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr_obj) == TS_SUCCESS)) &&
-      (name != NULL)) {
-    if (length == -1)
-      length = strlen(name);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr_obj) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr_obj) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_null_ptr((void*)name) == TS_SUCCESS);
 
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
-    MIMEField *f = mime_hdr_field_find(mh, name, length);
+  if (length == -1)
+    length = strlen(name);
 
-    if (f == NULL)
-      return TS_NULL_MLOC;
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
+  MIMEField *f = mime_hdr_field_find(mh, name, length);
 
-    MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
-    h->field_ptr = f;
-    return h;
-  }
-  return (TSMLoc)TS_ERROR_PTR;
+  if (f == NULL)
+    return TS_NULL_MLOC;
+
+  MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
+
+  h->field_ptr = f;
+  return reinterpret_cast<TSMLoc>(h);
 }
 
 TSReturnCode
@@ -2788,45 +2618,47 @@ TSMimeHdrFieldAppend(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field_mloc) == TS_SUCCESS) && isWriteable(bufp)) {
-    MIMEField *mh_field;
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
-    MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field_mloc) == TS_SUCCESS);
 
-    //////////////////////////////////////////////////////////////////////
-    // The field passed in field_mloc might have been allocated from    //
-    // inside a MIME header (the correct way), or it might have been    //
-    // created in isolation as a "standalone field" (the old way).      //
-    //                                                                  //
-    // If it's a standalone field (the associated mime header is NULL), //
-    // then we need to now allocate a real field inside the header,     //
-    // copy over the data, and convert the standalone field into a      //
-    // forwarding pointer to the real field, in case it's used again    //
-    //////////////////////////////////////////////////////////////////////
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    if (field_handle->mh == NULL) {
-      HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
+  MIMEField *mh_field;
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
+  MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
 
-      // allocate a new hdr field and copy any pre-set info
-      mh_field = mime_field_create(heap, mh);
+  //////////////////////////////////////////////////////////////////////
+  // The field passed in field_mloc might have been allocated from    //
+  // inside a MIME header (the correct way), or it might have been    //
+  // created in isolation as a "standalone field" (the old way).      //
+  //                                                                  //
+  // If it's a standalone field (the associated mime header is NULL), //
+  // then we need to now allocate a real field inside the header,     //
+  // copy over the data, and convert the standalone field into a      //
+  // forwarding pointer to the real field, in case it's used again    //
+  //////////////////////////////////////////////////////////////////////
+  if (field_handle->mh == NULL) {
+    HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
 
-      // FIX: is it safe to copy everything over?
-      memcpy(mh_field, field_handle->field_ptr, sizeof(MIMEField));
+    // allocate a new hdr field and copy any pre-set info
+    mh_field = mime_field_create(heap, mh);
 
-      // now set up the forwarding ptr from standalone field to hdr field
-      field_handle->mh = mh;
-      field_handle->field_ptr = mh_field;
-    }
+    // FIX: is it safe to copy everything over?
+    memcpy(mh_field, field_handle->field_ptr, sizeof(MIMEField));
 
-    ink_assert(field_handle->mh == mh);
-    ink_assert(field_handle->field_ptr->m_ptr_name);
-
-    mime_hdr_field_attach(mh, field_handle->field_ptr, 1, NULL);
-    return TS_SUCCESS;
+    // now set up the forwarding ptr from standalone field to hdr field
+    field_handle->mh = mh;
+    field_handle->field_ptr = mh_field;
   }
-  return TS_ERROR;
+
+  ink_assert(field_handle->mh == mh);
+  ink_assert(field_handle->field_ptr->m_ptr_name);
+
+  mime_hdr_field_attach(mh, field_handle->field_ptr, 1, NULL);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -2836,21 +2668,23 @@ TSMimeHdrFieldRemove(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS) && isWriteable(bufp)) {
-    MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS);
 
-    if (field_handle->mh != NULL) {
-      MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
-      ink_assert(mh == field_handle->mh);
-      sdk_sanity_check_field_handle(field_mloc, mh_mloc);
-      mime_hdr_field_detach(mh, field_handle->field_ptr, false);        // only detach this dup
-    }
-    return TS_SUCCESS;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
+
+  if (field_handle->mh != NULL) {
+    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
+    ink_assert(mh == field_handle->mh);
+    sdk_sanity_check_field_handle(field_mloc, mh_mloc);
+    mime_hdr_field_detach(mh, field_handle->field_ptr, false);        // only detach this dup
   }
-  return TS_ERROR;
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -2860,163 +2694,182 @@ TSMimeHdrFieldDestroy(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS) && isWriteable(bufp)) {
-    MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS);
 
-    if (field_handle->mh == NULL) { // NOT SUPPORTED!!
-      ink_release_assert(0);
-    } else {
-      MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
-      HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-      ink_assert(mh == field_handle->mh);
-      sdk_sanity_check_field_handle(field_mloc, mh_mloc);
+  MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field_mloc;
 
-      // detach and delete this field, but not all dups
-      mime_hdr_field_delete(heap, mh, field_handle->field_ptr, false);
-    }
-    // for consistence, the handle will not be released here.
-    // users will be required to do it.
+  if (field_handle->mh == NULL) { // NOT SUPPORTED!!
+    ink_release_assert(!"Failed MH");
+  } else {
+    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
+    HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
 
-    //sdk_free_field_handle(bufp, field_handle);
-    return TS_SUCCESS;
+    ink_assert(mh == field_handle->mh);
+    if (sdk_sanity_check_field_handle(field_mloc, mh_mloc) != TS_SUCCESS)
+      return TS_ERROR;
+
+    // detach and delete this field, but not all dups
+    mime_hdr_field_delete(heap, mh, field_handle->field_ptr, false);
   }
-  return TS_ERROR;
+  // for consistence, the handle will not be released here.
+  // users will be required to do it.
+  return TS_SUCCESS;
 }
 
-TSMLoc
-TSMimeHdrFieldCreate(TSMBuffer bufp, TSMLoc mh_mloc)
+TSReturnCode
+TSMimeHdrFieldCreate(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc *locp)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If not allowed, return NULL.
-  // Changed the return value to TS_ERROR_PTR from NULL in case of errors.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS)) && isWriteable(bufp)) {
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
-    HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
-    MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_null_ptr((void*)locp) == TS_SUCCESS);
 
-    h->field_ptr = mime_field_create(heap, mh);
-    return h;
-  }
-  return (TSMLoc)TS_ERROR_PTR;
-}
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-TSMLoc
-TSMimeHdrFieldCreateNamed(TSMBuffer bufp, TSMLoc mh_mloc, const char *name, int name_len)
-{
-  if (sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) {
-    if (name_len == -1)
-      name_len = strlen(name);
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
+  HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
+  MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
 
-    MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
-    HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
-    MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
-    h->field_ptr = mime_field_create_named(heap, mh, name, name_len);
-    return h;
-  }
-  return TS_NULL_MLOC;
+  h->field_ptr = mime_field_create(heap, mh);
+  *locp = reinterpret_cast<TSMLoc>(h);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
-TSMimeHdrFieldCopy(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field,
-                    TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc src_field)
+TSMimeHdrFieldCreateNamed(TSMBuffer bufp, TSMLoc mh_mloc, const char *name, int name_len, TSMLoc *locp)
+{
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(mh_mloc) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_null_ptr((void*)name) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)locp) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  if (name_len == -1)
+    name_len = strlen(name);
+
+  MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
+  HdrHeap *heap = (HdrHeap *) (((HdrHeapSDKHandle *) bufp)->m_heap);
+  MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
+  h->field_ptr = mime_field_create_named(heap, mh, name, name_len);
+  *locp = reinterpret_cast<TSMLoc>(h);
+  return TS_SUCCESS;
+}
+
+TSReturnCode
+TSMimeHdrFieldCopy(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc src_field)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS)) &&
-      ((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS) &&
-      (sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS) && isWriteable(dest_bufp)) {
-    bool dest_attached;
-    MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *) src_field;
-    MIMEFieldSDKHandle *d_handle = (MIMEFieldSDKHandle *) dest_field;
-    HdrHeap *d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS));
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS);
 
-    // FIX: This tortuous detach/change/attach algorithm is due to the
-    //      fact that we can't change the name of an attached header (assertion)
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    // TODO: This is never used ... is_live() has no side effects, so this should be ok
-    // to not call, so commented out
-    // src_attached = (s_handle->mh && s_handle->field_ptr->is_live());
-    dest_attached = (d_handle->mh && d_handle->field_ptr->is_live());
+  bool dest_attached;
+  MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *) src_field;
+  MIMEFieldSDKHandle *d_handle = (MIMEFieldSDKHandle *) dest_field;
+  HdrHeap *d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
 
-    if (dest_attached)
-      mime_hdr_field_detach(d_handle->mh, d_handle->field_ptr, false);
+  // FIX: This tortuous detach/change/attach algorithm is due to the
+  //      fact that we can't change the name of an attached header (assertion)
 
-    mime_field_name_value_set(d_heap, d_handle->mh, d_handle->field_ptr,
-                              s_handle->field_ptr->m_wks_idx,
-                              s_handle->field_ptr->m_ptr_name,
-                              s_handle->field_ptr->m_len_name,
-                              s_handle->field_ptr->m_ptr_value, s_handle->field_ptr->m_len_value, 0, 0, true);
+  // TODO: This is never used ... is_live() has no side effects, so this should be ok
+  // to not call, so commented out
+  // src_attached = (s_handle->mh && s_handle->field_ptr->is_live());
+  dest_attached = (d_handle->mh && d_handle->field_ptr->is_live());
 
-    if (dest_attached)
-      mime_hdr_field_attach(d_handle->mh, d_handle->field_ptr, 1, NULL);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (dest_attached)
+    mime_hdr_field_detach(d_handle->mh, d_handle->field_ptr, false);
+
+  mime_field_name_value_set(d_heap, d_handle->mh, d_handle->field_ptr,
+                            s_handle->field_ptr->m_wks_idx,
+                            s_handle->field_ptr->m_ptr_name,
+                            s_handle->field_ptr->m_len_name,
+                            s_handle->field_ptr->m_ptr_value, s_handle->field_ptr->m_len_value, 0, 0, true);
+
+  if (dest_attached)
+    mime_hdr_field_attach(d_handle->mh, d_handle->field_ptr, 1, NULL);
+  return TS_SUCCESS;
 }
 
-TSMLoc
-TSMimeHdrFieldClone(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc src_field)
+TSReturnCode
+TSMimeHdrFieldClone(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc src_field, TSMLoc *locp)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If not allowed, return NULL.
-  if ((sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS)) &&
-      ((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS) && isWriteable(dest_bufp)) {
-    TSMLoc dest_field = TSMimeHdrFieldCreate(dest_bufp, dest_hdr);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS));
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)locp) == TS_SUCCESS);
 
-    if (sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS) {
-      TSMimeHdrFieldCopy(dest_bufp, dest_hdr, dest_field, src_bufp, src_hdr, src_field);
-      return dest_field;
-    }
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
+
+  // This is sort of sub-optimal, since we'll check the args again. TODO.
+  if (TSMimeHdrFieldCreate(dest_bufp, dest_hdr, locp) == TS_SUCCESS) {
+    TSMimeHdrFieldCopy(dest_bufp, dest_hdr, *locp, src_bufp, src_hdr, src_field);
+    return TS_SUCCESS;
   }
-  return (TSMLoc)TS_ERROR_PTR;
+  // TSMimeHdrFieldCreate() failed for some reason.
+  return TS_ERROR;
 }
 
 TSReturnCode
-TSMimeHdrFieldCopyValues(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field,
-                          TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc src_field)
+TSMimeHdrFieldCopyValues(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field, TSMBuffer src_bufp, TSMLoc src_hdr,
+                         TSMLoc src_field)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS)) &&
-      ((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) ||
-       (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS) &&
-      (sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS) && isWriteable(dest_bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(src_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS));
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(dest_hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(dest_hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS);
 
-    MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *) src_field;
-    MIMEFieldSDKHandle *d_handle = (MIMEFieldSDKHandle *) dest_field;
-    HdrHeap *d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    MIMEField *s_field, *d_field;
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    s_field = s_handle->field_ptr;
-    d_field = d_handle->field_ptr;
-    mime_field_value_set(d_heap, d_handle->mh, d_field, s_field->m_ptr_value, s_field->m_len_value, true);
+  MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *) src_field;
+  MIMEFieldSDKHandle *d_handle = (MIMEFieldSDKHandle *) dest_field;
+  HdrHeap *d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  MIMEField *s_field, *d_field;
 
-    return TS_SUCCESS;
-  } 
-  return TS_ERROR;
+  s_field = s_handle->field_ptr;
+  d_field = d_handle->field_ptr;
+  mime_field_value_set(d_heap, d_handle->mh, d_field, s_field->m_ptr_value, s_field->m_len_value, true);
+  return TS_SUCCESS;
 }
 
 // TODO: This is implemented horribly slowly, but who's using it anyway?
@@ -3026,43 +2879,43 @@ TSMimeHdrFieldCopyValues(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field
 TSMLoc
 TSMimeHdrFieldNext(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS)) {
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    if (handle->mh == NULL)
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+
+  if (handle->mh == NULL)
+    return TS_NULL_MLOC;
+
+  int slotnum = mime_hdr_field_slotnum(handle->mh, handle->field_ptr);
+  if (slotnum == -1)
+    return TS_NULL_MLOC;
+
+  while (1) {
+    ++slotnum;
+    MIMEField *f = mime_hdr_field_get_slotnum(handle->mh, slotnum);
+
+    if (f == NULL)
       return TS_NULL_MLOC;
-
-    int slotnum = mime_hdr_field_slotnum(handle->mh, handle->field_ptr);
-    if (slotnum == -1)
-      return TS_NULL_MLOC;
-
-    while (1) {
-      ++slotnum;
-      MIMEField *f = mime_hdr_field_get_slotnum(handle->mh, slotnum);
-
-      if (f == NULL)
-        return TS_NULL_MLOC;
-      if (f->is_live()) {
-        MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, handle->mh);
-
-        h->field_ptr = f;
-        return h;
-      }
+    if (f->is_live()) {
+      MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, handle->mh);
+      
+      h->field_ptr = f;
+      return reinterpret_cast<TSMLoc>(h);
     }
   }
-  return (TSMLoc)TS_ERROR_PTR;
+  return TS_NULL_MLOC; // Shouldn't happen.
 }
 
 TSMLoc
 TSMimeHdrFieldNextDup(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      ((sdk_sanity_check_mime_hdr_handle(hdr) != TS_SUCCESS) && (sdk_sanity_check_http_hdr_handle(hdr) != TS_SUCCESS))
-      || (sdk_sanity_check_field_handle(field, hdr) != TS_SUCCESS)) {
-    return (TSMLoc)TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr);
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *) field;
@@ -3078,11 +2931,10 @@ TSMimeHdrFieldNextDup(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 int
 TSMimeHdrFieldLengthGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      ((sdk_sanity_check_mime_hdr_handle(hdr) != TS_SUCCESS) && (sdk_sanity_check_http_hdr_handle(hdr) != TS_SUCCESS)) ||
-      (sdk_sanity_check_field_handle(field, hdr) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
   return mime_field_length_get(handle->field_ptr);
@@ -3091,20 +2943,14 @@ TSMimeHdrFieldLengthGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 const char *
 TSMimeHdrFieldNameGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int *length)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      ((sdk_sanity_check_mime_hdr_handle(hdr) != TS_SUCCESS) && (sdk_sanity_check_http_hdr_handle(hdr) != TS_SUCCESS)) ||
-      (sdk_sanity_check_field_handle(field, hdr) != TS_SUCCESS)) {
-    return (const char *)TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
-  int name_len;
-  const char *name_ptr;
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
-
-  name_ptr = mime_field_name_get(handle->field_ptr, &name_len);
-  if (length)
-    *length = name_len;
-  return name_ptr;
+  return mime_field_name_get(handle->field_ptr, length);
 }
 
 TSReturnCode
@@ -3114,27 +2960,31 @@ TSMimeHdrFieldNameSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, const char *name
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS))
-      && (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) &&
-      (sdk_sanity_check_null_ptr((void *) name) == TS_SUCCESS) && isWriteable(bufp)) {
-    if (length == -1)
-      length = strlen(name);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) name) == TS_SUCCESS);
 
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    int attached = (handle->mh && handle->field_ptr->is_live());
-    if (attached)
-      mime_hdr_field_detach(handle->mh, handle->field_ptr, false);
+  if (length == -1)
+    length = strlen(name);
 
-    handle->field_ptr->name_set(heap, handle->mh, name, length);
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
 
-    if (attached)
-      mime_hdr_field_attach(handle->mh, handle->field_ptr, 1, NULL);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  int attached = (handle->mh && handle->field_ptr->is_live());
+
+  if (attached)
+    mime_hdr_field_detach(handle->mh, handle->field_ptr, false);
+
+  handle->field_ptr->name_set(heap, handle->mh, name, length);
+
+  if (attached)
+    mime_hdr_field_attach(handle->mh, handle->field_ptr, 1, NULL);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3144,104 +2994,98 @@ TSMimeHdrFieldValuesClear(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    /**
-     * Modified the string value passed from an empty string ("") to NULL.
-     * An empty string is also considered to be a token. The correct value of
-     * the field after this function should be NULL.
-     */
-    mime_field_value_set(heap, handle->mh, handle->field_ptr, NULL, 0, 1);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+
+  /**
+   * Modified the string value passed from an empty string ("") to NULL.
+   * An empty string is also considered to be a token. The correct value of
+   * the field after this function should be NULL.
+   */
+  mime_field_value_set(heap, handle->mh, handle->field_ptr, NULL, 0, 1);
+  return TS_SUCCESS;
 }
 
 int
 TSMimeHdrFieldValuesCount(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS))
-      && (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS)) {
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    return mime_field_value_get_comma_val_count(handle->field_ptr);
-  }
-  return TS_ERROR;
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  return mime_field_value_get_comma_val_count(handle->field_ptr);
 }
 
-TSReturnCode
-TSMimeHdrFieldValueStringGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, const char **value_ptr,
-                             int *value_len_ptr) {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS))
-      && (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (value_ptr != NULL) &&
-      sdk_sanity_check_null_ptr((void *) value_len_ptr) == TS_SUCCESS) {
-    *value_ptr = TSMimeFieldValueGet(bufp, field, idx, value_len_ptr);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+const char*
+TSMimeHdrFieldValueStringGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int *value_len_ptr) {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) value_len_ptr) == TS_SUCCESS);
+
+  return TSMimeFieldValueGet(bufp, field, idx, value_len_ptr);
 }
 
-TSReturnCode
-TSMimeHdrFieldValueDateGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t *value_ptr)
+time_t
+TSMimeHdrFieldValueDateGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (value_ptr != NULL)) {
-    int value_len;
-    const char *value_str = TSMimeFieldValueGet(bufp, field, -1, &value_len);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    if (value_str == NULL) {
-      *value_ptr = (time_t) 0;
-    } else {
-      *value_ptr = mime_parse_date(value_str, value_str + value_len);
-    }
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  int value_len;
+  const char *value_str = TSMimeFieldValueGet(bufp, field, -1, &value_len);
+
+  if (value_str == NULL)
+    return (time_t) 0;
+
+  return mime_parse_date(value_str, value_str + value_len);
 }
 
-TSReturnCode
-TSMimeHdrFieldValueIntGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int *value_ptr)
+int
+TSMimeHdrFieldValueIntGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (value_ptr != NULL)) {
-    int value_len;
-    const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    if (value_str == NULL) {
-      *value_ptr = 0;  // TODO: Hmmm, this is weird, but it's the way it worked before ...
-    } else{
-      *value_ptr = mime_parse_int(value_str, value_str + value_len);
-    }
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  int value_len;
+  const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
+
+  if (value_str == NULL)
+    return 0;
+
+  return mime_parse_int(value_str, value_str + value_len);
 }
 
-TSReturnCode
-TSMimeHdrFieldValueUintGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, unsigned int *value_ptr)
+unsigned int
+TSMimeHdrFieldValueUintGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (value_ptr != NULL)) {
-    int value_len;
-    const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    if (value_str == NULL) {
-      *value_ptr = 0;
-    } else {
-      *value_ptr = mime_parse_uint(value_str, value_str + value_len);
-    }
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  int value_len;
+  const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
+
+  if (value_str == NULL)
+    return 0;
+
+  return mime_parse_uint(value_str, value_str + value_len);
 }
 
 TSReturnCode
@@ -3251,16 +3095,20 @@ TSMimeHdrFieldValueStringSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, 
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) &&
-      (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS) && isWriteable(bufp)) {
-    if (length == -1)
-      length = strlen(value);
-    TSMimeFieldValueSet(bufp, field, idx, value, length);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) value) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  if (length == -1)
+    length = strlen(value);
+
+  TSMimeFieldValueSet(bufp, field, idx, value, length);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3270,18 +3118,21 @@ TSMimeHdrFieldValueDateSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t valu
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    char tmp[33];
-    int len = mime_format_date(tmp, value);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  char tmp[33];
+  int len = mime_format_date(tmp, value);
 
     // idx is ignored and we overwrite all existing values
     // TSMimeFieldValueSet(bufp, field_obj, idx, tmp, len);
-    TSMimeFieldValueSet(bufp, field, -1, tmp, len);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  TSMimeFieldValueSet(bufp, field, -1, tmp, len);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3291,16 +3142,19 @@ TSMimeHdrFieldValueIntSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    char tmp[16];
-    int len = mime_format_int(tmp, value, sizeof(tmp));
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    TSMimeFieldValueSet(bufp, field, idx, tmp, len);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  char tmp[16];
+  int len = mime_format_int(tmp, value, sizeof(tmp));
+
+  TSMimeFieldValueSet(bufp, field, idx, tmp, len);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3310,16 +3164,19 @@ TSMimeHdrFieldValueUintSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, un
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    char tmp[16];
-    int len = mime_format_uint(tmp, value, sizeof(tmp));
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    TSMimeFieldValueSet(bufp, field, idx, tmp, len);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  char tmp[16];
+  int len = mime_format_uint(tmp, value, sizeof(tmp));
+
+  TSMimeFieldValueSet(bufp, field, idx, tmp, len);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3329,19 +3186,23 @@ TSMimeHdrFieldValueAppend(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, con
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (idx >= 0) && (value != NULL) &&
-      isWriteable(bufp)) {
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
+  sdk_assert(idx >= 0);
 
-    if (length == -1)
-      length = strlen(value);
-    mime_field_value_extend_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+
+  if (length == -1)
+    length = strlen(value);
+  mime_field_value_extend_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3350,16 +3211,19 @@ TSMimeHdrFieldValueStringInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int id
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR, else return TS_SUCCESS.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) &&
-      (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS) && isWriteable(bufp)) {
-    if (length == -1)
-      length = strlen(value);
-    TSMimeFieldValueInsert(bufp, field, value, length, idx);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) value) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  if (length == -1)
+    length = strlen(value);
+  TSMimeFieldValueInsert(bufp, field, value, length, idx);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3368,16 +3232,19 @@ TSMimeHdrFieldValueIntInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, 
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR, else return TS_SUCCESS.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    char tmp[16];
-    int len = mime_format_int(tmp, value, sizeof(tmp));
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    TSMimeFieldValueInsert(bufp, field, tmp, len, idx);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  char tmp[16];
+  int len = mime_format_int(tmp, value, sizeof(tmp));
+
+  TSMimeFieldValueInsert(bufp, field, tmp, len, idx);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3386,16 +3253,19 @@ TSMimeHdrFieldValueUintInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx,
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR, else return TS_SUCCESS.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
-    char tmp[16];
-    int len = mime_format_uint(tmp, value, sizeof(tmp));
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    TSMimeFieldValueInsert(bufp, field, tmp, len, idx);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  char tmp[16];
+  int len = mime_format_uint(tmp, value, sizeof(tmp));
+
+  TSMimeFieldValueInsert(bufp, field, tmp, len, idx);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3404,22 +3274,23 @@ TSMimeHdrFieldValueDateInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t v
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR, else return TS_SUCCESS
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && isWriteable(bufp)) {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-    if (TSMimeHdrFieldValuesClear(bufp, hdr, field) == TS_ERROR) {
-      return TS_ERROR;
-    }
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    char tmp[33];
-    int len = mime_format_date(tmp, value);
+  if (TSMimeHdrFieldValuesClear(bufp, hdr, field) == TS_ERROR)
+    return TS_ERROR;
+
+  char tmp[33];
+  int len = mime_format_date(tmp, value);
     // idx ignored, overwrite all exisiting values
     // (void)TSMimeFieldValueInsert(bufp, field_obj, tmp, len, idx);
-    (void) TSMimeFieldValueSet(bufp, field, -1, tmp, len);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  (void) TSMimeFieldValueSet(bufp, field, -1, tmp, len);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3429,55 +3300,51 @@ TSMimeHdrFieldValueDelete(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      ((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS)) &&
-      (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS) && (idx >= 0) && isWriteable(bufp)) {
-    MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
+             (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(idx >= 0);
 
-    mime_field_value_delete_comma_val(heap, handle->mh, handle->field_ptr, idx);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *) field;
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+
+  mime_field_value_delete_comma_val(heap, handle->mh, handle->field_ptr, idx);
+  return TS_SUCCESS;
 }
 
 /**************/
 /* HttpParser */
 /**************/
-
 TSHttpParser
-TSHttpParserCreate()
+TSHttpParserCreate(void)
 {
   TSHttpParser parser;
 
-  parser = xmalloc(sizeof(HTTPParser));
-  if (sdk_sanity_check_http_parser(parser) != TS_SUCCESS) {
-    return (TSHttpParser)TS_ERROR_PTR;
-  }
+  // xmalloc should be set to not fail IMO.
+  parser = reinterpret_cast<TSHttpParser>(xmalloc(sizeof(HTTPParser)));
+  sdk_assert(sdk_sanity_check_http_parser(parser) == TS_SUCCESS);
   http_parser_init((HTTPParser *) parser);
 
   return parser;
 }
 
-TSReturnCode
+void
 TSHttpParserClear(TSHttpParser parser)
 {
-  if (sdk_sanity_check_http_parser(parser) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_http_parser(parser) == TS_SUCCESS);
   http_parser_clear((HTTPParser *) parser);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpParserDestroy(TSHttpParser parser)
 {
-  if (sdk_sanity_check_http_parser(parser) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_http_parser(parser) == TS_SUCCESS);
   http_parser_clear((HTTPParser *) parser);
   xfree(parser);
-  return TS_SUCCESS;
 }
 
 /***********/
@@ -3488,9 +3355,7 @@ TSHttpParserDestroy(TSHttpParser parser)
 TSMLoc
 TSHttpHdrCreate(TSMBuffer bufp)
 {
-  if (sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) {
-    return (TSMLoc)TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
 
   HTTPHdr h;
   h.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
@@ -3498,44 +3363,47 @@ TSHttpHdrCreate(TSMBuffer bufp)
   return (TSMLoc)(h.m_http);
 }
 
-TSReturnCode
+void
 TSHttpHdrDestroy(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+
   // No more objects counts in heap or deallocation
   //   so do nothing!
-  return TS_SUCCESS;
 
   // HDR FIX ME - Did this free the MBuffer in Pete's old system
 }
 
-TSMLoc
-TSHttpHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr)
+TSReturnCode
+TSHttpHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc *locp)
 {
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If not allowed, return NULL.
-  if ((sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS) && isWriteable(dest_bufp)) {
-    HdrHeap *s_heap, *d_heap;
-    HTTPHdrImpl *s_hh, *d_hh;
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS);
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_hh = (HTTPHdrImpl *) src_hdr;
+  if (!isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    ink_assert(s_hh->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  HdrHeap *s_heap, *d_heap;
+  HTTPHdrImpl *s_hh, *d_hh;
 
-    // TODO: This is never used
-    // inherit_strs = (s_heap != d_heap ? true : false);
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_hh = (HTTPHdrImpl *) src_hdr;
 
-    d_hh = http_hdr_clone(s_hh, s_heap, d_heap);
-    return (TSMLoc)d_hh;
-  }
-  return (TSMLoc)TS_ERROR_PTR;
+  if (s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
+    return TS_ERROR;
+
+  // TODO: This is never used
+  // inherit_strs = (s_heap != d_heap ? true : false);
+  d_hh = http_hdr_clone(s_hh, s_heap, d_heap);
+  *locp = (TSMLoc)d_hh;
+
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3545,34 +3413,39 @@ TSHttpHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc s
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(src_obj) == TS_SUCCESS) && isWriteable(dest_bufp)) {
-    bool inherit_strs;
-    HdrHeap *s_heap, *d_heap;
-    HTTPHdrImpl *s_hh, *d_hh;
+  sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(dest_bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(src_obj) == TS_SUCCESS);
 
-    s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
-    d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
-    s_hh = (HTTPHdrImpl *) src_obj;
-    d_hh = (HTTPHdrImpl *) dest_obj;
+  if (! isWriteable(dest_bufp))
+    return TS_ERROR;
 
-    ink_assert(s_hh->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
-    ink_assert(d_hh->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  bool inherit_strs;
+  HdrHeap *s_heap, *d_heap;
+  HTTPHdrImpl *s_hh, *d_hh;
 
-    inherit_strs = (s_heap != d_heap ? true : false);
+  s_heap = ((HdrHeapSDKHandle *) src_bufp)->m_heap;
+  d_heap = ((HdrHeapSDKHandle *) dest_bufp)->m_heap;
+  s_hh = (HTTPHdrImpl *) src_obj;
+  d_hh = (HTTPHdrImpl *) dest_obj;
 
-    TSHttpHdrTypeSet(dest_bufp, dest_obj, (TSHttpType) (s_hh->m_polarity));
-    http_hdr_copy_onto(s_hh, s_heap, d_hh, d_heap, inherit_strs);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if ((s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER) || (d_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER))
+    return TS_ERROR;
+
+  inherit_strs = (s_heap != d_heap ? true : false);
+  TSHttpHdrTypeSet(dest_bufp, dest_obj, (TSHttpType) (s_hh->m_polarity));
+  http_hdr_copy_onto(s_hh, s_heap, d_hh, d_heap, inherit_strs);
+  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpHdrPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
 {
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(iobufp) == TS_SUCCESS);
+
   MIOBuffer *b = (MIOBuffer *) iobufp;
   IOBufferBlock *blk;
   HTTPHdr h;
@@ -3580,17 +3453,10 @@ TSHttpHdrPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
   int tmp, dumpoffset;
   int done;
 
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS) ||
-      (sdk_sanity_check_iocore_structure(iobufp) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
-
   SET_HTTP_HDR(h, bufp, obj);
   ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
 
   dumpoffset = 0;
-
   do {
     blk = b->get_current_block();
     if (!blk || blk->write_avail() == 0) {
@@ -3606,15 +3472,18 @@ TSHttpHdrPrint(TSMBuffer bufp, TSMLoc obj, TSIOBuffer iobufp)
     dumpoffset += bufindex;
     b->fill(bufindex);
   } while (!done);
-  return TS_SUCCESS;
 }
 
-int
+TSParseResult
 TSHttpHdrParseReq(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char **start, const char *end)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS) ||
-      (start == NULL) || (*start == NULL) || (!isWriteable(bufp)))
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)*start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)end) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
     return TS_PARSE_ERROR;
 
   HTTPHdr h;
@@ -3622,15 +3491,19 @@ TSHttpHdrParseReq(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char **
   SET_HTTP_HDR(h, bufp, obj);
   ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
   TSHttpHdrTypeSet(bufp, obj, TS_HTTP_TYPE_REQUEST);
-  return h.parse_req((HTTPParser *) parser, start, end, false);
+  return (TSParseResult)h.parse_req((HTTPParser *) parser, start, end, false);
 }
 
-int
+TSParseResult
 TSHttpHdrParseResp(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char **start, const char *end)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) ||
-      (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS) ||
-      (start == NULL) || (*start == NULL) || (!isWriteable(bufp)))
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)*start) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)end) == TS_SUCCESS);
+
+  if (!isWriteable(bufp))
     return TS_PARSE_ERROR;
 
   HTTPHdr h;
@@ -3638,14 +3511,14 @@ TSHttpHdrParseResp(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char *
   SET_HTTP_HDR(h, bufp, obj);
   ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
   TSHttpHdrTypeSet(bufp, obj, TS_HTTP_TYPE_RESPONSE);
-  return h.parse_resp((HTTPParser *) parser, start, end, false);
+  return (TSParseResult)h.parse_resp((HTTPParser *) parser, start, end, false);
 }
 
 int
 TSHttpHdrLengthGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
   HTTPHdr h;
 
@@ -3657,63 +3530,60 @@ TSHttpHdrLengthGet(TSMBuffer bufp, TSMLoc obj)
 TSHttpType
 TSHttpHdrTypeGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return (TSHttpType) TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+
   HTTPHdr h;
   SET_HTTP_HDR(h, bufp, obj);
   /* Don't need the assert as the check is done in sdk_sanity_check_http_hdr_handle
      ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
    */
-  return (TSHttpType) h.type_get();
+  return (TSHttpType)h.type_get();
 }
 
 TSReturnCode
 TSHttpHdrTypeSet(TSMBuffer bufp, TSMLoc obj, TSHttpType type)
 {
-#ifdef DEBUG
-  if ((type<TS_HTTP_TYPE_UNKNOWN) || (type> TS_HTTP_TYPE_RESPONSE)) {
-    return TS_ERROR;
-  }
-#endif
   // Allow to modify the buffer only
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) && (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) && isWriteable(bufp)) {
-    HTTPHdr h;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert((type >= TS_HTTP_TYPE_UNKNOWN) && (type <= TS_HTTP_TYPE_RESPONSE));
 
-    SET_HTTP_HDR(h, bufp, obj);
-    ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    // FIX: why are we using an HTTPHdr here?  why can't we
-    //      just manipulate the impls directly?
+  HTTPHdr h;
 
-    // In Pete's MBuffer system you can change the type
-    //   at will.  Not so anymore.  We need to try to
-    //   fake the difference.  We not going to let
-    //   people change the types of a header.  If they
-    //   try, too bad.
+  SET_HTTP_HDR(h, bufp, obj);
+  ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
 
-    if (h.m_http->m_polarity == HTTP_TYPE_UNKNOWN) {
-      if (type == (TSHttpType) HTTP_TYPE_REQUEST) {
-        h.m_http->u.req.m_url_impl = url_create(h.m_heap);
-        h.m_http->m_polarity = (HTTPType) type;
-      } else if (type == (TSHttpType) HTTP_TYPE_RESPONSE) {
-        h.m_http->m_polarity = (HTTPType) type;
-      }
+  // FIX: why are we using an HTTPHdr here?  why can't we
+  //      just manipulate the impls directly?
+
+  // In Pete's MBuffer system you can change the type
+  //   at will.  Not so anymore.  We need to try to
+  //   fake the difference.  We not going to let
+  //   people change the types of a header.  If they
+  //   try, too bad.
+  if (h.m_http->m_polarity == HTTP_TYPE_UNKNOWN) {
+    if (type == (TSHttpType) HTTP_TYPE_REQUEST) {
+      h.m_http->u.req.m_url_impl = url_create(h.m_heap);
+      h.m_http->m_polarity = (HTTPType) type;
+    } else if (type == (TSHttpType) HTTP_TYPE_RESPONSE) {
+      h.m_http->m_polarity = (HTTPType) type;
     }
-    return TS_SUCCESS;
   }
-  return TS_ERROR;
+  return TS_SUCCESS;
 }
 
 int
 TSHttpHdrVersionGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
   HTTPHdr h;
 
@@ -3729,26 +3599,28 @@ TSHttpHdrVersionSet(TSMBuffer bufp, TSMLoc obj, int ver)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) && isWriteable(bufp)) {
-    HTTPHdr h;
-    HTTPVersion version(ver);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
-    SET_HTTP_HDR(h, bufp, obj);
-    ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    h.version_set(version);
-    return TS_SUCCESS;
-  } 
-  return TS_ERROR;
+  HTTPHdr h;
+  HTTPVersion version(ver);
+
+  SET_HTTP_HDR(h, bufp, obj);
+  ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+
+  h.version_set(version);
+  return TS_SUCCESS;
 }
 
 const char *
 TSHttpHdrMethodGet(TSMBuffer bufp, TSMLoc obj, int *length)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return (const char *) TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
   HTTPHdr h;
 
@@ -3763,33 +3635,36 @@ TSHttpHdrMethodSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) &&
-      isWriteable(bufp) && (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)) {
-    HTTPHdr h;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
-    SET_HTTP_HDR(h, bufp, obj);
-    if (length < 0)
-      length = strlen(value);
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    h.method_set(value, length);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HTTPHdr h;
+
+  SET_HTTP_HDR(h, bufp, obj);
+  if (length < 0)
+    length = strlen(value);
+
+  h.method_set(value, length);
+  return TS_SUCCESS;
 }
 
-TSMLoc
-TSHttpHdrUrlGet(TSMBuffer bufp, TSMLoc obj)
+TSReturnCode
+TSHttpHdrUrlGet(TSMBuffer bufp, TSMLoc obj, TSMLoc *locp)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS))
-    return (TSMLoc) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
   HTTPHdrImpl *hh = (HTTPHdrImpl *) obj;
 
   if (hh->m_polarity != HTTP_TYPE_REQUEST)
-    return ((TSMLoc) TS_ERROR_PTR);
-  else
-    return ((TSMLoc) hh->u.req.m_url_impl);
+    return TS_ERROR;
+
+  *locp = ((TSMLoc)hh->u.req.m_url_impl);
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -3799,32 +3674,34 @@ TSHttpHdrUrlSet(TSMBuffer bufp, TSMLoc obj, TSMLoc url)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) &&
-      (sdk_sanity_check_url_handle(url) == TS_SUCCESS) && isWriteable(bufp)) {
-    HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
-    HTTPHdrImpl *hh = (HTTPHdrImpl *) obj;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(url) == TS_SUCCESS);
 
-    ink_assert(hh->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    URLImpl *url_impl = (URLImpl *) url;
-    http_hdr_url_set(heap, hh, url_impl);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HdrHeap *heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
+  HTTPHdrImpl *hh = (HTTPHdrImpl *) obj;
+
+  if (hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
+    return TS_ERROR;
+
+  URLImpl *url_impl = (URLImpl *) url;
+  http_hdr_url_set(heap, hh, url_impl);
+  return TS_SUCCESS;
 }
 
 TSHttpStatus
 TSHttpHdrStatusGet(TSMBuffer bufp, TSMLoc obj)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return (TSHttpStatus) TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
   HTTPHdr h;
 
   SET_HTTP_HDR(h, bufp, obj);
-  return (TSHttpStatus) h.status_get();
+  return (TSHttpStatus)h.status_get();
 }
 
 TSReturnCode
@@ -3834,24 +3711,27 @@ TSHttpHdrStatusSet(TSMBuffer bufp, TSMLoc obj, TSHttpStatus status)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) && isWriteable(bufp)) {
-    HTTPHdr h;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
-    SET_HTTP_HDR(h, bufp, obj);
-    ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
-    h.status_set((HTTPStatus) status);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  if (!isWriteable(bufp))
+    return TS_ERROR;
+
+  HTTPHdr h;
+
+  SET_HTTP_HDR(h, bufp, obj);
+  ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  h.status_set((HTTPStatus) status);
+  return TS_SUCCESS;
 }
 
 const char *
 TSHttpHdrReasonGet(TSMBuffer bufp, TSMLoc obj, int *length)
 {
-  if ((sdk_sanity_check_mbuffer(bufp) != TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) != TS_SUCCESS)) {
-    return (const char *) TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
+
   HTTPHdr h;
 
   SET_HTTP_HDR(h, bufp, obj);
@@ -3865,22 +3745,24 @@ TSHttpHdrReasonSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if ((sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS) &&
-      (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS) &&
-      isWriteable(bufp) && (sdk_sanity_check_null_ptr((void *) value) == TS_SUCCESS)) {
-    HTTPHdr h;
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) value) == TS_SUCCESS);
 
-    SET_HTTP_HDR(h, bufp, obj);
-    /* Don't need the assert as the check is done in sdk_sanity_check_http_hdr_handle
-       ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
-     */
+  if (!isWriteable(bufp))
+    return TS_ERROR;
 
-    if (length < 0)
-      length = strlen(value);
-    h.reason_set(value, length);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HTTPHdr h;
+
+  SET_HTTP_HDR(h, bufp, obj);
+  /* Don't need the assert as the check is done in sdk_sanity_check_http_hdr_handle
+     ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
+  */
+
+  if (length < 0)
+    length = strlen(value);
+  h.reason_set(value, length);
+  return TS_SUCCESS;
 }
 
 const char *
@@ -3889,8 +3771,6 @@ TSHttpHdrReasonLookup(TSHttpStatus status)
   return http_hdr_reason_lookup((HTTPStatus) status);
 }
 
-
-/// END CODE REVIEW HERE
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -3901,35 +3781,30 @@ TSHttpHdrReasonLookup(TSHttpStatus status)
 inline TSReturnCode
 sdk_sanity_check_cachekey(TSCacheKey key)
 {
-#ifdef DEBUG
-  if (key == NULL || key == TS_ERROR_PTR || ((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (NULL == key)
     return TS_ERROR;
 
   return TS_SUCCESS;
-#else
-  NOWARN_UNUSED(key);
-  return TS_SUCCESS;
-#endif
 }
 
-TSReturnCode
-TSCacheKeyCreate(TSCacheKey *new_key)
+TSCacheKey
+TSCacheKeyCreate(void)
 {
-#ifdef DEBUG
-  if (new_key == NULL)
-    return TS_ERROR;
-#endif
-  *new_key = (TSCacheKey) NEW(new CacheInfo());
-  return TS_SUCCESS;
+  TSCacheKey key = (TSCacheKey)NEW(new CacheInfo());
+
+  // TODO: Probably remove this when we can be use "NEW" can't fail.
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+  return key;
 }
 
 TSReturnCode
 TSCacheKeyDigestSet(TSCacheKey key, const char *input, int length)
 {
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
-    return TS_ERROR;
-
-  if (sdk_sanity_check_iocore_structure((void *) input) != TS_SUCCESS || length < 0)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure((void*) input) == TS_SUCCESS);
+  sdk_assert(length > 0);
+  
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   ((CacheInfo *) key)->cache_key.encodeBuffer((char *) input, length);
@@ -3939,7 +3814,9 @@ TSCacheKeyDigestSet(TSCacheKey key, const char *input, int length)
 TSReturnCode
 TSCacheKeyDigestFromUrlSet(TSCacheKey key, TSMLoc url)
 {
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   url_MD5_get((URLImpl *) url, &((CacheInfo *) key)->cache_key);
@@ -3949,7 +3826,9 @@ TSCacheKeyDigestFromUrlSet(TSCacheKey key, TSMLoc url)
 TSReturnCode
 TSCacheKeyDataTypeSet(TSCacheKey key, TSCacheDataType type)
 {
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   switch (type) {
@@ -3963,17 +3842,18 @@ TSCacheKeyDataTypeSet(TSCacheKey key, TSCacheDataType type)
   default:
     return TS_ERROR;
   }
+
   return TS_SUCCESS;
 }
 
 TSReturnCode
 TSCacheKeyHostNameSet(TSCacheKey key, const char *hostname, int host_len)
 {
-#ifdef DEBUG
-  if ((hostname == NULL) || (host_len <= 0))
-    return TS_ERROR;
-#endif
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)hostname) == TS_SUCCESS);
+  sdk_assert(host_len > 0);
+
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   CacheInfo *i = (CacheInfo *) key;
@@ -3988,7 +3868,9 @@ TSCacheKeyHostNameSet(TSCacheKey key, const char *hostname, int host_len)
 TSReturnCode
 TSCacheKeyPinnedSet(TSCacheKey key, time_t pin_in_cache)
 {
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   CacheInfo *i = (CacheInfo *) key;
@@ -3999,10 +3881,13 @@ TSCacheKeyPinnedSet(TSCacheKey key, time_t pin_in_cache)
 TSReturnCode
 TSCacheKeyDestroy(TSCacheKey key)
 {
-  if (sdk_sanity_check_cachekey(key) != TS_SUCCESS)
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
+
+  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
   CacheInfo *i = (CacheInfo *) key;
+
   if (i->hostname)
     xfree(i->hostname);
   i->magic = CACHE_INFO_MAGIC_DEAD;
@@ -4016,16 +3901,16 @@ TSCacheHttpInfoCopy(TSCacheHttpInfo infop)
   CacheHTTPInfo *new_info = NEW(new CacheHTTPInfo);
 
   new_info->copy((CacheHTTPInfo *) infop);
-  return new_info;
+  return reinterpret_cast<TSCacheHttpInfo>(new_info);
 }
 
 void
 TSCacheHttpInfoReqGet(TSCacheHttpInfo infop, TSMBuffer *bufp, TSMLoc *obj)
 {
-  CacheHTTPInfo *info = (CacheHTTPInfo *) infop;
+  CacheHTTPInfo *info = (CacheHTTPInfo *)infop;
 
-  *bufp = info->request_get();
-  *obj = info->request_get()->m_http;
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = info->request_get();
+  *obj = reinterpret_cast<TSMLoc>(info->request_get()->m_http);
   sdk_sanity_check_mbuffer(*bufp);
 }
 
@@ -4035,8 +3920,8 @@ TSCacheHttpInfoRespGet(TSCacheHttpInfo infop, TSMBuffer *bufp, TSMLoc *obj)
 {
   CacheHTTPInfo *info = (CacheHTTPInfo *) infop;
 
-  *bufp = info->response_get();
-  *obj = info->response_get()->m_http;
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = info->response_get();
+  *obj = reinterpret_cast<TSMLoc>(info->response_get()->m_http);
   sdk_sanity_check_mbuffer(*bufp);
 }
 
@@ -4089,12 +3974,12 @@ TSCacheHttpInfoDestroy(TSCacheHttpInfo infop)
 }
 
 TSCacheHttpInfo
-TSCacheHttpInfoCreate()
+TSCacheHttpInfoCreate(void)
 {
   CacheHTTPInfo *info = new CacheHTTPInfo;
   info->create();
 
-  return info;
+  return reinterpret_cast<TSCacheHttpInfo>(info);
 }
 
 
@@ -4116,7 +4001,7 @@ TSConfigSet(unsigned int id, void *data, TSConfigDestroyFunc funcp)
 TSConfig
 TSConfigGet(unsigned int id)
 {
-  return configProcessor.get(id);
+  return reinterpret_cast<TSConfig>(configProcessor.get(id));
 }
 
 void
@@ -4138,37 +4023,34 @@ TSConfigDataGet(TSConfig configp)
 //
 ////////////////////////////////////////////////////////////////////
 
-TSReturnCode
-TSMgmtUpdateRegister(TSCont contp, const char *plugin_name, const char *path)
+void
+TSMgmtUpdateRegister(TSCont contp, const char *plugin_name)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) plugin_name) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) path) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)plugin_name) == TS_SUCCESS);
 
-  global_config_cbs->insert((INKContInternal *) contp, plugin_name, path);
-  return TS_SUCCESS;
+  global_config_cbs->insert((INKContInternal *)contp, plugin_name);
 }
 
-int
+TSReturnCode
 TSMgmtIntGet(const char *var_name, TSMgmtInt *result)
 {
-  return RecGetRecordInt((char *) var_name, (RecInt *) result) == REC_ERR_OKAY ? 1 : 0;
+  return RecGetRecordInt((char *) var_name, (RecInt *) result) == REC_ERR_OKAY ? TS_SUCCESS : TS_ERROR;
 }
 
-int
+TSReturnCode
 TSMgmtCounterGet(const char *var_name, TSMgmtCounter *result)
 {
-  return RecGetRecordCounter((char *) var_name, (RecCounter *) result) == REC_ERR_OKAY ? 1 : 0;
+  return RecGetRecordCounter((char *) var_name, (RecCounter *) result) == REC_ERR_OKAY ? TS_SUCCESS : TS_ERROR;
 }
 
-int
+TSReturnCode
 TSMgmtFloatGet(const char *var_name, TSMgmtFloat *result)
 {
-  return RecGetRecordFloat((char *) var_name, (RecFloat *) result) == REC_ERR_OKAY ? 1 : 0;
+  return RecGetRecordFloat((char *) var_name, (RecFloat *) result) == REC_ERR_OKAY ? TS_SUCCESS : TS_ERROR;
 }
 
-int
+TSReturnCode
 TSMgmtStringGet(const char *var_name, TSMgmtString *result)
 {
   RecString tmp = 0;
@@ -4176,9 +4058,10 @@ TSMgmtStringGet(const char *var_name, TSMgmtString *result)
 
   if (tmp) {
     *result = tmp;
-    return 1;
+    return TS_SUCCESS;
   }
-  return 0;
+
+  return TS_ERROR;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -4191,44 +4074,39 @@ TSCont
 TSContCreate(TSEventFunc funcp, TSMutex mutexp)
 {
   // mutexp can be NULL
-  if ((mutexp != NULL) && (sdk_sanity_check_mutex(mutexp) != TS_SUCCESS))
-    return (TSCont) TS_ERROR_PTR;
+  if (mutexp != NULL)
+    sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
 
   INKContInternal *i = INKContAllocator.alloc();
 
   i->init(funcp, mutexp);
-  return (TSCont) i;
+  return (TSCont)i;
 }
 
-TSReturnCode
+void
 TSContDestroy(TSCont contp)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   INKContInternal *i = (INKContInternal *) contp;
 
   i->destroy();
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSContDataSet(TSCont contp, void *data)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   INKContInternal *i = (INKContInternal *) contp;
 
   i->mdata = data;
-  return TS_SUCCESS;
 }
 
 void *
 TSContDataGet(TSCont contp)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   INKContInternal *i = (INKContInternal *) contp;
 
@@ -4238,19 +4116,15 @@ TSContDataGet(TSCont contp)
 TSAction
 TSContSchedule(TSCont contp, ink_hrtime timeout, TSThreadPool tp)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
   INKContInternal *i = (INKContInternal *) contp;
   TSAction action;
 
-  if (ink_atomic_increment((int *) &i->m_event_count, 1) < 0) {
-    // simply return error_ptr
-    //ink_assert (!"not reached");
-    return (TSAction) TS_ERROR_PTR;
-  }
+  if (ink_atomic_increment((int *) &i->m_event_count, 1) < 0)
+    ink_assert (!"not reached");
 
   EventType etype;
 
@@ -4283,9 +4157,9 @@ TSContSchedule(TSCont contp, ink_hrtime timeout, TSThreadPool tp)
   }
 
   if (timeout == 0) {
-    action = eventProcessor.schedule_imm(i, etype);
+    action = reinterpret_cast<TSAction>(eventProcessor.schedule_imm(i, etype));
   } else {
-    action = eventProcessor.schedule_in(i, HRTIME_MSECONDS(timeout), etype);
+    action = reinterpret_cast<TSAction>(eventProcessor.schedule_in(i, HRTIME_MSECONDS(timeout), etype));
   }
 
 /* This is a hack. SHould be handled in ink_types */
@@ -4296,19 +4170,15 @@ TSContSchedule(TSCont contp, ink_hrtime timeout, TSThreadPool tp)
 TSAction
 TSContScheduleEvery(TSCont contp, ink_hrtime every, TSThreadPool tp)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
   INKContInternal *i = (INKContInternal *) contp;
   TSAction action;
 
-  if (ink_atomic_increment((int *) &i->m_event_count, 1) < 0) {
-    // simply return error_ptr
-    //ink_assert (!"not reached");
-    return (TSAction) TS_ERROR_PTR;
-  }
+  if (ink_atomic_increment((int *) &i->m_event_count, 1) < 0)
+    ink_assert (!"not reached");
 
   EventType etype;
 
@@ -4325,7 +4195,7 @@ TSContScheduleEvery(TSCont contp, ink_hrtime every, TSThreadPool tp)
     break;
   }
 
-  action = eventProcessor.schedule_every(i, HRTIME_MSECONDS(every), etype);
+  action = reinterpret_cast<TSAction>(eventProcessor.schedule_every(i, HRTIME_MSECONDS(every), etype));
 
   /* This is a hack. SHould be handled in ink_types */
   action = (TSAction) ((uintptr_t) action | 0x1);
@@ -4335,8 +4205,7 @@ TSContScheduleEvery(TSCont contp, ink_hrtime every, TSThreadPool tp)
 TSAction
 TSHttpSchedule(TSCont contp, TSHttpTxn txnp, ink_hrtime timeout)
 {
-  if (sdk_sanity_check_iocore_structure (contp) != TS_SUCCESS)
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure (contp) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -4347,9 +4216,9 @@ TSHttpSchedule(TSCont contp, TSHttpTxn txnp, ink_hrtime timeout)
   sm->set_http_schedule(cont);
 
   if (timeout == 0) {
-    action = eventProcessor.schedule_imm(sm, ET_NET);
+    action = reinterpret_cast<TSAction>(eventProcessor.schedule_imm(sm, ET_NET));
   } else {
-    action = eventProcessor.schedule_in(sm, HRTIME_MSECONDS (timeout), ET_NET);
+    action = reinterpret_cast<TSAction>(eventProcessor.schedule_in(sm, HRTIME_MSECONDS (timeout), ET_NET));
   }
 
   action = (TSAction) ((uintptr_t) action | 0x1);
@@ -4360,32 +4229,28 @@ int
 TSContCall(TSCont contp, TSEvent event, void *edata)
 {
   Continuation *c = (Continuation *) contp;
-
   return c->handleEvent((int) event, edata);
 }
 
 TSMutex
 TSContMutexGet(TSCont contp)
 {
-  if (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS)
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
-  Continuation *c = (Continuation *) contp;
-
-  return (TSMutex) ((ProxyMutex *) c->mutex);
+  Continuation *c = (Continuation *)contp;
+  return (TSMutex) ((ProxyMutex *)c->mutex);
 }
 
 
 /* HTTP hooks */
 
-TSReturnCode
+void
 TSHttpHookAdd(TSHttpHookID id, TSCont contp)
 {
-  if (sdk_sanity_check_continuation(contp) == TS_SUCCESS && sdk_sanity_check_hook_id(id) == TS_SUCCESS) {
-    http_global_hooks->append(id, (INKContInternal *) contp);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_hook_id(id) == TS_SUCCESS);
+
+  http_global_hooks->append(id, (INKContInternal *)contp);
 }
 
 void
@@ -4402,31 +4267,25 @@ TSHttpIcpDynamicSet(int value)
   }
 }
 
-
 /* HTTP sessions */
-
-TSReturnCode
+void
 TSHttpSsnHookAdd(TSHttpSsn ssnp, TSHttpHookID id, TSCont contp)
 {
-  if ((sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS) &&
-      (sdk_sanity_check_continuation(contp) == TS_SUCCESS) && (sdk_sanity_check_hook_id(id) == TS_SUCCESS)) {
-    HttpClientSession *cs = (HttpClientSession *) ssnp;
-    cs->ssn_hook_append(id, (INKContInternal *) contp);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_hook_id(id) == TS_SUCCESS);
+
+  HttpClientSession *cs = (HttpClientSession *) ssnp;
+  cs->ssn_hook_append(id, (INKContInternal *) contp);
 }
 
-TSReturnCode
-TSHttpSsnTransactionCount(TSHttpSsn ssnp, int* count)
+int
+TSHttpSsnTransactionCount(TSHttpSsn ssnp)
 {
-  if ((sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS) && (sdk_sanity_check_null_ptr(count) == TS_SUCCESS)) {
-    HttpClientSession* cs = (HttpClientSession*)ssnp;
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
 
-    *count = cs->get_transact_count();
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HttpClientSession* cs = (HttpClientSession*)ssnp;
+  return cs->get_transact_count();
 }
 
 class TSHttpSsnCallback : public Continuation
@@ -4438,7 +4297,7 @@ public:
     SET_HANDLER(&TSHttpSsnCallback::event_handler);
   }
 
-  int event_handler(int, void *)
+  int event_handler(int, void*)
   {
     m_cs->handleEvent((int) m_event, 0);
     delete this;
@@ -4451,52 +4310,46 @@ private:
 };
 
 
-TSReturnCode
+void
 TSHttpSsnReenable(TSHttpSsn ssnp, TSEvent event)
 {
-  if (sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS) {
-    HttpClientSession *cs = (HttpClientSession *) ssnp;
-    EThread *eth = this_ethread();
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
 
-    // If this function is being executed on a thread created by the API
-    // which is DEDICATED, the continuation needs to be called back on a
-    // REGULAR thread.
-    if (eth->tt != REGULAR) {
+  HttpClientSession *cs = (HttpClientSession *) ssnp;
+  EThread *eth = this_ethread();
+
+  // If this function is being executed on a thread created by the API
+  // which is DEDICATED, the continuation needs to be called back on a
+  // REGULAR thread.
+  if (eth->tt != REGULAR) {
+    eventProcessor.schedule_imm(NEW(new TSHttpSsnCallback(cs, event)), ET_NET);
+  } else {
+    MUTEX_TRY_LOCK(trylock, cs->mutex, eth);
+    if (!trylock) {
       eventProcessor.schedule_imm(NEW(new TSHttpSsnCallback(cs, event)), ET_NET);
     } else {
-      MUTEX_TRY_LOCK(trylock, cs->mutex, eth);
-      if (!trylock) {
-        eventProcessor.schedule_imm(NEW(new TSHttpSsnCallback(cs, event)), ET_NET);
-      } else {
-        cs->handleEvent((int) event, 0);
-      }
+      cs->handleEvent((int) event, 0);
     }
-    return TS_SUCCESS;
   }
-  return TS_ERROR;
 }
 
 
 /* HTTP transactions */
-
-TSReturnCode
+void
 TSHttpTxnHookAdd(TSHttpTxn txnp, TSHttpHookID id, TSCont contp)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) ||
-      (sdk_sanity_check_continuation(contp) != TS_SUCCESS) || (sdk_sanity_check_hook_id(id) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_hook_id(id) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   sm->txn_hook_append(id, (INKContInternal *) contp);
-  return TS_SUCCESS;
 }
 
 
 // Private api function for gzip plugin.
 //  This function should only appear in TsapiPrivate.h
-int
+TSReturnCode
 TSHttpTxnHookRegisteredFor(TSHttpTxn txnp, TSHttpHookID id, TSEventFunc funcp)
 {
   HttpSM *sm = (HttpSM *) txnp;
@@ -4504,166 +4357,153 @@ TSHttpTxnHookRegisteredFor(TSHttpTxn txnp, TSHttpHookID id, TSEventFunc funcp)
 
   while (hook != NULL) {
     if (hook->m_cont && hook->m_cont->m_event_func == funcp) {
-      return 1;
+      return TS_SUCCESS;
     }
     hook = hook->m_link.next;
   }
 
-  return 0;
+  return TS_ERROR;
 }
 
 TSHttpSsn
 TSHttpTxnSsnGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return (TSHttpSsn) TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
-  return (TSHttpSsn) sm->ua_session;
+  return (TSHttpSsn)sm->ua_session;
 }
 
-int
-TSHttpTxnClientKeepaliveSet(TSHttpTxn txnp)
+// TODO: Is this still necessary ??
+void
+TSHttpTxnClientKeepaliveSet(TSHttpTxn txnp, int set)
 {
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
-  s->hdr_info.trust_response_cl = true;
-  return 1;
+  s->hdr_info.trust_response_cl = (set != 0) ? true : false;
 }
 
-int
+TSReturnCode
 TSHttpTxnClientReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.client_request);
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
-    sdk_sanity_check_mbuffer(*bufp);
-    hptr->mark_target_dirty();
-
-    return 1;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
+    if (sdk_sanity_check_mbuffer(*bufp) == TS_SUCCESS) {
+      hptr->mark_target_dirty();
+      return TS_SUCCESS;;
+    }
   }
-  return 0;
+  return TS_ERROR;
 }
 
 // pristine url is the url before remap
 TSReturnCode
-TSHttpTxnPristineUrlGet (TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *url_loc)
+TSHttpTxnPristineUrlGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *url_loc)
 {
-  if (sdk_sanity_check_txn(txnp)!=TS_SUCCESS ||
-    sdk_sanity_check_null_ptr((void*)bufp) != TS_SUCCESS ||
-    sdk_sanity_check_null_ptr((void*)url_loc) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)url_loc) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM*) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.client_request);
 
   if (hptr->valid()) {
-    *bufp = hptr;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
     *url_loc = (TSMLoc)sm->t_state.pristine_url.m_url_impl;
-    sdk_sanity_check_mbuffer(*bufp);
-    if (*url_loc)
+
+    if ((sdk_sanity_check_mbuffer(*bufp) == TS_SUCCESS) && (*url_loc))
       return TS_SUCCESS;
-    else
-      return TS_ERROR;
   }
   return TS_ERROR;
 }
 
 // Shortcut to just get the URL.
 char*
-TSHttpTxnEffectiveUrlStringGet (TSHttpTxn txnp, int* length) {
-  char* zret = 0;
-  if (TS_SUCCESS == sdk_sanity_check_txn(txnp)) {
-    HttpSM *sm = reinterpret_cast<HttpSM*>(txnp);
-    zret = sm->t_state.hdr_info.client_request.url_string_get(0, length);
-  }
-  return zret;
+TSHttpTxnEffectiveUrlStringGet(TSHttpTxn txnp, int *length)
+{
+  sdk_assert(TS_SUCCESS == sdk_sanity_check_txn(txnp));
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
+
+  HttpSM *sm = reinterpret_cast<HttpSM*>(txnp);
+  return sm->t_state.hdr_info.client_request.url_string_get(0, length);
 }
 
-int
+TSReturnCode
 TSHttpTxnClientRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.client_response);
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     sdk_sanity_check_mbuffer(*bufp);
-    return 1;
+    return TS_SUCCESS;
   }
-  return 0;
+
+  return TS_ERROR;
 }
 
 
-int
+TSReturnCode
 TSHttpTxnServerReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.server_request);
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     sdk_sanity_check_mbuffer(*bufp);
-    return 1;
+    return TS_SUCCESS;
   } 
-  return 0;
+
+  return TS_ERROR;
 }
 
-int
+TSReturnCode
 TSHttpTxnServerRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.server_response);
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     sdk_sanity_check_mbuffer(*bufp);
-
-    return 1;
+    return TS_SUCCESS;
   }
-  return 0;
+
+  return TS_ERROR;
 }
 
-int
+TSReturnCode
 TSHttpTxnCachedReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPInfo *cached_obj = sm->t_state.cache_info.object_read;
@@ -4672,13 +4512,13 @@ TSHttpTxnCachedReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   // Since the cache manages the header buffer, sm->t_state.cache_info.object_read
   // is the only way to tell if handle has gone bad.
   if ((!cached_obj) || (!cached_obj->valid())) {
-    return 0;
+    return TS_ERROR;
   }
 
   HTTPHdr *cached_hdr = sm->t_state.cache_info.object_read->request_get();
 
   if (!cached_hdr->valid()) {
-    return 0;
+    return TS_ERROR;
   }
   // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
   // threads can access. We need to create our own for the transaction and return that.
@@ -4689,20 +4529,19 @@ TSHttpTxnCachedReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
     (*handle)->m_heap = cached_hdr->m_heap;
   }
 
-  *bufp = *handle;
-  *obj = cached_hdr->m_http;
+  *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
+  *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
   sdk_sanity_check_mbuffer(*bufp);
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) bufp) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) obj) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPInfo *cached_obj = sm->t_state.cache_info.object_read;
@@ -4711,13 +4550,13 @@ TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   // Since the cache manages the header buffer, sm->t_state.cache_info.object_read
   // is the only way to tell if handle has gone bad.
   if ((!cached_obj) || (!cached_obj->valid())) {
-    return 0;
+    return TS_ERROR;
   }
 
   HTTPHdr *cached_hdr = sm->t_state.cache_info.object_read->response_get();
 
   if (!cached_hdr->valid()) {
-    return 0;
+    return TS_ERROR;
   }
   // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
   //  threads can access.  We need to create our own for the transaction and return that.
@@ -4728,16 +4567,21 @@ TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
     (*handle)->m_heap = cached_hdr->m_heap;
   }
 
-  *bufp = *handle;
-  *obj = cached_hdr->m_http;
+  *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
+  *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
   sdk_sanity_check_mbuffer(*bufp);
-  return 1;
+
+  return TS_SUCCESS;
 }
 
 
-int
+TSReturnCode
 TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) obj) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
   HTTPHdr *c_resp = NULL;
@@ -4745,7 +4589,7 @@ TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   HTTPInfo *cached_obj_store = &(sm->t_state.cache_info.object_store);
 
   if ((!cached_obj) || (!cached_obj->valid()))
-    return 0;
+    return TS_ERROR;
 
   if (!cached_obj_store->valid())
     cached_obj_store->create();
@@ -4757,19 +4601,18 @@ TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   s->api_modifiable_cached_resp = true;
 
   ink_assert(c_resp != NULL && c_resp->valid());
-  *bufp = c_resp;
-  *obj = c_resp->m_http;
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = c_resp;
+  *obj = reinterpret_cast<TSMLoc>(c_resp->m_http);
   sdk_sanity_check_mbuffer(*bufp);
 
-  return 1;
+  return TS_SUCCESS;
 }
 
 TSReturnCode
 TSHttpTxnCacheLookupStatusGet(TSHttpTxn txnp, int *lookup_status)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (lookup_status == NULL)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) lookup_status) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
 
@@ -4798,11 +4641,10 @@ TSHttpTxnCacheLookupStatusGet(TSHttpTxn txnp, int *lookup_status)
 TSReturnCode
 TSHttpTxnCacheLookupCountGet(TSHttpTxn txnp, int *lookup_count)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (lookup_count == NULL)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*) lookup_count) == TS_SUCCESS);
 
-  HttpSM *sm = (HttpSM *) txnp;
+  HttpSM *sm = (HttpSM *)txnp;
   *lookup_count = sm->t_state.cache_info.lookup_count;
   return TS_SUCCESS;
 }
@@ -4812,15 +4654,17 @@ TSHttpTxnCacheLookupCountGet(TSHttpTxn txnp, int *lookup_count)
    TS_HTTP_READ_CACHE_HDR_HOOK   &
    TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK
  */
-int
+TSReturnCode
 TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::CacheLookupResult_t *sm_status = &(sm->t_state.cache_lookup_result);
 
   // converting from a miss to a hit is not allowed
   if (*sm_status == HttpTransact::CACHE_LOOKUP_MISS && cachelookup != TS_CACHE_LOOKUP_MISS)
-    return 0;
+    return TS_ERROR;
 
   // here is to handle converting a hit to a miss
   if (cachelookup == TS_CACHE_LOOKUP_MISS && *sm_status != HttpTransact::CACHE_LOOKUP_MISS) {
@@ -4840,39 +4684,47 @@ TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup)
     *sm_status = HttpTransact::CACHE_LOOKUP_HIT_FRESH;
     break;
   default:
-    return 0;
+    return TS_ERROR;
   }
 
-  return 1;
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   URL u, *l_url;
 
   if (sm == NULL)
-    return 0;
+    return TS_ERROR;
 
   sdk_sanity_check_mbuffer(bufp);
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
   if (!u.valid())
-    return 0;
+    return TS_ERROR;
 
   l_url = sm->t_state.cache_info.lookup_url;
   if (l_url && l_url->valid()) {
     u.copy(l_url);
-    return 1;
+    return TS_SUCCESS;
   }
 
-  return 0;
+  return TS_ERROR;
 }
 
-int
+TSReturnCode
 TSHttpTxnCachedUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   URL u, *s_url;
 
@@ -4880,36 +4732,39 @@ TSHttpTxnCachedUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
   if (!u.valid())
-    return 0;
+    return TS_ERROR;
 
   s_url = &(sm->t_state.cache_info.store_url);
   if (!s_url->valid())
     s_url->create(NULL);
   s_url->copy(&u);
   if (sm->decide_cached_url(&u))
-    return 1;
+    return TS_SUCCESS;
 
-  return 0;
+  return TS_ERROR;
 }
 
-int
+TSReturnCode
 TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(url_loc) == TS_SUCCESS);
+
   URL new_url, *client_url, *l_url, *o_url;
   INK_MD5 md51, md52;
 
-  sdk_sanity_check_mbuffer(bufp);
   new_url.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   new_url.m_url_impl = (URLImpl *) url_loc;
   if (!new_url.valid())
-    return 0;
+    return TS_ERROR;
 
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
   client_url = s->hdr_info.client_request.url_get();
   if (!(client_url->valid()))
-    return 0;
+    return TS_ERROR;
 
   // if l_url is not valid, then no cache lookup has been done yet
   // so we shouldn't be calling TSHttpTxnNewCacheLookupDo right now
@@ -4922,7 +4777,7 @@ TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
     l_url->MD5_get(&md51);
     new_url.MD5_get(&md52);
     if (md51 == md52)
-      return 0;
+      return TS_ERROR;
     o_url = &(s->cache_info.original_url);
     if (!o_url->valid()) {
       o_url->create(NULL);
@@ -4939,37 +4794,44 @@ TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   s->cache_info.action = HttpTransact::CACHE_DO_LOOKUP;
   sm->add_cache_sm();
   s->api_cleanup_cache_read = true;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnSecondUrlTryLock(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
   // TSHttpTxnNewCacheLookupDo didn't continue
   if (!s->cache_info.original_url.valid())
-    return 0;
+    return TS_ERROR;
   sm->add_cache_sm();
   s->api_lock_url = HttpTransact::LOCK_URL_SECOND;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
 TSReturnCode
 TSHttpTxnFollowRedirect(TSHttpTxn txnp, int on)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
 
   sm->api_enable_redirection = (on ? true : false);
   return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_url_handle(url_loc) == TS_SUCCESS);
+
   URL u, *o_url, *r_url, *client_url;
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
@@ -4977,11 +4839,11 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) url_loc;
   if (!u.valid())
-    return 0;
+    return TS_ERROR;
 
   client_url = s->hdr_info.client_request.url_get();
   if (!(client_url->valid()))
-    return 0;
+    return TS_ERROR;
 
   s->redirect_info.redirect_in_process = true;
   o_url = &(s->redirect_info.original_url);
@@ -4996,9 +4858,6 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
     r_url->create(NULL);
   r_url->copy(&u);
 
-
-
-
   s->hdr_info.server_request.destroy();
   // we want to close the server session
   s->api_release_server_session = true;
@@ -5007,49 +4866,48 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   s->response_received_time = 0;
   s->cache_info.write_lock_state = HttpTransact::CACHE_WL_INIT;
   s->next_action = HttpTransact::REDIRECT_READ;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
 /**
  * timeout is in msec
  * overrides as proxy.config.http.transaction_active_timeout_out
 **/
-int
+void
 TSHttpTxnActiveTimeoutSet(TSHttpTxn txnp, int timeout)
 {
-  Debug("http_timeout", "setting active timeout to %d msec via API", timeout);
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_txn_active_timeout_value = timeout;
-  return 1;
 }
 
 /**
  * timeout is in msec
  * overrides as proxy.config.http.connect_attempts_timeout
 **/
-int
+void
 TSHttpTxnConnectTimeoutSet(TSHttpTxn txnp, int timeout)
 {
-  Debug("http_timeout", "setting inactive timeout to %d msec via API", timeout);
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_txn_connect_timeout_value = timeout;
-  return 1;
 }
 
 /**
  * timeout is in msec
  * overrides as proxy.config.dns.lookup_timeout
 **/
-int
+void
 TSHttpTxnDNSTimeoutSet(TSHttpTxn txnp, int timeout)
 {
-  Debug("http_timeout", "setting DNS timeout to %d msec via API", timeout);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
 
   s->api_txn_dns_timeout_value = timeout;
-  return 1;
 }
 
 
@@ -5057,164 +4915,179 @@ TSHttpTxnDNSTimeoutSet(TSHttpTxn txnp, int timeout)
  * timeout is in msec
  * overrides as proxy.config.http.transaction_no_activity_timeout_out
 **/
-int
+void
 TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout)
 {
-  Debug("http_timeout", "setting DNS timeout to %d msec via API", timeout);
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_txn_no_activity_timeout_value = timeout;
-  return 1;
 }
 
-int
+
+TSReturnCode
 TSHttpTxnCacheLookupSkip(TSHttpTxn txnp)
 {
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_skip_cache_lookup = true;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnServerRespNoStore(TSHttpTxn txnp)
 {
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_server_response_no_store = true;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnServerRespIgnore(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   HTTPInfo *cached_obj = s->cache_info.object_read;
   HTTPHdr *cached_resp;
 
   if (cached_obj == NULL || !cached_obj->valid())
-    return 0;
+    return TS_ERROR;
 
   cached_resp = cached_obj->response_get();
   if (cached_resp == NULL || !cached_resp->valid())
-    return 0;
+    return TS_ERROR;
 
   s->api_server_response_ignore = true;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnShutDown(TSHttpTxn txnp, TSEvent event)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   if (event == TS_EVENT_HTTP_TXN_CLOSE)
-    return 0;
+    return TS_ERROR;
 
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_http_sm_shutdown = true;
-  return 1;
+
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnAborted(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   switch (sm->t_state.squid_codes.log_code) {
   case SQUID_LOG_ERR_CLIENT_ABORT:
   case SQUID_LOG_TCP_SWAPFAIL:
     // check for client abort and cache read error
-    return 1;
+    return TS_SUCCESS;
   default:
     break;
   }
 
   if (sm->t_state.current.server && sm->t_state.current.server->abort == HttpTransact::ABORTED) {
     // check for the server abort
-    return 1;
+    return TS_SUCCESS;
   }
   // there can be the case of transformation error.
-  return 0;
+  return TS_ERROR;
 }
 
 void
 TSHttpTxnSetReqCacheableSet(TSHttpTxn txnp)
 {
-  HttpSM* sm = (HttpSM*)txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpSM* sm = (HttpSM*)txnp;
   sm->t_state.api_req_cacheable = true;
 }
 
 void
 TSHttpTxnSetRespCacheableSet(TSHttpTxn txnp)
 {
-  HttpSM* sm = (HttpSM*)txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpSM* sm = (HttpSM*)txnp;
   sm->t_state.api_resp_cacheable = true;
 }
 
 int
 TSHttpTxnClientReqIsServerStyle(TSHttpTxn txnp)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  return (sm->t_state.hdr_info.client_req_is_server_style);
+  HttpSM *sm = (HttpSM *) txnp;
+  return (sm->t_state.hdr_info.client_req_is_server_style ? 1 : 0);
 }
 
-int
+void
 TSHttpTxnOverwriteExpireTime(TSHttpTxn txnp, time_t expire_time)
 {
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->plugin_set_expire_time = expire_time;
-  return 1;
 }
 
-int
+TSReturnCode
 TSHttpTxnUpdateCachedObject(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
   HTTPInfo *cached_obj_store = &(sm->t_state.cache_info.object_store);
   HTTPHdr *client_request = &(sm->t_state.hdr_info.client_request);
 
   if (!cached_obj_store->valid() || !cached_obj_store->response_get())
-    return 0;
+    return TS_ERROR;
 
   if (!cached_obj_store->request_get() && !client_request->valid())
-    return 0;
+    return TS_ERROR;
 
   if (s->cache_info.write_lock_state == HttpTransact::CACHE_WL_READ_RETRY)
-    return 0;
+    return TS_ERROR;
 
   s->api_update_cached_object = HttpTransact::UPDATE_CACHED_OBJECT_PREPARE;
-  return 1;
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return 0;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   HTTPHdr *hptr = &(sm->t_state.hdr_info.transform_response);
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     sdk_sanity_check_mbuffer(*bufp);
 
-    return 1;
-  } else {
-    return 0;
-  }
+    return TS_SUCCESS;
+  } 
+
+  return TS_ERROR;
 }
 
 const struct sockaddr_storage *
-TSHttpTxnClientSockAddrGet (TSHttpTxn txnp)
+TSHttpTxnClientSockAddrGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return NULL;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM*) txnp;
   return &sm->t_state.client_info.addr;
 }
@@ -5222,77 +5095,92 @@ TSHttpTxnClientSockAddrGet (TSHttpTxn txnp)
 unsigned int
 TSHttpTxnClientIPGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return 0;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   return sm->t_state.client_info.ip;
 }
 
 int
 TSHttpTxnClientIncomingPortGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return -1;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   return sm->t_state.client_info.port;
 }
 
 unsigned int
 TSHttpTxnServerIPGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return 0;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   return sm->t_state.server_info.ip;
+}
+
+// This API does currently not use or honor the port specified in the sockaddr.
+// This could change in a future version, but for now, leave it at 0 (or undef).
+TSReturnCode
+TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, const struct sockaddr *addr, socklen_t addrlen)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm = (HttpSM *) txnp;
+
+  sm->t_state.setup_per_txn_configs(); // Make sure the txn_conf struct is setup
+
+  // TODO: For now only, we really ought to make all "internal" IP representations
+  // use struct sockaddr_storage.
+  switch (addr->sa_family) {
+  case AF_INET:
+    {
+      sdk_assert(addrlen >= sizeof(struct sockaddr_in));
+      const struct sockaddr_in *v4addr = reinterpret_cast<const struct sockaddr_in *>(addr);
+      sm->t_state.txn_conf->outgoing_ip_to_bind_saddr = v4addr->sin_addr.s_addr;
+
+      return TS_SUCCESS;
+    }
+    break;
+  case AF_INET6:
+    break;
+  }
+  return TS_ERROR;
 }
 
 unsigned int
 TSHttpTxnNextHopIPGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
     /**
      * Return zero if the server structure is not yet constructed.
      */
-  if (                          /* Don't need this check as its already done in sdk_sanity_check_txn
-                                   (sm==NULL) ||
-                                 */
-       (sm->t_state.current.server == NULL))
+  if (sm->t_state.current.server == NULL)
     return 0;
-    /**
-     * Else return the value
-     */
   return sm->t_state.current.server->ip;
 }
 
 int
 TSHttpTxnNextHopPortGet(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   int port = 0;
 
   if (sm && sm->t_state.current.server)
     port = sm->t_state.current.server->port;
-
   return port;
 }
 
 
-
-TSReturnCode
+void
 TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (buf == NULL)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)buf) == TS_SUCCESS);
+  sdk_assert(buflength > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
 
@@ -5300,16 +5188,19 @@ TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
   sm->t_state.internal_msg_buffer_type = mimetype;
   sm->t_state.internal_msg_buffer_size = buflength;
   sm->t_state.internal_msg_buffer_fast_allocator_size = -1;
-  return TS_SUCCESS;
 }
 
 void
 TSHttpTxnServerRequestBodySet(TSHttpTxn txnp, char *buf, int64_t buflength)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)buf) == TS_SUCCESS);
+  sdk_assert(buflength > 0);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
-  if (buf == NULL || buflength <= 0 || s->method != HTTP_WKSIDX_GET)
+  if (s->method != HTTP_WKSIDX_GET)
     return;
 
   if (s->internal_msg_buffer)
@@ -5324,51 +5215,45 @@ TSHttpTxnServerRequestBodySet(TSHttpTxn txnp, char *buf, int64_t buflength)
 TSReturnCode
 TSHttpTxnParentProxyGet(TSHttpTxn txnp, char **hostname, int *port)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
 
   *hostname = sm->t_state.api_info.parent_proxy_name;
   *port = sm->t_state.api_info.parent_proxy_port;
+
   return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpTxnParentProxySet(TSHttpTxn txnp, char *hostname, int port)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (hostname == NULL) || (port <= 0))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)hostname) == TS_SUCCESS);
+  sdk_assert(port > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
 
   sm->t_state.api_info.parent_proxy_name = sm->t_state.arena.str_store(hostname, strlen(hostname));
   sm->t_state.api_info.parent_proxy_port = port;
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpTxnUntransformedRespCache(TSHttpTxn txnp, int on)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   sm->t_state.api_info.cache_untransformed = (on ? true : false);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpTxnTransformedRespCache(TSHttpTxn txnp, int on)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
-
   sm->t_state.api_info.cache_transformed = (on ? true : false);
-  return TS_SUCCESS;
 }
 
 
@@ -5381,7 +5266,7 @@ public:
     SET_HANDLER(&TSHttpSMCallback::event_handler);
   }
 
-  int event_handler(int, void *)
+  int event_handler(int, void*)
   {
     m_sm->state_api_callback((int) m_event, 0);
     delete this;
@@ -5395,11 +5280,10 @@ private:
 
 
 //----------------------------------------------------------------------------
-TSReturnCode
+void
 TSHttpTxnReenable(TSHttpTxn txnp, TSEvent event)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM *) txnp;
   EThread *eth = this_ethread();
@@ -5417,7 +5301,6 @@ TSHttpTxnReenable(TSHttpTxn txnp, TSEvent event)
       sm->state_api_callback((int) event, 0);
     }
   }
-  return TS_SUCCESS;
 }
 
 // This is deprecated, and shouldn't be used, use the register function instead.
@@ -5428,20 +5311,20 @@ TSHttpTxnMaxArgCntGet(void)
 }
 
 TSReturnCode
-TSHttpArgIndexReserve(const char* name, const char* description, int* arg_idx)
+TSHttpArgIndexReserve(const char* name, const char* description, int *arg_idx)
 {
-  if (sdk_sanity_check_null_ptr(arg_idx) == TS_SUCCESS) {
-    int volatile ix = ink_atomic_increment(&next_argv_index, 1);
+  sdk_assert(sdk_sanity_check_null_ptr(arg_idx) == TS_SUCCESS);
 
-    if (ix < HTTP_SSN_TXN_MAX_USER_ARG) {
-      state_arg_table[ix].name = xstrdup(name);
-      state_arg_table[ix].name_len = strlen(state_arg_table[ix].name);
-      if (description)
-        state_arg_table[ix].description = xstrdup(description);
-      *arg_idx = ix;
+  int volatile ix = ink_atomic_increment(&next_argv_index, 1);
 
-      return TS_SUCCESS;
-    }
+  if (ix < HTTP_SSN_TXN_MAX_USER_ARG) {
+    state_arg_table[ix].name = xstrdup(name);
+    state_arg_table[ix].name_len = strlen(state_arg_table[ix].name);
+    if (description)
+      state_arg_table[ix].description = xstrdup(description);
+    *arg_idx = ix;
+
+    return TS_SUCCESS;
   }
   return TS_ERROR;
 }
@@ -5462,79 +5345,71 @@ TSHttpArgIndexLookup(int arg_idx, const char** name, const char** description)
 
 // Not particularly efficient, but good enough for now.
 TSReturnCode
-TSHttpArgIndexNameLookup(const char* name, int* arg_idx, const char** description)
+TSHttpArgIndexNameLookup(const char* name, int *arg_idx, const char **description)
 {
-  if (sdk_sanity_check_null_ptr(arg_idx) == TS_SUCCESS) {
-    int len = strlen(name);
+  sdk_assert(sdk_sanity_check_null_ptr(arg_idx) == TS_SUCCESS);
 
-    for (int ix = 0; ix <  next_argv_index; ++ix) {
-      if ((len == state_arg_table[ix].name_len) && (0 == strcmp(name, state_arg_table[ix].name))) {
-        if (description)
-          *description = state_arg_table[ix].description;
-        *arg_idx = ix;
-        return TS_SUCCESS;
-      }
+  int len = strlen(name);
+
+  for (int ix = 0; ix <  next_argv_index; ++ix) {
+    if ((len == state_arg_table[ix].name_len) && (0 == strcmp(name, state_arg_table[ix].name))) {
+      if (description)
+        *description = state_arg_table[ix].description;
+      *arg_idx = ix;
+      return TS_SUCCESS;
     }
   }
   return TS_ERROR;
 }
 
-TSReturnCode
+void
 TSHttpTxnArgSet(TSHttpTxn txnp, int arg_idx, void *arg)
 {
-  if (sdk_sanity_check_txn(txnp) == TS_SUCCESS && arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG) {
-    HttpSM *sm = (HttpSM *) txnp;
-    sm->t_state.user_args[arg_idx] = arg;
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  sm->t_state.user_args[arg_idx] = arg;
 }
 
-TSReturnCode
-TSHttpTxnArgGet(TSHttpTxn txnp, int arg_idx, void **argp)
+void *
+TSHttpTxnArgGet(TSHttpTxn txnp, int arg_idx)
 {
-  if (sdk_sanity_check_txn(txnp) == TS_SUCCESS && arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG && argp) {
-    HttpSM *sm = (HttpSM *) txnp;
-    *argp = sm->t_state.user_args[arg_idx];
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->t_state.user_args[arg_idx];
 }
 
-TSReturnCode
+void
 TSHttpSsnArgSet(TSHttpSsn ssnp, int arg_idx, void *arg)
 {
-  if (sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS && arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG) {
-    HttpClientSession *cs = (HttpClientSession *)ssnp;
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
+  sdk_assert(arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG);
 
-    cs->set_user_arg(arg_idx, arg);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HttpClientSession *cs = (HttpClientSession *)ssnp;
+
+  cs->set_user_arg(arg_idx, arg);
 }
 
-TSReturnCode
+void *
 TSHttpSsnArgGet(TSHttpSsn ssnp, int arg_idx, void **argp)
 {
-  if (sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS && arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG && argp) {
-    HttpClientSession *cs = (HttpClientSession *)ssnp;
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
+  sdk_assert(arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG);
 
-    *argp = cs->get_user_arg(arg_idx);
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HttpClientSession *cs = (HttpClientSession *)ssnp;
+  return cs->get_user_arg(arg_idx);
 }
 
-TSReturnCode
+void
 TSHttpTxnSetHttpRetStatus(TSHttpTxn txnp, TSHttpStatus http_retstatus)
 {
-  if (sdk_sanity_check_txn(txnp) == TS_SUCCESS) {
-    HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-    sm->t_state.http_return_code = (HTTPStatus) http_retstatus;
-    return TS_SUCCESS;
-  }
-  return TS_ERROR;
+  HttpSM *sm = (HttpSM *) txnp;
+  sm->t_state.http_return_code = (HTTPStatus) http_retstatus;
 }
 
 int
@@ -5543,39 +5418,38 @@ TSHttpTxnGetMaxHttpRetBodySize(void)
   return HTTP_TRANSACT_STATE_MAX_XBUF_SIZE;
 }
 
-TSReturnCode
+void
 TSHttpTxnSetHttpRetBody(TSHttpTxn txnp, const char *body_msg, int plain_msg_flag)
 {
-  if (sdk_sanity_check_txn(txnp) == TS_SUCCESS) {
-    HttpSM *sm = (HttpSM *) txnp;
-    HttpTransact::State *s = &(sm->t_state);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-    s->return_xbuf_size = 0;
-    s->return_xbuf[0] = 0;
-    s->return_xbuf_plain = false;
-    if (body_msg) {
-      strncpy(s->return_xbuf, body_msg, HTTP_TRANSACT_STATE_MAX_XBUF_SIZE - 1);
-      s->return_xbuf[HTTP_TRANSACT_STATE_MAX_XBUF_SIZE - 1] = 0;
-      s->return_xbuf_size = strlen(s->return_xbuf);
-      s->return_xbuf_plain = plain_msg_flag;
-    }
-    return TS_SUCCESS;
+  HttpSM *sm = (HttpSM *) txnp;
+  HttpTransact::State *s = &(sm->t_state);
+
+  s->return_xbuf_size = 0;
+  s->return_xbuf[0] = 0;
+  s->return_xbuf_plain = false;
+  if (body_msg) {
+    strncpy(s->return_xbuf, body_msg, HTTP_TRANSACT_STATE_MAX_XBUF_SIZE - 1);
+    s->return_xbuf[HTTP_TRANSACT_STATE_MAX_XBUF_SIZE - 1] = 0;
+    s->return_xbuf_size = strlen(s->return_xbuf);
+    s->return_xbuf_plain = plain_msg_flag;
   }
-  return TS_ERROR;
 }
 
-/* for Media-IXT mms over http */
-int
+/* control channel for HTTP */
+TSReturnCode
 TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
 
   switch (cntl) {
   case TS_HTTP_CNTL_GET_LOGGING_MODE:
     {
-      if (data == NULL) {
-        return 0;
-      }
+      if (data == NULL)
+        return TS_ERROR;
 
       intptr_t *rptr = (intptr_t *) data;
 
@@ -5585,23 +5459,22 @@ TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
         *rptr = (intptr_t) TS_HTTP_CNTL_OFF;
       }
 
-      return 1;
+      return TS_SUCCESS;
     }
 
   case TS_HTTP_CNTL_SET_LOGGING_MODE:
     if (data != TS_HTTP_CNTL_ON && data != TS_HTTP_CNTL_OFF) {
-      return 0;
+      return TS_ERROR;
     } else {
       sm->t_state.api_info.logging_enabled = (bool) data;
-      return 1;
+      return TS_SUCCESS;
     }
     break;
 
   case TS_HTTP_CNTL_GET_INTERCEPT_RETRY_MODE:
     {
-      if (data == NULL) {
-        return 0;
-      }
+      if (data == NULL)
+        return TS_ERROR;
 
       intptr_t *rptr = (intptr_t *) data;
 
@@ -5611,21 +5484,21 @@ TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
         *rptr = (intptr_t) TS_HTTP_CNTL_OFF;
       }
 
-      return 1;
+      return TS_SUCCESS;
     }
 
   case TS_HTTP_CNTL_SET_INTERCEPT_RETRY_MODE:
     if (data != TS_HTTP_CNTL_ON && data != TS_HTTP_CNTL_OFF) {
-      return 0;
+      return TS_ERROR;
     } else {
       sm->t_state.api_info.retry_intercept_failures = (bool) data;
-      return 1;
+      return TS_SUCCESS;
     }
   default:
-    return 0;
+    return TS_ERROR;
   }
 
-  return 0;
+  return TS_ERROR;
 }
 
 /* This is kinda horky, we have to use TSServerState instead of
@@ -5634,174 +5507,176 @@ TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
 TSServerState
 TSHttpTxnServerStateGet(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_SRVSTATE_STATE_UNDEFINED;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
-  return (TSServerState) s->current.state;
-}
-
-/* to access all the stats */
-int
-TSHttpTxnClientReqHdrBytesGet(TSHttpTxn txnp, int *bytes)
-{
-  HttpSM *sm = (HttpSM *) txnp;
-
-  *bytes = sm->client_request_hdr_bytes;
-  return 1;
+  return (TSServerState)s->current.state;
 }
 
 int
-TSHttpTxnClientReqBodyBytesGet(TSHttpTxn txnp, int64_t *bytes)
+TSHttpTxnClientReqHdrBytesGet(TSHttpTxn txnp)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->client_request_body_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->client_request_hdr_bytes;
+}
+
+int64_t
+TSHttpTxnClientReqBodyBytesGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->client_request_body_bytes;
 }
 
 int
 TSHttpTxnServerReqHdrBytesGet(TSHttpTxn txnp, int *bytes)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->server_request_hdr_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->server_request_hdr_bytes;
+}
+
+int64_t
+TSHttpTxnServerReqBodyBytesGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->server_request_body_bytes;
 }
 
 int
-TSHttpTxnServerReqBodyBytesGet(TSHttpTxn txnp, int64_t *bytes)
+TSHttpTxnServerRespHdrBytesGet(TSHttpTxn txnp)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->server_request_body_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->server_response_hdr_bytes;
+}
+
+int64_t
+TSHttpTxnServerRespBodyBytesGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->server_response_body_bytes;
 }
 
 int
-TSHttpTxnServerRespHdrBytesGet(TSHttpTxn txnp, int *bytes)
+TSHttpTxnClientRespHdrBytesGet(TSHttpTxn txnp)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->server_response_hdr_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->client_response_hdr_bytes;
 }
 
-int
-TSHttpTxnServerRespBodyBytesGet(TSHttpTxn txnp, int64_t *bytes)
+int64_t
+TSHttpTxnClientRespBodyBytesGet(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
-
-  *bytes = sm->server_response_body_bytes;
-  return 1;
-}
-
-int
-TSHttpTxnClientRespHdrBytesGet(TSHttpTxn txnp, int *bytes)
-{
-  HttpSM *sm = (HttpSM *) txnp;
-
-  *bytes = sm->client_response_hdr_bytes;
-  return 1;
-}
-
-int
-TSHttpTxnClientRespBodyBytesGet(TSHttpTxn txnp, int64_t *bytes)
-{
-  HttpSM *sm = (HttpSM *) txnp;
-
-  *bytes = sm->client_response_body_bytes;
-  return 1;
+  return sm->client_response_body_bytes;
 }
 
 int
 TSHttpTxnPushedRespHdrBytesGet(TSHttpTxn txnp, int *bytes)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->pushed_response_hdr_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->pushed_response_hdr_bytes;
 }
 
-int
-TSHttpTxnPushedRespBodyBytesGet(TSHttpTxn txnp, int64_t *bytes)
+int64_t
+TSHttpTxnPushedRespBodyBytesGet(TSHttpTxn txnp)
 {
-  HttpSM *sm = (HttpSM *) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  *bytes = sm->pushed_response_body_bytes;
-  return 1;
+  HttpSM *sm = (HttpSM *) txnp;
+  return sm->pushed_response_body_bytes;
 }
 
-int
+TSReturnCode
 TSHttpTxnStartTimeGet(TSHttpTxn txnp, ink_hrtime *start_time)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
 
   if (sm->milestones.ua_begin == 0)
-    return 0;
-  else {
-    *start_time = sm->milestones.ua_begin;
-    return 1;
-  }
+    return TS_ERROR;
+
+  *start_time = sm->milestones.ua_begin;
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnEndTimeGet(TSHttpTxn txnp, ink_hrtime *end_time)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
 
   if (sm->milestones.ua_close == 0)
-    return 0;
-  else {
-    *end_time = sm->milestones.ua_close;
-    return 1;
-  }
+    return TS_ERROR;
+
+  *end_time = sm->milestones.ua_close;
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSHttpTxnCachedRespTimeGet(TSHttpTxn txnp, time_t *resp_time)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HTTPInfo *cached_obj = sm->t_state.cache_info.object_read;
 
   if (cached_obj == NULL || !cached_obj->valid())
-    return 0;
+    return TS_ERROR;
 
   *resp_time = cached_obj->response_received_time_get();
-  return 1;
+  return TS_SUCCESS;
 }
 
 int
 TSHttpTxnLookingUpTypeGet(TSHttpTxn txnp)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
-  return (int) (s->current.request_to);
+  return (int)(s->current.request_to);
 }
 
 int
-TSHttpCurrentClientConnectionsGet(int *num_connections)
+TSHttpCurrentClientConnectionsGet(void)
 {
   int64_t S;
 
   HTTP_READ_DYN_SUM(http_current_client_connections_stat, S);
-  *num_connections = (int) S;
-  return 1;
+  return (int)S;
 }
 
 int
-TSHttpCurrentActiveClientConnectionsGet(int *num_connections)
+TSHttpCurrentActiveClientConnectionsGet(void)
 {
   int64_t S;
 
   HTTP_READ_DYN_SUM(http_current_active_client_connections_stat, S);
-  *num_connections = (int) S;
-  return 1;
+  return (int)S;
 }
 
 int
-TSHttpCurrentIdleClientConnectionsGet(int *num_connections)
+TSHttpCurrentIdleClientConnectionsGet(void)
 {
   int64_t total = 0;
   int64_t active = 0;
@@ -5809,132 +5684,112 @@ TSHttpCurrentIdleClientConnectionsGet(int *num_connections)
   HTTP_READ_DYN_SUM(http_current_client_connections_stat, total);
   HTTP_READ_DYN_SUM(http_current_active_client_connections_stat, active);
 
-  if (total >= active) {
-    *num_connections = (int)(total - active);
-    return 1;
-  }
+  if (total >= active)
+    return (int)(total - active);
+
   return 0;
 }
 
 int
-TSHttpCurrentCacheConnectionsGet(int *num_connections)
+TSHttpCurrentCacheConnectionsGet(void)
 {
   int64_t S;
 
   HTTP_READ_DYN_SUM(http_current_cache_connections_stat, S);
-  *num_connections = (int) S;
-  return 1;
+  return (int)S;
 }
 
 int
-TSHttpCurrentServerConnectionsGet(int *num_connections)
+TSHttpCurrentServerConnectionsGet(void)
 {
   int64_t S;
 
   HTTP_READ_GLOBAL_DYN_SUM(http_current_server_connections_stat, S);
-  *num_connections = (int) S;
-  return 1;
+  return (int)S;
 }
 
 
 /* HTTP alternate selection */
-
 TSReturnCode
 TSHttpAltInfoClientReqGet(TSHttpAltInfo infop, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_alt_info(infop) == TS_SUCCESS);
+
   HttpAltInfo *info = (HttpAltInfo *) infop;
 
-  if (sdk_sanity_check_alt_info(infop) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  *bufp = &info->m_client_req;
-  *obj = info->m_client_req.m_http;
-  if (sdk_sanity_check_mbuffer(*bufp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  return TS_SUCCESS;
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = &info->m_client_req;
+  *obj = reinterpret_cast<TSMLoc>(info->m_client_req.m_http);
+
+  return sdk_sanity_check_mbuffer(*bufp);
 }
 
 TSReturnCode
 TSHttpAltInfoCachedReqGet(TSHttpAltInfo infop, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_alt_info(infop) == TS_SUCCESS);
+
   HttpAltInfo *info = (HttpAltInfo *) infop;
-  if (sdk_sanity_check_alt_info(infop) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  *bufp = &info->m_cached_req;
-  *obj = info->m_cached_req.m_http;
-  if (sdk_sanity_check_mbuffer(*bufp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  return TS_SUCCESS;
+
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = &info->m_cached_req;
+  *obj = reinterpret_cast<TSMLoc>(info->m_cached_req.m_http);
+
+  return sdk_sanity_check_mbuffer(*bufp);
 }
 
 TSReturnCode
 TSHttpAltInfoCachedRespGet(TSHttpAltInfo infop, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_alt_info(infop) == TS_SUCCESS);
+
   HttpAltInfo *info = (HttpAltInfo *) infop;
-  if (sdk_sanity_check_alt_info(infop) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  *bufp = &info->m_cached_resp;
-  *obj = info->m_cached_resp.m_http;
-  if (sdk_sanity_check_mbuffer(*bufp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  return TS_SUCCESS;
+
+  *(reinterpret_cast<HTTPHdr**>(bufp)) = &info->m_cached_resp;
+  *obj = reinterpret_cast<TSMLoc>(info->m_cached_resp.m_http);
+
+  return sdk_sanity_check_mbuffer(*bufp);
 }
 
-TSReturnCode
+void
 TSHttpAltInfoQualitySet(TSHttpAltInfo infop, float quality)
 {
+  sdk_assert(sdk_sanity_check_alt_info(infop) == TS_SUCCESS);
+
   HttpAltInfo *info = (HttpAltInfo *) infop;
-  if (sdk_sanity_check_alt_info(infop) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
   info->m_qvalue = quality;
-  return TS_SUCCESS;
 }
 
 extern HttpAccept *plugin_http_accept;
 
-TSReturnCode
-TSHttpConnect(unsigned int log_ip, int log_port, TSVConn *vc)
+TSVConn
+TSHttpConnect(unsigned int log_ip, int log_port)
 {
-#ifdef DEBUG
-  if (vc == NULL) {
-    return TS_ERROR;
-  }
-  if ((log_ip == 0) || (log_port <= 0)) {
-    *vc = NULL;
-    return TS_ERROR;
-  }
-#endif
+  sdk_assert(log_ip > 0);
+  sdk_assert(log_port > 0);
+
   if (plugin_http_accept) {
     PluginVCCore *new_pvc = PluginVCCore::alloc();
+
     new_pvc->set_active_addr(log_ip, log_port);
     new_pvc->set_accept_cont(plugin_http_accept);
+
     PluginVC *return_vc = new_pvc->connect();
 
-    if(return_vc !=NULL) {
+    if (return_vc != NULL) {
       PluginVC* other_side = return_vc->get_other_side();
+
       if(other_side != NULL) {
         other_side->set_is_internal_request(true);
       }
     }
 
-    *vc = (TSVConn) return_vc;
-    return ((return_vc) ? TS_SUCCESS : TS_ERROR);
-  } else {
-    *vc = NULL;
-    return TS_ERROR;
+    return reinterpret_cast<TSVConn>(return_vc);
   }
+
+  return NULL;
 }
 
 /* Actions */
-
-// Currently no error handling necessary, actionp can be anything.
-TSReturnCode
+void
 TSActionCancel(TSAction actionp)
 {
   Action *a;
@@ -5950,15 +5805,13 @@ TSActionCancel(TSAction actionp)
   }
 
   a->cancel();
-  return TS_SUCCESS;
 }
 
 // Currently no error handling necessary, actionp can be anything.
 int
 TSActionDone(TSAction actionp)
 {
-  Action *a = (Action *) actionp;
-  return (a == ACTION_RESULT_DONE);
+  return ((Action *)actionp == ACTION_RESULT_DONE) ? 1 : 0;
 }
 
 /* Connections */
@@ -5986,127 +5839,106 @@ TSActionDone(TSAction actionp)
 TSVConn
 TSVConnCreate(TSEventFunc event_funcp, TSMutex mutexp)
 {
-  if (mutexp == NULL) {
+  if (mutexp == NULL)
     mutexp = (TSMutex) new_ProxyMutex();
-  }
 
-  if (sdk_sanity_check_mutex(mutexp) != TS_SUCCESS)
-    return (TSVConn) TS_ERROR_PTR;
+  // TODO: probably don't need this if memory allocations fails properly
+  sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
 
   INKVConnInternal *i = INKVConnAllocator.alloc();
-#ifdef DEBUG
-  if (i == NULL)
-    return (TSVConn) TS_ERROR_PTR;
-#endif
-  i->init(event_funcp, mutexp);
-  return (TSCont) i;
-}
 
+  sdk_assert(sdk_sanity_check_null_ptr((void*)i) == TS_SUCCESS);
+
+  i->init(event_funcp, mutexp);
+  return reinterpret_cast<TSVConn>(i);
+}
 
 TSVIO
 TSVConnReadVIOGet(TSVConn connp)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
-  VConnection *vc = (VConnection *) connp;
+  VConnection *vc = (VConnection *)connp;
   TSVIO data;
 
-  if (!vc->get_data(TS_API_DATA_READ_VIO, &data)) {
-    // don't assert, simple return error_ptr
-    // ink_assert (!"not reached");
-    return (TSVIO) TS_ERROR_PTR;
-  }
+  vc->get_data(TS_API_DATA_READ_VIO, &data); // Can not fail for this case
   return data;
 }
 
 TSVIO
 TSVConnWriteVIOGet(TSVConn connp)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   VConnection *vc = (VConnection *) connp;
   TSVIO data;
 
-  if (!vc->get_data(TS_API_DATA_WRITE_VIO, &data)) {
-    // don't assert, simple return error_ptr
-    // ink_assert (!"not reached");
-    return (TSVIO) TS_ERROR_PTR;
-  }
+  vc->get_data(TS_API_DATA_WRITE_VIO, &data); // Can not fail for this case
   return data;
 }
 
 int
 TSVConnClosedGet(TSVConn connp)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   VConnection *vc = (VConnection *) connp;
   int data;
 
-  if (!vc->get_data(TS_API_DATA_CLOSED, &data)) {
-    // don't assert, simple return error_ptr
-    // ink_assert (!"not reached");
-    return TS_ERROR;
-  }
+  vc->get_data(TS_API_DATA_CLOSED, &data); // Can not fail for this case
   return data;
 }
 
 TSVIO
 TSVConnRead(TSVConn connp, TSCont contp, TSIOBuffer bufp, int64_t nbytes)
 {
-  if ((sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) ||
-      (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) ||
-      (sdk_sanity_check_iocore_structure(bufp) != TS_SUCCESS) || (nbytes < 0))
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(bufp) == TS_SUCCESS);
+  sdk_assert(nbytes >= 0);
 
   FORCE_PLUGIN_MUTEX(contp);
   VConnection *vc = (VConnection *) connp;
-  return vc->do_io(VIO::READ, (INKContInternal *) contp, nbytes, (MIOBuffer *) bufp);
+
+  return reinterpret_cast<TSVIO>(vc->do_io(VIO::READ, (INKContInternal *) contp, nbytes, (MIOBuffer *) bufp));
 }
 
 TSVIO
 TSVConnWrite(TSVConn connp, TSCont contp, TSIOBufferReader readerp, int64_t nbytes)
 {
-  if ((sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) ||
-      (sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) ||
-      (sdk_sanity_check_iocore_structure(readerp) != TS_SUCCESS) || (nbytes < 0))
-    return (TSCont) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_iocore_structure(readerp) == TS_SUCCESS);
+  sdk_assert(nbytes >= 0);
 
   FORCE_PLUGIN_MUTEX(contp);
   VConnection *vc = (VConnection *) connp;
-  return vc->do_io_write((INKContInternal *) contp, nbytes, (IOBufferReader *) readerp);
+
+  return reinterpret_cast<TSVIO>(vc->do_io_write((INKContInternal *) contp, nbytes, (IOBufferReader *) readerp));
 }
 
-TSReturnCode
+void
 TSVConnClose(TSVConn connp)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   VConnection *vc = (VConnection *) connp;
   vc->do_io_close();
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSVConnAbort(TSVConn connp, int error)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   VConnection *vc = (VConnection *) connp;
   vc->do_io_close(error);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSVConnShutdown(TSVConn connp, int read, int write)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   VConnection *vc = (VConnection *) connp;
 
@@ -6117,23 +5949,22 @@ TSVConnShutdown(TSVConn connp, int read, int write)
   } else if (write) {
     vc->do_io_shutdown(IO_SHUTDOWN_WRITE);
   }
-  return TS_SUCCESS;
 }
 
-TSReturnCode
-TSVConnCacheObjectSizeGet(TSVConn connp, int64_t *obj_size)
+int64_t
+TSVConnCacheObjectSizeGet(TSVConn connp)
 {
-  if ((sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) || (obj_size == NULL))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
-  CacheVC *vc = (CacheVC *) connp;
-  *obj_size = vc->get_object_size();
-  return TS_SUCCESS;
+  CacheVC *vc = (CacheVC *)connp;
+  return vc->get_object_size();
 }
 
 void
 TSVConnCacheHttpInfoSet(TSVConn connp, TSCacheHttpInfo infop)
 {
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+
   CacheVC *vc = (CacheVC *) connp;
   if (vc->base_stat == cache_scan_active_stat)
     vc->set_http_info((CacheHTTPInfo *) infop);
@@ -6144,163 +5975,157 @@ TSVConnCacheHttpInfoSet(TSVConn connp, TSCacheHttpInfo infop)
 TSVConn
 TSTransformCreate(TSEventFunc event_funcp, TSHttpTxn txnp)
 {
-  return TSVConnCreate(event_funcp, TSContMutexGet(txnp));
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  // TODO: This is somewhat of a leap of faith, but I think a TSHttpTxn is just another
+  // fancy continuation?
+  return TSVConnCreate(event_funcp, TSContMutexGet(reinterpret_cast<TSCont>(txnp)));
 }
 
 TSVConn
 TSTransformOutputVConnGet(TSVConn connp)
 {
-  if (sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) {
-    return (TSVConn) TS_ERROR_PTR;
-  }
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+
   VConnection *vc = (VConnection *) connp;
   TSVConn data;
 
-  if (!vc->get_data(TS_API_DATA_OUTPUT_VC, &data)) {
-    ink_assert(!"not reached");
-  }
+  vc->get_data(TS_API_DATA_OUTPUT_VC, &data); // This case can't fail.
   return data;
 }
 
-TSReturnCode
+void
 TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (sdk_sanity_check_continuation(contp) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
-  HttpSM *http_sm = (HttpSM *) txnp;
-  INKContInternal *i = (INKContInternal *) contp;
-#ifdef DEBUG
-  if (i->mutex == NULL) {
-    return TS_ERROR;
-  }
-#endif
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+
+  HttpSM *http_sm = (HttpSM *)txnp;
+  INKContInternal *i = (INKContInternal *)contp;
+
+  // Must have a mutex
+  sdk_assert(sdk_sanity_check_null_ptr((void*)i->mutex) == TS_SUCCESS);
+
   http_sm->plugin_tunnel_type = HTTP_PLUGIN_AS_SERVER;
   http_sm->plugin_tunnel = PluginVCCore::alloc();
   http_sm->plugin_tunnel->set_accept_cont(i);
-
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSHttpTxnIntercept(TSCont contp, TSHttpTxn txnp)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) || (sdk_sanity_check_continuation(contp) != TS_SUCCESS)) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+
   HttpSM *http_sm = (HttpSM *) txnp;
   INKContInternal *i = (INKContInternal *) contp;
-#ifdef DEBUG
-  if (i->mutex == NULL) {
-    return TS_ERROR;
-  }
-#endif
+
+  // Must have a mutex
+  sdk_assert(sdk_sanity_check_null_ptr((void*)i->mutex) == TS_SUCCESS);
+
   http_sm->plugin_tunnel_type = HTTP_PLUGIN_AS_INTERCEPT;
   http_sm->plugin_tunnel = PluginVCCore::alloc();
   http_sm->plugin_tunnel->set_accept_cont(i);
-
-  return TS_SUCCESS;
 }
 
 /* Net VConnections */
 void
 TSVConnInactivityTimeoutSet(TSVConn connp, TSHRTime timeout)
 {
-  NetVConnection *vc = (NetVConnection *) connp;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
+  NetVConnection *vc = (NetVConnection *) connp;
   vc->set_inactivity_timeout(timeout);
 }
 
 void
 TSVConnInactivityTimeoutCancel(TSVConn connp)
 {
-  NetVConnection *vc = (NetVConnection *) connp;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
+  NetVConnection *vc = (NetVConnection *) connp;
   vc->cancel_inactivity_timeout();
 }
 
 void
 TSVConnActiveTimeoutSet(TSVConn connp, TSHRTime timeout)
 {
-  NetVConnection *vc = (NetVConnection *) connp;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
+  NetVConnection *vc = (NetVConnection *) connp;
   vc->set_active_timeout(timeout);
 }
 
 void
 TSVConnActiveTimeoutCancel(TSVConn connp)
 {
-  NetVConnection *vc = (NetVConnection *) connp;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
+  NetVConnection *vc = (NetVConnection *) connp;
   vc->cancel_active_timeout();
 }
 
-TSReturnCode
-TSNetVConnRemoteIPGet(TSVConn connp, unsigned int *ip)
+// TODO: IPv6 ...
+unsigned int
+TSNetVConnRemoteIPGet(TSVConn connp)
 {
-  if ((sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) || (ip == NULL))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   NetVConnection *vc = (NetVConnection *) connp;
-
-  *ip = vc->get_remote_ip();
-  return TS_SUCCESS;
+  return vc->get_remote_ip();
 }
 
-TSReturnCode
-TSNetVConnRemotePortGet(TSVConn connp, int *port)
+int
+TSNetVConnRemotePortGet(TSVConn connp)
 {
-  if ((sdk_sanity_check_iocore_structure(connp) != TS_SUCCESS) || (port == NULL))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   NetVConnection *vc = (NetVConnection *) connp;
-
-  *port = vc->get_remote_port();
-  return TS_SUCCESS;
+  return vc->get_remote_port();
 }
 
 TSAction
 TSNetConnect(TSCont contp, unsigned int ip, int port)
 {
-  if ((sdk_sanity_check_continuation(contp) != TS_SUCCESS) || (ip == 0) || (port == 0))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(ip > 0 && port > 0);
 
   FORCE_PLUGIN_MUTEX(contp);
+
   INKContInternal *i = (INKContInternal *) contp;
-  return (TSAction) netProcessor.connect_re(i, ip, port);
+  return (TSAction)netProcessor.connect_re(i, ip, port);
 }
 
 TSAction
 TSNetAccept(TSCont contp, int port)
 {
-  if ((sdk_sanity_check_continuation(contp) != TS_SUCCESS) || (port == 0))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(port > 0);
 
   FORCE_PLUGIN_MUTEX(contp);
+
   INKContInternal *i = (INKContInternal *) contp;
-  return (TSAction) netProcessor.accept(i, port);
+  return (TSAction)netProcessor.accept(i, port);
 }
 
 /* DNS Lookups */
 TSAction
 TSHostLookup(TSCont contp, char *hostname, int namelen)
 {
-  if ((sdk_sanity_check_continuation(contp) != TS_SUCCESS) || (hostname == NULL) || (namelen == 0))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)hostname) == TS_SUCCESS);
+  sdk_assert(namelen > 0);
 
   FORCE_PLUGIN_MUTEX(contp);
+
   INKContInternal *i = (INKContInternal *) contp;
-  return (TSAction) hostDBProcessor.getbyname_re(i, hostname, namelen);
+  return (TSAction)hostDBProcessor.getbyname_re(i, hostname, namelen);
 }
 
-TSReturnCode
-TSHostLookupResultIPGet(TSHostLookupResult lookup_result, unsigned int *ip)
+unsigned int
+TSHostLookupResultIPGet(TSHostLookupResult lookup_result)
 {
-  if ((sdk_sanity_check_hostlookup_structure(lookup_result) != TS_SUCCESS) || (ip == NULL))
-    return TS_ERROR;
-
-  *ip = ((HostDBInfo *) lookup_result)->ip();
-  return TS_SUCCESS;
+  sdk_assert(sdk_sanity_check_hostlookup_structure(lookup_result) == TS_SUCCESS);
+  return ((HostDBInfo *)lookup_result)->ip();
 }
 
 /*
@@ -6312,6 +6137,7 @@ TSHostLookupResultIPGet(TSHostLookupResult lookup_result, unsigned int *ip)
 TSReturnCode
 TSCacheReady(int *is_ready)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)is_ready) == TS_SUCCESS);
   return TSCacheDataTypeReady(TS_CACHE_DATA_TYPE_NONE, is_ready);
 }
 
@@ -6319,11 +6145,8 @@ TSCacheReady(int *is_ready)
 TSReturnCode
 TSCacheDataTypeReady(TSCacheDataType type, int *is_ready)
 {
-#ifdef DEBUG
-  if (is_ready == NULL) {
-    return TS_ERROR;
-  }
-#endif
+  sdk_assert(sdk_sanity_check_null_ptr((void*)is_ready) == TS_SUCCESS);
+
   CacheFragType frag_type;
 
   switch (type) {
@@ -6347,8 +6170,8 @@ TSCacheDataTypeReady(TSCacheDataType type, int *is_ready)
 TSAction
 TSCacheRead(TSCont contp, TSCacheKey key)
 {
-  if ((sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) || (sdk_sanity_check_cachekey(key) != TS_SUCCESS))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -6361,8 +6184,8 @@ TSCacheRead(TSCont contp, TSCacheKey key)
 TSAction
 TSCacheWrite(TSCont contp, TSCacheKey key)
 {
-  if ((sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) || (sdk_sanity_check_cachekey(key) != TS_SUCCESS))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -6376,8 +6199,8 @@ TSCacheWrite(TSCont contp, TSCacheKey key)
 TSAction
 TSCacheRemove(TSCont contp, TSCacheKey key)
 {
-  if ((sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) || (sdk_sanity_check_cachekey(key) != TS_SUCCESS))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -6390,8 +6213,8 @@ TSCacheRemove(TSCont contp, TSCacheKey key)
 TSAction
 TSCacheScan(TSCont contp, TSCacheKey key, int KB_per_second)
 {
-  if ((sdk_sanity_check_iocore_structure(contp) != TS_SUCCESS) || (key && sdk_sanity_check_cachekey(key) != TS_SUCCESS))
-    return (TSAction) TS_ERROR_PTR;
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
+  // NOTE: key can be NULl here, so don't check for it.
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -6399,10 +6222,9 @@ TSCacheScan(TSCont contp, TSCacheKey key, int KB_per_second)
 
   if (key) {
     CacheInfo *info = (CacheInfo *) key;
-    return (TSAction)
-      cacheProcessor.scan(i, info->hostname, info->len, KB_per_second);
+    return (TSAction)cacheProcessor.scan(i, info->hostname, info->len, KB_per_second);
   }
-  return cacheProcessor.scan(i, 0, 0, KB_per_second);
+  return reinterpret_cast<TSAction>(cacheProcessor.scan(i, 0, 0, KB_per_second));
 }
 
 
@@ -6416,8 +6238,8 @@ TSStatCreate(const char *the_name, TSRecordDataType the_type, TSStatPersistence 
   // TODO: This only supports "int" data types at this point, since the "Raw" stats
   // interfaces only supports integers. Going forward, we could extend either the "Raw"
   // stats APIs, or make non-int use the direct (synchronous) stats APIs (slower).
-  if ((sdk_sanity_check_null_ptr((void *)the_name) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS))
+  if ((sdk_sanity_check_null_ptr((void*)the_name) != TS_SUCCESS) ||
+      (sdk_sanity_check_null_ptr((void*)api_rsb) != TS_SUCCESS))
     return TS_ERROR;
 
   switch (sync) {
@@ -6439,58 +6261,42 @@ TSStatCreate(const char *the_name, TSRecordDataType the_type, TSStatPersistence 
   return id;
 }
 
-TSReturnCode
+void
 TSStatIntIncrement(int the_stat, TSMgmtInt amount)
 {
-  if (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS)
-    return TS_ERROR;
-
   RecIncrRawStat(api_rsb, NULL, the_stat, amount);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 TSStatIntDecrement(int the_stat, TSMgmtInt amount)
 {
-  if (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS)
-    return TS_ERROR;
-
   RecDecrRawStat(api_rsb, NULL, the_stat, amount);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
-TSStatIntGet(int the_stat, TSMgmtInt* value)
+TSMgmtInt
+TSStatIntGet(int the_stat)
 {
-  if (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS)
-    return TS_ERROR;
+  TSMgmtInt value;
 
-  RecGetGlobalRawStatSum(api_rsb, the_stat, value);
-  return TS_SUCCESS;
+  RecGetGlobalRawStatSum(api_rsb, the_stat, &value);
+  return value;
 }
 
-TSReturnCode
+void
 TSStatIntSet(int the_stat, TSMgmtInt value)
 {
-  if (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS)
-    return TS_ERROR;
-
   RecSetGlobalRawStatSum(api_rsb, the_stat, value);
-  return TS_SUCCESS;
 }
 
-int
-TSStatFindName(const char* name)
+TSReturnCode
+TSStatFindName(const char* name, int *idp)
 {
-  int id;
+  sdk_assert(sdk_sanity_check_null_ptr((void*)name) == TS_SUCCESS);
 
-  if ((sdk_sanity_check_null_ptr((void *)name) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS))
-    return TS_ERROR;
+  if (RecGetRecordOrderAndId(name, NULL, idp) == REC_ERR_OKAY)
+    return TS_SUCCESS;
 
-  if (RecGetRecordOrderAndId(name, NULL, &id) == REC_ERR_OKAY)
-    return id;
-  return -1;
+  return TS_ERROR;
 }
 
 
@@ -6501,21 +6307,16 @@ TSStatFindName(const char* name)
 inline TSReturnCode
 ink_sanity_check_stat_structure(void *obj)
 {
-  if (obj == NULL || obj == TS_ERROR_PTR) {
+  if (obj == NULL)
     return TS_ERROR;
-  }
+
   return TS_SUCCESS;
 }
 
 INKStat
 INKStatCreate(const char *the_name, INKStatTypes the_type)
 {
-#ifdef DEBUG
-  if (the_name == NULL ||
-      the_name == TS_ERROR_PTR || ((the_type != INKSTAT_TYPE_INT64) && (the_type != INKSTAT_TYPE_FLOAT))) {
-    return (INKStat) TS_ERROR_PTR;
-  }
-#endif
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
 
   StatDescriptor *n = NULL;
 
@@ -6529,223 +6330,124 @@ INKStatCreate(const char *the_name, INKStatTypes the_type)
     break;
 
   default:
-    Warning("INKStatCreate given invalid type enumeration!");
+    sdk_assert(!"Bad Input");
     break;
   };
 
-  return n == NULL ? (INKStat) TS_ERROR_PTR : (INKStat) n;
+  return (INKStat)n;
 }
 
-TSReturnCode
+void
 INKStatIntAddTo(INKStat the_stat, int64_t amount)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
-  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
   statp->add(amount);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 INKStatFloatAddTo(INKStat the_stat, float amount)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
-  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
   statp->add(amount);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 INKStatDecrement(INKStat the_stat)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
-  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
   statp->decrement();
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 INKStatIncrement(INKStat the_stat)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
-  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
   statp->increment();
-  return TS_SUCCESS;
 }
 
-#if TS_HAS_V2STATS
-TSReturnCode
-TSStatCreateV2(const char *the_name, uint32_t *stat_num)
+int64_t
+INKStatIntGet(INKStat the_stat)
 {
-  if(StatSystemV2::registerStat(the_name, stat_num))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatIncrementV2(uint32_t stat_num, int64_t inc_by)
-{
-  if(StatSystemV2::increment(stat_num, inc_by))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatIncrementByNameV2(const char *stat_name, int64_t inc_by)
-{
-  if(StatSystemV2::increment(stat_name, inc_by))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatDecrementV2(uint32_t stat_num, int64_t dec_by)
-{
-  return TSStatIncrementV2(stat_num, (-1)*dec_by);
-}
-
-TSReturnCode
-TSStatDecrementByNameV2(const char *stat_name, int64_t dec_by)
-{
-  return TSStatIncrementByNameV2(stat_name, (-1)*dec_by);
-}
-
-TSReturnCode
-TSStatGetCurrentV2(uint32_t stat_num, int64_t *stat_val)
-{
-  if(StatSystemV2::get_current(stat_num, stat_val))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatGetCurrentByNameV2(const char *stat_name, int64_t *stat_val)
-{
-  if(StatSystemV2::get_current(stat_name, stat_val))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatGetV2(uint32_t stat_num, int64_t *stat_val)
-{
-  if(StatSystemV2::get(stat_num, stat_val))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-
-TSReturnCode
-TSStatGetByNameV2(const char *stat_name, int64_t *stat_val)
-{
-  if(StatSystemV2::get(stat_name, stat_val))
-    return TS_SUCCESS;
-  return TS_ERROR;
-}
-#endif
-
-TSReturnCode
-INKStatIntGet(INKStat the_stat, int64_t *value)
-{
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
   StatDescriptor *statp = (StatDescriptor *) the_stat;
-
-  *value = statp->int_value();
-  return TS_SUCCESS;
+  return statp->int_value();
 }
 
-TSReturnCode
-INKStatFloatGet(INKStat the_stat, float *value)
+float
+INKStatFloatGet(INKStat the_stat)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
   StatDescriptor *statp = (StatDescriptor *) the_stat;
-
-  *value = statp->flt_value();
-  return TS_SUCCESS;
+  return statp->flt_value();
 }
 
-TSReturnCode
+void
 INKStatIntSet(INKStat the_stat, int64_t value)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
   StatDescriptor *statp = (StatDescriptor *) the_stat;
-
   statp->set(value);
-  return TS_SUCCESS;
 }
 
-TSReturnCode
+void
 INKStatFloatSet(INKStat the_stat, float value)
 {
-  if (ink_sanity_check_stat_structure(the_stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
 
   StatDescriptor *statp = (StatDescriptor *) the_stat;
-
   statp->set(value);
-  return TS_SUCCESS;
 }
 
 INKCoupledStat
 INKStatCoupledGlobalCategoryCreate(const char *the_name)
 {
-#ifdef DEBUG
-  if (the_name == NULL || the_name == TS_ERROR_PTR)
-    return (INKCoupledStat) TS_ERROR_PTR;
-#endif
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
 
   CoupledStats *category = NEW(new CoupledStats(the_name));
-  return (INKCoupledStat) category;
+  return (INKCoupledStat)category;
 }
 
 INKCoupledStat
 INKStatCoupledLocalCopyCreate(const char *the_name, INKCoupledStat global_copy)
 {
-  if (ink_sanity_check_stat_structure(global_copy) != TS_SUCCESS ||
-      sdk_sanity_check_null_ptr((void *) the_name) != TS_SUCCESS)
-    return (INKCoupledStat) TS_ERROR_PTR;
+  sdk_assert(ink_sanity_check_stat_structure(global_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
 
   CoupledStatsSnapshot *snap = NEW(new CoupledStatsSnapshot((CoupledStats *) global_copy));
-
-  return (INKCoupledStat) snap;
+return (INKCoupledStat)snap;
 }
 
-TSReturnCode
+void
 INKStatCoupledLocalCopyDestroy(INKCoupledStat stat)
 {
-  if (ink_sanity_check_stat_structure(stat) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(ink_sanity_check_stat_structure(stat) == TS_SUCCESS);
 
-  CoupledStatsSnapshot *snap = (CoupledStatsSnapshot *) stat;
+  CoupledStatsSnapshot *snap = (CoupledStatsSnapshot *)stat;
 
   if (snap) {
     delete snap;
   }
-  return TS_SUCCESS;
 }
 
 INKStat
 INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char *the_name, INKStatTypes the_type)
 {
-  if ((ink_sanity_check_stat_structure(global_copy) != TS_SUCCESS) ||
-      sdk_sanity_check_null_ptr((void *) the_name) != TS_SUCCESS ||
-      ((the_type != INKSTAT_TYPE_INT64) && (the_type != INKSTAT_TYPE_FLOAT)))
-    return (INKStat) TS_ERROR_PTR;
+  sdk_assert(ink_sanity_check_stat_structure(global_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
 
   CoupledStats *category = (CoupledStats *) global_copy;
-  StatDescriptor *n;
+  StatDescriptor *n = NULL;
 
   switch (the_type) {
   case INKSTAT_TYPE_INT64:
@@ -6757,37 +6459,31 @@ INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char *the_name, INKSta
     break;
 
   default:
-    n = NULL;
-    Warning("INKStatCreate given invalid type enumeration!");
+    sdk_assert(!"Bad stat type");
     break;
   };
 
-  return n == NULL ? (INKStat) TS_ERROR_PTR : (INKStat) n;
+  return (INKStat)n;
 }
 
 INKStat
 INKStatCoupledLocalAdd(INKCoupledStat local_copy, const char *the_name, INKStatTypes the_type)
 {
-  if ((ink_sanity_check_stat_structure(local_copy) != TS_SUCCESS) ||
-      sdk_sanity_check_null_ptr((void *) the_name) != TS_SUCCESS ||
-      ((the_type != INKSTAT_TYPE_INT64) && (the_type != INKSTAT_TYPE_FLOAT)))
-    return (INKStat) TS_ERROR_PTR;
+  sdk_assert(ink_sanity_check_stat_structure(local_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+  sdk_assert((the_type == INKSTAT_TYPE_INT64) || (the_type == INKSTAT_TYPE_FLOAT));
 
   StatDescriptor *n = ((CoupledStatsSnapshot *) local_copy)->fetchNext();
-
-  return n == NULL ? (INKStat) TS_ERROR_PTR : (INKStat) n;
+  return (INKStat)n;
 }
 
-TSReturnCode
+void
 INKStatsCoupledUpdate(INKCoupledStat local_copy)
 {
-  if (ink_sanity_check_stat_structure(local_copy) != TS_SUCCESS)
-    return TS_ERROR;
-
+  sdk_assert(ink_sanity_check_stat_structure(local_copy) == TS_SUCCESS);
   ((CoupledStatsSnapshot *) local_copy)->CommitUpdates();
-
-  return TS_SUCCESS;
 }
+
 
 /**************************   Tracing API   ****************************/
 // returns 1 or 0 to indicate whether TS is being run with a debug tag.
@@ -6804,6 +6500,7 @@ TSDebug(const char *tag, const char *format_str, ...)
 {
   if (diags->on(tag, DiagsTagType_Debug)) {
     va_list ap;
+
     va_start(ap, format_str);
     diags->print_va(tag, DL_Diag, NULL, NULL, format_str, ap);
     va_end(ap);
@@ -6815,17 +6512,14 @@ TSDebug(const char *tag, const char *format_str, ...)
 TSReturnCode
 TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_object)
 {
-#ifdef DEBUG
-  if (filename == NULL) {
-    *new_object = NULL;
-    return TS_ERROR;
-  }
-#endif
+  sdk_assert(sdk_sanity_check_null_ptr((void*)filename) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)new_object) == TS_SUCCESS);
+
   if (mode<0 || mode>= TS_LOG_MODE_INVALID_FLAG) {
-    /* specified mode is invalid */
     *new_object = NULL;
     return TS_ERROR;
   }
+
   TextLogObject *tlog = NEW(new TextLogObject(filename, Log::config->logfile_dir,
                                               (bool) mode & TS_LOG_MODE_ADD_TIMESTAMP,
                                               NULL,
@@ -6838,25 +6532,24 @@ TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_objec
                Log::config->log_object_manager.manage_api_object(tlog, 0) :
                Log::config->log_object_manager.manage_api_object(tlog));
     if (err != LogObjectManager::NO_FILENAME_CONFLICTS) {
-      // error managing log
       delete tlog;
       *new_object = NULL;
       return TS_ERROR;
     }
   } else {
-    // error creating log
     *new_object = NULL;
     return TS_ERROR;
   }
   *new_object = (TSTextLogObject) tlog;
+
   return TS_SUCCESS;
 }
 
 TSReturnCode
 TSTextLogObjectWrite(TSTextLogObject the_object, char *format, ...)
 {
-  if ((sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS) || (format == NULL))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)format) == TS_SUCCESS);
 
   TSReturnCode retVal = TS_SUCCESS;
 
@@ -6876,104 +6569,101 @@ TSTextLogObjectWrite(TSTextLogObject the_object, char *format, ...)
     ink_debug_assert(!"invalid return code");
   }
   va_end(ap);
+
   return retVal;
 }
 
-TSReturnCode
+void
 TSTextLogObjectFlush(TSTextLogObject the_object)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
   ((TextLogObject *) the_object)->force_new_buffer();
-  return TS_SUCCESS;
 }
 
 TSReturnCode
 TSTextLogObjectDestroy(TSTextLogObject the_object)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
-  return (Log::config->log_object_manager.unmanage_api_object((TextLogObject *) the_object) ? TS_SUCCESS : TS_ERROR);
+  if (Log::config->log_object_manager.unmanage_api_object((TextLogObject *) the_object))
+    return TS_SUCCESS;
+
+  return TS_ERROR;
 }
 
-tsapi TSReturnCode
+void
 TSTextLogObjectHeaderSet(TSTextLogObject the_object, const char *header)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
   ((TextLogObject *) the_object)->set_log_file_header(header);
-  return TS_SUCCESS;
 }
 
-tsapi TSReturnCode
+void
 TSTextLogObjectRollingEnabledSet(TSTextLogObject the_object, int rolling_enabled)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
   ((TextLogObject *) the_object)->set_rolling_enabled(rolling_enabled);
-  return TS_SUCCESS;
 }
 
-tsapi TSReturnCode
+void
 TSTextLogObjectRollingIntervalSecSet(TSTextLogObject the_object, int rolling_interval_sec)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
   ((TextLogObject *) the_object)->set_rolling_interval_sec(rolling_interval_sec);
-  return TS_SUCCESS;
 }
 
-tsapi TSReturnCode
+void
 TSTextLogObjectRollingOffsetHrSet(TSTextLogObject the_object, int rolling_offset_hr)
 {
-  if (sdk_sanity_check_iocore_structure(the_object) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
   ((TextLogObject *) the_object)->set_rolling_offset_hr(rolling_offset_hr);
-  return TS_SUCCESS;
-}
-
-int
-TSHttpTxnClientFdGet(TSHttpTxn txnp)
-{
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-  TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
-  HttpClientSession *cs = (HttpClientSession *) ssnp;
-  if (cs == NULL) {
-    return -1;
-  }
-  NetVConnection *vc = cs->get_netvc();
-  if (vc == NULL) {
-    return -1;
-  }
-  return vc->get_socket();
 }
 
 TSReturnCode
-TSHttpTxnClientRemotePortGet(TSHttpTxn txnp, int *port)
+TSHttpTxnClientFdGet(TSHttpTxn txnp, int *fdp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)fdp) == TS_SUCCESS);
+
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
   HttpClientSession *cs = (HttpClientSession *) ssnp;
-  if (cs == NULL) {
+
+  if (cs == NULL)
     return TS_ERROR;
-  }
+
   NetVConnection *vc = cs->get_netvc();
-  if (vc == NULL) {
+  if (vc == NULL)
     return TS_ERROR;
-  }
+
+  *fdp = vc->get_socket();
+  return TS_SUCCESS;
+}
+
+TSReturnCode
+TSHttpTxnClientRemotePortGet(TSHttpTxn txnp, int *portp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)portp) == TS_SUCCESS);
+
+  TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
+  HttpClientSession *cs = (HttpClientSession *) ssnp;
+
+  if (cs == NULL)
+    return TS_ERROR;
+
+  NetVConnection *vc = cs->get_netvc();
+  if (vc == NULL)
+    return TS_ERROR;
+
   // Note: SDK spec specifies this API should return port in network byte order
   // iocore returns it in host byte order. So we do the conversion.
-  *port = htons(vc->get_remote_port());
+  *portp = htons(vc->get_remote_port());
+
   return TS_SUCCESS;
 }
 
@@ -6981,13 +6671,11 @@ TSHttpTxnClientRemotePortGet(TSHttpTxn txnp, int *port)
 
 // This is very suspicious, TSILookup is a (void *), so how on earth
 // can we try to delete an instance of it?
-
-
-
 void
 TSIPLookupNewEntry(TSIPLookup iplu, uint32_t addr1, uint32_t addr2, void *data)
 {
   IpLookup *my_iplu = (IpLookup *) iplu;
+
   if (my_iplu) {
     my_iplu->NewEntry((ip_addr_t) addr1, (ip_addr_t) addr2, data);
   }
@@ -6998,107 +6686,116 @@ TSIPLookupMatch(TSIPLookup iplu, uint32_t addr, void **data)
 {
   void *dummy;
   IpLookup *my_iplu = (IpLookup *) iplu;
+
   if (!data) {
     data = &dummy;
   }
   return (my_iplu ? my_iplu->Match((ip_addr_t) addr, data) : 0);
 }
 
-int
+TSReturnCode
 TSIPLookupMatchFirst(TSIPLookup iplu, uint32_t addr, TSIPLookupState iplus, void **data)
 {
   IpLookup *my_iplu = (IpLookup *) iplu;
   IpLookupState *my_iplus = (IpLookupState *) iplus;
-  if (my_iplu && my_iplus && my_iplu->MatchFirst(addr, my_iplus, data)) {
-    return 1;
-  }
-  return 0;
+  if (my_iplu && my_iplus && my_iplu->MatchFirst(addr, my_iplus, data))
+    return TS_SUCCESS;
+
+  return TS_ERROR;
 }
 
-int
+TSReturnCode
 TSIPLookupMatchNext(TSIPLookup iplu, TSIPLookupState iplus, void **data)
 {
   IpLookup *my_iplu = (IpLookup *) iplu;
   IpLookupState *my_iplus = (IpLookupState *) iplus;
-  if (my_iplu && my_iplus && my_iplu->MatchNext(my_iplus, data)) {
-    return 1;
-  }
-  return 0;
+
+  if (my_iplu && my_iplus && my_iplu->MatchNext(my_iplus, data))
+    return TS_SUCCESS;
+
+  return TS_ERROR;
 }
 
 void
 TSIPLookupPrint(TSIPLookup iplu, TSIPLookupPrintFunc pf)
 {
   IpLookup *my_iplu = (IpLookup *) iplu;
-  if (my_iplu) {
+
+  if (my_iplu)
     my_iplu->Print((IpLookupPrintFunc) pf);
-  }
 }
 
 /* Matcher Utils */
 char *
 TSMatcherReadIntoBuffer(char *file_name, int *file_len)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)file_name) == TS_SUCCESS);
   return readIntoBuffer((char *) file_name, "TSMatcher", file_len);
 }
 
 char *
 TSMatcherTokLine(char *buffer, char **last)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)buffer) == TS_SUCCESS);
   return tokLine(buffer, last);
 }
 
 char *
 TSMatcherExtractIPRange(char *match_str, uint32_t *addr1, uint32_t *addr2)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)match_str) == TS_SUCCESS);
   return (char*)ExtractIpRange(match_str, (ip_addr_t *) addr1, (ip_addr_t *) addr2);
 }
 
 TSMatcherLine
-TSMatcherLineCreate()
+TSMatcherLineCreate(void)
 {
-  return (void *) xmalloc(sizeof(matcher_line));
+  return reinterpret_cast<TSMatcherLine>(xmalloc(sizeof(matcher_line)));
 }
 
 void
 TSMatcherLineDestroy(TSMatcherLine ml)
 {
-  if (ml) {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)ml) == TS_SUCCESS);
+  if (ml)
     xfree(ml);
-  }
 }
 
 const char *
 TSMatcherParseSrcIPConfigLine(char *line, TSMatcherLine ml)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)line) == TS_SUCCESS);
   return parseConfigLine(line, (matcher_line *) ml, &ip_allow_tags);
 }
 
 char *
 TSMatcherLineName(TSMatcherLine ml, int element)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)ml) == TS_SUCCESS);
   return (((matcher_line *) ml)->line)[0][element];
 }
 
 char *
 TSMatcherLineValue(TSMatcherLine ml, int element)
 {
+  sdk_assert(sdk_sanity_check_null_ptr((void*)ml) == TS_SUCCESS);
   return (((matcher_line *) ml)->line)[1][element];
 }
 
 /* Configuration Setting */
-int
+TSReturnCode
 TSMgmtConfigIntSet(const char *var_name, TSMgmtInt value)
 {
   TSMgmtInt result;
   char *buffer;
 
   // is this a valid integer?
-  if (!TSMgmtIntGet(var_name, &result)) {
-    return 0;
-  }
+  if (TSMgmtIntGet(var_name, &result) != TS_SUCCESS)
+    return TS_ERROR;
+
   // construct a buffer
   int buffer_size = strlen(var_name) + 1 + 32 + 1 + 64 + 1;
+
   buffer = (char *) alloca(buffer_size);
   snprintf(buffer, buffer_size, "%s %d %" PRId64 "", var_name, INK_INT, value);
 
@@ -7106,20 +6803,20 @@ TSMgmtConfigIntSet(const char *var_name, TSMgmtInt value)
   // transactional (e.g. we return control to the plugin before the
   // value is commited to disk by the manager)
   RecSignalManager(MGMT_SIGNAL_PLUGIN_SET_CONFIG, buffer);
-  return 1;
+
+  return TS_SUCCESS;
 }
 
 
 /* Alarm */
 /* return type is "int" currently, it should be TSReturnCode */
-int
+void
 TSSignalWarning(TSAlarmType code, char *msg)
 {
-  if (code<TS_SIGNAL_WDA_BILLING_CONNECTION_DIED || code> TS_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS || msg == NULL)
-    return -1;                  //TS_ERROR
+  sdk_assert(code >= TS_SIGNAL_WDA_BILLING_CONNECTION_DIED && code <= TS_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)msg) == TS_SUCCESS);
 
   REC_SignalWarning(code, msg);
-  return 0;                     //TS_SUCCESS
 }
 
 void
@@ -7128,73 +6825,82 @@ TSICPFreshnessFuncSet(TSPluginFreshnessCalcFunc funcp)
   pluginFreshnessCalcFunc = (PluginFreshnessCalcFunc) funcp;
 }
 
-int
+TSReturnCode
 TSICPCachedReqGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  ICPPeerReadCont *sm = (ICPPeerReadCont *) contp;
-  HTTPInfo *cached_obj;
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)obj) == TS_SUCCESS);
 
-  if (sm == NULL)
-    return 0;
+  ICPPeerReadCont *sm = (ICPPeerReadCont *)contp;
+  HTTPInfo *cached_obj;
 
   cached_obj = sm->_object_read;
   if (cached_obj == NULL || !cached_obj->valid())
-    return 0;
+    return TS_ERROR;
 
   HTTPHdr *cached_hdr = cached_obj->request_get();
   if (!cached_hdr->valid())
-    return 0;
+    return TS_ERROR;;
 
   // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
   //  threads can access.  We need to create our own for the transaction and return that.
   HdrHeapSDKHandle **handle = &(sm->_cache_req_hdr_heap_handle);
+
   if (*handle == NULL) {
     *handle = (HdrHeapSDKHandle *) xmalloc(sizeof(HdrHeapSDKHandle));
     (*handle)->m_heap = cached_hdr->m_heap;
   }
 
-  *bufp = *handle;
-  *obj = cached_hdr->m_http;
+  *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
+  *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
   sdk_sanity_check_mbuffer(*bufp);
 
-  return 1;
+  return TS_SUCCESS;
 }
 
-int
+TSReturnCode
 TSICPCachedRespGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)obj) == TS_SUCCESS);
+
   ICPPeerReadCont *sm = (ICPPeerReadCont *) contp;
   HTTPInfo *cached_obj;
 
   if (sm == NULL)
-    return 0;
+    return TS_ERROR;
 
   cached_obj = sm->_object_read;
   if (cached_obj == NULL || !cached_obj->valid())
-    return 0;
+    return TS_ERROR;
 
   HTTPHdr *cached_hdr = cached_obj->response_get();
   if (!cached_hdr->valid())
-    return 0;
+    return TS_ERROR;
 
   // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
   //  threads can access.  We need to create our own for the transaction and return that.
   HdrHeapSDKHandle **handle = &(sm->_cache_resp_hdr_heap_handle);
+
   if (*handle == NULL) {
     *handle = (HdrHeapSDKHandle *) xmalloc(sizeof(HdrHeapSDKHandle));
     (*handle)->m_heap = cached_hdr->m_heap;
   }
 
-  *bufp = *handle;
-  *obj = cached_hdr->m_http;
+  *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
+  *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
   sdk_sanity_check_mbuffer(*bufp);
 
-  return 1;
+  return TS_SUCCESS;
 }
 
 TSReturnCode
 TSCacheUrlSet(TSHttpTxn txnp, const char *url, int length)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
   Debug("cache_url", "[TSCacheUrlSet]");
 
@@ -7207,17 +6913,18 @@ TSCacheUrlSet(TSHttpTxn txnp, const char *url, int length)
     sm->t_state.cache_info.lookup_url_storage.create(NULL);
     sm->t_state.cache_info.lookup_url = &(sm->t_state.cache_info.lookup_url_storage);
     sm->t_state.cache_info.lookup_url->parse(url, length);
-  } else {
-    return TS_ERROR;
+    return TS_SUCCESS;
   }
-  return TS_SUCCESS;
+
+  return TS_ERROR;
 }
 
 void
 TSCacheHttpInfoKeySet(TSCacheHttpInfo infop, TSCacheKey keyp)
 {
+  // TODO: Check input ?
   CacheHTTPInfo *info = (CacheHTTPInfo *) infop;
-  INK_MD5 *key = (INK_MD5 *) keyp;
+  INK_MD5 *key = (INK_MD5 *)keyp;
 
   info->object_key_set(*key);
 }
@@ -7225,21 +6932,19 @@ TSCacheHttpInfoKeySet(TSCacheHttpInfo infop, TSCacheKey keyp)
 void
 TSCacheHttpInfoSizeSet(TSCacheHttpInfo infop, int64_t size)
 {
+  // TODO: Check input ?
   CacheHTTPInfo *info = (CacheHTTPInfo *) infop;
 
   info->object_size_set(size);
 }
 
 // this function should be called at TS_EVENT_HTTP_READ_RESPONSE_HDR
-TSReturnCode
+void
 TSRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
 {
-  if (url == NULL) {
-    return TS_ERROR;
-  }
-  if (sdk_sanity_check_txn(txnp)!=TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)url) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM*) txnp;
 
   if (sm->redirect_url != NULL) {
@@ -7248,30 +6953,29 @@ TSRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
     sm->redirect_url_len = 0;
   }
 
-  if ((sm->redirect_url = (char*)xmalloc(url_len + 1)) != NULL) {
-    ink_strncpy(sm->redirect_url, (char*)url, url_len + 1);
-    sm->redirect_url_len = url_len;
-    // have to turn redirection on for this transaction if user wants to redirect to another URL
-    if (sm->enable_redirection == false) {
-      sm->enable_redirection = true;
-      // max-out "redirection_tries" to avoid the regular redirection being turned on in
-      // this transaction improperly. This variable doesn't affect the custom-redirection
-      sm->redirection_tries = HttpConfig::m_master.number_of_redirections;
-    }
-    return TS_SUCCESS;
-  }
-  else {
-    return TS_ERROR;
+  sm->redirect_url = (char*)xmalloc(url_len + 1);
+  // TODO: Should remove this when malloc is guaranteed to fail.
+  sdk_assert(sdk_sanity_check_null_ptr((void*)sm->redirect_url) == TS_SUCCESS);
+
+
+  ink_strncpy(sm->redirect_url, (char*)url, url_len + 1);
+  sm->redirect_url_len = url_len;
+  // have to turn redirection on for this transaction if user wants to redirect to another URL
+  if (sm->enable_redirection == false) {
+    sm->enable_redirection = true;
+    // max-out "redirection_tries" to avoid the regular redirection being turned on in
+    // this transaction improperly. This variable doesn't affect the custom-redirection
+    sm->redirection_tries = HttpConfig::m_master.number_of_redirections;
   }
 }
 
 const char*
-TSRedirectUrlGet(TSHttpTxn txnp, int* url_len_ptr)
+TSRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
 {
-  if (sdk_sanity_check_txn(txnp)!=TS_SUCCESS) {
-    return NULL;
-  }
-  HttpSM *sm = (HttpSM*) txnp;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM*)txnp;
+
   *url_len_ptr = sm->redirect_url_len;
   return (const char*)sm->redirect_url;
 }
@@ -7279,82 +6983,86 @@ TSRedirectUrlGet(TSHttpTxn txnp, int* url_len_ptr)
 char*
 TSFetchRespGet(TSHttpTxn txnp, int *length)
 {
-   FetchSM *fetch_sm = (FetchSM*)txnp;
-   return  fetch_sm->resp_get(length);
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
+
+  FetchSM *fetch_sm = (FetchSM*)txnp;
+  return fetch_sm->resp_get(length);
 }
 
-int
+TSReturnCode
 TSFetchPageRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  if (sdk_sanity_check_null_ptr((void*)bufp) != TS_SUCCESS || sdk_sanity_check_null_ptr((void*)obj) != TS_SUCCESS)
-    return 0;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)obj) == TS_SUCCESS);
 
   HTTPHdr *hptr = (HTTPHdr*) txnp;
 
   if (hptr->valid()) {
-    *bufp = hptr;
-    *obj = hptr->m_http;
+    *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
+    *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     if (sdk_sanity_check_mbuffer(*bufp) == TS_SUCCESS)
-      return 1;
+      return TS_SUCCESS;
   }
-  return 0;
+
+  return TS_ERROR;
 }
 
+// Fetchpages SM
 extern ClassAllocator<FetchSM> FetchSMAllocator;
 
-TSReturnCode
+void
 TSFetchPages(TSFetchUrlParams_t *params)
 {
-   TSFetchUrlParams_t *myparams = params;
+  TSFetchUrlParams_t *myparams = params;
 
-   while(myparams!=NULL) {
-     FetchSM *fetch_sm =  FetchSMAllocator.alloc();
+  while (myparams != NULL) {
+    FetchSM *fetch_sm =  FetchSMAllocator.alloc();
 
-     fetch_sm->init(myparams->contp,myparams->options,myparams->events,myparams->request,myparams->request_len, myparams->ip, myparams->port);
-     fetch_sm->httpConnect();
-     myparams= myparams->next;
+    fetch_sm->init((Continuation*)myparams->contp, myparams->options,myparams->events, myparams->request, myparams->request_len, myparams->ip, myparams->port);
+    fetch_sm->httpConnect();
+    myparams= myparams->next;
   }
-  return TS_SUCCESS;
+}
+
+void
+TSFetchUrl(const char* headers, int request_len, unsigned int ip, int port , TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent events)
+{
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+
+  FetchSM *fetch_sm =  FetchSMAllocator.alloc();
+
+  fetch_sm->init((Continuation*)contp, callback_options, events, headers, request_len, ip,port);
+  fetch_sm->httpConnect();
 }
 
 TSReturnCode
-TSFetchUrl(const char* headers, int request_len, unsigned int ip, int port , TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent events)
-{
-   FetchSM *fetch_sm =  FetchSMAllocator.alloc();
-
-   fetch_sm->init(contp,callback_options,events,headers,request_len,ip,port);
-   fetch_sm->httpConnect();
-  return TS_SUCCESS;
-}
-
-int
 TSHttpIsInternalRequest(TSHttpTxn txnp)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return 0;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
   HttpClientSession *cs = (HttpClientSession *) ssnp;
   NetVConnection *vc = cs->get_netvc();
-  if (!cs || !vc) {
-    return 0;
-  }
-  return vc->get_is_internal_request();
+
+  if (!cs || !vc)
+    return TS_ERROR;
+
+  return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
 }
 
 
 TSReturnCode
 TSAIORead(int fd, off_t offset, char* buf, size_t buffSize, TSCont contp)
 {
-  if (sdk_sanity_check_iocore_structure (contp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
-  Continuation* pCont = (Continuation*) contp;
+  Continuation* pCont = (Continuation*)contp;
   AIOCallback* pAIO = new_AIOCallback();
-  if( pAIO == NULL ) {
+
+  if (pAIO == NULL)
     return TS_ERROR;
-  }
 
   pAIO->aiocb.aio_fildes = fd;
   pAIO->aiocb.aio_offset = offset;
@@ -7365,22 +7073,21 @@ TSAIORead(int fd, off_t offset, char* buf, size_t buffSize, TSCont contp)
   pAIO->action = pCont;
   pAIO->thread = ((ProxyMutex*) pCont->mutex)->thread_holding;
 
-  if (ink_aio_read(pAIO, 1) == 1) {
+  if (ink_aio_read(pAIO, 1) == 1)
     return TS_SUCCESS;
-  } else {
-    return TS_ERROR;
-  }
+
+  return TS_ERROR;
 }
 
 char*
-TSAIOBufGet(void *data)
+TSAIOBufGet(TSAIOCallback data)
 {
   AIOCallback* pAIO = (AIOCallback*)data;
   return (char*)pAIO->aiocb.aio_buf;
 }
 
 int
-TSAIONBytesGet(void *data)
+TSAIONBytesGet(TSAIOCallback data)
 {
   AIOCallback* pAIO = (AIOCallback*)data;
   return (int)pAIO->aio_result;
@@ -7389,17 +7096,13 @@ TSAIONBytesGet(void *data)
 TSReturnCode
 TSAIOWrite(int fd, off_t offset, char* buf, const size_t bufSize, TSCont contp)
 {
-
-  if (sdk_sanity_check_iocore_structure (contp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
-
+  sdk_assert(sdk_sanity_check_iocore_structure (contp) == TS_SUCCESS);
+  
   Continuation* pCont = (Continuation*) contp;
-
   AIOCallback* pAIO = new_AIOCallback();
-  if( pAIO == NULL ) {
-    return TS_ERROR;
-  }
+
+  // TODO: Might be able to remove this when allocations can never fail.
+  sdk_assert(sdk_sanity_check_null_ptr((void*)pAIO) == TS_SUCCESS);
 
   pAIO->aiocb.aio_fildes = fd;
   pAIO->aiocb.aio_offset = offset;
@@ -7408,22 +7111,19 @@ TSAIOWrite(int fd, off_t offset, char* buf, const size_t bufSize, TSCont contp)
   pAIO->action = pCont;
   pAIO->thread = ((ProxyMutex*) pCont->mutex)->thread_holding;
 
-  if (ink_aio_write(pAIO, 1) == 1) {
+  if (ink_aio_write(pAIO, 1) == 1)
     return TS_SUCCESS;
-  } else {
-    return TS_ERROR;
-  }
+
+  return TS_ERROR;
 }
 
 TSReturnCode
 TSAIOThreadNumSet(int thread_num)
 {
-  if (ink_aio_thread_num_set(thread_num) == 1) {
+  if (ink_aio_thread_num_set(thread_num))
     return TS_SUCCESS;
-  }
-  else {
-    return TS_ERROR;
-  }
+
+  return TS_ERROR;
 }
 
 void
@@ -7435,14 +7135,13 @@ TSRecordDump(TSRecordType rec_type, TSRecordDumpCb callback, void *edata)
 /* ability to skip the remap phase of the State Machine 
    this only really makes sense in TS_HTTP_READ_REQUEST_HDR_HOOK
 */
-TSReturnCode TSSkipRemappingSet(TSHttpTxn txnp, int flag)
+void
+TSSkipRemappingSet(TSHttpTxn txnp, int flag)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS) {
-    return TS_ERROR;
-  }
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM*) txnp;
   sm->t_state.api_skip_all_remapping = (flag != 0);
-  return TS_SUCCESS;
 }
 
 // Little helper function to find the struct member
@@ -7453,7 +7152,7 @@ typedef enum
     OVERRIDABLE_TYPE_INT,
     OVERRIDABLE_TYPE_FLOAT,
     OVERRIDABLE_TYPE_STRING,
-    OVERRIDABLE_TYPE_BOOL
+    OVERRIDABLE_TYPE_BYTE
   } OverridableDataType;
 
 void*
@@ -7465,168 +7164,168 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
 
   switch (conf) {
   case TS_CONFIG_URL_REMAP_PRISTINE_HOST_HDR:
-    ret = &sm->t_state.txn_conf.maintain_pristine_host_hdr;
+    ret = &sm->t_state.txn_conf->maintain_pristine_host_hdr;
     break;
   case TS_CONFIG_HTTP_CHUNKING_ENABLED:
-    ret = &sm->t_state.txn_conf.chunking_enabled;
+    ret = &sm->t_state.txn_conf->chunking_enabled;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_CACHING_ENABLED:
-    ret = &sm->t_state.txn_conf.negative_caching_enabled;
+    ret = &sm->t_state.txn_conf->negative_caching_enabled;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_CACHING_LIFETIME:
-    ret = &sm->t_state.txn_conf.negative_caching_lifetime;
+    ret = &sm->t_state.txn_conf->negative_caching_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_WHEN_TO_REVALIDATE:
-    ret = &sm->t_state.txn_conf.cache_when_to_revalidate;
+    ret = &sm->t_state.txn_conf->cache_when_to_revalidate;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED:
-    ret = &sm->t_state.txn_conf.keep_alive_enabled;
+    ret = &sm->t_state.txn_conf->keep_alive_enabled;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_POST_OUT:
-    ret = &sm->t_state.txn_conf.keep_alive_post_out;
+    ret = &sm->t_state.txn_conf->keep_alive_post_out;
     break;
   case TS_CONFIG_NET_SOCK_RECV_BUFFER_SIZE_OUT:
-    ret = &sm->t_state.txn_conf.sock_recv_buffer_size_out;
+    ret = &sm->t_state.txn_conf->sock_recv_buffer_size_out;
     break;
   case TS_CONFIG_NET_SOCK_SEND_BUFFER_SIZE_OUT:
-    ret = &sm->t_state.txn_conf.sock_send_buffer_size_out;
+    ret = &sm->t_state.txn_conf->sock_send_buffer_size_out;
     break;
   case TS_CONFIG_NET_SOCK_OPTION_FLAG_OUT:
-    ret = &sm->t_state.txn_conf.sock_option_flag_out;
+    ret = &sm->t_state.txn_conf->sock_option_flag_out;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM:
-    ret = &sm->t_state.txn_conf.anonymize_remove_from;
+    ret = &sm->t_state.txn_conf->anonymize_remove_from;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_REFERER:
-    ret = &sm->t_state.txn_conf.anonymize_remove_referer;
+    ret = &sm->t_state.txn_conf->anonymize_remove_referer;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_USER_AGENT:
-    ret = &sm->t_state.txn_conf.anonymize_remove_user_agent;
+    ret = &sm->t_state.txn_conf->anonymize_remove_user_agent;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_COOKIE:
-    ret = &sm->t_state.txn_conf.anonymize_remove_cookie;
+    ret = &sm->t_state.txn_conf->anonymize_remove_cookie;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_CLIENT_IP:
-    ret = &sm->t_state.txn_conf.anonymize_remove_client_ip;
+    ret = &sm->t_state.txn_conf->anonymize_remove_client_ip;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_INSERT_CLIENT_IP:
-    ret = &sm->t_state.txn_conf.anonymize_insert_client_ip;
+    ret = &sm->t_state.txn_conf->anonymize_insert_client_ip;
     break;
   case TS_CONFIG_HTTP_APPEND_XFORWARDS_HEADER:
-    ret = &sm->t_state.txn_conf.append_xforwards_header;
+    ret = &sm->t_state.txn_conf->append_xforwards_header;
     break;
   case TS_CONFIG_HTTP_RESPONSE_SERVER_ENABLED:
-    ret = &sm->t_state.txn_conf.proxy_response_server_enabled;
+    ret = &sm->t_state.txn_conf->proxy_response_server_enabled;
     break;
   case TS_CONFIG_HTTP_INSERT_SQUID_X_FORWARDED_FOR:
-    ret = &sm->t_state.txn_conf.insert_squid_x_forwarded_for;
+    ret = &sm->t_state.txn_conf->insert_squid_x_forwarded_for;
     break;
   case TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS:
-    ret = &sm->t_state.txn_conf.send_http11_requests;
+    ret = &sm->t_state.txn_conf->send_http11_requests;
     break;
   case TS_CONFIG_HTTP_CACHE_HTTP:
-    ret = &sm->t_state.txn_conf.cache_http;
+    ret = &sm->t_state.txn_conf->cache_http;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE:
-    ret = &sm->t_state.txn_conf.cache_ignore_client_no_cache;
+    ret = &sm->t_state.txn_conf->cache_ignore_client_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE:
-    ret = &sm->t_state.txn_conf.cache_ignore_client_cc_max_age;
+    ret = &sm->t_state.txn_conf->cache_ignore_client_cc_max_age;
     break;
   case TS_CONFIG_HTTP_CACHE_IMS_ON_CLIENT_NO_CACHE:
-    ret = &sm->t_state.txn_conf.cache_ims_on_client_no_cache;
+    ret = &sm->t_state.txn_conf->cache_ims_on_client_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_SERVER_NO_CACHE:
-    ret = &sm->t_state.txn_conf.cache_ignore_server_no_cache;
+    ret = &sm->t_state.txn_conf->cache_ignore_server_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES:
-    ret = &sm->t_state.txn_conf.cache_responses_to_cookies;
+    ret = &sm->t_state.txn_conf->cache_responses_to_cookies;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_AUTHENTICATION:
-    ret = &sm->t_state.txn_conf.cache_ignore_auth;
+    ret = &sm->t_state.txn_conf->cache_ignore_auth;
     break;
   case TS_CONFIG_HTTP_CACHE_CACHE_URLS_THAT_LOOK_DYNAMIC:
-    ret = &sm->t_state.txn_conf.cache_urls_that_look_dynamic;
+    ret = &sm->t_state.txn_conf->cache_urls_that_look_dynamic;
     break;
   case TS_CONFIG_HTTP_CACHE_REQUIRED_HEADERS:
-    ret = &sm->t_state.txn_conf.cache_required_headers;
+    ret = &sm->t_state.txn_conf->cache_required_headers;
     break;
   case TS_CONFIG_HTTP_INSERT_REQUEST_VIA_STR:
-    ret = &sm->t_state.txn_conf.insert_request_via_string;
+    ret = &sm->t_state.txn_conf->insert_request_via_string;
     break;
   case TS_CONFIG_HTTP_INSERT_RESPONSE_VIA_STR:
-    ret = &sm->t_state.txn_conf.insert_response_via_string;
+    ret = &sm->t_state.txn_conf->insert_response_via_string;
     break;
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_MIN_LIFETIME:
-    ret = &sm->t_state.txn_conf.cache_heuristic_min_lifetime;
+    ret = &sm->t_state.txn_conf->cache_heuristic_min_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_MAX_LIFETIME:
-    ret = &sm->t_state.txn_conf.cache_heuristic_max_lifetime;
+    ret = &sm->t_state.txn_conf->cache_heuristic_max_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_GUARANTEED_MIN_LIFETIME:
-    ret = &sm->t_state.txn_conf.cache_guaranteed_min_lifetime;
+    ret = &sm->t_state.txn_conf->cache_guaranteed_min_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_GUARANTEED_MAX_LIFETIME:
-    ret = &sm->t_state.txn_conf.cache_guaranteed_max_lifetime;
+    ret = &sm->t_state.txn_conf->cache_guaranteed_max_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_MAX_STALE_AGE:
-    ret = &sm->t_state.txn_conf.cache_max_stale_age;
+    ret = &sm->t_state.txn_conf->cache_max_stale_age;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN:
-    ret = &sm->t_state.txn_conf.keep_alive_no_activity_timeout_in;
+    ret = &sm->t_state.txn_conf->keep_alive_no_activity_timeout_in;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN:
-    ret = &sm->t_state.txn_conf.transaction_no_activity_timeout_in;
+    ret = &sm->t_state.txn_conf->transaction_no_activity_timeout_in;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT:
-    ret = &sm->t_state.txn_conf.transaction_no_activity_timeout_out;
+    ret = &sm->t_state.txn_conf->transaction_no_activity_timeout_out;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT:
-    ret = &sm->t_state.txn_conf.transaction_active_timeout_out;
+    ret = &sm->t_state.txn_conf->transaction_active_timeout_out;
     break;
   case TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS:
-    ret = &sm->t_state.txn_conf.origin_max_connections;
+    ret = &sm->t_state.txn_conf->origin_max_connections;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES:
-    ret = &sm->t_state.txn_conf.connect_attempts_max_retries;
+    ret = &sm->t_state.txn_conf->connect_attempts_max_retries;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES_DEAD_SERVER:
-    ret = &sm->t_state.txn_conf.connect_attempts_max_retries_dead_server;
+    ret = &sm->t_state.txn_conf->connect_attempts_max_retries_dead_server;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_RR_RETRIES:
-    ret = &sm->t_state.txn_conf.connect_attempts_rr_retries;
+    ret = &sm->t_state.txn_conf->connect_attempts_rr_retries;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_TIMEOUT:
-    ret = &sm->t_state.txn_conf.connect_attempts_timeout;
+    ret = &sm->t_state.txn_conf->connect_attempts_timeout;
     break;
   case TS_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT:
-    ret = &sm->t_state.txn_conf.post_connect_attempts_timeout;
+    ret = &sm->t_state.txn_conf->post_connect_attempts_timeout;
     break;
   case TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME:
-    ret = &sm->t_state.txn_conf.down_server_timeout;
+    ret = &sm->t_state.txn_conf->down_server_timeout;
     break;
   case TS_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD:
-    ret = &sm->t_state.txn_conf.client_abort_threshold;
+    ret = &sm->t_state.txn_conf->client_abort_threshold;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_TIME:
-    ret = &sm->t_state.txn_conf.freshness_fuzz_time;
+    ret = &sm->t_state.txn_conf->freshness_fuzz_time;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME:
-    ret = &sm->t_state.txn_conf.freshness_fuzz_min_time;
+    ret = &sm->t_state.txn_conf->freshness_fuzz_min_time;
     break;
 
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR:
     typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf.cache_heuristic_lm_factor;
+    ret = &sm->t_state.txn_conf->cache_heuristic_lm_factor;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY:
     typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf.freshness_fuzz_prob;
+    ret = &sm->t_state.txn_conf->freshness_fuzz_prob;
     break;
     // These are "special", since they still need more attention, so fall through.
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
     typ = OVERRIDABLE_TYPE_STRING;
-    ret = &sm->t_state.txn_conf.proxy_response_server_string;
+    ret = &sm->t_state.txn_conf->proxy_response_server_string;
     break;
 
     // This helps avoiding compiler warnings, yet detect unhandled enum members.
@@ -7647,11 +7346,14 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
 TSReturnCode
 TSHttpTxnConfigIntSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt value)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *s = reinterpret_cast<HttpSM*>(txnp);
+
+  s->t_state.setup_per_txn_configs();
 
   OverridableDataType type;
-  TSMgmtInt* dest = static_cast<TSMgmtInt*>(_conf_to_memberp(conf, (HttpSM*)txnp, &type));
+  TSMgmtInt *dest = static_cast<TSMgmtInt*>(_conf_to_memberp(conf, s, &type));
 
   if (type != OVERRIDABLE_TYPE_INT)
     return TS_ERROR;
@@ -7667,9 +7369,8 @@ TSHttpTxnConfigIntSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt val
 TSReturnCode
 TSHttpTxnConfigIntGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt *value)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void*)value) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   OverridableDataType type;
   TSMgmtInt* dest = static_cast<TSMgmtInt*>(_conf_to_memberp(conf, (HttpSM*)txnp, &type));
@@ -7688,11 +7389,14 @@ TSHttpTxnConfigIntGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt *va
 TSReturnCode
 TSHttpTxnConfigFloatSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat value)
 {
-  if (sdk_sanity_check_txn(txnp) != TS_SUCCESS)
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
+  HttpSM *s = reinterpret_cast<HttpSM*>(txnp);
   OverridableDataType type;
-  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, (HttpSM*)txnp, &type));
+
+  s->t_state.setup_per_txn_configs();
+
+  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, s, &type));
 
   if (type != OVERRIDABLE_TYPE_FLOAT)
     return TS_ERROR;
@@ -7708,9 +7412,8 @@ TSHttpTxnConfigFloatSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
 TSReturnCode
 TSHttpTxnConfigFloatGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat *value)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void*)value) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   OverridableDataType type;
   TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, (HttpSM*)txnp, &type));
@@ -7729,19 +7432,20 @@ TSHttpTxnConfigFloatGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
 TSReturnCode
 TSHttpTxnConfigStringSet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char* value, int length)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void*)value) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   if (length == -1)
     length = strlen(value);
 
-  HttpSM *sm = (HttpSM*) txnp;
+  HttpSM *s = (HttpSM*) txnp;
+
+  s->t_state.setup_per_txn_configs();
 
   switch (conf) {
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
-    sm->t_state.txn_conf.proxy_response_server_string = const_cast<char*>(value); // The "core" likes non-const char*
-    sm->t_state.txn_conf.proxy_response_server_string_len = length;
+    s->t_state.txn_conf->proxy_response_server_string = const_cast<char*>(value); // The "core" likes non-const char*
+    s->t_state.txn_conf->proxy_response_server_string_len = length;
     break;
   default:
     return TS_ERROR;
@@ -7755,18 +7459,17 @@ TSHttpTxnConfigStringSet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
 TSReturnCode
 TSHttpTxnConfigStringGet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char **value, int *length)
 {
-  if ((sdk_sanity_check_txn(txnp) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void**)value) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void*)*value) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void**)value) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)*value) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM*) txnp;
 
   switch (conf) {
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
-    *value = sm->t_state.txn_conf.proxy_response_server_string;
-    if (length)
-      *length = sm->t_state.txn_conf.proxy_response_server_string_len;
+    *value = sm->t_state.txn_conf->proxy_response_server_string;
+    *length = sm->t_state.txn_conf->proxy_response_server_string_len;
     break;
   default:
     return TS_ERROR;
@@ -7781,9 +7484,8 @@ TSHttpTxnConfigStringGet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
 TSReturnCode
 TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, TSRecordDataType *type)
 {
-  if ((sdk_sanity_check_null_ptr((void*)name) != TS_SUCCESS) ||
-      (sdk_sanity_check_null_ptr((void*)conf) != TS_SUCCESS))
-    return TS_ERROR;
+  sdk_assert(sdk_sanity_check_null_ptr((void*)name) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)conf) == TS_SUCCESS);
 
   TSOverridableConfigKey cnf = TS_CONFIG_NULL;
   TSRecordDataType typ = TS_RECORDDATATYPE_INT;

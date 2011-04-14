@@ -151,9 +151,8 @@ gzip_data_destroy(GzipData * data)
       TSError("gzip-transform: ERROR: deflateEnd (%d)!", err);
     }
 
-    if (data->output_buffer) {
+    if (data->output_buffer)
       TSIOBufferDestroy(data->output_buffer);
-    }
     TSfree(data);
   }
 }
@@ -173,7 +172,7 @@ gzip_transform_init(TSCont contp, GzipData * data)
    * Mark the output data as having gzip content encoding
    */
   TSHttpTxnTransformRespGet(data->txn, &bufp, &hdr_loc);
-  ce_loc = TSMimeHdrFieldCreate(bufp, hdr_loc);
+  TSMimeHdrFieldCreate(bufp, hdr_loc, &ce_loc); /* Probably should check for errors */
   TSMimeHdrFieldNameSet(bufp, hdr_loc, ce_loc, "Content-Encoding", -1);
   TSMimeHdrFieldValueStringInsert(bufp, hdr_loc, ce_loc, -1, "deflate", -1);
   TSMimeHdrFieldAppend(bufp, hdr_loc, ce_loc);
@@ -494,9 +493,9 @@ gzip_transformable(TSHttpTxn txnp, int server)
   /* check if client accepts "deflate" */
 
   cfield = TSMimeHdrFieldFind(cbuf, chdr, TS_MIME_FIELD_ACCEPT_ENCODING, -1);
-  if (cfield) {
+  if (TS_NULL_MLOC != cfield) {
     nvalues = TSMimeHdrFieldValuesCount(cbuf, chdr, cfield);
-    TSMimeHdrFieldValueStringGet(cbuf, chdr, cfield, 0, &value, NULL);
+    value = TSMimeHdrFieldValueStringGet(cbuf, chdr, cfield, 0, NULL);
     deflate_flag = 0;
     i = 0;
     while (nvalues > 0) {
@@ -505,7 +504,7 @@ gzip_transformable(TSHttpTxn txnp, int server)
         break;
       }
       i++;
-      TSMimeHdrFieldValueStringGet(cbuf, chdr, cfield, i, &value, NULL);
+      value = TSMimeHdrFieldValueStringGet(cbuf, chdr, cfield, i, NULL);
       nvalues--;
     }
     if (!deflate_flag) {
@@ -544,12 +543,7 @@ gzip_transformable(TSHttpTxn txnp, int server)
     return -4;
   }
 
-  if (TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &value, NULL) == TS_ERROR) {
-    TSHandleMLocRelease(bufp, hdr_loc, field_loc);
-    TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
-    return -5;
-  }
-
+  value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, NULL);
   if (value && (strncasecmp(value, "text/", sizeof("text/") - 1) == 0)) {
     TSHandleMLocRelease(bufp, hdr_loc, field_loc);
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
