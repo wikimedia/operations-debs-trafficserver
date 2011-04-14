@@ -54,5 +54,9 @@ override_dh_fixperms:
 override_dh_installexamples:
 	dh_installexamples -X Makefile
 
+override_dh_auto_test:
+	# Skip tests while issue #738 prevents to build ATS on x86 machines
+	# https://issues.apache.org/jira/browse/TS-738
+
 %:
 	dh $@
