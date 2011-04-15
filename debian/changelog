@@ -1,8 +1,20 @@
 trafficserver (2.1.7-unstable-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. Major features:
+    + Several bug fixes (none reported in Debian's BTS)
+    + Set source address for origin Servers
+    + Major API changes for the SDK
+    + Provide traffic_logstats 
+  * Fix "FTBFS on architectures not supported upstream": (Closes: #622800)
+    + Don't execute regression checks for now (fixes x86)
+    + Provide debian/patches/kfreebsd-fixes.patch 
+    + Restrict Architectures (drop S390, IA64, MIPS[EL], PPC, SPARC)
+  * Remove ts-ui-disable-conf.patch (applied upstream)
+  * Remove .deps from SDK binary package
+  * Add two new binary packages: libtsmgmt2 and libtsutil2 as they
+    appear in recent versions of ATS
 
- -- Arno Toell <debian@toell.net>  Thu, 14 Apr 2011 08:48:31 -0400
+ -- Arno Toell <debian@toell.net>  Sat, 16 Apr 2011 01:08:45 +0200
 
 trafficserver (2.1.5-unstable-1) unstable; urgency=low
 

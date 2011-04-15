@@ -158,7 +158,7 @@ License:
  THE SOFTWARE.
 
 
-Files: proxy/mgmt2/cli2/hashtable.*
+Files: Parts of mgmt/cli/hashtable.*
 Copyright: Copyright (c) 1997-1998 Sun Microsystems, Inc.
 License: TK 8.3 License
  This software is copyrighted by the Regents of the University of

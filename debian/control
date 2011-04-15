@@ -33,8 +33,47 @@ Description: Apache Traffic Server conf_remap plugin
 Package: trafficserver-dev
 Architecture: all
 Depends: ${misc:Depends}
+Recommends: libtsutil2 (= ${binary:Version}), libtsmgmt2 (= ${binary:Version})
 Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides development header needed to write your
  own plug-ins for Apache Traffic Server, as well as examples.
 
+
+Package: libtsmgmt2
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Apache Traffic Server shared libraries
+ This package provides the management library for Apache Traffic
+ Server
+
+Package: libtsmgmt2-dev
+Section: libdevel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtsmgmt2 (= ${binary:Version})
+Description: Apache Traffic Server shared libraries (development extensions)
+ This package provides the management library for Apache Traffic
+ Server
+ .
+ Development extensions which contain statically linked libraries and symbolic
+ links.
+
+Package: libtsutil2
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Apache Traffic Server shared libraries
+ This package provides the utilitiy library for Apache Traffic
+ Server
+
+Package: libtsutil2-dev
+Section: libdevel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtsutil2 (= ${binary:Version})
+Description: Apache Traffic Server shared libraries (development extensions)
+ This package provides the utilitiy library for Apache Traffic
+ Server
+ .
+ Development extensions which contain statically linked libraries and symbolic
+ links.

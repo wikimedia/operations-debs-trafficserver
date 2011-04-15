@@ -1,0 +1,3 @@
+debian/tmp/usr/lib/libtsmgmt*.so
+debian/tmp/usr/lib/libtsmgmt*.a
+debian/tmp/usr/lib/libtsmgmt*.la

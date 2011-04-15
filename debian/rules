@@ -52,7 +52,7 @@ override_dh_fixperms:
 		-X var/run/trafficserver
 
 override_dh_installexamples:
-	dh_installexamples -X Makefile
+	dh_installexamples -X Makefile -X.deps
 
 override_dh_auto_test:
 	# Skip tests while issue #738 prevents to build ATS on x86 machines

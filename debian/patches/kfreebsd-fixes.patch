@@ -1,10 +1,13 @@
-Origin: <vendor|upstream|other>, <url of original patch>
-Bug: <url in upstream bugtracker>
-Bug-Debian: http://bugs.debian.org/<bugnumber>
-Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
-Forwarded: <no|not-needed|url proving that it has been forwarded>
+From: Arno Töll <debian@toell.net>
+Bug: https://issues.apache.org/jira/browse/TS-740
+Forwarded: https://issues.apache.org/jira/browse/TS-740
 Reviewed-By: <name and email of someone who approved the patch>
 Last-Update: <YYYY-MM-DD>
+Description: Add some build quirks to allow Traffic Server to be
+  built on Debian's kfreebsd flavors.
+  * Add a -Dkfreebsd host OS switch in configure.ac
+  * Fix some build quirks where -Dfreebsd isn't enough in
+    proxy/CoreUtils.cc, cop/TrafficCop.cc and lib/ts/ink_string.cc
 
 --- a/configure.ac
 +++ b/configure.ac

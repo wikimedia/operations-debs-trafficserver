@@ -1,0 +1,3 @@
+debian/tmp/usr/lib/libtsutil*.so
+debian/tmp/usr/lib/libtsutil*.a
+debian/tmp/usr/lib/libtsutil*.la
