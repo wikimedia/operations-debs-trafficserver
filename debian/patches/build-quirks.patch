@@ -17,7 +17,7 @@ Applied-Upstream: The current SVN trunk has fixed this issue for 2.1.6
  AM_CONFIG_HEADER([lib/ts/ink_autoconf.h])
  
  # Not sure this is needed, and seems to break with some versions of automake
-@@ -553,7 +553,7 @@
+@@ -529,7 +529,7 @@
      else # gcc
      # This is useful for finding odd conversions
      #    common_opt="-pipe -Wall -Werror -Wconversion -Wno-sign-conversion"
