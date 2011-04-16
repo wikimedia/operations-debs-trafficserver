@@ -10,7 +10,7 @@ Vcs-Svn: svn+ssh://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserve
 Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/?root=collab-maint
 
 Package: trafficserver
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
 Description: a fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
@@ -21,11 +21,11 @@ Description: a fast, scalable and extensible HTTP/1.1 compliant caching proxy se
      requested web content.
    * Proxying: Supports filtering, anonymization, load balancing and more.
    * Scaling: Scales well on modern SMP hardware.
-   * Extensions: Use the API to modify anything from the HTTP headers to your
+   * Extensions: Use the API to modify kfreebsd-i386 kfreebsd-amd64 i386 armel amd64thing from the HTTP headers to your
      own cache algorithm.
 
 Package: trafficserver-plugin-conf-remap
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, trafficserver (= ${binary:Version})
 Description: Apache Traffic Server conf_remap plugin
  This package provides the conf_remap plugin for Apache Traffic Server.
@@ -42,7 +42,7 @@ Description: Apache Traffic Server Software Developers Kit (SDK)
 
 Package: libtsmgmt2
 Section: libs
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Apache Traffic Server shared libraries
  This package provides the management library for Apache Traffic
@@ -50,7 +50,7 @@ Description: Apache Traffic Server shared libraries
 
 Package: libtsmgmt2-dev
 Section: libdevel
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, libtsmgmt2 (= ${binary:Version})
 Description: Apache Traffic Server shared libraries (development extensions)
  This package provides the management library for Apache Traffic
@@ -61,7 +61,7 @@ Description: Apache Traffic Server shared libraries (development extensions)
 
 Package: libtsutil2
 Section: libs
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Apache Traffic Server shared libraries
  This package provides the utilitiy library for Apache Traffic
@@ -69,7 +69,7 @@ Description: Apache Traffic Server shared libraries
 
 Package: libtsutil2-dev
 Section: libdevel
-Architecture: any
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, libtsutil2 (= ${binary:Version})
 Description: Apache Traffic Server shared libraries (development extensions)
  This package provides the utilitiy library for Apache Traffic
