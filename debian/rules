@@ -13,7 +13,7 @@ build-stamp:
 	autoreconf -i
 	./configure --prefix=/usr --sysconfdir=/etc/trafficserver \
 		--localstatedir=/var/run --includedir=/usr/include \
-		--libdir=/usr/lib --datadir=/var/cache/trafficserver \
+		--libdir=/usr/lib/trafficserver --datadir=/var/cache/trafficserver \
 		--enable-layout=Debian --with-user=root \
 		--with-group=root
 	dh build --after auto_configure
@@ -57,6 +57,7 @@ override_dh_installexamples:
 override_dh_auto_test:
 	# Skip tests while issue #738 prevents to build ATS on x86 machines
 	# https://issues.apache.org/jira/browse/TS-738
+
 
 %:
 	dh $@
