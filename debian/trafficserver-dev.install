@@ -3,4 +3,3 @@ debian/tmp/usr/bin/tsxs
 debian/tmp/usr/lib/trafficserver/libts*.so
 debian/tmp/usr/lib/trafficserver/libts*.a
 debian/tmp/usr/lib/trafficserver/libts*.la
-debian/tmp/usr/lib/trafficserver/libts*.so.*

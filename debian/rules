@@ -58,6 +58,8 @@ override_dh_auto_test:
 	# Skip tests while issue #738 prevents to build ATS on x86 machines
 	# https://issues.apache.org/jira/browse/TS-738
 
+override_dh_makeshlibs:
+	dh_makeshlibs -X/usr/lib/trafficserver
 
 %:
 	dh $@

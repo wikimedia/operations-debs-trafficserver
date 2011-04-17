@@ -2,4 +2,4 @@ debian/tmp/var/log/*
 debian/tmp/var/cache/*
 debian/tmp/usr/bin/traffic_*
 debian/tmp/etc/trafficserver/*
-debian/tmp/usr/lib/trafficserver/libtsmgmt*.so.*
+debian/tmp/usr/lib/trafficserver/libts*.so.*

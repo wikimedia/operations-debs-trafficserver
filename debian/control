@@ -21,7 +21,7 @@ Description: a fast, scalable and extensible HTTP/1.1 compliant caching proxy se
      requested web content.
    * Proxying: Supports filtering, anonymization, load balancing and more.
    * Scaling: Scales well on modern SMP hardware.
-   * Extensions: Use the API to modify kfreebsd-i386 kfreebsd-amd64 i386 armel amd64thing from the HTTP headers to your
+   * Extensions: Use the API to modify anything from the HTTP headers to your
      own cache algorithm.
 
 Package: trafficserver-plugin-conf-remap
@@ -31,7 +31,7 @@ Description: Apache Traffic Server conf_remap plugin
  This package provides the conf_remap plugin for Apache Traffic Server.
 
 Package: trafficserver-dev
-Architecture: all
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${misc:Depends}
 Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
