@@ -24,6 +24,7 @@ USER='trafficserver'
 GROUP='trafficserver'
 USER_HOME='/var/run/trafficserver'
 OWNER=$(env stat -c '%U' /etc/trafficserver)
+OWNER_CACHE_DIR=$(env stat -c '%U' /var/cache/trafficserver)
 
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
@@ -75,6 +76,11 @@ configure)
 			chown -h $USER:$GROUP {} \;
 
 
+		if [ -d /var/cache/trafficserver ] && [ "x$OWNER_CACHE_DIR" = "xroot" ] ; then
+			if ! dpkg-statoverride --list /var/cache/trafficserver  >/dev/null 2>&1; then
+				dpkg-statoverride --update --add $USER adm 0750 /var/cache/trafficserver
+			fi
+		fi
 	fi
 ;;
 

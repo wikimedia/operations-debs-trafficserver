@@ -1,4 +1,4 @@
-trafficserver (2.1.7-unstable-1) UNRELEASED; urgency=low
+trafficserver (2.1.7-unstable-1) unstable; urgency=low
 
   * New upstream release. Major features:
     + Several bug fixes (none reported in Debian's BTS)
@@ -14,8 +14,9 @@ trafficserver (2.1.7-unstable-1) UNRELEASED; urgency=low
     included before).
   * Add 'traffic-manager.patch' backporting a fix to get traffic_manager
     working (upstream: #TS-741). 
+  * Fix permissions for /var/cache/trafficserver in postinst
 
- -- Arno Toell <debian@toell.net>  Mon, 18 Apr 2011 22:56:44 +0200
+ -- Arno Toell <debian@toell.net>  Mon, 18 Apr 2011 23:51:10 +0200
 
 trafficserver (2.1.5-unstable-1) unstable; urgency=low
 
