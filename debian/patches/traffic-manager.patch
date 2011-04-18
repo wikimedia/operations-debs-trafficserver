@@ -1,0 +1,46 @@
+Author: Arno Töll <debian@toell.net>
+Origin: http://svn.apache.org/viewvc?view=revision&revision=1094693
+Bug-Vendor: https://issues.apache.org/jira/browse/TS-741
+Applied-Upstream: 2.1.8 
+Description: Cherry pick and backport commit r1094693 from upstream's trunk.
+  This patch solves issue TS-741 which caused the following error:
+  .
+  ERROR:  (last system error 88: Socket operation on non-socket)
+  .
+  in traffic_manager.
+  This issue is expected to be shipped in 2.1.8, but has been backported
+  by me for 2.1.7 for Debian. 
+
+--- a/mgmt/cluster/ClusterCom.cc
++++ b/mgmt/cluster/ClusterCom.cc
+@@ -102,7 +102,6 @@
+   lmgmt->syslogThrInit();
+ 
+   for (;;) {                    /* Loop draining mgmt network channels */
+-
+     // linux: set tv.tv_set in select() loop, since linux's select()
+     // will update tv with the amount of time not slept (most other
+     // implementations do not do this)
+@@ -116,8 +115,8 @@
+       if (lmgmt->ccom->receive_fd > 0) {
+         FD_SET(lmgmt->ccom->receive_fd, &fdlist);       /* Multicast fd */
+       }
++      FD_SET(lmgmt->ccom->reliable_server_fd, &fdlist);   /* TCP Server fd */
+     }
+-    FD_SET(lmgmt->ccom->reliable_server_fd, &fdlist);   /* TCP Server fd */
+ 
+     mgmt_select(FD_SETSIZE, &fdlist, NULL, NULL, &tv);
+ 
+@@ -150,11 +149,9 @@
+         (lmgmt->ccom->receiveIncomingMessage(message, 61440) > 0)) {
+       lmgmt->ccom->handleMultiCastMessage(message);
+     } else if (FD_ISSET(lmgmt->ccom->reliable_server_fd, &fdlist)) {
+-
+       /* Reliable(TCP) request */
+       int clilen = sizeof(cli_addr);
+-      int req_fd = mgmt_accept(lmgmt->ccom->reliable_server_fd,
+-                               (struct sockaddr *) &cli_addr, &clilen);
++      int req_fd = mgmt_accept(lmgmt->ccom->reliable_server_fd, (struct sockaddr *) &cli_addr, &clilen);
+       if (req_fd < 0) {
+         mgmt_elog(stderr, "[drainIncomingChannel] error accepting " "reliable connection\n");
+         continue;
