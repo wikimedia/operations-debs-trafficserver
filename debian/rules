@@ -7,30 +7,22 @@ export DH_VERBOSE=1
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
-build: build-stamp
-build-stamp:
-	dh build --before auto_configure
+
+%:
+	dh $@
+
+override_dh_auto_configure:
 	autoreconf -i
 	./configure --prefix=/usr --sysconfdir=/etc/trafficserver \
 		--localstatedir=/var/run --includedir=/usr/include \
 		--libdir=/usr/lib/trafficserver --datadir=/var/cache/trafficserver \
 		--enable-layout=Debian --with-user=root \
 		--with-group=root
-	dh build --after auto_configure
-	touch $@
 
-install: install-stamp
-install-stamp: build-stamp
-	dh --before dh_auto_install install
+override_dh_auto_install:
 	dh_auto_install
 	rm -f debian/tmp/usr/bin/trafficserver # We install our own
-	dh --after dh_auto_install install
-	touch $@
 
-binary-arch: install
-	dh $@
-
-binary: binary-arch binary-indep
 
 override_dh_install:
 	dh_install --fail-missing
@@ -61,5 +53,3 @@ override_dh_auto_test:
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/trafficserver
 
-%:
-	dh $@
