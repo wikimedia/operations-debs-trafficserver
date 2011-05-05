@@ -206,8 +206,6 @@ Rule::parse(const char *const_rule, TSFileNameT filetype)
   m_filetype = filetype;
 
   switch (m_filetype) {
-  case TS_FNAME_ADMIN_ACCESS: /* admin_access.config */
-    return admin_accessParse(rule);
   case TS_FNAME_CACHE_OBJ:    /* cache.config */
     return cacheParse(rule);
   case TS_FNAME_CONGESTION:   /* congestion.config */
@@ -220,12 +218,10 @@ Rule::parse(const char *const_rule, TSFileNameT filetype)
     return ip_allowParse(rule);
   case TS_FNAME_LOGS_XML:     /* logs_xml.config */
     return logs_xmlParse(rule);
-  case TS_FNAME_MGMT_ALLOW:   /* mgmt_allow.config */
-    return mgmt_allowParse(rule);
   case TS_FNAME_PARENT_PROXY: /* parent.config */
     return parentParse(rule);
-  case TS_FNAME_PARTITION:    /* partition.config */
-    return partitionParse(rule);
+  case TS_FNAME_VOLUME:    /* volume.config */
+    return volumeParse(rule);
   case TS_FNAME_PLUGIN:       /* plugin.config */
     return pluginParse(rule);
   case TS_FNAME_REMAP:        /* remap.config */
@@ -243,16 +239,6 @@ Rule::parse(const char *const_rule, TSFileNameT filetype)
   default:
     return NULL;
   }
-}
-
-
-/**
- * admin_accessParse
- **/
-TokenList *
-Rule::admin_accessParse(char *rule)
-{
-  return icpParse(rule, 3, 3);
 }
 
 
@@ -513,16 +499,6 @@ Rule::logs_xmlParse(char *rule)
 
 
 /**
- * mgmt_allowParse
- **/
-TokenList *
-Rule::mgmt_allowParse(char *rule)
-{
-  return cacheParse(rule, 2, 2);
-}
-
-
-/**
  * parentParse
  **/
 TokenList *
@@ -533,10 +509,10 @@ Rule::parentParse(char *rule)
 
 
 /**
- * partitionParse
+ * volumeParse
  **/
 TokenList *
-Rule::partitionParse(char *rule)
+Rule::volumeParse(char *rule)
 {
   return cacheParse(rule, 3, 3);
 }
@@ -966,9 +942,7 @@ RuleList::parse(char *fileBuf, const char *filename)
 {
   m_filename = xstrdup(filename);
 
-  if (strstr(filename, "admin_access.config")) {
-    m_filetype = TS_FNAME_ADMIN_ACCESS;        /* admin_access.config */
-  } else if (strstr(filename, "cache.config")) {
+  if (strstr(filename, "cache.config")) {
     m_filetype = TS_FNAME_CACHE_OBJ;   /* cache.config */
   } else if (strstr(filename, "congestion.config")) {
     m_filetype = TS_FNAME_CONGESTION;  /* congestion.config */
@@ -980,12 +954,10 @@ RuleList::parse(char *fileBuf, const char *filename)
     m_filetype = TS_FNAME_IP_ALLOW;    /* ip_allow.config */
   } else if (strstr(filename, "logs_xml.config")) {
     m_filetype = TS_FNAME_LOGS_XML;    /* logs_xml.config */
-  } else if (strstr(filename, "mgmt_allow.config")) {
-    m_filetype = TS_FNAME_MGMT_ALLOW;  /* mgmt_allow.config */
   } else if (strstr(filename, "parent.config")) {
     m_filetype = TS_FNAME_PARENT_PROXY;        /* parent.config */
-  } else if (strstr(filename, "partition.config")) {
-    m_filetype = TS_FNAME_PARTITION;   /* partition.config */
+  } else if (strstr(filename, "volume.config")) {
+    m_filetype = TS_FNAME_VOLUME;   /* volume.config */
   } else if (strstr(filename, "plugin.config")) {
     m_filetype = TS_FNAME_PLUGIN;      /* plugin.config */
   } else if (strstr(filename, "remap.config")) {

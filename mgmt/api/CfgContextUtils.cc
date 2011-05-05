@@ -959,12 +959,6 @@ pdest_sspec_to_string(TSPrimeDestT pd, char *pd_val, TSSspec * sspec)
         case TS_SCHEME_HTTPS:
           psize = snprintf(buf + buf_pos, sizeof(buf) - buf_pos, "scheme=https ");
           break;
-        case TS_SCHEME_RTSP:
-          psize = snprintf(buf + buf_pos, sizeof(buf) - buf_pos, "scheme=rtsp ");
-          break;
-        case TS_SCHEME_MMS:
-          psize = snprintf(buf + buf_pos, sizeof(buf) - buf_pos, "scheme=mms ");
-          break;
         default:
           psize = 0;
           break;
@@ -1275,12 +1269,7 @@ string_to_scheme_type(const char *scheme)
     return TS_SCHEME_HTTP;
   } else if (strcasecmp(scheme, "https") == 0) {
     return TS_SCHEME_HTTPS;
-  } else if (strcasecmp(scheme, "rtsp") == 0) {
-    return TS_SCHEME_RTSP;
-  } else if (strcasecmp(scheme, "mms") == 0) {
-    return TS_SCHEME_MMS;
   }
-
   return TS_SCHEME_UNDEFINED;
 }
 
@@ -1293,10 +1282,6 @@ scheme_type_to_string(TSSchemeT scheme)
     return xstrdup("http");
   case TS_SCHEME_HTTPS:
     return xstrdup("https");
-  case TS_SCHEME_RTSP:
-    return xstrdup("rtsp");
-  case TS_SCHEME_MMS:
-    return xstrdup("mms");
   default:
     break;
   }
@@ -1439,9 +1424,6 @@ char *
 filename_to_string(TSFileNameT file)
 {
   switch (file) {
-  case TS_FNAME_ADMIN_ACCESS:
-    return xstrdup("admin_access.config");
-
   case TS_FNAME_CACHE_OBJ:
     return xstrdup("cache.config");
 
@@ -1461,14 +1443,11 @@ filename_to_string(TSFileNameT file)
   case TS_FNAME_LOGS_XML:
     return xstrdup("logs_xml.config");
 
-  case TS_FNAME_MGMT_ALLOW:
-    return xstrdup("mgmt_allow.config");
-
   case TS_FNAME_PARENT_PROXY:
     return xstrdup("parent.config");
 
-  case TS_FNAME_PARTITION:
-    return xstrdup("partition.config");
+  case TS_FNAME_VOLUME:
+    return xstrdup("volume.config");
 
   case TS_FNAME_PLUGIN:
     return xstrdup("plugin.config");
@@ -1951,9 +1930,6 @@ create_ele_obj_from_rule_node(Rule * rule)
   // convert TokenList into an Ele
   // need switch statement to determine which Ele constructor to call
   switch (rule_type) {
-  case TS_ADMIN_ACCESS:       /* admin_access.config */
-    ele = (CfgEleObj *) new AdminAccessObj(token_list);
-    break;
   case TS_CACHE_NEVER:        /* all cache rules use same constructor */
   case TS_CACHE_IGNORE_NO_CACHE:
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:
@@ -1982,15 +1958,12 @@ create_ele_obj_from_rule_node(Rule * rule)
   case TS_LOG_FORMAT:
     //ele = (CfgEleObj *) new LogFilterObj(token_list);
     break;
-  case TS_MGMT_ALLOW:         /* mgmt_allow.config */
-    ele = (CfgEleObj *) new MgmtAllowObj(token_list);
-    break;
   case TS_PP_PARENT:          /* parent.config */
   case TS_PP_GO_DIRECT:
     ele = (CfgEleObj *) new ParentProxyObj(token_list);
     break;
-  case TS_PARTITION:          /* partition.config */
-    ele = (CfgEleObj *) new PartitionObj(token_list);
+  case TS_VOLUME:          /* volume.config */
+    ele = (CfgEleObj *) new VolumeObj(token_list);
     break;
   case TS_PLUGIN:
     ele = (CfgEleObj *) new PluginObj(token_list);
@@ -2044,10 +2017,6 @@ create_ele_obj_from_ele(TSCfgEle * ele)
     return NULL;
 
   switch (ele->type) {
-  case TS_ADMIN_ACCESS:       /* admin_access.config */
-    ele_obj = (CfgEleObj *) new AdminAccessObj((TSAdminAccessEle *) ele);
-    break;
-
   case TS_CACHE_NEVER:        /* cache.config */
   case TS_CACHE_IGNORE_NO_CACHE:      // fall-through
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:       // fall-through
@@ -2081,17 +2050,13 @@ create_ele_obj_from_ele(TSCfgEle * ele)
     //ele_obj = (CfgEleObj*) new LogFilterObj((TSLogFilterEle*)ele);
     break;
 
-  case TS_MGMT_ALLOW:         /* mgmt_allow.config */
-    ele_obj = (CfgEleObj *) new MgmtAllowObj((TSMgmtAllowEle *) ele);
-    break;
-
   case TS_PP_PARENT:          /* parent.config */
   case TS_PP_GO_DIRECT:       // fall-through
     ele_obj = (CfgEleObj *) new ParentProxyObj((TSParentProxyEle *) ele);
     break;
 
-  case TS_PARTITION:          /* partition.config */
-    ele_obj = (CfgEleObj *) new PartitionObj((TSPartitionEle *) ele);
+  case TS_VOLUME:          /* volume.config */
+    ele_obj = (CfgEleObj *) new VolumeObj((TSVolumeEle *) ele);
     break;
 
   case TS_PLUGIN:
@@ -2152,9 +2117,6 @@ get_rule_type(TokenList * token_list, TSFileNameT file)
   /* Depending on the file and rule type, need to find out which
      token specifies which type of rule it is */
   switch (file) {
-  case TS_FNAME_ADMIN_ACCESS: /* admin_access.config */
-    return TS_ADMIN_ACCESS;
-
   case TS_FNAME_CACHE_OBJ:    /* cache.config */
     tok = token_list->first();
     while (tok != NULL) {
@@ -2205,9 +2167,6 @@ get_rule_type(TokenList * token_list, TSFileNameT file)
     //  TS_LOG_FORMAT,
     return TS_LOG_FILTER;
 
-  case TS_FNAME_MGMT_ALLOW:   /* mgmt_allow.config */
-    return TS_MGMT_ALLOW;
-
   case TS_FNAME_PARENT_PROXY: /* parent.config */
     // search fro go_direct action name and recongize the value-> ture or false
     for (tok = token_list->first(); tok; tok = token_list->next(tok)) {
@@ -2217,8 +2176,8 @@ get_rule_type(TokenList * token_list, TSFileNameT file)
     }
     return TS_PP_PARENT;
 
-  case TS_FNAME_PARTITION:    /* partition.config */
-    return TS_PARTITION;
+  case TS_FNAME_VOLUME:    /* volume.config */
+    return TS_VOLUME;
 
   case TS_FNAME_PLUGIN:       /* plugin.config */
     return TS_PLUGIN;
@@ -2500,28 +2459,6 @@ copy_int_list(TSIntList list)
   return nlist;
 }
 
-//////////////////////////////////////////////////
-TSAdminAccessEle *
-copy_admin_access_ele(TSAdminAccessEle * ele)
-{
-  if (!ele)
-    return NULL;
-
-  TSAdminAccessEle *nele = TSAdminAccessEleCreate();
-  if (!nele)
-    return NULL;
-
-  copy_cfg_ele(&(ele->cfg_ele), &(nele->cfg_ele));
-
-  if (ele->user)
-    nele->user = xstrdup(ele->user);
-  if (ele->password)
-    nele->password = xstrdup(ele->password);
-  nele->access = ele->access;
-
-  return nele;
-}
-
 TSCacheEle *
 copy_cache_ele(TSCacheEle * ele)
 {
@@ -2590,7 +2527,7 @@ copy_hosting_ele(TSHostingEle * ele)
   nele->pd_type = ele->pd_type;
   if (ele->pd_val)
     nele->pd_val = xstrdup(ele->pd_val);
-  ele->partitions = copy_int_list(ele->partitions);
+  ele->volumes = copy_int_list(ele->volumes);
 
   return nele;
 }
@@ -2684,22 +2621,6 @@ copy_log_format_ele(TSLogFormatEle * ele)
   return nele;
 }
 
-TSMgmtAllowEle *
-copy_mgmt_allow_ele(TSMgmtAllowEle * ele)
-{
-  if (!ele) {
-    return NULL;
-  }
-
-  TSMgmtAllowEle *nele = TSMgmtAllowEleCreate();
-  if (!nele)
-    return NULL;
-  if (ele->src_ip_addr)
-    nele->src_ip_addr = copy_ip_addr_ele(ele->src_ip_addr);
-  nele->action = ele->action;
-  return nele;
-}
-
 TSLogObjectEle *
 copy_log_object_ele(TSLogObjectEle * ele)
 {
@@ -2745,21 +2666,21 @@ copy_parent_proxy_ele(TSParentProxyEle * ele)
   return nele;
 }
 
-TSPartitionEle *
-copy_partition_ele(TSPartitionEle * ele)
+TSVolumeEle *
+copy_volume_ele(TSVolumeEle * ele)
 {
   if (!ele) {
     return NULL;
   }
 
-  TSPartitionEle *nele = TSPartitionEleCreate();
+  TSVolumeEle *nele = TSVolumeEleCreate();
   if (!nele)
     return NULL;
 
   copy_cfg_ele(&(ele->cfg_ele), &(nele->cfg_ele));
-  nele->partition_num = ele->partition_num;
+  nele->volume_num = ele->volume_num;
   nele->scheme = ele->scheme;
-  nele->partition_size = ele->partition_size;
+  nele->volume_size = ele->volume_size;
   nele->size_format = ele->size_format;
 
   return nele;

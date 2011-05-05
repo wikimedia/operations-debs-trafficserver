@@ -21,6 +21,8 @@
   limitations under the License.
  */
 
+#include "libts.h"
+#undef std  // FIXME: remove dependency on the STL
 #include "ink_config.h"
 #include "ink_file.h"
 #include "ink_unused.h"
@@ -1167,7 +1169,6 @@ update_schemes(OriginStats * stat, int scheme, int size)
 int
 parse_log_buff(LogBufferHeader * buf_header, bool summary = false)
 {
-  static char *str_buf = NULL;
   static LogFieldList *fieldlist = NULL;
 
   LogEntryHeader *entry;
@@ -1188,14 +1189,6 @@ parse_log_buff(LogBufferHeader * buf_header, bool summary = false)
   char *o_server;
   HTTPMethod method;
   URLScheme scheme;
-
-
-  // Initialize some "static" variables.
-  if (NULL == str_buf) {
-    str_buf = (char *) xmalloc(LOG_MAX_FORMATTED_LINE);
-    if (NULL == str_buf)
-      return 0;
-  }
 
   if (!fieldlist) {
     fieldlist = NEW(new LogFieldList);

@@ -2086,7 +2086,6 @@ URLPartSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length, URLPartSet
 {
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   if (!isWriteable(bufp))
     return TS_ERROR;
@@ -2095,10 +2094,12 @@ URLPartSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length, URLPartSet
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
 
-  if (length < 0)
+  if (!value)
+    length = 0;
+  else if (length < 0)
     length = strlen(value);
+  (u.*url_f)(value, length);
 
-  (u.*url_f) (value, length);
   return TS_SUCCESS;
 }
 
@@ -2171,7 +2172,7 @@ TSUrlPortSet(TSMBuffer bufp, TSMLoc obj, int port)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
-  if (!isWriteable(bufp) || (port <= 0))
+  if (!isWriteable(bufp) || (port < 0))
     return TS_ERROR;
 
   URL u;
@@ -3235,7 +3236,7 @@ TSMimeHdrFieldValueIntInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, 
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) ||
              (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
-  (sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
   if (!isWriteable(bufp))
     return TS_ERROR;
@@ -4700,10 +4701,6 @@ TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
   HttpSM *sm = (HttpSM *) txnp;
   URL u, *l_url;
 
-  if (sm == NULL)
-    return TS_ERROR;
-
-  sdk_sanity_check_mbuffer(bufp);
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
   if (!u.valid())
@@ -4728,7 +4725,6 @@ TSHttpTxnCachedUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
   HttpSM *sm = (HttpSM *) txnp;
   URL u, *s_url;
 
-  sdk_sanity_check_mbuffer(bufp);
   u.m_heap = ((HdrHeapSDKHandle *) bufp)->m_heap;
   u.m_url_impl = (URLImpl *) obj;
   if (!u.valid())
@@ -5075,9 +5071,7 @@ TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   if (hptr->valid()) {
     *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
     *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
-    sdk_sanity_check_mbuffer(*bufp);
-
-    return TS_SUCCESS;
+    return sdk_sanity_check_mbuffer(*bufp);
   } 
 
   return TS_ERROR;
@@ -6854,9 +6848,8 @@ TSICPCachedReqGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
 
   *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
   *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
-  sdk_sanity_check_mbuffer(*bufp);
 
-  return TS_SUCCESS;
+  return sdk_sanity_check_mbuffer(*bufp);
 }
 
 TSReturnCode
@@ -6868,9 +6861,6 @@ TSICPCachedRespGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
 
   ICPPeerReadCont *sm = (ICPPeerReadCont *) contp;
   HTTPInfo *cached_obj;
-
-  if (sm == NULL)
-    return TS_ERROR;
 
   cached_obj = sm->_object_read;
   if (cached_obj == NULL || !cached_obj->valid())
@@ -6891,9 +6881,8 @@ TSICPCachedRespGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
 
   *(reinterpret_cast<HdrHeapSDKHandle**>(bufp)) = *handle;
   *obj = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
-  sdk_sanity_check_mbuffer(*bufp);
 
-  return TS_SUCCESS;
+  return sdk_sanity_check_mbuffer(*bufp);
 }
 
 TSReturnCode
@@ -7002,8 +6991,7 @@ TSFetchPageRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   if (hptr->valid()) {
     *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
     *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
-    if (sdk_sanity_check_mbuffer(*bufp) == TS_SUCCESS)
-      return TS_SUCCESS;
+    return sdk_sanity_check_mbuffer(*bufp);
   }
 
   return TS_ERROR;
@@ -7178,8 +7166,11 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_CACHE_WHEN_TO_REVALIDATE:
     ret = &sm->t_state.txn_conf->cache_when_to_revalidate;
     break;
-  case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED:
-    ret = &sm->t_state.txn_conf->keep_alive_enabled;
+  case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN:
+    ret = &sm->t_state.txn_conf->keep_alive_enabled_in;
+    break;
+  case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_OUT:
+    ret = &sm->t_state.txn_conf->keep_alive_enabled_out;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_POST_OUT:
     ret = &sm->t_state.txn_conf->keep_alive_post_out;
@@ -7461,7 +7452,6 @@ TSHttpTxnConfigStringGet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void**)value) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)*value) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM*) txnp;
@@ -7510,11 +7500,6 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
       cnf = TS_CONFIG_HTTP_CHUNKING_ENABLED;
     break;
 
-  case 36:
-    if (!strncmp(name, "proxy.config.http.keep_alive_enabled", length))
-      cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED;
-    break;
-
   case 37:
     switch (name[length-1]) {
     case 'e':
@@ -7546,6 +7531,8 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
   case 39:
     if (!strncmp(name, "proxy.config.http.anonymize_remove_from", length))
       cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM;
+    else if (!strncmp(name, "proxy.config.http.keep_alive_enabled_in", length))
+      cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN;
     break;
 
   case 40:
@@ -7566,6 +7553,9 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
       else if (!strncmp(name, "proxy.config.http.cache.required_headers", length))
         cnf = TS_CONFIG_HTTP_CACHE_REQUIRED_HEADERS;
       break;
+    case 't':
+      if (!strncmp(name, "proxy.config.http.keep_alive_enabled_out", length))
+        cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_OUT;
     case 'y':
       if (!strncmp(name, "proxy.config.http.cache.fuzz.probability", length))
         cnf = TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY;

@@ -352,7 +352,6 @@ NetHandler::mainNetEvent(int event, Event *e)
       vc = epd->data.vc;
       if (get_ev_events(pd,x) & (EVENTIO_READ|EVENTIO_ERROR)) {
         vc->read.triggered = 1;
-        vc->addLogMessage("read triggered");
         if (!read_ready_list.in(vc))
           read_ready_list.enqueue(vc);
         else if (get_ev_events(pd,x) & EVENTIO_ERROR) {
@@ -364,7 +363,6 @@ NetHandler::mainNetEvent(int event, Event *e)
       vc = epd->data.vc;
       if (get_ev_events(pd,x) & (EVENTIO_WRITE|EVENTIO_ERROR)) {
         vc->write.triggered = 1;
-        vc->addLogMessage("write triggered");
         if (!write_ready_list.in(vc))
           write_ready_list.enqueue(vc);
         else if (get_ev_events(pd,x) & EVENTIO_ERROR) {
@@ -391,10 +389,8 @@ NetHandler::mainNetEvent(int event, Event *e)
   pd->result = 0;
 
 #if defined(USE_EDGE_TRIGGER)
-  UnixNetVConnection *next_vc = NULL;
-  vc = read_ready_list.head;
-  while (vc) {
-    next_vc = vc->read.ready_link.next;
+ // UnixNetVConnection *
+  while ((vc = read_ready_list.dequeue())) {
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->read.enabled && vc->read.triggered)
@@ -409,12 +405,8 @@ NetHandler::mainNetEvent(int event, Event *e)
       }
 #endif
     }
-    vc = next_vc;
   }
-  next_vc = NULL;
-  vc = write_ready_list.head;
-  while (vc) {
-    next_vc = vc->write.ready_link.next;
+  while ((vc = write_ready_list.dequeue())) {
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->write.enabled && vc->write.triggered)
@@ -429,7 +421,6 @@ NetHandler::mainNetEvent(int event, Event *e)
       }
 #endif
     }
-    vc = next_vc;
   }
 #else /* !USE_EDGE_TRIGGER */
   while ((vc = read_ready_list.dequeue())) {

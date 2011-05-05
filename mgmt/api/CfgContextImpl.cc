@@ -71,160 +71,6 @@ CommentObj::getCfgEleCopy()
   return (TSCfgEle *) copy_comment_ele(m_ele);
 }
 
-//--------------------------------------------------------------------------
-// AdminAccessObj
-//--------------------------------------------------------------------------
-AdminAccessObj::AdminAccessObj(TSAdminAccessEle * ele)
-{
-  m_ele = ele;
-  m_valid = true;
-  m_valid = isValid();
-}
-
-AdminAccessObj::AdminAccessObj(TokenList * tokens)
-{
-  Token *tok;
-  int accessType;
-
-  m_ele = TSAdminAccessEleCreate();
-  m_ele->cfg_ele.error = TS_ERR_OKAY;
-  m_valid = true;
-
-  if (!tokens || tokens->length < 3) {
-    goto FORMAT_ERR;
-  }
-
-  m_ele->cfg_ele.type = get_rule_type(tokens, TS_FNAME_ADMIN_ACCESS);
-  if (m_ele->cfg_ele.type == TS_TYPE_UNDEFINED) {
-    goto FORMAT_ERR;
-  }
-  // The first token
-  tok = tokens->first();
-#ifdef TIGHT_RULE_CHECK
-  if (tok->value)
-    goto FORMAT_ERR;
-#endif
-  m_ele->user = xstrdup(tok->name);
-
-  // The second token
-  tok = tokens->next(tok);
-#ifdef TIGHT_RULE_CHECK
-  if (tok->value)
-    goto FORMAT_ERR;
-#endif
-  m_ele->password = xstrdup(tok->name);
-
-  // The third (last) token
-  tok = tokens->next(tok);
-#ifdef TIGHT_RULE_CHECK
-  if (tok->value)
-    goto FORMAT_ERR;
-#endif
-  accessType = ink_atoi(tok->name);
-  switch (accessType) {
-  case 0:
-    m_ele->access = TS_ACCESS_NONE;
-    break;
-  case 1:
-    m_ele->access = TS_ACCESS_MONITOR;
-    break;
-  case 2:
-    m_ele->access = TS_ACCESS_MONITOR_VIEW;
-    break;
-  case 3:
-    m_ele->access = TS_ACCESS_MONITOR_CHANGE;
-    break;
-  default:
-    m_ele->access = TS_ACCESS_UNDEFINED;
-    goto FORMAT_ERR;
-  }
-  m_ele->cfg_ele.error = TS_ERR_OKAY;
-  return;
-
-FORMAT_ERR:
-  m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-  m_valid = false;
-}
-
-AdminAccessObj::~AdminAccessObj()
-{
-  TSAdminAccessEleDestroy(m_ele);
-}
-
-char *
-AdminAccessObj::formatEleToRule()
-{
-  if (!isValid()) {
-    m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-    return NULL;
-  }
-
-  short accessType;
-
-  char buf[MAX_RULE_SIZE];
-  memset(buf, 0, MAX_RULE_SIZE);
-
-  switch (m_ele->access) {
-  case TS_ACCESS_NONE:
-    accessType = 0;
-    break;
-  case TS_ACCESS_MONITOR:
-    accessType = 1;
-    break;
-  case TS_ACCESS_MONITOR_VIEW:
-    accessType = 2;
-    break;
-  case TS_ACCESS_MONITOR_CHANGE:
-    accessType = 3;
-    break;
-  default:
-    accessType = 0;             // lv: just zero it
-    // Handled here:
-    // TS_ACCESS_UNDEFINED
-    break;
-  }
-
-  snprintf(buf, sizeof(buf), "%s:%s:%d:", m_ele->user, m_ele->password, accessType);
-
-  return xstrdup(buf);
-}
-
-bool AdminAccessObj::isValid()
-{
-  if (m_ele->cfg_ele.error != TS_ERR_OKAY) {
-    m_valid = false;
-  }
-  // Must have a user
-  if (!m_ele->user) {
-    m_valid = false;
-  }
-  // Must have a password
-  if (!m_ele->password) {
-    m_valid = false;
-  }
-  // validate access type
-  switch (m_ele->access) {
-  case TS_ACCESS_NONE:
-  case TS_ACCESS_MONITOR:
-  case TS_ACCESS_MONITOR_VIEW:
-  case TS_ACCESS_MONITOR_CHANGE:
-    break;
-  default:
-    m_valid = false;
-  }
-
-  if (!m_valid) {
-    m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-  }
-
-  return m_valid;
-}
-
-TSCfgEle *
-AdminAccessObj::getCfgEleCopy()
-{
-  return (TSCfgEle *) copy_admin_access_ele(m_ele);
-}
 
 //--------------------------------------------------------------------------
 // CacheObj
@@ -673,10 +519,10 @@ HostingObj::HostingObj(TokenList * tokens)
   if (!token->value) {
     goto FORMAT_ERR;
   }
-  if (strcmp(token->name, "partition") != 0) {
+  if (strcmp(token->name, "volume") != 0) {
     goto FORMAT_ERR;
   }
-  m_ele->partitions = string_to_int_list(token->value, LIST_DELIMITER);
+  m_ele->volumes = string_to_int_list(token->value, LIST_DELIMITER);
   return;
 
 FORMAT_ERR:
@@ -715,9 +561,9 @@ HostingObj::formatEleToRule()
     break;
   }
 
-  list_str = int_list_to_string(m_ele->partitions, ",");
+  list_str = int_list_to_string(m_ele->volumes, ",");
   strncat(buf, m_ele->pd_val, sizeof(buf) - strlen(buf) - 1);
-  strncat(buf, " partition=", sizeof(buf) - strlen(buf) - 1);
+  strncat(buf, " volume=", sizeof(buf) - strlen(buf) - 1);
   strncat(buf, list_str, sizeof(buf) - strlen(buf) - 1);
   xfree(list_str);
 
@@ -742,20 +588,20 @@ bool HostingObj::isValid()
     goto Lend;
   }
 
-  if (!m_ele->partitions || !TSIntListIsValid(m_ele->partitions, 0, 50000)) {
+  if (!m_ele->volumes || !TSIntListIsValid(m_ele->volumes, 0, 50000)) {
     m_valid = false;
     goto Lend;
   }
-  // check that each partition is between 1-255
-  len = TSIntListLen(m_ele->partitions);
+  // check that each volume is between 1-255
+  len = TSIntListLen(m_ele->volumes);
   for (i = 0; i < len; i++) {
-    part = TSIntListDequeue(m_ele->partitions);
+    part = TSIntListDequeue(m_ele->volumes);
     if (*part<1 || *part> 255) {
-      TSIntListEnqueue(m_ele->partitions, part);
+      TSIntListEnqueue(m_ele->volumes, part);
       m_valid = false;
       goto Lend;
     }
-    TSIntListEnqueue(m_ele->partitions, part);
+    TSIntListEnqueue(m_ele->volumes, part);
   }
 
 Lend:
@@ -1140,142 +986,6 @@ IpAllowObj::getCfgEleCopy()
   return (TSCfgEle *) copy_ip_allow_ele(m_ele);
 }
 
-//--------------------------------------------------------------------------
-// MgmtAllowObj
-//--------------------------------------------------------------------------
-MgmtAllowObj::MgmtAllowObj(TSMgmtAllowEle * ele)
-{
-  m_ele = ele;
-  m_valid = true;
-  m_valid = isValid();
-}
-
-MgmtAllowObj::MgmtAllowObj(TokenList * tokens)
-{
-  Token *token;
-
-  m_ele = TSMgmtAllowEleCreate();
-  m_ele->cfg_ele.error = TS_ERR_OKAY;
-  m_valid = true;
-
-  if (!tokens || (tokens->length != 2)) {
-    goto FORMAT_ERR;
-  }
-
-  m_ele->cfg_ele.type = get_rule_type(tokens, TS_FNAME_IP_ALLOW);
-  if (m_ele->cfg_ele.type == TS_TYPE_UNDEFINED) {
-    goto FORMAT_ERR;
-  }
-
-  token = tokens->first();
-  if (!token->name || strcmp(token->name, "src_ip")) {
-    goto FORMAT_ERR;
-  }
-  if (!token->value) {
-    goto FORMAT_ERR;
-  } else {
-    m_ele->src_ip_addr = string_to_ip_addr_ele(token->value);
-  }
-
-  token = tokens->next(token);
-  if (!token->name || strcmp(token->name, "action")) {
-    goto FORMAT_ERR;
-  }
-  if (!token->value) {
-    goto FORMAT_ERR;
-  } else {
-    if (!strcmp(token->value, "ip_allow")) {
-      m_ele->action = TS_MGMT_ALLOW_ALLOW;
-    } else if (strcmp(token->value, "ip_deny") == 0) {
-      m_ele->action = TS_MGMT_ALLOW_DENY;
-    } else {
-      m_ele->action = TS_MGMT_ALLOW_UNDEFINED;
-    }
-  }
-  return;
-
-FORMAT_ERR:
-  m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-  m_valid = false;
-}
-
-MgmtAllowObj::~MgmtAllowObj()
-{
-  TSMgmtAllowEleDestroy(m_ele);
-}
-
-char *
-MgmtAllowObj::formatEleToRule()
-{
-  if (!isValid()) {
-    m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-    return NULL;
-  }
-
-  char *rule;
-  char buf[MAX_RULE_SIZE];
-  memset(buf, 0, MAX_RULE_SIZE);
-
-  ink_strncpy(buf, "src_ip=", sizeof(buf));
-  if (m_ele->src_ip_addr) {
-    char *ip_str = ip_addr_ele_to_string(m_ele->src_ip_addr);
-    if (ip_str) {
-      strncat(buf, ip_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(ip_str);
-    } else {
-      return NULL;
-    }
-  }
-
-  strncat(buf, " action=", sizeof(buf) - strlen(buf) - 1);
-  switch (m_ele->action) {
-  case TS_MGMT_ALLOW_ALLOW:
-    strncat(buf, "ip_allow", sizeof(buf) - strlen(buf) - 1);
-    break;
-  case TS_MGMT_ALLOW_DENY:
-    strncat(buf, "ip_deny", sizeof(buf) - strlen(buf) - 1);
-    break;
-  default:
-    // Handled here:
-    // TS_MGMT_ALLOW_UNDEFINED
-    break;
-  }
-
-  rule = xstrdup(buf);
-
-  return rule;
-}
-
-bool MgmtAllowObj::isValid()
-{
-  if (m_ele->cfg_ele.error != TS_ERR_OKAY) {
-    m_valid = false;
-  }
-  // must specify source IP addr
-  if (!m_ele->src_ip_addr) {
-    m_valid = false;
-  }
-
-  switch (m_ele->action) {
-  case TS_MGMT_ALLOW_ALLOW:
-  case TS_MGMT_ALLOW_DENY:
-    break;
-  default:
-    m_valid = false;
-  }
-
-  if (!m_valid) {
-    m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
-  }
-  return m_valid;
-}
-
-TSCfgEle *
-MgmtAllowObj::getCfgEleCopy()
-{
-  return (TSCfgEle *) copy_mgmt_allow_ele(m_ele);
-}
-
 
 //--------------------------------------------------------------------------
 // ParentProxyObj
@@ -1475,20 +1185,20 @@ ParentProxyObj::getCfgEleCopy()
 }
 
 //--------------------------------------------------------------------------
-// PartitionObj
+// VolumeObj
 //--------------------------------------------------------------------------
-PartitionObj::PartitionObj(TSPartitionEle * ele)
+VolumeObj::VolumeObj(TSVolumeEle * ele)
 {
   m_ele = ele;
   m_valid = true;
   m_valid = isValid();
 }
 
-PartitionObj::PartitionObj(TokenList * tokens)
+VolumeObj::VolumeObj(TokenList * tokens)
 {
   Token *token;
 
-  m_ele = TSPartitionEleCreate();
+  m_ele = TSVolumeEleCreate();
   m_ele->cfg_ele.error = TS_ERR_OKAY;
   m_valid = true;
 
@@ -1496,25 +1206,25 @@ PartitionObj::PartitionObj(TokenList * tokens)
     goto FORMAT_ERR;
   }
 
-  m_ele->cfg_ele.type = get_rule_type(tokens, TS_FNAME_PARTITION);
+  m_ele->cfg_ele.type = get_rule_type(tokens, TS_FNAME_VOLUME);
   if (m_ele->cfg_ele.type == TS_TYPE_UNDEFINED) {
     goto FORMAT_ERR;
   }
 
   token = tokens->first();
-  if (strcmp(token->name, "partition") || !token->value) {
+  if (strcmp(token->name, "volume") || !token->value) {
     goto FORMAT_ERR;
   }
-  m_ele->partition_num = ink_atoi(token->value);
+  m_ele->volume_num = ink_atoi(token->value);
 
   token = tokens->next(token);
   if (strcmp(token->name, "scheme") || !token->value) {
     goto FORMAT_ERR;
   }
   if (!strcmp(token->value, "http")) {
-    m_ele->scheme = TS_PARTITION_HTTP;
+    m_ele->scheme = TS_VOLUME_HTTP;
   } else {
-    m_ele->scheme = TS_PARTITION_UNDEFINED;
+    m_ele->scheme = TS_VOLUME_UNDEFINED;
   }
 
   token = tokens->next(token);
@@ -1527,7 +1237,7 @@ PartitionObj::PartitionObj(TokenList * tokens)
   } else {
     m_ele->size_format = TS_SIZE_FMT_ABSOLUTE;
   }
-  m_ele->partition_size = ink_atoi(token->value);
+  m_ele->volume_size = ink_atoi(token->value);
 
   return;
 
@@ -1536,13 +1246,13 @@ FORMAT_ERR:
   m_valid = false;
 }
 
-PartitionObj::~PartitionObj()
+VolumeObj::~VolumeObj()
 {
-  TSPartitionEleDestroy(m_ele);
+  TSVolumeEleDestroy(m_ele);
 }
 
 char *
-PartitionObj::formatEleToRule()
+VolumeObj::formatEleToRule()
 {
   if (!isValid()) {
     m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
@@ -1552,20 +1262,20 @@ PartitionObj::formatEleToRule()
   char buf[MAX_RULE_SIZE];
   memset(buf, 0, MAX_RULE_SIZE);
 
-  snprintf(buf, sizeof(buf), "partition=%d scheme=", m_ele->partition_num);
+  snprintf(buf, sizeof(buf), "volume=%d scheme=", m_ele->volume_num);
 
   switch (m_ele->scheme) {
-  case TS_PARTITION_HTTP:
+  case TS_VOLUME_HTTP:
     strncat(buf, "http", sizeof(buf) - strlen(buf) - 1);
     break;
   default:
     // Handled here:
-    // TS_PARTITION_UNDEFINED, TS_SIZE_FMT_ABSOLUTE, TS_SIZE_FMT_UNDEFINED
+    // TS_VOLUME_UNDEFINED, TS_SIZE_FMT_ABSOLUTE, TS_SIZE_FMT_UNDEFINED
     break;
   }
 
   size_t pos = strlen(buf);
-  snprintf(buf + pos, sizeof(buf) - pos, " size=%d", m_ele->partition_size);
+  snprintf(buf + pos, sizeof(buf) - pos, " size=%d", m_ele->volume_size);
   switch (m_ele->size_format) {
   case TS_SIZE_FMT_PERCENT:
     strncat(buf, "%", sizeof(buf) - strlen(buf) - 1);
@@ -1579,18 +1289,18 @@ PartitionObj::formatEleToRule()
   return xstrdup(buf);
 }
 
-bool PartitionObj::isValid()
+bool VolumeObj::isValid()
 {
   if (m_ele->cfg_ele.error != TS_ERR_OKAY) {
     m_valid = false;
   }
-  // partition nubmer must be between 1-255 inclusive
-  if (m_ele->partition_num < 1 || m_ele->partition_num > 255) {
+  // volume nubmer must be between 1-255 inclusive
+  if (m_ele->volume_num < 1 || m_ele->volume_num > 255) {
     m_valid = false;
   }
 
   switch (m_ele->scheme) {
-  case TS_PARTITION_HTTP:
+  case TS_VOLUME_HTTP:
     break;
   default:
     m_valid = false;
@@ -1598,11 +1308,11 @@ bool PartitionObj::isValid()
 
   // absolute size must be multiple of 128; percentage size <= 100
   if (m_ele->size_format == TS_SIZE_FMT_ABSOLUTE) {
-    if ((m_ele->partition_size < 0) || (m_ele->partition_size % 128)) {
+    if ((m_ele->volume_size < 0) || (m_ele->volume_size % 128)) {
       m_valid = false;
     }
   } else if (m_ele->size_format == TS_SIZE_FMT_PERCENT) {
-    if ((m_ele->partition_size < 0) || (m_ele->partition_size > 100)) {
+    if ((m_ele->volume_size < 0) || (m_ele->volume_size > 100)) {
       m_valid = false;
     }
   }
@@ -1614,9 +1324,9 @@ bool PartitionObj::isValid()
 }
 
 TSCfgEle *
-PartitionObj::getCfgEleCopy()
+VolumeObj::getCfgEleCopy()
 {
-  return (TSCfgEle *) copy_partition_ele(m_ele);
+  return (TSCfgEle *)copy_volume_ele(m_ele);
 }
 
 //--------------------------------------------------------------------------
@@ -1764,10 +1474,6 @@ RemapObj::RemapObj(TokenList * tokens)
     m_ele->from_scheme = TS_SCHEME_HTTP;
   } else if (strcmp(fromTok[0], "https") == 0) {
     m_ele->from_scheme = TS_SCHEME_HTTPS;
-  } else if (strcmp(fromTok[0], "rtsp") == 0) {
-    m_ele->from_scheme = TS_SCHEME_RTSP;
-  } else if (strcmp(fromTok[0], "mms") == 0) {
-    m_ele->from_scheme = TS_SCHEME_MMS;
   } else {
     m_ele->from_scheme = TS_SCHEME_UNDEFINED;
     goto FORMAT_ERR;
@@ -1824,10 +1530,6 @@ RemapObj::RemapObj(TokenList * tokens)
     m_ele->to_scheme = TS_SCHEME_HTTP;
   } else if (strcmp(toTok[0], "https") == 0) {
     m_ele->to_scheme = TS_SCHEME_HTTPS;
-  } else if (strcmp(toTok[0], "rtsp") == 0) {
-    m_ele->to_scheme = TS_SCHEME_RTSP;
-  } else if (strcmp(toTok[0], "mms") == 0) {
-    m_ele->to_scheme = TS_SCHEME_MMS;
   } else {
     m_ele->to_scheme = TS_SCHEME_UNDEFINED;
     goto FORMAT_ERR;
@@ -1927,12 +1629,6 @@ RemapObj::formatEleToRule()
   case TS_SCHEME_HTTPS:
     strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
     break;
-  case TS_SCHEME_RTSP:
-    strncat(buf, "rtsp", sizeof(buf) - strlen(buf) - 1);
-    break;
-  case TS_SCHEME_MMS:
-    strncat(buf, "mms", sizeof(buf) - strlen(buf) - 1);
-    break;
   default:
     // Handled here:
     // TS_SCHEME_NONE, TS_SCHEME_UNDEFINED
@@ -1963,12 +1659,6 @@ RemapObj::formatEleToRule()
     break;
   case TS_SCHEME_HTTPS:
     strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
-    break;
-  case TS_SCHEME_RTSP:
-    strncat(buf, "rtsp", sizeof(buf) - strlen(buf) - 1);
-    break;
-  case TS_SCHEME_MMS:
-    strncat(buf, "mms", sizeof(buf) - strlen(buf) - 1);
     break;
   default:
     // Handled here:
@@ -2014,8 +1704,6 @@ bool RemapObj::isValid()
   switch (m_ele->from_scheme) {
   case TS_SCHEME_HTTP:
   case TS_SCHEME_HTTPS:
-  case TS_SCHEME_RTSP:
-  case TS_SCHEME_MMS:
     break;
   default:
     m_valid = false;
@@ -2024,8 +1712,6 @@ bool RemapObj::isValid()
   switch (m_ele->to_scheme) {
   case TS_SCHEME_HTTP:
   case TS_SCHEME_HTTPS:
-  case TS_SCHEME_RTSP:
-  case TS_SCHEME_MMS:
     break;
   default:
     m_valid = false;
@@ -2566,7 +2252,7 @@ StorageObj::formatEleToRule()
   char buf[MAX_RULE_SIZE];
   memset(buf, 0, MAX_RULE_SIZE);
 
-  if (m_ele->size < 0) {        // if size < 0, then raw partition
+  if (m_ele->size < 0) {        // if size < 0, then raw volume
     snprintf(buf, sizeof(buf), "%s", m_ele->pathname);
   } else {
     snprintf(buf, sizeof(buf), "%s %d", m_ele->pathname, m_ele->size);
@@ -2698,7 +2384,7 @@ bool UpdateObj::isValid()
   // check url
   if (!m_ele->url || strcmp(m_ele->url, "") == 0 ||
       strstr(m_ele->url, "\\") ||
-      (!strstr(m_ele->url, "http") && !strstr(m_ele->url, "rtsp"))) {
+      (!strstr(m_ele->url, "http"))) {
     m_valid = false;
   }
   // bug 49322: check that there are no "\" in the url or headers

@@ -95,9 +95,11 @@ public:
 
   void* get_instance(unsigned int index) const { return _instance_data[index]; };
   void delete_instance(unsigned int index);
+  void Print();
 
   int from_path_len;
   URL fromURL;
+  URL toUrl; // Default TO-URL (from remap.config)
   bool homePageRedirect;
   bool unique;                  // INKqa11970 - unique mapping
   bool default_redirect_url;
@@ -105,12 +107,13 @@ public:
   bool negative_referer;
   bool wildcard_from_scheme;    // from url is '/foo', only http or https for now
   char *tag;                    // tag
-  char *filter_redirect_url;    // redirect url
+  char *filter_redirect_url;    // redirect url when referer filtering enabled
   unsigned int map_id;
   referer_info *referer_list;
   redirect_tag_str *redir_chunk_list;
   acl_filter_rule *filter;      // acl filtering (list of rules)
   unsigned int _plugin_count;
+  LINK(url_mapping, link); // For use with the main Queue linked list holding all the mapping
 
   int getRank() const { return _rank; };
 
@@ -118,22 +121,14 @@ private:
   remap_plugin_info* _plugin_list[MAX_REMAP_PLUGIN_CHAIN];
   void* _instance_data[MAX_REMAP_PLUGIN_CHAIN];
   int _rank;
-  URL _default_to_url;
-
-  friend class UrlRewrite;
-  friend class UrlMappingContainer;
 };
 
 
 class UrlMappingContainer {
 public:
-  UrlMappingContainer()
-    : _mapping(NULL), _toURLPtr(NULL), _heap(NULL)
+ UrlMappingContainer()
+   : _mapping(NULL), _toURLPtr(NULL), _heap(NULL)
     { }
-
-  UrlMappingContainer(url_mapping *m)
-    : _heap(NULL)
-    { set(m); }
 
   UrlMappingContainer(HdrHeap *heap)
     : _mapping(NULL), _toURLPtr(NULL), _heap(heap)
@@ -148,7 +143,7 @@ public:
   void set(url_mapping *m) { 
     deleteToURL();
     _mapping = m;
-    _toURLPtr = m ? &(m->_default_to_url) : NULL;
+    _toURLPtr = m ? &(m->toUrl) : NULL;
   }
 
   void set(HdrHeap *heap) {
