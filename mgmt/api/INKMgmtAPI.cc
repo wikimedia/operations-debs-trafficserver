@@ -935,41 +935,6 @@ TSPdSsFormatDestroy(TSPdSsFormat * ele)
 }
 
 /*-------------------------------------------------------------
- * TSAdminAccessEle
- *-------------------------------------------------------------*/
-tsapi TSAdminAccessEle *
-TSAdminAccessEleCreate()
-{
-  TSAdminAccessEle *ele;
-
-  ele = (TSAdminAccessEle *) xmalloc(sizeof(TSAdminAccessEle));
-  if (!ele)
-    return NULL;
-
-  ele->cfg_ele.type = TS_ADMIN_ACCESS;
-  ele->cfg_ele.error = TS_ERR_OKAY;
-  ele->user = NULL;
-  ele->password = NULL;
-  ele->access = TS_ACCESS_UNDEFINED;
-
-  return ele;
-}
-
-tsapi void
-TSAdminAccessEleDestroy(TSAdminAccessEle * ele)
-{
-  if (ele) {
-    if (ele->user)
-      xfree(ele->user);
-    if (ele->password)
-      xfree(ele->password);
-    xfree(ele);
-  }
-  return;
-}
-
-
-/*-------------------------------------------------------------
  * CacheObj
  *-------------------------------------------------------------*/
 tsapi TSCacheEle *
@@ -1083,7 +1048,7 @@ TSHostingEleCreate()
   ele->cfg_ele.error = TS_ERR_OKAY;
   ele->pd_type = TS_PD_UNDEFINED;
   ele->pd_val = NULL;
-  ele->partitions = TS_INVALID_LIST;
+  ele->volumes = TS_INVALID_LIST;
 
   return ele;
 }
@@ -1094,8 +1059,8 @@ TSHostingEleDestroy(TSHostingEle * ele)
   if (ele) {
     if (ele->pd_val)
       xfree(ele->pd_val);
-    if (ele->partitions)
-      TSIntListDestroy(ele->partitions);
+    if (ele->volumes)
+      TSIntListDestroy(ele->volumes);
     xfree(ele);
   }
   return;
@@ -1297,40 +1262,6 @@ TSLogObjectEleDestroy(TSLogObjectEle * ele)
 }
 
 /*-------------------------------------------------------------
- * TSMgmtAllowEle
- *-------------------------------------------------------------*/
-tsapi TSMgmtAllowEle *
-TSMgmtAllowEleCreate()
-{
-
-  TSMgmtAllowEle *ele;
-
-  ele = (TSMgmtAllowEle *) xmalloc(sizeof(TSMgmtAllowEle));
-  if (!ele)
-    return NULL;
-
-  ele->cfg_ele.type = TS_MGMT_ALLOW;
-  ele->cfg_ele.error = TS_ERR_OKAY;
-  ele->src_ip_addr = TS_INVALID_IP_ADDR;
-  ele->action = TS_MGMT_ALLOW_UNDEFINED;
-
-  return ele;
-}
-
-tsapi void
-TSMgmtAllowEleDestroy(TSMgmtAllowEle * ele)
-{
-  if (ele) {
-    if (ele->src_ip_addr)
-      TSIpAddrEleDestroy(ele->src_ip_addr);
-    xfree(ele);
-  }
-  return;
-
-}
-
-
-/*-------------------------------------------------------------
  * TSParentProxyEleCreate
  *-------------------------------------------------------------*/
 tsapi TSParentProxyEle *
@@ -1369,29 +1300,29 @@ TSParentProxyEleDestroy(TSParentProxyEle * ele)
 }
 
 /*-------------------------------------------------------------
- * TSPartitionEle
+ * TSVolumeEle
  *-------------------------------------------------------------*/
-tsapi TSPartitionEle *
-TSPartitionEleCreate()
+tsapi TSVolumeEle *
+TSVolumeEleCreate()
 {
-  TSPartitionEle *ele;
+  TSVolumeEle *ele;
 
-  ele = (TSPartitionEle *) xmalloc(sizeof(TSPartitionEle));
+  ele = (TSVolumeEle *) xmalloc(sizeof(TSVolumeEle));
   if (!ele)
     return NULL;
 
-  ele->cfg_ele.type = TS_PARTITION;
+  ele->cfg_ele.type = TS_VOLUME;
   ele->cfg_ele.error = TS_ERR_OKAY;
-  ele->partition_num = 0;
-  ele->scheme = TS_PARTITION_UNDEFINED;
-  ele->partition_size = 0;
+  ele->volume_num = 0;
+  ele->scheme = TS_VOLUME_UNDEFINED;
+  ele->volume_size = 0;
   ele->size_format = TS_SIZE_FMT_UNDEFINED;
 
   return ele;
 }
 
 tsapi void
-TSPartitionEleDestroy(TSPartitionEle * ele)
+TSVolumeEleDestroy(TSVolumeEle * ele)
 {
   if (ele) {
     xfree(ele);

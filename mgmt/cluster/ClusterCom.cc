@@ -44,7 +44,6 @@
 #include "MgmtUtils.h"
 #include "WebMgmtUtils.h"
 #include "MgmtHashTable.h"
-#include "WebHttpTree.h"
 
 int MultiCastMessages = 0;
 long LastHighestDelta = -1L;
@@ -102,7 +101,6 @@ drainIncomingChannel(void *arg)
   lmgmt->syslogThrInit();
 
   for (;;) {                    /* Loop draining mgmt network channels */
-
     // linux: set tv.tv_set in select() loop, since linux's select()
     // will update tv with the amount of time not slept (most other
     // implementations do not do this)
@@ -116,8 +114,8 @@ drainIncomingChannel(void *arg)
       if (lmgmt->ccom->receive_fd > 0) {
         FD_SET(lmgmt->ccom->receive_fd, &fdlist);       /* Multicast fd */
       }
+      FD_SET(lmgmt->ccom->reliable_server_fd, &fdlist);   /* TCP Server fd */
     }
-    FD_SET(lmgmt->ccom->reliable_server_fd, &fdlist);   /* TCP Server fd */
 
     mgmt_select(FD_SETSIZE, &fdlist, NULL, NULL, &tv);
 
@@ -150,11 +148,9 @@ drainIncomingChannel(void *arg)
         (lmgmt->ccom->receiveIncomingMessage(message, 61440) > 0)) {
       lmgmt->ccom->handleMultiCastMessage(message);
     } else if (FD_ISSET(lmgmt->ccom->reliable_server_fd, &fdlist)) {
-
       /* Reliable(TCP) request */
       int clilen = sizeof(cli_addr);
-      int req_fd = mgmt_accept(lmgmt->ccom->reliable_server_fd,
-                               (struct sockaddr *) &cli_addr, &clilen);
+      int req_fd = mgmt_accept(lmgmt->ccom->reliable_server_fd, (struct sockaddr *) &cli_addr, &clilen);
       if (req_fd < 0) {
         mgmt_elog(stderr, "[drainIncomingChannel] error accepting " "reliable connection\n");
         continue;
@@ -1175,10 +1171,6 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
             delete our_rec_cfg;
             delete our_locals_ht;
           }
-#if TS_HAS_WEBUI
-          if (!file_update_failure)
-            WebHttpTreeRebuildJsTree();
-#endif
         }
 
         if (!file_update_failure && (rb->updateVersion(reply, our_ver, ver) != OK_ROLLBACK)) {
@@ -2105,7 +2097,7 @@ ClusterCom::sendReliableMessageReadTillClose(unsigned long addr, char *buf, int 
 
   memset(tmp_reply, 0, 1024);
   while ((res = read_socket(fd, tmp_reply, 1022) > 0)) {
-    if (tmp_reply[0] == EOF) {
+    if (tmp_reply[0] == (char)EOF) {
       break;
     }
     reply->copyFrom(tmp_reply, strlen(tmp_reply));

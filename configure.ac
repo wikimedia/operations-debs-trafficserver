@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[2.1.7-unstable])
-m4_define([TS_VERSION_N],[2001007])
+m4_define([TS_VERSION_S],[2.1.8-unstable])
+m4_define([TS_VERSION_N],[2001008])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -270,20 +270,6 @@ AC_MSG_RESULT([$enable_remote_cov_commit])
 AC_SUBST([enable_remote_cov_commit])
 
 #
-# WebUI
-#
-AC_MSG_CHECKING([whether to enable Web UI])
-AC_ARG_ENABLE([webui],
-  [AS_HELP_STRING([--enable-webui],[enable Web UI [default: no]])],
-  [],
-  [enable_webui=no]
-)
-AC_MSG_RESULT([$enable_webui])
-TS_ARG_ENABLE_VAR([has],[webui])
-AC_SUBST(has_webui)
-AM_CONDITIONAL([BUILD_WEBUI], [test 0 -ne $has_webui])
-
-#
 # API
 #
 AC_MSG_CHECKING([whether to enable API and plugin support])
@@ -295,20 +281,6 @@ AC_ARG_ENABLE([api],
 AC_MSG_RESULT([$enable_api])
 AS_IF([test "x$enable_api" = "xyes"], [has_inkapi=1], [has_inkapi=0])
 AC_SUBST(has_inkapi)
-
-#
-# Detailed Logging (for debugging purposes)
-#
-AC_MSG_CHECKING([whether to enable detailed logging for debugging purposes])
-AC_ARG_ENABLE([detailed-log],
-  [AS_HELP_STRING([--enable-detailed-log],[enable detailed logging])],
-  [],
-  [enable_detailed_log=no]
-)
-AC_MSG_RESULT([$enable_detailed_log])
-TS_ARG_ENABLE_VAR([has],[detailed-log])
-AC_SUBST(has_detailed_log)
-AM_CONDITIONAL([BUILD_DETAILED_LOG], [test 0 -ne $has_detailed_log])
 
 #
 # WCCP
@@ -358,13 +330,13 @@ AC_ARG_ENABLE([posix-cap],
 AC_MSG_RESULT([$enable_posix_cap])
 
 #
-# Disable ccache explicitly (it's enabled by default, if it exists)
+# Enble ccache explicitly (it's disabled by default, because of build problems in some cases)
 #
-AC_MSG_CHECKING([whether to explicitly disable ccache])
+AC_MSG_CHECKING([whether to enable ccache])
 AC_ARG_ENABLE([ccache],
-  [AS_HELP_STRING([--disable-ccache],[Disable ccache from being used])],
+  [AS_HELP_STRING([--enable-ccache],[Enable ccache (can cause bad builds)])],
   [],
-  [enable_ccache="yes"]
+  [enable_ccache="no"]
 )
 AC_MSG_RESULT([$enable_ccache])
 
@@ -456,7 +428,7 @@ REAL_CXXFLAGS="${CXXFLAGS}"
 AC_PROG_CC
 AC_PROG_CXX
 
-# Check for ccache (unless disabled explicitly)
+# Check for ccache (if explicitly enabled)
 if test "x$enable_ccache" = "xyes"; then
     AC_CHECK_PROG([CCACHE],[ccache],[ccache],[])
     if test "x${CCACHE}" = "xccache"; then
@@ -543,7 +515,7 @@ case $host_os in
     TS_ADDTO(CPPFLAGS, [-I/opt/local/include])
     TS_ADDTO(LDFLAGS, [-L/opt/local/lib])
     ;;
-  freebsd*)
+  freebsd*|kfreebsd*)
     common_opt="-pipe -Wall -Werror"
     debug_opt="-ggdb3 $common_opt"
     release_opt="-g $common_opt -O3 -feliminate-unused-debug-symbols -fno-strict-aliasing"
@@ -561,6 +533,9 @@ case $host_os in
       AC_DEFINE([_POSIX_PTHREAD_SEMANTICS],1,
        [posix thread semantics]
       )
+      if test "$solaris_use_stlport4" != yes; then
+        postdeps_CXX="-library=Crun"
+      fi
     else # gcc
       common_opt="-pipe -Wall -Werror"
       debug_opt="-ggdb3 $common_opt"
@@ -688,6 +663,11 @@ case $host_os in
     EXTRA_CXX_LDFLAGS="-rdynamic"
     host_os_def=freebsd
     ;;
+  kfreebsd*)
+    EXTRA_CXX_LDFLAGS="-rdynamic"
+    host_os_def=freebsd
+    TS_ADDTO(CPPFLAGS, [-Dkfreebsd])
+    ;;
   solaris*)
     host_os_def=solaris
     ;;
@@ -697,6 +677,8 @@ case $host_os in
    ;;
 esac
 TS_ADDTO(CPPFLAGS, [-D$host_os_def])
+
+AC_MSG_NOTICE([Build for host OS: $host_os, arch: $host_cpu, optimization: $host_os_def])
 
 #
 # _Here_ is where we go ahead and add the _optimizations_ to already
@@ -768,15 +750,15 @@ SC_LOAD_TCLCONFIG
 # expect tclConfig.sh to populate TCL_LIB_FLAG and TCL_INCLUDE_SPEC
 case $host_os in
   darwin*)
-    TCL_LIB_FLAG="-ltcl" # OSX fails to populate this variable
+    TCL_LIB_SPEC="-ltcl" # OSX fails to populate this variable
     ;;
   *)
    ;;
 esac
-AC_SUBST([LIBTCL],[$TCL_LIB_FLAG])
+AC_SUBST([LIBTCL],[$TCL_LIB_SPEC])
 
 case $host_os in
-  freebsd*)
+  freebsd*|kfreebsd*)
     TS_ADDTO(CPPFLAGS, [-I/usr/local/include])
     ;;
   solaris*)
@@ -1186,6 +1168,8 @@ AC_CONFIG_FILES([doc/Doxyfile])
 AC_CONFIG_FILES([doc/Makefile])
 AC_CONFIG_FILES([rc/Makefile])
 AC_CONFIG_FILES([rc/trafficserver])
+AC_CONFIG_FILES([rc/trafficserver.xml])
+AC_CONFIG_FILES([rc/trafficserver.conf])
 AC_CONFIG_FILES([iocore/aio/Makefile])
 AC_CONFIG_FILES([iocore/cache/Makefile])
 AC_CONFIG_FILES([iocore/cluster/Makefile])
@@ -1202,7 +1186,7 @@ AC_CONFIG_FILES([lib/tsconfig/Makefile])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([proxy/config/body_factory/default/Makefile])
 AC_CONFIG_FILES([proxy/config/body_factory/Makefile])
-AC_CONFIG_FILES([proxy/config/records.config proxy/config/storage.config])
+AC_CONFIG_FILES([proxy/config/records.config.default proxy/config/storage.config.default])
 AC_CONFIG_FILES([proxy/config/Makefile])
 AC_CONFIG_FILES([proxy/congest/Makefile])
 AC_CONFIG_FILES([proxy/hdrs/Makefile])
@@ -1215,14 +1199,6 @@ AC_CONFIG_FILES([mgmt/api/remote/Makefile])
 AC_CONFIG_FILES([mgmt/api/include/Makefile])
 AC_CONFIG_FILES([mgmt/cli/Makefile])
 AC_CONFIG_FILES([mgmt/cluster/Makefile])
-AS_IF([test "x$enable_webui" = "xyes"],
-  [AC_CONFIG_FILES([mgmt/html2/Makefile])
-   AC_CONFIG_FILES([mgmt/html2/configure/Makefile])
-   AC_CONFIG_FILES([mgmt/html2/images/Makefile])
-   AC_CONFIG_FILES([mgmt/html2/include/Makefile])
-   AC_CONFIG_FILES([mgmt/html2/monitor/Makefile])
-   AC_CONFIG_FILES([mgmt/html2/mrtg/Makefile])
-])
 AC_CONFIG_FILES([mgmt/Makefile])
 AC_CONFIG_FILES([mgmt/preparse/Makefile])
 AC_CONFIG_FILES([mgmt/stats/Makefile])

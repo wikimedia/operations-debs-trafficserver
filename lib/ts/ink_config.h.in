@@ -105,7 +105,6 @@
 #define TS_USE_KQUEUE                  @use_kqueue@
 #define TS_USE_PORT                    @use_port@
 #define TS_USE_POSIX_CAP               @use_posix_cap@
-#define TS_USE_DETAILED_LOG            @has_detailed_log@
 #define TS_USE_TPROXY                  @use_tproxy@
 
 /* OS API definitions */
@@ -119,7 +118,6 @@
 #define TS_IS_MICRO_BUILD              @is_micro_build@
 #define TS_HAS_STANDALONE_IOCORE       @has_standalone_iocore@
 #define TS_HAS_INKAPI                  @has_inkapi@
-#define TS_HAS_WEBUI                   @has_webui@
 #define TS_HAS_PURIFY                  @has_purify@
 #define TS_HAS_DEMANGLE                @has_demangle@
 #define TS_HAS_TESTS                   @has_tests@
@@ -150,7 +148,6 @@
 #else
 # define TS_NO_TRANSFORM                1
 # define TS_NO_API                      1
-# define INK_SINGLE_THREADED            1
 #endif
 
 #if TS_HAS_STANDALONE_IOCORE

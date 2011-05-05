@@ -23,28 +23,31 @@
 #ifndef _TRIE_H
 #define _TRIE_H
 
-#include <list>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "List.h"
+
+// Note that you should provide the class to use here, but we'll store
+// pointers to such objects internally.
 template<typename T>
 class Trie
 {
 public:
-  Trie() { m_root.Clear(); }
+  Trie()
+    {
+      m_root.Clear();
+    }
 
   // will return false for duplicates; key should be NULL-terminated
   // if key_len is defaulted to -1
-  bool Insert(const char *key, const T &value, int rank, int key_len = -1);
+  bool Insert(const char *key, T *value, int rank, int key_len = -1);
 
   // will return false if not found; else value_ptr will point to found value
-  bool Search(const char *key, T *&value_ptr, int key_len = -1);
+  T* Search(const char *key, int key_len = -1);
   void Clear();
-
-  typedef std::list<T*> ValuePointerList;
-  const ValuePointerList &GetValues() const { return m_value_list; }
+  void Print();
 
   virtual ~Trie() { Clear(); }
 
@@ -54,7 +57,7 @@ private:
   class Node
   {
   public:
-    T value;
+    T* value;
     bool occupied;
     int rank;
 
@@ -73,7 +76,7 @@ private:
   };
 
   Node m_root;
-  ValuePointerList m_value_list;
+  Queue<T> m_value_list;
 
   void _CheckArgs(const char *key, int &key_len) const;
   void _Clear(Node *node);
@@ -98,7 +101,7 @@ Trie<T>::_CheckArgs(const char *key, int &key_len) const
 
 template<typename T>
 bool
-Trie<T>::Insert(const char *key, const T &value, int rank, int key_len /* = -1 */)
+Trie<T>::Insert(const char *key, T* value, int rank, int key_len /* = -1 */)
 {
   _CheckArgs(key, key_len);
 
@@ -132,12 +135,11 @@ Trie<T>::Insert(const char *key, const T &value, int rank, int key_len /* = -1 *
 
   if (curr_node->occupied) {
     Error("Cannot insert duplicate!");
-  }
-  else {
+  } else {
     curr_node->occupied = true;
     curr_node->value = value;
     curr_node->rank = rank;
-    m_value_list.push_back(&(curr_node->value));
+    m_value_list.enqueue(curr_node->value);
     retval = true;
     Debug("Trie::Insert", "inserted new element!");
   }
@@ -145,8 +147,8 @@ Trie<T>::Insert(const char *key, const T &value, int rank, int key_len /* = -1 *
 }
 
 template<typename T>
-bool
-Trie<T>::Search(const char *key, T *&value_ptr, int key_len /* = -1 */)
+T*
+Trie<T>::Search(const char *key, int key_len /* = -1 */)
 {
   _CheckArgs(key, key_len);
 
@@ -178,11 +180,10 @@ Trie<T>::Search(const char *key, T *&value_ptr, int key_len /* = -1 */)
 
   if (found_node) {
     Debug("Trie::Search", "Returning element with rank %d", found_node->rank);
-    value_ptr = &(found_node->value);
-    return true;
+    return found_node->value;
   }
 
-  return false;
+  return NULL;
 }
 
 
@@ -205,9 +206,20 @@ template<typename T>
 void
 Trie<T>::Clear()
 {
+  forl_LL(T, iter, m_value_list)
+    delete iter;
+  m_value_list.clear();
+
   _Clear(&m_root);
   m_root.Clear();
-  m_value_list.clear();
+}
+
+template<typename T>
+void
+Trie<T>::Print() {
+  // The class we contain must provide a ::Print() method.
+  forl_LL(T, iter, m_value_list)
+    iter->Print();
 }
 
 template<typename T>
