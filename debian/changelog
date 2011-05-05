@@ -1,28 +1,24 @@
-trafficserver (2.1.8-unstable-1) UNRELEASED; urgency=low
+trafficserver (2.1.8-unstable-1) unstable; urgency=low
 
-  * New upstream release
-
- -- Arno Töll <debian@toell.net>  Thu, 05 May 2011 18:35:00 +0200
-
-trafficserver (2.1.7-unstable-1) unstable; urgency=low
-
-  * New upstream release. Major features:
-    + Several bug fixes (none reported in Debian's BTS)
+  * New upstream release. Major features (since 2.1.5):
+    + Many bug fixes (none reported in Debian's BTS)
     + Set source address for origin Servers
     + Major API changes for the SDK
     + Provide traffic_logstats 
+    + traffic_shell does not hang anymore on any command
   * Fix "FTBFS on architectures not supported upstream": (Closes: #622800)
     + Don't execute regression checks for now (fixes x86)
-    + Provide debian/patches/kfreebsd-fixes.patch for kFreeBSD support
+    + Upstream merges a Debian patch originally for 2.1.7 which enables 
+      kFreeBSD support (originally provided by myself)
     + Restrict Architectures (drop S390, IA64, MIPS[EL], PPC, SPARC)
   * Remove ts-ui-disable-conf.patch (applied upstream)
+  * Update `build-quirks.patch' to make TS handle $DESTDIR correctly 
+    (upstream: TS-759)
   * Remove .deps from SDK binary package examples (they were incidentally 
     included before).
-  * Add 'traffic-manager.patch' backporting a fix to get traffic_manager
-    working (upstream: #TS-741). 
   * Fix permissions for /var/cache/trafficserver in postinst
 
- -- Arno Toell <debian@toell.net>  Mon, 18 Apr 2011 23:51:10 +0200
+ -- Arno Töll <debian@toell.net>  Thu, 05 May 2011 18:40:22 +0200
 
 trafficserver (2.1.5-unstable-1) unstable; urgency=low
 

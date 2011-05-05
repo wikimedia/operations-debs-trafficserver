@@ -1,11 +1,16 @@
-Bug-Vendor: https://issues.apache.org/jira/browse/TS-627
+Bug-Vendor: https://issues.apache.org/jira/browse/TS-627, https://issues.apache.org/jira/browse/TS-759
 Author: Arno Toell <debian@toell.net>
-Last-Update: 01.11.11
+Last-Update: 05.05.11
 Description: Upstream buils by default by using the gcc flag "-Werror".
 	This breaks the build process as `make checks' includes some non clean casts.
-Applied-Upstream: The current SVN trunk has fixed this issue for 2.1.6
+	.
+	Moreover it handles incorrectly GNU's $DESTDIR since 2.1.8
+
+Applied-Upstream: Supposed to enter upstream for 2.1.9
 
 * configure.ac: Disable -Werror
+* proxy/config/Makefile.am: Prefix paths with $DESTDIR 
+
 --- a/configure.ac
 +++ b/configure.ac
 @@ -40,7 +40,7 @@
@@ -17,7 +22,7 @@ Applied-Upstream: The current SVN trunk has fixed this issue for 2.1.6
  AM_CONFIG_HEADER([lib/ts/ink_autoconf.h])
  
  # Not sure this is needed, and seems to break with some versions of automake
-@@ -529,7 +529,7 @@
+@@ -501,7 +501,7 @@
      else # gcc
      # This is useful for finding odd conversions
      #    common_opt="-pipe -Wall -Werror -Wconversion -Wno-sign-conversion"
@@ -26,3 +31,12 @@ Applied-Upstream: The current SVN trunk has fixed this issue for 2.1.6
        debug_opt="-ggdb3 $common_opt"
        release_opt="-g $common_opt -O3 -feliminate-unused-debug-symbols -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
+--- a/proxy/config/Makefile.am
++++ b/proxy/config/Makefile.am
+@@ -53,5 +53,5 @@
+ 	for dfltcfgfile in $(dist_sysconf_DATA) $(nodist_sysconf_DATA) ; \
+ 	do \
+ 		cfgfile=`echo $$dfltcfgfile | sed 's/\.default$$//'` ; \
+-		test -f $(sysconfdir)/$$cfgfile || mv $(sysconfdir)/$$dfltcfgfile $(sysconfdir)/$$cfgfile ; \
++		test -f $(DESTDIR)/$(sysconfdir)/$$cfgfile || mv $(DESTDIR)/$(sysconfdir)/$$dfltcfgfile $(DESTDIR)/$(sysconfdir)/$$cfgfile ; \
+ 	done
