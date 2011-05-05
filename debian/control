@@ -1,7 +1,7 @@
 Source: trafficserver
 Section: web
 Priority: extra
-Maintainer: Arno Toell <debian@toell.net>
+Maintainer: Arno Töll <debian@toell.net>
 Build-Depends: debhelper (>= 7.0.50~), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool
 Standards-Version: 3.9.1
