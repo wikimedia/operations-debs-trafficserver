@@ -58,10 +58,10 @@ is especially true for comments which are not kept when using `traffic_line'
   that you must restart your `traffic_server' daemon for some changes.
 
 * If you used Squid before you might find [2] helpful which lists Traffic Serv-
-  er configuration directives along there Squid equivalent. Use this as resour-
+  er configuration directives along their Squid equivalent. Use this as resour-
   ce to understand Traffic Server.
 
-* To help you to get started, I am goind to introduce you very briefly to Traf-
+* To help you to get started, I am going to introduce you very briefly to Traf-
   fic Server. Note, lines starting with `#' are remarks:
 
     Open `records.config'. 
@@ -85,9 +85,9 @@ is especially true for comments which are not kept when using `traffic_line'
     # in bytes. 
     CONFIG proxy.config.cache.ram_cache.size LLONG 131072 # (128 MB)
 
-    Next edit `storage.config'. Debian ships with a pre-configured cache file
-    in `/var/cache/trafficserver' sized 256MB. This is fairly ok for testing,
-    otherwise feel free to change (value is in KB):
+    Next edit `storage.config'. Debian ships with a default configuration poin-
+    ting to a cache file in `/var/cache/trafficserver' sized 256MB. This is fair-
+    ly ok for testing, otherwise feel free to change (value is in KB):
 
     /var/cache/trafficserver 262144
 
@@ -103,8 +103,8 @@ is especially true for comments which are not kept when using `traffic_line'
 * For a more comprehensive documentation about Traffic Server and its configu-
   ration directives consult [3]. 
 
-  Yet the documentation on the web page can not be considered up to date. Feel
-  free to ask for help on the Apache Traffic Server mailing list:
+  Yet the documentation on the web page can not be considered up to date for some
+  parts. Feel free to ask for help on the Apache Traffic Server mailing list:
 
   E-Mail <users@trafficserver.apache.org> 
   URL: <http://mail-archives.apache.org/mod_mbox/trafficserver-users/>
@@ -114,7 +114,7 @@ is especially true for comments which are not kept when using `traffic_line'
   IRC: #traffic-server on irc.freenode.net. 
   Project Wiki: https://cwiki.apache.org/TS/traffic-server.html
 
-* Proxy server can basically act in two modes: As forward proxy and as a rever-
+* Traffic Server can basically act in two modes: As forward proxy and as a rever-
   se proxy. Traffic Servers primary purpose is to act as reverse proxy (e.g. 
   different to Squid). Nonetheless you can Traffic Server still instruct to act
   as forward proxy as well. If you know what you are doing, you need to set 
