@@ -14,24 +14,23 @@ is especially true for comments which are not kept when using `traffic_line'
   SECURITY WARNING 
   -----------------------------------------------------------------------------
 
-  Apache Traffic Server will open four listening sockets on your machine. Chan-
+  Apache Traffic Server will open three listening sockets on your machine. Chan-
   ces are you may want to have at the listening process of `traffic_server' pu-
   blic facing. 
   See below for instructions on how to restrict this interface to an IP address
-  and port. By default `traffic_server' will listen on 0.0.0.0:8080.
+  and port. By default `traffic_server' will listen on 0.0.0.0:8080 and 
+  0.0.0.0:8084. The latter is used for communication with `traffic_manager'.
 
-  However, running `traffic_manager' will open three more ports on your host. 
-  Those are by default:
-    + 0.0.0.0:8083 - A health check for cluster peers
-    + 0.0.0.0:8084 - The process management port
+  However, running `traffic_manager' will open more ports on your host. 
+  Those are (with 8088 only applying if you enable cluster mode - see below)
+    + 0.0.0.0:8083 - the proxy autoconfiguration port to serve PAC files
     + 0.0.0.0:8088 - A CLI like remote configuration interface
   
   While you are able to change the listening port for those connections, it is
-  currently not possible to restrict the listening interface as well. Yes, this
-  means Apache Traffic Manager may be remotely controlled. Please note though, 
-  the default behaviour is not to accept intructions from any source different
-  than `localhost'. THIS CHANGES AS SOON AS YOU ENABLE CLUSTER SUPPORT. THAT IS
-  IF YOU CHANGE THE VALUE OF 
+  currently not possible to restrict the listening interface as well. This im-
+  plies Apache Traffic Manager may be remotely controlled if you enable cluster
+  mode. THIS CHANGES AS SOON AS YOU ENABLE CLUSTER SUPPORT. THAT IS IF YOU CHAN-
+  GE THE VALUE OF 
 
     LOCAL proxy.local.cluster.type INT 3
 
@@ -131,4 +130,4 @@ is especially true for comments which are not kept when using `traffic_line'
 [4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
 [5] http://trafficserver.apache.org/docs/v2/admin/index.html
 
- -- Arno Toell <debian@toell.net>  Tue, 11 Jan 2011 12:49:18 +0100
+ -- Arno Toell <debian@toell.net>  Tue, 05 May 2011 22:46:21 +0100
