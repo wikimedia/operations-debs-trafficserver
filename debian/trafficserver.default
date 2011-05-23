@@ -13,7 +13,19 @@
 ##
 
 
+## Traffic Server consists mainly of three binaries
+## * traffic_cop - a monitoring watchdog for the actual server instance
+## * traffic_manager - a command and control utility for the serer instance
+## * traffic_server - the actual work horse, the proxy server instance
+##
+## Usually one needs to start traffic_cop only, it manages other services 
+## on its own. If you do not want to start the watchdog, you can start 
+## remaining services yourself through the init script
+
+
+## Start traffic_cop? 
 TC_START=no
+## Configure startup parameters for traffic_cop
 # RUNDIR=/var/run/trafficserver
 # TC_DAEMON_ARGS=""
 # TC_PIDFILE=$RUNDIR/cop.lock
@@ -22,19 +34,21 @@ TC_START=no
 ##
 ## NOTICE: 
 ##          Everything from here and below should not be changed
-##          unless you set TC_START=no
-##          This is because traffic_manager and traffic_server
-##          are started by the traffic_cop watchdog by default!
+##          unless you set TC_START=no and you want to manage 
+##          Traffic Server yourself. 
+##
 ##          Don't start those daemons through the init script if
 ##          traffic_cop starts them as well! This causes problems.
 ##
 ##          Choose either alternative, but do not mix up both.
 
+## Start traffic_manager?
 # TM_START=no
 # TM_DAEMON_ARGS=""
 # TM_PIDFILE=$RUNDIR/manager.lock
 
 
+## Start traffic_server?
 # TS_START=no
 # TS_DAEMON_ARGS=""
 # TS_PIDFILE=$RUNDIR/server.lock

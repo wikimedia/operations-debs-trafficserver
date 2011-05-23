@@ -1,7 +1,7 @@
 Bug-Vendor: https://issues.apache.org/jira/browse/TS-627, https://issues.apache.org/jira/browse/TS-759
 Author: Arno Toell <debian@toell.net>
 Last-Update: 05.05.11
-Description: Upstream buils by default by using the gcc flag "-Werror".
+Description: Upstream builds by default by using the gcc flag "-Werror".
 	This breaks the build process as `make checks' includes some non clean casts.
 	.
 	Moreover it handles incorrectly GNU's $DESTDIR since 2.1.8

@@ -11,10 +11,10 @@
 #                    HTTP/1.1 compliant caching proxy server.
 ### END INIT INFO
 
-# Author: Arno Toell <debian@toell.net>
+# Author: Arno Töll <debian@toell.net>
 #
 # This init script is derived from the source package's version shipped 
-# along the source tarball as rc/trafficserver. Therefore it is a derivate
+# along the source tarball as rc/trafficserver. Therefore it is a derivative
 # work and licensed as follows:
 #
 #
@@ -33,6 +33,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO: Check permissions for /etc, increase verbosity
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
@@ -259,7 +260,6 @@ case "$1" in
 	esac
 	;;
   *)
-	#echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
 	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
 	exit 3
 	;;

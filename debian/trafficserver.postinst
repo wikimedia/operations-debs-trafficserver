@@ -46,8 +46,8 @@ OWNER_CACHE_DIR=$(env stat -c '%U' /var/cache/trafficserver)
 case "$1" in
 configure)
 
-	if ! getent passwd $USER >/dev/null 2>&1 ; then
-	adduser --home $USER_HOME \
+	if ! getent passwd -- "$USER" >/dev/null 2>&1 ; then
+	adduser --home "$USER_HOME" \
 		--group \
 		--system \
 		--disabled-password \
@@ -64,21 +64,21 @@ configure)
 		echo 'Fixing permissions ...'
 
 		if ! dpkg-statoverride --list /etc/trafficserver >/dev/null 2>&1; then
-		    dpkg-statoverride --update --add $USER $GROUP 0755 /etc/trafficserver
+		    dpkg-statoverride --update --add "$USER" "$GROUP" 0755 /etc/trafficserver
 		fi
 
 		if ! dpkg-statoverride --list /var/log/trafficserver >/dev/null 2>&1; then
-			dpkg-statoverride --update --add $USER adm 0750 /var/log/trafficserver
+			dpkg-statoverride --update --add "$USER" adm 0750 /var/log/trafficserver
 		fi
 
 
-		find /etc/trafficserver -not -user $USER -exec \
+		find /etc/trafficserver -not -user "$USER" -exec \
 			chown -h $USER:$GROUP {} \;
 
 
 		if [ -d /var/cache/trafficserver ] && [ "x$OWNER_CACHE_DIR" = "xroot" ] ; then
 			if ! dpkg-statoverride --list /var/cache/trafficserver  >/dev/null 2>&1; then
-				dpkg-statoverride --update --add $USER adm 0750 /var/cache/trafficserver
+				dpkg-statoverride --update --add "$USER" adm 0750 /var/cache/trafficserver
 			fi
 		fi
 	fi
@@ -100,6 +100,3 @@ esac
 #DEBHELPER#
 
 exit 0
-
-
-

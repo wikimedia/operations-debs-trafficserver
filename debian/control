@@ -35,7 +35,7 @@ Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64
 Depends: ${misc:Depends}
 Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
- This package provides development header needed to write your
- own plug-ins for Apache Traffic Server, as well as examples.
-
-
+ This package provides the Apache Traffic Server Software  Developers Kit.
+ This is a collection of development header and bindings for the C programming
+ language, the tsxs linking helper and examples to write your own plug-ins for
+ the Apache Traffic Server.

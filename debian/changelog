@@ -1,3 +1,15 @@
+trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
+
+  * Debian specific changes:
+    + Remove override for dh_clean, put options to debian/source/options
+    + Base package on the untouched upstream tarball, instead of the
+      versioned SVN branch
+    + Remove DH_OPTIONS (unused anyway)
+    + Some minor changes improving usability (i.e. grammar, verbosity of 
+      comments)
+
+ -- Arno Töll <debian@toell.net>  Sun, 22 May 2011 23:50:06 +0200
+
 trafficserver (2.1.8-unstable-1) unstable; urgency=low
 
   * New upstream release. Major features (since 2.1.5):
