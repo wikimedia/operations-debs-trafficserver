@@ -1,5 +1,8 @@
 trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
 
+  * debian/control: Add build dependency to libcap-dev, because when running 
+    traffic_server standalone, it is unable to bind restricted ports otherwise
+    (Upstream: TS-804)
   * debian/rules: 
     + Remove override for dh_clean, but put options to debian/source/options 
       instead
@@ -8,9 +11,11 @@ trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
     (i.e. grammar, verbosity of comments)
   * Make the init script more robust 
   * Base the origin of the package source on the untouched upstream tarball, 
-    instead of the versioned SVN branch
+    instead of the versioned SVN branch.
+  * Bring back IA64 support, this time actually working (upstream merged my 
+    patch TS-783)
 
- -- Arno Töll <debian@toell.net>  Wed, 25 May 2011 01:22:45 +0200
+ -- Arno Töll <debian@toell.net>  Fri, 27 May 2011 22:53:08 +0200
 
 trafficserver (2.1.8-unstable-1) unstable; urgency=low
 
