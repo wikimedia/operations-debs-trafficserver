@@ -146,7 +146,7 @@ struct VolInitInfo
 void cplist_init();
 static void cplist_update();
 int cplist_reconfigure();
-static int create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp);
+static int create_volume(int volume_number, off_t size_in_blocks, int scheme, CacheVol *cp);
 static void rebuild_host_table(Cache *cache);
 void register_cache_stats(RecRawStatBlock *rsb, const char *prefix);
 
@@ -183,16 +183,6 @@ cache_bytes_used(int volume)
     }
   }
   return used;
-}
-
-int64_t
-cache_bytes_total(void)
-{
-  int64_t total = 0;
-  for (int i = 0; i < gnvol; i++)
-    total += gvol[i]->len - vol_dirlen(gvol[i]) - EVACUATION_SIZE;
-
-  return total;
 }
 
 int
@@ -988,7 +978,7 @@ vol_init_dir(Vol *d)
 void
 vol_clear_init(Vol *d)
 {
-  int dir_len = vol_dirlen(d);
+  size_t dir_len = vol_dirlen(d);
   memset(d->raw_dir, 0, dir_len);
   vol_init_dir(d);
   d->header->magic = VOL_MAGIC;
@@ -1007,7 +997,7 @@ vol_clear_init(Vol *d)
 int
 vol_dir_clear(Vol *d)
 {
-  int dir_len = vol_dirlen(d);
+  size_t dir_len = vol_dirlen(d);
   vol_clear_init(d);
 
   if (pwrite(d->fd, d->raw_dir, dir_len, d->skip) < 0) {
@@ -1020,7 +1010,7 @@ vol_dir_clear(Vol *d)
 int
 Vol::clear_dir()
 {
-  int dir_len = vol_dirlen(this);
+  size_t dir_len = vol_dirlen(this);
   vol_clear_init(this);
 
   SET_HANDLER(&Vol::handle_dir_clear);
@@ -1122,17 +1112,17 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 int
 Vol::handle_dir_clear(int event, void *data)
 {
-  int dir_len = vol_dirlen(this);
+  size_t dir_len = vol_dirlen(this);
   AIOCallback *op;
 
   if (event == AIO_EVENT_DONE) {
     op = (AIOCallback *) data;
-    if ((int) op->aio_result != (int) op->aiocb.aio_nbytes) {
+    if ((size_t) op->aio_result != (size_t) op->aiocb.aio_nbytes) {
       Warning("unable to clear cache directory '%s'", hash_id);
       fd = -1;
     }
 
-    if ((int) op->aiocb.aio_nbytes == dir_len) {
+    if (op->aiocb.aio_nbytes == dir_len) {
       /* clear the header for directory B. We don't need to clear the
          whole of directory B. The header for directory B starts at
          skip + len */
@@ -1155,7 +1145,7 @@ Vol::handle_dir_read(int event, void *data)
   AIOCallback *op = (AIOCallback *) data;
 
   if (event == AIO_EVENT_DONE) {
-    if ((int) op->aio_result != (int) op->aiocb.aio_nbytes) {
+    if ((size_t) op->aio_result != (size_t) op->aiocb.aio_nbytes) {
       clear_dir();
       return EVENT_DONE;
     }
@@ -1240,7 +1230,7 @@ Vol::handle_recover_from_data(int event, void *data)
     if ((off_t)(recover_pos + io.aiocb.aio_nbytes) > (off_t)(skip + len))
       io.aiocb.aio_nbytes = (skip + len) - recover_pos;
   } else if (event == AIO_EVENT_DONE) {
-    if ((int) io.aiocb.aio_nbytes != (int) io.aio_result) {
+    if ((size_t) io.aiocb.aio_nbytes != (size_t) io.aio_result) {
       Warning("disk read error on recover '%s', clearing", hash_id);
       goto Lclear;
     }
@@ -1434,7 +1424,7 @@ Ldone:{
       aio->then = (i < 2) ? &(init_info->vol_aio[i + 1]) : 0;
     }
     int footerlen = ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter));
-    int dirlen = vol_dirlen(this);
+    size_t dirlen = vol_dirlen(this);
     int B = header->sync_serial & 1;
     off_t ss = skip + (B ? dirlen : 0);
 
@@ -1493,7 +1483,7 @@ Vol::handle_header_read(int event, void *data)
     for (int i = 0; i < 4; i++) {
       ink_assert(op != 0);
       hf[i] = (VolHeaderFooter *) (op->aiocb.aio_buf);
-      if ((int) op->aio_result != (int) op->aiocb.aio_nbytes) {
+      if ((size_t) op->aio_result != (size_t) op->aiocb.aio_nbytes) {
         clear_dir();
         return EVENT_DONE;
       }
@@ -2094,7 +2084,7 @@ CacheVC::removeEvent(int event, Event *e)
       goto Lcollision;
     }
     // check read completed correct FIXME: remove bad vols
-    if ((int) io.aio_result != (int) io.aiocb.aio_nbytes)
+    if ((size_t) io.aio_result != (size_t) io.aiocb.aio_nbytes)
       goto Ldone;
     {
       // verify that this is our document
@@ -2184,16 +2174,15 @@ CacheVConnection::CacheVConnection()
   : VConnection(NULL)
 { }
 
+
 void
 cplist_init()
 {
-  int i;
-  unsigned int j;
   cp_list_len = 0;
-  for (i = 0; i < gndisks; i++) {
+  for (int i = 0; i < gndisks; i++) {
     CacheDisk *d = gdisks[i];
     DiskVol **dp = d->disk_vols;
-    for (j = 0; j < d->header->num_volumes; j++) {
+    for (unsigned int j = 0; j < d->header->num_volumes; j++) {
       ink_assert(dp[j]->dpb_queue.head);
       CacheVol *p = cp_list.head;
       while (p) {
@@ -2273,10 +2262,9 @@ cplist_update()
 int
 cplist_reconfigure()
 {
-  int i, j;
-  int size;
+  int64_t size;
   int volume_number;
-  int size_in_blocks;
+  off_t size_in_blocks;
 
   gnvol = 0;
   if (config_volumes.num_volumes == 0) {
@@ -2288,7 +2276,7 @@ cplist_reconfigure()
     memset(cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
     cp_list.enqueue(cp);
     cp_list_len++;
-    for (i = 0; i < gndisks; i++) {
+    for (int i = 0; i < gndisks; i++) {
       if (gdisks[i]->header->num_volumes != 1 || gdisks[i]->disk_vols[0]->vol_number != 0) {
         /* The user had created several volumes before - clear the disk
            and create one volume for http */
@@ -2302,7 +2290,7 @@ cplist_reconfigure()
           off_t b = gdisks[i]->free_space / (vols - p);
           Debug("cache_hosting", "blocks = %d\n", b);
           DiskVolBlock *dpb = gdisks[i]->create_volume(0, b, CACHE_HTTP_TYPE);
-          ink_assert(dpb && dpb->len == b);
+          ink_assert(dpb && dpb->len == (uint64_t)b);
         }
         ink_assert(gdisks[i]->free_space == 0);
       }
@@ -2316,7 +2304,7 @@ cplist_reconfigure()
     }
 
   } else {
-    for (i = 0; i < gndisks; i++) {
+    for (int i = 0; i < gndisks; i++) {
       if (gdisks[i]->header->num_volumes == 1 && gdisks[i]->disk_vols[0]->vol_number == 0) {
         /* The user had created several volumes before - clear the disk
            and create one volume for http */
@@ -2326,11 +2314,11 @@ cplist_reconfigure()
     }
 
     /* change percentages in the config patitions to absolute value */
-    int64_t tot_space_in_blks = 0;
-    int blocks_per_vol = VOL_BLOCK_SIZE / STORE_BLOCK_SIZE;
+    off_t tot_space_in_blks = 0;
+    off_t blocks_per_vol = VOL_BLOCK_SIZE / STORE_BLOCK_SIZE;
     /* sum up the total space available on all the disks.
        round down the space to 128 megabytes */
-    for (i = 0; i < gndisks; i++)
+    for (int i = 0; i < gndisks; i++)
       tot_space_in_blks += (gdisks[i]->num_usable_blocks / blocks_per_vol) * blocks_per_vol;
 
     double percent_remaining = 100.00;
@@ -2342,7 +2330,7 @@ cplist_reconfigure()
           Warning("no volumes created");
           return -1;
         }
-        int space_in_blks = (int) (((double) (config_vol->percent / percent_remaining)) * tot_space_in_blks);
+        int64_t space_in_blks = (int64_t) (((double) (config_vol->percent / percent_remaining)) * tot_space_in_blks);
 
         space_in_blks = space_in_blks >> (20 - STORE_BLOCK_SHIFT);
         /* round down to 128 megabyte multiple */
@@ -2398,13 +2386,12 @@ cplist_reconfigure()
       /* search the cp_list */
 
       int *sorted_vols = new int[gndisks];
-      for (i = 0; i < gndisks; i++) {
+      for (int i = 0; i < gndisks; i++)
         sorted_vols[i] = i;
-      }
-      for (i = 0; i < gndisks - 1; i++) {
+      for (int i = 0; i < gndisks - 1; i++) {
         int smallest = sorted_vols[i];
         int smallest_ndx = i;
-        for (j = i + 1; j < gndisks; j++) {
+        for (int j = i + 1; j < gndisks; j++) {
           int curr = sorted_vols[j];
           DiskVol *dvol = cp->disk_vols[curr];
           if (gdisks[curr]->cleared) {
@@ -2425,9 +2412,9 @@ cplist_reconfigure()
         sorted_vols[i] = smallest;
       }
 
-      int size_to_alloc = size_in_blocks - cp->size;
+      int64_t size_to_alloc = size_in_blocks - cp->size;
       int disk_full = 0;
-      for (i = 0; (i < gndisks) && size_to_alloc; i++) {
+      for (int i = 0; (i < gndisks) && size_to_alloc; i++) {
 
         int disk_no = sorted_vols[i];
         ink_assert(cp->disk_vols[sorted_vols[gndisks - 1]]);
@@ -2437,7 +2424,7 @@ cplist_reconfigure()
            between the biggest volume on any disk and
            the volume on this disk and try to make
            them equal */
-        int size_diff = (cp->disk_vols[disk_no]) ? largest_vol - cp->disk_vols[disk_no]->size : largest_vol;
+        int64_t size_diff = (cp->disk_vols[disk_no]) ? largest_vol - cp->disk_vols[disk_no]->size : largest_vol;
         size_diff = (size_diff < size_to_alloc) ? size_diff : size_to_alloc;
         /* if size_diff == 0, then then the disks have volumes of the
            same sizes, so we don't need to balance the disks */
@@ -2462,15 +2449,13 @@ cplist_reconfigure()
           disk_full++;
 
         size_to_alloc = size_in_blocks - cp->size;
-
       }
 
       delete[]sorted_vols;
 
       if (size_to_alloc) {
-        if (create_volume(volume_number, size_to_alloc, cp->scheme, cp)) {
+        if (create_volume(volume_number, size_to_alloc, cp->scheme, cp))
           return -1;
-        }
       }
       gnvol += cp->num_vols;
     }
@@ -2478,12 +2463,13 @@ cplist_reconfigure()
   return 0;
 }
 
+// This is some really bad code, and needs to be rewritten!
 int
-create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp)
+create_volume(int volume_number, off_t size_in_blocks, int scheme, CacheVol *cp)
 {
-  static int curr_vol = 0;
-  int to_create = size_in_blocks;
-  int blocks_per_vol = VOL_BLOCK_SIZE >> STORE_BLOCK_SHIFT;
+  static int curr_vol = 0;  // FIXME: this will not reinitialize correctly
+  off_t to_create = size_in_blocks;
+  off_t blocks_per_vol = VOL_BLOCK_SIZE >> STORE_BLOCK_SHIFT;
   int full_disks = 0;
 
   int *sp = new int[gndisks];
@@ -2521,7 +2507,6 @@ create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp)
     if (sp[i] > 0) {
       while (sp[i] > 0) {
         DiskVolBlock *p = gdisks[i]->create_volume(volume_number, sp[i], scheme);
-
         ink_assert(p && (p->len >= (unsigned int) blocks_per_vol));
         sp[i] -= p->len;
         cp->num_vols++;

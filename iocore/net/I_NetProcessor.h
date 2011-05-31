@@ -132,7 +132,8 @@ public:
       port becomes free immediately.
 
   */
-  inkcoreapi virtual Action * accept(Continuation * cont, int port, int domain = AF_INET, bool frequent_accept = false,
+  inkcoreapi virtual Action * accept(Continuation * cont, int port, int domain = AF_INET, int accept_threads = -1,
+                                     bool frequent_accept = false,
                                      // not used
                                      unsigned int accept_ip = INADDR_ANY, char *accept_ip_str = NULL, bool callback_on_open = false,
                                      SOCKET listen_socket_in = NO_FD,   // NT only
@@ -182,7 +183,7 @@ public:
 
   */
   virtual Action *main_accept(Continuation * cont, SOCKET listen_socket_in, sockaddr * bound_sockaddr = NULL,
-                              int *bound_sockaddr_size = NULL, bool accept_only = false,
+                              int *bound_sockaddr_size = NULL, bool accept_only = false, bool localhost_only = false,
                               AcceptOptions const& opt = DEFAULT_ACCEPT_OPTIONS);
 
   /**

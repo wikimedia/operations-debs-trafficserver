@@ -54,6 +54,13 @@ EXTRA_PROGRAMS = \
 EXTRA_LIBRARIES	= \
   libTrafficServerStandalone.a
 
+if STATIC_LIBTS
+   which_libts = $(top_builddir)/lib/ts/.libs/libtsutil.a
+else
+   which_libts = $(top_builddir)/lib/ts/libtsutil.la
+endif
+
+
 EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
 
 traffic_server_SOURCES = \
@@ -128,7 +135,7 @@ if BUILD_TESTS
     TestHook.cc
 endif
 
-traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@
+traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_server_LDADD = \
   http/libhttp.a \
   http/remap/libhttp_remap.a \
@@ -152,14 +159,14 @@ traffic_server_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/ts/libtsutil.la \
+  $(which_libts) \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
 
 traffic_logcat_SOURCES = logcat.cc
-traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@
+traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
   signals.o \
   InkXml.o \
@@ -182,7 +189,7 @@ if BUILD_TESTS
 endif
 
 traffic_logstats_SOURCES = logstats.cc
-traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@
+traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logstats_LDADD = \
   signals.o \
   InkXml.o \
@@ -200,7 +207,7 @@ traffic_logstats_LDADD = \
   @LIBEXECINFO@
 
 traffic_sac_SOURCES = sac.cc
-traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@
+traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
   ICP.o \
   ICPConfig.o \
