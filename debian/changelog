@@ -1,4 +1,4 @@
-trafficserver (2.1.9-unstable-1) UNRELEASED; urgency=low
+trafficserver (2.1.9-unstable-1) unstable; urgency=low
 
   * New upstream release. Major features (since 2.1.8):
     + Bring back support for $DESTDIR and "make check" which makes Debian
@@ -24,7 +24,7 @@ trafficserver (2.1.9-unstable-1) UNRELEASED; urgency=low
   * Remove patch `build-quirks.patch'. Changes have been committed upstream
     by now. 
 
- -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 19:29:41 +0200
+ -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 21:56:12 +0200
 
 trafficserver (2.1.8-unstable-1) unstable; urgency=low
 
