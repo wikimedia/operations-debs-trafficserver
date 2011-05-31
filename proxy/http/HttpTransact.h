@@ -783,8 +783,8 @@ public:
     // (big-endian) 32-bit number.  Each of the dotted
     // components is a byte, so:
     // 0x25364758 = 0x25.0x36.0x47.0x58 = 37.54.71.88 in decimal.
-    in_addr_t ip;
-    sockaddr_storage addr;
+    unsigned int ip;
+    struct sockaddr_storage addr;
 
     // port to connect to, except for client
     // connection where it is port on proxy
@@ -813,8 +813,7 @@ public:
         port_attribute(SERVER_PORT_DEFAULT),
         is_transparent(false)
     {
-      ink_inet_init(&addr);
-//      memset(&addr, 0, sizeof(addr));
+      memset(&addr, 0, sizeof(addr));
     }
   } ConnectionAttributes;
 
@@ -1355,6 +1354,7 @@ public:
 
   static HostNameExpansionError_t try_to_expand_host_name(State* s);
 
+  static void snarf_username_from_authorization_hdr(State* s);
   static bool setup_auth_lookup(State* s);
   static bool will_this_request_self_loop(State* s);
   static bool is_request_likely_cacheable(State* s, HTTPHdr* request);
@@ -1469,11 +1469,14 @@ is_response_body_precluded(HTTPStatus status_code, int method)
   }
 }
 
-inkcoreapi extern ink_time_t ink_cluster_time(void);
+inkcoreapi extern
+  ink_time_t
+ink_cluster_time(void);
 
 inline void
 HttpTransact::update_stat(State* s, int stat, ink_statval_t increment)
 {
+
   if (s->current_stats->next_insert >= StatBlockEntries) {
     // This a rare operation and we want to avoid the
     //   code bloat of inlining it everywhere so

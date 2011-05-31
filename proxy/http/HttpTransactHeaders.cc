@@ -476,9 +476,7 @@ HttpTransactHeaders::downgrade_request(bool *origin_server_keep_alive, HTTPHdr *
     *origin_server_keep_alive = false;
     //ver.set(outgoing_request->version_get());
 
-  }
-
-  if (outgoing_request->version_get() == HTTPVersion(1, 1)) {
+  } else if (outgoing_request->version_get() == HTTPVersion(1, 1)) {
 
     //ver.set (HTTPVersion (1, 0));
     convert_to_1_0_request_header(outgoing_request);

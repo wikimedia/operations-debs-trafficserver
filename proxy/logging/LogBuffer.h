@@ -29,6 +29,8 @@
 #include "libts.h"
 #include "LogFormatType.h"
 #include "LogLimits.h"
+
+#include "LogBufferV1.h"
 #include "LogAccess.h"
 
 class LogObject;
@@ -407,6 +409,11 @@ LogBufferIterator::LogBufferIterator(LogBufferHeader * header, bool in_network_o
   case LOG_SEGMENT_VERSION:
     m_next = (char *) header + header->data_offset;
     m_buffer_entry_count = header->entry_count;
+    break;
+
+  case 1:
+    m_next = (char *) header + ((LogBufferHeaderV1 *) header)->data_offset;
+    m_buffer_entry_count = ((LogBufferHeaderV1 *) header)->entry_count;
     break;
 
   default:

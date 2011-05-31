@@ -1155,11 +1155,11 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.disable_ssl_parenting, "proxy.local.http.parent_proxy.disable_connect_tunneling");
   HttpEstablishStaticConfigByte(c.no_dns_forward_to_parent, "proxy.config.http.no_dns_just_forward_to_parent");
   HttpEstablishStaticConfigByte(c.uncacheable_requests_bypass_parent, "proxy.config.http.uncacheable_requests_bypass_parent");
-  HttpEstablishStaticConfigByte(c.oride.doc_in_cache_skip_dns, "proxy.config.http.doc_in_cache_skip_dns");
-
   HttpEstablishStaticConfigByte(c.no_origin_server_dns, "proxy.config.http.no_origin_server_dns");
   HttpEstablishStaticConfigByte(c.use_client_target_addr, "proxy.config.http.use_client_target_addr");
   HttpEstablishStaticConfigByte(c.oride.maintain_pristine_host_hdr, "proxy.config.url_remap.pristine_host_hdr");
+
+  HttpEstablishStaticConfigByte(c.snarf_username_from_authorization, "proxy.config.http.snarf_username_from_authorization");
 
   HttpEstablishStaticConfigByte(c.enable_url_expandomatic, "proxy.config.http.enable_url_expandomatic");
 
@@ -1423,6 +1423,8 @@ HttpConfig::reconfigure()
   params->use_client_target_addr = INT_TO_BOOL(m_master.use_client_target_addr);
   params->oride.maintain_pristine_host_hdr = INT_TO_BOOL(m_master.oride.maintain_pristine_host_hdr);
 
+  params->snarf_username_from_authorization = INT_TO_BOOL(m_master.snarf_username_from_authorization);
+
   params->disable_ssl_parenting = INT_TO_BOOL(m_master.disable_ssl_parenting);
 
   params->server_max_connections = m_master.server_max_connections;
@@ -1572,7 +1574,7 @@ HttpConfig::reconfigure()
   params->record_cop_page = INT_TO_BOOL(m_master.record_cop_page);
   params->record_tcp_mem_hit = INT_TO_BOOL(m_master.record_tcp_mem_hit);
   params->oride.send_http11_requests = INT_TO_BYTE(m_master.oride.send_http11_requests);
-  params->oride.doc_in_cache_skip_dns = INT_TO_BOOL(m_master.oride.doc_in_cache_skip_dns);
+  params->doc_in_cache_skip_dns = INT_TO_BOOL(m_master.doc_in_cache_skip_dns);
   params->default_buffer_size_index = m_master.default_buffer_size_index;
   params->default_buffer_water_mark = m_master.default_buffer_water_mark;
   params->enable_http_info = INT_TO_BOOL(m_master.enable_http_info);

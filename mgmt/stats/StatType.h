@@ -208,7 +208,7 @@ public:
   };
   void clean();
   void assignDst(const char *, bool, bool);
-  void assignExpr(char *);
+  void assignExpr(const char *);
 
   StatExprToken *StatBinaryEval(StatExprToken *, char, StatExprToken *, bool cluster = false);
   StatFloat NodeStatEval(bool cluster);
