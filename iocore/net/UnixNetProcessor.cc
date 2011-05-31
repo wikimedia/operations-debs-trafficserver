@@ -63,6 +63,7 @@ Action *
 NetProcessor::accept(Continuation * cont,
                      int port,
                      int domain,
+                     int accept_threads,
                      bool frequent_accept,
                      unsigned int accept_ip,
                      char *accept_ip_str,
@@ -80,11 +81,11 @@ NetProcessor::accept(Continuation * cont,
   (void) bound_sockaddr;        // NT only
   (void) bound_sockaddr_size;   // NT only
   Debug("iocore_net_processor",
-           "NetProcessor::accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0lX",
-           port, recv_bufsize, send_bufsize, sockopt_flags
-           );
+        "NetProcessor::accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0lX",
+        port, recv_bufsize, send_bufsize, sockopt_flags);
 
   AcceptOptions opt;
+
   opt.port = port;
   opt.domain = domain;
   opt.etype = etype;
@@ -92,6 +93,8 @@ NetProcessor::accept(Continuation * cont,
   opt.recv_bufsize = recv_bufsize;
   opt.send_bufsize = send_bufsize;
   opt.sockopt_flags = opt.sockopt_flags;
+  opt.accept_threads = accept_threads;
+
   return ((UnixNetProcessor *) this)->accept_internal(cont, NO_FD,
                                                       bound_sockaddr,
                                                       bound_sockaddr_size,
@@ -99,29 +102,37 @@ NetProcessor::accept(Continuation * cont,
                                                       net_accept,
                                                       accept_ip,
                                                       accept_ip_str,
-                                                      opt
-                                                      );
+                                                      opt);
 }
 
 Action *
-NetProcessor::main_accept(Continuation * cont, SOCKET fd,
-                          sockaddr * bound_sockaddr, int *bound_sockaddr_size,
-                          bool accept_only,
-                          AcceptOptions const& opt
-                          )
+NetProcessor::main_accept(Continuation * cont, SOCKET fd, sockaddr * bound_sockaddr, int *bound_sockaddr_size,
+                          bool accept_only, bool localhost_only, AcceptOptions const& opt)
 {
   (void) accept_only;           // NT only
   Debug("iocore_net_processor", "NetProcessor::main_accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0lX",
         opt.port, opt.recv_bufsize, opt.send_bufsize, opt.sockopt_flags);
-  return ((UnixNetProcessor *) this)->accept_internal(cont, fd,
-                                                      bound_sockaddr,
-                                                      bound_sockaddr_size,
-                                                      true,
-                                                      net_accept,
-                                                      ((UnixNetProcessor *) this)->incoming_ip_to_bind_saddr,
-                                                      ((UnixNetProcessor *) this)->incoming_ip_to_bind,
-                                                      opt
-                                                      );
+  if (localhost_only) {
+    static char localhost[] = "127.0.0.1";
+
+    return ((UnixNetProcessor *) this)->accept_internal(cont, fd,
+                                                        bound_sockaddr,
+                                                        bound_sockaddr_size,
+                                                        true,
+                                                        net_accept,
+                                                        inet_addr(localhost),
+                                                        localhost,
+                                                        opt);
+  } else {
+    return ((UnixNetProcessor *) this)->accept_internal(cont, fd,
+                                                        bound_sockaddr,
+                                                        bound_sockaddr_size,
+                                                        true,
+                                                        net_accept,
+                                                        ((UnixNetProcessor *) this)->incoming_ip_to_bind_saddr,
+                                                        ((UnixNetProcessor *) this)->incoming_ip_to_bind,
+                                                        opt);
+  }
 }
 
 
@@ -135,16 +146,20 @@ UnixNetProcessor::accept_internal(Continuation * cont,
                                   AcceptFunction fn,
                                   unsigned int accept_ip,
                                   char *accept_ip_str,
-                                  AcceptOptions const& opt
-                                  )
+                                  AcceptOptions const& opt)
 {
   EventType et = opt.etype; // setEtype requires non-const ref.
   NetAccept *na = createNetAccept();
   EThread *thread = this_ethread();
   ProxyMutex *mutex = thread->mutex;
+  int accept_threads = opt.accept_threads;
 
   // Potentially upgrade to SSL.
   upgradeEtype(et);
+
+  // Fill in accept thread from configuration if necessary.
+  if (opt.accept_threads < 0)
+    IOCORE_ReadConfigInteger(accept_threads, "proxy.config.accept_threads");
 
   NET_INCREMENT_DYN_STAT(net_accepts_currently_open_stat);
   na->port = opt.port;
@@ -167,18 +182,18 @@ UnixNetProcessor::accept_internal(Continuation * cont,
   if (na->callback_on_open)
     na->mutex = cont->mutex;
   if (frequent_accept) { // true
-    if (opt.accept_threads > 0)  {
+    if (accept_threads > 0)  {
       if (0 == na->do_listen(BLOCKING)) {
         NetAccept *a;
 
-        for (int i=1; i < opt.accept_threads; ++i) {
-          a = NEW(new NetAccept);
+        for (int i=1; i < accept_threads; ++i) {
+          a = createNetAccept();
           *a = *na;
           a->init_accept_loop();
           Debug("iocore_net_accept", "Created accept thread #%d for port %d", i, opt.port);
         }
         // Start the "template" accept thread last.
-        Debug("iocore_net_accept", "Created accept thread #%d for port %d", opt.accept_threads, opt.port);
+        Debug("iocore_net_accept", "Created accept thread #%d for port %d", accept_threads, opt.port);
         na->init_accept_loop();
       }
     } else {

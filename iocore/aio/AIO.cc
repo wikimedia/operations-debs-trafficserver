@@ -212,8 +212,10 @@ struct AIOThreadInfo:public Continuation
 static AIO_Reqs *
 aio_init_fildes(int fildes, int fromAPI = 0)
 {
+  char thr_name[MAX_THREAD_NAME_LENGTH];
   int i;
   AIO_Reqs *request = (AIO_Reqs *) malloc(sizeof(AIO_Reqs));
+
   memset(request, 0, sizeof(AIO_Reqs));
 
   INK_WRITE_MEMORY_BARRIER;
@@ -244,7 +246,8 @@ aio_init_fildes(int fildes, int fromAPI = 0)
       thr_info = new AIOThreadInfo(request, 1);
     else
       thr_info = new AIOThreadInfo(request, 0);
-    ink_assert(eventProcessor.spawn_thread(thr_info));
+    snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ET_AIO %d]", i);
+    ink_assert(eventProcessor.spawn_thread(thr_info, thr_name));
   }
 
   /* the num_filedes should be incremented after initializing everything.
@@ -390,7 +393,7 @@ cache_op(AIOCallbackInternal *op)
   bool read = (op->aiocb.aio_lio_opcode == LIO_READ) ? 1 : 0;
   for (; op; op = (AIOCallbackInternal *) op->then) {
     ink_aiocb_t *a = &op->aiocb;
-    int err, res = 0;
+    ssize_t err, res = 0;
 
     while (a->aio_nbytes - res > 0) {
       do {
@@ -408,7 +411,7 @@ cache_op(AIOCallbackInternal *op)
       res += err;
     }
     op->aio_result = res;
-    ink_assert(op->aio_result == (int) a->aio_nbytes);
+    ink_assert(op->aio_result == (int64_t) a->aio_nbytes);
   }
   return 1;
 }

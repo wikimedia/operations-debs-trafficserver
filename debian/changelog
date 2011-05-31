@@ -1,3 +1,9 @@
+trafficserver (2.1.9-unstable-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 19:24:52 +0200
+
 trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
 
   * debian/control: Add build dependency to libcap-dev, because when running 
