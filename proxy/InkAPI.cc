@@ -5002,21 +5002,21 @@ TSHttpTxnAborted(TSHttpTxn txnp)
 }
 
 void
-TSHttpTxnSetReqCacheableSet(TSHttpTxn txnp)
+TSHttpTxnReqCacheableSet(TSHttpTxn txnp, int flag)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM* sm = (HttpSM*)txnp;
-  sm->t_state.api_req_cacheable = true;
+  sm->t_state.api_req_cacheable = (flag != 0);
 }
 
 void
-TSHttpTxnSetRespCacheableSet(TSHttpTxn txnp)
+TSHttpTxnRespCacheableSet(TSHttpTxn txnp, int flag)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM* sm = (HttpSM*)txnp;
-  sm->t_state.api_resp_cacheable = true;
+  sm->t_state.api_resp_cacheable = (flag != 0);
 }
 
 int
@@ -5077,13 +5077,20 @@ TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   return TS_ERROR;
 }
 
-const struct sockaddr_storage *
-TSHttpTxnClientSockAddrGet(TSHttpTxn txnp)
+sockaddr const*
+TSHttpTxnClientAddrGet(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+ 
+  TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
+  HttpClientSession *cs = reinterpret_cast<HttpClientSession *>(ssnp);
 
-  HttpSM *sm = (HttpSM*) txnp;
-  return &sm->t_state.client_info.addr;
+  if (cs == NULL) return 0;
+
+  NetVConnection *vc = cs->get_netvc();
+  if (vc == NULL) return 0;
+
+  return ink_inet_sa_cast(vc->get_remote_addr());
 }
 
 unsigned int
@@ -5095,6 +5102,21 @@ TSHttpTxnClientIPGet(TSHttpTxn txnp)
   return sm->t_state.client_info.ip;
 }
 
+sockaddr const*
+TSHttpTxnIncomingAddrGet(TSHttpTxn txnp) {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+ 
+  TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
+  HttpClientSession *cs = reinterpret_cast<HttpClientSession *>(ssnp);
+
+  if (cs == NULL) return 0;
+
+  NetVConnection *vc = cs->get_netvc();
+  if (vc == NULL) return 0;
+
+  return ink_inet_sa_cast(vc->get_local_addr());
+}
+
 int
 TSHttpTxnClientIncomingPortGet(TSHttpTxn txnp)
 {
@@ -5102,6 +5124,19 @@ TSHttpTxnClientIncomingPortGet(TSHttpTxn txnp)
 
   HttpSM *sm = (HttpSM *) txnp;
   return sm->t_state.client_info.port;
+}
+
+sockaddr const*
+TSHttpTxnServerAddrGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
+  ink_inet_ip4_set(&sm->t_state.server_info.addr,
+    sm->t_state.server_info.ip,
+    sm->t_state.server_info.port
+  );
+  return ink_inet_sa_cast(&sm->t_state.server_info.addr);
 }
 
 unsigned int
@@ -5141,7 +5176,27 @@ TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, const struct sockaddr *addr, socklen_t 
   return TS_ERROR;
 }
 
-unsigned int
+sockaddr const*
+TSHttpTxnNextHopAddrGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
+
+    /**
+     * Return zero if the server structure is not yet constructed.
+     */
+  if (sm->t_state.current.server == NULL)
+    return 0;
+  // IPv6 - is this set elsewhere? Can't be sure.
+//  ink_inet_ip4_set(&sm->t_state.current.server->addr,
+//    sm->t_state.current.server->ip,
+//    sm->t_state.current.server->port
+//  );
+  return ink_inet_sa_cast(&sm->t_state.current.server->addr);
+}
+
+in_addr_t
 TSHttpTxnNextHopIPGet(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
@@ -5755,15 +5810,20 @@ TSHttpAltInfoQualitySet(TSHttpAltInfo infop, float quality)
 extern HttpAccept *plugin_http_accept;
 
 TSVConn
-TSHttpConnect(unsigned int log_ip, int log_port)
+TSHttpConnect(sockaddr const* addr)
 {
-  sdk_assert(log_ip > 0);
-  sdk_assert(log_port > 0);
+  sdk_assert(addr);
+
+  in_addr_t ip = ink_inet_ip4_addr_cast(addr);
+  uint16_t port = ink_inet_port_cast(addr);
+
+  sdk_assert(ip);
+  sdk_assert(port);
 
   if (plugin_http_accept) {
     PluginVCCore *new_pvc = PluginVCCore::alloc();
 
-    new_pvc->set_active_addr(log_ip, log_port);
+    new_pvc->set_active_addr(ip, port);
     new_pvc->set_accept_cont(plugin_http_accept);
 
     PluginVC *return_vc = new_pvc->connect();
@@ -6058,13 +6118,21 @@ TSVConnActiveTimeoutCancel(TSVConn connp)
   vc->cancel_active_timeout();
 }
 
+sockaddr const*
+TSNetVConnRemoteAddrGet(TSVConn connp) {
+  sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
+  NetVConnection* vc = reinterpret_cast<NetVConnection*>(connp);
+  return ink_inet_sa_cast(vc->get_remote_addr());
+}
+
+
 // TODO: IPv6 ...
 unsigned int
 TSNetVConnRemoteIPGet(TSVConn connp)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
-  NetVConnection *vc = (NetVConnection *) connp;
+  NetVConnection* vc = reinterpret_cast<NetVConnection*>(connp);
   return vc->get_remote_ip();
 }
 
@@ -6073,15 +6141,19 @@ TSNetVConnRemotePortGet(TSVConn connp)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
-  NetVConnection *vc = (NetVConnection *) connp;
+  NetVConnection* vc = reinterpret_cast<NetVConnection*>(connp);
   return vc->get_remote_port();
 }
 
 TSAction
-TSNetConnect(TSCont contp, unsigned int ip, int port)
+TSNetConnect(TSCont contp, sockaddr const* addr)
 {
   sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
-  sdk_assert(ip > 0 && port > 0);
+  sdk_assert(addr);
+  sdk_assert(ink_inet_is_ip4(addr));
+  in_addr_t ip = ink_inet_ip4_addr_cast(addr);
+  uint16_t port = ink_inet_port_cast(addr);
+  sdk_assert(ip != 0 && port != 0);
 
   FORCE_PLUGIN_MUTEX(contp);
 
@@ -6090,15 +6162,21 @@ TSNetConnect(TSCont contp, unsigned int ip, int port)
 }
 
 TSAction
-TSNetAccept(TSCont contp, int port)
+TSNetAccept(TSCont contp, int port, int domain, int accept_threads)
 {
   sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
   sdk_assert(port > 0);
+  sdk_assert(accept_threads >= -1);
 
+  // TODO: Does this imply that only one "accept thread" could be
+  // doing an accept at any time?
   FORCE_PLUGIN_MUTEX(contp);
 
+  if (domain < 0)
+    domain = AF_INET;
+
   INKContInternal *i = (INKContInternal *) contp;
-  return (TSAction)netProcessor.accept(i, port);
+  return (TSAction)netProcessor.accept(i, port, domain, accept_threads);
 }
 
 /* DNS Lookups */
@@ -6115,11 +6193,31 @@ TSHostLookup(TSCont contp, char *hostname, int namelen)
   return (TSAction)hostDBProcessor.getbyname_re(i, hostname, namelen);
 }
 
-unsigned int
-TSHostLookupResultIPGet(TSHostLookupResult lookup_result)
+sockaddr const*
+TSHostLookupResultAddrGet(TSHostLookupResult lookup_result)
+{
+  sdk_assert(sdk_sanity_check_hostlookup_structure(lookup_result) == TS_SUCCESS);
+  HostDBInfo* di = reinterpret_cast<HostDBInfo*>(lookup_result);
+  ink_inet_ip4_set(ink_inet_ss_cast(&di->ip6), di->ip());
+  return ink_inet_sa_cast(&di->ip6);
+}
+
+in_addr_t
+TSHostLookupResultIpGet(TSHostLookupResult lookup_result)
 {
   sdk_assert(sdk_sanity_check_hostlookup_structure(lookup_result) == TS_SUCCESS);
   return ((HostDBInfo *)lookup_result)->ip();
+}
+
+void
+TSOSIpSet(TSHttpTxn txnp, unsigned int ip)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm = (HttpSM *) txnp;
+  HttpTransact::State *s = &(sm->t_state);
+
+  s->dns_info.lookup_success = true;
+  s->host_db_info.ip() = ip;
 }
 
 /*
@@ -7007,8 +7105,10 @@ TSFetchPages(TSFetchUrlParams_t *params)
 
   while (myparams != NULL) {
     FetchSM *fetch_sm =  FetchSMAllocator.alloc();
+    in_addr_t ip = ink_inet_ip4_addr_cast(&myparams->ip);
+    uint16_t port = ink_inet_port_cast(&myparams->ip);
 
-    fetch_sm->init((Continuation*)myparams->contp, myparams->options,myparams->events, myparams->request, myparams->request_len, myparams->ip, myparams->port);
+    fetch_sm->init((Continuation*)myparams->contp, myparams->options,myparams->events, myparams->request, myparams->request_len, ip, port);
     fetch_sm->httpConnect();
     myparams= myparams->next;
   }
@@ -7304,6 +7404,9 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME:
     ret = &sm->t_state.txn_conf->freshness_fuzz_min_time;
     break;
+  case TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS:
+    ret = &sm->t_state.txn_conf->doc_in_cache_skip_dns;
+    break;
 
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR:
     typ = OVERRIDABLE_TYPE_FLOAT;
@@ -7533,6 +7636,8 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
       cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM;
     else if (!strncmp(name, "proxy.config.http.keep_alive_enabled_in", length))
       cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN;
+    else if (!strncmp(name, "proxy.config.http.doc_in_cache_skip_dns", length))
+      cnf = TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS;
     break;
 
   case 40:

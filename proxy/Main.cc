@@ -129,7 +129,6 @@ int number_of_processors = ink_number_of_processors();
 int num_of_net_threads = DEFAULT_NUMBER_OF_THREADS;
 int num_of_cluster_threads = DEFAULT_NUMBER_OF_CLUSTER_THREADS;
 int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
-int num_of_ssl_threads = DEFAULT_NUMBER_OF_SSL_THREADS;
 int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
 int num_task_threads = DEFAULT_NUM_TASK_THREADS;
 int run_test_hook = 0;
@@ -327,7 +326,7 @@ init_system()
   RecInt stackDump;
   bool found = (RecGetRecordInt("proxy.config.stack_dump_enabled", &stackDump) == REC_ERR_OKAY);
 
-  if(found == false) {
+  if (found == false) {
     Warning("Unable to determine stack_dump_enabled , assuming enabled");
     stackDump = 1;
   }
@@ -337,9 +336,6 @@ init_system()
   syslog(LOG_NOTICE, "NOTE: --- Server Starting ---");
   syslog(LOG_NOTICE, "NOTE: Server Version: %s", appVersionInfo.FullVersionInfoStr);
 
-  //
-  // Check cycle counter resolution
-  //
   //
   // Delimit file Descriptors
   //
@@ -1397,11 +1393,9 @@ int
 getNumSSLThreads(void)
 {
   int ssl_enabled = 0;
-  int config_num_ssl_threads = 0;
-  int ssl_blocking = 0;
+  int num_of_ssl_threads = 0;
+
   TS_ReadConfigInteger(ssl_enabled, "proxy.config.ssl.enabled");
-  TS_ReadConfigInteger(config_num_ssl_threads, "proxy.config.ssl.number.threads");
-  TS_ReadConfigInteger(ssl_blocking, "proxy.config.ssl.accelerator.type");
 
   // Set number of ssl threads equal to num of processors if
   // SSL is enabled so it will scale properly.  If an accelerator card
@@ -1409,29 +1403,30 @@ getNumSSLThreads(void)
   // enabled, leave num of ssl threads one, incase a remap rule
   // requires traffic server to act as an ssl client.
   if (ssl_enabled) {
-    if (config_num_ssl_threads != 0)
+    int config_num_ssl_threads = 0;
+    int ssl_blocking = 0;
+
+    TS_ReadConfigInteger(config_num_ssl_threads, "proxy.config.ssl.number.threads");
+    TS_ReadConfigInteger(ssl_blocking, "proxy.config.ssl.accelerator.type");
+
+    if (config_num_ssl_threads != 0) {
       num_of_ssl_threads = config_num_ssl_threads;
-    else if (ssl_blocking != 0)
-      num_of_ssl_threads = number_of_processors * 4;
-    else {
+    } else {
+      float autoconfig_scale = 1.5;
+
       ink_assert(number_of_processors);
-      switch (number_of_processors) {
-      case 0:
-        break;
-      case 1:
-      case 2:
-        num_of_ssl_threads = number_of_processors;
-        break;
-      case 3:
-      case 4:
-      default:
-        num_of_ssl_threads = number_of_processors * 2;
-        break;
-      }
+      TS_ReadConfigFloat(autoconfig_scale, "proxy.config.exec_thread.autoconfig.scale");
+      num_of_ssl_threads = (int)((float)number_of_processors * autoconfig_scale);
+
+      // Last resort
+      if (num_of_ssl_threads <= 0)
+        num_of_ssl_threads = config_num_ssl_threads * 2;
+      if (ssl_blocking != 0)
+        num_of_ssl_threads *= 2; // Double when blocking I/O
     }
   }
-  return (num_of_ssl_threads);
 
+  return num_of_ssl_threads;
 }
 
 static void
@@ -1657,6 +1652,7 @@ main(int argc, char **argv)
     RestrictCapabilities();
     xfree(user);
   }
+
   // Can't generate a log message yet, do that right after Diags is
   // setup.
 
@@ -1679,6 +1675,19 @@ main(int argc, char **argv)
   if (is_debug_tag_set("diags"))
     diags->dump();
   DebugCapabilities("server"); // Can do this now, logging is up.
+
+  // Check if we should do mlockall()
+#if defined(MCL_FUTURE)
+  int mlock_flags = 0;
+  TS_ReadConfigInteger(mlock_flags, "proxy.config.mlock_enabled");
+
+  if (mlock_flags == 2) {
+    if (0 != mlockall(MCL_CURRENT | MCL_FUTURE))
+      Warning("Unable to mlockall() on startup");
+    else
+      Debug("server", "Succesfully called mlockall()");
+  }
+#endif
 
   // Check for core file
   if (core_file[0] != '\0') {
@@ -1901,10 +1910,10 @@ main(int argc, char **argv)
 
     if (http_enabled) {
       start_HttpProxyServer(http_accept_file_descriptor, http_accept_port_number, ssl_accept_file_descriptor, num_accept_threads);
-    }
 #ifndef INK_NO_ICP
-    icpProcessor.start();
+      icpProcessor.start();
 #endif
+    }
 
     // "Task" processor, possibly with its own set of task threads
     tasksProcessor.start(num_task_threads);
@@ -1925,9 +1934,12 @@ main(int argc, char **argv)
     updateManager.start();
 
     void *mgmt_restart_shutdown_callback(void *, char *, int data_len);
-    pmgmt->registerMgmtCallback(MGMT_EVENT_SHUTDOWN, mgmt_restart_shutdown_callback, NULL);
 
+    pmgmt->registerMgmtCallback(MGMT_EVENT_SHUTDOWN, mgmt_restart_shutdown_callback, NULL);
     pmgmt->registerMgmtCallback(MGMT_EVENT_RESTART, mgmt_restart_shutdown_callback, NULL);
+
+    // The main thread also becomes a net thread.
+    ink_set_thread_name("[ET_NET 0]");
 
     Note("traffic server running");
 
