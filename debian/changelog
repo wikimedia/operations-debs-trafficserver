@@ -1,11 +1,12 @@
 trafficserver (2.1.9-unstable-1) UNRELEASED; urgency=low
 
-  * New upstream release
-
- -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 19:24:52 +0200
-
-trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
-
+  * New upstream release. Major features (since 2.1.8):
+    + Bring back support for $DESTDIR and "make check" which makes Debian
+      patches obsolete
+    + Allow larger working sets than 512G
+    + Disable cluster autodiscovery when cluster mode is disabled
+    + Cleanup `records.config'
+    + Disable SSLv2 by default
   * debian/control: Add build dependency to libcap-dev, because when running 
     traffic_server standalone, it is unable to bind restricted ports otherwise
     (Upstream: TS-804)
@@ -20,8 +21,10 @@ trafficserver (2.1.8-unstable-2) UNRELEASED; urgency=low
     instead of the versioned SVN branch.
   * Bring back IA64 support, this time actually working (upstream merged my 
     patch TS-783)
+  * Remove patch `build-quirks.patch'. Changes have been committed upstream
+    by now. 
 
- -- Arno Töll <debian@toell.net>  Fri, 27 May 2011 22:53:08 +0200
+ -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 19:29:41 +0200
 
 trafficserver (2.1.8-unstable-1) unstable; urgency=low
 
