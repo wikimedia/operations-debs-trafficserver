@@ -41,7 +41,11 @@ SCRIPTNAME=/etc/init.d/$NAME
 
 # Please do not touch TS_ROOT and TS_BASE. Traffic Server uses them
 # They are used to determine location of ATS components on the file
-# system
+# system.
+# According to DPM § 9.9 a program must not depend on the existance of 
+# environment variables to work properly. Please report any errors if 
+# you experience such a problem, for me it seems to work just fine with-
+# out
 ESED=/usr/bin/sed
 test -x $ESED || ESED=sed
 TS_PREFIX="/usr"
