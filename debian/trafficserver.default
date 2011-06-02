@@ -13,6 +13,12 @@
 ##
 
 
+## Variable: RUNDIR
+## Default: /var/run/trafficserver
+## Description: Set this to the directory where runtime data is stored. The
+##              default value should work fine for almost all users. 
+# RUNDIR=/var/run/trafficserver
+
 ## Traffic Server consists mainly of three binaries
 ## * traffic_cop - a monitoring watchdog for the actual server instance
 ## * traffic_manager - a command and control utility for the serer instance
@@ -25,7 +31,7 @@
 ## Variable: TC_START
 ## Default: no
 ## Description: Set to "yes" if you want the init script to start the 
-##              `traffic_cop' binary. Usually this is, what most users want
+##              `traffic_cop' binary. Usually this is what most users want
 TC_START=no
 
 ## Variable: TC_DAEMON_ARGS
@@ -40,13 +46,6 @@ TC_START=no
 ##              `traffic_cop' script should be stored. Most likely you don't
 ##              need to change this value.
 # TC_PIDFILE=$RUNDIR/cop.lock
-
-
-## Variable: RUNDIR
-## Default: /var/run/trafficserver
-## Description: Set this to the directory where runtime data is stored. The
-##              default value should work fine for almost all users. 
-# RUNDIR=/var/run/trafficserver
 
 
 ##

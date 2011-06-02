@@ -99,9 +99,9 @@ TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 # Check permissions of /etc/trafficserver. 
 # Traffic Server needs write permissions, so warn the user if we suppose it
 # wouldn't. 
-# Note it is still legal to change the user ATS runs. However to do that in a clean
-# and supported way, the administrator should overwrite the `stat override' Debian 
-# installs by default in Trafficserver's postinst maintainer script.
+# The sysadmin is welcome to change the user ID that ATS uses. However to do that 
+# in a clean and supported way, the administrator should overwrite the `stat override' 
+# Debian  installs by default in Trafficserver's postinst maintainer script.
 # Print a warning only. 
 # Since this can't be safely determined by this script print a warning only, but 
 # don't fail.
