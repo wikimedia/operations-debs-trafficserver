@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Arno Töll <debian@toell.net>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
-	libcap-dev
+	libcap-dev [linux-any]
 Standards-Version: 3.9.2
 Homepage: http://trafficserver.apache.org/
 Vcs-Svn: svn://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver/trunk
@@ -18,7 +18,7 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
  proxy server which may operate as forward proxy as well. Apache Traffic Server
  supports:
  .
-   * Caching: Improvess response time by caching and reusing frequently-
+   * Caching: Improves response time by caching and reusing frequently-
      requested web content.
    * Proxying: Supports filtering, anonymization, load balancing and more.
    * Scaling: Scales well on modern SMP hardware.
