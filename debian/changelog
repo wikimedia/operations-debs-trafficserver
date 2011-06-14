@@ -11,8 +11,10 @@ trafficserver (3.0.0-1) UNRELEASED; urgency=low
   * debian/rules:
     + Simplify dh_auto_configure (upstream incorporated out build layout)
     + Enable WCCP (Web Cache Communication Protocol)
+  * debian/control:
+    + Add flex and bison to build dependencies, both are required for WCCP
 
- -- Arno Töll <debian@toell.net>  Tue, 14 Jun 2011 23:15:40 +0200
+ -- Arno Töll <debian@toell.net>  Wed, 15 Jun 2011 00:37:02 +0200
 
 trafficserver (2.1.9-unstable-1) unstable; urgency=low
 
