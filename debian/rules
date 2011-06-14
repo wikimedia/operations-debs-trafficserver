@@ -17,7 +17,6 @@ override_dh_auto_install:
 	dh_auto_install
 	rm -f debian/tmp/usr/bin/trafficserver # We install our own
 
-
 override_dh_install:
 	dh_install --fail-missing
 	sed -r -i 's/CONFIG proxy.config.(alarm_email|admin.user_id)\s+STRING\s+root/CONFIG proxy.config.\1 STRING trafficserver/' \
@@ -27,6 +26,10 @@ override_dh_fixperms:
 	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
 		-X var/log/trafficserver -X /var/cache/trafficserver \
 		-X var/run/trafficserver
+
+override_dh_auto_test:
+	# Do nothing. Once Again.
+	# This time because of upstream issue TS-840 (patch proposed)
 
 override_dh_installexamples:
 	dh_installexamples -X Makefile -X.deps

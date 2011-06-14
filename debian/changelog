@@ -9,11 +9,10 @@ trafficserver (3.0.0-1) UNRELEASED; urgency=low
     2.1.9-unstable-1 because of non installable dependencies, as libcap-dev is
     installable (and required) on Linux only
   * debian/rules:
-    + Enable regression tests again
     + Simplify dh_auto_configure (upstream incorporated out build layout)
     + Enable WCCP (Web Cache Communication Protocol)
 
- -- Arno Töll <debian@toell.net>  Tue, 14 Jun 2011 22:23:46 +0200
+ -- Arno Töll <debian@toell.net>  Tue, 14 Jun 2011 23:15:40 +0200
 
 trafficserver (2.1.9-unstable-1) unstable; urgency=low
 
