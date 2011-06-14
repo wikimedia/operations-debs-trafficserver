@@ -1,8 +1,19 @@
 trafficserver (3.0.0-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release. Major changes (since 2.1.9):
+    + `traffic_server' won't crash anymore when using non-existent plugin in
+      remap rule
+    + Don't cache HTTP 401, 303 and 407 error responses anymore, when negative
+      caching is enabled.
+  * Re-enable kfreebsd support, it was accidentally not available in
+    2.1.9-unstable-1 because of non installable dependencies, as libcap-dev is
+    installable (and required) on Linux only
+  * debian/rules:
+    + Enable regression tests again
+    + Simplify dh_auto_configure (upstream incorporated out build layout)
+    + Enable WCCP (Web Cache Communication Protocol)
 
- -- Arno Töll <debian@toell.net>  Tue, 14 Jun 2011 21:51:35 +0200
+ -- Arno Töll <debian@toell.net>  Tue, 14 Jun 2011 22:23:46 +0200
 
 trafficserver (2.1.9-unstable-1) unstable; urgency=low
 
@@ -13,22 +24,22 @@ trafficserver (2.1.9-unstable-1) unstable; urgency=low
     + Disable cluster autodiscovery when cluster mode is disabled
     + Cleanup `records.config'
     + Disable SSLv2 by default
-  * debian/control: Add build dependency to libcap-dev, because when running 
+  * debian/control: Add build dependency to libcap-dev, because when running
     traffic_server standalone, it is unable to bind restricted ports otherwise
     (Upstream: TS-804)
-  * debian/rules: 
-    + Remove override for dh_clean, but put options to debian/source/options 
+  * debian/rules:
+    + Remove override for dh_clean, but put options to debian/source/options
       instead
     + Remove DH_OPTIONS (unused anyway)
-  * Source package: Minor change to improving package quality and usability 
+  * Source package: Minor change to improving package quality and usability
     (i.e. grammar, verbosity of comments)
-  * Make the init script more robust 
-  * Base the origin of the package source on the untouched upstream tarball, 
+  * Make the init script more robust
+  * Base the origin of the package source on the untouched upstream tarball,
     instead of the versioned SVN branch.
-  * Bring back IA64 support, this time actually working (upstream merged my 
+  * Bring back IA64 support, this time actually working (upstream merged my
     patch TS-783)
   * Remove patch `build-quirks.patch'. Changes have been committed upstream
-    by now. 
+    by now.
 
  -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 21:56:12 +0200
 
@@ -38,17 +49,17 @@ trafficserver (2.1.8-unstable-1) unstable; urgency=low
     + Many bug fixes (none reported in Debian's BTS)
     + Set source address for origin Servers
     + Major API changes for the SDK
-    + Provide traffic_logstats 
+    + Provide traffic_logstats
     + traffic_shell does not hang anymore on any command
   * Fix "FTBFS on architectures not supported upstream": (Closes: #622800)
     + Don't execute regression checks for now (fixes x86)
-    + Upstream merges a Debian patch originally for 2.1.7 which enables 
+    + Upstream merges a Debian patch originally for 2.1.7 which enables
       kFreeBSD support (originally provided by myself)
     + Restrict Architectures (drop S390, IA64, MIPS[EL], PPC, SPARC)
   * Remove ts-ui-disable-conf.patch (applied upstream)
-  * Update `build-quirks.patch' to make TS handle $DESTDIR correctly 
+  * Update `build-quirks.patch' to make TS handle $DESTDIR correctly
     (upstream: TS-759)
-  * Remove .deps from SDK binary package examples (they were incidentally 
+  * Remove .deps from SDK binary package examples (they were incidentally
     included before).
   * Fix permissions for /var/cache/trafficserver in postinst
   * Bump standards to 3.9.2, depend on debhelper 8.0, adapt VCS links

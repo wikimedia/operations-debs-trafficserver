@@ -13,7 +13,7 @@
 
 # Author: Arno Töll <debian@toell.net>
 #
-# This init script is derived from the source package's version shipped 
+# This init script is derived from the source package's version shipped
 # along the source tarball as rc/trafficserver. Therefore it is a derivative
 # work and licensed as follows:
 #
@@ -42,8 +42,8 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Please do not touch TS_ROOT and TS_BASE. Traffic Server uses them
 # They are used to determine location of ATS components on the file
 # system.
-# According to DPM § 9.9 a program must not depend on the existance of 
-# environment variables to work properly. Please report any errors if 
+# According to DPM § 9.9 a program must not depend on the existance of
+# environment variables to work properly. Please report any errors if
 # you experience such a problem, for me it seems to work just fine with-
 # out
 ESED=/usr/bin/sed
@@ -59,7 +59,7 @@ eval TS_BASE="`echo $TS_ROOT | ${ESED} -e 's;/usr$;;'`"
 # Set some safe defaults. So not change values here, override them in
 # in /etc/default/trafficserver instead.
 # See there for a documentation as well 
- 
+
 RUNDIR=${RUNDIR:-$TS_BASE/var/run/trafficserver}
 
 TC_START=${TC_START:-no}
@@ -96,14 +96,14 @@ TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 . /lib/lsb/init-functions
 
 
-# Check permissions of /etc/trafficserver. 
+# Check permissions of /etc/trafficserver.
 # Traffic Server needs write permissions, so warn the user if we suppose it
-# wouldn't. 
-# The sysadmin is welcome to change the user ID that ATS uses. However to do that 
-# in a clean and supported way, the administrator should overwrite the `stat override' 
+# wouldn't.
+# The sysadmin is welcome to change the user ID that ATS uses. However to do that
+# in a clean and supported way, the administrator should overwrite the `stat override'
 # Debian  installs by default in Trafficserver's postinst maintainer script.
-# Print a warning only. 
-# Since this can't be safely determined by this script print a warning only, but 
+# Print a warning only.
+# Since this can't be safely determined by this script print a warning only, but
 # don't fail.
 CONF_DIR='/etc/trafficserver'
 USER=$(dpkg-statoverride --list "$CONF_DIR" | awk '{print $1}')
@@ -119,12 +119,12 @@ fi
 install -d -o trafficserver -g trafficserver -m 0755 "$RUNDIR"
 
 
-# A helper function, its purpose is to start a daemon. 
+# A helper function, its purpose is to start a daemon.
 # Arguments are interpreted in order as follows:
 # 1) The executable path
 # 2) A string containing optional daemon arguments
 # 3) A (valid) path containing the PID file for the daemon
-# Returns: 
+# Returns:
 #   0 if daemon has been started
 #   1 if daemon was already running
 #   2 if daemon could not be started
@@ -134,7 +134,7 @@ start_cmd()
 	DAEMON=$1
 	DAEMON_ARGS=$2
 	PID=$3
-	
+
 	#echo "\n\n"
 	#echo "d:" $DAEMON
 	#echo "da:" $DAEMON_ARGS
@@ -145,17 +145,17 @@ start_cmd()
 	start-stop-daemon --start --quiet --background --pidfile $PID --exec $DAEMON -- \
 		$DAEMON_ARGS \
 		|| return 2
-	
+
 	return 0
 }
 
 
-# A helper function, its purpose is to stop a daemon. 
+# A helper function, its purpose is to stop a daemon.
 # Arguments are interpreted in order as follows:
 # 1) The daemon name (i.e. the binary name)
 # 2) The executable path
 # 3) A (valid) path containing the PID file for the daemon
-# Returns: 
+# Returns:
 #   0 if daemon has been stopped
 #   1 if daemon was already stopped
 #   2 if daemon could not be stopped
@@ -174,17 +174,17 @@ stop_cmd()
 	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PID --name $NAME
 	RETVAL="$?"
 	[ "$RETVAL" = 2 ] && return 2
-	
+
 	start-stop-daemon --stop --quiet --oknodo --retry=0/30/KILL/5 --exec $DAEMON
 	[ "$?" = 2 ] && return 2
-	
+
 	# Many daemons don't delete their pidfiles when they exit.
 	rm -f $PID
 	return "$RETVAL"
 }
 
 # The start function
-# This function does everything required to bring up the service 
+# This function does everything required to bring up the service
 # at boot time.
 # It does not accept any arguments
 do_start() {
@@ -237,7 +237,7 @@ do_stop() {
 	esac
 
 
-	
+
 	[ "$VERBOSE" != no ] && log_progress_msg "$TM_NAME"
 	stop_cmd "$TM_NAME" "$TM_DAEMON" "$TM_PIDFILE"
 	case "$?" in

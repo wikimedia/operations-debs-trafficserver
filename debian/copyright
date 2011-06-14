@@ -46,7 +46,7 @@ License: Mersenne Twister definitions adapted for Traffic Server
   2. Redistributions in binary form must reproduce the above copyright
      notice, this list of conditions and the following disclaimer in the
      documentation and/or other materials provided with the distribution.
- 
+ .
   3. The names of its contributors may not be used to endorse or promote
      products derived from this software without specific prior written
      permission.
@@ -72,7 +72,7 @@ Files: lib/ts/ink_resolver.h, ink_res_init.cc, ink_res_mkquery.cc
 Copyright:  1983, 1987, 1989  The Regents of the University of California
 License: BIND license and Apache-2.0 and Digital Equipment Corporation License
 Copyright (c) 1985, 1989, 1993 The Regents of the University of California.
-              2004 by Internet Systems Consortium, Inc. ("ISC") 
+              2004 by Internet Systems Consortium, Inc. ("ISC")
               1993 by Digital Equipment Corporation.
  For the University of California part:
  .
@@ -123,11 +123,11 @@ Copyright (c) 1985, 1989, 1993 The Regents of the University of California.
 
 Files: For the strlcat, strlcpy in inktomi++/ink_string.cc:
 Copyright:  1998 Todd C. Miller <Todd.Miller@courtesan.com>
-License: 
+License:
  Permission to use, copy, modify, and distribute this software for any
  purpose with or without fee is hereby granted, provided that the above
  copyright notice and this permission notice appear in all copies.
- . 
+ .
  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -145,7 +145,7 @@ License:
  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  copies of the Software, and to permit persons to whom the Software is
  furnished to do so, subject to the following conditions:
- . 
+ .
  The above copyright notice and this permission notice shall be included in
  all copies or substantial portions of the Software.
  .
