@@ -4,15 +4,24 @@
 # Uncomment this to turn on verbose mode.
 export DH_VERBOSE=1
 
+# Get build architecture. ./configure is different on Linux
+DEB_BUILD_ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 
 %:
 	dh $@
 
 override_dh_auto_configure:
+ifeq ($(DEB_BUILD_ARCH_OS),linux)
 	./configure \
-		--enable-wccp --enable-layout=Debian \
+		--enable-layout=Debian --enable-wccp \
 		--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
 		--with-user=root --with-group=root
+else
+	./configure \
+		--enable-layout=Debian \
+		--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
+		--with-user=root --with-group=root
+endif
 
 override_dh_auto_install:
 	dh_auto_install

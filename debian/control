@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Arno Töll <debian@toell.net>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
-	libcap-dev [linux-any], bison, flex
+	libcap-dev [linux-any], bison [linux-any], flex [linux-any]
 Standards-Version: 3.9.2
 Homepage: http://trafficserver.apache.org/
 Vcs-Svn: svn://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver/trunk
