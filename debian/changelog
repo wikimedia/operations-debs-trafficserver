@@ -1,4 +1,4 @@
-trafficserver (3.0.0-1) UNRELEASED; urgency=low
+trafficserver (3.0.0-1) unstable; urgency=low
 
   * New upstream release. Major changes (since 2.1.9):
     + `traffic_server' won't crash anymore when using non-existent plugin in
@@ -9,12 +9,13 @@ trafficserver (3.0.0-1) UNRELEASED; urgency=low
     2.1.9-unstable-1 because of non installable dependencies, as libcap-dev is
     installable (and required) on Linux only
   * debian/rules:
-    + Simplify dh_auto_configure (upstream incorporated out build layout)
-    + Enable WCCP (Web Cache Communication Protocol)
+    + Simplify dh_auto_configure flags (upstream incorporated our build layout)
+    + Enable WCCP (Web Cache Communication Protocol; Linux only)
   * debian/control:
     + Add flex and bison to build dependencies, both are required for WCCP
+      (Linux only)
 
- -- Arno Töll <debian@toell.net>  Wed, 15 Jun 2011 00:37:02 +0200
+ -- Arno Töll <debian@toell.net>  Wed, 15 Jun 2011 15:56:29 +0200
 
 trafficserver (2.1.9-unstable-1) unstable; urgency=low
 
