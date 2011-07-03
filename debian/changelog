@@ -1,3 +1,10 @@
+trafficserver (3.0.0-2) unstable; urgency=low
+
+  * Fix "FTBFS with ld --as-needed" re-order libraries upon linkage, patch
+    shipped as `link-as-needed.patch'. Thanks Ilya Barygin (Closes: #632546)
+
+ -- Arno Töll <debian@toell.net>  Sun, 03 Jul 2011 22:33:15 +0200
+
 trafficserver (3.0.0-1) unstable; urgency=low
 
   * New upstream release. Major changes (since 2.1.9):
