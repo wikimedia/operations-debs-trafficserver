@@ -1,7 +1,12 @@
 Description: change order of libraries so that it's possible to link with
  --as-needed option.
+ .
+ This patch is supposed to be merged upstream in 3.0.1. Moreover the Makefile.in
+ parts can be removed if regenerating those files with `autoreconf -i'. 
+
 Author: Ilya Barygin <barygin@gmail.com>
 Bug-Debian: 632546
+Bug-Upstream: TS-868
 Reviewed-by: Arno Töll <debian@toell.net>
 
 --- trafficserver-3.0.0.orig/mgmt/Makefile.am
