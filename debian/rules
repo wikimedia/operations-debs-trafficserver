@@ -26,6 +26,9 @@ override_dh_auto_configure:
 override_dh_auto_install:
 	dh_auto_install
 	rm -f debian/tmp/usr/bin/trafficserver # We install our own
+	# Satisfy §10.2 (http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
+	rm -f debian/tmp/usr/lib/trafficserver/lib*.la
+	rm -f debian/tmp/usr/lib/trafficserver/modules/*.la
 
 override_dh_install:
 	dh_install --fail-missing
