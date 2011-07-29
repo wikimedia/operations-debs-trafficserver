@@ -1,18 +1,14 @@
 trafficserver (3.0.1-1) UNRELEASED; urgency=low
 
-  * New upstream release
-
- -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 20:48:14 +0200
-
-trafficserver (3.0.0-2) unstable; urgency=low
-
+  * New upstream release. Fixes several important issues which caused
+    `traffic_cop' and `traffic_server' to crash.
   * Fix "FTBFS with ld --as-needed" re-order libraries upon linkage, patch
-    shipped as `link-as-needed.patch'. Thanks Ilya Barygin (Closes: #632546)
+    committed upstream. Thanks Ilya Barygin (Closes: #632546)
   * Fix "trafficserver: Getting rid of unneeded *.la / emptying
     dependency_libs", remove *.la files from the installation target completely
     (Closes: #633192)
 
- -- Arno Töll <debian@toell.net>  Sat, 09 Jul 2011 17:02:32 +0200
+ -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 21:10:09 +0200
 
 trafficserver (3.0.0-1) unstable; urgency=low
 
