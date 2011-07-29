@@ -1,3 +1,9 @@
+trafficserver (3.0.1-1) UNRELEASED; urgency=low
+
+  * New upstream release
+
+ -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 20:48:14 +0200
+
 trafficserver (3.0.0-2) unstable; urgency=low
 
   * Fix "FTBFS with ld --as-needed" re-order libraries upon linkage, patch

@@ -787,10 +787,8 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-binPROGRAMS uninstall-nodist_sysconfDATA
-	@$(NORMAL_INSTALL)
-	$(MAKE) $(AM_MAKEFLAGS) uninstall-hook
-.MAKE: install-am install-data-am install-exec-am install-strip \
-	uninstall-am
+
+.MAKE: install-am install-data-am install-exec-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
 	clean-generic clean-libtool ctags distclean distclean-compile \
@@ -806,8 +804,7 @@ uninstall-am: uninstall-binPROGRAMS uninstall-nodist_sysconfDATA
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
 	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-binPROGRAMS uninstall-hook \
-	uninstall-nodist_sysconfDATA
+	uninstall-binPROGRAMS uninstall-nodist_sysconfDATA
 
 
 install-data-local:
@@ -821,9 +818,6 @@ install-exec-local:
 
 install-exec-hook:
 	-chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkglibexecdir)
-
-uninstall-hook:
-	-rm -rf $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) $(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkglibexecdir)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
