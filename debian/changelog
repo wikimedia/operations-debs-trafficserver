@@ -1,4 +1,4 @@
-trafficserver (3.0.1-1) UNRELEASED; urgency=low
+trafficserver (3.0.1-1) unstable; urgency=low
 
   * New upstream release. Fixes several important issues which caused
     `traffic_cop' and `traffic_server' to crash.
@@ -8,7 +8,7 @@ trafficserver (3.0.1-1) UNRELEASED; urgency=low
     dependency_libs", remove *.la files from the installation target completely
     (Closes: #633192)
 
- -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 21:10:09 +0200
+ -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 22:56:16 +0200
 
 trafficserver (3.0.0-1) unstable; urgency=low
 
