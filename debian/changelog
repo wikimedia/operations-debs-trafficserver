@@ -7,8 +7,10 @@ trafficserver (3.0.1-1) unstable; urgency=low
   * Fix "trafficserver: Getting rid of unneeded *.la / emptying
     dependency_libs", remove *.la files from the installation target completely
     (Closes: #633192)
+  * Set "DM-Upload-Allowed: yes" in agreement with Asheesh Laroia
+    <paulproteus{at}debian.org>
 
- -- Arno Töll <debian@toell.net>  Fri, 29 Jul 2011 22:56:16 +0200
+ -- Arno Töll <debian@toell.net>  Mon, 01 Aug 2011 19:29:58 +0200
 
 trafficserver (3.0.0-1) unstable; urgency=low
 
