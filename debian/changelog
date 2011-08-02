@@ -1,3 +1,10 @@
+trafficserver (3.0.1-2) unstable; urgency=low
+
+  * Fix "please add armhf to the arch list" - add armhf to the list of supported
+    architectures. Thanks Konstantinos Margaritis for the hint (Closes: #636338)
+
+ -- Arno Töll <debian@toell.net>  Tue, 02 Aug 2011 22:58:37 +0200
+
 trafficserver (3.0.1-1) unstable; urgency=low
 
   * New upstream release. Fixes several important issues which caused
