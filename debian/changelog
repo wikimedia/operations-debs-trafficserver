@@ -2,6 +2,9 @@ trafficserver (3.0.1-2) unstable; urgency=low
 
   * Fix "please add armhf to the arch list" - add armhf to the list of supported
     architectures. Thanks Konstantinos Margaritis for the hint (Closes: #636338)
+  * Remove IA64 from the list of supported architectures. The upgrade to the gcc
+    4.6 toolchain disclosed portability issues with it, which caused the resul-
+    ting binary package to produce no-op code in some functions. 
 
  -- Arno Töll <debian@toell.net>  Tue, 02 Aug 2011 22:58:37 +0200
 

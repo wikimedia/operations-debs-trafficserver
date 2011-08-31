@@ -12,7 +12,7 @@ Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/tr
 DM-Upload-Allowed: yes
 
 Package: trafficserver
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 ia64 armhf
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
 Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
