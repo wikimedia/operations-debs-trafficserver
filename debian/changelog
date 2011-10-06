@@ -5,8 +5,11 @@ trafficserver (3.0.1-3) UNRELEASED; urgency=low
     -fstack-protector and other security related build flags.
   * Add `dont-unconditionally-put-in-oflags.patch' which makes sure the upstream
     configure script does not override any -O flags passed by the user anymore.
+  * Fix several issues in the DEP-5 syntax. Unfortunately there is no way to
+    express that a file is subject to different license agreements so far.
+  * Do not install the upstream changelog twice anymore
 
- -- Arno Töll <debian@toell.net>  Fri, 23 Sep 2011 22:27:57 +0200
+ -- Arno Töll <debian@toell.net>  Thu, 06 Oct 2011 20:30:32 +0200
 
 trafficserver (3.0.1-2) unstable; urgency=low
 
