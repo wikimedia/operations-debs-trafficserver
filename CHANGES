@@ -1,4 +1,47 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 3.0.2
+  *) [TS-1030] Improve hashing mechanism on WKS.
+
+  *) [TS-1011]: SSL doesn't work on Solaris.
+
+  *) [TS-1028] Avoid triggering assert when running debug build and enabling
+   per-thread connection pols
+
+  *) [TS-1021] Remove extra newline from binary logs.
+
+  *) [TS-1013]: Allow ssl_multicert.config to support CA chains per host
+
+  *) [TS-944]: ssl.server.cert.path & ssl.server.private_key.path do not work as expected
+
+  *) [TS-906]: We do not honor / use the configuration option for
+   proxy.config.http.forward.proxy_auth_to_parent.
+
+  *) [TS-967]: Allow for our default -O3 options to be overriden via CFLAGS/CXXFLAGS
+   Author: Arno Toell and igalic
+
+  *) [TS-969] tests failing on some Debian sid and Solaris
+
+  *) [TS-867] PluginVC crashes with TSFetchURL
+
+  *) [TS-901] Valgrind found minor leaks and uninitialized variables
+    Author: William Bardwell
+
+  *) [TS-916] TSHttpIsInternalRequest() crashes if client connection is
+    terminated prematurely.
+    Author: Manjesh Nilange
+
+  *) [TS-882] traffic_logstats dies when printing log.
+
+  *) [TS-883] traffic_logstats provides conflicting help output
+
+  *) [TS-730] Allow for the SSL Cipher Suite to be configured
+
+  *) [TS-927] don't use malloc.h, it fails on FreeBSD
+    Author: Radim Kolar
+
+  *) [TS-888] fix SSL by enabling the right direction on successful setup
+
+  *) [TS-859] ATS requesting to origin instead to the parent server
 
 Changes with Apache Traffic Server 3.0.1
   *) [TS-842] remove uninstall target from build system

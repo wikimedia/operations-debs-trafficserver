@@ -21,31 +21,20 @@
   limitations under the License.
  */
 
-#ifndef _ssl_Cert_Lookup_h_
-#define _ssl_Cert_Lookup_h_
-#include "libts.h"
-#include "P_SSLNetProcessor.h"
+#ifndef _INK_SYS_CONTROL_H
+#define _INK_SYS_CONTROL_H
 
-#define PATH_NAME_MAX         511
+#include <sys/resource.h>
 
-class SSLCertLookup
+#ifdef __cplusplus
+extern "C"
 {
-  bool buildTable();
-  const char *extractIPAndCert(matcher_line * line_info, char **addr, char **cert, char **ca, char **priKey);
-  int addInfoToHash(char *strAddr, char *cert, char *ca, char *serverPrivateKey);
+#endif                          /* __cplusplus */
 
-  InkHashTable *SSLCertLookupHashTable;
-  char config_file_path[PATH_NAME_MAX];
-  SslConfigParams *param;
+rlim_t ink_max_out_rlimit(int which, bool max_it=true, bool unlim_it=true);
 
-public:
-    bool multipleCerts;
-  void init(SslConfigParams * param);
-  SSL_CTX *findInfoInHash(char *strAddr);
-    SSLCertLookup();
-   ~SSLCertLookup();
-};
+#ifdef __cplusplus
+}
+#endif                          /* __cplusplus */
 
-extern SSLCertLookup sslCertLookup;
-
-#endif
+#endif /*_INK_SYS_CONTROL_H*/
