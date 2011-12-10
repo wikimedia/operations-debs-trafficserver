@@ -22,7 +22,7 @@ endif
 	dh $@
 
 override_dh_auto_configure:
-	autoreconf -i
+	# autoreconf -i
 	# note dh_auto_configure -- $(configure_flags) does /NOT/ the same
 	./configure $(configure_flags)
 
@@ -42,10 +42,6 @@ override_dh_fixperms:
 	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
 		-X var/log/trafficserver -X /var/cache/trafficserver \
 		-X var/run/trafficserver
-
-override_dh_auto_test:
-	# Do nothing. Once Again.
-	# This time because of upstream issue TS-840 (patch proposed)
 
 override_dh_installexamples:
 	dh_installexamples -X Makefile -X.deps

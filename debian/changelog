@@ -1,19 +1,21 @@
 trafficserver (3.0.2-1) UNRELEASED; urgency=low
 
   * New upstream release
+    + Includes former Debian specific patch which makes sure the upstream
+      configure script does not override any -O flags passed by the user
+      anymore.
   * Adapt to dpkg 1.16.1 API changes regarding build flags. This enables
     hardening build flags. This means, trafficserver is now being built with
     -fstack-protector and other security related build flags.
   * Add dpkg-dev (>= 1.16.1~) to build-depends to make sure our buildflags are
     properly supported. That's guaranteed for Testing, but might be helpful to
     know for backporters.
-  * Add `dont-unconditionally-put-in-oflags.patch' which makes sure the upstream
-    configure script does not override any -O flags passed by the user anymore.
   * Fix several issues in the DEP-5 syntax. Unfortunately there is no way to
     express that a file is subject to different license agreements so far.
   * Do not install the upstream changelog twice anymore
+  * Finally run regression checks again, now as build failures are sorted out.
 
- -- Arno Töll <debian@toell.net>  Wed, 30 Nov 2011 18:44:13 +0100
+ -- Arno Töll <debian@toell.net>  Sat, 10 Dec 2011 01:41:03 +0100
 
 trafficserver (3.0.1-2) unstable; urgency=low
 
