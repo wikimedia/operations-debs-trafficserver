@@ -1,4 +1,4 @@
-trafficserver (3.0.2-1) UNRELEASED; urgency=low
+trafficserver (3.0.2-1) unstable; urgency=low
 
   * New upstream release
     + Includes former Debian specific patch which makes sure the upstream
@@ -15,7 +15,7 @@ trafficserver (3.0.2-1) UNRELEASED; urgency=low
   * Do not install the upstream changelog twice anymore
   * Finally run regression checks again, now as build failures are sorted out.
 
- -- Arno Töll <debian@toell.net>  Sat, 10 Dec 2011 01:41:03 +0100
+ -- Arno Töll <debian@toell.net>  Sun, 11 Dec 2011 00:45:45 +0100
 
 trafficserver (3.0.1-2) unstable; urgency=low
 
