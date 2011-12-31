@@ -6,27 +6,11 @@
 ## This is a POSIX shell fragment
 ##
 
-##
-## SECURITY WARNING:
-##                   Make sure you read `/usr/share/doc/trafficserver/
-##                   CONFIGURATION.Debian' before going on.
-##
-
-
 ## Variable: RUNDIR
 ## Default: /var/run/trafficserver
 ## Description: Set this to the directory where runtime data is stored. The
 ##              default value should work fine for almost all users.
 # RUNDIR=/var/run/trafficserver
-
-## Traffic Server consists mainly of three binaries
-## * traffic_cop - a monitoring watchdog for the actual server instance
-## * traffic_manager - a command and control utility for the serer instance
-## * traffic_server - the actual work horse, the proxy server instance
-##
-## Usually one needs to start traffic_cop only, it manages other services
-## on its own. However if you do not want to start the watchdog, you can start
-## remaining services through the init script yourself.
 
 ## Variable: TC_START
 ## Default: no
@@ -50,15 +34,14 @@ TC_START=no
 
 ##
 ## NOTICE:
-##          Everything from here and below should not be changed
-##          unless you do not want to use `traffic_cop' but manage
-##          starting (and monitoring) of the Traffic Server yourself.
+##        Typically you do not want to configure anything below. Note, generally Traffic
+##        Server is starget through `traffic_cop' which is a watchdog to control any local
+##        Traffic Server instances. It starts both, traffic_manager and traffic_server, as
+##        does it monitor these processes. While it is generally not advised, you can
+##        choose to manage both processes yourself. In such cases do not set TC_START to
+##        "yes" and enable any service you want below.
 ##
-##          Please note you haven't to start those daemons through the init
-##          script if you set TC_START to 'yes', as traffic_cop will start
-##          them as well! Doing both concurrently will cause problems.
-##
-##          Choose either alternative, but do not mix up both.
+##        Choose either alternative, but do not mix up both.
 
 
 ## Configuration for `traffic_manager'.

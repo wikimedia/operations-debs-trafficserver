@@ -1,36 +1,15 @@
 trafficserver for Debian
 ------------------------
 
-* (Apache) Traffic Server was a commercial product before. Hence expect some
-  non standard behaviour for configuration files, command line handling and
-  places to put files. 
+* Please read the CONFIGURATION.Debian file to get started with Traffic Server.
 
-  Feel free to file bug reports against LSB related issues although I will try
-  to keep the impact as small as possible. 
+* Currently Apache Traffic Server lacks man pages of binaries shipped along the
+  package. That's a known problem which is being worked on. Please read the
+  upstream documentation on the website instead.
 
-* Traffic Server used to ship a Web User Interface (web UI) previously which is
-  (for now) not functional anymore. Hence it is not available as Debian package
-
-* Traffic Server is ongoing a major code refactoring process since the Apache
-  Software Foundation took over development. Please note that this implies that
-  some components of Traffic Server may behave differently than indicated in
-  documentation and some configuration options may not be honored.
-
-  There may be some legacy code paths that are not supposed to be working any-
-  more. If you find something not working or some weird errors consider filing
-  a bug report. Major features are working though. 
-
-  I tried to point out some issues you will likely run into when modifying
-  the default/trafficserver or init.d/trafficserver scripts. Also consider 
-  reading CONFIGURATION.Debian.
-
-* Similarly it lacks a comprehensive documentation about the binaries shipped
-  along this package. That is, there are currently no man pages for most of 
-  the programs distributed available. 
-  
 * If you read upstream's documentation about Traffic Server you will sometimes
   find references to a program `/usr/bin/trafficserver`. Debian does not ship
   this script. This is intentional. Use Debian's /etc/init.d/trafficserver
-  script instead. 
+  script instead.
 
- -- Arno Toell <debian@toell.net>  Tue, 11 Jan 2011 11:49:18 +0100
+ -- Arno Töll <debian@toell.net>  Tue, 31 Dec 2011 13:54:18 +0100

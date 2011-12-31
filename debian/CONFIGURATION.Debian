@@ -10,38 +10,16 @@ careful when editing them, chances are Traffic Server WILL OVERWRITE them. This
 is especially true for comments which are not kept when using `traffic_line'
 (as explained below).
 
-* -----------------------------------------------------------------------------
-  SECURITY WARNING
-  -----------------------------------------------------------------------------
+* SECURITY WARNING: Apache Traffic Server will open a listening socket on port
+  8088 where it accepts command and control requests. This is to control and
+  synchronize a cluster of Traffic Servers. By default, the interface accepts
+  commands from localhost only (`traffic_line' is using it for example). This
+  changes as soon as you enable the cluster mode changing the default value of
 
-  Apache Traffic Server will open three listening sockets on your machine. Chan-
-  ces are you may want to have at the listening process of `traffic_server' pu-
-  blic facing.
-  See below for instructions on how to restrict this interface to an IP address
-  and port. By default `traffic_server' will listen on 0.0.0.0:8080 and
-  0.0.0.0:8084. The latter is used for communication with `traffic_manager'.
+    LOCAL proxy.local.cluster.type INT 1
 
-  However, running `traffic_manager' will open more ports on your host.
-  Those are (with 8088 only applying if you enable cluster mode - see below)
-    + 0.0.0.0:8083 - the proxy autoconfiguration port to serve PAC files
-    + 0.0.0.0:8088 - A CLI like remote configuration interface
-
-  While you are able to change the listening port for those connections, it is
-  currently not possible to restrict the listening interface as well. This im-
-  plies Apache Traffic Manager may be remotely controlled if you enable cluster
-  mode. THIS CHANGES AS SOON AS YOU ENABLE CLUSTER SUPPORT. THAT IS IF YOU CHAN-
-  GE THE VALUE OF
-
-    LOCAL proxy.local.cluster.type INT 3
-
-  TO ANYTHING DIFFERENT FROM 3 (NOT CLUSTERING) TRAFFIC MANAGER MAY BE CONTROL-
-  LED REMOTELY AS WELL. MAKE SURE YOU HAVE A FIREWALL, FILTERING UNAUTHORIZED
-  ACCESS. THERE IS CURRENTLY NO AUTHENTICATION TAKING PLACE HERE!
-
-  If you do not need any of `traffic_manager''s features you may want to dis-
-  able it completely (in that case you have to disable `traffic_cop' as well).
-  See [5] for functionality added by `traffic_manager'.
-  -----------------------------------------------------------------------------
+  to anything different than 3. Make sure you are firewalling requests to this
+  interface properly then.
 
 * To get a general idea about traffic server and its architecture, read [4]. It
   is crucial to understand the internal architecture before trying to start.
@@ -128,6 +106,5 @@ is especially true for comments which are not kept when using `traffic_line'
 [2] https://cwiki.apache.org/TS/squidconfigtranslation.html
 [3] http://trafficserver.apache.org/docs/v2/admin/files.htm#records.config
 [4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
-[5] http://trafficserver.apache.org/docs/v2/admin/index.html
 
- -- Arno Toell <debian@toell.net>  Tue, 05 May 2011 22:46:21 +0100
+ -- Arno Töll <debian@toell.net>  Sat, 31 Dec 2011 14:10:21 +0100
