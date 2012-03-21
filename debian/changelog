@@ -1,4 +1,4 @@
-trafficserver (3.0.4-1~1) UNRELEASED; urgency=high
+trafficserver (3.0.3-1) UNRELEASED; urgency=high
 
   * New upstream release
     + Fix CVE-2012-0256:
@@ -6,7 +6,7 @@ trafficserver (3.0.4-1~1) UNRELEASED; urgency=high
   * Push standards to 3.9.3 - no further changes
   * Stilistic adaptions in debian/copyright, but not content changes
 
- -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 12:02:20 +0100
+ -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 12:03:13 +0100
 
 trafficserver (3.0.2-1) unstable; urgency=low
 
