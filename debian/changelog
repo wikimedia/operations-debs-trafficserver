@@ -1,4 +1,4 @@
-trafficserver (3.0.2-1) UNRELEASED; urgency=high
+trafficserver (3.0.4-1) UNRELEASED; urgency=low
 
   * New upstream release
     + Fix CVE-2012-0256:

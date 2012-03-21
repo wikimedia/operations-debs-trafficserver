@@ -23,7 +23,6 @@
 
 #include "UrlRewrite.h"
 #include "Main.h"
-#include "Error.h"
 #include "P_EventSystem.h"
 #include "StatSystem.h"
 #include "P_Cache.h"
@@ -479,11 +478,12 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
  : nohost_rules(0), reverse_proxy(0), backdoor_enabled(0),
    mgmt_autoconf_port(0), default_to_pac(0), default_to_pac_port(0), file_var(NULL), ts_name(NULL),
    http_default_redirect_url(NULL), num_rules_forward(0), num_rules_reverse(0), num_rules_redirect_permanent(0),
-   num_rules_redirect_temporary(0)
+   num_rules_redirect_temporary(0), num_rules_forward_with_recv_port(0), _valid(false)
 {
 
   forward_mappings.hash_lookup = reverse_mappings.hash_lookup =
-    permanent_redirects.hash_lookup = temporary_redirects.hash_lookup = NULL;
+    permanent_redirects.hash_lookup = temporary_redirects.hash_lookup = 
+    forward_mappings_with_recv_port.hash_lookup = NULL;
 
   char *config_file = NULL;
 
@@ -527,15 +527,16 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   strncat(config_file_path, config_file, sizeof(config_file_path) - strlen(config_file_path) - 1);
   xfree(config_file);
 
-  if (this->BuildTable() != 0) {
+  if (0 == this->BuildTable()) {
+    _valid = true;
+    pcre_malloc = &ink_malloc;
+    pcre_free = &xfree;
+
+    if (is_debug_tag_set("url_rewrite"))
+     Print();
+  } else {
     Warning("something failed during BuildTable() -- check your remap plugins!");
   }
-
-  pcre_malloc = &ink_malloc;
-  pcre_free = &ink_free;
-
-  if (is_debug_tag_set("url_rewrite"))
-    Print();
 }
 
 
@@ -549,6 +550,8 @@ UrlRewrite::~UrlRewrite()
   DestroyStore(reverse_mappings);
   DestroyStore(permanent_redirects);
   DestroyStore(temporary_redirects);
+  DestroyStore(forward_mappings_with_recv_port);
+  _valid = false;
 }
 
 /** Sets the reverse proxy flag. */
@@ -638,26 +641,25 @@ UrlRewrite::_destroyTable(InkHashTable *h_table)
 void
 UrlRewrite::Print()
 {
-  printf("URL Rewrite table with %d entries\n", num_rules_forward +
-         num_rules_reverse + num_rules_redirect_temporary + num_rules_redirect_permanent);
+  printf("URL Rewrite table with %d entries\n", num_rules_forward + num_rules_reverse +
+         num_rules_redirect_temporary + num_rules_redirect_permanent + num_rules_forward_with_recv_port);
   printf("  Reverse Proxy is %s\n", (reverse_proxy == 0) ? "Off" : "On");
 
-  if (forward_mappings.hash_lookup != NULL) {
-    printf("  Forward Mapping Table with %d entries\n", num_rules_forward);
-    PrintTable(forward_mappings.hash_lookup);
-  }
-  if (reverse_mappings.hash_lookup != NULL) {
-    printf("  Reverse Mapping Table with %d entries\n", num_rules_reverse);
-    PrintTable(reverse_mappings.hash_lookup);
-  }
-  if (permanent_redirects.hash_lookup != NULL) {
-    printf("  Permanent Redirect Mapping Table with %d entries\n", num_rules_redirect_permanent);
-    PrintTable(permanent_redirects.hash_lookup);
-  }
-  if (temporary_redirects.hash_lookup != NULL) {
-    printf("  Temporary Redirect Mapping Table with %d entries\n", num_rules_redirect_temporary);
-    PrintTable(temporary_redirects.hash_lookup);
-  }
+  printf("  Forward Mapping Table with %d entries\n", num_rules_forward);
+  PrintStore(forward_mappings);
+
+  printf("  Reverse Mapping Table with %d entries\n", num_rules_reverse);
+  PrintStore(reverse_mappings);
+
+  printf("  Permanent Redirect Mapping Table with %d entries\n", num_rules_redirect_permanent);
+  PrintStore(permanent_redirects);
+
+  printf("  Temporary Redirect Mapping Table with %d entries\n", num_rules_redirect_temporary);
+  PrintStore(temporary_redirects);
+
+  printf("  Forward Mapping With Recv Port Table with %d entries\n", num_rules_forward_with_recv_port);
+  PrintStore(forward_mappings_with_recv_port);
+
   if (http_default_redirect_url != NULL) {
     printf("  Referer filter default redirect URL: \"%s\"\n", http_default_redirect_url);
   }
@@ -665,16 +667,25 @@ UrlRewrite::Print()
 
 /** Debugging method. */
 void
-UrlRewrite::PrintTable(InkHashTable *h_table)
+UrlRewrite::PrintStore(MappingsStore &store)
 {
-  InkHashTableEntry *ht_entry;
-  InkHashTableIteratorState ht_iter;
-  UrlMappingPathIndex *value;
+  if (store.hash_lookup != NULL) {
+    InkHashTableEntry *ht_entry;
+    InkHashTableIteratorState ht_iter;
+    UrlMappingPathIndex *value;
 
-  for (ht_entry = ink_hash_table_iterator_first(h_table, &ht_iter); ht_entry != NULL;) {
-    value = (UrlMappingPathIndex *)ink_hash_table_entry_value(h_table, ht_entry);
-    value->Print();
-    ht_entry = ink_hash_table_iterator_next(h_table, &ht_iter);
+    for (ht_entry = ink_hash_table_iterator_first(store.hash_lookup, &ht_iter); ht_entry != NULL;) {
+      value = (UrlMappingPathIndex *) ink_hash_table_entry_value(store.hash_lookup, ht_entry);
+      value->Print();
+      ht_entry = ink_hash_table_iterator_next(store.hash_lookup, &ht_iter);
+    }
+  }
+
+  if (!store.regex_list.empty()) {
+    printf("    Regex mappings:\n");
+    forl_LL(RegexMapping, list_iter, store.regex_list) {
+      list_iter->url_map->Print();
+    }
   }
 }
 
@@ -1068,15 +1079,17 @@ UrlRewrite::BuildTable()
   ink_assert(reverse_mappings.empty());
   ink_assert(permanent_redirects.empty());
   ink_assert(temporary_redirects.empty());
+  ink_assert(forward_mappings_with_recv_port.empty());
   ink_assert(num_rules_forward == 0);
   ink_assert(num_rules_reverse == 0);
   ink_assert(num_rules_redirect_permanent == 0);
   ink_assert(num_rules_redirect_temporary == 0);
+  ink_assert(num_rules_forward_with_recv_port == 0);
 
   memset(&bti, 0, sizeof(bti));
 
   if ((file_buf = readIntoBuffer(config_file_path, modulePrefix, NULL)) == NULL) {
-    ink_error("Can't load remapping configuration file - %s", config_file_path);
+	Warning("Can't load remapping configuration file - %s", config_file_path);
     return 1;
   }
 
@@ -1084,6 +1097,7 @@ UrlRewrite::BuildTable()
   reverse_mappings.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
   permanent_redirects.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
   temporary_redirects.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
+  forward_mappings_with_recv_port.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
 
   bti.paramc = (bti.argc = 0);
   memset(bti.paramv, 0, sizeof(bti.paramv));
@@ -1176,6 +1190,9 @@ UrlRewrite::BuildTable()
     } else if (!strcasecmp("map_with_referer", type_id_str)) {
       Debug("url_rewrite", "[BuildTable] - FORWARD_MAP_REFERER");
       maptype = FORWARD_MAP_REFERER;
+    } else if (!strcasecmp("map_with_recv_port", type_id_str)) {
+      Debug("url_rewrite", "[BuildTable] - FORWARD_MAP_WITH_RECV_PORT");
+      maptype = FORWARD_MAP_WITH_RECV_PORT;
     } else {
       snprintf(errBuf, sizeof(errBuf) - 1, "%s Unknown mapping type at line %d", modulePrefix, cln + 1);
       errStr = errStrBuf;
@@ -1301,7 +1318,7 @@ UrlRewrite::BuildTable()
     // Check to see the fromHost remapping is a relative one
     fromHost = new_mapping->fromURL.host_get(&fromHostLen);
     if (fromHost == NULL || fromHostLen <= 0) {
-      if (maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER) {
+      if (maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER || maptype == FORWARD_MAP_WITH_RECV_PORT) {
         if (*map_from_start != '/') {
           errStr = "Relative remappings must begin with a /";
           goto MAP_ERROR;
@@ -1364,7 +1381,7 @@ UrlRewrite::BuildTable()
     // Therefore, for a remap rule like "map tunnel://hostname..."
     // in remap.config, we also needs to convert hostname to its IPv4 addr
     // and gives a new remap rule with the IPv4 addr.
-    if ((maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER) &&
+    if ((maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER || maptype == FORWARD_MAP_WITH_RECV_PORT) &&
         fromScheme == URL_SCHEME_TUNNEL && (fromHost_lower[0]<'0' || fromHost_lower[0]> '9')) {
       ink_gethostbyname_r_data d;
       struct hostent *h;
@@ -1389,11 +1406,14 @@ UrlRewrite::BuildTable()
             u_mapping->toUrl.copy(&new_mapping->toUrl);
             if (bti.paramv[3] != NULL)
               u_mapping->tag = xstrdup(&(bti.paramv[3][0]));
-            if (!TableInsert(forward_mappings.hash_lookup, u_mapping, ipv4_name)) {
+            bool insert_result = (maptype != FORWARD_MAP_WITH_RECV_PORT) ? 
+              TableInsert(forward_mappings.hash_lookup, u_mapping, ipv4_name) :
+              TableInsert(forward_mappings_with_recv_port.hash_lookup, u_mapping, ipv4_name);
+            if (!insert_result) {
               errStr = "Unable to add mapping rule to lookup table";
               goto MAP_ERROR;
             }
-            num_rules_forward++;
+            (maptype != FORWARD_MAP_WITH_RECV_PORT) ? ++num_rules_forward : ++num_rules_forward_with_recv_port;
             SetHomePageRedirectFlag(u_mapping, u_mapping->toUrl);
           }
         }
@@ -1401,7 +1421,8 @@ UrlRewrite::BuildTable()
     }
 
     // Check "remap" plugin options and load .so object
-    if ((bti.remap_optflg & REMAP_OPTFLG_PLUGIN) != 0 && (maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER)) {
+    if ((bti.remap_optflg & REMAP_OPTFLG_PLUGIN) != 0 && (maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER ||
+                                                          maptype == FORWARD_MAP_WITH_RECV_PORT)) {
       if ((check_remap_option(bti.argv, bti.argc, REMAP_OPTFLG_PLUGIN, &tok_count) & REMAP_OPTFLG_PLUGIN) != 0) {
         int plugin_found_at = 0;
         int jump_to_argc = 0;
@@ -1448,6 +1469,10 @@ UrlRewrite::BuildTable()
       add_result = _addToStore(temporary_redirects, new_mapping, reg_map, fromHost_lower,
                                is_cur_mapping_regex, num_rules_redirect_temporary);
       break;
+    case FORWARD_MAP_WITH_RECV_PORT:
+      add_result = _addToStore(forward_mappings_with_recv_port, new_mapping, reg_map, fromHost_lower,
+                               is_cur_mapping_regex, num_rules_forward_with_recv_port);
+      break;
     default:
       // 'default' required to avoid compiler warning; unsupported map
       // type would have been dealt with much before this
@@ -1470,7 +1495,7 @@ UrlRewrite::BuildTable()
     Warning("Could not add rule at line #%d; Aborting!", cln + 1);
     snprintf(errBuf, sizeof(errBuf), "%s %s at line %d", modulePrefix, errStr, cln + 1);
     SignalError(errBuf, alarm_already);
-    ink_fatal(1, errBuf);
+    return 2;
   }                             /* end of while(cur_line != NULL) */
 
   clear_xstr_array(bti.paramv, sizeof(bti.paramv) / sizeof(char *));
@@ -1485,8 +1510,9 @@ UrlRewrite::BuildTable()
     if (TableInsert(forward_mappings.hash_lookup, new_mapping, "")) {
       num_rules_forward++;
     } else {
-      Error("Could not insert backdoor mapping into store");
+      Warning("Could not insert backdoor mapping into store");
       delete new_mapping;
+      return 3;
     }
   }
   // Add the default mapping to the manager PAC file
@@ -1496,8 +1522,9 @@ UrlRewrite::BuildTable()
     if (TableInsert(forward_mappings.hash_lookup, new_mapping, "")) {
       num_rules_forward++;
     } else {
-      Error("Could not insert pac mapping into store");
+      Warning("Could not insert pac mapping into store");
       delete new_mapping;
+      return 3;
     }
   }
   // Destroy unused tables
@@ -1519,6 +1546,11 @@ UrlRewrite::BuildTable()
 
   if (num_rules_redirect_temporary == 0) {
     temporary_redirects.hash_lookup = ink_hash_table_destroy(temporary_redirects.hash_lookup);
+  }
+
+  if (num_rules_forward_with_recv_port == 0) {
+    forward_mappings_with_recv_port.hash_lookup = ink_hash_table_destroy(
+      forward_mappings_with_recv_port.hash_lookup);
   }
 
   xfree(file_buf);
@@ -1546,7 +1578,7 @@ UrlRewrite::TableInsert(InkHashTable *h_table, url_mapping *mapping, const char 
     // There is already a path index for this host
     if (ht_contents == NULL) {
       // why should this happen?
-      Error("Found entry cannot be null!");
+      Warning("Found entry cannot be null!");
       return false;
     }
   } else {
@@ -1554,7 +1586,7 @@ UrlRewrite::TableInsert(InkHashTable *h_table, url_mapping *mapping, const char 
     ink_hash_table_insert(h_table, src_host, ht_contents);
   }
   if (!ht_contents->Insert(mapping)) {
-    Error("Could not insert new mapping");
+    Warning("Could not insert new mapping");
     return false;
   }
   return true;
@@ -1644,7 +1676,7 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     }
     pi->fp_tsremap_init = (remap_plugin_info::_tsremap_init *) dlsym(pi->dlh, TSREMAP_FUNCNAME_INIT);
     pi->fp_tsremap_done = (remap_plugin_info::_tsremap_done *) dlsym(pi->dlh, TSREMAP_FUNCNAME_DONE);
-    pi->fptsremap_new_instance = (remap_plugin_info::_tsremap_new_instance *) dlsym(pi->dlh, TSREMAP_FUNCNAME_NEW_INSTANCE);
+    pi->fp_tsremap_new_instance = (remap_plugin_info::_tsremap_new_instance *) dlsym(pi->dlh, TSREMAP_FUNCNAME_NEW_INSTANCE);
     pi->fp_tsremap_delete_instance = (remap_plugin_info::_tsremap_delete_instance *) dlsym(pi->dlh, TSREMAP_FUNCNAME_DELETE_INSTANCE);
     pi->fp_tsremap_do_remap = (remap_plugin_info::_tsremap_do_remap *) dlsym(pi->dlh, TSREMAP_FUNCNAME_DO_REMAP);
     pi->fp_tsremap_os_response = (remap_plugin_info::_tsremap_os_response *) dlsym(pi->dlh, TSREMAP_FUNCNAME_OS_RESPONSE);
@@ -1652,7 +1684,7 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     if (!pi->fp_tsremap_init) {
       snprintf(errbuf, errbufsize, "Can't find \"%s\" function in remap plugin \"%s\"", TSREMAP_FUNCNAME_INIT, c);
       retcode = -10;
-    } else if (!pi->fptsremap_new_instance) {
+    } else if (!pi->fp_tsremap_new_instance) {
       snprintf(errbuf, errbufsize, "Can't find \"%s\" function in remap plugin \"%s\"",
                    TSREMAP_FUNCNAME_NEW_INSTANCE, c);
       retcode = -11;
@@ -1672,27 +1704,27 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     ri.tsremap_version = TSREMAP_VERSION;
 
     if (pi->fp_tsremap_init(&ri, tmpbuf, sizeof(tmpbuf) - 1) != TS_SUCCESS) {
-      Error("Failed to initialize plugin %s (non-zero retval) ... bailing out", pi->path);
-      exit(-1);                 //see my comment re: exit() about 60 lines down
+      Warning("Failed to initialize plugin %s (non-zero retval) ... bailing out", pi->path);
+      return -5;
     }
     Debug("remap_plugin", "Remap plugin \"%s\" - initialization completed", c);
   }
 
   if (!pi->dlh) {
     snprintf(errbuf, errbufsize, "Can't load plugin \"%s\"", c);
-    return -5;
+    return -6;
   }
 
   if ((err = mp->fromURL.string_get(NULL)) == NULL) {
     snprintf(errbuf, errbufsize, "Can't load fromURL from URL class");
-    return -6;
+    return -7;
   }
   parv[parc++] = xstrdup(err);
   xfree(err);
 
   if ((err = mp->toUrl.string_get(NULL)) == NULL) {
     snprintf(errbuf, errbufsize, "Can't load toURL from URL class");
-    return -6;
+    return -7;
   }
   parv[parc++] = xstrdup(err);
   xfree(err);
@@ -1728,7 +1760,7 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
   void* ih;
 
   Debug("remap_plugin", "creating new plugin instance");
-  TSReturnCode res = pi->fptsremap_new_instance(parc, parv, &ih, tmpbuf, sizeof(tmpbuf) - 1);
+  TSReturnCode res = pi->fp_tsremap_new_instance(parc, parv, &ih, tmpbuf, sizeof(tmpbuf) - 1);
 
   Debug("remap_plugin", "done creating new plugin instance");
 
@@ -1736,22 +1768,10 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
   xfree(parv[1]);               // toURL
 
   if (res != TS_SUCCESS) {
-    // TODO: This is such serious failure, no reason to try to delete the instance.
-    // mp->delete_instance(pi);
     snprintf(errbuf, errbufsize, "Can't create new remap instance for plugin \"%s\" - %s", c,
                  tmpbuf[0] ? tmpbuf : "Unknown plugin error");
-    Error("Failed to create new instance for plugin %s (non-zero retval)... bailing out", pi->path);
- 	 	 /**
-		 * fail here, otherwise we *will* fail later
-		 * and that's some jacked backtrace inside CreateTableLookup [see bug 2316658]
-		 * at least this one will be obvious
-		 * We *really* don't want to continue when a plugin failed to init. We can't
-		 * guarantee we are remapping what the user thought we were going to remap.
-		 * using something nice like exit() would be more ideal, but this should be
-		 * caught in development, anyway.
-     **/
-    exit(-1);
-    return -6;
+    Warning("Failed to create new instance for plugin %s (not a TS_SUCCESS return)", pi->path);
+    return -8;
   }
 
   mp->add_plugin(pi, ih);
@@ -1847,7 +1867,7 @@ UrlRewrite::_expandSubstitutions(int *matches_info, const RegexMapping *reg_map,
   return cur_buf_size;
 
  lOverFlow:
-  Error("Overflow while expanding substitutions");
+  Warning("Overflow while expanding substitutions");
   return 0;
 }
 
@@ -1929,7 +1949,7 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
       Debug("url_rewrite_regex", "Request URL host [%.*s] did NOT match regex in mapping of rank %d",
             request_host_len, request_host, reg_map_rank);
     } else {
-      Error("pcre_exec() failed with error code %d", match_result);
+      Warning("pcre_exec() failed with error code %d", match_result);
       break;
     }
   }
@@ -1983,23 +2003,23 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
   // as this one will be NULL-terminated (required by pcre_compile)
   reg_map->re = pcre_compile(from_host_lower, 0, &str, &str_index, NULL);
   if (reg_map->re == NULL) {
-    Error("pcre_compile failed! Regex has error starting at %s", from_host_lower + str_index);
+	Warning("pcre_compile failed! Regex has error starting at %s", from_host_lower + str_index);
     goto lFail;
   }
 
   reg_map->re_extra = pcre_study(reg_map->re, 0, &str);
   if ((reg_map->re_extra == NULL) && (str != NULL)) {
-    Error("pcre_study failed with message [%s]", str);
+    Warning("pcre_study failed with message [%s]", str);
     goto lFail;
   }
 
   int n_captures;
   if (pcre_fullinfo(reg_map->re, reg_map->re_extra, PCRE_INFO_CAPTURECOUNT, &n_captures) != 0) {
-    Error("pcre_fullinfo failed!");
+    Warning("pcre_fullinfo failed!");
     goto lFail;
   }
   if (n_captures >= MAX_REGEX_SUBS) { // off by one for $0 (implicit capture)
-    Error("Regex has %d capturing subpatterns (including entire regex); Max allowed: %d",
+    Warning("Regex has %d capturing subpatterns (including entire regex); Max allowed: %d",
           n_captures + 1, MAX_REGEX_SUBS);
     goto lFail;
   }
@@ -2008,13 +2028,13 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
   for (int i = 0; i < (to_host_len - 1); ++i) {
     if (to_host[i] == '$') {
       if (substitution_count > MAX_REGEX_SUBS) {
-        Error("Cannot have more than %d substitutions in mapping with host [%s]",
+        Warning("Cannot have more than %d substitutions in mapping with host [%s]",
               MAX_REGEX_SUBS, from_host_lower);
         goto lFail;
       }
       substitution_id = to_host[i + 1] - '0';
       if ((substitution_id < 0) || (substitution_id > n_captures)) {
-        Error("Substitution id [%c] has no corresponding capture pattern in regex [%s]",
+        Warning("Substitution id [%c] has no corresponding capture pattern in regex [%s]",
               to_host[i + 1], from_host_lower);
         goto lFail;
       }
