@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
 	libcap-dev [linux-any], bison [linux-any], flex [linux-any],
 	dpkg-dev (>= 1.16.1~)
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
 Vcs-Svn: svn://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver/trunk
 Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/trunk?root=collab-maint

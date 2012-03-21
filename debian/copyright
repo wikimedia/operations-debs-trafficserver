@@ -1,4 +1,4 @@
-Format: http://dep.debian.net/deps/dep5/
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Traffic Server
 Upstream-Contact: dev@trafficserver.apache.org
 Source: http://trafficserver.apache.org/
@@ -34,9 +34,8 @@ License: Apache-2.0
 
 Files: lib/ts/ink_rand.*
 Copyright: 1997 - 2002, Makoto Matsumoto and Takuji Nishimura
-License: Mersenne Twister definitions adapted for Traffic Server
- Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
- All rights reserved.
+License:
+ Mersenne Twister definitions adapted for Traffic Server
  .
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions
@@ -72,10 +71,7 @@ License: Mersenne Twister definitions adapted for Traffic Server
 
 Files: lib/ts/ink_resolver.h ink_res_init.cc ink_res_mkquery.cc
 Copyright:  1983, 1987, 1989  The Regents of the University of California
-License: BIND license and Apache-2.0 and Digital Equipment Corporation License
- Copyright (c) 1985, 1989, 1993 The Regents of the University of California.
-              2004 by Internet Systems Consortium, Inc. ("ISC")
-              1993 by Digital Equipment Corporation.
+License:
  For the University of California part:
  .
  Redistribution and use in source and binary forms, with or without
@@ -164,7 +160,7 @@ License:
 Filess: mgmt/cli/hashtable.*
 Comment: Parts of mgmt/cli/hashtable.* only
 Copyright: Copyright (c) 1997-1998 Sun Microsystems, Inc.
-License: TK 8.3 License
+License:
  This software is copyrighted by the Regents of the University of
  California, Sun Microsystems, Inc., and other parties.  The following
  terms apply to all files associated with the software unless explicitly
