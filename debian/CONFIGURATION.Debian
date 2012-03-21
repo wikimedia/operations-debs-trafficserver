@@ -10,17 +10,6 @@ careful when editing them, chances are Traffic Server WILL OVERWRITE them. This
 is especially true for comments which are not kept when using `traffic_line'
 (as explained below).
 
-* SECURITY WARNING: Apache Traffic Server will open a listening socket on port
-  8088 where it accepts command and control requests. This is to control and
-  synchronize a cluster of Traffic Servers. By default, the interface accepts
-  commands from localhost only (`traffic_line' is using it for example). This
-  changes as soon as you enable the cluster mode changing the default value of
-
-    LOCAL proxy.local.cluster.type INT 1
-
-  to anything different than 3. Make sure you are firewalling requests to this
-  interface properly then.
-
 * To get a general idea about traffic server and its architecture, read [4]. It
   is crucial to understand the internal architecture before trying to start.
 
@@ -107,4 +96,4 @@ is especially true for comments which are not kept when using `traffic_line'
 [3] http://trafficserver.apache.org/docs/v2/admin/files.htm#records.config
 [4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
 
- -- Arno Töll <debian@toell.net>  Sat, 31 Dec 2011 14:10:21 +0100
+ -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 14:10:21 +0100

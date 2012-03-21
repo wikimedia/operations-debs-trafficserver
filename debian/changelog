@@ -1,12 +1,15 @@
-trafficserver (3.0.4-1) UNRELEASED; urgency=low
+trafficserver (3.0.4-1) unstable; urgency=high
 
   * New upstream release
-    + Fix CVE-2012-0256:
+    + Fix CVE-2012-0256: A request with a very large Host header caused ATS to
+      crash.
   * Setting urgency to high because of security updates
   * Push standards to 3.9.3 - no further changes
   * Stilistic adaptions in debian/copyright, but not content changes
+  * Remove cluster interface warning from README.Configuration. ATS now binds on
+    lo by default
 
- -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 12:04:10 +0100
+ -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 12:34:35 +0100
 
 trafficserver (3.0.2-1) unstable; urgency=low
 
