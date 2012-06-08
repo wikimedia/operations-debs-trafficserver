@@ -190,7 +190,7 @@ stop_cmd()
 do_start() {
 
 	if [ "x$TC_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_progress_msg "$TC_NAME"
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TC_NAME"
 		start_cmd "$TC_DAEMON" "$TC_DAEMON_ARGS" "$TC_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -202,7 +202,7 @@ do_start() {
 	## Please see /etc/default/trafficserver
 
 	if [ "x$TM_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_progress_msg "$TM_NAME"
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TM_NAME"
 		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -212,7 +212,7 @@ do_start() {
 
 
 	if [ "x$TS_START" != "xno" ]; then
-		[ "$VERBOSE" != no ] && log_progress_msg "$TS_NAME"
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TS_NAME"
 		start_cmd "$TS_DAEMON" "$TS_DAEMON_ARGS" "$TS_PIDFILE"
 		case "$?" in
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -229,7 +229,7 @@ do_start() {
 # This function does everything required to stop the service.
 # It does not accept any arguments
 do_stop() {
-	[ "$VERBOSE" != no ] && log_progress_msg "$TC_NAME"
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TC_NAME"
 	stop_cmd "$TC_NAME" "$TC_DAEMON" "$TC_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -238,7 +238,7 @@ do_stop() {
 
 
 
-	[ "$VERBOSE" != no ] && log_progress_msg "$TM_NAME"
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TM_NAME"
 	stop_cmd "$TM_NAME" "$TM_DAEMON" "$TM_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -246,7 +246,7 @@ do_stop() {
 	esac
 
 
-	[ "$VERBOSE" != no ] && log_progress_msg "$TS_NAME"
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TS_NAME"
 	stop_cmd "$TS_NAME" "$TS_DAEMON" "$TS_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -259,16 +259,19 @@ case "$1" in
 	if [ "x$TC_START" = "xno" ] && [ "x$TM_START" = "xno" ] && [ "x$TS_START" = "xno" ]; then
 		[ "$VERBOSE" != no ] && log_warning_msg "Not starting $DESC"
 	else
-		[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC"
 		do_start
 	fi
 	;;
   stop)
-	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC"
 	do_stop
 	;;
   status)
-       status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
+       if [ "x$TC_START" != "xno" ] ; then
+               status_of_proc "$TC_DAEMON" "$TC_NAME" -p "$TC_PIDFILE" && exit 0 || exit $?
+       else
+               status_of_proc "$TS_DAEMON" "$TS_NAME" -p "$TS_PIDFILE" || exit $?
+               status_of_proc "$TM_DAEMON" "$TM_NAME" -p "$TM_PIDFILE" || exit $?
+       fi
        ;;
   restart|force-reload)
 	log_daemon_msg "Restarting $DESC" "$NAME\n"

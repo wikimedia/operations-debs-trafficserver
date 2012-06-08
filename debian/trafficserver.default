@@ -35,7 +35,7 @@ TC_START=no
 ##
 ## NOTICE:
 ##        Typically you do not want to configure anything below. Note, generally Traffic
-##        Server is starget through `traffic_cop' which is a watchdog to control any local
+##        Server is started through `traffic_cop' which is a watchdog to control any local
 ##        Traffic Server instances. It starts both, traffic_manager and traffic_server, as
 ##        does it monitor these processes. While it is generally not advised, you can
 ##        choose to manage both processes yourself. In such cases do not set TC_START to
