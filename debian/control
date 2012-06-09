@@ -10,7 +10,6 @@ Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
 Vcs-Svn: svn://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver/trunk
 Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/trunk?root=collab-maint
-DM-Upload-Allowed: yes
 
 Package: trafficserver
 Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf

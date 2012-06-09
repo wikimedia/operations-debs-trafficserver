@@ -1,11 +1,13 @@
-trafficserver (3.0.5-1) UNRELEASED; urgency=low
+trafficserver (3.0.5-1) unstable; urgency=low
 
+  * New upstream release.
   * No kudos for the previous hostile NMU, but include the changelog to denote
     this upload does not introduce a regression.
   * Update my maintainer address
   * Make the init script look much better when using fancy outputs.
   * Fix "status" output of the init script
-  * New upstream release
+  * Remove "DM-Upload-Allowed". I don't need that flag anymore.
+
 
  -- Arno Töll <arno@debian.org>  Sat, 09 Jun 2012 18:48:23 +0200
 
