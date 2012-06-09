@@ -1,4 +1,4 @@
-trafficserver (3.0.4.2) UNRELEASED; urgency=low
+trafficserver (3.0.4-2) UNRELEASED; urgency=low
 
   * No kudos for the previous hostile NMU, but include the changelog to denote
     this upload does not introduce a regression.
