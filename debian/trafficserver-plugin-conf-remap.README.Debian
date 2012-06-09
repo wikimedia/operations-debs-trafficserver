@@ -1,0 +1,26 @@
+Trafficserver-plugin-conf-remap for Debian
+-----------------------------------------
+
+* The conf_remap plug-in allows you to override configuration directives 
+  dependent on actual remapping rules. 
+* This plug-in replaces older legacy functionality which allowed to achieve a 
+  similar behaviour previously by configuring remap rules for example with
+  switches like "@pristine_host_hdr=1" in your remap configuration.
+* If you want to achieve this behaviour now, configure a remap rule like this:
+ 
+    map http://cdn.example.com/  http://some-server.example.com \
+         @plugin=conf_remap.so @pparam=/etc/trafficserver/cdn.conf
+  
+  where cdn.conf would look like records.config, e.g.
+    
+    CONFIG proxy.config.url_remap.pristine_host_hdr INT 1
+
+  Doing this, you will override your global default configuration on a per map-
+  ping rule.
+
+* You may want to look on 
+  <https://cwiki.apache.org/confluence/display/TS/conf_remap+Plug-In> 
+  for a full list of options which are allowed to be overridden and perhaps
+  some updated information.
+
+ -- Arno Toell <debian@toell.net>  Tue, 12 Jan 2011 19:30:18 +0100

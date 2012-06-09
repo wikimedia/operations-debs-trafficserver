@@ -1,0 +1,300 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          trafficserver
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: init script for the Apache Traffic Server
+# Description:       Apache Traffic Server is fast, scalable and extensible
+#                    HTTP/1.1 compliant caching proxy server.
+### END INIT INFO
+
+# Author: Arno Töll <debian@toell.net>
+#
+# This init script is derived from the source package's version shipped
+# along the source tarball as rc/trafficserver. Therefore it is a derivative
+# work and licensed as follows:
+#
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="Apache Traffic Server"
+NAME=trafficserver
+SCRIPTNAME=/etc/init.d/$NAME
+
+
+# Please do not touch TS_ROOT and TS_BASE. Traffic Server uses them
+# They are used to determine location of ATS components on the file
+# system.
+# According to DPM § 9.9 a program must not depend on the existance of
+# environment variables to work properly. Please report any errors if
+# you experience such a problem, for me it seems to work just fine with-
+# out
+ESED=/usr/bin/sed
+test -x $ESED || ESED=sed
+TS_PREFIX="/usr"
+TS_ROOT=${TS_ROOT:-$TS_PREFIX}
+
+# TS_BASE is offset inside the file system from where the layout starts
+# For standard installations TS_BASE will be empty
+eval TS_BASE="`echo $TS_ROOT | ${ESED} -e 's;/usr$;;'`"
+
+
+# Set some safe defaults. So not change values here, override them in
+# in /etc/default/trafficserver instead.
+# See there for a documentation as well 
+
+RUNDIR=${RUNDIR:-$TS_BASE/var/run/trafficserver}
+
+TC_START=${TC_START:-no}
+TC_NAME=${TC_NAME:-traffic_cop}
+TC_DAEMON=${TC_DAEMON:-$TS_BASE/usr/bin/traffic_cop}
+TC_DAEMON_ARGS=""
+TC_PIDFILE=${TC_PIDFILE:-$RUNDIR/cop.lock}
+
+
+TM_START=${TM_START:-no}
+TM_NAME=${TM_NAME:-traffic_manager}
+TM_DAEMON=${TM_DAEMON:-$TS_BASE/usr/bin/traffic_manager}
+TM_DAEMON_ARGS=""
+TM_PIDFILE=${TM_PIDFILE:-$RUNDIR/manager.lock}
+
+TS_START=${TS_START:-no}
+TS_NAME=${TS_NAME:-traffic_server}
+TS_DAEMON=${TS_DAEMON:-$TS_BASE/usr/bin/traffic_server}
+TS_DAEMON_ARGS=""
+TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
+
+
+# Exit if the package is not installed
+[ -x "$TC_DAEMON" ] || exit 0
+
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+. /lib/lsb/init-functions
+
+
+# Check permissions of /etc/trafficserver.
+# Traffic Server needs write permissions, so warn the user if we suppose it
+# wouldn't.
+# The sysadmin is welcome to change the user ID that ATS uses. However to do that
+# in a clean and supported way, the administrator should overwrite the `stat override'
+# Debian  installs by default in Trafficserver's postinst maintainer script.
+# Print a warning only.
+# Since this can't be safely determined by this script print a warning only, but
+# don't fail.
+CONF_DIR='/etc/trafficserver'
+USER=$(dpkg-statoverride --list "$CONF_DIR" | awk '{print $1}')
+OWNER=$(env stat -c '%U' "$CONF_DIR")
+if [ -d "$CONF_DIR" ] && [ ! "x$OWNER" = "x$USER" ] ; then
+	log_warning_msg "Configuration directory '$CONF_DIR' is not owned by user '$USER'. " \
+		"However Traffic Server needs write permissions to it."
+fi
+
+
+# Make sure $RUNDIR exists as the underlying file system
+# may be volatile (see § 9.3.2 from DPM)
+install -d -o trafficserver -g trafficserver -m 0755 "$RUNDIR"
+
+
+# A helper function, its purpose is to start a daemon.
+# Arguments are interpreted in order as follows:
+# 1) The executable path
+# 2) A string containing optional daemon arguments
+# 3) A (valid) path containing the PID file for the daemon
+# Returns:
+#   0 if daemon has been started
+#   1 if daemon was already running
+#   2 if daemon could not be started
+start_cmd()
+{
+	# Args
+	DAEMON=$1
+	DAEMON_ARGS=$2
+	PID=$3
+
+	#echo "\n\n"
+	#echo "d:" $DAEMON
+	#echo "da:" $DAEMON_ARGS
+	#echo "pid:" $PID
+
+	start-stop-daemon --start --quiet --pidfile $PID --exec $DAEMON --test > /dev/null \
+		|| return 1
+	start-stop-daemon --start --quiet --background --pidfile $PID --exec $DAEMON -- \
+		$DAEMON_ARGS \
+		|| return 2
+
+	return 0
+}
+
+
+# A helper function, its purpose is to stop a daemon.
+# Arguments are interpreted in order as follows:
+# 1) The daemon name (i.e. the binary name)
+# 2) The executable path
+# 3) A (valid) path containing the PID file for the daemon
+# Returns:
+#   0 if daemon has been stopped
+#   1 if daemon was already stopped
+#   2 if daemon could not be stopped
+#   Another value if a failure occurred
+stop_cmd()
+{
+	NAME=$1
+	DAEMON=$2
+	PID=$3
+
+	#echo "\n\n"
+	#echo $NAME
+	#echo $DAEMON
+	#echo $PID
+
+	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PID --name $NAME
+	RETVAL="$?"
+	[ "$RETVAL" = 2 ] && return 2
+
+	start-stop-daemon --stop --quiet --oknodo --retry=0/30/KILL/5 --exec $DAEMON
+	[ "$?" = 2 ] && return 2
+
+	# Many daemons don't delete their pidfiles when they exit.
+	rm -f $PID
+	return "$RETVAL"
+}
+
+# The start function
+# This function does everything required to bring up the service
+# at boot time.
+# It does not accept any arguments
+do_start() {
+
+	if [ "x$TC_START" != "xno" ]; then
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TC_NAME"
+		start_cmd "$TC_DAEMON" "$TC_DAEMON_ARGS" "$TC_PIDFILE"
+		case "$?" in
+			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		esac
+	fi
+
+	## Starting TS and TM is usually not needed as TC takes care!
+	## Please see /etc/default/trafficserver
+
+	if [ "x$TM_START" != "xno" ]; then
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TM_NAME"
+		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
+		case "$?" in
+			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		esac
+	fi
+
+
+	if [ "x$TS_START" != "xno" ]; then
+                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TS_NAME"
+		start_cmd "$TS_DAEMON" "$TS_DAEMON_ARGS" "$TS_PIDFILE"
+		case "$?" in
+			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+		esac
+
+	fi
+
+
+}
+
+
+# The stop function
+# This function does everything required to stop the service.
+# It does not accept any arguments
+do_stop() {
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TC_NAME"
+	stop_cmd "$TC_NAME" "$TC_DAEMON" "$TC_PIDFILE"
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+
+
+
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TM_NAME"
+	stop_cmd "$TM_NAME" "$TM_DAEMON" "$TM_PIDFILE"
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+
+
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TS_NAME"
+	stop_cmd "$TS_NAME" "$TS_DAEMON" "$TS_PIDFILE"
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+}
+
+case "$1" in
+  start)
+	if [ "x$TC_START" = "xno" ] && [ "x$TM_START" = "xno" ] && [ "x$TS_START" = "xno" ]; then
+		[ "$VERBOSE" != no ] && log_warning_msg "Not starting $DESC"
+	else
+		do_start
+	fi
+	;;
+  stop)
+	do_stop
+	;;
+  status)
+       if [ "x$TC_START" != "xno" ] ; then
+               status_of_proc "$TC_DAEMON" "$TC_NAME" -p "$TC_PIDFILE" && exit 0 || exit $?
+       else
+               status_of_proc "$TS_DAEMON" "$TS_NAME" -p "$TS_PIDFILE" || exit $?
+               status_of_proc "$TM_DAEMON" "$TM_NAME" -p "$TM_PIDFILE" || exit $?
+       fi
+       ;;
+  restart|force-reload)
+	log_daemon_msg "Restarting $DESC" "$NAME\n"
+	do_stop
+	case "$?" in
+	  0|1)
+		do_start
+		case "$?" in
+			0) log_end_msg 0 ;;
+			1) log_end_msg 1 ;; # Old process is still running
+			*) log_end_msg 1 ;; # Failed to start
+		esac
+		;;
+	  *)
+	  	# Failed to stop
+		log_end_msg 1
+		;;
+	esac
+	;;
+  *)
+	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+	exit 3
+	;;
+esac
+
+:

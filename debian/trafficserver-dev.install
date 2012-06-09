@@ -1,0 +1,4 @@
+debian/tmp/usr/include/*
+debian/tmp/usr/bin/tsxs
+debian/tmp/usr/lib/trafficserver/libts*.so
+debian/tmp/usr/lib/trafficserver/libts*.a

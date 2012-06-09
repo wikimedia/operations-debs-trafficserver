@@ -1,0 +1,15 @@
+trafficserver for Debian
+------------------------
+
+* Please read the CONFIGURATION.Debian file to get started with Traffic Server.
+
+* Currently Apache Traffic Server lacks man pages of binaries shipped along the
+  package. That's a known problem which is being worked on. Please read the
+  upstream documentation on the website instead.
+
+* If you read upstream's documentation about Traffic Server you will sometimes
+  find references to a program `/usr/bin/trafficserver`. Debian does not ship
+  this script. This is intentional. Use Debian's /etc/init.d/trafficserver
+  script instead.
+
+ -- Arno Töll <debian@toell.net>  Tue, 31 Dec 2011 13:54:18 +0100

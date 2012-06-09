@@ -1,0 +1,99 @@
+trafficserver for Debian
+------------------------
+
+Here are some configuration hints related to Traffic Server. Unless you already
+noted, configuration files are located in /etc/trafficserver. Traffic Server
+has some uncommon behaviour here: Please note, those files are generated auto-
+matically and some may not even be intended to be edited manually. Moreover it
+will rotate and synchronize configuration files if you run a cluster. Hence be
+careful when editing them, chances are Traffic Server WILL OVERWRITE them. This
+is especially true for comments which are not kept when using `traffic_line'
+(as explained below).
+
+* To get a general idea about traffic server and its architecture, read [4]. It
+  is crucial to understand the internal architecture before trying to start.
+
+* The main configuration file is `records.config'. You may either edit the main
+  configuration file by hand, but it is suggested to use the `traffic_line'
+  command instead. More on editing configuration files can be found on [1]. The
+  `traffic_line' command is used like this:
+
+	traffic_line -s proxy.config.proxy_name -v www.example.com
+
+  You might need to tell Traffic Server about your changes. If it is already
+  running use `traffic_line -x' to inform it about your changes. Please note
+  that you must restart your `traffic_server' daemon for some changes.
+
+* If you used Squid before you might find [2] helpful which lists Traffic Serv-
+  er configuration directives along their Squid equivalent. Use this as resour-
+  ce to understand Traffic Server.
+
+* To help you to get started, I am going to introduce you very briefly to Traf-
+  fic Server. Note, lines starting with `#' are remarks:
+
+    Open `records.config'.
+
+    # Configure the cluster interface
+    CONFIG proxy.config.cluster.ethernet_interface STRING eth0
+
+
+    # You may also want to bind your proxy server to a specific IP:
+    # Please note the security warning below as well
+    CONFIG proxy.local.incoming_ip_to_bind 1.2.3.4
+
+    # Next configure the listening port for incoming connections
+    CONFIG proxy.config.http.server_port INT 80
+
+    # Now tell Traffic Server how much Memory it is allowed to consume
+    # Set this value to -1 for best results which will instruct Traffic Server
+    # to consume roughly 1 MB for each GB of your disk backend storage size
+    # for memory caching. If you can afford it, go on and trash as much as
+    # you want and put here any positive value indicating the memory cache
+    # in bytes.
+    CONFIG proxy.config.cache.ram_cache.size LLONG 131072 # (128 MB)
+
+    Next edit `storage.config'. Debian ships with a default configuration poin-
+    ting to a cache file in `/var/cache/trafficserver' sized 256MB. This is fair-
+    ly ok for testing, otherwise feel free to change (value is in KB):
+
+    /var/cache/trafficserver 262144
+
+    Finally open `remap.config' where you need to tell Traffic Server about
+    your origin server(s):
+
+    map http://www.example.com/ http://www.example.com:8080/
+    #   ----------------------  ----------------------------
+    #   ^-  This is your client      This is your origin  -^
+    #       Host: header that                    server.
+    #       is to be mappend
+
+* For a more comprehensive documentation about Traffic Server and its configu-
+  ration directives consult [3].
+
+  Yet the documentation on the web page can not be considered up to date for some
+  parts. Feel free to ask for help on the Apache Traffic Server mailing list:
+
+  E-Mail <users@trafficserver.apache.org>
+  URL: <http://mail-archives.apache.org/mod_mbox/trafficserver-users/>
+
+  More information may be found on either resource among those:
+  Project Website: <http://trafficserver.apache.org/>
+  IRC: #traffic-server on irc.freenode.net.
+  Project Wiki: https://cwiki.apache.org/TS/traffic-server.html
+
+* Traffic Server can basically act in two modes: As forward proxy and as a rever-
+  se proxy. Traffic Servers primary purpose is to act as reverse proxy (e.g.
+  different to Squid). Nonetheless you can Traffic Server still instruct to act
+  as forward proxy as well. If you know what you are doing, you need to set
+
+     CONFIG proxy.config.url_remap.remap_required INT 0
+
+  for that purpose.
+
+
+[1] http://trafficserver.apache.org/docs/v2/admin/configure.htm
+[2] https://cwiki.apache.org/TS/squidconfigtranslation.html
+[3] http://trafficserver.apache.org/docs/v2/admin/files.htm#records.config
+[4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
+
+ -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 14:10:21 +0100
