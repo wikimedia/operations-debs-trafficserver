@@ -54,20 +54,13 @@ InkHashTable *accepted_clients; // list of all accepted client connections
 EventClientT *
 new_event_client()
 {
-  EventClientT *ele;
-
-  ele = (EventClientT *) xmalloc(sizeof(EventClientT));
-  if (!ele)
-    return NULL;
+  EventClientT *ele = (EventClientT *)ats_malloc(sizeof(EventClientT));
 
   // now set the alarms registered section
   for (int i = 0; i < NUM_EVENTS; i++)
     ele->events_registered[i] = 0;
 
-  ele->adr = (struct sockaddr *) xmalloc(sizeof(struct sockaddr));
-  if (!ele->adr)
-    return NULL;
-
+  ele->adr = (struct sockaddr *)ats_malloc(sizeof(struct sockaddr));
   return ele;
 }
 
@@ -83,9 +76,8 @@ void
 delete_event_client(EventClientT * client)
 {
   if (client) {
-    if (client->adr)
-      xfree(client->adr);
-    xfree(client);
+    ats_free(client->adr);
+    ats_free(client);
   }
   return;
 }
@@ -190,9 +182,7 @@ delete_event_queue(LLQ * q)
 
   while (!queue_is_empty(q)) {
     ele = (TSEvent *) dequeue(q);
-    if (ele) {
-      xfree(ele);
-    }
+    ats_free(ele);
   }
 
   delete_queue(q);
@@ -220,11 +210,11 @@ apiEventCallback(alarm_t newAlarm, char *ip, char *desc)
   newEvent = TSEventCreate();
   newEvent->id = newAlarm;
   newEvent->name = get_event_name(newEvent->id);
-  //newEvent->ip   = xstrdup(ip);
+  //newEvent->ip   = ats_strdup(ip);
   if (desc)
-    newEvent->description = xstrdup(desc);
+    newEvent->description = ats_strdup(desc);
   else
-    newEvent->description = xstrdup("None");
+    newEvent->description = ats_strdup("None");
 
   //add it to the mgmt_events list
   ink_mutex_acquire(&mgmt_events_lock);
@@ -353,8 +343,7 @@ event_callback_main(void *arg)
 
             case EVENT_REG_CALLBACK:
               handle_event_reg_callback(client_entry, req);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("event", "[event_callback_main] ERROR: handle_event_reg_callback\n");
                 remove_event_client(client_entry, accepted_clients);
@@ -366,8 +355,7 @@ event_callback_main(void *arg)
             case EVENT_UNREG_CALLBACK:
 
               handle_event_unreg_callback(client_entry, req);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("event", "[event_callback_main] ERROR: handle_event_unreg_callback\n");
                 remove_event_client(client_entry, accepted_clients);
@@ -419,7 +407,7 @@ event_callback_main(void *arg)
         if (client_entry->events_registered[event->id]) {
           ret = send_event_notification(client_entry->sock_info, event);
           if (ret != TS_ERR_OKAY) {    // send_event_notification failed!
-            Debug("event", "sending even notification to fd [%d] failed.\n", client_entry->sock_info);
+            Debug("event", "sending even notification to fd [%d] failed.\n", client_entry->sock_info.fd);
           }
         }
         // get next client connection, if any

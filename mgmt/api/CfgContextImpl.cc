@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Implementation of CfgContext class and all the CfgEleObj subclasses
 
   @section license License
 
@@ -21,11 +21,6 @@
   limitations under the License.
  */
 
-/***********************************************************************
- * CfgContextImpl.cc
- *
- * Implementation of CfgContext class and all the CfgEleObj subclasses
- ***********************************************************************/
 
 #include "libts.h"
 #include "ink_platform.h"
@@ -57,7 +52,7 @@ CommentObj::~CommentObj()
 char *
 CommentObj::formatEleToRule()
 {
-  return xstrdup(m_ele->comment);
+  return ats_strdup(m_ele->comment);
 }
 
 bool CommentObj::isValid()
@@ -147,51 +142,51 @@ CacheObj::formatEleToRule()
     m_ele->cfg_ele.error = TS_ERR_INVALID_CONFIG_RULE;
     return NULL;
   }
-  strncat(buf, pd_str, sizeof(buf) - strlen(buf) - 1);
-  xfree(pd_str);
+  ink_strlcat(buf, pd_str, sizeof(buf));
+  ats_free(pd_str);
 
   switch (m_ele->cfg_ele.type) {
   case TS_CACHE_NEVER:
-    strncat(buf, "action=never-cache ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "action=never-cache ", sizeof(buf));
     break;
   case TS_CACHE_IGNORE_NO_CACHE:
-    strncat(buf, "action=ignore-no-cache ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "action=ignore-no-cache ", sizeof(buf));
     break;
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:
-    strncat(buf, "action=ignore-client-no-cache ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "action=ignore-client-no-cache ", sizeof(buf));
     break;
   case TS_CACHE_IGNORE_SERVER_NO_CACHE:
-    strncat(buf, "action=ignore-server-no-cache ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "action=ignore-server-no-cache ", sizeof(buf));
     break;
   case TS_CACHE_AUTH_CONTENT:
-    strncat(buf, "action=cache-auth-content ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "action=cache-auth-content ", sizeof(buf));
     break;
   case TS_CACHE_PIN_IN_CACHE:
-    strncat(buf, "pin-in-cache=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "pin-in-cache=", sizeof(buf));
     time_str = hms_time_to_string(m_ele->time_period);
     if (time_str) {
-      strncat(buf, time_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(time_str);
+      ink_strlcat(buf, time_str, sizeof(buf));
+      ats_free(time_str);
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
     break;
   case TS_CACHE_REVALIDATE:
-    strncat(buf, "revalidate=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "revalidate=", sizeof(buf));
     time_str = hms_time_to_string(m_ele->time_period);
     if (time_str) {
-      strncat(buf, time_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(time_str);
+      ink_strlcat(buf, time_str, sizeof(buf));
+      ats_free(time_str);
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
     break;
   case TS_CACHE_TTL_IN_CACHE:
-    strncat(buf, "ttl-in-cache=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "ttl-in-cache=", sizeof(buf));
     time_str = hms_time_to_string(m_ele->time_period);
     if (time_str) {
-      strncat(buf, time_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(time_str);
+      ink_strlcat(buf, time_str, sizeof(buf));
+      ats_free(time_str);
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -199,7 +194,7 @@ CacheObj::formatEleToRule()
     break;
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool CacheObj::isValid()
@@ -229,8 +224,7 @@ bool CacheObj::isValid()
     if (!timeStr) {
       m_valid = false;
     }
-    if (timeStr)
-      xfree(timeStr);
+    ats_free(timeStr);
   default:
     // Handled here:
     // Lots of cases ...
@@ -291,7 +285,7 @@ CongestionObj::CongestionObj(TokenList * tokens)
   } else if (strcmp(tok->name, "host_regex") == 0) {
     m_ele->pd_type = TS_PD_URL_REGEX;
   }
-  m_ele->pd_val = xstrdup(tok->value);
+  m_ele->pd_val = ats_strdup(tok->value);
 
   // check for remaining tags
   tok = tokens->next(tok);
@@ -300,7 +294,7 @@ CongestionObj::CongestionObj(TokenList * tokens)
       goto FORMAT_ERR;
     }
     if (strcmp(tok->name, "prefix") == 0) {
-      m_ele->prefix = xstrdup(tok->value);
+      m_ele->prefix = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "port") == 0) {
       m_ele->port = ink_atoi(tok->value);
     } else if (strcmp(tok->name, "congestion_scheme") == 0) {
@@ -332,7 +326,7 @@ CongestionObj::CongestionObj(TokenList * tokens)
     } else if (strcmp(tok->name, "max_connection") == 0) {
       m_ele->max_connection = ink_atoi(tok->value);
     } else if (strcmp(tok->name, "error_page_uri") == 0) {
-      m_ele->error_page_uri = xstrdup(tok->value);
+      m_ele->error_page_uri = ats_strdup(tok->value);
     } else {
       goto FORMAT_ERR;
     }
@@ -450,7 +444,7 @@ CongestionObj::formatEleToRule()
     ;
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool CongestionObj::isValid()
@@ -512,7 +506,7 @@ HostingObj::HostingObj(TokenList * tokens)
   } else {
     goto FORMAT_ERR;
   }
-  m_ele->pd_val = xstrdup(token->value);
+  m_ele->pd_val = ats_strdup(token->value);
 
   // Second Token
   token = tokens->next(token);
@@ -550,10 +544,10 @@ HostingObj::formatEleToRule()
 
   switch (m_ele->pd_type) {
   case TS_PD_HOST:
-    strncat(buf, "hostname=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "hostname=", sizeof(buf));
     break;
   case TS_PD_DOMAIN:
-    strncat(buf, "domain=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "domain=", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -562,12 +556,12 @@ HostingObj::formatEleToRule()
   }
 
   list_str = int_list_to_string(m_ele->volumes, ",");
-  strncat(buf, m_ele->pd_val, sizeof(buf) - strlen(buf) - 1);
-  strncat(buf, " volume=", sizeof(buf) - strlen(buf) - 1);
-  strncat(buf, list_str, sizeof(buf) - strlen(buf) - 1);
-  xfree(list_str);
+  ink_strlcat(buf, m_ele->pd_val, sizeof(buf));
+  ink_strlcat(buf, " volume=", sizeof(buf));
+  ink_strlcat(buf, list_str, sizeof(buf));
+  ats_free(list_str);
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool HostingObj::isValid()
@@ -660,7 +654,7 @@ IcpObj::IcpObj(TokenList * tokens)
     switch (i) {
     case 0:
       if (strlen(alias) > 0)
-        m_ele->peer_hostname = xstrdup(alias);
+        m_ele->peer_hostname = ats_strdup(alias);
       break;
     case 1:
       if (strlen(alias) > 0) {
@@ -769,13 +763,13 @@ IcpObj::formatEleToRule()
   if (m_ele->peer_host_ip_addr)
     ip_str1 = ip_addr_to_string(m_ele->peer_host_ip_addr);
   else
-    ip_str1 = xstrdup("");
+    ip_str1 = ats_strdup("");
 
   // optional field
   if (m_ele->mc_ip_addr)
     ip_str2 = ip_addr_to_string(m_ele->mc_ip_addr);
   else
-    ip_str2 = xstrdup("0.0.0.0");
+    ip_str2 = ats_strdup("0.0.0.0");
 
   if (m_ele->peer_hostname) {
     snprintf(buf, sizeof(buf), "%s:%s:%d:%d:%d:%d:%s:",
@@ -788,21 +782,20 @@ IcpObj::formatEleToRule()
 
   switch (m_ele->mc_ttl) {
   case TS_MC_TTL_SINGLE_SUBNET:
-    strncat(buf, "1:", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "1:", sizeof(buf));
     break;
   case TS_MC_TTL_MULT_SUBNET:
-    strncat(buf, "2:", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "2:", sizeof(buf));
     break;
   case TS_MC_TTL_UNDEFINED:
-    strncat(buf, "0:", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "0:", sizeof(buf));
     break;
   }
 
-  if (ip_str1)
-    xfree(ip_str1);
-  if (ip_str2)
-    xfree(ip_str2);
-  return xstrdup(buf);
+  ats_free(ip_str1);
+  ats_free(ip_str2);
+
+  return ats_strdup(buf);
 }
 
 bool IcpObj::isValid()
@@ -929,22 +922,22 @@ IpAllowObj::formatEleToRule()
   char buf[MAX_RULE_SIZE];
   memset(buf, 0, MAX_RULE_SIZE);
 
-  ink_strncpy(buf, "src_ip=", sizeof(buf));
+  ink_strlcpy(buf, "src_ip=", sizeof(buf));
   if (m_ele->src_ip_addr) {
     char *ip_str = ip_addr_ele_to_string(m_ele->src_ip_addr);
     if (ip_str) {
-      strncat(buf, ip_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(ip_str);
+      ink_strlcat(buf, ip_str, sizeof(buf));
+      ats_free(ip_str);
     }
   }
 
-  strncat(buf, " action=", sizeof(buf) - strlen(buf) - 1);
+  ink_strlcat(buf, " action=", sizeof(buf));
   switch (m_ele->action) {
   case TS_IP_ALLOW_ALLOW:
-    strncat(buf, "ip_allow", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "ip_allow", sizeof(buf));
     break;
   case TS_IP_ALLOW_DENY:
-    strncat(buf, "ip_deny", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "ip_deny", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -952,7 +945,7 @@ IpAllowObj::formatEleToRule()
     break;
   }
 
-  rule = xstrdup(buf);
+  rule = ats_strdup(buf);
   return rule;
 }
 
@@ -1101,24 +1094,24 @@ ParentProxyObj::formatEleToRule()
   pd_str = pdest_sspec_to_string(m_ele->parent_info.pd_type, m_ele->parent_info.pd_val, &(m_ele->parent_info.sec_spec));
   if (!pd_str)
     return NULL;
-  strncat(buf, pd_str, sizeof(buf) - strlen(buf) - 1);
-  xfree(pd_str);
+  ink_strlcat(buf, pd_str, sizeof(buf));
+  ats_free(pd_str);
 
   // round_robin
   if ((m_ele->rr != TS_RR_NONE) && (m_ele->rr != TS_RR_UNDEFINED)) {
     if (!isspace(buf[strlen(buf) - 1])) {
-      strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, " ", sizeof(buf));
     }
-    strncat(buf, "round_robin=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "round_robin=", sizeof(buf));
     switch (m_ele->rr) {
     case TS_RR_TRUE:
-      strncat(buf, "true", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "true", sizeof(buf));
       break;
     case TS_RR_STRICT:
-      strncat(buf, "strict", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "strict", sizeof(buf));
       break;
     case TS_RR_FALSE:
-      strncat(buf, "false", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "false", sizeof(buf));
       break;
     default:
       // Handled here:
@@ -1130,32 +1123,32 @@ ParentProxyObj::formatEleToRule()
   if (m_ele->proxy_list != NULL) {
     // include space delimiter if not already exist
     if (!isspace(buf[strlen(buf) - 1])) {
-      strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, " ", sizeof(buf));
     }
     list_str = domain_list_to_string(m_ele->proxy_list, ";");
-    strncat(buf, "parent=\"", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "parent=\"", sizeof(buf));
     if (list_str) {
-      strncat(buf, list_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(list_str);
+      ink_strlcat(buf, list_str, sizeof(buf));
+      ats_free(list_str);
     }
-    strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "\"", sizeof(buf));
 
   }
 
   if (m_ele->direct) {
     // include space delimiter if not already exist
     if (!isspace(buf[strlen(buf) - 1])) {
-      strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, " ", sizeof(buf));
     }
-    strncat(buf, "go_direct=true", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "go_direct=true", sizeof(buf));
   } else {
     if (!isspace(buf[strlen(buf) - 1])) {
-      strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, " ", sizeof(buf));
     }
-    strncat(buf, "go_direct=false", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "go_direct=false", sizeof(buf));
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool ParentProxyObj::isValid()
@@ -1266,7 +1259,7 @@ VolumeObj::formatEleToRule()
 
   switch (m_ele->scheme) {
   case TS_VOLUME_HTTP:
-    strncat(buf, "http", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "http", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -1278,7 +1271,7 @@ VolumeObj::formatEleToRule()
   snprintf(buf + pos, sizeof(buf) - pos, " size=%d", m_ele->volume_size);
   switch (m_ele->size_format) {
   case TS_SIZE_FMT_PERCENT:
-    strncat(buf, "%", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "%", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -1286,7 +1279,7 @@ VolumeObj::formatEleToRule()
     break;
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool VolumeObj::isValid()
@@ -1360,7 +1353,7 @@ PluginObj::PluginObj(TokenList * tokens)
   if (strcmp(token->name, "") == 0) {
     goto FORMAT_ERR;
   }
-  m_ele->name = xstrdup(token->name);
+  m_ele->name = ats_strdup(token->name);
 
   // arguments
   token = tokens->next(token);
@@ -1368,7 +1361,7 @@ PluginObj::PluginObj(TokenList * tokens)
     if (m_ele->args == TS_INVALID_LIST)
       m_ele->args = TSStringListCreate();
     if (token->name)
-      TSStringListEnqueue(m_ele->args, xstrdup(token->name));
+      TSStringListEnqueue(m_ele->args, ats_strdup(token->name));
     token = tokens->next(token);
   }
 
@@ -1399,12 +1392,12 @@ PluginObj::formatEleToRule()
   list_str = string_list_to_string(m_ele->args, " ");
   if (list_str) {
     snprintf(buf, sizeof(buf), "%s %s", m_ele->name, list_str);
-    xfree(list_str);
+    ats_free(list_str);
   } else {
     snprintf(buf, sizeof(buf), "%s", m_ele->name);
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool PluginObj::isValid()
@@ -1480,7 +1473,7 @@ RemapObj::RemapObj(TokenList * tokens)
   }
 
   // from host
-  m_ele->from_host = xstrdup(fromTok[3]);
+  m_ele->from_host = ats_strdup(fromTok[3]);
 
   current = 4;
   if (fromTok[4]) {
@@ -1499,23 +1492,23 @@ RemapObj::RemapObj(TokenList * tokens)
       memset(buf, 0, MAX_RULE_SIZE);
 
       for (int i = current; fromTok[i]; i++) {
-        strncat(buf, fromTok[i], sizeof(buf) - strlen(buf) - 1);
-        strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, fromTok[i], sizeof(buf));
+        ink_strlcat(buf, "/", sizeof(buf));
       }
 
       if ((token->name)[strlen(token->name) - 1] != '/') {
         buf[strlen(buf) - 1] = '\0';    // truncate the last '/'
       }
 
-      m_ele->from_path_prefix = xstrdup(buf);
+      m_ele->from_path_prefix = ats_strdup(buf);
     }
   } else {
     if ((token->name)[strlen(token->name) - 1] == '/') {
       memset(buf, 0, MAX_RULE_SIZE);
-      ink_strncpy(buf, m_ele->from_host, sizeof(buf));
-      xfree(m_ele->from_host);
-      strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
-      m_ele->from_host = xstrdup(buf);
+      ink_strlcpy(buf, m_ele->from_host, sizeof(buf));
+      ats_free(m_ele->from_host);
+      ink_strlcat(buf, "/", sizeof(buf));
+      m_ele->from_host = ats_strdup(buf);
     }
   }
 
@@ -1536,7 +1529,7 @@ RemapObj::RemapObj(TokenList * tokens)
   }
 
   // to host
-  m_ele->to_host = xstrdup(toTok[3]);
+  m_ele->to_host = ats_strdup(toTok[3]);
 
   current = 4;
   if (toTok[4]) {
@@ -1555,24 +1548,24 @@ RemapObj::RemapObj(TokenList * tokens)
       memset(buf, 0, MAX_RULE_SIZE);
 
       for (int i = current; toTok[i]; i++) {
-        strncat(buf, toTok[i], sizeof(buf) - strlen(buf) - 1);
-        strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, toTok[i], sizeof(buf));
+        ink_strlcat(buf, "/", sizeof(buf));
       }
 
       if ((token->name)[strlen(token->name) - 1] != '/') {
         buf[strlen(buf) - 1] = '\0';    // truncate the last '/'
       }
 
-      m_ele->to_path_prefix = xstrdup(buf);
+      m_ele->to_path_prefix = ats_strdup(buf);
     }
   } else {
     if ((token->value)[strlen(token->value) - 1] == '/') {
 
       memset(buf, 0, MAX_RULE_SIZE);
-      ink_strncpy(buf, m_ele->to_host, sizeof(buf));
-      xfree(m_ele->to_host);
-      strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
-      m_ele->to_host = xstrdup(buf);
+      ink_strlcpy(buf, m_ele->to_host, sizeof(buf));
+      ats_free(m_ele->to_host);
+      ink_strlcat(buf, "/", sizeof(buf));
+      m_ele->to_host = ats_strdup(buf);
 
     }
   }
@@ -1602,16 +1595,16 @@ RemapObj::formatEleToRule()
 
   switch (m_ele->cfg_ele.type) {
   case TS_REMAP_MAP:
-    strncat(buf, "map", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "map", sizeof(buf));
     break;
   case TS_REMAP_REVERSE_MAP:
-    strncat(buf, "reverse_map", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "reverse_map", sizeof(buf));
     break;
   case TS_REMAP_REDIRECT:
-    strncat(buf, "redirect", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "redirect", sizeof(buf));
     break;
   case TS_REMAP_REDIRECT_TEMP:
-    strncat(buf, "redirect_temporary", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "redirect_temporary", sizeof(buf));
     break;
   default:
     // Handled here:
@@ -1619,26 +1612,26 @@ RemapObj::formatEleToRule()
     break;
   }
   // space delimitor
-  strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+  ink_strlcat(buf, " ", sizeof(buf));
 
   // from scheme
   switch (m_ele->from_scheme) {
   case TS_SCHEME_HTTP:
-    strncat(buf, "http", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "http", sizeof(buf));
     break;
   case TS_SCHEME_HTTPS:
-    strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "https", sizeof(buf));
     break;
   default:
     // Handled here:
     // TS_SCHEME_NONE, TS_SCHEME_UNDEFINED
     break;
   }
-  strncat(buf, "://", sizeof(buf) - strlen(buf) - 1);
+  ink_strlcat(buf, "://", sizeof(buf));
 
   // from host
   if (m_ele->from_host) {
-    strncat(buf, m_ele->from_host, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, m_ele->from_host, sizeof(buf));
   }
   // from port
   if (m_ele->from_port != TS_INVALID_PORT) {
@@ -1646,30 +1639,30 @@ RemapObj::formatEleToRule()
   }
   // from host path
   if (m_ele->from_path_prefix) {
-    strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
-    strncat(buf, m_ele->from_path_prefix, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "/", sizeof(buf));
+    ink_strlcat(buf, m_ele->from_path_prefix, sizeof(buf));
   }
   // space delimitor
-  strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+  ink_strlcat(buf, " ", sizeof(buf));
 
   // to scheme
   switch (m_ele->to_scheme) {
   case TS_SCHEME_HTTP:
-    strncat(buf, "http", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "http", sizeof(buf));
     break;
   case TS_SCHEME_HTTPS:
-    strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "https", sizeof(buf));
     break;
   default:
     // Handled here:
     // TS_SCHEME_NONE, TS_SCHEME_UNDEFINED
     break;
   }
-  strncat(buf, "://", sizeof(buf) - strlen(buf) - 1);
+  ink_strlcat(buf, "://", sizeof(buf));
 
   // to host
   if (m_ele->to_host) {
-    strncat(buf, m_ele->to_host, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, m_ele->to_host, sizeof(buf));
   }
   // to port
   if (m_ele->to_port != TS_INVALID_PORT) {
@@ -1677,11 +1670,11 @@ RemapObj::formatEleToRule()
   }
   // to host path
   if (m_ele->to_path_prefix) {
-    strncat(buf, "/", sizeof(buf) - strlen(buf) - 1);
-    strncat(buf, m_ele->to_path_prefix, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "/", sizeof(buf));
+    ink_strlcat(buf, m_ele->to_path_prefix, sizeof(buf));
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool RemapObj::isValid()
@@ -1781,13 +1774,13 @@ SocksObj::SocksObj(TokenList * tokens)
     if (strcmp(tok->value, "u") == 0) {
       tok = tokens->next(tok);
       if (tok && tok->name) {
-        m_ele->username = xstrdup(tok->name);
+        m_ele->username = ats_strdup(tok->name);
       } else {
         goto FORMAT_ERR;
       }
       if (tok && tok->name) {
         tok = tokens->next(tok);
-        m_ele->password = xstrdup(tok->name);
+        m_ele->password = ats_strdup(tok->name);
       } else {
         goto FORMAT_ERR;
       }
@@ -1858,7 +1851,7 @@ SocksObj::formatEleToRule()
     char *str_list = ip_addr_list_to_string((LLQ *) m_ele->ip_addrs, ",");
     if (str_list) {
       snprintf(buf, sizeof(buf), "no_socks %s", str_list);
-      xfree(str_list);
+      ats_free(str_list);
     } else {
       return NULL;              // invalid ip_addr_list
     }
@@ -1868,9 +1861,9 @@ SocksObj::formatEleToRule()
     // destination ip
     char *ip_str = ip_addr_ele_to_string((TSIpAddrEle *) m_ele->dest_ip_addr);
     if (ip_str) {
-      strncat(buf, "dest_ip=", sizeof(buf) - strlen(buf) - 1);
-      strncat(buf, ip_str, sizeof(buf) - strlen(buf) - 1);
-      xfree(ip_str);
+      ink_strlcat(buf, "dest_ip=", sizeof(buf));
+      ink_strlcat(buf, ip_str, sizeof(buf));
+      ats_free(ip_str);
     } else {
       return NULL;              // invalid IP
     }
@@ -1879,14 +1872,14 @@ SocksObj::formatEleToRule()
     if (m_ele->socks_servers != NULL) {
       // include space delimiter if not already exist
       if (!isspace(buf[strlen(buf) - 1])) {
-        strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, " ", sizeof(buf));
       }
       char *list_str = domain_list_to_string(m_ele->socks_servers, ";");
       if (list_str) {
-        strncat(buf, "parent=\"", sizeof(buf) - strlen(buf) - 1);
-        strncat(buf, list_str, sizeof(buf) - strlen(buf) - 1);
-        strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
-        xfree(list_str);
+        ink_strlcat(buf, "parent=\"", sizeof(buf));
+        ink_strlcat(buf, list_str, sizeof(buf));
+        ink_strlcat(buf, "\"", sizeof(buf));
+        ats_free(list_str);
       } else {
         return NULL;            // invalid list
       }
@@ -1894,18 +1887,18 @@ SocksObj::formatEleToRule()
     // round-robin, if specified
     if ((m_ele->rr != TS_RR_NONE) && (m_ele->rr != TS_RR_UNDEFINED)) {
       if (!isspace(buf[strlen(buf) - 1])) {
-        strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, " ", sizeof(buf));
       }
-      strncat(buf, "round_robin=", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "round_robin=", sizeof(buf));
       switch (m_ele->rr) {
       case TS_RR_TRUE:
-        strncat(buf, "true", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "true", sizeof(buf));
         break;
       case TS_RR_STRICT:
-        strncat(buf, "strict", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "strict", sizeof(buf));
         break;
       case TS_RR_FALSE:
-        strncat(buf, "false", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "false", sizeof(buf));
         break;
       default:
         // Handled here:
@@ -1915,7 +1908,7 @@ SocksObj::formatEleToRule()
     }
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 // the rule must either have an ip addr list (exclusive) OR
@@ -2003,21 +1996,21 @@ SplitDnsObj::SplitDnsObj(TokenList * tokens)
         goto FORMAT_ERR;
       }
       m_ele->pd_type = TS_PD_DOMAIN;
-      m_ele->pd_val = xstrdup(tok->value);
+      m_ele->pd_val = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "dest_host") == 0) {
       if ((m_ele->pd_type != TS_PD_UNDEFINED) || (m_ele->pd_val != NULL) || (!tok->value)) {
         // fields are already defined!!
         goto FORMAT_ERR;
       }
       m_ele->pd_type = TS_PD_HOST;
-      m_ele->pd_val = xstrdup(tok->value);
+      m_ele->pd_val = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "url_regex") == 0) {
       if ((m_ele->pd_type != TS_PD_UNDEFINED) || (m_ele->pd_val != NULL) || (!tok->value)) {
         // fields are already defined!!
         goto FORMAT_ERR;
       }
       m_ele->pd_type = TS_PD_URL_REGEX;
-      m_ele->pd_val = xstrdup(tok->value);
+      m_ele->pd_val = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "named") == 0) {
       if ((m_ele->dns_servers_addrs != NULL) || (!tok->value)) {
         // fields are already defined!!
@@ -2029,7 +2022,7 @@ SplitDnsObj::SplitDnsObj(TokenList * tokens)
         // fields are already defined!!
         goto FORMAT_ERR;
       }
-      m_ele->def_domain = xstrdup(tok->value);
+      m_ele->def_domain = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "search_list") == 0) {
       if ((m_ele->search_list != NULL) || (!tok->value)) {
         // fields are already defined!!
@@ -2069,86 +2062,85 @@ SplitDnsObj::formatEleToRule()
   char *pd_name;
   switch (m_ele->pd_type) {
   case TS_PD_DOMAIN:
-    pd_name = xstrdup("dest_domain");
+    pd_name = ats_strdup("dest_domain");
     break;
   case TS_PD_HOST:
-    pd_name = xstrdup("dest_host");
+    pd_name = ats_strdup("dest_host");
     break;
   case TS_PD_URL_REGEX:
-    pd_name = xstrdup("url_regex");
+    pd_name = ats_strdup("url_regex");
     break;
   default:
-    pd_name = xstrdup("");      // lv: just to make this junk workable
+    pd_name = ats_strdup("");      // lv: just to make this junk workable
     // Handled here:
     // TS_PD_IP, TS_PD_UNDEFINED
     break;
   }
 
   if (m_ele->pd_val) {
-    strncat(buf, pd_name, sizeof(buf) - strlen(buf) - 1);
-    strncat(buf, "=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, pd_name, sizeof(buf));
+    ink_strlcat(buf, "=", sizeof(buf));
     if (strstr(m_ele->pd_val, " ")) {
-      strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "\"", sizeof(buf));
     }
-    strncat(buf, m_ele->pd_val, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, m_ele->pd_val, sizeof(buf));
     if (strstr(m_ele->pd_val, " ")) {
-      strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "\"", sizeof(buf));
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
   }
 
   if (m_ele->dns_servers_addrs) {
-    strncat(buf, "named=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "named=", sizeof(buf));
     char *temp = domain_list_to_string((LLQ *) m_ele->dns_servers_addrs, ";");
     if (temp) {
       if (strstr(temp, " ")) {
-        strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "\"", sizeof(buf));
       }
-      strncat(buf, temp, sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, temp, sizeof(buf));
       if (strstr(temp, " ")) {
-        strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "\"", sizeof(buf));
       }
-      xfree(temp);
+      ats_free(temp);
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
   }
 
   if (m_ele->def_domain) {
-    strncat(buf, "def_domain=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "def_domain=", sizeof(buf));
     if (strstr(m_ele->def_domain, " ")) {
-      strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "\"", sizeof(buf));
     }
-    strncat(buf, m_ele->def_domain, sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, m_ele->def_domain, sizeof(buf));
     if (strstr(m_ele->def_domain, " ")) {
-      strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, "\"", sizeof(buf));
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
   }
 
   if (m_ele->search_list) {
-    strncat(buf, "search_list=", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, "search_list=", sizeof(buf));
     char *temp = domain_list_to_string(m_ele->search_list, ";");
     if (temp) {
       if (strstr(temp, " ")) {
-        strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "\"", sizeof(buf));
       }
-      strncat(buf, temp, sizeof(buf) - strlen(buf) - 1);
+      ink_strlcat(buf, temp, sizeof(buf));
       if (strstr(temp, " ")) {
-        strncat(buf, "\"", sizeof(buf) - strlen(buf) - 1);
+        ink_strlcat(buf, "\"", sizeof(buf));
       }
-      xfree(temp);
+      ats_free(temp);
     }
-    strncat(buf, " ", sizeof(buf) - strlen(buf) - 1);
+    ink_strlcat(buf, " ", sizeof(buf));
   }
   // chop the last space
   while (isspace(buf[strlen(buf) - 1])) {
     buf[strlen(buf) - 1] = '\0';
   }
 
-  if (pd_name)
-    xfree(pd_name);
+  ats_free(pd_name);
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool SplitDnsObj::isValid()
@@ -2222,7 +2214,7 @@ StorageObj::StorageObj(TokenList * tokens)
   if (!tok->name) {
     goto FORMAT_ERR;            // no pathname specified
   } else {
-    m_ele->pathname = xstrdup(tok->name);
+    m_ele->pathname = ats_strdup(tok->name);
   }
 
   // check if size is specified
@@ -2258,7 +2250,7 @@ StorageObj::formatEleToRule()
     snprintf(buf, sizeof(buf), "%s %d", m_ele->pathname, m_ele->size);
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool StorageObj::isValid()
@@ -2313,7 +2305,7 @@ UpdateObj::UpdateObj(TokenList * tokens)
   if (strcmp(token->name, "") == 0) {
     goto FORMAT_ERR;
   }
-  m_ele->url = xstrdup(token->name);
+  m_ele->url = ats_strdup(token->name);
 
   // Request_headers
   token = tokens->next(token);
@@ -2367,13 +2359,13 @@ UpdateObj::formatEleToRule()
   if (list_str) {
     snprintf(buf, sizeof(buf), "%s\\%s\\%d\\%d\\%d\\",
              m_ele->url, list_str, m_ele->offset_hour, m_ele->interval, m_ele->recursion_depth);
-    xfree(list_str);
+    ats_free(list_str);
   } else {
     snprintf(buf, sizeof(buf), "%s\\\\%d\\%d\\%d\\",
              m_ele->url, m_ele->offset_hour, m_ele->interval, m_ele->recursion_depth);
   }
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool UpdateObj::isValid()
@@ -2393,7 +2385,7 @@ bool UpdateObj::isValid()
   if (list_str) {
     if (strstr(list_str, "\\"))
       m_valid = false;
-    xfree(list_str);
+    ats_free(list_str);
   }
   // offset hour range is 00-23
   if (m_ele->offset_hour < 0 || m_ele->offset_hour > 23)
@@ -2462,7 +2454,7 @@ VirtIpAddrObj::VirtIpAddrObj(TokenList * tokens)
   if (tok->value != NULL) {
     goto FORMAT_ERR;
   }
-  m_ele->intr = xstrdup(tok->name);
+  m_ele->intr = ats_strdup(tok->name);
 
   // Subinterface
   tok = tokens->next(tok);
@@ -2497,10 +2489,9 @@ VirtIpAddrObj::formatEleToRule()
 
   ip_str = ip_addr_to_string(m_ele->ip_addr);
   snprintf(buf, sizeof(buf), "%s %s %d", ip_str, m_ele->intr, m_ele->sub_intr);
-  if (ip_str)
-    xfree(ip_str);
+  ats_free(ip_str);
 
-  return xstrdup(buf);
+  return ats_strdup(buf);
 }
 
 bool VirtIpAddrObj::isValid()

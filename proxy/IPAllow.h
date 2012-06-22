@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Access control by IP address and HTTP method.
 
   @section license License
 
@@ -31,67 +31,101 @@
 #ifndef _IP_ALLOW_H_
 #define _IP_ALLOW_H_
 
-#include "IpLookup.h"
 #include "Main.h"
+#include "hdrs/HTTP.h"
+#include "ts/IpMap.h"
+#include "vector"
+#include "ts/Vec.h"
 
-void initIPAllow();
-void reloadIPAllow();
+// forward declare in name only so it can be a friend.
+struct IPAllow_UpdateContinuation;
 
 //
 // Timeout the IpAllowTable * this amount of time after the
 //    a reconfig event happens that the old table gets thrown
 //    away
 //
-#define IP_ALLOW_TIMEOUT            (HRTIME_HOUR*1)
+static uint64_t const IP_ALLOW_TIMEOUT = HRTIME_HOUR;
 
-// INKqa05845
-#define IP_ALLOW 1
-#define IP_DENY -1
-class IpAllowRecord
-{
-public:
-  int access;
-  int line_num;
+/** An access control record.
+    It has the methods permitted and the source line.
+*/
+struct AclRecord {
+  int _method_mask;
+  int _src_line;
+
+  /// Default constructor.
+  /// Present only to make Vec<> happy, do not use.
+  AclRecord() : _method_mask(0), _src_line(0) { }
+
+  AclRecord(uint32_t method_mask, int ln) : _method_mask(method_mask), _src_line(ln) { }
 };
 
-class IpAllow:public IpLookup
-{
+/** Singleton class for access controls.
+ */
+class IpAllow {
+  friend int main(int, char**);
+  friend struct IPAllow_UpdateContinuation;
 public:
+  typedef IpAllow self; ///< Self reference type.
+
   IpAllow(const char *config_var, const char *name, const char *action_val);
    ~IpAllow();
   int BuildTable();
   void Print();
-  bool match(ip_addr_t ip);
+  uint32_t match(IpEndpoint const* ip) const;
+  uint32_t match(sockaddr const* ip) const;
+
+  /// @return The global instance.
+  static self* instance();
+
+  static bool CheckMask(uint32_t, int);
+  /// @return A mask that permits all methods.
+  static uint32_t AllMethodMask() {
+    return ALL_METHOD_MASK;
+  }
 private:
+
+  static void InitInstance();
+  static void ReloadInstance();
+  static uint32_t MethodIdxToMask(int);
+
   const char *config_file_var;
   char config_file_path[PATH_NAME_MAX];
   const char *module_name;
   const char *action;
-  bool err_allow_all;
+  IpMap _map;
+  Vec<AclRecord> _acls;
+  static uint32_t ALL_METHOD_MASK;
+
+  static self* _instance;
 };
 
-extern IpAllow *ip_allow_table;
+inline IpAllow* IpAllow::instance() { return _instance; }
 
-// INKqa05845
-inline bool
-IpAllow::match(ip_addr_t ip)
-{
-  if (err_allow_all == true) {
-    return true;
-  } else {
-    IpAllowRecord *cur = NULL, *result = NULL;
-    IpLookupState s;
-    bool found;
-    found = IpLookup::MatchFirst(ip, &s, (void **) &cur);
-    result = cur;
-    while (found) {
-      if (cur->line_num < result->line_num) {
-        result = cur;
-      }
-      found = IpLookup::MatchNext(&s, (void **) &cur);
+inline uint32_t IpAllow::MethodIdxToMask(int idx) { return 1 << (idx - HTTP_WKSIDX_CONNECT); }
+
+inline uint32_t
+IpAllow::match(IpEndpoint const* ip) const {
+  return this->match(&ip->sa);
+}
+
+inline uint32_t
+IpAllow::match(sockaddr const* ip) const {
+  uint32_t zret = 0;
+  void* raw;
+  if (_map.contains(ip, &raw)) {
+    AclRecord* acl = static_cast<AclRecord*>(raw);
+    if (acl) {
+      zret = acl->_method_mask;
     }
-    return ((result != NULL) && (result->access == IP_ALLOW));
   }
+  return zret;
+}
+
+inline bool
+IpAllow::CheckMask(uint32_t mask, int method_idx) {
+  return ((mask & MethodIdxToMask(method_idx)) != 0);
 }
 
 #endif

@@ -46,9 +46,6 @@ template<class T> T max(const T a, const T b)
   return a > b ? a : b;
 }
 
-// Define the directory separator for UNIX
-#define DIR_SEP "/"
-
 #define _O_ATTRIB_NORMAL  0x0000
 #define _O_ATTRIB_OVERLAPPED 0x0000
 
@@ -61,6 +58,9 @@ template<class T> T max(const T a, const T b)
 #define MAP_SHARED_MAP_NORESERVE (MAP_SHARED)
 #elif defined(darwin)
 #define MAP_SHARED_MAP_NORESERVE (MAP_SHARED)
+#elif defined(solaris)
+#define NEED_ALTZONE_DEFINED
+#define MAP_SHARED_MAP_NORESERVE (MAP_SHARED | MAP_NORESERVE)
 #else
 #define MAP_SHARED_MAP_NORESERVE (MAP_SHARED | MAP_NORESERVE)
 #endif

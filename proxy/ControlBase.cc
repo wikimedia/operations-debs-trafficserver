@@ -45,7 +45,7 @@
 #include "HdrUtils.h"
 #include "Vec.h"
 
-#include "tsconfig/TsBuffer.h"
+#include <ts/TsBuffer.h>
 
 /** Used for printing IP address.
     @code
@@ -250,8 +250,8 @@ IPortMod::make(char* value, char const ** error) {
 // ----------
 struct SrcIPMod : public ControlBase::Modifier {
   // Stored in host order because that's how they are compared.
-  ip_addr_t start_addr; ///< Start address in HOST order.
-  ip_addr_t end_addr; ///< End address in HOST order.
+  IpEndpoint start_addr; ///< Start address in HOST order.
+  IpEndpoint end_addr; ///< End address in HOST order.
 
   static char const * const NAME;
 
@@ -267,22 +267,24 @@ ControlBase::Modifier::Type SrcIPMod::type() const { return MOD_SRC_IP; }
 char const * SrcIPMod::name() const { return NAME; }
 
 void SrcIPMod::print(FILE* f) const {
-  ip_addr_t a1 = htonl(start_addr);
-  ip_addr_t a2 = htonl(end_addr);
-  fprintf(f, "%s=%d.%d.%d.%d-%d.%d.%d.%d  ",
-    this->name(), TS_IP_OCTETS(a1), TS_IP_OCTETS(a2)
+  ip_text_buffer b1, b2;
+  fprintf(f, "%s=%s-%s  "
+    ,this->name()
+    , ats_ip_ntop(&start_addr.sa, b1, sizeof(b1))
+    , ats_ip_ntop(&end_addr.sa, b2, sizeof(b2))
   );
 }
 bool SrcIPMod::check(HttpRequestData* req) const {
   // Compare in host order
-  uint32_t addr = ntohl(req->src_ip);
-  return start_addr <= addr && addr <= end_addr;
+  return ats_ip_addr_cmp(&start_addr, &req->src_ip) <= 0
+    && ats_ip_addr_cmp(&req->src_ip, &end_addr) <= 0
+    ;
 }
 SrcIPMod*
 SrcIPMod::make(char * value, char const ** error ) {
   SrcIPMod tmp;
   SrcIPMod* zret = 0;
-  *error = ExtractIpRange(value, &tmp.start_addr, &tmp.end_addr);
+  *error = ExtractIpRange(value, &tmp.start_addr.sa, &tmp.end_addr.sa);
 
   if (!*error) zret = new SrcIPMod(tmp);
   return zret;
@@ -349,9 +351,9 @@ void TextMod::print(FILE* f) const {
   fprintf(f, "%s=%*s  ", this->name(), static_cast<int>(text.size()), text.data());
 }
 
-TextMod::TextMod() : text(0,0) {}
+TextMod::TextMod() : text(0) {}
 TextMod::~TextMod() {
-  if (text.data()) free(text.data());
+  free(text.data());
 }
 
 // ----------
@@ -377,7 +379,7 @@ bool MethodMod::check(HttpRequestData* req) const {
 MethodMod*
 MethodMod::make(char * value, char const **) {
   MethodMod* mod = new MethodMod;
-  mod->text.set(xstrdup(value), strlen(value));
+  mod->text.set(ats_strdup(value), strlen(value));
   return mod;
 }
 
@@ -414,7 +416,7 @@ PrefixMod::make(char * value, char const ** error ) {
   // strip leading slashes because get_path which is used later
   // doesn't include them from the URL.
   while ('/' == *value) ++value;
-  mod->text.set(xstrdup(value), strlen(value));
+  mod->text.set(ats_strdup(value), strlen(value));
   return mod;
 }
 // ----------
@@ -439,7 +441,7 @@ bool SuffixMod::check(HttpRequestData* req) const {
 SuffixMod*
 SuffixMod::make(char * value, char const ** error ) {
   SuffixMod* mod = new SuffixMod;
-  mod->text.set(xstrdup(value), strlen(value));
+  mod->text.set(ats_strdup(value), strlen(value));
   return mod;
 }
 
@@ -461,7 +463,7 @@ bool TagMod::check(HttpRequestData* req) const {
 TagMod*
 TagMod::make(char * value, char const ** error ) {
   TagMod* mod = new TagMod;
-  mod->text.set(xstrdup(value), strlen(value));
+  mod->text.set(ats_strdup(value), strlen(value));
   return mod;
 }
 // ----------

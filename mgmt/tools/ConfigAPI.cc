@@ -21,7 +21,8 @@
   limitations under the License.
  */
 
-#if defined(linux) || defined(solaris) || defined(freebsd) || defined(darwin)
+#if defined(linux) || defined(solaris) || defined(freebsd) || defined(darwin) \
+ || defined(openbsd)
 
 #include "libts.h"
 #include "I_Layout.h"
@@ -84,7 +85,7 @@ Config_SetHostname(char *hostname)
   //printf("Inside Config_SetHostname(), hostname = %s\n", hostname);
 
   //validate
-  ink_strncpy(old_hostname, "", sizeof(old_hostname));
+  ink_strlcpy(old_hostname, "", sizeof(old_hostname));
   if (hostname == NULL)
     return -1;
 
@@ -140,7 +141,7 @@ Config_SetDefaultRouter(char *router)
   status = Config_GetDefaultRouter(old_router, sizeof(old_router));
   if (status) {
     DPRINTF(("Config_SetDefaultRouter: Couldn't read old router name\n"));
-    ink_strncpy(old_router, "", sizeof(old_router));
+    ink_strlcpy(old_router, "", sizeof(old_router));
   }
 
   DPRINTF(("Config_SetDefaultRouter: router %s\n", router));
@@ -188,7 +189,7 @@ Config_SetDomain(const char *domain)
   status = Config_GetDomain(old_domain, sizeof(old_domain));
   if (status) {
     DPRINTF(("Config_SetDomain: Couldn't retrieve old domain\n"));
-    ink_strncpy(old_domain, "", sizeof(old_domain));
+    ink_strlcpy(old_domain, "", sizeof(old_domain));
   }
   status = Net_SetDomain(domain);
   if (status) {
@@ -233,7 +234,7 @@ Config_SetDNS_Servers(char *dns)
   status = Config_GetDNS_Servers(old_dns, sizeof(old_dns));
   if (status) {
     DPRINTF(("Config_SetDNS_Servers: falied to retrieve old dns name\n"));
-    ink_strncpy(old_dns, "", sizeof(old_dns));
+    ink_strlcpy(old_dns, "", sizeof(old_dns));
   }
   status = Net_SetDNS_Servers(dns);
   if (status) {
@@ -483,9 +484,7 @@ Config_GetTime(char *hour, const size_t hourSize, char *minute, const size_t min
                const size_t secondSize)
 {
   int status = -1;
-#if !defined(freebsd) && !defined(darwin) && !defined(solaris)
   status = Time_GetTime(hour, hourSize, minute, minuteSize, second, secondSize);
-#endif
   return status;
 }
 
@@ -497,9 +496,7 @@ Config_SetTime(bool restart, char *hour, char *minute, char *second)
   if (hour == NULL || minute == NULL || second == NULL) {
     return -1;
   }
-#if !defined(freebsd) && !defined(darwin)
   status = Time_SetTime(restart, hour, minute, second);
-#endif
   return status;
 }
 
@@ -507,9 +504,7 @@ int
 Config_GetDate(char *month, const size_t monthSize, char *day, const size_t daySize, char *year, const size_t yearSize)
 {
   int status = -1;
-#if !defined(freebsd) && !defined(darwin) && !defined(solaris)
   status = Time_GetDate(month, monthSize, day, daySize, year, yearSize);
-#endif
   return status;
 }
 
@@ -521,9 +516,7 @@ Config_SetDate(bool restart, char *month, char *day, char *year)
   if (month == NULL || day == NULL || year == NULL) {
     return -1;
   }
-#if !defined(freebsd) && !defined(darwin) && !defined(solaris)
   status = Time_SetDate(restart, month, day, year);
-#endif
   return status;
 }
 
@@ -634,61 +627,37 @@ Config_SaveVersion(char *file)
 int
 Config_GetNTP_Status(char *status, size_t status_len)
 {
-#if !defined(freebsd) && !defined(darwin) && !defined(solaris)
   return Time_GetNTP_Status(status, status_len);
-#else
-  return -1;
-#endif
 }
 
 int
 Config_SetNTP_Off(void)
 {
-#if !defined(freebsd) && !defined(darwin)
   return Time_SetNTP_Off();
-#else
-  return -1;
-#endif
 }
 
 int
 Config_User_Root(int *old_euid)
 {
-#if !defined(freebsd) && !defined(darwin)
   return Sys_User_Root(old_euid);
-#else
-  return -1;
-#endif
 }
 
 int
 Config_User_Inktomi(int euid)
 {
-#if !defined(freebsd) && !defined(darwin)
   return Sys_User_Inktomi(euid);
-#else
-  return -1;
-#endif
 }
 
 int
 Config_Grp_Root(int *old_egid)
 {
-#if !defined(freebsd) && !defined(darwin)
   return Sys_Grp_Root(old_egid);
-#else
-  return -1;
-#endif
 }
 
 int
 Config_Grp_Inktomi(int egid)
 {
-#if !defined(freebsd) && !defined(darwin)
   return Sys_Grp_Inktomi(egid);
-#else
-  return -1;
-#endif
 }
 
 #if defined(linux)
@@ -743,14 +712,14 @@ Config_RestoreNetConfig(char *file)
     TagValue = netXml.getXmlTagValue("HostName");
     if (TagValue != NULL) {
       Config_SetHostname(TagValue);
-      xfree(TagValue);
+      ats_free(TagValue);
     }
 
 
     TagValue = netXml.getXmlTagValue("DNSSearch");
     if (TagValue != NULL) {
       Config_SetDomain(TagValue);
-      xfree(TagValue);
+      ats_free(TagValue);
     }
 
     // Check that we always have eth0. If eth0 is missing, exit.
@@ -762,7 +731,7 @@ Config_RestoreNetConfig(char *file)
       TagValue = netXml.getXmlTagValueAndAttribute(eth, "PerNICDefaultGateway");
       if (TagValue != NULL) {
         Config_SetNIC_Gateway(eth, TagValue);
-        xfree(TagValue);
+        ats_free(TagValue);
       } else if (count == 0)
         break;
       snprintf(eth, sizeof(eth), "eth%d", ++count);
@@ -779,7 +748,7 @@ Config_RestoreNetConfig(char *file)
 #if defined(linux)
         activeInterface[count] = 1;
 #endif
-        xfree(TagValue);
+        ats_free(TagValue);
       } else if (count == 0)
         break;
       snprintf(eth, sizeof(eth), "eth%d", ++count);
@@ -805,7 +774,7 @@ Config_RestoreNetConfig(char *file)
       TagValue = netXml.getXmlTagValueAndAttribute(eth, "InterfaceNetmask");
       if (TagValue != NULL) {
         Config_SetNIC_Netmask(eth, TagValue);
-        xfree(TagValue);
+        ats_free(TagValue);
       } else if (count == 0)
         break;
       snprintf(eth, sizeof(eth), "eth%d", ++count);
@@ -814,20 +783,20 @@ Config_RestoreNetConfig(char *file)
     TagValue = netXml.getXmlTagValue("DefaultGateway");
     if (TagValue != NULL) {
       Config_SetDefaultRouter(TagValue);
-      xfree(TagValue);
+      ats_free(TagValue);
     }
 
 
     TagValue = netXml.getXmlTagValue("DNSServer");
     if (TagValue != NULL) {
       Config_SetDNS_Servers(TagValue);
-      xfree(TagValue);
+      ats_free(TagValue);
     }
 
     TagValue = netXml.getXmlTagValue("NTPServers");
     if (TagValue != NULL) {
       Config_SetNTP_Servers(0, TagValue);
-      xfree(TagValue);
+      ats_free(TagValue);
     }
 
     // Get Admin GUI encrypted password.
@@ -841,7 +810,7 @@ Config_RestoreNetConfig(char *file)
           top_action_req = action_need;
         DPRINTF(("Config_FloppyNetRestore: set new mail_address %s!\n", mail_address));
       }
-      xfree(mail_address);
+      ats_free(mail_address);
     }
 
     // Make sure this is the last entry in these series. We restart traffic server here and hence
@@ -859,7 +828,7 @@ Config_RestoreNetConfig(char *file)
 #endif
       }
     }
-    xfree(TagValue);
+    ats_free(TagValue);
   }
 
   setreuid(old_euid, old_euid); //happens only for floppy config
@@ -1110,8 +1079,7 @@ XmlObject::LoadFile(char *file)
 char *
 XmlObject::getXmlTagValue(const char *XmlTagName)
 {
-  char XmlTagValue[1024];
-  ink_strncpy(XmlTagValue, "", sizeof(XmlTagValue));
+  char XmlTagValue[1024] = "";
 
   for (int parent = 0; parent < xmlDom.getChildCount(); parent++) {
     XMLNode *parentNode = xmlDom.getChildNode(parent);
@@ -1119,26 +1087,24 @@ XmlObject::getXmlTagValue(const char *XmlTagName)
       int XmlTagCount = parentNode->getChildCount(XmlTagName);
       for (int tagCount = 0; tagCount < XmlTagCount; tagCount++) {
         if (parentNode->getChildNode(XmlTagName, tagCount)->getNodeValue() != NULL) {
-          strncat(XmlTagValue, parentNode->getChildNode(XmlTagName, tagCount)->getNodeValue(),
-                  sizeof(XmlTagValue) - strlen(XmlTagValue) - 1);
+          ink_strlcat(XmlTagValue, parentNode->getChildNode(XmlTagName, tagCount)->getNodeValue(),
+                  sizeof(XmlTagValue));
           if (tagCount + 1 < XmlTagCount)
-            strncat(XmlTagValue, " ", sizeof(XmlTagValue) - strlen(XmlTagValue) - 1);
+            ink_strlcat(XmlTagValue, " ", sizeof(XmlTagValue));
         }
       }
     }
   }
-  strncat(XmlTagValue, "\0", sizeof(XmlTagValue) - strlen(XmlTagValue) - 1);
   if (strlen(XmlTagValue) == 0)
     return NULL;
-  return xstrdup(XmlTagValue);
+  return ats_strdup(XmlTagValue);
 }
 
 
 char *
 XmlObject::getXmlTagValueAndAttribute(char *XmlAttribute, const char *XmlTagName)
 {
-  char XmlTagValue[1024];
-  ink_strncpy(XmlTagValue, "", sizeof(XmlTagValue));
+  char XmlTagValue[1024] = "";
 
   for (int parent = 0; parent < xmlDom.getChildCount(); parent++) {
     XMLNode *parentNode = xmlDom.getChildNode(parent);
@@ -1151,10 +1117,9 @@ XmlObject::getXmlTagValueAndAttribute(char *XmlAttribute, const char *XmlTagName
                                                                                                     tagCount)->
                                                                                        m_pAList[0].pAValue,
                                                                                        XmlAttribute) == 0)) {
-          strncat(XmlTagValue, parentNode->getChildNode(XmlTagName, tagCount)->getNodeValue(),
-                  sizeof(XmlTagValue) - strlen(XmlTagValue) - 1);
-          strncat(XmlTagValue, "\0", sizeof(XmlTagValue) - strlen(XmlTagValue) - 1);
-          return xstrdup(XmlTagValue);
+          ink_strlcat(XmlTagValue, parentNode->getChildNode(XmlTagName, tagCount)->getNodeValue(),
+                  sizeof(XmlTagValue));
+          return ats_strdup(XmlTagValue);
         }
       }
     }
@@ -1169,21 +1134,13 @@ XmlObject::getXmlTagValueAndAttribute(char *XmlAttribute, const char *XmlTagName
 int
 Config_SetSMTP_Server(char *server)
 {
-#if !defined(freebsd) && !defined(darwin)
   return (Net_SetSMTP_Server(server));
-#else
-  return -1;
-#endif
 }
 
 int
 Config_GetSMTP_Server(char *server)
 {
-#if !defined(freebsd) && !defined(darwin)
   return (Net_GetSMTP_Server(server));
-#else
-  return -1;
-#endif
 }
 
 

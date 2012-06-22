@@ -52,12 +52,12 @@ public:
   bool connected(bool ping);
   bool connect();
   void disconnect();
-  int write(LogBuffer * lb, size_t * to_disk, size_t * to_net, size_t * to_pipe);
+  int write(LogBuffer * lb);
 
-  char *name() const { return (char *) ((m_name) ? m_name : "UNKNOWN"); }
-  unsigned port() const { return m_port; }
-  unsigned ip() const { return m_ip; }
-  char *ipstr() const { return m_ipstr; }
+  char const* name() const { return m_name ? m_name : "UNKNOWN"; }
+  IpAddr const& ip_addr() const { return m_ip; }
+  in_port_t port() const { return m_port; }
+  char const* ipstr() const { return m_ipstr; }
 
   void display(FILE * fd = stdout);
 
@@ -68,17 +68,17 @@ public:
 private:
   void clear();
   bool authenticated();
-  int orphan_write(LogBuffer * lb, size_t * to_disk = 0);
-  int orphan_write_and_delete(LogBuffer * lb, size_t * to_disk = 0);
+  int orphan_write(LogBuffer * lb);
+  int orphan_write_and_delete(LogBuffer * lb);
   void create_orphan_LogFile_object();
 
 private:
   char *m_object_filename;
   uint64_t m_object_signature;
-  unsigned m_ip;
-  char *m_ipstr;
+  IpAddr m_ip; // IP address, network order.
+  in_port_t m_port; // IP port, host order.
+  ip_text_buffer m_ipstr;
   char *m_name;
-  int m_port;
   LogSock *m_sock;
   int m_sock_fd;
   bool m_connected;
@@ -108,7 +108,7 @@ public:
   void add(LogHost * host, bool copy = true);
   unsigned count();
   void clear();
-  int write(LogBuffer * lb, size_t * to_disk = 0, size_t * to_net = 0, size_t * to_pipe = 0);
+  int write(LogBuffer * lb);
 
   LogHost *first() { return m_host_list.head; }
   LogHost *next(LogHost * here) { return (here->link).next; }

@@ -194,7 +194,7 @@ Continuation::Continuation(ProxyMutex * amutex)
 #ifdef DEBUG
     handler_name(NULL),
 #endif
-    mutex(amutex)
+             mutex(amutex)
 { }
 
 #endif /*_Continuation_h_*/

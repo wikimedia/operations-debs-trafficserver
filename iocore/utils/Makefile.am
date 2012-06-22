@@ -17,7 +17,9 @@
 #  limitations under the License.
 
 AM_CPPFLAGS = \
+  -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/records \
+  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/iocore/eventsystem
 
 DEFS += @IOCORE_MODULARIZED_DEFS@

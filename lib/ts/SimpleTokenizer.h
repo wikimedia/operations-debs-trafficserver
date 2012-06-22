@@ -147,7 +147,7 @@ SimpleTokenizer(char *s, char delimiter = ' ', int mode = 0, char escape = '\\')
 
     _start = 0;
     _length = strlen(s);
-    _data = (_mode & OVERWRITE_INPUT_STRING ? s : xstrdup(s));
+    _data = (_mode & OVERWRITE_INPUT_STRING ? s : ats_strdup(s));
 
     // to handle the case where there is a null field at the end of the
     // input string, we replace the null character at the end of the
@@ -198,7 +198,7 @@ private:
   void _clearData()
   {
     if (_data && !(_mode & OVERWRITE_INPUT_STRING)) {
-      free(_data);
+      ats_free(_data);
     }
   }
 

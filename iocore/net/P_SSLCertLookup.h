@@ -26,24 +26,34 @@
 #include "libts.h"
 #include "P_SSLNetProcessor.h"
 
-#define PATH_NAME_MAX         511
+class SSLContextStorage;
 
 class SSLCertLookup
 {
   bool buildTable();
-  const char *extractIPAndCert(matcher_line * line_info, char **addr, char **cert, char **ca, char **priKey);
-  int addInfoToHash(char *strAddr, char *cert, char *ca, char *serverPrivateKey);
+  const char *extractIPAndCert(
+    matcher_line * line_info, char **addr, char **cert, char **ca, char **priKey) const;
+  bool addInfoToHash(
+    const char *strAddr, const char *cert, const char *ca, const char *serverPrivateKey);
 
-  InkHashTable *SSLCertLookupHashTable;
   char config_file_path[PATH_NAME_MAX];
   SslConfigParams *param;
+  bool multipleCerts;
+
+  SSLContextStorage * ssl_storage;
+  SSL_CTX * ssl_default;
 
 public:
-    bool multipleCerts;
+  bool hasMultipleCerts() const { return multipleCerts; }
+
   void init(SslConfigParams * param);
-  SSL_CTX *findInfoInHash(char *strAddr);
-    SSLCertLookup();
-   ~SSLCertLookup();
+  SSL_CTX *findInfoInHash(const char * address) const;
+
+  // Return the last-resort default TLS context if there is no name or address match.
+  SSL_CTX *defaultContext() const { return ssl_default; }
+
+  SSLCertLookup();
+  ~SSLCertLookup();
 };
 
 extern SSLCertLookup sslCertLookup;

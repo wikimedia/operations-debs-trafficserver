@@ -286,7 +286,7 @@ write_stats_snap()
   {
     int stats_size = MAX_HTTP_TRANS_STATS - NO_HTTP_TRANS_STATS + MAX_DYN_STATS - NO_DYN_STATS;
     int buf_size = sizeof(unsigned int) * 3 + stats_size * (sizeof(global_dyn_stats[0].sum) + sizeof(global_dyn_stats[0].count));
-    buf = (char *) xmalloc(buf_size);
+    buf = (char *)ats_malloc(buf_size);
     char *p = buf;
     int i = 0;
 
@@ -320,15 +320,13 @@ write_stats_snap()
     if (socketManager.write(fd, buf, buf_size) != buf_size)
       goto Lerror;
   }
-  if (buf)
-    xfree(buf);
+  ats_free(buf);
   //close(fd);
   socketManager.close(fd);
   Debug("stats", "snapped stats");
   return;
 Lerror:
-  if (buf)
-    xfree(buf);
+  ats_free(buf);
   Warning("unable to snap statistics");
   //close(fd);
   socketManager.close(fd);
@@ -364,7 +362,7 @@ take_rusage_snap()
       rusage_snap_time = ink_get_hrtime();
     break;
   }
-  Debug("rusage", "took rusage snap %d", rusage_snap_time);
+  Debug("rusage", "took rusage snap %"PRId64"", rusage_snap_time);
 }
 
 struct SnapCont;
@@ -408,23 +406,22 @@ stat_callback(Continuation * cont, HTTPHdr * header)
   url = header->url_get();
   path = url->path_get(&length);
 
-
   char *buffer = NULL;
   int buffer_len = 0;
   int num_prefix_buffer;
 
-  char *var_prefix = (char *) xmalloc((length + 1) * sizeof(char));
+  char *var_prefix = (char *)alloca((length + 1) * sizeof(char));
+
   memset(var_prefix, 0, ((length + 1) * sizeof(char)));
-  strncpy(var_prefix, path, length);
+  if (path && length > 0)
+    ink_strlcpy(var_prefix, path, length + 1);
 
   num_prefix_buffer = RecGetRecordPrefix_Xmalloc(var_prefix, &buffer, &buffer_len);
   empty = (num_prefix_buffer == 0);
-  xfree(var_prefix);
 
   if (!empty) {
-
     result_size = (buffer_len + 16) * sizeof(char);
-    result = (char *) xmalloc(result_size);
+    result = (char *)ats_malloc(result_size);
     memset(result, 0, result_size);
 
     snprintf(result, result_size - 7, "<pre>\n%s", buffer);
@@ -434,20 +431,16 @@ stat_callback(Continuation * cont, HTTPHdr * header)
   if (!empty) {
     StatPageData data;
 
-    strncat(result, "</pre>\n", result_size - strlen(result) - 1);
+    ink_strlcat(result, "</pre>\n", result_size);
 
     data.data = result;
     data.length = strlen(result);
     cont->handleEvent(STAT_PAGE_SUCCESS, &data);
   } else {
-    if (result) {
-      xfree(result);
-    }
+    ats_free(result);
     cont->handleEvent(STAT_PAGE_FAILURE, NULL);
   }
-
-  if (buffer)
-    xfree(buffer);
+  ats_free(buffer);
 
   return ACTION_RESULT_DONE;
 }
@@ -456,22 +449,19 @@ static Action *
 testpage_callback(Continuation * cont, HTTPHdr *)
 {
   const int buf_size = 64000;
-  char *buffer = (char *) xmalloc(buf_size);
+  char *buffer = (char *)ats_malloc(buf_size);
 
-  if (buffer) {
-    for (int i = 0; i < buf_size; i++) {
-      buffer[i] = (char) ('a' + (i % 26));
-    }
-    buffer[buf_size - 1] = '\0';
-
-    StatPageData data;
-
-    data.data = buffer;
-    data.length = strlen(buffer);
-    cont->handleEvent(STAT_PAGE_SUCCESS, &data);
-  } else {
-    cont->handleEvent(STAT_PAGE_FAILURE, NULL);
+  for (int i = 0; i < buf_size; i++) {
+    buffer[i] = (char) ('a' + (i % 26));
   }
+  buffer[buf_size - 1] = '\0';
+
+  StatPageData data;
+
+  data.data = buffer;
+  data.length = strlen(buffer);
+  cont->handleEvent(STAT_PAGE_SUCCESS, &data);
+
   return ACTION_RESULT_DONE;
 }
 

@@ -531,7 +531,7 @@ varStrFromName(const char *varNameConst, char *bufVal, int bufLen)
   ///  b - bytes.  Ints and Counts only.  Amounts are
   //       transformed into one of GB, MB, KB, or B
   //
-  varName = xstrdup(varNameConst);
+  varName = ats_strdup(varNameConst);
   varNameLen = strlen(varName);
   if (varNameLen > 3 && varName[varNameLen - 2] == '\\') {
     formatOption = varName[varNameLen - 1];
@@ -542,14 +542,14 @@ varStrFromName(const char *varNameConst, char *bufVal, int bufLen)
 
     // Return not found for unknown format options
     if (formatOption != 'b' && formatOption != 'm' && formatOption != 'c' && formatOption != 'p') {
-      xfree(varName);
+      ats_free(varName);
       return false;
     }
   }
 
   err = RecGetRecordDataType(varName, &varDataType);
   if (err == REC_ERR_FAIL) {
-    xfree(varName);
+    ats_free(varName);
     return false;
   }
 
@@ -563,7 +563,7 @@ varStrFromName(const char *varNameConst, char *bufVal, int bufLen)
     } else if (formatOption == 'c') {
       commaStrFromInt(data.rec_int, bufVal);
     } else {
-      sprintf(bufVal, "%" PRId64 "", data.rec_int);
+      snprintf(bufVal, bufLen, "%" PRId64 "", data.rec_int);
     }
     break;
 
@@ -576,7 +576,7 @@ varStrFromName(const char *varNameConst, char *bufVal, int bufLen)
     } else if (formatOption == 'c') {
       commaStrFromInt(data.rec_counter, bufVal);
     } else {
-      sprintf(bufVal, "%" PRId64 "", data.rec_counter);
+      snprintf(bufVal, bufLen, "%" PRId64 "", data.rec_counter);
     }
     break;
   case RECD_FLOAT:
@@ -592,18 +592,18 @@ varStrFromName(const char *varNameConst, char *bufVal, int bufLen)
     if (data.rec_string == NULL) {
       bufVal[0] = '\0';
     } else if (strlen(data.rec_string) < (size_t) (bufLen - 1)) {
-      ink_strncpy(bufVal, data.rec_string, bufLen);
+      ink_strlcpy(bufVal, data.rec_string, bufLen);
     } else {
-      ink_strncpy(bufVal, data.rec_string, bufLen);
+      ink_strlcpy(bufVal, data.rec_string, bufLen);
     }
-    xfree(data.rec_string);
+    ats_free(data.rec_string);
     break;
   default:
     found = false;
     break;
   }
 
-  xfree(varName);
+  ats_free(varName);
   return found;
 }
 
@@ -657,9 +657,8 @@ MgmtData::MgmtData()
 
 MgmtData::~MgmtData()
 {
-  if (type == RECD_STRING) {
-    xfree(data.rec_string);
-  }
+  if (type == RECD_STRING)
+    ats_free(data.rec_string);
 }
 
 // MgmtData::compareFromString(const char* str, strLen)
@@ -770,7 +769,7 @@ processFormSubmission(char *submission)
     return NULL;
   }
 
-  submission_copy = xstrdup(submission);
+  submission_copy = ats_strdup(submission);
   numUpdates = updates.Initialize(submission_copy, SHARE_TOKS);
 
   for (int i = 0; i < numUpdates; i++) {
@@ -782,22 +781,22 @@ processFormSubmission(char *submission)
     //    a value.  If the submission is invalid, just forget
     //    about it.
     if (pairNum == 1 || pairNum == 2) {
-      name = xstrdup(pair[0]);
+      name = ats_strdup(pair[0]);
       substituteUnsafeChars(name);
 
       // If the value is blank, store it as a null
       if (pairNum == 1) {
         value = NULL;
       } else {
-        value = xstrdup(pair[1]);
+        value = ats_strdup(pair[1]);
         substituteUnsafeChars(value);
       }
 
       ink_hash_table_insert(nameVal, name, value);
-      xfree(name);
+      ats_free(name);
     }
   }
-  xfree(submission_copy);
+  ats_free(submission_copy);
 
   return nameVal;
 }
@@ -829,7 +828,7 @@ processFormSubmission_noSubstitute(char *submission)
     return NULL;
   }
 
-  submission_copy = xstrdup(submission);
+  submission_copy = ats_strdup(submission);
   numUpdates = updates.Initialize(submission_copy, SHARE_TOKS);
 
   for (int i = 0; i < numUpdates; i++) {
@@ -841,20 +840,20 @@ processFormSubmission_noSubstitute(char *submission)
     //    a value.  If the submission is invalid, just forget
     //    about it.
     if (pairNum == 1 || pairNum == 2) {
-      name = xstrdup(pair[0]);
+      name = ats_strdup(pair[0]);
 
       // If the value is blank, store it as a null
       if (pairNum == 1) {
         value = NULL;
       } else {
-        value = xstrdup(pair[1]);
+        value = ats_strdup(pair[1]);
       }
 
       ink_hash_table_insert(nameVal, name, value);
-      xfree(name);
+      ats_free(name);
     }
   }
-  xfree(submission_copy);
+  ats_free(submission_copy);
 
   return nameVal;
 }
@@ -937,26 +936,26 @@ substituteForHTMLChars(const char *buffer)
   int inLength = strlen(buffer);        // how long the orig buffer in
 
   // Maximum character expansion is one to three
-  unsigned int bufferToAllocate = (inLength * 5);
-  safeBuf = new char[bufferToAllocate + 1];
+  unsigned int bufferToAllocate = (inLength * 5) + 1;
+  safeBuf = new char[bufferToAllocate];
   safeCurrent = safeBuf;
 
   while (*inCurrent != '\0') {
     switch (*inCurrent) {
     case '"':
-      ink_strncpy(safeCurrent, "&quot;", bufferToAllocate);
+      ink_strlcpy(safeCurrent, "&quot;", bufferToAllocate);
       safeCurrent += 6;
       break;
     case '<':
-      ink_strncpy(safeCurrent, "&lt;", bufferToAllocate);
+      ink_strlcpy(safeCurrent, "&lt;", bufferToAllocate);
       safeCurrent += 4;
       break;
     case '>':
-      ink_strncpy(safeCurrent, "&gt;", bufferToAllocate);
+      ink_strlcpy(safeCurrent, "&gt;", bufferToAllocate);
       safeCurrent += 4;
       break;
     case '&':
-      ink_strncpy(safeCurrent, "&amp;", bufferToAllocate);
+      ink_strlcpy(safeCurrent, "&amp;", bufferToAllocate);
       safeCurrent += 5;
       break;
     default:
@@ -1065,8 +1064,8 @@ appendDefaultDomain(char *hostname, int bufLength)
   if (strchr(hostname, '.') == NULL) {
     if (_res.defdname[0] != '\0') {
       if (bufLength - 2 >= (int) (strlen(hostname) + strlen(_res.defdname))) {
-        strncat(hostname, ".", bufLength - strlen(hostname));
-        strncat(hostname, _res.defdname, MAXDNAME - 2 - strlen(hostname));
+        ink_strlcat(hostname, ".", bufLength);
+        ink_strlcat(hostname, _res.defdname, bufLength);
       } else {
         if (error_before == 0) {
           mgmt_log(stderr, "%s %s\n", "[appendDefaultDomain] Domain name is too long.", msg);
@@ -1243,7 +1242,6 @@ processSpawn(const char *args[],
   NOWARN_UNUSED(run_as_root);
   int status = 0;
 
-#ifndef _WIN32
   char buffer[1024];
   int nbytes;
   int stdinPipe[2];
@@ -1271,9 +1269,8 @@ processSpawn(const char *args[],
 
   } else if (pid == 0) {        // child process
     // close all the listening port in child process
-    for (int i = 0; i < MAX_PROXY_SERVER_PORTS && lmgmt->proxy_server_fd[i] >= 0; i++) {
-      close_socket(lmgmt->proxy_server_fd[i]);
-    }
+    lmgmt->closeProxyPorts();
+
 #if TS_USE_POSIX_CAP
     /* There is no point in saving the current euid in order to
        restore it because at this point the process will either exec
@@ -1363,7 +1360,7 @@ processSpawn(const char *args[],
             safebuf = substituteForHTMLChars(buffer);
             if (safebuf) {
               if (strlen(safebuf) < sizeof(buffer)) {
-                ink_strncpy(buffer, safebuf, sizeof(buffer));
+                ink_strlcpy(buffer, safebuf, sizeof(buffer));
               }
               delete[]safebuf;
             }
@@ -1393,7 +1390,7 @@ processSpawn(const char *args[],
     removeRootPriv(saved_euid);
   }
 #endif
-#endif // _WIN32
+
   return status;
 }
 
@@ -1407,20 +1404,15 @@ processSpawn(const char *args[],
 int
 getFilesInDirectory(char *managedDir, ExpandingArray * fileList)
 {
-#ifndef _WIN32
   struct dirent *dirEntry;
   DIR *dir;
-#else
-  char *searchPattern;
-  WIN32_FIND_DATA W32FD;
-#endif
+
   char *fileName;
   char *filePath;
   struct stat fileInfo;
   //  struct stat records_config_fileInfo;
   fileEntry *fileListEntry;
 
-#ifndef _WIN32
   if ((dir = opendir(managedDir)) == NULL) {
     mgmt_log(stderr, "[getFilesInDirectory] Unable to open %s directory: %s\n", managedDir, strerror(errno));
     return -1;
@@ -1428,7 +1420,7 @@ getFilesInDirectory(char *managedDir, ExpandingArray * fileList)
   // The fun of Solaris - readdir_r requires a buffer passed into it
   //   The man page says this obscene expression gives us the proper
   //     size
-  dirEntry = (struct dirent *) xmalloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
+  dirEntry = (struct dirent *)alloca(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
 
   struct dirent *result;
   while (readdir_r(dir, dirEntry, &result) == 0) {
@@ -1444,48 +1436,16 @@ getFilesInDirectory(char *managedDir, ExpandingArray * fileList)
     } else {
       // Ignore ., .., and any dot files
       if (fileName && *fileName != '.') {
-        fileListEntry = (fileEntry *) xmalloc(sizeof(fileEntry));
+        fileListEntry = (fileEntry *)ats_malloc(sizeof(fileEntry));
         fileListEntry->c_time = fileInfo.st_ctime;
-        ink_strncpy(fileListEntry->name, fileName, FILE_NAME_MAX);
+        ink_strlcpy(fileListEntry->name, fileName, sizeof(fileListEntry->name));
         fileList->addEntry(fileListEntry);
       }
     }
     delete[]filePath;
   }
 
-  xfree(dirEntry);
   closedir(dir);
-#else
-  // Append '\*' as a wildcard for FindFirstFile()
-  searchPattern = newPathString(managedDir, "*");
-  HANDLE hDInfo = FindFirstFile(searchPattern, &W32FD);
-
-  if (INVALID_HANDLE_VALUE == hDInfo) {
-    mgmt_log(stderr, "[getFilesInDirectory] FindFirstFile failed for %s: %s\n", searchPattern, ink_last_err());
-    delete[]searchPattern;
-    return -1;
-  }
-  delete[]searchPattern;
-
-  while (FindNextFile(hDInfo, &W32FD)) {
-    fileName = W32FD.cFileName;
-    filePath = newPathString(managedDir, fileName);
-    if (stat(filePath, &fileInfo) < 0) {
-      mgmt_log(stderr, "[getFilesInDirectory] Stat of a %s failed: %s\n", fileName, strerror(errno));
-    } else {
-      // Ignore ., .., and any dot files
-      if (fileName && *fileName != '.') {
-        fileListEntry = (fileEntry *) xmalloc(sizeof(fileEntry));
-        fileListEntry->c_time = fileInfo.st_ctime;
-        strcpy(fileListEntry->name, fileName);
-        fileList->addEntry(fileListEntry);
-      }
-    }
-    delete[]filePath;
-  }
-
-  FindClose(hDInfo);
-#endif
 
   fileList->sortWithFunction(fileEntryCmpFunc);
   return 1;
@@ -1511,23 +1471,23 @@ newPathString(const char *s1, const char *s2)
   if (*s2 == '/') {
     // If addpath is rooted, then rootpath is unused.
     newStr = new char[addLen];
-    strcpy(newStr, s2);
+    ink_strlcpy(newStr, s2, addLen);
     return newStr;
   }
   if (!s1 || !*s1) {
     // If there's no rootpath return the addpath
     newStr = new char[addLen];
-    strcpy(newStr, s2);
+    ink_strlcpy(newStr, s2, addLen);
     return newStr;
   }
   srcLen = strlen(s1);
   newStr = new char[srcLen + addLen + 1];
   ink_assert(newStr != NULL);
 
-  strcpy(newStr, s1);
+  ink_strlcpy(newStr, s1, srcLen + addLen + 1);
   if (newStr[srcLen - 1] != '/')
     newStr[srcLen++] = '/';
-  strcpy(&newStr[srcLen], s2);
+  ink_strlcpy(&newStr[srcLen], s2, srcLen + addLen + 1);
 
   return newStr;
 }

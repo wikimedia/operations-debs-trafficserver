@@ -64,6 +64,7 @@ public:
   virtual int marshal_client_req_url_canon(char *);     // STR
   virtual int marshal_client_req_unmapped_url_canon(char *);    // STR
   virtual int marshal_client_req_unmapped_url_path(char *);     // STR
+  virtual int marshal_client_req_unmapped_url_host(char *);     // STR
   virtual int marshal_client_req_url_path(char *);      // STR
   virtual int marshal_client_req_url_scheme(char *);    // STR
   virtual int marshal_client_req_http_version(char *);  // INT
@@ -103,6 +104,14 @@ public:
   virtual int marshal_server_resp_http_version(char *); // INT
 
   //
+  // cache -> client fields
+  //
+  virtual int marshal_cache_resp_status_code(char *);  // INT
+  virtual int marshal_cache_resp_content_len(char *);  // INT
+  virtual int marshal_cache_resp_header_len(char *);   // INT
+  virtual int marshal_cache_resp_http_version(char *); // INT
+
+  //
   // congestion control client_retry_after_time
   //
   virtual int marshal_client_retry_after_time(char *);  // INT
@@ -135,6 +144,7 @@ private:
   HTTPHdr *m_proxy_response;
   HTTPHdr *m_proxy_request;
   HTTPHdr *m_server_response;
+  HTTPHdr *m_cache_response;
 
   char *m_client_req_url_str;
   int m_client_req_url_len;
@@ -144,6 +154,8 @@ private:
   int m_client_req_unmapped_url_canon_len;
   char *m_client_req_unmapped_url_path_str;
   int m_client_req_unmapped_url_path_len;
+  char *m_client_req_unmapped_url_host_str;
+  int m_client_req_unmapped_url_host_len;
   char *m_client_req_url_path_str;
   int m_client_req_url_path_len;
   char *m_proxy_resp_content_type_str;

@@ -86,14 +86,14 @@ spawn_thread_internal(void *a)
     p->f(p->a);
   else
     p->me->execute();
-  xfree(a);
+  ats_free(a);
   return NULL;
 }
 
 void
 Thread::start(const char* name, ThreadFunction f, void *a, size_t stacksize)
 {
-  thread_data_internal *p = (thread_data_internal *) xmalloc(sizeof(thread_data_internal));
+  thread_data_internal *p = (thread_data_internal *)ats_malloc(sizeof(thread_data_internal));
 
   if (0 == stacksize)
     REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
@@ -102,6 +102,6 @@ Thread::start(const char* name, ThreadFunction f, void *a, size_t stacksize)
   p->a = a;
   p->me = this;
   memset(p->name, 0, MAX_THREAD_NAME_LENGTH);
-  ink_strncpy(p->name, name, MAX_THREAD_NAME_LENGTH - 1);
+  ink_strlcpy(p->name, name, MAX_THREAD_NAME_LENGTH);
   this->tid = ink_thread_create(spawn_thread_internal, (void *) p, 0, stacksize);
 }

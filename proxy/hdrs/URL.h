@@ -83,6 +83,10 @@ struct URLImpl:public HdrHeapObjImpl
 
   // Sanity Check Functions
   void check_strings(HeapCheck *heaps, int num_heaps);
+
+  // The original (unparsed) request
+  const char *the_request;
+  uint16_t the_request_len;
 };
 
 
@@ -204,6 +208,10 @@ MIMEParseResult url_parse_http_no_path_component_breakdown(HdrHeap *heap, URLImp
                                                            const char **start, const char *end, bool copy_strings);
 
 char *url_unescapify(Arena *arena, const char *str, int length);
+
+void unescape_str(char *&buf, char *buf_e, const char *&str, const char *str_e, int &state);
+void unescape_str_tolower(char *&buf, char *end, const char *&str, const char *str_e, int &state);
+
 
 inline int
 url_canonicalize_port(int type, int port)

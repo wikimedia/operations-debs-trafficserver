@@ -54,12 +54,10 @@
   -------------------------------------------------------------------------*/
 
 LogHost::LogHost(char *object_filename, uint64_t object_signature)
-  : m_object_filename(xstrdup(object_filename))
+  : m_object_filename(ats_strdup(object_filename))
   , m_object_signature(object_signature)
-  , m_ip(0)
-  , m_ipstr(NULL)
-  , m_name(NULL)
   , m_port(0)
+  , m_name(NULL)
   , m_sock(NULL)
   , m_sock_fd(-1)
   , m_connected(false)
@@ -68,15 +66,16 @@ LogHost::LogHost(char *object_filename, uint64_t object_signature)
   , m_log_collation_client_sm(NULL)
 #endif
 {
+  ink_zero(m_ip);
+  ink_zero(m_ipstr);
 }
 
 LogHost::LogHost(const LogHost & rhs)
-  : m_object_filename(xstrdup(rhs.m_object_filename))
+  : m_object_filename(ats_strdup(rhs.m_object_filename))
   , m_object_signature(rhs.m_object_signature)
   , m_ip(rhs.m_ip)
-  , m_ipstr(xstrdup(rhs.m_ipstr))
-  , m_name(xstrdup(rhs.m_name))
-  , m_port(rhs.m_port)
+  , m_port(0)
+  , m_name(ats_strdup(rhs.m_name))
   , m_sock(NULL)
   , m_sock_fd(-1)
   , m_connected(false)
@@ -85,13 +84,14 @@ LogHost::LogHost(const LogHost & rhs)
   , m_log_collation_client_sm(NULL)
 #endif
 {
+  memcpy(m_ipstr, rhs.m_ipstr, sizeof(m_ipstr));
   create_orphan_LogFile_object();
 }
 
 LogHost::~LogHost()
 {
   clear();
-  xfree(m_object_filename);
+  ats_free(m_object_filename);
 }
 
 //
@@ -112,16 +112,17 @@ LogHost::set_name_port(char *hostname, unsigned int pt)
 
   clear();                      // remove all previous state for this LogHost
 
-  m_ip = 0;                     // make sure ip is 0 for iocore
 #if !defined(IOCORE_LOG_COLLATION)
-  m_ip = LogUtils::ip_from_host(hostname);
-  m_ipstr = (char *) xmalloc(32);
-  LogUtils::ip_to_str(m_ip, m_ipstr, 32);
+  IpEndpoint ip4, ip6;
+  m_ip.invalidate();
+  if (0 == ats_ip_getbestaddrinfo(hostname, &ip4, &ip6))
+    m_ip.assign(ip4.isIp4() ? &ip4 : &ip6)
+  m_ip.toString(m_ipstr, sizeof m_ipstr);
 #endif
-  m_name = xstrdup(hostname);
+  m_name = ats_strdup(hostname);
   m_port = pt;
 
-  Debug("log-host", "LogHost established as %s:%u", name(), port());
+  Debug("log-host", "LogHost established as %s:%u", this->name(), this->port());
 
   create_orphan_LogFile_object();
   return 0;
@@ -137,12 +138,13 @@ LogHost::set_ipstr_port(char *ipstr, unsigned int pt)
 
   clear();                      // remove all previous state for this LogHost
 
-  m_ip = htonl(LogUtils::str_to_ip(ipstr));
-  m_ipstr = xstrdup(ipstr);
-  m_name = xstrdup(ipstr);
+  if (0 != m_ip.load(ipstr))
+    Note("Log host failed to parse IP address %s", ipstr);
   m_port = pt;
+  ink_strlcpy(m_ipstr, ipstr, sizeof(m_ipstr));
+  m_name = ats_strdup(ipstr);
 
-  Debug("log-host", "LogHost established as %s:%u", name(), port());
+  Debug("log-host", "LogHost established as %s:%u", name(), pt);
 
   create_orphan_LogFile_object();
   return 0;
@@ -154,16 +156,17 @@ LogHost::set_name_or_ipstr(char *name_or_ip)
   int retVal = 1;
 
   if (name_or_ip && name_or_ip[0] != 0) {
-    SimpleTokenizer tok(name_or_ip, ':');
-    char *n = tok.getNext();
-    if (n) {
-      char *p = tok.getNext();
-      unsigned int port = (p ? (unsigned int) atoi(p) : Log::config->collation_port);
-
-      if (LogUtils::valid_ipstr_format(n)) {
-        retVal = set_ipstr_port(n, port);
+    ts::ConstBuffer addr, port;
+    if (ats_ip_parse(ts::ConstBuffer(name_or_ip, strlen(name_or_ip)), &addr, &port)) {
+      uint16_t p = port ? atoi(port.data()) : Log::config->collation_port;
+      char* n = const_cast<char*>(addr.data());
+      // Force termination. We know we can do this because the address
+      // string is followed by either a nul or a colon.
+      n[addr.size()] = 0;
+      if (AF_UNSPEC == ats_ip_check_characters(addr)) {
+        retVal = set_name_port(n, p);
       } else {
-        retVal = set_name_port(n, port);
+        retVal = set_ipstr_port(n, p);
       }
     }
   }
@@ -182,7 +185,7 @@ bool LogHost::connected(bool ping)
 
 bool LogHost::connect()
 {
-  if (!m_ip) {
+  if (! m_ip.isValid()) {
     Note("Cannot connect to LogHost; host IP has not been established");
     return false;
   }
@@ -191,7 +194,13 @@ bool LogHost::connect()
     return true;
   }
 
-  Debug("log-host", "Connecting to LogHost %s:%u", name(), port());
+  IpEndpoint target;
+  ip_port_text_buffer ipb;
+  target.assign(m_ip, htons(m_port));
+
+  if (is_debug_tag_set("log-host")) {
+    Debug("log-host", "Connecting to LogHost %s", ats_ip_nptop(&target, ipb, sizeof ipb));
+  }
 
   disconnect();                 // make sure connection members are initialized
 
@@ -199,15 +208,15 @@ bool LogHost::connect()
     m_sock = NEW(new LogSock());
     ink_assert(m_sock != NULL);
   }
-  m_sock_fd = m_sock->connect(m_ip, m_port);
+  m_sock_fd = m_sock->connect(&target.sa);
   if (m_sock_fd < 0) {
-    Note("Connection to LogHost %s:%u failed", name(), port());
+    Note("Connection to LogHost %s failed", ats_ip_nptop(&target, ipb, sizeof ipb));
     return false;
   }
   m_connected = true;
 
   if (!authenticated()) {
-    Note("Authentication to LogHost %s:%u failed", name(), port());
+    Note("Authentication to LogHost %s failed", ats_ip_nptop(&target, ipb, sizeof ipb));
     disconnect();
     return false;
   }
@@ -222,6 +231,10 @@ LogHost::disconnect()
     m_sock->close(m_sock_fd);
     m_sock_fd = -1;
   }
+  if (m_log_collation_client_sm) {
+    delete m_log_collation_client_sm;
+    m_log_collation_client_sm = NULL;
+  }
   m_connected = false;
 }
 
@@ -233,8 +246,8 @@ LogHost::create_orphan_LogFile_object()
 
   const char *orphan_ext = "orphan";
   unsigned name_len = (unsigned) (strlen(m_object_filename) + strlen(name()) + strlen(orphan_ext) + 16);
-  char *name_buf = (char *) xmalloc(name_len);
-  ink_assert(name_buf != NULL);
+  char *name_buf = (char *)ats_malloc(name_len);
+
   // NT: replace ':'s with '-'s.  This change is necessary because
   // NT doesn't like filenames with ':'s in them.  ^_^
   snprintf(name_buf, name_len, "%s%s%s-%u.%s",
@@ -244,25 +257,114 @@ LogHost::create_orphan_LogFile_object()
   //
   m_orphan_file = NEW(new LogFile(name_buf, NULL, ASCII_LOG, m_object_signature));
   ink_assert(m_orphan_file != NULL);
-  xfree(name_buf);
+  ats_free(name_buf);
+}
+
+int
+LogHost::write (LogBuffer *lb)
+{
+  if (lb == NULL) {
+    Note("Cannot write LogBuffer to LogHost %s; LogBuffer is NULL", name());
+    return -1;
+  }
+  LogBufferHeader *buffer_header = lb->header();
+  if (buffer_header == NULL) {
+    Note("Cannot write LogBuffer to LogHost %s; LogBufferHeader is NULL",
+        name());
+    return -1;
+  }
+  if (buffer_header->entry_count == 0) {
+    // no bytes to write
+    return 0;
+  }
+
+#if !defined(IOCORE_LOG_COLLATION)
+
+  // make sure we're connected & authenticated
+
+  if (!connected(NOPING)) {
+    if (!connect ()) {
+      Note("Cannot write LogBuffer to LogHost %s; not connected",
+          name());
+      return orphan_write (lb);
+    }
+  }
+
+  // try sending the logbuffer
+
+  int bytes_to_send, bytes_sent;
+  bytes_to_send = buffer_header->byte_count;
+  // lb->convert_to_network_order();
+  bytes_sent = m_sock->write (m_sock_fd, buffer_header, bytes_to_send);
+  if (bytes_to_send != bytes_sent) {
+    Note("Bad write to LogHost %s; bad send count %d/%d",
+        name(), bytes_sent, bytes_to_send);
+    disconnect();
+    // TODO: We currently don't try to make the log buffers handle little vs big endian. TS-1156.
+    // lb->convert_to_host_order ();
+    return orphan_write (lb);
+  }
+
+  Debug("log-host","%d bytes sent to LogHost %s:%u", bytes_sent,
+      name(), port());
+  SUM_DYN_STAT (log_stat_bytes_sent_to_network_stat, bytes_sent);
+  return bytes_sent;
+
+#else // !defined(IOCORE_LOG_COLLATION)
+  // make a copy of our log_buffer
+  int buffer_header_size = buffer_header->byte_count;
+  LogBufferHeader *buffer_header_copy =
+      (LogBufferHeader*) NEW(new char[buffer_header_size]);
+  ink_assert(buffer_header_copy != NULL);
+
+  memcpy(buffer_header_copy, buffer_header, buffer_header_size);
+  LogBuffer *lb_copy = NEW(new LogBuffer(lb->get_owner(),
+          buffer_header_copy));
+  ink_assert(lb_copy != NULL);
+
+  // create a new collation client if necessary
+  if (m_log_collation_client_sm == NULL) {
+    m_log_collation_client_sm = NEW(new LogCollationClientSM(this));
+    ink_assert(m_log_collation_client_sm != NULL);
+  }
+
+  // send log_buffer; orphan if necessary
+  int bytes_sent = m_log_collation_client_sm->send(lb_copy);
+  if (bytes_sent <= 0) {
+#ifndef TS_MICRO
+    orphan_write_and_delete(lb_copy);
+#if defined(LOG_BUFFER_TRACKING)
+    Debug("log-buftrak", "[%d]LogHost::write - orphan write complete",
+        lb_copy->header()->id);
+#endif // defined(LOG_BUFFER_TRACKING)
+#else
+    Note("Starting dropping log buffer due to overloading");
+    delete lb_copy;
+    lb_copy = 0;
+#endif // TS_MICRO
+  }
+
+  return bytes_sent;
+
+#endif // !defined(IOCORE_LOG_COLLATION)
 }
 
 #ifndef TS_MICRO
 int
-LogHost::orphan_write(LogBuffer * lb, size_t * to_file)
+LogHost::orphan_write(LogBuffer * lb)
 {
   if (!Log::config->logging_space_exhausted) {
     Debug("log-host", "Sending LogBuffer to orphan file %s", m_orphan_file->get_name());
-    return m_orphan_file->write(lb, to_file);
+    return m_orphan_file->write(lb);
   } else {
     return 0;                   // nothing written
   }
 }
 
 int
-LogHost::orphan_write_and_delete(LogBuffer * lb, size_t * to_disk)
+LogHost::orphan_write_and_delete(LogBuffer * lb)
 {
-  int bytes = orphan_write(lb, to_disk);
+  int bytes = orphan_write(lb);
   // done with the buffer, delete it
   delete lb;
   lb = 0;
@@ -283,19 +385,14 @@ LogHost::clear()
 
   disconnect();
 
-  if (m_name)
-    xfree(m_name);
-  if (m_ipstr)
-    xfree(m_ipstr);
-  if (m_sock)
-    delete m_sock;
-  if (m_orphan_file)
-    delete m_orphan_file;
+  ats_free(m_name);
+  delete m_sock;
+  delete m_orphan_file;
 
-  m_ip = 0;
-  m_ipstr = NULL;
-  m_name = NULL;
+  ink_zero(m_ip);
   m_port = 0;
+  ink_zero(m_ipstr);
+  m_name = NULL;
   m_sock = NULL;
   m_sock_fd = -1;
   m_connected = false;
@@ -369,11 +466,11 @@ LogHostList::clear()
 }
 
 int
-LogHostList::write(LogBuffer * lb, size_t * to_disk, size_t * to_net, size_t * to_pipe)
+LogHostList::write(LogBuffer * lb)
 {
   int total_bytes = 0;
   for (LogHost * host = first(); host; host = next(host)) {
-    int bytes = host->write(lb, to_disk, to_net, to_pipe);
+    int bytes = host->write(lb);
     if (bytes > 0)
       total_bytes += bytes;
   }
@@ -393,15 +490,12 @@ bool LogHostList::operator==(LogHostList & rhs)
   LogHost *
     host;
   for (host = first(); host; host = next(host)) {
-    LogHost *
-      rhs_host;
+    LogHost* rhs_host;
     for (rhs_host = rhs.first(); rhs_host; rhs_host = next(host)) {
-      if ((host->port() == rhs_host->port() &&
-           (host->ip() && rhs_host->ip() &&
-            (host->ip() == rhs_host->ip()))) ||
-          (host->name() && rhs_host->name() &&
-           (strcmp(host->name(), rhs_host->name()) == 0)) ||
-          (host->ipstr() && rhs_host->ipstr() && (strcmp(host->ipstr(), rhs_host->ipstr()) == 0))) {
+      if ((host->port() == rhs_host->port() && host->ip_addr().isValid() && host->ip_addr() == rhs_host->ip_addr()) ||
+        (host->name() && rhs_host->name() && (strcmp(host->name(), rhs_host->name()) == 0)) ||
+        (*(host->ipstr()) && *(rhs_host->ipstr()) && (strcmp(host->ipstr(), rhs_host->ipstr()) == 0))
+      ) {
         break;
       }
     }

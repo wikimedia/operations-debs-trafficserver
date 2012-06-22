@@ -35,7 +35,6 @@
 
 #include "Error.h"
 #include "P_EventSystem.h"
-#include "P_Net.h"
 #include "P_RecProcess.h"
 
 #include "ProcessManager.h"
@@ -104,7 +103,7 @@ initialize_process_manager()
   }
 
   if (management_directory[0] == '\0') {
-    ink_strncpy(management_directory, Layout::get()->sysconfdir, PATH_NAME_MAX);
+    ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
     if (access(management_directory, R_OK) == -1) {
       fprintf(stderr,"unable to access() management path '%s': %d, %s\n",
               management_directory, errno, strerror(errno));
@@ -205,8 +204,7 @@ check_lockfile(const char *config_dir, const char *pgm_name)
     }
     _exit(1);
   }
-  xfree(lockfile);
-
+  ats_free(lockfile);
 }
 
 /*-------------------------------------------------------------------------
@@ -258,7 +256,7 @@ init_log_standalone(const char *pgm_name, bool one_copy)
 
   1) does not call initialize_process_manager
   2) initializes the diags with use_records = false
-  3) does not call create_this_machine
+  3) does not call Machine::init()
   4) assumes multiple copies of the application can run, so does not
      do lock checking
   -------------------------------------------------------------------------*/

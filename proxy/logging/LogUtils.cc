@@ -1,6 +1,7 @@
 /** @file
 
-  A brief file description
+ This file contains a set of utility routines that are used throughout the
+ logging implementation.
 
   @section license License
 
@@ -21,14 +22,6 @@
   limitations under the License.
  */
 
-/***************************************************************************
- LogUtils.cc
-
- This file contains a set of utility routines that are used throughout the
- logging implementation.
-
-
- ***************************************************************************/
 
 #include "ink_config.h"
 #include "ink_unused.h"
@@ -137,10 +130,11 @@ LogUtils::timestamp_to_netscape_str(long timestamp)
 #endif
     struct tm res;
     struct tm *tms = ink_localtime_r((const time_t *) &timestamp, &res);
-#if defined(freebsd) || defined(darwin)
-    long zone = -tms->tm_gmtoff;        // double negative!
-#else
+    // TODO: Not sure this makes sense, can altzone actually be != timezone ??
+#ifdef NEED_ALTZONE_DEFINED
     long zone = (tms->tm_isdst > 0) ? altzone : timezone;
+#else
+    long zone = -tms->tm_gmtoff;        // double negative!
 #endif
     int offset;
     char sign;
@@ -152,11 +146,10 @@ LogUtils::timestamp_to_netscape_str(long timestamp)
       offset = zone / -60;
       sign = '+';
     }
-    int glen = snprintf(gmtstr, 16, "%c%.2d%.2d",
-                            sign, offset / 60, offset % 60);
+    int glen = snprintf(gmtstr, 16, "%c%.2d%.2d", sign, offset / 60, offset % 60);
 
     strftime(timebuf, 64 - glen, "%d/%b/%Y:%H:%M:%S ", tms);
-    strncat(timebuf, gmtstr, sizeof(timebuf) - strlen(timebuf) - 1);
+    ink_strlcat(timebuf, gmtstr, sizeof(timebuf));
     last_timestamp = timestamp;
   }
   return timebuf;
@@ -224,32 +217,6 @@ LogUtils::timestamp_to_time_str(long timestamp)
     last_timestamp = timestamp;
   }
   return timebuf;
-}
-
-/*-------------------------------------------------------------------------
-  LogUtils::ip_from_host
-
-  This routine performs a DNS lookup on the given hostname and returns the
-  associated IP address in the form of a single unsigned int (s_addr).  If
-  the host is not found or some other error occurs, then zero is returned.
-  -------------------------------------------------------------------------*/
-
-unsigned
-LogUtils::ip_from_host(char *host)
-{
-  unsigned ip = 0;
-  ink_gethostbyname_r_data d;
-  struct hostent *he = 0;
-
-  ink_assert(host != NULL);
-
-  he = ink_gethostbyname_r(host, &d);
-
-  if (he != NULL) {
-    ip = ((struct in_addr *) (he->h_addr_list[0]))->s_addr;
-  }
-
-  return ip;
 }
 
 /*-------------------------------------------------------------------------
@@ -324,7 +291,7 @@ LogUtils::strip_trailing_newline(char *buf)
   -------------------------------------------------------------------------*/
 
 char *
-LogUtils::escapify_url(Arena * arena, char *url, int len_in, int *len_out)
+LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, char *dst, size_t dst_size, const unsigned char *map)
 {
   // codes_to_escape is a bitmap encoding the codes that should be escaped.
   // These are all the codes defined in section 2.4.3 of RFC 2396
@@ -333,7 +300,7 @@ LogUtils::escapify_url(Arena * arena, char *url, int len_in, int *len_out)
   // historically this is what the traffic_server has done.
   // Note that we leave codes beyond 127 unmodified.
   //
-  static unsigned char codes_to_escape[32] = {
+  static const unsigned char codes_to_escape[32] = {
     0xFF, 0xFF, 0xFF, 0xFF,     // control
     0xB4,                       // space " # %
     0x00, 0x00,                 //
@@ -353,29 +320,37 @@ LogUtils::escapify_url(Arena * arena, char *url, int len_in, int *len_out)
     'D', 'E', 'F'
   };
 
-  if (!url) {
+  if (!url || (dst && dst_size < len_in)) {
     *len_out = 0;
-    return (NULL);
+    return NULL;
   }
+
+  if (!map)
+    map = codes_to_escape;
+
   // Count specials in the url, assuming that there won't be any.
   //
   int count = 0;
   char *p = url;
   char *in_url_end = url + len_in;
+
   while (p < in_url_end) {
     register unsigned char c = *p;
-    if (codes_to_escape[c / 8] & (1 << (7 - c % 8))) {
-      count++;
+    if (map[c / 8] & (1 << (7 - c % 8))) {
+      ++count;
     }
-    p++;
+    ++p;
   }
 
   if (!count) {
     // The common case, no escapes, so just return the source string.
     //
     *len_out = len_in;
+    if (dst)
+      ink_strlcpy(dst, url, len_in);
     return url;
   }
+
   // For each special char found, we'll need an escape string, which is
   // three characters long.  Count this and allocate the string required.
   //
@@ -383,19 +358,30 @@ LogUtils::escapify_url(Arena * arena, char *url, int len_in, int *len_out)
   // for when we calculate out_len !!! in other words,
   // out_len = len_in + 3*count - count
   //
-  int out_len = len_in + 2 * count;
+  size_t out_len = len_in + 2 * count;
+
+  if (dst && out_len > dst_size) {
+    *len_out = 0;
+    return NULL;
+  }
 
   // To play it safe, we null terminate the string we return in case
   // a module that expects null-terminated strings calls escapify_url,
   // so we allocate an extra byte for the EOS
   //
-  char *new_url = (char *) arena->str_alloc(out_len + 1);
+  char *new_url;
+
+  if (dst)
+    new_url = dst;
+  else
+    new_url = (char *) arena->str_alloc(out_len + 1);
 
   char *from = url;
   char *to = new_url;
+
   while (from < in_url_end) {
     register unsigned char c = *from;
-    if (codes_to_escape[c / 8] & (1 << (7 - c % 8))) {
+    if (map[c / 8] & (1 << (7 - c % 8))) {
       *to++ = '%';
       *to++ = hex_digit[c / 16];
       *to++ = hex_digit[c % 16];
@@ -404,7 +390,7 @@ LogUtils::escapify_url(Arena * arena, char *url, int len_in, int *len_out)
     }
     from++;
   }
-  *to = 0;                      // null terminate string
+  *to = '\0';                      // null terminate string
 
   *len_out = out_len;
   return new_url;
@@ -483,164 +469,6 @@ LogUtils::ip_to_str (unsigned ip, char *str, unsigned len)
     return ((ret <= (int)len)? ret : (int)len);
 }
 */
-
-/*-------------------------------------------------------------------------
-  LogUtils::ip_to_str
-
-  This routine simply writes the given IP integer [ip] in the equivalent
-  string format "aaa.bbb.ccc.ddd" into the provided buffer [buf] of size
-  [bufLen].
-
-  It returns 1 if the provided buffer is not big enough to hold the
-  equivalent ip string (and its null terminator), and 0 otherwise.
-  If the buffer is not big enough, only the ip "segments" that completely
-  fit into it are written, and the buffer is null terminated.
-
-  If a non-null pointer to size_t [numCharsPtr] is given, then the
-  length of the ip string is written there (this is the same one would
-  get from calling strlen(buf) after a call to ip_to_str, so the null
-  string terminator is not counted).
-
-  -------------------------------------------------------------------------*/
-
-int
-LogUtils::ip_to_str(unsigned ip, char *buf, size_t bufLen, size_t * numCharsPtr)
-{
-
-  static const char *table[] = {
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    "01", "11", "21", "31", "41", "51", "61", "71", "81", "91",
-    "02", "12", "22", "32", "42", "52", "62", "72", "82", "92",
-    "03", "13", "23", "33", "43", "53", "63", "73", "83", "93",
-    "04", "14", "24", "34", "44", "54", "64", "74", "84", "94",
-    "05", "15", "25", "35", "45", "55", "65", "75", "85", "95",
-    "06", "16", "26", "36", "46", "56", "66", "76", "86", "96",
-    "07", "17", "27", "37", "47", "57", "67", "77", "87", "97",
-    "08", "18", "28", "38", "48", "58", "68", "78", "88", "98",
-    "09", "19", "29", "39", "49", "59", "69", "79", "89", "99",
-    "001", "101", "201", "301", "401", "501", "601", "701", "801", "901",
-    "011", "111", "211", "311", "411", "511", "611", "711", "811", "911",
-    "021", "121", "221", "321", "421", "521", "621", "721", "821", "921",
-    "031", "131", "231", "331", "431", "531", "631", "731", "831", "931",
-    "041", "141", "241", "341", "441", "541", "641", "741", "841", "941",
-    "051", "151", "251", "351", "451", "551", "651", "751", "851", "951",
-    "061", "161", "261", "361", "461", "561", "661", "761", "861", "961",
-    "071", "171", "271", "371", "471", "571", "671", "771", "871", "971",
-    "081", "181", "281", "381", "481", "581", "681", "781", "881", "981",
-    "091", "191", "291", "391", "491", "591", "691", "791", "891", "991",
-    "002", "102", "202", "302", "402", "502", "602", "702", "802", "902",
-    "012", "112", "212", "312", "412", "512", "612", "712", "812", "912",
-    "022", "122", "222", "322", "422", "522", "622", "722", "822", "922",
-    "032", "132", "232", "332", "432", "532", "632", "732", "832", "932",
-    "042", "142", "242", "342", "442", "542", "642", "742", "842", "942",
-    "052", "152", "252", "352", "452", "552"
-  };
-
-  int retVal = 0;
-  register unsigned int numChars = 0;
-  register int s;
-  register unsigned int n;
-  register int shft = 24;
-  const char *d;
-  for (int i = 0; i < 4; ++i) {
-    s = (ip >> shft) & 0xff;
-    d = table[s];
-    n = (s > 99 ? 4 : (s > 9 ? 3 : 2)); // '.' or '\0' included
-    if (bufLen >= n) {
-      switch (n) {
-      case 4:
-        buf[numChars++] = d[2];
-      case 3:
-        buf[numChars++] = d[1];
-      default:
-        buf[numChars++] = d[0];
-      }
-      buf[numChars++] = (i < 3 ? '.' : 0);
-      bufLen -= n;
-      shft -= 8;
-    } else {
-      retVal = 1;               // not enough buffer space
-      buf[numChars - 1] = 0;    // null terminate the buffer
-      break;
-    }
-  }
-  if (numCharsPtr) {
-    *numCharsPtr = numChars - 1;
-  }
-  return retVal;
-}
-
-/*-------------------------------------------------------------------------
-  LogUtils::str_to_ip
-
-  This routine converts the string form of an IP address
-  ("aaa.bbb.ccc.ddd") to its equivalent integer form.
-  -------------------------------------------------------------------------*/
-
-unsigned
-LogUtils::str_to_ip(char *ipstr)
-{
-  unsigned ip = 0;
-  unsigned a, b, c, d;
-  // coverity[secure_coding]
-  int ret = sscanf(ipstr, "%u.%u.%u.%u", &a, &b, &c, &d);
-  if (ret == 4) {
-    ip = d | (c << 8) | (b << 16) | (a << 24);
-  }
-  return ip;
-}
-
-/*-------------------------------------------------------------------------
-  LogUtils::valid_ipstr_format
-
-  This routine checks for a string formated as an ip address.
-  It makes sure that the format is valid, and allows at most three digit
-  numbers between the dots, but it does not check for an invalid three digit
-  number (e.g., 111.222.333.444 would return true)
-
-  -------------------------------------------------------------------------*/
-
-bool LogUtils::valid_ipstr_format(char *ipstr)
-{
-  ink_assert(ipstr);
-
-  char
-    c;
-  bool
-    retVal = true;
-  bool
-    lastDot = true;
-  int
-    i = 0, numDots = 0;
-  int
-    numDigits = 0;
-  while (c = ipstr[i++], c != 0) {
-    if (c == '.') {
-      if (lastDot || (++numDots > 3)) {
-        retVal = false;         // consecutive dots, or more than 3
-        // or dot at beginning
-        break;
-      }
-      lastDot = true;
-      numDigits = 0;
-    } else if (ParseRules::is_digit(c)) {
-      ++numDigits;
-      if (numDigits > 3) {
-        retVal = false;
-        break;
-      }
-      lastDot = false;
-    } else {
-      retVal = false;           // no digit or dot
-      break;
-    }
-  }
-
-  // make sure there are no less than three dots and that the last char
-  // is not a dot
-  //
-  return (retVal == true ? (numDots == 3 && !lastDot) : false);
-}
 
 // return the seconds remaining until the time of the next roll given
 // the current time, the rolling offset, and the rolling interval

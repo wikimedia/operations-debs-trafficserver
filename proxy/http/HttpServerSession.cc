@@ -27,9 +27,7 @@
 
    Description:
 
-
  ****************************************************************************/
-
 #include "ink_config.h"
 #include "Allocator.h"
 #include "HttpServerSession.h"
@@ -38,6 +36,7 @@
 
 static int64_t next_ss_id = (int64_t) 0;
 ClassAllocator<HttpServerSession> httpServerSessionAllocator("httpServerSessionAllocator");
+
 
 void
 HttpServerSession::destroy()
@@ -52,27 +51,20 @@ HttpServerSession::destroy()
   }
 
   mutex.clear();
-  httpServerSessionAllocator.free(this);
-}
-
-HttpServerSession *
-HttpServerSession::allocate()
-{
-  ink_assert(0);
-  return NULL;
+  if (2 == share_session)
+    THREAD_FREE(this, httpServerSessionAllocator, this_ethread());
+  else
+    httpServerSessionAllocator.free(this);
 }
 
 void
-HttpServerSession::new_connection(NetVConnection * new_vc)
+HttpServerSession::new_connection(NetVConnection *new_vc)
 {
   ink_assert(new_vc != NULL);
   server_vc = new_vc;
 
-#ifdef TRANSACTION_ON_A_THREAD
-  mutex = new_vc->thread->mutex;
-#else
+  // Used to do e.g. mutex = new_vc->thread->mutex; when per-thread pools enabled
   mutex = new_vc->mutex;
-#endif
 
   // Unique client session identifier.
   con_id = ink_atomic_increment64((int64_t *) (&next_ss_id), 1);
@@ -86,7 +78,10 @@ HttpServerSession::new_connection(NetVConnection * new_vc)
     if (connection_count == NULL)
       connection_count = ConnectionCount::getInstance();
     connection_count->incrementCount(server_ip);
-    Debug("http_ss", "[%" PRId64 "] new connection, ip: %u, count: %u", con_id, server_ip, connection_count->getCount(server_ip));
+    char addrbuf[INET6_ADDRSTRLEN];
+    Debug("http_ss", "[%" PRId64 "] new connection, ip: %s, count: %u", 
+        con_id, 
+        ats_ip_ntop(&server_ip.sa, addrbuf, sizeof(addrbuf)), connection_count->getCount(server_ip));
   }
 #ifdef LAZY_BUF_ALLOC
   read_buffer = new_empty_MIOBuffer(HTTP_SERVER_RESP_HDR_BUFFER_INDEX);
@@ -99,13 +94,13 @@ HttpServerSession::new_connection(NetVConnection * new_vc)
 }
 
 VIO *
-HttpServerSession::do_io_read(Continuation * c, int64_t nbytes, MIOBuffer * buf)
+HttpServerSession::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
 {
   return server_vc->do_io_read(c, nbytes, buf);
 }
 
 VIO *
-HttpServerSession::do_io_write(Continuation * c, int64_t nbytes, IOBufferReader * buf, bool owner)
+HttpServerSession::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner)
 {
   return server_vc->do_io_write(c, nbytes, buf, owner);
 }
@@ -136,10 +131,13 @@ HttpServerSession::do_io_close(int alerrno)
   if (enable_origin_connection_limiting == true) {
     if (connection_count->getCount(server_ip) > 0) {
       connection_count->incrementCount(server_ip, -1);
-      Debug("http_ss", "[%" PRId64 "] connection closed, ip: %u, count: %u",
-            con_id, server_ip, connection_count->getCount(server_ip));
+      char addrbuf[INET6_ADDRSTRLEN];
+      Debug("http_ss", "[%" PRId64 "] connection closed, ip: %s, count: %u",
+            con_id, 
+            ats_ip_ntop(&server_ip.sa, addrbuf, sizeof(addrbuf)), 
+            connection_count->getCount(server_ip));
     } else {
-      Error("http_ss", "[%" PRId64 "] number of connections should be greater then zero: %u",
+      Error("[%" PRId64 "] number of connections should be greater then zero: %u",
             con_id, connection_count->getCount(server_ip));
     }
   }
@@ -151,7 +149,7 @@ HttpServerSession::do_io_close(int alerrno)
 }
 
 void
-HttpServerSession::reenable(VIO * vio)
+HttpServerSession::reenable(VIO *vio)
 {
   server_vc->reenable(vio);
 }
@@ -167,12 +165,13 @@ HttpServerSession::release()
   state = HSS_KA_SHARED;
 
   // Private sessions are never released back to the shared pool
-  if (private_session || HttpConfig::m_master.share_server_sessions == 0) {
+  if (private_session || share_session == 0) {
     this->do_io_close();
     return;
   }
 
   HSMresult_t r = httpSessionManager.release_session(this);
+  
 
   if (r == HSM_RETRY) {
     // Session could not be put in the session manager

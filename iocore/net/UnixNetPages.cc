@@ -34,14 +34,13 @@ typedef int (ShowNet::*ShowNetEventHandler) (int event, Event * data);
 struct ShowNet: public ShowCont
 {
   int ithread;
-  int port;
-  unsigned int ip;
+  IpEndpoint addr;
 
   int showMain(int event, Event * e)
   {
     CHECK_SHOW(begin("Net"));
     CHECK_SHOW(show("<H3>Show <A HREF=\"./connections\">Connections</A></H3>\n"
-                    "<H3>Show <A HREF=\"./threads\">Net Threads</A></H3>\n"
+                    //"<H3>Show <A HREF=\"./threads\">Net Threads</A></H3>\n"
                     "<form method = GET action = \"./ips\">\n"
                     "Show Connections to/from IP (e.g. 127.0.0.1):<br>\n"
                     "<input type=text name=ip size=64 maxlength=256>\n"
@@ -64,30 +63,36 @@ struct ShowNet: public ShowCont
 
     ink_hrtime now = ink_get_hrtime();
     forl_LL(UnixNetVConnection, vc, nh->open_list) {
-      if (ip && ip != vc->ip)
+//      uint16_t port = ats_ip_port_host_order(&addr.sa);
+      if (ats_is_ip(&addr) && addr != vc->server_addr)
         continue;
-      if (port && port != vc->port && port != vc->accept_port)
-        continue;
-      char ipbuf[80];
-      snprintf(ipbuf, sizeof(ipbuf), "%hhu.%hhu.%hhu.%hhu", PRINT_IP(vc->ip));
+//      if (port && port != ats_ip_port_host_order(&vc->server_addr.sa) && port != vc->accept_port)
+//        continue;
+      char ipbuf[INET6_ADDRSTRLEN];
+      ats_ip_ntop(&vc->server_addr.sa, ipbuf, sizeof(ipbuf));
+      char opt_ipbuf[INET6_ADDRSTRLEN];
       char interbuf[80];
-      snprintf(interbuf, sizeof(interbuf), "[%s] %hhu.%hhu.%hhu.%hhu", vc->options.toString(vc->options.addr_binding), PRINT_IP(vc->options.local_addr));
+      snprintf(interbuf, sizeof(interbuf), "[%s] %s:%d",
+        vc->options.toString(vc->options.addr_binding),
+        vc->options.local_ip.toString(opt_ipbuf, sizeof(opt_ipbuf)),
+        vc->options.local_port
+      );
       CHECK_SHOW(show("<tr>"
-                      // "<td><a href=\"/connection/%d\">%d</a></td>"
+                      //"<td><a href=\"/connection/%d\">%d</a></td>"
                       "<td>%d</td>"     // ID
                       "<td>%s</td>"     // ipbuf
                       "<td>%d</td>"     // port
                       "<td>%d</td>"     // fd
                       "<td>%s</td>"     // interbuf
-                      "<td>%d</td>"     // accept port
+//                      "<td>%d</td>"     // accept port
                       "<td>%d secs ago</td>"    // start time
                       "<td>%d</td>"     // thread id
                       "<td>%d</td>"     // read enabled
-                      "<td>%d</td>"     // read NBytes
-                      "<td>%d</td>"     // read NDone
+                      "<td>%" PRId64 "</td>"     // read NBytes
+                      "<td>%" PRId64 "</td>"     // read NDone
                       "<td>%d</td>"     // write enabled
-                      "<td>%d</td>"     // write nbytes
-                      "<td>%d</td>"     // write ndone
+                      "<td>%" PRId64 "</td>"     // write nbytes
+                      "<td>%" PRId64 "</td>"     // write ndone
                       "<td>%d secs</td>"        // Inactivity timeout at
                       "<td>%d secs</td>"        // Activity timeout at
                       "<td>%d</td>"     // shutdown
@@ -95,10 +100,10 @@ struct ShowNet: public ShowCont
                       "</tr>\n",
                       vc->id,
                       ipbuf,
-                      vc->port,
+                      ats_ip_port_host_order(&vc->server_addr),
                       vc->con.fd,
                       interbuf,
-                      vc->accept_port,
+//                      vc->accept_port,
                       (int) ((now - vc->submit_time) / HRTIME_SECOND),
                       ethread->id,
                       vc->read.enabled,
@@ -200,7 +205,8 @@ struct ShowNet: public ShowCont
   }
 
 ShowNet(Continuation * c, HTTPHdr * h):
-  ShowCont(c, h), ithread(0), port(0), ip(0) {
+  ShowCont(c, h), ithread(0) {
+    memset(&addr, 0, sizeof(addr));
     SET_HANDLER(&ShowNet::showMain);
   }
 };
@@ -222,22 +228,22 @@ register_ShowNet(Continuation * c, HTTPHdr * h)
   } else if (STREQ_PREFIX(path, path_len, "ips")) {
     int query_len;
     const char *query = h->url_get()->query_get(&query_len);
-    s->sarg = xstrndup(query, query_len);
+    s->sarg = ats_strndup(query, query_len);
     char *gn = NULL;
     if (s->sarg)
       gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
     if (gn)
-      s->ip = ink_inet_addr(gn + 1);
+      ats_ip_pton(gn + 1, &s->addr);
     SET_CONTINUATION_HANDLER(s, &ShowNet::showConnections);
   } else if (STREQ_PREFIX(path, path_len, "ports")) {
     int query_len;
     const char *query = h->url_get()->query_get(&query_len);
-    s->sarg = xstrndup(query, query_len);
+    s->sarg = ats_strndup(query, query_len);
     char *gn = NULL;
     if (s->sarg)
       gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
     if (gn)
-      s->port = atoi(gn + 1);
+      ats_ip_port_cast(&s->addr.sa) = htons(atoi(gn+1));
     SET_CONTINUATION_HANDLER(s, &ShowNet::showConnections);
   }
   eventProcessor.schedule_imm(s, ET_TASK);

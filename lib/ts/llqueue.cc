@@ -25,9 +25,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#if !defined(freebsd) && !defined(darwin)
-#include <malloc.h>
-#endif
 #include <assert.h>
 #include <limits.h>
 
@@ -52,12 +49,7 @@ newrec(LLQ * Q)
     return new_val;
   }
 
-
-  Q->free = (LLQrec *) xmalloc(RECORD_CHUNK * sizeof(LLQrec));
-
-  if (!Q->free)
-    return NULL;
-
+  Q->free = (LLQrec *)ats_malloc(RECORD_CHUNK * sizeof(LLQrec));
   for (i = 0; i < RECORD_CHUNK; i++)
     Q->free[i].next = &Q->free[i + 1];
 
@@ -83,11 +75,7 @@ LLQ *
 create_queue()
 {
   const char *totally_bogus_name = "create_queue";
-  LLQ * new_val;
-
-  new_val = (LLQ *) xmalloc(sizeof(LLQ));
-  if (!new_val)
-    return NULL;
+  LLQ * new_val = (LLQ *)ats_malloc(sizeof(LLQ));
 
 #if defined(darwin)
   static int qnum = 0;
@@ -115,9 +103,7 @@ delete_queue(LLQ * Q)
   // actually empty ...
   //
   //    LLQrec * qrec;
-  if (Q) {
-    xfree(Q);
-  }
+  ats_free(Q);
   return;
 }
 
@@ -127,15 +113,7 @@ enqueue(LLQ * Q, void *data)
   LLQrec * new_val;
 
   ink_mutex_acquire(&(Q->mux));
-
-//new_val= newrec(Q);
-  new_val = (LLQrec *) xmalloc(sizeof(LLQrec));
-
-  if (!new_val) {
-    ink_mutex_release(&(Q->mux));
-    return 0;
-  }
-
+  new_val = (LLQrec *)ats_malloc(sizeof(LLQrec));
   new_val->data = data;
   new_val->next = NULL;
 
@@ -244,7 +222,7 @@ dequeue(LLQ * Q)
 
   d = rec->data;
 //freerec(Q, rec);
-  xfree(rec);
+  ats_free(rec);
 
   Q->len--;
   ink_mutex_release(&(Q->mux));

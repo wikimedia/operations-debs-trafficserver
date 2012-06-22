@@ -54,7 +54,7 @@ const char *LogFilter::ACTION_NAME[] = { "REJECT", "ACCEPT" };
   between the classes and I think should be removed.     ltavera
   -------------------------------------------------------------------------*/
 LogFilter::LogFilter(const char *name, LogField * field, LogFilter::Action action, LogFilter::Operator oper)
-  : m_name(xstrdup(name)), m_field(NULL) , m_action(action), m_operator(oper), m_type(INT_FILTER), m_num_values(0)
+  : m_name(ats_strdup(name)), m_field(NULL) , m_action(action), m_operator(oper), m_type(INT_FILTER), m_num_values(0)
 {
   m_field = NEW(new LogField(*field));
   ink_assert(m_field);
@@ -65,7 +65,7 @@ LogFilter::LogFilter(const char *name, LogField * field, LogFilter::Action actio
   -------------------------------------------------------------------------*/
 LogFilter::~LogFilter()
 {
-  xfree(m_name);
+  ats_free(m_name);
   delete m_field;
 }
 
@@ -84,9 +84,9 @@ LogFilterString::_setValues(size_t n, char **value)
     m_length = NEW(new size_t[n]);
     ink_assert(m_value && m_value_uppercase && m_length);
     for (size_t i = 0; i < n; ++i) {
-      m_value[i] = xstrdup(value[i]);
+      m_value[i] = ats_strdup(value[i]);
       m_length[i] = strlen(value[i]);
-      m_value_uppercase[i] = (char *) xmalloc((unsigned int) m_length[i] + 1);
+      m_value_uppercase[i] = (char *)ats_malloc((unsigned int) m_length[i] + 1);
       size_t j;
       for (j = 0; j < m_length[i]; ++j) {
         m_value_uppercase[i][j] = ParseRules::ink_toupper(m_value[i][j]);
@@ -115,7 +115,7 @@ LogFilterString::LogFilterString(const char *name, LogField * field,
     }
     if (i < n) {
       Warning("There were invalid values in the definition of filter %s"
-              "only %u out of %u values will be used", name, i, n);
+              "only %zu out of %zu values will be used", name, i, n);
     }
   }
   _setValues(i, val_array);
@@ -143,8 +143,8 @@ LogFilterString::~LogFilterString()
 {
   if (m_num_values > 0) {
     for (size_t i = 0; i < m_num_values; ++i) {
-      xfree(m_value[i]);
-      xfree(m_value_uppercase[i]);
+      ats_free(m_value[i]);
+      ats_free(m_value_uppercase[i]);
     }
     delete[]m_value;
     delete[]m_value_uppercase;
@@ -166,10 +166,13 @@ bool
 LogFilterString::operator==(LogFilterString & rhs)
 {
   if (m_type == rhs.m_type &&
-      m_field == rhs.m_field &&
-      m_action == rhs.m_action && m_operator == rhs.m_operator && m_num_values == rhs.m_num_values) {
+      *m_field == *rhs.m_field &&
+      m_action == rhs.m_action &&
+      m_operator == rhs.m_operator &&
+      m_num_values == rhs.m_num_values) {
     for (size_t i = 0; i < m_num_values; i++) {
-      if (m_length[i] != rhs.m_length[i] || strncmp(m_value[i], rhs.m_value[i], m_length[i])) {
+      if (m_length[i] != rhs.m_length[i] ||
+          strncmp(m_value[i], rhs.m_value[i], m_length[i])) {
         return false;
       }
     }
@@ -206,8 +209,7 @@ bool LogFilterString::toss_this_entry(LogAccess * lad)
   size_t marsh_len = m_field->marshal_len(lad);      // includes null termination
 
   if (marsh_len > BUFSIZE) {
-    big_buf = (char *) xmalloc((unsigned int) marsh_len);
-    ink_assert(big_buf != NULL);
+    big_buf = (char *)ats_malloc((unsigned int) marsh_len);
     buf = big_buf;
   }
 
@@ -236,7 +238,7 @@ bool LogFilterString::toss_this_entry(LogAccess * lad)
   case CASE_INSENSITIVE_CONTAIN:
     {
       if (big_buf) {
-        big_buf_upper = (char *) xmalloc((unsigned int) marsh_len);
+        big_buf_upper = (char *)ats_malloc((unsigned int) marsh_len);
         buf_upper = big_buf_upper;
       }
       for (size_t i = 0; i < marsh_len; i++) {
@@ -249,13 +251,8 @@ bool LogFilterString::toss_this_entry(LogAccess * lad)
     ink_assert(!"INVALID FILTER OPERATOR");
   }
 
-  if (big_buf) {
-    xfree(big_buf);
-  }
-
-  if (big_buf_upper) {
-    xfree(big_buf_upper);
-  }
+  ats_free(big_buf);
+  ats_free(big_buf_upper);
 
   return ((m_action == REJECT && cond_satisfied) || (m_action == ACCEPT && !cond_satisfied));
 }
@@ -320,7 +317,7 @@ LogFilterInt::_setValues(size_t n, int64_t *value)
 
 // TODO: ival should be int64_t
 int
-LogFilterInt::_convertStringToInt(char *value, unsigned *ival, LogFieldAliasMap * map)
+LogFilterInt::_convertStringToInt(char *value, int64_t *ival, LogFieldAliasMap * map)
 {
   size_t i, l = strlen(value);
   for (i = 0; i < l && ParseRules::is_digit(value[i]); i++);
@@ -373,7 +370,7 @@ LogFilterInt::LogFilterInt(const char *name, LogField * field,
     val_array = NEW(new int64_t[n]);
     char *t;
     while (t = tok.getNext(), t != NULL) {
-      unsigned ival;
+      int64_t ival;
       if (!_convertStringToInt(t, &ival, field->map())) {
         // conversion was successful, add entry to array
         //
@@ -382,7 +379,7 @@ LogFilterInt::LogFilterInt(const char *name, LogField * field,
     }
     if (i < n) {
       Warning("There were invalid values in the definition of filter %s"
-              " only %u out of %u values will be used.", name, i, n);
+              " only %zu out of %zu values will be used.", name, i, n);
     }
   } else {
     Warning("No values in the definition of filter %s.", name);
@@ -426,8 +423,10 @@ LogFilterInt::~LogFilterInt()
 bool LogFilterInt::operator==(LogFilterInt & rhs)
 {
   if (m_type == rhs.m_type &&
-      m_field == rhs.m_field &&
-      m_action == rhs.m_action && m_operator == rhs.m_operator && m_num_values == rhs.m_num_values) {
+      * m_field == * rhs.m_field &&
+      m_action == rhs.m_action &&
+      m_operator == rhs.m_operator &&
+      m_num_values == rhs.m_num_values) {
     for (size_t i = 0; i < m_num_values; i++) {
       if (m_value[i] != rhs.m_value[i]) {
         return false;
@@ -523,14 +522,18 @@ filters_are_equal(LogFilter * filt1, LogFilter * filt2)
 {
   bool ret = false;
 
+  // TODO: we should check name here
   if (filt1->type() == filt2->type()) {
     if (filt1->type() == LogFilter::INT_FILTER) {
+      Debug("log-filter-compare", "int compare");
       ret = (*((LogFilterInt *) filt1) == *((LogFilterInt *) filt2));
     } else if (filt1->type() == LogFilter::STRING_FILTER) {
       ret = (*((LogFilterString *) filt1) == *((LogFilterString *) filt2));
     } else {
       ink_debug_assert(!"invalid filter type");
     }
+  } else {
+    Debug("log-filter-compare", "type diff");
   }
   return ret;
 }
@@ -566,7 +569,6 @@ bool LogFilterList::operator==(LogFilterList & rhs)
       f = first();
     LogFilter *
       rhsf = rhs.first();
-
     while (true) {
       if (!(f || rhsf)) {
         return true;

@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  This file contains the "show" command implementation.
 
   @section license License
 
@@ -21,12 +21,6 @@
   limitations under the License.
  */
 
-/****************************************************************
- * Filename: ShowCmd.cc
- * Purpose: This file contains the "show" command implementation.
- *
- *
- ****************************************************************/
 
 #include <stdlib.h>
 #include <string.h>
@@ -71,15 +65,15 @@ Cmd_Show(ClientData clientData, Tcl_Interp * interp, int argc, const char *argv[
   Tcl_Eval(interp, "info commands show* ");
 
   int cmdinfo_size = sizeof(char) * (strlen(Tcl_GetStringResult(interp)) + 2);
-  cmdinfo = (char *) malloc(cmdinfo_size);
-  ink_strncpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_size);
+  cmdinfo = (char *)alloca(cmdinfo_size);
+  ink_strlcpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_size);
   int temp_size = sizeof(char) * (strlen(cmdinfo) + 20);
-  temp = (char *) malloc(temp_size);
-  ink_strncpy(temp, "lsort \"", temp_size);
-  strncat(temp, cmdinfo, temp_size - strlen(temp) - 1);
-  strncat(temp, "\"", temp_size - strlen(temp) - 1);
+  temp = (char *)alloca(temp_size);
+  ink_strlcpy(temp, "lsort \"", temp_size);
+  ink_strlcat(temp, cmdinfo, temp_size);
+  ink_strlcat(temp, "\"", temp_size);
   Tcl_Eval(interp, temp);
-  ink_strncpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_size);
+  ink_strlcpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_size);
   i = i + strlen("show ");
   while (cmdinfo[i] != 0) {
     if (cmdinfo[i] == ' ') {
@@ -92,8 +86,7 @@ Cmd_Show(ClientData clientData, Tcl_Interp * interp, int argc, const char *argv[
   cmdinfo[i] = 0;
   Cli_Printf("Following are the available show commands\n");
   Cli_Printf(cmdinfo + strlen("show "));
-  free(cmdinfo);
-  free(temp);
+
   return 0;
 
 }
@@ -1222,8 +1215,7 @@ ShowVersion()
 int
 ShowPorts()
 {
-  TSInt http_server = -1;
-  TSString http_other = NULL;
+  TSString http_ports = NULL;
   TSInt cluster = -1;
   TSInt cluster_rs = -1;
   TSInt cluster_mc = -1;
@@ -1233,8 +1225,7 @@ ShowPorts()
 
   // retrieve values
 
-  Cli_RecordGetInt("proxy.config.http.server_port", &http_server);
-  Cli_RecordGetString("proxy.config.http.server_other_ports", &http_other);
+  Cli_RecordGetString("proxy.config.http.server_ports", &http_ports);
   Cli_RecordGetInt("proxy.config.cluster.cluster_port", &cluster);
   Cli_RecordGetInt("proxy.config.cluster.rsport", &cluster_rs);
   Cli_RecordGetInt("proxy.config.cluster.mcport", &cluster_mc);
@@ -1244,8 +1235,7 @@ ShowPorts()
 
   // display results
   Cli_Printf("\n");
-  Cli_Printf("HTTP Server Port ------- %d\n", http_server);
-  Cli_Printf("HTTP Other Ports ------- %s\n", (http_other != NULL) ? http_other : "none");
+  Cli_Printf("HTTP Ports ------------- %s\n", (http_ports != NULL) ? http_ports : "none");
   Cli_Printf("Cluster Port ----------- %d\n", cluster);
   Cli_Printf("Cluster RS Port -------- %d\n", cluster_rs);
   Cli_Printf("Cluster MC Port -------- %d\n", cluster_mc);
@@ -2054,6 +2044,7 @@ ShowProxyStats()
 {
 
   TSFloat cache_hit_ratio = -1.0;
+  TSFloat cache_hit_mem_ratio = -1.0;
   TSFloat bandwidth_hit_ratio = -1.0;
   TSFloat percent_free = -1.0;
   TSInt current_server_connection = -1;
@@ -2065,6 +2056,7 @@ ShowProxyStats()
 
   //get value
   Cli_RecordGetFloat("proxy.node.cache_hit_ratio", &cache_hit_ratio);
+  Cli_RecordGetFloat("proxy.node.cache_hit_mem_ratio", &cache_hit_mem_ratio);
   Cli_RecordGetFloat("proxy.node.bandwidth_hit_ratio", &bandwidth_hit_ratio);
   Cli_RecordGetFloat("proxy.node.cache.percent_free", &percent_free);
   Cli_RecordGetInt("proxy.node.current_server_connections", &current_server_connection);
@@ -2078,6 +2070,7 @@ ShowProxyStats()
   Cli_Printf("\n");
 
   Cli_Printf("Document Hit Rate -------- %f %%\t *\n", 100 * cache_hit_ratio);
+  Cli_Printf("Ram cache Hit Rate ------- %f %%\t *\n", 100 * cache_hit_mem_ratio);
   Cli_Printf("Bandwidth Saving --------- %f %%\t *\n", 100 * bandwidth_hit_ratio);
   Cli_Printf("Cache Percent Free ------- %f %%\n", 100 * percent_free);
   Cli_Printf("Open Server Connections -- %d\n", current_server_connection);

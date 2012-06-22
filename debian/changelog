@@ -1,3 +1,10 @@
+trafficserver (3.2.0-1) UNRELEASED; urgency=low
+
+  * NOT RELEASED YET
+  * New upstream release
+
+ -- Arno Töll <arno@debian.org>  Fri, 22 Jun 2012 14:27:02 +0200
+
 trafficserver (3.0.5-1) unstable; urgency=low
 
   * New upstream release.

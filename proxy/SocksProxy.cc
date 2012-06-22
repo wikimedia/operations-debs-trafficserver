@@ -145,15 +145,17 @@ SocksProxy::mainEvent(int event, void *data)
 
     switch (state) {
     case HTTP_REQ:{
-        //This is a WRITE_COMPLETE. vio->nbytes == vio->ndone is true
+      HttpAccept::Options ha_opt;
+      //This is a WRITE_COMPLETE. vio->nbytes == vio->ndone is true
 
-        SOCKSPROXY_INC_STAT(socksproxy_http_connections_stat);
-        Debug("SocksProxy", "Handing over the HTTP request\n");
+      SOCKSPROXY_INC_STAT(socksproxy_http_connections_stat);
+      Debug("SocksProxy", "Handing over the HTTP request\n");
 
-        HttpAccept http_accept(clientVC->attributes);
-        http_accept.mainEvent(NET_EVENT_ACCEPT, clientVC);
-        state = ALL_DONE;
-        break;
+      ha_opt.transport_type = clientVC->attributes;
+      HttpAccept http_accept(ha_opt);
+      http_accept.mainEvent(NET_EVENT_ACCEPT, clientVC);
+      state = ALL_DONE;
+      break;
       }
 
     case RESP_TO_CLIENT:
@@ -461,12 +463,12 @@ SocksProxy::setupHttpRequest(unsigned char *p)
 
   case SOCKS_ATYPE_FQHN:
     //This is stored as a zero terminicated string
-    a->addr.buf = (unsigned char *) xmalloc(p[4] + 1);
+    a->addr.buf = (unsigned char *)ats_malloc(p[4] + 1);
     memcpy(a->addr.buf, &p[5], p[4]);
     a->addr.buf[p[4]] = 0;
     break;
   case SOCKS_ATYPE_IPV6:
-    //a->addr.buf = (unsigned char *) xmalloc(16);
+    //a->addr.buf = (unsigned char *)ats_malloc(16);
     //memcpy(a->addr.buf, &p[4], 16);
     //dont think we will use "proper" IPv6 addr anytime soon.
     //just use the last 4 octets as IPv4 addr:
@@ -522,8 +524,8 @@ start_SocksProxy(int port)
 {
   Debug("SocksProxy", "Accepting SocksProxy connections on port %d\n", port);
   NetProcessor::AcceptOptions opt;
-  opt.port = port;
-  netProcessor.main_accept(NEW(new SocksAccepter), NO_FD, 0, 0, false, false, opt);
+  opt.local_port = port;
+  netProcessor.main_accept(NEW(new SocksAccepter), NO_FD, opt);
 
   socksproxy_stat_block = RecAllocateRawStatBlock(socksproxy_stat_count);
 

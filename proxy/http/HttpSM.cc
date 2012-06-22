@@ -37,6 +37,7 @@
 #include "PluginVC.h"
 #include "ReverseProxy.h"
 #include "RemapProcessor.h"
+#include "Transform.h"
 
 #include "HttpPages.h"
 
@@ -87,6 +88,11 @@ static uint32_t val[MAX_SCATTER_LEN];
 static uint16_t to[MAX_SCATTER_LEN];
 static int scat_count = 0;
 
+static const char bound[] = "RANGE_SEPARATOR";
+static char const cont_type[] = "Content-type: ";
+static char const cont_range[] = "Content-range: bytes ";
+static const int sub_header_size = sizeof(cont_type) - 1 + 2 + sizeof(cont_range) - 1 + 4;
+static const int boundary_size = 2 + sizeof(bound) - 1 + 2;
 
 /**
  * Takes two milestones and returns the difference.
@@ -275,26 +281,21 @@ HttpVCTable::cleanup_all()
 #define __REMEMBER(x)  #x
 #define _REMEMBER(x)   __REMEMBER(x)
 
-#if defined(_WIN32)
-// Proper macro expansion is beyond Visual C++
-#define RECORD_FILE_LINE() \
-history[pos].fileline = __FILE__; \
-history[pos].line = __LINE__;
-#else
 #define RECORD_FILE_LINE() \
 history[pos].fileline = __FILE__ ":" _REMEMBER (__LINE__);
-#endif
 
 #define REMEMBER(e,r) \
 { if (REMEMBER_EVENT_FILTER(e)) { \
     add_history_entry(__FILE__ ":" _REMEMBER (__LINE__), e, r); }}
+
+#define DebugSM(tag, ...) DebugSpecific(debug_on, tag, __VA_ARGS__)
 
 #ifdef STATE_ENTER
 #undef STATE_ENTER
 #endif
 #define STATE_ENTER(state_name, event) { \
     /*ink_debug_assert (magic == HTTP_SM_MAGIC_ALIVE); */ REMEMBER (event, reentrancy_count);  \
-        Debug("http", "[%" PRId64 "] [%s, %s]", sm_id, \
+        DebugSM("http", "[%" PRId64 "] [%s, %s]", sm_id, \
         #state_name, HttpDebugNames::get_event_name(event)); }
 
 #define HTTP_SM_SET_DEFAULT_HANDLER(_h) \
@@ -310,7 +311,7 @@ HttpSM::HttpSM()
   : Continuation(NULL), sm_id(-1), magic(HTTP_SM_MAGIC_DEAD),
     //YTS Team, yamsat Plugin
     enable_redirection(false), api_enable_redirection(true), redirect_url(NULL), redirect_url_len(0), redirection_tries(0), transfered_bytes(0),
-    post_failed(false),
+    post_failed(false), debug_on(false),
     plugin_tunnel_type(HTTP_NO_PLUGIN_TUNNEL),
     plugin_tunnel(NULL), reentrancy_count(0),
     history_pos(0), tunnel(), ua_entry(NULL),
@@ -324,6 +325,7 @@ HttpSM::HttpSM()
     server_request_hdr_bytes(0), server_request_body_bytes(0),
     server_response_hdr_bytes(0), server_response_body_bytes(0),
     client_response_hdr_bytes(0), client_response_body_bytes(0),
+    cache_response_hdr_bytes(0), cache_response_body_bytes(0),
     pushed_response_hdr_bytes(0), pushed_response_body_bytes(0),
     hooks_set(0), cur_hook_id(TS_HTTP_LAST_HOOK), cur_hook(NULL),
     cur_hooks(0), callout_state(HTTP_API_NO_CALLOUT), terminate_sm(false), kill_this_async_done(false)
@@ -360,6 +362,7 @@ HttpSM::cleanup()
     delete second_cache_sm;
   }
   magic = HTTP_SM_MAGIC_DEAD;
+  debug_on = false;
 }
 
 void
@@ -478,7 +481,7 @@ HttpSM::decide_cached_url(URL * s_url)
     if (result == false) {
       t_state.cache_info.action = HttpTransact::CACHE_DO_NO_ACTION;
     } else
-      Debug("http_cache_write", "[%" PRId64 "] cache write decide to use URL %s", sm_id, s_url->string_get(&t_state.arena));
+      DebugSM("http_cache_write", "[%" PRId64 "] cache write decide to use URL %s", sm_id, s_url->string_get(&t_state.arena));
   }
 
   return result;
@@ -588,6 +591,7 @@ HttpSM::attach_client_session(HttpClientSession * client_vc, IOBufferReader * bu
 
   ua_session = client_vc;
   mutex = client_vc->mutex;
+  if (ua_session->debug_on) debug_on = true;
 
   start_sub_sm();
 
@@ -599,13 +603,11 @@ HttpSM::attach_client_session(HttpClientSession * client_vc, IOBufferReader * bu
 
   NetVConnection* netvc = client_vc->get_netvc();
 
-  t_state.client_info.ip = netvc->get_remote_ip();
+  ats_ip_copy(&t_state.client_info.addr, netvc->get_remote_addr());
   t_state.client_info.port = netvc->get_local_port();
   t_state.client_info.is_transparent = netvc->get_is_transparent();
   t_state.backdoor_request = client_vc->backdoor_connect;
-  memset(&(t_state.client_info.addr), 0, sizeof(t_state.client_info.addr));
-  t_state.client_info.addr = *client_vc->get_netvc()->get_remote_addr();
-  t_state.client_info.port_attribute = (HttpPortTypes) netvc->attributes;
+  t_state.client_info.port_attribute = static_cast<HttpProxyPort::TransportType>(netvc->attributes);
 
   HTTP_INCREMENT_DYN_STAT(http_current_client_transactions_stat);
 
@@ -671,16 +673,17 @@ HttpSM::state_read_client_request_header(int event, void *data)
   int bytes_used = 0;
   ink_assert(ua_entry->eos == false);
 
-
   switch (event) {
-  case VC_EVENT_EOS:
-    ua_entry->eos = true;
-    // Fall through
   case VC_EVENT_READ_READY:
   case VC_EVENT_READ_COMPLETE:
     // More data to parse
     break;
 
+  case VC_EVENT_EOS:
+    ua_entry->eos = true;
+    if (client_request_hdr_bytes !=0)
+      break;
+    // Fall through
   case VC_EVENT_ERROR:
   case VC_EVENT_INACTIVITY_TIMEOUT:
   case VC_EVENT_ACTIVE_TIMEOUT:
@@ -718,7 +721,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
 
   // Check to see if we are over the hdr size limit
   if (client_request_hdr_bytes > t_state.http_config_param->request_hdr_max_size) {
-    Debug("http", "client header bytes were over max header size; treating as a bad request");
+    DebugSM("http", "client header bytes were over max header size; treating as a bad request");
     state = PARSE_ERROR;
   }
   // Check to see if we are done parsing the header
@@ -730,7 +733,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
 
   switch (state) {
   case PARSE_ERROR:
-    Debug("http", "[%" PRId64 "] error parsing client request header", sm_id);
+    DebugSM("http", "[%" PRId64 "] error parsing client request header", sm_id);
 
     // Disable further I/O on the client
     ua_entry->read_vio->nbytes = ua_entry->read_vio->ndone;
@@ -740,7 +743,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
 
   case PARSE_CONT:
     if (ua_entry->eos) {
-      Debug("http_seq", "[%" PRId64 "] EOS before client request parsing finished", sm_id);
+      DebugSM("http_seq", "[%" PRId64 "] EOS before client request parsing finished", sm_id);
       set_ua_abort(HttpTransact::ABORTED, event);
 
       // Disable further I/O on the client
@@ -753,7 +756,7 @@ HttpSM::state_read_client_request_header(int event, void *data)
       return VC_EVENT_CONT;
     }
   case PARSE_DONE:
-    Debug("http", "[%" PRId64 "] done parsing client request header", sm_id);
+    DebugSM("http", "[%" PRId64 "] done parsing client request header", sm_id);
 
     if (ua_session->m_active == false) {
       ua_session->m_active = true;
@@ -865,7 +868,7 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
         //  where the tunnel is not active
         HttpTunnelConsumer *c = tunnel.get_consumer(ua_session);
         if (c && c->alive) {
-          Debug("http", "[%" PRId64 "] [watch_for_client_abort] "
+          DebugSM("http", "[%" PRId64 "] [watch_for_client_abort] "
                 "forwarding event %s to tunnel", sm_id, HttpDebugNames::get_event_name(event));
           tunnel.handleEvent(event, c->write_vio);
           return 0;
@@ -883,6 +886,8 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
       terminate_sm = true;
       break;
     }
+  case VC_EVENT_READ_COMPLETE:
+    // XXX Work around for TS-1233.
   case VC_EVENT_READ_READY:
     //  Ignore.  Could be a pipelined request.  We'll get to  it
     //    when we finish the current transaction
@@ -1021,7 +1026,7 @@ HttpSM::state_read_push_response_header(int event, void *data)
 
   switch (state) {
   case PARSE_ERROR:
-    Debug("http", "[%" PRId64 "] error parsing push response header", sm_id);
+    DebugSM("http", "[%" PRId64 "] error parsing push response header", sm_id);
     call_transact_and_set_next_state(HttpTransact::HandleBadPushRespHdr);
     break;
 
@@ -1030,7 +1035,7 @@ HttpSM::state_read_push_response_header(int event, void *data)
     return VC_EVENT_CONT;
 
   case PARSE_DONE:
-    Debug("http", "[%" PRId64 "] done parsing push response header", sm_id);
+    DebugSM("http", "[%" PRId64 "] done parsing push response header", sm_id);
     call_transact_and_set_next_state(HttpTransact::HandlePushResponseHdr);
     break;
   default:
@@ -1365,7 +1370,7 @@ HttpSM::state_api_callout(int event, void *data)
           plugin_lock = false;
         }
 
-        Debug("http", "[%" PRId64 "] calling plugin on hook %s at hook 0x%X",
+        DebugSM("http", "[%" PRId64 "] calling plugin on hook %s at hook %p",
               sm_id, HttpDebugNames::get_api_hook_name(cur_hook_id), cur_hook);
 
         APIHook *hook = cur_hook;
@@ -1486,7 +1491,7 @@ HttpSM::handle_api_return()
 {
   switch (t_state.api_next_action) {
   case HttpTransact::HTTP_API_SM_START:
-    if (t_state.client_info.port_attribute == SERVER_PORT_BLIND_TUNNEL) {
+    if (t_state.client_info.port_attribute == HttpProxyPort::TRANSPORT_BLIND_TUNNEL) {
       setup_blind_tunnel_port();
     } else {
       setup_client_read_request_header();
@@ -1596,7 +1601,7 @@ HttpSM::handle_api_return()
 int
 HttpSM::state_http_server_open(int event, void *data)
 {
-  Debug("http_track", "entered inside state_http_server_open");
+  DebugSM("http_track", "entered inside state_http_server_open");
   STATE_ENTER(&HttpSM::state_http_server_open, event);
   // TODO decide whether to uncomment after finish testing redirect
   // ink_assert(server_entry == NULL);
@@ -1606,7 +1611,11 @@ HttpSM::state_http_server_open(int event, void *data)
 
   switch (event) {
   case NET_EVENT_OPEN:
-    session = THREAD_ALLOC_INIT(httpServerSessionAllocator, mutex->thread_holding);
+    session = (2 == t_state.txn_conf->share_server_sessions) ? 
+      THREAD_ALLOC_INIT(httpServerSessionAllocator, mutex->thread_holding) :
+      httpServerSessionAllocator.alloc();
+    session->share_session = t_state.txn_conf->share_server_sessions;
+
     // If origin_max_connections or origin_min_keep_alive_connections is
     // set then we are metering the max and or min number
     // of connections per host.  Set enable_origin_connection_limiting
@@ -1614,16 +1623,16 @@ HttpSM::state_http_server_open(int event, void *data)
     // the connection count.
     if (t_state.txn_conf->origin_max_connections > 0 ||
         t_state.http_config_param->origin_min_keep_alive_connections > 0) {
-      Debug("http_ss", "[%" PRId64 "] max number of connections: %u", sm_id, t_state.txn_conf->origin_max_connections);
+      DebugSM("http_ss", "[%" PRId64 "] max number of connections: %"PRIu64, sm_id, t_state.txn_conf->origin_max_connections);
       session->enable_origin_connection_limiting = true;
     }
     /*UnixNetVConnection * vc = (UnixNetVConnection*)(ua_session->client_vc);
        UnixNetVConnection *server_vc = (UnixNetVConnection*)data;
        printf("client fd is :%d , server fd is %d\n",vc->con.fd,
        server_vc->con.fd); */
-    session->server_ip = t_state.current.server->ip;
+    ats_ip_copy(&session->server_ip, &t_state.current.server->addr);
     session->new_connection((NetVConnection *) data);
-    session->server_port = t_state.current.server->port;
+    ats_ip_port_cast(&session->server_ip) = htons(t_state.current.server->port);
     session->state = HSS_ACTIVE;
 
     attach_server_session(session);
@@ -1766,7 +1775,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
       }
 
       if (allow_error == false) {
-        Debug("http_seq", "Error parsing server response header");
+        DebugSM("http_seq", "Error parsing server response header");
         t_state.current.state = HttpTransact::PARSE_ERROR;
 
         // If the server closed prematurely on us, use the
@@ -1782,7 +1791,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
       // FALLTHROUGH (since we are allowing the parse error)
     }
   case PARSE_DONE:
-    Debug("http_seq", "Done parsing server response header");
+    DebugSM("http_seq", "Done parsing server response header");
 
     // Now that we know that we have all of the origin server
     // response headers, we can reset the client inactivity
@@ -1932,40 +1941,38 @@ HttpSM::state_send_server_request_header(int event, void *data)
 void
 HttpSM::process_srv_info(HostDBInfo * r)
 {
-  Debug("dns_srv", "beginning process_srv_info");
+  DebugSM("dns_srv", "beginning process_srv_info");
 
   SRVHosts s(r);                /* handled by conversion constructor */
   char new_host[MAXDNAME];
 
   /* we didnt get any SRV records, continue w normal lookup */
   if (!r->srv_count) {
-    Debug("dns_srv", "No SRV records were available, continuing to lookup %s", t_state.dns_info.lookup_name);
-    strncpy(&new_host[0], t_state.dns_info.lookup_name, MAXDNAME);
-    new_host[MAXDNAME - 1] = '\0';
+    DebugSM("dns_srv", "No SRV records were available, continuing to lookup %s", t_state.dns_info.lookup_name);
+    ink_strlcpy(new_host, t_state.dns_info.lookup_name, sizeof(new_host));
     goto lookup;
   }
 
   s.getWeightedHost(&new_host[0]);
 
   if (*new_host == '\0') {
-    Debug("dns_srv", "Weighted host returned was NULL or blank!, using %s as origin", t_state.dns_info.lookup_name);
-    strncpy(&new_host[0], t_state.dns_info.lookup_name, MAXDNAME);
-    new_host[MAXDNAME - 1] = '\0';
+    DebugSM("dns_srv", "Weighted host returned was NULL or blank!, using %s as origin", t_state.dns_info.lookup_name);
+    ink_strlcpy(new_host, t_state.dns_info.lookup_name, sizeof(new_host));
   } else {
-    Debug("dns_srv", "Weighted host now: %s", new_host);
+    DebugSM("dns_srv", "Weighted host now: %s", new_host);
   }
 
-  Debug("dns_srv", "ending process_srv_info SRV stuff; moving on to lookup origin host");
+  DebugSM("dns_srv", "ending process_srv_info SRV stuff; moving on to lookup origin host");
 
 lookup:
-  Debug("http_seq", "[HttpStateMachineGet::process_srv_info] Doing DNS Lookup based on SRV %s", new_host);
+  DebugSM("http_seq", "[HttpStateMachineGet::process_srv_info] Doing DNS Lookup based on SRV %s", new_host);
 
   int server_port = t_state.current.server ? t_state.current.server->port : t_state.server_info.port;
 
   HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::state_hostdb_lookup);
 
   if (t_state.api_txn_dns_timeout_value != -1) {
-    Debug("http_timeout", "beginning DNS lookup. allowing %d mseconds for DNS", t_state.api_txn_dns_timeout_value);
+    DebugSM("http_timeout", "beginning DNS lookup. allowing %d mseconds for DNS", t_state.api_txn_dns_timeout_value);
   }
 
   Action *dns_lookup_action_handle = hostDBProcessor.getbyname_imm(this,
@@ -1999,11 +2006,10 @@ HttpSM::process_hostdb_info(HostDBInfo * r)
     t_state.dns_info.lookup_success = true;
 
     if (r->round_robin) {
-      // Since the time elapsed between current time and
-      // client_request_time may be very large, we cannot use
-      // client_request_time
-      // to approximate current time when calling select_best_http().
-      rr = r->rr()->select_best_http(t_state.client_info.ip, ink_cluster_time(), (int) t_state.txn_conf->down_server_timeout);
+      // Since the time elapsed between current time and client_request_time
+      // may be very large, we cannot use client_request_time to approximate
+      // current time when calling select_best_http().
+      rr = r->rr()->select_best_http(&t_state.client_info.addr.sa, ink_cluster_time(), (int) t_state.txn_conf->down_server_timeout);
       t_state.dns_info.round_robin = true;
     } else {
       rr = r;
@@ -2013,10 +2019,10 @@ HttpSM::process_hostdb_info(HostDBInfo * r)
 //                  m_s.host_db_info = m_updated_host_db_info = *rr;
       t_state.host_db_info = *rr;
       ink_release_assert(!t_state.host_db_info.reverse_dns);
-      ink_release_assert(t_state.host_db_info.ip() > 0);
+      ink_release_assert(ats_is_ip(t_state.host_db_info.ip()));
     }
   } else {
-    Debug("http", "[%" PRId64 "] DNS lookup failed for '%s'", sm_id, t_state.dns_info.lookup_name);
+    DebugSM("http", "[%" PRId64 "] DNS lookup failed for '%s'", sm_id, t_state.dns_info.lookup_name);
 
     t_state.dns_info.lookup_success = false;
     t_state.dns_info.round_robin = false;
@@ -2029,7 +2035,7 @@ HttpSM::process_hostdb_info(HostDBInfo * r)
   if (is_debug_tag_set("http_timeout")) {
     if (t_state.api_txn_dns_timeout_value != -1) {
       int foo = (int) (milestone_difference_msec(milestones.dns_lookup_begin, milestones.dns_lookup_end));
-      Debug("http_timeout", "DNS took: %d msec", foo);
+      DebugSM("http_timeout", "DNS took: %d msec", foo);
     }
   }
 }
@@ -2082,7 +2088,7 @@ HttpSM::state_hostdb_reverse_lookup(int event, void *data)
     if (data) {
       t_state.request_data.hostname_str = ((HostDBInfo *) data)->hostname();
     } else {
-      Debug("http", "[%" PRId64 "] reverse DNS lookup failed for '%s'", sm_id, t_state.dns_info.lookup_name);
+      DebugSM("http", "[%" PRId64 "] reverse DNS lookup failed for '%s'", sm_id, t_state.dns_info.lookup_name);
     }
     call_transact_and_set_next_state(NULL);
     break;
@@ -2111,11 +2117,11 @@ HttpSM::state_mark_os_down(int event, void *data)
       ink_assert(t_state.current.server != NULL);
       ink_assert(t_state.current.request_to == HttpTransact::ORIGIN_SERVER);
       if (t_state.current.server) {
-        mark_down = r->rr()->find_ip(t_state.current.server->ip);
+        mark_down = r->rr()->find_ip(&t_state.current.server->addr.sa);
       }
     } else {
       // No longer a round robin, check to see if our address is the same
-      if (t_state.host_db_info.ip() == r->ip()) {
+      if (ats_ip_addr_eq(t_state.host_db_info.ip(), r->ip())) {
         mark_down = r;
       }
     }
@@ -2145,7 +2151,10 @@ HttpSM::state_handle_stat_page(int event, void *data)
     if (data) {
       StatPageData *spd = (StatPageData *) data;
       t_state.internal_msg_buffer = spd->data;
-      t_state.internal_msg_buffer_type = spd->type;
+      if (spd->type)
+        t_state.internal_msg_buffer_type = spd->type;
+      else
+        t_state.internal_msg_buffer_type = ats_strdup("text/html");
       t_state.internal_msg_buffer_size = spd->length;
       t_state.internal_msg_buffer_fast_allocator_size = -1;
     }
@@ -2222,7 +2231,8 @@ HttpSM::state_icp_lookup(int event, void *data)
 
   switch (event) {
   case ICP_LOOKUP_FOUND:
-    Debug("http", "ICP says ICP_LOOKUP_FOUND");
+
+    DebugSM("http", "ICP says ICP_LOOKUP_FOUND");
     t_state.icp_lookup_success = true;
     t_state.icp_ip_result = *(struct sockaddr_in *) data;
 
@@ -2234,14 +2244,14 @@ HttpSM::state_icp_lookup(int event, void *data)
 *  // inhibit bad ICP looping behavior
 *  if (t_state.icp_ip_result.sin_addr.s_addr ==
 *    t_state.client_info.ip) {
-*      Debug("http","Loop in ICP config, bypassing...");
+*      DebugSM("http","Loop in ICP config, bypassing...");
 *        t_state.icp_lookup_success = false;
 *  }
 */
     break;
 
   case ICP_LOOKUP_FAILED:
-    Debug("http", "ICP says ICP_LOOKUP_FAILED");
+    DebugSM("http", "ICP says ICP_LOOKUP_FAILED");
     t_state.icp_lookup_success = false;
     break;
   default:
@@ -2362,7 +2372,7 @@ HttpSM::state_cache_open_read(int event, void *data)
     {
       pending_action = NULL;
 
-      Debug("http", "[%" PRId64 "] cache_open_read - CACHE_EVENT_OPEN_READ", sm_id);
+      DebugSM("http", "[%" PRId64 "] cache_open_read - CACHE_EVENT_OPEN_READ", sm_id);
 
       /////////////////////////////////
       // lookup/open is successfull. //
@@ -2381,10 +2391,8 @@ HttpSM::state_cache_open_read(int event, void *data)
   case CACHE_EVENT_OPEN_READ_FAILED:
     pending_action = NULL;
 
-    if (diags->on()) {
-      DebugOn("http", "[%" PRId64 "] cache_open_read - " "CACHE_EVENT_OPEN_READ_FAILED", sm_id);
-      DebugOn("http", "[state_cache_open_read] open read failed.");
-    }
+    DebugSM("http", "[%" PRId64 "] cache_open_read - " "CACHE_EVENT_OPEN_READ_FAILED", sm_id);
+    DebugSM("http", "[state_cache_open_read] open read failed.");
     // Inform HttpTransact somebody else is updating the document
     // HttpCacheSM already waited so transact should go ahead.
     if (data == (void *) -ECACHE_DOC_BUSY)
@@ -2416,7 +2424,7 @@ HttpSM::main_handler(int event, void *data)
 
   // Don't use the state enter macro since it uses history
   //  space that we don't care about
-  Debug("http", "[%" PRId64 "] [HttpSM::main_handler, %s]", sm_id, HttpDebugNames::get_event_name(event));
+  DebugSM("http", "[%" PRId64 "] [HttpSM::main_handler, %s]", sm_id, HttpDebugNames::get_event_name(event));
 
   HttpVCTableEntry *vc_entry = NULL;
 
@@ -2590,7 +2598,7 @@ HttpSM::tunnel_handler_100_continue(int event, void *data)
       // if the server closed while sending the
       //    100 continue header, handle it here so we
       //    don't assert later
-      Debug("http", "[%" PRId64 "] tunnel_handler_100_continue - server already " "closed, terminating connection", sm_id);
+      DebugSM("http", "[%" PRId64 "] tunnel_handler_100_continue - server already " "closed, terminating connection", sm_id);
 
       // Since 100 isn't a final (loggable) response header
       //   kill the 100 continue header and create an empty one
@@ -2692,7 +2700,7 @@ HttpSM::is_http_server_eos_truncation(HttpTunnelProducer * p)
   int64_t cl = t_state.hdr_info.server_response.get_content_length();
 
   if (cl != UNDEFINED_COUNT && cl > server_response_body_bytes) {
-    Debug("http", "[%" PRId64 "] server eos after %d.  Expected %d", sm_id, cl, server_response_body_bytes);
+    DebugSM("http", "[%" PRId64 "] server eos after %"PRId64".  Expected %"PRId64, sm_id, cl, server_response_body_bytes);
     return true;
   } else {
     return false;
@@ -2704,7 +2712,6 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer * p)
 {
   STATE_ENTER(&HttpSM::tunnel_handler_server, event);
 
-  server_response_body_bytes += p->bytes_read;
   milestones.server_close = ink_get_hrtime();
 
   bool close_connection = false;
@@ -2744,7 +2751,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer * p)
 
     ink_assert(p->vc_type == HT_HTTP_SERVER);
     if (is_http_server_eos_truncation(p)) {
-      Debug("http", "[%" PRId64 "] [HttpSM::tunnel_handler_server] aborting cache writes due to server truncation", sm_id);
+      DebugSM("http", "[%" PRId64 "] [HttpSM::tunnel_handler_server] aborting cache writes due to server truncation", sm_id);
       tunnel.abort_cache_write_finish_others(p);
       t_state.current.server->abort = HttpTransact::ABORTED;
       t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
@@ -2848,7 +2855,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer * p)
     // If the client is still around, attach the server session
     // to so the next ka request can use it.  We bind privately to the
     // client to add some degree of affinity to the system.  However,
-    // we turn off private binding when outbound conenctions are being
+    // we turn off private binding when outbound connections are being
     // limit since it makes it too expensive to initiate a purge of idle
     // server keep-alive sessions
     if (ua_session && t_state.client_info.keep_alive == HTTP_KEEPALIVE &&
@@ -2905,7 +2912,9 @@ HttpSM::is_bg_fill_necessary(HttpTunnelConsumer * c)
 
   // There must be another consumer for it to worthwhile to
   //  set up a background fill
-  if (c->producer->num_consumers > 1 && c->producer->vc_type == HT_HTTP_SERVER && c->producer->alive == true) {
+  if (c->producer->num_consumers > 1 &&
+      (c->producer->vc_type == HT_HTTP_SERVER  || c->producer->vc_type == HT_TRANSFORM) &&
+      c->producer->alive == true) {
     // If threshold is 0.0 or negative then do background
     //   fill regardless of the content length.  Since this
     //   is floating point just make sure the number is near zero
@@ -2925,7 +2934,7 @@ HttpSM::is_bg_fill_necessary(HttpTunnelConsumer * c)
       if (pDone <= 1.0 && pDone > t_state.http_config_param->background_fill_threshold) {
         return true;
       } else {
-        Debug("http", "[%" PRId64 "] no background.  Only %%%f done", sm_id, pDone);
+        DebugSM("http", "[%" PRId64 "] no background.  Only %%%f done", sm_id, pDone);
       }
 
     }
@@ -2958,7 +2967,7 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer * c)
     set_ua_abort(HttpTransact::ABORTED, event);
 
     if (is_bg_fill_necessary(c)) {
-      Debug("http", "[%" PRId64 "] Initiating background fill", sm_id);
+      DebugSM("http", "[%" PRId64 "] Initiating background fill", sm_id);
       background_fill = BACKGROUND_FILL_STARTED;
       HTTP_INCREMENT_DYN_STAT(http_background_fill_current_count_stat);
 
@@ -3014,6 +3023,29 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer * c)
   client_response_body_bytes = c->bytes_written - client_response_hdr_bytes;
   if (client_response_body_bytes < 0)
     client_response_body_bytes = 0;
+
+  // attribute the size written to the client from various sources
+  // NOTE: responses that go through a range transform are attributed
+  // to their original sources
+  // all other transforms attribute the total number of input bytes
+  // to a source in HttpSM::tunnel_handler_transform_write
+  //
+  HttpTransact::Source_t original_source = t_state.source;
+  if (HttpTransact::SOURCE_TRANSFORM == original_source &&
+      t_state.range_setup != HttpTransact::RANGE_NONE) {
+    original_source = t_state.pre_transform_source;
+  }
+
+  switch (original_source) {
+  case HttpTransact::SOURCE_HTTP_ORIGIN_SERVER:
+    server_response_body_bytes = client_response_body_bytes;
+    break;
+  case HttpTransact::SOURCE_CACHE:
+    cache_response_body_bytes = client_response_body_bytes;
+    break;
+  default:
+    break;
+  }
 
   ink_assert(ua_entry->vc == c->vc);
   if (close_connection) {
@@ -3141,7 +3173,7 @@ HttpSM::tunnel_handler_cache_write(int event, HttpTunnelConsumer * c)
     c->vc->do_io_close(EHTTP_ERROR);
 
     HTTP_INCREMENT_TRANS_STAT(http_cache_write_errors);
-    Debug("http", "[%" PRId64 "] aborting cache write due %s event from cache", sm_id, HttpDebugNames::get_event_name(event));
+    DebugSM("http", "[%" PRId64 "] aborting cache write due %s event from cache", sm_id, HttpDebugNames::get_event_name(event));
     break;
   case VC_EVENT_WRITE_COMPLETE:
     // if we've never initiated a cache write
@@ -3538,6 +3570,28 @@ HttpSM::tunnel_handler_transform_write(int event, HttpTunnelConsumer * c)
     ink_release_assert(0);
   }
 
+  // attribute the size written to the transform from various sources
+  // NOTE: the range transform is excluded from this accounting and
+  // is instead handled in HttpSM::tunnel_handler_ua
+  //
+  // the reasoning is that the range transform is internal functionality
+  // in support of HTTP 1.1 compliance, therefore part of "normal" operation
+  // all other transforms are plugin driven and the difference between
+  // source data and final data should represent the transformation delta
+  //
+  if (t_state.range_setup == HttpTransact::RANGE_NONE) {
+    switch (t_state.pre_transform_source) {
+    case HttpTransact::SOURCE_HTTP_ORIGIN_SERVER:
+      server_response_body_bytes = client_response_body_bytes;
+      break;
+    case HttpTransact::SOURCE_CACHE:
+      cache_response_body_bytes = client_response_body_bytes;
+      break;
+    default:
+      break;
+    }
+  }
+
   return 0;
 }
 
@@ -3626,7 +3680,7 @@ HttpSM::state_remap_request(int event, void *data)
   case EVENT_REMAP_COMPLETE:
     {
       pending_action = NULL;
-      Debug("url_rewrite", "completed processor-based remapping request for [%" PRId64 "]", sm_id);
+      DebugSM("url_rewrite", "completed processor-based remapping request for [%" PRId64 "]", sm_id);
       t_state.url_remap_success = remapProcessor.finish_remap(&t_state);
       call_transact_and_set_next_state(NULL);
       break;
@@ -3643,8 +3697,8 @@ HttpSM::state_remap_request(int event, void *data)
 void
 HttpSM::do_remap_request(bool run_inline)
 {
-  Debug("http_seq", "[HttpSM::do_remap_request] Remapping request");
-  Debug("url_rewrite", "Starting a possible remapping for request [%" PRId64 "]", sm_id);
+  DebugSM("http_seq", "[HttpSM::do_remap_request] Remapping request");
+  DebugSM("url_rewrite", "Starting a possible remapping for request [%" PRId64 "]", sm_id);
 
   bool ret = remapProcessor.setup_for_remap(&t_state);
 
@@ -3655,18 +3709,18 @@ HttpSM::do_remap_request(bool run_inline)
   t_state.pristine_url.copy(t_state.hdr_info.client_request.url_get());
 
   if (!ret) {
-    Debug("url_rewrite", "Could not find a valid remapping entry for this request [%" PRId64 "]", sm_id);
+    DebugSM("url_rewrite", "Could not find a valid remapping entry for this request [%" PRId64 "]", sm_id);
     if (!run_inline) {
       handleEvent(EVENT_REMAP_COMPLETE, NULL);
     }
     return;
   }
 
-  Debug("url_rewrite", "Found a remap map entry for [%" PRId64 "], attempting to remap request and call any plugins", sm_id);
+  DebugSM("url_rewrite", "Found a remap map entry for [%" PRId64 "], attempting to remap request and call any plugins", sm_id);
   Action *remap_action_handle = remapProcessor.perform_remap(this, &t_state);
 
   if (remap_action_handle != ACTION_RESULT_DONE) {
-    Debug("url_rewrite", "Still more remapping needed for [%" PRId64 "]", sm_id);
+    DebugSM("url_rewrite", "Still more remapping needed for [%" PRId64 "]", sm_id);
     ink_debug_assert(!pending_action);
     historical_action = pending_action = remap_action_handle;
   }
@@ -3698,11 +3752,10 @@ HttpSM::do_hostdb_lookup()
   if (use_srv_records) {
     char* d = t_state.dns_info.srv_hostname;
 
-    memcpy(d, "_http._tcp.", 11);
-    ink_strncpy(d+11, t_state.server_info.name, MAXDNAME - 11);
-    d[MAXDNAME - 1] = '\0'; // Just to be sure it's NULL terminated in case of truncation
+    memcpy(d, "_http._tcp.", 11); // don't copy '\0'
+    ink_strlcpy(d + 11, t_state.server_info.name, sizeof(d) - 11 ); // all in the name of performance!
 
-    Debug("dns_srv", "Beginning lookup of SRV records for origin %s", d);
+    DebugSM("dns_srv", "Beginning lookup of SRV records for origin %s", d);
     HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::state_srv_lookup);
 
     Action *srv_lookup_action_handle =
@@ -3716,14 +3769,14 @@ HttpSM::do_hostdb_lookup()
     }
     return;
   } else {                      /* we arent using SRV stuff... */
-    Debug("http_seq", "[HttpStateMachineGet::do_hostdb_lookup] Doing DNS Lookup");
+    DebugSM("http_seq", "[HttpStateMachineGet::do_hostdb_lookup] Doing DNS Lookup");
 
     // If there is not a current server, we must be looking up the origin
     //  server at the beginning of the transaction
     int server_port = t_state.current.server ? t_state.current.server->port : t_state.server_info.port;
 
     if (t_state.api_txn_dns_timeout_value != -1) {
-      Debug("http_timeout", "beginning DNS lookup. allowing %d mseconds for DNS lookup",
+      DebugSM("http_timeout", "beginning DNS lookup. allowing %d mseconds for DNS lookup",
             t_state.api_txn_dns_timeout_value);
     }
 
@@ -3759,10 +3812,11 @@ HttpSM::do_hostdb_reverse_lookup()
   ink_assert(t_state.dns_info.lookup_name != NULL);
   ink_assert(pending_action == NULL);
 
-  Debug("http_seq", "[HttpSM::do_hostdb_reverse_lookup] Doing reverse DNS Lookup");
+  DebugSM("http_seq", "[HttpSM::do_hostdb_reverse_lookup] Doing reverse DNS Lookup");
 
-  uint32_t addr = ink_inet_addr(t_state.dns_info.lookup_name);
-  Action *dns_lookup_action_handle = hostDBProcessor.getbyaddr_re(this, addr);
+  IpEndpoint addr;
+  ats_ip_pton(t_state.dns_info.lookup_name, &addr.sa);
+  Action *dns_lookup_action_handle = hostDBProcessor.getbyaddr_re(this, &addr.sa);
 
   if (dns_lookup_action_handle != ACTION_RESULT_DONE) {
     ink_assert(!pending_action);
@@ -3783,8 +3837,8 @@ HttpSM::do_hostdb_update_if_necessary()
   }
   // If we failed back over to the origin server, we don't have our
   //   hostdb information anymore which means we shouldn't update the hostdb
-  if (t_state.current.server->ip != t_state.host_db_info.ip()) {
-    Debug("http", "[%" PRId64 "] skipping hostdb update due to server failover", sm_id);
+  if (!ats_ip_addr_eq(&t_state.current.server->addr.sa, t_state.host_db_info.ip())) {
+    DebugSM("http", "[%" PRId64 "] skipping hostdb update due to server failover", sm_id);
     return;
   }
 
@@ -3810,55 +3864,258 @@ HttpSM::do_hostdb_update_if_necessary()
   } else {
     if (t_state.host_db_info.app.http_data.last_failure != 0) {
       t_state.host_db_info.app.http_data.last_failure = 0;
+      ats_ip_port_cast(&t_state.current.server->addr) = htons(t_state.current.server->port);
       issue_update |= 1;
-      Debug("http", "[%" PRId64 "] hostdb update marking IP: %u.%u.%u.%u (port %d) as up",
+      char addrbuf[INET6_ADDRPORTSTRLEN];
+      DebugSM("http", "[%" PRId64 "] hostdb update marking IP: %s as up",
             sm_id,
-            ((unsigned char *) &t_state.current.server->ip)[0],
-            ((unsigned char *) &t_state.current.server->ip)[1],
-            ((unsigned char *) &t_state.current.server->ip)[2],
-            ((unsigned char *) &t_state.current.server->ip)[3], t_state.current.server->port);
+            ats_ip_nptop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)));
     }
   }
 
   if (issue_update) {
-    hostDBProcessor.setby(t_state.current.server->name, 0,
-                          t_state.current.server->port, t_state.current.server->ip, &t_state.host_db_info.app);
+    hostDBProcessor.setby(t_state.current.server->name,
+      strlen(t_state.current.server->name),
+      &t_state.current.server->addr.sa,
+      &t_state.host_db_info.app
+    );
   }
 
+  char addrbuf[INET6_ADDRPORTSTRLEN];
+  DebugSM("http", "server info = %s", ats_ip_nptop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)));
   return;
 }
 
+void
+HttpSM::parse_range_and_compare(MIMEField *field, int64_t content_length)
+{
+  // note: unsatisfiable_range is initialized to true in constructor
+  int prev_good_range = -1;
+  const char *value;
+  int value_len;
+  int n_values;
+  int nr = 0; // number of valid ranges, also index to range array.
+  HdrCsvIter csv;
+  const char *s, *e;
 
-// this function first checks if cached response has Accept-Ranges and
-// Content-Length header and is HTTP/1.1. && There is no other plugins
-// hooked to TS_HTTP_RESPONSE_TRANSFORM_HOOK.
-// Then setup Range transformation if necessary
+  if (content_length <= 0)
+    return;
+
+  ink_assert(field != NULL);
+
+  n_values = 0;
+  value = csv.get_first(field, &value_len);
+  while (value) {
+    ++n_values;
+    value = csv.get_next(&value_len);
+  }
+
+  if (n_values <= 0)
+    return;
+
+  value = csv.get_first(field, &value_len);
+
+  // Currently HTTP/1.1 only defines bytes Range
+  if (ptr_len_ncmp(value, value_len, "bytes=", 6) == 0) {
+    t_state.ranges = NEW(new RangeRecord[n_values]);
+    value += 6; // skip leading 'bytes='
+    value_len -= 6;
+
+    while (value) {
+      bool valid = true; // found valid range.
+      // If delimiter '-' is missing
+      if (!(e = (const char *) memchr(value, '-', value_len))) {
+        t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
+        t_state.num_range_fields = -1;
+        return;
+      }
+
+      /* [amc] We should do a much better job of checking the values
+         from mime_parse_int64 to detect invalid range values (e.g.
+         non-numeric). Those need to be handled differently than
+         missing values. My reading of the spec is that ATS should go to
+         RANGE_NONE in such a case.
+      */
+      s = value;
+      t_state.ranges[nr]._start = ((s==e)?-1:mime_parse_int64(s, e));
+
+      ++e;
+      s = e;
+      e = value + value_len;
+      if ( e && *(e-1) == '-') { //open-ended Range: bytes=10-\r\n\r\n should be supported
+        t_state.ranges[nr]._end = -1;
+      }
+      else {
+        t_state.ranges[nr]._end = mime_parse_int64(s, e);
+      }
+
+      // check and change if necessary whether this is a right entry
+      if (t_state.ranges[nr]._start >= content_length) {
+          valid = false;
+      } 
+      // open start
+      else if (t_state.ranges[nr]._start == -1 && t_state.ranges[nr]._end > 0) {
+        if (t_state.ranges[nr]._end > content_length)
+          t_state.ranges[nr]._end = content_length;
+
+        t_state.ranges[nr]._start = content_length - t_state.ranges[nr]._end;
+        t_state.ranges[nr]._end = content_length - 1;
+      }
+      // open end
+      else if (t_state.ranges[nr]._start >= 0 && t_state.ranges[nr]._end == -1) {
+          t_state.ranges[nr]._end = content_length - 1;
+      }
+      // "normal" Range - could be wrong if _end<_start
+      else if (t_state.ranges[nr]._start >= 0 && t_state.ranges[nr]._end >= 0) {
+        if (t_state.ranges[nr]._start > t_state.ranges[nr]._end)
+          // [amc] My reading of the spec is that this should cause a change
+          // to RANGE_NONE because it is syntatically invalid.
+          valid = false;
+        else if (t_state.ranges[nr]._end >= content_length)
+          t_state.ranges[nr]._end = content_length - 1;
+      }
+      // Syntactically invalid range, fail.
+      else {
+        // [amc] My reading of the spec is that this should cause a change
+        // to RANGE_NONE because it is syntatically invalid.
+        t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
+        t_state.num_range_fields = -1;
+        return;
+      }
+
+      // this is a good Range entry
+      if (valid) {
+        if (t_state.unsatisfiable_range) {
+          t_state.unsatisfiable_range = false;
+          // initialize t_state.current_range to the first good Range
+          t_state.current_range = nr;
+        }
+        // currently we don't handle out-of-order Range entry
+        else if (prev_good_range >= 0 && t_state.ranges[nr]._start <= t_state.ranges[prev_good_range]._end) {
+          t_state.not_handle_range = true;
+          break;
+        }
+
+        prev_good_range = nr;
+        ++nr;
+      }
+      value = csv.get_next(&value_len);
+    }
+  }
+  // Fail if we didn't find any valid ranges.
+  if (nr < 1) {
+    t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
+    t_state.num_range_fields = -1;
+  } else {
+    t_state.num_range_fields = nr;
+  }
+}
+
+void
+HttpSM::calculate_output_cl(int64_t content_length, int64_t num_chars)
+{
+  int i;
+
+  if (t_state.unsatisfiable_range)
+    return;
+
+  if (t_state.num_range_fields == 1) {
+    t_state.range_output_cl = t_state.ranges[0]._end - t_state.ranges[0]._start + 1;
+  }
+  else {
+    for (i = 0; i < t_state.num_range_fields; i++) {
+      if (t_state.ranges[i]._start >= 0) {
+        t_state.range_output_cl += boundary_size;
+        t_state.range_output_cl += sub_header_size + content_length;
+        t_state.range_output_cl += num_chars_for_int(t_state.ranges[i]._start)
+          + num_chars_for_int(t_state.ranges[i]._end) + num_chars + 2;
+        t_state.range_output_cl += t_state.ranges[i]._end - t_state.ranges[i]._start + 1;
+        t_state.range_output_cl += 2;
+      }
+    }
+
+    t_state.range_output_cl += boundary_size + 2;
+  }
+
+  Debug("http_range", "Pre-calculated Content-Length for Range response is %"PRId64, t_state.range_output_cl);
+}
+
+void
+HttpSM::do_range_parse(MIMEField *range_field)
+{
+
+  //bool res = false;
+  
+  int64_t content_length   = t_state.cache_info.object_read->object_size_get();
+  int64_t num_chars_for_cl = num_chars_for_int(content_length);
+  
+  parse_range_and_compare(range_field, content_length);
+  calculate_output_cl(content_length, num_chars_for_cl);
+  
+  if (t_state.unsatisfiable_range) {
+    t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
+    return;
+  }
+
+  if (t_state.not_handle_range) {
+    t_state.range_setup = HttpTransact::RANGE_NOT_HANDLED;
+    return;
+  }
+
+  t_state.range_setup = HttpTransact::RANGE_REQUESTED;
+}
+
+// this function looks for any Range: headers, parses them and either
+// sets up a transform processor to handle the request OR defers to the 
+// HttpTunnel
 void
 HttpSM::do_range_setup_if_necessary()
 {
   MIMEField *field;
   INKVConnInternal *range_trans;
-  bool res = false;
-
+  int field_content_type_len = -1;
+  const char * content_type;
+  
   ink_assert(t_state.cache_info.object_read != NULL);
-
+  
   field = t_state.hdr_info.client_request.field_find(MIME_FIELD_RANGE, MIME_LEN_RANGE);
   ink_assert(field != NULL);
-
+  
   t_state.range_setup = HttpTransact::RANGE_NONE;
   if (t_state.method == HTTP_WKSIDX_GET && t_state.hdr_info.client_request.version_get() == HTTPVersion(1, 1)) {
-    if (api_hooks.get(TS_HTTP_RESPONSE_TRANSFORM_HOOK) == NULL) {
-      // We may still not do Range if it is out of order Range.
-      range_trans = transformProcessor.range_transform(mutex, field,
-                                                       t_state.cache_info.object_read,
-                                                       &t_state.hdr_info.transform_response, res);
-      if (range_trans != NULL) {
-        api_hooks.append(TS_HTTP_RESPONSE_TRANSFORM_HOOK, range_trans);
-        t_state.range_setup = HttpTransact::RANGE_TRANSFORM;
-      } else if (res)
-        t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
-      else
-        t_state.range_setup = HttpTransact::RANGE_NOT_HANDLED;
+    do_range_parse(field);
+    
+    if (t_state.range_setup == HttpTransact::RANGE_REQUESTED && 
+        t_state.num_range_fields > 1 &&
+        api_hooks.get(TS_HTTP_RESPONSE_TRANSFORM_HOOK) == NULL
+       ) 
+    {
+          Debug("http_trans", "Handling multiple Range: requests");
+          content_type = t_state.cache_info.object_read->response_get()->value_get(MIME_FIELD_CONTENT_TYPE, MIME_LEN_CONTENT_TYPE, &field_content_type_len);
+          //create a Range: transform processor for requests of type Range: bytes=1-2,4-5,10-100 (eg. multiple ranges)
+          range_trans = transformProcessor.range_transform(mutex, 
+                  t_state.ranges,
+                  t_state.unsatisfiable_range, 
+                  t_state.num_range_fields, 
+                  &t_state.hdr_info.transform_response,
+                  content_type,
+                  field_content_type_len,
+                  t_state.cache_info.object_read->object_size_get()
+                  );
+          if (range_trans != NULL) {
+            api_hooks.append(TS_HTTP_RESPONSE_TRANSFORM_HOOK, range_trans);
+            t_state.range_setup = HttpTransact::RANGE_REQUESTED;
+          }
+          else { //we couldnt append the transform to our API hooks so bailing
+            t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
+          } 
+    }
+    else if (t_state.range_setup == HttpTransact::RANGE_REQUESTED && t_state.num_range_fields == 1) {
+      Debug("http_trans", "Handling single Range: request");
+      //no op, we will handle this later in the HttpTunnel
+    }
+    else {
+      t_state.range_setup = HttpTransact::RANGE_NOT_SATISFIABLE;
     }
   }
 }
@@ -3885,7 +4142,7 @@ HttpSM::do_cache_lookup_and_read()
   else
     c_url = t_state.cache_info.lookup_url;
 
-  Debug("http_seq", "[HttpSM::do_cache_lookup_and_read] [%" PRId64 "] Issuing cache lookup for URL %s",  sm_id, c_url->string_get(&t_state.arena));
+  DebugSM("http_seq", "[HttpSM::do_cache_lookup_and_read] [%" PRId64 "] Issuing cache lookup for URL %s",  sm_id, c_url->string_get(&t_state.arena));
   Action *cache_action_handle = cache_sm.open_read(c_url,
                                                    &t_state.hdr_info.client_request,
                                                    &(t_state.cache_info.config),
@@ -3921,7 +4178,7 @@ HttpSM::do_cache_delete_all_alts(Continuation * cont)
   ink_assert(md5a == md5b || t_state.txn_conf->maintain_pristine_host_hdr);
 #endif
 
-  Debug("http_seq", "[HttpSM::do_cache_delete_all_alts] Issuing cache delete for %s",
+  DebugSM("http_seq", "[HttpSM::do_cache_delete_all_alts] Issuing cache delete for %s",
         t_state.cache_info.lookup_url->string_get_ref());
 
   Action *cache_action_handle = NULL;
@@ -4021,7 +4278,7 @@ HttpSM::do_cache_prepare_action(HttpCacheSM * c_sm, CacheHTTPInfo * object_read_
   }
 
   ink_debug_assert(s_url != NULL && s_url->valid());
-  Debug("http_cache_write", "[%" PRId64 "] writing to cache with URL %s", sm_id, s_url->string_get(&t_state.arena));
+  DebugSM("http_cache_write", "[%" PRId64 "] writing to cache with URL %s", sm_id, s_url->string_get(&t_state.arena));
   Action *cache_action_handle = c_sm->open_write(s_url, &t_state.hdr_info.client_request,
                                                  object_read_info,
                                                  (time_t) ((t_state.cache_control.pin_in_cache_for < 0) ?
@@ -4044,7 +4301,8 @@ HttpSM::do_cache_prepare_action(HttpCacheSM * c_sm, CacheHTTPInfo * object_read_
 void
 HttpSM::do_http_server_open(bool raw)
 {
-  Debug("http_track", "entered inside do_http_server_open");
+  DebugSM("http_track", "entered inside do_http_server_open");
+  int ip_family = t_state.current.server->addr.sa.sa_family;
 
   ink_assert(server_entry == NULL);
 
@@ -4056,25 +4314,20 @@ HttpSM::do_http_server_open(bool raw)
              t_state.req_flavor == HttpTransact::REQ_FLAVOR_REVPROXY);
 
   ink_assert(pending_action == NULL);
-  ink_assert(t_state.current.server->port > 0);
 
   HSMresult_t shared_result;
-  NetVCOptions opt;
-  opt.f_blocking_connect = false;
-  opt.set_sock_param(t_state.txn_conf->sock_recv_buffer_size_out,
-                     t_state.txn_conf->sock_send_buffer_size_out,
-                     t_state.txn_conf->sock_option_flag_out);
 
-  if (t_state.txn_conf->outgoing_ip_to_bind_saddr) {
-    opt.addr_binding = NetVCOptions::INTF_ADDR;
-    opt.local_addr = t_state.txn_conf->outgoing_ip_to_bind_saddr;
-  } else if (t_state.server_info.is_transparent) {
-    opt.addr_binding = NetVCOptions::FOREIGN_ADDR;
-    opt.local_addr = t_state.client_info.ip;
+  if (false == t_state.api_server_addr_set) {
+    ink_assert(t_state.current.server->port > 0);
+    t_state.current.server->addr.port() = htons(t_state.current.server->port);
+  } else {
+    ink_assert(ats_ip_port_cast(&t_state.current.server->addr) != 0);
   }
 
-  Debug("http", "[%" PRId64 "] open connection to %s: %u.%u.%u.%u",
-        sm_id, t_state.current.server->name, PRINT_IP(t_state.current.server->ip));
+  char addrbuf[INET6_ADDRPORTSTRLEN];
+  DebugSM("http", "[%" PRId64 "] open connection to %s: %s",
+        sm_id, t_state.current.server->name, 
+        ats_ip_nptop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)));
 
   if (plugin_tunnel) {
     PluginVCCore *t = plugin_tunnel;
@@ -4086,7 +4339,7 @@ HttpSM::do_http_server_open(bool raw)
     return;
   }
 
-  Debug("http_seq", "[HttpSM::do_http_server_open] Sending request to server");
+  DebugSM("http_seq", "[HttpSM::do_http_server_open] Sending request to server");
 
   milestones.server_connect = ink_get_hrtime();
   if (milestones.server_first_connect == 0) {
@@ -4119,12 +4372,11 @@ HttpSM::do_http_server_open(bool raw)
   // to do this but as far I can tell the code that prevented keep-alive if
   // there is a request body has been removed.
 
-  if (raw == false && t_state.http_config_param->share_server_sessions &&
+  if (raw == false && t_state.txn_conf->share_server_sessions &&
       (t_state.txn_conf->keep_alive_post_out == 1 || t_state.hdr_info.request_content_length == 0) &&
       ua_session != NULL) {
     shared_result = httpSessionManager.acquire_session(this,    // state machine
-                                                       t_state.current.server->ip,      // host_op
-                                                       t_state.current.server->port,    // host_port
+                                                       &t_state.current.server->addr.sa,    // ip + port
                                                        t_state.current.server->name,    // hostname
                                                        ua_session,      // has ptr to bound ua sessions
                                                        this     // sm
@@ -4149,12 +4401,12 @@ HttpSM::do_http_server_open(bool raw)
   // This bug was due to when share_server_sessions is set to 0
   // and we have keep-alive, we are trying to open a new server session
   // when we already have an attached server session.
-  else if ((!t_state.http_config_param->share_server_sessions) && (ua_session != NULL)) {
+  else if ((!t_state.txn_conf->share_server_sessions) && (ua_session != NULL)) {
     HttpServerSession *existing_ss = ua_session->get_server_session();
 
     if (existing_ss) {
-      if (existing_ss->server_ip == t_state.current.server->ip
-          && existing_ss->server_port == t_state.current.server->port) {
+      // [amc] Is this OK? Should we compare ports? (not done by ats_ip_addr_cmp)
+      if (ats_ip_addr_cmp(&existing_ss->server_ip.sa, &t_state.current.server->addr.sa) == 0) {
         ua_session->attach_server_session(NULL);
         existing_ss->state = HSS_ACTIVE;
         this->attach_server_session(existing_ss);
@@ -4203,8 +4455,10 @@ HttpSM::do_http_server_open(bool raw)
   if (t_state.txn_conf->origin_max_connections > 0) {
     ConnectionCount *connections = ConnectionCount::getInstance();
 
-    if (connections->getCount((t_state.current.server->ip)) >= t_state.txn_conf->origin_max_connections) {
-      Debug("http", "[%" PRId64 "] over the number of connection for this host: %u", sm_id, t_state.current.server->ip);
+    char addrbuf[INET6_ADDRSTRLEN];
+    if (connections->getCount((t_state.current.server->addr)) >= t_state.txn_conf->origin_max_connections) {
+      DebugSM("http", "[%" PRId64 "] over the number of connection for this host: %s", sm_id,
+        ats_ip_ntop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)));
       ink_debug_assert(pending_action == NULL);
       pending_action = eventProcessor.schedule_in(this, HRTIME_MSECONDS(100));
       return;
@@ -4213,23 +4467,52 @@ HttpSM::do_http_server_open(bool raw)
 
   // We did not manage to get an exisiting session
   //  and need to open a new connection
-  unsigned int srv_ip = t_state.current.server->ip;
-  int srv_port = t_state.current.server->port;
-
   Action *connect_action_handle;
 
+  NetVCOptions opt;
+  opt.f_blocking_connect = false;
+  opt.set_sock_param(t_state.txn_conf->sock_recv_buffer_size_out,
+                     t_state.txn_conf->sock_send_buffer_size_out,
+                     t_state.txn_conf->sock_option_flag_out,
+                     t_state.txn_conf->sock_packet_mark_out,
+                     t_state.txn_conf->sock_packet_tos_out);
+
+  opt.ip_family = ip_family;
+
+  if (ua_session) {
+    opt.local_port = ua_session->outbound_port;
+
+    IpAddr& outbound_ip = AF_INET6 == ip_family ? ua_session->outbound_ip6 : ua_session->outbound_ip4;
+    if (outbound_ip.isValid()) {
+      opt.addr_binding = NetVCOptions::INTF_ADDR;
+      opt.local_ip = outbound_ip;
+    } else if (ua_session->f_outbound_transparent) {
+      opt.addr_binding = NetVCOptions::FOREIGN_ADDR;
+      opt.local_ip = t_state.client_info.addr;
+
+      /* If the connection is server side transparent, we can bind to the
+         port that the client chose instead of randomly assigning one at
+         the proxy.  This is controlled by the 'use_client_source_port'
+         configuration parameter.
+      */
+
+      NetVConnection *client_vc = ua_session->get_netvc();
+      if (t_state.http_config_param->use_client_source_port && NULL != client_vc) {
+        opt.local_port = client_vc->get_remote_port();
+      }
+    }
+  }
+
   if (t_state.scheme == URL_WKSIDX_HTTPS) {
-    Debug("http", "calling sslNetProcessor.connect_re");
+    DebugSM("http", "calling sslNetProcessor.connect_re");
     connect_action_handle = sslNetProcessor.connect_re(this,    // state machine
-                                                       srv_ip,  // host_op
-                                                       srv_port,        // host_port
+                                                       &t_state.current.server->addr.sa,    // addr + port
                                                        &opt);
   } else {
     if (t_state.method != HTTP_WKSIDX_CONNECT) {
-      Debug("http", "calling netProcessor.connect_re");
+      DebugSM("http", "calling netProcessor.connect_re");
       connect_action_handle = netProcessor.connect_re(this,     // state machine
-                                                      srv_ip,   // host_op
-                                                      srv_port, // host_port
+                                                      &t_state.current.server->addr.sa,    // addr + port
                                                       &opt);
     } else {
       // Setup the timeouts
@@ -4247,10 +4530,9 @@ HttpSM::do_http_server_open(bool raw)
         else
           connect_timeout = t_state.txn_conf->connect_attempts_timeout;
       }
-      Debug("http", "calling netProcessor.connect_s");
+      DebugSM("http", "calling netProcessor.connect_s");
       connect_action_handle = netProcessor.connect_s(this,      // state machine
-                                                     srv_ip,    // host_op
-                                                     srv_port,  // host_port
+                                                     &t_state.current.server->addr.sa,    // addr + port
                                                      connect_timeout, &opt);
     }
   }
@@ -4390,14 +4672,13 @@ HttpSM::do_transform_open()
 void
 HttpSM::mark_host_failure(HostDBInfo * info, time_t time_down)
 {
+  char addrbuf[INET6_ADDRPORTSTRLEN];
+
   if (info->app.http_data.last_failure == 0) {
     char *url_str = t_state.hdr_info.client_request.url_string_get(&t_state.arena, 0);
-    Log::error("CONNECT: could not connect to %u.%u.%u.%u "
+    Log::error("CONNECT: could not connect to %s "
                "for '%s' (setting last failure time)",
-               ((unsigned char *) &t_state.current.server->ip)[0],
-               ((unsigned char *) &t_state.current.server->ip)[1],
-               ((unsigned char *) &t_state.current.server->ip)[2],
-               ((unsigned char *) &t_state.current.server->ip)[3],
+               ats_ip_ntop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)),
                url_str ? url_str : "<none>"
     );
     if (url_str)
@@ -4411,12 +4692,9 @@ HttpSM::mark_host_failure(HostDBInfo * info, time_t time_down)
   ink_assert(ink_cluster_time() + t_state.txn_conf->down_server_timeout > time_down);
 #endif
 
-  Debug("http", "[%" PRId64 "] hostdb update marking IP: %u.%u.%u.%u (port %d) as down",
+  DebugSM("http", "[%" PRId64 "] hostdb update marking IP: %s as down",
         sm_id,
-        ((unsigned char *) &t_state.current.server->ip)[0],
-        ((unsigned char *) &t_state.current.server->ip)[1],
-        ((unsigned char *) &t_state.current.server->ip)[2],
-        ((unsigned char *) &t_state.current.server->ip)[3], t_state.current.server->port);
+        ats_ip_nptop(&t_state.current.server->addr.sa, addrbuf, sizeof(addrbuf)));
 }
 
 void
@@ -4475,7 +4753,9 @@ HttpSM::mark_server_down_on_client_abort()
       // Check to see if client waited for the threshold
       //  to declare the origin server as down
       ink_hrtime wait = ink_get_hrtime() - milestones.server_first_connect;
-      ink_assert(wait >= 0);
+      if (wait < 0) {
+        wait = 0;
+      }
       if (ink_hrtime_to_sec(wait) > t_state.txn_conf->client_abort_threshold) {
         t_state.current.server->connect_failure = true;
         do_hostdb_update_if_necessary();
@@ -4578,6 +4858,23 @@ HttpSM::handle_post_failure()
 void
 HttpSM::handle_http_server_open()
 {
+  // [bwyatt] applying per-transaction OS netVC options here
+  //          IFF they differ from the netVC's current options.
+  //          This should keep this from being redundant on a
+  //          server session's first transaction.
+  if (NULL != server_session) {
+    NetVConnection *vc = server_session->get_netvc();
+    if (vc != NULL &&
+        (vc->options.sockopt_flags != t_state.txn_conf->sock_option_flag_out ||
+         vc->options.packet_mark != t_state.txn_conf->sock_packet_mark_out ||
+         vc->options.packet_tos != t_state.txn_conf->sock_packet_tos_out )) {
+      vc->options.sockopt_flags = t_state.txn_conf->sock_option_flag_out;
+      vc->options.packet_mark = t_state.txn_conf->sock_packet_mark_out;
+      vc->options.packet_tos = t_state.txn_conf->sock_packet_tos_out;
+      vc->apply_options();
+    }
+  }
+
   if (t_state.pCongestionEntry != NULL) {
     if (t_state.congestion_connection_opened == 0) {
       t_state.congestion_connection_opened = 1;
@@ -4612,7 +4909,7 @@ HttpSM::handle_server_setup_error(int event, void *data)
 
   if (tunnel.is_tunnel_active()) {
     ink_assert(server_entry->read_vio == data);
-    Debug("http", "[%" PRId64 "] [handle_server_setup_error] "
+    DebugSM("http", "[%" PRId64 "] [handle_server_setup_error] "
           "forwarding event %s to post tunnel", sm_id, HttpDebugNames::get_event_name(event));
     HttpTunnelConsumer *c = tunnel.get_consumer(server_entry->vc);
     // it is possible only user agent post->post transform is set up
@@ -4871,7 +5168,7 @@ HttpSM::do_setup_post_tunnel(HttpVC_t to_vc_type)
 void
 HttpSM::perform_transform_cache_write_action()
 {
-  Debug("http", "[%" PRId64 "] perform_transform_cache_write_action %s", sm_id,
+  DebugSM("http", "[%" PRId64 "] perform_transform_cache_write_action %s", sm_id,
         HttpDebugNames::get_cache_action_name(t_state.cache_info.action));
 
   if (t_state.range_setup)
@@ -4911,7 +5208,7 @@ HttpSM::perform_transform_cache_write_action()
 void
 HttpSM::perform_cache_write_action()
 {
-  Debug("http", "[%" PRId64 "] perform_cache_write_action %s",
+  DebugSM("http", "[%" PRId64 "] perform_cache_write_action %s",
         sm_id, HttpDebugNames::get_cache_action_name(t_state.cache_info.action));
 
   switch (t_state.cache_info.action) {
@@ -5039,7 +5336,7 @@ HttpSM::attach_server_session(HttpServerSession * s)
   server_session->mutex = this->mutex;
 
   HTTP_INCREMENT_DYN_STAT(http_current_server_transactions_stat);
-  s->server_trans_stat++;
+  ++s->server_trans_stat;
 
   // Record the VC in our table
   server_entry = vc_table.new_entry();
@@ -5137,7 +5434,7 @@ HttpSM::setup_server_send_request()
 
   // the plugin decided to append a message to the request
   if (api_set) {
-    Debug("http", "[%" PRId64 "] appending msg of %d bytes to request %s", sm_id, msg_len, t_state.internal_msg_buffer);
+    DebugSM("http", "[%" PRId64 "] appending msg of %"PRId64" bytes to request %s", sm_id, msg_len, t_state.internal_msg_buffer);
     hdr_length += server_entry->write_buffer->write(t_state.internal_msg_buffer, msg_len);
     server_request_body_bytes = msg_len;
   }
@@ -5253,6 +5550,8 @@ HttpSM::setup_cache_read_transfer()
   // Now dump the header into the buffer
   ink_assert(t_state.hdr_info.client_response.status_get() != HTTP_STATUS_NOT_MODIFIED);
   client_response_hdr_bytes = hdr_size = write_response_header_into_buffer(&t_state.hdr_info.client_response, buf);
+  cache_response_hdr_bytes = client_response_hdr_bytes;
+
 
   HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::tunnel_handler);
 
@@ -5283,6 +5582,9 @@ HttpSM::setup_cache_transfer_to_transform()
   ink_assert(transform_info.vc != NULL);
   ink_assert(transform_info.entry->vc == transform_info.vc);
 
+  // grab this here
+  cache_response_hdr_bytes = t_state.hdr_info.cache_response.length_get();
+
   doc_size = t_state.cache_info.object_read->object_size_get();
   alloc_index = buffer_size_to_index(doc_size);
   MIOBuffer *buf = new_MIOBuffer(alloc_index);
@@ -5302,12 +5604,6 @@ HttpSM::setup_cache_transfer_to_transform()
                       cache_sm.cache_read_vc, &HttpSM::tunnel_handler_transform_write, HT_TRANSFORM, "transform write");
   transform_info.entry->in_tunnel = true;
   cache_sm.cache_read_vc = NULL;
-
-  // We need to copy to header cached request header since the
-  //   cache read may finish before we do an open write to
-  //   write the transformed copy to the cache
-  t_state.hdr_info.transform_cached_request.create(HTTP_TYPE_REQUEST);
-  t_state.hdr_info.transform_cached_request.copy(t_state.cache_info.object_read->request_get());
 
   return p;
 }
@@ -5386,7 +5682,7 @@ HttpSM::setup_error_transfer()
     t_state.api_next_action = HttpTransact::HTTP_API_SEND_REPONSE_HDR;
     do_api_callout();
   } else {
-    Debug("http", "[setup_error_transfer] Now closing connection ...");
+    DebugSM("http", "[setup_error_transfer] Now closing connection ...");
     vc_table.cleanup_entry(ua_entry);
     ua_entry = NULL;
     ua_session = NULL;
@@ -5413,7 +5709,7 @@ HttpSM::setup_internal_transfer(HttpSMHandler handler_arg)
                                                  MIME_LEN_CONTENT_TYPE,
                                                  t_state.internal_msg_buffer_type,
                                                  strlen(t_state.internal_msg_buffer_type));
-      xfree(t_state.internal_msg_buffer_type);
+      ats_free(t_state.internal_msg_buffer_type);
       t_state.internal_msg_buffer_type = NULL;
     }
   } else {
@@ -5537,7 +5833,7 @@ HttpSM::server_transfer_init(MIOBuffer * buf, int hdr_size)
   // Next order of business if copy the remaining data from the
   //  header buffer into new buffer.
 
-  server_response_body_bytes =
+  int64_t server_response_pre_read_bytes =
 #ifdef WRITE_AND_TRANSFER
     /* relinquish the space in server_buffer and let
        the tunnel use the trailing space
@@ -5546,13 +5842,13 @@ HttpSM::server_transfer_init(MIOBuffer * buf, int hdr_size)
 #else
     buf->write(server_buffer_reader, to_copy);
 #endif
-  server_buffer_reader->consume(server_response_body_bytes);
+  server_buffer_reader->consume(server_response_pre_read_bytes);
 
   //  If we know the length & copied the entire body
   //   of the document out of the header buffer make
   //   sure the server isn't screwing us by having sent too
   //   much.  If it did, we want to close the server connection
-  if (server_response_body_bytes == to_copy && server_buffer_reader->read_avail() > 0) {
+  if (server_response_pre_read_bytes == to_copy && server_buffer_reader->read_avail() > 0) {
     t_state.current.server->keep_alive = HTTP_NO_KEEPALIVE;
   }
 #ifdef LAZY_BUF_ALLOC
@@ -5936,8 +6232,8 @@ HttpSM::kill_this()
     if (second_cache_sm)
       second_cache_sm->end_both();
     transform_cache_sm.end_both();
-    tunnel.deallocate_buffers();
     vc_table.cleanup_all();
+    tunnel.deallocate_buffers();
 
     // It possible that a plugin added transform hook
     //   but the hook never executed due to a client abort
@@ -6007,7 +6303,7 @@ HttpSM::kill_this()
     HTTP_SM_SET_DEFAULT_HANDLER(NULL);
 
     if (redirect_url != NULL) {
-      xfree(redirect_url);
+      ats_free(redirect_url);
       redirect_url = NULL;
       redirect_url_len = 0;
     }
@@ -6018,7 +6314,7 @@ HttpSM::kill_this()
     ink_mutex_release(&debug_sm_list_mutex);
 #endif
 
-    Debug("http", "[%" PRId64 "] dellocating sm", sm_id);
+    DebugSM("http", "[%" PRId64 "] dellocating sm", sm_id);
 //    authAdapter.destroyState();
     destroy();
   }
@@ -6030,21 +6326,21 @@ HttpSM::update_stats()
   milestones.sm_finish = ink_get_hrtime();
 
   if (t_state.cop_test_page && !t_state.http_config_param->record_cop_page) {
-    Debug("http_seq", "Skipping cop heartbeat logging & stats due to config");
+    DebugSM("http_seq", "Skipping cop heartbeat logging & stats due to config");
     return;
   }
 
   //////////////
   // Log Data //
   //////////////
-  Debug("http_seq", "[HttpStateMachineGet::update_stats] Logging transaction");
+  DebugSM("http_seq", "[HttpStateMachineGet::update_stats] Logging transaction");
   if (Log::transaction_logging_enabled() && t_state.api_info.logging_enabled) {
     LogAccessHttp accessor(this);
 
     int ret = Log::access(&accessor);
 
     if (ret & Log::FULL) {
-      Debug("http", "[update_stats] Logging system indicates FULL.");
+      DebugSM("http", "[update_stats] Logging system indicates FULL.");
     }
     if (ret & Log::FAIL) {
       Log::error("failed to log transaction for at least one log object");
@@ -6087,7 +6383,7 @@ HttpSM::update_stats()
     ua_write_time = -1;
   }
 
-/*   Debug("ARMStatsCache", "ua_begin_write: %d ua_close: %d ua_write_time:%d",
+/*   DebugSM("ARMStatsCache", "ua_begin_write: %d ua_close: %d ua_write_time:%d",
      (int) ink_hrtime_to_msec(milestones.ua_begin_write),
      (int) ink_hrtime_to_msec(milestones.ua_close),
      (int) ink_hrtime_to_msec(ua_write_time));
@@ -6134,28 +6430,19 @@ HttpSM::update_stats()
       ink_hrtime_from_msec(t_state.http_config_param->slow_log_threshold) < total_time) {
     // get the url to log
     URL *url = t_state.hdr_info.client_request.url_get();
-    char url_string[256];
+    char url_string[256] = "";
     if (url != NULL && url->valid()) {
-      url->string_get_buf(url_string, 256);
-    } else {
-      strncpy(url_string, "", sizeof(url_string));
+      url->string_get_buf(url_string, sizeof(url_string));
     }
 
     // unique id
-    char unique_id_string[128];
+    char unique_id_string[128] = "";
     if (url != NULL && url->valid()) {
       int length = 0;
       const char *field = t_state.hdr_info.client_request.value_get(MIME_FIELD_X_ID, MIME_LEN_X_ID, &length);
       if (field != NULL) {
-        if ((int)sizeof(unique_id_string) < length)
-          length =  (int)sizeof(unique_id_string);
-        strncpy(unique_id_string, field, length);
-        unique_id_string[length] = '\0';
-      } else {
-        strncpy(unique_id_string, "", sizeof(unique_id_string));
+        ink_strlcpy(unique_id_string, field, sizeof(unique_id_string));
       }
-    } else {
-      strncpy(unique_id_string, "", sizeof(unique_id_string));
     }
 
     // set the fd for the request
@@ -6242,14 +6529,7 @@ HttpSM::dump_state_on_assert()
   for (int i = 0; i < hist_size; i++) {
     int r = history[i].reentrancy;
     int e = history[i].event;
-#if defined(_WIN32)
-    // Visual C++ preprocessor is unable to stringify __LINE__
-    //   so we have to waste a ton a memory and store it
-    //   as an integer
-    Error("%d   %d   %s:%d", e, r, history[i].fileline, history[i].line);
-#else
     Error("%d   %d   %s", e, r, history[i].fileline);
-#endif
   }
 
   // Dump the via string
@@ -6271,7 +6551,7 @@ HttpSM::dump_state_hdr(HTTPHdr *h, const char *s)
   // Dump the client request if available
   if (h->valid()) {
     int l = h->length_get();
-    char *hdr_buf = (char *) xmalloc(l + 1);
+    char *hdr_buf = (char *)ats_malloc(l + 1);
     int index = 0;
     int offset = 0;
 
@@ -6279,7 +6559,7 @@ HttpSM::dump_state_hdr(HTTPHdr *h, const char *s)
 
     hdr_buf[l] = '\0';
     Error("  ----  %s [%" PRId64 "] ----\n%s\n", s, sm_id, hdr_buf);
-    xfree(hdr_buf);
+    ats_free(hdr_buf);
   }
 }
 
@@ -6323,7 +6603,7 @@ HttpSM::call_transact_and_set_next_state(TransactEntryFunc_t f)
     f(&t_state);
   }
 
-  Debug("http", "[%" PRId64 "] State Transition: %s -> %s",
+  DebugSM("http", "[%" PRId64 "] State Transition: %s -> %s",
         sm_id, HttpDebugNames::get_action_name(last_action), HttpDebugNames::get_action_name(t_state.next_action));
 
   set_next_state();
@@ -6374,7 +6654,7 @@ HttpSM::set_next_state()
     {
       if (!remapProcessor.using_separate_thread()) {
         do_remap_request(true); /* run inline */
-        Debug("url_rewrite", "completed inline remapping request for [%" PRId64 "]", sm_id);
+        DebugSM("url_rewrite", "completed inline remapping request for [%" PRId64 "]", sm_id);
         t_state.url_remap_success = remapProcessor.finish_remap(&t_state);
         call_transact_and_set_next_state(NULL);
       } else {
@@ -6386,34 +6666,54 @@ HttpSM::set_next_state()
   
   case HttpTransact::DNS_LOOKUP:
     {
-      uint32_t addr;
+      sockaddr const* addr;
 
-      if (url_remap_mode == 2 && t_state.first_dns_lookup) {
-        Debug("cdn", "Skipping DNS Lookup");
+      if (t_state.api_server_addr_set) {
+        /* If the API has set the server address before the OS DNS lookup
+         * then we can skip the lookup
+         */
+        ip_text_buffer ipb;
+        DebugSM("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup for API supplied target %s.\n", ats_ip_ntop(&t_state.server_info.addr, ipb, sizeof(ipb)));
+        // this seems wasteful as we will just copy it right back
+        ats_ip_copy(t_state.host_db_info.ip(), &t_state.server_info.addr);
+        t_state.dns_info.lookup_success = true;
+        call_transact_and_set_next_state(NULL);
+        break;
+      } else if (url_remap_mode == 2 && t_state.first_dns_lookup) {
+        DebugSM("cdn", "Skipping DNS Lookup");
         // skip the DNS lookup
-        // Debug("cdn","If HandleFiltering has already been called.");
         t_state.first_dns_lookup = false;
         call_transact_and_set_next_state(HttpTransact::HandleFiltering);
         break;
       } else  if (t_state.http_config_param->use_client_target_addr
         && !t_state.url_remap_success
         && t_state.client_info.is_transparent
-        && 0 != (addr = t_state.state_machine->ua_session->get_netvc()->get_local_ip())
+        && ats_is_ip(addr = t_state.state_machine->ua_session->get_netvc()->get_local_addr())
       ) {
+        ip_text_buffer ipb;
         /* If the connection is client side transparent and the URL
            was not remapped, we can use the client destination IP
            address instead of doing a DNS lookup. This is controlled
            by the 'use_client_target_addr' configuration parameter.
         */
-        Debug("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup for client supplied target %u.%u.%u.%u.\n", PRINT_IP(addr));
-        t_state.host_db_info.ip() = addr;
+        DebugSM("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup for client supplied target %s.\n", ats_ip_ntop(addr, ipb, sizeof(ipb)));
+        ats_ip_copy(t_state.host_db_info.ip(), addr);
         t_state.dns_info.lookup_success = true;
         call_transact_and_set_next_state(NULL);
         break;
       } else if (t_state.parent_result.r == PARENT_UNDEFINED && t_state.dns_info.lookup_success) {
         // Already set, and we don't have a parent proxy to lookup
-        ink_assert(t_state.host_db_info.ip());
-        Debug("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup, provided by plugin");
+        ink_assert(ats_is_ip(t_state.host_db_info.ip()));
+        DebugSM("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup, provided by plugin");
+        call_transact_and_set_next_state(NULL);
+        break;
+      } else if (t_state.dns_info.looking_up == HttpTransact::ORIGIN_SERVER &&
+                 t_state.http_config_param->no_dns_forward_to_parent){
+
+        if (t_state.cop_test_page)
+          ats_ip_copy(t_state.host_db_info.ip(), t_state.state_machine->ua_session->get_netvc()->get_local_addr());
+
+        t_state.dns_info.lookup_success = true;
         call_transact_and_set_next_state(NULL);
         break;
       }
@@ -6523,11 +6823,17 @@ HttpSM::set_next_state()
       if (transform_info.vc) {
         ink_assert(t_state.hdr_info.client_response.valid() == 0);
         ink_assert((t_state.hdr_info.transform_response.valid()? true : false) == true);
+        t_state.hdr_info.cache_response.create(HTTP_TYPE_RESPONSE);
+        t_state.hdr_info.cache_response.copy(&t_state.hdr_info.transform_response);
+
         HttpTunnelProducer *p = setup_cache_transfer_to_transform();
         perform_cache_write_action();
         tunnel.tunnel_run(p);
       } else {
         ink_assert((t_state.hdr_info.client_response.valid()? true : false) == true);
+        t_state.hdr_info.cache_response.create(HTTP_TYPE_RESPONSE);
+        t_state.hdr_info.cache_response.copy(&t_state.hdr_info.client_response);
+
         perform_cache_write_action();
         t_state.api_next_action = HttpTransact::HTTP_API_SEND_REPONSE_HDR;
         if (hooks_set) {
@@ -6791,7 +7097,7 @@ HttpSM::state_congestion_control_lookup(int event, void *data)
 void
 HttpSM::do_redirect()
 {
-  Debug("http_redirect", "[HttpSM::do_redirect]");
+  DebugSM("http_redirect", "[HttpSM::do_redirect]");
   if (enable_redirection == false || redirection_tries > (HttpConfig::m_master.number_of_redirections)) {
     tunnel.deallocate_redirect_postdata_buffers();
     return;
@@ -6823,7 +7129,7 @@ HttpSM::do_redirect()
         int ret = Log::access(&accessor);
 
         if (ret & Log::FULL) {
-          Debug("http", "[update_stats] Logging system indicates FULL.");
+          DebugSM("http", "[update_stats] Logging system indicates FULL.");
         }
         if (ret & Log::FAIL) {
           Log::error("failed to log transaction for at least one log object");
@@ -6832,7 +7138,7 @@ HttpSM::do_redirect()
 
       if (redirect_url != NULL) {
         redirect_request(redirect_url, redirect_url_len);
-        xfree(redirect_url);
+        ats_free(redirect_url);
         redirect_url = NULL;
         redirect_url_len = 0;
         HTTP_INCREMENT_DYN_STAT(http_total_x_redirect_stat);
@@ -6857,7 +7163,7 @@ HttpSM::do_redirect()
 void
 HttpSM::redirect_request(const char *redirect_url, const int redirect_len)
 {
-  Debug("http_redirect", "[HttpSM::redirect_request]");
+  DebugSM("http_redirect", "[HttpSM::redirect_request]");
   // get a reference to the client request header and client url and check to see if the url is valid
   HTTPHdr & clientRequestHeader = t_state.hdr_info.client_request;
   URL & clientUrl = *clientRequestHeader.url_get();
@@ -6910,13 +7216,13 @@ HttpSM::redirect_request(const char *redirect_url, const int redirect_len)
 #if defined(__GNUC__)
       char buf[host_len + 7];
 #else
-      char *buf = (char *)xmalloc(host_len + 7);
+      char *buf = (char *)ats_malloc(host_len + 7);
 #endif
-      strncpy(buf, host, host_len);
+      ink_strlcpy(buf, host, host_len);
       host_len += snprintf(buf + host_len, sizeof(buf) - host_len, ":%d", port);
       t_state.hdr_info.client_request.value_set(MIME_FIELD_HOST, MIME_LEN_HOST, buf, host_len);
 #if !defined(__GNUC__)
-      xfree(buf);
+      ats_free(buf);
 #endif
     } else {
       // the client request didn't have a host, so remove it from the headers
@@ -6928,13 +7234,15 @@ HttpSM::redirect_request(const char *redirect_url, const int redirect_len)
   DUMP_HEADER("http_hdrs", &t_state.hdr_info.client_request, sm_id, "Framed Client Request..checking");
 }
 
-void HttpSM::set_http_schedule(Continuation *contp)
+void
+HttpSM::set_http_schedule(Continuation *contp)
 {
   HTTP_SM_SET_DEFAULT_HANDLER(&HttpSM::get_http_schedule);
   schedule_cont = contp;
 }
 
-int HttpSM::get_http_schedule(int event, void * data)
+int
+HttpSM::get_http_schedule(int event, void * data)
 {
   NOWARN_UNUSED(data);
   bool plugin_lock;
@@ -6961,3 +7269,14 @@ int HttpSM::get_http_schedule(int event, void * data)
 
   return 0;
 }
+
+bool
+HttpSM::set_server_session_private(bool private_session)
+{
+  if (server_session != NULL) {
+    server_session->private_session = private_session;
+    return true;
+  }
+  return false;
+}
+

@@ -452,7 +452,7 @@ public:
       if (_size > 0)
         _stack.splice(_stack.begin(), _stack, l);
     } else { // "new" URL
-      const char *u = xstrdup(url); // We own it.
+      const char *u = ats_strdup(url); // We own it.
       LruStack::iterator l = _stack.end();
 
       if (_size > 0) {
@@ -466,8 +466,7 @@ public:
         } else {
           l = _cur++;
         }
-        if (l->url)
-          xfree(const_cast<char*>(l->url)); // We no longer own this string.
+        ats_free(const_cast<char*>(l->url)); // We no longer own this string.
       } else {
         l = _stack.insert(l, UrlStats()); // This seems faster than having a static "template" ...
       }
@@ -543,7 +542,7 @@ private:
   {
     for (LruStack::iterator l=_stack.begin(); l != _stack.end(); ++l) {
       if (free && l->url)
-        xfree(const_cast<char*>(l->url));
+        ats_free(const_cast<char*>(l->url));
       memset(&(*l), 0, sizeof(UrlStats));
     }
   }
@@ -658,7 +657,8 @@ static const char *USAGE_LINE =
   "Usage: " PROGRAM_NAME " [-f logfile] [-o origin[,...]] [-O originfile] [-m minhits] [-inshv]";
 
 void
-CommandLineArgs::parse_arguments(char** argv) {
+CommandLineArgs::parse_arguments(char** argv)
+{
   // process command-line arguments
   process_args(argument_descriptions, n_argument_descriptions, argv, USAGE_LINE);
 
@@ -673,7 +673,7 @@ CommandLineArgs::parse_arguments(char** argv) {
       char buffer[MAX_ORIG_STRING];
       char *tok, *sep_ptr, *val;
 
-      ink_strlcpy(buffer, query, MAX_ORIG_STRING);
+      ink_strlcpy(buffer, query, sizeof(buffer));
       unescapifyStr(buffer);
 
       for (tok = strtok_r(buffer, "&", &sep_ptr); tok != NULL;) {
@@ -681,7 +681,7 @@ CommandLineArgs::parse_arguments(char** argv) {
         if (val)
           *(val++) = '\0';
         if (0 == strncmp(tok, "origin_list", 11)) {
-          ink_strlcpy(origin_list, val, MAX_ORIG_STRING);
+          ink_strlcpy(origin_list, val, sizeof(origin_list));
         } else if (0 == strncmp(tok, "state_tag", 9)) {
           ink_strlcpy(state_tag, val, sizeof(state_tag));
         } else if (0 == strncmp(tok, "max_origins", 11)) {
@@ -743,11 +743,11 @@ struct ExitStatus
     if (l > level)
       level = l;
     if (n)
-      strncat(notice, n, sizeof(notice) - strlen(notice) - 1);
+      ink_strlcat(notice, n, sizeof(notice));
   }
 
   void append(const char *n) {
-    strncat(notice, n, sizeof(notice) - strlen(notice) - 1);
+    ink_strlcat(notice, n, sizeof(notice));
   }
 };
 
@@ -1228,10 +1228,13 @@ parse_log_buff(LogBufferHeader * buf_header, bool summary = false)
       case P_STATE_IP:
         state = P_STATE_RESULT;
         // Just skip the IP, we no longer assume it's always the same.
-        //
-        // TODO address IP logged in text format (that's not good)
-        // Warning: This is maybe not IPv6 safe.
-        read_from += LogAccess::strlen(read_from);
+        {
+          LogFieldIp* ip = reinterpret_cast<LogFieldIp*>(read_from);
+          int len = sizeof(LogFieldIp);
+          if (AF_INET == ip->_family) len = sizeof(LogFieldIp4);
+          else if (AF_INET6 == ip->_family) len = sizeof(LogFieldIp6);
+          read_from += INK_ALIGN_DEFAULT(len);
+        }
         break;
 
       case P_STATE_RESULT:
@@ -1344,10 +1347,10 @@ parse_log_buff(LogBufferHeader * buf_header, bool summary = false)
             if (origin_set ? (origin_set->find(tok) != origin_set->end()) : 1) {
               o_iter = origins.find(tok);
               if (origins.end() == o_iter) {
-                o_stats = (OriginStats *) xmalloc(sizeof(OriginStats));
+                o_stats = (OriginStats *)ats_malloc(sizeof(OriginStats));
                 memset(o_stats, 0, sizeof(OriginStats));
                 init_elapsed(o_stats);
-                o_server = xstrdup(tok);
+                o_server = ats_strdup(tok);
                 if (o_stats && o_server) {
                   o_stats->server = o_server;
                   origins[o_server] = o_stats;
@@ -1644,20 +1647,24 @@ process_file(int in_fd, off_t offset, unsigned max_age)
   char buffer[MAX_LOGBUFFER_SIZE];
   int nread, buffer_bytes;
 
+  Debug("logstats", "Processing file [offset=%" PRId64 "].", (int64_t)offset);
   while (true) {
-    Debug("logcat", "Reading buffer ...");
+    Debug("logstats", "Reading initial header.");
     buffer[0] = '\0';
 
-    unsigned first_read_size = 2 * sizeof(unsigned);
+    unsigned first_read_size = sizeof(uint32_t) + sizeof(uint32_t);
     LogBufferHeader *header = (LogBufferHeader *)&buffer[0];
 
     // Find the next log header, aligning us properly. This is not
-    // particularly optimal, but we shouldn't only have to do this
+    // particularly optimal, but we should only have to do this
     // once, and hopefully we'll be aligned immediately.
     if (offset > 0) {
+      Debug("logstats", "Re-aligning file read.");
       while (true) {
-        if (lseek(in_fd, offset, SEEK_SET) < 0)
+        if (lseek(in_fd, offset, SEEK_SET) < 0) {
+          Debug("logstats", "Internal seek failed (offset=%"  PRId64 ").", (int64_t)offset);
           return 1;
+        }
 
         // read the first 8 bytes of the header, which will give us the
         // cookie and the version number.
@@ -1681,8 +1688,10 @@ process_file(int in_fd, off_t offset, unsigned max_age)
         return 0;
 
       // ensure that this is a valid logbuffer header
-      if (header->cookie != LOG_SEGMENT_COOKIE)
+      if (header->cookie != LOG_SEGMENT_COOKIE) {
+        Debug("logstats", "Invalid segment cookie (expected %d, got %d)", LOG_SEGMENT_COOKIE, header->cookie);
         return 1;
+      }
     }
 
     Debug("logstats", "LogBuffer version %d, current = %d", header->version, LOG_SEGMENT_VERSION);
@@ -1692,25 +1701,38 @@ process_file(int in_fd, off_t offset, unsigned max_age)
     // read the rest of the header
     unsigned second_read_size = sizeof(LogBufferHeader) - first_read_size;
     nread = read(in_fd, &buffer[first_read_size], second_read_size);
-    if (!nread || EOF == nread)
+    if (!nread || EOF == nread) {
+      Debug("logstats", "Second read of header failed (attemped %d bytes at offset %d, got nothing).", second_read_size, first_read_size);
       return 1;
+    }
 
     // read the rest of the buffer
-    if (header->byte_count > sizeof(buffer))
+    if (header->byte_count > sizeof(buffer)) {
+      Debug("logstats", "Header byte count [%d] > expected [%zu]", header->byte_count, sizeof(buffer));
       return 1;
+    }
 
-    buffer_bytes = header->byte_count - sizeof(LogBufferHeader) + 1;
-    if (buffer_bytes <= 0 || (unsigned int) buffer_bytes > (sizeof(buffer) - sizeof(LogBufferHeader)))
+    buffer_bytes = header->byte_count - sizeof(LogBufferHeader);
+    if (buffer_bytes <= 0 || (unsigned int) buffer_bytes > (sizeof(buffer) - sizeof(LogBufferHeader))) {
+      Debug("logstats", "Buffer payload [%d] is wrong.", buffer_bytes);
       return 1;
+    }
 
     nread = read(in_fd, &buffer[sizeof(LogBufferHeader)], buffer_bytes);
-    if (!nread || EOF == nread)
+    if (!nread || EOF == nread) {
+      Debug("logstats", "Failed to read buffer payload [%d bytes]", buffer_bytes);
       return 1;
+    }
 
     // Possibly skip too old entries (the entire buffer is skipped)
-    if (header->high_timestamp >= max_age)
-      if (parse_log_buff(header, cl.summary != 0) != 0)
+    if (header->high_timestamp >= max_age) {
+      if (parse_log_buff(header, cl.summary != 0) != 0) {
+        Debug("logstats", "Failed to parse log buffer.");
         return 1;
+      }
+    } else {
+      Debug("logstats", "Skipping old buffer (age=%d, max=%d)", header->high_timestamp, max_age);
+    }
   }
 
   return 0;
@@ -1866,7 +1888,7 @@ print_detail_stats(const OriginStats * stat, bool json=false)
     std::cout << std::endl;
 
   format_line(json ? "error.client_abort" : "Client aborted", stat->results.errors.client_abort, stat->total, json);
-  format_line(json ? "error.conenct_failed" : "Connect failed", stat->results.errors.connect_fail, stat->total, json);
+  format_line(json ? "error.connect_failed" : "Connect failed", stat->results.errors.connect_fail, stat->total, json);
   format_line(json ? "error.invalid_request" : "Invalid request", stat->results.errors.invalid_req, stat->total, json);
   format_line(json ? "error.unknown" : "Unknown error(99)", stat->results.errors.unknown, stat->total, json);
   format_line(json ? "error.other" : "Other errors", stat->results.errors.other, stat->total, json);
@@ -2237,7 +2259,7 @@ main(int argc, char *argv[])
   parse_errors = 0;
 
   // Get log directory
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, PATH_NAME_MAX);
+  ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
   if (-1 == access(system_log_dir, R_OK)) {
     fprintf(stderr, "unable to change to log directory \"%s\" [%d '%s']\n", system_log_dir, errno, strerror(errno));
     fprintf(stderr, " please set correct path in env variable TS_ROOT \n");
@@ -2303,7 +2325,7 @@ main(int argc, char *argv[])
         if (end > start) {
           char *buf;
 
-          buf = xstrdup(line.substr(start, end).c_str());
+          buf = ats_strdup(line.substr(start, end).c_str());
           if (buf)
             origin_set->insert(buf);
         }

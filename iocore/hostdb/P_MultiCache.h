@@ -35,10 +35,6 @@
 #include "I_EventSystem.h"
 #include "I_Store.h"
 
-#ifndef PATH_NAME_MAX
-#define PATH_NAME_MAX         511
-#endif
-
 //
 // Constants
 //
@@ -59,7 +55,8 @@
 // Update these if there is a change to MultiCacheBase
 // There is a separate HOST_DB_CACHE_[MAJOR|MINOR]_VERSION
 #define MULTI_CACHE_MAJOR_VERSION    2
-#define MULTI_CACHE_MINOR_VERSION    0
+#define MULTI_CACHE_MINOR_VERSION    1
+// 2.1 - IPv6 compatible
 
 #define MULTI_CACHE_HEAP_HIGH_WATER  0.8
 
@@ -205,12 +202,6 @@ struct MultiCacheBase: public MultiCacheHeader
 
   MultiCacheHeader header_snap;
 
-#ifdef _WIN32
-  // windows exclusive //
-  int m_nEntry;
-  Unmaper m_mUnmapTable[MULTI_CACHE_MAX_FILES];
-#endif
-
   // mmap-ed region
   //
   char *data;
@@ -331,24 +322,15 @@ struct MultiCacheBase: public MultiCacheHeader
   uint64_t make_tag(uint64_t folded_md5)
   {
     uint64_t ttag = folded_md5 / (uint64_t) buckets;
-#if !defined (_WIN32)
     if (!ttag)
       return 1LL;
-#else
-    if (!ttag)
-      return 1i 64;
-#endif
     // beeping gcc 2.7.2 is broken
     if (tag_bits > 32) {
       uint64_t mask = 0x100000000LL << (tag_bits - 32);
       mask = mask - 1;
       return ttag & mask;
     } else {
-#if !defined (_WIN32)
       uint64_t mask = 1LL;
-#else
-      uint64_t mask = 1i 64;
-#endif
       mask <<= tag_bits;
       mask = mask - 1;
       return ttag & mask;

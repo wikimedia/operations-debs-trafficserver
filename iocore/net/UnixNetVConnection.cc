@@ -1,25 +1,25 @@
 /** @file
 
-  A brief file description
+    A brief file description
 
-  @section license License
+    @section license License
 
-  Licensed to the Apache Software Foundation (ASF) under one
-  or more contributor license agreements.  See the NOTICE file
-  distributed with this work for additional information
-  regarding copyright ownership.  The ASF licenses this file
-  to you under the Apache License, Version 2.0 (the
-  "License"); you may not use this file except in compliance
-  with the License.  You may obtain a copy of the License at
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
- */
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
 
 #include "P_Net.h"
 
@@ -327,7 +327,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     }
   }
   // If here are is no more room, or nothing to do, disable the connection
-  if (!s->enabled || !buf.writer()->write_avail() || s->vio.ntodo() <= 0) {
+  if (s->vio.ntodo() <= 0 || !s->enabled || !buf.writer()->write_avail()) {
     read_disable(nh, vc);
     return;
   }
@@ -498,6 +498,27 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   }
 }
 
+bool
+UnixNetVConnection::get_data(int id, void *data)
+{
+  union {
+    TSVIO * vio;
+    void * data;
+  } ptr;
+
+  ptr.data = data;
+
+  switch (id) {
+  case TS_API_DATA_READ_VIO:
+    *ptr.vio = (TSVIO)&this->read.vio;
+    return true;
+  case TS_API_DATA_WRITE_VIO:
+    *ptr.vio = (TSVIO)&this->write.vio;
+    return true;
+  default:
+    return false;
+  }
+}
 
 VIO *
 UnixNetVConnection::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
@@ -511,7 +532,7 @@ UnixNetVConnection::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
   read.vio.vc_server = (VConnection *) this;
   if (buf) {
     read.vio.buffer.writer_for(buf);
-    if (nbytes && !read.enabled)
+    if (!read.enabled)
       read.vio.reenable();
   } else {
     read.vio.buffer.clear();
@@ -536,7 +557,6 @@ UnixNetVConnection::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
     if (nbytes && !write.enabled)
       write.vio.reenable();
   } else {
-    write.vio.buffer.clear();
     disable_write(this);
   }
   return &write.vio;
@@ -706,19 +726,19 @@ UnixNetVConnection::reenable(VIO *vio)
           nh->write_enable_list.push(this);
         }
       }
-	  if (nh->trigger_event && nh->trigger_event->ethread->signal_hook)
-		nh->trigger_event->ethread->signal_hook(nh->trigger_event->ethread);
+      if (nh->trigger_event && nh->trigger_event->ethread->signal_hook)
+        nh->trigger_event->ethread->signal_hook(nh->trigger_event->ethread);
     } else {
       if (vio == &read.vio) {
         ep.modify(EVENTIO_READ);
-	ep.refresh(EVENTIO_READ);
+        ep.refresh(EVENTIO_READ);
         if (read.triggered)
           nh->read_ready_list.in_or_enqueue(this);
         else
           nh->read_ready_list.remove(this);
       } else {
         ep.modify(EVENTIO_WRITE);
-	ep.refresh(EVENTIO_WRITE);
+        ep.refresh(EVENTIO_WRITE);
         if (write.triggered)
           nh->write_ready_list.in_or_enqueue(this);
         else
@@ -765,10 +785,11 @@ UnixNetVConnection::UnixNetVConnection()
     next_inactivity_timeout_at(0),
 #endif
     active_timeout(NULL), nh(NULL),
-    id(0), ip(0), accept_port(0), port(0), flags(0), recursion(0), submit_time(0), oob_ptr(0),
+    id(0), flags(0), recursion(0), submit_time(0), oob_ptr(0),
     from_accept_thread(false)
 {
-  memset(&local_sa, 0, sizeof local_sa);
+  memset(&local_addr, 0, sizeof local_addr);
+  memset(&server_addr, 0, sizeof server_addr);
   SET_HANDLER((NetVConnHandler) & UnixNetVConnection::startEvent);
 }
 
@@ -895,10 +916,9 @@ int
 UnixNetVConnection::startEvent(int event, Event *e)
 {
   (void) event;
-  MUTEX_TRY_LOCK(lock, action_.mutex, e->ethread);
-  MUTEX_TRY_LOCK(lock2, get_NetHandler(e->ethread)->mutex, e->ethread);
 
-  if (!lock || !lock2) {
+  MUTEX_TRY_LOCK(lock, get_NetHandler(e->ethread)->mutex, e->ethread);
+  if (!lock) {
     e->schedule_in(NET_RETRY_DELAY);
     return EVENT_CONT;
   }
@@ -914,9 +934,9 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
 {
   (void) event;
   thread = e->ethread;
-  MUTEX_TRY_LOCK(lock, action_.mutex, e->ethread);
-  MUTEX_TRY_LOCK(lock2, get_NetHandler(thread)->mutex, e->ethread);
-  if (!lock || !lock2) {
+
+  MUTEX_TRY_LOCK(lock, get_NetHandler(thread)->mutex, e->ethread);
+  if (!lock) {
     if (event == EVENT_NONE) {
       thread->schedule_in(this, NET_RETRY_DELAY);
       return EVENT_DONE;
@@ -1043,18 +1063,26 @@ UnixNetVConnection::connectUp(EThread *t)
     free(t);
     return CONNECT_FAILURE;
   }
+
+  // Force family to agree with remote (server) address.
+  options.ip_family = server_addr.sa.sa_family;
+  
   //
   // Initialize this UnixNetVConnection
   //
-  int res = 0;
-  Debug("iocore_net", "connectUp:: local_addr=%u.%u.%u.%u [%s]\n",
-	   PRINT_IP(options.local_addr),
-	   NetVCOptions::toString(options.addr_binding)
-	   );
+  if (is_debug_tag_set("iocore_net")) {
+    char addrbuf[INET6_ADDRSTRLEN];
+    Debug("iocore_net", "connectUp:: local_addr=%s:%d [%s]\n",
+      options.local_ip.isValid()
+      ? options.local_ip.toString(addrbuf, sizeof(addrbuf))
+      : "*",
+      options.local_port,
+      NetVCOptions::toString(options.addr_binding)
+    );
+  }
 
 
-  nh = get_NetHandler(t);
-  res = con.open(options);
+  int res = con.open(options);
   if (0 == res) {
     // Must connect after EventIO::Start() to avoid a race condition
     // when edge triggering is used.
@@ -1065,7 +1093,7 @@ UnixNetVConnection::connectUp(EThread *t)
       free(t);
       return CONNECT_FAILURE;
     }
-    res = con.connect(ip, port, options);
+    res = con.connect(&server_addr.sa, options);
   }
 
   if (res) {
@@ -1084,6 +1112,7 @@ UnixNetVConnection::connectUp(EThread *t)
   // function code not to be duplicated in the inherited SSL class.
   //  sslStartHandShake (SSL_EVENT_CLIENT, err);
 
+  nh = get_NetHandler(t);
   nh->open_list.enqueue(this);
 
   ink_assert(!inactivity_timeout_in);
@@ -1098,14 +1127,12 @@ UnixNetVConnection::free(EThread *t)
 {
   NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, -1);
   // clear variables for reuse
+  this->mutex.clear();
   got_remote_addr = 0;
   got_local_addr = 0;
   read.vio.mutex.clear();
   write.vio.mutex.clear();
-  action_.mutex.clear();
-  this->mutex.clear();
   flags = 0;
-  accept_port = 0;
   SET_CONTINUATION_HANDLER(this, (NetVConnHandler) & UnixNetVConnection::startEvent);
   nh = NULL;
   read.triggered = 0;
@@ -1126,4 +1153,10 @@ UnixNetVConnection::free(EThread *t)
   } else {
     THREAD_FREE(this, netVCAllocator, t);
   }
+}
+
+void
+UnixNetVConnection::apply_options()
+{
+  con.apply_options(options);
 }

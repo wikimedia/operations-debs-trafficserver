@@ -47,20 +47,11 @@ struct UDPNetHandler;
 struct UDPNetProcessorInternal : public UDPNetProcessor
 {
   virtual int start(int n_udp_threads);
-#if defined (_IOCORE_WIN32)
-  SOCKET create_dgram_socket_internal();
-#else
   void udp_read_from_net(UDPNetHandler * nh, UDPConnection * uc, PollDescriptor * pd, EThread * thread);
   int udp_callback(UDPNetHandler * nh, UDPConnection * uc, EThread * thread);
-#endif
 
-#if defined (_IOCORE_WIN32)
-  EThread *ethread;
-  UDPNetHandler *udpNetHandler;
-#else
   off_t pollCont_offset;
   off_t udpNetHandler_offset;
-#endif
 
 public:
   virtual void UDPNetProcessor_is_abstract() {  }
@@ -316,8 +307,6 @@ private:
 };
 #endif
 
-#if !defined (_IOCORE_WIN32)
-
 void initialize_thread_for_udp_net(EThread * thread);
 
 struct UDPNetHandler: public Continuation
@@ -344,39 +333,6 @@ public:
 
   UDPNetHandler();
 };
-#endif
-
-#if defined(_IOCORE_WIN32)
-void initialize_thread_for_udp_net(EThread * thread);
-
-class UDPQueue;
-
-class UDPNetHandler:Continuation
-{
-public:
-  // to be polled for read
-  Queue(UnixUDPConnection, polling_link) udp_polling;
-  // to be called back with data
-  Queue(UnixUDPConnection, callback_link) udp_callbacks;
-  // outgoing packets
-  InkAtomicList udpAtomicQueue;
-  UDPQueue udpOutQueue;
-  // to hold the newly created descriptors before scheduling them on
-  // the servicing buckets.
-  // atomically added to by a thread creating a new connection with
-  // UDPBind
-  InkAtomicList udpNewConnections;
-  Event *trigger_event;
-  ink_hrtime nextCheck;
-  ink_hrtime lastCheck;
-
-  int startNetEvent(int event, Event * data);
-  int mainNetEvent(int event, Event * data);
-
-  UDPNetHandler();
-  virtual ~ UDPNetHandler();
-};
-#endif
 
 struct PollCont;
 static inline PollCont *
@@ -399,7 +355,6 @@ struct InkSinglePipeInfo
   {
     wt = 0.0;
     bwLimit = 0;
-    destIP = 0;
     count = 0;
     bytesSent = pktsSent = 0;
     bwAlloc = 0;
@@ -417,7 +372,7 @@ struct InkSinglePipeInfo
   int64_t bwAlloc;
   // this is in Mbps
   double bwUsed;
-  int32_t destIP;
+  IpAddr destIP;
   uint32_t count;
   uint64_t bytesSent;
   uint64_t pktsSent;
@@ -437,13 +392,18 @@ extern InkPipeInfo G_inkPipeInfo;
 class UDPWorkContinuation:public Continuation
 {
 public:
-  UDPWorkContinuation():cont(NULL), numPairs(0), myIP(0), destIP(0),
+  UDPWorkContinuation():cont(NULL), numPairs(0), 
     sendbufsize(0), recvbufsize(0), udpConns(NULL), resultCode(NET_EVENT_DATAGRAM_OPEN)
   {
+    memset(&local_ip, 0, sizeof(local_ip));
+    memset(&remote_ip, 0, sizeof(remote_ip));
   };
   ~UDPWorkContinuation() {
   };
-  void init(Continuation * c, int num_pairs, unsigned int my_ip, unsigned int dest_ip, int s_bufsize, int r_bufsize);
+  void init(Continuation * c, int num_pairs,
+    sockaddr const* local_ip,
+    sockaddr const* remote_ip,
+    int s_bufsize, int r_bufsize);
   int StateCreatePortPairs(int event, void *data);
   int StateDoCallback(int event, void *data);
 
@@ -452,7 +412,8 @@ public:
 private:
   Continuation * cont;
   int numPairs;
-  unsigned int myIP, destIP;
+  IpEndpoint local_ip; ///< replaces myIP.
+  IpEndpoint remote_ip; ///< replaces destIP.
   int sendbufsize, recvbufsize;
   UnixUDPConnection **udpConns;
   int resultCode;

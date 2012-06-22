@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  The Local Manager process of the management system.
 
   @section license License
 
@@ -21,14 +21,6 @@
   limitations under the License.
  */
 
-/*
- *
- * LocalManager.cc
- * - The Local Manager process of the management system.
- * - The main loop has been migrated to Main.cc
- *
- *
- */
 
 #include "libts.h"
 #include "ink_platform.h"
@@ -42,8 +34,6 @@
 #if TS_USE_POSIX_CAP
 #include <sys/capability.h>
 #endif
-
-int bindProxyPort(int, char*, int, bool, int);
 
 bool
 LocalManager::SetForDup(void *hIOCPort, long lTProcId, void *hTh)
@@ -163,7 +153,7 @@ LocalManager::clearStats()
         mgmt_log(stderr, "[LocalManager::clearStats] Unlink of %s failed : %s\n", REC_RAW_STATS_FILE, strerror(errno));
       }
     }
-    xfree(statsPath);
+    ats_free(statsPath);
   }
 }
 
@@ -233,88 +223,25 @@ LocalManager::LocalManager(char *mpath, bool proxy_on)
     mgmt_log("Bad or missing proxy.config.lm.sem_id value; using default id %d\n", MGMT_SEMID_DEFAULT);
     mgmt_sync_key = MGMT_SEMID_DEFAULT;
   }
-  ink_strncpy(pserver_path, system_runtime_dir, sizeof(pserver_path));
+  ink_strlcpy(pserver_path, system_runtime_dir, sizeof(pserver_path));
 
   virt_map = NULL;
 
-
-  for (int i = 0; i < MAX_PROXY_SERVER_PORTS; i++) {
-    proxy_server_port[i] = proxy_server_fd[i] = -1;
-    memset((void *) proxy_server_port_attributes[i], 0, MAX_ATTR_LEN);
-  }
-
-  int pnum = 0;
   RecInt http_enabled = REC_readInteger("proxy.config.http.enabled", &found);
   ink_debug_assert(found);
   if (http_enabled && found) {
-    int port = (int) REC_readInteger("proxy.config.http.server_port", &found);
-    if (found) {
-      proxy_server_port[pnum] = port;
-      char *main_server_port_attributes = (char *) REC_readString("proxy.config.http.server_port_attr", &found);
-      ink_strncpy((char *) proxy_server_port_attributes[pnum],
-                  main_server_port_attributes, sizeof(proxy_server_port_attributes[pnum]));
-      xfree(main_server_port_attributes);
-      pnum++;
-    }
+    HttpProxyPort::loadConfig(m_proxy_ports);
   }
+  HttpProxyPort::loadDefaultIfEmpty(m_proxy_ports);
 
-  // Check to see if we are running SSL term
-  RecInt ssl_term_enabled = REC_readInteger("proxy.config.ssl.enabled", &found);
-  ink_assert(found);
-  if (found && ssl_term_enabled) {
-    // Get the SSL port
-    RecInt ssl_term_port = REC_readInteger("proxy.config.ssl.server_port", &found);
-    ink_assert(found);
-    if (found) {
-      proxy_server_port[pnum] = ssl_term_port;
-      ink_strncpy((char *) proxy_server_port_attributes[pnum], "S", sizeof(proxy_server_port_attributes[pnum]));
-      pnum++;
-    }
-  }
+  // Get the default IP binding values.
+  RecHttpLoadIp("proxy.local.incoming_ip_to_bind", m_inbound_ip4, m_inbound_ip6);
 
-  // Read other ports to be listened on
-  char *proxy_server_other_ports = REC_readString("proxy.config.http.server_other_ports", &found);
-  if (proxy_server_other_ports) {
-    char *last, *cport;
-
-    cport = ink_strtok_r(proxy_server_other_ports, " ", &last);
-    for (; pnum < MAX_PROXY_SERVER_PORTS && cport; pnum++) {
-      const char *attr = "X";
-
-      for (int j = 0; cport[j]; j++) {
-        if (cport[j] == ':') {
-          cport[j] = '\0';
-          attr = &cport[j + 1];
-        }
-      }
-
-      int port_no = atoi(cport);
-
-      proxy_server_port[pnum] = port_no;
-      ink_strncpy((char *) proxy_server_port_attributes[pnum], attr, sizeof(proxy_server_port_attributes[pnum]));
-
-      Debug("lm", "[LocalManager::LocalManager] Adding port (%s, %d, '%s')\n", cport, port_no, attr);
-      cport = ink_strtok_r(NULL, " ", &last);
-    }
-
-    if (pnum == MAX_PROXY_SERVER_PORTS && cport) {
-      Debug("lm", "[LocalManager::LocalManager] Unable to listen on all other ports,"
-            " max number of other ports exceeded(max == %d)\n", MAX_PROXY_SERVER_PORTS);
-    }
-    xfree(proxy_server_other_ports);
-  }
-  // Bind proxy ports to incoming_ip_to_bind
-  char *incoming_ip_to_bind_str = REC_readString("proxy.local.incoming_ip_to_bind", &found);
-  if (found && incoming_ip_to_bind_str != NULL) {
-    proxy_server_incoming_ip_to_bind_str = incoming_ip_to_bind_str;
-  } else {
-    proxy_server_incoming_ip_to_bind_str = NULL;
-  }
   config_path = REC_readString("proxy.config.config_dir", &found);
   char *absolute_config_path = Layout::get()->relative(config_path);
-  xfree(config_path);
+  ats_free(config_path);
   if (access(absolute_config_path, R_OK) == -1) {
-    config_path = xstrdup(system_config_directory);
+    config_path = ats_strdup(system_config_directory);
     if (access(config_path, R_OK) == -1) {
         mgmt_elog("[LocalManager::LocalManager] unable to access() directory '%s': %d, %s\n",
                 config_path, errno, strerror(errno));
@@ -358,14 +285,14 @@ LocalManager::LocalManager(char *mpath, bool proxy_on)
   env_prep = REC_readString("proxy.config.env_prep", &found);
   // Calculate configured bin_path from the prefix
   char *absolute_bin_path = Layout::get()->relative(bin_path);
-  xfree(bin_path);
+  ats_free(bin_path);
   bin_path = absolute_bin_path;
   // Calculate proxy_binary from the absolute bin_path
   absolute_proxy_binary = Layout::relative_to(absolute_bin_path, proxy_binary);
 
   if (access(absolute_proxy_binary, R_OK | X_OK) == -1) {
     // Try 'Layout::bindir' directory
-    xfree(absolute_proxy_binary);
+    ats_free(absolute_proxy_binary);
     absolute_proxy_binary = Layout::relative_to(Layout::get()->bindir, proxy_binary);
     // coverity[fs_check_call]
     if (access(absolute_proxy_binary, R_OK | X_OK) == -1) {
@@ -400,8 +327,8 @@ void
 LocalManager::initCCom(int port, char *addr, int sport)
 {
   bool found;
-  struct in_addr cluster_addr;  // ip addr of the cluster interface
-  char *clusterAddrStr;         // cluster ip addr as a String
+  IpEndpoint cluster_ip;    // ip addr of the cluster interface
+  ip_text_buffer clusterAddrStr;         // cluster ip addr as a String
   char *intrName;               // Name of the interface we are to use
   char hostname[1024];          // hostname of this machine
   const char envVar[] = "PROXY_CLUSTER_ADDR=";
@@ -414,12 +341,14 @@ LocalManager::initCCom(int port, char *addr, int sport)
   intrName = REC_readString("proxy.config.cluster.ethernet_interface", &found);
   ink_assert(intrName != NULL);
 
-  found = mgmt_getAddrForIntr(intrName, &cluster_addr);
+  found = mgmt_getAddrForIntr(intrName, &cluster_ip.sa);
   if (found == false) {
     mgmt_fatal(stderr, "[LocalManager::initCCom] Unable to find network interface %s.  Exiting...\n", intrName);
+  } else if (!ats_is_ip4(&cluster_ip)) {
+    mgmt_fatal(stderr, "[LocalManager::initCCom] Unable to find IPv4 network interface %s.  Exiting...\n", intrName);
   }
 
-  clusterAddrStr = inet_ntoa(cluster_addr);
+  ats_ip_ntop(&cluster_ip, clusterAddrStr, sizeof(clusterAddrStr));
   Debug("ccom", "Cluster Interconnect is %s : %s\n", intrName, clusterAddrStr);
 
   // This an awful hack but I could not come up with a better way to
@@ -437,26 +366,23 @@ LocalManager::initCCom(int port, char *addr, int sport)
   // Set the cluster ip addr variable so that proxy can read it
   //    and flush it to disk
   const size_t envBuf_size = strlen(envVar) + strlen(clusterAddrStr) + 1;
-  envBuf = (char *) xmalloc(envBuf_size);
-  ink_strncpy(envBuf, envVar, envBuf_size);
-  strncat(envBuf, clusterAddrStr, envBuf_size - strlen(envBuf) - 1);
+  envBuf = (char *)ats_malloc(envBuf_size);
+  ink_strlcpy(envBuf, envVar, envBuf_size);
+  ink_strlcat(envBuf, clusterAddrStr, envBuf_size);
   ink_release_assert(putenv(envBuf) == 0);
 
-  ccom = new ClusterCom(cluster_addr.s_addr, hostname, port, addr, sport, pserver_path);
-  virt_map = new VMap(intrName, cluster_addr.s_addr, &lmgmt->ccom->mutex);
+  ccom = new ClusterCom(ats_ip4_addr_cast(&cluster_ip), hostname, port, addr, sport, pserver_path);
+  virt_map = new VMap(intrName, ats_ip4_addr_cast(&cluster_ip), &lmgmt->ccom->mutex);
   virt_map->downAddrs();        // Just to be safe
   ccom->establishChannels();
+  ats_free(intrName);
 
-  if (intrName) {
-    xfree(intrName);
-  }
   return;
 }
 
 /*
  * initMgmtProcessServer()
- * - On UNIX, this function sets up the server socket that proxy processes connect to.
- * - On WIN32, named pipes are used instead.
+ *   sets up the server socket that proxy processes connect to.
  */
 void
 LocalManager::initMgmtProcessServer()
@@ -483,7 +409,7 @@ LocalManager::initMgmtProcessServer()
 
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sun_family = AF_UNIX;
-  ink_strncpy(serv_addr.sun_path, fpath, sizeof(serv_addr.sun_path));
+  ink_strlcpy(serv_addr.sun_path, fpath, sizeof(serv_addr.sun_path));
 #if defined(darwin) || defined(freebsd)
   servlen = sizeof(struct sockaddr_un);
 #else
@@ -738,16 +664,16 @@ LocalManager::handleMgmtMsgFromProcesses(MgmtMessageHdr * mh)
       // stype is an enum type, so cast to an int* to avoid warnings. /leif
       int tokens = sscanf(data_raw, "%255s %d %255s", var_name, (int *) &stype, var_value);
       if (tokens != 3) {
-        stype = INVALID;
+        stype = MGMT_INVALID;
       }
       switch (stype) {
-      case INK_INT:
+      case MGMT_INT:
         RecSetRecordInt(var_name, ink_atoi64(var_value));
         break;
-      case INK_COUNTER:
-      case INK_FLOAT:
-      case INK_STRING:
-      case INVALID:
+      case MGMT_COUNTER:
+      case MGMT_FLOAT:
+      case MGMT_STRING:
+      case MGMT_INVALID:
       default:
         mgmt_elog(stderr,
                   "[LocalManager::handleMgmtMsgFromProcesses] " "Invalid plugin set-config msg '%s'\n", data_raw);
@@ -832,12 +758,7 @@ LocalManager::sendMgmtMsgToProcesses(MgmtMessageHdr * mh)
       if (lmgmt->virt_map) {
         lmgmt->virt_map->downAddrs();   /* Down all known addrs to be safe */
       }
-      for (int i = 0; i < MAX_PROXY_SERVER_PORTS; i++) {
-        if (proxy_server_fd[i] != -1) { // Close the socket
-          close_socket(proxy_server_fd[i]);
-          proxy_server_fd[i] = -1;
-        }
-      }
+      this->closeProxyPorts();
       break;
     }
   case MGMT_EVENT_RESTART:
@@ -874,7 +795,7 @@ LocalManager::sendMgmtMsgToProcesses(MgmtMessageHdr * mh)
                 "Invalid 'data_raw' for MGMT_EVENT_CONFIG_FILE_UPDATE\n");
       ink_assert(false);
     }
-    xfree(fname);
+    ats_free(fname);
     break;
   }
 
@@ -958,7 +879,7 @@ LocalManager::signalEvent(int msg_id, const char *data_raw, int data_len)
 {
   MgmtMessageHdr *mh;
 
-  mh = (MgmtMessageHdr *) xmalloc(sizeof(MgmtMessageHdr) + data_len);
+  mh = (MgmtMessageHdr *)ats_malloc(sizeof(MgmtMessageHdr) + data_len);
   mh->msg_id = msg_id;
   mh->data_len = data_len;
   memcpy((char *) mh + sizeof(MgmtMessageHdr), data_raw, data_len);
@@ -1007,8 +928,7 @@ LocalManager::processEventQueue()
       Debug("lm", "[TrafficManager] ==> Sending signal event '%d'\n", mh->msg_id);
       lmgmt->sendMgmtMsgToProcesses(mh);
     }
-
-    xfree(mh);
+    ats_free(mh);
   }
 }
 
@@ -1080,29 +1000,30 @@ LocalManager::startProxy()
     RecSetRecordInt("proxy.node.restarts.proxy.restart_count", proxy_launch_count);
   } else {
     int res, i = 0, n;
-    char real_proxy_options[2048], *options[32], *last, *tok;
+    char real_proxy_options[TS_ARG_MAX], *options[32], *last, *tok;
+    bool open_ports_p = false;
 
     snprintf(real_proxy_options, sizeof(real_proxy_options), "%s", proxy_options);
     n = strlen(real_proxy_options);
 
     // Check if we need to pass down port/fd information to
-    // traffic_server
-    if (proxy_server_fd[0] != -1) {
-      snprintf(&real_proxy_options[n], sizeof(real_proxy_options) - n, " -A");
+    // traffic_server by seeing if there are any open ports.
+    for ( int i = 0, limit = m_proxy_ports.length()
+            ; !open_ports_p && i < limit
+            ; ++i
+    )
+      if (ts::NO_FD != m_proxy_ports[i].m_fd) open_ports_p = true;
+
+    if (open_ports_p) {
+      bool need_comma_p = false;
+      snprintf(&real_proxy_options[n], sizeof(real_proxy_options) - n, " --httpport ");
       n = strlen(real_proxy_options);
-      // Handle some syntax issues
-      if (proxy_server_fd[0] != -1) {
-        snprintf(&real_proxy_options[n], sizeof(real_proxy_options) - n, ",");
-        n = strlen(real_proxy_options);
-      }
-      // Fill in the rest of the fd's
-      if (proxy_server_fd[0] != -1) {
-        snprintf(&real_proxy_options[n], sizeof(real_proxy_options) - n,
-                 "%d:%s", proxy_server_fd[0], (char*)proxy_server_port_attributes[0]);
-        n = strlen(real_proxy_options);
-        for (i = 1; i<MAX_PROXY_SERVER_PORTS && proxy_server_fd[i]> 0; i++) {
-          snprintf(&real_proxy_options[n], sizeof(real_proxy_options) - n,
-                   ",%d:%s", proxy_server_fd[i], (char*)proxy_server_port_attributes[i]);
+      for ( int i = 0, limit = m_proxy_ports.length() ; i < limit ; ++i ) {
+        HttpProxyPort& p = m_proxy_ports[i];
+        if (ts::NO_FD != p.m_fd) {
+          if (need_comma_p) real_proxy_options[n++] = ',';
+          need_comma_p = true;
+          p.print(real_proxy_options+n, sizeof(real_proxy_options)-n);
           n = strlen(real_proxy_options);
         }
       }
@@ -1111,13 +1032,13 @@ LocalManager::startProxy()
     Debug("lm", "[LocalManager::startProxy] Launching %s with options '%s'\n",
           absolute_proxy_binary, real_proxy_options);
 
-    for (i = 0; i < 32; i++)
-      options[i] = NULL;
+    ink_zero(options);
     options[0] = absolute_proxy_binary;
     i = 1;
     tok = ink_strtok_r(real_proxy_options, " ", &last);
     options[i++] = tok;
     while (i < 32 && (tok = ink_strtok_r(NULL, " ", &last))) {
+      Debug("lm", "opt %d = '%s'\n", i, tok);
       options[i++] = tok;
     }
 
@@ -1132,7 +1053,18 @@ LocalManager::startProxy()
   return true;
 }
 
-
+/** Close all open ports.
+ */
+void
+LocalManager::closeProxyPorts() {
+  for ( int i = 0, n = lmgmt->m_proxy_ports.length() ; i < n ; ++i ) {
+    HttpProxyPort& p = lmgmt->m_proxy_ports[i];
+    if (ts::NO_FD != p.m_fd) {
+      close_socket(p.m_fd);
+      p.m_fd = ts::NO_FD;
+    }
+  }
+}
 /*
  * listenForProxy()
  *  Function listens on the accept port of the proxy, so users aren't dropped.
@@ -1144,46 +1076,24 @@ LocalManager::listenForProxy()
     return;
 
   // We are not already bound, bind the port
-  for (int i = 0; i < MAX_PROXY_SERVER_PORTS; i++) {
-    if (proxy_server_port[i] != -1) {
-      if (proxy_server_fd[i] < 0) {
-        int domain = AF_INET;
-        int type = SOCK_STREAM;
-        bool transparent = false;
-
-        switch (*proxy_server_port_attributes[i]) {
-        case 'D':
-          // D is for DNS proxy, udp only
-          type = SOCK_DGRAM;
-          break;
-        case '>': // in-bound (client side) transparent
-        case '=': // fully transparent
-          transparent = true;
-          break;
-        default:
-          type = SOCK_STREAM;
-        }
-
-        switch (*(proxy_server_port_attributes[i] + 1)) {
-        case '6':
-          domain = AF_INET6;
-          break;
-        default:
-          domain = AF_INET;
-        }
-
-        proxy_server_fd[i] = bindProxyPort(proxy_server_port[i], proxy_server_incoming_ip_to_bind_str, domain, transparent, type);
-      }
-
-      if (*proxy_server_port_attributes[i] != 'D') {
-        if ((listen(proxy_server_fd[i], 1024)) < 0) {
-          mgmt_fatal(stderr, "[LocalManager::listenForProxy] Unable to listen on socket: %d\n", proxy_server_port[i]);
-        }
-        mgmt_log(stderr, "[LocalManager::listenForProxy] Listening on port: %d\n", proxy_server_port[i]);
-      } else {
-        break;
-      }
+  for ( int i = 0, n = lmgmt->m_proxy_ports.length() ; i < n ; ++i ) {
+    HttpProxyPort& p = lmgmt->m_proxy_ports[i];
+    if (ts::NO_FD == p.m_fd) {
+      this->bindProxyPort(p);
     }
+
+    // read backlong configuration value and overwrite the default value if found
+    int backlog = 1024;
+    bool found;
+    RecInt config_backlog = REC_readInteger("proxy.config.net.listen_backlog", &found);
+    if (found) {
+      backlog = config_backlog;
+    }
+
+    if ((listen(p.m_fd, backlog)) < 0) {
+      mgmt_fatal(stderr, "[LocalManager::listenForProxy] Unable to listen on socket: %d\n", p.m_port);
+    }
+    mgmt_log(stderr, "[LocalManager::listenForProxy] Listening on port: %d\n", p.m_port);
   }
   return;
 }
@@ -1221,7 +1131,6 @@ elevateFileAccess(bool state)
 //
 //    - Returns true on success
 //      and false on failure
-//    - no-op on WIN32
 bool
 removeRootPriv(uid_t euid)
 {
@@ -1238,7 +1147,6 @@ removeRootPriv(uid_t euid)
 //
 //    - Returns true on success
 //      and false on failure
-//    - no-op on WIN32
 bool
 restoreRootPriv(uid_t *old_euid)
 {
@@ -1258,27 +1166,21 @@ restoreRootPriv(uid_t *old_euid)
 /*
  * bindProxyPort()
  *  Function binds the accept port of the proxy
- *  Also, type specifies udp or tcp
  */
-int
-bindProxyPort(int proxy_port, char *incoming_ip_to_bind_str, int domain, bool transparent, int type)
+void
+LocalManager::bindProxyPort(HttpProxyPort& port)
 {
   int one = 1;
-  int proxy_port_fd = -1;
-  struct addrinfo hints;
-  struct addrinfo *result = NULL;
-  char proxy_port_str[8] = {'\0'};
-  int err = 0;
 
 #if !TS_USE_POSIX_CAP
   bool privBoost = false;
   uid_t euid = geteuid();
   uid_t saved_euid = 0;
 
-  if (proxy_port < 1024 && euid != 0) {
+  if (port.m_port < 1024 && euid != 0) {
     if (restoreRootPriv(&saved_euid) == false) {
       mgmt_elog(stderr, "[bindProxyPort] Unable to get root priviledges to bind port %d. euid is %d.  Exiting\n",
-                proxy_port, euid);
+                port.m_port, euid);
       _exit(0);
     } else {
       privBoost = true;
@@ -1287,25 +1189,36 @@ bindProxyPort(int proxy_port, char *incoming_ip_to_bind_str, int domain, bool tr
 #endif
 
   /* Setup reliable connection, for large config changes */
-  if ((proxy_port_fd = socket(domain, type, 0)) < 0) {
+  if ((port.m_fd = socket(port.m_family, SOCK_STREAM, 0)) < 0) {
     mgmt_elog(stderr, "[bindProxyPort] Unable to create socket : %s\n", strerror(errno));
     _exit(1);
   }
-  if (domain == AF_INET6) {
-    if (setsockopt(proxy_port_fd, IPPROTO_IPV6, IPV6_V6ONLY, ON, sizeof(int)) < 0) {
-      mgmt_elog(stderr, "[bindProxyPort] Unable to set socket options: %d : %s\n", proxy_port, strerror(errno));
+
+  if (port.m_type == HttpProxyPort::TRANSPORT_DEFAULT) {
+    int should_filter_int = 0;
+    bool found;
+    should_filter_int = REC_readInteger("proxy.config.net.defer_accept", &found);
+    if (found && should_filter_int > 0) {
+#if defined(SOL_FILTER) && defined(FIL_ATTACH)
+      (void)setsockopt(port.m_fd, SOL_FILTER, FIL_ATTACH, "httpfilt", 9);
+#endif
     }
   }
-  if (setsockopt(proxy_port_fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int)) < 0) {
-    mgmt_elog(stderr, "[bindProxyPort] Unable to set socket options: %d : %s\n", proxy_port, strerror(errno));
+
+  if (port.m_family == AF_INET6) {
+    if (setsockopt(port.m_fd, IPPROTO_IPV6, IPV6_V6ONLY, SOCKOPT_ON, sizeof(int)) < 0) {
+      mgmt_elog(stderr, "[bindProxyPort] Unable to set socket options: %d : %s\n", port.m_port, strerror(errno));
+    }
+  }
+  if (setsockopt(port.m_fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int)) < 0) {
+    mgmt_elog(stderr, "[bindProxyPort] Unable to set socket options: %d : %s\n", port.m_port, strerror(errno));
     _exit(1);
   }
 
-  if (transparent) {
+  if (port.m_inbound_transparent_p) {
 #if TS_USE_TPROXY
-    int transparent_value = 1;
-    Debug("http_tproxy", "Listen port %d inbound transparency enabled.\n", proxy_port);
-    if (setsockopt(proxy_port_fd, SOL_IP, TS_IP_TRANSPARENT, &transparent_value, sizeof(transparent_value)) == -1) {
+    Debug("http_tproxy", "Listen port %d inbound transparency enabled.\n", port.m_port);
+    if (setsockopt(port.m_fd, SOL_IP, TS_IP_TRANSPARENT, &one, sizeof(one)) == -1) {
       mgmt_elog(stderr, "[bindProxyPort] Unable to set transparent socket option [%d] %s\n", errno, strerror(errno));
       _exit(1);
     }
@@ -1314,29 +1227,29 @@ bindProxyPort(int proxy_port, char *incoming_ip_to_bind_str, int domain, bool tr
 #endif
   }
 
-  snprintf(proxy_port_str, sizeof(proxy_port_str), "%d", proxy_port);
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = domain;
-  hints.ai_socktype = type;
-  hints.ai_flags = AI_PASSIVE;
-
-  err = getaddrinfo(incoming_ip_to_bind_str, proxy_port_str, &hints, &result);
-  if (err != 0) {
-    mgmt_elog(stderr, "[bindProxyPort] Unable to get address info: %s : %s\n", incoming_ip_to_bind_str, gai_strerror(err));
+  IpEndpoint ip;
+  if (port.m_inbound_ip.isValid()) {
+    ip.assign(port.m_inbound_ip);
+  } else if (AF_INET6 == port.m_family) {
+    if (m_inbound_ip6.isValid()) ip.assign(m_inbound_ip6);
+    else ip.setToAnyAddr(AF_INET6);
+  } else if (AF_INET == port.m_family) {
+    if (m_inbound_ip4.isValid()) ip.assign(m_inbound_ip4);
+    else ip.setToAnyAddr(AF_INET);
+  } else {
+    mgmt_elog(stderr, "[bindProxyPort] Proxy port with invalid address type %d\n", port.m_family);
+    _exit(1);
+  }
+  ip.port() = htons(port.m_port);
+  if (bind(port.m_fd, &ip.sa, ats_ip_size(&ip)) < 0) {
+    mgmt_elog(stderr, "[bindProxyPort] Unable to bind socket: %d : %s\n", port.m_port, strerror(errno));
     _exit(1);
   }
 
-  if((bind(proxy_port_fd, result->ai_addr, result->ai_addrlen)) < 0) {
-    mgmt_elog(stderr, "[bindProxyPort] Unable to bind socket: %d : %s\n", proxy_port, strerror(errno));
-    _exit(1);
-  }
-
-  freeaddrinfo(result);
-
-  Debug("lm", "[bindProxyPort] Successfully bound proxy port %d\n", proxy_port);
+  Debug("lm", "[bindProxyPort] Successfully bound proxy port %d\n", port.m_port);
 
 #if !TS_USE_POSIX_CAP
-  if (proxy_port < 1024 && euid != 0) {
+  if (port.m_port < 1024 && euid != 0) {
     if (privBoost == true) {
       if (removeRootPriv(saved_euid) == false) {
         mgmt_elog(stderr, "[bindProxyPort] Unable to reset permissions to euid %d.  Exiting...\n", getuid());
@@ -1345,7 +1258,6 @@ bindProxyPort(int proxy_port, char *incoming_ip_to_bind_str, int domain, bool tr
     }
   }
 #endif
-  return proxy_port_fd;
 }
 
 void

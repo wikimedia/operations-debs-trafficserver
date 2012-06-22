@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  This is the primary include file for the proxy cache system.
 
   @section license License
 
@@ -20,19 +20,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-/****************************************************************************
-
-  Main.h
-
-  This is the primary include file for the proxy cache system.
-
-
- ****************************************************************************/
-
 #ifndef _Main_h_
 #define	_Main_h_
 
+#include <ts/ink_defs.h>
 #include "libts.h"
 #include "Regression.h"
 #include "I_Version.h"
@@ -41,8 +32,6 @@
 //
 // Constants
 //
-#define PATH_NAME_MAX         511
-
 #define ET_CACHE ET_CALL
 
 // TODO: consolidate location of these defaults
@@ -56,9 +45,6 @@
 //
 // Global Configuration
 extern int accept_till_done;
-//extern int ssl_accept_port_number;
-//extern int ssl_enabled;
-extern int http_accept_port_number;
 extern int http_accept_file_descriptor;
 extern int command_flag;
 extern int auto_clear_hostdb_flag;
@@ -99,37 +85,8 @@ maintainance_mode()
 
 void syslog_thr_init();
 
-enum HttpPortTypes
-{
-  SERVER_PORT_DEFAULT = 0,
-  SERVER_PORT_COMPRESSED,
-  SERVER_PORT_BLIND_TUNNEL,
-  SERVER_PORT_SSL
-};
-
-struct HttpPortEntry
-{
-  int fd;
-  HttpPortTypes type;
-};
-
-extern HttpPortEntry *http_port_attr_array;
-
 extern Version version;
 extern AppVersionInfo appVersionInfo;
-
-struct HttpOtherPortEntry
-{
-  int port;
-  int domain;
-  HttpPortTypes type;
-  /// Set if outbound connections (to origin servers) are transparent.
-  bool f_outbound_transparent;
-  /// Set if inbound connects (from client) are/were transparent.
-  bool f_inbound_transparent;
-};
-extern HttpOtherPortEntry *http_other_port_array;
-
 
 #define TS_ReadConfigInteger            REC_ReadConfigInteger
 #define TS_ReadConfigFloat              REC_ReadConfigFloat

@@ -45,12 +45,11 @@ RemapProcessor::start(int num_threads)
 bool
 RemapProcessor::setup_for_remap(HttpTransact::State *s)
 {
-  Debug("url_rewrite", "setting up for remap: %x", s);
+  Debug("url_rewrite", "setting up for remap: %p", s);
   URL *request_url = NULL;
   bool mapping_found = false;
   HTTPHdr *request_header = &s->hdr_info.client_request;
   char **redirect_url = &s->remap_redirect;
-  char **orig_url = &s->unmapped_request_url;
   const char *request_host;
   int request_host_len;
   int request_port;
@@ -91,8 +90,8 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s)
 
   if (rewrite_table->num_rules_forward_with_recv_port) {
     Debug("url_rewrite", "[lookup] forward mappings with recv port found; Using recv port %d",
-          s->client_info.port);
-    if (rewrite_table->forwardMappingWithRecvPortLookup(request_url, s->client_info.port,
+          ats_ip_port_host_order(&s->client_info.addr));
+    if (rewrite_table->forwardMappingWithRecvPortLookup(request_url, ats_ip_port_host_order(&s->client_info.addr),
                                                          request_host, request_host_len, s->url_map)) {
       Debug("url_rewrite", "Found forward mapping with recv port");
       mapping_found = true;
@@ -123,17 +122,12 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s)
       mapping_found = rewrite_table->forwardMappingLookup(request_url, 0, "", 0, s->url_map);
     }
 
-    if (mapping_found && orig_url) {
+    if (mapping_found) {
       // Downstream mapping logic (e.g., self::finish_remap())
       // apparently assumes the presence of the target in the URL, so
       // we need to copy it. Perhaps it's because it's simpler to just
       // do the remap on the URL and then fix the field at the end.
       request_header->set_url_target_from_host_field();
-
-      // TODO: This is pretty slow, and only used for logging. Can we by chance avoid
-      // doing this is nothing is known to need it ? Perhaps the log library could
-      // have a table with status of what resources is necessary.
-      *orig_url = request_url->string_get_ref(NULL);
     }
   }
 
@@ -152,10 +146,8 @@ RemapProcessor::finish_remap(HttpTransact::State *s)
   url_mapping *map = NULL;
   HTTPHdr *request_header = &s->hdr_info.client_request;
   URL *request_url = request_header->url_get();
-  char **orig_url = &s->unmapped_request_url;
   char **redirect_url = &s->remap_redirect;
-  const int host_buf_len = MAXDNAME + 12 + 1 + 1;
-  char host_hdr_buf[host_buf_len], tmp_referer_buf[4096], tmp_redirect_buf[4096], tmp_buf[2048], *c;
+  char host_hdr_buf[TS_MAX_HOST_NAME_LEN], tmp_referer_buf[4096], tmp_redirect_buf[4096], tmp_buf[2048], *c;
   const char *remapped_host;
   int remapped_host_len, remapped_port, tmp;
   int from_len;
@@ -209,17 +201,15 @@ RemapProcessor::finish_remap(HttpTransact::State *s)
               break;
             case 'f':
             case 't':
-              remapped_host =
-                (rc->type == 'f') ? map->fromURL.string_get_buf(tmp_buf, (int) sizeof(tmp_buf),
-                                                                &from_len) : ((s->url_map).getToURL())->string_get_buf(tmp_buf, (int)
-                                                                                                       sizeof(tmp_buf),
-                                                                                                       &from_len);
+              remapped_host = (rc->type == 'f') ?
+                map->fromURL.string_get_buf(tmp_buf, (int) sizeof(tmp_buf), &from_len) :
+                ((s->url_map).getToURL())->string_get_buf(tmp_buf, (int)sizeof(tmp_buf), &from_len);
               if (remapped_host && from_len > 0) {
                 c = &tmp_buf[0];
               }
               break;
             case 'o':
-              c = *orig_url;
+              c = s->pristine_url.string_get_ref(NULL);
               break;
             };
 
@@ -228,15 +218,15 @@ RemapProcessor::finish_remap(HttpTransact::State *s)
             }
           }
           tmp_redirect_buf[sizeof(tmp_redirect_buf) - 1] = 0;
-          *redirect_url = xstrdup(tmp_redirect_buf);
+          *redirect_url = ats_strdup(tmp_redirect_buf);
         }
       } else {
-        *redirect_url = xstrdup(rewrite_table->http_default_redirect_url);
+        *redirect_url = ats_strdup(rewrite_table->http_default_redirect_url);
       }
 
       if (*redirect_url == NULL) {
-        *redirect_url =
-          xstrdup(map->filter_redirect_url ? map->filter_redirect_url : rewrite_table->http_default_redirect_url);
+        *redirect_url = ats_strdup(map->filter_redirect_url ? map->filter_redirect_url :
+                                   rewrite_table->http_default_redirect_url);
       }
 
       return false;
@@ -251,42 +241,42 @@ RemapProcessor::finish_remap(HttpTransact::State *s)
   const char *host_hdr = request_header->value_get(MIME_FIELD_HOST, MIME_LEN_HOST, &host_len);
 
   if (request_url && host_hdr != NULL && s->txn_conf->maintain_pristine_host_hdr == 0) {
-    remapped_host = request_url->host_get(&remapped_host_len);
-    remapped_port = request_url->port_get_raw();
-
     // Debug code to print out old host header.  This was easier before
     //  the header conversion.  Now we have to copy to gain null
     //  termination for the Debug() call
     if (is_debug_tag_set("url_rewrite")) {
       int old_host_hdr_len;
-      char *old_host_hdr = (char *) request_header->value_get(MIME_FIELD_HOST,
-                                                              MIME_LEN_HOST,
-                                                              &old_host_hdr_len);
+      char *old_host_hdr = (char *) request_header->value_get(MIME_FIELD_HOST, MIME_LEN_HOST, &old_host_hdr_len);
+
       if (old_host_hdr) {
-        old_host_hdr = xstrndup(old_host_hdr, old_host_hdr_len);
+        old_host_hdr = ats_strndup(old_host_hdr, old_host_hdr_len);
         Debug("url_rewrite", "Host: Header before rewrite %.*s", old_host_hdr_len, old_host_hdr);
-        xfree(old_host_hdr);
+        ats_free(old_host_hdr);
       }
     }
     //
     // Create the new host header field being careful that our
     //   temporary buffer has adequate length
     //
-    if (host_buf_len > remapped_host_len) {
+    remapped_host = request_url->host_get(&remapped_host_len);
+    remapped_port = request_url->port_get_raw();
+
+    if (TS_MAX_HOST_NAME_LEN > remapped_host_len) {
       tmp = remapped_host_len;
       memcpy(host_hdr_buf, remapped_host, remapped_host_len);
       if (remapped_port) {
-        tmp += snprintf(host_hdr_buf + remapped_host_len, host_buf_len - remapped_host_len - 1, ":%d", remapped_port);
+        tmp += snprintf(host_hdr_buf + remapped_host_len, TS_MAX_HOST_NAME_LEN - remapped_host_len - 1,
+                        ":%d", remapped_port);
     }
     } else {
-      tmp = host_buf_len;
+      tmp = TS_MAX_HOST_NAME_LEN;
     }
 
     // It is possible that the hostname is too long.  If it is punt,
     //   and remove the host header.  If it is too long the HostDB
     //   won't be able to resolve it and the request will not go
     //   through
-    if (tmp >= host_buf_len) {
+    if (tmp >= TS_MAX_HOST_NAME_LEN) {
       request_header->field_delete(MIME_FIELD_HOST, MIME_LEN_HOST);
       Debug("url_rewrite", "Host: Header too long after rewrite");
     } else {
@@ -308,7 +298,7 @@ RemapProcessor::perform_remap(Continuation *cont, HttpTransact::State *s)
   host_hdr_info *hh_info = &(s->hh_info);
 
   if (!map) {
-    Error("Could not find corresponding url_mapping for this transaction %x", s);
+    Error("Could not find corresponding url_mapping for this transaction %p", s);
     Debug("url_rewrite", "Could not find corresponding url_mapping for this transaction");
     ink_debug_assert(!"this should never happen -- call setup_for_remap first");
     cont->handleEvent(EVENT_REMAP_ERROR, NULL);

@@ -46,9 +46,9 @@ public:
    * @param ip IP address of the host
    * @return Number of connections
    */
-  int getCount(const unsigned int ip) {
+  int getCount(const IpEndpoint& addr) {
     ink_mutex_acquire(&_mutex);
-    int count = _hostCount.get(ip);
+    int count = _hostCount.get(ConnAddr(addr));
     ink_mutex_release(&_mutex);
     return count;
   }
@@ -58,12 +58,28 @@ public:
    * @param ip IP address of the host
    * @param delta Default is +1, can be set to negative to decrement
    */
-  void incrementCount(const unsigned int ip, const int delta = 1) {
+  void incrementCount(const IpEndpoint& addr, const int delta = 1) {
+    ConnAddr caddr(addr);
     ink_mutex_acquire(&_mutex);
-    int count = _hostCount.get(ip);
-    _hostCount.put(ip, count + delta);
+    int count = _hostCount.get(caddr);
+    _hostCount.put(caddr, count + delta);
     ink_mutex_release(&_mutex);
   }
+
+  struct ConnAddr {
+    IpEndpoint _addr;
+
+    ConnAddr() { ink_zero(_addr); }
+    ConnAddr(int x) { ink_release_assert(x == 0); ink_zero(_addr); }
+    ConnAddr(const IpEndpoint& addr) : _addr(addr) { }
+    operator bool() { return ats_is_ip(&_addr); }
+  };
+  
+  class ConnAddrHashFns {
+  public:
+      static uintptr_t hash(ConnAddr& addr) { return (uintptr_t) ats_ip_hash(&addr._addr.sa); }
+      static int equal(ConnAddr& a, ConnAddr& b) { return ats_ip_addr_eq(&a._addr, &b._addr); }
+  };
 
 private:
   // Hide the constructor and copy constructor
@@ -71,7 +87,7 @@ private:
   ConnectionCount(const ConnectionCount & x) { NOWARN_UNUSED(x); }
 
   static ConnectionCount _connectionCount;
-  Map<unsigned int, int> _hostCount;
+  HashMap<ConnAddr, ConnAddrHashFns, int> _hostCount;
   static ink_mutex _mutex;
 };
 

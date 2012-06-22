@@ -55,15 +55,17 @@ bin_PROGRAMS = traffic_shell$(EXEEXT) traffic_line$(EXEEXT)
 subdir = mgmt/cli
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/common.m4 \
-	$(top_srcdir)/build/crypto.m4 $(top_srcdir)/build/libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -72,6 +74,12 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 ARFLAGS = cru
+AM_V_AR = $(am__v_AR_$(V))
+am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
+am__v_AR_0 = @echo "  AR    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 libtrafficshell_a_AR = $(AR) $(ARFLAGS)
 libtrafficshell_a_LIBADD =
 am_libtrafficshell_a_OBJECTS = CliCreateCommands.$(OBJEXT) \
@@ -89,7 +97,10 @@ traffic_line_OBJECTS = $(am_traffic_line_OBJECTS)
 traffic_line_DEPENDENCIES =  \
 	$(top_builddir)/mgmt/api/remote/libtsmgmt.la \
 	$(top_builddir)/lib/ts/libtsutil.la
-traffic_line_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
+AM_V_lt = $(am__v_lt_$(V))
+am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
+am__v_lt_0 = --silent
+traffic_line_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(traffic_line_LDFLAGS) $(LDFLAGS) -o $@
 am_traffic_shell_OBJECTS = cliAppInit.$(OBJEXT) cliMain.$(OBJEXT)
@@ -100,31 +111,49 @@ traffic_shell_DEPENDENCIES = libtrafficshell.a \
 	$(top_builddir)/mgmt/tools/libinkconfigapi.a \
 	$(top_builddir)/mgmt/utils/libutils_lm.a \
 	$(top_builddir)/lib/ts/libtsutil.la $(am__DEPENDENCIES_1)
-traffic_shell_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(traffic_shell_LDFLAGS) $(LDFLAGS) -o $@
+traffic_shell_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_shell_LDFLAGS) $(LDFLAGS) \
+	-o $@
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
-LTCXXCOMPILE = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CXXFLAGS) $(CXXFLAGS)
+AM_V_CXX = $(am__v_CXX_$(V))
+am__v_CXX_ = $(am__v_CXX_$(AM_DEFAULT_VERBOSITY))
+am__v_CXX_0 = @echo "  CXX   " $@;
 CXXLD = $(CXX)
-CXXLINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
-	$(LDFLAGS) -o $@
+CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CXXLD = $(am__v_CXXLD_$(V))
+am__v_CXXLD_ = $(am__v_CXXLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CXXLD_0 = @echo "  CXXLD " $@;
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
 CCLD = $(CC)
-LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
-	$(LDFLAGS) -o $@
+LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libtrafficshell_a_SOURCES) $(traffic_line_SOURCES) \
 	$(traffic_shell_SOURCES)
 DIST_SOURCES = $(libtrafficshell_a_SOURCES) $(traffic_line_SOURCES) \
@@ -137,6 +166,7 @@ pkglibdir = @pkglibdir@
 pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -190,10 +220,10 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBDEMANGLE = @LIBDEMANGLE@
 LIBDL = @LIBDL@
-LIBEV = @LIBEV@
 LIBEXC = @LIBEXC@
 LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
+LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
@@ -230,6 +260,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PCRE_CONFIG = @PCRE_CONFIG@
 PERL = @PERL@
 RANLIB = @RANLIB@
 RM = @RM@
@@ -260,6 +291,7 @@ TS_VERSION_NUMBER = @TS_VERSION_NUMBER@
 TS_VERSION_STRING = @TS_VERSION_STRING@
 VERSION = @VERSION@
 YACC = @YACC@
+YACCBIN = @YACCBIN@
 YFLAGS = @YFLAGS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -276,6 +308,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -305,6 +338,7 @@ execinfoh = @execinfoh@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
 exp_datadir = @exp_datadir@
+exp_docdir = @exp_docdir@
 exp_exec_prefix = @exp_exec_prefix@
 exp_includedir = @exp_includedir@
 exp_infodir = @exp_infodir@
@@ -326,17 +360,19 @@ has_backtrace = @has_backtrace@
 has_clock_gettime = @has_clock_gettime@
 has_demangle = @has_demangle@
 has_eventfd = @has_eventfd@
+has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_inkapi = @has_inkapi@
+has_ip_tos = @has_ip_tos@
 has_lrand48_r = @has_lrand48_r@
 has_posix_fadvise = @has_posix_fadvise@
 has_posix_memalign = @has_posix_memalign@
 has_profiler = @has_profiler@
-has_purify = @has_purify@
+has_so_mark = @has_so_mark@
 has_srand48_r = @has_srand48_r@
 has_standalone_iocore = @has_standalone_iocore@
 has_strlcat = @has_strlcat@
 has_strlcpy = @has_strlcpy@
-has_strndup = @has_strndup@
+has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
 host = @host@
@@ -345,6 +381,7 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
+ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
 ink_with_modules_def = @ink_with_modules_def@
@@ -355,6 +392,7 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 is_micro_build = @is_micro_build@
+jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
 libgenh = @libgenh@
@@ -367,6 +405,9 @@ malloch = @malloch@
 mandir = @mandir@
 mathh = @mathh@
 max_api_stats = @max_api_stats@
+max_event_threads = @max_event_threads@
+max_host_name_len = @max_host_name_len@
+max_threads_per_type = @max_threads_per_type@
 mkdir_p = @mkdir_p@
 need_union_semun = @need_union_semun@
 net_ppp_defsh = @net_ppp_defsh@
@@ -382,6 +423,7 @@ pcreh = @pcreh@
 pdfdir = @pdfdir@
 pkgbindir = @pkgbindir@
 pkgcachedir = @pkgcachedir@
+pkgdocdir = @pkgdocdir@
 pkglocalstatedir = @pkglocalstatedir@
 pkglogdir = @pkglogdir@
 pkgruntimedir = @pkgruntimedir@
@@ -392,9 +434,11 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
 rel_datadir = @rel_datadir@
+rel_docdir = @rel_docdir@
 rel_exec_prefix = @rel_exec_prefix@
 rel_includedir = @rel_includedir@
 rel_infodir = @rel_infodir@
@@ -433,10 +477,13 @@ top_srcdir = @top_srcdir@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
+use_freelist = @use_freelist@
+use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
-use_libev = @use_libev@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_tls_npn = @use_tls_npn@
+use_tls_sni = @use_tls_sni@
 use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
@@ -444,6 +491,8 @@ zlibh = @zlibh@
 SUFFIXES = .java .class .jar .my .def .stb .html
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
+  -I$(top_srcdir)/lib \
+  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/tools
 
@@ -498,7 +547,8 @@ traffic_shell_LDADD = \
   $(top_builddir)/mgmt/tools/libinkconfigapi.a \
   $(top_builddir)/mgmt/utils/libutils_lm.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  $(LIBTCL) @LIBDL@ -lm @LIBICONV@ @LIBEXPAT@ @LIBSSL@ \
+  $(LIBTCL) $(LIBREADLINE) \
+  @LIBDL@ -lm @LIBICONV@ @LIBEXPAT@ @LIBSSL@ \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ \
   @LIBRT@ @LIBEXECINFO@ @LIBPCRE@
 
@@ -547,9 +597,9 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libtrafficshell.a: $(libtrafficshell_a_OBJECTS) $(libtrafficshell_a_DEPENDENCIES) 
-	-rm -f libtrafficshell.a
-	$(libtrafficshell_a_AR) libtrafficshell.a $(libtrafficshell_a_OBJECTS) $(libtrafficshell_a_LIBADD)
-	$(RANLIB) libtrafficshell.a
+	$(AM_V_at)-rm -f libtrafficshell.a
+	$(AM_V_AR)$(libtrafficshell_a_AR) libtrafficshell.a $(libtrafficshell_a_OBJECTS) $(libtrafficshell_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libtrafficshell.a
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(MKDIR_P) "$(DESTDIR)$(bindir)"
@@ -595,10 +645,10 @@ clean-binPROGRAMS:
 	rm -f $$list
 traffic_line$(EXEEXT): $(traffic_line_OBJECTS) $(traffic_line_DEPENDENCIES) 
 	@rm -f traffic_line$(EXEEXT)
-	$(traffic_line_LINK) $(traffic_line_OBJECTS) $(traffic_line_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(traffic_line_LINK) $(traffic_line_OBJECTS) $(traffic_line_LDADD) $(LIBS)
 traffic_shell$(EXEEXT): $(traffic_shell_OBJECTS) $(traffic_shell_DEPENDENCIES) 
 	@rm -f traffic_shell$(EXEEXT)
-	$(traffic_shell_LINK) $(traffic_shell_OBJECTS) $(traffic_shell_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(traffic_shell_LINK) $(traffic_shell_OBJECTS) $(traffic_shell_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -624,22 +674,25 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/processArgument.Po@am__quote@
 
 .cc.o:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ $<
 
 .cc.obj:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
 .cc.lo:
-@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LTCXXCOMPILE) -c -o $@ $<
