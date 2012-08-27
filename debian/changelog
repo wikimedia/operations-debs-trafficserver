@@ -1,4 +1,4 @@
-trafficserver (3.2.0-1) UNRELEASED; urgency=low
+trafficserver (3.2.0-1) unstable; urgency=low
 
   * NOT RELEASED YET
   * New upstream release
@@ -6,7 +6,7 @@ trafficserver (3.2.0-1) UNRELEASED; urgency=low
     distribution. These are all bundled into the main package now. Therefore,
     the trafficserver-plugin-conf-remap package is not provided anymore.
 
- -- Arno Töll <arno@debian.org>  Mon, 27 Aug 2012 15:05:34 +0200
+ -- Arno Töll <arno@debian.org>  Mon, 27 Aug 2012 23:25:45 +0200
 
 trafficserver (3.0.5-1) unstable; urgency=low
 
