@@ -3,3 +3,5 @@ debian/tmp/var/cache/*
 debian/tmp/usr/bin/traffic_*
 debian/tmp/etc/trafficserver/*
 debian/tmp/usr/lib/trafficserver/libts*.so.*
+debian/tmp/usr/lib/trafficserver/modules/*
+usr/share/doc/trafficserver/trafficshell/*

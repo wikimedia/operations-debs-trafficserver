@@ -4,6 +4,6 @@ STATUS
 REVIEWERS
 README
 README-EC2
-README.libev
 debian/README.Debian
 debian/CONFIGURATION.Debian
+debian/README.conf-remap.Debian

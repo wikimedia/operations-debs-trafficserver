@@ -14,6 +14,9 @@ Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/tr
 Package: trafficserver
 Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
+Provides: trafficserver-plugin-conf-remap
+Replaces: trafficserver-plugin-conf-remap (<< 3.2~)
+Conflicts: trafficserver-plugin-conf-remap (<< 3.2~)
 Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well. Apache Traffic Server
@@ -25,12 +28,6 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
    * Scaling: Scales well on modern SMP hardware.
    * Extensions: Use the API to modify anything from the HTTP headers to your
      own cache algorithm.
-
-Package: trafficserver-plugin-conf-remap
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
-Depends: ${shlibs:Depends}, ${misc:Depends}, trafficserver (= ${binary:Version})
-Description: Apache Traffic Server conf_remap plugin
- This package provides the conf_remap plugin for Apache Traffic Server.
 
 Package: trafficserver-dev
 Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf

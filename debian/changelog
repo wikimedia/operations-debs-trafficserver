@@ -2,8 +2,11 @@ trafficserver (3.2.0-1) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
   * New upstream release
+  * Upstream decided to ship more plug-ins with the trafficserver core
+    distribution. These are all bundled into the main package now. Therefore,
+    the trafficserver-plugin-conf-remap package is not provided anymore.
 
- -- Arno Töll <arno@debian.org>  Fri, 22 Jun 2012 14:27:02 +0200
+ -- Arno Töll <arno@debian.org>  Mon, 27 Aug 2012 15:05:34 +0200
 
 trafficserver (3.0.5-1) unstable; urgency=low
 
