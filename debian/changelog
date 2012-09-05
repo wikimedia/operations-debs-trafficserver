@@ -5,8 +5,10 @@ trafficserver (3.2.0-1) unstable; urgency=low
   * Upstream decided to ship more plug-ins with the trafficserver core
     distribution. These are all bundled into the main package now. Therefore,
     the trafficserver-plugin-conf-remap package is not provided anymore.
+  * Update the default configuration file to ship with more moderate values
+    for the log configuration.
 
- -- Arno Töll <arno@debian.org>  Mon, 27 Aug 2012 23:25:45 +0200
+ -- Arno Töll <arno@debian.org>  Wed, 05 Sep 2012 03:43:58 +0200
 
 trafficserver (3.0.5-1) unstable; urgency=low
 
