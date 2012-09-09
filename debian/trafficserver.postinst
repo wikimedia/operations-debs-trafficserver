@@ -95,12 +95,13 @@ configure)
                 else
                     # using /bin/echo to make sure -e is supported
                     ECHO=`which echo`
-                    $ECHO "===================================================================="
-                    $ECHO -e "Warning: Apache TrafficServer is running or its\n" \
-                    "status could not be determined, therefore the upgrade does\n" \
-                    "not purge the host cache. Please call 'traffic_server -Cclear' manually.\n"
-                    $ECHO "===================================================================="
-                fi
+                    $ECHO "======================================================================="
+                    $ECHO -e "WARNING: Apache TrafficServer is not running or its state couldn't be\n" \
+                        "determined. Please inspect the situation manually and call\n" \
+                        "'traffic_server -Cclear' afterwards to purge the caches.\n"
+                    $ECHO "======================================================================="
+
+               fi
         fi
 ;;
 
