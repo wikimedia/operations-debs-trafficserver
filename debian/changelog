@@ -2,13 +2,24 @@ trafficserver (3.2.0-1) unstable; urgency=low
 
   * NOT RELEASED YET
   * New upstream release
+    + If you are using SSL or HTTP filtering, please update your configuration.
+      proxy.config.http.quick_filter.mask  and
+      proxy.config.ssl.server.cert.filename is not recognized anymore. Please
+      use ip_allow.config and ssl_multicert.config respectively instead.
+      There is no automated migration for this in Debian, as this affects your
+      site-specific configuration files.
+    + See https://cwiki.apache.org/confluence/display/TS/Upgrading+to+3.2 for
+      full upgrade instructions.
   * Upstream decided to ship more plug-ins with the trafficserver core
     distribution. These are all bundled into the main package now. Therefore,
     the trafficserver-plugin-conf-remap package is not provided anymore.
   * Update the default configuration file to ship with more moderate values
     for the log configuration.
+  * Now do start ATS by default for fresh installations. The default
+    out-of-the box configuration is much more secure than past defaults.
+  * Purge the host and data cache on upgrades
 
- -- Arno Töll <arno@debian.org>  Wed, 05 Sep 2012 03:43:58 +0200
+ -- Arno Töll <arno@debian.org>  Sun, 09 Sep 2012 20:14:01 +0200
 
 trafficserver (3.0.5-1) unstable; urgency=low
 

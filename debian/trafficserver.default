@@ -16,7 +16,7 @@
 ## Default: no
 ## Description: Set to "yes" if you want the init script to start the
 ##              `traffic_cop' binary. Usually this is what most users want
-TC_START=no
+TC_START=yes
 
 ## Variable: TC_DAEMON_ARGS
 ## Default: (empty)

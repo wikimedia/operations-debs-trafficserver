@@ -82,6 +82,25 @@ configure)
 			fi
 		fi
 	fi
+
+        if [ -n "$2" ] && dpkg --compare-versions "$2" 'le' '3.2~' ; then
+                RET=0
+                invoke-rc.d trafficserver status > /dev/null 2>&1 || RET=$?
+                # 0 => ATS is running
+                # 4 => Status is unknown
+                # 1,2,3 => ATS is not running
+                if [ "$RET" -gt 0 ] && [ "$RET" -ne 4 ] && [ -f /var/cache/trafficserver/host.db ] ; then
+                        echo "Purging TrafficServer cache upon upgrade."
+                        traffic_server -Cclear > /dev/null 2>&1
+                else
+                    # using /bin/echo to make sure -e is supported
+                    echo "===================================================================="
+                    /bin/echo -e "Warning: Apache TrafficServer is running or its\n" \
+                    "status could not be determined, therefore the upgrade does\n" \
+                    "not purge the host cache. Please call 'traffic_server -Cclear' manually.\n"
+                    echo "===================================================================="
+                fi
+        fi
 ;;
 
 abort-upgrade|abort-remove|abort-deconfigure)
