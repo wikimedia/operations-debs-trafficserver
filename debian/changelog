@@ -1,6 +1,7 @@
-trafficserver (3.2.0-1) unstable; urgency=low
+trafficserver (3.2.0-1) UNRELEASED; urgency=low
 
-  * NOT RELEASED YET
+  * NOT RELEASED YET. DO NOT USE THIS PACKAGE IN PRODUCTION
+
   * New upstream release
     + If you are using SSL or HTTP filtering, please update your configuration.
       proxy.config.http.quick_filter.mask  and
@@ -19,7 +20,7 @@ trafficserver (3.2.0-1) unstable; urgency=low
     out-of-the box configuration is much more secure than past defaults.
   * Purge the host and data cache on upgrades
 
- -- Arno Töll <arno@debian.org>  Sun, 09 Sep 2012 20:14:01 +0200
+ -- Arno Töll <arno@debian.org>  Sun, 09 Sep 2012 21:30:05 +0200
 
 trafficserver (3.0.5-1) unstable; urgency=low
 
