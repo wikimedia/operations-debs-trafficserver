@@ -1,6 +1,297 @@
                                                          -*- coding: utf-8 -*-
 
+Changes with Apache Traffic Server 2.1.8
+  *) [TS-750] TS does not fail-over if one origin server for a 2 address
+   hostname. Author: William Bardwell.
+
+  *) [TS-752] If you cancel a scan really quickly you can get a NULL
+  dereference. Also other important performance and correctness fixes
+  for the cache scanning code. Author: William Bardwell and jplevyak.
+
+  *) [TS-749] Connection hangs if origin server goes down in the middle of
+  a response. Author: William Bardwell.
+
+  *) [TS-753] TS-753 Some more cleanup in InkAPI, move a few experimental
+   APIs to ts.h
+
+  *) [TS-751] Experimental TSHttpTxnCacheLookupStatusSet(HIT_STALE) calls
+   cause a crash. Author: William Bardwell
+
+  *) [TS-748] Client side transparency doesn't work on trunk.
+
+  *) [TS-702] FATAL: MIME.cc:1250: failed assert `j < block_count`.
+  Author: Yakov Markovitch
+
+  *) [TS-746] Allow to remove URL fields with "NULL" (or 0) values.
+
+  *) [TS-744] Configurations to control SSL session reuse and cache
+  size. Authors: qianshi and Leif
+
+  *) [TS-716] Bug where NetVC could be double free'd.
+   Fix for DNS crash: bad memory management of HostEnt structures. It is
+   not clear that this fixes the bug entirely.  Some of the stack traces
+   are consistent with this bug, but some are not.  
+
+  *) [TS-743] Support separate configs for keep-alive enabled for _in
+   and _out connections.
+
+  *) [TS-741] traffic_manager handles sockets incorrectly.
+
+  *) [TS-742] assert triggered wrongly (in debug builds).
+
+  *) [TS-740] Traffic Server fails to build on kfreebsd.
+   Author: Arno Toell.
+
+  *) [TS-737] Small hackish fix for rc/trafficserver.in so rc/trafficserver
+   will work with FreeBSD. Author: G Todd.
+
+  *) [TS-735] Disable ccache by default, use with --enable-ccache.
+
+  *) [TS-734] Remove unused fields in net stats pages.
+
+  *) [TS-212] Startup service support for Solaris. Author: Igor Brezac.
+
+  *) [TS-629] fix some non-portable char == unsigned char assumptions.
+
+  *) [TS-621] Update records.config.default.in with changed / removed
+   configs.
+
+  *) [TS-641] Remove a bunch of Web UI related configs and code.
+
+  *) [TS-719] libtsutil.so is not self-contained.
+  Author: Igor Brezac.
+
+  *) [TS-729] Fix bugs with Via Headers handling. (Note: This is
+   unlikely to have caused the crash the bug report)
+   Author Leif Hedstrom
+
+  *) [TS-721] Incorrect http hit ratio in stats.
+   This also removes a number of obsoleted stats and also disables
+   stats aggregation in WebOverview.cc, one more nail to WebUI's
+   grave. Author: Leif Hedstrom
+
+  *) [TS-728] Remove the --enable-webui option, since it doesn't
+   produce a running webui anyway. Also remove html2
+
+  *) [TS-685] Rename partition.config because it doesn't have
+   anything todo with disks. Also rename all code related to it
+   so as not to confuse anybody.
+
+  *) [TS-714] Fix traffic_shell hanging on every command
+
+  *) [TS-562] Fix TCL linking to honor custom library dirs.
+   Author: Eric Connell.
+
+  *) [TS-624] make install should not overwrite etc/trafficserver/.
+   Author: Eric Connell.
+
+  *) [TS-465] Allow for existing Server: string to not be overwritten.
+   This adds a new semantic for the value "2" to this option.
+
+  *) [TS-633] Fix reverse mapping with different schemes.
+   Author: Andreas Hartke.
+
+  *) [TS-715] Fixes and cleanup for Perl client. Author: Billy Vierra.
+
+  *) TS-550 Remove an unused / unsupported debug tool. Also update the
+   remap code to use our standard linked list (Queue in this case).
+
+  *) [TS-704] Link traffic_server dynamically to make distros happy,
+  since --disable-static will work.
+
+  *) [TS-545] Clean out more cruft from MIXT legacy.
+
+  *) [TS-713] Honor the offset within do_io_pread.
+
+  *) [TS-712] Fix compile problems with clang / llvm
+
+  *) [TS-545] parent.config (and perhaps other configs) have an unused
+   concept of "tags" for MIXT media. Cleanup remaining MIXT junk.
+
+Changes with Apache Traffic Server 2.1.7
+  *) [TS-711] Don't schedule remap.config reloads on a network threads.
+   We now schedule this task on an ET_TASK thread, which avoids blocking
+   a net-thread for several seconds (when reloading very large remaps).
+
+  *) [TS-710] Do not dlopen / reload a remap plugin .so more than once.
+
+  *) [TS-588] Change Remap plugin APIs to use URL TSMLoc, and normal
+   ts/ts.h APIs for getting and setting components.
+
+  *) [TS-708] TsConfig doesn't handle backslashes correctly.
+
+  *) [TS-209] add support for raw disk on Solaris: credits: Igor Brezac
+    for both the code and testing!
+
+  *) [TS-705] Fixes for compiling with gcc v4.6.
+
+  *) [TS-706] hardware sector size's over 8K current report an Error
+   but are passed through resulting in lots of disk waste.
+
+  *) [TS-707] The random number generator from 1-23-2011 is using the
+   same seed for all threads = collisions in the cache
+
+  *) [TS-700] Need additional controls in cache.config.
+
+  *) [TS-696] make check fails on libtsutil due to missing libresolv
+   and librt. Author: Eric Connell.
+
+  *) [TS-691] LogFilter not working for "int" types.
+   Author: Eric Connell.
+
+  *) [TS-692] Add an experimental API to modify the outgoing IP address.
+
+  *) TS-676: logic in Store::clear and Store::read_config is wrong.
+  Author: mohan_zl.
+
+  *) [TS-680] Change many typedef void* types to anonymous structs.
+
+  *) [TS-690] Schedule some callbacks on the ET_TASK threads
+
+  *) TS-689 Restore TSMgmtUpdateRegister() to the SDK APIs.
+
+  *) [TS-550] Remove MgmtPlugin.{cc,h}.
+
+  *) [TS-657] Proper validation of RWW settings on startup.
+
+  *) [TS-688] Remove the "tag" modifier from parent.config.
+
+  *) [TS-682] Segfault when partition.config is used.
+
+  *) [TS-687] Build failures on FreeBSD8
+
+  *) [TS-684] config.layout for gentoo linux, may also be used on Fedora
+
+  *) [TS-675] Make redirect and reverse maps work again.
+
+
+Changes with Apache Traffic Server 2.1.6
+
+  *) [TS-678] Add a config option for try-lock retry delay.
+    
+   This adds a configuration option
+    
+         proxy.config.cache.mutex_retry_delay INT 2
+    
+   2ms seems to be fairly optimal, with little detrimental effect on CPU
+   usage. We'll fine tune this further in the next release.
+
+  *) [TS-674] Fixes for cache.config and the "modifiers" to work.
+
+  *) [TS-641] Remove inktomi*.css and some files only referenced by it.
+   Removing mgmt/html2/charting. Remove the now empty mgmt/html2/tune.
+
+  *) [TS-590] Cleanup all SDK APIs to be more consistent. This changes a
+   large number of APIs, so please check updated docs and signatures in
+   ts/ts.h. A new tools, tools/apichecker.pl, can be used to help
+   identifying areas in existing plugins that might need changes.
+
+  *) [TS-673] Make the default configurations more conservative
+   for when content is cacheable.
+
+  *) [TS-672] Remove unused/unreferenced Win32 header files and
+   code paths
+
+  *) [TS-671] Detect install group based on install user.
+
+  *) [TS-644] Fix clustered cache pages crash.
+
+  *) [TS-651] Clear all stats when we ask to clear the local stats.
+
+  *) [TS-489] Remove the "connection collapsing" feature, it was poorly
+   implemented, and caused major problem if enabled. We should redo this
+   for v3.1 in a way that fits with the HttpSM [author: mohan_zl].
+
+  *) [TS-668] Add support for URL stats to traffic_logstats.
+
+  *) [TS-665] Remove HTTP_ASSERT from the code base, use standard asserts.
+
+  *) [TS-663, TS-664] Fixes to WCCP with mask assignments, and trunk build
+   problems.
+
+  *) [TS-662] Make per partition stats for bytes_used work.
+
+  *) [TS-661] Delay the copy of per transaction configs until a plugin
+   actually tries to modify a setting. We also add these settings to the
+   list of configurations that is overridable:
+
+       proxy.config.http.cache.max_open_read_retries
+       proxy.config.http.cache.open_read_retry_time
+
+  *) [TS-660] Cache scan can not be canceled.
+
+  *) [TS-505, TS-506] Changed the defaults to deal with read contention on
+   the cache, this dramatically improves the performance on cache misses.
+
+  *) [TS-655] Reorganize some code to reduce binary foot prints.
+
+  *) [TS-653] Bogus logcat conversion of squid timestamps.
+
+  *) [TS-643] Unable to purge objects on other servers in full cluster mode.
+
+  *) New 64-bit random generator.
+
+  *) [TS-639] Rename the management APIs from INK* to TS*.
+
+  *) [TS-650] Remove the dead v2 stats code.
+
+  *) [TS-649] Dynamic libraries for mgmt APIs.
+    
+    This makes libts -> libtsutil, and we now support making .so's for
+    libtsutil.so and libtsmgmt.so. All binaries are changed to use this,
+    except traffic_server which continues to use the libtsutil.a library
+    (for performance on e.g. 32-bit platforms).
+    
+    This also renames the public API include file to be
+    
+         #include <ts/mgmtapi.h>
+
+
+  *) [TS-647] Move Layout out of iocore and into lib/ts.
+
+  *) [TS-638] Rename various directories:
+      proxy/mgmt -> mgmt/
+      proxy/mgmt/cop -> cop/
+
+   All "cli" APIs are now also migrated into mgmt/cli, unified into one
+   single cli.
+
+  *) [TS-641] Cleanup of Web2/HTML2.
+
+  *) [TS-636, TS-637] Remove various unused source files.
+
+  *) [TS-631] Rename proxy/http2 -> proxy/http and proxy/mgmt2 to proxy/mgmt.
+
+  *) [TS-582] Add an example to records.config for how to bind a specific IP.
+
+  *) [TS-491] Cluster port was activated even with clustering disabled. This fix also
+   adds monitoring support for the "cli" unix domain socket.
+
+  *) [TS-593] Cleanup of inktomi.com.
+
+  *) [TS-324] Cleaning up some old TCL files and dependencies.
+
+  *) Remove traces of FTP references [TS-324] by purging the now useless TCL
+  bindings to it.
+
+  *) [TS-513] Fix configure issues for sqlite3. This fix eliminates all of
+  SimpleDBM, sqlite3 and bdb dependencies. It also fixes the "make
+  distclean" problem, and clean things up a bit.
+
+  *) [TS-491] Add the CLI interface to Traffic Cop, and make it possible to
+   run traffic_manager without listening on the cluster port.
+
+  *) [TS-583] Build fails if --disable-webui is added.
+
+  *) [TS-618] Removing traces of CCAS/CCASFLAGS.
+
+  *) [TS-627] Fixes for "make check" to succeed (author: Arno Toell). 
+
+  *) [TS-632] Fixes for bad cast and cleanup for Intel CC.
+
+
 Changes with Apache Traffic Server 2.1.5
+
   *) More 64-bit issues has been identified in the SDK and HTTP core, and
   fixed [TS-620].
 
@@ -198,9 +489,11 @@ Changes with Apache Traffic Server 2.1.5
   *) Various defines for version identification has been moved to the public
    ts/ts.h include file, e.g.
 
-     #define TS_VERSION_STRING "2.1.5-unstable" define TS_VERSION_NUMBER
-     #2001005 define TS_VERSION_MAJOR 2 define TS_VERSION_MINOR 1 define
-     #TS_VERSION_MICRO 5
+       #define TS_VERSION_STRING             "2.1.6-unstable"
+       #define TS_VERSION_NUMBER              2001006
+       #define TS_VERSION_MAJOR               2
+       #define TS_VERSION_MINOR               1
+       #define TS_VERSION_MICRO               6
 
    The intended use is for plugins to be able to verify available APIs at
    compile time (vs the existing runtime checks) [TS-534].

@@ -251,12 +251,12 @@
         Filters have the form (field op value), where "field" can either be
         %shn (server host name) or %sdn (sever domain name); "op" can either
         be == or !=; and "value" can be any valid hostname or domain name,
-        such as hoot.inktomi.com or inktomi.com.
+        such as hoot.example.com or example.com.
 
       - Sample entries in the log format file:
 
         1 common () "%chi - %cun [%cqtf] \"%cqtx\" %pss %pcl"
-        2 custom (%shn == hoot.inktomi.com) "%cqu"
+        2 custom (%shn == hoot.example.com) "%cqu"
   @endverbatim
 
   @section api External API
@@ -357,10 +357,12 @@ public:
   {
     return (logging_mode == FULL_LOGGING || logging_mode == LOG_TRANSACTIONS_ONLY);
   }
+
   inkcoreapi static bool error_logging_enabled()
   {
     return (logging_mode == FULL_LOGGING || logging_mode == LOG_ERRORS_ONLY);
   }
+
   inkcoreapi static int access(LogAccess * lad);
   inkcoreapi static int error(const char *format, ...);
 #else

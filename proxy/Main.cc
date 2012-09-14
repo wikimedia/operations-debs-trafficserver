@@ -47,10 +47,6 @@ extern "C" int plock(int);
 #include <mcheck.h>
 #endif
 
-#if TS_USE_POSIX_CAP
-#include <sys/capability.h>
-#endif
-
 #include "Main.h"
 #include "signals.h"
 #include "Error.h"
@@ -95,9 +91,7 @@ extern "C" int plock(int);
 
 #include "I_Tasks.h"
 
-#if TS_HAS_V2STATS
-#include "StatSystemV2.h"
-#endif
+#include <ts/ink_cap.h>
 
 #if TS_HAS_PROFILER
 #include <google/profiler.h>
@@ -153,10 +147,10 @@ int lock_process = DEFAULT_LOCK_PROCESS;
 extern int fds_limit;
 extern int cluster_port_number;
 extern int cache_clustering_enabled;
-char cluster_host[DOMAIN_NAME_MAX + 1] = DEFAULT_CLUSTER_HOST;
+char cluster_host[MAXDNAME + 1] = DEFAULT_CLUSTER_HOST;
 
 //         = DEFAULT_CLUSTER_PORT_NUMBER;
-char proxy_name[DOMAIN_NAME_MAX + 1] = "unknown";
+char proxy_name[MAXDNAME + 1] = "unknown";
 char command_string[512] = "";
 int remote_management_flag = DEFAULT_REMOTE_MANAGEMENT_FLAG;
 
@@ -172,7 +166,7 @@ char error_tags[1024] = "";
 char action_tags[1024] = "";
 int show_statistics = 0;
 int history_info_enabled = 1;
-inkcoreapi Diags *diags = NULL;
+//inkcoreapi Diags *diags = NULL;
 inkcoreapi DiagsConfig *diagsConfig = NULL;
 HttpBodyFactory *body_factory = NULL;
 int diags_init = 0;             // used by process manager
@@ -1065,23 +1059,6 @@ init_core_size()
   }
 }
 
-#if TS_USE_POSIX_CAP
-// Restore the effective capabilities that we need.
-int
-restoreCapabilities() {
-  int zret = 0; // return value.
-  cap_t cap_set = cap_get_proc(); // current capabilities
-  // Capabilities to restore.
-  cap_value_t cap_list[] = { CAP_NET_ADMIN, CAP_NET_BIND_SERVICE };
-  static int const CAP_COUNT = sizeof(cap_list)/sizeof(*cap_list);
-
-  cap_set_flag(cap_set, CAP_EFFECTIVE, CAP_COUNT, cap_list, CAP_SET);
-  zret = cap_set_proc(cap_set);
-  cap_free(cap_set);
-  return zret;
-}
-#endif
-
 static void
 adjust_sys_settings(void)
 {
@@ -1114,9 +1091,6 @@ adjust_sys_settings(void)
 #endif
 
 #endif  // linux check
-#if TS_USE_POSIX_CAP
-  restoreCapabilities();
-#endif
 }
 
 struct ShowStats: public Continuation
@@ -1279,6 +1253,8 @@ syslog_log_configure()
     closelog();
     openlog("traffic_server", LOG_PID | LOG_NDELAY | LOG_NOWAIT, facility);
   }
+  // TODO: Not really, what's up with this?
+  Debug("server", "Setting syslog facility to %d\n", syslog_facility);
 }
 
 // void syslog_thr_init()
@@ -1299,28 +1275,12 @@ check_system_constants()
 {
 }
 
-/*
-static void
-init_logging()
-{
-  //  iObject::Init();
-  //  iLogBufferBuffer::Init();
-}
-*/
-
 static void
 init_http_header()
 {
-  char internal_config_dir[PATH_NAME_MAX + 1];
-
-  ink_filepath_make(internal_config_dir, sizeof(internal_config_dir),
-                    system_config_directory, "internal");
-
-  url_init(internal_config_dir);
-  mime_init(internal_config_dir);
-  http_init(internal_config_dir);
-  //extern void init_http_auth();
-  //init_http_auth();
+  url_init();
+  mime_init();
+  http_init();
 }
 
 static void
@@ -1538,10 +1498,12 @@ change_uid_gid(const char *user)
 
   char *buf = (char *)xmalloc(buflen);
 
-  if (geteuid()) {
-    // Not running as root
-    Debug("server",
-          "Can't change user to : %s because running with effective uid=%d",
+  if (0 != geteuid() && 0 == getuid()) seteuid(0); // revert euid if possible.
+  if (0 != geteuid()) {
+    // Not root so can't change user ID. Logging isn't operational yet so
+    // we have to write directly to stderr. Perhaps this should be fatal?
+    fprintf(stderr,
+          "Can't change user to '%s' because running with effective uid=%d",
           user, geteuid());
   }
   else {
@@ -1588,45 +1550,6 @@ change_uid_gid(const char *user)
   }
   xfree(buf);
 }
-
-#if TS_HAS_V2STATS
-void init_stat_collector()
-{
-    static int stat_collection_interval;
-    static int stat_collector_port;
-    static int max_stats_allowed = 0;
-    static int num_stats_estimate = 0;
-
-    // Read config variables
-    TS_ReadConfigInteger(stat_collection_interval, "proxy.config.stat_collector.interval");
-    TS_ReadConfigInteger(stat_collector_port, "proxy.config.stat_collector.port");
-    TS_ReadConfigInteger(max_stats_allowed, "proxy.config.stat_systemV2.max_stats_allowed");
-    TS_ReadConfigInteger(num_stats_estimate, "proxy.config.stat_systemV2.num_stats_estimate");
-    // TODO: This seems unused
-    // TS_ReadConfigInteger(temp, "proxy.config.cache.threads_per_disk");
-
-    // Set to default if not defined in config file
-    if(!stat_collector_port) {
-        stat_collector_port = 8091;
-    }
-    if(!stat_collection_interval) {
-        stat_collection_interval = 600;
-    }
-
-    if(max_stats_allowed) {
-        StatSystemV2::setMaxStatsAllowed((uint32_t)max_stats_allowed);
-    }
-
-    if(num_stats_estimate) {
-        StatSystemV2::setNumStatsEstimate((uint32_t)num_stats_estimate);
-    }
-    StatSystemV2::init();
-
-    StatCollectorContinuation::setStatCommandPort(stat_collector_port);
-    eventProcessor.schedule_every(NEW (new StatCollectorContinuation()),
-                                  HRTIME_SECONDS(stat_collection_interval), ET_CALL);
-}
-#endif
 
 //
 // Main
@@ -1716,6 +1639,27 @@ main(int argc, char **argv)
   if (!num_task_threads)
     TS_ReadConfigInteger(num_task_threads, "proxy.config.task_threads");
 
+  // change the user of the process
+  // do this before we start threads so we control the user id of the
+  // threads (rather than have it change asynchronously during thread
+  // execution). We also need to do this before we fiddle with capabilities
+  // as those are thread local and if we change the user id it will
+  // modified the capabilities in other threads, breaking things.
+  const long max_login =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
+  char *user = (char *)xmalloc(max_login);
+  *user = '\0';
+  if ((TS_ReadConfigString(user, "proxy.config.admin.user_id",
+                           max_login) == REC_ERR_OKAY) &&
+                           user[0] != '\0' &&
+                           strcmp(user, "#-1")) {
+    PreserveCapabilities();
+    change_uid_gid(user);
+    RestrictCapabilities();
+    xfree(user);
+  }
+  // Can't generate a log message yet, do that right after Diags is
+  // setup.
+
   // This call is required for win_9xMe
   //without this this_ethread() is failing when
   //start_HttpProxyServer is called from main thread
@@ -1734,6 +1678,7 @@ main(int argc, char **argv)
   diags->prefix_str = "Server ";
   if (is_debug_tag_set("diags"))
     diags->dump();
+  DebugCapabilities("server"); // Can do this now, logging is up.
 
   // Check for core file
   if (core_file[0] != '\0') {
@@ -1795,21 +1740,14 @@ main(int argc, char **argv)
   // on a thread changes require special consideration to allow
   // minimial Cache Clustering functionality.
   //////////////////////////////////////////////////////////////////////
-  int cluster_type = 0;
-  //kwt
-  //ReadLocalInteger(cluster_type, "proxy.config.cluster.type");
-  RecInt temp_int;
-  RecGetRecordInt("proxy.local.cluster.type", &temp_int);
-  cluster_type = (int) temp_int;
-  if (cluster_type == 1) {
-    cache_clustering_enabled = 1;
-    Note("cache clustering enabled");
-  } else {
-    cache_clustering_enabled = 0;
-    /* 3com does not want these messages to be seen */
-    Note("cache clustering disabled");
+  RecInt cluster_type;
+  cache_clustering_enabled = 0;
 
+  if (RecGetRecordInt("proxy.local.cluster.type", &cluster_type) == REC_ERR_OKAY) {
+    if (cluster_type == 1)
+      cache_clustering_enabled = 1;
   }
+  Note("cache clustering %s", cache_clustering_enabled ? "enabled" : "disabled");
 
   // Initialize New Stat system
   initialize_all_global_stats();
@@ -1824,11 +1762,6 @@ main(int argc, char **argv)
   ink_dns_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
   ink_split_dns_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
   eventProcessor.start(num_of_net_threads);
-
-#if TS_HAS_V2STATS
-  // Must be called after starting event processor
-  init_stat_collector();
-#endif
 
   int use_separate_thread = 0;
   int num_remap_threads = 1;
@@ -1887,9 +1820,7 @@ main(int argc, char **argv)
 #endif
 
     cacheProcessor.start();
-
     udpNet.start(num_of_udp_threads);   // XXX : broken for __WIN32
-
     sslNetProcessor.start(getNumSSLThreads());
 
 #ifndef INK_NO_LOG
@@ -1970,11 +1901,6 @@ main(int argc, char **argv)
 
     if (http_enabled) {
       start_HttpProxyServer(http_accept_file_descriptor, http_accept_port_number, ssl_accept_file_descriptor, num_accept_threads);
-      int hashtable_enabled = 0;
-      TS_ReadConfigInteger(hashtable_enabled, "proxy.config.connection_collapsing.hashtable_enabled");
-      if (hashtable_enabled) {
-        cacheProcessor.hashtable_tracker.createHashTable();
-      }
     }
 #ifndef INK_NO_ICP
     icpProcessor.start();
@@ -2016,22 +1942,6 @@ main(int argc, char **argv)
 
     run_AutoStop();
   }
-
-  // change the user of the process
-  const long max_login =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
-  char *user = (char *)xmalloc(max_login);
-  *user = '\0';
-  if ((TS_ReadConfigString(user, "proxy.config.admin.user_id",
-                           max_login) == REC_ERR_OKAY) &&
-                           user[0] != '\0' &&
-                           strcmp(user, "#-1")) {
-    change_uid_gid(user);
-    xfree(user);
-  }
-  Debug("server",
-        "running as uid=%u, gid=%u, effective uid=%u, gid=%u",
-        (unsigned)getuid(), (unsigned)getgid(),
-        (unsigned)geteuid(), (unsigned)getegid());
 
   this_thread()->execute();
 }

@@ -17,12 +17,15 @@
 #  limitations under the License.
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_atomic test_freelist test_arena test_List
+check_PROGRAMS = test_atomic test_freelist test_arena test_List test_Map test_Vec
 TESTS = $(check_PROGRAMS)
-noinst_LIBRARIES = libts.a
 
-#libts_a_CCASFLAGS = -Wa,-32
-libts_a_SOURCES = \
+lib_LTLIBRARIES = libtsutil.la
+
+libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
+libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ -lc
+
+libtsutil_la_SOURCES = \
   Allocator.cc \
   Allocator.h \
   Arena.cc \
@@ -36,6 +39,7 @@ libts_a_SOURCES = \
   DynArray.h \
   HostLookup.cc \
   HostLookup.h \
+  defalloc.h \
   ink_aiocb.h \
   ink_align.h \
   ink_apidefs.h \
@@ -49,6 +53,7 @@ libts_a_SOURCES = \
   ink_base64.cc \
   ink_base64.h \
   ink_bool.h \
+  ink_cap.cc ink_cap.h \
   ink_code.cc \
   ink_code.h \
   ink_defs.cc \
@@ -116,6 +121,8 @@ libts_a_SOURCES = \
   List.h \
   llqueue.cc \
   lockfile.cc \
+  I_Layout.h \
+  Layout.cc \
   MatcherUtils.cc \
   MatcherUtils.h \
   MimeTable.cc \
@@ -123,6 +130,7 @@ libts_a_SOURCES = \
   MMH.cc \
   MMH.h \
   ParseRules.h \
+  ParseRules.cc \
   Ptr.h \
   RawHashTable.cc \
   RawHashTable.h \
@@ -132,38 +140,43 @@ libts_a_SOURCES = \
   Regression.h \
   Resource.cc \
   Resource.h \
-  SimpleDBM.cc \
-  SimpleDBM.h \
   SimpleTokenizer.h \
   TextBuffer.cc \
   TextBuffer.h \
   Tokenizer.cc \
   Tokenizer.h \
+  Vec.h \
+  Vec.cc \
+  Map.h \
   Version.cc
 
-libts_a_LIBADD = ParseRules.o @LIBOBJS@
+# Special hacks to generate the parser rules
+ParseRules.cc: ParseRulesCType
+
+ParseRulesCType: CompileParseRules
+	./CompileParseRules
 
 mkdfa_SOURCES = mkdfa.c
 
 test_atomic_SOURCES = test_atomic.cc
-test_atomic_LDADD = libts.a @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 
 test_freelist_SOURCES = test_freelist.cc
-test_freelist_LDADD = libts.a @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 
 test_arena_SOURCES = test_arena.cc
-test_arena_LDADD = libts.a @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 
 test_List_SOURCES = test_List.cc
+test_Map_SOURCES = test_Map.cc
+test_Map_LDADD = libtsutil.la
+test_Vec_SOURCES = test_Vec.cc
+test_Vec_LDADD = libtsutil.la
 
 CompileParseRules_SOURCES = CompileParseRules.cc
-
-ParseRules.o: ParseRules.cc CompileParseRules
-	./CompileParseRules
-	$(CXXCOMPILE) -c $<
 
 test:: $(TESTS)
 	for f in $(TESTS) ; do $$f ; done

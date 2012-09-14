@@ -650,8 +650,7 @@ LogObject::roll_files_if_needed(long time_now)
       // remaining until the next roll, but we calculate this figure
       // every time ...
       //
-      int secs_to_next = LogUtils::seconds_to_next_roll(time_now, m_rolling_offset_hr,
-                                                        m_rolling_interval_sec);
+      int secs_to_next = LogUtils::seconds_to_next_roll(time_now, m_rolling_offset_hr, m_rolling_interval_sec);
 
       // ... likewise, we make sure we compute the absolute value
       // of the seconds since the last roll (which would otherwise
@@ -939,28 +938,15 @@ LogObjectManager::_solve_filename_conflicts(LogObject * log_object, int maxConfl
     bool conflicts = true;
 
     if (meta_info.file_open_successful()) {
-      if (meta_info.pre_panda_metafile()) {
-        // assume no conflicts if pre-panda metafile and
-        // write Panda style metafile with old creation_time and
-        // signature of the object requesting filename
-        //
-        time_t creation_time = 0;
-        meta_info.get_creation_time(&creation_time);
-        MetaInfo new_meta_info(filename, creation_time, log_object->get_signature());
+      bool got_sig = meta_info.get_log_object_signature(&signature);
+      uint64_t obj_sig = log_object->get_signature();
+      if (got_sig && signature == obj_sig) {
         conflicts = false;
-        Warning("Assuming no format conflicts exist for %s", filename);
-        Note("Added object_signature to metafile of %s", filename);
-      } else {
-        bool got_sig = meta_info.get_log_object_signature(&signature);
-        uint64_t obj_sig = log_object->get_signature();
-        if (got_sig && signature == obj_sig) {
-          conflicts = false;
-        }
-        Debug("log", "LogObjectManager::_solve_filename_conflicts\n"
-              "\tfilename = %s\n"
-              "\tmeta file signature = %" PRIu64 "\n"
-              "\tlog object signature = %" PRIu64 "\n" "\tconflicts = %d", filename, signature, obj_sig, conflicts);
       }
+      Debug("log", "LogObjectManager::_solve_filename_conflicts\n"
+            "\tfilename = %s\n"
+            "\tmeta file signature = %" PRIu64 "\n"
+            "\tlog object signature = %" PRIu64 "\n" "\tconflicts = %d", filename, signature, obj_sig, conflicts);
     }
 
     if (conflicts) {
@@ -1172,7 +1158,7 @@ size_t LogObjectManager::flush_buffers(size_t * to_disk, size_t * to_net, size_t
 }
 
 
-int
+bool
 LogObjectManager::unmanage_api_object(LogObject * logObject)
 {
   ACQUIRE_API_MUTEX("A LogObjectManager::unmanage_api_object");
@@ -1189,11 +1175,11 @@ LogObjectManager::unmanage_api_object(LogObject * logObject)
 
       --_numAPIobjects;
       RELEASE_API_MUTEX("R LogObjectManager::unmanage_api_object");
-      return 1;
+      return true;
     }
   }
   RELEASE_API_MUTEX("R LogObjectManager::unmanage_api_object");
-  return 0;
+  return false;
 }
 
 void

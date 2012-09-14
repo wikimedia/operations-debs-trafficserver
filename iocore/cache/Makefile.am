@@ -19,8 +19,7 @@
 if STANDALONE_IOCORE
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -DSYSCONFDIR=\"$(sysconfdir)\"
+  -I$(top_srcdir)/lib/records
 
 ADD_SRC =
 else
@@ -29,12 +28,11 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_srcdir)/proxy/http2 \
-  -I$(top_srcdir)/proxy/http2/remap \
-  -I$(top_srcdir)/proxy/mgmt2 \
-  -I$(top_srcdir)/proxy/mgmt2/preparse \
-  -I$(top_srcdir)/proxy/mgmt2/utils \
-  -DSYSCONFDIR=\"$(sysconfdir)\"
+  -I$(top_srcdir)/proxy/http \
+  -I$(top_srcdir)/proxy/http/remap \
+  -I$(top_srcdir)/mgmt \
+  -I$(top_srcdir)/mgmt/preparse \
+  -I$(top_srcdir)/mgmt/utils
 
 ADD_SRC =
 if BUILD_TESTS
@@ -56,7 +54,7 @@ libinkcache_a_SOURCES = \
   CacheLink.cc \
   CachePages.cc \
   CachePagesInternal.cc \
-  CachePart.cc \
+  CacheVol.cc \
   CacheRead.cc \
   CacheWrite.cc \
   I_Cache.h \
@@ -69,7 +67,7 @@ libinkcache_a_SOURCES = \
   P_CacheHosting.h \
   P_CacheHttp.h \
   P_CacheInternal.h \
-  P_CachePart.h \
+  P_CacheVol.h \
   P_RamCache.h \
   RamCacheLRU.cc \
   RamCacheCLFUS.cc \

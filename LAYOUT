@@ -19,15 +19,12 @@ The Traffic Server 2.1 Default LAYOUT
 |   `-- trafficserver
 |-- share
 |   `-- trafficserver
-|       |-- agent-installer
-|       |-- charting
 |       |-- configure
 |       |   `-- helper
 |       |-- images
 |       |-- include
 |       |-- monitor
-|       |-- mrtg
-|       `-- tune
+|       `-- mrtg
 `-- var
     |-- log
     |   `-- trafficserver ... Log files

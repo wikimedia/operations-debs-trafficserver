@@ -65,9 +65,8 @@ static void
 my_data_destroy(MyData * data)
 {
   if (data) {
-    if (data->output_buffer) {
-      TSAssert(TSIOBufferDestroy(data->output_buffer) == TS_SUCCESS);
-    }
+    if (data->output_buffer)
+      TSIOBufferDestroy(data->output_buffer);
     TSfree(data);
   }
 }
@@ -94,10 +93,6 @@ handle_transform(TSCont contp)
    * vconnection).
    */
   input_vio = TSVConnWriteVIOGet(contp);
-  if (input_vio == TS_ERROR_PTR) {
-    TSError("[null-transform] Unable to fetching input VIO\n");
-    goto Lerror;
-  }
 
   /* Get our data structure for this operation. The private data
    * structure contains the output VIO and output buffer. If the
@@ -113,10 +108,7 @@ handle_transform(TSCont contp)
     //data->output_vio = TSVConnWrite(output_conn, contp, data->output_reader, INT32_MAX);
     data->output_vio = TSVConnWrite(output_conn, contp, data->output_reader, INT64_MAX);
     // data->output_vio = TSVConnWrite(output_conn, contp, data->output_reader, TSVIONBytesGet(input_vio));
-    if (TSContDataSet(contp, data) == TS_ERROR) {
-      TSError("[null-transform] unable to set continuation " "data!\n");
-      goto Lerror;
-    }
+    TSContDataSet(contp, data);
   }
 
   /* We also check to see if the input VIO's buffer is non-NULL. A
@@ -129,22 +121,9 @@ handle_transform(TSCont contp)
    */
   buf_test = TSVIOBufferGet(input_vio);
 
-  if (buf_test) {
-    if (buf_test == TS_ERROR_PTR) {
-      TSError("[null-transform] error fetching buffer\n");
-      goto Lerror;
-    }
-  } else {
-    if (TSVIONBytesSet(data->output_vio, TSVIONDoneGet(input_vio)) == TS_ERROR) {
-      TSError("[null-transform] error seting output VIO nbytes\n");
-      goto Lerror;
-    }
-
-    if (TSVIOReenable(data->output_vio) == TS_ERROR) {
-      TSError("[null-transform] error reenabling output VIO\n");
-      goto Lerror;
-    }
-
+  if (!buf_test) {
+    TSVIONBytesSet(data->output_vio, TSVIONDoneGet(input_vio));
+    TSVIOReenable(data->output_vio);
     return;
   }
 
@@ -167,35 +146,18 @@ handle_transform(TSCont contp)
 
     if (towrite > 0) {
       /* Copy the data from the read buffer to the output buffer. */
-      if (TSIOBufferCopy(TSVIOBufferGet(data->output_vio), TSVIOReaderGet(input_vio), towrite, 0) == TS_ERROR) {
-        TSError("[null-plugin] unable to copy IO buffers\n");
-        goto Lerror;
-      }
-      /* For testing bad 64-bit */
-#if 0
-      printf("wrote %d\n", (int)towrite);
-      sleep(1);
-#endif
+      TSIOBufferCopy(TSVIOBufferGet(data->output_vio), TSVIOReaderGet(input_vio), towrite, 0);
 
       /* Tell the read buffer that we have read the data and are no
        * longer interested in it.
        */
-      if (TSIOBufferReaderConsume(TSVIOReaderGet(input_vio), towrite) == TS_ERROR) {
-        TSError("[null-plugin] unable to update VIO reader\n");
-        goto Lerror;
-      }
+      TSIOBufferReaderConsume(TSVIOReaderGet(input_vio), towrite);
 
       /* Modify the input VIO to reflect how much data we've
        * completed.
        */
-      if (TSVIONDoneSet(input_vio, TSVIONDoneGet(input_vio) + towrite) == TS_ERROR) {
-        TSError("[null-plugin] unable to update VIO\n");
-        goto Lerror;
-      }
+      TSVIONDoneSet(input_vio, TSVIONDoneGet(input_vio) + towrite);
     }
-  } else if (towrite == TS_ERROR) {
-    TSError("[null-plugin] error fetching VIO to-do amount\n");
-    goto Lerror;
   }
 
   /* Now we check the input VIO to see if there is data left to
@@ -208,10 +170,8 @@ handle_transform(TSCont contp)
        * the output connection and allow it to consume data from the
        * output buffer.
        */
-      if (TSVIOReenable(data->output_vio) == TS_ERROR) {
-        TSError("[null-plugin] error reenabling transaction\n");
-        goto Lerror;
-      }
+      TSVIOReenable(data->output_vio);
+
       /* Call back the input VIO continuation to let it know that we
        * are ready for more data.
        */
@@ -225,20 +185,13 @@ handle_transform(TSCont contp)
      * that it can consume the data we just gave it.
      */
     TSVIONBytesSet(data->output_vio, TSVIONDoneGet(input_vio));
-    if (TSVIOReenable(data->output_vio) == TS_ERROR) {
-      TSError("[null-plugin] error reenabling transaction\n");
-      goto Lerror;
-    }
+    TSVIOReenable(data->output_vio);
 
     /* Call back the input VIO continuation to let it know that we
      * have completed the write operation.
      */
     TSContCall(TSVIOContGet(input_vio), TS_EVENT_VCONN_WRITE_COMPLETE, input_vio);
   }
-
-
-Lerror:
-  return;
 }
 
 static int
@@ -252,7 +205,7 @@ null_transform(TSCont contp, TSEvent event, void *edata)
   if (TSVConnClosedGet(contp)) {
     TSDebug("null-transform", "\tVConn is closed");
     my_data_destroy(TSContDataGet(contp));
-    TSAssert(TSContDestroy(contp) == TS_SUCCESS);
+    TSContDestroy(contp);
     return 0;
   } else {
     switch (event) {
@@ -280,7 +233,7 @@ null_transform(TSCont contp, TSEvent event, void *edata)
        * shutdown the write portion of its connection to
        * indicate that we don't want to hear about it anymore.
        */
-      TSAssert(TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1) != TS_ERROR);
+      TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
       break;
     case TS_EVENT_VCONN_WRITE_READY:
       TSDebug("null-transform", "\tEvent is TS_EVENT_VCONN_WRITE_READY");
@@ -331,9 +284,7 @@ transform_add(TSHttpTxn txnp)
 
   TSDebug("null-transform", "Entering transform_add()");
   connp = TSTransformCreate(null_transform, txnp);
-  if (TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp) == TS_ERROR) {
-    TSError("[null-plugin] Unable to attach plugin to transaction\n");
-  }
+  TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp);
 }
 
 static int
@@ -349,10 +300,7 @@ transform_plugin(TSCont contp, TSEvent event, void *edata)
       transform_add(txnp);
     }
 
-    if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) == TS_ERROR) {
-      TSError("[null-plugin] Alert! unable to continue " "the HTTP transaction\n");
-      return -1;
-    }
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     return 0;
   default:
     break;
@@ -396,7 +344,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
+  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("[null-transform] Plugin registration failed.\n");
     goto Lerror;
   }
@@ -406,11 +354,7 @@ TSPluginInit(int argc, const char *argv[])
     goto Lerror;
   }
 
-  if (TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, NULL)) == TS_ERROR) {
-    TSError("[null-transform] Unable to set READ_RESPONSE_HDR_HOOK\n");
-    goto Lerror;
-  }
-
+  TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, NULL));
   return;
 
 Lerror:
