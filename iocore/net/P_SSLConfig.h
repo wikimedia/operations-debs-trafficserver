@@ -85,7 +85,6 @@ public:
   int getAcceptPort(void) const { return ssl_accept_port_number; }
   char *getConfigFilePath(void) const { return configFilePath; }
   char *getServerCertPathOnly(void) const { return serverCertPathOnly; }
-  char *getServerCACertPathOnly(void) const { return CACertPath; }
   char *getServerKeyPathOnly(void) const { return serverKeyPathOnly; }
 
   SslConfigParams();
@@ -107,7 +106,6 @@ private:
   char *cswiftAccelLibPath;
   char *atallaAccelLibPath;
   char *broadcomAccelLibPath;
-  char *cipherSuite;
   int clientCertLevel;
   int verify_depth;
   int ssl_accept_port_number;

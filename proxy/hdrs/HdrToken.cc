@@ -336,36 +336,27 @@ DFA *hdrtoken_strs_dfa = NULL;
 struct HdrTokenHashBucket
 {
   const char *wks;
-  uint32_t hash;
 };
 
 HdrTokenHashBucket hdrtoken_hash_table[HDRTOKEN_HASH_TABLE_SIZE];
 
+#define TINY_MASK(x) (((u_int32_t)1<<(x))-1)
+
 /**
   basic FNV hash
 **/
-#define TINY_MASK(x) (((u_int32_t)1<<(x))-1)
-
-inline uint32_t
-hash_to_slot(uint32_t hash)
-{
-  return ((hash>>15) ^ hash) & TINY_MASK(15);
-}
-
-inline uint32_t
+inline unsigned int
 hdrtoken_hash(const unsigned char *string, unsigned int length)
 {
-  static const uint32_t InitialFNV = 2166136261U;
-  static const int32_t FNVMultiple = 16777619;
+  const uint32_t InitialFNV = 2166136261U;
+  const int32_t FNVMultiple = 16777619;
 
   uint32_t hash = InitialFNV;
-
-  for (size_t i = 0; i < length; i++)  {
+  for(size_t i = 0; i < length; i++)  {
       hash = hash ^ (toupper(string[i])); 
       hash = hash * FNVMultiple;          
   }
-
-  return hash;
+  return (((hash>>15) ^ hash) & TINY_MASK(15));
 }
 
 /*-------------------------------------------------------------------------
@@ -507,6 +498,7 @@ const char *_hdrtoken_commonly_tokenized_strs[] = {
   // Header extensions
   "X-Forwarded-For",
   "TE",
+  
 };
 
 /*-------------------------------------------------------------------------
@@ -515,12 +507,14 @@ const char *_hdrtoken_commonly_tokenized_strs[] = {
 void
 hdrtoken_hash_init()
 {
-  uint32_t i;
+  unsigned int i;
   int num_collisions;
 
-  memset(hdrtoken_hash_table, 0, sizeof(hdrtoken_hash_table));
-  num_collisions = 0;
+  for (i = 0; i < HDRTOKEN_HASH_TABLE_SIZE; i++) {
+    hdrtoken_hash_table[i].wks = NULL;
+  }
 
+  num_collisions = 0;
   for (i = 0; i < (int) SIZEOF(_hdrtoken_commonly_tokenized_strs); i++) {
     // convert the common string to the well-known token
     unsigned const char *wks;
@@ -529,18 +523,14 @@ hdrtoken_hash_init()
                                         (const char **) &wks);
     ink_release_assert(wks_idx >= 0);
 
-    uint32_t hash = hdrtoken_hash(wks, hdrtoken_str_lengths[wks_idx]);
-    uint32_t slot = hash_to_slot(hash);
-
+    unsigned int slot = hdrtoken_hash(wks, hdrtoken_str_lengths[wks_idx]);
     if (hdrtoken_hash_table[slot].wks) {
       printf("ERROR: hdrtoken_hash_table[%u] collision: '%s' replacing '%s'\n",
              slot, (const char*)wks, hdrtoken_hash_table[slot].wks);
       ++num_collisions;
     }
-    hdrtoken_hash_table[slot].wks = (const char *)wks;
-    hdrtoken_hash_table[slot].hash = hash;
+    hdrtoken_hash_table[slot].wks = (const char *) wks;
   }
-
   if (num_collisions > 0)
     abort();
 }
@@ -558,7 +548,7 @@ hdrtoken_hash_init()
 static inline unsigned int
 snap_up_to_multiple(unsigned int n, unsigned int unit)
 {
-  return ((n + (unit - 1)) / unit) * unit;
+  return (((n + (unit - 1)) / unit) * unit);
 }
 
 /*-------------------------------------------------------------------------
@@ -682,7 +672,7 @@ hdrtoken_tokenize_dfa(const char *string, int string_len, const char **wks_strin
   }
   //printf("hdrtoken_tokenize_dfa(%d,*s) - return %d\n",string_len,string,wks_idx);
 
-  return wks_idx;
+  return (wks_idx);
 }
 
 /*-------------------------------------------------------------------------
@@ -700,23 +690,19 @@ hdrtoken_tokenize(const char *string, int string_len, const char **wks_string_ou
     wks_idx = hdrtoken_wks_to_index(string);
     if (wks_string_out)
       *wks_string_out = string;
-    return wks_idx;
+    return (wks_idx);
   }
 
-  uint32_t hash = hdrtoken_hash((const unsigned char *) string, (unsigned int) string_len);
-  uint32_t slot = hash_to_slot(hash);
-
+  unsigned int slot = hdrtoken_hash((const unsigned char *) string, (unsigned int) string_len);
   bucket = &(hdrtoken_hash_table[slot]);
   if ((bucket->wks != NULL) &&
-      (bucket->hash == hash) &&
       (hdrtoken_wks_to_length(bucket->wks) == string_len)) {
     wks_idx = hdrtoken_wks_to_index(bucket->wks);
     if (wks_string_out)
       *wks_string_out = bucket->wks;
-    return wks_idx;
+    return (wks_idx);
   }
 
-  Debug("hdr_token", "Did not find a WKS for '%.*s'", string_len, string);
   return -1;
 }
 
@@ -728,7 +714,7 @@ hdrtoken_string_to_wks(const char *string)
 {
   const char *wks = NULL;
   hdrtoken_tokenize(string, (int) strlen(string), &wks);
-  return wks;
+  return (wks);
 }
 
 /*-------------------------------------------------------------------------
@@ -739,5 +725,5 @@ hdrtoken_string_to_wks(const char *string, int length)
 {
   const char *wks = NULL;
   hdrtoken_tokenize(string, length, &wks);
-  return wks;
+  return (wks);
 }

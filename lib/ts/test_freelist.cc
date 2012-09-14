@@ -75,13 +75,15 @@ test(void *d)
 int
 main(int argc, char *argv[])
 {
+  ink_thread threads[NTHREADS];
+  //void *status;
   int i;
 
   flist = ink_freelist_create("woof", 64, 256, 0, 8);
 
   for (i = 0; i < NTHREADS; i++) {
     fprintf(stderr, "Create thread %d\n", i);
-    ink_thread_create(test, (void *)((intptr_t)i));
+    threads[i] = ink_thread_create(test, (void *) i);
   }
 
   test((void *) NTHREADS);

@@ -105,9 +105,9 @@ am_libtsutil_la_OBJECTS = Allocator.lo Arena.lo Bitops.lo Diags.lo \
 	ink_mutex.lo ink_queue.lo ink_queue_utils.lo ink_rand.lo \
 	ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
 	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
-	ink_string.lo ink_string++.lo ink_sys_control.lo ink_syslog.lo \
-	ink_thread.lo ink_time.lo fastlz.lo llqueue.lo lockfile.lo \
-	Layout.lo MatcherUtils.lo MimeTable.lo MMH.lo ParseRules.lo \
+	ink_string.lo ink_string++.lo ink_syslog.lo ink_thread.lo \
+	ink_time.lo fastlz.lo llqueue.lo lockfile.lo Layout.lo \
+	MatcherUtils.lo MimeTable.lo MMH.lo ParseRules.lo \
 	RawHashTable.lo Regex.lo Regression.lo Resource.lo \
 	TextBuffer.lo Tokenizer.lo Vec.lo Version.lo
 libtsutil_la_OBJECTS = $(am_libtsutil_la_OBJECTS)
@@ -578,8 +578,6 @@ libtsutil_la_SOURCES = \
   ink_string++.cc \
   ink_string.h \
   ink_string++.h \
-  ink_sys_control.cc \
-  ink_sys_control.h \
   ink_syslog.cc \
   ink_syslog.h \
   ink_thread.cc \
@@ -823,7 +821,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_stack_trace.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_string++.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_string.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_sys_control.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_syslog.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_thread.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_time.Plo@am__quote@
