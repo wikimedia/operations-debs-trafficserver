@@ -36,19 +36,19 @@ DIST_BUILD_USER=`id -nu`
 DIST_BUILD_USER_GROUP=`id -ng`
 DISTCHECK_CONFIGURE_FLAGS=--with-user=${DIST_BUILD_USER} --with-group=${DIST_BUILD_USER_GROUP}
 
-EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
+EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README.libev README-EC2 REVIEWERS
 
 installcheck-local:
 	$(DESTDIR)$(bindir)/traffic_server -R 1
 
 doxygen:
-	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
+	$(MAKE) -C doc doxygen
 
 asf-distdir:
 	@$(am__remove_distdir)
 	test -d .git && git clone . $(distdir) || svn export . $(distdir)
 	cd $(distdir) && autoreconf -i
-	rm -rf $(distdir)/autom4te.cache $(distdir)/.git
+	rm -rf $(distdir)/test $(distdir)/autom4te.cache $(distdir)/.git
 
 asf-dist: asf-distdir
 	tardir=$(distdir) && $(am__tar) | bzip2 -9 -c >$(distdir).tar.bz2
@@ -60,13 +60,10 @@ asf-dist-sign: asf-dist
 	gpg --armor --output $(distdir).tar.bz2.asc  --detach-sig $(distdir).tar.bz2
 
 examples: all
-	@cd example && $(MAKE) $(AM_MAKEFLAGS)
+	@(cd example; $(MAKE))
 
 install-examples: examples
-	@cd example && $(MAKE) $(AM_MAKEFLAGS) install pkglibdir=$(pkglibexecdir)
-
-install-data-hook:
-	@cd doc && $(MAKE) $(AM_MAKEFLAGS) install-man
+	@(cd example; $(MAKE) install pkglibdir=$(pkglibexecdir))
 
 help:
 	@echo 'all              default target for building the package' && \

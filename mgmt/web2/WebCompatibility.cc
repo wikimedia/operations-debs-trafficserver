@@ -39,6 +39,7 @@ char *
 WebGetHostname_Xmalloc(sockaddr_in * client_info)
 {
   ink_gethostbyaddr_r_data data;
+  char *hostname;
   char *hostname_tmp;
 
   struct hostent *r = ink_gethostbyaddr_r((char *) &client_info->sin_addr.s_addr,
@@ -47,7 +48,11 @@ WebGetHostname_Xmalloc(sockaddr_in * client_info)
                                           &data);
 
   hostname_tmp = r ? r->h_name : inet_ntoa(client_info->sin_addr);
-  return ats_strdup(hostname_tmp);
+  size_t len = strlen(hostname_tmp) + 1;
+  hostname = (char *) xmalloc(len);
+  ink_strncpy(hostname, hostname_tmp, len);
+
+  return hostname;
 
 }
 
@@ -144,7 +149,7 @@ WebFileImport_Xmalloc(const char *file, char **file_buf, int *file_size)
   if ((h_file = WebFileOpenR(file)) == WEB_HANDLE_INVALID)
     goto Lerror;
   *file_size = WebFileGetSize(h_file);
-  *file_buf = (char *)ats_malloc(*file_size + 1);
+  *file_buf = (char *) xmalloc(*file_size + 1);
   if (WebFileRead(h_file, *file_buf, *file_size, &bytes_read) == WEB_HTTP_ERR_FAIL)
     goto Lerror;
   if (bytes_read != *file_size)
@@ -155,12 +160,14 @@ WebFileImport_Xmalloc(const char *file, char **file_buf, int *file_size)
 
 Lerror:
 
-  ats_free(*file_buf);
+  if (*file_buf)
+    xfree(*file_buf);
   *file_buf = 0;
   *file_size = 0;
   err = WEB_HTTP_ERR_FAIL;
 
 Ldone:
+
   if (h_file != WEB_HANDLE_INVALID)
     WebFileClose(h_file);
 

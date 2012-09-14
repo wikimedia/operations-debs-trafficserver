@@ -1,6 +1,6 @@
 /** @file
 
-  This file contains the CLI's "config:read" command implementation
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,12 @@
   limitations under the License.
  */
 
+/****************************************************************
+ * Filename: ConfigUpgradeReadCmd.cc
+ * Purpose: This file contains the CLI's "config:read"
+   command implementation.
+ *
+ ****************************************************************/
 
 
 #include "libts.h"
@@ -157,7 +163,7 @@ CIFCReadEntry::ConfigReadIFCEle()
 int
 CIFCReadEntry::ConfigReadIFCHead()
 {
-  ink_strlcpy(KeyWord, IFC_HEAD, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_HEAD, sizeof(KeyWord));
   CountOn = 0;
   return (ConfigReadIFCEle());
 }
@@ -165,7 +171,7 @@ CIFCReadEntry::ConfigReadIFCHead()
 int
 CIFCReadEntry::ConfigReadIFCFeature()
 {
-  ink_strlcpy(KeyWord, IFC_FEATURE, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_FEATURE, sizeof(KeyWord));
   CountOn = 0;
   return (ConfigReadIFCEle());
 }
@@ -173,7 +179,7 @@ CIFCReadEntry::ConfigReadIFCFeature()
 int
 CIFCReadEntry::ConfigReadIFCTar()
 {
-  ink_strlcpy(KeyWord, IFC_TAR, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_TAR, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -181,7 +187,7 @@ CIFCReadEntry::ConfigReadIFCTar()
 int
 CIFCReadEntry::ConfigReadIFCCommonTar()
 {
-  ink_strlcpy(KeyWord, IFC_COMMON_TAR, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_COMMON_TAR, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -189,7 +195,7 @@ CIFCReadEntry::ConfigReadIFCCommonTar()
 int
 CIFCReadEntry::ConfigReadIFCTarInfo()
 {
-  ink_strlcpy(KeyWord, IFC_TAR_INFO, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_TAR_INFO, sizeof(KeyWord));
   CountOn = 0;
   return (ConfigReadIFCEle());
 }
@@ -197,7 +203,7 @@ CIFCReadEntry::ConfigReadIFCTarInfo()
 int
 CIFCReadEntry::ConfigReadIFCBinGroup()
 {
-  ink_strlcpy(KeyWord, IFC_BIN_GROUP, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_BIN_GROUP, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -205,7 +211,7 @@ CIFCReadEntry::ConfigReadIFCBinGroup()
 int
 CIFCReadEntry::ConfigReadIFCBinDir()
 {
-  ink_strlcpy(KeyWord, IFC_BIN_DIR, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_BIN_DIR, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -213,7 +219,7 @@ CIFCReadEntry::ConfigReadIFCBinDir()
 int
 CIFCReadEntry::ConfigReadIFCBinCommon()
 {
-  ink_strlcpy(KeyWord, IFC_BIN_COMMON, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_BIN_COMMON, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -221,7 +227,7 @@ CIFCReadEntry::ConfigReadIFCBinCommon()
 int
 CIFCReadEntry::ConfigReadIFCLibGroup()
 {
-  ink_strlcpy(KeyWord, IFC_LIB_GROUP, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_LIB_GROUP, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -229,7 +235,7 @@ CIFCReadEntry::ConfigReadIFCLibGroup()
 int
 CIFCReadEntry::ConfigReadIFCLibDir()
 {
-  ink_strlcpy(KeyWord, IFC_LIB_DIR, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_LIB_DIR, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -237,7 +243,7 @@ CIFCReadEntry::ConfigReadIFCLibDir()
 int
 CIFCReadEntry::ConfigReadIFCLibCommon()
 {
-  ink_strlcpy(KeyWord, IFC_LIB_COMMON, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_LIB_COMMON, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -245,7 +251,7 @@ CIFCReadEntry::ConfigReadIFCLibCommon()
 int
 CIFCReadEntry::ConfigReadIFCConfigGroup()
 {
-  ink_strlcpy(KeyWord, IFC_CONFIG_GROUP, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_CONFIG_GROUP, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -253,7 +259,7 @@ CIFCReadEntry::ConfigReadIFCConfigGroup()
 int
 CIFCReadEntry::ConfigReadIFCConfigDir()
 {
-  ink_strlcpy(KeyWord, IFC_CONFIG_DIR, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_CONFIG_DIR, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -261,7 +267,7 @@ CIFCReadEntry::ConfigReadIFCConfigDir()
 int
 CIFCReadEntry::ConfigReadIFCConfigCommon()
 {
-  ink_strlcpy(KeyWord, IFC_CONFIG_COMMON, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_CONFIG_COMMON, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }
@@ -270,7 +276,7 @@ CIFCReadEntry::ConfigReadIFCConfigCommon()
 int
 CIFCReadEntry::ConfigReadIFCCommonFile()
 {
-  ink_strlcpy(KeyWord, IFC_COMMON_FILE, sizeof(KeyWord));
+  ink_strncpy(KeyWord, IFC_COMMON_FILE, sizeof(KeyWord));
   CountOn = 1;
   return (ConfigReadIFCEle());
 }

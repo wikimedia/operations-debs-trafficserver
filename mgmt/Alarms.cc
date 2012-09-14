@@ -1,6 +1,6 @@
 /** @file
 
-  Function defs for the Alarms keeper.
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,15 @@
   limitations under the License.
  */
 
+/*
+ *
+ * Alarms.cc
+ *   Function defs for the Alarms keeper.
+ *
+ * $Date: 2007-10-05 16:56:44 $
+ *
+ *
+ */
 
 #include "libts.h"
 #include "LocalManager.h"
@@ -150,8 +159,10 @@ Alarms::resolveAlarm(alarm_t a, char *ip)
 
   if (!ip && ink_hash_table_lookup(local_alarms, buf, &hash_value) != 0) {
     ink_hash_table_delete(local_alarms, buf);
-    ats_free(((Alarm *)hash_value)->description);
-    ats_free(hash_value);
+    if (((Alarm *) hash_value)->description) {
+      xfree(((Alarm *) hash_value)->description);
+    }
+    xfree(hash_value);
   } else if (ip && ink_hash_table_lookup(remote_alarms, buf, &hash_value) != 0) {
     char buf2[1024];
 
@@ -161,7 +172,7 @@ Alarms::resolveAlarm(alarm_t a, char *ip)
       return;
     }
     ink_hash_table_delete(remote_alarms, buf);
-    ats_free(hash_value);
+    xfree(hash_value);
   }
   ink_mutex_release(&mutex);
 
@@ -240,7 +251,7 @@ Alarms::signalAlarm(alarm_t a, const char *desc, const char *ip)
         }
       }
     } else {
-      ink_strlcpy(prev_alarm_text, desc, sizeof(prev_alarm_text));
+      ink_strncpy(prev_alarm_text, desc, sizeof(prev_alarm_text));
       last_sent = time(0);
     }
   }
@@ -306,7 +317,7 @@ Alarms::signalAlarm(alarm_t a, const char *desc, const char *ip)
     }
   }
 
-  atmp = (Alarm *)ats_malloc(sizeof(Alarm));
+  ink_assert((atmp = (Alarm *) xmalloc(sizeof(Alarm))));
   atmp->type = a;
   atmp->linger = true;
   atmp->seen = true;
@@ -342,17 +353,24 @@ ALARM_REPEAT:
   ink_assert(new_desc = (char *) alloca(new_desc_size));
   snprintf(new_desc, new_desc_size, "[%s] %s", my_ctime_str, desc);
   desc = new_desc;
-  ats_free(atmp->description);
+  if (atmp->description)
+    xfree(atmp->description);
   const size_t atmp_desc_size = sizeof(char) * (strlen(desc) + 1);
-  atmp->description = (char *)ats_malloc(atmp_desc_size);
-  ink_strlcpy(atmp->description, desc, atmp_desc_size);
+  ink_assert(atmp->description = (char *) xmalloc(atmp_desc_size));
+  ink_strncpy(atmp->description, desc, atmp_desc_size);
+
   ink_mutex_release(&mutex);
 
 #if defined(MGMT_API)
   if (mgmt_alarm_event_q) {
     // ADDED CODE here is where we Add to the queue of alarms one more
-    EventNoticeForm *new_alarm = (EventNoticeForm *)ats_malloc(sizeof(EventNoticeForm));
+    EventNoticeForm *new_alarm;
 
+    new_alarm = (EventNoticeForm *) xmalloc(sizeof(EventNoticeForm));
+    if (!new_alarm) {
+      Debug("alarm", "can't xmalloc so can't create new alarm struct.\n");
+      return;
+    }
     // allocated space copy over values
     // remember AlarmID start from 0 exactly 1 off but everything else
     // matches
@@ -363,10 +381,14 @@ ALARM_REPEAT:
     new_alarm->seen = atmp->seen;
     if (!atmp->local)
       new_alarm->inet_address = atmp->inet_address;
-    if (!atmp->description) {
+    if (!atmp->description)
       new_alarm->description = NULL;
-    } else {
-      new_alarm->description = ats_strdup(atmp->description);
+    else {
+      new_alarm->description = (char *) xmalloc(sizeof(char) * (strlen(atmp->description) + 1));
+      if (!new_alarm->description)
+        new_alarm->description = NULL;  // rather have alarm without description than drop it completely
+      else
+        strcpy(new_alarm->description, atmp->description);
     }
 
     // new alarm is complete now add it
@@ -384,13 +406,17 @@ ALARM_REPEAT:
     char *tmp, *tmp2;
     AlarmCallbackFunc func = (AlarmCallbackFunc) ink_hash_table_entry_value(remote_alarms, entry);
     if (ip) {
-      tmp = (char *)ats_strdup(ip);
+      const size_t tmp_size = sizeof(char) * (strlen(ip) + 1);
+      ink_assert((tmp = (char *) xmalloc(tmp_size)));
+      ink_strncpy(tmp, ip, tmp_size);
     } else {
       tmp = NULL;
     }
 
     if (desc) {
-      tmp2 = ats_strdup(desc);
+      const size_t tmp2_size = sizeof(char) * (strlen(desc) + 1);
+      ink_assert((tmp2 = (char *) xmalloc(tmp2_size)));
+      ink_strncpy(tmp2, desc, tmp2_size);
     } else {
       tmp2 = NULL;
     }
@@ -454,8 +480,8 @@ Alarms::clearUnSeen(char *ip)
     if (strstr(key, ip)) {      /* Make sure alarm is for correct ip */
       if (!tmp->seen) {         /* Make sure we did not see it in peer's report */
         ink_hash_table_delete(remote_alarms, key);      /* Safe in iterator? */
-        ats_free(tmp->description);
-        ats_free(tmp);
+        xfree(tmp->description);
+        xfree(tmp);
       }
     }
   }
@@ -491,7 +517,7 @@ Alarms::constructAlarmMessage(char *ip, char *message, int max)
     return;
   }
 
-  ink_strlcpy(&message[n], "type: alarm\n", max - n);
+  ink_strncpy(&message[n], "type: alarm\n", max - n);
   n += strlen("type: alarm\n");
   bsum = n;
   for (entry = ink_hash_table_iterator_first(local_alarms, &iterator_state);
@@ -508,7 +534,7 @@ Alarms::constructAlarmMessage(char *ip, char *message, int max)
     if (!((n + (int) strlen(buf)) < max)) {
       break;
     }
-    ink_strlcpy(&message[n], buf, max - n);
+    ink_strncpy(&message[n], buf, max - n);
     n += strlen(buf);
   }
 
@@ -519,7 +545,7 @@ Alarms::constructAlarmMessage(char *ip, char *message, int max)
       }
       return;
     }
-    ink_strlcpy(&message[n], "alarm: none\n", max - n);
+    ink_strncpy(&message[n], "alarm: none\n", max - n);
     n += strlen("alarm: none\n");
   }
   ink_mutex_release(&mutex);
@@ -558,6 +584,8 @@ Alarms::execAlarmBin(const char *desc)
   if (!found)
     alarm_email_to_addr = 0;
 
+#ifndef _WIN32
+
   int status;
   pid_t pid;
 
@@ -583,7 +611,7 @@ Alarms::execAlarmBin(const char *desc)
       // or -1 if there is some problem; returns 0 if child status
       // is not available
       if (waitpid(pid, &status, WNOHANG) != 0) {
-        Debug("alarm", "[Alarms::execAlarmBin] child pid %" PRId64 " has status", (int64_t)pid);
+        Debug("alarm", "[Alarms::execAlarmBin] child pid %d has status", pid);
         script_done = true;
         break;
       }
@@ -591,7 +619,7 @@ Alarms::execAlarmBin(const char *desc)
     }
     // need to kill the child script process if it's not complete
     if (!script_done) {
-      Debug("alarm", "[Alarms::execAlarmBin] kill child pid %" PRId64 "", (int64_t)pid);
+      Debug("alarm", "[Alarms::execAlarmBin] kill child pid %d", pid);
       kill(pid, SIGKILL);
       waitpid(pid, &status, 0); // to reap the thread
     }
@@ -605,12 +633,58 @@ Alarms::execAlarmBin(const char *desc)
     _exit(res);
   }
 
+#else
 
+  bool is_exe = true;
+  char *fileExt = NULL;
+
+  if ((fileExt = strchr(alarm_bin, '.')) != NULL) {
+    if (ink_strcasecmp(fileExt, ".CMD") == 0 || ink_strcasecmp(fileExt, ".BAT") == 0) {
+      is_exe = false;
+    }
+  }
+
+  if (is_exe) {
+    ink_filepath_make(cmd_line, alarm_bin_path, alarm_bin);
+  } else {
+    sprintf(cmd_line, "CMD.EXE /C \"%s\\%s\"", alarm_bin_path, alarm_bin);
+  }
+
+  SetEnvironmentVariable("TRAFFIC_SERVER_ALARM_MSG", desc);
+  SetEnvironmentVariable("ADMIN_EMAIL", alarm_email_to_addr);
+
+  STARTUPINFO suInfo;
+  PROCESS_INFORMATION procInfo;
+  ZeroMemory((PVOID) & suInfo, sizeof(suInfo));
+
+  // hide the new console window from the user
+  suInfo.cb = sizeof(STARTUPINFO);
+  suInfo.dwFlags = STARTF_USESHOWWINDOW;
+  suInfo.wShowWindow = SW_HIDE;
+
+  if (CreateProcess(NULL, cmd_line, NULL,       // FIX THIS: process security attributes
+                    NULL,       // FIX THIS: thread security attributes
+                    FALSE,      // no need to make handles inheritable
+                    0,          // FIX THIS: specify a priority
+                    NULL,       // FIX THIS: specify environment variables
+                    ts_base_dir,        // make script run from TSBase
+                    &suInfo, &procInfo) == FALSE) {
+    mgmt_elog(stderr, "[Alarm::execAlarmBin] CreateProcess error: %s\n", ink_last_err());
+  } else {
+    CloseHandle(procInfo.hThread);
+    CloseHandle(procInfo.hProcess);
+  }
+
+#endif // !_WIN32
 
   // free memory
-  ats_free(alarm_email_from_name);
-  ats_free(alarm_email_from_addr);
-  ats_free(alarm_email_to_addr);
+  if (alarm_email_from_name)
+    xfree(alarm_email_from_name);
+  if (alarm_email_from_addr)
+    xfree(alarm_email_from_addr);
+  if (alarm_email_to_addr)
+    xfree(alarm_email_to_addr);
+
 }
 
 //

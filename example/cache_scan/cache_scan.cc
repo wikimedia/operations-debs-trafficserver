@@ -33,10 +33,6 @@
 #include <ts/ts.h>
 #include <ts/experimental.h>
 
-// This gets the PRI*64 types
-#define __STDC_FORMAT_MACROS 1
-#include <inttypes.h>
-
 static TSCont global_contp;
 
 struct cache_scan_state_t
@@ -290,7 +286,7 @@ handle_io(TSCont contp, TSEvent event, void *edata)
     }
   case TS_EVENT_VCONN_WRITE_READY:
     {
-      TSDebug("cache_iter", "ndone: %" PRId64 " total_bytes: % " PRId64, TSVIONDoneGet(cstate->write_vio), cstate->total_bytes);
+      TSDebug("cache_iter", "ndone: %d total_bytes: %d", TSVIONDoneGet(cstate->write_vio), cstate->total_bytes);
       cstate->write_pending = 0;
       // the cache scan handler should call vio reenable when there is
       // available data
@@ -453,10 +449,12 @@ setup_request(TSCont contp, TSHttpTxn txnp)
             TSCacheKeyDigestFromUrlSet(cstate->key_to_delete, urlLoc) != TS_SUCCESS) {
           TSError("CacheKeyDigestFromUrlSet failed");
           TSfree(cstate);
+          TSUrlDestroy(urlBuf, urlLoc);
           TSHandleMLocRelease(urlBuf, NULL, urlLoc);
           TSCacheKeyDestroy(cstate->key_to_delete);
           goto Ldone;
         }
+        TSUrlDestroy(urlBuf, urlLoc);
         TSHandleMLocRelease(urlBuf, NULL, urlLoc);
       }
     }

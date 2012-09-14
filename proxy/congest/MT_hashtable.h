@@ -45,12 +45,11 @@ template<class key_t, class data_t> struct HashTableEntry
 
   static HashTableEntry *alloc()
   {
-    return (HashTableEntry *)ats_malloc(sizeof(HashTableEntry));
+    return (HashTableEntry *) xmalloc(sizeof(HashTableEntry));
   }
-
   static void free(HashTableEntry * entry)
   {
-    ats_free(entry);
+    xfree(entry);
   }
 };
 

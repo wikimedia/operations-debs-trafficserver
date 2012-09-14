@@ -25,6 +25,7 @@
 #define _I_PriorityEventQueue_h_
 
 #include "libts.h"
+#include "I_ProxyAllocator.h"
 #include "I_Event.h"
 
 

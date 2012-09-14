@@ -1,6 +1,6 @@
 /** @file
 
-  This file contains code for class to allow rollback of configuration files 
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,7 @@
   limitations under the License.
  */
 
+/****************************************************************************/
 #include "libts.h"
 #include "LocalManager.h"
 #include "Rollback.h"
@@ -30,6 +31,13 @@
 #include "ExpandingArray.h"
 #include "MgmtSocket.h"
 
+/****************************************************************************
+ *
+ *  Rollback.cc - code  for class to allow rollback of configuration
+ *                  files
+ *
+ *
+ ****************************************************************************/
 
 #define MAX_VERSION_DIGITS 11
 #define DEFAULT_BACKUPS 2
@@ -68,7 +76,7 @@ root_access_needed(root_access_needed_)
   // Copy the file name
   fileNameLen = strlen(baseFileName);
   fileName = new char[fileNameLen + 1];
-  ink_strlcpy(fileName, baseFileName, fileNameLen + 1);
+  ink_strncpy(fileName, baseFileName, fileNameLen + 1);
 
 
   // Get the configuration directory - SHOULD BE CENTRALIZED SOMEWHERE
@@ -148,13 +156,17 @@ root_access_needed(root_access_needed_)
       }
 
       if (needZeroLength == true) {
+#ifndef _WIN32
         int fd = openFile(ACTIVE_VERSION, O_RDWR | O_CREAT);
+#else
+        int fd = openFile(ACTIVE_VERSION, O_RDWR | O_CREAT | O_BINARY);
+#endif
         if (fd >= 0) {
-          alarmMsg = (char *)ats_malloc(2048);
+          alarmMsg = (char *) xmalloc(2048);
           snprintf(alarmMsg, 2048, "Created zero length place holder for config file %s", fileName);
           mgmt_log(stderr, "[RollBack::Rollback] %s\n", alarmMsg);
           lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_CONFIG_UPDATE_FAILED, alarmMsg);
-          ats_free(alarmMsg);
+          xfree(alarmMsg);
           closeFile(fd);
         } else {
           mgmt_fatal(stderr,
@@ -211,7 +223,7 @@ root_access_needed(root_access_needed_)
   testFD = openFile(ACTIVE_VERSION, O_RDWR, &testErrno);
   if (testFD < 0) {
     // We failed to open read-write
-    alarmMsg = (char *)ats_malloc(2048);
+    alarmMsg = (char *) xmalloc(2048);
     testFD = openFile(ACTIVE_VERSION, O_RDONLY, &testErrno);
 
     if (testFD < 0) {
@@ -228,7 +240,7 @@ root_access_needed(root_access_needed_)
       lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_CONFIG_UPDATE_FAILED, alarmMsg);
       closeFile(testFD);
     }
-    ats_free(alarmMsg);
+    xfree(alarmMsg);
   } else {
     closeFile(testFD);
   }
@@ -364,8 +376,9 @@ Rollback::openFile(version_t version, int oflags, int *errnoPtr)
     }
     mgmt_log(stderr, "[Rollback::openFile] Open of %s failed: %s\n", fileName, strerror(errno));
   }
-
+#ifndef _WIN32                  // no need to set close-on-exec on NT
   fcntl(fd, F_SETFD, 1);
+#endif
 
   delete[]filePath;
 
@@ -375,6 +388,7 @@ Rollback::openFile(version_t version, int oflags, int *errnoPtr)
 int
 Rollback::closeFile(int fd)
 {
+#ifndef _WIN32
   if (fsync(fd) == -1) {
     // INKqa11574: SGI fsync will return EBADF error if the file was
     // open w/o write access (e.g. read-only).  Do not print an error
@@ -384,6 +398,7 @@ Rollback::closeFile(int fd)
       mgmt_log(stderr, "[Rollback::closeFile] fsync failed for file '%s' (%d: %s)\n", fileName, errno, strerror(errno));
     }
   }
+#endif /* _WIN32 */
   return (close(fd));
 }
 
@@ -479,7 +494,11 @@ Rollback::internalUpdate(textBuffer * buf, version_t newVersion, bool notifyChan
 
   // Create the new configuration file
   // TODO: Make sure they are not created in Sysconfigdir!
+#ifndef _WIN32
   diskFD = openFile(newVersion, O_WRONLY | O_CREAT | O_TRUNC);
+#else
+  diskFD = openFile(newVersion, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY);
+#endif
 
   if (diskFD < 0) {
     // Could not create the new file.  The operation is aborted
@@ -495,6 +514,7 @@ Rollback::internalUpdate(textBuffer * buf, version_t newVersion, bool notifyChan
     returnCode = SYS_CALL_ERROR_ROLLBACK;
     goto UPDATE_CLEANUP;
   }
+#ifndef _WIN32
 
   // Now that we got a the new version on the disk lets do some renaming
   if (link(activeVersion, currentVersion_local) < 0) {
@@ -521,6 +541,33 @@ Rollback::internalUpdate(textBuffer * buf, version_t newVersion, bool notifyChan
     returnCode = SYS_CALL_ERROR_ROLLBACK;
     goto UPDATE_CLEANUP;
   }
+#else
+
+  // have to use CopyFile() because there is no sym link on NT
+  if (strcmp(activeVersion, currentVersion_local) != 0) {
+    if (CopyFile(activeVersion, currentVersion_local, FALSE) == FALSE) {
+      mgmt_log(stderr, "[Rollback::internalUpdate] CopyFile failed : %s\n", ink_last_err());
+      DWORD lastError = GetLastError();
+      if (lastError == ERROR_FILE_NOT_FOUND || lastError == ERROR_PATH_NOT_FOUND) {
+        mgmt_log(stderr,
+                 "[Rollback::internalUpdate] The active version of %s was lost.\n\tThe updated copy was installed.\n",
+                 fileName);
+        failedLink = true;
+      } else {
+        returnCode = SYS_CALL_ERROR_ROLLBACK;
+        goto UPDATE_CLEANUP;
+      }
+    }
+  }
+
+  if (MoveFileEx(nextVersion, activeVersion, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == FALSE) {
+    mgmt_log(stderr, "[Rollback::internalUpdate] MoveFileEx failed : %s\n", ink_last_err());
+    mgmt_log(stderr, "[Rollback::internalUpdate] Unable to create new version of %s.  Using prior version\n", fileName);
+
+    returnCode = SYS_CALL_ERROR_ROLLBACK;
+    goto UPDATE_CLEANUP;
+  }
+#endif
 
   // Now we need to get the modification time off of the new active file
   if (statFile(ACTIVE_VERSION, &fileInfo) >= 0) {
@@ -572,10 +619,10 @@ UPDATE_CLEANUP:
   //   to manipulate the disk, the error might not get
   //   written to disk
   if (returnCode != OK_ROLLBACK) {
-    alarmMsg = (char *)ats_malloc(1024);
+    alarmMsg = (char *) xmalloc(1024);
     snprintf(alarmMsg, 1024, "[TrafficManager] Configuration File Update Failed: %s", strerror(errno));
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_CONFIG_UPDATE_FAILED, alarmMsg);
-    ats_free(alarmMsg);
+    xfree(alarmMsg);
 
     // Remove both the link from currentVersion_local
     // to the active version and the new version
@@ -621,7 +668,15 @@ Rollback::getVersion_ml(version_t version, textBuffer ** buffer)
   if (version == currentVersion) {
     version = ACTIVE_VERSION;
   }
+#ifndef _WIN32
   diskFD = openFile(version, O_RDONLY);
+#else
+  // - Specify O_BINARY on WIN32 because we don't want the CR-LF
+  //   sequences to be translated.
+  // - If we don't open with O_BINARY, the size we get from fstat()
+  //   would not match with # bytes read from the file.
+  diskFD = openFile(version, O_RDONLY | O_BINARY);
+#endif
 
   if (diskFD < 0) {
     returnCode = FILE_NOT_FOUND_ROLLBACK;
@@ -739,6 +794,8 @@ Rollback::findVersions_ml(ExpandingArray * listNames)
   int count = 0;
   version_t highestSeen = 0, version = 0;
 
+#ifndef _WIN32
+
   DIR *dir;
   struct dirent *dirEntrySpace;
   struct dirent *entryPtr;
@@ -753,7 +810,7 @@ Rollback::findVersions_ml(ExpandingArray * listNames)
   // The fun of Solaris - readdir_r requires a buffer passed into it
   //   The man page says this obscene expression gives us the proper
   //     size
-  dirEntrySpace = (struct dirent *)ats_malloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
+  dirEntrySpace = (struct dirent *) xmalloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
 
   while (readdir_r(dir, dirEntrySpace, &entryPtr) == 0) {
     if (!entryPtr)
@@ -771,8 +828,44 @@ Rollback::findVersions_ml(ExpandingArray * listNames)
 
   }
 
-  ats_free(dirEntrySpace);
+  xfree(dirEntrySpace);
   closedir(dir);
+
+#else
+
+  char *searchPattern;
+  WIN32_FIND_DATA W32FD;
+
+  // Append '*' as a wildcard for FindFirstFile()
+  size_t configDirLen = strlen(configDir) + 2;
+  searchPattern = new char[configDirLen];
+  snprintf(searchPattern, configDirLen, "%s*", configDir);
+  HANDLE hDInfo = FindFirstFile(searchPattern, &W32FD);
+
+  if (INVALID_HANDLE_VALUE == hDInfo) {
+    mgmt_log(stderr, "[Rollback::findVersions_ml] FindFirstFile failed for %s: %s\n", searchPattern, ink_last_err());
+    delete[]searchPattern;
+    return INVALID_VERSION;
+  }
+  delete[]searchPattern;
+
+  while (FindNextFile(hDInfo, &W32FD)) {
+
+    if ((version = extractVersionInfo(listNames, W32FD.cFileName))
+        != INVALID_VERSION) {
+      count++;
+
+      if (version > highestSeen) {
+        highestSeen = version;
+      }
+
+    }
+
+  }
+
+  FindClose(hDInfo);
+
+#endif // !_WIN32
 
   numVersions = count;
   return highestSeen;
@@ -819,7 +912,7 @@ Rollback::extractVersionInfo(ExpandingArray * listNames, const char *testFileNam
             versionInfo *verInfo;
 
             if (statFile(version, &fileInfo) >= 0) {
-              verInfo = (versionInfo *)ats_malloc(sizeof(versionInfo));
+              verInfo = (versionInfo *) xmalloc(sizeof(versionInfo));
               verInfo->version = version;
               verInfo->modTime = fileInfo.st_mtime;
               listNames->addEntry((void *) verInfo);

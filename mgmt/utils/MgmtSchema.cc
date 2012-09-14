@@ -45,6 +45,7 @@ validateDefault(XMLNode * exposure, char *recName, char *default_value)
   }
 
   if (strcmp(exposure_level, "system") != 0 && strcmp(exposure_level, "unused") != 0) {
+
     RecGetRecordDefaultDataString_Xmalloc(recName, &rec_default);
 
     if (rec_default == NULL) {
@@ -59,7 +60,10 @@ validateDefault(XMLNode * exposure, char *recName, char *default_value)
           goto Lerror;
     }
   }
-  ats_free(rec_default);
+
+  if (rec_default) {
+    //    xfree(rec_default);
+  }
 
   return true;
 

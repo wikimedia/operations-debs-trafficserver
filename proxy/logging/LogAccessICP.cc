@@ -68,7 +68,12 @@ LogAccessICP::~LogAccessICP()
 int
 LogAccessICP::marshal_client_host_ip(char *buf)
 {
-  return marshal_ip(buf, m_icp_log->GetClientIP());
+  if (buf) {
+    int64_t ip = m_icp_log->GetClientIP()->s_addr;
+    // ip is already in network order
+    marshal_int(buf, (int64_t)ntohl(ip));
+  }
+  return INK_MIN_ALIGN;
 }
 
 /*-------------------------------------------------------------------------
@@ -163,7 +168,7 @@ LogAccessICP::marshal_proxy_resp_content_type(char *buf)
   // FIXME: need to ensure that m_icp_log->GetContentType() is NUL-terminated
   //
   char *ct_str = (char *) m_icp_log->GetContentType();
-  int ct_len = ::strlen(ct_str);
+  int ct_len = strlen(ct_str);
 
   // FIXME: need to be sure remove_content_type_attributecan mutate ct_str
   //

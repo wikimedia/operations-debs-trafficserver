@@ -116,7 +116,7 @@ AIOTestData::ink_aio_stats(int event, void *d)
   ink_hrtime now = ink_get_hrtime();
   double time_msec = (double) (now - start) / (double) HRTIME_MSECOND;
   int i = (aio_reqs[0] == NULL)? 1 : 0;
-  for (; i < num_filedes; ++i)
+  for (; i < num_filedes; i++) {
     printf("%0.2f\t%i\t%i\t%i\n", time_msec, aio_reqs[i]->filedes, aio_reqs[i]->pending, aio_reqs[i]->queued);
   printf("Num Requests: %i Num Queued: %i num Moved: %i\n\n", data->num_req, data->num_queue, data->num_temp);
   eventProcessor.schedule_in(this, HRTIME_MSECONDS(50), ET_CALL);
@@ -214,7 +214,7 @@ aio_init_fildes(int fildes, int fromAPI = 0)
 {
   char thr_name[MAX_THREAD_NAME_LENGTH];
   int i;
-  AIO_Reqs *request = (AIO_Reqs *)ats_malloc(sizeof(AIO_Reqs));
+  AIO_Reqs *request = (AIO_Reqs *) malloc(sizeof(AIO_Reqs));
 
   memset(request, 0, sizeof(AIO_Reqs));
 
@@ -403,7 +403,7 @@ cache_op(AIOCallbackInternal *op)
           err = pwrite(a->aio_fildes, ((char *) a->aio_buf) + res, a->aio_nbytes - res, a->aio_offset + res);
       } while ((err < 0) && (errno == EINTR || errno == ENOBUFS || errno == ENOMEM));
       if (err <= 0) {
-        Warning("cache disk operation failed %s %zd %d\n",
+        Warning("cache disk operation failed %s %d %d\n",
                 (a->aio_lio_opcode == LIO_READ) ? "READ" : "WRITE", err, errno);
         op->aio_result = -errno;
         return (err);
@@ -528,9 +528,7 @@ aio_thread_main(void *arg)
         op->thread->schedule_imm_signal(op);
       ink_mutex_acquire(&my_aio_req->aio_mutex);
     } while (1);
-    timespec ten_msec_timespec = ink_based_hrtime_to_timespec(ink_get_hrtime() + HRTIME_MSECONDS(10));
-    ink_cond_timedwait(&my_aio_req->aio_cond, &my_aio_req->aio_mutex,
-                       &ten_msec_timespec);
+    ink_cond_wait(&my_aio_req->aio_cond, &my_aio_req->aio_mutex);
   }
   return 0;
 }

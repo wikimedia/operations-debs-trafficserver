@@ -61,10 +61,9 @@ EThread::EThread(ThreadType att, int anid)
     event_types(0),
     signal_hook(0),
     tt(att),
-    eventsem(NULL),
-    l1_hash(NULL)
+    eventsem(NULL)
 {
-  ethreads_to_be_signalled = (EThread **)ats_malloc(MAX_EVENT_THREADS * sizeof(EThread *));
+  ethreads_to_be_signalled = (EThread **) xmalloc(MAX_EVENT_THREADS * sizeof(EThread *));
   memset((char *) ethreads_to_be_signalled, 0, MAX_EVENT_THREADS * sizeof(EThread *));
   memset(thread_private, 0, PER_THREAD_DATA);
 #if TS_HAS_EVENTFD
@@ -108,9 +107,8 @@ EThread::~EThread()
 {
   if (n_ethreads_to_be_signalled > 0)
     flush_signals(this);
-  ats_free(ethreads_to_be_signalled);
-  // TODO: This can't be deleted ....
-  // delete[]l1_hash;
+  if (ethreads_to_be_signalled)
+    xfree(ethreads_to_be_signalled);
 }
 
 bool

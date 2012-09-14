@@ -46,6 +46,10 @@
 #include "BaseManager.h"
 #include "HdrUtils.h"
 
+#if defined (_WIN32)
+extern long glShutdownInProgress;
+#endif
+
 extern CacheLookupHttpConfig global_cache_lookup_config;
 HTTPHdr gclient_request;
 
@@ -332,11 +336,11 @@ ICPPeerReadCont::reset(int full_reset)
     PeerReadDataAllocator.free(this->_state);
   }
   if (_cache_req_hdr_heap_handle) {
-    ats_free(_cache_req_hdr_heap_handle);
+    xfree(_cache_req_hdr_heap_handle);
     _cache_req_hdr_heap_handle = NULL;
   }
   if (_cache_resp_hdr_heap_handle) {
-    ats_free(_cache_resp_hdr_heap_handle);
+    xfree(_cache_resp_hdr_heap_handle);
     _cache_resp_hdr_heap_handle = NULL;
   }
 }
@@ -395,13 +399,12 @@ ICPPeerReadCont::ICPPeerReadEvent(int event, Event * e)
 int
 ICPPeerReadCont::StaleCheck(int event, Event * e)
 {
-  ip_port_text_buffer ipb;
   NOWARN_UNUSED(e);
   ink_release_assert(mutex->thread_holding == this_ethread());
 
-  Debug("icp-stale", "Stale check res=%d for id=%d, [%s] from [%s]",
+  Debug("icp-stale", "Stale check res=%d for id=%d, [%s] from [%s:%d]",
         event, _state->_rICPmsg->h.requestno,
-    _state->_rICPmsg->un.query.URL, ats_ip_nptop(&_state->_sender, ipb, sizeof(ipb)));
+        _state->_rICPmsg->un.query.URL, inet_ntoa(_state->_sender.sin_addr), ntohs(_state->_sender.sin_port));
 
   switch (event) {
   case ICP_STALE_OBJECT:
@@ -430,11 +433,10 @@ ICPPeerReadCont::StaleCheck(int event, Event * e)
 int
 ICPPeerReadCont::ICPPeerQueryEvent(int event, Event * e)
 {
-  ip_port_text_buffer ipb;
   NOWARN_UNUSED(e);
-  Debug("icp", "Remote Query lookup res=%d for id=%d, [%s] from [%s]",
+  Debug("icp", "Remote Query lookup res=%d for id=%d, [%s] from [%s:%d]",
         event, _state->_rICPmsg->h.requestno,
-    _state->_rICPmsg->un.query.URL, ats_ip_nptop(&_state->_sender, ipb, sizeof(ipb)));
+        _state->_rICPmsg->un.query.URL, inet_ntoa(_state->_sender.sin_addr), ntohs(_state->_sender.sin_port));
   if (pluginFreshnessCalcFunc) {
     switch (event) {
     case CACHE_EVENT_OPEN_READ:
@@ -463,7 +465,6 @@ ICPPeerReadCont::ICPPeerQueryEvent(int event, Event * e)
 int
 ICPPeerReadCont::ICPPeerQueryCont(int event, Event * e)
 {
-  ip_port_text_buffer ipb;
   NOWARN_UNUSED(event);
   NOWARN_UNUSED(e);
 
@@ -475,11 +476,9 @@ ICPPeerReadCont::ICPPeerQueryCont(int event, Event * e)
   _state->_cachelookupURL.create(NULL);
   const char *qurl = (const char *) _state->_rICPmsg->un.query.URL;
   _state->_cachelookupURL.parse(qurl, strlen(qurl));
-  Debug("icp", "Remote Query for id=%d, [%s] from [%s]",
+  Debug("icp", "Remote Query for id=%d, [%s] from [%s:%d]",
         _state->_rICPmsg->h.requestno,
-        _state->_rICPmsg->un.query.URL,
-    ats_ip_nptop(&_state->_sender, ipb, sizeof(ipb))
-  );
+        _state->_rICPmsg->un.query.URL, inet_ntoa(_state->_sender.sin_addr), ntohs(_state->_sender.sin_port));
 
   SET_HANDLER((ICPPeerReadContHandler) & ICPPeerReadCont::ICPPeerQueryEvent);
   if (_state->_rICPmsg->un.query.URL && *_state->_rICPmsg->un.query.URL) {
@@ -531,7 +530,6 @@ int
 ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
 {
   AutoReference l(&_recursion_depth);
-  ip_port_text_buffer ipb; // scratch buffer for diagnostic messages.
   //-----------------------------------------------------------
   // State machine to process ICP data received on UDP socket
   //-----------------------------------------------------------
@@ -573,7 +571,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           return EVENT_DONE;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_read_active:     // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -596,7 +594,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         ink_assert(s->_peer->readAction == NULL);
         Action *a = s->_peer->RecvFrom_re(this, this, buf,
                                           buf->write_avail() - 1,
-                                          &s->_peer->fromaddr.sa,
+                                          (struct sockaddr *)
+                                          &s->_peer->fromaddr,
                                           &s->_peer->fromaddrlen);
         if (!a) {
           a = ACTION_IO_ERROR;
@@ -625,7 +624,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           return EVENT_DONE;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_read_data:       // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -654,7 +653,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           break;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_read_data_done:  // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -689,8 +688,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         }
         // Validate receiver and convert the received sockaddr
         //   to internal sockaddr format.
-        IpEndpoint from;
-        if (!s->_peer->ExtToIntRecvSockAddr(&s->_peer->fromaddr.sa, &from.sa)) {
+        struct sockaddr_in from;
+        if (!s->_peer->ExtToIntRecvSockAddr(&s->_peer->fromaddr, &from)) {
           int status;
           ICPConfigData *cfg = _ICPpr->GetConfig()->globalConfig();
           ICPMsg_t *ICPmsg = (ICPMsg_t *) buf;
@@ -718,24 +717,21 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
 
             int icp_reply_port = cfg->ICPDefaultReplyPort();
             if (!icp_reply_port) {
-              icp_reply_port = ntohs(ats_ip_port_cast(&s->_peer->fromaddr));
+              icp_reply_port = ntohs(s->_peer->fromaddr.sin_port);
             }
-            PeerConfigData *Pcfg = NEW(new PeerConfigData(
-                PeerConfigData::CTYPE_SIBLING,
-                IpAddr(s->_peer->fromaddr),
-                0,
-                icp_reply_port
-            ));
+            PeerConfigData *Pcfg = NEW(new PeerConfigData(PeerConfigData::CTYPE_SIBLING,
+                                                          &s->_peer->fromaddr.sin_addr, 0,
+                                                          icp_reply_port));
             ParentSiblingPeer *P = NEW(new ParentSiblingPeer(PEER_SIBLING, Pcfg, _ICPpr, true));
             status = _ICPpr->AddPeer(P);
             ink_release_assert(status);
             status = _ICPpr->AddPeerToSendList(P);
             ink_release_assert(status);
 
-	    P->GetChan()->setRemote(P->GetIP());
+	    P->GetChan()->setRemote(P->GetIP()->s_addr, P->GetPort());
 
             // coverity[uninit_use_in_call]
-            Note("ICP Peer added ip=%s", ats_ip_nptop(P->GetIP(), ipb, sizeof(ipb)));
+            Note("ICP Peer added ip=%u.%u.%u.%u port=%d", PRINT_IP(P->GetIP()->s_addr), P->GetPort());
             from = s->_peer->fromaddr;
           } else {
           invalid_message:
@@ -743,8 +739,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
             // Sender does not exist in ICP configuration, terminate
             //
             ICP_INCREMENT_DYN_STAT(invalid_sender_stat);
-            Debug("icp", "Received msg from invalid sender [%s]",
-              ats_ip_nptop(&s->_peer->fromaddr, ipb, sizeof(ipb)));
+            Debug("icp", "Received msg from invalid sender [%s:%d]",
+                  inet_ntoa(s->_peer->fromaddr.sin_addr), ntohs(s->_peer->fromaddr.sin_port));
 
             s->_peer->buf = NULL;
             s->_next_state = READ_NOT_ACTIVE;
@@ -766,8 +762,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         if ((s->_rICPmsg->h.version != ICP_VERSION_2)
             && (s->_rICPmsg->h.version != ICP_VERSION_3)) {
           ICP_INCREMENT_DYN_STAT(read_not_v2_icp_stat);
-          Debug("icp", "Received (v=%d) !v2 && !v3 msg from sender [%s]",
-            (uint32_t) s->_rICPmsg->h.version, ats_ip_nptop(&from, ipb, sizeof(ipb)));
+          Debug("icp", "Received (v=%d) !v2 && !v3 msg from sender [%s:%d]",
+                (uint32_t) s->_rICPmsg->h.version, inet_ntoa(from.sin_addr), ntohs(from.sin_port));
 
           s->_rICPmsg = NULL;
           s->_buf = NULL;
@@ -792,15 +788,15 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           }
         } else {
           // We have a response message for an ICP query.
-          Debug("icp", "Response for Id=%d, from [%s]",
-            s->_rICPmsg->h.requestno, ats_ip_nptop(&s->_sender, ipb, sizeof(ipb)));
+          Debug("icp", "Response for Id=%d, from [%s:%d]",
+                s->_rICPmsg->h.requestno, inet_ntoa(s->_sender.sin_addr), ntohs(s->_sender.sin_port));
           ICP_INCREMENT_DYN_STAT(icp_remote_responses_stat);
           s->_next_state = GET_ICP_REQUEST;
           RECORD_ICP_STATE_CHANGE(s, 0, GET_ICP_REQUEST);
           break;                // move to next_state
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_process_data_read:       // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -813,8 +809,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
 
         if (s->_queryResult == CACHE_EVENT_LOOKUP) {
           // Use the received ICP data buffer for the response message
-          Debug("icp", "Sending ICP_OP_HIT for id=%d, [%.*s] to [%s]",
-            s->_rICPmsg->h.requestno, datalen, (const char *)data, ats_ip_nptop(&s->_sender, ipb, sizeof(ipb)));
+          Debug("icp", "Sending ICP_OP_HIT for id=%d, [%s] to [%s:%d]",
+                s->_rICPmsg->h.requestno, data, inet_ntoa(s->_sender.sin_addr), ntohs(s->_sender.sin_port));
           ICP_INCREMENT_DYN_STAT(icp_cache_lookup_success_stat);
           status = ICPRequestCont::BuildICPMsg(ICP_OP_HIT,
                                                s->_rICPmsg->h.requestno, 0 /* optflags */ , 0 /* optdata */ ,
@@ -822,8 +818,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
                                                data, datalen, &s->_mhdr, s->_iov, s->_rICPmsg);
         } else if (s->_queryResult == CACHE_EVENT_LOOKUP_FAILED) {
           // Use the received ICP data buffer for response message
-          Debug("icp", "Sending ICP_OP_MISS for id=%d, [%.*s] to [%s]",
-            s->_rICPmsg->h.requestno, datalen, (const char *)data, ats_ip_nptop(&s->_sender, ipb, sizeof(ipb)));
+          Debug("icp", "Sending ICP_OP_MISS for id=%d, [%s] to [%s:%d]",
+                s->_rICPmsg->h.requestno, data, inet_ntoa(s->_sender.sin_addr), ntohs(s->_sender.sin_port));
           ICP_INCREMENT_DYN_STAT(icp_cache_lookup_fail_stat);
           status = ICPRequestCont::BuildICPMsg(ICP_OP_MISS,
                                                s->_rICPmsg->h.requestno, 0 /* optflags */ , 0 /* optdata */ ,
@@ -849,7 +845,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           break;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_awaiting_cache_lookup_response:  // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -864,7 +860,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         RECORD_ICP_STATE_CHANGE(s, 0, WRITE_DONE);
         ink_assert(s->_peer->writeAction == NULL);
         Action *a = s->_peer->SendMsg_re(this, this,
-                                         &s->_mhdr, &s->_sender.sa);
+                                         &s->_mhdr, &s->_sender);
         if (!a) {
           a = ACTION_IO_ERROR;
         }
@@ -876,9 +872,11 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         } else if (a == ACTION_IO_ERROR) {
           // Partial write.
           ICP_INCREMENT_DYN_STAT(query_response_partial_write_stat);
+          unsigned char x[4];
+          *(uint32_t *) & x = (uint32_t) s->_sender.sin_addr.s_addr;
           // coverity[uninit_use_in_call]
-          Debug("icp_warn", "ICP response send, sent=%d res=%d, ip=%s",
-            ntohs(s->_rICPmsg->h.msglen), -1, ats_ip_ntop(&s->_sender, ipb, sizeof(ipb)));
+          Debug("icp_warn", "ICP response send, sent=%d res=%d, ip=%d.%d.%d.%d",
+                ntohs(s->_rICPmsg->h.msglen), -1, x[0], x[1], x[2], x[3]);
           s->_next_state = READ_NOT_ACTIVE;
           RECORD_ICP_STATE_CHANGE(s, 0, READ_NOT_ACTIVE);
           break;
@@ -887,7 +885,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           return EVENT_DONE;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_send_reply:      // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -899,13 +897,15 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
 
         if (len == (int)ntohs(s->_rICPmsg->h.msglen)) {
           ICP_INCREMENT_DYN_STAT(query_response_write_stat);
-          s->_peer->LogSendMsg(s->_rICPmsg, &s->_sender.sa);       // log query reply
+          s->_peer->LogSendMsg(s->_rICPmsg, &s->_sender);       // log query reply
         } else {
           // Partial write.
           ICP_INCREMENT_DYN_STAT(query_response_partial_write_stat);
+          unsigned char x[4];
+          *(uint32_t *) & x = (uint32_t) s->_sender.sin_addr.s_addr;
           // coverity[uninit_use_in_call]
-          Debug("icp_warn", "ICP response send, sent=%d res=%d, ip=%s",
-            ntohs(s->_rICPmsg->h.msglen), len, ats_ip_ntop(&s->_sender, ipb, sizeof(ipb)));
+          Debug("icp_warn", "ICP response send, sent=%d res=%d, ip=%d.%d.%d.%d",
+                ntohs(s->_rICPmsg->h.msglen), len, x[0], x[1], x[2], x[3]);
         }
         // Processing complete, perform completion actions
         s->_next_state = READ_NOT_ACTIVE;
@@ -918,7 +918,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           break;                // move to next_state
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_write_done:      // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -941,13 +941,14 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         //
         Debug("icp", "No ICP Request for Id=%d", s->_rICPmsg->h.requestno);
         ICP_INCREMENT_DYN_STAT(no_icp_request_for_response_stat);
-        Peer *p = _ICPpr->FindPeer(s->_sender);
+        Peer *p = _ICPpr->FindPeer(&s->_sender.sin_addr,
+                                   ntohs(s->_sender.sin_port));
         p->LogRecvMsg(s->_rICPmsg, 0);
         s->_next_state = READ_NOT_ACTIVE;
         RECORD_ICP_STATE_CHANGE(s, 0, READ_NOT_ACTIVE);
         break;                  // move to next_state
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_get_icp_request: // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -974,7 +975,8 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           return EVENT_CONT;
         }
         // Log as "response for ICP request"
-        Peer *p = _ICPpr->FindPeer(s->_sender);
+        Peer *p = _ICPpr->FindPeer(&s->_sender.sin_addr,
+                                   ntohs(s->_sender.sin_port));
         p->LogRecvMsg(s->_rICPmsg, 1);
 
         // Process the ICP response for the given ICP request
@@ -1003,7 +1005,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
         s->_next_state = READ_NOT_ACTIVE;
         break;                  // move to next_state
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_get_icp_request_mutex:   // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -1032,7 +1034,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData * s, Event * e)
           break;                // restart
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_read_not_active: // fix DEC warnings
 #endif
       ink_release_assert(0);    // Should never happen
@@ -1085,7 +1087,7 @@ ICPRequestCont::~ICPRequestCont()
 
   if (_ICPmsg.h.opcode == ICP_OP_QUERY) {
     if (_ICPmsg.un.query.URL) {
-      ats_free(_ICPmsg.un.query.URL);
+      xfree(_ICPmsg.un.query.URL);
     }
   }
   if (pendingActions) {
@@ -1179,7 +1181,7 @@ ICPRequestCont::ICPRequestEvent(int event, Event * e)
         break;
       }
     }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
   _end_case:                   // fix DEC warnings
 #endif
     ink_release_assert(0);      // should never happen
@@ -1208,7 +1210,6 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
   // ICP message processing state machine
   //*******************************************
   ICPConfiguration *ICPcf = _ICPpr->GetConfig();
-  ip_port_text_buffer ipb;
 
   while (1) {                   // loop forever
 
@@ -1270,7 +1271,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
           break;                // move to next_state
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_start:       // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1291,7 +1292,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         _next_state = ICP_DONE;
         return EVENT_DONE;
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_off_terminate:       // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1321,7 +1322,9 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
           int was_expected = P->ExpectedReplies(&_expected_replies_list);
           _expected_replies += was_expected;
           npending_actions++;
-          Action *a = P->SendMsg_re(this, P, &_sendMsgHdr, NULL);
+          Action *a = P->SendMsg_re(this,
+                                    P,
+                                    &_sendMsgHdr, (struct sockaddr_in *) 0);
           if (!a) {
             a = ACTION_IO_ERROR;
           }
@@ -1332,18 +1335,19 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
               }
               (*pendingActions) (npending_actions) = a;
             }
-            P->LogSendMsg(&_ICPmsg, NULL);  // log as send query
-            Debug("icp", "[ICP_QUEUE_REQUEST] Id=%d send query to [%s]",
-              _sequence_number, ats_ip_nptop(P->GetIP(), ipb, sizeof(ipb)));
+            P->LogSendMsg(&_ICPmsg, (struct sockaddr_in *) 0);  // log as send query
+            Debug("icp", "[ICP_QUEUE_REQUEST] Id=%d send query to [%s:%d]",
+                  _sequence_number, inet_ntoa(*P->GetIP()), P->GetPort());
           } else {
             _expected_replies_list.ClearBit(P->GetPeerID());
             _expected_replies -= was_expected;
             // Partial or failed write.
             ICP_INCREMENT_DYN_STAT(send_query_partial_write_stat);
+            unsigned char x[4];
+            *(uint32_t *) & x = (uint32_t) (*P->GetIP()).s_addr;
             // coverity[uninit_use_in_call]
             Debug("icp_warn",
-                  "ICP query send, res=%d, ip=%s", ntohs(_ICPmsg.h.msglen),
-              ats_ip_ntop(P->GetIP(), ipb, sizeof(ipb)));
+                  "ICP query send, res=%d, ip=%d.%d.%d.%d", ntohs(_ICPmsg.h.msglen), x[0], x[1], x[2], x[3]);
           }
           SendPeers--;
         }
@@ -1368,7 +1372,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         _next_state = ICP_AWAITING_RESPONSE;
         return EVENT_DONE;
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_queue_request:       // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1400,7 +1404,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
           return EVENT_DONE;
         }
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_awaiting_response:   // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1415,7 +1419,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         _next_state = ICP_POST_COMPLETION;
         break;                  // move to next_state
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_dequeue_request:     // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1437,7 +1441,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         _next_state = ICP_WAIT_SEND_COMPLETE;
         break;                  // move to next_state
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_post_completion:     // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1453,7 +1457,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         }
       }
       break;
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_wait_send_complete:  // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1471,7 +1475,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
         _next_state = ICP_DONE;
         return EVENT_DONE;
       }
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
     _end_case_icp_request_not_active:  // fix DEC warnings
 #endif
       ink_release_assert(0);    // should never happen
@@ -1489,9 +1493,7 @@ int
 ICPRequestCont::ICPResponseMessage(int event, ICPMsg_t * m, int ICPMsg_len, Peer * peer)
 {
   NOWARN_UNUSED(ICPMsg_len);
-  ip_port_text_buffer ipb, ipb2;
   if (event == EVENT_INTERVAL) {
-
     _timeout = 0;
     remove_all_pendingActions();
 
@@ -1507,16 +1509,14 @@ ICPRequestCont::ICPResponseMessage(int event, ICPMsg_t * m, int ICPMsg_len, Peer
           pp = _ICPpr->GetNthParentPeer(0, _ICPpr->GetStartingParentPeerBias());
           if (pp && !_expected_replies_list.IsBitSet(pp->GetPeerID())
               && pp->isUp()) {
-            ats_ip_copy(&_ret_sockaddr.sa, pp->GetIP());
-            _ret_sockaddr.port() = htons(static_cast<ParentSiblingPeer*>(pp)->GetProxyPort());
+            _ret_sockaddr.sin_addr.s_addr = (pp->GetIP())->s_addr;
+            _ret_sockaddr.sin_port = htons(((ParentSiblingPeer *) pp)->GetProxyPort());
             _ret_status = ICP_LOOKUP_FOUND;
 
             Debug("icp",
-              "ICP timeout using parent Id=%d from [%s] return [%s]",
-              _sequence_number,
-              ats_ip_nptop(pp->GetIP(), ipb, sizeof(ipb)),
-              ats_ip_nptop(&_ret_sockaddr, ipb2, sizeof(ipb2))
-            );
+                  "ICP timeout using parent Id=%d from [%s:%d] return [%s:%d]",
+                  _sequence_number, inet_ntoa(*pp->GetIP()),
+                  pp->GetPort(), inet_ntoa(_ret_sockaddr.sin_addr), ntohs(_ret_sockaddr.sin_port));
             return EVENT_DONE;
           }
         }
@@ -1542,16 +1542,14 @@ ICPRequestCont::ICPResponseMessage(int event, ICPMsg_t * m, int ICPMsg_len, Peer
 
         ICP_INCREMENT_DYN_STAT(icp_query_hits_stat);
         ++_received_replies;
-        ats_ip_copy(&_ret_sockaddr, peer->GetIP());
-        _ret_sockaddr.port() =  htons(static_cast<ParentSiblingPeer*>(peer)->GetProxyPort());
+        _ret_sockaddr.sin_addr.s_addr = (peer->GetIP())->s_addr;
+        _ret_sockaddr.sin_port = htons(((ParentSiblingPeer *) peer)->GetProxyPort());
         _ret_status = ICP_LOOKUP_FOUND;
 
         Debug("icp",
-          "ICP Response HIT for Id=%d from [%s] return [%s]",
-          _sequence_number,
-          ats_ip_nptop(peer->GetIP(), ipb, sizeof(ipb)),
-          ats_ip_nptop(&_ret_sockaddr, ipb2, sizeof(ipb2))
-        );
+              "ICP Response HIT for Id=%d from [%s:%d] return [%s:%d]",
+              _sequence_number, inet_ntoa(*peer->GetIP()), peer->GetPort(),
+              inet_ntoa(_ret_sockaddr.sin_addr), ntohs(_ret_sockaddr.sin_port));
         return EVENT_DONE;
       }
     case ICP_OP_MISS:
@@ -1559,8 +1557,8 @@ ICPRequestCont::ICPResponseMessage(int event, ICPMsg_t * m, int ICPMsg_len, Peer
     case ICP_OP_MISS_NOFETCH:
     case ICP_OP_DENIED:
       {
-        Debug("icp", "ICP MISS response for Id=%d from [%s]",
-          _sequence_number, ats_ip_nptop(peer->GetIP(), ipb, sizeof(ipb)));
+        Debug("icp", "ICP MISS response for Id=%d from [%s:%d]",
+              _sequence_number, inet_ntoa(*peer->GetIP()), peer->GetPort());
         // "received_replies" is only for Peers who we expect a reply
         //  from (Peers which are in the expected_replies_list).
         int Id = peer->GetPeerID();
@@ -1602,25 +1600,27 @@ ICPRequestCont::ICPResponseMessage(int event, ICPMsg_t * m, int ICPMsg_len, Peer
             }
           }
           if (p) {
-            ats_ip_copy(&_ret_sockaddr, p->GetIP());
-            _ret_sockaddr.port() = htons(static_cast<ParentSiblingPeer*>(p)->GetProxyPort());
+            _ret_sockaddr.sin_addr.s_addr = (p->GetIP())->s_addr;
+            _ret_sockaddr.sin_port = htons(((ParentSiblingPeer *) p)->GetProxyPort());
             _ret_status = ICP_LOOKUP_FOUND;
 
-            Debug("icp", "ICP ALL MISS(1) for Id=%d return [%s]",
-              _sequence_number, ats_ip_nptop(&_ret_sockaddr, ipb, sizeof(ipb)));
+            Debug("icp", "ICP ALL MISS(1) for Id=%d return [%s:%d]",
+                  _sequence_number, inet_ntoa(_ret_sockaddr.sin_addr), ntohs(_ret_sockaddr.sin_port));
             return EVENT_DONE;
           }
         }
-        Debug("icp", "ICP ALL MISS(2) for Id=%d return [%s]",
-          _sequence_number, ats_ip_nptop(&_ret_sockaddr, ipb, sizeof(ipb)));
+        Debug("icp", "ICP ALL MISS(2) for Id=%d return [%s:%d]",
+              _sequence_number, inet_ntoa(_ret_sockaddr.sin_addr), ntohs(_ret_sockaddr.sin_port));
         return EVENT_DONE;
       }
     default:
       {
         ICP_INCREMENT_DYN_STAT(invalid_icp_query_response_stat);
+        unsigned char x[4];
+        *(uint32_t *) & x = (uint32_t) peer->GetIP()->s_addr;
         // coverity[uninit_use_in_call]
-        Warning("Invalid ICP response, op=%d reqno=%d ip=%s",
-          m->h.opcode, m->h.requestno, ats_ip_ntop(peer->GetIP(), ipb, sizeof(ipb)));
+        Warning("Invalid ICP response, op=%d reqno=%d ip=%d.%d.%d.%d",
+                m->h.opcode, m->h.requestno, x[0], x[1], x[2], x[3]);
         return EVENT_CONT;      // wait for more responses
       }
 
@@ -1736,8 +1736,7 @@ ICPRequestCont::BuildICPMsg(ICPopcode_t op, unsigned int seqno,
   mhdr->msg_name = (caddr_t) 0;
   mhdr->msg_namelen = 0;
   // TODO: The following is just awkward
-#if !defined(linux) && !defined(freebsd) && !defined(darwin) && !defined(solaris) \
- && !defined(openbsd)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin) && !defined(solaris)
   mhdr->msg_accrights = (caddr_t) 0;
   mhdr->msg_accrightslen = 0;
 #elif !defined(solaris)
@@ -1867,6 +1866,10 @@ ICPProcessor::ICPProcessor()
 
 ICPProcessor::~ICPProcessor()
 {
+#if defined (_WIN32)
+  if (0 < glShutdownInProgress)
+    return;
+#endif
   if (_ICPPeriodic) {
     MUTEX_TAKE_LOCK(_ICPPeriodic->mutex, this_ethread());
     _PeriodicEvent->cancel();
@@ -2018,23 +2021,22 @@ ICPProcessor::BuildPeerList()
   // parents and siblings.
   //
   Pcfg = _ICPConfig->indexToPeerConfigData(0);
-  ink_strlcpy(Pcfg->_hostname, "localhost", sizeof(Pcfg->_hostname));
+  ink_strncpy(Pcfg->_hostname, "localhost", sizeof(Pcfg->_hostname));
   Pcfg->_ctype = PeerConfigData::CTYPE_LOCAL;
 
   // Get IP address for given interface
-  IpEndpoint tmp_ip;
-  if (!mgmt_getAddrForIntr(GetConfig()->globalConfig()->ICPinterface(), &tmp_ip.sa)) {
-    Pcfg->_ip_addr._family = AF_UNSPEC;
+  if (!mgmt_getAddrForIntr(GetConfig()->globalConfig()->ICPinterface(), &Pcfg->_ip_addr)) {
     // No IP address for given interface
     Warning("ICP interface [%s] has no IP address", GetConfig()->globalConfig()->ICPinterface());
     REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "ICP interface has no IP address");
+    Pcfg->_ip_addr.s_addr = 0;
   } else {
-    Pcfg->_my_ip_addr = Pcfg->_ip_addr = tmp_ip;
+    Pcfg->_my_ip_addr.s_addr = Pcfg->_ip_addr.s_addr;
   }
   Pcfg->_proxy_port = 0;
   Pcfg->_icp_port = GetConfig()->globalConfig()->ICPport();
   Pcfg->_mc_member = 0;
-  Pcfg->_mc_ip_addr._family = AF_UNSPEC;
+  Pcfg->_mc_ip_addr.s_addr = 0;
   Pcfg->_mc_ttl = 0;
 
   //***************************************************
@@ -2057,18 +2059,18 @@ ICPProcessor::BuildPeerList()
     // siblings are cluster members.  Note that in a cluster
     // configuration, "icp.config" is shared by all nodes.
     //
-    if (Pcfg->GetIPAddr() == _LocalPeer->GetIP())
+    if (Pcfg->GetIP()->s_addr == _LocalPeer->GetIP()->s_addr)
       continue;                 // ignore
 
     if ((type == PEER_PARENT) || (type == PEER_SIBLING)) {
 
       if (Pcfg->MultiCastMember()) {
-        mcP = FindPeer(Pcfg->GetMultiCastIPAddr(), Pcfg->GetICPPort());
+        mcP = FindPeer(Pcfg->GetMultiCastIP(), Pcfg->GetICPPort());
         if (!mcP) {
           //*********************************
           // Create multicast peer structure
           //*********************************
-          mcP = NEW(new MultiCastPeer(Pcfg->GetMultiCastIPAddr(), Pcfg->GetICPPort(), Pcfg->GetMultiCastTTL(), this));
+          mcP = NEW(new MultiCastPeer(Pcfg->GetMultiCastIP(), Pcfg->GetICPPort(), Pcfg->GetMultiCastTTL(), this));
           status = AddPeer(mcP);
           ink_assert(status);
           status = AddPeerToSendList(mcP);
@@ -2188,37 +2190,44 @@ ICPProcessor::SetupListenSockets()
   int status;
   int index;
   for (index = 0; index < (_nPeerList + 1); ++index) {
-    ip_port_text_buffer ipb, ipb2;
-
     if ((P = _PeerList[index])) {
 
       if ((P->GetType() == PEER_PARENT)
           || (P->GetType() == PEER_SIBLING)) {
         ParentSiblingPeer *pPS = (ParentSiblingPeer *) P;
 
-	pPS->GetChan()->setRemote(pPS->GetIP());
+	pPS->GetChan()->setRemote(pPS->GetIP()->s_addr, pPS->GetPort());
 
       } else if (P->GetType() == PEER_MULTICAST) {
         MultiCastPeer *pMC = (MultiCastPeer *) P;
         ink_assert(_mcastCB_handler != NULL);
-        status = pMC->GetSendChan()->setup_mc_send(pMC->GetIP(), _LocalPeer->GetIP(), NON_BLOCKING, pMC->GetTTL(), DISABLE_MC_LOOPBACK, _mcastCB_handler);
+        status = pMC->GetSendChan()->setup_mc_send(pMC->GetIP()->s_addr, pMC->GetPort(), _LocalPeer->GetIP()->s_addr,
+#ifdef _WIN32
+                                                   _LocalPeer->GetPort(),
+#else
+                                                   0,
+#endif
+                                                   NON_BLOCKING, pMC->GetTTL(), DISABLE_MC_LOOPBACK, _mcastCB_handler);
         if (status) {
+          unsigned char x[4], y[4];
+          *(uint32_t *) & x = (uint32_t) pMC->GetIP()->s_addr;
+          *(uint32_t *) & y = (uint32_t) _LocalPeer->GetIP()->s_addr;
           // coverity[uninit_use_in_call]
-          Warning("ICP MC send setup failed, res=%d, ip=%s bind_ip=%s",
-            status,
-            ats_ip_nptop(pMC->GetIP(), ipb, sizeof(ipb)),
-            ats_ip_nptop(_LocalPeer->GetIP(), ipb2, sizeof(ipb2))
-          );
+          Warning("ICP MC send setup failed, res=%d, ip=%d.%d.%d.%d:%d bind_ip=%d.%d.%d.%d:%d",
+                  status, x[0], x[1], x[2], x[3], pMC->GetPort(), y[0], y[1], y[2], y[3], 0);
           REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "ICP MC send setup failed");
           return 1;             // Failed
         }
 
-        status = pMC->GetRecvChan()->setup_mc_receive(pMC->GetIP(),
+        status = pMC->GetRecvChan()->setup_mc_receive(pMC->GetIP()->s_addr,
+                                                      pMC->GetPort(),
                                                       NON_BLOCKING, pMC->GetSendChan(), _mcastCB_handler);
         if (status) {
+          unsigned char x[4];
+          *(uint32_t *) & x = (uint32_t) pMC->GetIP()->s_addr;
           // coverity[uninit_use_in_call]
-          Warning("ICP MC recv setup failed, res=%d, ip=%s",
-            status, ats_ip_nptop(pMC->GetIP(), ipb, sizeof(ipb)));
+          Warning("ICP MC recv setup failed, res=%d, ip=%d.%d.%d.%d:%d",
+                  status, x[0], x[1], x[2], x[3], pMC->GetPort());
           REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "ICP MC recv setup failed");
           return 1;             // Failed
         }
@@ -2232,7 +2241,7 @@ ICPProcessor::SetupListenSockets()
   //
   ParentSiblingPeer *pPS = (ParentSiblingPeer *) ((Peer *) _LocalPeer);
 
-  pPS->GetChan()->setRemote(pPS->GetIP());
+  pPS->GetChan()->setRemote(pPS->GetIP()->s_addr, pPS->GetPort());
   return 0;                     // Success
 }
 
@@ -2288,13 +2297,11 @@ ICPProcessor::Reconfigure(int global_config_changed, int peer_config_changed)
   _ICPConfig->UpdateGlobalConfig();
   _ICPConfig->UpdatePeerConfig();
 
-  int status = -1;
-  if (_ICPConfig->globalConfig()->ICPconfigured()) {
-    if ((status = BuildPeerList()) == 0) {
-      status = SetupListenSockets();
-    }
-    DumpICPConfig();
+  int status;
+  if ((status = BuildPeerList()) == 0) {
+    status = SetupListenSockets();
   }
+  DumpICPConfig();
   return status;
 }
 
@@ -2368,7 +2375,7 @@ ICPProcessor::ReconfigState_t
     }                           // End of switch
 
   }                             // End of while
-#if !defined(__GNUC__)
+#if !defined(_WIN32) && !defined(__GNUC__)
 _exit_while:                   // fix DEC warnings
 #endif
   return RC_DONE;
@@ -2392,35 +2399,34 @@ ICPProcessor::CancelPendingReads()
   r->_ICPmsg.h.version = ~r->_ICPmsg.h.version; // bogus message
 
   Peer *lp = GetLocalPeer();
-  r->_sendMsgHdr.msg_name = (caddr_t) & (lp->GetSendChan())->addr;
-  r->_sendMsgHdr.msg_namelen = sizeof((lp->GetSendChan())->addr);
+  r->_sendMsgHdr.msg_name = (caddr_t) & (lp->GetSendChan())->sa;
+  r->_sendMsgHdr.msg_namelen = sizeof((lp->GetSendChan())->sa);
   udpNet.sendmsg_re(r, r, lp->GetSendFD(), &r->_sendMsgHdr);
 }
 
 Peer *
-ICPProcessor::GenericFindListPeer(IpAddr const& ip, uint16_t port, int validListItems, Ptr<Peer> *List)
+ICPProcessor::GenericFindListPeer(struct in_addr *ip, int port, int validListItems, Ptr<Peer> *List)
 {
   Peer *P;
-  port = htons(port);
   for (int n = 0; n < validListItems; ++n) {
     if ((P = List[n])) {
-      if ((P->GetIP() == ip)
-        && ((port == 0) || (ats_ip_port_cast(P->GetIP()) == port)))
+      if ((P->GetIP()->s_addr == ip->s_addr)
+          && ((port == -1) || (P->GetPort() == port)))
         return P;
     }
   }
-  return NULL;
+  return (Peer *) 0;
 }
 
 Peer *
-ICPProcessor::FindPeer(IpAddr const& ip, uint16_t port)
+ICPProcessor::FindPeer(struct in_addr * ip, int port)
 {
   // Find (Peer *) with the given (ip,port) on the global list (PeerList)
   return GenericFindListPeer(ip, port, (_nPeerList + 1), _PeerList);
 }
 
 Peer *
-ICPProcessor::FindSendListPeer(IpAddr const& ip, uint16_t port)
+ICPProcessor::FindSendListPeer(struct in_addr * ip, int port)
 {
   // Find (Peer *) with the given (ip,port) on the
   //  scheduler list (SendPeerList)
@@ -2428,7 +2434,7 @@ ICPProcessor::FindSendListPeer(IpAddr const& ip, uint16_t port)
 }
 
 Peer *
-ICPProcessor::FindRecvListPeer(IpAddr const& ip, uint16_t port)
+ICPProcessor::FindRecvListPeer(struct in_addr * ip, int port)
 {
   // Find (Peer *) with the given (ip,port) on the
   //  receive list (RecvPeerList)
@@ -2445,10 +2451,11 @@ ICPProcessor::AddPeer(Peer * P)
   //
   // Make sure no duplicate exists
   //
-  if (FindPeer(P->GetIP())) {
-    ip_port_text_buffer x;
+  if (FindPeer(P->GetIP(), P->GetPort())) {
+    unsigned char x[4];
+    *(uint32_t *) & x = (uint32_t) P->GetIP()->s_addr;
     // coverity[uninit_use_in_call]
-    Warning("bad icp.config, multiple peer definitions for ip=%s", ats_ip_nptop(P->GetIP(), x, sizeof(x)));
+    Warning("bad icp.config, multiple peer definitions for ip=%d.%d.%d.%d", x[0], x[1], x[2], x[3]);
     REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "bad icp.config, multiple peer definitions");
 
     return 0;                   // Not added
@@ -2473,7 +2480,7 @@ ICPProcessor::AddPeerToRecvList(Peer * P)
   // Returns 1 - added; 0 - Not added
 
   // Assert that no duplicate exists
-  ink_assert(FindRecvListPeer(IpAddr(P->GetIP()), ats_ip_port_host_order(P->GetIP())) == 0);
+  ink_assert(FindRecvListPeer(P->GetIP(), P->GetPort()) == 0);
 
   if (_nRecvPeerList + 1 < RECV_PEER_LIST_SIZE) {
     _nRecvPeerList++;
@@ -2492,7 +2499,7 @@ ICPProcessor::AddPeerToSendList(Peer * P)
   // Returns 1 - added; 0 - Not added
 
   // Assert that no duplicate exists
-  ink_assert(FindSendListPeer(IpAddr(P->GetIP()), ats_ip_port_host_order(P->GetIP())) == 0);
+  ink_assert(FindSendListPeer(P->GetIP(), P->GetPort()) == 0);
 
   if (_nSendPeerList + 1 < SEND_PEER_LIST_SIZE) {
     _nSendPeerList++;

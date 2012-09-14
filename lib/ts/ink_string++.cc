@@ -33,6 +33,18 @@
 #include "libts.h"
 #include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+char *
+ink_memcpy_until_char(char *dst, char *src, unsigned int n, unsigned char c)
+{
+  unsigned int i = 0;
+  for (; ((i < n) && (((unsigned char) src[i]) != c)); i++)
+    dst[i] = src[i];
+  return &src[i];
+}
+
 /***********************************************************************
  *                                                                     *
  *       StrList (doubly-linked list of string/length list cells)      *
@@ -135,7 +147,7 @@ StrListOverflow::clean()
 
   while (current_free) {
     next_free = current_free->next;
-    ats_free(current_free);
+    xfree(current_free);
     current_free = next_free;
   }
 }
@@ -168,14 +180,14 @@ StrListOverflow *
 StrListOverflow::create_heap(int user_size)
 {
   // I'm aligning the first allocation since the old implementation
-  //  used to do this by calling ats_malloc.  I assume it doesn't
+  //  used to do this by calling xmalloc.  I assume it doesn't
   //  matter since we are talking about strings but since this is a
   //  last minute emergency bug fix, I'm not take any changes.  If
   //  allocations are not of aligned values then subsequents allocations
   //  aren't aligned, again mirroring the previous implemnetation
   int total_size = overflow_head_hdr_size + user_size;
 
-  StrListOverflow *o = (StrListOverflow *)ats_malloc(total_size);
+  StrListOverflow *o = (StrListOverflow *) xmalloc(total_size);
   o->init();
   o->heap_size = user_size;
 

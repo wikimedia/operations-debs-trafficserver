@@ -1,6 +1,6 @@
 /** @file
 
-  String and text processing routines for libts
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,14 @@
   limitations under the License.
  */
 
+/****************************************************************************
+
+  ink_string.c
+
+  String and text processing routines for libts
+
+ ****************************************************************************/
+
 #include "libts.h"   /* MAGIC_EDITING_TAG */
 
 #include <assert.h>
@@ -28,18 +36,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INK_MAX_STRING_ARRAY_SIZE 128
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-char *
-ink_memcpy_until_char(char *dst, char *src, unsigned int n, unsigned char c)
-{
-  unsigned int i = 0;
-  for (; ((i < n) && (((unsigned char) src[i]) != c)); i++)
-    dst[i] = src[i];
-  return &src[i];
-}
+#define INK_MAX_STRING_ARRAY_SIZE 128
 
 /*---------------------------------------------------------------------------*
 
@@ -65,29 +63,6 @@ ink_strncpy(char *dest, const char *src, int n)
   return (dest);
 }                               /* End ink_strncpy */
 
-/*---------------------------------------------------------------------------*
-
-  char *ink_strncat(char *dest, char *src, int n)
-
-  This routine is a safer version of strncat which always NUL terminates
-  the destination string.  Note that this routine has the SAME semantics
-  as strncat, such as concatinating exactly n bytes, padding dest with NULs
-  is necessary.  Use ink_string_copy for a non-padding version.
-
- *---------------------------------------------------------------------------*/
-
-char *
-ink_strncat(char *dest, const char *src, int n)
-{
-  if (likely(src && dest)) {
-    if (n > 1)
-      strncat(dest, src, (n - 1));
-    if (n > 0)
-      dest[n - 1] = '\0';
-  }
-
-  return (dest);
-}                               /* End ink_strncat */
 
 /*---------------------------------------------------------------------------*
 
@@ -214,6 +189,29 @@ ink_string_append(char *dest, char *src, int n)
 
 /*---------------------------------------------------------------------------*
 
+  char *ink_string_duplicate(char *ptr)
+
+  This routine allocates memory for the string <ptr>, and copies the string
+  into the new buffer.  The pointer to the new buffer is returned.
+
+ *---------------------------------------------------------------------------*/
+
+char *
+ink_string_duplicate(char *ptr)
+{
+  char *n = NULL;
+
+  if (likely(ptr)) {
+    const size_t nSize = strlen(ptr) + 1;
+    n = (char *) ink_malloc(nSize);
+    ink_strncpy(n, ptr, nSize);
+  }
+  return (n);
+}                               /* End ink_string_duplicate */
+
+
+/*---------------------------------------------------------------------------*
+
   char *ink_string_find_dotted_extension(char *str, char *ext, int max_ext_len)
 
   This routine takes a string <str>, copies the period-separated extension to
@@ -244,6 +242,172 @@ ink_string_find_dotted_extension(char *str, char *ext, int max_ext_len)
   return (p);
 }                               /* End ink_string_find_dotted_extension */
 
+/*---------------------------------------------------------------------------*
+
+  char *ink_string_mpath(int nstrings, char *str1, bool free1,
+    char *str2, bool free2, ...);
+
+  This routine joins multiple path components together to make
+  a new path.  Each component can optionally start with a / in which
+  case all the preceeding components are ignored.
+
+  Each component can optionally be free()d.
+
+  Space is malloc()d to hold the resulting path.
+
+ *---------------------------------------------------------------------------*/
+
+char *
+ink_string_mpath(int nstrings, ...)
+{
+  va_list ap;
+
+  char *e[INK_MAX_STRING_ARRAY_SIZE];
+  bool f[INK_MAX_STRING_ARRAY_SIZE];
+  size_t s[INK_MAX_STRING_ARRAY_SIZE];
+  int slash = 0;
+  size_t ts = 0;
+  char *ns = NULL;
+  char *p;
+  int i;
+
+  if (likely(nstrings < INK_MAX_STRING_ARRAY_SIZE)) {
+    va_start(ap, nstrings);
+
+    for (i = 0; i < nstrings; i++) {
+      e[i] = va_arg(ap, char *);
+      f[i] = va_arg(ap, int);
+    }
+
+    for (i = nstrings - 1; i >= 0; i--) {
+      if (!e[i])
+        continue;
+      s[i] = strlen(e[i]);
+      ts += s[i] + 1;
+      if (e[i][0] == '/') {
+        slash = i;
+        break;
+      }
+    }
+    if ((slash == nstrings - 1) && f[slash]) {
+      for (i = 0; i < nstrings - 1; i++) {
+        if (f[i])
+          xfree(e[i]);
+      }
+      va_end(ap);
+      return e[slash];
+    } else {
+      const size_t nsSize = ts + 1;
+      p = (ns = (char *) xmalloc(nsSize));
+      ink_assert(ns);
+      for (i = slash; i < nstrings - 1; i++) {
+        ink_strncpy(p, e[i], (nsSize - (p - ns)));
+        p += s[i];
+        *p++ = '/';
+      }
+      ink_strncpy(p, e[nstrings - 1], (nsSize - (p - ns)));
+    }
+    for (i = 0; i < nstrings; i++) {
+      if (f[i])
+        xfree(e[i]);
+    }
+    va_end(ap);
+  }
+  return ns;
+}
+
+/*---------------------------------------------------------------------------*
+
+  char *ink_string_mcopy(char *source);
+
+  This simply makes a copy of a string into freshly malloc()ed space.
+
+ *---------------------------------------------------------------------------*/
+
+char *
+ink_string_mcopy(char *source)
+{
+  char *n = NULL;
+
+  if (likely(source)) {
+    const size_t nSize = strlen(source) + 1;
+    n = (char *) xmalloc(nSize);
+    ink_strncpy(n, source, nSize);
+  }
+  return n;
+}
+
+/*---------------------------------------------------------------------------*
+
+  char *ink_string_mjoin(int nstrings, char *str1, bool free1,
+    char *str2, bool free2, ...);
+
+  This routine joins multiple strings components together to make
+  a new string.  Each component can optionally be free()d.
+
+  Space is malloc()d to hold the resulting path.
+
+ *---------------------------------------------------------------------------*/
+
+char *
+ink_string_mjoin(int nstrings, ...)
+{
+  va_list ap;
+
+  char *e[INK_MAX_STRING_ARRAY_SIZE];
+  bool f[INK_MAX_STRING_ARRAY_SIZE];
+
+  size_t s[INK_MAX_STRING_ARRAY_SIZE];
+  int slash = 0;
+  size_t ts = 0;
+  char *ns = NULL;
+  char *p;
+  int i;
+
+  if (likely(nstrings < INK_MAX_STRING_ARRAY_SIZE)) {
+    va_start(ap, nstrings);
+
+    for (i = 0; i < nstrings; i++) {
+      e[i] = va_arg(ap, char *);
+      f[i] = va_arg(ap, int);
+      if (e[i]) {
+        s[i] = strlen(e[i]);
+        ts += s[i];
+      }
+    }
+    const size_t nsSize = ts + 1;
+    p = (ns = (char *) xmalloc(nsSize));
+    for (i = slash; i < nstrings - 1; i++) {
+      ink_strncpy(p, e[i], (nsSize - (p - ns)));
+      p += s[i];
+    }
+    ink_strncpy(p, e[nstrings - 1], (nsSize - (p - ns)));
+    for (i = 0; i < nstrings; i++) {
+      if (f[i])
+        xfree(e[i]);
+    }
+    va_end(ap);
+  }
+  return ns;
+}
+
+#if !TS_HAS_STRNDUP
+char *
+ink_strndup(const char *str, size_t n)
+{
+  char *cstr = NULL;
+
+  if (likely(str)) {
+    size_t len = strlen(str);
+    cstr = (char *)xmalloc(len + 1);
+    if (cstr == NULL)
+      return (NULL);
+    memcpy(cstr, str, len);
+    cstr[len] = '\0';
+  }
+  return (cstr);
+}
+#endif
 
 #if !TS_HAS_STRLCPY
 size_t
@@ -336,7 +500,7 @@ ink_utf8_to_latin1(const char *in, int inlen, char *out, int *outlen)
 
   inbytesleft = inlen;
   outbytesleft = *outlen;
-#if !defined(kfreebsd) && (defined(freebsd) || (!defined(__GNUC__) && defined(solaris)))
+#if !defined(kfreebsd) && (defined(freebsd) || defined(solaris))
   if (iconv(ic, &in, &inbytesleft, &out, &outbytesleft) == (size_t) - 1)
 #else
   if (iconv(ic, (char **) &in, &inbytesleft, &out, &outbytesleft) == (size_t) - 1)

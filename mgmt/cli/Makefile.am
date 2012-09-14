@@ -21,8 +21,6 @@ SUFFIXES = .java .class .jar .my .def .stb .html
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib \
-  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/tools
 
@@ -79,8 +77,7 @@ traffic_shell_LDADD = \
   $(top_builddir)/mgmt/tools/libinkconfigapi.a \
   $(top_builddir)/mgmt/utils/libutils_lm.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  $(LIBTCL) $(LIBREADLINE) \
-  @LIBDL@ -lm @LIBICONV@ @LIBEXPAT@ @LIBSSL@ \
+  $(LIBTCL) @LIBDL@ -lm @LIBICONV@ @LIBEXPAT@ @LIBSSL@ \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ \
   @LIBRT@ @LIBEXECINFO@ @LIBPCRE@
 

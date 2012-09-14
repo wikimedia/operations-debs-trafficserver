@@ -1,6 +1,6 @@
 /** @file
 
-  File manipulation routines for libts
+  A brief file description
 
   @section license License
 
@@ -20,6 +20,14 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+
+/****************************************************************************
+
+  ink_file.c
+
+  File manipulation routines for libts
+
+ ****************************************************************************/
 
 #include "libts.h"
 
@@ -93,14 +101,15 @@ ink_file_fd_writestring(int fd, const char *buf)
 }                               /* End ink_file_fd_writestring */
 
 int
-ink_filepath_merge(char *path, int pathsz, const char *rootpath, const char *addpath, int flags)
+ink_filepath_merge(char *path, int pathsz, const char *rootpath,
+                   const char *addpath, int flags)
 {
   size_t rootlen; // is the length of the src rootpath
   size_t maxlen;  // maximum total path length
   size_t keptlen; // is the length of the retained rootpath
   size_t pathlen; // is the length of the result path
   size_t seglen;  // is the end of the current segment
-  char curdir[PATH_NAME_MAX];
+  char curdir[PATH_MAX];
 
   /* Treat null as an empty path.
   */
@@ -296,7 +305,8 @@ ink_filepath_merge(char *path, int pathsz, const char *rootpath, const char *add
 }
 
 int
-ink_filepath_make(char *path, int pathsz, const char *rootpath, const char *addpath)
+ink_filepath_make(char *path, int pathsz, const char *rootpath,
+                  const char *addpath)
 {
   size_t rootlen; // is the length of the src rootpath
   size_t maxlen;  // maximum total path length
@@ -308,12 +318,12 @@ ink_filepath_make(char *path, int pathsz, const char *rootpath, const char *addp
 
   if (addpath[0] == '/') {
     // If addpath is rooted, then rootpath is unused.
-    ink_strlcpy(path, addpath, pathsz);
+    ink_strncpy(path, addpath, pathsz);
     return 0;
   }
   if (!rootpath || !*rootpath) {
     // If there's no rootpath return the addpath
-    ink_strlcpy(path, addpath, pathsz);
+    ink_strncpy(path, addpath, pathsz);
     return 0;
   }
   rootlen = strlen(rootpath);
@@ -322,13 +332,10 @@ ink_filepath_make(char *path, int pathsz, const char *rootpath, const char *addp
     *path = '\0';
     return (int)maxlen;
   }
-  ink_strlcpy(path, rootpath, pathsz);
+  strcpy(path, rootpath);
   path += rootlen;
-  pathsz -= rootlen;
-  if (*(path - 1) != '/') {
+  if (*(path - 1) != '/')
     *(path++) = '/';
-    --pathsz;
-  }
-  ink_strlcpy(path, addpath, pathsz);
+  strcpy(path, addpath);
   return 0;
 }

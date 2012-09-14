@@ -187,7 +187,8 @@ Store::delete_all()
     if (disk[i])
       delete disk[i];
   n_disks = 0;
-  ats_free(disk);
+  if (disk)
+    ::xfree(disk);
   disk = NULL;
 }
 
@@ -198,7 +199,8 @@ Store::~Store()
 
 Span::~Span()
 {
-  ats_free(pathname);
+  if (pathname)
+    xfree(pathname);
   if (link.next)
     delete link.next;
 }
@@ -260,7 +262,7 @@ Store::read_config(int fd)
     //      inside ink_cache_init() which is called AFTER
     //      initialize_store().
     //
-    // ink_strlcpy(p, cache_system_config_directory, sizeof(p));
+    // ink_strncpy(p, cache_system_config_directory, sizeof(p));
     IOCORE_ReadConfigString(storage_file, "proxy.config.cache.storage_filename", PATH_NAME_MAX);
     Layout::relative_to(storage_path, PATH_NAME_MAX, Layout::get()->sysconfdir, storage_file);
     Debug("cache_init", "Store::read_config, fd = -1, \"%s\"", storage_path);
@@ -315,10 +317,10 @@ Store::read_config(int fd)
       IOCORE_SignalWarning(REC_SIGNAL_SYSTEM_ERROR, buf);
       Debug("cache_init", "Store::read_config - %s", buf);
       delete ns;
-      ats_free(pp);
+      xfree(pp);
       continue;
     }
-    ats_free(pp);
+    xfree(pp);
     n_dsstore++;
 
     // new Span
@@ -367,7 +369,7 @@ Store::write_config_data(int fd)
   return 0;
 }
 
-#if defined(freebsd) || defined(darwin) || defined(openbsd)
+#if defined(freebsd) || defined(darwin)
 // TODO: Those are probably already included from the ink_platform.h
 #include <ctype.h>
 #include <sys/types.h>
@@ -529,7 +531,7 @@ Span::init(char *an, int64_t size)
     disk_id = devnum;
   }
 
-  pathname = ats_strdup(an);
+  pathname = xstrdup(an);
   blocks = size / STORE_BLOCK_SIZE;
   file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
 
@@ -612,7 +614,7 @@ Span::init(char *filename, int64_t size)
     break;
 
   default:
-    Warning("unknown file type '%s': %" PRId64 "", filename, (int64_t)(s.st_mode));
+    Warning("unknown file type '%s': %d", filename, s.st_mode);
     err = "unknown file type";
     goto Lfail;
   }
@@ -624,7 +626,7 @@ Span::init(char *filename, int64_t size)
     disk_id = devnum;
   }
 
-  pathname = ats_strdup(filename);
+  pathname = xstrdup(filename);
   // is this right Seems like this should be size / hw_sector_size
   blocks = size / STORE_BLOCK_SIZE;
   file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
@@ -653,7 +655,7 @@ Span::init(char *filename, int64_t size)
 {
   int devnum = 0, fd, arg = 0;
   int ret = 0, is_disk = 0;
-  u_int64_t heads, sectors, cylinders, adjusted_sec;
+  unsigned int heads, sectors, cylinders, adjusted_sec;
 
   /* Fetch file type */
   struct stat stat_buf;
@@ -700,8 +702,7 @@ Span::init(char *filename, int64_t size)
     hw_sector_size = arg;
     is_disk = 1;
     adjusted_sec = hw_sector_size / 512;
-    Debug("cache_init", "Span::init - %s hw_sector_size=%d is_disk=%d adjusted_sec=%" PRId64,
-          filename, hw_sector_size, is_disk, adjusted_sec);
+    Debug("cache_init", "Span::init - %s hw_sector_size = %d,is_disk = %d,adjusted_sec = %d", filename, hw_sector_size, is_disk,adjusted_sec);
   }
 
   alignment = 0;
@@ -713,22 +714,14 @@ Span::init(char *filename, int64_t size)
 #endif
 
   if (is_disk) {
-    u_int32_t ioctl_sectors = 0;
-    u_int64_t ioctl_bytes = 0;
-    u_int64_t physsectors = 0;
+    uint32_t physsectors = 0;
 
     /* Disks cannot be mmapped */
     is_mmapable_internal = false;
 
-    if (!ioctl(fd, BLKGETSIZE64, &ioctl_bytes)) {
+    if (!ioctl(fd, BLKGETSIZE, &physsectors)) {
       heads = 1;
       cylinders = 1;
-      physsectors = ioctl_bytes / hw_sector_size;
-      sectors = physsectors;
-    } else if (!ioctl(fd, BLKGETSIZE, &ioctl_sectors)) {
-      heads = 1;
-      cylinders = 1;
-      physsectors = ioctl_sectors;
       sectors = physsectors / adjusted_sec;
     } else {
       struct hd_geometry geometry;
@@ -748,11 +741,11 @@ Span::init(char *filename, int64_t size)
 
     if (size > 0 && blocks * hw_sector_size != size) {
       Warning("Warning: you specified a size of %" PRId64 " for %s,\n", size, filename);
-      Warning("but the device size is %" PRId64 ". Using minimum of the two.\n", (int64_t)blocks * (int64_t)hw_sector_size);
-      if ((int64_t)blocks * (int64_t)hw_sector_size < size)
-        size = (int64_t)blocks * (int64_t)hw_sector_size;
+      Warning("but the device size is %" PRId64 ". Using minimum of the two.\n", blocks * hw_sector_size);
+      if (blocks * hw_sector_size < size)
+        size = blocks * hw_sector_size;
     } else {
-      size = (int64_t)blocks * (int64_t)hw_sector_size;
+      size = blocks * hw_sector_size;
     }
 
     /* I don't know why I'm redefining blocks to be something that is quite
@@ -760,10 +753,10 @@ Span::init(char *filename, int64_t size)
      * code for other arches seems to.  Revisit this, perhaps. */
     blocks = size / STORE_BLOCK_SIZE;
     
-    Debug("cache_init", "Span::init physical sectors %" PRId64 " total size %" PRId64 " geometry size %" PRId64 " store blocks %" PRId64 "",
-          physsectors, hw_sector_size * physsectors, size, blocks);
+    Debug("cache_init", "Span::init physical sectors %u total size %" PRId64 " geometry size %" PRId64 " store blocks %" PRId64 "", 
+          physsectors, hw_sector_size * (int64_t)physsectors, size, blocks);
 
-    pathname = ats_strdup(filename);
+    pathname = xstrdup(filename);
     file_pathname = 1;
   } else {
     Debug("cache_init", "Span::init - is_disk = %d, raw device = %s", is_disk, (major(devnum) == 162) ? "yes" : "no");
@@ -776,7 +769,7 @@ Span::init(char *filename, int64_t size)
       is_disk = 1;
       is_mmapable_internal = false;     /* I -think- */
       file_pathname = 1;
-      pathname = ats_strdup(filename);
+      pathname = xstrdup(filename);
       isRaw = 1;
 
       if (size <= 0)
@@ -789,7 +782,7 @@ Span::init(char *filename, int64_t size)
        * don't particularly understand that behaviour, so I'll just ignore it.
        * :) */
 
-      pathname = ats_strdup(filename);
+      pathname = xstrdup(filename);
       if (!file_pathname)
         if (size <= 0)
           return "When using directories for cache storage, you must specify a size\n";
@@ -832,7 +825,7 @@ try_alloc(Store & target, Span * source, unsigned int start_blocks, bool one_onl
         a = blocks;
       Span *d = NEW(new Span(*source));
 
-      d->pathname = ats_strdup(source->pathname);
+      d->pathname = xstrdup(source->pathname);
       d->blocks = a;
       d->file_pathname = source->file_pathname;
       d->offset = source->offset;
@@ -908,7 +901,7 @@ Store::try_realloc(Store & s, Store & diff)
                 goto Lfound;
               } else {
                 Span *x = NEW(new Span(*d));
-                x->pathname = ats_strdup(x->pathname);
+                x->pathname = xstrdup(x->pathname);
                 // d will be the first vol
                 d->blocks = sd->offset - d->offset;
                 d->link.next = x;
@@ -1030,7 +1023,7 @@ Span::read(int fd)
   if (sscanf(buf, "%s", p) != 1) {
     return (-1);
   }
-  pathname = ats_strdup(p);
+  pathname = xstrdup(p);
   if (get_int64(fd, blocks) < 0) {
     return -1;
   }
@@ -1087,7 +1080,7 @@ Store::read(int fd, char *aname)
   if (sscanf(buf, "%d\n", &n_disks) != 1)
     return (-1);
 
-  disk = (Span **)ats_malloc(sizeof(Span *) * n_disks);
+  disk = (Span **) xmalloc(sizeof(Span *) * n_disks);
   if (!disk)
     return -1;
   memset(disk, 0, sizeof(Span *) * n_disks);
@@ -1129,7 +1122,7 @@ Span *
 Span::dup()
 {
   Span *ds = NEW(new Span(*this));
-  ds->pathname = ats_strdup(pathname);
+  ds->pathname = xstrdup(pathname);
   if (ds->link.next)
     ds->link.next = ds->link.next->dup();
   return ds;
@@ -1139,7 +1132,7 @@ void
 Store::dup(Store & s)
 {
   s.n_disks = n_disks;
-  s.disk = (Span **)ats_malloc(sizeof(Span *) * n_disks);
+  s.disk = (Span **) xmalloc(sizeof(Span *) * n_disks);
   for (int i = 0; i < n_disks; i++)
     s.disk[i] = disk[i]->dup();
 }

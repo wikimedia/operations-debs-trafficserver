@@ -70,7 +70,7 @@ void RamCacheLRU::resize_hashtable() {
   int anbuckets = bucket_sizes[ibuckets];
   DDebug("ram_cache", "resize hashtable %d", anbuckets);
   int64_t s = anbuckets * sizeof(DList(RamCacheLRUEntry, hash_link));
-  DList(RamCacheLRUEntry, hash_link) *new_bucket = (DList(RamCacheLRUEntry, hash_link) *)ats_malloc(s);
+  DList(RamCacheLRUEntry, hash_link) *new_bucket = (DList(RamCacheLRUEntry, hash_link) *)xmalloc(s);
   memset(new_bucket, 0, s);
   if (bucket) {
     for (int64_t i = 0; i < nbuckets; i++) {
@@ -78,16 +78,14 @@ void RamCacheLRU::resize_hashtable() {
       while ((e = bucket[i].pop()))
         new_bucket[e->key.word(3) % anbuckets].push(e);
     }
-    ats_free(bucket);
+    xfree(bucket);
   }
   bucket = new_bucket;
   nbuckets = anbuckets;
-  ats_free(seen);
+  if (seen) xfree(seen);
   int size = bucket_sizes[ibuckets] * sizeof(uint16_t);
-  if (cache_config_ram_cache_use_seen_filter) {
-    seen = (uint16_t*)ats_malloc(size);
-    memset(seen, 0, size);
-  }
+  seen = (uint16_t*)xmalloc(size);
+  memset(seen, 0, size);
 }
 
 void
@@ -136,28 +134,17 @@ RamCacheLRUEntry * RamCacheLRU::remove(RamCacheLRUEntry *e) {
   return ret;
 }
 
-// ignore 'copy' since we don't touch the data
-int RamCacheLRU::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool, uint32_t auxkey1, uint32_t auxkey2) {
+// ignore 'len' and 'copy' since we don't touch the data
+int RamCacheLRU::put(INK_MD5 *key, IOBufferData *data, uint32_t, bool, uint32_t auxkey1, uint32_t auxkey2) {
   if (!max_bytes)
     return 0;
   uint32_t i = key->word(3) % nbuckets;
-  if (cache_config_ram_cache_use_seen_filter) {
-    uint16_t k = key->word(3) >> 16;
-    uint16_t kk = seen[i];
-    seen[i] = k;
-    if ((kk != (uint16_t)k)) {
-      DDebug("ram_cache", "put %X %d %d len %d UNSEEN", key->word(3), auxkey1, auxkey2, len);
-      return 0;
-    }
-  }
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {
     if (e->key == *key) {
-      if (e->auxkey1 == auxkey1 && e->auxkey2 == auxkey2) {
-        lru.remove(e);
-        lru.enqueue(e);
-        return 1;
-      } else { // discard when aux keys conflict
+      if (e->auxkey1 == auxkey1 && e->auxkey2 == auxkey2)
+        break;
+      else { // discard when aux keys conflict
         e = remove(e);
         continue;
       }

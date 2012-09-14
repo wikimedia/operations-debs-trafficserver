@@ -83,6 +83,8 @@ struct NetAcceptAction:public Action, public RefCountObj
 //
 struct NetAccept:public Continuation
 {
+  int port;
+  int domain;
   ink_hrtime period;
   Server server;
   void *alloc_cache;
@@ -94,8 +96,6 @@ struct NetAccept:public Continuation
   int recv_bufsize;
   int send_bufsize;
   uint32_t sockopt_flags;
-  uint32_t packet_mark;
-  uint32_t packet_tos;
   EventType etype;
   UnixNetVConnection *epoll_vc; // only storage for epoll events
   EventIO ep;
@@ -112,9 +112,9 @@ struct NetAccept:public Continuation
   virtual void init_accept(EThread * t = NULL);
   virtual void init_accept_per_thread();
   // 0 == success
-  int do_listen(bool non_blocking, bool transparent = false);
+  int do_listen(bool non_blocking);
 
-  int do_blocking_accept(EThread * t);
+  int do_blocking_accept(NetAccept * master_na, EThread * t);
   virtual int acceptEvent(int event, void *e);
   virtual int acceptFastEvent(int event, void *e);
   int acceptLoopEvent(int event, Event * e);

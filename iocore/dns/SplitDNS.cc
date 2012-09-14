@@ -190,7 +190,7 @@ SplitDNSConfig::print()
   SplitDNS *params = SplitDNSConfig::acquire();
 
   Debug("splitdns_config", "DNS Server Selection Config\n");
-  Debug("splitdns_config", "\tEnabled=%d \n", params->m_SplitDNSlEnable);
+  Debug("splitdns_config", "\tEnabled \n", params->m_SplitDNSlEnable);
 
   params->m_DNSSrvrTable->Print();
   SplitDNSConfig::release(params);
@@ -364,11 +364,14 @@ SplitDNSRecord::ProcessDNSHosts(char *val)
       *tmp = 0;
     }
 
-    if (0 != ats_ip_pton(current, &m_servers.x_server_ip[i].sa)) {
+    unsigned int addr = inet_addr(current);
+
+    if (((uint32_t)-1) == htonl(addr)) {
       return "invalid IP address given for a DNS server";
     }
 
-    ats_ip_port_cast(&m_servers.x_server_ip[i].sa) = htons(port ? port : NAMESERVER_PORT);
+    m_servers.x_server_ip[i] = addr;
+    m_servers.x_dns_server_port[i] = port ? port : NAMESERVER_PORT;
 
     if ((MAXDNAME * 2 - 1) > totsz) {
       sz = strlen(current);
@@ -458,7 +461,7 @@ SplitDNSRecord::Init(matcher_line * line_info)
 {
   const char *errPtr = NULL;
   const int errBufLen = 1024;
-  char *errBuf = (char *)ats_malloc(errBufLen * sizeof(char));
+  char *errBuf = (char *) xmalloc(errBufLen * sizeof(char));
   const char *tmp;
   char *label;
   char *val;
@@ -503,29 +506,27 @@ SplitDNSRecord::Init(matcher_line * line_info)
     }
   }
 
-  if (!ats_is_ip(&m_servers.x_server_ip[0].sa)) {
+  if (this->m_servers.x_server_ip[0] == 0) {
     snprintf(errBuf, errBufLen, "%s No server specified in splitdns.config at line %d", modulePrefix, line_num);
     return errBuf;
   }
 
   DNSHandler *dnsH = new DNSHandler;
-  ink_res_state res = new ts_imp_res_state;
+  ink_res_state res = new __ink_res_state;
 
-  memset(res, 0, sizeof(ts_imp_res_state));
-  if ((-1 == ink_res_init(res, m_servers.x_server_ip, m_dnsSrvr_cnt,
+  memset(res, 0, sizeof(__ink_res_state));
+  if ((-1 == ink_res_init(res, m_servers.x_server_ip, m_servers.x_dns_server_port,
                           m_servers.x_def_domain, m_servers.x_domain_srch_list, NULL))) {
-    char ab[INET6_ADDRPORTSTRLEN];
-    snprintf(errBuf, errBufLen,
-      "Failed to build res record for the servers %s ...",
-      ats_ip_ntop(&m_servers.x_server_ip[0].sa, ab, sizeof ab)
-    );
+    snprintf(errBuf, errBufLen, "Failed to build res record for the servers %u ... on port %d",
+             m_servers.x_server_ip[0], m_servers.x_dns_server_port[0]);
     return errBuf;
   }
 
   dnsH->m_res = res;
   dnsH->mutex = SplitDNSConfig::dnsHandler_mutex;
   dnsH->options = res->options;
-  ats_ip_invalidate(&dnsH->ip.sa); // Mark to use default DNS.
+  dnsH->ip = DEFAULT_DOMAIN_NAME_SERVER;
+  dnsH->port = DOMAIN_SERVICE_PORT;
 
   m_servers.x_dnsH = dnsH;
 
@@ -544,7 +545,7 @@ SplitDNSRecord::Init(matcher_line * line_info)
   }
 
   if (errBuf)
-    ats_free(errBuf);
+    xfree(errBuf);
 
   return NULL;
 }
@@ -563,7 +564,7 @@ SplitDNSRecord::UpdateMatch(SplitDNSResult * result, RD * rdata)
     result->m_rec = this;
     result->m_line_number = this->line_num;
 
-    Debug("splitdns_config", "Matched with %p dns node from line %d", this, this->line_num);
+    Debug("splitdns_config", "Matched with 0x%x dns node from line %d", this, this->line_num);
   }
 }
 
@@ -574,9 +575,13 @@ SplitDNSRecord::UpdateMatch(SplitDNSResult * result, RD * rdata)
 void
 SplitDNSRecord::Print()
 {
+  struct in_addr address;
+
   for (int i = 0; i < m_dnsSrvr_cnt; i++) {
-    char ab[INET6_ADDRPORTSTRLEN];
-    Debug("splitdns_config", " %s ", ats_ip_ntop(&m_servers.x_server_ip[i].sa, ab, sizeof ab));
+    address.s_addr = m_servers.x_server_ip[i];
+    char *pAdr = inet_ntoa(address);
+
+    Debug("splitdns_config", " %s:%d ", pAdr, m_servers.x_dns_server_port[i]);
   }
 }
 

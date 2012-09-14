@@ -26,7 +26,8 @@
  *
  *
  *	Usage:
- *	  thread-1.so
+ *	(NT): Thread.dll
+ *	(Solaris): thread-1.so
  *
  *
  */

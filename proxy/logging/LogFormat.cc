@@ -87,11 +87,11 @@ LogFormat::setup(const char *name, const char *format_str, unsigned interval_sec
   } else {
     const char *tag = " %<phn>";
     const size_t m_format_str_size = strlen(format_str) + (m_tagging_on ? strlen(tag) : 0) + 1;
-    m_format_str = (char *)ats_malloc(m_format_str_size);
-    ink_strlcpy(m_format_str, format_str, m_format_str_size);
+    m_format_str = (char *) xmalloc(m_format_str_size);
+    ink_strncpy(m_format_str, format_str, m_format_str_size);
     if (m_tagging_on) {
       Note("Log tagging enabled, adding %%<phn> field at the end of " "format %s", name);
-      ink_strlcat(m_format_str, tag, m_format_str_size);
+      strncat(m_format_str, tag, m_format_str_size - strlen(m_format_str) - 1);
     };
 
     char *printf_str = NULL;
@@ -106,8 +106,8 @@ LogFormat::setup(const char *name, const char *format_str, unsigned interval_sec
       m_valid = false;
     }
 
-    ats_free(fieldlist_str);
-    ats_free(printf_str);
+    xfree(fieldlist_str);
+    xfree(printf_str);
   }
 }
 
@@ -154,30 +154,30 @@ LogFormat::init_variables(const char *name, const char *fieldlist_str, const cha
     m_valid = false;
   } else {
     if (m_aggregate) {
-      m_agg_marshal_space = (char *)ats_malloc(m_field_count * INK_MIN_ALIGN);
+      m_agg_marshal_space = (char *) xmalloc(m_field_count * INK_MIN_ALIGN);
     }
 
     if (m_name_str) {
-      ats_free(m_name_str);
+      xfree(m_name_str);
       m_name_str = NULL;
       m_name_id = 0;
     }
     if (name) {
-      m_name_str = ats_strdup(name);
+      m_name_str = xstrdup(name);
       m_name_id = id_from_name(m_name_str);
     }
 
     if (m_fieldlist_str) {
-      ats_free(m_fieldlist_str);
+      xfree(m_fieldlist_str);
       m_fieldlist_str = NULL;
       m_fieldlist_id = 0;
     }
     if (fieldlist_str) {
-      m_fieldlist_str = ats_strdup(fieldlist_str);
+      m_fieldlist_str = xstrdup(fieldlist_str);
       m_fieldlist_id = id_from_name(m_fieldlist_str);
     }
 
-    m_printf_str = ats_strdup(printf_str);
+    m_printf_str = xstrdup(printf_str);
     m_interval_sec = interval_sec;
     m_interval_next = LogUtils::timestamp();
 
@@ -226,7 +226,7 @@ LogFormat::LogFormat(LogFormatType type)
     // indicate this, the format_str will be NULL
     //
   case TEXT_LOG:
-    m_name_str = ats_strdup("text");
+    m_name_str = xstrdup("text");
     m_valid = true;
     break;
   default:
@@ -312,9 +312,9 @@ LogFormat::LogFormat(const LogFormat & rhs)
 {
   if (m_valid) {
     if (m_format_type == TEXT_LOG) {
-      m_name_str = ats_strdup(rhs.m_name_str);
+      m_name_str = xstrdup(rhs.m_name_str);
     } else {
-      m_format_str = rhs.m_format_str ? ats_strdup(rhs.m_format_str) : 0;
+      m_format_str = rhs.m_format_str ? xstrdup(rhs.m_format_str) : 0;
       init_variables(rhs.m_name_str, rhs.m_fieldlist_str, rhs.m_printf_str, rhs.m_interval_sec);
     }
   }
@@ -326,11 +326,11 @@ LogFormat::LogFormat(const LogFormat & rhs)
 
 LogFormat::~LogFormat()
 {
-  ats_free(m_name_str);
-  ats_free(m_fieldlist_str);
-  ats_free(m_printf_str);
-  ats_free(m_agg_marshal_space);
-  ats_free(m_format_str);
+  xfree(m_name_str);
+  xfree(m_fieldlist_str);
+  xfree(m_printf_str);
+  xfree(m_agg_marshal_space);
+  xfree(m_format_str);
   m_valid = false;
 }
 
@@ -439,7 +439,7 @@ LogFormat::format_from_specification(char *spec, char **file_name, char **file_h
     Debug("log-format", "token expected");
     return NULL;
   }
-  *file_name = ats_strdup(token);
+  *file_name = xstrdup(token);
 
   //
   // Next should be the file type, either "ASCII" or "BINARY"
@@ -469,7 +469,7 @@ LogFormat::format_from_specification(char *spec, char **file_name, char **file_h
   // set header to NULL if "none" was specified (a NULL header means
   // "write no header" to the rest of the logging system)
   //
-  *file_header = strcmp(token, "none") == 0 ? NULL : ats_strdup(token);
+  *file_header = strcmp(token, "none") == 0 ? NULL : xstrdup(token);
 
   Debug("log-format", "custom:%d:%s:%s:%s:%d:%s", format_id, format_name, format_str, *file_name, *file_type, token);
 
@@ -512,7 +512,7 @@ LogFormat::parse_symbol_string(const char *symbol_string, LogFieldList *field_li
   //
   // strtok will mangle the input string; we'll make a copy for that.
   //
-  sym_str = ats_strdup(symbol_string);
+  sym_str = xstrdup(symbol_string);
   symbol = strtok(sym_str, ",");
 
   while (symbol != NULL) {
@@ -602,7 +602,7 @@ LogFormat::parse_symbol_string(const char *symbol_string, LogFieldList *field_li
     symbol = strtok(NULL, ",");
   }
 
-  ats_free(sym_str);
+  xfree(sym_str);
   return field_count;
 }
 
@@ -613,7 +613,7 @@ LogFormat::parse_symbol_string(const char *symbol_string, LogFieldList *field_li
   combination of printf characters and logging field names, separating this
   combined format string into a normal printf string and a fieldlist.  The
   number of logging fields parsed will be returned.  The two strings
-  returned are allocated with ats_malloc, and should be released by the
+  returned are allocated with xmalloc, and should be released by the
   caller.  The function returns -1 on error.
 
   For 3.1, I've added the ability to log summary information using
@@ -637,8 +637,9 @@ LogFormat::parse_format_string(const char *format_str, char **printf_str, char *
   // string.
   //
   unsigned len = (unsigned)::strlen(format_str);
-  *printf_str = (char *)ats_malloc(len + 1);
-  *fields_str = (char *)ats_malloc(len + 1);
+  *printf_str = (char *) xmalloc(len + 1);
+  *fields_str = (char *) xmalloc(len + 1);
+  ink_assert(*printf_str != NULL && *fields_str != NULL);
 
   unsigned printf_pos = 0;
   unsigned fields_pos = 0;

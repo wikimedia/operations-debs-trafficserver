@@ -39,9 +39,6 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
-/* Define to 1 if you have the <editline/readline.h> header file. */
-#undef HAVE_EDITLINE_READLINE_H
-
 /* Define to 1 if you have the <endian.h> header file. */
 #undef HAVE_ENDIAN_H
 
@@ -63,20 +60,8 @@
 /* Define to 1 if you have the <google/profiler.h> header file. */
 #undef HAVE_GOOGLE_PROFILER_H
 
-/* Define to 1 if you have the <history.h> header file. */
-#undef HAVE_HISTORY_H
-
-/* Define to 1 if you have the <hwloc.h> header file. */
-#undef HAVE_HWLOC_H
-
-/* Define to 1 if you have the <ifaddrs.h> header file. */
-#undef HAVE_IFADDRS_H
-
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
-
-/* Define to 1 if you have the <jemalloc/jemalloc.h> header file. */
-#undef HAVE_JEMALLOC_JEMALLOC_H
 
 /* Define to 1 if you have the `kqueue' function. */
 #undef HAVE_KQUEUE
@@ -89,9 +74,6 @@
 
 /* Compiling with pcre support */
 #undef HAVE_LIBPCRE
-
-/* Define if you have a readline compatible library */
-#undef HAVE_LIBREADLINE
 
 /* Define to 1 if you have the `lrand48_r' function. */
 #undef HAVE_LRAND48_R
@@ -132,15 +114,6 @@
 /* Define to 1 if you have the <net/ppp_defs.h> header file. */
 #undef HAVE_NET_PPP_DEFS_H
 
-/* Define to 1 if you have the <openssl/ssl.h> header file. */
-#undef HAVE_OPENSSL_SSL_H
-
-/* Define to 1 if you have the <openssl/tls1.h> header file. */
-#undef HAVE_OPENSSL_TLS1_H
-
-/* Define to 1 if you have the <openssl/ts.h> header file. */
-#undef HAVE_OPENSSL_TS_H
-
 /* Define to 1 if you have the <openssl/x509.h> header file. */
 #undef HAVE_OPENSSL_X509_H
 
@@ -159,39 +132,11 @@
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN
 
-/* Define to 1 if you have the <readline.h> header file. */
-#undef HAVE_READLINE_H
-
-/* Define if your readline library has \`add_history' */
-#undef HAVE_READLINE_HISTORY
-
-/* Define to 1 if you have the <readline/history.h> header file. */
-#undef HAVE_READLINE_HISTORY_H
-
-/* Define to 1 if you have the <readline/readline.h> header file. */
-#undef HAVE_READLINE_READLINE_H
-
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
 
 /* Define to 1 if you have the `srand48_r' function. */
 #undef HAVE_SRAND48_R
-
-/* Define to 1 if you have the `SSL_CTX_set_next_protos_advertised_cb'
-   function. */
-#undef HAVE_SSL_CTX_SET_NEXT_PROTOS_ADVERTISED_CB
-
-/* Define to 1 if you have the `SSL_CTX_set_next_proto_select_cb' function. */
-#undef HAVE_SSL_CTX_SET_NEXT_PROTO_SELECT_CB
-
-/* Define to 1 if you have the `SSL_get0_next_proto_negotiated' function. */
-#undef HAVE_SSL_GET0_NEXT_PROTO_NEGOTIATED
-
-/* Define to 1 if you have the `SSL_get_servername' function. */
-#undef HAVE_SSL_GET_SERVERNAME
-
-/* Define to 1 if you have the `SSL_select_next_proto' function. */
-#undef HAVE_SSL_SELECT_NEXT_PROTO
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -211,17 +156,11 @@
 /* Define to 1 if you have the `strlcpy' function. */
 #undef HAVE_STRLCPY
 
+/* Define to 1 if you have the `strndup' function. */
+#undef HAVE_STRNDUP
+
 /* Define to 1 if you have the <stropts.h> header file. */
 #undef HAVE_STROPTS_H
-
-/* Whether struct sockaddr_in6 has the sin6_len member */
-#undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN
-
-/* Whether struct sockaddr_in has the sin_len member */
-#undef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN
-
-/* Whether struct sockaddr_in has the sa_len member */
-#undef HAVE_STRUCT_SOCKADDR_SA_LEN
 
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 #undef HAVE_SYS_BYTEORDER_H

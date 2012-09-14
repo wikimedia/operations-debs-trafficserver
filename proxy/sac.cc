@@ -1,6 +1,6 @@
 /** @file
 
-  Standalone Collator
+  A brief file description
 
   @section license License
 
@@ -21,12 +21,18 @@
   limitations under the License.
  */
 
+/***************************************************************************
+ sac.cc
+
+ Standalone Collator
+
+
+ ***************************************************************************/
 #include "ink_config.h"
 #include "ink_file.h"
 #include "ink_unused.h"
 #include "I_Layout.h"
 #include "I_Version.h"
-#include "P_Net.h"
 
 #define PROGRAM_NAME  "traffic_sac"
 
@@ -94,7 +100,7 @@ main(int argc, char *argv[])
   process_args(argument_descriptions, n_argument_descriptions, argv);
 
   // Get log directory
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
+  ink_strlcpy(system_log_dir, Layout::get()->logdir, PATH_NAME_MAX);
   if (access(system_log_dir, R_OK) == -1) {
     fprintf(stderr, "unable to change to log directory \"%s\" [%d '%s']\n", system_log_dir, errno, strerror(errno));
     fprintf(stderr, " please set correct path in env variable TS_ROOT \n");
@@ -102,7 +108,7 @@ main(int argc, char *argv[])
   }
 
   management_directory[0] = 0;
-  ink_strlcat(management_directory, system_config_directory, sizeof(management_directory));
+  strncat(management_directory, system_config_directory, 256 - 1);
 
   // check for the version number request
   //
@@ -134,7 +140,7 @@ main(int argc, char *argv[])
   eventProcessor.start(ink_number_of_processors());
   ink_net_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
   netProcessor.start();
-  Machine::init();
+  create_this_machine(NULL, 0);
 
   Log::init(Log::NO_REMOTE_MANAGEMENT | Log::STANDALONE_COLLATOR);
 

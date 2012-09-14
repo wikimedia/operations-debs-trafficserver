@@ -64,17 +64,7 @@
 #define ACCEPTEX_POOL_SIZE                1
 #endif
 
-static int const NO_FD = -1;
-
-static unsigned int const DEFAULT_POLL_TIMEOUT =
-#if defined(solaris)
-                                                  30  /* mseconds */
-#else
-                                                  10  /* mseconds */
-#endif
-  ;
-
-extern int net_config_poll_timeout;
+#define NO_FD                             (-1)
 
 #define NET_EVENT_OPEN                    (NET_EVENT_EVENTS_START)
 #define NET_EVENT_OPEN_FAILED             (NET_EVENT_EVENTS_START+1)
@@ -101,8 +91,11 @@ extern int net_config_poll_timeout;
 
 #define ET_NET ET_CALL
 
+//struct socks_conf_struct;
+#include "I_NetConfig.h"
 #include "I_NetVConnection.h"
 #include "I_NetProcessor.h"
+#include "I_UDPNet.h"
 
 void ink_net_init(ModuleVersion version);
 #endif

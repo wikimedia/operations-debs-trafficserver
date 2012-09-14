@@ -86,7 +86,7 @@ startElement(void *userData, const char *name, const char **atts)
     break;
 
   case EXPR_TAG:
-    exprContent = (char*)ats_malloc(BUFSIZ * 10);
+    exprContent = (char*)xmalloc(BUFSIZ * 10);
     memset(exprContent, 0, BUFSIZ * 10);
     break;
 
@@ -154,7 +154,7 @@ charDataHandler(void *userData, const XML_Char * name, int len)
   }
 
   if (currentTag == EXPR_TAG) {
-    ink_strlcat(exprContent, content, BUFSIZ * 10); // see above for the size
+    strncat(exprContent, content, ((BUFSIZ * 10) - strlen(exprContent) - 1));
 
   } else {
     statObject->assignDst(content, nodeVar, sumClusterVar);

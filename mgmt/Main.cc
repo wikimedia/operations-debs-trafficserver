@@ -1,6 +1,6 @@
 /** @file
 
-  Entry point to the traffic manager.
+  A brief file description
 
   @section license License
 
@@ -19,6 +19,15 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
+ */
+
+/*
+ *
+ * Main.cc
+ * - Entry point to the traffic manager.
+ * - Splitted off from LocalManager.cc on 10/23/98.
+ *
+ *
  */
 
 #include "ink_config.h"
@@ -59,6 +68,14 @@
 #endif
 
 #define FD_THROTTLE_HEADROOM (128 + 64) // TODO: consolidate with THROTTLE_FD_HEADROOM
+
+// TODO: Use positive instead negative selection
+#if !defined(linux) && !defined(darwin) && !defined(freebsd) && !defined(solaris)
+extern "C"
+{
+  int gethostname(char *name, int namelen);
+}
+#endif
 
 #if defined(freebsd)
 extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer, size_t buflen, struct passwd **resptr);
@@ -113,14 +130,14 @@ void SigChldHandler(int sig);
 void
 check_lockfile()
 {
-  char lockfile[PATH_NAME_MAX];
+  char lockfile[PATH_MAX];
   int err;
   pid_t holding_pid;
 
   //////////////////////////////////////
   // test for presence of server lock //
   //////////////////////////////////////
-  Layout::relative_to(lockfile, PATH_NAME_MAX, Layout::get()->runtimedir, SERVER_LOCK);
+  Layout::relative_to(lockfile, PATH_MAX, Layout::get()->runtimedir, SERVER_LOCK);
   Lockfile server_lockfile(lockfile);
   err = server_lockfile.Open(&holding_pid);
   if (err == 1) {
@@ -146,7 +163,7 @@ check_lockfile()
   ///////////////////////////////////////////
   // try to get the exclusive manager lock //
   ///////////////////////////////////////////
-  Layout::relative_to(lockfile, PATH_NAME_MAX, Layout::get()->runtimedir, MANAGER_LOCK);
+  Layout::relative_to(lockfile, PATH_MAX, Layout::get()->runtimedir, MANAGER_LOCK);
   Lockfile manager_lockfile(lockfile);
   err = manager_lockfile.Get(&holding_pid);
   if (err != 1) {
@@ -177,6 +194,7 @@ check_lockfile()
 void
 initSignalHandlers()
 {
+#ifndef _WIN32
   struct sigaction sigHandler, sigChldHandler, sigAlrmHandler;
   sigset_t sigsToBlock;
 
@@ -254,6 +272,7 @@ initSignalHandlers()
   sigChldHandler.sa_flags = SA_RESTART;
   sigemptyset(&sigChldHandler.sa_mask);
   sigaction(SIGCHLD, &sigChldHandler, NULL);
+#endif /* !_WIN32 */
 }
 
 #if defined(linux)
@@ -277,9 +296,9 @@ init_dirs(bool use_librecords = true)
 {
   char buf[PATH_NAME_MAX + 1];
 
-  ink_strlcpy(system_config_directory, Layout::get()->sysconfdir, sizeof(system_config_directory));
-  ink_strlcpy(system_runtime_dir, Layout::get()->runtimedir, sizeof(system_runtime_dir));
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
+  ink_strncpy(system_config_directory, Layout::get()->sysconfdir, PATH_NAME_MAX);
+  ink_strncpy(system_runtime_dir, Layout::get()->runtimedir, PATH_NAME_MAX);
+  ink_strncpy(system_log_dir, Layout::get()->logdir, PATH_NAME_MAX);
 
   if (access(system_config_directory, R_OK) == -1) {
     if (use_librecords) {
@@ -293,7 +312,7 @@ init_dirs(bool use_librecords = true)
       _exit(1);
     }
   }
-  ink_strlcpy(mgmt_path, system_config_directory, sizeof(mgmt_path));
+  strcpy(mgmt_path, system_config_directory);
 
   if (access(system_runtime_dir, W_OK) == -1) {
     if (use_librecords) {
@@ -395,8 +414,8 @@ main(int argc, char **argv)
 {
   // Before accessing file system initialize Layout engine
   Layout::create();
-  ink_strlcpy(system_root_dir, Layout::get()->prefix, sizeof(system_root_dir));
-  ink_strlcpy(mgmt_path, Layout::get()->sysconfdir, sizeof(mgmt_path));
+  ink_strncpy(system_root_dir, Layout::get()->prefix, PATH_NAME_MAX);
+  ink_strncpy(mgmt_path, Layout::get()->sysconfdir, PATH_NAME_MAX);
 
   // change the directory to the "root" directory
   chdir_root();
@@ -415,8 +434,7 @@ main(int argc, char **argv)
   int cluster_port = -1, cluster_server_port = -1;
   // TODO: This seems completely incomplete, disabled for now
   //  int dump_config = 0, dump_process = 0, dump_node = 0, dump_cluster = 0, dump_local = 0;
-  char* proxy_port = 0;
-  int proxy_backdoor = -1;
+  int proxy_port = -1, proxy_backdoor = -1;
   char *envVar = NULL, *group_addr = NULL, *tsArgs = NULL;
   bool log_to_syslog = true;
   char userToRunAs[80];
@@ -476,10 +494,12 @@ main(int argc, char **argv)
 #if TS_USE_DIAGS
           } else if (strcmp(argv[i], "-debug") == 0) {
             ++i;
-            ink_strlcpy(debug_tags, argv[i], sizeof(debug_tags));
+            strncpy(debug_tags, argv[i], 1023);
+            debug_tags[1023] = '\0';
           } else if (strcmp(argv[i], "-action") == 0) {
             ++i;
-            ink_strlcpy(action_tags, argv[i], sizeof(debug_tags));
+            strncpy(action_tags, argv[i], 1023);
+            action_tags[1023] = '\0';
 #endif
           } else if (strcmp(argv[i], "-path") == 0) {
             ++i;
@@ -489,7 +509,7 @@ main(int argc, char **argv)
               exit(1);
             }
 
-            ink_strlcpy(mgmt_path, argv[i], sizeof(mgmt_path));
+            ink_strncpy(mgmt_path, argv[i], sizeof(mgmt_path));
             /*
                } else if(strcmp(argv[i], "-lmConf") == 0) {
                ++i;
@@ -526,7 +546,7 @@ main(int argc, char **argv)
               size_of_args += 1;
               size_of_args += strlen((argv[j++]));
             }
-            tsArgs = (char *)ats_malloc(size_of_args + 1);
+            ink_assert((tsArgs = (char *) xmalloc(size_of_args + 1)));
 
             j = 0;
             while (i < argc) {
@@ -536,7 +556,7 @@ main(int argc, char **argv)
             }
           } else if (strcmp(argv[i], "-proxyPort") == 0) {
             ++i;
-            proxy_port = argv[i];
+            proxy_port = atoi(argv[i]);
           } else if (strcmp(argv[i], "-proxyBackDoor") == 0) {
             ++i;
             proxy_backdoor = atoi(argv[i]);
@@ -655,7 +675,7 @@ main(int argc, char **argv)
       facility_int = LOG_DAEMON;
     } else {
       facility_int = facility_string_to_int(facility_str);
-      ats_free(facility_str);
+      xfree(facility_str);
       if (facility_int < 0) {
         mgmt_elog("Bad syslog facility specified.  Defaulting to DAEMON\n");
         facility_int = LOG_DAEMON;
@@ -698,12 +718,15 @@ main(int argc, char **argv)
 
   /* Update cmd line overrides/environmental overrides/etc */
   if (tsArgs) {                 /* Passed command line args for proxy */
-    ats_free(lmgmt->proxy_options);
+    if (lmgmt->proxy_options) {
+      xfree(lmgmt->proxy_options);
+    }
     lmgmt->proxy_options = tsArgs;
     mgmt_log(stderr, "[main] Traffic Server Args: '%s'\n", lmgmt->proxy_options);
   }
-  if (proxy_port) {
-    HttpProxyPort::loadValue(lmgmt->m_proxy_ports, proxy_port);
+  if (proxy_port != -1) {
+    lmgmt->proxy_server_port[0] = proxy_port;
+    mgmt_log(stderr, "[main] Traffic Server Port: '%d'\n", lmgmt->proxy_server_port[0]);
   }
 
   if (proxy_backdoor != -1) {
@@ -752,7 +775,7 @@ main(int argc, char **argv)
   //   UI record for this machine
   overviewGenerator->addSelfRecord();
   webThrId = ink_thread_create(webIntr_main, NULL);     /* Spin web agent thread */
-  Debug("lm", "Created Web Agent thread (%"  PRId64 ")", (int64_t)webThrId);
+  Debug("lm", "Created Web Agent thread (%d)", webThrId);
   lmgmt->listenForProxy();
 
   /* Check the permissions on vip_config */
@@ -835,6 +858,7 @@ main(int argc, char **argv)
     if (lmgmt->proxy_launch_outstanding && !lmgmt->processRunning() && just_started >= 120) {
       just_started = 0;
       lmgmt->proxy_launch_outstanding = false;
+#ifndef _WIN32
       if (lmgmt->proxy_launch_pid != -1) {
         int res;
         kill(lmgmt->proxy_launch_pid, 9);
@@ -848,6 +872,11 @@ main(int argc, char **argv)
 #endif /* NEED_PSIGNAL */
         }
       }
+#else
+      if (lmgmt->proxy_launch_hproc != INVALID_HANDLE_VALUE) {
+        TerminateProcess(lmgmt->proxy_launch_hproc, 1);
+      }
+#endif /* !_WIN32 */
       mgmt_log(stderr, "[main] Proxy launch failed, retrying...\n");
     }
 
@@ -864,6 +893,7 @@ main(int argc, char **argv)
 }                               /* End main */
 
 
+#ifndef _WIN32
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
 void
 SignalAlrmHandler(int sig, siginfo_t * t, void *c)
@@ -999,6 +1029,8 @@ SigHupHandler(int sig, ...)
   Debug("lm", "[SigHupHandler] hup caught\n");
   sigHupNotifier = 1;
 }                               /* End SigHupHandler */
+#endif /* !_WIN32 */
+
 
 void
 printUsage()
@@ -1150,11 +1182,7 @@ restoreCapabilities() {
   int zret = 0; // return value.
   cap_t cap_set = cap_get_proc(); // current capabilities
   // Make a list of the capabilities we want turned on.
-  cap_value_t cap_list[] = {
-    CAP_NET_ADMIN, ///< Set socket transparency.
-    CAP_NET_BIND_SERVICE, ///< Low port (e.g. 80) binding.
-    CAP_IPC_LOCK ///< Lock IPC objects.
-  };
+  cap_value_t cap_list[] = { CAP_NET_ADMIN, CAP_NET_BIND_SERVICE, CAP_IPC_LOCK };
   static int const CAP_COUNT = sizeof(cap_list)/sizeof(*cap_list);
 
   cap_set_flag(cap_set, CAP_EFFECTIVE, CAP_COUNT, cap_list, CAP_SET);
@@ -1237,7 +1265,7 @@ runAsUser(char *userName)
     }
 
 #if TS_USE_POSIX_CAP
-    if (0 != restoreCapabilities()) {
+    if (restoreCapabilities()) {
       mgmt_elog(stderr, "[runAsUser] Error: Failed to restore capabilities after switch to user %s.\n", userName);
     }
 #endif

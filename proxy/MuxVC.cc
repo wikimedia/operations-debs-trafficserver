@@ -2843,7 +2843,7 @@ MuxPagesHandler::handle_callback(int event, void *edata)
       StatPageData data;
 
       data.data = response;
-      data.type = ats_strdup("text/html");
+      data.type = NULL;
       data.length = response_length;
       response = NULL;
 

@@ -44,7 +44,7 @@ RecAlloc(RecT rec_type, const char *name, RecDataT data_type)
   RecRecord *r = &(g_records[i]);
   // Note: record should already be memset to 0 from RecCoreInit()
   r->rec_type = rec_type;
-  r->name = ats_strdup(name);
+  r->name = xstrdup(name);
   r->order = i;
   r->data_type = data_type;
   rec_mutex_init(&(r->lock), NULL);
@@ -62,7 +62,7 @@ void
 RecDataClear(RecDataT data_type, RecData * data)
 {
   if ((data_type == RECD_STRING) && (data->rec_string)) {
-    ats_free(data->rec_string);
+    xfree(data->rec_string);
   }
   memset(data, 0, sizeof(RecData));
 }
@@ -80,14 +80,16 @@ RecDataSet(RecDataT data_type, RecData * data_dst, RecData * data_src)
   case RECD_STRING:
     if (data_src->rec_string == NULL) {
       if (data_dst->rec_string != NULL) {
-        ats_free(data_dst->rec_string);
+        xfree(data_dst->rec_string);
         data_dst->rec_string = NULL;
         rec_set = true;
       }
     } else if (((data_dst->rec_string) && (strcmp(data_dst->rec_string, data_src->rec_string) != 0)) ||
                ((data_dst->rec_string == NULL) && (data_src->rec_string != NULL))) {
-      if (data_dst->rec_string) ats_free(data_dst->rec_string);
-      data_dst->rec_string = ats_strdup(data_src->rec_string);
+      if (data_dst->rec_string) {
+        xfree(data_dst->rec_string);
+      }
+      data_dst->rec_string = xstrdup(data_src->rec_string);
       rec_set = true;
     }
     break;
@@ -133,10 +135,11 @@ RecDataSetFromInk64(RecDataT data_type, RecData * data_dst, int64_t data_int64)
   case RECD_STRING:
     {
       char buf[32 + 1];
-
-      ats_free(data_dst->rec_string);
+      if (data_dst->rec_string) {
+        xfree(data_dst->rec_string);
+      }
       snprintf(buf, 32, "%" PRId64 "", data_int64);
-      data_dst->rec_string = ats_strdup(buf);
+      data_dst->rec_string = xstrdup(buf);
       break;
     }
   case RECD_COUNTER:
@@ -167,10 +170,11 @@ RecDataSetFromFloat(RecDataT data_type, RecData * data_dst, float data_float)
   case RECD_STRING:
     {
       char buf[32 + 1];
-
-      ats_free(data_dst->rec_string);
+      if (data_dst->rec_string) {
+        xfree(data_dst->rec_string);
+      }
       snprintf(buf, 32, "%f", data_float);
-      data_dst->rec_string = ats_strdup(buf);
+      data_dst->rec_string = xstrdup(buf);
       break;
     }
   case RECD_COUNTER:
@@ -230,7 +234,7 @@ RecLog(DiagsLevel dl, const char *format_string, ...)
 
   va_start(ap, format_string);
   if (g_diags) {
-    g_diags->log_va(NULL, dl, NULL, format_string, ap);
+    g_diags->log_va(NULL, dl, NULL, NULL, format_string, ap);
   }
   va_end(ap);
 }
@@ -246,7 +250,7 @@ RecDebug(DiagsLevel dl, const char *format_string, ...)
 
   va_start(ap, format_string);
   if (g_diags) {
-    g_diags->log_va("rec", dl, NULL, format_string, ap);
+    g_diags->log_va("rec", dl, NULL, NULL, format_string, ap);
   }
   va_end(ap);
 }

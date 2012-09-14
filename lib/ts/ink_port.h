@@ -76,7 +76,12 @@
 #endif
 #endif
 
+#if defined(freebsd)
+#define NO_MEMALIGN
+#endif
+
 #if defined(darwin)
+#define NO_MEMALIGN
 #define RENTRENT_GETHOSTBYNAME
 #define RENTRENT_GETHOSTBYADDR
 #endif

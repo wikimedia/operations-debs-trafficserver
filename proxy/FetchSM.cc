@@ -40,7 +40,7 @@ FetchSM::cleanUp()
   mutex.clear();
   http_parser_clear(&http_parser);
   client_response_hdr.destroy();
-  ats_free(client_response);
+  xfree(client_response);
 
   PluginVC *vc = (PluginVC *) http_vc;
 
@@ -52,9 +52,9 @@ void
 FetchSM::httpConnect()
 {
   Debug(DEBUG_TAG, "[%s] calling httpconnect write", __FUNCTION__);
-  sockaddr_in addr;
-  ats_ip4_set(&addr, _ip, _port);
-  http_vc = TSHttpConnect(ats_ip_sa_cast(&addr));
+  sockaddr_storage addr;
+  ink_inet_ip4_set(&addr, _ip, _port);
+  http_vc = TSHttpConnect(ink_inet_sa_cast(&addr));
 
   PluginVC *vc = (PluginVC *) http_vc;
 
@@ -93,13 +93,14 @@ FetchSM::get_info_from_buffer(IOBufferReader *the_reader)
     return ;
 
   read_avail = the_reader->read_avail();
-  Debug(DEBUG_TAG, "[%s] total avail %" PRId64 , __FUNCTION__, read_avail);
+  Debug(DEBUG_TAG, "[%s] total avail " PRId64 , __FUNCTION__, read_avail);
   //size_t hdr_size = _headers.size();
-  //info = (char *)ats_malloc(sizeof(char) * (read_avail+1) + hdr_size);
-  info = (char *)ats_malloc(sizeof(char) * (read_avail+1));
+  //info = (char *) xmalloc(sizeof(char) * (read_avail+1) + hdr_size);
+  info = (char *) xmalloc(sizeof(char) * (read_avail+1));
+  if (info == NULL)
+    return ;
   client_response = info;
-
-  //ink_strlcpy(info, _headers.data(), sizeof(char) * (read_avail+1));
+  //strncpy(info, _headers.data(), hdr_size);
   //info += hdr_size;
 
   /* Read the data out of the reader */
@@ -132,7 +133,7 @@ FetchSM::process_fetch_read(int event)
   switch (event) {
   case TS_EVENT_VCONN_READ_READY:
     bytes = resp_reader->read_avail();
-    Debug(DEBUG_TAG, "[%s] number of bytes in read ready %"PRId64"", __FUNCTION__, bytes);
+    Debug(DEBUG_TAG, "[%s] number of bytes in read ready %d", __FUNCTION__, bytes);
     while (actual_bytes_copied < bytes) {
        actual_bytes_copied = response_buffer->write(resp_reader, bytes, 0);
       resp_reader->consume(actual_bytes_copied);
@@ -154,11 +155,11 @@ FetchSM::process_fetch_read(int event)
     bytes = response_reader->read_avail();
 
     get_info_from_buffer(response_reader);
-    Debug(DEBUG_TAG, "[%s] number of bytes %"PRId64"", __FUNCTION__, bytes);
+    Debug(DEBUG_TAG, "[%s] number of bytes %d", __FUNCTION__, bytes);
     if(client_response!=NULL)
       client_response[bytes] = '\0';
       //client_response[bytes + _headers.size()] = '\0';
-    Debug(DEBUG_TAG, "[%s] Completed data fetch of size %"PRId64", notifying caller", __FUNCTION__, bytes);
+    Debug(DEBUG_TAG, "[%s] Completed data fetch of size %d, notifying caller", __FUNCTION__, bytes);
     //InvokePlugin( TS_EVENT_INTERNAL_60200, (void *) client_response);
    client_bytes = bytes;
     //InvokePlugin( TS_EVENT_INTERNAL_60200, (void *) this);

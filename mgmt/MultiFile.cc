@@ -80,7 +80,7 @@ MultiFile::addTableEntries(ExpandingArray * fileList, textBuffer * output)
     output->copyFrom(dataOpen, dataOpenLen);
 
     if (ink_ctime_r(&current->c_time, dateBuf) == NULL) {
-      ink_strlcpy(dateBuf, "<em>No time-stamp</em>", sizeof(dateBuf));
+      ink_strncpy(dateBuf, "<em>No time-stamp</em>", sizeof(dateBuf));
     }
     output->copyFrom(dateBuf, strlen(dateBuf));
     output->copyFrom(dataClose, dataCloseLen);
@@ -98,8 +98,13 @@ MultiFile::addTableEntries(ExpandingArray * fileList, textBuffer * output)
 MFresult
 MultiFile::WalkFiles(ExpandingArray * fileList)
 {
+#ifndef _WIN32
   struct dirent *dirEntry;
   DIR *dir;
+#else
+  char *searchPattern;
+  WIN32_FIND_DATA W32FD;
+#endif
   char *fileName;
   char *filePath;
   char *records_config_filePath = NULL;
@@ -107,6 +112,7 @@ MultiFile::WalkFiles(ExpandingArray * fileList)
   struct stat records_config_fileInfo;
   fileEntry *fileListEntry;
 
+#ifndef _WIN32
   if ((dir = opendir(managedDir)) == NULL) {
     mgmt_log(stderr, "[MultiFile::WalkFiles] Unable to open %s directory: %s: %s\n",
              dirDescript, managedDir, strerror(errno));
@@ -115,7 +121,7 @@ MultiFile::WalkFiles(ExpandingArray * fileList)
   // The fun of Solaris - readdir_r requires a buffer passed into it
   //   The man page says this obscene expression gives us the proper
   //     size
-  dirEntry = (struct dirent *)ats_malloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
+  dirEntry = (struct dirent *) xmalloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
 
   struct dirent *result;
   while (readdir_r(dir, dirEntry, &result) == 0) {
@@ -133,17 +139,48 @@ MultiFile::WalkFiles(ExpandingArray * fileList)
       }
       // Ignore ., .., and any dot files
       if (*fileName != '.' && isManaged(fileName)) {
-        fileListEntry = (fileEntry *)ats_malloc(sizeof(fileEntry));
+        fileListEntry = (fileEntry *) xmalloc(sizeof(fileEntry));
         fileListEntry->c_time = fileInfo.st_ctime;
-        ink_strlcpy(fileListEntry->name, fileName, sizeof(fileListEntry->name));
+        ink_strncpy(fileListEntry->name, fileName, sizeof(fileListEntry->name));
         fileList->addEntry(fileListEntry);
       }
     }
     delete[]filePath;
   }
 
-  ats_free(dirEntry);
+  xfree(dirEntry);
   closedir(dir);
+#else
+  // Append '\*' as a wildcard for FindFirstFile()
+  searchPattern = newPathString(managedDir, "*");
+  HANDLE hDInfo = FindFirstFile(searchPattern, &W32FD);
+
+  if (INVALID_HANDLE_VALUE == hDInfo) {
+    mgmt_log(stderr, "[MultiFile::WalkFiles] FindFirstFile failed for %s: %s\n", searchPattern, ink_last_err());
+    delete[]searchPattern;
+    return MF_NO_DIR;
+  }
+  delete[]searchPattern;
+
+  while (FindNextFile(hDInfo, &W32FD)) {
+    fileName = W32FD.cFileName;
+    filePath = newPathString(managedDir, fileName);
+    if (stat(filePath, &fileInfo) < 0) {
+      mgmt_log(stderr, "[MultiFile::WalkFiles] Stat of a %s failed %s: %s\n", dirDescript, fileName, strerror(errno));
+    } else {
+      // Ignore ., .., and any dot files
+      if (*fileName != '.' && isManaged(fileName)) {
+        fileListEntry = (fileEntry *) xmalloc(sizeof(fileEntry));
+        fileListEntry->c_time = fileInfo.st_ctime;
+        strcpy(fileListEntry->name, fileName);
+        fileList->addEntry(fileListEntry);
+      }
+    }
+    delete[]filePath;
+  }
+
+  FindClose(hDInfo);
+#endif
 
   fileList->sortWithFunction(fileEntryCmpFunc);
   delete[]records_config_filePath;
@@ -227,23 +264,23 @@ MultiFile::newPathString(const char *s1, const char *s2)
   if (*s2 == '/') {
     // If addpath is rooted, then rootpath is unused.
     newStr = new char[addLen];
-    ink_strlcpy(newStr, s2, addLen);
+    strcpy(newStr, s2);
     return newStr;
   }
   if (!s1 || !*s1) {
     // If there's no rootpath return the addpath
     newStr = new char[addLen];
-    ink_strlcpy(newStr, s2, addLen);
+    strcpy(newStr, s2);
     return newStr;
   }
   srcLen = strlen(s1);
   newStr = new char[srcLen + addLen + 1];
   ink_assert(newStr != NULL);
 
-  ink_strlcpy(newStr, s1, addLen);
+  strcpy(newStr, s1);
   if (newStr[srcLen - 1] != '/')
     newStr[srcLen++] = '/';
-  ink_strlcpy(&newStr[srcLen], s2, addLen - srcLen);
+  strcpy(&newStr[srcLen], s2);
 
   return newStr;
 }

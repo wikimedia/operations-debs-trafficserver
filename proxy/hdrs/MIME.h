@@ -52,13 +52,12 @@ enum
   UNDEFINED_COUNT = -1
 };
 
-/// Parsing state.
-enum MimeParseState {
-  MIME_PARSE_BEFORE, ///< Before a field.
-  MIME_PARSE_FOUND_CR, ///< Before a field, found a CR.
-  MIME_PARSE_INSIDE, ///< Inside a field.
-  MIME_PARSE_AFTER,  ///< After a field.
-};
+#define MIME_SCANNER_STATE_START			0
+#define MIME_SCANNER_STATE_CHAR_2			1
+#define MIME_SCANNER_STATE_SCANNING_FOR_LF		2
+#define	MIME_SCANNER_STATE_SCANNING_FOR_CONTINUATION	3
+#define	MIME_SCANNER_STATE_EATING_WS			4
+#define	MIME_SCANNER_STATE_DONE				5
 
 #define MIME_SCANNER_TYPE_LINE				0
 #define MIME_SCANNER_TYPE_FIELD				1
@@ -260,8 +259,7 @@ struct MIMEScanner
   //int m_type;               // what kind of scanner: raw line, or field (this has never been used)
   int m_line_length;            // size of real live data in buffer
   int m_line_size;              // total allocated size of buffer
-//  int m_state;                  // state of scanning state machine
-  MimeParseState m_state; ///< Parsing machine state.
+  int m_state;                  // state of scanning state machine
 };
 
 
@@ -678,7 +676,7 @@ int mime_mem_print(const char *src_d, int src_l, char *buf_start, int buf_length
 int mime_field_print(MIMEField * field, char *buf_start, int buf_length,
                      int *buf_index_inout, int *buf_chars_to_skip_inout);
 
-const char *mime_str_u16_set(HdrHeap * heap, const char *s_str, int s_len,
+const char *mime_str_u16_set(HdrHeap * heap, const char *s_str, uint16_t s_len,
                              const char **d_str, uint16_t * d_len, bool must_copy);
 
 int mime_field_length_get(MIMEField * field);
@@ -932,17 +930,6 @@ public:
   int32_t get_cooked_cc_max_stale();
   int32_t get_cooked_cc_min_fresh();
   bool get_cooked_pragma_no_cache();
-
-  /** Get the value of the host field.
-      This parses the host field for brackets and port value.
-      @return The mime HOST field if it has a value, @c NULL otherwise.
-  */
-  MIMEField* get_host_port_values(
-			    char const** host_ptr, ///< [out] Pointer to host.
-			    int* host_len, ///< [out] Length of host.
-			    char const** port_ptr, ///< [out] Pointer to port.
-			    int* port_len ///< [out] Length of port.
-			    );
 
   void set_cooked_cc_need_revalidate_once();
   void unset_cooked_cc_need_revalidate_once();

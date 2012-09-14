@@ -59,7 +59,7 @@ StatPagesManager::register_http(const char *module, StatPagesFunc func)
 {
   ink_release_assert(n_stat_pages < MAX_STAT_PAGES);
 
-  stat_pages[n_stat_pages].module = (char *)ats_malloc(strlen(module) + 3);
+  stat_pages[n_stat_pages].module = (char *) xmalloc(strlen(module) + 3);
   snprintf(stat_pages[n_stat_pages].module, strlen(module) + 3, "{%s}", module);
   stat_pages[n_stat_pages++].func = func;
 }
@@ -73,15 +73,12 @@ StatPagesManager::handle_http(Continuation * cont, HTTPHdr * header, int client_
   if (((m_enabled == 1 || m_enabled == 3) && is_cache_inspector_page(url)) ||
       ((m_enabled == 2 || m_enabled == 3) && is_stat_page(url) && !is_cache_inspector_page(url))) {
     int host_len;
-    char host[MAXDNAME + 1];
+    char host[1024];
     const char *h;
     int i;
 
     h = url->host_get(&host_len);
-    if (host_len > MAXDNAME)
-      host_len = MAXDNAME;
-    memcpy(host, h, host_len);
-    host[host_len] = '\0';
+    ink_strncpy(host, h, host_len >= 1023 ? 1024 : host_len + 1);
     host_len = unescapifyStr(host);
 
     for (i = 0; i < n_stat_pages; i++) {
@@ -95,22 +92,16 @@ StatPagesManager::handle_http(Continuation * cont, HTTPHdr * header, int client_
   return ACTION_RESULT_DONE;
 }
 
-bool
-StatPagesManager::is_stat_page(URL * url)
+bool StatPagesManager::is_stat_page(URL * url)
 {
-  // This gets called from the state machine, so we should optimize here and not in caller.
-  if (m_enabled <= 0)
-    return false;
-
   int length;
   const char *h = url->host_get(&length);
-  char host[MAXDNAME + 1];
+  char host[1024];
 
-  if (h == NULL || length < 2 || length > MAXDNAME)
+  if (h == NULL || length < 2)
     return false;
 
-  memcpy(host, h, length);
-  host[length] = '\0';
+  ink_strncpy(host, h, length >= 1023 ? 1024 : length + 1);
   length = unescapifyStr(host);
 
   if ((host[0] == '{') && (host[length - 1] == '}'))
@@ -119,17 +110,16 @@ StatPagesManager::is_stat_page(URL * url)
   return false;
 }
 
-bool
-StatPagesManager::is_cache_inspector_page(URL * url)
+bool StatPagesManager::is_cache_inspector_page(URL * url)
 {
   int length;
   const char *h = url->host_get(&length);
-  char host[MAXDNAME + 1];
+  char host[1024];
 
-  if (h == NULL || length < 2 || length > MAXDNAME)
+  if (h == NULL || length < 2)
     return false;
 
-  memcpy(host, h, length);
+  ink_strncpy(host, h, length >= 1023 ? 1024 : length + 1);
   host[length] = '\0';
   length = unescapifyStr(host);
 
@@ -143,7 +133,10 @@ StatPagesManager::is_cache_inspector_page(URL * url)
 void
 BaseStatPagesHandler::resp_clear()
 {
-  ats_free(response);
+  if (response) {
+    xfree(response);
+  }
+
   response = NULL;
   response_size = 0;
   response_length = 0;
@@ -171,9 +164,9 @@ BaseStatPagesHandler::resp_add(const char *fmt, ...)
 
   if (size != response_size) {
     if (!response) {
-      response = (char *)ats_malloc(size);
+      response = (char *) xmalloc(size);
     } else {
-      response = (char *)ats_realloc(response, size);
+      response = (char *) xrealloc(response, size);
     }
     response_size = size;
   }

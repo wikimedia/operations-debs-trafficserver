@@ -20,20 +20,20 @@ noinst_PROGRAMS = mkdfa CompileParseRules
 check_PROGRAMS = test_atomic test_freelist test_arena test_List test_Map test_Vec
 TESTS = $(check_PROGRAMS)
 
-AM_CPPFLAGS = -I$(top_srcdir)/lib
-
 lib_LTLIBRARIES = libtsutil.la
 
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
-libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ @LIBHWLOC@ -lc
+libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ -lc
 
 libtsutil_la_SOURCES = \
+  Allocator.cc \
   Allocator.h \
   Arena.cc \
   Arena.h \
   Bitops.cc \
   Bitops.h \
   Compatability.h \
+  DAllocator.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
@@ -71,6 +71,8 @@ libtsutil_la_SOURCES = \
   ink_inet.cc \
   ink_inet.h \
   ink_inout.h \
+  ink_isolatin_table.cc \
+  ink_isolatin_table.h \
   ink_killall.cc \
   ink_killall.h \
   ink_llqueue.h \
@@ -122,8 +124,6 @@ libtsutil_la_SOURCES = \
   llqueue.cc \
   lockfile.cc \
   I_Layout.h \
-  IntrusiveDList.h \
-  IpMap.h IpMap.cc IpMapConf.h IpMapConf.cc IpMapTest.cc \
   Layout.cc \
   MatcherUtils.cc \
   MatcherUtils.h \
@@ -153,7 +153,7 @@ libtsutil_la_SOURCES = \
   Version.cc
 
 # Special hacks to generate the parser rules
-$(srcdir)/ParseRules.cc: ParseRulesCType
+ParseRules.cc: ParseRulesCType
 
 ParseRulesCType: CompileParseRules
 	./CompileParseRules
@@ -161,25 +161,22 @@ ParseRulesCType: CompileParseRules
 mkdfa_SOURCES = mkdfa.c
 
 test_atomic_SOURCES = test_atomic.cc
-test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_freelist_SOURCES = test_freelist.cc
-test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_arena_SOURCES = test_arena.cc
-test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
 test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
-test_Map_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
-test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-
+test_Map_LDADD = libtsutil.la
 test_Vec_SOURCES = test_Vec.cc
-test_Vec_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
-test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+test_Vec_LDADD = libtsutil.la
 
 CompileParseRules_SOURCES = CompileParseRules.cc
 

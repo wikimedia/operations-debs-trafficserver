@@ -53,19 +53,25 @@
 #include "ConfigAPI.h"
 #include "SysAPI.h"
 
+#if !defined(_WIN32)
 // Ugly hack - define HEAP_H and STACK_H to prevent stuff from the
 // template library from being included which SUNPRO CC does not not
 // like.
 #define HEAP_H
 #define STACK_H
+#endif // !defined(_WIN32)
 
 
 //-------------------------------------------------------------------------
 // defines
 //-------------------------------------------------------------------------
 
+#ifndef _WIN32
 #define DIR_MODE S_IRWXU
 #define FILE_MODE S_IRWXU
+#else
+#define FILE_MODE S_IWRITE
+#endif
 
 #define MAX_ARGS         10
 #define MAX_TMP_BUF_LEN  1024
@@ -84,6 +90,43 @@ typedef int (*WebHttpHandler) (WebHttpContext * whc, const char *file);
 static InkHashTable *g_autoconf_allow_ht = 0;
 
 static InkHashTable *g_file_bindings_ht = 0;
+
+#if defined(_WIN32)
+// adjustCmdLine
+//
+// This function is used for constructing a command line from a CGI
+// scripting program because Windows doesn't know how to execute a
+// script.  For example, instead of executing "blacklist.cgi", we need
+// to tell Windows to execute "perl.exe blacklist.cgi".
+
+static void
+adjustCmdLine(char *cmdLine, int cmdline_len, const char *cgiFullPath)
+{
+  char line[1024 + 1];
+  char *interpreter = NULL;
+
+  FILE *f = fopen(cgiFullPath, "r");
+  if (f != NULL) {
+    if (fgets(line, 1024, f) != NULL) {
+      int n = strlen(line);
+      if (n > 2 && strncmp(line, "#!", 2) == 0 && line[n - 1] == '\n') {
+        line[n - 1] = '\0';
+        interpreter = line + 2;
+      }
+    }
+    fclose(f);
+  }
+
+  if (interpreter) {
+    snprintf(cmdLine, cmdline_len, "\"%s\" \"%s\"", interpreter, cgiFullPath);
+  } else {
+    ink_strncpy(cmdLine, cgiFullPath, cmdline_len);
+  }
+  return;
+}
+
+#endif
+
 
 //-------------------------------------------------------------------------
 // handle_record_info
@@ -200,7 +243,7 @@ handle_default(WebHttpContext * whc, const char *file)
     // don't serve file types that we don't know about; helps to lock
     // down the webserver.  for example, when serving files out the
     // etc/trafficserver/plugins directory, we don't want to allow the users to
-    // access the .so plugin files.
+    // access the .so/.dll plugin files.
     response_hdr->setStatus(STATUS_NOT_FOUND);
     WebHttpSetErrorResponse(whc, STATUS_NOT_FOUND);
     return WEB_HTTP_ERR_REQUEST_ERROR;
@@ -212,7 +255,7 @@ handle_default(WebHttpContext * whc, const char *file)
   // open the requested file
   if ((h_file = WebFileOpenR(doc_root_file)) == WEB_HANDLE_INVALID) {
     //could not find file
-    ats_free(doc_root_file);
+    xfree(doc_root_file);
     response_hdr->setStatus(STATUS_NOT_FOUND);
     WebHttpSetErrorResponse(whc, STATUS_NOT_FOUND);
     return WEB_HTTP_ERR_REQUEST_ERROR;
@@ -227,7 +270,7 @@ handle_default(WebHttpContext * whc, const char *file)
     response_hdr->setStatus(STATUS_NOT_FOUND);
     WebHttpSetErrorResponse(whc, STATUS_NOT_FOUND);
     WebFileClose(h_file);
-    ats_free(doc_root_file);
+    xfree(doc_root_file);
     return WEB_HTTP_ERR_REQUEST_ERROR;
   }
   // Check to see if the clients copy is up to date.  Ignore the
@@ -248,7 +291,7 @@ handle_default(WebHttpContext * whc, const char *file)
   response_hdr->setLastMod(file_date_gmt);
 
   WebFileClose(h_file);
-  ats_free(doc_root_file);
+  xfree(doc_root_file);
 
   return WEB_HTTP_ERR_OKAY;
 
@@ -323,7 +366,9 @@ read_request(WebHttpContext * whc)
   // (in compliance with TCP). This causes problems with the "POST"
   // method. (for example with update.html). With IE, we found ending
   // "\r\n" were not read.  The following work around is to read all
-  // that is left in the socket before closing it.
+  // that is left in the socket before closing it.  The same problem
+  // applies for Windows 2000 as well.
+#if !defined(_WIN32)
 #define MAX_DRAIN_BYTES 32
   // INKqa11524: If the user is malicious and keeps sending us data,
   // we'll go into an infinite spin here.  Fix is to only drain up
@@ -336,6 +381,17 @@ read_request(WebHttpContext * whc)
       drain_bytes++;
     }
   }
+#else
+  {
+    unsigned long i;
+    if (ioctlsocket(whc->si.fd, FIONREAD, &i) != SOCKET_ERROR) {
+      if (i) {
+        char *buf = (char *) alloca(i * sizeof(char));
+        read_socket(whc->si.fd, buf, i);
+      }
+    }
+  }
+#endif
 
   return WEB_HTTP_ERR_OKAY;
 }
@@ -446,6 +502,7 @@ signal_handler_init()
   // read.  All future reads from the socket should fail since
   // incoming traffic is shutdown on the connection and thread should
   // exit normally
+#if !defined(_WIN32)
   sigset_t sigsToBlock;
   // FreeBSD and Linux use SIGUSR1 internally in the threads library
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
@@ -460,6 +517,7 @@ signal_handler_init()
   sigfillset(&sigsToBlock);
   sigdelset(&sigsToBlock, SIGUSR1);
   ink_thread_sigsetmask(SIG_SETMASK, &sigsToBlock, NULL);
+#endif // !_WIN32
   return WEB_HTTP_ERR_OKAY;
 }
 
@@ -572,6 +630,7 @@ Ltransaction_send:
     goto Ltransaction_close;
 
   // close the connection before logging it to reduce latency
+#ifndef _WIN32
   shutdown(whc->si.fd, 1);
   drain_bytes = 0;
   if (fcntl(whc->si.fd, F_SETFL, O_NONBLOCK) >= 0) {
@@ -579,6 +638,7 @@ Ltransaction_send:
       drain_bytes++;
     }
   }
+#endif
   close_socket(whc->si.fd);
   whc->si.fd = -1;
 
@@ -586,6 +646,7 @@ Ltransaction_close:
 
   // if we didn't close already, close connection
   if (whc->si.fd != -1) {
+#ifndef _WIN32
     shutdown(whc->si.fd, 1);
     drain_bytes = 0;
     if (fcntl(whc->si.fd, F_SETFL, O_NONBLOCK) >= 0) {
@@ -593,6 +654,7 @@ Ltransaction_close:
         drain_bytes++;
       }
     }
+#endif
     close_socket(whc->si.fd);
   }
 
@@ -636,7 +698,7 @@ WebHttpSetErrorResponse(WebHttpContext * whc, HttpStatus_t error)
 char *
 WebHttpAddDocRoot_Xmalloc(WebHttpContext * whc, const char *file, int file_len)
 {
-  char *doc_root_file = (char *)ats_malloc(file_len + whc->doc_root_len + 1);
+  char *doc_root_file = (char *)xmalloc(file_len + whc->doc_root_len + 1);
 
   memcpy(doc_root_file, whc->doc_root, whc->doc_root_len);
   memcpy(doc_root_file + whc->doc_root_len, file, file_len);

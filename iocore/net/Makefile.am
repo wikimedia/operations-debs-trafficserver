@@ -19,14 +19,11 @@
 if STANDALONE_IOCORE
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts
+  -I$(top_srcdir)/lib/records
 else
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/mgmt \
@@ -41,6 +38,7 @@ noinst_LIBRARIES = libinknet.a
 
 libinknet_a_SOURCES = \
   Connection.cc \
+  I_NetConfig.h \
   I_NetErrno.h \
   I_Net.h \
   I_NetProcessor.h \
@@ -50,6 +48,7 @@ libinknet_a_SOURCES = \
   I_UDPNet.h \
   I_UDPPacket.h \
   Net.cc \
+  NetConfig.cc \
   NetVConnection.cc \
   P_CompletionUtil.h \
   P_Connection.h \
@@ -78,11 +77,9 @@ libinknet_a_SOURCES = \
   Socks.cc \
   SSLCertLookup.cc \
   SSLConfig.cc \
-  SSLNetProcessor.cc \
+  SSLNet.cc \
   SSLNetVConnection.cc \
-  SSLNetAccept.cc \
-  SSLNextProtocolAccept.cc \
-  SSLNextProtocolSet.cc \
+  SSLUnixNet.cc \
   UDPIOEvent.cc \
   UnixConnection.cc \
   UnixNetAccept.cc \

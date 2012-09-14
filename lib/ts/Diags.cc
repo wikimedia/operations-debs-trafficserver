@@ -115,10 +115,10 @@ diags_log_fp(_diags_log_fp), show_location(0)
   base_debug_tags = NULL;
   base_action_tags = NULL;
   if (bdt && *bdt) {
-    base_debug_tags = ats_strdup(bdt);
+    base_debug_tags = xstrdup(bdt);
   }
   if (bat && *bat) {
-    base_action_tags = ats_strdup(bat);
+    base_action_tags = xstrdup(bat);
   }
 
   config.enabled[DiagsTagType_Debug] = (base_debug_tags != NULL);
@@ -146,8 +146,8 @@ Diags::~Diags()
 {
   diags_log_fp = NULL;
 
-  ats_free(base_debug_tags);
-  ats_free(base_action_tags);
+  xfree(base_debug_tags);
+  xfree(base_action_tags);
 
   deactivate_all(DiagsTagType_Debug);
   deactivate_all(DiagsTagType_Action);
@@ -164,7 +164,8 @@ Diags::~Diags()
 //
 //      This routine takes an optional <debug_tag>, which is printed in
 //      parentheses if its value is not NULL.  It takes a <diags_level>,
-//      which is converted to a prefix string.
+//      which is converted to a prefix string, unless <prefix> is set to
+//      a non-NULL value (in which case <prefix> is used in preference.
 //      print_va takes an optional source location structure pointer <loc>,
 //      which can be NULL.  If <loc> is not NULL, the source code location
 //      is converted to a string, and printed between angle brackets.
@@ -182,11 +183,12 @@ Diags::~Diags()
 //////////////////////////////////////////////////////////////////////////////
 
 void
-Diags::print_va(const char *debug_tag, DiagsLevel diags_level ,SrcLoc *loc,
+Diags::print_va(const char *debug_tag, DiagsLevel diags_level,
+                const char *prefix, SrcLoc * loc,
                 const char *format_string, va_list ap)
 {
   struct timeval tp;
-  const char *s;
+  const char *prefix_string, *s;
   char *buffer, *d, timestamp_buf[48];
   char format_buf[1024], format_buf_w_ts[1024], *end_of_format;
 
@@ -209,13 +211,15 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level ,SrcLoc *loc,
 
   // add the thread id
   pthread_t id = pthread_self();
-  end_of_format += snprintf(end_of_format, sizeof(format_buf), "{0x%" PRIx64 "} ", (uint64_t) id);
+  end_of_format += snprintf(end_of_format, sizeof(format_buf), "{%" PRIu64 "} ", (uint64_t) id);
 
-  //////////////////////////////////////
-  // start with the diag level prefix //
-  //////////////////////////////////////
+  ////////////////////////////////
+  // start with the user prefix //
+  ////////////////////////////////
 
-  for (s = level_name(diags_level); *s; *end_of_format++ = *s++);
+  prefix_string = (prefix ? prefix : level_name(diags_level));
+
+  for (s = prefix_string; *s; *end_of_format++ = *s++);
   *end_of_format++ = ':';
   *end_of_format++ = ' ';
 
@@ -267,6 +271,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level ,SrcLoc *loc,
   *d++ = ']';
   *d++ = ' ';
 
+  //const char mgmt_str[] = "Manager ";
   for (int k = 0; prefix_str[k]; k++)
     *d++ = prefix_str[k];
   for (s = format_buf; *s; *d++ = *s++);
@@ -504,43 +509,60 @@ Diags::dump(FILE * fp)
   }
 }
 
-void
-Diags::log(const char *tag, DiagsLevel level,
-           const char *file, const char *func, const int line,
-           const char *format_string ...)
-{
-  if (! on(tag))
-    return;
 
+
+void
+DiagsDClosure::operator() (const char *tag, const char *format_string ...)
+{
   va_list ap;
   va_start(ap, format_string);
-  if (show_location) {
-    SrcLoc lp(file, func, line);
-    print_va(tag, level, &lp, format_string, ap);
-  } else {
-    print_va(tag, level, NULL, format_string, ap);
+  SrcLoc *lp = (diags->show_location ? &src_location : NULL);
+  diags->log_va(tag, level, NULL, lp, format_string, ap);
+  va_end(ap);
+}
+
+// location optionally printed
+void
+DiagsDClosure::operator() (const char *tag, int show_loc, const char *format_string ...)
+{
+  va_list ap;
+  va_start(ap, format_string);
+  SrcLoc *lp = ((show_loc || diags->show_location) ? &src_location : NULL);
+  diags->log_va(tag, level, NULL, lp, format_string, ap);
+  va_end(ap);
+}
+
+
+void
+DiagsEClosure::operator() (const char *format_string ...)
+{
+  va_list ap;
+  va_start(ap, format_string);
+  SrcLoc *lp = (diags->show_location ? &src_location : NULL);
+  diags->print_va(NULL, level, NULL, lp, format_string, ap);
+  va_end(ap);
+  va_start(ap, format_string);
+  if (DiagsLevel_IsTerminal(level)) {
+    if (diags->cleanup_func)
+      diags->cleanup_func();
+    ink_fatal_va(1, (char *) format_string, ap);
   }
   va_end(ap);
 }
 
+// location optionally printed
 void
-Diags::error(DiagsLevel level,
-             const char *file, const char *func, const int line,
-             const char *format_string ...)
+DiagsEClosure::operator() (int show_loc, const char *format_string ...)
 {
   va_list ap;
   va_start(ap, format_string);
-  if (show_location) {
-    SrcLoc lp(file, func, line);
-
-    print_va(NULL, level, &lp, format_string, ap);
-  } else {
-    print_va(NULL, level, NULL, format_string, ap);
-  }
-
+  SrcLoc *lp = ((show_loc || diags->show_location) ? &src_location : NULL);
+  diags->print_va(NULL, level, NULL, lp, format_string, ap);
+  va_end(ap);
+  va_start(ap, format_string);
   if (DiagsLevel_IsTerminal(level)) {
-    if (cleanup_func)
-      cleanup_func();
+    if (diags->cleanup_func)
+      diags->cleanup_func();
     ink_fatal_va(1, (char *) format_string, ap);
   }
   va_end(ap);

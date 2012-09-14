@@ -63,7 +63,7 @@
 //   changes
 //
 #define CLUSTER_MAJOR_VERSION               3
-#define CLUSTER_MINOR_VERSION               2
+#define CLUSTER_MINOR_VERSION               0
 
 // Lowest supported major/minor cluster version
 #define MIN_CLUSTER_MAJOR_VERSION	    CLUSTER_MAJOR_VERSION
@@ -71,7 +71,6 @@
 
 
 #define DEFAULT_CLUSTER_PORT_NUMBER         0
-#define DEFAULT_NUMBER_OF_CLUSTER_THREADS   1
 #define DEFAULT_CLUSTER_HOST                ""
 
 #define MAX_CLUSTER_SEND_LENGTH             INT_MAX
@@ -107,35 +106,35 @@
 // Miscellaneous byte swap routines
 //////////////////////////////////////////////////////////////
 inline void
-ats_swap16(uint16_t * d)
+swap16(uint16_t * d)
 {
   unsigned char *p = (unsigned char *) d;
   *d = ((p[1] << 8) | p[0]);
 }
 
 inline uint16_t
-ats_swap16(uint16_t d)
+swap16(uint16_t d)
 {
-  ats_swap16(&d);
+  swap16(&d);
   return d;
 }
 
 inline void
-ats_swap32(uint32_t * d)
+swap32(uint32_t * d)
 {
   unsigned char *p = (unsigned char *) d;
   *d = ((p[3] << 24) | (p[2] << 16) | (p[1] << 8) | p[0]);
 }
 
 inline uint32_t
-ats_swap32(uint32_t d)
+swap32(uint32_t d)
 {
-  ats_swap32(&d);
+  swap32(&d);
   return d;
 }
 
 inline void
-ats_swap64(uint64_t * d)
+swap64(uint64_t * d)
 {
   unsigned char *p = (unsigned char *) d;
   *d = (((uint64_t) p[7] << 56) | ((uint64_t) p[6] << 48) |
@@ -144,9 +143,9 @@ ats_swap64(uint64_t * d)
 }
 
 inline uint64_t
-ats_swap64(uint64_t d)
+swap64(uint64_t d)
 {
-  ats_swap64(&d);
+  swap64(&d);
   return d;
 }
 
@@ -286,7 +285,6 @@ struct ClusterVCToken
   // Marshal this data to send the token across the cluster
   //
   uint32_t ip_created;
-  uint32_t ch_id;
   uint32_t sequence_number;
 
   bool is_clear()
@@ -299,8 +297,8 @@ struct ClusterVCToken
     sequence_number = 0;
   }
 
-  ClusterVCToken(unsigned int aip = 0, unsigned int id = 0, unsigned int aseq = 0)
-:  ip_created(aip), ch_id(id), sequence_number(aseq) {
+  ClusterVCToken(unsigned int aip = 0, unsigned int aseq = 0)
+:  ip_created(aip), sequence_number(aseq) {
   }
   //
   // Private
@@ -309,8 +307,7 @@ struct ClusterVCToken
 
   inline void SwapBytes()
   {
-    ats_swap32(&ch_id);
-    ats_swap32(&sequence_number);
+    swap32(&sequence_number);
   }
 };
 
@@ -319,7 +316,7 @@ struct ClusterVCToken
 //   A pointer to a procedure which can be invoked accross the cluster.
 //   This must be registered.
 //
-typedef void ClusterFunction(ClusterHandler * ch, void *data, int len);
+typedef void ClusterFunction(ClusterMachine * from, void *data, int len);
 typedef ClusterFunction *ClusterFunctionPtr;
 
 struct ClusterVConnectionBase;
@@ -517,7 +514,7 @@ struct ClusterVConnection: public ClusterVConnectionBase
 
   virtual void do_io_close(int lerrno = -1);
 
-  ClusterHandler *ch;
+  ClusterMachine *machine;
   //
   //  Read Channel: (new_connect_read == true)
   //     - open_local()    caller is reader
@@ -628,23 +625,23 @@ struct ClusterProcessor
   //
 
   // Invoke a function on a remote node
-  //   marshal your own data, provide a continuation for timeouts and errors
+  //   marshall your own data, provide a continuation for timeouts and errors
   //
   // Options: CLUSTER_OPT_DELAY, CLUSTER_OPT_STEAL, CLUSTER_OPT_DATA_IS_OCONTROL
   // Returns: 1 for immediate send, 0 for delayed, -1 for error
 
-  int invoke_remote(ClusterHandler *ch, int cluster_fn_index, void *data, int len, int options = CLUSTER_OPT_STEAL);
+  int invoke_remote(ClusterMachine * m, int cluster_fn_index, void *data, int len, int options = CLUSTER_OPT_STEAL);
 
-  int invoke_remote_data(ClusterHandler *ch, int cluster_fn_index,
+  int invoke_remote_data(ClusterMachine * m, int cluster_fn_index,
                          void *data, int data_len,
                          IOBufferBlock * buf,
                          int logical_channel, ClusterVCToken * token,
                          void (*bufdata_free) (void *), void *bufdata_free_arg, int options = CLUSTER_OPT_STEAL);
 
   // Pass the data in as a malloc'ed block to be freed by callee
-  int invoke_remote_malloced(ClusterHandler *ch, ClusterRemoteDataHeader * data, int len /* including header */ )
+  int invoke_remote_malloced(ClusterMachine * m, ClusterRemoteDataHeader * data, int len /* including header */ )
   {
-    return invoke_remote(ch, CLUSTER_FUNCTION_MALLOCED, data, len);
+    return invoke_remote(m, CLUSTER_FUNCTION_MALLOCED, data, len);
   }
   void free_remote_data(char *data, int len);
 
@@ -664,7 +661,7 @@ struct ClusterProcessor
 
 #define CLUSTER_DELAYED_OPEN       ((ClusterVConnection*)-1)
 #define CLUSTER_NODE_DOWN          ((ClusterVConnection*)-2)
-  ClusterVConnection *open_local(Continuation * cont, ClusterMachine * mp, ClusterVCToken & token, int options = 0);
+  ClusterVConnection *open_local(Continuation * cont, ClusterMachine * m, ClusterVCToken & token, int options = 0);
 
   // Get the other side of a remote VConnection which was previously
   // allocated with open.
@@ -690,13 +687,13 @@ struct ClusterProcessor
   ClusterAccept *accept_handler;
   Cluster *this_cluster;
   // Connect to a new cluster machine
-  void connect(char *hostname, int16_t id = -1);
-  void connect(unsigned int ip, int port = 0, int16_t id = -1, bool delay = false);
+  void connect(char *hostname);
+  void connect(unsigned int ip, int port = 0, bool delay = false);
   // send the list of known machines to new machine
   void send_machine_list(ClusterMachine * m);
   void compute_cluster_mode();
   // Internal invoke_remote interface
-  int internal_invoke_remote(ClusterHandler * m, int cluster_fn, void *data, int len, int options, void *cmsg);
+  int internal_invoke_remote(ClusterMachine * m, int cluster_fn, void *data, int len, int options, void *cmsg);
 };
 
 inkcoreapi extern ClusterProcessor clusterProcessor;
@@ -998,12 +995,11 @@ struct ClusterHelloMessage
   uint16_t _minor;
   uint16_t _min_major;
   uint16_t _min_minor;
-  int16_t _id;
 #ifdef LOCAL_CLUSTER_TEST_MODE
   int16_t _port;
-  char _pad[114];               // pad out to 128 bytes
-#else
   char _pad[116];               // pad out to 128 bytes
+#else
+  char _pad[118];               // pad out to 128 bytes
 #endif
 
     ClusterHelloMessage():_NativeByteOrder(1)
@@ -1021,10 +1017,10 @@ struct ClusterHelloMessage
   void AdjustByteOrder()
   {
     if (!NativeByteOrder()) {
-      ats_swap16(&_major);
-      ats_swap16(&_minor);
-      ats_swap16(&_min_major);
-      ats_swap16(&_min_minor);
+      swap16(&_major);
+      swap16(&_minor);
+      swap16(&_min_major);
+      swap16(&_min_minor);
     }
   }
 };
@@ -1059,7 +1055,7 @@ struct ClusterMessageHeader
   int GetMsgVersion()
   {
     if (NeedByteSwap()) {
-      return ats_swap16(_MsgVersion);
+      return swap16(_MsgVersion);
     } else {
       return _MsgVersion;
     }
@@ -1071,7 +1067,7 @@ struct ClusterMessageHeader
 //
 // cluster_ping
 //
-typedef void (*PingReturnFunction) (ClusterHandler *, void *data, int len);
+typedef void (*PingReturnFunction) (ClusterMachine *, void *data, int len);
 
 struct PingMessage:public ClusterMessageHeader
 {
@@ -1111,13 +1107,13 @@ struct PingMessage:public ClusterMessageHeader
 };
 
 inline void
-cluster_ping(ClusterHandler *ch, PingReturnFunction fn, void *data, int len)
+cluster_ping(ClusterMachine * m, PingReturnFunction fn, void *data, int len)
 {
   PingMessage *msg = (PingMessage *)alloca(PingMessage::sizeof_fixedlen_msg() + len);
   msg->init();
   msg->fn = fn;
   memcpy(msg->data, data, len);
-  clusterProcessor.invoke_remote(ch, PING_CLUSTER_FUNCTION, (void *) msg, (msg->sizeof_fixedlen_msg() + len));
+  clusterProcessor.invoke_remote(m, PING_CLUSTER_FUNCTION, (void *) msg, (msg->sizeof_fixedlen_msg() + len));
 }
 
 // filled with 0's

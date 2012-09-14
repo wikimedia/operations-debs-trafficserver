@@ -36,7 +36,7 @@ struct EvacuationBlock;
 
 // Compilation Options
 
-#define HIT_EVACUATE                    1
+//#define HIT_EVACUATE                    1
 #define ALTERNATES                      1
 // #define CACHE_LOCK_FAIL_RATE         0.001
 // #define CACHE_AGG_FAIL_RATE          0.005
@@ -180,15 +180,15 @@ extern RecRawStatBlock *cache_rsb;
 	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), -1);
 
 #define CACHE_VOL_SUM_DYN_STAT(x,y) \
-        RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int64_t) y);
+        RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int) y);
 
 #define CACHE_SUM_DYN_STAT(x, y) \
-	RecIncrRawStat(cache_rsb, mutex->thread_holding, (int) (x), (int64_t) (y)); \
-	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int64_t) (y));
+	RecIncrRawStat(cache_rsb, mutex->thread_holding, (int) (x), (int) (y)); \
+	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int) (y));
 
 #define CACHE_SUM_DYN_STAT_THREAD(x, y) \
-	RecIncrRawStat(cache_rsb, this_ethread(), (int) (x), (int64_t) (y)); \
-	RecIncrRawStat(vol->cache_vol->vol_rsb, this_ethread(), (int) (x), (int64_t) (y));
+	RecIncrRawStat(cache_rsb, this_ethread(), (int) (x), (int) (y)); \
+	RecIncrRawStat(vol->cache_vol->vol_rsb, this_ethread(), (int) (x), (int) (y));
 
 #define GLOBAL_CACHE_SUM_GLOBAL_DYN_STAT(x, y) \
 	RecIncrGlobalRawStatSum(cache_rsb,(x),(y))
@@ -222,7 +222,6 @@ extern int cache_clustering_enabled;
 extern int cache_config_agg_write_backlog;
 extern int cache_config_ram_cache_compress;
 extern int cache_config_ram_cache_compress_percent;
-extern int cache_config_ram_cache_use_seen_filter;
 #ifdef HIT_EVACUATE
 extern int cache_config_hit_evacuate_percent;
 extern int cache_config_hit_evacuate_size_limit;
@@ -361,12 +360,6 @@ struct CacheVC: public CacheVConnection
   virtual bool set_disk_io_priority(int priority);
   virtual int get_disk_io_priority();
 
-  /** Get the fragment table.
-      @return The address of the start of the fragment table,
-      or @c NULL if there is no fragment table.
-  */
-  virtual Frag* get_frag_table();
-
   // offsets from the base stat
 #define CACHE_STAT_ACTIVE  0
 #define CACHE_STAT_SUCCESS 1
@@ -442,7 +435,7 @@ struct CacheVC: public CacheVConnection
   int base_stat;
   int recursive;
   int closed;
-  uint64_t seek_to;               // pread offset
+  int64_t seek_to;                // pread offset
   int64_t offset;                 // offset into 'blocks' of data to write
   int64_t writer_offset;          // offset of the writer for reading from a writer
   int64_t length;                 // length of data available to write
@@ -540,7 +533,7 @@ new_CacheVC(Continuation *cont)
   c->vector.data.data = &c->vector.data.fast_data[0];
 #endif
   c->_action = cont;
-  c->initial_thread = t->tt == DEDICATED ? NULL : t;
+  c->initial_thread = t;
   c->mutex = cont->mutex;
   c->start_time = ink_get_hrtime();
   ink_assert(c->trigger == NULL);
@@ -600,9 +593,9 @@ free_CacheVC(CacheVC *cont)
   cont->writer_buf.clear();
   cont->alternate_index = CACHE_ALT_INDEX_DEFAULT;
   if (cont->frag && cont->frag != cont->integral_frags)
-    ats_free(cont->frag);
+    xfree(cont->frag);
   if (cont->scan_vol_map)
-    ats_free(cont->scan_vol_map);
+    xfree(cont->scan_vol_map);
   memset((char *) &cont->vio, 0, cont->size_to_init);
 #ifdef CACHE_STAT_PAGES
   ink_assert(!cont->stat_link.next && !cont->stat_link.prev);
@@ -744,15 +737,6 @@ CacheVC::writer_done()
   if (!w)
     return true;
   return false;
-}
-
-TS_INLINE Frag*
-CacheVC::get_frag_table() {
-  if (frag)
-    return frag;
-  else if (first_buf)
-    return reinterpret_cast<Doc*>(first_buf->data())->frags();
-  return 0;
 }
 
 TS_INLINE int
@@ -1165,10 +1149,10 @@ CacheProcessor::open_write(Continuation *cont, CacheKey *key, CacheFragType frag
 {
   (void) expected_size;
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
-    ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
-    if (m)
-      return Cluster_write(cont, expected_size, (MIOBuffer *) 0, m,
+  ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
+
+  if (m && (cache_clustering_enabled > 0)) {
+    return Cluster_write(cont, expected_size, (MIOBuffer *) 0, m,
                          key, frag_type, options, pin_in_cache,
                          CACHE_OPEN_WRITE, key, (CacheURL *) 0,
                          (CacheHTTPHdr *) 0, (CacheHTTPInfo *) 0, hostname, host_len);
@@ -1278,9 +1262,10 @@ CacheProcessor::open_read_internal(int opcode,
     url_md5 = *key;
   }
   ClusterMachine *m = cluster_machine_at_depth(cache_hash(url_md5));
+  ClusterMachine *owner_machine = m ? m : this_cluster_machine();
 
-  if (m) {
-    return Cluster_read(m, opcode, cont, buf, url,
+  if (owner_machine != this_cluster_machine()) {
+    return Cluster_read(owner_machine, opcode, cont, buf, url,
                         request, params, key, pin_in_cache, frag_type, hostname, host_len);
   } else {
     if ((opcode == CACHE_OPEN_READ_LONG)

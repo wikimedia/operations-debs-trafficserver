@@ -94,9 +94,9 @@ struct FreerContinuation:Continuation
   {
     (void) event;
     (void) e;
-    ats_free(p);
+    xfree(p);
     delete this;
-    return EVENT_DONE;
+      return EVENT_DONE;
   }
   FreerContinuation(void *ap):Continuation(NULL), p(ap)
   {

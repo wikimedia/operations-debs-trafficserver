@@ -75,7 +75,7 @@ public:
     {
       uint64_t m_key;
       char *m_hostname;
-      IpEndpoint m_ip;
+      ip_addr_t m_ip;
       CongestionControlRecord *m_rule;
       CongestionEntry **m_ppEntry;
     } entry_info;
@@ -402,9 +402,9 @@ CongestionDBCont::get_congest_entry(int event, Event * e)
   NOWARN_UNUSED(e);
 
   if (m_action.cancelled) {
-    Debug("congestion_cont", "action cancelled for %p", this);
+    Debug("congestion_cont", "action cancelled for 0x%x", this);
     Free_CongestionDBCont(this);
-    Debug("congestion_control", "cont::get_congest_entry state machine canceled");
+    Debug("congestion_control", "cont::get_congest_entry state machine cancelld");
     return EVENT_DONE;
   }
   ProxyMutex *bucket_mutex = theCongestionDB->lock_for_key(CDBC_key);
@@ -419,7 +419,7 @@ CongestionDBCont::get_congest_entry(int event, Event * e)
       m_action.continuation->handleEvent(CONGESTION_EVENT_CONTROL_LOOKUP_DONE, NULL);
     } else {
       /* create a new entry and add it to the congestDB */
-      *CDBC_ppE = new CongestionEntry(CDBC_host, &CDBC_ip.sa, CDBC_rule, CDBC_key);
+      *CDBC_ppE = new CongestionEntry(CDBC_host, CDBC_ip, CDBC_rule, CDBC_key);
       CDBC_rule->put();
       (*CDBC_ppE)->get();
       theCongestionDB->insert_entry(CDBC_key, *CDBC_ppE);
@@ -498,14 +498,14 @@ get_congest_entry(Continuation * cont, HttpRequestData * data, CongestionEntry *
     *ppEntry = theCongestionDB->lookup_entry(key);
     if (*ppEntry != NULL) {
       (*ppEntry)->get();
-      Debug("congestion_control", "get_congest_entry, found entry %p done", (void *) *ppEntry);
+      Debug("congestion_control", "get_congest_entry, found entry 0x%x done", (void *) *ppEntry);
       return ACTION_RESULT_DONE;
     } else {
       // create a new entry and add it to the congestDB
       *ppEntry = new CongestionEntry(data->get_host(), data->get_ip(), p, key);
       (*ppEntry)->get();
       theCongestionDB->insert_entry(key, *ppEntry);
-      Debug("congestion_control", "get_congest_entry, new entry %p done", (void *) *ppEntry);
+      Debug("congestion_control", "get_congest_entry, new entry 0x%x done", (void *) *ppEntry);
       return ACTION_RESULT_DONE;
     }
   } else {
@@ -515,7 +515,7 @@ get_congest_entry(Continuation * cont, HttpRequestData * data, CongestionEntry *
     Ccont->mutex = cont->mutex;
     Ccont->CDBC_key = key;
     Ccont->CDBC_host = (char *) data->get_host();
-    ats_ip_copy(&Ccont->CDBC_ip.sa, data->get_ip());
+    Ccont->CDBC_ip = data->get_ip();
     p->get();
     Ccont->CDBC_rule = p;
     Ccont->CDBC_ppE = ppEntry;
@@ -623,10 +623,8 @@ remove_congested_entry(char *buf, MIOBuffer * out_buffer)
     remove_congested_entry(key);
     len = snprintf(msg, MSG_LEN, "host=%s prefix=%s removed\n", p, prefix ? prefix : "(nil)");
   } else if (strncasecmp(buf, "ip=", 3) == 0) {
-    IpEndpoint ip;
-    memset(&ip, 0, sizeof(ip));
-    
     char *p = buf + 3;
+    ip_addr_t ip = 0;
     char *prefix = strchr(p, '/');
     int prelen = 0;
     if (prefix) {
@@ -634,11 +632,11 @@ remove_congested_entry(char *buf, MIOBuffer * out_buffer)
       prefix++;
       prelen = strlen(prefix);
     }
-    ats_ip_pton(p, &ip);
-    if (!ats_is_ip(&ip)) {
+    ip = htonl(inet_addr(p));
+    if (ip == (ip_addr_t) - 1 && strcmp(p, "255.255.255.255") != 0) {
       len = snprintf(msg, MSG_LEN, "invalid ip: %s\n", buf);
     } else {
-      key = make_key(NULL, 0, &ip.sa, prefix, prelen);
+      key = make_key(NULL, 0, ip, prefix, prelen);
       remove_congested_entry(key);
       len = snprintf(msg, MSG_LEN, "ip=%s prefix=%s removed\n", p, prefix ? prefix : "(nil)");
     }

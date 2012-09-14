@@ -38,32 +38,8 @@ char *readIntoBuffer(char *file_path, const char *module_name, int *read_size_pt
 
 int unescapifyStr(char *buffer);
 
-/** Extract an IP range.
-    @a min and @a max should be at least the size of @c sockaddr_in6 to hold
-    an IP address.
-*/
-char const* ExtractIpRange(
-  char *match_str,
-  sockaddr* min,
-  sockaddr* max
-);
-
-/// Convenience overload for IPv4.
-char const* ExtractIpRange(
-  char *match_str,
-  in_addr_t * addr1, ///< [in,out] Returned address in host order.
-  in_addr_t * addr2 ///< [in,out] Returned address in host order.
-);
-
-/// Convenience overload for IPv6.
-inline char const* ExtractIpRange(
-  char *match_str,
-  sockaddr_in6* addr1, ///< [in,out] Returned address in network order.
-  sockaddr_in6* addr2 ///< [in,out] Returned address in network order.
-) {
-  return ExtractIpRange(match_str, ats_ip_sa_cast(addr1), ats_ip_sa_cast(addr2));
-}
-
+typedef unsigned long ip_addr_t;
+const char *ExtractIpRange(char *match_str, ip_addr_t * addr1, ip_addr_t * addr2);
 char *tokLine(char *buf, char **last);
 
 const char *processDurationString(char *str, int *seconds);
@@ -95,18 +71,9 @@ struct matcher_tags
   const char *match_ip;
   const char *match_regex;
   const char *match_host_regex;
-  bool dest_error_msg;          // whether to use src or destination in any error messages
-
-  bool empty() const {
-    return this->match_host == NULL &&
-      this->match_domain == NULL &&
-      this->match_ip == NULL &&
-      this->match_regex == NULL &&
-      this->match_host_regex == NULL;
-  }
-
+  bool dest_error_msg;          // wether to use src or destination in any
+  //   errog messages
 };
-
 extern const matcher_tags http_dest_tags;
 extern const matcher_tags ip_allow_tags;
 extern const matcher_tags socks_server_tags;

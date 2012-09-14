@@ -63,7 +63,7 @@ StatExprToken::copy(const StatExprToken & source)
   m_arith_symbol = source.m_arith_symbol;
 
   if (source.m_token_name != NULL) {
-    m_token_name = ats_strdup(source.m_token_name);
+    m_token_name = xstrdup(source.m_token_name);
   }
 
   m_token_type = source.m_token_type;
@@ -97,12 +97,12 @@ StatExprToken::assignTokenName(const char *name)
   if (isdigit(name[0])) {
 
     // numerical constant
-    m_token_name = ats_strdup("CONSTANT");
+    m_token_name = xstrdup("CONSTANT");
     m_token_type = STAT_CONST;
 
   } else {
 
-    m_token_name = ats_strdup(name);
+    m_token_name = xstrdup(name);
     assignTokenType();
   }
 
@@ -200,8 +200,13 @@ bool StatExprToken::assignTokenType()
 void
 StatExprToken::clean()
 {
-  ats_free(m_token_name);
-  delete m_token_value_delta;
+  if (m_token_name != NULL) {
+    xfree(m_token_name);
+  }
+
+  if (m_token_value_delta != NULL) {
+    delete(m_token_value_delta);
+  }
 }
 
 
@@ -455,10 +460,18 @@ StatObject::StatObject(unsigned identifier)
 void
 StatObject::clean()
 {
-  ats_free(m_expr_string);
-  delete m_node_dest;
-  delete m_cluster_dest;
-  delete m_postfix;
+  if (m_expr_string) {
+    xfree(m_expr_string);
+  }
+  if (m_node_dest) {
+    delete m_node_dest;
+  }
+  if (m_cluster_dest) {
+    delete m_cluster_dest;
+  }
+  if (m_postfix) {
+    delete m_postfix;
+  }
 }
 
 
@@ -783,8 +796,8 @@ StatObject::setTokenValue(StatExprToken * token, bool cluster)
       // only support time function
       token->m_token_value = (StatFloat) (m_current_time - m_last_update);
       if (StatDebug) {
-        Debug(MODULE, "m_current_time(%"  PRId64 ") - m_last_update(%"  PRId64 ") = %"  PRId64 "\n",
-              (int64_t)m_current_time, (int64_t)m_last_update, (int64_t)token->m_token_value);
+        Debug(MODULE, "m_current_time(%f) - m_last_update(%f) = %f\n",
+              m_current_time, m_last_update, token->m_token_value);
       }
       break;
 

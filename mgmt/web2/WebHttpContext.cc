@@ -45,7 +45,7 @@ WebHttpContext *
 WebHttpContextCreate(WebHttpConInfo * whci)
 {
 
-  WebHttpContext *whc = (WebHttpContext *)ats_malloc(sizeof(WebHttpContext));
+  WebHttpContext *whc = (WebHttpContext *) xmalloc(sizeof(WebHttpContext));
 
   // memset to 0; note strings are zero'd too
   memset(whc, 0, sizeof(WebHttpContext));
@@ -100,9 +100,10 @@ WebHttpContextDestroy(WebHttpContext * whc)
       ink_hash_table_destroy(whc->submit_warn_ht);
     if (whc->submit_note_ht)
       ink_hash_table_destroy(whc->submit_note_ht);
-
-    ats_free(whc->top_level_render_file);
-    ats_free(whc->cache_query_result);
-    ats_free(whc);
+    if (whc->top_level_render_file)
+      xfree(whc->top_level_render_file);
+    if (whc->cache_query_result)
+      xfree(whc->cache_query_result);
+    xfree(whc);
   }
 }

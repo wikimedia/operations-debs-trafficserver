@@ -33,13 +33,6 @@
 #include "ShowCmd.h"
 #include "ConfigCmd.h"
 #include "UtilCmds.h"
-#include "CliDisplay.h"
-#include "I_Layout.h"
-#include <stdlib.h>
-#include <unistd.h>
-#include <string>
-#include <sstream>
-#include <algorithm>
 
 ////////////////////////////////////////////////////////////////
 // Called during Tcl_AppInit, this function creates the CLI commands
@@ -270,72 +263,5 @@ CliCreateCommands()
   createCommand("debug", DebugCmd, DebugCmdArgs, CLI_COMMAND_EXTERNAL,
                 "debug <on|off>", "Turn debugging print statements on/off");
 
-  createCommand("help", Cmd_Help, NULL, CLI_COMMAND_EXTERNAL,
-                "help [topic]", "Display online help");
-
   return CLI_OK;
 }
-
-#if defined(__SUNPRO_CC)
-
-// Solaris doesn't like to link libstdc++ code. I don't have a system to test. Sorry.
-
-int
-Cmd_Help(ClientData, Tcl_Interp *, int, const char *[])
-{
-  return CMD_OK;
-}
-
-#else
-
-struct replace_colon
-{
-  char operator() (char c) const {
-    return (c == ':') ? '_' : c;
-  }
-};
-
-static int
-xsystem(const char * cmd)
-{
-  // Some versions of glibc declare system(3) with the warn_unused_result
-  // attribute. Pretend to use the return value so it will shut the hell up.
-  return system(cmd);
-}
-
-int
-Cmd_Help(ClientData clientData, Tcl_Interp * interp, int argc, const char *argv[])
-{
-  Cli_Debug("looking for online help in %s\n", Layout::get()->datadir);
-
-  for (int i = 1; i < argc; ++i) {
-    std::ostringstream  cmd;
-    std::string         topic(argv[i]);
-
-    // Replace ':' with '_' so we can find the right on-disk man page.
-    std::transform(topic.begin(), topic.end(), topic.begin(), replace_colon());
-
-    // Check whether we have the man page on disk before we pass any user input
-    // to the shell via system(3).
-    cmd << Layout::get()->datadir << "/trafficshell/" << topic << ".1";
-    if (access(cmd.str().c_str(), R_OK) != 0) {
-      Cli_Debug("missing %s\n", cmd.str().c_str());
-      continue;
-    }
-
-    cmd.clear();
-    cmd.seekp(std::ios_base::beg);
-
-    cmd << "man "
-      << Layout::get()->datadir << "/trafficshell/" << topic << ".1";
-
-    Cli_Debug("%s\n", cmd.str().c_str());
-    xsystem(cmd.str().c_str());
-  }
-
-  return CMD_OK;
-}
-
-#endif  /* __SUNPRO_C */
-
-// vim: set ts=2 sw=2 et :

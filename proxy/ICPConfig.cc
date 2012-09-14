@@ -282,6 +282,9 @@ ICPConfigData::operator==(ICPConfigData & ICPData)
 PeerConfigData::PeerConfigData():_ctype(CTYPE_NONE), _proxy_port(0), _icp_port(0), _mc_member(0), _mc_ttl(0)
 {
   memset(_hostname, 0, HOSTNAME_SIZE);
+  _ip_addr.s_addr = 0;
+  _mc_ip_addr.s_addr = 0;
+  _my_ip_addr.s_addr = 0;
 }
 
 PeerType_t PeerConfigData::CTypeToPeerType_t(int ctype)
@@ -302,33 +305,34 @@ PeerType_t PeerConfigData::CTypeToPeerType_t(int ctype)
 }
 
 int
-PeerConfigData::GetHostIPByName(char *hostname, IpAddr& rip)
+PeerConfigData::GetHostIPByName(char *hostname, struct in_addr *rip)
 {
+  // Returns 0 on success.
+  ink_gethostbyname_r_data d;
+  struct hostent *h = 0;
+
   // Short circuit NULL hostname case
-  if (0 == hostname || 0 == *hostname)
+  if (hostname && (hostname[0] == 0))
+    return 1;                   // Unable to map to IP address
+  h = ink_gethostbyname_r(hostname, &d);
+  if (!h)
     return 1;                   // Unable to map to IP address
 
-  addrinfo hints;
-  addrinfo *ai;
-  sockaddr const* best = 0;
+  // If multiple IP addresses, select lowest IP address
+  unsigned int curIP;
+  unsigned int IP;
+  curIP = (unsigned int) -1;    // 0xFFFFFFFF
 
-  ink_zero(hints);
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_flags = AI_ADDRCONFIG;
-  if (0 == getaddrinfo(hostname, 0, &hints, &ai)) {
-    for ( addrinfo *spot = ai ; spot ; spot = spot->ai_next) {
-      // If current address is valid, and either we don't have one yet
-      // or this address is less than our current, set it as current.
-      if (ats_is_ip(spot->ai_addr) &&
-        (!best || -1 == ats_ip_addr_cmp(spot->ai_addr, best))
-      ) {
-        best = spot->ai_addr;
-      }
-    }
-    if (best) rip.assign(best);
-    freeaddrinfo(ai);
+  for (int i = 0; h->h_addr_list[i]; i++) {
+    IP = ntohl(*((unsigned int *) h->h_addr_list[i]));
+    if (curIP > IP)
+      curIP = IP;
   }
-  return best ? 0 : 1;
+  if (curIP == (unsigned int) -1)
+    rip->s_addr = 0;
+  else
+    rip->s_addr = htonl(curIP);
+  return 0;
 }
 
 bool PeerConfigData::operator==(PeerConfigData & PeerData)
@@ -337,7 +341,7 @@ bool PeerConfigData::operator==(PeerConfigData & PeerData)
     return false;
   if (PeerData._ctype != _ctype)
     return false;
-  if (PeerData._ip_addr != _ip_addr)
+  if (PeerData._ip_addr.s_addr != _ip_addr.s_addr)
     return false;
   if (PeerData._proxy_port != _proxy_port)
     return false;
@@ -345,7 +349,7 @@ bool PeerConfigData::operator==(PeerConfigData & PeerData)
     return false;
   if (PeerData._mc_member != _mc_member)
     return false;
-  if (PeerData._mc_ip_addr != _mc_ip_addr)
+  if (PeerData._mc_ip_addr.s_addr != _mc_ip_addr.s_addr)
     return false;
   if (PeerData._mc_ttl != _mc_ttl)
     return false;
@@ -474,12 +478,12 @@ ICPConfiguration::UpdatePeerConfig()
     //
     memcpy(_peer_cdata[i], _peer_cdata_current[i], sizeof(*_peer_cdata[i]));
     // Setup IP address
-    if ((_peer_cdata[i]->_ip_addr.isValid()) && _peer_cdata[i]->_hostname) {
+    if ((_peer_cdata[i]->_ip_addr.s_addr == 0) && _peer_cdata[i]->_hostname) {
       // IP address not specified, lookup using hostname.
-      (void) PeerConfigData::GetHostIPByName(_peer_cdata[i]->_hostname, _peer_cdata[i]->_my_ip_addr);
+      (void) PeerConfigData::GetHostIPByName(_peer_cdata[i]->_hostname, &_peer_cdata[i]->_my_ip_addr);
     } else {
       // IP address specified by user, lookup on hostname not required.
-      _peer_cdata[i]->_my_ip_addr = _peer_cdata[i]->_ip_addr;
+      _peer_cdata[i]->_my_ip_addr.s_addr = _peer_cdata[i]->_ip_addr.s_addr;
     }
   }
 }
@@ -502,15 +506,6 @@ ICPConfiguration::mgr_icp_config_change_callback(const char *name, RecDataT data
   return EVENT_DONE;
 }
 
-namespace {
-  inline char* next_field(char* text, char fs) {
-    text = strchr(text, fs);
-    // Compress contiguous whitespace by leaving zret pointing at the last space.
-    if (text && *text == fs)
-      while (text[1] == fs) ++text;
-    return text;
-  }
-}
 
 void *
 ICPConfiguration::icp_config_change_callback(void *data, void *value, int startup)
@@ -548,9 +543,9 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
   ink_assert(filename);
   char ConfigFilePath[PATH_NAME_MAX];
   if (filename) {
-    ink_strlcpy(ConfigFilePath, system_config_directory, sizeof(ConfigFilePath));
-    ink_strlcat(ConfigFilePath, "/", sizeof(ConfigFilePath));
-    ink_strlcat(ConfigFilePath, filename, sizeof(ConfigFilePath));
+    ink_strncpy(ConfigFilePath, system_config_directory, sizeof(ConfigFilePath));
+    strncat(ConfigFilePath, "/", sizeof(ConfigFilePath) - strlen(ConfigFilePath) - 1);
+    strncat(ConfigFilePath, filename, sizeof(ConfigFilePath) - strlen(ConfigFilePath) - 1);
   }
   int fd = open(ConfigFilePath, O_RDONLY);
   if (fd < 0) {
@@ -572,16 +567,18 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
   //    - multicast_ttl (int)         -- (1 - 2; default 1)
   //***********************************************************************
   const int colons_per_entry = 8;       // expected ':' separators per entry
+  struct in_addr mc_min_ip_addr;
+  struct in_addr mc_max_ip_addr;
+  mc_min_ip_addr.s_addr = inet_addr("224.0.0.0");
+  mc_max_ip_addr.s_addr = inet_addr("239.255.255.255");
 
   int error = 0;
   int ln = 0;
   int n_colons;
-  char line[512];
+  char line[256];
   char *cur;
   char *next;
   char *p;
-  char fs = ':'; // field separator.
-  int len; // length of current input line (original).
 
   int n = 1;                    // Note: Entry zero reserved for "localhost" data
 
@@ -590,11 +587,11 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
   //
   // Note: ink_file_fd_readline() null terminates returned buffer
   //////////////////////////////////////////////////////////////////////
-  while ((len = ink_file_fd_readline(fd, sizeof(line) - 1, line)) > 0) {
+  while (ink_file_fd_readline(fd, sizeof(line) - 1, line) > 0) {
     ln++;
-    cur = line;
-    while (isspace(*cur)) ++cur, --len; // skip leading space.
-    if (!*cur || *cur == '#')
+    if (*line == '#')
+      continue;
+    if (*line == '\n' || *line == '\r')
       continue;
 
     if (n >= MAX_DEFINED_PEERS) {
@@ -603,43 +600,30 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
       error = 1;
       break;
     }
+    cur = line;
     //***********************************
     // Verify general syntax of entry
     //***********************************
-    /* Ugly. The original field separator was colon, but we can't have that
-       if we want to support IPv6. So - since each line is required to have a
-       separator at the end of the line, we look there and require it to be
-       consistent. It still must be an acceptable character.
-    */
-    char* last = cur + len -1; // last character.
-    if ('\n' == *last) --last; // back over trailing LF.
-    if (NULL == strchr(" ;:|,", *last)) {
-      Warning("read icp.config, invalid separator [value %d]", *last);
-      REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, invalid separator");
-      error = 1;
-      break;
-    }
-    fs = *last;
-
     n_colons = 0;
     p = cur;
-    while (0 != (p = next_field(p, fs))) {
+    while ((p = strchr(p, ':'))) {
       ++p;
       ++n_colons;
     }
     if (n_colons != colons_per_entry) {
-      Warning("read icp.config, invalid syntax, line %d: expected %d fields, found %d", ln, colons_per_entry, n_colons);
-      REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, invalid syntax: wrong number of fields");
+      Warning("read icp.config, invalid syntax, line %d", ln);
+      REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, invalid syntax");
       error = 1;
       break;
     }
     //*******************
     // Extract hostname
     //*******************
-    next = next_field(cur, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
-      ink_strlcpy(P[n]._hostname, cur, PeerConfigData::HOSTNAME_SIZE);
+      strncpy(P[n]._hostname, cur, PeerConfigData::HOSTNAME_SIZE);
+      P[n]._hostname[PeerConfigData::HOSTNAME_SIZE - 1] = 0;
     } else {
       P[n]._hostname[0] = 0;
     }
@@ -647,20 +631,20 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract host_ip_str
     //*********************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
-      if (0 != P[n]._ip_addr.load(cur)) {
+      if ((P[n]._ip_addr.s_addr = inet_addr(cur)) == 0xffffffff) {
         Warning("read icp.config, bad host ip_addr, line %d", ln);
         REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, bad host ip_addr");
         error = 1;
         break;
       }
     } else {
-      P[n]._ip_addr.invalidate();
+      P[n]._ip_addr.s_addr = 0;
     }
 
-    if (!P[n]._hostname[0] && !P[n]._ip_addr.isValid()) {
+    if (!P[n]._hostname[0] && !P[n]._ip_addr.s_addr) {
       Warning("read icp.config, bad hostname, line %d", ln);
       REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, bad hostname");
       error = 1;
@@ -670,7 +654,7 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract ctype
     //******************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
       P[n]._ctype = atoi(cur);
@@ -690,7 +674,7 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract proxy_port
     //*********************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
       if ((P[n]._proxy_port = atoi(cur)) <= 0) {
@@ -709,7 +693,7 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract icp_port
     //*********************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
       if ((P[n]._icp_port = atoi(cur)) <= 0) {
@@ -728,7 +712,7 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract multicast_member
     //****************************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
       if ((P[n]._mc_member = atoi(cur)) < 0) {
@@ -753,26 +737,28 @@ ICPConfiguration::icp_config_change_callback(void *data, void *value, int startu
     // Extract multicast_ip_str
     //****************************
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
-      P[n]._mc_ip_addr.load(cur);
+      P[n]._mc_ip_addr.s_addr = inet_addr(cur);
       // Validate only if "multicast_member" is set.
-      if (P[n]._mc_member != 0 && !P[n]._mc_ip_addr.isMulticast()) {
+      if ((P[n]._mc_member != 0) &&
+          ((P[n]._mc_ip_addr.s_addr == 0xffffffff) ||
+           (P[n]._mc_ip_addr.s_addr<mc_min_ip_addr.s_addr) || (P[n]._mc_ip_addr.s_addr> mc_max_ip_addr.s_addr))) {
         Warning("read icp.config, bad multicast ip_addr, line %d", ln);
         REC_SignalWarning(REC_SIGNAL_CONFIG_ERROR, "read icp.config, bad multicast ip_addr");
         error = 1;
         break;
       }
     } else {
-      P[n]._mc_ip_addr.invalidate();
+      P[n]._mc_ip_addr.s_addr = 0;
     }
     //************************
     // Extract multicast_ttl
     //************************
     // Note: last entry is always terminated with a ":"
     cur = next;
-    next = next_field(next, fs);
+    next = strchr(cur, ':');
     *next++ = 0;
     if (cur != (next - 1)) {
       P[n]._mc_ttl = atoi(cur);
@@ -813,7 +799,7 @@ buf(NULL), notFirstRead(0), readAction(NULL), writeAction(NULL), _type(t), _next
     _state |= PEER_DYNAMIC;
   }
   memset((void *) &this->_stats, 0, sizeof(this->_stats));
-  ink_zero(fromaddr);
+  memset((void *) &fromaddr, 0, sizeof(fromaddr));
   fromaddrlen = sizeof(fromaddr);
   _id = 0;
 }
@@ -837,13 +823,12 @@ Peer::LogRecvMsg(ICPMsg_t * m, int valid)
     _stats.dropped_replies++;
   }
   if ((_state & PEER_UP) == 0) {
-    ip_port_text_buffer ipb;
     // Currently marked down so we still send but do not expect reply.
     // Now mark up so we will wait for reply.
     _state |= PEER_UP;
     _stats.total_received = _stats.total_sent;  // restart timeout count
 
-    Debug("icp", "Peer [%s] now back online", ats_ip_nptop(this->GetIP(), ipb, sizeof(ipb)));
+    Debug("icp", "Peer [%s:%d] now back online", inet_ntoa(*GetIP()), GetPort());
   }
 }
 
@@ -854,7 +839,6 @@ Peer::LogRecvMsg(ICPMsg_t * m, int valid)
 ParentSiblingPeer::ParentSiblingPeer(PeerType_t t, PeerConfigData * p, ICPProcessor * icpPr, bool dynamic_peer)
 :Peer(t, icpPr, dynamic_peer), _pconfig(p)
 {
-  ats_ip_set(&_ip.sa, _pconfig->GetIPAddr(), htons(_pconfig->GetICPPort()));
 }
 
 int
@@ -863,16 +847,20 @@ ParentSiblingPeer::GetProxyPort()
   return _pconfig->GetProxyPort();
 }
 
-sockaddr*
+struct in_addr *
 ParentSiblingPeer::GetIP()
 {
-  // The real data is in _pconfig, but I don't think ever changes so
-  // it should be OK to have set this in the constructor.
-  return &_ip.sa;
+  return _pconfig->GetIP();
+}
+
+int
+ParentSiblingPeer::GetPort()
+{
+  return _pconfig->GetICPPort();
 }
 
 Action *
-ParentSiblingPeer::SendMsg_re(Continuation * cont, void *token, struct msghdr * msg, sockaddr const* to)
+ParentSiblingPeer::SendMsg_re(Continuation * cont, void *token, struct msghdr * msg, struct sockaddr_in * to)
 {
   // Note: All sends are funneled through the local peer UDP socket.
 
@@ -880,17 +868,17 @@ ParentSiblingPeer::SendMsg_re(Continuation * cont, void *token, struct msghdr * 
 
   if (to) {
     // Send to specified host
-    Peer *p = _ICPpr->FindPeer(IpAddr(to), ntohs(ats_ip_port_cast(to)));
+    Peer *p = _ICPpr->FindPeer(&to->sin_addr, ntohs(to->sin_port));
     ink_assert(p);
 
-    msg->msg_name = &p->GetSendChan()->addr;
-    msg->msg_namelen = ats_ip_size(&p->GetSendChan()->addr);
+    msg->msg_name = (caddr_t) & (p->GetSendChan())->sa;
+    msg->msg_namelen = sizeof((p->GetSendChan())->sa);
     Action *a = udpNet.sendmsg_re(cont, token, lp->GetSendFD(), msg);
     return a;
   } else {
     // Send to default host
-    msg->msg_name = & _chan.addr;
-    msg->msg_namelen = ats_ip_size(&_chan.addr.sa);
+    msg->msg_name = (caddr_t) & _chan.sa;
+    msg->msg_namelen = sizeof(_chan.sa);
     Action *a = udpNet.sendmsg_re(cont, token, lp->GetSendFD(), msg);
     return a;
   }
@@ -926,9 +914,8 @@ ParentSiblingPeer::ExpectedReplies(BitMap * expected_replies_list)
 {
   if (((_state & PEER_UP) == 0) || ((_stats.total_sent - _stats.total_received) > Peer::OFFLINE_THRESHOLD)) {
     if (_state & PEER_UP) {
-      ip_port_text_buffer ipb;
       _state &= ~PEER_UP;
-      Debug("icp", "Peer [%s] marked offline", ats_ip_nptop(this->GetIP(), ipb, sizeof(ipb)));
+      Debug("icp", "Peer [%s:%d] marked offline", inet_ntoa(*GetIP()), GetPort());
     }
     //
     // We will continue to send messages, but will not wait for a reply
@@ -942,7 +929,7 @@ ParentSiblingPeer::ExpectedReplies(BitMap * expected_replies_list)
 }
 
 int
-ParentSiblingPeer::ValidSender(sockaddr* fr)
+ParentSiblingPeer::ValidSender(struct sockaddr_in *fr)
 {
   if (_type == PEER_LOCAL) {
     //
@@ -951,7 +938,7 @@ ParentSiblingPeer::ValidSender(sockaddr* fr)
     // the sender is known within the ICP configuration,
     // consider it valid.
     //
-    Peer *p = _ICPpr->FindPeer(fr);
+    Peer *p = _ICPpr->FindPeer(&fr->sin_addr, ntohs(fr->sin_port));
     if (p) {
       return 1;                 // Valid sender
     } else {
@@ -960,11 +947,8 @@ ParentSiblingPeer::ValidSender(sockaddr* fr)
 
   } else {
     // Make sure the sockaddr_in corresponds to this peer
-    // Need to update once we have support for comparing address
-    // and port in a socakddr.
-    if (ats_ip_addr_eq(this->GetIP(), fr) &&
-      (ats_ip_port_cast(this->GetIP()) == ats_ip_port_cast(fr))
-    ) {
+    if ((GetIP()->s_addr == fr->sin_addr.s_addr)
+        && (GetPort() == (int)ntohs(fr->sin_port))) {
       return 1;                 // Sender is this peer
     } else {
       return 0;                 // Sender is not this peer
@@ -973,7 +957,7 @@ ParentSiblingPeer::ValidSender(sockaddr* fr)
 }
 
 void
-ParentSiblingPeer::LogSendMsg(ICPMsg_t * m, sockaddr const* sa)
+ParentSiblingPeer::LogSendMsg(ICPMsg_t * m, struct sockaddr_in *sa)
 {
   NOWARN_UNUSED(sa);
   // Note: ICPMsg_t (m) is in network byte order
@@ -985,12 +969,16 @@ ParentSiblingPeer::LogSendMsg(ICPMsg_t * m, sockaddr const* sa)
 }
 
 int
-ParentSiblingPeer::ExtToIntRecvSockAddr(sockaddr const* in, sockaddr *out)
+ParentSiblingPeer::ExtToIntRecvSockAddr(struct sockaddr_in *in, struct sockaddr_in *out)
 {
-  Peer *p = _ICPpr->FindPeer(IpAddr(in));
+  Peer *p = _ICPpr->FindPeer(&in->sin_addr, -1);        // ignore port
   if (p && (p->GetType() != PEER_LOCAL)) {
     // Map from received (ip, port) to defined (ip, port).
-    ats_ip_copy(out, p->GetIP());
+    struct sockaddr_in s;
+    memset((void *) &s, 0, sizeof(s));
+    s.sin_port = htons(p->GetPort());
+    s.sin_addr = *p->GetIP();
+    *out = s;
     return 1;
   } else {
     return 0;
@@ -1001,11 +989,14 @@ ParentSiblingPeer::ExtToIntRecvSockAddr(sockaddr const* in, sockaddr *out)
 // Class MultiCastPeer (derived from Peer) member functions
 //      ICP object describing MultiCast Peers.
 //-----------------------------------------------------------
-MultiCastPeer::MultiCastPeer(IpAddr const& addr, uint16_t mc_port, int ttl, ICPProcessor * icpPr)
+MultiCastPeer::MultiCastPeer(struct in_addr * ip, int mc_port, int ttl, ICPProcessor * icpPr)
 :Peer(PEER_MULTICAST, icpPr), _mc_ttl(ttl)
 {
-  ats_ip_set(&_mc_ip.sa, addr, htons(mc_port));
-  memset(&this->_mc, 0, sizeof(this->_mc));
+  memset((void *) &_mc_addr, 0, sizeof(_mc_addr));
+  _mc_addr.sin_family = AF_INET;
+  _mc_addr.sin_addr = *ip;
+  _mc_addr.sin_port = htons(mc_port);
+  memset((void *) &this->_mc, 0, sizeof(this->_mc));
 }
 
 int
@@ -1014,26 +1005,32 @@ MultiCastPeer::GetTTL()
   return _mc_ttl;
 }
 
-sockaddr *
+struct in_addr *
 MultiCastPeer::GetIP()
 {
-  return &_mc_ip.sa;
+  return &_mc_addr.sin_addr;
+}
+
+int
+MultiCastPeer::GetPort()
+{
+  return ntohs(_mc_addr.sin_port);
 }
 
 Action *
-MultiCastPeer::SendMsg_re(Continuation * cont, void *token, struct msghdr * msg, sockaddr const* to)
+MultiCastPeer::SendMsg_re(Continuation * cont, void *token, struct msghdr * msg, struct sockaddr_in * to)
 {
   Action *a;
 
   if (to) {
     // Send to MultiCast group member (UniCast)
-    Peer *p = FindMultiCastChild(IpAddr(to), ats_ip_port_host_order(to));
+    Peer *p = FindMultiCastChild(&to->sin_addr, ntohs(to->sin_port));
     ink_assert(p);
     a = ((ParentSiblingPeer *) p)->SendMsg_re(cont, token, msg, 0);
   } else {
     // Send to MultiCast group
-    msg->msg_name = (caddr_t) & _send_chan.addr;
-    msg->msg_namelen = sizeof(_send_chan.addr);
+    msg->msg_name = (caddr_t) & _send_chan.sa;
+    msg->msg_namelen = sizeof(_send_chan.sa);
     a = udpNet.sendmsg_re(cont, token, _send_chan.fd, msg);
   }
   return a;
@@ -1078,16 +1075,15 @@ MultiCastPeer::ExpectedReplies(BitMap * expected_replies_list)
 }
 
 int
-MultiCastPeer::ValidSender(sockaddr* sa)
+MultiCastPeer::ValidSender(struct sockaddr_in *sa)
 {
   // TBD: Use hash function
   // Make sure sockaddr_in corresponds to a defined peer in the
   //  MultiCast group.
   Peer *P = _next;
   while (P) {
-    if (ats_ip_addr_eq(P->GetIP(), sa) &&
-      (ats_ip_port_cast(P->GetIP()) == ats_ip_port_cast(sa))
-    ) {
+    if ((P->GetIP()->s_addr == sa->sin_addr.s_addr)
+        && (P->GetPort() == (int)ntohs(sa->sin_port))) {
       return 1;
     } else {
       P = P->GetNext();
@@ -1097,7 +1093,7 @@ MultiCastPeer::ValidSender(sockaddr* sa)
 }
 
 void
-MultiCastPeer::LogSendMsg(ICPMsg_t * m, sockaddr const* sa)
+MultiCastPeer::LogSendMsg(ICPMsg_t * m, struct sockaddr_in *sa)
 {
   // Note: ICPMsg_t (m) is in network byte order
   if (sa) {
@@ -1105,7 +1101,7 @@ MultiCastPeer::LogSendMsg(ICPMsg_t * m, sockaddr const* sa)
     //  target Peer.
     //
     Peer *p;
-    p = FindMultiCastChild(IpAddr(sa), ats_ip_port_host_order(sa));
+    p = FindMultiCastChild(&sa->sin_addr, ntohs(sa->sin_port));
     if (p)
       ((ParentSiblingPeer *) p)->LogSendMsg(m, sa);
 
@@ -1134,37 +1130,33 @@ MultiCastPeer::AddMultiCastChild(Peer * P)
 {
   // Add (Peer *) to the given MultiCast structure.
   // Make sure child (ip,port) is unique.
-  sockaddr const* ip = P->GetIP();
-  if (FindMultiCastChild(IpAddr(ip), ats_ip_port_host_order(ip))) {
-    ip_text_buffer x;
-    Warning("bad icp.config, multiple multicast child definitions for ip=%s", ats_ip_ntop(ip, x, sizeof(x)));
+  if (FindMultiCastChild(P->GetIP(), P->GetPort())) {
+    unsigned char x[4] = { 0, 0, 0, 0 };
+    *(uint32_t *) & x = (uint32_t) P->GetIP()->s_addr;
+    Warning("bad icp.config, multiple multicast child definitions for ip=%d.%d.%d.%d", x[0], x[1], x[2], x[3]);
     return 0;                   // Not added, already exists
   } else {
     P->SetNext(this->_next);
     this->_next = P;
-    ++_mc.defined_members;
+    _mc.defined_members++;
     return 1;                   // Added
   }
 }
 
 Peer *
-MultiCastPeer::FindMultiCastChild(IpAddr const& addr, uint16_t port)
+MultiCastPeer::FindMultiCastChild(struct in_addr * ip, int port)
 {
-  // Locate child (Peer *) with the given (ip,port). This is split out
-  // rather than using a sockaddr so we can indicate the port is to not
-  // be checked (@a port == 0).
+  // Locate child (Peer *) with the given (ip,port).
   Peer *curP = this->_next;
   while (curP) {
-    sockaddr const* peer_ip = curP->GetIP();
-    if (addr == peer_ip &&
-      (!port || port == ats_ip_port_host_order(peer_ip))
-    ) {
+    if ((curP->GetIP()->s_addr == ip->s_addr)
+        && (!port || (curP->GetPort() == port))) {
       return curP;
     } else {
       curP = curP->GetNext();
     }
   }
-  return NULL;
+  return (Peer *) 0;
 }
 
 //-------------------------------------------------------------------------
@@ -1306,10 +1298,10 @@ ink_hrtime ICPlog::GetElapsedTime()
   return (ink_get_hrtime() - _s->_start_time);
 }
 
-sockaddr const*
+struct in_addr *
 ICPlog::GetClientIP()
 {
-  return &_s->_sender.sa;
+  return &_s->_sender.sin_addr;
 }
 
 SquidLogCode ICPlog::GetAction()
@@ -1445,7 +1437,8 @@ ICPProcessor::DumpICPConfig()
   Peer *P;
   PeerType_t type;
   int id;
-  ip_port_text_buffer ipb;
+  unsigned char ip[4] = { 0, 0, 0, 0 };
+  int icp_port;
 
   Debug("icp", "On=%d, MultiCast=%d, Timeout=%d LocalCacheLookup=%d",
         GetConfig()->globalConfig()->ICPconfigured(),
@@ -1459,6 +1452,8 @@ ICPProcessor::DumpICPConfig()
     P = _PeerList[i];
     id = P->GetPeerID();
     type = P->GetType();
+    *(uint32_t *) & ip = (uint32_t) (P->GetIP())->s_addr;
+    icp_port = P->GetPort();
     const char *str_type;
 
     switch (type) {
@@ -1490,19 +1485,19 @@ ICPProcessor::DumpICPConfig()
     }                           // End of switch
 
     if (*str_type == 'M') {
-      Debug("icp", "[%d]: Type=%s IP=%s", id, str_type, ats_ip_nptop(P->GetIP(), ipb, sizeof(ipb)));
+      Debug("icp", "[%d]: Type=%s IP=%d.%d.%d.%d ICP_Port=%d", id, str_type, ip[0], ip[1], ip[2], ip[3], icp_port);
     } else {
-      ParentSiblingPeer *Pps = static_cast<ParentSiblingPeer *>(P);
+      ParentSiblingPeer *Pps = (ParentSiblingPeer *) P;
       Debug("icp",
-            "[%d]: Type=%s IP=%s PPort=%d Host=%s",
-        id, str_type, ats_ip_nptop(P->GetIP(), ipb, sizeof(ipb)),
-        Pps->GetConfig()->GetProxyPort(), Pps->GetConfig()->GetHostname());
+            "[%d]: Type=%s IP=%d.%d.%d.%d Port=%d PPort=%d Host=%s",
+            id, str_type, ip[0], ip[1], ip[2], ip[3], icp_port,
+            Pps->GetConfig()->GetProxyPort(), Pps->GetConfig()->GetHostname());
+
+      *(uint32_t *) & ip = (uint32_t) (Pps->GetConfig()->GetMultiCastIP())->s_addr;
 
       Debug("icp",
-            "[%d]: MC ON=%d MC_IP=%s MC_TTL=%d",
-            id, Pps->GetConfig()->MultiCastMember(),
-        Pps->GetConfig()->GetMultiCastIPAddr().toString(ipb, sizeof(ipb)),
-        Pps->GetConfig()->GetMultiCastTTL());
+            "[%d]: MC ON=%d MC_IP=%d.%d.%d.%d MC_TTL=%d",
+            id, Pps->GetConfig()->MultiCastMember(), ip[0], ip[1], ip[2], ip[3], Pps->GetConfig()->GetMultiCastTTL());
     }
   }
 }

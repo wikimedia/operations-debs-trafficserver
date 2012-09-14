@@ -23,9 +23,12 @@
 
 void init_HttpProxyServer(void);
 
-/** Start the proxy server. 
-    The ports are contained in the HttpProxyPort global data.
+/**
+  fd is either a file descriptor which has already been opened for
+  the purpose of accepting proxy connections, or NO_FD (-1) if a file
+  descriptor should be opened.
+
 */
-void start_HttpProxyServer(int accept_threads = 0);
+void start_HttpProxyServer(int fd, int port, int ssl_fd, int accept_threads = 0);
 
 void start_HttpProxyServerBackDoor(int port, int accept_threads = 0);

@@ -14,7 +14,8 @@ You place the text to be appended in a file, and you must provide the
 path to the file in plugin.config. In other words, plugin.config must 
 have a line similar to the following:
 
-  append-transform.so path/to/file
+On NT: AppendTransform.dll path/to/file
+On Solaris: append-transform.so path/to/file
 
 Specify an absolute path to the text file, or a relative path as
 described in the file-plugin README.

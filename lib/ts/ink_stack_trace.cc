@@ -42,7 +42,7 @@ ink_stack_trace_dump(int sighandler_frame)
   // Recopy and re-terminate the app name in case it has been trashed.
   char name[256];
   const char *msg = " - STACK TRACE: \n";
-  ink_strlcpy(name, program_name, sizeof(name));
+  ink_strncpy(name, program_name, sizeof(name) - 2);
   if (write(2, name, strlen(name)) == -1)
     return;
   if (write(2, msg, strlen(msg)) == -1)
@@ -50,6 +50,7 @@ ink_stack_trace_dump(int sighandler_frame)
 
   void *stack[INK_STACK_TRACE_MAX_LEVELS + 1];
   memset(stack, 0, sizeof(stack));
+
   if ((btl = backtrace(stack, INK_STACK_TRACE_MAX_LEVELS)) > 2) {
     // dump the backtrace to stderr
     backtrace_symbols_fd(stack + 2, btl - 2, 2);

@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.2.0])
-m4_define([TS_VERSION_N],[3002000])
+m4_define([TS_VERSION_S],[3.0.5])
+m4_define([TS_VERSION_N],[3000005])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -42,10 +42,6 @@ AC_CONFIG_SRCDIR([proxy/Main.cc])
 AC_CONFIG_MACRO_DIR([build])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign no-installinfo no-installman 1.9.2])
 AM_CONFIG_HEADER([lib/ts/ink_autoconf.h])
-
-# Configure with --disable-silent-rules to get verbose output. For more info, see
-# http://www.gnu.org/software/automake/manual/html_node/Automake-silent_002drules-Option.html
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 # Not sure this is needed, and seems to break with some versions of automake
 #LT_INIT([dlopen])
@@ -96,7 +92,7 @@ TS_CONFIG_NICE([config.nice])
 AC_PREFIX_DEFAULT([/usr/local/trafficserver])
 
 # Get the layout here, so we can pass the required variables to Trafficserver
-TS_ENABLE_LAYOUT(TrafficServer, [cachedir docdir])
+TS_ENABLE_LAYOUT(TrafficServer, [cachedir])
 
 # Reparse the configure arguments so we can override the layout.
 TS_PARSE_ARGUMENTS
@@ -119,7 +115,7 @@ AC_SUBST([build_person])
 AC_SUBST([build_group])
 
 AC_ARG_WITH([user],
-  [AS_HELP_STRING([--with-user],[specify the system user [default=nobody]])],
+  [AS_HELP_STRING([--with-user],[specify the system user [default: nobody]])],
   [
   with_user="$withval"
   ],[
@@ -129,7 +125,7 @@ AC_ARG_WITH([user],
 
 default_group="`id -ng $with_user`"
 AC_ARG_WITH([group],
-  [AS_HELP_STRING([--with-group],[specify the system group [default=nobody]])],
+  [AS_HELP_STRING([--with-group],[specify the system group [default: nobody]])],
   [
   with_group="$withval"
   ],[
@@ -199,11 +195,36 @@ AC_SUBST(has_tests)
 AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 
 #
+# Purify
+#
+AC_MSG_CHECKING([whether to enable purify])
+AC_ARG_ENABLE([purify],
+  [AS_HELP_STRING([--enable-purify],[enable support for Purify])],
+  [],
+  [enable_purify=no]
+)
+AC_MSG_RESULT([$enable_purify])
+TS_ARG_ENABLE_VAR([has], [purify])
+AC_SUBST(has_purify)
+
+#
+# libev
+#
+
+AC_MSG_CHECKING([whether to use libev even if not required])
+AC_ARG_ENABLE([libev],
+  [AS_HELP_STRING([--enable-libev],[use libev even if not required])],
+  [],
+  [enable_libev=no]
+)
+AC_MSG_RESULT([$enable_libev])
+
+#
 # Micro
 #
 AC_MSG_CHECKING([whether to enable micro-TS])
 AC_ARG_ENABLE([micro],
-  [AS_HELP_STRING([--enable-micro],[enable micro-TS build [default=no]])],
+  [AS_HELP_STRING([--enable-micro],[enable micro-TS build [default: no]])],
   [],
   [enable_micro=no]
 )
@@ -317,20 +338,9 @@ AC_MSG_CHECKING([whether to use POSIX capabilities])
 AC_ARG_ENABLE([posix-cap],
   [AS_HELP_STRING([--disable-posix-cap],[Use user id switching instead of POSIX capabilities])],
   [],
-  [enable_posix_cap="auto"]
+  [enable_posix_cap="yes"]
 )
 AC_MSG_RESULT([$enable_posix_cap])
-
-#
-# use hwloc library when possible (can be disabled)
-#
-AC_MSG_CHECKING([whether to use hwloc library])
-AC_ARG_ENABLE([hwloc],
-  [AS_HELP_STRING([--disable-hwloc],[Don't use the hwloc library])],
-  [],
-  [enable_hwloc="yes"]
-)
-AC_MSG_RESULT([$enable_hwloc])
 
 #
 # Enble ccache explicitly (it's disabled by default, because of build problems in some cases)
@@ -363,21 +373,6 @@ AC_ARG_ENABLE([tproxy],
 AC_MSG_RESULT([$enable_tproxy])
 
 #
-# Disable our freelist implementation, reverting it to whatever
-# allocator (malloc, tcmalloc or jemalloc) that is in use. This is
-# useful for debugging.
-#
-AC_MSG_CHECKING([whether to disable freelist])
-AC_ARG_ENABLE([freelist],
-  [AS_HELP_STRING([--disable-freelist],[turn off freelist and use allocators])],
-  [],
-  [enable_freelist="yes"]
-)
-AC_MSG_RESULT([$enable_freelist])
-TS_ARG_ENABLE_VAR([use], [freelist])
-AC_SUBST(use_freelist)
-
-#
 # Configure how many stats to allocate for plugins. Default is 512.
 #
 AC_ARG_WITH([max-api-stats],
@@ -386,35 +381,6 @@ AC_ARG_WITH([max-api-stats],
   [max_api_stats=512]
 )
 AC_SUBST(max_api_stats)
-
-#
-# Max host name length that we deal with in URLs.
-#
-AC_ARG_WITH([max-host-name-len],
-  [AS_HELP_STRING([--with-max-host-name-len],[max host name length [default=256]])],
-  [max_host_name_len=$withval],
-  [max_host_name_len=256]
-)
-AC_SUBST(max_host_name_len)
-
-#
-# EventProcessor thread configurations
-#
-
-AC_ARG_WITH([max-event-threads],
-  [AS_HELP_STRING([--with-max-event-threads],[max number of event threads [default=4096]])],
-  [max_event_threads=$withval],
-  [max_event_threads=4096]
-)
-AC_SUBST(max_event_threads)
-
-AC_ARG_WITH([max-threads-per-type],
-  [AS_HELP_STRING([--with-max-threads-per-type],[max number of threads per event type [default=3072]])],
-  [max_threads_per_type=$withval],
-  [max_threads_per_type=3072]
-)
-AC_SUBST(max_threads_per_type)
-
 
 #
 # Installation directories
@@ -438,7 +404,6 @@ TS_SUBST_LAYOUT_PATH([localstatedir])
 TS_SUBST_LAYOUT_PATH([runtimedir])
 TS_SUBST_LAYOUT_PATH([logdir])
 TS_SUBST_LAYOUT_PATH([cachedir])
-TS_SUBST_LAYOUT_PATH([docdir])
 
 TS_SUBST([pkgbindir])
 TS_SUBST([pkgsbindir])
@@ -450,7 +415,6 @@ TS_SUBST([pkglocalstatedir])
 TS_SUBST([pkgruntimedir])
 TS_SUBST([pkglogdir])
 TS_SUBST([pkgcachedir])
-TS_SUBST([pkgdocdir])
 
 
 # -----------------------------------------------------------------------------
@@ -492,11 +456,6 @@ ifdef([AC_PROG_SED],
       [AC_PROG_SED],
       [AC_CHECK_PROG(SED, sed, sed)])
 
-dnl Same with AM_PROG_AR, but it doesn't seem to be needed in older versions.
-ifdef([AM_PROG_AR],
-      [AM_PROG_AR])
-
-
 AC_PROG_CPP
 AC_PROG_CXXCPP
 AM_PROG_AS
@@ -510,26 +469,8 @@ AC_CHECK_TOOL(AR, ar, ar)
 AC_ISC_POSIX
 AS_IF([test "x$enable_wccp" = "xyes"],
   [
-
-    # If flex is found, set output variable LEX to ‘flex’ 
-    # Otherwise set LEX to ‘lex’ 
-    # If neither variant is available, set LEX to ‘:’;
-    AC_PROG_LEX
-    AS_IF([test "x$LEX" = "x:"  ],
-       AC_MSG_ERROR([Need flex when enabling WCCP])
-    )
-
-    # If bison is found, set output variable YACC to ‘bison -y’. 
-    # Otherwise, if byacc is found, set YACC to ‘byacc’. 
-    # Otherwise set YACC to ‘yacc’. 
     AC_PROG_YACC
-    AS_IF([test "x$YACC" = "xyacc" ],
-	AC_CHECK_PROG([YACCBIN],[yacc],[yacc],[])
-	AS_IF([test "x$YACCBIN" = "x"],
-		AC_MSG_ERROR([Need at YACC when enabling WCCP])
-	)
-    )
-
+    AC_PROG_LEX
   ]
 )
 
@@ -544,27 +485,22 @@ AC_ARG_VAR([PERL], [full path of Perl executable])
 CFLAGS="${REAL_CFLAGS}"
 CXXFLAGS="${REAL_CXXFLAGS}"
 
-# Check for GNU-style -On and for Solaris Studio style -xOn.
-AC_MSG_CHECKING([checking whether to auto-set compiler optimization flags])
-has_optimizer_flags=`echo "$CFLAGS $CXXFLAGS" | ${AWK} '$0 !~ /-x?O.?/{print "no"}'`
+AC_MSG_CHECKING([checking whether to auto-set compile optimizing flags])
+has_optimizer_flags=`$as_echo "$CFLAGS $CXXFLAGS" | ${AWK} '/-x?O.?/{print "no"}'`
 AS_IF([test "x${has_optimizer_flags}" = "xno"],
-	[
-		optimizing_flags='-O3'
-		AC_MSG_RESULT([yes ${optimizing_flags}])
-	],
+	[ optimizing_flags='' ],
 	[
 		has_optimizer_flags='yes'
-		optimizing_flags=''
-		AC_MSG_RESULT([no])
+		optimizing_flags='-O3'
 	]
 )
+AC_MSG_RESULT([${has_optimizer_flags} ${optimizing_flags}])
 
 base_cc=`basename $CC`
 # These are shortcuts used in combination for the compiler options below
 case $host_os in
   linux*)
-    case $base_cc in
-    icc)
+    if test "x${base_cc}" = "xicc"; then
       # -Wall goes crazy, so turned these specific checks off for now:
       #
       #  111 is "statement is unrecahable"
@@ -586,56 +522,28 @@ case $host_os in
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimization_flags -axsse4.2 -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      ;;
-    clang)
-      debug_opt="-ggdb3 $common_opt -Werror -Qunused-arguments"
-      release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Werror -Qunused-arguments"
-      cxx_opt="-Wno-invalid-offsetof -Werror -Qunused-arguments"
-      ;;
-    *) # gcc
-      # This is useful for finding odd conversions
-      #    common_opt="-pipe -Wall -Werror -Wconversion -Wno-sign-conversion"
+    else # gcc
+    # This is useful for finding odd conversions
+    #    common_opt="-pipe -Wall -Werror -Wconversion -Wno-sign-conversion"
       common_opt="-pipe -Wall -Werror"
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      ;;
-    esac
-    ;; # linux*)
+    fi
+    ;;
   darwin*)
-    case $base_cc in
-    clang)
-      common_opt="-pipe -Wall -Werror -Wno-deprecated-declarations"
-      debug_opt="$common_opt"
-      release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
-      cxx_opt="-Wno-invalid-offsetof"
-      ;;
-    *) # gcc
-      common_opt="-pipe -Wall -Werror -Wno-deprecated-declarations"
-      debug_opt="$common_opt"
-      release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
-      cxx_opt="-Wno-invalid-offsetof"
-      ;;
-    esac
-    # ToDo: This seems semi-kludgy, but useful for MacPort's I think.
+    common_opt="-pipe -Wall -Werror"
+    debug_opt="-ggdb3 $common_opt"
+    release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
+    cxx_opt="-Wno-invalid-offsetof"
     TS_ADDTO(CPPFLAGS, [-I/opt/local/include])
     TS_ADDTO(LDFLAGS, [-L/opt/local/lib])
-    ;; # darwin*)
+    ;;
   freebsd*|kfreebsd*)
-    case $base_cc in
-    clang)
-      common_opt="-pipe -Wall -Werror -Qunused-arguments"
-      debug_opt="-ggdb3 $common_opt"
-      release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
-      cxx_opt="-Wno-invalid-offsetof -Qunused-arguments"
-      ;;
-    *) # gcc
-      common_opt="-pipe -Wall -Werror"
-      debug_opt="-ggdb3 $common_opt"
-      release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
-      cxx_opt="-Wno-invalid-offsetof"
-      ;;
-    esac
+    common_opt="-pipe -Wall -Werror"
+    debug_opt="-ggdb3 $common_opt"
+    release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
+    cxx_opt="-Wno-invalid-offsetof"
     TS_ADDTO(LDFLAGS, [-L/usr/local/lib])
     ;;
   solaris*)
@@ -787,9 +695,6 @@ case $host_os in
   solaris*)
     host_os_def=solaris
     ;;
-  openbsd*)
-    host_os_def=openbsd
-    ;;
   *)
     EXTRA_CXX_LDFLAGS="-rdynamic"
     host_os_def=unknown
@@ -835,6 +740,12 @@ AC_CHECK_LIB([rt],[clock_gettime],[AC_SUBST([LIBRT],["-lrt"])])
 AC_CHECK_LIB([posix4],[clock_gettime],[AC_SUBST([LIBRT],["-lposix4"])])
 AC_CHECK_LIB([iconv],[iconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
 AC_CHECK_LIB([iconv],[libiconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
+# TODO: We have --enable-libev but here we add it unconditionally
+#       making resulting binaries always linked to libev if present.
+#       Use a proper --with-libev and fail on --enable-libev and -lev
+#       is missing. Allow --with-libev=builtin? living in ./srclib/ev ?
+#
+AC_CHECK_LIB([ev],[ev_sleep],[AC_SUBST([LIBEV],["-lev"])])
 
 #
 # Check for SSL presence and usability
@@ -842,14 +753,6 @@ TS_CHECK_CRYPTO
 if test "x${enable_crypto}" != "xyes"; then
   AC_MSG_ERROR([Need at least one SSL library, --with-openssl is supported])
 fi
-
-#
-# Check for NextProtocolNegotiation TLS extension support.
-TS_CHECK_CRYPTO_NEXTPROTONEG
-
-#
-# Check for ServerNameIndication TLS extension support.
-TS_CHECK_CRYPTO_SNI
 
 #
 # Check for zlib presence and usability
@@ -860,7 +763,7 @@ TS_CHECK_ZLIB
 TS_CHECK_LZMA
 
 #
-# Tcl macros provided by build/tcl.m4
+# Tcl macros provided by m4/tcl.m4
 #
 # this will error out if tclConfig.sh is not found
 SC_PATH_TCLCONFIG
@@ -882,6 +785,9 @@ case $host_os in
   freebsd*|kfreebsd*)
     TS_ADDTO(CPPFLAGS, [-I/usr/local/include])
     ;;
+  solaris*)
+    TS_ADDTO(CPPFLAGS, [-I/usr/local/include])
+    ;;
 esac
 
 if test "x${TCL_INCLUDE_SPEC}" != "x-I/usr/include"; then
@@ -897,13 +803,14 @@ if test "x${enable_xml}" != "xyes"; then
 fi
 
 TS_FLAG_FUNCS([clock_gettime kqueue epoll_ctl posix_memalign posix_fadvise lrand48_r srand48_r port_create])
-TS_FLAG_FUNCS([strlcpy strlcat])
+TS_FLAG_FUNCS([strndup strlcpy strlcat])
 
 AC_SUBST(has_clock_gettime)
 AC_SUBST(has_posix_memalign)
 AC_SUBST(has_posix_fadvise)
 AC_SUBST(has_lrand48_r)
 AC_SUBST(has_srand48_r)
+AC_SUBST(has_strndup)
 AC_SUBST(has_strlcpy)
 AC_SUBST(has_strlcat)
 
@@ -940,10 +847,14 @@ fi
 AC_SUBST(execinfoh)
 AC_SUBST(has_backtrace)
 
+use_libev=0
 use_epoll=0
 use_kqueue=0
 use_port=0
-if test "$ac_cv_func_epoll_ctl" = "yes"; then
+if test "x$enable_libev" = "xyes"; then
+  use_libev=1
+  have_good_poller=1
+elif test "$ac_cv_func_epoll_ctl" = "yes"; then
   use_epoll=1
   have_good_poller=1
   AC_MSG_NOTICE([Using epoll event interface])
@@ -958,6 +869,7 @@ elif test "$ac_cv_func_port_create" = "yes"; then
 else
   AC_MSG_FAILURE([No suitable polling interface found])
 fi
+AC_SUBST(use_libev)
 AC_SUBST(use_epoll)
 AC_SUBST(use_kqueue)
 AC_SUBST(use_port)
@@ -1010,59 +922,15 @@ AC_SUBST(need_union_semun)
 # Check for POSIX capabilities library.
 # If we don't find it, disable checking for header.
 use_posix_cap=0
-AS_IF([test "x$enable_posix_cap" != "xno"],
+AS_IF([test "x$enable_posix_cap" = "xyes"],
   AC_CHECK_LIB([cap],[cap_set_proc],
     [AC_SUBST([LIBCAP], ["-lcap"])
      use_posix_cap=1
-    ],[
-     AS_IF([test "x$enable_posix_cap" == "xyes"], [
-      AC_MSG_FAILURE([POSIX capabilities enabled but system library not found.])
-     ],[
-      [enable_posix_cap=no]
-    ])
-   ]
+    ],
+    [enable_posix_cap=no]
   )
 )
 AC_SUBST(use_posix_cap)
-
-# Check for hwloc library.
-# If we don't find it, disable checking for header.
-use_hwloc=0
-AS_IF([test "x$enable_hwloc" = "xyes"],
-  AC_CHECK_LIB([hwloc],[hwloc_topology_init],
-    [AC_SUBST([LIBHWLOC], ["-lhwloc"])
-     use_hwloc=1
-    ],
-    [enable_hwloc=no]
-  )
-)
-AC_SUBST(use_hwloc)
-
-#
-# Check for tcmalloc and jemalloc
-TS_CHECK_JEMALLOC
-TS_CHECK_TCMALLOC
-
-#
-# Determine ARG_MAX
-# Default to 2048 if we cannot resolve ARG_MAX for some reason
-AC_ARG_WITH([arg_max],
-  [AS_HELP_STRING([--with-arg-max=[ARG_MAX]],[override the computed maxmium argument length])],
-  [
-  arg_max="$withval"
-  ],[
-  arg_max="`getconf ARG_MAX`"
-  if test "x${arg_max}" = x ; then
-    arg_max=2048
-  fi
-  ]
-)
-AC_SUBST(arg_max)
-
-#
-# Check for libreadline/libedit
-AX_LIB_READLINE
-
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
 
@@ -1071,6 +939,7 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   machine/endian.h \
                   endian.h \
                   sys/sysinfo.h \
+                  sys/sysctl.h \
                   sys/systeminfo.h \
                   netinet/in.h \
                   netinet/in_systm.h \
@@ -1079,6 +948,7 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   sys/byteorder.h \
                   sys/sockio.h \
 		  sys/prctl.h \
+                  arpa/inet.h \
                   arpa/nameser.h \
                   arpa/nameser_compat.h \
                   execinfo.h \
@@ -1093,14 +963,12 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   alloca.h \
                   cpio.h \
                   stropts.h \
+                  sys/mount.h \
                   sys/param.h \
                   sys/sysmacros.h \
                   math.h \
                   stdint.h \
-                  net/ppp_defs.h \
-                  ifaddrs.h\
-		  readline/readline.h \
-		  editline/readline.h ])
+                  net/ppp_defs.h])
 
 AC_SUBST(sys_epollh)
 AC_SUBST(sys_eventh)
@@ -1136,29 +1004,6 @@ AC_SUBST(sys_paramh)
 AC_SUBST(sys_sysmacrosh)
 AC_SUBST(mathh)
 AC_SUBST(net_ppp_defsh)
-AC_SUBST(ifaddrsh)
-AC_SUBST(readline_readlineh)
-
-TS_FLAG_HEADERS([sys/sysctl.h], [], [],
-                 [[#ifdef HAVE_SYS_PARAM_H
-                    #include <sys/param.h>
-                   #endif
-                 ]])
-
-TS_FLAG_HEADERS([sys/mount.h], [], [],
-                 [[#ifdef HAVE_SYS_PARAM_H
-                    #include <sys/param.h>
-                   #endif
-                 ]])
-
-TS_FLAG_HEADERS([arpa/inet.h], [], [],
-                 [[#ifdef HAVE_SYS_TYPES_H
-                    #include <sys/types.h>
-                   #endif
-                   #ifdef HAVE_NETINET_IN_H
-                    #include <netinet/in.h>
-                   #endif
-                 ]])
 
 TS_FLAG_HEADERS([netinet/ip.h], [], [],
                  [[#ifdef HAVE_SYS_TYPES_H
@@ -1166,9 +1011,6 @@ TS_FLAG_HEADERS([netinet/ip.h], [], [],
                    #endif
                    #ifdef HAVE_NETINET_IN_H
                     #include <netinet/in.h>
-                   #endif
-                   #ifdef HAVE_NETINET_IN_SYSTM_H
-                    #include <netinet/in_systm.h>
                    #endif
                  ]])
 
@@ -1190,44 +1032,15 @@ TS_FLAG_HEADERS([netinet/ip_icmp.h], [], [],
 AC_SUBST(netinet_iph)
 AC_SUBST(netinet_ip_icmph)
 
-# BSD-derived systems populate the socket length in the structure itself. It's
-# redundant to check all of these, but hey, I need the typing practice.
-AC_CHECK_MEMBER([struct sockaddr.sa_len], [], [], [#include <netinet/in.h>])
-AC_CHECK_MEMBER([struct sockaddr_in.sin_len], [], [], [#include <netinet/in.h>])
-AC_CHECK_MEMBER([struct sockaddr_in6.sin6_len], [], [], [#include <netinet/in.h>])
-
-if test "x${ac_cv_member_sockaddr_sa_len}" = xyes; then
-    AC_DEFINE(HAVE_STRUCT_SOCKADDR_SA_LEN, 1,
-	    [Whether struct sockaddr_in has the sa_len member])
-fi
-
-if test "x${ac_cv_member_sockaddr_in_sin_len}" = xyes ; then
-AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN_SIN_LEN, 1,
-	    [Whether struct sockaddr_in has the sin_len member])
-fi
-
-if test "x${ac_cv_member_sockaddr_in6_sin6_len}" = xyes; then
-    AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN, 1,
-	    [Whether struct sockaddr_in6 has the sin6_len member])
-fi
-
 if test "x${with_profiler}" = "xyes"; then
 TS_FLAG_HEADERS([google/profiler.h \
                   ], [], [])
 fi
 
-if test "x${enable_posix_cap}" != "xno"; then
+if test "x${enable_posix_cap}" = "xyes"; then
   AC_CHECK_HEADERS([sys/capability.h],
     [],
-    [AC_MSG_FAILURE([Found POSIX capabilities library but not the header sys/capability.h. POSIX capabilities are not a required feature, you can disable then with --disable-posix-cap])],
-    []
-  )
-fi
-
-if test "x${enable_hwloc}" = "xyes"; then
-  AC_CHECK_HEADERS([hwloc.h],
-    [],
-    [AC_MSG_FAILURE([hwloc header not found. Try --disable-hwloc])],
+    [AC_MSG_FAILURE([POSIX capabilities header not found. Try --disable-posix-cap])],
     []
   )
 fi
@@ -1259,9 +1072,8 @@ tproxy_usage_disable="
     --disable-tproxy Disable feature, no validation."
 proxy_usage="$tproxy_usage_enable$tproxy_usage_default$tproxy_usage_numeric$tproxy_usage_disable"
 
-AC_MSG_CHECKING([whether to enable transparent proxy])
 AS_IF([test "x$enable_tproxy" != "xno"], [
-  AS_IF([test "$use_posix_cap" -eq 0], [
+  AS_IF([test "x${enable_posix_cap}" != "xyes"], [
     AS_IF([test "x$enable_tproxy" = xauto], [
       AC_MSG_RESULT([no])
     ],[
@@ -1315,39 +1127,8 @@ AS_IF([test "x$enable_tproxy" != "xno"], [
 AC_SUBST(use_tproxy)
 AC_SUBST(ip_transparent)
 
-AC_MSG_CHECKING([for SO_MARK])
-AC_TRY_COMPILE([
-#include <sys/socket.h>
-], [
-if( SO_MARK > 0) return 0;
-else return 1;
-], [has_so_mark=1]
-msg=yes, [
-has_so_mark=0
-msg=no ] )
-
-AC_MSG_RESULT([$msg])
-AC_SUBST(has_so_mark)
-
-AC_MSG_CHECKING([for IP_TOS])
-AC_TRY_COMPILE([
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-],[
-if( IP_TOS > 0) return 0;
-else return 1;
-], [has_ip_tos=1]
-msg=yes, [
-has_ip_tos=0
-msg=no ] )
-
-AC_MSG_RESULT([$msg])
-AC_SUBST(has_ip_tos)
-
 TS_CHECK_LOOPBACK_IFACE
 TS_CHECK_GETHOSTBYNAME_R_STYLE
-TS_CHECK_MACRO_IN6_IS_ADDR_UNSPECIFIED
 
 #
 # use modular IOCORE
@@ -1360,6 +1141,10 @@ iocore_include_dirs="-I\$(top_srcdir)/iocore/eventsystem \
 -I\$(top_srcdir)/iocore/cluster \
 -I\$(top_srcdir)/iocore/utils \
 -I\$(top_srcdir)/iocore/dns"
+
+if test "x$enable_libev" = "xyes"; then
+   iocore_include_dirs="${iocore_include_dirs} -I\$(top_srcdir)/libev"
+fi
 
 # Testing Framework suffix generation hack
 TFW_PACKAGE_SUFFIX=$os_type
@@ -1412,7 +1197,6 @@ AC_CONFIG_FILES([rc/Makefile])
 AC_CONFIG_FILES([rc/trafficserver])
 AC_CONFIG_FILES([rc/trafficserver.xml])
 AC_CONFIG_FILES([rc/trafficserver.conf])
-AC_CONFIG_FILES([rc/trafficserver.service])
 AC_CONFIG_FILES([iocore/aio/Makefile])
 AC_CONFIG_FILES([iocore/cache/Makefile])
 AC_CONFIG_FILES([iocore/cluster/Makefile])
@@ -1456,9 +1240,6 @@ AC_CONFIG_FILES([cop/Makefile])
 # production plugins
 AC_CONFIG_FILES([plugins/Makefile])
 AC_CONFIG_FILES([plugins/conf_remap/Makefile])
-AC_CONFIG_FILES([plugins/regex_remap/Makefile])
-AC_CONFIG_FILES([plugins/header_filter/Makefile])
-AC_CONFIG_FILES([plugins/stats_over_http/Makefile])
 # various tools
 AC_CONFIG_FILES([tools/Makefile])
 # example plugins
@@ -1471,6 +1252,7 @@ AC_CONFIG_FILES([example/blacklist-1/Makefile])
 AC_CONFIG_FILES([example/bnull-transform/Makefile])
 AC_CONFIG_FILES([example/cache_scan/Makefile])
 AC_CONFIG_FILES([example/file-1/Makefile])
+AC_CONFIG_FILES([example/gzip-transform/Makefile])
 AC_CONFIG_FILES([example/hello/Makefile])
 AC_CONFIG_FILES([example/null-transform/Makefile])
 AC_CONFIG_FILES([example/output-header/Makefile])

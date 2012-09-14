@@ -32,6 +32,7 @@
 #define _P_UnixEThread_h_
 
 #include "I_EThread.h"
+#include "I_ProxyAllocator.h"
 #include "I_EventProcessor.h"
 
 const int DELAY_FOR_RETRY = HRTIME_MSECONDS(10);

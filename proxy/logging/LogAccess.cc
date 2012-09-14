@@ -1,6 +1,6 @@
 /** @file
 
-  This file implements the LogAccess class.
+  A brief file description
 
   @section license License
 
@@ -19,19 +19,23 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
-
-  @section description
-  This file implements the LogAccess class.  However, LogAccess is an
-  abstract base class, providing an interface that logging uses to get
-  information from a module, such as HTTP or ICP.  Each module derives a
-  specific implementation from this base class (such as LogAccessHttp), and
-  implements the virtual accessor functions there.
-
-  The LogAccess class also defines a set of static functions that are used
-  to provide support for marshalling and unmarshalling support for the other
-  LogAccess derived classes.
  */
 
+/***************************************************************************
+ LogAccess.cc
+
+ This file implements the LogAccess class.  However, LogAccess is an
+ abstract base class, providing an interface that logging uses to get
+ information from a module, such as HTTP or ICP.  Each module derives a
+ specific implementation from this base class (such as LogAccessHttp), and
+ implements the virtual accessor functions there.
+
+ The LogAccess class also defines a set of static functions that are used
+ to provide support for marshalling and unmarshalling support for the other
+ LogAccess derived classes.
+
+
+ ***************************************************************************/
 #include "ink_unused.h"
 
 #include "libts.h"
@@ -80,7 +84,7 @@ LogAccess::init()
 int
 LogAccess::marshal_client_host_ip(char *buf)
 {
-  DEFAULT_IP_FIELD;
+  DEFAULT_STR_FIELD;
 }
 
 /*-------------------------------------------------------------------------
@@ -142,15 +146,6 @@ LogAccess::marshal_client_req_unmapped_url_canon(char *buf)
 
 int
 LogAccess::marshal_client_req_unmapped_url_path(char *buf)
-{
-  DEFAULT_STR_FIELD;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_client_req_unmapped_url_host(char *buf)
 {
   DEFAULT_STR_FIELD;
 }
@@ -348,7 +343,7 @@ LogAccess::marshal_proxy_req_server_name(char *buf)
 int
 LogAccess::marshal_proxy_req_server_ip(char *buf)
 {
-  DEFAULT_IP_FIELD;
+  DEFAULT_INT_FIELD;
 }
 
 /*-------------------------------------------------------------------------
@@ -378,7 +373,7 @@ int
 LogAccess::marshal_proxy_host_name(char *buf)
 {
   char *str = NULL;
-  Machine *machine = Machine::instance();
+  Machine *machine = this_machine();
 
   if (machine) {
     str = machine->hostname;
@@ -396,7 +391,18 @@ LogAccess::marshal_proxy_host_name(char *buf)
 int
 LogAccess::marshal_proxy_host_ip(char *buf)
 {
-  return marshal_ip(buf, &Machine::instance()->ip.sa);
+  char *str = NULL;
+  Machine *machine = this_machine();
+  int len = 0;
+
+  if (machine) {
+    str = machine->ip_string;
+    len = LogAccess::strlen(str);
+  }
+  if (buf) {
+    marshal_str(buf, str, len);
+  }
+  return len;
 }
 
 
@@ -406,7 +412,7 @@ LogAccess::marshal_proxy_host_ip(char *buf)
 int
 LogAccess::marshal_server_host_ip(char *buf)
 {
-  DEFAULT_IP_FIELD;
+  DEFAULT_INT_FIELD;
 }
 
 /*-------------------------------------------------------------------------
@@ -451,49 +457,6 @@ LogAccess::marshal_server_resp_header_len(char *buf)
 
 int
 LogAccess::marshal_server_resp_http_version(char *buf)
-{
-  if (buf) {
-    int64_t major = 0;
-    int64_t minor = 0;
-    marshal_int(buf, major);
-    marshal_int((buf + INK_MIN_ALIGN), minor);
-  }
-  return (2 * INK_MIN_ALIGN);
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_cache_resp_status_code(char *buf)
-{
-  DEFAULT_INT_FIELD;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_cache_resp_content_len(char *buf)
-{
-  DEFAULT_INT_FIELD;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_cache_resp_header_len(char *buf)
-{
-  DEFAULT_INT_FIELD;
-}
-
-/*-------------------------------------------------------------------------
-  This case is special because it really stores 2 ints.
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_cache_resp_http_version(char *buf)
 {
   if (buf) {
     int64_t major = 0;
@@ -621,7 +584,7 @@ LogAccess::marshal_config_str_var(char *config_var, char *buf)
   if (buf) {
     marshal_str(buf, str, len);
   }
-  ats_free(str);
+  xfree(str);
   return len;
 }
 
@@ -734,7 +697,7 @@ LogAccess::marshal_record(char *record, char *buf)
           num_chars =::strlen(out_buf) + 1;
           if (num_chars > max_chars) {
             // truncate string and write ellipsis at the end
-            memcpy(ascii_buf, out_buf, max_chars - 4);
+            ink_memcpy(ascii_buf, out_buf, max_chars - 4);
             ascii_buf[max_chars - 1] = 0;
             ascii_buf[max_chars - 2] = '.';
             ascii_buf[max_chars - 3] = '.';
@@ -760,8 +723,13 @@ LogAccess::marshal_record(char *record, char *buf)
   }
 
   ink_debug_assert(num_chars <= max_chars);
-  memcpy(buf, out_buf, num_chars);
+  ink_memcpy(buf, out_buf, num_chars);
 
+#ifdef PURIFY
+  for (unsigned int i = num_chars + 1; i < max_chars; ++i) {
+    buf[i] = '$';
+  }
+#endif
 
   return max_chars;
 }
@@ -783,7 +751,7 @@ LogAccess::marshal_str(char *dest, const char *source, int padded_len)
   if (source == NULL || source[0] == 0 || padded_len == 0) {
     source = DEFAULT_STR;
   }
-  ink_strlcpy(dest, source, padded_len);
+  ink_strncpy(dest, source, padded_len);
 
 #ifdef DEBUG
   //
@@ -833,37 +801,6 @@ LogAccess::marshal_mem(char *dest, const char *source, int actual_len, int padde
 #endif
 }
 
-/*-------------------------------------------------------------------------
-  LogAccess::marshal_ip
-
-  Marshal an IP address in a reasonably compact way. If the address isn't
-  valid (NULL or not IP) then marshal an invalid address record.
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_ip(char* dest, sockaddr const* ip) {
-  LogFieldIpStorage data;
-  int len = sizeof(data._ip);
-  if (ats_is_ip4(ip)) {
-    if (dest) {
-      data._ip4._family = AF_INET;
-      data._ip4._addr = ats_ip4_addr_cast(ip);
-    }
-    len = sizeof(data._ip4);
-  } else if (ats_is_ip6(ip)) {
-    if (dest) {
-      data._ip6._family = AF_INET6;
-      data._ip6._addr = ats_ip6_addr_cast(ip);
-    }
-    len = sizeof(data._ip6);
-  } else {
-    data._ip._family = AF_UNSPEC;
-  }
-
-  if (dest) memcpy(dest, &data, len);
-  return INK_ALIGN_DEFAULT(len);
-}
-
 inline int
 LogAccess::unmarshal_with_map(int64_t code, char *dest, int len, Ptr<LogFieldAliasMap> map, const char *msg)
 {
@@ -876,7 +813,7 @@ LogAccess::unmarshal_with_map(int64_t code, char *dest, int len, Ptr<LogFieldAli
       char invalidCodeMsg[bufSize];
       codeStrLen = snprintf(invalidCodeMsg, 64, "%s(%" PRId64 ")", msg, code);
       if (codeStrLen < bufSize && codeStrLen < len) {
-        ink_strlcpy(dest, invalidCodeMsg, len);
+        ink_strncpy(dest, invalidCodeMsg, len);
       } else {
         codeStrLen = -1;
       }
@@ -906,7 +843,7 @@ LogAccess::unmarshal_int(char **buf)
   ink_assert(*buf != NULL);
   int64_t val;
 
-  // TODO: this used to do nthol, do we need to worrry? TS-1156.
+  // TODO: this used to do nthol, do we need to worrry?
   val = *((int64_t *)(*buf));
   *buf += INK_MIN_ALIGN;
   return val;
@@ -1185,65 +1122,19 @@ LogAccess::unmarshal_http_status(char **buf, char *dest, int len)
 /*-------------------------------------------------------------------------
   LogAccess::unmarshal_ip
 
-  Retrieve an IP address directly.
+  Retrieve the int pointed at by the buffer and treat as an IP address.
+  Convert to a string and return the string.  Advance the buffer pointer.
+  String has the form "ddd.ddd.ddd.ddd".
   -------------------------------------------------------------------------*/
-int
-LogAccess::unmarshal_ip(char **buf, IpEndpoint* dest)
-{
-  int len = sizeof(LogFieldIp); // of object processed.
 
+int
+LogAccess::unmarshal_ip(char **buf, char *dest, int len, Ptr<LogFieldAliasMap> map)
+{
   ink_assert(buf != NULL);
   ink_assert(*buf != NULL);
   ink_assert(dest != NULL);
 
-  LogFieldIp* raw = reinterpret_cast<LogFieldIp*>(*buf);
-  if (AF_INET == raw->_family) {
-    LogFieldIp4* ip4 = static_cast<LogFieldIp4*>(raw);
-    ats_ip4_set(dest, ip4->_addr);
-    len = sizeof(*ip4);
-  } else if (AF_INET6 == raw->_family) {
-    LogFieldIp6* ip6 = static_cast<LogFieldIp6*>(raw);
-    ats_ip6_set(dest, ip6->_addr);
-    len = sizeof(*ip6);
-  } else {
-    ats_ip_invalidate(dest);
-  }
-  len = INK_ALIGN_DEFAULT(len);
-  *buf += len;
-  return len;
-}
-
-/*-------------------------------------------------------------------------
-  LogAccess::unmarshal_ip_to_str
-
-  Retrieve the IP addresspointed at by the buffer and convert to a
-  string in standard format. The string is written to @a dest and its
-  length (not including nul) is returned. @a *buf is advanced.
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::unmarshal_ip_to_str(char **buf, char *dest, int len)
-{
-  IpEndpoint ip;
-
-  unmarshal_ip(buf, &ip);
-  return ats_ip_ntop(&ip, dest, len) ? static_cast<int>(::strlen(dest)) : -1;
-}
-
-/*-------------------------------------------------------------------------
-  LogAccess::unmarshal_ip_to_hex
-
-  Retrieve the int pointed at by the buffer and treat as an IP
-  address.  Convert to a string in byte oriented hexadeciaml and
-  return the string.  Advance the buffer pointer.
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::unmarshal_ip_to_hex(char **buf, char *dest, int len)
-{
-  IpEndpoint ip;
-  unmarshal_ip(buf, &ip);
-  return ats_ip_to_hex(&ip.sa, dest, len);
+  return (LogAccess::unmarshal_with_map(unmarshal_int(buf), dest, len, map));
 }
 
 /*-------------------------------------------------------------------------
@@ -1347,8 +1238,8 @@ LogAccess::unmarshal_record(char **buf, char *dest, int len)
   resolve_logfield_string
 
   This function resolves the given custom log format string using the given
-  LogAccess context and returns the resulting string, which is ats_malloc'd.
-  The caller is responsible for ats_free'ing the return result.  If there are
+  LogAccess context and returns the resulting string, which is xmalloc'd.
+  The caller is responsible for xfree'ing the return result.  If there are
   any problems, NULL is returned.
   -------------------------------------------------------------------------*/
 char *
@@ -1380,7 +1271,7 @@ resolve_logfield_string(LogAccess *context, const char *format_str)
   //
   if (!n_fields) {
     Debug("log-resolve", "No fields found; returning copy of format_str");
-    return ats_strdup(format_str);
+    return xstrdup(format_str);
   }
 
   Debug("log-resolve", "%d fields: %s", n_fields, fields_str);
@@ -1391,9 +1282,9 @@ resolve_logfield_string(LogAccess *context, const char *format_str)
   int field_count = LogFormat::parse_symbol_string(fields_str, &fields, &contains_aggregates);
 
   if (field_count != n_fields) {
-    Error("format_str contains %d invalid field symbols", n_fields - field_count);
-    ats_free(printf_str);
-    ats_free(fields_str);
+    Error("log-resolve", "format_str contains %d invalid field symbols", n_fields - field_count);
+    xfree(printf_str);
+    xfree(fields_str);
     return NULL;
   }
   //
@@ -1404,9 +1295,9 @@ resolve_logfield_string(LogAccess *context, const char *format_str)
   Debug("log-resolve", "Marshaling data from LogAccess into buffer ...");
   context->init();
   unsigned bytes_needed = fields.marshal_len(context);
-  char *buf = (char *) ats_malloc(bytes_needed);
+  char *buf = (char *) xmalloc(bytes_needed);
+  ink_assert(buf != NULL);
   unsigned bytes_used = fields.marshal(context, buf);
-
   ink_assert(bytes_needed == bytes_used);
   Debug("log-resolve", "    %u bytes marshalled", bytes_used);
 
@@ -1416,16 +1307,16 @@ resolve_logfield_string(LogAccess *context, const char *format_str)
   // we're not sure how much space it will take when it's unmarshalled.
   // So, we'll just guess.
   //
-  char *result = (char *) ats_malloc(8192);
+  char *result = (char *) xmalloc(8192);
   unsigned bytes_resolved = LogBuffer::resolve_custom_entry(&fields, printf_str, buf, result,
                                                             8191, LogUtils::timestamp(), 0,
                                                             LOG_SEGMENT_VERSION);
   ink_assert(bytes_resolved < 8192);
   result[bytes_resolved] = 0; // NULL terminate
 
-  ats_free(printf_str);
-  ats_free(fields_str);
-  ats_free(buf);
+  xfree(printf_str);
+  xfree(fields_str);
+  xfree(buf);
 
   return result;
 }

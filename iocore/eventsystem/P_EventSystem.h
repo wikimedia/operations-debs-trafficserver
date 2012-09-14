@@ -65,7 +65,7 @@
   if(_already == false)                                                       \
 	IOCORE_SignalManager(REC_SIGNAL_CONFIG_ERROR, _buf);                  \
   _already = true;                                                            \
-  Warning("%s", _buf);                                                        \
+  Warning(_buf);                                                              \
 }
 #define IOCORE_SignalManager               REC_SignalManager
 

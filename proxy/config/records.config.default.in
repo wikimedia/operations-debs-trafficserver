@@ -56,13 +56,11 @@ CONFIG proxy.config.admin.autoconf_port INT 8083
 CONFIG proxy.config.process_manager.mgmt_port INT 8084
 ##############################################################################
 #
-# In order to only bind a specific IP, use the following config, as in
-# the example below. Note - this can contain two addresses, one for IPv4
-# sockets and one for IPv6 sockets.
+# In order to only bind a specific IP, use the following config, as in 
+# the example below. Note
 #
 ##############################################################################
 #LOCAL proxy.local.incoming_ip_to_bind STRING 192.168.101.17
-#LOCAL proxy.local.incoming_ip_to_bind STRING 192.168.101.17 fc07:192:168:101::17
 ##############################################################################
 #
 # Alarm Configuration
@@ -79,42 +77,20 @@ CONFIG proxy.config.alarm.abs_path STRING NULL
    ##########
    # basics #
    ##########
-   # The server ports are listed here. These are separated by spaces or commas.
-   # Each port is a colon separated list of values, which must include a
-   # port number. Other options are
-   # ipv4 - Use IPv4 (default)
-   # ipv6 - Use IPv6
-   # tr-in - Transparent inbound.
-   # tr-out - Transparent outbound.
-   # tr-full - Fully transparent (inbound and outbound).
-   # ssl - SSL terminated port.
-   # blind - Blind tunnel port.
-   # ip-in=[addr] - Bind inbound IP address (listen for client).
-   # ip-out=[addr] - Bind outbound IP address (connect to origin server).
-   #
-   # note - address types must agree with each other and the ipv4/ipv6
-   # option if specified. IPv6 addresses must be enclosed in brackets.
-   # ip-out can be repeated as long as each address is a different family.
-   # The '=' is optional.
-   #
-   # Example: Port 8080 IPv6 inbound transparent, and port 80 IPv4
-   # "8080:ipv6:tr-in 80"
-CONFIG proxy.config.http.server_ports STRING 8080
-   # Ports on the origin server to which a blind tunnel may connect.
+   # The main server_port is listed here, other server ports is a
+   # string of ports, separated by whitespace.  The port attributes
+   # should be set to X(default behavior). For example...
+   # server_other_ports STRING 1234:X 12345:X
+CONFIG proxy.config.http.server_port INT 8080
+CONFIG proxy.config.http.server_port_attr STRING X
+# to enable IPv6 listening on port 8080:
+# CONFIG proxy.config.http.server_other_ports STRING 8080:X6
+CONFIG proxy.config.http.server_other_ports STRING NULL
 CONFIG proxy.config.http.connect_ports STRING 443 563
-   # The via settings have four values
-   #  0 - Do not modify / set this via header
-   #  1 - Update the via, with normal verbosity
-   #  2 - Update the via, with higher verbosity
-   #  3 - Update the via, with highest verbosity
 CONFIG proxy.config.http.insert_request_via_str INT 1
 CONFIG proxy.config.http.insert_response_via_str INT 0
-   # Insert a Server: header, this has three values
-   #   0 - Don't add or modify the Server: header
-   #   1 - Add a Server: header
-   #   2 - Only add a Server: header if one doesn't exist already
+CONFIG proxy.config.http.verbose_via_str INT 2
 CONFIG proxy.config.http.response_server_enabled INT 1
-CONFIG proxy.config.http.insert_age_in_response INT 1
 CONFIG proxy.config.http.enable_url_expandomatic INT 0
 CONFIG proxy.config.http.no_dns_just_forward_to_parent INT 0
 CONFIG proxy.config.http.uncacheable_requests_bypass_parent INT 1
@@ -128,11 +104,7 @@ CONFIG proxy.config.http.chunking_enabled INT 1
    #   3 - if the client request is 1.1 & the server
    #         has returned 1.1 before
 CONFIG proxy.config.http.send_http11_requests INT 1
-   # Share server connections
-   #  0 - Never
-   #  1 - Share, with a single global connection pool
-   #  2 - Share, with a connection pool per worker thread
-CONFIG proxy.config.http.share_server_sessions INT 2
+CONFIG proxy.config.http.share_server_sessions INT 1
 CONFIG proxy.config.http.origin_server_pipeline INT 1
 CONFIG proxy.config.http.user_agent_pipeline INT 8
    ##########################
@@ -197,6 +169,7 @@ CONFIG proxy.config.http.anonymize_remove_cookie INT 0
 CONFIG proxy.config.http.anonymize_remove_client_ip INT 0
 CONFIG proxy.config.http.anonymize_insert_client_ip INT 1
 CONFIG proxy.config.http.anonymize_other_header_list STRING NULL
+CONFIG proxy.config.http.append_xforwards_header INT 0
 CONFIG proxy.config.http.insert_squid_x_forwarded_for INT 1
    ############
    # security #
@@ -206,7 +179,29 @@ CONFIG proxy.config.http.push_method_enabled INT 0
 #  ###################################
 #  # HTTP Quick filtering (security) #
 #  ###################################
-#  this functionality is moved to ip_allow.config
+#  This is dedicated and very specific 'HTTP method' filter.
+#  Note: If method does not match, filtering will be skipped.
+#  bits 15-0 - HTTP method mask
+#       0x0000 - Any possible HTTP method (or you can use 0xFFFF)
+#       0x0001 - CONNECT
+#       0x0002 - DELETE
+#       0x0004 - GET
+#       0x0008 - HEAD
+#       0x0010 - ICP_QUERY
+#       0x0020 - OPTIONS
+#       0x0040 - POST
+#       0x0080 - PURGE
+#       0x0100 - PUT
+#       0x0200 - TRACE
+#       0x0400 - PUSH
+#  bits 18-16 - IP address type
+#       reserved
+#  bits 30-19 - reserved
+#  bit 31 - Action (allow=1, deny=0), leave at zero
+#  Note: if 'proxy.config.http.quick_filter.mask' is equal 0, there is no 'quick http filtering' at all
+#
+# The default (0x482 or 1154) denies all PUSH, PURGE and DELETE requests (except from 127.0.0.1)
+CONFIG proxy.config.http.quick_filter.mask INT 0x482
 
    #################
    # cache control #
@@ -216,7 +211,7 @@ CONFIG proxy.config.http.cache.ignore_client_no_cache INT 1
 CONFIG proxy.config.http.cache.ims_on_client_no_cache INT 1
 CONFIG proxy.config.http.cache.ignore_server_no_cache INT 0
 CONFIG proxy.config.http.cache.ignore_client_cc_max_age INT 0
-CONFIG proxy.config.http.normalize_ae_gzip INT 0
+CONFIG proxy.config.http.normalize_ae_gzip INT 0       
    # cache responses to cookies has 5 options:
    #   0 - do not cache any responses to cookies
    #   1 - cache for any content-type
@@ -224,7 +219,6 @@ CONFIG proxy.config.http.normalize_ae_gzip INT 0
    #   3 - cache for all but text content-types
    #   4 - cache for all but text content-types except OS response
    #       without "Set-Cookie" or with "Cache-Control: public"
-   # See also cache-responses-to-cookies in cache.config.
 CONFIG proxy.config.http.cache.cache_responses_to_cookies INT 1
 CONFIG proxy.config.http.cache.ignore_authentication INT 0
 CONFIG proxy.config.http.cache.cache_urls_that_look_dynamic INT 1
@@ -322,12 +316,6 @@ CONFIG proxy.config.cache.ram_cache_cutoff INT 4194304
    #  0 : Clocked Least Frequently Used by Size (CLFUS) w/optional compression
    #  1 : LRU w/o optional compression - trivially simple
 CONFIG proxy.config.cache.ram_cache.algorithm INT 0
-   # Filter inserts into the RAM cache to ensure that they have been seen at
-   # least once.  For LRU, this provides scan resistance. Note that CLFUS
-   # already requires that a document have history before it is inserted, so
-   # for CLFUS, setting this option means that a document must be seen three
-   # times before it is added to the RAM cache.
-CONFIG proxy.config.cache.ram_cache.use_seen_filter INT 0
    # Compress the content of the ram cache:
    #  0 : no compression
    #  1 : fastlz (extremely fast, relatively low compression)
@@ -366,7 +354,7 @@ CONFIG proxy.config.cache.mutex_retry_delay INT 2
 # DNS
 #
 ##############################################################################
-CONFIG proxy.config.dns.search_default_domains INT 0
+CONFIG proxy.config.dns.search_default_domains INT 1
 CONFIG proxy.config.dns.splitDNS.enabled INT 0
 CONFIG proxy.config.dns.max_dns_in_flight INT 2048
    # Additional URL expansions for http DNS lookup
@@ -476,9 +464,7 @@ CONFIG proxy.config.url_remap.pristine_host_hdr INT 1
    # proxy.config.ssl.enabled should be:
    #   0 - none
    #   1 - SSL enabled
-   # Deprecated. SSL is enabled automatically if an SSL port is configured
-   # in config.proxy.http.server_ports.
-#CONFIG proxy.config.ssl.enabled INT 0
+CONFIG proxy.config.ssl.enabled INT 0
    # The number of SSL threads is a multiplier of number of CPUs and
    # proxy.config.exec_thread.autoconfig.scale by default. You can
    # override that here (set it to a non-zero value).
@@ -495,25 +481,27 @@ CONFIG proxy.config.ssl.TLSv1 INT 1
    # Our default SSL Cipher Suite tries to be reasonably fast and strong.
 CONFIG proxy.config.ssl.server.cipher_suite STRING RC4-SHA:AES128-SHA:DES-CBC3-SHA:AES256-SHA:ALL:!aNULL:!EXP:!LOW:!MD5:!SSLV2:!NULL
 CONFIG proxy.config.ssl.server.honor_cipher_order INT 0
-   # Control if SSL should perform content compression or not
-CONFIG proxy.config.ssl.compression INT 1
-   # Deprecated.
-   # SSL ports should now be configured via proxy.config.http.server_ports
-#CONFIG proxy.config.ssl.server_port INT 443
+CONFIG proxy.config.ssl.server_port INT 443
    # Client certification level should be:
    # 0 no client certificates
    # 1 client certificates optional
    # 2 client certificates required
 CONFIG proxy.config.ssl.client.certification_level INT 0
+   # Server cert filename is the name of the cert file
+   # for a single cert system and the default cert name
+   # for a multiple cert system.
+CONFIG proxy.config.ssl.server.cert.filename STRING server.pem
    # Server cert chain filename is the name of the cert chain file
    # for a single cert system.
 CONFIG proxy.config.ssl.server.cert_chain.filename STRING NULL
-   # This is the path that SSL certificates files are relative to. Certificate
-   # names specified in ssl_multicert.config will be located relative to this path.
+   # This is the path that will be used for both single and
+   # multi cert systems.
 CONFIG proxy.config.ssl.server.cert.path STRING @rel_sysconfdir@
-   # If any private key is not contained in the certificate file, you must
-   # fill in the private key path. Private key names specified in
-   # ssl_multicert.config will be located relative to this path.
+   # Fill in private key file and path only if the server's
+   # private key is not contained in the server certificate file.
+   # For multiple cert systems, if any private key is not contained
+   # in the cert file, you must fill in the private key path.
+CONFIG proxy.config.ssl.server.private_key.filename STRING NULL
 CONFIG proxy.config.ssl.server.private_key.path STRING @rel_sysconfdir@
    # The CA file name and path are the
    # certificate authority certificate that

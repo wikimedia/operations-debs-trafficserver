@@ -29,38 +29,17 @@
 #include "P_RecMessage.h"
 #include "P_RecUtils.h"
 
-#include "mgmtapi.h"
-
 static bool g_initialized = false;
 static bool g_message_initialized = false;
 static bool g_started = false;
 static ink_cond g_force_req_cond;
 static ink_mutex g_force_req_mutex;
 static RecModeT g_mode_type = RECM_NULL;
-static int g_rec_raw_stat_sync_interval_ms = REC_RAW_STAT_SYNC_INTERVAL_MS;
-static int g_rec_config_update_interval_ms = REC_CONFIG_UPDATE_INTERVAL_MS;
-static int g_rec_remote_sync_interval_ms = REC_REMOTE_SYNC_INTERVAL_MS;
 
 #define REC_PROCESS
 #include "P_RecCore.i"
 #undef  REC_PROCESS
 
-//-------------------------------------------------------------------------
-// Simple setters for the intervals to decouple this from the proxy
-//-------------------------------------------------------------------------
-void
-RecProcess_set_raw_stat_sync_interval_ms(int ms) {
-  Debug("statsproc", "g_rec_raw_stat_sync_interval_ms -> %d", ms);
-  g_rec_raw_stat_sync_interval_ms = ms;
-}
-void
-RecProcess_set_config_update_interval_ms(int ms) {
-  g_rec_config_update_interval_ms = ms;
-}
-void
-RecProcess_set_remote_sync_interval_ms(int ms) {
-  g_rec_remote_sync_interval_ms = ms;
-}
 
 //-------------------------------------------------------------------------
 // raw_stat_get_total
@@ -222,7 +201,7 @@ struct raw_stat_sync_cont: public Continuation
     while (true) {
       RecExecRawStatSyncCbs();
       Debug("statsproc", "raw_stat_sync_cont() processed");
-      usleep(g_rec_raw_stat_sync_interval_ms * 1000);
+      sleep(REC_RAW_STAT_SYNC_INTERVAL_SEC);
     }
     return EVENT_DONE;
   }
@@ -247,7 +226,7 @@ struct config_update_cont: public Continuation
     while (true) {
       RecExecConfigUpdateCbs();
       Debug("statsproc", "config_update_cont() processed");
-      usleep(g_rec_config_update_interval_ms * 1000);
+      sleep(REC_CONFIG_UPDATE_INTERVAL_SEC);
     }
     return EVENT_DONE;
   }
@@ -291,7 +270,7 @@ struct sync_cont: public Continuation
         RecFileClose(h_file);
       }
       Debug("statsproc", "sync_cont() processed");
-      usleep(g_rec_remote_sync_interval_ms * 1000);
+      sleep(REC_REMOTE_SYNC_INTERVAL_SEC);
     }
     return EVENT_DONE;
   }
@@ -415,10 +394,10 @@ RecAllocateRawStatBlock(int num_stats)
     return NULL;
   }
   // create the raw-stat-block structure
-  rsb = (RecRawStatBlock *)ats_malloc(sizeof(RecRawStatBlock));
+  rsb = (RecRawStatBlock *) xmalloc(sizeof(RecRawStatBlock));
   memset(rsb, 0, sizeof(RecRawStatBlock));
   rsb->ethr_stat_offset = ethr_stat_offset;
-  rsb->global = (RecRawStat **)ats_malloc(num_stats * sizeof(RecRawStat *));
+  rsb->global = (RecRawStat **) xmalloc(num_stats * sizeof(RecRawStat *));
   memset(rsb->global, 0, num_stats * sizeof(RecRawStat *));
   rsb->num_stats = 0;
   rsb->max_stats = num_stats;

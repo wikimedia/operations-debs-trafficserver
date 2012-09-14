@@ -27,7 +27,8 @@
  *
  *
  *	Usage:
- * 	  redirect-1.so block_ip url_redirect
+ * 	(NT): Redirect.dll block_ip url_redirect
+ * 	(Solaris): redirect-1.so block_ip url_redirect
  *
  *
  */
@@ -35,13 +36,21 @@
 #include <stdio.h>
 #include <string.h>
 
+#if !defined (_WIN32)
 #  include <unistd.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
+#else
+#  include <windows.h>
+#endif
 
 #include <ts/ts.h>
 
+#if !defined (_WIN32)
 static in_addr_t ip_deny;
+#else
+static unsigned int ip_deny;
+#endif
 
 /*
  * uncoupled statistics variables:
@@ -85,9 +94,15 @@ handle_client_lookup(TSHttpTxn txnp, TSCont contp)
   TSMLoc hdr_loc, url_loc;
   int host_length;
 
-  in_addr_t clientip = 0;
+#if !defined (_WIN32)
+  in_addr_t clientip;
+#else
+  unsigned int clientip;
+#endif
 
   const char *host;
+  char *clientstring;
+  struct in_addr tempstruct;
 
   /*
    * Here we declare local coupled statistics variables:
@@ -121,24 +136,17 @@ handle_client_lookup(TSHttpTxn txnp, TSCont contp)
    */
   INKStatFloatAddTo(local_requests_all, 1.0);
 
-  if (TSIsDebugTagSet("redirect")) {
-    struct sockaddr const* addr = TSHttpTxnClientAddrGet(txnp);
 
-    if (addr) {
-      socklen_t addr_size = 0;
+#if !defined (_WIN32)
+  clientip = (in_addr_t) TSHttpTxnClientIPGet(txnp);
+#else
+  clientip = TSHttpTxnClientIPGet(txnp);
+#endif
 
-      if (addr->sa_family == AF_INET)
-        addr_size = sizeof(struct sockaddr_in);
-      else if (addr->sa_family == AF_INET6)
-        addr_size = sizeof(struct sockaddr_in6);
-      if (addr_size > 0) {
-        char clientstring[INET6_ADDRSTRLEN];
 
-        if (NULL != inet_ntop(addr->sa_family, addr, clientstring, addr_size))
-          TSDebug("redirect", "clientip is %s and block_ip is %s", clientstring, block_ip);
-      }
-    }
-  }
+  tempstruct.s_addr = clientip;
+  clientstring = inet_ntoa(tempstruct);
+  TSDebug("redirect", "clientip is %s and block_ip is %s", clientstring, block_ip);
 
   if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve client request header\n");
@@ -168,7 +176,6 @@ handle_client_lookup(TSHttpTxn txnp, TSCont contp)
     goto done;
   }
 
-  /* TODO: This is odd, clientip is never set ... */
   if (ip_deny == clientip) {
     TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
 
@@ -398,8 +405,8 @@ TSPluginInit(int argc, const char *argv[])
     url_redirect = TSstrdup(argv[2]);
     uri_len = strlen(prefix) + strlen(url_redirect) + 1;
     uri_redirect = TSmalloc(uri_len);
-    TSstrlcpy(uri_redirect, prefix, uri_len);
-    TSstrlcat(uri_redirect, url_redirect, uri_len);
+    strcpy(uri_redirect, prefix);
+    strcat(uri_redirect, url_redirect);
 
   } else {
     TSError("Incorrect syntax in plugin.conf:  correct usage is" "redirect-1.so ip_deny url_redirect");
@@ -414,8 +421,7 @@ TSPluginInit(int argc, const char *argv[])
 
   TSDebug("redirect_init", "block_ip is %s, url_redirect is %s, and uri_redirect is %s",
            block_ip, url_redirect, uri_redirect);
-  // ToDo: Should figure out how to print IPs which are IPv4 / v6.
-  // TSDebug("redirect_init", "ip_deny is %ld\n", ip_deny);
+  TSDebug("redirect_init", "ip_deny is %ld\n", ip_deny);
 
   /*
    *  Demonstrate another tracing function.  This can be used to

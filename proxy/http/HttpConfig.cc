@@ -31,7 +31,6 @@
 #include "ICPProcessor.h"
 #include "P_Net.h"
 #include "P_RecUtils.h"
-#include <records/I_RecHttp.h>
 
 #ifndef min
 #define         min(a,b)        ((a) < (b) ? (a) : (b))
@@ -630,10 +629,6 @@ register_stat_callbacks()
                      RECD_COUNTER, RECP_NULL, (int) http_cache_hit_fresh_stat, RecRawStatSyncCount);
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS,
-                     "proxy.process.http.cache_hit_mem_fresh",
-                     RECD_COUNTER, RECP_NULL, (int) http_cache_hit_mem_fresh_stat, RecRawStatSyncCount);
-
-  RecRegisterRawStat(http_rsb, RECT_PROCESS,
                      "proxy.process.http.cache_hit_revalidated",
                      RECD_COUNTER, RECP_NULL, (int) http_cache_hit_reval_stat, RecRawStatSyncCount);
 
@@ -1132,15 +1127,25 @@ HttpConfig::startup()
   c.proxy_hostname_len = -1;
 
   if (c.proxy_hostname == NULL) {
-    c.proxy_hostname = (char *)ats_malloc(sizeof(char));
+    c.proxy_hostname = (char *) xmalloc(sizeof(char));
     c.proxy_hostname[0] = '\0';
   }
 
-  RecHttpLoadIp("proxy.local.incoming_ip_to_bind", c.inbound_ip4, c.inbound_ip6);
-  RecHttpLoadIp("proxy.local.outgoing_ip_to_bind", c.outbound_ip4, c.outbound_ip6);
+  RecGetRecordString_Xmalloc("proxy.local.incoming_ip_to_bind", &(c.incoming_ip_to_bind));
+
+  if (c.incoming_ip_to_bind) {
+    Debug("ip_binding", "incoming_ip_to_bind: %s", c.incoming_ip_to_bind);
+    c.incoming_ip_to_bind_saddr = inet_addr(c.incoming_ip_to_bind);
+  }
+
+  RecGetRecordString_Xmalloc("proxy.local.outgoing_ip_to_bind", &(c.outgoing_ip_to_bind));
+
+  if (c.outgoing_ip_to_bind) {
+    Debug("ip_binding", "outgoing_ip_to_bind: %s", c.outgoing_ip_to_bind);
+    c.oride.outgoing_ip_to_bind_saddr = inet_addr(c.outgoing_ip_to_bind);
+  }
 
   HttpEstablishStaticConfigLongLong(c.server_max_connections, "proxy.config.http.server_max_connections");
-  HttpEstablishStaticConfigLongLong(c.oride.server_tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections, "proxy.config.http.origin_max_connections");
   HttpEstablishStaticConfigLongLong(c.origin_min_keep_alive_connections, "proxy.config.http.origin_min_keep_alive_connections");
 
@@ -1154,13 +1159,13 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.no_origin_server_dns, "proxy.config.http.no_origin_server_dns");
   HttpEstablishStaticConfigByte(c.use_client_target_addr, "proxy.config.http.use_client_target_addr");
-  HttpEstablishStaticConfigByte(c.use_client_source_port, "proxy.config.http.use_client_source_port");
   HttpEstablishStaticConfigByte(c.oride.maintain_pristine_host_hdr, "proxy.config.url_remap.pristine_host_hdr");
 
   HttpEstablishStaticConfigByte(c.enable_url_expandomatic, "proxy.config.http.enable_url_expandomatic");
 
   HttpEstablishStaticConfigByte(c.oride.insert_request_via_string, "proxy.config.http.insert_request_via_str");
   HttpEstablishStaticConfigByte(c.oride.insert_response_via_string, "proxy.config.http.insert_response_via_str");
+  HttpEstablishStaticConfigByte(c.verbose_via_string, "proxy.config.http.verbose_via_str");
 
   HttpEstablishStaticConfigStringAlloc(c.proxy_request_via_string, "proxy.config.http.request_via_str");
   c.proxy_request_via_string_len = -1;
@@ -1180,12 +1185,12 @@ HttpConfig::startup()
                                 "proxy.config.http.session_auth_cache_keep_alive_enabled");
   HttpEstablishStaticConfigLongLong(c.origin_server_pipeline, "proxy.config.http.origin_server_pipeline");
   HttpEstablishStaticConfigLongLong(c.user_agent_pipeline, "proxy.config.http.user_agent_pipeline");
-  HttpEstablishStaticConfigByte(c.oride.share_server_sessions, "proxy.config.http.share_server_sessions");
+  HttpEstablishStaticConfigLongLong(c.share_server_sessions, "proxy.config.http.share_server_sessions");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_post_out, "proxy.config.http.keep_alive_post_out");
 
   HttpEstablishStaticConfigLongLong(c.oride.keep_alive_no_activity_timeout_in,
                                     "proxy.config.http.keep_alive_no_activity_timeout_in");
-  HttpEstablishStaticConfigLongLong(c.oride.keep_alive_no_activity_timeout_out,
+  HttpEstablishStaticConfigLongLong(c.keep_alive_no_activity_timeout_out,
                                     "proxy.config.http.keep_alive_no_activity_timeout_out");
   HttpEstablishStaticConfigLongLong(c.oride.transaction_no_activity_timeout_in,
                                     "proxy.config.http.transaction_no_activity_timeout_in");
@@ -1212,9 +1217,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.sock_recv_buffer_size_out, "proxy.config.net.sock_recv_buffer_size_out");
   HttpEstablishStaticConfigLongLong(c.oride.sock_send_buffer_size_out, "proxy.config.net.sock_send_buffer_size_out");
   HttpEstablishStaticConfigLongLong(c.oride.sock_option_flag_out, "proxy.config.net.sock_option_flag_out");
-  HttpEstablishStaticConfigLongLong(c.oride.sock_packet_mark_out, "proxy.config.net.sock_packet_mark_out");
-  HttpEstablishStaticConfigLongLong(c.oride.sock_packet_tos_out, "proxy.config.net.sock_packet_tos_out");
-
 
   HttpEstablishStaticConfigByte(c.oride.fwd_proxy_auth_to_parent, "proxy.config.http.forward.proxy_auth_to_parent");
 
@@ -1224,6 +1226,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.anonymize_remove_cookie, "proxy.config.http.anonymize_remove_cookie");
   HttpEstablishStaticConfigByte(c.oride.anonymize_remove_client_ip, "proxy.config.http.anonymize_remove_client_ip");
   HttpEstablishStaticConfigByte(c.oride.anonymize_insert_client_ip, "proxy.config.http.anonymize_insert_client_ip");
+  HttpEstablishStaticConfigByte(c.oride.append_xforwards_header, "proxy.config.http.append_xforwards_header");
   HttpEstablishStaticConfigStringAlloc(c.anonymize_other_header_list, "proxy.config.http.anonymize_other_header_list");
   HttpEstablishStaticConfigStringAlloc(c.global_user_agent_header, "proxy.config.http.global_user_agent_header");
   c.global_user_agent_header_size = c.global_user_agent_header ? strlen(c.global_user_agent_header) : 0;
@@ -1324,6 +1327,9 @@ HttpConfig::startup()
   // HTTP Accept_Encoding filtering (depends on User-Agent)
   HttpEstablishStaticConfigByte(c.accept_encoding_filter_enabled, "proxy.config.http.accept_encoding_filter_enabled");
 
+  // HTTP Quick filter
+  HttpEstablishStaticConfigLongLong(c.quick_filter_mask, "proxy.config.http.quick_filter.mask");
+
   // Negative caching
   HttpEstablishStaticConfigLongLong(c.oride.down_server_timeout, "proxy.config.http.down_server.cache_time");
   HttpEstablishStaticConfigLongLong(c.oride.client_abort_threshold, "proxy.config.http.down_server.abort_threshold");
@@ -1401,30 +1407,25 @@ void
 HttpConfig::reconfigure()
 {
 #define INT_TO_BOOL(i) ((i) ? 1 : 0);
+#define INT_TO_BYTE(i) (MgmtByte)(i);
 
   HttpConfigParams *params;
 
   params = NEW(new HttpConfigParams);
 
-  params->inbound_ip4 = m_master.inbound_ip4;
-  params->inbound_ip6 = m_master.inbound_ip6;
-
-  params->outbound_ip4 = m_master.outbound_ip4;
-  params->outbound_ip6 = m_master.outbound_ip6;
-
-  params->proxy_hostname = ats_strdup(m_master.proxy_hostname);
+  params->incoming_ip_to_bind_saddr = m_master.incoming_ip_to_bind_saddr;
+  params->oride.outgoing_ip_to_bind_saddr = m_master.oride.outgoing_ip_to_bind_saddr;
+  params->proxy_hostname = xstrdup(m_master.proxy_hostname);
   params->proxy_hostname_len = (params->proxy_hostname) ? strlen(params->proxy_hostname) : 0;
   params->no_dns_forward_to_parent = INT_TO_BOOL(m_master.no_dns_forward_to_parent);
   params->uncacheable_requests_bypass_parent = INT_TO_BOOL(m_master.uncacheable_requests_bypass_parent);
   params->no_origin_server_dns = INT_TO_BOOL(m_master.no_origin_server_dns);
   params->use_client_target_addr = INT_TO_BOOL(m_master.use_client_target_addr);
-  params->use_client_source_port = INT_TO_BOOL(m_master.use_client_source_port);
   params->oride.maintain_pristine_host_hdr = INT_TO_BOOL(m_master.oride.maintain_pristine_host_hdr);
 
   params->disable_ssl_parenting = INT_TO_BOOL(m_master.disable_ssl_parenting);
 
   params->server_max_connections = m_master.server_max_connections;
-  params->oride.server_tcp_init_cwnd = m_master.oride.server_tcp_init_cwnd;
   params->oride.origin_max_connections = m_master.oride.origin_max_connections;
   params->origin_min_keep_alive_connections = m_master.origin_min_keep_alive_connections;
 
@@ -1437,32 +1438,33 @@ HttpConfig::reconfigure()
   params->parent_proxy_routing_enable = INT_TO_BOOL(m_master.parent_proxy_routing_enable);
   params->enable_url_expandomatic = INT_TO_BOOL(m_master.enable_url_expandomatic);
 
-  params->oride.insert_request_via_string = m_master.oride.insert_request_via_string;
-  params->oride.insert_response_via_string = m_master.oride.insert_response_via_string;
-  params->proxy_request_via_string = ats_strdup(m_master.proxy_request_via_string);
+  params->oride.insert_request_via_string = INT_TO_BOOL(m_master.oride.insert_request_via_string);
+  params->oride.insert_response_via_string = INT_TO_BOOL(m_master.oride.insert_response_via_string);
+  params->verbose_via_string = INT_TO_BYTE(m_master.verbose_via_string);
+  params->proxy_request_via_string = xstrdup(m_master.proxy_request_via_string);
   params->proxy_request_via_string_len = (params->proxy_request_via_string) ? strlen(params->proxy_request_via_string) : 0;
-  params->proxy_response_via_string = ats_strdup(m_master.proxy_response_via_string);
+  params->proxy_response_via_string = xstrdup(m_master.proxy_response_via_string);
   params->proxy_response_via_string_len = (params->proxy_response_via_string) ? strlen(params->proxy_response_via_string) : 0;
 
   params->wuts_enabled = INT_TO_BOOL(m_master.wuts_enabled);
   params->log_spider_codes = INT_TO_BOOL(m_master.log_spider_codes);
 
-  params->url_expansions_string = ats_strdup(m_master.url_expansions_string);
+  params->url_expansions_string = xstrdup(m_master.url_expansions_string);
   params->url_expansions = parse_url_expansions(params->url_expansions_string, &params->num_url_expansions);
 
   params->proxy_server_port = m_master.proxy_server_port;
-  params->proxy_server_other_ports = ats_strdup(m_master.proxy_server_other_ports);
+  params->proxy_server_other_ports = xstrdup(m_master.proxy_server_other_ports);
   params->oride.keep_alive_enabled_in = INT_TO_BOOL(m_master.oride.keep_alive_enabled_in);
   params->oride.keep_alive_enabled_out = INT_TO_BOOL(m_master.oride.keep_alive_enabled_out);
   params->oride.chunking_enabled = INT_TO_BOOL(m_master.oride.chunking_enabled);
   params->session_auth_cache_keep_alive_enabled = INT_TO_BOOL(m_master.session_auth_cache_keep_alive_enabled);
   params->origin_server_pipeline = m_master.origin_server_pipeline;
   params->user_agent_pipeline = m_master.user_agent_pipeline;
-  params->oride.share_server_sessions = m_master.oride.share_server_sessions;
+  params->share_server_sessions = INT_TO_BOOL(m_master.share_server_sessions);
   params->oride.keep_alive_post_out = INT_TO_BOOL(m_master.oride.keep_alive_post_out);
 
   params->oride.keep_alive_no_activity_timeout_in = m_master.oride.keep_alive_no_activity_timeout_in;
-  params->oride.keep_alive_no_activity_timeout_out = m_master.oride.keep_alive_no_activity_timeout_out;
+  params->keep_alive_no_activity_timeout_out = m_master.keep_alive_no_activity_timeout_out;
   params->oride.transaction_no_activity_timeout_in = m_master.oride.transaction_no_activity_timeout_in;
   params->oride.transaction_no_activity_timeout_out = m_master.oride.transaction_no_activity_timeout_out;
   params->transaction_active_timeout_in = m_master.transaction_active_timeout_in;
@@ -1483,9 +1485,6 @@ HttpConfig::reconfigure()
   params->oride.sock_recv_buffer_size_out = m_master.oride.sock_recv_buffer_size_out;
   params->oride.sock_send_buffer_size_out = m_master.oride.sock_send_buffer_size_out;
   params->oride.sock_option_flag_out = m_master.oride.sock_option_flag_out;
-  params->oride.sock_packet_mark_out = m_master.oride.sock_packet_mark_out;
-  params->oride.sock_packet_tos_out = m_master.oride.sock_packet_tos_out;
-
 
   params->oride.fwd_proxy_auth_to_parent = INT_TO_BOOL(m_master.oride.fwd_proxy_auth_to_parent);
 
@@ -1495,13 +1494,14 @@ HttpConfig::reconfigure()
   params->oride.anonymize_remove_cookie = INT_TO_BOOL(m_master.oride.anonymize_remove_cookie);
   params->oride.anonymize_remove_client_ip = INT_TO_BOOL(m_master.oride.anonymize_remove_client_ip);
   params->oride.anonymize_insert_client_ip = INT_TO_BOOL(m_master.oride.anonymize_insert_client_ip);
-  params->anonymize_other_header_list = ats_strdup(m_master.anonymize_other_header_list);
+  params->oride.append_xforwards_header = INT_TO_BOOL(m_master.oride.append_xforwards_header);
+  params->anonymize_other_header_list = xstrdup(m_master.anonymize_other_header_list);
 
-  params->global_user_agent_header = ats_strdup(m_master.global_user_agent_header);
+  params->global_user_agent_header = xstrdup(m_master.global_user_agent_header);
   params->global_user_agent_header_size = params->global_user_agent_header ?
     strlen(params->global_user_agent_header) : 0;
 
-  params->oride.proxy_response_server_string = ats_strdup(m_master.oride.proxy_response_server_string);
+  params->oride.proxy_response_server_string = xstrdup(m_master.oride.proxy_response_server_string);
   params->oride.proxy_response_server_string_len = params->oride.proxy_response_server_string ?
     strlen(params->oride.proxy_response_server_string) : 0;
   params->oride.proxy_response_server_enabled = m_master.oride.proxy_response_server_enabled;
@@ -1527,9 +1527,9 @@ HttpConfig::reconfigure()
   params->oride.freshness_fuzz_min_time = m_master.oride.freshness_fuzz_min_time;
   params->oride.freshness_fuzz_prob = m_master.oride.freshness_fuzz_prob;
 
-  params->cache_vary_default_text = ats_strdup(m_master.cache_vary_default_text);
-  params->cache_vary_default_images = ats_strdup(m_master.cache_vary_default_images);
-  params->cache_vary_default_other = ats_strdup(m_master.cache_vary_default_other);
+  params->cache_vary_default_text = xstrdup(m_master.cache_vary_default_text);
+  params->cache_vary_default_images = xstrdup(m_master.cache_vary_default_images);
+  params->cache_vary_default_other = xstrdup(m_master.cache_vary_default_other);
 
   // open read failure retries
   params->oride.max_cache_open_read_retries = m_master.oride.max_cache_open_read_retries;
@@ -1543,7 +1543,7 @@ HttpConfig::reconfigure()
   params->oride.cache_ignore_client_cc_max_age = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
   params->oride.cache_ims_on_client_no_cache = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
   params->oride.cache_ignore_server_no_cache = INT_TO_BOOL(m_master.oride.cache_ignore_server_no_cache);
-  params->oride.cache_responses_to_cookies = m_master.oride.cache_responses_to_cookies;
+  params->oride.cache_responses_to_cookies = INT_TO_BYTE(m_master.oride.cache_responses_to_cookies);
   params->oride.cache_ignore_auth = INT_TO_BOOL(m_master.oride.cache_ignore_auth);
   params->oride.cache_urls_that_look_dynamic = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
   params->cache_enable_default_vary_headers = INT_TO_BOOL(m_master.cache_enable_default_vary_headers);
@@ -1553,13 +1553,13 @@ HttpConfig::reconfigure()
   params->ignore_accept_encoding_mismatch = INT_TO_BOOL(m_master.ignore_accept_encoding_mismatch);
   params->ignore_accept_charset_mismatch = INT_TO_BOOL(m_master.ignore_accept_charset_mismatch);
 
-  params->oride.cache_when_to_revalidate = m_master.oride.cache_when_to_revalidate;
-  params->cache_when_to_add_no_cache_to_msie_requests = m_master.cache_when_to_add_no_cache_to_msie_requests;
+  params->oride.cache_when_to_revalidate = INT_TO_BYTE(m_master.oride.cache_when_to_revalidate);
+  params->cache_when_to_add_no_cache_to_msie_requests = INT_TO_BYTE(m_master.cache_when_to_add_no_cache_to_msie_requests);
 
-  params->oride.cache_required_headers = m_master.oride.cache_required_headers;
+  params->oride.cache_required_headers = INT_TO_BYTE(m_master.oride.cache_required_headers);
   params->cache_range_lookup = INT_TO_BOOL(m_master.cache_range_lookup);
 
-  params->connect_ports_string = ats_strdup(m_master.connect_ports_string);
+  params->connect_ports_string = xstrdup(m_master.connect_ports_string);
   params->connect_ports = parse_ports_list(params->connect_ports_string);
 
   params->request_hdr_max_size = m_master.request_hdr_max_size;
@@ -1572,12 +1572,12 @@ HttpConfig::reconfigure()
   params->slow_log_threshold = m_master.slow_log_threshold;
   params->record_cop_page = INT_TO_BOOL(m_master.record_cop_page);
   params->record_tcp_mem_hit = INT_TO_BOOL(m_master.record_tcp_mem_hit);
-  params->oride.send_http11_requests = m_master.oride.send_http11_requests;
+  params->oride.send_http11_requests = INT_TO_BYTE(m_master.oride.send_http11_requests);
   params->oride.doc_in_cache_skip_dns = INT_TO_BOOL(m_master.oride.doc_in_cache_skip_dns);
   params->default_buffer_size_index = m_master.default_buffer_size_index;
   params->default_buffer_water_mark = m_master.default_buffer_water_mark;
   params->enable_http_info = INT_TO_BOOL(m_master.enable_http_info);
-  params->reverse_proxy_no_host_redirect = ats_strdup(m_master.reverse_proxy_no_host_redirect);
+  params->reverse_proxy_no_host_redirect = xstrdup(m_master.reverse_proxy_no_host_redirect);
   params->reverse_proxy_no_host_redirect_len =
     params->reverse_proxy_no_host_redirect ? strlen(params->reverse_proxy_no_host_redirect) : 0;
 
@@ -1585,6 +1585,8 @@ HttpConfig::reconfigure()
   params->referer_format_redirect = INT_TO_BOOL(m_master.referer_format_redirect);
 
   params->accept_encoding_filter_enabled = INT_TO_BOOL(m_master.accept_encoding_filter_enabled);
+
+  params->quick_filter_mask = m_master.quick_filter_mask;
 
   params->oride.down_server_timeout = m_master.oride.down_server_timeout;
   params->oride.client_abort_threshold = m_master.oride.client_abort_threshold;
@@ -1615,9 +1617,9 @@ HttpConfig::reconfigure()
 
 // Redirection debug statements
   Debug("http_init", "proxy.config.http.redirection_enabled = %d", params->redirection_enabled);
-  Debug("http_init", "proxy.config.http.number_of_redirections = %"PRId64"", params->number_of_redirections);
+  Debug("http_init", "proxy.config.http.number_of_redirections = %d", params->number_of_redirections);
 
-  Debug("http_init", "proxy.config.http.post_copy_size = %"PRId64"", params->post_copy_size);
+  Debug("http_init", "proxy.config.http.post_copy_size = %d", params->post_copy_size);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1677,14 +1679,17 @@ read_string(FILE * fp, char *buf, int size)
 }
 
 static bool
-store_error_message(char *err_msg_buf, int err_msg_buf_size, const char *fmt, ...)
+store_error_message(char *err_msg_buf, int buf_size, const char *fmt, ...)
 {
-  if (likely(err_msg_buf && err_msg_buf_size > 0)) {
+  if (likely(err_msg_buf && buf_size > 0)) {
     char buf[2048];
     va_list ap;
     va_start(ap, fmt);
     (void) vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
-    ink_strlcpy(err_msg_buf, buf, err_msg_buf_size);
+    buf[sizeof(buf) - 1] = 0;
+    err_msg_buf[0] = 0;
+    strncpy(err_msg_buf, buf, buf_size - 1);
+    err_msg_buf[buf_size - 1] = 0;
     va_end(ap);
   }
   return false;
@@ -1694,7 +1699,6 @@ store_error_message(char *err_msg_buf, int err_msg_buf_size, const char *fmt, ..
 //
 //  HttpConfig::init_aeua_filter()
 //
-// TODO: make aeua_filter more flex
 ////////////////////////////////////////////////////////////////
 int
 HttpConfig::init_aeua_filter(char *config_fname)
@@ -1803,7 +1807,7 @@ HttpUserAgent_RegxEntry::create(char *_refexp_str, char *errmsgbuf, int errmsgbu
   char *c, *refexp_str, refexp_str_buf[2048];
   bool retcode = false;
 
-  user_agent_str = (char *)ats_free_null(user_agent_str);
+  user_agent_str = (char *) xfree_null(user_agent_str);
   user_agent_str_size = 0;
   stype = STRTYPE_UNKNOWN;
   if (regx_valid) {
@@ -1815,8 +1819,9 @@ HttpUserAgent_RegxEntry::create(char *_refexp_str, char *errmsgbuf, int errmsgbu
 
 
   if (_refexp_str && *_refexp_str) {
-    ink_strlcpy(refexp_str_buf, _refexp_str, sizeof(refexp_str_buf));
-    refexp_str = refexp_str_buf;
+    strncpy(refexp_str_buf, _refexp_str, sizeof(refexp_str_buf) - 1);
+    refexp_str_buf[sizeof(refexp_str_buf) - 1] = 0;
+    refexp_str = &refexp_str_buf[0];
 
     Debug("http_aeua", "[HttpUserAgent_RegxEntry::create] - \"%s\"", refexp_str);
     while (*refexp_str && (*refexp_str == ' ' || *refexp_str == '\t'))
@@ -1839,22 +1844,24 @@ HttpUserAgent_RegxEntry::create(char *_refexp_str, char *errmsgbuf, int errmsgbu
     } else
       return store_error_message(errmsgbuf, errmsgbuf_size, "Incorrect string type - must start with '.'");
 
-    user_agent_str = ats_strdup(refexp_str);
-    retcode = true;
-    if (stype == STRTYPE_REGEXP) {
-      const char* error;
-      int erroffset;
+    if ((user_agent_str = xstrdup(refexp_str)) != NULL) {
+      retcode = true;
+      if (stype == STRTYPE_REGEXP) {
+        const char* error;
+        int erroffset;
 
-      regx = pcre_compile((const char *) user_agent_str, PCRE_CASELESS, &error, &erroffset, NULL);
-      if (regx == NULL) {
-        if (errmsgbuf && (errmsgbuf_size - 1) > 0)
-          ink_strlcpy(errmsgbuf, error, errmsgbuf_size);
-        user_agent_str = (char *)ats_free_null(user_agent_str);
-        retcode = false;
-      } else
-        regx_valid = true;
-    }
-    user_agent_str_size = user_agent_str ? strlen(user_agent_str) : 0;
+        regx = pcre_compile((const char *) user_agent_str, PCRE_CASELESS, &error, &erroffset, NULL);
+        if (regx == NULL) {
+          if (errmsgbuf && (errmsgbuf_size - 1) > 0)
+            ink_strncpy(errmsgbuf, error, errmsgbuf_size - 1);
+          user_agent_str = (char *) xfree_null(user_agent_str);
+          retcode = false;
+        } else
+          regx_valid = true;
+      }
+      user_agent_str_size = user_agent_str ? strlen(user_agent_str) : 0;
+    } else
+      return store_error_message(errmsgbuf, errmsgbuf_size, "Memory allocation error (xstrdup)");
   }
   return retcode;
 }
@@ -1970,7 +1977,7 @@ HttpConfig::parse_url_expansions(char *url_expansions_str, int *num_expansions)
 
   // Now extract the URL expansions
   if (count) {
-    expansions = (char **)ats_malloc(count * sizeof(char *));
+    expansions = (char **) xmalloc(count * sizeof(char *));
     start = url_expansions_str;
     for (i = 0; i < count; i++) {
       // Skip whitespace

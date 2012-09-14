@@ -25,8 +25,6 @@
  *   replace-header.c:
  *	an example program...
  *
- *   NOTE: If faced with duplicate headers, this will only detect the
- *         first instance.  Operational plugins may need to do more!
  *
  *	Usage:
  *
@@ -44,7 +42,7 @@ replace_header(TSHttpTxn txnp, TSCont contp)
   TSMLoc resp_loc;
   TSMLoc field_loc;
 
-  if (TSHttpTxnServerRespGet(txnp, &resp_bufp, &resp_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnServerRespGet(txnp, &resp_bufp, &resp_loc)) {
     TSError("couldn't retrieve server response header.\n");
     goto done;
   }

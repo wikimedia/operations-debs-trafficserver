@@ -72,13 +72,16 @@ Tokenizer::~Tokenizer()
   while (cur != NULL) {
 
     if (options & COPY_TOKS) {
-      for (int i = 0; i < TOK_NODE_ELEMENTS; i++)
-        ats_free(cur->el[i]);
+      for (int i = 0; i < TOK_NODE_ELEMENTS; i++) {
+        if (cur->el[i] != NULL) {
+          xfree(cur->el[i]);
+        }
+      }
     }
 
     next = cur->next;
     if (root == false) {
-      ats_free(cur);
+      xfree(cur);
     } else {
       root = false;
     }
@@ -238,7 +241,7 @@ Tokenizer::addToken(char *startAddr, int length)
     startAddr[length] = '\0';
     add_ptr = startAddr;
   } else {
-    add_ptr = (char *)ats_malloc(length + 1);
+    add_ptr = (char *) xmalloc(length + 1);
     memcpy(add_ptr, startAddr, length);
     add_ptr[length] = '\0';
   }
@@ -253,7 +256,7 @@ Tokenizer::addToken(char *startAddr, int length)
   //   if there is not a next one
   if (add_index >= TOK_NODE_ELEMENTS) {
     if (add_node->next == NULL) {
-      add_node->next = (tok_node *)ats_malloc(sizeof(tok_node));
+      add_node->next = (tok_node *) xmalloc(sizeof(tok_node));
       memset(add_node->next, 0, sizeof(tok_node));
     }
     add_node = add_node->next;
@@ -353,8 +356,11 @@ Tokenizer::ReUse()
 
   while (cur_node != NULL) {
     if (options & COPY_TOKS) {
-      for (int i = 0; i < TOK_NODE_ELEMENTS; i++)
-        ats_free(cur_node->el[i]);
+      for (int i = 0; i < TOK_NODE_ELEMENTS; i++) {
+        if (cur_node->el[i] != NULL) {
+          xfree(cur_node->el[i]);
+        }
+      }
     }
     memset(cur_node->el, 0, sizeof(char *) * TOK_NODE_ELEMENTS);
     cur_node = cur_node->next;

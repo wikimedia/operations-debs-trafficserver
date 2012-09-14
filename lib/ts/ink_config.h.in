@@ -79,16 +79,11 @@
 #define TS_HAVE_NETINET_IP_H           @netinet_iph@
 #define TS_HAVE_NETINET_IP_ICMP_H      @netinet_ip_icmph@
 #define TS_HAVE_EXECINFO_H             @execinfoh@
-#define TS_HAVE_IFADDRS_H              @ifaddrsh@
-#define TS_HAVE_READLINE_READLINE_H    @readline_readlineh@
 
 /* Libraries */
 #define TS_HAS_LIBZ                    @zlibh@
 #define TS_HAS_LZMA                    @lzmah@
 #define TS_HAS_EXPAT                   @expath@
-#define TS_HAS_JEMALLOC                @jemalloch@
-#define TS_HAS_TCMALLOC                @has_tcmalloc@
-
 
 /* Features */
 #define TS_HAS_EVENTFD                 @has_eventfd@
@@ -97,37 +92,33 @@
 #define TS_HAS_POSIX_FADVISE           @has_posix_fadvise@
 #define TS_HAS_LRAND48_R               @has_lrand48_r@
 #define TS_HAS_SRAND48_R               @has_srand48_r@
+#define TS_HAS_STRNDUP                 @has_strndup@
 #define TS_HAS_STRLCPY                 @has_strlcpy@
 #define TS_HAS_STRLCAT                 @has_strlcat@
-#define TS_HAS_IN6_IS_ADDR_UNSPECIFIED @has_in6_is_addr_unspecified@
 
 #define TS_HAS_BACKTRACE               @has_backtrace@
 #define TS_HAS_PROFILER                @has_profiler@
 #define TS_USE_FAST_SDK                @use_fast_sdk@
 #define TS_USE_DIAGS                   @use_diags@
+#define TS_USE_LIBEV                   @use_libev@
 #define TS_USE_EPOLL                   @use_epoll@
 #define TS_USE_KQUEUE                  @use_kqueue@
 #define TS_USE_PORT                    @use_port@
 #define TS_USE_POSIX_CAP               @use_posix_cap@
 #define TS_USE_TPROXY                  @use_tproxy@
-#define TS_HAS_SO_MARK                 @has_so_mark@
-#define TS_HAS_IP_TOS                  @has_ip_tos@
-#define TS_USE_HWLOC                   @use_hwloc@
-#define TS_USE_FREELIST                @use_freelist@
-#define TS_USE_TLS_NPN                 @use_tls_npn@
-#define TS_USE_TLS_SNI                 @use_tls_sni@
 
 /* OS API definitions */
-#define GETHOSTBYNAME_R_HOSTENT_DATA   @gethostbyname_r_hostent_data@
-#define GETHOSTBYNAME_R_GLIBC2         @gethostbyname_r_glibc2@
-#define NEED_UNION_SEMUN               @need_union_semun@
-#define SIZEOF_VOID_POINTER            @ac_cv_sizeof_voidp@
+#define GETHOSTBYNAME_R_HOSTENT_DATA    @gethostbyname_r_hostent_data@
+#define GETHOSTBYNAME_R_GLIBC2          @gethostbyname_r_glibc2@
+#define NEED_UNION_SEMUN                @need_union_semun@
+#define SIZEOF_VOID_POINTER             @ac_cv_sizeof_voidp@
 #define TS_IP_TRANSPARENT              @ip_transparent@
 
 /* API */
 #define TS_IS_MICRO_BUILD              @is_micro_build@
 #define TS_HAS_STANDALONE_IOCORE       @has_standalone_iocore@
 #define TS_HAS_INKAPI                  @has_inkapi@
+#define TS_HAS_PURIFY                  @has_purify@
 #define TS_HAS_DEMANGLE                @has_demangle@
 #define TS_HAS_TESTS                   @has_tests@
 #define TS_HAS_WCCP                    @has_wccp@
@@ -146,17 +137,10 @@
 # define INK_NO_SOCKS                   1
 # define INK_NO_STAT_PAGES              1
 # define INK_USE_MUTEX_FOR_ATOMICLISTS  1
+# define INK_USE_MUTEX_FOR_FREELISTS    1
 # define USE_MD5_FOR_MMH                1
+# define _NO_FREELIST                   1
 #endif
-
-# define TS_MAX_THREADS_IN_EACH_THREAD_TYPE  @max_threads_per_type@
-# define TS_MAX_NUMBER_EVENT_THREADS  @max_event_threads@
-
-# define TS_ARG_MAX	                @arg_max@
-# define TS_ARG_MAX_STR                 "@arg_max@"
-
-# define TS_MAX_HOST_NAME_LEN           @max_host_name_len@
-
 
 #if TS_HAS_INKAPI
 #define TS_MAX_API_STATS               @max_api_stats@
@@ -175,9 +159,17 @@
 # define HTTP_CACHE                     1
 #endif
 
+#if TS_HAS_PURIFY
+# define PURIFY                         1
+#endif
+
 /* Defaults for user / group */
 #define TS_PKGSYSUSER                   "@pkgsysuser@"
 #define TS_PKGSYSGROUP                  "@pkgsysgroup@"
+
+/* TODO: Fix those always defined features */
+#define MODULARIZED
+
 
 /* Various "build" defines */
 #define TS_BUILD_PREFIX "@prefix@"

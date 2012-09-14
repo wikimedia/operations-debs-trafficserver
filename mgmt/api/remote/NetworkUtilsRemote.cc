@@ -64,8 +64,10 @@ void
 set_socket_paths(const char *path)
 {
   // free previously set paths if needed
-  ats_free(main_socket_path);
-  ats_free(event_socket_path);
+  if (main_socket_path)
+    xfree(main_socket_path);
+  if (event_socket_path)
+    xfree(event_socket_path);
 
   // construct paths based on user input
   // form by replacing "mgmtapisocket" with "eventapisocket"
@@ -158,7 +160,7 @@ ts_connect()
   // setup Unix domain socket
   memset(&client_sock, 0, sizeof(sockaddr_un));
   client_sock.sun_family = AF_UNIX;
-  ink_strlcpy(client_sock.sun_path, main_socket_path, sizeof(client_sock.sun_path));
+  ink_strncpy(client_sock.sun_path, main_socket_path, sizeof(client_sock.sun_path));
 #if defined(darwin) || defined(freebsd)
   sockaddr_len = sizeof(sockaddr_un);
 #else
@@ -183,7 +185,7 @@ ts_connect()
   // setup Unix domain socket
   memset(&client_event_sock, 0, sizeof(sockaddr_un));
   client_event_sock.sun_family = AF_UNIX;
-  ink_strlcpy(client_event_sock.sun_path, event_socket_path, sizeof(client_sock.sun_path));
+  ink_strncpy(client_event_sock.sun_path, event_socket_path, sizeof(client_sock.sun_path));
 #if defined(darwin) || defined(freebsd)
   sockaddr_len = sizeof(sockaddr_un);
 #else
@@ -540,7 +542,9 @@ send_request_name(int fd, OpType op, char *name)
   }
 
   total_len = SIZE_OP_T + SIZE_LEN + msg_len;
-  msg_buf = (char *)ats_malloc(sizeof(char) * total_len);
+  msg_buf = (char *) xmalloc(sizeof(char) * total_len);
+  if (!msg_buf)
+    return TS_ERR_SYS_CALL;
 
   // fill in op type
   op_t = (int16_t) op;
@@ -556,7 +560,8 @@ send_request_name(int fd, OpType op, char *name)
 
   // send message
   err = socket_write_conn(fd, msg_buf, total_len);
-  ats_free(msg_buf);
+  if (msg_buf)
+    xfree(msg_buf);
   return err;
 }
 
@@ -586,7 +591,9 @@ send_request_name_value(int fd, OpType op, const char *name, const char *value)
   val_size = strlen(value);
   msg_len = (SIZE_LEN * 2) + name_len + val_size;
   total_len = SIZE_OP_T + SIZE_LEN + msg_len;
-  msg_buf = (char *)ats_malloc(sizeof(char) * (total_len));
+  msg_buf = (char *) xmalloc(sizeof(char) * (total_len));
+  if (!msg_buf)
+    return TS_ERR_SYS_CALL;
 
   // fill in op type
   op_t = (int16_t) op;
@@ -614,7 +621,7 @@ send_request_name_value(int fd, OpType op, const char *name, const char *value)
 
   // send message
   err = socket_write_conn(fd, msg_buf, total_len);
-  ats_free(msg_buf);
+  xfree(msg_buf);
   return err;
 }
 
@@ -709,7 +716,9 @@ send_file_write_request(int fd, TSFileNameT file, int ver, int size, char *text)
 
   msg_len = SIZE_FILE_T + SIZE_VER + SIZE_LEN + size;
   total_len = SIZE_OP_T + SIZE_LEN + msg_len;
-  msg_buf = (char *)ats_malloc(sizeof(char) * total_len);
+  msg_buf = (char *) xmalloc(sizeof(char) * total_len);
+  if (!msg_buf)
+    return TS_ERR_SYS_CALL;
 
   // fill in op type
   op = (int16_t) FILE_WRITE;
@@ -740,7 +749,7 @@ send_file_write_request(int fd, TSFileNameT file, int ver, int size, char *text)
 
   // send message
   err = socket_write_conn(fd, msg_buf, total_len);
-  ats_free(msg_buf);
+  xfree(msg_buf);
   return err;
 }
 
@@ -766,7 +775,9 @@ send_record_get_request(int fd, char *rec_name)
     return TS_ERR_PARAMS;
 
   total_len = SIZE_OP_T + SIZE_LEN + strlen(rec_name);
-  msg_buf = (char *)ats_malloc(sizeof(char) * total_len);
+  msg_buf = (char *) xmalloc(sizeof(char) * total_len);
+  if (!msg_buf)
+    return TS_ERR_SYS_CALL;
 
   // fill in op type
   op = (int16_t) RECORD_GET;
@@ -783,7 +794,7 @@ send_record_get_request(int fd, char *rec_name)
 
   // send message
   err = socket_write_conn(fd, msg_buf, total_len);
-  ats_free(msg_buf);
+  xfree(msg_buf);
   return err;
 }
 
@@ -882,7 +893,7 @@ send_register_all_callbacks(int fd, CallbackTable * cb_table)
       event_name = (char *) get_event_name(event_id);
       if (event_name) {
         err = send_request_name(fd, EVENT_REG_CALLBACK, event_name);
-        ats_free(event_name);      // free memory
+        xfree(event_name);      // free memory
         if (err != TS_ERR_OKAY) {
           send_err = err;       // save the type of send error
           no_errors = false;
@@ -946,7 +957,7 @@ send_unregister_all_callbacks(int fd, CallbackTable * cb_table)
     if (reg_callback[k] == 0) { // event has no registered callbacks
       event_name = get_event_name(k);
       err = send_request_name(fd, EVENT_UNREG_CALLBACK, event_name);
-      ats_free(event_name);
+      xfree(event_name);
       if (err != TS_ERR_OKAY) {
         send_err = err;         //save the type of the sending error
         no_errors = false;
@@ -987,7 +998,9 @@ send_diags_msg(int fd, TSDiagsT mode, const char *diag_msg)
   diag_msg_len = (int32_t) strlen(diag_msg);
   msg_len = SIZE_DIAGS_T + SIZE_LEN + diag_msg_len;
   total_len = SIZE_OP_T + SIZE_LEN + msg_len;
-  msg_buf = (char *)ats_malloc(sizeof(char) * total_len);
+  msg_buf = (char *) xmalloc(sizeof(char) * total_len);
+  if (!msg_buf)
+    return TS_ERR_SYS_CALL;
 
   // fill in op type
   op_t = (int16_t) DIAGS;
@@ -1008,7 +1021,8 @@ send_diags_msg(int fd, TSDiagsT mode, const char *diag_msg)
 
   // send message
   err = socket_write_conn(fd, msg_buf, total_len);
-  ats_free(msg_buf);
+  if (msg_buf)
+    xfree(msg_buf);
   return err;
 }
 
@@ -1141,7 +1155,11 @@ parse_reply_list(int fd, char **list)
   }
 
   // get the delimited event list string
-  *list = (char *)ats_malloc(sizeof(char) * (list_size + 1));
+  *list = (char *) xmalloc(sizeof(char) * (list_size + 1));
+  if (!(*list)) {
+    return TS_ERR_SYS_CALL;
+  }
+
   amount_read = 0;
   while (amount_read < list_size) {
     ret = read(fd, (void *) *list, list_size - amount_read);
@@ -1150,13 +1168,13 @@ parse_reply_list(int fd, char **list)
       if (errno == EAGAIN)
         continue;
       else {
-        ats_free(*list);
+        xfree(*list);
         return TS_ERR_NET_READ;
       }
     }
 
     if (ret == 0) {
-      ats_free(*list);
+      xfree(*list);
       return TS_ERR_NET_EOF;
     }
 
@@ -1263,10 +1281,14 @@ parse_file_read_reply(int fd, int *ver, int *size, char **text)
 
   // check size before reading text
   if ((*size) <= 0) {
-    *text = ats_strndup("", 1);                 // set to empty string
+    *text = ink_strndup("", 1);                 // set to empty string
   } else {
     // now we got the size, we can read everything into our msg * then parse it
-    *text = (char *)ats_malloc(sizeof(char) * (f_size + 1));
+    *text = (char *) xmalloc(sizeof(char) * (f_size + 1));
+    if (!(*text)) {
+      return TS_ERR_SYS_CALL;
+    }
+
     amount_read = 0;
     while (amount_read < f_size) {
       ret = read(fd, (void *) *text, f_size - amount_read);
@@ -1275,13 +1297,13 @@ parse_file_read_reply(int fd, int *ver, int *size, char **text)
         if (errno == EAGAIN)
           continue;
         else {
-          ats_free(*text);
+          xfree(*text);
           return TS_ERR_NET_READ;
         }
       }
 
       if (ret == 0) {
-        ats_free(*text);
+        xfree(*text);
         return TS_ERR_NET_EOF;
       }
 
@@ -1389,9 +1411,13 @@ parse_record_get_reply(int fd, TSRecordT * rec_type, void **rec_val)
   // get record value
   // allocate correct amount of memory for record value
   if (*rec_type == TS_REC_STRING)
-    *rec_val = ats_malloc(sizeof(char) * (rec_size + 1));
+    *rec_val = xmalloc(sizeof(char) * (rec_size + 1));
   else
-    *rec_val = ats_malloc(sizeof(char) * (rec_size));
+    *rec_val = xmalloc(sizeof(char) * (rec_size));
+
+  if (!(*rec_val)) {
+    return TS_ERR_SYS_CALL;
+  }
 
   amount_read = 0;
   while (amount_read < rec_size) {
@@ -1401,13 +1427,13 @@ parse_record_get_reply(int fd, TSRecordT * rec_type, void **rec_val)
       if (errno == EAGAIN)
         continue;
       else {
-        ats_free(*rec_val);
+        xfree(*rec_val);
         return TS_ERR_NET_READ;
       }
     }
 
     if (ret == 0) {
-      ats_free(*rec_val);
+      xfree(*rec_val);
       return TS_ERR_NET_EOF;
     }
 
@@ -1690,7 +1716,7 @@ parse_event_notification(int fd, TSEvent * event)
   }
 
   // read the event name
-  event_name = (char *)ats_malloc(sizeof(char) * (msg_len + 1));
+  event_name = (char *) xmalloc(sizeof(char) * (msg_len + 1));
   amount_read = 0;
   while (amount_read < msg_len) {
     ret = read(fd, (void *) event_name, msg_len - amount_read);
@@ -1732,7 +1758,7 @@ parse_event_notification(int fd, TSEvent * event)
   }
 
   // read the event description
-  desc = (char *)ats_malloc(sizeof(char) * (msg_len + 1));
+  desc = (char *) xmalloc(sizeof(char) * (msg_len + 1));
   amount_read = 0;
   while (amount_read < msg_len) {
     ret = read(fd, (void *) desc, msg_len - amount_read);
@@ -1761,12 +1787,16 @@ parse_event_notification(int fd, TSEvent * event)
   return TS_ERR_OKAY;
 
 ERROR_READ:
-  ats_free(event_name);
-  ats_free(desc);
+  if (event_name)
+    xfree(event_name);
+  if (desc)
+    xfree(desc);
   return TS_ERR_NET_READ;
 
 ERROR_EOF:
-  ats_free(event_name);
-  ats_free(desc);
+  if (event_name)
+    xfree(event_name);
+  if (desc)
+    xfree(desc);
   return TS_ERR_NET_EOF;
 }

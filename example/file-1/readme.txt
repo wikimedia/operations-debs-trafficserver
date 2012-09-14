@@ -14,7 +14,8 @@ append-transform.c).
 To use this plugin, you would need a line like this in  
 plugin.config:
 
-	file-1.so path/to/file.text
+	On NT:	File.dll path/to/file.text
+	On Solaris: file-1.so path/to/file.text
 
 Enter either an absolute or a relative pathname for the file.  
 If you use a relative pathname, the path must be specified with 

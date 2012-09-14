@@ -202,7 +202,7 @@ int
 NetVCTest::fill_buffer(MIOBuffer * buf, uint8_t * seed, int bytes)
 {
 
-  char *space = (char *)ats_malloc(bytes);
+  char *space = (char *) xmalloc(bytes);
   char *tmp = space;
   int to_add = bytes;
 
@@ -214,7 +214,7 @@ NetVCTest::fill_buffer(MIOBuffer * buf, uint8_t * seed, int bytes)
   }
 
   buf->write(space, to_add);
-  ats_free(space);
+  xfree(space);
 
   return to_add;
 }

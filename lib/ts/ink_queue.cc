@@ -50,6 +50,12 @@
 #include "ink_resource.h"
 
 
+#ifdef __x86_64__
+#define INK_QUEUE_LD64(dst,src) *((uint64_t*)&(dst)) = *((uint64_t*)&(src))
+#else
+#define INK_QUEUE_LD64(dst,src) (ink_queue_load_64((void *)&(dst), (void *)&(src)))
+#endif
+
 typedef struct _ink_freelist_list
 {
   InkFreeList *fl;
@@ -69,6 +75,7 @@ inkcoreapi volatile int64_t fastalloc_mem_total = 0;
 #ifdef DEBUG
 #define SANITY
 #define DEADBEEF
+// #define CHECK_DEADBEEF  // broken
 #endif
 
 // #define MEMPROTECT 1
@@ -86,6 +93,15 @@ inkcoreapi volatile int64_t freelist_allocated_mem = 0;
 #define fl_memadd(_x_) \
    ink_atomic_increment64(&freelist_allocated_mem, (int64_t) (_x_));
 
+//static void ink_queue_load_64(void *dst, void *src)
+//{
+//    int32_t src_version =  (*(head_p *) src).s.version;
+//    void *src_pointer = (*(head_p *) src).s.pointer;
+//
+//    (*(head_p *) dst).s.version = src_version;
+//    (*(head_p *) dst).s.pointer = src_pointer;
+//}
+
 
 void
 ink_freelist_init(InkFreeList * f,
@@ -95,10 +111,12 @@ ink_freelist_init(InkFreeList * f,
 
   /* its safe to add to this global list because ink_freelist_init()
      is only called from single-threaded initialization code. */
-  fll = (ink_freelist_list *)ats_malloc(sizeof(ink_freelist_list));
-  fll->fl = f;
-  fll->next = freelists;
-  freelists = fll;
+  if ((fll = (ink_freelist_list *) ink_malloc(sizeof(ink_freelist_list))) != 0) {
+    fll->fl = f;
+    fll->next = freelists;
+    freelists = fll;
+  }
+  ink_assert(fll != NULL);
 
   f->name = name;
   f->offset = offset;
@@ -107,7 +125,18 @@ ink_freelist_init(InkFreeList * f,
   f->alignment = alignment;
   f->chunk_size = chunk_size;
   f->type_size = type_size;
+#if defined(INK_USE_MUTEX_FOR_FREELISTS)
+  ink_mutex_init(&(f->inkfreelist_mutex), name);
+#endif
+#if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE))
+  ink_mutex_init(&(f->freelist_mutex), name);
+  f->head = NULL;
+#ifdef CHECK_FOR_DOUBLE_FREE
+  f->tail = NULL;
+#endif
+#else
   SET_FREELIST_POINTER_VERSION(f->head, FROM_PTR(0), 0);
+#endif
 
   f->count = 0;
   f->allocated = 0;
@@ -118,8 +147,7 @@ ink_freelist_init(InkFreeList * f,
 InkFreeList *
 ink_freelist_create(const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t offset, uint32_t alignment)
 {
-  InkFreeList *f = (InkFreeList *)ats_malloc(sizeof(InkFreeList));
-
+  InkFreeList *f = ink_type_malloc(InkFreeList);
   ink_freelist_init(f, name, type_size, chunk_size, offset, alignment);
   return f;
 }
@@ -132,13 +160,83 @@ int fake_global_for_ink_queue = 0;
 
 int fastmemtotal = 0;
 
+#if defined(INK_USE_MUTEX_FOR_FREELISTS)
+void *
+ink_freelist_new_wrap(InkFreeList * f)
+#else /* !INK_USE_MUTEX_FOR_FREELISTS */
 void *
 ink_freelist_new(InkFreeList * f)
-{
-#if TS_USE_FREELIST
+#endif                          /* !INK_USE_MUTEX_FOR_FREELISTS */
+{                               //static uint32_t cntf = 0;
+
+#if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE))
+  void *foo;
+  uint32_t type_size = f->type_size;
+
+  ink_mutex_acquire(&(f->freelist_mutex));
+  ink_assert(f->type_size != 0);
+
+  //printf("ink_freelist_new %d - %d - %u\n",f ->type_size,(f->head != NULL) ? 1 : 0,cntf++);
+
+
+  if (f->head != NULL) {
+    /*
+     * We have something on the free list..
+     */
+    void_p *h = (void_p *) f->head;
+#ifdef CHECK_FOR_DOUBLE_FREE
+    if (f->head == f->tail)
+      f->tail = NULL;
+#endif /* CHECK_FOR_DOUBLE_FREE */
+
+    foo = (void *) h;
+    f->head = (volatile void_p *) *h;
+    f->count += 1;
+    ink_mutex_release(&(f->freelist_mutex));
+    return foo;
+  } else {
+    /*
+     * Might as well unlock the freelist mutex, since
+     * we're just going to do a malloc now..
+     */
+    uint32_t alignment;
+
+#ifdef MEMPROTECT
+    if (type_size >= MEMPROTECT_SIZE) {
+      if (f->alignment < page_size)
+        f->alignment = page_size;
+      type_size = ((type_size + page_size - 1) / page_size) * page_size * 2;
+    }
+#endif /* MEMPROTECT */
+
+    alignment = f->alignment;
+    ink_mutex_release(&(f->freelist_mutex));
+
+    if (alignment) {
+      foo = ink_memalign(alignment, type_size);
+    } else {
+      foo = ink_malloc(type_size);
+    }
+    if (likely(foo))
+      fl_memadd(type_size);
+
+
+#ifdef MEMPROTECT
+    if (type_size >= MEMPROTECT_SIZE) {
+      if (mprotect((char *) foo + type_size - page_size, page_size, PROT_NONE) < 0)
+        perror("mprotect");
+    }
+#endif /* MEMPROTECT */
+    return foo;
+  }
+
+#else /* #if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE)) */
   head_p item;
   head_p next;
   int result = 0;
+
+  //printf("ink_freelist_new %d - %d - %u\n",f ->type_size,(f->head != NULL) ? 1 : 0,cntf++);
+
 
   do {
     INK_QUEUE_LD64(item, f->head);
@@ -155,14 +253,16 @@ ink_freelist_new(InkFreeList * f)
 #endif /* MEMPROTECT */
 
       void *newp = NULL;
+#ifndef NO_MEMALIGN
 #ifdef DEBUG
       char *oldsbrk = (char *) sbrk(0), *newsbrk = NULL;
 #endif
       if (f->alignment)
-        newp = ats_memalign(f->alignment, f->chunk_size * type_size);
+        newp = ink_memalign(f->alignment, f->chunk_size * type_size);
       else
-        newp = ats_malloc(f->chunk_size * type_size);
-      fl_memadd(f->chunk_size * type_size);
+        newp = ink_malloc(f->chunk_size * type_size);
+      if (newp)
+        fl_memadd(f->chunk_size * type_size);
 #ifdef DEBUG
       newsbrk = (char *) sbrk(0);
       ink_atomic_increment(&fastmemtotal, newsbrk - oldsbrk);
@@ -170,9 +270,30 @@ ink_freelist_new(InkFreeList * f)
          newsbrk - oldsbrk, fastmemtotal); */
 #endif
       SET_FREELIST_POINTER_VERSION(item, newp, 0);
+#else
+      uintptr_t add;
+      uintptr_t mask;
+      if (f->alignment) {
+        add = f->alignment - 1;
+        mask = ~(uintptr_t) add;
+      } else {
+        add = 0;
+        mask = ~0;
+      }
+      newp = ink_malloc(f->chunk_size * type_size + add);
+      if (newp)
+        fl_memadd(f->chunk_size * type_size + add);
+      newp = (void *) ((((uintptr_t) newp) + add) & mask);
+      SET_FREELIST_POINTER_VERSION(item, newp, 0);
+#endif
 
+#if !defined(INK_USE_MUTEX_FOR_FREELISTS)
       ink_atomic_increment((int *) &f->allocated, f->chunk_size);
       ink_atomic_increment64(&fastalloc_mem_total, (int64_t) f->chunk_size * f->type_size);
+#else
+      f->allocated += f->chunk_size;
+      fastalloc_mem_total += f->chunk_size * f->type_size;
+#endif
 
       /* free each of the new elements */
       for (i = 0; i < f->chunk_size; i++) {
@@ -192,13 +313,23 @@ ink_freelist_new(InkFreeList * f)
 #endif /* MEMPROTECT */
 
       }
+#if !defined(INK_USE_MUTEX_FOR_FREELISTS)
       ink_atomic_increment((int *) &f->count, f->chunk_size);
       ink_atomic_increment64(&fastalloc_mem_in_use, (int64_t) f->chunk_size * f->type_size);
+#else
+      f->count += f->chunk_size;
+      fastalloc_mem_in_use += f->chunk_size * f->type_size;
+#endif
 
     } else {
       SET_FREELIST_POINTER_VERSION(next, *ADDRESS_OF_NEXT(TO_PTR(FREELIST_POINTER(item)), f->offset),
                                    FREELIST_VERSION(item) + 1);
+#if !defined(INK_USE_MUTEX_FOR_FREELISTS)
       result = ink_atomic_cas64((int64_t *) & f->head.data, item.data, next.data);
+#else
+      f->head.data = next.data;
+      result = 1;
+#endif
 
 #ifdef SANITY
       if (result) {
@@ -220,22 +351,49 @@ ink_freelist_new(InkFreeList * f)
   ink_atomic_increment64(&fastalloc_mem_in_use, (int64_t) f->type_size);
 
   return TO_PTR(FREELIST_POINTER(item));
-#else // ! TS_USE_FREELIST
-  void *newp = NULL;
-
-  if (f->alignment)
-    newp = ats_memalign(f->alignment, f->chunk_size * f->type_size);
-  else
-    newp = ats_malloc(f->chunk_size * f->type_size);
-  return newp;
-#endif
+#endif /* #if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE)) */
 }
 typedef volatile void *volatile_void_p;
 
+#if defined(INK_USE_MUTEX_FOR_FREELISTS)
+void
+ink_freelist_free_wrap(InkFreeList * f, void *item)
+#else /* !INK_USE_MUTEX_FOR_FREELISTS */
 void
 ink_freelist_free(InkFreeList * f, void *item)
+#endif                          /* !INK_USE_MUTEX_FOR_FREELISTS */
 {
-#if TS_USE_FREELIST
+#if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE))
+  void_p *foo;
+
+  //printf("ink_freelist_free\n");
+  ink_mutex_acquire(&(f->freelist_mutex));
+
+  foo = (void_p *) item;
+#ifdef CHECK_FOR_DOUBLE_FREE
+  void_p *p = (void_p *) f->head;
+  while (p) {
+    if (p == (void_p *) item)
+      ink_release_assert(!"ink_freelist_free: Double free");
+    p = (void_p *) * p;
+  }
+
+  if (f->tail)
+    *f->tail = foo;
+  *foo = (void_p) NULL;
+
+  if (f->head == NULL)
+    f->head = foo;
+  f->tail = foo;
+#else
+  *foo = (void_p) f->head;
+  f->head = foo;
+#endif
+  f->count -= 1;
+
+  ink_mutex_release(&(f->freelist_mutex));
+#else
+
   volatile_void_p *adr_of_next = (volatile_void_p *) ADDRESS_OF_NEXT(item, f->offset);
   head_p h;
   head_p item_pair;
@@ -245,8 +403,27 @@ ink_freelist_free(InkFreeList * f, void *item)
 
 #ifdef DEADBEEF
   {
-    static const char str[4] = { (char) 0xde, (char) 0xad, (char) 0xbe, (char) 0xef };
+    // set string to DEADBEEF
+    const char str[4] = { (char) 0xde, (char) 0xad, (char) 0xbe, (char) 0xef };
+#ifdef CHECK_DEADBEEF
+    // search for DEADBEEF anywhere after a pointer offset in the item
+    char *position = (char *) item + sizeof(void *);    // start
+    char *end = (char *) item + f->type_size;   // end
 
+    int i, j;
+    for (i = sizeof(void *) & 0x3, j = 0; position < end; ++position) {
+      if (i == j) {
+        if (*position == str[i]) {
+          if (j++ == 3) {
+            ink_fatal(1, "ink_freelist_free: trying to free item twice");
+          }
+        }
+      } else {
+        j = 0;
+      }
+      i = (i + 1) & 0x3;
+    }
+#endif
     // set the entire item to DEADBEEF
     for (int j = 0; j < (int)f->type_size; j++)
       ((char*)item)[j] = str[j % 4];
@@ -267,24 +444,24 @@ ink_freelist_free(InkFreeList * f, void *item)
     *adr_of_next = FREELIST_POINTER(h);
     SET_FREELIST_POINTER_VERSION(item_pair, FROM_PTR(item), FREELIST_VERSION(h));
     INK_MEMORY_BARRIER;
+#if !defined(INK_USE_MUTEX_FOR_FREELISTS)
     result = ink_atomic_cas64((int64_t *) & f->head, h.data, item_pair.data);
+#else
+    f->head.data = item_pair.data;
+    result = 1;
+#endif
+
   }
   while (result == 0);
 
   ink_atomic_increment((int *) &f->count, -1);
   ink_atomic_increment64(&fastalloc_mem_in_use, -(int64_t) f->type_size);
-#else
-  if (f->alignment)
-    ats_memalign_free(item);
-  else
-    ats_free(item);
 #endif
 }
 
 void
 ink_freelists_snap_baseline()
 {
-#if TS_USE_FREELIST
   ink_freelist_list *fll;
   fll = freelists;
   while (fll) {
@@ -292,15 +469,11 @@ ink_freelists_snap_baseline()
     fll->fl->count_base = fll->fl->count;
     fll = fll->next;
   }
-#else // ! TS_USE_FREELIST
-  // TODO?
-#endif
 }
 
 void
 ink_freelists_dump_baselinerel(FILE * f)
 {
-#if TS_USE_FREELIST
   ink_freelist_list *fll;
   if (f == NULL)
     f = stderr;
@@ -320,15 +493,11 @@ ink_freelists_dump_baselinerel(FILE * f)
     }
     fll = fll->next;
   }
-#else // ! TS_USE_FREELIST
-  // TODO?
-#endif
 }
 
 void
 ink_freelists_dump(FILE * f)
 {
-#if TS_USE_FREELIST
   ink_freelist_list *fll;
   if (f == NULL)
     f = stderr;
@@ -343,11 +512,11 @@ ink_freelists_dump(FILE * f)
             (uint64_t)fll->fl->count * (uint64_t)fll->fl->type_size, fll->fl->type_size, fll->fl->name ? fll->fl->name : "<unknown>");
     fll = fll->next;
   }
-#else // ! TS_USE_FREELIST
-  // TODO?
-#endif
 }
 
+
+#define INK_FREELIST_CREATE(T, n) \
+ink_freelist_create("<unknown>", sizeof(T), n, (uintptr_t)&((T *)0)->next, 4)
 
 void
 ink_atomiclist_init(InkAtomicList * l, const char *name, uint32_t offset_to_next)

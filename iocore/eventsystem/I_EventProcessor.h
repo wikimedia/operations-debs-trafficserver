@@ -29,17 +29,8 @@
 #include "I_Processor.h"
 #include "I_Event.h"
 
-#ifdef TS_MAX_THREADS_IN_EACH_THREAD_TYPE
-const int MAX_THREADS_IN_EACH_TYPE = TS_MAX_THREADS_IN_EACH_THREAD_TYPE;
-#else
-const int MAX_THREADS_IN_EACH_TYPE = 3072;
-#endif
-
-#ifdef TS_MAX_NUMBER_EVENT_THREADS
-const int MAX_EVENT_THREADS = TS_MAX_NUMBER_EVENT_THREADS;
-#else
-const int MAX_EVENT_THREADS = 4096;
-#endif
+const int MAX_THREADS_IN_EACH_TYPE = 512;
+const int MAX_EVENT_THREADS = 512;
 
 class EThread;
 
@@ -108,7 +99,7 @@ public:
 
     @param cont continuation that the spawn thread will call back
       immediately.
-    @param sem Event semaphore assigned to the thread.
+    @param sem Unix: Event semaphore assigned to the thread. NT: Not used.
     @return event object representing the start of the thread.
 
   */

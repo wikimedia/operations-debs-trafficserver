@@ -168,10 +168,10 @@ const char *_hdrtoken_strs[] = {
   "CONNECT",
   "DELETE",
   "GET",
-  "POST",
   "HEAD",
   "ICP_QUERY",
   "OPTIONS",
+  "POST",
   "PURGE",
   "PUT",
   "TRACE",
@@ -494,10 +494,10 @@ const char *_hdrtoken_commonly_tokenized_strs[] = {
   "CONNECT",
   "DELETE",
   "GET",
-  "POST",
   "HEAD",
   "ICP_QUERY",
   "OPTIONS",
+  "POST",
   "PURGE",
   "PUT",
   "TRACE",
@@ -552,9 +552,8 @@ hdrtoken_hash_init()
  *                                                                     *
  ***********************************************************************/
 
-/**
-  @return returns 0 for n=0, unit*n for n <= unit
-*/
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
 
 static inline unsigned int
 snap_up_to_multiple(unsigned int n, unsigned int unit)
@@ -562,8 +561,9 @@ snap_up_to_multiple(unsigned int n, unsigned int unit)
   return ((n + (unit - 1)) / unit) * unit;
 }
 
-/**
-*/
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
 void
 hdrtoken_init()
 {
@@ -592,7 +592,7 @@ hdrtoken_init()
       heap_size += packed_prefix_str_len;
     }
 
-    _hdrtoken_strs_heap_f = (const char *)ats_malloc(heap_size);
+    _hdrtoken_strs_heap_f = (const char *) malloc(heap_size);
     _hdrtoken_strs_heap_l = _hdrtoken_strs_heap_f + heap_size - 1;
 
     char *heap_ptr = (char *) _hdrtoken_strs_heap_f;
@@ -616,9 +616,8 @@ hdrtoken_init()
       heap_ptr += sizeof(HdrTokenHeapPrefix);   // advance heap ptr past index
       hdrtoken_strs[i] = heap_ptr;      // record string pointer
       // coverity[secure_coding]
-      ink_strlcpy((char *) hdrtoken_strs[i], _hdrtoken_strs[i], heap_size - sizeof(HdrTokenHeapPrefix));     // copy string into heap
+      strcpy((char *) hdrtoken_strs[i], _hdrtoken_strs[i]);     // copy string into heap
       heap_ptr += sstr_len;     // advance heap ptr past string
-      heap_size -= sstr_len;
     }
 
     // Set the token types for certain tokens

@@ -53,4 +53,6 @@ The basic-auth.c plugin performs basic HTTP proxy authentication.
    a 407 status code and terminates the transaction. 
 
      handle_dns calls authorized to validate the user name and
-     password. You can supply your own validation mechanism. 
+     password. In this plugin, sample NT code is provided for
+     password validation. Unix programmers can supply their own
+     validation mechanism. 

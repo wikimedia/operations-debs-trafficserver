@@ -16,15 +16,12 @@
   limitations under the License.
 */
 
-#define __STDC_FORMAT_MACROS
-
 #include <ts/ts.h>
 #include <ts/remap.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <inttypes.h>
 
 static const char* PLUGIN_NAME = "conf_remap";
 // This makes the plugin depend on the version of traffic server installed, but that's
@@ -182,12 +179,12 @@ TSReturnCode
 TSRemapInit(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
 {
   if (!api_info) {
-    TSstrlcpy(errbuf, "[TSRemapInit] - Invalid TSRemapInterface argument", errbuf_size);
+    strncpy(errbuf, "[TSRemapInit] - Invalid TSRemapInterface argument", errbuf_size - 1);
     return TS_ERROR;
   }
 
   if (api_info->size < sizeof(TSRemapInterface)) {
-    TSstrlcpy(errbuf, "[TSRemapInit] - Incorrect size of TSRemapInterface structure", errbuf_size);
+    strncpy(errbuf, "[TSRemapInit] - Incorrect size of TSRemapInterface structure", errbuf_size - 1);
     return TS_ERROR;
   }
 
@@ -244,7 +241,7 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
       switch (conf->_items[ix]._type) {
       case TS_RECORDDATATYPE_INT:
         TSHttpTxnConfigIntSet(txnp, conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
-        TSDebug(PLUGIN_NAME, "Setting config id %d to %"PRId64"", conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
+        TSDebug(PLUGIN_NAME, "Setting config id %d to %d", conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
         break;
       case TS_RECORDDATATYPE_STRING:
         TSHttpTxnConfigStringSet(txnp, conf->_items[ix]._name, conf->_items[ix]._data.rec_string, conf->_items[ix]._data_len);

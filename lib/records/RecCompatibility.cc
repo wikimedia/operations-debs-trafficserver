@@ -107,12 +107,12 @@ RecFileImport_Xmalloc(const char *file, char **file_buf, int *file_size)
     *file_size = 0;
     if ((h_file = RecFileOpenR(file)) != REC_HANDLE_INVALID) {
       *file_size = RecFileGetSize(h_file);
-      *file_buf = (char *)ats_malloc(*file_size + 1);
+      *file_buf = (char *) xmalloc(*file_size + 1);
       if (RecFileRead(h_file, *file_buf, *file_size, &bytes_read) != REC_ERR_FAIL && bytes_read == *file_size) {
         (*file_buf)[*file_size] = '\0';
         err = REC_ERR_OKAY;
       } else {
-        ats_free(*file_buf);
+        xfree(*file_buf);
         *file_buf = 0;
         *file_size = 0;
       }
@@ -198,7 +198,7 @@ RecPipeCreate(const char *base_path, const char *name)
 
   memset(&servaddr, 0, sizeof(servaddr));
   servaddr.sun_family = AF_UNIX;
-  ink_strlcpy(servaddr.sun_path, path, sizeof(servaddr.sun_path));
+  ink_strncpy(servaddr.sun_path, path, sizeof(servaddr.sun_path));
 
   int optval = 1;
   if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (char *) &optval, sizeof(int)) < 0) {
@@ -252,7 +252,7 @@ RecPipeConnect(const char *base_path, const char *name)
   // Setup Connection to LocalManager */
   memset((char *) &servaddr, 0, sizeof(servaddr));
   servaddr.sun_family = AF_UNIX;
-  ink_strlcpy(servaddr.sun_path, path, sizeof(servaddr.sun_path));
+  ink_strncpy(servaddr.sun_path, path, sizeof(servaddr.sun_path));
   servaddr_len = sizeof(servaddr.sun_family) + strlen(servaddr.sun_path);
 
   if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {

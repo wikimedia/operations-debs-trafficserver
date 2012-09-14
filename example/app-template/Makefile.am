@@ -17,6 +17,9 @@
 AM_CPPFLAGS = -I$(iocore_include_dirs) \
               -I$(top_srcdir)/lib/records \
               -I$(top_srcdir)/proxy
+#             -I$(top_srcdir)/proxy/hdrs
+#             I$(top_srcdir)/proxy/logging
+
 
 DEFS += @IOCORE_MODULARIZED_DEFS@
 
@@ -40,7 +43,7 @@ tsapp_LDADD =  \
 	  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
 	  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
 	  @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ \
-	  @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
+	  @LIBMLD@ @LIBEXC@ -lm @LIBEV@ @LIBPROFILER@ @LIBEXECINFO@
 
 EXTRA_DIST = records.config.in
 sysconfdir = $(pkgsysconfdir)

@@ -86,7 +86,7 @@ sub new {
     $self->{_socket_path} = $args{socket_path} || _find_socket();
     $self->{_socket} = undef;
     croak
-"Unable to locate socket, please pass socket_path with the management api socket location to Apache::TS::AdminClient"
+"Unable to locate socket, please pass socket_pass with the management api socket location to Apache::TS::AdminClient"
       if ( !$self->{_socket_path} );
     if (   ( !-r $self->{_socket_path} )
         or ( !-w $self->{_socket_path} )
@@ -194,7 +194,7 @@ sub get_stat {
 
     if ( $resp[0] == TS_ERR_OKAY ) {
         if ( $resp[2] < TS_REC_FLOAT ) {
-            @resp = unpack( "slsq", $res );
+            @resp = unpack( "slsl", $res );
             return undef unless ( scalar(@resp) == 4 );
             return int( $resp[3] );
         }
@@ -285,7 +285,9 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.body_factory.response_suppression_mode
  proxy.config.body_factory.template_sets_dir
  proxy.config.cache.agg_write_backlog
+ proxy.config.cache.aio_sleep_time
  proxy.config.cache.alt_rewrite_max_size
+ proxy.config.cache.check_disk_idle
  proxy.config.cache.control.filename
  proxy.config.cache.dir.sync_frequency
  proxy.config.cache.enable_checksum
@@ -295,6 +297,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cache.hosting_filename
  proxy.config.cache.ip_allow.filename
  proxy.config.cache.limits.http.max_alts
+ proxy.config.cache.max_agg_delay
  proxy.config.cache.max_disk_errors
  proxy.config.cache.max_doc_size
  proxy.config.cache.min_average_object_size
@@ -336,7 +339,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cluster.send_buffer_size
  proxy.config.cluster.sock_option_flag
  proxy.config.cluster.startup_timeout
- proxy.config.cluster.threads
  proxy.config.config_dir
  proxy.config.cop.core_signal
  proxy.config.cop.linux_min_memfree_kb
@@ -402,6 +404,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.anonymize_remove_from
  proxy.config.http.anonymize_remove_referer
  proxy.config.http.anonymize_remove_user_agent
+ proxy.config.http.append_xforwards_header
  proxy.config.http.avoid_content_spoofing
  proxy.config.http.background_fill_active_timeout
  proxy.config.http.background_fill_completed_threshold
@@ -531,6 +534,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http_ui_enabled
  proxy.config.http.uncacheable_requests_bypass_parent
  proxy.config.http.user_agent_pipeline
+ proxy.config.http.verbose_via_str
  proxy.config.http.wuts_enabled
  proxy.config.icp.default_reply_port
  proxy.config.icp.enabled
@@ -606,7 +610,11 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.manager_name
  proxy.config.net.accept_throttle
  proxy.config.net.connections_throttle
+ proxy.config.net.enable_ink_disk_io
+ proxy.config.net.ink_aio_write_threads
+ proxy.config.net.ink_disk_io_watermark
  proxy.config.net.listen_backlog
+ proxy.config.net.max_kqueue_len
  proxy.config.net_snapshot_filename
  proxy.config.net.sock_mss_in
  proxy.config.net.sock_option_flag_in
@@ -668,6 +676,10 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.socks.socks_timeout
  proxy.config.socks.socks_version
  proxy.config.srv_enabled
+ proxy.config.ssl.accelerator_required
+ proxy.config.ssl.accelerator.type
+ proxy.config.ssl.atalla.lib.path
+ proxy.config.ssl.broadcom.lib.path
  proxy.config.ssl.CA.cert.filename
  proxy.config.ssl.CA.cert.path
  proxy.config.ssl.client.CA.cert.filename
@@ -678,18 +690,18 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.client.private_key.filename
  proxy.config.ssl.client.private_key.path
  proxy.config.ssl.client.verify.server
+ proxy.config.ssl.cswift.lib.path
  proxy.config.ssl.enabled
+ proxy.config.ssl.ncipher.lib.path
  proxy.config.ssl.number.threads
  proxy.config.ssl.server.cert_chain.filename
+ proxy.config.ssl.server.cert.filename
  proxy.config.ssl.server.cert.path
  proxy.config.ssl.server.cipher_suite
  proxy.config.ssl.server.honor_cipher_order
- proxy.config.ssl.SSLv2
- proxy.config.ssl.SSLv3
- proxy.config.ssl.TLSv1
- proxy.config.ssl.compression
  proxy.config.ssl.server.multicert.filename
  proxy.config.ssl.server_port
+ proxy.config.ssl.server.private_key.filename
  proxy.config.ssl.server.private_key.path
  proxy.config.stack_dump_enabled
  proxy.config.start_script

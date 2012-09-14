@@ -24,8 +24,6 @@
 # include <errno.h>
 # include <openssl/md5.h>
 # include <TsException.h>
-# include "ink_memory.h"
-# include "ink_string.h"
 
 namespace wccp {
 // ------------------------------------------------------
@@ -93,9 +91,8 @@ size_t CacheIdBox::getSize() const { return m_size; }
 CacheIdBox&
 CacheIdBox::require(size_t n) {
   if (m_cap < n) {
-    if (m_base && m_cap)
-      ats_free(m_base);
-    m_base = static_cast<CacheIdElt*>(ats_malloc(n));
+    if (m_base && m_cap) free(m_base);
+    m_base = static_cast<CacheIdElt*>(malloc(n));
     m_cap = n;
   }
   memset(m_base, 0, m_cap);
@@ -424,12 +421,14 @@ SecurityComp::setOption(Option opt) {
 SecurityComp&
 SecurityComp::setKey(char const* key) {
   m_local_key = true;
+  memset(m_key, 0, KEY_SIZE);
   strncpy(m_key, key, KEY_SIZE);
   return *this;
 }
 
 void
 SecurityComp::setDefaultKey(char const* key) {
+  memset(m_default_key, 0, KEY_SIZE);
   strncpy(m_default_key, key, KEY_SIZE);
 }
 
@@ -1536,11 +1535,12 @@ detail::Assignment::fill(cache::GroupData& group, uint32_t addr) {
   // we don't have to do space checks when those get filled out.
   // The mask assignment is more difficult. We just guess generously and
   // try to recover if we go over.  
-  size_t size = RouterAssignListElt::calcSize(n_routers) + HashAssignElt::calcSize(n_caches) + 4096;
-
+  size_t size = RouterAssignListElt::calcSize(n_routers)
+    + HashAssignElt::calcSize(n_caches)
+    + 4096;
   if (m_buffer.getSize() < size) {
-    ats_free(m_buffer.getBase());
-    m_buffer.set(ats_malloc(size), size);
+    free(m_buffer.getBase());
+    m_buffer.set(malloc(size), size);
   }
   m_buffer.reset();
 

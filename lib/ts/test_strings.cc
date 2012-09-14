@@ -23,7 +23,6 @@
 
 /* This program tests the speeds of several of the string functions, both
  * from the inktomi library and from the standard library.
- * TODO : add testing for ink_strlcpy ?
  */
 
 #include <stdio.h>

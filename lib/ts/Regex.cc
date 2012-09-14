@@ -35,9 +35,9 @@ DFA::~DFA()
     if (p->_re)
       pcre_free(p->_re);
     if(p->_p)
-      ats_free(p->_p);
+      ink_free(p->_p);
     t = p->_next;
-    ats_free(p);
+    ink_free(p);
     p = t;
   } 
 }
@@ -49,7 +49,7 @@ DFA::build(const char *pattern, REFlags flags)
   int erroffset;
   dfa_pattern* ret;
   
-  ret = (dfa_pattern*)ats_malloc(sizeof(dfa_pattern));
+  ret = (dfa_pattern*) ink_malloc(sizeof(dfa_pattern));
   ret->_p = NULL;
   
   if (flags & RE_CASE_INSENSITIVE)
@@ -58,25 +58,24 @@ DFA::build(const char *pattern, REFlags flags)
     ret->_re = pcre_compile(pattern, PCRE_ANCHORED, &error, &erroffset, NULL);
   
   if (error) {
-    ats_free(ret);
+    ink_free(ret);
     return NULL;
   }
   
   ret->_pe = pcre_study(ret->_re, 0, &error);
   
   if (error) {
-    ats_free(ret);
+    ink_free(ret);
     return NULL;
   }
   
   ret->_idx = 0;
-  ret->_p = ats_strndup(pattern, strlen(pattern));
+  ret->_p = ink_strndup(pattern,strlen(pattern));
   ret->_next = NULL;
   return ret;
 }
 
 int DFA::compile(const char *pattern, REFlags flags) {
-  ink_assert(_my_patterns == NULL);
   _my_patterns = build(pattern,flags);
   if (_my_patterns) 
     return 0;
@@ -121,13 +120,13 @@ DFA::compile(const char **patterns, int npatterns, REFlags flags)
 }
 
 int
-DFA::match(const char *str) const
+DFA::match(const char *str)
 {
   return match(str,strlen(str));
 }
 
 int
-DFA::match(const char *str, int length) const
+DFA::match(const char *str, int length)
 {
   int rc;
   int ovector[30];

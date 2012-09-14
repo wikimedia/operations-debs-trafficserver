@@ -475,7 +475,7 @@ void http_hdr_url_set(HdrHeap *heap, HTTPHdrImpl *hh, URLImpl *url);
 void http_hdr_status_set(HTTPHdrImpl *hh, HTTPStatus status);
 const char *http_hdr_reason_get(HTTPHdrImpl *hh, int *length);
 void http_hdr_reason_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *value, int length, bool must_copy);
-const char *http_hdr_reason_lookup(unsigned status);
+const char *http_hdr_reason_lookup(HTTPStatus status);
 
 void http_parser_init(HTTPParser *parser);
 void http_parser_clear(HTTPParser *parser);
@@ -531,8 +531,8 @@ public:
   HTTPHdrImpl *m_http;
   // This is all cached data and so is mutable.
   mutable URL m_url_cached;
-  mutable MIMEField *m_host_mime;
   mutable int m_host_length; ///< Length of hostname.
+  mutable char const* m_host; ///< Hostname.
   mutable int m_port; ///< Target port.
   mutable bool m_target_cached; ///< Whether host name and port are cached.
   mutable bool m_target_in_url; ///< Whether host name and port are in the URL.
@@ -899,15 +899,8 @@ inline char const*
 HTTPHdr::host_get(int* length)
 {
   this->_test_and_fill_target_cache();
-  if (m_target_in_url) {
-    return url_get()->host_get(length);
-  } else if (m_host_mime) {
-    if (length) *length = m_host_length;
-    return m_host_mime->m_ptr_value;
-  }
-
-  if (length) *length = 0;
-  return NULL;
+  if (length) *length = m_host_length;
+  return m_host;
 }
 
 /*-------------------------------------------------------------------------
@@ -1371,19 +1364,18 @@ inline HTTPInfo &
 HTTPInfo::operator =(const HTTPInfo & m)
 {
   m_alt = m.m_alt;
-  return *this;
+  return (*this);
 }
 
 inline INK_MD5
 HTTPInfo::object_key_get()
 {
   INK_MD5 val;
-  int32_t* pi = reinterpret_cast<int32_t*>(&val);
 
-  pi[0] = m_alt->m_object_key[0];
-  pi[1] = m_alt->m_object_key[1];
-  pi[2] = m_alt->m_object_key[2];
-  pi[3] = m_alt->m_object_key[3];
+  ((int32_t *) & val)[0] = m_alt->m_object_key[0];
+  ((int32_t *) & val)[1] = m_alt->m_object_key[1];
+  ((int32_t *) & val)[2] = m_alt->m_object_key[2];
+  ((int32_t *) & val)[3] = m_alt->m_object_key[3];
 
   return val;
 }
@@ -1391,51 +1383,44 @@ HTTPInfo::object_key_get()
 inline void
 HTTPInfo::object_key_get(INK_MD5 *md5)
 {
-  int32_t* pi = reinterpret_cast<int32_t*>(md5);
-  pi[0] = m_alt->m_object_key[0];
-  pi[1] = m_alt->m_object_key[1];
-  pi[2] = m_alt->m_object_key[2];
-  pi[3] = m_alt->m_object_key[3];
+  ((int32_t *) md5)[0] = m_alt->m_object_key[0];
+  ((int32_t *) md5)[1] = m_alt->m_object_key[1];
+  ((int32_t *) md5)[2] = m_alt->m_object_key[2];
+  ((int32_t *) md5)[3] = m_alt->m_object_key[3];
 }
 
 inline bool
 HTTPInfo::compare_object_key(const INK_MD5 *md5)
 {
-  int32_t const* pi = reinterpret_cast<int32_t const*>(md5);
-  return ((m_alt->m_object_key[0] == pi[0]) &&
-          (m_alt->m_object_key[1] == pi[1]) &&
-          (m_alt->m_object_key[2] == pi[2]) &&
-          (m_alt->m_object_key[3] == pi[3])
-         );
+  return ((m_alt->m_object_key[0] == ((int32_t *) md5)[0]) &&
+          (m_alt->m_object_key[1] == ((int32_t *) md5)[1]) &&
+          (m_alt->m_object_key[2] == ((int32_t *) md5)[2]) && (m_alt->m_object_key[3] == ((int32_t *) md5)[3]));
 }
 
 inline int64_t
 HTTPInfo::object_size_get()
 {
   int64_t val;
-  int32_t* pi = reinterpret_cast<int32_t*>(&val);
 
-  pi[0] = m_alt->m_object_size[0];
-  pi[1] = m_alt->m_object_size[1];
+  ((int32_t *) & val)[0] = m_alt->m_object_size[0];
+  ((int32_t *) & val)[1] = m_alt->m_object_size[1];
   return val;
 }
 
 inline void
 HTTPInfo::object_key_set(INK_MD5 & md5)
 {
-  int32_t* pi = reinterpret_cast<int32_t*>(&md5);
-  m_alt->m_object_key[0] = pi[0];
-  m_alt->m_object_key[1] = pi[1];
-  m_alt->m_object_key[2] = pi[2];
-  m_alt->m_object_key[3] = pi[3];
+  m_alt->m_object_key[0] = ((int32_t *) & md5)[0];
+  m_alt->m_object_key[1] = ((int32_t *) & md5)[1];
+  m_alt->m_object_key[2] = ((int32_t *) & md5)[2];
+  m_alt->m_object_key[3] = ((int32_t *) & md5)[3];
 }
 
 inline void
 HTTPInfo::object_size_set(int64_t size)
 {
-  int32_t* pi = reinterpret_cast<int32_t*>(&size);
-  m_alt->m_object_size[0] = pi[0];
-  m_alt->m_object_size[1] = pi[1];
+  m_alt->m_object_size[0] = ((int32_t *) & size)[0];
+  m_alt->m_object_size[1] = ((int32_t *) & size)[1];
 }
 
 

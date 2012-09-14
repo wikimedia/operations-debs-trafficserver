@@ -104,7 +104,6 @@ struct CacheContinuation:public Continuation
   ClusterMachine *past_probes[CONFIGURATION_HISTORY_PROBE_DEPTH];
   ink_hrtime start_time;
   ClusterMachine *from;
-  ClusterHandler *ch;
   VConnection *cache_vc;
   bool cache_read;
   int result;                   // return event code
@@ -215,7 +214,7 @@ struct CacheContinuation:public Continuation
     if (rw_buf_msg_len <= DEFAULT_MAX_BUFFER_SIZE) {
       rw_buf_msg = new_IOBufferData(buffer_size_to_index(rw_buf_msg_len, MAX_BUFFER_SIZE_INDEX));
     } else {
-      rw_buf_msg = new_xmalloc_IOBufferData(ats_malloc(rw_buf_msg_len), rw_buf_msg_len);
+      rw_buf_msg = new_xmalloc_IOBufferData(xmalloc(rw_buf_msg_len), rw_buf_msg_len);
     }
   }
 
@@ -428,8 +427,8 @@ struct CacheLookupMsg:public ClusterMessageHeader
   {
     if (NeedByteSwap()) {
       ink_release_assert(!"No byte swap for INK_MD5");
-      ats_swap32(&seq_number);
-      ats_swap32(&frag_type);
+      swap32(&seq_number);
+      swap32(&frag_type);
     }
   }
   //////////////////////////////////////////////////////////////////////////
@@ -480,14 +479,14 @@ struct CacheOpMsg_long:public ClusterMessageHeader
   {
     if (NeedByteSwap()) {
       ink_release_assert(!"No byte swap for INK_MD5");
-      ats_swap16(&cfl_flags);
-      ats_swap32(&seq_number);
-      ats_swap32(&nbytes);
-      ats_swap32(&data);
-      ats_swap32((uint32_t *) & channel);
+      swap16(&cfl_flags);
+      swap32(&seq_number);
+      swap32(&nbytes);
+      swap32(&data);
+      swap32((uint32_t *) & channel);
       token.SwapBytes();
-      ats_swap32((uint32_t *) & buffer_size);
-      ats_swap32((uint32_t *) & frag_type);
+      swap32((uint32_t *) & buffer_size);
+      swap32((uint32_t *) & frag_type);
     }
   }
   //////////////////////////////////////////////////////////////////////////
@@ -539,13 +538,13 @@ struct CacheOpMsg_short:public ClusterMessageHeader
   {
     if (NeedByteSwap()) {
       ink_release_assert(!"No byte swap for INK_MD5");
-      ats_swap16(&cfl_flags);
-      ats_swap32(&seq_number);
-      ats_swap32(&nbytes);
-      ats_swap32(&data);
+      swap16(&cfl_flags);
+      swap32(&seq_number);
+      swap32(&nbytes);
+      swap32(&data);
       if (opcode == CACHE_OPEN_READ) {
-        ats_swap32((uint32_t *) & buffer_size);
-        ats_swap32((uint32_t *) & channel);
+        swap32((uint32_t *) & buffer_size);
+        swap32((uint32_t *) & channel);
         token.SwapBytes();
       }
     }
@@ -592,8 +591,8 @@ struct CacheOpMsg_short_2:public ClusterMessageHeader
     if (NeedByteSwap()) {
       ink_release_assert(!"No byte swap for MD5_1");
       ink_release_assert(!"No byte swap for MD5_2");
-      ats_swap16(&cfl_flags);
-      ats_swap32(&seq_number);
+      swap16(&cfl_flags);
+      swap32(&seq_number);
     }
   }
   //////////////////////////////////////////////////////////////////////////
@@ -634,8 +633,8 @@ struct CacheOpReplyMsg:public ClusterMessageHeader
   inline void SwapBytes()
   {
     if (NeedByteSwap()) {
-      ats_swap32(&seq_number);
-      ats_swap32((uint32_t *) & result);
+      swap32(&seq_number);
+      swap32((uint32_t *) & result);
       token.SwapBytes();
     }
   }

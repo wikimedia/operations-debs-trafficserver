@@ -53,17 +53,15 @@ host_triplet = @host@
 subdir = mgmt/utils
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
-	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
-	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/common.m4 \
+	$(top_srcdir)/build/crypto.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
-	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/xml.m4 \
+	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -72,18 +70,13 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 ARFLAGS = cru
-AM_V_AR = $(am__v_AR_$(V))
-am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
-am__v_AR_0 = @echo "  AR    " $@;
-AM_V_at = $(am__v_at_$(V))
-am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
-am__v_at_0 = @
 libutils_lm_a_AR = $(AR) $(ARFLAGS)
 libutils_lm_a_LIBADD =
 am_libutils_lm_a_OBJECTS = libutils_lm_a-MatcherUtils.$(OBJEXT) \
 	libutils_lm_a-DiagsConfig.$(OBJEXT) \
 	libutils_lm_a-EnvBlock.$(OBJEXT) \
 	libutils_lm_a-ExpandingArray.$(OBJEXT) \
+	libutils_lm_a-IpLookup.$(OBJEXT) \
 	libutils_lm_a-MgmtSchema.$(OBJEXT) \
 	libutils_lm_a-MgmtUtils.$(OBJEXT) \
 	libutils_lm_a-WebMgmtUtils.$(OBJEXT) \
@@ -91,50 +84,31 @@ am_libutils_lm_a_OBJECTS = libutils_lm_a-MatcherUtils.$(OBJEXT) \
 libutils_lm_a_OBJECTS = $(am_libutils_lm_a_OBJECTS)
 libutils_p_a_AR = $(AR) $(ARFLAGS)
 libutils_p_a_LIBADD =
-am_libutils_p_a_OBJECTS = MgmtUtils.$(OBJEXT) XmlUtils.$(OBJEXT)
+am_libutils_p_a_OBJECTS = IpLookup.$(OBJEXT) MgmtUtils.$(OBJEXT) \
+	XmlUtils.$(OBJEXT)
 libutils_p_a_OBJECTS = $(am_libutils_p_a_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
-AM_V_lt = $(am__v_lt_$(V))
-am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
-am__v_lt_0 = --silent
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
-LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
-	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CXXFLAGS) $(CXXFLAGS)
-AM_V_CXX = $(am__v_CXX_$(V))
-am__v_CXX_ = $(am__v_CXX_$(AM_DEFAULT_VERBOSITY))
-am__v_CXX_0 = @echo "  CXX   " $@;
+LTCXXCOMPILE = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 CXXLD = $(CXX)
-CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-AM_V_CXXLD = $(am__v_CXXLD_$(V))
-am__v_CXXLD_ = $(am__v_CXXLD_$(AM_DEFAULT_VERBOSITY))
-am__v_CXXLD_0 = @echo "  CXXLD " $@;
+CXXLINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
-	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CFLAGS) $(CFLAGS)
-AM_V_CC = $(am__v_CC_$(V))
-am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
-am__v_CC_0 = @echo "  CC    " $@;
+LTCOMPILE = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
-LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-AM_V_CCLD = $(am__v_CCLD_$(V))
-am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
-am__v_CCLD_0 = @echo "  CCLD  " $@;
-AM_V_GEN = $(am__v_GEN_$(V))
-am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
-am__v_GEN_0 = @echo "  GEN   " $@;
+LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 SOURCES = $(libutils_lm_a_SOURCES) $(libutils_p_a_SOURCES)
 DIST_SOURCES = $(libutils_lm_a_SOURCES) $(libutils_p_a_SOURCES)
 ETAGS = etags
@@ -145,7 +119,6 @@ pkglibdir = @pkglibdir@
 pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
-AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -199,10 +172,10 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBDEMANGLE = @LIBDEMANGLE@
 LIBDL = @LIBDL@
+LIBEV = @LIBEV@
 LIBEXC = @LIBEXC@
 LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
-LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
@@ -239,7 +212,6 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PCRE_CONFIG = @PCRE_CONFIG@
 PERL = @PERL@
 RANLIB = @RANLIB@
 RM = @RM@
@@ -270,7 +242,6 @@ TS_VERSION_NUMBER = @TS_VERSION_NUMBER@
 TS_VERSION_STRING = @TS_VERSION_STRING@
 VERSION = @VERSION@
 YACC = @YACC@
-YACCBIN = @YACCBIN@
 YFLAGS = @YFLAGS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -287,7 +258,6 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
-arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -317,7 +287,6 @@ execinfoh = @execinfoh@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
 exp_datadir = @exp_datadir@
-exp_docdir = @exp_docdir@
 exp_exec_prefix = @exp_exec_prefix@
 exp_includedir = @exp_includedir@
 exp_infodir = @exp_infodir@
@@ -339,19 +308,17 @@ has_backtrace = @has_backtrace@
 has_clock_gettime = @has_clock_gettime@
 has_demangle = @has_demangle@
 has_eventfd = @has_eventfd@
-has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_inkapi = @has_inkapi@
-has_ip_tos = @has_ip_tos@
 has_lrand48_r = @has_lrand48_r@
 has_posix_fadvise = @has_posix_fadvise@
 has_posix_memalign = @has_posix_memalign@
 has_profiler = @has_profiler@
-has_so_mark = @has_so_mark@
+has_purify = @has_purify@
 has_srand48_r = @has_srand48_r@
 has_standalone_iocore = @has_standalone_iocore@
 has_strlcat = @has_strlcat@
 has_strlcpy = @has_strlcpy@
-has_tcmalloc = @has_tcmalloc@
+has_strndup = @has_strndup@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
 host = @host@
@@ -360,7 +327,6 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
 ink_with_modules_def = @ink_with_modules_def@
@@ -371,7 +337,6 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 is_micro_build = @is_micro_build@
-jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
 libgenh = @libgenh@
@@ -384,9 +349,6 @@ malloch = @malloch@
 mandir = @mandir@
 mathh = @mathh@
 max_api_stats = @max_api_stats@
-max_event_threads = @max_event_threads@
-max_host_name_len = @max_host_name_len@
-max_threads_per_type = @max_threads_per_type@
 mkdir_p = @mkdir_p@
 need_union_semun = @need_union_semun@
 net_ppp_defsh = @net_ppp_defsh@
@@ -402,7 +364,6 @@ pcreh = @pcreh@
 pdfdir = @pdfdir@
 pkgbindir = @pkgbindir@
 pkgcachedir = @pkgcachedir@
-pkgdocdir = @pkgdocdir@
 pkglocalstatedir = @pkglocalstatedir@
 pkglogdir = @pkglogdir@
 pkgruntimedir = @pkgruntimedir@
@@ -413,11 +374,9 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
-readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
 rel_datadir = @rel_datadir@
-rel_docdir = @rel_docdir@
 rel_exec_prefix = @rel_exec_prefix@
 rel_includedir = @rel_includedir@
 rel_infodir = @rel_infodir@
@@ -456,13 +415,10 @@ top_srcdir = @top_srcdir@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
-use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
+use_libev = @use_libev@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
-use_tls_npn = @use_tls_npn@
-use_tls_sni = @use_tls_sni@
 use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
@@ -477,7 +433,6 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib/tsconfig \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/lib
 
 
@@ -492,6 +447,8 @@ libutils_lm_a_SOURCES = \
   EnvBlock.h \
   ExpandingArray.cc \
   ExpandingArray.h \
+  IpLookup.cc \
+  IpLookup.h \
   MgmtSchema.cc \
   MgmtSchema.h \
   MgmtUtils.cc \
@@ -502,6 +459,8 @@ libutils_lm_a_SOURCES = \
   XmlUtils.h
 
 libutils_p_a_SOURCES = \
+  IpLookup.cc \
+  IpLookup.h \
   MgmtUtils.cc \
   MgmtUtils.h \
   XmlUtils.cc \
@@ -545,13 +504,13 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libutils_lm.a: $(libutils_lm_a_OBJECTS) $(libutils_lm_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libutils_lm.a
-	$(AM_V_AR)$(libutils_lm_a_AR) libutils_lm.a $(libutils_lm_a_OBJECTS) $(libutils_lm_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libutils_lm.a
+	-rm -f libutils_lm.a
+	$(libutils_lm_a_AR) libutils_lm.a $(libutils_lm_a_OBJECTS) $(libutils_lm_a_LIBADD)
+	$(RANLIB) libutils_lm.a
 libutils_p.a: $(libutils_p_a_OBJECTS) $(libutils_p_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libutils_p.a
-	$(AM_V_AR)$(libutils_p_a_AR) libutils_p.a $(libutils_p_a_OBJECTS) $(libutils_p_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libutils_p.a
+	-rm -f libutils_p.a
+	$(libutils_p_a_AR) libutils_p.a $(libutils_p_a_OBJECTS) $(libutils_p_a_LIBADD)
+	$(RANLIB) libutils_p.a
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -559,11 +518,13 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpLookup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MgmtUtils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/XmlUtils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-DiagsConfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-EnvBlock.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-ExpandingArray.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-IpLookup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-MatcherUtils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-MgmtSchema.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-MgmtUtils.Po@am__quote@
@@ -571,153 +532,148 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-XmlUtils.Po@am__quote@
 
 .cc.o:
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ $<
 
 .cc.obj:
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
 .cc.lo:
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LTCXXCOMPILE) -c -o $@ $<
 
 libutils_lm_a-MatcherUtils.o: $(top_srcdir)/lib/ts/MatcherUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MatcherUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo -c -o libutils_lm_a-MatcherUtils.o `test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc' || echo '$(srcdir)/'`$(top_srcdir)/lib/ts/MatcherUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo $(DEPDIR)/libutils_lm_a-MatcherUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MatcherUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo -c -o libutils_lm_a-MatcherUtils.o `test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc' || echo '$(srcdir)/'`$(top_srcdir)/lib/ts/MatcherUtils.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo $(DEPDIR)/libutils_lm_a-MatcherUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$(top_srcdir)/lib/ts/MatcherUtils.cc' object='libutils_lm_a-MatcherUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MatcherUtils.o `test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc' || echo '$(srcdir)/'`$(top_srcdir)/lib/ts/MatcherUtils.cc
 
 libutils_lm_a-MatcherUtils.obj: $(top_srcdir)/lib/ts/MatcherUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MatcherUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo -c -o libutils_lm_a-MatcherUtils.obj `if test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc'; then $(CYGPATH_W) '$(top_srcdir)/lib/ts/MatcherUtils.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/lib/ts/MatcherUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo $(DEPDIR)/libutils_lm_a-MatcherUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MatcherUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo -c -o libutils_lm_a-MatcherUtils.obj `if test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc'; then $(CYGPATH_W) '$(top_srcdir)/lib/ts/MatcherUtils.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/lib/ts/MatcherUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MatcherUtils.Tpo $(DEPDIR)/libutils_lm_a-MatcherUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$(top_srcdir)/lib/ts/MatcherUtils.cc' object='libutils_lm_a-MatcherUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MatcherUtils.obj `if test -f '$(top_srcdir)/lib/ts/MatcherUtils.cc'; then $(CYGPATH_W) '$(top_srcdir)/lib/ts/MatcherUtils.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/lib/ts/MatcherUtils.cc'; fi`
 
 libutils_lm_a-DiagsConfig.o: $(top_srcdir)/proxy/DiagsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-DiagsConfig.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo -c -o libutils_lm_a-DiagsConfig.o `test -f '$(top_srcdir)/proxy/DiagsConfig.cc' || echo '$(srcdir)/'`$(top_srcdir)/proxy/DiagsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo $(DEPDIR)/libutils_lm_a-DiagsConfig.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-DiagsConfig.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo -c -o libutils_lm_a-DiagsConfig.o `test -f '$(top_srcdir)/proxy/DiagsConfig.cc' || echo '$(srcdir)/'`$(top_srcdir)/proxy/DiagsConfig.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo $(DEPDIR)/libutils_lm_a-DiagsConfig.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$(top_srcdir)/proxy/DiagsConfig.cc' object='libutils_lm_a-DiagsConfig.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-DiagsConfig.o `test -f '$(top_srcdir)/proxy/DiagsConfig.cc' || echo '$(srcdir)/'`$(top_srcdir)/proxy/DiagsConfig.cc
 
 libutils_lm_a-DiagsConfig.obj: $(top_srcdir)/proxy/DiagsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-DiagsConfig.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo -c -o libutils_lm_a-DiagsConfig.obj `if test -f '$(top_srcdir)/proxy/DiagsConfig.cc'; then $(CYGPATH_W) '$(top_srcdir)/proxy/DiagsConfig.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/proxy/DiagsConfig.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo $(DEPDIR)/libutils_lm_a-DiagsConfig.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-DiagsConfig.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo -c -o libutils_lm_a-DiagsConfig.obj `if test -f '$(top_srcdir)/proxy/DiagsConfig.cc'; then $(CYGPATH_W) '$(top_srcdir)/proxy/DiagsConfig.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/proxy/DiagsConfig.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-DiagsConfig.Tpo $(DEPDIR)/libutils_lm_a-DiagsConfig.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$(top_srcdir)/proxy/DiagsConfig.cc' object='libutils_lm_a-DiagsConfig.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-DiagsConfig.obj `if test -f '$(top_srcdir)/proxy/DiagsConfig.cc'; then $(CYGPATH_W) '$(top_srcdir)/proxy/DiagsConfig.cc'; else $(CYGPATH_W) '$(srcdir)/$(top_srcdir)/proxy/DiagsConfig.cc'; fi`
 
 libutils_lm_a-EnvBlock.o: EnvBlock.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-EnvBlock.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo -c -o libutils_lm_a-EnvBlock.o `test -f 'EnvBlock.cc' || echo '$(srcdir)/'`EnvBlock.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo $(DEPDIR)/libutils_lm_a-EnvBlock.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-EnvBlock.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo -c -o libutils_lm_a-EnvBlock.o `test -f 'EnvBlock.cc' || echo '$(srcdir)/'`EnvBlock.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo $(DEPDIR)/libutils_lm_a-EnvBlock.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='EnvBlock.cc' object='libutils_lm_a-EnvBlock.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-EnvBlock.o `test -f 'EnvBlock.cc' || echo '$(srcdir)/'`EnvBlock.cc
 
 libutils_lm_a-EnvBlock.obj: EnvBlock.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-EnvBlock.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo -c -o libutils_lm_a-EnvBlock.obj `if test -f 'EnvBlock.cc'; then $(CYGPATH_W) 'EnvBlock.cc'; else $(CYGPATH_W) '$(srcdir)/EnvBlock.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo $(DEPDIR)/libutils_lm_a-EnvBlock.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-EnvBlock.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo -c -o libutils_lm_a-EnvBlock.obj `if test -f 'EnvBlock.cc'; then $(CYGPATH_W) 'EnvBlock.cc'; else $(CYGPATH_W) '$(srcdir)/EnvBlock.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-EnvBlock.Tpo $(DEPDIR)/libutils_lm_a-EnvBlock.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='EnvBlock.cc' object='libutils_lm_a-EnvBlock.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-EnvBlock.obj `if test -f 'EnvBlock.cc'; then $(CYGPATH_W) 'EnvBlock.cc'; else $(CYGPATH_W) '$(srcdir)/EnvBlock.cc'; fi`
 
 libutils_lm_a-ExpandingArray.o: ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.o `test -f 'ExpandingArray.cc' || echo '$(srcdir)/'`ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.o `test -f 'ExpandingArray.cc' || echo '$(srcdir)/'`ExpandingArray.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='ExpandingArray.cc' object='libutils_lm_a-ExpandingArray.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-ExpandingArray.o `test -f 'ExpandingArray.cc' || echo '$(srcdir)/'`ExpandingArray.cc
 
 libutils_lm_a-ExpandingArray.obj: ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.obj `if test -f 'ExpandingArray.cc'; then $(CYGPATH_W) 'ExpandingArray.cc'; else $(CYGPATH_W) '$(srcdir)/ExpandingArray.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.obj `if test -f 'ExpandingArray.cc'; then $(CYGPATH_W) 'ExpandingArray.cc'; else $(CYGPATH_W) '$(srcdir)/ExpandingArray.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='ExpandingArray.cc' object='libutils_lm_a-ExpandingArray.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-ExpandingArray.obj `if test -f 'ExpandingArray.cc'; then $(CYGPATH_W) 'ExpandingArray.cc'; else $(CYGPATH_W) '$(srcdir)/ExpandingArray.cc'; fi`
 
+libutils_lm_a-IpLookup.o: IpLookup.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-IpLookup.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-IpLookup.Tpo -c -o libutils_lm_a-IpLookup.o `test -f 'IpLookup.cc' || echo '$(srcdir)/'`IpLookup.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-IpLookup.Tpo $(DEPDIR)/libutils_lm_a-IpLookup.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='IpLookup.cc' object='libutils_lm_a-IpLookup.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-IpLookup.o `test -f 'IpLookup.cc' || echo '$(srcdir)/'`IpLookup.cc
+
+libutils_lm_a-IpLookup.obj: IpLookup.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-IpLookup.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-IpLookup.Tpo -c -o libutils_lm_a-IpLookup.obj `if test -f 'IpLookup.cc'; then $(CYGPATH_W) 'IpLookup.cc'; else $(CYGPATH_W) '$(srcdir)/IpLookup.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-IpLookup.Tpo $(DEPDIR)/libutils_lm_a-IpLookup.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='IpLookup.cc' object='libutils_lm_a-IpLookup.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-IpLookup.obj `if test -f 'IpLookup.cc'; then $(CYGPATH_W) 'IpLookup.cc'; else $(CYGPATH_W) '$(srcdir)/IpLookup.cc'; fi`
+
 libutils_lm_a-MgmtSchema.o: MgmtSchema.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtSchema.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo -c -o libutils_lm_a-MgmtSchema.o `test -f 'MgmtSchema.cc' || echo '$(srcdir)/'`MgmtSchema.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo $(DEPDIR)/libutils_lm_a-MgmtSchema.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtSchema.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo -c -o libutils_lm_a-MgmtSchema.o `test -f 'MgmtSchema.cc' || echo '$(srcdir)/'`MgmtSchema.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo $(DEPDIR)/libutils_lm_a-MgmtSchema.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='MgmtSchema.cc' object='libutils_lm_a-MgmtSchema.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtSchema.o `test -f 'MgmtSchema.cc' || echo '$(srcdir)/'`MgmtSchema.cc
 
 libutils_lm_a-MgmtSchema.obj: MgmtSchema.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtSchema.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo -c -o libutils_lm_a-MgmtSchema.obj `if test -f 'MgmtSchema.cc'; then $(CYGPATH_W) 'MgmtSchema.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtSchema.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo $(DEPDIR)/libutils_lm_a-MgmtSchema.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtSchema.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo -c -o libutils_lm_a-MgmtSchema.obj `if test -f 'MgmtSchema.cc'; then $(CYGPATH_W) 'MgmtSchema.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtSchema.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtSchema.Tpo $(DEPDIR)/libutils_lm_a-MgmtSchema.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='MgmtSchema.cc' object='libutils_lm_a-MgmtSchema.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtSchema.obj `if test -f 'MgmtSchema.cc'; then $(CYGPATH_W) 'MgmtSchema.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtSchema.cc'; fi`
 
 libutils_lm_a-MgmtUtils.o: MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.o `test -f 'MgmtUtils.cc' || echo '$(srcdir)/'`MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.o `test -f 'MgmtUtils.cc' || echo '$(srcdir)/'`MgmtUtils.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='MgmtUtils.cc' object='libutils_lm_a-MgmtUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtUtils.o `test -f 'MgmtUtils.cc' || echo '$(srcdir)/'`MgmtUtils.cc
 
 libutils_lm_a-MgmtUtils.obj: MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.obj `if test -f 'MgmtUtils.cc'; then $(CYGPATH_W) 'MgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.obj `if test -f 'MgmtUtils.cc'; then $(CYGPATH_W) 'MgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='MgmtUtils.cc' object='libutils_lm_a-MgmtUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtUtils.obj `if test -f 'MgmtUtils.cc'; then $(CYGPATH_W) 'MgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtUtils.cc'; fi`
 
 libutils_lm_a-WebMgmtUtils.o: WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.o `test -f 'WebMgmtUtils.cc' || echo '$(srcdir)/'`WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.o `test -f 'WebMgmtUtils.cc' || echo '$(srcdir)/'`WebMgmtUtils.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='WebMgmtUtils.cc' object='libutils_lm_a-WebMgmtUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-WebMgmtUtils.o `test -f 'WebMgmtUtils.cc' || echo '$(srcdir)/'`WebMgmtUtils.cc
 
 libutils_lm_a-WebMgmtUtils.obj: WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.obj `if test -f 'WebMgmtUtils.cc'; then $(CYGPATH_W) 'WebMgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/WebMgmtUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.obj `if test -f 'WebMgmtUtils.cc'; then $(CYGPATH_W) 'WebMgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/WebMgmtUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='WebMgmtUtils.cc' object='libutils_lm_a-WebMgmtUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-WebMgmtUtils.obj `if test -f 'WebMgmtUtils.cc'; then $(CYGPATH_W) 'WebMgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/WebMgmtUtils.cc'; fi`
 
 libutils_lm_a-XmlUtils.o: XmlUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-XmlUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo -c -o libutils_lm_a-XmlUtils.o `test -f 'XmlUtils.cc' || echo '$(srcdir)/'`XmlUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo $(DEPDIR)/libutils_lm_a-XmlUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-XmlUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo -c -o libutils_lm_a-XmlUtils.o `test -f 'XmlUtils.cc' || echo '$(srcdir)/'`XmlUtils.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo $(DEPDIR)/libutils_lm_a-XmlUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='XmlUtils.cc' object='libutils_lm_a-XmlUtils.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-XmlUtils.o `test -f 'XmlUtils.cc' || echo '$(srcdir)/'`XmlUtils.cc
 
 libutils_lm_a-XmlUtils.obj: XmlUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-XmlUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo -c -o libutils_lm_a-XmlUtils.obj `if test -f 'XmlUtils.cc'; then $(CYGPATH_W) 'XmlUtils.cc'; else $(CYGPATH_W) '$(srcdir)/XmlUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo $(DEPDIR)/libutils_lm_a-XmlUtils.Po
-@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-XmlUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo -c -o libutils_lm_a-XmlUtils.obj `if test -f 'XmlUtils.cc'; then $(CYGPATH_W) 'XmlUtils.cc'; else $(CYGPATH_W) '$(srcdir)/XmlUtils.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/libutils_lm_a-XmlUtils.Tpo $(DEPDIR)/libutils_lm_a-XmlUtils.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='XmlUtils.cc' object='libutils_lm_a-XmlUtils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-XmlUtils.obj `if test -f 'XmlUtils.cc'; then $(CYGPATH_W) 'XmlUtils.cc'; else $(CYGPATH_W) '$(srcdir)/XmlUtils.cc'; fi`

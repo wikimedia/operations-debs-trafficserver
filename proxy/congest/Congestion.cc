@@ -79,11 +79,11 @@ int congestionControlLocalTime = 0;
 
 CongestionControlRecord::CongestionControlRecord(const CongestionControlRecord & rec)
 {
-  prefix = ats_strdup(rec.prefix);
+  prefix = xstrdup(rec.prefix);
   prefix_len = rec.prefix_len;
   port = rec.port;
   congestion_scheme = rec.congestion_scheme;
-  error_page = ats_strdup(rec.error_page);
+  error_page = xstrdup(rec.error_page);
   max_connection_failures = rec.max_connection_failures;
   fail_window = rec.fail_window;
   proxy_retry_interval = rec.proxy_retry_interval;
@@ -128,7 +128,7 @@ CongestionControlRecord::validate()
 
 #define IsGt0(var)\
   if ( var < 1 ) { \
-    error_buf = (char*)ats_malloc(error_len); \
+    error_buf = (char*) xmalloc(error_len); \
     snprintf(error_buf, error_len, "line %d: invalid %s = %d, %s must > 0", \
 	    line_num, #var, var, #var); \
     cleanup(); \
@@ -136,11 +136,11 @@ CongestionControlRecord::validate()
   }
 
   if (error_page == NULL)
-    error_page = ats_strdup(DEFAULT_error_page);
+    error_page = xstrdup(DEFAULT_error_page);
   if (max_connection_failures >= CONG_RULE_MAX_max_connection_failures ||
       (max_connection_failures <= 0 && max_connection_failures != CONG_RULE_ULIMITED_max_connection_failures)
     ) {
-    error_buf = (char *)ats_malloc(error_len);
+    error_buf = (char *) xmalloc(error_len);
     snprintf(error_buf, error_len, "line %d: invalid %s = %d not in [1, %d) range",
              line_num, "max_connection_failures", max_connection_failures, CONG_RULE_MAX_max_connection_failures);
     cleanup();
@@ -212,9 +212,9 @@ CongestionControlRecord::Init(matcher_line * line_info)
         congestion_scheme = PER_IP;
       }
     } else if (strcasecmp(label, "error_page") == 0) {
-      error_page = ats_strdup(val);
+      error_page = xstrdup(val);
     } else if (strcasecmp(label, "prefix") == 0) {
-      prefix = ats_strdup(val);
+      prefix = xstrdup(val);
       prefix_len = strlen(prefix);
       rank += 1;
       // prefix will be used in the ControlBase
@@ -234,7 +234,7 @@ CongestionControlRecord::Init(matcher_line * line_info)
     tmp = ProcessModifiers(line_info);
 
     if (tmp != NULL) {
-      errBuf = (char *)ats_malloc(errBufLen * sizeof(char));
+      errBuf = (char *) xmalloc(errBufLen * sizeof(char));
       snprintf(errBuf, errBufLen, "%s %s at line %d in congestion.config", congestPrefix, tmp, line_num);
       return errBuf;
     }
@@ -275,7 +275,7 @@ CongestionControlRecord::UpdateMatch(CongestionControlRule * pRule, RD * rdata)
       }
     }
     pRule->record = this;
-    Debug("congestion_config", "Matched with record %p at line %d", this, line_num);
+    Debug("congestion_config", "Matched with record 0x%x at line %d", this, line_num);
   }
 }
 
@@ -455,7 +455,7 @@ CongestionControlled(RD * rdata)
 }
 
 uint64_t
-make_key(char *hostname, sockaddr const* ip, CongestionControlRecord * record)
+make_key(char *hostname, unsigned long ip, CongestionControlRecord * record)
 {
   int host_len = 0;
   if (hostname) {
@@ -465,7 +465,7 @@ make_key(char *hostname, sockaddr const* ip, CongestionControlRecord * record)
 }
 
 uint64_t
-make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * record)
+make_key(char *hostname, int len, unsigned long ip, CongestionControlRecord * record)
 {
   INK_MD5 md5;
 #ifdef USE_MMH
@@ -474,7 +474,7 @@ make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * 
   if (record->congestion_scheme == PER_HOST && len > 0)
     ink_code_incr_MMH_update(&ctx, hostname, len);
   else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
+    ink_code_incr_MMH_update(&ctx, (char *) &ip, sizeof(ip));
   if (record->port != 0) {
     unsigned short p = port;
     p = htons(p);
@@ -490,7 +490,7 @@ make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * 
   if (record->congestion_scheme == PER_HOST && len > 0)
     ink_code_incr_md5_update(&ctx, hostname, len);
   else
-    ink_code_incr_md5_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
+    ink_code_incr_md5_update(&ctx, (char *) &ip, sizeof(ip));
   if (record->port != 0) {
     unsigned short p = record->port;
     p = htons(p);
@@ -505,7 +505,7 @@ make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * 
 }
 
 uint64_t
-make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, short port)
+make_key(char *hostname, int len, unsigned long ip, char *prefix, int prelen, short port)
 {
   /* if the hostname != NULL, use hostname, else, use ip */
   INK_MD5 md5;
@@ -515,7 +515,7 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
   if (hostname && len > 0)
     ink_code_incr_MMH_update(&ctx, hostname, len);
   else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
+    ink_code_incr_MMH_update(&ctx, (char *) &ip, sizeof(ip));
   if (port != 0) {
     unsigned short p = port;
     p = htons(p);
@@ -531,7 +531,7 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
   if (hostname && len > 0)
     ink_code_incr_md5_update(&ctx, hostname, len);
   else
-    ink_code_incr_md5_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
+    ink_code_incr_md5_update(&ctx, (char *) &ip, sizeof(ip));
   if (port != 0) {
     unsigned short p = port;
     p = htons(p);
@@ -608,18 +608,15 @@ FailHistory::regist_event(long t, int n)
 //----------------------------------------------------------
 // CongestionEntry Implementation
 //----------------------------------------------------------
-CongestionEntry::CongestionEntry(const char *hostname, sockaddr const* ip, CongestionControlRecord * rule, uint64_t key)
+CongestionEntry::CongestionEntry(const char *hostname, ip_addr_t ip, CongestionControlRecord * rule, uint64_t key)
 :m_key(key),
+m_ip(ip),
 m_last_congested(0),
 m_congested(0),
 m_stat_congested_conn_failures(0),
 m_M_congested(0), m_last_M_congested(0), m_num_connections(0), m_stat_congested_max_conn(0), m_ref_count(1)
 {
-  memset(&m_ip, 0, sizeof(m_ip));
-  if (ip != NULL) {
-    ats_ip_copy(&m_ip.sa, ip);
-  }
-  m_hostname = ats_strdup(hostname);
+  m_hostname = xstrdup(hostname);
   rule->get();
   pRecord = rule;
   clearFailHistory();
@@ -651,7 +648,7 @@ CongestionEntry::validate()
   }
 
   uint64_t key = make_key(m_hostname,
-                        &m_ip.sa,
+                        m_ip,
                         p);
   if (key != m_key) {
     return false;
@@ -699,8 +696,8 @@ CongestionEntry::applyNewRule(CongestionControlRecord * rule)
 int
 CongestionEntry::sprint(char *buf, int buflen, int format)
 {
+  struct in_addr addr;
   char str_time[100] = " ";
-  char addrbuf[INET6_ADDRSTRLEN];
   int len = 0;
   ink_hrtime timestamp = 0;
   char state;
@@ -714,7 +711,7 @@ CongestionEntry::sprint(char *buf, int buflen, int format)
   len += snprintf(buf + len, buflen - len, "%" PRId64 "|%d|%s|%s",
                       timestamp,
                       pRecord->line_num,
-                      (m_hostname ? m_hostname : " "), (ats_is_ip(&m_ip) ? ats_ip_ntop(&m_ip.sa, addrbuf, sizeof(addrbuf)) : " "));
+                      (m_hostname ? m_hostname : " "), (m_ip ? (addr.s_addr = htonl(m_ip), inet_ntoa(addr)) : " "));
 
   len += snprintf(buf + len, buflen - len, "|%s|%s|%c",
                       (pRecord->congestion_scheme == PER_IP ? "per_ip" : "per_host"),
@@ -764,7 +761,7 @@ CongestionEntry::failed_at(ink_hrtime t)
     return;
   // long time = ink_hrtime_to_sec(t);
   long time = t;
-  Debug("congestion_control", "failed_at: %ld", time);
+  Debug("congestion_control", "failed_at: %d", time);
   MUTEX_TRY_LOCK(lock, m_hist_lock, this_ethread());
   if (lock) {
     m_history.regist_event(time);
@@ -777,7 +774,7 @@ CongestionEntry::failed_at(ink_hrtime t)
       }
     }
   } else {
-    Debug("congestion_control", "failure info lost due to lock contention(Entry: %p, Time: %ld)", (void *) this, time);
+    Debug("congestion_control", "failure info lost due to lock contention(Entry: 0x%x, Time: %d)", (void *) this, time);
   }
 }
 

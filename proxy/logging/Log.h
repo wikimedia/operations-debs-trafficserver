@@ -339,8 +339,7 @@ public:
   {
     FIELDS_INITIALIZED = 1,
     THREADS_CREATED = 2,
-    PERIODIC_WAKEUP_SCHEDULED = 4,
-    FULLY_INITIALIZED = 8
+    FULLY_INITIALIZED = 4
   };
 
   enum ConfigFlags
@@ -417,7 +416,7 @@ private:
 
   static void periodic_tasks(long time_now);
   static void create_threads();
-  static void init_when_enabled();
+  static void _init();
 
   static int init_status;
   static int config_flags;

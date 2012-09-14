@@ -75,12 +75,10 @@ m4/ltsugar.m4
 m4/ltversion.m4
 m4/lt~obsolete.m4
 
-!rc/*.*.in
 rc/trafficserver
 rc/update_records
 rc/trafficserver.xml
 rc/trafficserver.conf
-rc/trafficserver.service
 
 proxy/api/include/ts
 proxy/api/ts/ts.h
@@ -102,16 +100,3 @@ GSYMS
 GTAGS
 ETAGS
 CTAGS
-
-lib/tsconfig/TsConfigGrammar.c
-lib/tsconfig/TsConfigGrammar.h
-lib/tsconfig/TsConfigGrammar.hpp
-lib/tsconfig/TsConfigSyntax.c
-lib/tsconfig/test-tsconfig
-
-tools/http_load/http_load
-tools/jtest/jtest
-
-BUILDS
-DEBUG
-RELEASE

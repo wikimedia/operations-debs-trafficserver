@@ -39,13 +39,14 @@
 #include "BaseManager.h"
 #include "ClusterCom.h"
 #include "VMap.h"
-#include <records/I_RecHttp.h>
 #if TS_HAS_WCCP
 #include <wccp/Wccp.h>
 #endif
 
+#if !defined(WIN32)
 #define ink_get_hrtime ink_get_hrtime_internal
 #define ink_get_based_hrtime ink_get_based_hrtime_internal
+#endif
 
 class LocalManager: public BaseManager
 {
@@ -57,13 +58,29 @@ public:
     delete alarm_keeper;
     delete virt_map;
     delete ccom;
-    ats_free(config_path);
-    ats_free(bin_path);
-    ats_free(absolute_proxy_binary);
-    ats_free(proxy_name);
-    ats_free(proxy_binary);
-    ats_free(proxy_options);
-    ats_free(env_prep);
+    if (config_path)
+    {
+      xfree(config_path);
+    }
+    if (bin_path)
+    {
+      xfree(bin_path);
+    }
+    if (absolute_proxy_binary) {
+      xfree(absolute_proxy_binary);
+    }
+    if (proxy_name) {
+      xfree(proxy_name);
+    }
+    if (proxy_binary) {
+      xfree(proxy_binary);
+    }
+    if (proxy_options) {
+      xfree(proxy_options);
+    }
+    if (env_prep) {
+      xfree(env_prep);
+    }
   };
 
   void initAlarm();
@@ -83,8 +100,6 @@ public:
   void processEventQueue();
   bool startProxy();
   void listenForProxy();
-  void bindProxyPort(HttpProxyPort&);
-  void closeProxyPorts();
 
   void mgmtCleanup();
   void mgmtShutdown(int status, bool mainThread = false);
@@ -116,10 +131,11 @@ public:
   volatile bool proxy_launch_outstanding;
   volatile bool mgmt_shutdown_outstanding;
   volatile int proxy_running;
-  HttpProxyPort::Group m_proxy_ports;
-  // Local inbound addresses to bind, if set.
-  IpAddr m_inbound_ip4;
-  IpAddr m_inbound_ip6;
+  volatile int proxy_server_port[MAX_PROXY_SERVER_PORTS];
+  volatile char proxy_server_port_attributes[MAX_PROXY_SERVER_PORTS][MAX_ATTR_LEN];
+  volatile int proxy_server_fd[MAX_PROXY_SERVER_PORTS];
+  in_addr_t proxy_server_incoming_ip_to_bind;
+  char *proxy_server_incoming_ip_to_bind_str;
 
   int process_server_timeout_secs;
   int process_server_timeout_msecs;
@@ -133,9 +149,18 @@ public:
   char *proxy_options;
   char *env_prep;
 
+#ifndef _WIN32
   int process_server_sockfd;
   volatile int watched_process_fd;
   volatile pid_t proxy_launch_pid;
+#else
+  bool process_server_connected;
+  int proxy_valid_server_ports;
+  HANDLE process_server_hpipe;
+  HANDLE process_connect_hevent;
+  HANDLE proxy_launch_hproc;
+  HANDLE proxy_IOCPort;
+#endif
 
   int mgmt_sync_key;
 

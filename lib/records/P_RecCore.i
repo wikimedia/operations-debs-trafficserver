@@ -461,7 +461,7 @@ RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data,
       }
       rec_mutex_release(&(r1->lock));
     } else {
-      // We don't need to ats_strdup() here as we will make copies of any
+      // We don't need to xstrdup() here as we will make copies of any
       // strings when we marshal them into our RecMessage buffer.
       RecRecord r2;
       memset(&r2, 0, sizeof(RecRecord));
@@ -571,7 +571,9 @@ RecReadStatsFile()
   }
 
   ink_rwlock_unlock(&g_records_rwlock);
-  ats_free(m);
+
+  if (m)
+    xfree(m);
 
   return REC_ERR_OKAY;
 }
@@ -651,8 +653,10 @@ RecReadConfigFile()
   // clear our g_rec_config_contents_xxx structures
   while (!queue_is_empty(g_rec_config_contents_llq)) {
     cfe = (RecConfigFileEntry *) dequeue(g_rec_config_contents_llq);
-    ats_free(cfe->entry);
-    ats_free(cfe);
+    if (cfe->entry) {
+      xfree(cfe->entry);
+    }
+    xfree(cfe);
   }
   ink_hash_table_destroy(g_rec_config_contents_ht);
   g_rec_config_contents_ht = ink_hash_table_create(InkHashTableKeyType_String);
@@ -665,7 +669,7 @@ RecReadConfigFile()
   line = line_tok.iterFirst(&line_tok_state);
   line_num = 1;
   while (line) {
-    char *lc = ats_strdup(line);
+    char *lc = xstrdup(line);
     char *lt = lc;
     char *ln;
 
@@ -750,9 +754,9 @@ RecReadConfigFile()
     RecDataClear(data_type, &data);
 
     // update our g_rec_config_contents_xxx
-    cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));
+    cfe = (RecConfigFileEntry *) xmalloc(sizeof(RecConfigFileEntry));
     cfe->entry_type = RECE_RECORD;
-    cfe->entry = ats_strdup(name_str);
+    cfe->entry = xstrdup(name_str);
     enqueue(g_rec_config_contents_llq, (void *) cfe);
     ink_hash_table_insert(g_rec_config_contents_ht, name_str, NULL);
     goto L_done;
@@ -760,21 +764,21 @@ RecReadConfigFile()
   L_next_line:
     // store this line into g_rec_config_contents_llq so that we can
     // write it out later
-    cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));
+    cfe = (RecConfigFileEntry *) xmalloc(sizeof(RecConfigFileEntry));
     cfe->entry_type = RECE_COMMENT;
-    cfe->entry = ats_strdup(line);
+    cfe->entry = xstrdup(line);
     enqueue(g_rec_config_contents_llq, (void *) cfe);
 
   L_done:
     line = line_tok.iterNext(&line_tok_state);
     line_num++;
-    ats_free(lc);
+    xfree(lc);
   }
 
   // release our hash table
   ink_rwlock_unlock(&g_records_rwlock);
   ink_mutex_release(&g_rec_config_lock);
-  ats_free(fbuf);
+  xfree(fbuf);
 
   return REC_ERR_OKAY;
 }
@@ -806,9 +810,9 @@ RecSyncConfigToTB(textBuffer * tb)
       if (REC_TYPE_IS_CONFIG(r->rec_type)) {
         if (r->sync_required & REC_DISK_SYNC_REQUIRED) {
           if (!ink_hash_table_isbound(g_rec_config_contents_ht, r->name)) {
-            cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));
+            cfe = (RecConfigFileEntry *) xmalloc(sizeof(RecConfigFileEntry));
             cfe->entry_type = RECE_RECORD;
-            cfe->entry = ats_strdup(r->name);
+            cfe->entry = xstrdup(r->name);
             enqueue(g_rec_config_contents_llq, (void *) cfe);
             ink_hash_table_insert(g_rec_config_contents_ht, r->name, NULL);
           }

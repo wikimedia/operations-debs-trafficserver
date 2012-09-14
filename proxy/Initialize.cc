@@ -27,6 +27,8 @@
    Created On      : Fri Feb  5 18:22:05 1999
 
    Description:
+
+
  ****************************************************************************/
 #include "libts.h"
 
@@ -138,6 +140,15 @@ init_system_syslog_log_configure(void)
 }
 
 
+/*
+void
+init_system_logging()
+{
+  //  iObject::Init();
+  //  iLogBufferBuffer::Init();
+}
+*/
+
 void
 init_system_adjust_num_of_net_threads(void)
 {
@@ -231,7 +242,7 @@ init_system_reconfigure_diags(void)
   ////////////////////////////////////
   // change the diags config values //
   ////////////////////////////////////
-#if !defined(__GNUC__) && !defined(hpux)
+#if !defined (_WIN32) && !defined(__GNUC__) && !defined(hpux)
   diags->config = c;
 #else
   memcpy(((void *) &diags->config), ((void *) &c), sizeof(DiagsConfigState));
@@ -252,7 +263,6 @@ init_system_diags(char *bdt, char *bat)
   diags_log_fp = fopen(diags_logpath, "w");
   if (diags_log_fp) {
     int status;
-    chown_file_to_user(diag_logpath,admin_user);
     status = setvbuf(diags_log_fp, NULL, _IOLBF, 512);
     if (status != 0) {
       fclose(diags_log_fp);

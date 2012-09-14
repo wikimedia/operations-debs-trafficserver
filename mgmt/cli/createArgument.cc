@@ -1,6 +1,6 @@
 /** @file
 
-  This file provides basic create Argument defintion, for any new arguments.
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,18 @@
   limitations under the License.
  */
 
+/*
+ *   createArgument.cc --
+ *
+ *
+ *    This file provides basic create Argument defintion,
+ *    for any new arguments.
+ *
+ *
+ *
+ *
+ *    Dated  : 12/11/2000.
+ */
 
 #include <stdlib.h>
 #include <tcl.h>
@@ -57,7 +69,7 @@ createArgument(const char *argument, int position, int commandoption,
 
   size_t key_len = sizeof(char) * (strlen(argument) + 1);
   aCliArgvTable->key = (char *) ckalloc(key_len);
-  ink_strlcpy(aCliArgvTable->key, argument, key_len);
+  ink_strncpy(aCliArgvTable->key, argument, key_len);
 
   aCliArgvTable->position = position;
 
@@ -84,14 +96,14 @@ createArgument(const char *argument, int position, int commandoption,
   if (defValue != NULL) {
     size_t def_len = sizeof(char) * (strlen(defValue) + 1);
     aCliArgvTable->def = (char *) ckalloc(def_len);
-    ink_strlcpy(aCliArgvTable->def, defValue, def_len);
+    ink_strncpy(aCliArgvTable->def, defValue, def_len);
   }
 
 
   if (helpString != NULL) {
     size_t help_len = sizeof(char) * (strlen(helpString) + 1);
     aCliArgvTable->help = (char *) ckalloc(help_len);
-    ink_strlcpy(aCliArgvTable->help, helpString, help_len);
+    ink_strncpy(aCliArgvTable->help, helpString, help_len);
   }
 
   reqd_args = findRequired(cliGetOrgArgvInfo());
@@ -141,7 +153,7 @@ findRequired(cli_ArgvInfo * argtable)
   for (infoPtr = argtable; (infoPtr->key != NULL); infoPtr++) {
     if (infoPtr->option == CLI_ARGV_REQUIRED) {
 
-      args[i] = ats_strdup(infoPtr->key);
+      args[i] = xstrdup(infoPtr->key);
       i++;
     }
   }
@@ -248,7 +260,7 @@ getIntRange(char *range, int *r1, int *r2)
   char *endPtr;
 
   buf = (char *) ckalloc(sizeof(char) * 256);
-  range_str = ats_strdup(range);
+  range_str = xstrdup(range);
   len = strlen(range_str);
   range_str[len] = 0;
   str = range_str;
@@ -322,7 +334,7 @@ getFloatRange(char *range, float *r1, float *r2)
   char *endPtr;
 
   buf = (char *) ckalloc(sizeof(char) * 256);
-  range_str = ats_strdup(range);
+  range_str = xstrdup(range);
   len = strlen(range_str);
   range_str[len] = 0;
   str = range_str;

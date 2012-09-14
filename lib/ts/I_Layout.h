@@ -59,7 +59,7 @@ struct Layout
 
   /**
    Return file path relative to Layout->prefix
-   Memory is allocated, so use ats_free() when no longer needed
+   Memory is allocated, so use xfree() when no longer needed
 
   */
   char *relative(const char *file);
@@ -67,14 +67,14 @@ struct Layout
   /**
    Return file path relative to Layout->prefix
    Store the path to buf. The buf should be large eough to store
-   PATH_NAME_MAX characters
+   PATH_MAX characters
 
    */
   void relative(char *buf, size_t bufsz, const char *file);
 
   /**
    Return file path relative to dir
-   Memory is allocated, so use ats_free() when no longer needed
+   Memory is allocated, so use xfree() when no longer needed
    Example usage: Layout::relative_to(default_layout()->sysconfdir, "foo.bar");
 
   */
@@ -83,7 +83,7 @@ struct Layout
   /**
    Return file path relative to dir
    Store the path to buf. The buf should be large eough to store
-   PATH_NAME_MAX characters
+   PATH_MAX characters
    Example usage: Layout::relative_to(default_layout()->sysconfdir, "foo.bar");
 
   */

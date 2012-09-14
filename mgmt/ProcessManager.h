@@ -50,25 +50,33 @@ public:
   ProcessManager(bool rlm, char *mpath);
    ~ProcessManager()
   {
+#ifndef _WIN32
       close_socket(local_manager_sockfd);
+#else
+      CloseHandle(local_manager_hpipe);
+#endif
     while (!queue_is_empty(mgmt_signal_queue))
     {
       char *sig = (char *) dequeue(mgmt_signal_queue);
-      ats_free(sig);
+        xfree(sig);
     }
-    ats_free(mgmt_signal_queue);
-  }
+    xfree(mgmt_signal_queue);
+  };
 
   void start()
   {
     ink_thread_create(startProcessManager, 0);
-  }
+  };
 
   void stop()
   {
     mgmt_log(stderr, "[ProcessManager::stop] Bringing down connection\n");
+#ifndef _WIN32
     close_socket(local_manager_sockfd);
-  }
+#else
+    CloseHandle(local_manager_hpipe);
+#endif
+  };
 
   inkcoreapi void signalManager(int msg_id, const char *data_str);
   inkcoreapi void signalManager(int msg_id, const char *data_raw, int data_len);
@@ -90,7 +98,11 @@ public:
 
   pid_t pid;
 
+#ifndef _WIN32
   int local_manager_sockfd;
+#else
+  HANDLE local_manager_hpipe;
+#endif
 
 private:
 

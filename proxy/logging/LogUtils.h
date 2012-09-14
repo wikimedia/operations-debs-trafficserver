@@ -54,10 +54,13 @@ public:
   static unsigned ip_from_host(char *host);
   static void manager_alarm(AlarmType alarm_type, const char *msg, ...);
   static void strip_trailing_newline(char *buf);
-  static char *escapify_url(Arena * arena, char *url, size_t len_in, int *len_out, char *dst=NULL, size_t dst_size=0, const unsigned char *map=NULL);
+  static char *escapify_url(Arena * arena, char *url, int len_in, int *len_out);
   static char *int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_chars, unsigned int req_width=0, char pad_char='0');
   static void remove_content_type_attributes(char *type_str, int *type_len);
   static int timestamp_to_hex_str(unsigned timestamp, char *str, size_t len, size_t * n_chars = 0);
+  static int ip_to_str(unsigned ip, char *str, size_t len, size_t * n_chars = 0);
+  static unsigned str_to_ip(char *ipstr);
+  static bool valid_ipstr_format(char *ipstr);
   static int seconds_to_next_roll(time_t time_now, int rolling_offset, int rolling_interval);
   static int file_is_writeable(const char *full_filename,
                                off_t * size_bytes = 0,
