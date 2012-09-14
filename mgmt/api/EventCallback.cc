@@ -47,9 +47,8 @@
 EventCallbackT *
 create_event_callback(TSEventSignalFunc func, void *data)
 {
-  EventCallbackT *event_cb;
+  EventCallbackT *event_cb = (EventCallbackT *)ats_malloc(sizeof(EventCallbackT));
 
-  event_cb = (EventCallbackT *) xmalloc(sizeof(EventCallbackT));
   event_cb->func = func;
   event_cb->data = data;
 
@@ -69,11 +68,7 @@ void
 delete_event_callback(EventCallbackT * event_cb)
 {
 
-  if (event_cb) {
-    // LAN - can't free the data if don't know what it is?
-    //if (event_cb->data) xfree(event_cb->data);
-    xfree(event_cb);
-  }
+  ats_free(event_cb);
   return;
 }
 
@@ -88,23 +83,13 @@ delete_event_callback(EventCallbackT * event_cb)
 CallbackTable *
 create_callback_table(const char *lock_name)
 {
-  CallbackTable *cb_table;
+  CallbackTable *cb_table = (CallbackTable *)ats_malloc(sizeof(CallbackTable));
 
-  cb_table = (CallbackTable *) xmalloc(sizeof(CallbackTable));
+  for (int i = 0; i < NUM_EVENTS; i++)
+    cb_table->event_callback_l[i] = NULL;
 
-  if (cb_table) {
-    for (int i = 0; i < NUM_EVENTS; i++) {
-      cb_table->event_callback_l[i] = NULL;
-    }
-
-    // initialize the mutex
-    ink_mutex_init(&cb_table->event_callback_lock, lock_name);
-  }
-
-  if (!cb_table) {
-    return NULL;
-  }
-
+  // initialize the mutex
+  ink_mutex_init(&cb_table->event_callback_lock, lock_name);
   return cb_table;
 }
 
@@ -145,7 +130,7 @@ delete_callback_table(CallbackTable * cb_table)
   //destroy lock
   ink_mutex_destroy(&cb_table->event_callback_lock);
 
-  xfree(cb_table);
+  ats_free(cb_table);
 
   return;
 }

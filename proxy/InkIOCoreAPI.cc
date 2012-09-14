@@ -95,11 +95,9 @@ TSReturnCode sdk_sanity_check_null_ptr(void *ptr);
 ////////////////////////////////////////////////////////////////////
 struct INKThreadInternal:public EThread
 {
-#if !defined (_WIN32)
   INKThreadInternal()
     : EThread(DEDICATED, -1)
   {  }
-#endif
 
   TSThreadFunc func;
   void *data;
@@ -129,9 +127,7 @@ TSThreadCreate(TSThreadFunc func, void *data)
 
   thread = NEW(new INKThreadInternal);
 
-#if !defined (_WIN32)
   ink_assert(thread->event_types == 0);
-#endif
 
   thread->func = func;
   thread->data = data;
@@ -358,11 +354,15 @@ INKBasedTimeGet()
 
 TSAction
 INKUDPBind(TSCont contp, unsigned int ip, int port)
-{
+{  
   sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
-
+    
   FORCE_PLUGIN_MUTEX(contp);
-  return reinterpret_cast<TSAction>(udpNet.UDPBind((Continuation *)contp, port, ip, INK_ETHERNET_MTU_SIZE, INK_ETHERNET_MTU_SIZE));
+
+  struct sockaddr_in addr;
+  ats_ip4_set(&addr, ip, htons(port));
+  
+  return reinterpret_cast<TSAction>(udpNet.UDPBind((Continuation *)contp, ats_ip_sa_cast(&addr), INK_ETHERNET_MTU_SIZE, INK_ETHERNET_MTU_SIZE));
 }
 
 TSAction
@@ -374,9 +374,7 @@ INKUDPSendTo(TSCont contp, INKUDPConn udp, unsigned int ip, int port, char *data
   UDPPacket *packet = new_UDPPacket();
   UDPConnection *conn = (UDPConnection *)udp;
 
-  packet->to.sin_family = PF_INET;
-  packet->to.sin_port = htons(port);
-  packet->to.sin_addr.s_addr = ip;
+  ats_ip4_set(&packet->to, ip, htons(port));
 
   IOBufferBlock *blockp = new_IOBufferBlock();
   blockp->alloc(BUFFER_SIZE_INDEX_32K);
@@ -438,7 +436,7 @@ INKUDPPacketFromAddressGet(INKUDPPacket packet)
   sdk_assert(sdk_sanity_check_null_ptr((void*)packet) == TS_SUCCESS);
 
   UDPPacket *p = (UDPPacket *)packet;
-  return (p->from.sin_addr.s_addr);
+  return ats_ip4_addr_cast(&p->from);
 }
 
 int
@@ -447,7 +445,7 @@ INKUDPPacketFromPortGet(INKUDPPacket packet)
   sdk_assert(sdk_sanity_check_null_ptr((void*)packet) == TS_SUCCESS);
 
   UDPPacket *p = (UDPPacket *)packet;
-  return (ntohs(p->from.sin_port));
+  return ats_ip_port_host_order(&p->from);
 }
 
 INKUDPConn
@@ -534,18 +532,6 @@ TSIOBufferStart(TSIOBuffer bufp)
   return (TSIOBufferBlock)blk;
 }
 
-void
-TSIOBufferAppend(TSIOBuffer bufp, TSIOBufferBlock blockp)
-{
-  sdk_assert(sdk_sanity_check_iocore_structure(bufp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_iocore_structure(blockp) == TS_SUCCESS);
-
-  MIOBuffer *b = (MIOBuffer *)bufp;
-  IOBufferBlock *blk = (IOBufferBlock *)blockp;
-
-  b->append_block(blk);
-}
-
 int64_t
 TSIOBufferCopy(TSIOBuffer bufp, TSIOBufferReader readerp, int64_t length, int64_t offset)
 {
@@ -586,43 +572,6 @@ TSIOBufferProduce(TSIOBuffer bufp, int64_t nbytes)
 
   MIOBuffer *b = (MIOBuffer *)bufp;
   b->fill(nbytes);
-}
-
-TSIOBufferData
-TSIOBufferDataCreate(void *data, int64_t size, TSIOBufferDataFlags flags)
-{
-  sdk_assert(sdk_sanity_check_null_ptr((void*)data) == TS_SUCCESS);
-  sdk_assert(size > 0);
-
-  // simply return error_ptr
-  //ink_assert (size > 0);
-
-  switch (flags) {
-  case TS_DATA_ALLOCATE:
-    ink_assert(data == NULL);
-    return (TSIOBufferData)new_IOBufferData(iobuffer_size_to_index(size));
-
-  case TS_DATA_MALLOCED:
-    ink_assert(data != NULL);
-    return (TSIOBufferData)new_xmalloc_IOBufferData(data, size);
-
-  case TS_DATA_CONSTANT:
-    ink_assert(data != NULL);
-    return (TSIOBufferData)new_constant_IOBufferData(data, size);
-  }
-
-  sdk_assert(!"Invalid flag");
-  return NULL;
-}
-
-TSIOBufferBlock
-TSIOBufferBlockCreate(TSIOBufferData datap, int64_t size, int64_t offset)
-{
-  sdk_assert(sdk_sanity_check_iocore_structure(datap) == TS_SUCCESS);
-  sdk_assert((size >= 0) && (offset > 0));
-
-  IOBufferData *d = (IOBufferData *)datap;
-  return (TSIOBufferBlock)new_IOBufferBlock(d, size, offset);
 }
 
 // dev API, not exposed

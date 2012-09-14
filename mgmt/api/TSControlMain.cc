@@ -58,16 +58,9 @@ InkHashTable *accepted_con;     // a list of all accepted client connections
 ClientT *
 create_client()
 {
-  ClientT *ele;
+  ClientT *ele = (ClientT *)ats_malloc(sizeof(ClientT));
 
-  ele = (ClientT *) xmalloc(sizeof(ClientT));
-  if (!ele)
-    return NULL;
-
-  ele->adr = (struct sockaddr *) xmalloc(sizeof(struct sockaddr));
-  if (!ele->adr)
-    return NULL;
-
+  ele->adr = (struct sockaddr *)ats_malloc(sizeof(struct sockaddr));
   return ele;
 }
 
@@ -82,9 +75,8 @@ void
 delete_client(ClientT * client)
 {
   if (client) {
-    if (client->adr)
-      xfree(client->adr);
-    xfree(client);
+    ats_free(client->adr);
+    ats_free(client);
   }
   return;
 }
@@ -222,8 +214,7 @@ ts_ctrl_main(void *arg)
             switch (op_t) {
             case RECORD_GET:
               ret = handle_record_get(client_entry->sock_info, req);
-              if (req)
-                xfree(req);     // free memory for req
+              ats_free(req);     // free memory for req
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_record_get\n");
                 remove_client(client_entry, accepted_con);
@@ -234,8 +225,7 @@ ts_ctrl_main(void *arg)
 
             case RECORD_SET:
               ret = handle_record_set(client_entry->sock_info, req);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_record_set\n");
                 remove_client(client_entry, accepted_con);
@@ -247,8 +237,7 @@ ts_ctrl_main(void *arg)
 
             case FILE_READ:
               ret = handle_file_read(client_entry->sock_info, req);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_file_read\n");
                 remove_client(client_entry, accepted_con);
@@ -260,8 +249,7 @@ ts_ctrl_main(void *arg)
 
             case FILE_WRITE:
               ret = handle_file_write(client_entry->sock_info, req);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_file_write\n");
                 remove_client(client_entry, accepted_con);
@@ -273,8 +261,7 @@ ts_ctrl_main(void *arg)
 
             case PROXY_STATE_GET:
               ret = handle_proxy_state_get(client_entry->sock_info);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_proxy_state_get\n");
                 remove_client(client_entry, accepted_con);
@@ -286,8 +273,7 @@ ts_ctrl_main(void *arg)
 
             case PROXY_STATE_SET:
               ret = handle_proxy_state_set(client_entry->sock_info, req);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_proxy_state_set\n");
                 remove_client(client_entry, accepted_con);
@@ -299,8 +285,7 @@ ts_ctrl_main(void *arg)
 
             case RECONFIGURE:
               ret = handle_reconfigure(client_entry->sock_info);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_reconfigure\n");
                 remove_client(client_entry, accepted_con);
@@ -312,8 +297,7 @@ ts_ctrl_main(void *arg)
 
             case RESTART:
               ret = handle_restart(client_entry->sock_info, req, false);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_restart\n");
                 remove_client(client_entry, accepted_con);
@@ -324,8 +308,7 @@ ts_ctrl_main(void *arg)
 
             case BOUNCE:
               ret = handle_restart(client_entry->sock_info, req, true);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_restart bounce\n");
                 remove_client(client_entry, accepted_con);
@@ -336,8 +319,7 @@ ts_ctrl_main(void *arg)
 
             case EVENT_RESOLVE:
               ret = handle_event_resolve(client_entry->sock_info, req);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_event_resolve\n");
                 remove_client(client_entry, accepted_con);
@@ -348,8 +330,7 @@ ts_ctrl_main(void *arg)
 
             case EVENT_GET_MLT:
               ret = handle_event_get_mlt(client_entry->sock_info);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:event_get_mlt\n");
                 remove_client(client_entry, accepted_con);
@@ -360,8 +341,7 @@ ts_ctrl_main(void *arg)
 
             case EVENT_ACTIVE:
               ret = handle_event_active(client_entry->sock_info, req);
-              if (req)
-                xfree(req);     // free the request allocated by preprocess_msg
+              ats_free(req);     // free the request allocated by preprocess_msg
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:event_active\n");
                 remove_client(client_entry, accepted_con);
@@ -374,8 +354,7 @@ ts_ctrl_main(void *arg)
             case SNAPSHOT_RESTORE:
             case SNAPSHOT_REMOVE:
               ret = handle_snapshot(client_entry->sock_info, req, op_t);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:handle_snapshot\n");
                 remove_client(client_entry, accepted_con);
@@ -386,8 +365,7 @@ ts_ctrl_main(void *arg)
 
             case SNAPSHOT_GET_MLT:
               ret = handle_snapshot_get_mlt(client_entry->sock_info);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR:snapshot_get_mlt\n");
                 remove_client(client_entry, accepted_con);
@@ -399,14 +377,13 @@ ts_ctrl_main(void *arg)
             case DIAGS:
               if (req) {
                 handle_diags(client_entry->sock_info, req);
-                xfree(req);
+                ats_free(req);
               }
               break;
 
             case STATS_RESET:
               ret = handle_stats_reset(client_entry->sock_info, req);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR: stats_reset\n");
                 remove_client(client_entry, accepted_con);
@@ -417,8 +394,7 @@ ts_ctrl_main(void *arg)
 
             case ENCRYPT_TO_FILE:
               ret = handle_encrypt_to_file(client_entry->sock_info, req);
-              if (req)
-                xfree(req);
+              ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR: encrypt_to_file");
                 remove_client(client_entry, accepted_con);
@@ -560,16 +536,13 @@ handle_record_set(struct SocketInfo sock_info, char *req)
   ret = parse_request_name_value(req, &name, &val);
   if (ret != TS_ERR_OKAY) {
     ret = send_reply(sock_info, ret);
-    if (name)
-      xfree(name);
+    ats_free(name);
     return ret;
   }
   // call CoreAPI call on Traffic Manager side
   ret = MgmtRecordSet(name, val, &action);
-  if (name)
-    xfree(name);
-  if (val)
-    xfree(val);
+  ats_free(name);
+  ats_free(val);
 
   if (ret != TS_ERR_OKAY) {
     ret = send_reply(sock_info, ret);
@@ -618,9 +591,7 @@ handle_file_read(struct SocketInfo sock_info, char *req)
   if (ret != TS_ERR_OKAY) {
     ret = send_reply(sock_info, ret);
   }
-
-  if (text)
-    xfree(text);                // free memory allocated by ReadFile
+  ats_free(text);                // free memory allocated by ReadFile
 
   return ret;
 }
@@ -654,9 +625,7 @@ handle_file_write(struct SocketInfo sock_info, char *req)
   // make CoreAPI call on Traffic Manager side
   ret = WriteFile(file, text, size, version);
   ret = send_reply(sock_info, ret);
-
-  if (text)
-    xfree(text);                // free memory allocated by parsing fn.
+  ats_free(text);                // free memory allocated by parsing fn.
 
   return ret;
 }
@@ -830,7 +799,7 @@ handle_event_get_mlt(struct SocketInfo sock_info)
     if (event_name) {
       snprintf(buf + buf_pos, (MAX_BUF_SIZE - buf_pos), "%s%c", event_name, REMOTE_DELIM);
       buf_pos += (strlen(event_name) + 1);
-      xfree(event_name);        //free the llq entry
+      ats_free(event_name);        //free the llq entry
     }
   }
   buf[buf_pos] = '\0';          //end the string
@@ -944,7 +913,7 @@ handle_snapshot_get_mlt(struct SocketInfo sock_info)
     if (snap_name) {
       snprintf(buf + buf_pos, (MAX_BUF_SIZE - buf_pos), "%s%c", snap_name, REMOTE_DELIM);
       buf_pos += (strlen(snap_name) + 1);
-      xfree(snap_name);         //free the llq entry
+      ats_free(snap_name);         //free the llq entry
     }
   }
   buf[buf_pos] = '\0';          //end the string
@@ -1015,15 +984,13 @@ handle_diags(struct SocketInfo sock_info, char *req)
   }
 
   if (diags_init) {
-    diags->print("TSMgmtAPI", level, NULL, NULL, diag_msg);
-    if (diag_msg)
-      xfree(diag_msg);
+    diags->print("TSMgmtAPI", DTA(level), "%s", diag_msg);
+    ats_free(diag_msg);
     return;
   }
 
 Lerror:
-  if (diag_msg)
-    xfree(diag_msg);
+  ats_free(diag_msg);
   return;
 }
 
@@ -1078,18 +1045,14 @@ handle_encrypt_to_file(struct SocketInfo sock_info, char *req)
   ret = parse_request_name_value(req, &pwd, &filepath);
   if (ret != TS_ERR_OKAY) {
     ret = send_reply(sock_info, ret);
-    if (pwd)
-      xfree(pwd);
-    if (filepath)
-      xfree(filepath);
+    ats_free(pwd);
+    ats_free(filepath);
     return ret;
   }
 
   ret = EncryptToFile(pwd, filepath);
   ret = send_reply(sock_info, ret);
-  if (pwd)
-    xfree(pwd);
-  if (filepath)
-    xfree(filepath);
+  ats_free(pwd);
+  ats_free(filepath);
   return ret;
 }

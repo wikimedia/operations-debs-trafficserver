@@ -155,13 +155,11 @@ drainIncomingChannel(void *arg)
         mgmt_elog(stderr, "[drainIncomingChannel] error accepting " "reliable connection\n");
         continue;
       }
-#ifndef _WIN32                  /* no need to set close-on-exec on NT */
       if (fcntl(req_fd, F_SETFD, 1) < 0) {
         mgmt_elog(stderr, "[drainIncomingChannel] Unable to set close " "on exec flag\n");
         close(req_fd);
         continue;
       }
-#endif
 
       // In no cluster mode, the rsport should not be listening.
       ink_release_assert(lmgmt->ccom->cluster_type != NO_CLUSTER);
@@ -341,7 +339,7 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int port, char *group, int
   memset(&broadcast_addr, 0, sizeof(broadcast_addr));
   memset(&receive_addr, 0, sizeof(receive_addr));
 
-  ink_strncpy(our_host, host, sizeof(our_host));
+  ink_strlcpy(our_host, host, sizeof(our_host));
   our_ip = oip;
 
   /* Get the cluster type */
@@ -387,7 +385,7 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int port, char *group, int
   Debug("ccom", "[ClusterCom::ClusterCom] Using cluster conf: %s", cluster_conf);
   cluster_file_rb = new Rollback(cluster_file, false);
 
-  xfree(cluster_file);
+  ats_free(cluster_file);
 
   if (ink_sys_name_release(sys_name, sizeof(sys_name), sys_release, sizeof(sys_release)) >= 0) {
     mgmt_log("[ClusterCom::ClusterCom] Node running on OS: '%s' Release: '%s'\n", sys_name, sys_release);
@@ -404,7 +402,7 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int port, char *group, int
     mgmt_fatal(stderr, "[ClusterCom::ClusterCom] mc group length to large!\n");
   }
 
-  ink_strncpy(mc_group, group, sizeof(mc_group));
+  ink_strlcpy(mc_group, group, sizeof(mc_group));
   mc_port = port;
   reliable_server_port = sport;
 
@@ -479,7 +477,7 @@ ClusterCom::checkPeers(time_t * ticker)
         struct in_addr addr;
         addr.s_addr = tmp->inet_address;
 
-        ink_strncpy(cip, inet_ntoa(addr), sizeof(cip));
+        ink_strlcpy(cip, inet_ntoa(addr), sizeof(cip));
 
         Debug("ccom",
               "[ClusterCom::checkPeers] DEAD! %s idle since: %ld naddrs: %d\n", cip, idle_since, tmp->num_virt_addrs);
@@ -800,7 +798,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   /* Have we see this guy before? */
   ink_mutex_acquire(&(mutex));  /* Grab cluster lock to access hash table */
   if (ink_hash_table_lookup(peers, (InkHashTableKey) ip, &hash_value) == 0) {
-    ink_assert((p = (ClusterPeerInfo *) xmalloc(sizeof(ClusterPeerInfo))));
+    ink_assert((p = (ClusterPeerInfo *)ats_malloc(sizeof(ClusterPeerInfo))));
     p->inet_address = inet_addr(ip);
     p->num_virt_addrs = 0;
 
@@ -809,7 +807,7 @@ ClusterCom::handleMultiCastMessage(char *message)
     // how many RECT_NODE stats there are. I'm hoping it's negligible though, but worst
     // case we can reoptimize this later (and more efficiently).
     int cnt = 0;
-    p->node_rec_data.recs = (RecRecord *) xmalloc(sizeof(RecRecord) * g_num_records);
+    p->node_rec_data.recs = (RecRecord *)ats_malloc(sizeof(RecRecord) * g_num_records);
     for (int j = 0; j < g_num_records; j++) {
       RecRecord *rec = &(g_records[j]);
 
@@ -950,15 +948,13 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
         }
 
         if (strcmp(tmp_msg_val, "NULL") == 0 && rec->data.rec_string) {
-          xfree(rec->data.rec_string);
+          ats_free(rec->data.rec_string);
           rec->data.rec_string = NULL;
         } else if (!(strcmp(tmp_msg_val, "NULL") == 0)) {
-          if (rec->data.rec_string) {
-            xfree(rec->data.rec_string);
-          }
+          ats_free(rec->data.rec_string);
           int rec_string_size = strlen(tmp_msg_val) + 1;
-          ink_assert((rec->data.rec_string = (RecString) xmalloc(rec_string_size)));
-          ink_strncpy(rec->data.rec_string, tmp_msg_val, rec_string_size);
+          ink_assert((rec->data.rec_string = (RecString)ats_malloc(rec_string_size)));
+          ink_strlcpy(rec->data.rec_string, tmp_msg_val, rec_string_size);
         }
         break;
       }
@@ -1008,16 +1004,14 @@ extract_locals(MgmtHashTable * local_ht, char *record_buffer)
       q++;
     // is this line a LOCAL?
     if (strncmp(q, "LOCAL", strlen("LOCAL")) == 0) {
-      int line_cp_len = strlen(line) + 1;
-      line_cp = (char *) xmalloc(line_cp_len);
-      ink_strncpy(line_cp, line, line_cp_len);
+      line_cp = ats_strdup(line);
       q += strlen("LOCAL");
       while ((*q == ' ') || (*q == '\t'))
         q++;
       name = q;
       if (scan_and_terminate(q, ' ', '\t')) {
         Debug("ccom_rec", "[extract_locals] malformed line: %s\n", name);
-        xfree(line_cp);
+        ats_free(line_cp);
         continue;
       }
       local_ht->mgmt_hash_table_insert(name, line_cp);
@@ -1147,7 +1141,6 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
         if (!file_update_failure && (strcmp(file, "records.config") == 0)) {
           textBuffer *our_rec_cfg;
           char *our_rec_cfg_cp;
-          int our_rec_cfg_cp_len;
           textBuffer *reply_new;
           MgmtHashTable *our_locals_ht;
 
@@ -1155,9 +1148,7 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
             file_update_failure = true;
           } else {
             our_locals_ht = NEW(new MgmtHashTable("our_locals_ht", true, InkHashTableKeyType_String));
-            our_rec_cfg_cp_len = our_rec_cfg->spaceUsed();
-            our_rec_cfg_cp = (char *) xmalloc(our_rec_cfg_cp_len + 1);
-            ink_strncpy(our_rec_cfg_cp, our_rec_cfg->bufPtr(), (our_rec_cfg_cp_len + 1));
+            our_rec_cfg_cp = ats_strdup(our_rec_cfg->bufPtr());
             extract_locals(our_locals_ht, our_rec_cfg_cp);
             reply_new = NEW(new textBuffer(reply->spaceUsed()));
             if (!insert_locals(reply_new, reply, our_locals_ht)) {
@@ -1168,7 +1159,7 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
               delete reply;
               reply = reply_new;
             }
-            xfree(our_rec_cfg_cp);
+            ats_free(our_rec_cfg_cp);
             delete our_rec_cfg;
             delete our_locals_ht;
           }
@@ -1322,7 +1313,7 @@ ClusterCom::sendSharedData(bool send_proxy_heart_beat)
   /* Alarm Message */
   memset(message, 0, 61440);
   resolved_addr.s_addr = our_ip;
-  ink_strncpy(addr, inet_ntoa(resolved_addr), sizeof(addr));
+  ink_strlcpy(addr, inet_ntoa(resolved_addr), sizeof(addr));
   lmgmt->alarm_keeper->constructAlarmMessage(addr, message, 61440);
   sendOutgoingMessage(message, strlen(message));
 
@@ -1369,7 +1360,7 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
   running_sum = constructSharedPacketHeader(message, inet_ntoa(resolved_addr), max);
 
   if (packet_type == RECT_NODE) {
-    ink_strncpy(&message[running_sum], "type: stat\n", (max - running_sum));
+    ink_strlcpy(&message[running_sum], "type: stat\n", (max - running_sum));
     running_sum += strlen("type: stat\n");
     ink_release_assert(running_sum < max);
   } else {
@@ -1382,7 +1373,7 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
   } else {
     snprintf(tmp, sizeof(tmp), "os: unknown\n");
   }
-  ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+  ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
   running_sum += strlen(tmp);
   ink_release_assert(running_sum < max);
 
@@ -1392,29 +1383,29 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
   } else {
     snprintf(tmp, sizeof(tmp), "rel: unknown\n");
   }
-  ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+  ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
   running_sum += strlen(tmp);
   ink_release_assert(running_sum < max);
 
   snprintf(tmp, sizeof(tmp), "hostname: %s\n", our_host);
-  ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+  ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
   running_sum += strlen(tmp);
   ink_release_assert(running_sum < max);
 
   snprintf(tmp, sizeof(tmp), "port: %d\n", cluster_port);
-  ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+  ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
   running_sum += strlen(tmp);
   ink_release_assert(running_sum < max);
 
   snprintf(tmp, sizeof(tmp), "ccomport: %d\n", reliable_server_port);
-  ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+  ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
   running_sum += strlen(tmp);
   ink_release_assert(running_sum < max);
 
   /* Current time stamp, for xntp like synching */
   if (time(NULL) > 0) {
     snprintf(tmp, sizeof(tmp), "time: %" PRId64 "\n", (int64_t)time(NULL));
-    ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+    ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
     running_sum += strlen(tmp);
   } else {
     mgmt_elog(stderr, "[ClusterCom::constructSharedPacket] time failed\n");
@@ -1428,18 +1419,18 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
     if (rec->rec_type == RECT_NODE) {
       switch (rec->data_type) {
       case RECD_COUNTER:
-        sprintf(tmp, "%d:%d: %" PRId64 "\n", cnt, rec->data_type, rec->data.rec_counter);
-        ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+        snprintf(tmp, sizeof(tmp), "%d:%d: %" PRId64 "\n", cnt, rec->data_type, rec->data.rec_counter);
+        ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
         running_sum += strlen(tmp);
         break;
       case RECD_INT:
-        sprintf(tmp, "%d:%d: %" PRId64 "\n", cnt, rec->data_type, rec->data.rec_int);
-        ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+        snprintf(tmp, sizeof(tmp), "%d:%d: %" PRId64 "\n", cnt, rec->data_type, rec->data.rec_int);
+        ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
         running_sum += strlen(tmp);
         break;
       case RECD_FLOAT:
         snprintf(tmp, sizeof(tmp), "%d:%d: %f\n", cnt, rec->data_type, rec->data.rec_float);
-        ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+        ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
         running_sum += strlen(tmp);
         break;
       case RECD_STRING:
@@ -1448,7 +1439,7 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
         } else {
           snprintf(tmp, sizeof(tmp), "%d:%d: NULL\n", cnt, rec->data_type);
         }
-        ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+        ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
         running_sum += strlen(tmp);
         break;
       default:
@@ -1510,7 +1501,7 @@ ClusterCom::constructSharedFilePacket(char *message, int max)
   resolved_addr.s_addr = our_ip;
   running_sum = constructSharedPacketHeader(message, inet_ntoa(resolved_addr), max);
 
-  ink_strncpy(&message[running_sum], "type: files\n", (max - running_sum));
+  ink_strlcpy(&message[running_sum], "type: files\n", (max - running_sum));
   running_sum += strlen("type: files\n");
   ink_release_assert(running_sum < max);
 
@@ -1549,7 +1540,7 @@ ClusterCom::constructSharedFilePacket(char *message, int max)
       time_t mod = 0;
 
       snprintf(tmp, sizeof(tmp), "%s %d %" PRId64 "\n", line, ver, (int64_t)mod);
-      ink_strncpy(&message[running_sum], tmp, (max - running_sum));
+      ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
       running_sum += strlen(tmp);
       ink_release_assert(running_sum < max);
     } else {
@@ -1582,11 +1573,9 @@ ClusterCom::establishChannels()
       if ((reliable_server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         mgmt_fatal("[ClusterCom::establishChannels] Unable to create socket\n");
       }
-#ifndef _WIN32                  /* no need to set close-on-exec on NT */
       if (fcntl(reliable_server_fd, F_SETFD, 1) < 0) {
         mgmt_fatal("[ClusterCom::establishChannels] Unable to set close-on-exec.\n");
       }
-#endif
 
       if (setsockopt(reliable_server_fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int)) < 0) {
         mgmt_fatal("[ClusterCom::establishChannels] Unable to set socket options.\n");
@@ -1620,7 +1609,6 @@ ClusterCom::establishChannels()
 void
 ClusterCom::establishBroadcastChannel(void)
 {
-#ifndef _WIN32
   if ((broadcast_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to open socket.\n");
   }
@@ -1628,23 +1616,6 @@ ClusterCom::establishBroadcastChannel(void)
   if (fcntl(broadcast_fd, F_SETFD, 1) < 0) {
     mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to set close-on-exec.\n");
   }
-#else
-  if ((broadcast_fd = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0,
-                                WSA_FLAG_MULTIPOINT_C_LEAF | WSA_FLAG_MULTIPOINT_D_LEAF)) == INVALID_SOCKET) {
-    mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to open socket.\n");
-  }
-  // To fix INKqa04541, we need to explicitly bind the
-  // multicast socket to the cluster interface.
-  struct sockaddr_in cluster_intr_addr;
-  memset(&cluster_intr_addr, 0, sizeof(cluster_intr_addr));
-  cluster_intr_addr.sin_family = AF_INET;
-  cluster_intr_addr.sin_addr.s_addr = our_ip;
-  cluster_intr_addr.sin_port = htons(mc_port);
-
-  if (bind(broadcast_fd, (struct sockaddr *) &cluster_intr_addr, sizeof(cluster_intr_addr)) < 0) {
-    mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to bind to socket, port %d\n", mc_port);
-  }
-#endif // !_WIN32
 
   int one = 1;
   if (setsockopt(broadcast_fd, SOL_SOCKET, SO_REUSEADDR, (const char *) &one, sizeof(one)) < 0) {
@@ -1656,7 +1627,6 @@ ClusterCom::establishBroadcastChannel(void)
   broadcast_addr.sin_addr.s_addr = inet_addr(mc_group);
   broadcast_addr.sin_port = htons(mc_port);
 
-#ifndef _WIN32
   u_char ttl = mc_ttl, loop = 0;
 
   /* Set ttl(max forwards), 1 should be default(same subnetwork). */
@@ -1668,32 +1638,6 @@ ClusterCom::establishBroadcastChannel(void)
   if (setsockopt(broadcast_fd, IPPROTO_IP, IP_MULTICAST_LOOP, (const char *) &loop, sizeof(loop)) < 0) {
     mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to disable loopback\n");
   }
-#else
-  DWORD ttl = mc_ttl;
-  BOOL loop = FALSE;
-
-  if (WSAJoinLeaf(broadcast_fd, (struct sockaddr *) &broadcast_addr,
-                  sizeof(struct sockaddr_in), NULL, NULL, NULL, NULL, JL_SENDER_ONLY) == INVALID_SOCKET) {
-    mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to join group\n");
-  }
-
-  DWORD retcount = 0;
-  /* Set ttl(max forwards), 1 should be default(same subnetwork). */
-  if (WSAIoctl(broadcast_fd, SIO_MULTICAST_SCOPE, (LPVOID) & ttl, sizeof(ttl), NULL, 0, &retcount, NULL, NULL) != 0) {
-    mgmt_fatal("[ClusterCom::establishBroadcastChannel] Unable to setsocketopt, ttl\n");
-  }
-// FIX THIS: elam 02/03/1999
-//   Loopback disable is currently not working on NT.
-//   We need to filter when we recv.
-//
-//  retcount = 0;
-//  /* Disable broadcast loopback, that is broadcasting to self */
-//  if (WSAIoctl(broadcast_fd, SIO_MULTIPOINT_LOOPBACK, (LPVOID) &loop, sizeof(loop),
-//             NULL, 0, &retcount, NULL, NULL) != 0) {
-//    mgmt_fatal(
-//      "[ClusterCom::establishBroadcastChannel] Unable to disable loopback\n");
-//  }
-#endif
 
   return;
 }                               /* End ClusterCom::establishBroadcastChannel */
@@ -1708,7 +1652,6 @@ ClusterCom::establishBroadcastChannel(void)
 int
 ClusterCom::establishReceiveChannel(int fatal_on_error)
 {
-#ifndef _WIN32
   if ((receive_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     if (!fatal_on_error) {
       Debug("ccom", "establishReceiveChannel: Unable to open socket");
@@ -1726,18 +1669,6 @@ ClusterCom::establishReceiveChannel(int fatal_on_error)
     }
     mgmt_fatal("[ClusterCom::establishReceiveChannel] Unable to set close-on-exec.\n");
   }
-#else
-  if ((receive_fd = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0,
-                              WSA_FLAG_MULTIPOINT_C_LEAF | WSA_FLAG_MULTIPOINT_D_LEAF)) == INVALID_SOCKET) {
-    if (!fatal_on_error) {
-      close(receive_fd);
-      receive_fd = -1;
-      Debug("ccom", "establishReceiveChannel: Unable to open socket");
-      return 1;
-    }
-    mgmt_fatal("[ClusterCom::establishReceiveChannel] Unable to open socket.\n");
-  }
-#endif // !_WIN32
 
   int one = 1;
   if (setsockopt(receive_fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int)) < 0) {
@@ -1752,12 +1683,7 @@ ClusterCom::establishReceiveChannel(int fatal_on_error)
 
   memset(&receive_addr, 0, sizeof(receive_addr));
   receive_addr.sin_family = AF_INET;
-#ifndef _WIN32
   receive_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-#else
-  // Fix INKqa04541, see above.
-  receive_addr.sin_addr.s_addr = our_ip;
-#endif
   receive_addr.sin_port = htons(mc_port);
 
   if (bind(receive_fd, (struct sockaddr *) &receive_addr, sizeof(receive_addr)) < 0) {
@@ -1769,7 +1695,6 @@ ClusterCom::establishReceiveChannel(int fatal_on_error)
     }
     mgmt_fatal("[ClusterCom::establishReceiveChannel] Unable to bind to socket, port %d\n", mc_port);
   }
-#ifndef _WIN32
   /* Add ourselves to the group */
   struct ip_mreq mc_request;
   mc_request.imr_multiaddr.s_addr = inet_addr(mc_group);
@@ -1784,23 +1709,6 @@ ClusterCom::establishReceiveChannel(int fatal_on_error)
     }
     mgmt_fatal("[ClusterCom::establishReceiveChannel] Can't add ourselves to multicast group %s\n", mc_group);
   }
-#else
-  struct sockaddr_in mc_sa;
-  memset(&mc_sa, 0, sizeof(mc_sa));
-  mc_sa.sin_family = AF_INET;
-  mc_sa.sin_addr.s_addr = inet_addr(mc_group);
-  mc_sa.sin_port = htons(mc_port);
-  if (WSAJoinLeaf(receive_fd, (struct sockaddr *) &mc_sa,
-                  sizeof(mc_sa), NULL, NULL, NULL, NULL, JL_RECEIVER_ONLY) == INVALID_SOCKET) {
-    if (!fatal_on_error) {
-      close(receive_fd);
-      receive_fd = -1;
-      Debug("ccom", "establishReceiveChannel: Can't add ourselves to multicast group %s", mc_group);
-      return 1;
-    }
-    mgmt_fatal("[ClusterCom::establishReceiveChannel] Can't add ourselves to multicast group %s\n", mc_group);
-  }
-#endif
 
   return 0;
 }                               /* End ClusterCom::establishReceiveChannel */
@@ -1913,7 +1821,7 @@ ClusterCom::rl_sendReliableMessage(unsigned long addr, const char *buf, int len)
 
   address.s_addr = addr;
 
-  ink_strncpy(string_addr, inet_ntoa(address), sizeof(string_addr));
+  ink_strlcpy(string_addr, inet_ntoa(address), sizeof(string_addr));
   if (ink_hash_table_lookup(peers, string_addr, &hash_value) == 0) {
     return false;
   }
@@ -1929,13 +1837,11 @@ ClusterCom::rl_sendReliableMessage(unsigned long addr, const char *buf, int len)
     mgmt_elog("[ClusterCom::rl_sendReliableMessage] Unable to create socket\n");
     return false;
   }
-#ifndef _WIN32                  /* no need to set close-on-exec on NT */
   if (fcntl(fd, F_SETFD, 1) < 0) {
     mgmt_log("[ClusterCom::rl_sendReliableMessage] Unable to set close-on-exec.\n");
     close(fd);
     return false;
   }
-#endif
 
   if (connect(fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
     mgmt_elog("[ClusterCom::rl_sendReliableMessage] Unable to connect to peer\n");
@@ -1970,7 +1876,7 @@ ClusterCom::sendReliableMessage(unsigned long addr, char *buf, int len, char *re
   if (take_lock) {
     ink_mutex_acquire(&mutex);
   }
-  ink_strncpy(string_addr, inet_ntoa(address), sizeof(string_addr));
+  ink_strlcpy(string_addr, inet_ntoa(address), sizeof(string_addr));
   if (ink_hash_table_lookup(peers, string_addr, &hash_value) == 0) {
     if (take_lock) {
       ink_mutex_release(&mutex);
@@ -1991,7 +1897,6 @@ ClusterCom::sendReliableMessage(unsigned long addr, char *buf, int len, char *re
     }
     return false;
   }
-#ifndef _WIN32                  /* no need to set close-on-exec on NT */
   if (fcntl(fd, F_SETFD, 1) < 0) {
     mgmt_elog("[ClusterCom::sendReliableMessage] Unable to set close-on-exec.\n");
     if (take_lock) {
@@ -2000,7 +1905,6 @@ ClusterCom::sendReliableMessage(unsigned long addr, char *buf, int len, char *re
     close(fd);
     return false;
   }
-#endif
 
   if (connect(fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
     mgmt_elog("[ClusterCom::sendReliableMessage] Unable to connect to peer\n");
@@ -2054,7 +1958,7 @@ ClusterCom::sendReliableMessageReadTillClose(unsigned long addr, char *buf, int 
 
   address.s_addr = addr;
   ink_mutex_acquire(&mutex);
-  ink_strncpy(string_addr, inet_ntoa(address), sizeof(string_addr));
+  ink_strlcpy(string_addr, inet_ntoa(address), sizeof(string_addr));
   if (ink_hash_table_lookup(peers, string_addr, &hash_value) == 0) {
     ink_mutex_release(&mutex);
     return false;
@@ -2071,14 +1975,12 @@ ClusterCom::sendReliableMessageReadTillClose(unsigned long addr, char *buf, int 
     ink_mutex_release(&mutex);
     return false;
   }
-#ifndef _WIN32                  /* no need to set close-on-exec on NT */
   if (fcntl(fd, F_SETFD, 1) < 0) {
     mgmt_elog("[ClusterCom::sendReliableMessageReadTillClose] Unable to set close-on-exec.\n");
     ink_mutex_release(&mutex);
     close(fd);
     return false;
   }
-#endif
 
   if (connect(fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
     mgmt_elog("[ClusterCom::sendReliableMessageReadTillClose] Unable to connect\n");
@@ -2370,7 +2272,7 @@ checkBackDoor(int req_fd, char *message)
           char *val = REC_readString(variable, &found);
           if (found) {
             rep_len = snprintf(reply, sizeof(reply), "\nRecord '%s' Val: '%s'\n", variable, val);
-            xfree(val);
+            ats_free(val);
           }
           break;
         }
@@ -2395,7 +2297,7 @@ checkBackDoor(int req_fd, char *message)
     }
     // TODO: I think this is correct, it used to do lmgmt->record_data-> ...
     if (RecSetRecordConvert(variable, value) == REC_ERR_OKAY) {
-      ink_strncpy(reply, "\nRecord Updated\n\n", sizeof(reply));
+      ink_strlcpy(reply, "\nRecord Updated\n\n", sizeof(reply));
       mgmt_writeline(req_fd, reply, strlen(reply));
     } else {
       mgmt_elog("[checkBackDoor] Assignment to unknown variable requested '%s'\n", variable);
@@ -2419,7 +2321,7 @@ checkBackDoor(int req_fd, char *message)
       mgmt_writeline(req_fd, tmp_msg, strlen(tmp_msg));
 
       addr.s_addr = tmp->inet_address;
-      ink_strncpy(ip_addr, inet_ntoa(addr), sizeof(ip_addr));
+      ink_strlcpy(ip_addr, inet_ntoa(addr), sizeof(ip_addr));
       snprintf(reply, sizeof(reply), "Peer: %s   naddrs: %d", ip_addr, tmp->num_virt_addrs);
       mgmt_writeline(req_fd, reply, strlen(reply));
 
@@ -2440,9 +2342,9 @@ checkBackDoor(int req_fd, char *message)
     return true;
   } else if (strstr(message, "dump: lm")) {
 
-    ink_strncpy(reply, "---------------------------", sizeof(reply));
+    ink_strlcpy(reply, "---------------------------", sizeof(reply));
     mgmt_writeline(req_fd, reply, strlen(reply));
-    ink_strncpy(reply, "Local Manager:\n", sizeof(reply));
+    ink_strlcpy(reply, "Local Manager:\n", sizeof(reply));
     mgmt_writeline(req_fd, reply, strlen(reply));
 
     snprintf(reply, sizeof(reply), "\tproxy_running: %s", (lmgmt->proxy_running ? "true" : "false"));
@@ -2462,24 +2364,18 @@ checkBackDoor(int req_fd, char *message)
              (lmgmt->mgmt_shutdown_outstanding ? "true" : "false"));
     mgmt_writeline(req_fd, reply, strlen(reply));
 
-#if !defined(_WIN32)
     // XXX: Again multiple code caused by misssing PID_T_FMT
 // TODO: Was #if defined(solaris) && (!defined(_FILE_OFFSET_BITS) || _FILE_OFFSET_BITS != 64)
 #if defined(solaris)
     snprintf(reply, sizeof(reply), "\twatched_process_fd: %d  watched_process_pid: %ld\n",
-             lmgmt->watched_process_fd, lmgmt->watched_process_pid);
+             lmgmt->watched_process_fd, (long int)lmgmt->watched_process_pid);
 #else
     snprintf(reply, sizeof(reply), "\twatched_process_fd: %d  watched_process_pid: %d\n",
              lmgmt->watched_process_fd, lmgmt->watched_process_pid);
 #endif
     mgmt_writeline(req_fd, reply, strlen(reply));
-#else // We don't have unix domain sockets on NT
-    snprintf(reply, sizeof(reply), "\tprocess_server_hpipe: %d  watched_process_pid: %ld\n",
-             lmgmt->process_server_hpipe, lmgmt->watched_process_pid);
-    mgmt_writeline(req_fd, reply, strlen(reply));
-#endif
 
-    ink_strncpy(reply, "---------------------------\n", sizeof(reply));
+    ink_strlcpy(reply, "---------------------------\n", sizeof(reply));
     mgmt_writeline(req_fd, reply, strlen(reply));
     return true;
   } else if (strstr(message, "cluster: ")) {

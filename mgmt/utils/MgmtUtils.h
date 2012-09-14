@@ -45,20 +45,14 @@ void mgmt_blockAllSigs();
 int mgmt_readline(int fd, char *buf, int maxlen);
 int mgmt_writeline(int fd, const char *data, int nbytes);
 
-#if !defined(_WIN32)
 int mgmt_read_pipe(int fd, char *buf, int bytes_to_read);
 int mgmt_write_pipe(int fd, char *buf, int bytes_to_write);
-#else
-int mgmt_read_pipe(HANDLE hpipe, char *buf, int maxlen);
-int mgmt_write_pipe(HANDLE hpipe, char *data, int nbytes);
-#endif
 
 void mgmt_use_syslog();
 void mgmt_cleanup();
 
 struct in_addr *mgmt_sortipaddrs(int num, struct in_addr **list);
-char *mgmt_localhost_ip();
-bool mgmt_getAddrForIntr(char *intrName, struct in_addr *addr, int *mtu = 0);
+bool mgmt_getAddrForIntr(char *intrName, sockaddr* addr, int *mtu = 0);
 
 /* the following functions are all DEPRECATED.  The Diags
    interface should be used exclusively in the future */

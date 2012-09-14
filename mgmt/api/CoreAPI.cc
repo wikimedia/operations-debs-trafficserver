@@ -133,7 +133,7 @@ Diags(TSDiagsT mode, const char *fmt, va_list ap)
   }
 
   if (diags_init) {             // check that diags is initialized
-    diags->print_va("TSMgmtAPI", level, NULL, NULL, fmt, ap);
+    diags->print_va("TSMgmtAPI", level, NULL, fmt, ap);
     va_end(ap);
   }
 }
@@ -201,15 +201,13 @@ ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
         goto Lerror;
 
       snprintf(tsArgs, MAX_BUF_SIZE, "%s", proxy_options);
-      xfree(proxy_options);
+      ats_free(proxy_options);
       break;
     }
 
     if (strlen(tsArgs) > 0) {   /* Passed command line args for proxy */
-      if (lmgmt->proxy_options) {
-        xfree(lmgmt->proxy_options);
-      }
-      lmgmt->proxy_options = xstrdup(tsArgs);
+      ats_free(lmgmt->proxy_options);
+      lmgmt->proxy_options = ats_strdup(tsArgs);
       mgmt_log("[ProxyStateSet] Traffic Server Args: '%s'\n", lmgmt->proxy_options);
     }
 
@@ -315,7 +313,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
   Debug("RecOp", "[MgmtRecordGet] Start\n");
 
   // initialize the record name
-  rec_ele->rec_name = xstrdup(rec_name);
+  rec_ele->rec_name = ats_strdup(rec_name);
   memset(rec_val, 0, MAX_BUF_SIZE);
 
   // get variable type; returns INVALID if invalid rec_name
@@ -327,7 +325,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->counter_val = (TSCounter) counter_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %d\n", rec_ele->rec_name, rec_ele->counter_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
     break;
 
   case RECD_INT:
@@ -336,7 +334,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->int_val = (TSInt) int_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %d\n", rec_ele->rec_name, rec_ele->int_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
     break;
 
   case RECD_FLOAT:
@@ -354,9 +352,9 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
 
     if (rec_val[0] != '\0') {   // non-NULL string value
       // allocate memory & duplicate string value
-      str_val = xstrdup(rec_val);
+      str_val = ats_strdup(rec_val);
     } else {
-      str_val = xstrdup("NULL");
+      str_val = ats_strdup("NULL");
     }
 
     rec_ele->rec_type = TS_REC_STRING;
@@ -553,22 +551,19 @@ ReadFile(TSFileNameT file, char **text, int *size, int *version)
   ret = configFiles->getRollbackObj(fname, &file_rb);
   if (ret != TRUE) {
     Debug("FileOp", "[get_lines_from_file] Can't get Rollback for file: %s\n", fname);
-    xfree(fname);
+    ats_free(fname);
     return TS_ERR_READ_FILE;
   }
-  xfree(fname);
+  ats_free(fname);
   ver = file_rb->getCurrentVersion();
   file_rb->getVersion(ver, &old_file_content);
   *version = ver;
 
   // don't need to allocate memory b/c "getVersion" allocates memory
-#ifdef _WIN32                   // BZ48741
-  convertHtmlToUnix(old_file_content->bufPtr());
-#endif
   old_file_lines = old_file_content->bufPtr();
   old_file_len = strlen(old_file_lines);
 
-  *text = xstrdup(old_file_lines);      //make copy before deleting textBuffer
+  *text = ats_strdup(old_file_lines);      //make copy before deleting textBuffer
   *size = old_file_len;
 
   delete old_file_content;      // delete textBuffer
@@ -608,7 +603,7 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
     mgmt_log(stderr, "[CfgFileIO::WriteFile] ERROR getting rollback object\n");
     //goto generate_error_msg;
   }
-  xfree(fname);
+  ats_free(fname);
 
   // if version < 0 then, just use next version in sequence;
   // otherwise check if trying to commit an old version
@@ -800,9 +795,8 @@ SnapshotTake(char *snapshot_name)
   // XXX: Why was that offset to config dir?
   //      Any path should be prefix relative thought
   //
-  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir,
-                      snapDirFromRecordsConf);
-  xfree(snapDirFromRecordsConf);
+  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir, snapDirFromRecordsConf);
+  ats_free(snapDirFromRecordsConf);
 
   SnapResult result = configFiles->takeSnap(snapshot_name, snapDir);
   if (result != SNAP_OK)
@@ -827,12 +821,11 @@ SnapshotRestore(char *snapshot_name)
   // XXX: Why was that offset to config dir?
   //      Any path should be prefix relative thought
   //
-  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir,
-                      snapDirFromRecordsConf);
-  xfree(snapDirFromRecordsConf);
+  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir, snapDirFromRecordsConf);
+  ats_free(snapDirFromRecordsConf);
 
   SnapResult result = configFiles->restoreSnap(snapshot_name, snapDir);
-  xfree(snapDirFromRecordsConf);
+  ats_free(snapDirFromRecordsConf);
   if (result != SNAP_OK)
     return TS_ERR_FAIL;
   else
@@ -855,12 +848,11 @@ SnapshotRemove(char *snapshot_name)
   // XXX: Why was that offset to config dir?
   //      Any path should be prefix relative thought
   //
-  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir,
-                      snapDirFromRecordsConf);
-  xfree(snapDirFromRecordsConf);
+  Layout::relative_to(snapDir, sizeof(snapDir), Layout::get()->sysconfdir, snapDirFromRecordsConf);
+  ats_free(snapDirFromRecordsConf);
 
   SnapResult result = configFiles->removeSnap(snapshot_name, snapDir);
-  xfree(snapDirFromRecordsConf);
+  ats_free(snapDirFromRecordsConf);
   if (result != SNAP_OK)
     return TS_ERR_FAIL;
   else
@@ -884,7 +876,7 @@ SnapshotGetMlt(LLQ * snapshots)
   for (int i = 0; i < num_snaps; i++) {
     snap_name = (char *) (snap_list[i]);
     if (snap_name)
-      enqueue(snapshots, xstrdup(snap_name));
+      enqueue(snapshots, ats_strdup(snap_name));
   }
 
   return TS_ERR_OKAY;

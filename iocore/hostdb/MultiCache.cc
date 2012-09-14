@@ -319,7 +319,7 @@ _zorch_file(void *arg)
   char *vals;
 
   if (info) {
-    if ((vals = (char *) malloc(MAX_ZORCH_BUFFER)) != NULL) {
+    if ((vals = (char *)ats_malloc(MAX_ZORCH_BUFFER)) != NULL) {
       memset(vals, info->val, MAX_ZORCH_BUFFER);
       while (info->fsize < info->size) {
         amount = MAX_ZORCH_BUFFER;
@@ -330,7 +330,7 @@ _zorch_file(void *arg)
           break;
         info->fsize += amount;
       }
-      free(vals);
+      ats_free(vals);
     }
     delete info;
     ink_atomic_increment((int *) &nzorchers, -1);
@@ -385,7 +385,7 @@ MultiCacheBase::mmap_data(bool private_flag, bool zero_fill)
   // open files
   //
   if (!store || !store->n_disks)
-    goto Lvalloc;
+    goto Lalloc;
   for (i = 0; i < store->n_disks; i++) {
     Span *ds = store->disk[i];
     for (int j = 0; j < store->disk[i]->paths(); j++) {
@@ -400,15 +400,15 @@ MultiCacheBase::mmap_data(bool private_flag, bool zero_fill)
       if (fds[n_fds] < 0) {
         if (!zero_fill) {
           Warning("unable to open file '%s': %d, %s", path, errno, strerror(errno));
-          goto Lvalloc;
+          goto Lalloc;
         }
         fds[n_fds] = 0;
       }
       if (!d->file_pathname) {
         if (zorch_file(path, fds[n_fds], (int64_t) d->blocks * (int64_t) STORE_BLOCK_SIZE, 0)) {
-          Warning("unable to set file size '%s' to %" PRId64 ": %d, %s",
-                  (int64_t) d->blocks * STORE_BLOCK_SIZE, path, errno, strerror(errno));
-          goto Lvalloc;
+          Warning("unable to set file '%s' size to %" PRId64 ": %d, %s",
+                  path, (int64_t) d->blocks * STORE_BLOCK_SIZE, errno, strerror(errno));
+          goto Lalloc;
         }
       }
       n_fds++;
@@ -510,12 +510,13 @@ MultiCacheBase::mmap_data(bool private_flag, bool zero_fill)
     if (fds[i] >= 0)
       ink_assert(!socketManager.close(fds[i]));
   return 0;
-Lvalloc:
+Lalloc:
   {
     if (data)
       free(data);
     char *cur = 0;
-    data = (char *) valloc(totalsize);
+
+    data = (char *)ats_memalign(sysconf(_SC_PAGESIZE), totalsize);
     cur = data + STORE_BLOCK_SIZE * blocks_in_level(0);
     if (levels > 1)
       cur = data + STORE_BLOCK_SIZE * blocks_in_level(1);
@@ -1141,8 +1142,8 @@ MultiCacheBase::fixup_heap_offsets(int partition, int before_used, UnsunkPtrRegi
   for (int i = 0; i < r->n; i++) {
     UnsunkPtr & p = r->ptrs[i];
     if (p.offset) {
-      Debug("multicache", "fixup p.offset %d offset %d %d part %d",
-            p.offset, *p.poffset, (char *) p.poffset - data, partition);
+      Debug("multicache", "fixup p.offset %d offset %d %" PRId64 " part %d",
+            p.offset, *p.poffset, (int64_t)((char *) p.poffset - data), partition);
       if (*p.poffset == -(i + base) - 1) {
         if (halfspace_of(p.offset) != heap_halfspace) {
           ink_assert(0);
@@ -1156,7 +1157,8 @@ MultiCacheBase::fixup_heap_offsets(int partition, int before_used, UnsunkPtrRegi
         }
       } else {
         Debug("multicache",
-              "not found %d i %d base %d *p.poffset = %d, rr = %d\n", (char *) p.poffset - data, i, base, *p.poffset);
+              "not found %" PRId64 " i %d base %d *p.poffset = %d",
+              (int64_t)((char *) p.poffset - data), i, base, *p.poffset);
       }
       p.offset = 0;
       p.poffset = (int *) r->next_free;
@@ -1246,15 +1248,14 @@ MultiCacheHeapGC(Continuation *acont, MultiCacheBase *amc):
   Continuation(amc->locks[0]), cont(acont), mc(amc), partition(0), n_offsets(0) {
 
     SET_HANDLER((MCacheHeapGCHandler) & MultiCacheHeapGC::startEvent);
-    offset_table = (OffsetTable *)
-      xmalloc(sizeof(OffsetTable) *
-              ((mc->totalelements / MULTI_CACHE_PARTITIONS) + mc->elements[mc->levels - 1] * 3 + 1));
+    offset_table = (OffsetTable *)ats_malloc(sizeof(OffsetTable) *
+        ((mc->totalelements / MULTI_CACHE_PARTITIONS) + mc->elements[mc->levels - 1] * 3 + 1));
     // flip halfspaces
     mutex = mc->locks[partition];
     mc->heap_halfspace = mc->heap_halfspace ? 0 : 1;
   }
   ~MultiCacheHeapGC() {
-    xfree(offset_table);
+    ats_free(offset_table);
   }
 };
 
@@ -1274,7 +1275,7 @@ void
 MultiCacheBase::copy_heap_data(char *src, int s, int *pi, int partition, MultiCacheHeapGC *gc)
 {
   char *dest = (char *) alloc(NULL, s);
-  Debug("multicache", "copy %X to %X", src, dest);
+  Debug("multicache", "copy %p to %p", src, dest);
   if (dest) {
     memcpy(dest, src, s);
     if (*pi < 0) {              // already in the unsunk ptr registry, ok to change there
@@ -1303,8 +1304,7 @@ UnsunkPtrRegistry::UnsunkPtrRegistry()
 
 UnsunkPtrRegistry::~UnsunkPtrRegistry()
 {
-  if (ptrs)
-    xfree(ptrs);
+  ats_free(ptrs);
 }
 
 void
@@ -1312,7 +1312,7 @@ UnsunkPtrRegistry::alloc_data()
 {
   int bs = MULTI_CACHE_UNSUNK_PTR_BLOCK_SIZE(mc->totalelements);
   size_t s = bs * sizeof(UnsunkPtr);
-  ptrs = (UnsunkPtr *) xmalloc(s);
+  ptrs = (UnsunkPtr *)ats_malloc(s);
   for (int i = 0; i < bs; i++) {
     ptrs[i].offset = 0;
     ptrs[i].poffset = (int *) &ptrs[i + 1];
@@ -1368,7 +1368,8 @@ MultiCacheBase::alloc(int *poffset, int asize)
     UnsunkPtr *up = unsunk[part].alloc(poffset);
     up->offset = offset;
     up->poffset = poffset;
-    Debug("multicache", "alloc unsunk %d at %d part %d offset %d", *poffset, (char *) poffset - data, part, offset);
+    Debug("multicache", "alloc unsunk %d at %" PRId64 " part %d offset %d",
+          *poffset, (int64_t)((char *) poffset - data), part, offset);
   }
   return (void *) p;
 }
@@ -1392,7 +1393,7 @@ void *
 MultiCacheBase::ptr(int *poffset, int partition)
 {
   int o = *poffset;
-  Debug("multicache", "ptr %d part %d %d", (char *) poffset - data, partition, o);
+  Debug("multicache", "ptr %" PRId64 " part %d %d", (int64_t)((char *) poffset - data), partition, o);
   if (o > 0) {
     if (!valid_offset(o)) {
       ink_assert(!"bad offset");
@@ -1415,7 +1416,7 @@ void
 MultiCacheBase::update(int *poffset, int *old_poffset)
 {
   int o = *poffset;
-  Debug("multicache", "updating %d %d", (char *) poffset - data, o);
+  Debug("multicache", "updating %" PRId64 " %d", (int64_t)((char *) poffset - data), o);
   if (o > 0) {
     if (!valid_offset(o)) {
       ink_assert(!"bad poffset");

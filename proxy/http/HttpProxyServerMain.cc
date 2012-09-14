@@ -34,9 +34,7 @@
 #include "HttpPages.h"
 #include "HttpTunnel.h"
 #include "Tokenizer.h"
-
-HttpPortEntry *http_port_attr_array = NULL;
-HttpOtherPortEntry *http_other_port_array = NULL;
+#include "P_SSLNextProtocolAccept.h"
 
 #ifdef DEBUG
 extern "C"
@@ -76,131 +74,44 @@ struct DumpStats: public Continuation
   }
 };
 
-
-struct Attributes {
-  HttpPortTypes type;
-  int domain;
-  bool f_outbound_transparent;
-  bool f_inbound_transparent;
-
-  Attributes()
-    : type(SERVER_PORT_DEFAULT)
-    , domain(AF_INET)
-    , f_outbound_transparent(false)
-    , f_inbound_transparent(false)
-  {}
-};
-
-void get_connection_attributes(const char *attr, Attributes *result) {
-  int attr_len;
-
-  result->type = SERVER_PORT_DEFAULT;
-  result->domain = AF_INET;
-
-  if (!attr ) return;
-
-  attr_len = strlen(attr);
-
-  if (attr_len > 2) {
-    Warning("too many port attributes: '%s'", attr);
-    return;
-  } else if (attr_len <= 0) {
-    return;
-  }
-
-  switch (*attr) {
-  case 'C': result->type = SERVER_PORT_COMPRESSED; break;
-  case '<':
-    result->f_outbound_transparent = true;
-    result->type = SERVER_PORT_DEFAULT;
-    break;
-  case '=':
-    result->f_outbound_transparent = true;
-    result->f_inbound_transparent = true;
-    result->type = SERVER_PORT_DEFAULT;
-    break;
-  case '>':
-    result->f_inbound_transparent = true;
-    result->type = SERVER_PORT_DEFAULT;
-    break;
-  case 'X': result->type = SERVER_PORT_DEFAULT; break;
-  case 'T': result->type = SERVER_PORT_BLIND_TUNNEL; break;
-  default: Warning("unknown port attribute '%s'", attr); break;
-  }
-
-  if (attr_len >= 2) {
-    switch (*(attr + 1)) {
-    case '6': result->domain = AF_INET6; break;
-    default: result->domain = AF_INET;
-    }
-  }
-}
-
-
-static HttpOtherPortEntry *
-parse_http_server_other_ports()
-{
-  int list_entries;
-  int accept_index = 0;
-  int port = 0;
-  char *other_ports_str = NULL;
-  char *cur_entry;
-  char *attr_str;
-  Tokenizer listTok(", ");
-  HttpOtherPortEntry *additional_ports_array;
-
-  other_ports_str = HTTP_ConfigReadString("proxy.config.http.server_other_ports");
-
-  if (!other_ports_str || *other_ports_str == '\0') {
-    return NULL;
-  }
-
-  list_entries = listTok.Initialize(other_ports_str, SHARE_TOKS);
-
-  if (list_entries > 0) {
-    additional_ports_array = new HttpOtherPortEntry[list_entries + 1];
-    additional_ports_array[0].port = -1;
-  } else {
-    return NULL;
-  }
-
-  for (int i = 0; i < list_entries; i++) {
-    cur_entry = (char *) listTok[i];
-
-    // Check to see if there is a port attribute
-    attr_str = strchr(cur_entry, ':');
-    if (attr_str != NULL) {
-      *attr_str = '\0';
-      attr_str = attr_str + 1;
-    }
-    // Port value
-    // coverity[secure_coding]
-    // sscanf of token from tokenizer
-    if (sscanf(cur_entry, "%d", &port) != 1) {
-      Warning("failed to read accept port, discarding");
-      continue;
-    }
-
-    additional_ports_array[accept_index].port = port;
-
-    Attributes attr;
-    get_connection_attributes(attr_str, &attr);
-    additional_ports_array[accept_index].type = attr.type;
-    additional_ports_array[accept_index].domain = attr.domain;
-    additional_ports_array[accept_index].f_outbound_transparent = attr.f_outbound_transparent;
-    additional_ports_array[accept_index].f_inbound_transparent = attr.f_inbound_transparent;
-
-    accept_index++;
-  }
-
-  ink_assert(accept_index < list_entries + 1);
-
-  additional_ports_array[accept_index].port = -1;
-
-  return additional_ports_array;
-}
-
 HttpAccept *plugin_http_accept = NULL;
+HttpAccept *plugin_http_transparent_accept = 0;
+
+#if !defined(TS_NO_API)
+static SLL<SSLNextProtocolAccept> ssl_plugin_acceptors;
+static ProcessMutex ssl_plugin_mutex;
+
+bool
+ssl_register_protocol(const char * protocol, Continuation * contp)
+{
+  ink_scoped_mutex lock(ssl_plugin_mutex);
+
+  for (SSLNextProtocolAccept * ssl = ssl_plugin_acceptors.head;
+        ssl; ssl = ssl_plugin_acceptors.next(ssl)) {
+    if (!ssl->registerEndpoint(protocol, contp)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool
+ssl_unregister_protocol(const char * protocol, Continuation * contp)
+{
+  ink_scoped_mutex lock(ssl_plugin_mutex);
+
+  for (SSLNextProtocolAccept * ssl = ssl_plugin_acceptors.head;
+        ssl; ssl = ssl_plugin_acceptors.next(ssl)) {
+    // Ignore possible failure because we want to try to unregister
+    // from all SSL ports.
+    ssl->unregisterEndpoint(protocol, contp);
+  }
+
+  return true;
+}
+
+#endif /* !defined(TS_NO_API) */
 
 /////////////////////////////////////////////////////////////////
 //
@@ -213,7 +124,7 @@ init_HttpProxyServer(void)
 #ifndef INK_NO_REVERSE
   init_reverse_proxy();
 #endif
-  HttpConfig::startup();
+//  HttpConfig::startup();
   httpSessionManager.init();
   http_pages_init();
   ink_mutex_init(&debug_sm_list_mutex, "HttpSM Debug List");
@@ -229,122 +140,88 @@ init_HttpProxyServer(void)
   //   port but without going through the operating system
   //
   if (plugin_http_accept == NULL) {
-    plugin_http_accept = NEW(new HttpAccept(SERVER_PORT_DEFAULT, false));
+    plugin_http_accept = NEW(new HttpAccept);
     plugin_http_accept->mutex = new_ProxyMutex();
   }
+  // Same as plugin_http_accept except outbound transparent.
+  if (! plugin_http_transparent_accept) {
+    HttpAccept::Options ha_opt;
+    ha_opt.setOutboundTransparent(true);
+    plugin_http_transparent_accept = NEW(new HttpAccept(ha_opt));
+    plugin_http_transparent_accept->mutex = new_ProxyMutex();
+  }
+  ink_mutex_init(&ssl_plugin_mutex, "SSL Acceptor List");
 #endif
 }
 
 
 void
-start_HttpProxyServer(int fd, int port, int ssl_fd, int accept_threads)
+start_HttpProxyServer(int accept_threads)
 {
   char *dump_every_str = 0;
   static bool called_once = false;
-
-  ////////////////////////////////
-  // check if accept port is in //
-  // network safe range.        //
-  ////////////////////////////////
-  if ((port<1) || (port> 65535)) {
-
-    ProcessFatal("accept port %d is not between 1 and 65535 ", "please check configuration", port);
-    return;
-  }
-
+  NetProcessor::AcceptOptions opt;
 
   if ((dump_every_str = getenv("PROXY_DUMP_STATS")) != 0) {
     int dump_every_sec = atoi(dump_every_str);
     eventProcessor.schedule_every(NEW(new DumpStats), HRTIME_SECONDS(dump_every_sec), ET_CALL);
   }
 
-/*
-    char * state_machines_max_count = NULL;
-    if ((state_machines_max_count =
-         getenv("HTTP_STATE_MACHINE_MAX_COUNT")) != 0)
-    {
-        HttpStateMachine::m_state_machines_max_count =
-            atoi(state_machines_max_count);
-
-        ink_release_assert (HttpStateMachine::m_state_machines_max_count >= 1);
-    }
-    */
   ///////////////////////////////////
   // start accepting connections   //
   ///////////////////////////////////
-  char *attr_string = 0;
-  static HttpPortTypes type = SERVER_PORT_DEFAULT;
-  NetProcessor::AcceptOptions opt;
-  opt.port = port;
+
+  ink_assert(!called_once);
+
   opt.accept_threads = accept_threads;
-
-  if (!called_once) {
-    // function can be called several times : do memory allocation once
-    REC_ReadConfigStringAlloc(attr_string, "proxy.config.http.server_port_attr");
-    REC_ReadConfigInteger(opt.recv_bufsize, "proxy.config.net.sock_recv_buffer_size_in");
-    REC_ReadConfigInteger(opt.send_bufsize, "proxy.config.net.sock_send_buffer_size_in");
-    REC_ReadConfigInteger(opt.sockopt_flags, "proxy.config.net.sock_option_flag_in");
-
-    if (attr_string) {
-      Attributes attr;
-      get_connection_attributes(attr_string, &attr);
-      type = attr.type;
-      opt.domain = attr.domain;
-      Debug("http_tproxy", "Primary listen socket transparency is %s\n",
-            attr.f_inbound_transparent &&  attr.f_outbound_transparent ? "bidirectional"
-            : attr.f_inbound_transparent ? "inbound"
-            : attr.f_outbound_transparent ? "outbound"
-            : "off"
-            );
-      opt.f_outbound_transparent = attr.f_outbound_transparent;
-      opt.f_inbound_transparent = attr.f_inbound_transparent;
-      xfree(attr_string);
-    }
-    called_once = true;
-    if (http_port_attr_array) {
-      for (int i = 0; http_port_attr_array[i].fd != NO_FD; i++) {
-        HttpPortEntry & e = http_port_attr_array[i];
-        if (e.fd)
-          netProcessor.main_accept(NEW(new HttpAccept(e.type)), e.fd, NULL, NULL, false, false, opt);
-      }
-    } else {
-      // If traffic_server wasn't started with -A, get the list
-      // of other ports directly.
-      http_other_port_array = parse_http_server_other_ports();
-    }
-  }
-  if (!http_port_attr_array) {
-    netProcessor.main_accept(NEW(new HttpAccept(type)), fd,  NULL, NULL, false, false, opt);
-
-    if (http_other_port_array) {
-      for (int i = 0; http_other_port_array[i].port != -1; i++) {
-        HttpOtherPortEntry & e = http_other_port_array[i];
-        if ((e.port<1) || (e.port> 65535))
-          Warning("additional port out of range ignored: %d", e.port);
-        else {
-          opt.port = e.port;
-          opt.domain = e.domain;
-          opt.f_outbound_transparent = e.f_outbound_transparent;
-          netProcessor.main_accept(NEW(new HttpAccept(e.type)), fd, NULL, NULL, false, false, opt);
-        }
-      }
-    }
-  } else {
-    for (int i = 0; http_port_attr_array[i].fd != NO_FD; i++) {
-      HttpPortEntry & e = http_port_attr_array[i];
-      if (!e.fd) {
-        netProcessor.main_accept(NEW(new HttpAccept(type)), fd, NULL, NULL, false, false, opt);
-      }
-    }
-  }
-
+  REC_ReadConfigInteger(opt.recv_bufsize, "proxy.config.net.sock_recv_buffer_size_in");
+  REC_ReadConfigInteger(opt.send_bufsize, "proxy.config.net.sock_send_buffer_size_in");
+  REC_ReadConfigInteger(opt.packet_mark, "proxy.config.net.sock_packet_mark_in");
+  REC_ReadConfigInteger(opt.packet_tos, "proxy.config.net.sock_packet_tos_in");
   SslConfigParams *sslParam = sslTerminationConfig.acquire();
+  
+  for ( int i = 0 , n = HttpProxyPort::global().length() ; i < n ; ++i ) {
+    HttpProxyPort& p = HttpProxyPort::global()[i];
+    HttpAccept::Options ha_opt;
 
-  if (sslParam->getTerminationMode() & sslParam->SSL_TERM_MODE_CLIENT) {
-    opt.reset();
-    opt.port = sslParam->getAcceptPort();
-    opt.accept_threads = accept_threads;
-    sslNetProcessor.main_accept(NEW(new HttpAccept(SERVER_PORT_SSL)), ssl_fd, 0, 0, false, false, opt);
+    opt.f_inbound_transparent = p.m_inbound_transparent_p;
+    opt.ip_family = p.m_family;
+    opt.local_port = p.m_port;
+
+    ha_opt.f_outbound_transparent = p.m_outbound_transparent_p;
+    ha_opt.transport_type = p.m_type;
+
+    if (p.m_inbound_ip.isValid())
+      opt.local_ip = p.m_inbound_ip;
+    else if (AF_INET6 == p.m_family && HttpConfig::m_master.inbound_ip6.isIp6())
+      opt.local_ip = HttpConfig::m_master.inbound_ip6;
+    else if (AF_INET == p.m_family && HttpConfig::m_master.inbound_ip4.isIp4())
+      opt.local_ip = HttpConfig::m_master.inbound_ip4;
+
+    if (p.m_outbound_ip4.isValid())
+      ha_opt.outbound_ip4 = p.m_outbound_ip4;
+    else if (HttpConfig::m_master.outbound_ip4.isValid())
+      ha_opt.outbound_ip4 = HttpConfig::m_master.outbound_ip4;
+
+    if (p.m_outbound_ip6.isValid())
+      ha_opt.outbound_ip6 = p.m_outbound_ip6;
+    else if (HttpConfig::m_master.outbound_ip6.isValid())
+      ha_opt.outbound_ip6 = HttpConfig::m_master.outbound_ip6;
+
+    if (p.isSSL()) {
+      HttpAccept * http = NEW(new HttpAccept(ha_opt));
+      SSLNextProtocolAccept * ssl = NEW(new SSLNextProtocolAccept(http));
+      ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_0, http);
+      ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_1, http);
+
+#ifndef TS_NO_API
+      ink_scoped_mutex lock(ssl_plugin_mutex);
+      ssl_plugin_acceptors.push(ssl);
+#endif
+      sslNetProcessor.main_accept(ssl, p.m_fd, opt);
+    } else {
+      netProcessor.main_accept(NEW(new HttpAccept(ha_opt)), p.m_fd, opt);
+    }
   }
 
   sslTerminationConfig.release(sslParam);
@@ -365,9 +242,13 @@ void
 start_HttpProxyServerBackDoor(int port, int accept_threads)
 {
   NetProcessor::AcceptOptions opt;
+  HttpAccept::Options ha_opt;
 
-  opt.port = port;
+  opt.local_port = port;
   opt.accept_threads = accept_threads;
+  opt.localhost_only = true;
+  ha_opt.backdoor = true;
+  
   // The backdoor only binds the loopback interface
-  netProcessor.main_accept(NEW(new HttpAccept(SERVER_PORT_DEFAULT, true)), NO_FD, 0, 0, false, true, opt);
+  netProcessor.main_accept(NEW(new HttpAccept(ha_opt)), NO_FD, opt);
 }

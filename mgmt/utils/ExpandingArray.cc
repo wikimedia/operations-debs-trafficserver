@@ -33,7 +33,7 @@ ExpandingArray::ExpandingArray(int initialSize, bool freeContents)
     initialSize = EA_MIN_SIZE;
   }
 
-  internalArray = (void **) xmalloc(initialSize * sizeof(void *));
+  internalArray = (void **)ats_malloc(initialSize * sizeof(void *));
 
   freeContentsOnDestruct = freeContents;
   internalArraySize = initialSize;
@@ -45,10 +45,10 @@ ExpandingArray::~ExpandingArray()
 
   if (freeContentsOnDestruct == true) {
     for (int i = 0; i < numValidValues; i++) {
-      xfree(internalArray[i]);
+      ats_free(internalArray[i]);
     }
   }
-  xfree(internalArray);
+  ats_free(internalArray);
 }
 
 void *
@@ -68,7 +68,7 @@ ExpandingArray::addEntry(void *entry)
 
   if (numValidValues == internalArraySize) {
     // Time to increase the size of the array
-    internalArray = (void **) xrealloc(internalArray, 2 * sizeof(void *) * internalArraySize);
+    internalArray = (void **)ats_realloc(internalArray, 2 * sizeof(void *) * internalArraySize);
     internalArraySize *= 2;
   }
 

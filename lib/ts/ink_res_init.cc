@@ -65,8 +65,6 @@
  */
 
 
-#if !defined (_WIN32)
-
 #include "ink_platform.h"
 
 #include <sys/types.h>
@@ -88,18 +86,11 @@
 
 #include "ink_string.h"
 #include "ink_resolver.h"
-
-#if !defined(linux)
-int inet_aton(register const char *cp, struct in_addr *addr);
-#endif
+#include "ink_inet.h"
 
 #if !defined(isascii)           /* XXX - could be a function */
 # define isascii(c) (!(c & 0200))
 #endif
-
-#define DOT_SEPARATED(_x)                                   \
-  ((unsigned char*)&(_x))[0], ((unsigned char*)&(_x))[1],   \
-    ((unsigned char*)&(_x))[2], ((unsigned char*)&(_x))[3]
 
 /*%
  * This routine is for closing the socket if a virtual circuit is used and
@@ -118,98 +109,43 @@ ink_res_nclose(ink_res_state statp) {
 }
 
 static void
-ink_res_ndestroy(ink_res_state statp) {
-  ink_res_nclose(statp);
-  if (statp->_u._ext.ext != NULL)
-    free(statp->_u._ext.ext);
-  statp->options &= ~INK_RES_INIT;
-  statp->_u._ext.ext = NULL;
-}
-
-static void
-ink_res_setservers(ink_res_state statp, const union ink_res_sockaddr_union *set, int cnt) {
-  int i, nserv;
-  size_t size;
-
+ink_res_setservers(ink_res_state statp, IpEndpoint const* set, int cnt) {
   /* close open servers */
   ink_res_nclose(statp);
 
   /* cause rtt times to be forgotten */
-  statp->_u._ext.nscount = 0;
+  statp->nscount = 0;
 
-  nserv = 0;
-  for (i = 0; i < cnt && nserv < INK_MAXNS; i++) {
-    switch (set->sin.sin_family) {
-      case AF_INET:
-        size = sizeof(set->sin);
-        if (statp->_u._ext.ext)
-          memcpy(&statp->_u._ext.ext->nsaddrs[nserv], &set->sin, size);
-        if (size <= sizeof(statp->nsaddr_list[nserv].sin))
-          memcpy(&statp->nsaddr_list[nserv].sin, &set->sin, size);
-        else
-          statp->nsaddr_list[nserv].sin.sin_family = 0;
-        nserv++;
-        break;
+  /* The goal here seems to be to compress the source list (@a set) by
+     squeezing out invalid addresses. We handle the special case where
+     the destination and sourcea are the same.
+  */
+  int nserv = 0;
+  for ( IpEndpoint const* limit = set + cnt ; nserv < INK_MAXNS && set < limit ; ++set ) {
+    IpEndpoint* dst = &statp->nsaddr_list[nserv];
 
-#ifdef HAS_INET6_STRUCTS
-      case AF_INET6:
-        size = sizeof(set->sin6);
-        if (statp->_u._ext.ext)
-          memcpy(&statp->_u._ext.ext->nsaddrs[nserv], &set->sin6, size);
-        if (size <= sizeof(statp->nsaddr_list[nserv].sin6))
-          memcpy(&statp->nsaddr_list[nserv].sin6, &set->sin6, size);
-        else
-          statp->nsaddr_list[nserv].sin6.sin6_family = 0;
-        nserv++;
-        break;
-#endif
-
-      default:
-        break;
+    if (dst == set) {
+      if (ats_is_ip(&set->sa))
+        ++nserv;
+    } else if (ats_ip_copy(&dst->sa, &set->sa)) {
+      ++nserv;
     }
-    set++;
   }
   statp->nscount = nserv;
 }
 
 int
-ink_res_getservers(ink_res_state statp, union ink_res_sockaddr_union *set, int cnt) {
-  int i;
-  size_t size;
-  u_int16_t family;
+ink_res_getservers(ink_res_state statp, sockaddr *set, int cnt) {
+  int zret = 0; // return count.
+  IpEndpoint const* src = statp->nsaddr_list;
 
-  for (i = 0; i < statp->nscount && i < cnt; i++) {
-    if (statp->_u._ext.ext)
-      family = statp->_u._ext.ext->nsaddrs[i].sin.sin_family;
-    else
-      family = statp->nsaddr_list[i].sin.sin_family;
-
-    switch (family) {
-      case AF_INET:
-        size = sizeof(set->sin);
-        if (statp->_u._ext.ext)
-          memcpy(&set->sin, &statp->_u._ext.ext->nsaddrs[i], size);
-        else
-          memcpy(&set->sin, &statp->nsaddr_list[i].sin, size);
-        break;
-
-#ifdef HAS_INET6_STRUCTS
-      case AF_INET6:
-        size = sizeof(set->sin6);
-        if (statp->_u._ext.ext)
-          memcpy(&set->sin6, &statp->_u._ext.ext->nsaddrs[i], size);
-        else
-          memcpy(&set->sin6, &statp->nsaddr_list[i].sin6, size);
-        break;
-#endif
-
-      default:
-        set->sin.sin_family = 0;
-        break;
+  for (int i = 0; i < statp->nscount && i < cnt; ++i, ++src) {
+    if (ats_ip_copy(set, &src->sa)) {
+      ++set;
+      ++zret;
     }
-    set++;
   }
-  return (statp->nscount);
+  return zret;
 }
 
 static void
@@ -337,25 +273,30 @@ ink_res_randomid(void) {
  * in the configuration file.
  *
  * Return 0 if completes successfully, -1 on error
+ *
+ * @internal This function has to be reachable by res_data.c but not publically.
  */
-/*% This function has to be reachable by res_data.c but not publically. */
 int
-ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPort, const char *pDefDomain, const char *pSearchList,
-             const char *pResolvConf) {
+ink_res_init(
+  ink_res_state statp, ///< State object to update.
+  IpEndpoint const* pHostList, ///< Additional servers.
+  size_t pHostListSize, ///< # of entries in @a pHostList.
+  const char *pDefDomain, ///< Default domain (may be NULL).
+  const char *pSearchList, ///< Unknown
+  const char *pResolvConf ///< Path to configuration file.
+) {
   register FILE *fp;
   register char *cp, **pp;
   register int n;
   char buf[BUFSIZ];
-  int nserv = 0;
+  size_t nserv = 0;
   int haveenv = 0;
   int havesearch = 0;
   int dots;
-  int maxns = INK_MAXNS;
+  size_t maxns = INK_MAXNS;
 
   // INK_RES_SET_H_ERRNO(statp, 0);
   statp->res_h_errno = 0;
-  if (statp->_u._ext.ext != NULL)
-    ink_res_ndestroy(statp);
 
   statp->retrans = INK_RES_TIMEOUT;
   statp->retry = INK_RES_DFLRETRY;
@@ -369,28 +310,6 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
   statp->_flags = 0;
   statp->qhook = NULL;
   statp->rhook = NULL;
-  statp->_u._ext.nscount = 0;
-  statp->_u._ext.ext = (struct __ink_res_state_ext*)malloc(sizeof(*statp->_u._ext.ext));
-  if (statp->_u._ext.ext != NULL) {
-    memset(statp->_u._ext.ext, 0, sizeof(*statp->_u._ext.ext));
-    statp->_u._ext.ext->nsaddrs[0].sin = statp->nsaddr_list[0].sin;
-  } else {
-    /*
-     * Historically res_init() rarely, if at all, failed.
-     * Examples and applications exist which do not check
-     * our return code.  Furthermore several applications
-     * simply call us to get the systems domainname.  So
-     * rather then immediately fail here we store the
-     * failure, which is returned later, in h_errno.  And
-     * prevent the collection of 'nameserver' information
-     * by setting maxns to 0.  Thus applications that fail
-     * to check our return code wont be able to make
-     * queries anyhow.
-     */
-    // INK_RES_SET_H_ERRNO(statp, NETDB_INTERNAL);
-    statp->res_h_errno = NETDB_INTERNAL;
-    maxns = 0;
-  }
 
 #ifdef	SOLARIS2
   /*
@@ -407,17 +326,14 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
         buf[0] = '.';
       cp = strchr(buf, '.');
       cp = (cp == NULL) ? buf : (cp + 1);
-      strncpy(statp->defdname, cp,
-              sizeof(statp->defdname) - 1);
-      statp->defdname[sizeof(statp->defdname) - 1] = '\0';
+      ink_strlcpy(statp->defdname, cp, sizeof(statp->defdname));
     }
   }
 #endif	/* SOLARIS2 */
 
 	/* Allow user to override the local domain definition */
   if ((cp = getenv("LOCALDOMAIN")) != NULL) {
-    (void)strncpy(statp->defdname, cp, sizeof(statp->defdname) - 1);
-    statp->defdname[sizeof(statp->defdname) - 1] = '\0';
+    (void)ink_strlcpy(statp->defdname, cp, sizeof(statp->defdname));
     haveenv++;
 
     /*
@@ -459,12 +375,12 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
      ---------------------------------------------- */
 
   if (pDefDomain && '\0' != *pDefDomain && '\n' != *pDefDomain) {
-    strncpy(statp->defdname, pDefDomain, sizeof(statp->defdname) - 1);
+    ink_strlcpy(statp->defdname, pDefDomain, sizeof(statp->defdname));
     if ((cp = strpbrk(statp->defdname, " \t\n")) != NULL)
       *cp = '\0';
   }
   if (pSearchList && '\0' != *pSearchList && '\n' != *pSearchList) {
-    strncpy(statp->defdname, pSearchList, sizeof(statp->defdname) - 1);
+    ink_strlcpy(statp->defdname, pSearchList, sizeof(statp->defdname));
     if ((cp = strchr(statp->defdname, '\n')) != NULL)
       *cp = '\0';
     /*
@@ -494,12 +410,15 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
   /* -------------------------------------------
      we must be provided with atleast a named!
      ------------------------------------------- */
-  /* TODO we should figure out the IPV6 resolvers here. */
-  while (pHostList && pHostList[nserv] != 0 && nserv < INK_MAXNS) {
-    statp->nsaddr_list[nserv].sin.sin_addr.s_addr = pHostList[nserv];
-    statp->nsaddr_list[nserv].sin.sin_family = AF_INET;
-    statp->nsaddr_list[nserv].sin.sin_port = htons(pPort[nserv]);
-    nserv++;
+  if (pHostList) {
+    if (pHostListSize > INK_MAXNS) pHostListSize = INK_MAXNS;
+    for (
+        ; nserv < pHostListSize
+          && ats_is_ip(&pHostList[nserv].sa) 
+        ; ++nserv
+    ) {
+      ats_ip_copy(&statp->nsaddr_list[nserv].sa, &pHostList[nserv].sa);
+    }
   }
 
 #define	MATCH(line, name)                       \
@@ -522,8 +441,7 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
           cp++;
         if ((*cp == '\0') || (*cp == '\n'))
           continue;
-        strncpy(statp->defdname, cp, sizeof(statp->defdname) - 1);
-        statp->defdname[sizeof(statp->defdname) - 1] = '\0';
+        ink_strlcpy(statp->defdname, cp, sizeof(statp->defdname));
         if ((cp = strpbrk(statp->defdname, " \t\n")) != NULL)
           *cp = '\0';
         havesearch = 0;
@@ -538,8 +456,7 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
           cp++;
         if ((*cp == '\0') || (*cp == '\n'))
           continue;
-        strncpy(statp->defdname, cp, sizeof(statp->defdname) - 1);
-        statp->defdname[sizeof(statp->defdname) - 1] = '\0';
+        ink_strlcpy(statp->defdname, cp, sizeof(statp->defdname));
         if ((cp = strchr(statp->defdname, '\n')) != NULL)
           *cp = '\0';
         /*
@@ -570,8 +487,6 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
       if (MATCH(buf, "nameserver") && nserv < maxns) {
         struct addrinfo hints, *ai;
         char sbuf[NI_MAXSERV];
-        const size_t minsiz =
-          sizeof(statp->_u._ext.ext->nsaddrs[0]);
 
         cp = buf + sizeof("nameserver") - 1;
         while (*cp == ' ' || *cp == '\t')
@@ -583,17 +498,13 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
           hints.ai_socktype = SOCK_DGRAM;	/*dummy*/
           hints.ai_flags = AI_NUMERICHOST;
           sprintf(sbuf, "%d", NAMESERVER_PORT);
-          if (getaddrinfo(cp, sbuf, &hints, &ai) == 0 &&
-              ai->ai_addrlen <= minsiz) {
-            if (statp->_u._ext.ext != NULL) {
-              memcpy(&statp->_u._ext.ext->nsaddrs[nserv], ai->ai_addr, ai->ai_addrlen);
-            }
-            if (ai->ai_addrlen <= sizeof(statp->nsaddr_list[nserv].sin)) {
-              memcpy(&statp->nsaddr_list[nserv].sin, ai->ai_addr, ai->ai_addrlen);
-            } else
-              statp->nsaddr_list[nserv].sin.sin_family = 0;
+          if (getaddrinfo(cp, sbuf, &hints, &ai) == 0) {
+            if (ats_ip_copy(
+                &statp->nsaddr_list[nserv].sa,
+                ai->ai_addr
+            ))
+              ++nserv;
             freeaddrinfo(ai);
-            nserv++;
           }
         }
         continue;
@@ -610,7 +521,7 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
     statp->nscount = nserv;
 
   if (statp->defdname[0] == 0 && gethostname(buf, sizeof(statp->defdname) - 1) == 0 && (cp = strchr(buf, '.')) != NULL)
-    strcpy(statp->defdname, cp + 1);
+    ink_strlcpy(statp->defdname, cp + 1, sizeof(statp->defdname));
 
   /* find components of local domain that might be searched */
   if (havesearch == 0) {
@@ -649,5 +560,3 @@ ink_res_init(ink_res_state statp, const unsigned int *pHostList, const int *pPor
   statp->options |= INK_RES_INIT;
   return (statp->res_h_errno);
 }
-
-#endif

@@ -27,7 +27,7 @@
 int
 CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fildes, bool clear)
 {
-  path = xstrdup(s);
+  path = ats_strdup(s);
   hw_sector_size = ahw_sector_size;
   fd = fildes;
   skip = askip;
@@ -49,18 +49,13 @@ CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fil
     start = skip + header_len;
   }
 
-  disk_vols = (DiskVol **) xmalloc((l / MIN_VOL_SIZE + 1) * sizeof(DiskVol **));
+  disk_vols = (DiskVol **)ats_malloc((l / MIN_VOL_SIZE + 1) * sizeof(DiskVol **));
   memset(disk_vols, 0, (l / MIN_VOL_SIZE + 1) * sizeof(DiskVol **));
   header_len = ROUND_TO_STORE_BLOCK(header_len);
   start = skip + header_len;
   num_usable_blocks = (off_t(len * STORE_BLOCK_SIZE) - (start - askip)) >> STORE_BLOCK_SHIFT;
 
-#if defined(_WIN32)
-  header = (DiskHeader *) malloc(header_len);
-#else
-  header = (DiskHeader *) valloc(header_len);
-#endif
-
+  header = (DiskHeader *)ats_memalign(sysconf(_SC_PAGESIZE), header_len);
   memset(header, 0, header_len);
   if (clear) {
     SET_HANDLER(&CacheDisk::clearDone);
@@ -79,14 +74,14 @@ CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fil
 CacheDisk::~CacheDisk()
 {
   if (path) {
-    xfree(path);
+    ats_free(path);
     for (int i = 0; i < (int) header->num_volumes; i++) {
       DiskVolBlockQueue *q = NULL;
       while (disk_vols[i] && (q = (disk_vols[i]->dpb_queue.pop()))) {
         delete q;
       }
     }
-    xfree(disk_vols);
+    ats_free(disk_vols);
     free(header);
   }
   if (free_blocks) {

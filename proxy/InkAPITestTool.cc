@@ -26,6 +26,7 @@
 
 #include <arpa/inet.h>          /* For htonl */
 #include "P_Net.h"
+#include <records/I_RecHttp.h>
 
 #define SDBG_TAG "SockServer"
 #define CDBG_TAG "SockClient"
@@ -346,7 +347,7 @@ generate_response(const char *request)
   int test_case, match, http_version;
 
   char *response = (char *) TSmalloc(RESPONSE_MAX_SIZE + 1);
-  char url[1024];
+  char url[1025];
 
   // coverity[secure_coding]
   match = sscanf(request, HTTP_REQUEST_TESTCASE_FORMAT, url, &http_version, &test_case);
@@ -428,13 +429,14 @@ get_request_id(TSHttpTxn txnp)
 static ClientTxn *
 synclient_txn_create(void)
 {
-  TSMgmtInt proxy_port;
-
+  HttpProxyPort* proxy_port;
+  
   ClientTxn *txn = (ClientTxn *) TSmalloc(sizeof(ClientTxn));
-  if (TSMgmtIntGet(PROXY_CONFIG_NAME_HTTP_PORT, &proxy_port) != TS_SUCCESS) {
-    proxy_port = PROXY_HTTP_DEFAULT_PORT;
-  }
-  txn->connect_port = (int) proxy_port;
+  if (0 == (proxy_port = HttpProxyPort::findHttp(AF_INET)))
+    txn->connect_port = PROXY_HTTP_DEFAULT_PORT;
+  else
+    txn->connect_port = proxy_port->m_port;
+
   txn->local_port = (int) 0;
   txn->connect_ip = IP(127, 0, 0, 1);
   txn->status = REQUEST_INPROGRESS;
@@ -447,7 +449,7 @@ synclient_txn_create(void)
   txn->magic = MAGIC_ALIVE;
   txn->connect_action = NULL;
 
-  TSDebug(CDBG_TAG, "Connecting to proxy 127.0.0.1 on port %d", (int) proxy_port);
+  TSDebug(CDBG_TAG, "Connecting to proxy 127.0.0.1 on port %d", txn->connect_port);
   return txn;
 }
 
@@ -459,9 +461,8 @@ synclient_txn_delete(ClientTxn * txn)
     TSActionCancel(txn->connect_action);
     txn->connect_action = NULL;
   }
-  if (txn->request) {
-    free(txn->request);
-  }
+
+  ats_free(txn->request);
   txn->magic = MAGIC_DEAD;
   TSfree(txn);
   return 1;
@@ -493,17 +494,17 @@ static int
 synclient_txn_send_request(ClientTxn * txn, char *request)
 {
   TSCont cont;
-  sockaddr_storage addr;
+  sockaddr_in addr;
 
   TSAssert(txn->magic == MAGIC_ALIVE);
-  txn->request = xstrdup(request);
+  txn->request = ats_strdup(request);
   SET_TEST_HANDLER(txn->current_handler, synclient_txn_connect_handler);
 
   cont = TSContCreate(synclient_txn_main_handler, TSMutexCreate());
   TSContDataSet(cont, txn);
   
-  ink_inet_ip4_set(&addr, txn->connect_ip, txn->connect_port);
-  TSNetConnect(cont, ink_inet_sa_cast(&addr));
+  ats_ip4_set(&addr, txn->connect_ip, htons(txn->connect_port));
+  TSNetConnect(cont, ats_ip_sa_cast(&addr));
   return 1;
 }
 
@@ -513,7 +514,7 @@ synclient_txn_send_request_to_vc(ClientTxn * txn, char *request, TSVConn vc)
 {
   TSCont cont;
   TSAssert(txn->magic == MAGIC_ALIVE);
-  txn->request = xstrdup(request);
+  txn->request = ats_strdup(request);
   SET_TEST_HANDLER(txn->current_handler, synclient_txn_connect_handler);
 
   cont = TSContCreate(synclient_txn_main_handler, TSMutexCreate());
@@ -539,7 +540,7 @@ synclient_txn_read_response(TSCont contp)
       memcpy((char *) (txn->response + txn->response_len), blockptr, blocklen);
       txn->response_len += blocklen;
     } else {
-      TSError("Error: Response length %d > response buffer size %d", txn->response_len+blocklen, RESPONSE_MAX_SIZE);
+      TSError("Error: Response length %"PRId64" > response buffer size %d", txn->response_len+blocklen, RESPONSE_MAX_SIZE);
     }
 
     block = TSIOBufferBlockNext(block);
@@ -570,7 +571,7 @@ synclient_txn_read_response_handler(TSCont contp, TSEvent event, void *data)
     }
 
     avail = TSIOBufferReaderAvail(txn->resp_reader);
-    TSDebug(CDBG_TAG, "%d bytes available in buffer", avail);
+    TSDebug(CDBG_TAG, "%"PRId64" bytes available in buffer", avail);
 
     if (avail > 0) {
       synclient_txn_read_response(contp);
@@ -626,7 +627,7 @@ synclient_txn_write_request(TSCont contp)
   }
 
   /* Start writing the response */
-  TSDebug(CDBG_TAG, "Writing |%s| (%d) bytes", txn->request, len);
+  TSDebug(CDBG_TAG, "Writing |%s| (%"PRId64") bytes", txn->request, len);
   txn->write_vio = TSVConnWrite(txn->vconn, contp, txn->req_reader, len);
 
   return 1;
@@ -880,7 +881,7 @@ synserver_txn_write_response(TSCont contp)
   }
 
   /* Start writing the response */
-  TSDebug(SDBG_TAG, "Writing response: |%s| (%d) bytes)", response, len);
+  TSDebug(SDBG_TAG, "Writing response: |%s| (%"PRId64") bytes)", response, len);
   txn->write_vio = TSVConnWrite(txn->vconn, contp, txn->resp_reader, len);
 
   /* Now that response is in IOBuffer, free up response */
@@ -944,7 +945,7 @@ synserver_txn_read_request(TSCont contp)
       memcpy((char *) (txn->request + txn->request_len), blockptr, blocklen);
       txn->request_len += blocklen;
     } else {
-      TSError("Error: Request length %d > request buffer size %d", txn->request_len+blocklen, REQUEST_MAX_SIZE);
+      TSError("Error: Request length %"PRId64" > request buffer size %d", txn->request_len+blocklen, REQUEST_MAX_SIZE);
     }
 
     block = TSIOBufferBlockNext(block);
@@ -974,7 +975,7 @@ synserver_txn_read_request_handler(TSCont contp, TSEvent event, void *data)
   case TS_EVENT_VCONN_READ_COMPLETE:
     TSDebug(SDBG_TAG, (event == TS_EVENT_VCONN_READ_READY) ? "READ_READY" : "READ_COMPLETE");
     avail = TSIOBufferReaderAvail(txn->req_reader);
-    TSDebug(SDBG_TAG, "%d bytes available in buffer", avail);
+    TSDebug(SDBG_TAG, "%"PRId64" bytes available in buffer", avail);
 
     if (avail > 0) {
       end_of_request = synserver_txn_read_request(contp);

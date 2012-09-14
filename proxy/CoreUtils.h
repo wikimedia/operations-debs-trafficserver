@@ -61,9 +61,6 @@ struct core_stack_state
 #include <math.h>
 #include <assert.h>
 #include <elf.h>
-#if TS_USE_LIBEV
-#undef EV_NONE
-#endif
 #include "DynArray.h"
 
 #define SP_REGNUM 15            /* Contains address of top of stack USP */
@@ -81,7 +78,7 @@ struct core_stack_state
 };
 #endif  // linux check
 
-#if defined(darwin) || defined(freebsd) || defined(solaris) // FIXME: solaris x86
+#if defined(darwin) || defined(freebsd) || defined(solaris) || defined(openbsd) // FIXME: solaris x86
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -252,7 +249,7 @@ public:
   /**********************************************************************
   * purpose: loads a null terminated string from the core file
   * inputs: core file string address
-  * outputs: char* pointing to live string. call deallocs via xfree()
+  * outputs: char* pointing to live string. call deallocs via ats_free()
   ***********************************************************************/
   static char *load_string(const char *addr);
 

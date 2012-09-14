@@ -34,13 +34,22 @@
 #include <unistd.h>
 #endif
 
-
 #include "P_Net.h"
 
-int cache_config_mutex_retry_delay = 2;
-
 int fds_limit = 8000;
-UDPNetProcessor& udpNet; // = udpNetInternal;
+
+class FakeUDPNetProcessor : public UDPNetProcessor {
+  virtual int start(int num) {
+    NOWARN_UNUSED(num);
+    ink_release_assert(false);
+    return 0;
+  };
+  virtual void UDPNetProcessor_is_abstract() {
+    ink_release_assert(false);
+  };
+} fakeUDPNet;
+
+UDPNetProcessor& udpNet = fakeUDPNet;
 
 ClassAllocator<UDPPacketInternal> udpPacketAllocator("udpPacketAllocator");
 
@@ -49,27 +58,6 @@ UDPConnection::Release()
 {
   ink_release_assert(false);
 }
-
-void
-UDPNetProcessor::FreeBandwidth(Continuation * udpConn)
-{
-  NOWARN_UNUSED(udpConn);
-  ink_release_assert(false);
-}
-
-NetProcessor& netProcessor; //  = unix_netProcessor;
-
-Action *
-UnixNetProcessor::connect_re_internal(Continuation * cont, unsigned int ip, int port,  NetVCOptions * opt)
-{
-  NOWARN_UNUSED(cont);
-  NOWARN_UNUSED(ip);
-  NOWARN_UNUSED(port);
-  NOWARN_UNUSED(opt);
-  ink_release_assert(false);
-  return NULL;
-}
-
 
 #include "InkAPIInternal.h"
 ConfigUpdateCbTable *global_config_cbs = NULL;
@@ -81,91 +69,83 @@ ConfigUpdateCbTable::invoke(const char *name)
   ink_release_assert(false);
 }
 
-const char *
-event_int_to_string(int event, int blen, char *buffer)
-{
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(blen);
-  NOWARN_UNUSED(buffer);
+struct Machine {  static Machine* instance(); };
+Machine* Machine::instance() {
   ink_release_assert(false);
   return NULL;
 }
 
-
-struct Machine;
-Machine *
-this_machine()
+#include "LogCollationAccept.h"
+LogCollationAccept::LogCollationAccept(int port)
+  : Continuation(new_ProxyMutex()),
+    m_port(port),
+    m_pending_event(NULL)
 {
-  ink_release_assert(false);
-  return NULL;
+}
+LogCollationAccept::~LogCollationAccept()
+{
 }
 
-
-#include "LogConfig.h"
-void
-LogConfig::setup_collation(LogConfig * prev_config)
+#include "LogCollationClientSM.h"
+LogCollationClientSM::LogCollationClientSM(LogHost * log_host):
+  Continuation(new_ProxyMutex()),
+  m_host_vc(NULL),
+  m_host_vio(NULL),
+  m_auth_buffer(NULL),
+  m_auth_reader(NULL),
+  m_send_buffer(NULL),
+  m_send_reader(NULL),
+  m_pending_action(NULL),
+  m_pending_event(NULL),
+  m_abort_vio(NULL),
+  m_abort_buffer(NULL),
+  m_buffer_send_list(NULL), m_buffer_in_iocore(NULL), m_flow(LOG_COLL_FLOW_ALLOW), m_log_host(log_host), m_id(0)
 {
-  NOWARN_UNUSED(prev_config);
-  ink_release_assert(false);
 }
 
-void
-LogConfig::create_pre_defined_objects_with_filter(const PreDefinedFormatInfoList & pre_def_info_list, size_t num_filters,
-                                                  LogFilter ** filter, const char *filt_name, bool force_extension)
+LogCollationClientSM::~LogCollationClientSM()
 {
-  NOWARN_UNUSED(pre_def_info_list);
-  NOWARN_UNUSED(num_filters);
-  NOWARN_UNUSED(filter);
-  NOWARN_UNUSED(filt_name);
-  NOWARN_UNUSED(force_extension);
-  ink_release_assert(false);
 }
 
 int
-LogHost::write(LogBuffer * lb, size_t * to_disk, size_t * to_net, size_t * to_pipe)
+LogCollationClientSM::send(LogBuffer * log_buffer)
 {
-  NOWARN_UNUSED(lb);
-  NOWARN_UNUSED(to_disk);
-  NOWARN_UNUSED(to_net);
-  NOWARN_UNUSED(to_pipe);
+  NOWARN_UNUSED(log_buffer);
   ink_release_assert(false);
   return 0;
+}
+
+NetAccept *
+UnixNetProcessor::createNetAccept()
+{
+  ink_release_assert(false);
+  return NULL;
 }
 
 // TODO: The following was necessary only for Solaris, should examine more.
 NetVCOptions const Connection::DEFAULT_OPTIONS;
 NetProcessor::AcceptOptions const NetProcessor::DEFAULT_ACCEPT_OPTIONS;
+DNSConnection::Options const DNSConnection::DEFAULT_OPTIONS;
 
 // TODO: This is even uglier, this actually gets called here when "defined".
 NetProcessor::AcceptOptions&
 NetProcessor::AcceptOptions::reset()
 {
-  port = 0;
+  local_port = 0;
   accept_threads = 0;
-  domain = AF_INET;
+  ip_family = AF_INET;
   etype = ET_NET;
   f_callback_on_open = false;
   recv_bufsize = 0;
   send_bufsize = 0;
   sockopt_flags = 0;
-  f_outbound_transparent = false;
+  packet_mark = 0;
+  packet_tos = 0;
   f_inbound_transparent = false;
   return *this;
 }
 
-int
-net_accept(NetAccept * na, void *ep, bool blockable)
-{
-  NOWARN_UNUSED(na);
-  NOWARN_UNUSED(ep);
-  NOWARN_UNUSED(blockable);
-  ink_release_assert(false);
-  return 0;
-}
-
-
 // These are for clang / llvm
-
 int
 CacheVC::handleWrite(int event, Event *e)
 {
@@ -174,3 +154,77 @@ CacheVC::handleWrite(int event, Event *e)
   return 0;
   ink_release_assert(false);
 }
+
+UnixNetProcessor unix_netProcessor;
+NetProcessor& netProcessor = unix_netProcessor;
+
+int
+UnixNetProcessor::start(int num)
+{
+  NOWARN_UNUSED(num);
+  ink_release_assert(false);
+  return 0;
+}
+
+Action *
+NetProcessor::accept(Continuation* cont, AcceptOptions const& opt)
+{
+  NOWARN_UNUSED(cont);
+  NOWARN_UNUSED(opt);
+  ink_release_assert(false);
+  return NULL;
+}
+
+Action *
+NetProcessor::main_accept(Continuation *cont, SOCKET fd, AcceptOptions const& opt)
+{
+  NOWARN_UNUSED(cont);
+  NOWARN_UNUSED(fd);
+  NOWARN_UNUSED(opt);
+  ink_release_assert(false);
+  return NULL;
+}
+
+Action *
+UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions const& opt)
+{
+  NOWARN_UNUSED(cont);
+  NOWARN_UNUSED(fd);
+  NOWARN_UNUSED(opt);
+  ink_release_assert(false);
+  return NULL;
+}
+
+UnixNetVConnection *
+UnixNetProcessor::allocateThread(EThread * t)
+{
+  NOWARN_UNUSED(t);
+  ink_release_assert(false);
+  return NULL;
+}
+
+void
+UnixNetProcessor::freeThread(UnixNetVConnection * vc, EThread * t)
+{
+  NOWARN_UNUSED(t);
+  NOWARN_UNUSED(vc);
+  ink_release_assert(false);
+}
+
+// For Intel ICC
+int cache_config_mutex_retry_delay = 2;
+
+void
+SplitDNSConfig::reconfigure()
+{
+}
+
+ClassAllocator<CacheRemoveCont> cacheRemoveContAllocator("cacheRemoveCont");
+
+CacheHostTable::CacheHostTable(Cache *c, int typ)
+{
+  NOWARN_UNUSED(c);
+  NOWARN_UNUSED(typ);
+}
+
+CacheHostTable::~CacheHostTable() { }

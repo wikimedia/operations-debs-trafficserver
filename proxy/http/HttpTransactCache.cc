@@ -169,7 +169,6 @@ int
 HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector * cache_vector,
                                         HTTPHdr * client_request, CacheLookupHttpConfig * http_config_params)
 {
-  CacheKey zero_key(0, 0);
   time_t current_age, best_age = NUM_SECONDS_IN_ONE_YEAR;
   time_t t_now = 0;
   int best_index = -1;
@@ -182,14 +181,12 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector * cache_vector,
   }
 
 
-  if (diags->on()) {
-    DebugOn("http_match", "[SelectFromAlternates] # alternates = %d", alt_count);
-    DebugOn("http_seq", "[SelectFromAlternates] %d alternates for this cached doc", alt_count);
-    if (diags->on("http_alts")) {
-      ACQUIRE_PRINT_LOCK()
-        fprintf(stderr, "[alts] There are %d alternates for this request header.\n", alt_count);
-      RELEASE_PRINT_LOCK()
-    }
+  Debug("http_match", "[SelectFromAlternates] # alternates = %d", alt_count);
+  Debug("http_seq", "[SelectFromAlternates] %d alternates for this cached doc", alt_count);
+  if (diags->on("http_alts")) {
+    ACQUIRE_PRINT_LOCK()
+      fprintf(stderr, "[alts] There are %d alternates for this request header.\n", alt_count);
+    RELEASE_PRINT_LOCK()
   }
   // used by ICP to bypass this function
   if (http_config_params == &global_cache_lookup_config)
@@ -263,13 +260,11 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector * cache_vector,
       }
     }
   }
-  if (diags->on()) {
-    DebugOn("http_seq", "[SelectFromAlternates] Chosen alternate # %d", best_index);
-    if (diags->on("http_alts")) {
-      ACQUIRE_PRINT_LOCK()
-        fprintf(stderr, "[alts] and the winner is alternate number %d\n", best_index + 1);
-      RELEASE_PRINT_LOCK()
-    }
+  Debug("http_seq", "[SelectFromAlternates] Chosen alternate # %d", best_index);
+  if (diags->on("http_alts")) {
+    ACQUIRE_PRINT_LOCK()
+      fprintf(stderr, "[alts] and the winner is alternate number %d\n", best_index + 1);
+    RELEASE_PRINT_LOCK()
   }
 
   if ((best_index != -1) && (best_Q > unacceptable_Q)) {
@@ -393,26 +388,26 @@ HttpTransactCache::calculate_quality_of_match(CacheLookupHttpConfig * http_confi
   // final quality is minimum Q, or -1, if some match failed //
   Q = ((q[0] < 0) || (q[1] < 0) || (q[2] < 0) || (q[3] < 0)) ? -1.0 : q[0] * q[1] * q[2] * q[3];
 
-  if (diags->on()) {
-    DebugOn("http_match", "    CalcQualityOfMatch: Accept match = %g", q[0]);
-    DebugOn("http_seq", "    CalcQualityOfMatch: Accept match = %g", q[0]);
-    DebugOn("http_alternate", "Content-Type and Accept %f", q[0]);
+  Debug("http_match", "    CalcQualityOfMatch: Accept match = %g", q[0]);
+  Debug("http_seq", "    CalcQualityOfMatch: Accept match = %g", q[0]);
+  Debug("http_alternate", "Content-Type and Accept %f", q[0]);
 
-    DebugOn("http_match", "    CalcQualityOfMatch: AcceptCharset match = %g", q[1]);
-    DebugOn("http_seq", "    CalcQualityOfMatch: AcceptCharset match = %g", q[1]);
-    DebugOn("http_alternate", "Content-Type and Accept-Charset %f", q[1]);
+  Debug("http_match", "    CalcQualityOfMatch: AcceptCharset match = %g", q[1]);
+  Debug("http_seq", "    CalcQualityOfMatch: AcceptCharset match = %g", q[1]);
+  Debug("http_alternate", "Content-Type and Accept-Charset %f", q[1]);
 
-    DebugOn("http_match", "    CalcQualityOfMatch: AcceptEncoding match = %g", q[2]);
-    DebugOn("http_seq", "    CalcQualityOfMatch: AcceptEncoding match = %g", q[2]);
-    DebugOn("http_alternate", "Content-Encoding and Accept-Encoding %f", q[2]);
+  Debug("http_match", "    CalcQualityOfMatch: AcceptEncoding match = %g", q[2]);
+  Debug("http_seq", "    CalcQualityOfMatch: AcceptEncoding match = %g", q[2]);
+  Debug("http_alternate", "Content-Encoding and Accept-Encoding %f", q[2]);
 
-    DebugOn("http_match", "    CalcQualityOfMatch: AcceptLanguage match = %g", q[3]);
-    DebugOn("http_seq", "    CalcQualityOfMatch: AcceptLanguage match = %g", q[3]);
-    DebugOn("http_alternate", "Content-Language and Accept-Language %f", q[3]);
+  Debug("http_match", "    CalcQualityOfMatch: AcceptLanguage match = %g", q[3]);
+  Debug("http_seq", "    CalcQualityOfMatch: AcceptLanguage match = %g", q[3]);
+  Debug("http_alternate", "Content-Language and Accept-Language %f", q[3]);
 
-    DebugOn("http_alternate", "Mult's Quality Factor: %f", Q);
-    DebugOn("http_alternate", "----------End of Alternate----------");
-  }
+  Debug("http_alternate", "Mult's Quality Factor: %f", Q);
+  Debug("http_alternate", "----------End of Alternate----------");
+
+  int force_alt = 0;
 
   if (Q > 0.0) {
     APIHook *hook;
@@ -433,6 +428,8 @@ HttpTransactCache::calculate_quality_of_match(CacheLookupHttpConfig * http_confi
         if (info.m_qvalue < 0.0) {
           info.m_qvalue = 0.0;
         } else if (info.m_qvalue > 1.0) {
+          if (info.m_qvalue == FLT_MAX)
+            force_alt = 1;
           info.m_qvalue = 1.0;
         }
         qvalue *= info.m_qvalue;
@@ -447,7 +444,7 @@ HttpTransactCache::calculate_quality_of_match(CacheLookupHttpConfig * http_confi
     }
   }
 
-  if (Q >= 0.0) {                 // make sense to check 'variability' only if Q >= 0.0
+  if (Q >= 0.0 && !force_alt ) {                 // make sense to check 'variability' only if Q >= 0.0
     // set quality to -1, if cached copy would vary for this request //
     Variability_t variability = CalcVariability(http_config_param, client_request,
                                                 obj_client_request, obj_origin_server_response);
@@ -456,15 +453,13 @@ HttpTransactCache::calculate_quality_of_match(CacheLookupHttpConfig * http_confi
       Q = -1.0;
     }
 
-    if (diags->on()) {
-      DebugOn("http_match", "    CalcQualityOfMatch: CalcVariability says variability = %d",
-              (variability != VARIABILITY_NONE));
-      DebugOn("http_seq", "    CalcQualityOfMatch: CalcVariability says variability = %d",
-              (variability != VARIABILITY_NONE));
+    Debug("http_match", "    CalcQualityOfMatch: CalcVariability says variability = %d",
+            (variability != VARIABILITY_NONE));
+    Debug("http_seq", "    CalcQualityOfMatch: CalcVariability says variability = %d",
+            (variability != VARIABILITY_NONE));
 
-      DebugOn("http_match", "    CalcQualityOfMatch: Returning final Q = %g", Q);
-      DebugOn("http_seq", "    CalcQualityOfMatch: Returning final Q = %g", Q);
-    }
+    Debug("http_match", "    CalcQualityOfMatch: Returning final Q = %g", Q);
+    Debug("http_seq", "    CalcQualityOfMatch: Returning final Q = %g", Q);
   }
   return (Q);
 }
@@ -647,7 +642,7 @@ HttpTransactCache::calculate_quality_of_accept_charset_match(MIMEField * accept_
   // get the charset of this content-type //
   c_raw = content_field->value_get(&c_raw_len);
   if (!HttpCompat::lookup_param_in_semicolon_string(c_raw, c_raw_len, "charset", c_charset, sizeof(c_charset) - 1)) {
-    ink_strncpy(c_charset, default_charset, sizeof(c_charset));
+    ink_strlcpy(c_charset, default_charset, sizeof(c_charset));
   }
   // Now loop over Accept-Charset field values.
   // TODO: Should we check the return value (count) from this?
@@ -1209,8 +1204,8 @@ HttpTransactCache::CalcVariability(CacheLookupHttpConfig * http_config_params,
       HttpCompat::parse_comma_list(&vary_list, (vary_values ? vary_values : ""));
     }
 #ifdef DEBUG
-    if (diags->on("http_match") && vary_list.head) {
-      DebugOn("http_match", "Vary list of %d elements", vary_list.count);
+    if (vary_list.head) {
+      Debug("http_match", "Vary list of %d elements", vary_list.count);
       vary_list.dump(stderr);
     }
 #endif
@@ -1229,9 +1224,9 @@ HttpTransactCache::CalcVariability(CacheLookupHttpConfig * http_config_params,
 
       if (((field->str[0] == '*') && (field->str[1] == NUL))) {
 #ifdef DEBUG
-        if (diags->on("http_match")) {
-          Note("\"Vary: %s\" --- object not served from cache\n", field->str);
-        }
+      if (diags->on("http_match")) {
+        Note("\"Vary: %s\" --- object not served from cache\n", field->str);
+      }
 #endif
         variability = VARIABILITY_ALL;
         break;
@@ -1244,6 +1239,13 @@ HttpTransactCache::CalcVariability(CacheLookupHttpConfig * http_config_params,
       if (http_config_params->cache_global_user_agent_header &&
           !ink_string_fast_strcasecmp((char *) field->str, "User-Agent"))
         continue;
+
+      // Disable Vary mismatch checking for Accept-Encoding.  This is only safe to
+      // set if you are promising to fix any Accept-Encoding/Content-Encoding mismatches.
+      if (http_config_params->ignore_accept_encoding_mismatch && 
+          !ink_string_fast_strcasecmp((char *) field->str, "Accept-Encoding"))
+        continue;
+
 
 
       ///////////////////////////////////////////////////////////////////
@@ -1510,19 +1512,19 @@ CacheLookupHttpConfig::marshal(char *buf, int length)
   len = (cache_vary_default_text ? strlen(cache_vary_default_text) + 1 : 1);
   if ((length -= len) < 0)
     return -1;
-  ink_strncpy(p, (cache_vary_default_text ? cache_vary_default_text : ""), len);
+  ink_strlcpy(p, (cache_vary_default_text ? cache_vary_default_text : ""), length);
   p += len;
 
   len = (cache_vary_default_images ? strlen(cache_vary_default_images) + 1 : 1);
   if ((length -= len) < 0)
     return -1;
-  ink_strncpy(p, (cache_vary_default_images ? cache_vary_default_images : ""), len);
+  ink_strlcpy(p, (cache_vary_default_images ? cache_vary_default_images : ""), length);
   p += len;
 
   len = (cache_vary_default_other ? strlen(cache_vary_default_other) + 1 : 1);
   if ((length -= len) < 0)
     return -1;
-  ink_strncpy(p, (cache_vary_default_other ? cache_vary_default_other : ""), len);
+  ink_strlcpy(p, (cache_vary_default_other ? cache_vary_default_other : ""), length);
   p += len;
 
   return (p - buf);

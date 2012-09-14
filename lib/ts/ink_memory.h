@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Memory allocation routines for libts.
 
   @section license License
 
@@ -20,48 +20,79 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-/****************************************************************************
-
-  ink_memory.h
-
-  Memory allocation routines for libts
-
- ****************************************************************************/
-
 #ifndef _ink_memory_h_
 #define	_ink_memory_h_
 
 #include <ctype.h>
 #include <strings.h>
 
+#include "ink_config.h"
+
+#if TS_HAS_JEMALLOC
+#include <jemalloc/jemalloc.h>
+/* TODO: Should this have a value ? */
+#define ATS_MMAP_MAX 0
+#else
+#if HAVE_MALLOC_H
+#include <malloc.h>
+#define ATS_MMAP_MAX M_MMAP_MAX
+#endif // ! HAVE_MALLOC_H
+#endif // ! TS_HAS_JEMALLOC
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif                          /* __cplusplus */
+  void *ats_malloc(size_t size);
+  void *ats_calloc(size_t nelem, size_t elsize);
+  void *ats_realloc(void *ptr, size_t size);
+  void *ats_memalign(size_t alignment, size_t size);
+  void ats_free(void *ptr);
+  void* ats_free_null(void *ptr);
+  void ats_memalign_free(void *ptr);
+  int ats_mallopt(int param, int value);
 
-  typedef struct
-  {
-    void *ptr;
-    unsigned int length;
-  } InkMemoryBlock;
-
-#define ink_type_malloc(type)       (type *)ink_malloc(sizeof(type));
-#define ink_type_malloc_n(n,type)   (type *)ink_malloc((n) * sizeof(type));
-#define ink_type_calloc(n,type)     (type *)ink_calloc((n),sizeof(type));
-
-  void *ink_malloc(size_t size);
-  void *ink_calloc(size_t nelem, size_t elsize);
-  void *ink_realloc(void *ptr, size_t size);
-  void *ink_memalign(size_t alignment, size_t size);
-  void ink_free(void *ptr);
-  void ink_memalign_free(void *ptr);
-  char *ink_duplicate_string(char *ptr);        /* obsoleted by ink_string_duplicate --- don't use */
-  void *ink_memcpy(void *s1, const void *s2, int n);
-  void ink_bcopy(void *s1, void *s2, size_t n);
+#define ats_strdup(p)        _xstrdup((p), -1, NULL)
+#define ats_strndup(p,n)     _xstrdup((p), n, NULL)
 
 #ifdef __cplusplus
 }
-#endif                          /* __cplusplus */
+#endif
+
+#ifdef __cplusplus
+/** Set data to zero.
+
+    Calls @c memset on @a t with a value of zero and a length of @c
+    sizeof(t). This can be used on ordinary and array variables. While
+    this can be used on variables of intrinsic type it's inefficient.
+
+    @note Because this uses templates it cannot be used on unnamed or
+    locally scoped structures / classes. This is an inherent
+    limitation of templates.
+
+    Examples:
+    @code
+    foo bar; // value.
+    ink_zero(bar); // zero bar.
+
+    foo *bar; // pointer.
+    ink_zero(bar); // WRONG - makes the pointer @a bar zero.
+    ink_zero(*bar); // zero what bar points at.
+
+    foo bar[ZOMG]; // Array of structs.
+    ink_zero(bar); // Zero all structs in array.
+
+    foo *bar[ZOMG]; // array of pointers.
+    ink_zero(bar); // zero all pointers in the array.
+    @endcode
+    
+ */
+template < typename T > inline void
+ink_zero(
+	 T& t ///< Object to zero.
+	 ) {
+  memset(&t, 0, sizeof(t));
+}
+#endif  /* __cplusplus */
 
 #endif

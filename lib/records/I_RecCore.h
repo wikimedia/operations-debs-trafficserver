@@ -190,7 +190,7 @@ void RecSignalManager(int, const char *);
  */
 #define REC_EstablishStaticConfigStringAlloc(_var, _config_var_name) do { \
   if (RecLinkConfigString(_config_var_name, &_var) == REC_ERR_OKAY) \
-    xfree(_var); \
+    ats_free(_var);                                                    \
   _var = (RecString)REC_ConfigReadString(_config_var_name); \
 } while (0)
 
@@ -234,7 +234,7 @@ int RecSetSyncRequired(char *name, bool lock = true);
 // Signal Alarm/Warning
 //------------------------------------------------------------------------
 #define REC_SignalManager        RecSignalManager
-#define REC_SignalWarning(_n,_d) { Warning(_d); RecSignalManager(_n,_d); }
+#define REC_SignalWarning(_n,_d) { Warning("%s", _d); RecSignalManager(_n,_d); }
 
 
 //------------------------------------------------------------------------

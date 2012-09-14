@@ -21,6 +21,7 @@
   limitations under the License.
  */
 
+#include "ink_port.h"
 #include "UrlMapping.h"
 
 /**
@@ -90,13 +91,8 @@ url_mapping::~url_mapping()
   redirect_tag_str *rc;
   acl_filter_rule *afr;
 
-  if (tag) {
-    tag = (char *) xfree_null(tag);
-  }
-
-  if (filter_redirect_url) {
-    filter_redirect_url = (char *) xfree_null(filter_redirect_url);
-  }
+  tag = (char *)ats_free_null(tag);
+  filter_redirect_url = (char *)ats_free_null(filter_redirect_url);
 
   while ((r = referer_list) != 0) {
     referer_list = r->next;
@@ -126,7 +122,7 @@ url_mapping::~url_mapping()
 void
 url_mapping::Print()
 {
-  char from_url_buf[32768], to_url_buf[32768];
+  char from_url_buf[131072], to_url_buf[131072];
 
   fromURL.string_get_buf(from_url_buf, (int) sizeof(from_url_buf));
   toUrl.string_get_buf(to_url_buf, (int) sizeof(to_url_buf));
@@ -164,7 +160,7 @@ redirect_tag_str::parse_format_redirect_url(char *url)
         if ((r->type = type) == 's') {
           char svd = *c;
           *c = 0;
-          r->chunk_str = xstrdup(url);
+          r->chunk_str = ats_strdup(url);
           *c = svd;
           url = c;
         } else
@@ -183,8 +179,13 @@ redirect_tag_str::parse_format_redirect_url(char *url)
 /**
  *
 **/
-referer_info::referer_info(char *_ref, bool *error_flag, char *errmsgbuf, int errmsgbuf_size):next(0), referer(0), referer_size(0), any(false), negative(false),
-regx_valid(false)
+referer_info::referer_info(char *_ref, bool *error_flag, char *errmsgbuf, int errmsgbuf_size)
+  : next(0),
+    referer(0),
+    referer_size(0),
+    any(false),
+    negative(false),
+    regx_valid(false)
 {
   const char *error;
   int erroffset;
@@ -198,7 +199,7 @@ regx_valid(false)
       negative = true;
       _ref++;
     }
-    if ((referer = xstrdup(_ref)) != 0) {
+    if ((referer = ats_strdup(_ref)) != 0) {
       referer_size = strlen(referer);
       if (!strcmp(referer, "*"))
         any = true;
@@ -206,7 +207,7 @@ regx_valid(false)
         regx = pcre_compile(referer, PCRE_CASELESS, &error, &erroffset, NULL);
         if (!regx) {
           if (errmsgbuf && (errmsgbuf_size - 1) > 0)
-            ink_strncpy(errmsgbuf, error, errmsgbuf_size - 1);
+            ink_strlcpy(errmsgbuf, error, errmsgbuf_size);
           if (error_flag)
             *error_flag = true;
         } else
@@ -222,8 +223,7 @@ regx_valid(false)
 **/
 referer_info::~referer_info()
 {
-  if (referer)
-    xfree(referer);
+  ats_free(referer);
   referer = 0;
   referer_size = 0;
 

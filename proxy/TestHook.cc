@@ -348,7 +348,7 @@ StateMachine::fill()
   // write header
   if (hdr_bytes_left) {
     copy_size = min(n, hdr_bytes_left);
-    bcopy(scratch_space + header_size_written, ptr, copy_size);
+    memcpy(ptr, scratch_space + header_size_written, copy_size);
     ptr += copy_size;
     header_size_written += copy_size;
     hdr_bytes_left -= copy_size;
@@ -497,8 +497,16 @@ run_TestHook()
 
   printf("*** BRIOCORE Server Running ***\n");
   for (i = 1; i <= G.accept_count; i++) {
+    NetProcessor::AcceptOptions opt;
     c = new AcceptContinuation();
-    (void) netProcessor.accept(c, G.accept_port, G.accept_spawn);
+    opt.local_port = G.accept_port;
+    // [amc] I have absolutely no idea what accept_spawn is supposed
+    // to control.  I am just guessing it's accept_threads. Code
+    // tracing indicated it ended up as the value for the address
+    // family and then ignored. It's declared as an int but assigned a
+    // bool value so I'm not even sure what type it's intended to be.
+    opt.accept_threads = G.accept_spawn;
+    (void) netProcessor.accept(c, opt);
   }
   return (0);
 }

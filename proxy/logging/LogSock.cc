@@ -21,11 +21,6 @@
   limitations under the License.
  */
 
-/***************************************************************************
- LogSock.cc
-
-
- ***************************************************************************/
 #include "ink_unused.h"
 
 #include "P_EventSystem.h"
@@ -34,18 +29,16 @@
 #include "LogSock.h"
 #include "LogUtils.h"
 
-static const int LS_DOMAIN = AF_INET;
 static const int LS_SOCKTYPE = SOCK_STREAM;
 static const int LS_PROTOCOL = 0;
 
-/*-------------------------------------------------------------------------
+/**
   LogSock
 
   The constructor establishes the connection table (ct) and initializes the
   first entry of the table (index 0) to be the port on which new
   connections are accepted.
-  -------------------------------------------------------------------------*/
-
+*/ 
 LogSock::LogSock(int max_connects)
   :
 ct((ConnectTable *) NULL),
@@ -66,12 +59,11 @@ m_max_connections(max_connects + 1)
   Debug("log-sock", "LogSocket established");
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::~LogSock
 
   Shut down all connections and delete memory for the tables.
-  -------------------------------------------------------------------------*/
-
+*/ 
 LogSock::~LogSock()
 {
   Debug("log-sock", "shutting down LogSocket on [%s:%d]", ct[0].host, ct[0].port);
@@ -81,33 +73,41 @@ LogSock::~LogSock()
   delete[]ct;                   // delete the connection table
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::listen
 
   This routine sets up the LogSock to begin accepting connections on the
-  given accept port.  A maximum number of connections is also specified,
+  given @param accept port.  A maximum number of connections is also specified,
   which is used to establish the size of the listen queue.
 
-  Return zero if all goes well, -1 otherwise.
-  -------------------------------------------------------------------------*/
-
+  @Return zero if all goes well, -1 otherwise.
+*/
 int
-LogSock::listen(int accept_port)
+LogSock::listen(int accept_port, int family)
 {
-  struct sockaddr_in bind_addr;
-  int size = sizeof(struct sockaddr_in);
+  IpEndpoint bind_addr;
+  int size = sizeof(bind_addr);
   char this_host[MAXDNAME];
   int ret;
   SOCKET accept_sd;
 
   Debug("log-sock", "Listening ...");
 
+  // Set up local address for bind.
+  bind_addr.setToAnyAddr(family);
+  if (!bind_addr.isValid()) {
+    Warning("Could not set up socket - invalid address family %d", family);
+    return -1;
+  }
+  bind_addr.port() = htons(accept_port);
+  size = ats_ip_size(&bind_addr.sa);
+
   //
   // create the socket for accepting new connections
   //
-  accept_sd =::socket(LS_DOMAIN, LS_SOCKTYPE, LS_PROTOCOL);
+  accept_sd =::socket(family, LS_SOCKTYPE, LS_PROTOCOL);
   if (accept_sd < 0) {
-    Warning("Could not create a socket: %s", strerror(errno));
+    Warning("Could not create a socket for family %d: %s", family, strerror(errno));
     return -1;
   }
   //
@@ -127,27 +127,23 @@ LogSock::listen(int accept_port)
     return -1;
   }
   // REUSEADDR
-  if ((ret = safe_setsockopt(accept_sd, SOL_SOCKET, SO_REUSEADDR, ON, sizeof(int))) < 0) {
+  if ((ret = safe_setsockopt(accept_sd, SOL_SOCKET, SO_REUSEADDR, SOCKOPT_ON, sizeof(int))) < 0) {
     Warning("Could not set option REUSEADDR on socket (%d): %s", ret, strerror(errno));
     return -1;
   }
-  //
-  // bind the new socket to a local port
-  //
-  bind_addr.sin_family = LS_DOMAIN;
-  bind_addr.sin_addr.s_addr = INADDR_ANY;
-  bind_addr.sin_port = htons(accept_port);      // 0 means "find me a port"
-  if ((ret = safe_bind(accept_sd, (sockaddr *) & bind_addr, size)) < 0) {
+
+  // Bind to local address.
+  if ((ret = safe_bind(accept_sd, &bind_addr.sa, size)) < 0) {
     Warning("Could not bind port: %s", strerror(errno));
     return -1;
   }
 
-  if ((ret = safe_setsockopt(accept_sd, IPPROTO_TCP, TCP_NODELAY, ON, sizeof(int))) < 0) {
+  if ((ret = safe_setsockopt(accept_sd, IPPROTO_TCP, TCP_NODELAY, SOCKOPT_ON, sizeof(int))) < 0) {
     Warning("Could not set option TCP_NODELAY on socket (%d): %s", ret, strerror(errno));
     return -1;
   }
 
-  if ((ret = safe_setsockopt(accept_sd, SOL_SOCKET, SO_KEEPALIVE, ON, sizeof(int))) < 0) {
+  if ((ret = safe_setsockopt(accept_sd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int))) < 0) {
     Warning("Could not set option SO_KEEPALIVE on socket (%d): %s", ret, strerror(errno));
     return -1;
   }
@@ -158,9 +154,9 @@ LogSock::listen(int accept_port)
   // connection table correctly.
   //
   if (accept_port == 0) {
-    ret = safe_getsockname(accept_sd, (sockaddr *) & bind_addr, &size);
+    ret = safe_getsockname(accept_sd, &bind_addr.sa, &size);
     if (ret == 0) {
-      accept_port = ntohs(bind_addr.sin_port);
+      accept_port = ntohs(bind_addr.port());
     }
   }
   //
@@ -185,20 +181,21 @@ LogSock::listen(int accept_port)
   return 0;
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::accept
 
   Accept a new connection.  This is a blocking operation, so you may want
   to use one of the non-blocking pending_XXX calls to see if there is a
-  connection first.  This returns the table index for the new connection.
-  -------------------------------------------------------------------------*/
-
+  connection first.
+  @return This returns the table index for the new connection.
+*/
 int
 LogSock::accept()
 {
   int cid, connect_sd;
-  struct sockaddr_in connect_addr;
-  unsigned int size = sizeof(struct sockaddr_in);
+  IpEndpoint connect_addr;
+  socklen_t size = sizeof(connect_addr);
+  in_port_t connect_port;
 
   if (!m_accept_connections || ct[0].sd < 0) {
     return LogSock::LS_ERROR_NO_CONNECTION;
@@ -211,54 +208,39 @@ LogSock::accept()
 
   Debug("log-sock", "waiting to accept a new connection");
 
-  connect_sd =::accept(ct[0].sd, (sockaddr *) & connect_addr,
-                       (socklen_t *) & size
-    );
+  connect_sd =::accept(ct[0].sd, &connect_addr.sa, &size);
   if (connect_sd < 0) {
     return LogSock::LS_ERROR_ACCEPT;
   }
+  connect_port = ntohs(connect_addr.port());
 
-  init_cid(cid, NULL, connect_addr.sin_port, connect_sd, LogSock::LS_STATE_INCOMING);
+  init_cid(cid, NULL, connect_port, connect_sd, LogSock::LS_STATE_INCOMING);
 
-  Debug("log-sock", "new connection accepted, cid = %d, port = %d", cid, connect_addr.sin_port);
+  Debug("log-sock", "new connection accepted, cid = %d, port = %d", cid, connect_port);
 
   return cid;
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::connect
 
   Establish a new connection to another machine [host:port], and place this
   information into the connection and poll tables.
-  -------------------------------------------------------------------------*/
-
+*/  
 int
-LogSock::connect(char *host, int port)
-{
-  unsigned ip = 0;
-  ip = LogUtils::ip_from_host(host);
-  if (!ip) {
-    return LogSock::LS_ERROR_NO_SUCH_HOST;
-  }
-  return connect(ip, port);
-}
-
-int
-LogSock::connect(unsigned host_ip, int port)
+LogSock::connect(sockaddr const* ip)
 {
   int cid, connect_sd, ret;
-  struct sockaddr_in connect_addr;
-  memset(&connect_addr, 0, sizeof(connect_addr));
-  int size = sizeof(struct sockaddr_in);
+  uint16_t port;
 
-  if (host_ip == 0 || port < 0) {
+  if (!ats_is_ip(ip)) {
     Note("Invalid host IP or port number for connection");
     return LogSock::LS_ERROR_NO_SUCH_HOST;
   }
+  port = ntohs(ats_ip_port_cast(ip));
 
-  char ipstr[32];
-  LogUtils::ip_to_str(host_ip, ipstr, sizeof(ipstr));
-  Debug("log-sock", "connecting to [%s:%d]", ipstr, port);
+  ip_port_text_buffer ipstr;
+  Debug("log-sock", "connecting to [%s:%d]", ats_ip_nptop(ip, ipstr, sizeof(ipstr)), port);
 
   // get an index into the connection table
   cid = new_cid();
@@ -267,28 +249,24 @@ LogSock::connect(unsigned host_ip, int port)
     return LogSock::LS_ERROR_CONNECT_TABLE_FULL;
   }
   // initialize a new socket descriptor
-  connect_sd =::socket(LS_DOMAIN, LS_SOCKTYPE, LS_PROTOCOL);
+  connect_sd =::socket(ip->sa_family, LS_SOCKTYPE, LS_PROTOCOL);
   if (connect_sd < 0) {
     Note("Error initializing socket for connection: %d", connect_sd);
     return LogSock::LS_ERROR_SOCKET;
   }
 
-  if ((ret = safe_setsockopt(connect_sd, IPPROTO_TCP, TCP_NODELAY, ON, sizeof(int))) < 0) {
+  if ((ret = safe_setsockopt(connect_sd, IPPROTO_TCP, TCP_NODELAY, SOCKOPT_ON, sizeof(int))) < 0) {
     Note("Could not set option TCP_NODELAY on socket (%d): %s", ret, strerror(errno));
     return -1;
   }
 
-  if ((ret = safe_setsockopt(connect_sd, SOL_SOCKET, SO_KEEPALIVE, ON, sizeof(int))) < 0) {
+  if ((ret = safe_setsockopt(connect_sd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int))) < 0) {
     Note("Could not set option SO_KEEPALIVE on socket (%d): %s", ret, strerror(errno));
     return -1;
   }
-  // prepare to connect
-  connect_addr.sin_family = LS_DOMAIN;
-  connect_addr.sin_port = htons(port);
-  connect_addr.sin_addr.s_addr = host_ip;
 
   // attempt to connect
-  if (::connect(connect_sd, (sockaddr *) & connect_addr, size) != 0) {
+  if (::connect(connect_sd, ip, ats_ip_size(ip)) != 0) {
     ::close(connect_sd);
     Note("Failure to connect");
     return LogSock::LS_ERROR_CONNECT;
@@ -301,14 +279,14 @@ LogSock::connect(unsigned host_ip, int port)
   return cid;
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::pending_data
 
   This private routine checks for incoming data on some of the socket
-  descriptors.  Returns true if there is something incoming, with *cid
+  descriptors.
+  @return Returns true if there is something incoming, with *cid
   set to the index corresponding to the incoming socket.
-  -------------------------------------------------------------------------*/
-
+*/ 
 bool LogSock::pending_data(int *cid, int timeout_msec, bool include_connects)
 {
   int
@@ -390,12 +368,11 @@ bool LogSock::pending_data(int *cid, int timeout_msec, bool include_connects)
   return false;
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::pending_any
 
   Check for incomming data on any of the INCOMING sockets.
-  -------------------------------------------------------------------------*/
-
+*/
 bool LogSock::pending_any(int *cid, int timeout_msec)
 {
   ink_assert(cid != NULL);
@@ -421,24 +398,22 @@ bool LogSock::pending_message_any(int *cid, int timeout_msec)
   return pending_data(cid, timeout_msec, false);
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::pending_message_on
 
   Check for incomming data on the specified socket.
-  -------------------------------------------------------------------------*/
-
+*/
 bool LogSock::pending_message_on(int cid, int timeout_msec)
 {
   return pending_data(&cid, timeout_msec, false);
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::pending_connect
 
   Check for an incoming connection request on the socket reserved for that
   (cid = 0).
-  -------------------------------------------------------------------------*/
-
+*/
 bool LogSock::pending_connect(int timeout_msec)
 {
   int
@@ -450,13 +425,12 @@ bool LogSock::pending_connect(int timeout_msec)
   }
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::close
 
   Close one (cid specified) or all (no argument) sockets, except for the
   incomming connection socket.
-  -------------------------------------------------------------------------*/
-
+*/
 void
 LogSock::close(int cid)
 {
@@ -479,13 +453,12 @@ LogSock::close()
   }
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::write
 
   Write data onto the socket corresponding to the given cid.  Return the
   number of bytes actually written.
-  -------------------------------------------------------------------------*/
-
+*/
 int
 LogSock::write(int cid, void *buf, int bytes)
 {
@@ -509,8 +482,8 @@ LogSock::write(int cid, void *buf, int bytes)
   //
   // send the message header
   //
-  Debug("log-sock", "   sending header (%d bytes)", sizeof(LogSock::MsgHeader));
-  header.msg_bytes = htonl(bytes);
+  Debug("log-sock", "   sending header (%zu bytes)", sizeof(LogSock::MsgHeader));
+  header.msg_bytes = bytes;
   ret =::send(ct[cid].sd, (char *) &header, sizeof(LogSock::MsgHeader), 0);
   if (ret != sizeof(LogSock::MsgHeader)) {
     return LogSock::LS_ERROR_WRITE;
@@ -522,14 +495,13 @@ LogSock::write(int cid, void *buf, int bytes)
   return::send(ct[cid].sd, (char *) buf, bytes, 0);
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::read
 
   Read data from the specified connection.  This is a blocking call, so you
   may want to use one of the pending_XXX calls to see if there is anything
   to read first.  Returns number of bytes read.
-  -------------------------------------------------------------------------*/
-
+*/
 int
 LogSock::read(int cid, void *buf, unsigned maxsize)
 {
@@ -553,15 +525,14 @@ LogSock::read(int cid, void *buf, unsigned maxsize)
   return read_body(ct[cid].sd, buf, size);
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::read_alloc
 
   This routine reads data from the specified connection, and returns a
   pointer to newly allocated space (allocated with new) containing the
   data.  The number of bytes read is set in the argument size, which is
   expected to be a pointer to an int.
-  -------------------------------------------------------------------------*/
-
+*/
 void *
 LogSock::read_alloc(int cid, int *size)
 {
@@ -591,9 +562,8 @@ LogSock::read_alloc(int cid, int *size)
   return data;
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
+/**
+*/
 bool LogSock::is_connected(int cid, bool ping)
 {
   int
@@ -622,28 +592,26 @@ bool LogSock::is_connected(int cid, bool ping)
   }
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
+/**
+*/
 void
 LogSock::check_connections()
 {
   for (int i = 1; i < m_max_connections; i++) {
     if (ct[i].state == LogSock::LS_STATE_INCOMING) {
       if (!is_connected(i, true)) {
-        Debug("log-sock", "Connection %d is no longer connected");
+        Debug("log-sock", "Connection %d is no longer connected", i);
         close(i);
       }
     }
   }
 }
 
-/*-------------------------------------------------------------------------
+/**
   This routine will check to ensure that the client connecting is
   authorized to use the log collation port.  To authorize, the client is
   expected to send the logging secret string.
-  -------------------------------------------------------------------------*/
-
+*/
 bool LogSock::authorized_client(int cid, char *key)
 {
   //
@@ -669,8 +637,8 @@ bool LogSock::authorized_client(int cid, char *key)
   return false;
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
+/**
+*/
 char *
 LogSock::connected_host(int cid)
 {
@@ -678,9 +646,8 @@ LogSock::connected_host(int cid)
   return ct[cid].host;
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
+/**
+*/
 int
 LogSock::connected_port(int cid)
 {
@@ -692,10 +659,9 @@ LogSock::connected_port(int cid)
   LOCAL ROUTINES
   -------------------------------------------------------------------------*/
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::new_cid
-  -------------------------------------------------------------------------*/
-
+*/
 int
 LogSock::new_cid()
 {
@@ -711,10 +677,9 @@ LogSock::new_cid()
   return cid;
 }
 
-/*-------------------------------------------------------------------------
+/**
   LogSock::init_cid
-  -------------------------------------------------------------------------*/
-
+*/
 void
 LogSock::init_cid(int cid, char *host, int port, int sd, LogSock::State state)
 {
@@ -727,7 +692,7 @@ LogSock::init_cid(int cid, char *host, int port, int sd, LogSock::State state)
   if (host != NULL) {
     const size_t host_size = strlen(host) + 1;
     ct[cid].host = NEW(new char[host_size]);
-    ink_strncpy(ct[cid].host, host, sizeof(host_size));
+    ink_strlcpy(ct[cid].host, host, host_size);
   } else {
     ct[cid].host = NULL;
   }
@@ -737,9 +702,8 @@ LogSock::init_cid(int cid, char *host, int port, int sd, LogSock::State state)
   ct[cid].state = state;
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
+/**
+*/
 int
 LogSock::read_header(int sd, LogSock::MsgHeader * header)
 {
@@ -751,13 +715,11 @@ LogSock::read_header(int sd, LogSock::MsgHeader * header)
     return -1;
   }
 
-  header->msg_bytes = ntohl(header->msg_bytes);
   return bytes;
 }
 
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
+/**
+*/
 int
 LogSock::read_body(int sd, void *buf, int bytes)
 {

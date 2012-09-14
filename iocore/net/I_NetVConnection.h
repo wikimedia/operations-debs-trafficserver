@@ -48,10 +48,15 @@ enum NetDataType
     This class holds various options a user can specify for
     NetVConnection. Various clients need many slightly different
     features. This is an attempt to prevent out of control growth of
-    the connection method signatures.
+    the connection method signatures. Only options of interest need to
+    be explicitly set -- the rest get sensible default values.
 
-    Only options of interest need to be explicitly set --
-    the rest get sensible default values.
+    @note Binding addresses is a bit complex. It is not currently
+    possible to bind indiscriminately across protocols, which means
+    any connection must commit to IPv4 or IPv6. For this reason the
+    connection logic will look at the address family of @a local_addr
+    even if @a addr_binding is @c ANY_ADDR and bind to any address in
+    that protocol. If it's not an IP protocol, IPv4 will be used.
 */
 struct NetVCOptions {
   typedef NetVCOptions self; ///< Self reference type.
@@ -62,44 +67,68 @@ struct NetVCOptions {
     USE_UDP ///< UDP protocol.
   };
 
-  /// IP protocol to use on socket.
+  /// IP (TCP or UDP) protocol to use on socket.
   ip_protocol_t ip_proto;
+
+  /** IP address family.
+
+      This is used for inbound connections only if @c local_ip is not
+      set, which is sometimes more convenient for the client. This
+      defaults to @c AF_INET so if the client sets neither this nor @c
+      local_ip then IPv4 is used.
+
+      For outbound connections this is ignored and the family of the
+      remote address used.
+
+      @note This is (inconsistently) called "domain" and "protocol" in
+      other places. "family" is used here because that's what the
+      standard IP data structures use.
+
+  */
+  uint16_t ip_family;
 
   /** The set of ways in which the local address should be bound.
 
+      The protocol is set by the contents of @a local_addr regardless
+      of this value. @c ANY_ADDR will override only the address.
+
       @note The difference between @c INTF_ADDR and @c FOREIGN_ADDR is
       whether transparency is enabled on the socket. It is the
-      client's responsibility to set this correctly based on whether the
-      address in @a local_addr is associated with an interface on the
-      local system, or is owned by a foreign system.  A binding style
-      of @c ANY_ADDR causes the value in @a local_addr to be ignored.
+      client's responsibility to set this correctly based on whether
+      the address in @a local_addr is associated with an interface on
+      the local system ( @c INTF_ADDR ) or is owned by a foreign
+      system ( @c FOREIGN_ADDR ).  A binding style of @c ANY_ADDR
+      causes the value in @a local_addr to be ignored.
+
+      The IP address and port are separate because most clients treat
+      these independently. For the same reason @c IpAddr is used
+      to be clear that it contains no port data.
 
       @see local_addr
       @see addr_binding
    */
   enum addr_bind_style {
     ANY_ADDR, ///< Bind to any available local address (don't care, default).
-    INTF_ADDR, ///< Bind to the interface address in @a local_addr.
+    INTF_ADDR, ///< Bind to interface address in @a local_addr.
     FOREIGN_ADDR ///< Bind to foreign address in @a local_addr.
   };
 
-  /// The set of ways in which the local port should be bound.
-  enum port_bind_style {
-    ANY_PORT, ///< Bind to any available local port (don't care, default).
-    FIXED_PORT ///< Bind to the port in @a local_port.
-  };
+  /** Local address for the connection.
 
-  /// Port to use for local side of connection.
-  /// @note Ignored if @a port_binding is @c ANY_PORT.
-  /// @see port_binding
+      For outbound connections this must have the same family as the
+      remote address (which is not stored in this structure). For
+      inbound connections the family of this value overrides @a
+      ip_family if set.
+
+      @note Ignored if @a addr_binding is @c ANY_ADDR.
+      @see addr_binding
+      @see ip_family
+  */
+  IpAddr local_ip;
+  /** Local port for connection.
+      Set to 0 for "don't care" (default).
+   */
   uint16_t local_port;
-  /// How to bind local port.
-  /// @note Default is @c ANY_PORT.
-  port_bind_style port_binding;
-  /// Address to use for local side of connection.
-  /// @note Ignored if @a addr_binding is @c ANY_ADDR.
-  /// @see addr_binding
-  uint32_t local_addr;
   /// How to bind the local address.
   /// @note Default is @c ANY_ADDR.
   addr_bind_style addr_binding;
@@ -129,12 +158,16 @@ struct NetVCOptions {
   /// Value for keep alive for @c sockopt_flags.
   static uint32_t const SOCK_OPT_KEEP_ALIVE = 2;
 
+  uint32_t packet_mark;
+  uint32_t packet_tos;
+
   EventType etype;
 
   /// Reset all values to defaults.
   void reset();
 
-  void set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags);
+  void set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags,
+                      unsigned long _packet_mark = 0, unsigned long _packet_tos = 0);
 
   NetVCOptions() {
     reset();
@@ -369,25 +402,33 @@ public:
   virtual ink_hrtime get_inactivity_timeout() = 0;
 
   /** Returns local sockaddr storage. */
-  sockaddr_storage const* get_local_addr();
+  sockaddr const* get_local_addr();
 
-  /** Returns local ip. */
-  unsigned int get_local_ip();
+  /** Returns local ip.
+      @deprecated get_local_addr() should be used instead for AF_INET6 compatibility.
+  */
+  
+  in_addr_t get_local_ip();
 
   /** Returns local port. */
-  int get_local_port();
+  uint16_t get_local_port();
 
   /** Returns remote sockaddr storage. */
-  sockaddr_storage const* get_remote_addr();
+  sockaddr const* get_remote_addr();
 
-  /** Returns remote ip. */
-  unsigned int get_remote_ip();
+  /** Returns remote ip. 
+      @deprecated get_remote_addr() should be used instead for AF_INET6 compatibility.
+  */
+  in_addr_t get_remote_ip();
 
   /** Returns remote port. */
-  int get_remote_port();
+  uint16_t get_remote_port();
 
   /** Structure holding user options. */
   NetVCOptions options;
+
+  /** Attempt to push any changed options down */
+  virtual void apply_options() = 0;
 
   //
   // Private
@@ -420,6 +461,9 @@ public:
 
   virtual SOCKET get_socket() = 0;
 
+  /** Set the TCP initial congestion window */
+  virtual int set_tcp_init_cwnd(int init_cwnd) = 0;
+
   /** Set local sock addr struct. */
   virtual void set_local_addr() = 0;
 
@@ -444,34 +488,20 @@ public:
     is_transparent = state;
   }
 
-  /// Get the current flag state.
-  bool get_is_other_side_transparent() const {
-    return is_other_side_transparent;
-  }
-  /// Set the flag to @a value.
-  void set_is_other_side_transparent(bool value = true) {
-    is_other_side_transparent = value;
-  }
-
 private:
   NetVConnection(const NetVConnection &);
   NetVConnection & operator =(const NetVConnection &);
 
 protected:
-  struct sockaddr_storage local_addr;
-  struct sockaddr_storage remote_addr;
+  IpEndpoint local_addr;
+  IpEndpoint remote_addr;
 
-  int got_local_addr;
-  int got_remote_addr;
+  bool got_local_addr;
+  bool got_remote_addr;
 
   bool is_internal_request;
   /// Set if this connection is transparent.
   bool is_transparent;
-  /// Set if the paired connection is (should be) transparent.
-  /// @internal Currently only used on client side connections
-  /// to track whether the origin server connection should
-  /// be transparent.
-  bool is_other_side_transparent;
 };
 
 inline
@@ -482,11 +512,10 @@ NetVConnection::NetVConnection():
   got_local_addr(0),
   got_remote_addr(0),
   is_internal_request(false),
-  is_transparent(false),
-  is_other_side_transparent(false)
+  is_transparent(false)
 {
-  memset(&local_addr, 0, sizeof(local_addr));
-  memset(&remote_addr, 0, sizeof(remote_addr));
+  ink_zero(local_addr);
+  ink_zero(remote_addr);
 }
 
 #endif

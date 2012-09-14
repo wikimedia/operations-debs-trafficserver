@@ -291,15 +291,14 @@ IOBufferData::alloc(int64_t size_index, AllocType type)
       _data = (char *) ioBufAllocator[size_index].alloc_void();
     // coverity[dead_error_condition]
     else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index))
-      // coverity[dead_error_line]
-      _data = (char *) valloc(index_to_buffer_size(size_index));
+      _data = (char *)ats_memalign(sysconf(_SC_PAGESIZE), index_to_buffer_size(size_index));
     break;
   default:
   case DEFAULT_ALLOC:
     if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(size_index))
       _data = (char *) ioBufAllocator[size_index].alloc_void();
     else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index))
-      _data = (char *) xmalloc(BUFFER_SIZE_FOR_XMALLOC(size_index));
+      _data = (char *)ats_malloc(BUFFER_SIZE_FOR_XMALLOC(size_index));
     break;
   }
 }
@@ -325,7 +324,7 @@ IOBufferData::dealloc()
     if (BUFFER_SIZE_INDEX_IS_FAST_ALLOCATED(_size_index))
       ioBufAllocator[_size_index].free_void(_data);
     else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(_size_index))
-      xfree(_data);
+      ats_free(_data);
     break;
   }
   _data = 0;
@@ -523,7 +522,7 @@ IOBufferBlock::realloc_xmalloc(void *b, int64_t buf_size)
 TS_INLINE void
 IOBufferBlock::realloc_xmalloc(int64_t buf_size)
 {
-  realloc_set_internal(xmalloc(buf_size), buf_size, -buf_size);
+  realloc_set_internal(ats_malloc(buf_size), buf_size, -buf_size);
 }
 
 TS_INLINE void
@@ -1107,7 +1106,7 @@ MIOBuffer::alloc(int64_t i)
 TS_INLINE void
 MIOBuffer::alloc_xmalloc(int64_t buf_size)
 {
-  char *b = (char *) xmalloc(buf_size);
+  char *b = (char *)ats_malloc(buf_size);
   set_xmalloced(b, buf_size);
 }
 

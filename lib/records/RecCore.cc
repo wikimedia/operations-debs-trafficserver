@@ -165,16 +165,13 @@ link_string_alloc(const char *name, RecDataT data_type, RecData data, void *cook
   int len = -1;
   if (_ss) {
     len = strlen(_ss);
-    _new_value = (RecString) xmalloc(len + 1);
+    _new_value = (RecString)ats_malloc(len + 1);
     memcpy(_new_value, _ss, len + 1);
   }
 
   RecString _temp2 = data.rec_string;
   data.rec_string = _new_value;
-
-  if (_temp2 != 0) {
-    xfree(_temp2);
-  }
+  ats_free(_temp2);
 
   return REC_ERR_OKAY;
 }
@@ -197,7 +194,7 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   g_num_records = 0;
 
   // initialize record array for our internal stats (this can be reallocated later)
-  g_records = (RecRecord *) xmalloc(REC_MAX_RECORDS * sizeof(RecRecord));
+  g_records = (RecRecord *)ats_malloc(REC_MAX_RECORDS * sizeof(RecRecord));
   memset(g_records, 0, REC_MAX_RECORDS * sizeof(RecRecord));
 
   // initialize record hash index
@@ -224,7 +221,7 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
     bool file_exists = true;
     g_rec_config_fpath = Layout::relative_to(Layout::get()->sysconfdir, REC_CONFIG_FILE REC_SHADOW_EXT);
     if (RecFileExists(g_rec_config_fpath) == REC_ERR_FAIL) {
-      xfree((char *)g_rec_config_fpath);
+      ats_free((char *)g_rec_config_fpath);
       g_rec_config_fpath = Layout::relative_to(Layout::get()->sysconfdir, REC_CONFIG_FILE);
       if (RecFileExists(g_rec_config_fpath) == REC_ERR_FAIL) {
         RecLog(DL_Warning, "Could not find '%s', system will run with defaults\n", REC_CONFIG_FILE);
@@ -342,7 +339,7 @@ RecRegisterConfigUpdateCb(const char *name, RecConfigUpdateCb update_cb, void *c
          }
        */
 
-      RecConfigUpdateCbList *new_callback = (RecConfigUpdateCbList *) xmalloc(sizeof(RecConfigUpdateCbList));
+      RecConfigUpdateCbList *new_callback = (RecConfigUpdateCbList *)ats_malloc(sizeof(RecConfigUpdateCbList));
       memset(new_callback, 0, sizeof(RecConfigUpdateCbList));
       new_callback->update_cb = update_cb;
       new_callback->update_cookie = cookie;
@@ -413,8 +410,7 @@ RecGetRecordString(const char *name, char *buf, int buf_len, bool lock)
       if (r->data.rec_string == NULL) {
         buf[0] = '\0';
       } else {
-        strncpy(buf, r->data.rec_string, buf_len - 1);
-        buf[buf_len - 1] = '\0';
+        ink_strlcpy(buf, r->data.rec_string, buf_len);
       }
     }
     rec_mutex_release(&(r->lock));
@@ -642,7 +638,7 @@ RecGetRecordDefaultDataString_Xmalloc(char *name, char **buf, bool lock)
   RecRecord *r = NULL;
 
   if (ink_hash_table_lookup(g_records_ht, name, (void **) &r)) {
-    *buf = (char *) xmalloc(sizeof(char) * 1024);
+    *buf = (char *)ats_malloc(sizeof(char) * 1024);
     memset(*buf, 0, 1024);
     err = REC_ERR_OKAY;
 
@@ -655,10 +651,9 @@ RecGetRecordDefaultDataString_Xmalloc(char *name, char **buf, bool lock)
       break;
     case RECD_STRING:
       if (r->data_default.rec_string) {
-        strncpy(*buf, r->data_default.rec_string, 1023);
-        buf[1023] = '\0';
+        ink_strlcpy(*buf, r->data_default.rec_string, 1024);
       } else {
-        xfree(*buf);
+        ats_free(*buf);
         *buf = NULL;
       }
       break;
@@ -667,7 +662,7 @@ RecGetRecordDefaultDataString_Xmalloc(char *name, char **buf, bool lock)
       break;
     default:
       ink_debug_assert(!"Unexpected RecD type");
-      xfree(*buf);
+      ats_free(*buf);
       *buf = NULL;
       break;
     }
@@ -765,9 +760,9 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
     r->config_meta.update_type = update_type;
     r->config_meta.check_type = check_type;
     if (r->config_meta.check_expr) {
-      xfree(r->config_meta.check_expr);
+      ats_free(r->config_meta.check_expr);
     }
-    r->config_meta.check_expr = xstrdup(check_expr);
+    r->config_meta.check_expr = ats_strdup(check_expr);
     r->config_meta.update_cb_list = NULL;
     r->config_meta.access_type = access_type;
     rec_mutex_release(&(r->lock));
@@ -849,10 +844,8 @@ RecForceInsert(RecRecord * record)
     r->config_meta.update_required = record->config_meta.update_required;
     r->config_meta.update_type = record->config_meta.update_type;
     r->config_meta.check_type = record->config_meta.check_type;
-    if (r->config_meta.check_expr) {
-      xfree(r->config_meta.check_expr);
-    }
-    r->config_meta.check_expr = xstrdup(record->config_meta.check_expr);
+    ats_free(r->config_meta.check_expr);
+    r->config_meta.check_expr = ats_strdup(record->config_meta.check_expr);
     r->config_meta.access_type = record->config_meta.access_type;
   }
 
@@ -950,7 +943,7 @@ RecGetRecordPrefix_Xmalloc(char *prefix, char **buf, int *buf_len)
   int num_matched = 0;
   char *result = NULL;
 
-  result = (char *) xmalloc(result_size * sizeof(char));
+  result = (char *)ats_malloc(result_size * sizeof(char));
   memset(result, 0, result_size * sizeof(char));
 
   int i;

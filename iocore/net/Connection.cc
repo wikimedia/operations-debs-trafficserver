@@ -68,8 +68,9 @@ Connection::Connection()
   : fd(NO_FD)
   , is_bound(false)
   , is_connected(false)
+  , sock_type(0)
 {
-  memset(&sa, 0, sizeof(struct sockaddr_storage));
+  memset(&addr, 0, sizeof(addr));
 }
 
 
@@ -83,12 +84,19 @@ int
 Server::accept(Connection * c)
 {
   int res = 0;
-  socklen_t sz = sizeof(c->sa);
+  socklen_t sz = sizeof(c->addr);
 
-  res = socketManager.accept(fd, (struct sockaddr *)&c->sa, &sz);
+  res = socketManager.accept(fd, &c->addr.sa, &sz);
   if (res < 0)
     return res;
   c->fd = res;
+  if (is_debug_tag_set("iocore_net_server")) {
+    ip_port_text_buffer ipb1, ipb2;
+      Debug("iocore_net_server", "Connection accepted [Server]. %s -> %s\n"
+        , ats_ip_nptop(&c->addr, ipb2, sizeof(ipb2))
+        , ats_ip_nptop(&addr, ipb1, sizeof(ipb1))
+      );
+  }
 
 #ifdef SET_CLOSE_ON_EXEC
   if ((res = safe_fcntl(fd, F_SETFD, 1)) < 0)
@@ -101,7 +109,7 @@ Server::accept(Connection * c)
 #endif
 #ifdef SET_SO_KEEPALIVE
   // enables 2 hour inactivity probes, also may fix IRIX FIN_WAIT_2 leak
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 #endif
 
@@ -128,10 +136,28 @@ Connection::close()
   }
 }
 
+static int
+add_http_filter(int fd) {
+  int err = -1;
+#if defined(SOL_FILTER) && defined(FIL_ATTACH)
+  err = setsockopt(fd, SOL_FILTER, FIL_ATTACH, "httpfilt", 9);
+#endif
+  return err;
+}
+
 int
-Server::setup_fd_for_listen(bool non_blocking, int recv_bufsize, int send_bufsize)
-{
+Server::setup_fd_for_listen(
+  bool non_blocking,
+  int recv_bufsize,
+  int send_bufsize,
+  bool transparent
+) {
+
   int res = 0;
+
+  if (http_accept_filter)
+    add_http_filter(fd);
+
 #ifdef SEND_BUF_SIZE
   {
     int send_buf_size = SEND_BUF_SIZE;
@@ -184,12 +210,12 @@ Server::setup_fd_for_listen(bool non_blocking, int recv_bufsize, int send_bufsiz
   }
 #endif
 #ifdef SET_TCP_NO_DELAY
-  if ((res = safe_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 #endif
 #ifdef SET_SO_KEEPALIVE
   // enables 2 hour inactivity probes, also may fix IRIX FIN_WAIT_2 leak
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 #endif
 
@@ -208,10 +234,24 @@ Server::setup_fd_for_listen(bool non_blocking, int recv_bufsize, int send_bufsiz
     if ((res = safe_nonblocking(fd)) < 0)
       goto Lerror;
   {
-    int namelen = sizeof(sa);
-    if ((res = safe_getsockname(fd, (struct sockaddr *) &sa, &namelen)))
+    int namelen = sizeof(addr);
+    if ((res = safe_getsockname(fd, &addr.sa, &namelen)))
       goto Lerror;
   }
+
+  if (transparent) {
+#if TS_USE_TPROXY
+    int transparent_value = 1;
+    Debug("http_tproxy", "Listen port inbound transparency enabled.\n");
+    if (setsockopt(fd, SOL_IP, TS_IP_TRANSPARENT, &transparent_value, sizeof(transparent_value)) == -1) {
+      Error("[Server::setup_fd_for_listen] Unable to set transparent socket option [%d] %s\n", errno, strerror(errno));
+      _exit(1);
+    }
+#else
+    Error("[Server::setup_fd_for_listen] Transparency requested but TPROXY not configured\n");
+#endif
+  }
+
   return 0;
 Lerror:
   res = -errno;
@@ -223,42 +263,26 @@ Lerror:
 
 
 int
-Server::listen(int port_number, int domain, bool non_blocking, int recv_bufsize, int send_bufsize)
+Server::listen(bool non_blocking, int recv_bufsize, int send_bufsize, bool transparent)
 {
   ink_assert(fd == NO_FD);
   int res = 0;
-  int gai_errno = 0;
+  int namelen;
 
-  char port[6] = {'\0'};
-  struct addrinfo hints;
-  struct addrinfo *ai_res = NULL;
-  struct addrinfo *ai = NULL;
-  socklen_t addrlen = 0;  // keep track of length of socket address info
-  snprintf(port, sizeof(port), "%d", port_number);
-
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = domain;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE|AI_NUMERICHOST|AI_ADDRCONFIG;
-  gai_errno = getaddrinfo(accept_ip_str, port, &hints, &ai_res);
-  if(0 != gai_errno) {
-    Error("getaddrinfo error %i: %s", gai_errno, gai_strerror(gai_errno));
-    return -1;
+  if (!ats_is_ip(&accept_addr)) {
+    ats_ip4_set(&addr, INADDR_ANY,0);
+  } else {
+    ats_ip_copy(&addr, &accept_addr);
   }
 
-  ai = ai_res;
-
-  res = socketManager.socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-
-  memset(&sa, 0, sizeof(sa));
-  addrlen = ai->ai_addrlen;  // save value for later since ai will be freed asap
-  memcpy(&sa, ai->ai_addr, ai->ai_addrlen);
-
-  freeaddrinfo(ai_res);
+  res = socketManager.socket(addr.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
 
   if (res < 0)
     return res;
   fd = res;
+
+  if (http_accept_filter)
+    add_http_filter(fd);
 
 #ifdef SEND_BUF_SIZE
   {
@@ -316,24 +340,37 @@ Server::listen(int port_number, int domain, bool non_blocking, int recv_bufsize,
   }
 #endif
 
-  if (domain == AF_INET6 && (res = safe_setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, ON, sizeof(int))) < 0)
+  if (ats_is_ip6(&addr) && (res = safe_setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 
-  if ((res = socketManager.ink_bind(fd, (struct sockaddr *) &sa, addrlen, IPPROTO_TCP)) < 0) {
+  if ((res = socketManager.ink_bind(fd, &addr.sa, ats_ip_size(&addr.sa), IPPROTO_TCP)) < 0) {
     goto Lerror;
   }
 #ifdef SET_TCP_NO_DELAY
-  if ((res = safe_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 #endif
 #ifdef SET_SO_KEEPALIVE
   // enables 2 hour inactivity probes, also may fix IRIX FIN_WAIT_2 leak
-  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, ON, sizeof(int))) < 0)
+  if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int))) < 0)
     goto Lerror;
 #endif
+
+  if (transparent) {
+#if TS_USE_TPROXY
+    int transparent_value = 1;
+    Debug("http_tproxy", "Listen port inbound transparency enabled.\n");
+    if (setsockopt(fd, SOL_IP, TS_IP_TRANSPARENT, &transparent_value, sizeof(transparent_value)) == -1) {
+      Error("[Server::listen] Unable to set transparent socket option [%d] %s\n", errno, strerror(errno));
+      _exit(1);
+    }
+#else
+    Error("[Server::listen] Transparency requested but TPROXY not configured\n");
+#endif
+  }
 
 #if defined(linux)
   if (NetProcessor::accept_mss > 0)
@@ -346,16 +383,15 @@ Server::listen(int port_number, int domain, bool non_blocking, int recv_bufsize,
   if (non_blocking)
     if ((res = safe_nonblocking(fd)) < 0)
       goto Lerror;
-  if (!port_number) {
-    int namelen = sizeof(sa);
-    if ((res = safe_getsockname(fd, (struct sockaddr *) &sa, &namelen)))
+  // Original just did this on port == 0.
+  namelen = sizeof(addr);
+  if ((res = safe_getsockname(fd, &addr.sa, &namelen)))
       goto Lerror;
-  }
   return 0;
 
 Lerror:
   if (fd != NO_FD)
     close();
-  Error("Could not bind or listen to port %d (error: %d)", port_number, res);
+  Error("Could not bind or listen to port %d (error: %d)", ats_ip_port_host_order(&addr), res);
   return res;
 }

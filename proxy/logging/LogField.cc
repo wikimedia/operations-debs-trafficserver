@@ -43,10 +43,12 @@ const char *container_names[] = {
   "psh",
   "pqh",
   "ssh",
+  "cssh",
   "ecqh",
   "epsh",
   "epqh",
   "essh",
+  "ecssh",
   "icfg",
   "scfg",
   "record",
@@ -69,7 +71,7 @@ const char *aggregate_names[] = {
 
 // Generic field ctor
 LogField::LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFunc unmarshal)
-  : m_name(xstrdup(name)), m_symbol(xstrdup(symbol)), m_type(type), m_container(NO_CONTAINER), m_marshal_func(marshal),
+  : m_name(ats_strdup(name)), m_symbol(ats_strdup(symbol)), m_type(type), m_container(NO_CONTAINER), m_marshal_func(marshal),
     m_unmarshal_func(unmarshal), m_unmarshal_func_map(NULL), m_agg_op(NO_AGGREGATE), m_agg_cnt(0), m_agg_val(0),
     m_time_field(false), m_alias_map(0)
 {
@@ -86,7 +88,7 @@ LogField::LogField(const char *name, const char *symbol, Type type, MarshalFunc 
 
 LogField::LogField(const char *name, const char *symbol, Type type,
                    MarshalFunc marshal, UnmarshalFuncWithMap unmarshal, Ptr<LogFieldAliasMap> map)
-  : m_name(xstrdup(name)), m_symbol(xstrdup(symbol)), m_type(type), m_container(NO_CONTAINER), m_marshal_func(marshal),
+  : m_name(ats_strdup(name)), m_symbol(ats_strdup(symbol)), m_type(type), m_container(NO_CONTAINER), m_marshal_func(marshal),
     m_unmarshal_func(NULL), m_unmarshal_func_map(unmarshal), m_agg_op(NO_AGGREGATE), m_agg_cnt(0), m_agg_val(0),
     m_time_field(false), m_alias_map(map)
 {
@@ -104,7 +106,7 @@ LogField::LogField(const char *name, const char *symbol, Type type,
 
 // Container field ctor
 LogField::LogField(const char *field, Container container)
-  : m_name(xstrdup(field)), m_symbol(xstrdup(container_names[container])), m_type(LogField::STRING),
+  : m_name(ats_strdup(field)), m_symbol(ats_strdup(container_names[container])), m_type(LogField::STRING),
     m_container(container), m_marshal_func(NULL), m_unmarshal_func(NULL), m_unmarshal_func_map(NULL),
     m_agg_op(NO_AGGREGATE), m_agg_cnt(0), m_agg_val(0), m_time_field(false), m_alias_map(0)
 {
@@ -122,10 +124,12 @@ LogField::LogField(const char *field, Container container)
   case PSH:
   case PQH:
   case SSH:
+  case CSSH:
   case ECQH:
   case EPSH:
   case EPQH:
   case ESSH:
+  case ECSSH:
   case SCFG:
     m_unmarshal_func = &(LogAccess::unmarshal_str);
     break;
@@ -145,7 +149,7 @@ LogField::LogField(const char *field, Container container)
 
 // Copy ctor
 LogField::LogField(const LogField &rhs)
-  : m_name(xstrdup(rhs.m_name)), m_symbol(xstrdup(rhs.m_symbol)), m_type(rhs.m_type), m_container(rhs.m_container),
+  : m_name(ats_strdup(rhs.m_name)), m_symbol(ats_strdup(rhs.m_symbol)), m_type(rhs.m_type), m_container(rhs.m_container),
     m_marshal_func(rhs.m_marshal_func), m_unmarshal_func(rhs.m_unmarshal_func), m_unmarshal_func_map(rhs.m_unmarshal_func_map),
     m_agg_op(rhs.m_agg_op), m_agg_cnt(0), m_agg_val(0), m_time_field(rhs.m_time_field), m_alias_map(rhs.m_alias_map)
 {
@@ -159,8 +163,8 @@ LogField::LogField(const LogField &rhs)
   -------------------------------------------------------------------------*/
 LogField::~LogField()
 {
-  xfree(m_name);
-  xfree(m_symbol);
+  ats_free(m_name);
+  ats_free(m_symbol);
 }
 
 /*-------------------------------------------------------------------------
@@ -182,12 +186,14 @@ LogField::marshal_len(LogAccess *lad)
   case PSH:
   case PQH:
   case SSH:
+  case CSSH:
     return lad->marshal_http_header_field(m_container, m_name, NULL);
 
   case ECQH:
   case EPSH:
   case EPQH:
   case ESSH:
+  case ECSSH:
     return lad->marshal_http_header_field_escapify(m_container, m_name, NULL);
 
   case ICFG:
@@ -221,12 +227,14 @@ LogField::marshal(LogAccess *lad, char *buf)
   case PSH:
   case PQH:
   case SSH:
+  case CSSH:
     return lad->marshal_http_header_field(m_container, m_name, buf);
 
   case ECQH:
   case EPSH:
   case EPQH:
   case ESSH:
+  case ECSSH:
     return lad->marshal_http_header_field_escapify(m_container, m_name, buf);
 
   case ICFG:
@@ -307,10 +315,26 @@ LogField::display(FILE *fd)
   static const char *names[LogField::N_TYPES] = {
     "sINT",
     "dINT",
-    "STR"
+    "STR",
+    "IP"
   };
 
   fprintf(fd, "    %30s %10s %5s\n", m_name, m_symbol, names[m_type]);
+}
+
+/*-------------------------------------------------------------------------
+  LogField::operator==
+
+  This operator does only care of the name and m_symbol, may need
+  do check on others layter.
+  -------------------------------------------------------------------------*/
+bool
+LogField::operator==(LogField & rhs) {
+  if (strcmp(name(), rhs.name()) || strcmp(symbol(), rhs.symbol())) {
+    return false;
+  } else {
+    return true;
+  }
 }
 
 /*-------------------------------------------------------------------------
@@ -356,8 +380,8 @@ LogField::update_aggregate(int64_t val)
     return;
   }
 
-  Debug("log-agg", "Aggregate field %s updated with val %d, "
-        "new val = %d, cnt = %d", m_symbol, val, m_agg_val, m_agg_cnt);
+  Debug("log-agg", "Aggregate field %s updated with val %"PRId64", "
+        "new val = %"PRId64", cnt = %"PRId64"", m_symbol, val, m_agg_val, m_agg_cnt);
 }
 
 

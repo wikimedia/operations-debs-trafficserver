@@ -43,6 +43,14 @@
 
 #define tsapi
 
+#if !defined(TS_PRINTFLIKE)
+#if defined(__GNUC__) || defined(__clang__)
+#define TS_PRINTFLIKE(fmt, arg) __attribute__((format(printf, fmt, arg)))
+#else
+#define TS_PRINTFLIKE(fmt, arg)
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -137,6 +145,9 @@ extern "C"
     TS_HTTP_STATUS_NO_CONTENT = 204,
     TS_HTTP_STATUS_RESET_CONTENT = 205,
     TS_HTTP_STATUS_PARTIAL_CONTENT = 206,
+    TS_HTTP_STATUS_MULTI_STATUS = 207,
+    TS_HTTP_STATUS_ALREADY_REPORTED = 208,
+    TS_HTTP_STATUS_IM_USED = 211,
 
     TS_HTTP_STATUS_MULTIPLE_CHOICES = 300,
     TS_HTTP_STATUS_MOVED_PERMANENTLY = 301,
@@ -145,6 +156,7 @@ extern "C"
     TS_HTTP_STATUS_NOT_MODIFIED = 304,
     TS_HTTP_STATUS_USE_PROXY = 305,
     TS_HTTP_STATUS_TEMPORARY_REDIRECT = 307,
+    TS_HTTP_STATUS_PERMANENT_REDIRECT = 308,
 
     TS_HTTP_STATUS_BAD_REQUEST = 400,
     TS_HTTP_STATUS_UNAUTHORIZED = 401,
@@ -162,13 +174,28 @@ extern "C"
     TS_HTTP_STATUS_REQUEST_ENTITY_TOO_LARGE = 413,
     TS_HTTP_STATUS_REQUEST_URI_TOO_LONG = 414,
     TS_HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE = 415,
+    TS_HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE = 416,
+    TS_HTTP_STATUS_EXPECTATION_FAILED = 417,
+    TS_HTTP_STATUS_UNPROCESSABLE_ENTITY = 422,
+    TS_HTTP_STATUS_LOCKED = 423,
+    TS_HTTP_STATUS_FAILED_DEPENDENCY = 424,
+    TS_HTTP_STATUS_UPGRADE_REQUIRED = 426,
+    TS_HTTP_STATUS_PRECONDITION_REQUIRED = 428,
+    TS_HTTP_STATUS_TOO_MANY_REQUESTS = 429,
+    TS_HTTP_STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
 
     TS_HTTP_STATUS_INTERNAL_SERVER_ERROR = 500,
     TS_HTTP_STATUS_NOT_IMPLEMENTED = 501,
     TS_HTTP_STATUS_BAD_GATEWAY = 502,
     TS_HTTP_STATUS_SERVICE_UNAVAILABLE = 503,
     TS_HTTP_STATUS_GATEWAY_TIMEOUT = 504,
-    TS_HTTP_STATUS_HTTPVER_NOT_SUPPORTED = 505
+    TS_HTTP_STATUS_HTTPVER_NOT_SUPPORTED = 505,
+    TS_HTTP_STATUS_VARIANT_ALSO_NEGOTIATES = 506,
+    TS_HTTP_STATUS_INSUFFICIENT_STORAGE = 507,
+    TS_HTTP_STATUS_LOOP_DETECTED = 508,
+    TS_HTTP_STATUS_NOT_EXTENDED = 510,
+    TS_HTTP_STATUS_NETWORK_AUTHENTICATION_REQUIRED = 511
+
   } TSHttpStatus;
 
   /**
@@ -237,7 +264,7 @@ extern "C"
     TS_HTTP_POST_REMAP_HOOK,
     TS_HTTP_LAST_HOOK
   } TSHttpHookID;
-  #define TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK TS_HTTP_PRE_REMAP_HOOK //backwards compat
+  #define TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK TS_HTTP_PRE_REMAP_HOOK  /* backwards compat */
 
   typedef enum
   {
@@ -341,7 +368,7 @@ extern "C"
     TS_EVENT_INTERNAL_60201 = 60201,
     TS_EVENT_INTERNAL_60202 = 60202
   } TSEvent;
-  #define TS_EVENT_HTTP_READ_REQUEST_PRE_REMAP TS_EVENT_HTTP_PRE_REMAP //backwards compat
+  #define TS_EVENT_HTTP_READ_REQUEST_PRE_REMAP TS_EVENT_HTTP_PRE_REMAP /* backwards compat */
 
   typedef enum
   { TS_SRVSTATE_STATE_UNDEFINED = 0,
@@ -448,9 +475,9 @@ extern "C"
     AFTER_BODY
   } TSFetchWakeUpOptions;
 
-  /**
-     This type represents a context for data records.
-  */
+  /* librecords types */
+
+  /* The values of this enum must match enum RecT in I_RecDefs.h */
   typedef enum
     {
       TS_RECORDTYPE_NULL = 0,
@@ -463,6 +490,7 @@ extern "C"
       TS_RECORDTYPE_MAX
     } TSRecordType;
 
+  /* The values of this enum must match enum RecDataT in I_RecDefs.h */
   typedef enum
     {
       TS_RECORDDATATYPE_NULL = 0,
@@ -470,6 +498,8 @@ extern "C"
       TS_RECORDDATATYPE_FLOAT,
       TS_RECORDDATATYPE_STRING,
       TS_RECORDDATATYPE_COUNTER,
+      TS_RECORDDATATYPE_STAT_CONST,
+      TS_RECORDDATATYPE_STAT_FX,
       TS_RECORDDATATYPE_MAX
     } TSRecordDataType;
 
@@ -481,11 +511,53 @@ extern "C"
     int64_t rec_counter;
   } TSRecordData;
 
+  /* The values of this enum must match enum RecPersistT in I_RecDefs.h */
+  typedef enum
+    {
+      TS_RECORDP_NULL,
+      TS_RECORDP_PERSISTENT,
+      TS_RECORDP_NON_PERSISTENT
+    } TSRecordPersistType;
+
+  /* The values of this enum must match enum RecUpdateT in I_RecDefs.h */
+  typedef enum
+    {
+      TS_RECORDUPDATE_NULL,
+      TS_RECORDUPDATE_DYNAMIC,
+      TS_RECORDUPDATE_RESTART_TS,
+      TS_RECORDUPDATE_RESTART_TM,
+      TS_RECORDUPDATE_RESTART_TC
+    } TSRecordUpdateType;
+
+  /* The values of this enum must match enum RecCheckT in I_RecDefs.h */
+  typedef enum
+    {
+      TS_RECORDCHECK_NULL,
+      TS_RECORDCHECK_STR,
+      TS_RECORDCHECK_INT,
+      TS_RECORDCHECK_IP
+    } TSRecordCheckType;
+
+  /* The values of this enum must match enum RecModeT in I_RecDefs.h */
+  typedef enum
+    {
+      TS_RECORDMODE_NULL,
+      TS_RECORDMODE_CLIENT,
+      TS_RECORDMODE_SERVER,
+      TS_RECORDMODE_STAND_ALONE
+    } TSRecordModeType;
+
+  /* The values of this enum must match enum RecAccessT in I_RecDefs.h */
+  typedef enum
+    {
+      TS_RECORDACCESS_NULL,
+      TS_RECORDACCESS_NO_ACCESS,
+      TS_RECORDACCESS_READ_ONLY
+    } TSRecordAccessType;
+
   typedef enum
   {
     TS_CONFIG_NULL = -1,
-    // The order of these enum's must match the order of
-    // struct OverridableHttpConfigParams in HttpConfig.h.
     TS_CONFIG_URL_REMAP_PRISTINE_HOST_HDR,
     TS_CONFIG_HTTP_CHUNKING_ENABLED,
     TS_CONFIG_HTTP_NEGATIVE_CACHING_ENABLED,
@@ -494,6 +566,7 @@ extern "C"
     TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN,
     TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_OUT,
     TS_CONFIG_HTTP_KEEP_ALIVE_POST_OUT,
+    TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS,
     TS_CONFIG_NET_SOCK_RECV_BUFFER_SIZE_OUT,
     TS_CONFIG_NET_SOCK_SEND_BUFFER_SIZE_OUT,
     TS_CONFIG_NET_SOCK_OPTION_FLAG_OUT,
@@ -504,9 +577,9 @@ extern "C"
     TS_CONFIG_HTTP_ANONYMIZE_REMOVE_COOKIE,
     TS_CONFIG_HTTP_ANONYMIZE_REMOVE_CLIENT_IP,
     TS_CONFIG_HTTP_ANONYMIZE_INSERT_CLIENT_IP,
-    TS_CONFIG_HTTP_APPEND_XFORWARDS_HEADER,
     TS_CONFIG_HTTP_RESPONSE_SERVER_ENABLED,
     TS_CONFIG_HTTP_INSERT_SQUID_X_FORWARDED_FOR,
+    TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND,
     TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS,
     TS_CONFIG_HTTP_CACHE_HTTP,
     TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE,
@@ -525,6 +598,7 @@ extern "C"
     TS_CONFIG_HTTP_CACHE_GUARANTEED_MAX_LIFETIME,
     TS_CONFIG_HTTP_CACHE_MAX_STALE_AGE,
     TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN,
+    TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_OUT,
     TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN,
     TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT,
     TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT,
@@ -539,11 +613,11 @@ extern "C"
     TS_CONFIG_HTTP_CACHE_FUZZ_TIME,
     TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME,
     TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS,
-
-    // Strings and floats must come after all the integer configs
     TS_CONFIG_HTTP_RESPONSE_SERVER_STR,
     TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR,
     TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY,
+    TS_CONFIG_NET_SOCK_PACKET_MARK_OUT,
+    TS_CONFIG_NET_SOCK_PACKET_TOS_OUT,
     TS_CONFIG_LAST_ENTRY
   } TSOverridableConfigKey;
 
@@ -554,7 +628,7 @@ extern "C"
       TS_THREAD_POOL_DEFAULT = -1,
       TS_THREAD_POOL_NET,
       TS_THREAD_POOL_TASK,
-      /* unlikely you should use these */    
+      /* unlikely you should use these */
       TS_THREAD_POOL_SSL,
       TS_THREAD_POOL_DNS,
       TS_THREAD_POOL_REMAP,
@@ -913,6 +987,14 @@ extern "C"
   extern tsapi int TS_HTTP_LEN_TRACE;
 
   /* --------------------------------------------------------------------------
+     TLS Next Protocol well-known protocol names. */
+  extern tsapi const char * TS_NPN_PROTOCOL_HTTP_1_0;
+  extern tsapi const char * TS_NPN_PROTOCOL_HTTP_1_1;
+  extern tsapi const char * TS_NPN_PROTOCOL_SPDY_1;
+  extern tsapi const char * TS_NPN_PROTOCOL_SPDY_2;
+  extern tsapi const char * TS_NPN_PROTOCOL_SPDY_3;
+
+  /* --------------------------------------------------------------------------
      MLoc Constants */
   /**
       Use TS_NULL_MLOC as the parent in calls that require a parent
@@ -928,11 +1010,15 @@ extern "C"
 #define TSrealloc(p,s)   _TSrealloc ((p), (s), TS_RES_MEM_PATH)
 #define TSstrdup(p)      _TSstrdup ((p), -1, TS_RES_MEM_PATH)
 #define TSstrndup(p,n)   _TSstrdup ((p), (n), TS_RES_MEM_PATH)
+#define TSstrlcpy(d,s,l) _TSstrlcpy ((d), (s), (l))
+#define TSstrlcat(d,s,l) _TSstrlcat ((d), (s), (l))
 #define TSfree(p)        _TSfree (p)
 
   tsapi void* _TSmalloc(size_t size, const char* path);
   tsapi void* _TSrealloc(void* ptr, size_t size, const char* path);
   tsapi char* _TSstrdup(const char* str, int64_t length, const char* path);
+  tsapi size_t _TSstrlcpy(char *dst, const char *str, size_t siz);
+  tsapi size_t _TSstrlcat(char *dst, const char *str, size_t siz);
   tsapi void _TSfree(void* ptr);
 
   /* --------------------------------------------------------------------------
@@ -1136,7 +1222,7 @@ extern "C"
       @param ... argument for the printf format description.
 
   */
-  tsapi void TSError(const char* fmt, ...);
+  tsapi void TSError(const char* fmt, ...) TS_PRINTFLIKE(1, 2);
 
   /* --------------------------------------------------------------------------
      Assertions */
@@ -1189,7 +1275,9 @@ extern "C"
       @param offset location of the URL to be destroyed.
 
    */
-  tsapi TSReturnCode TSUrlDestroy(TSMBuffer bufp, TSMLoc offset);
+  /** @deprecated There is no reason to destroy the URL, just release
+      the marshal buffers. */
+  tsapi TS_DEPRECATED TSReturnCode TSUrlDestroy(TSMBuffer bufp, TSMLoc offset);
 
   /**
       Copies the URL located at src_url within src_bufp to a URL
@@ -1566,6 +1654,51 @@ extern "C"
    */
   tsapi TSReturnCode TSUrlHttpFragmentSet(TSMBuffer bufp, TSMLoc offset, const char* value, int length);
 
+  /**
+     Perform percent-encoding of the string in the buffer, storing the
+     new string in the destination buffer. The length parameter will be
+     set to the new (encoded) string length, or 0 if the encoding failed.
+
+     @param str the string buffer to encode.
+     @param str_len length of the string buffer.
+     @param dst destination buffer.
+     @param dst_size size of the destination buffer.
+     @param length amount of data written to the destination buffer.
+     @param map optional (can be NULL) map of characters to encode.
+
+  */
+  tsapi TSReturnCode TSStringPercentEncode(const char *str, int str_len, char *dst, size_t dst_size, size_t *length, const unsigned char *map);
+
+  /**
+     Similar to TSStringPercentEncode(), but works on a URL object.
+
+     @param bufp marshal buffer containing the URL.
+     @param offset location of the URL within bufp.
+     @param dst destination buffer.
+     @param dst_size size of the destination buffer.
+     @param length amount of data written to the destination buffer.
+     @param map optional (can be NULL) map of characters to encode.
+
+  */
+  tsapi TSReturnCode TSUrlPercentEncode(TSMBuffer bufp, TSMLoc offset, char *dst, size_t dst_size, size_t *length, const unsigned char *map);
+
+  /**
+     Perform percent-decoding of the string in the buffer, writing
+     to the output buffer. The source and destination can be the same,
+     in which case they overwrite. The decoded string is always
+     guaranteed to be no longer than the source string.
+
+     @param str the string to decode (and possibly write to).
+     @param str_len length of the input string (or 0).
+     @param dst output buffer (can be the same as src).
+     @param dst_len size of the output buffer.
+     @param length amount of data written to the destination buffer.
+
+  */
+  tsapi TSReturnCode TSStringPercentDecode(const char *str, size_t str_len, char *dst, size_t dst_size, size_t *length);
+
+
+
   /* --------------------------------------------------------------------------
      MIME headers */
 
@@ -1834,11 +1967,13 @@ extern "C"
 
   tsapi const char* TSMimeHdrFieldValueStringGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int* value_len_ptr);
   tsapi int TSMimeHdrFieldValueIntGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx);
+  tsapi int64_t TSMimeHdrFieldValueInt64Get(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx);
   tsapi unsigned int TSMimeHdrFieldValueUintGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx);
   tsapi time_t TSMimeHdrFieldValueDateGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field);
   tsapi TSReturnCode TSMimeHdrFieldValueStringSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx,
                                                      const char* value, int length);
   tsapi TSReturnCode TSMimeHdrFieldValueIntSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int value);
+  tsapi TSReturnCode TSMimeHdrFieldValueInt64Set(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int64_t value);
   tsapi TSReturnCode TSMimeHdrFieldValueUintSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx,
                                                    unsigned int value);
   tsapi TSReturnCode TSMimeHdrFieldValueDateSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t value);
@@ -1891,7 +2026,7 @@ extern "C"
 
    */
   tsapi TSReturnCode TSHttpHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_offset, TSMBuffer src_bufp,
-                                      TSMLoc src_offset);
+                                   TSMLoc src_offset);
 
   tsapi void TSHttpHdrPrint(TSMBuffer bufp, TSMLoc offset, TSIOBuffer iobufp);
 
@@ -2060,6 +2195,8 @@ extern "C"
   tsapi TSHttpSsn TSHttpTxnSsnGet(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnClientReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi TSReturnCode TSHttpTxnPristineUrlGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* url_loc);
+  /* Get the request headers as sent by the Client */
+  tsapi TSReturnCode TSHttpTxnClientDataGet(TSHttpTxn txnp, const char **bufp, int *len);
   /** Get the effective URL for the transaction.
       The effective URL is the URL taking in to account both the explicit
       URL in the request and the HOST field.
@@ -2069,10 +2206,9 @@ extern "C"
       @note The returned string is allocated and must be freed by the caller
       after use with @c TSfree.
   */
-  tsapi char* TSHttpTxnEffectiveUrlStringGet(
-    TSHttpTxn txnp, ///< Transaction.
-    int* length ///< String length return, may be @c NULL.
-  );
+  tsapi char* TSHttpTxnEffectiveUrlStringGet(TSHttpTxn txnp,
+                                             int* length /**< String length return, may be @c NULL. */
+                                             );
   tsapi TSReturnCode TSHttpTxnClientRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi TSReturnCode TSHttpTxnServerReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi TSReturnCode TSHttpTxnServerRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
@@ -2098,70 +2234,100 @@ extern "C"
       @return Client address for connection to client in transaction @a txnp.
 
    */
-  tsapi struct sockaddr const* TSHttpTxnClientAddrGet(
-    TSHttpTxn txnp ///< Transaction.
-  );
+  tsapi struct sockaddr const* TSHttpTxnClientAddrGet(TSHttpTxn txnp);
   /** Get the incoming address.
-   
+
       @note The pointer is valid only for the current callback. Clients
       that need to keep the value across callbacks must maintain their
       own storage.
-      
+
       @return Local address of the client connection for transaction @a txnp.
   */
-  tsapi struct sockaddr const* TSHttpTxnIncomingAddrGet(
-    TSHttpTxn txnp ///< Transaction.
-  );
+  tsapi struct sockaddr const* TSHttpTxnIncomingAddrGet(TSHttpTxn txnp);
   /** Get the origin server address.
-   * 
+   *
       @note The pointer is valid only for the current callback. Clients
       that need to keep the value across callbacks must maintain their
       own storage.
-      
+
       @return The address of the origin server for transaction @a txnp.
   */
-  tsapi struct sockaddr const* TSHttpTxnServerAddrGet(
-    TSHttpTxn txnp ///< Transaction.
-  );
+  tsapi struct sockaddr const* TSHttpTxnServerAddrGet(TSHttpTxn txnp);
   /** Set the origin server address.
 
       This must be invoked before the origin server address is looked up.
       If called no lookup is done, the address @a addr is used instead.
-      
+
       @return @c TS_SUCCESS if the origin server address is set, @c TS_ERROR otherwise.
   */
-  tsapi TSReturnCode TSHttpTxnServerAddrSet(
-    TSHttpTxn txnp, ///< Transaction
-    struct sockaddr const* addr ///< Address for origin server.
-  );
+  tsapi TSReturnCode TSHttpTxnServerAddrSet(TSHttpTxn txnp,
+                                            struct sockaddr const* addr /**< Address for origin server. */
+                                            );
 
   /** Get the next hop address.
-   * 
+   *
       @note The pointer is valid only for the current callback. Clients
       that need to keep the value across callbacks must maintain their
       own storage.
-      
+
       @return The address of the next hop for transaction @a txnp.
   */
-  tsapi struct sockaddr const* TSHttpTxnNextHopAddrGet(
-    TSHttpTxn txnp ///< Transaction.
-  );
+  tsapi struct sockaddr const* TSHttpTxnNextHopAddrGet(TSHttpTxn txnp);
 
   tsapi TSReturnCode TSHttpTxnClientFdGet(TSHttpTxn txnp, int* fdp);
   tsapi TSReturnCode TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, struct sockaddr const* addr);
+  tsapi TSReturnCode TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag);
+
+  /* TS-1008: the above TXN calls for the Client conn should work with SSN */
+  tsapi struct sockaddr const* TSHttpSsnClientAddrGet(TSHttpSsn ssnp);
+  tsapi struct sockaddr const* TSHttpSsnIncomingAddrGet(TSHttpSsn ssnp);
+  tsapi TSReturnCode TSHttpSsnClientFdGet(TSHttpSsn ssnp, int* fdp);
+  /* TS-1008 END */
+
+  /** Change packet firewall mark for the client side connection
+   *
+      @note The change takes effect immediately
+      
+      @return TS_SUCCESS if the client connection was modified
+  */
+  tsapi TSReturnCode TSHttpTxnClientPacketMarkSet(TSHttpTxn txnp, int mark);
   
-  /// @deprecated Use TSHttpTxnClientAddrGet
-  tsapi TS_DEPRECATED unsigned int TSHttpTxnClientIPGet(TSHttpTxn txnp);
-  /// @deprecated Use TSHttpTxnClientAddrGet
-  tsapi TS_DEPRECATED TSReturnCode TSHttpTxnClientRemotePortGet(TSHttpTxn txnp, int* portp);
-  /// @deprecated Use TSHttpTxnIncomingAddrGet
-  tsapi TS_DEPRECATED int TSHttpTxnClientIncomingPortGet(TSHttpTxn txnp);
-  /// @deprecated Use TSHttpTxnServerAddrGet
-  tsapi TS_DEPRECATED unsigned int TSHttpTxnServerIPGet(TSHttpTxn txnp);
-  /// @deprecated Use TSHttpTxnNextHopAddrGet
-  tsapi TS_DEPRECATED unsigned int TSHttpTxnNextHopIPGet(TSHttpTxn txnp);
-  /// @deprecated Use TSHttpTxnNextHopAddrGet
-  tsapi TS_DEPRECATED int TSHttpTxnNextHopPortGet(TSHttpTxn txnp);
+  /** Change packet firewall mark for the server side connection
+   *
+      @note The change takes effect immediately, if no OS connection has been
+      made, then this sets the mark that will be used IF an OS connection
+      is established
+      
+      @return TS_SUCCESS if the (future?) server connection was modified
+  */
+  tsapi TSReturnCode TSHttpTxnServerPacketMarkSet(TSHttpTxn txnp, int mark);
+  
+  /** Change packet TOS for the client side connection
+   *
+      @note The change takes effect immediately
+      
+      @note TOS is deprecated and replaced by DSCP, this is still used to
+      set DSCP however the first 2 bits of this value will be ignored as
+      they now belong to the ECN field.
+      
+      @return TS_SUCCESS if the client connection was modified
+  */
+  tsapi TSReturnCode TSHttpTxnClientPacketTosSet(TSHttpTxn txnp, int tos);
+  
+  /** Change packet TOS for the server side connection
+   *
+      @note The change takes effect immediately, if no OS connection has been
+      made, then this sets the mark that will be used IF an OS connection
+      is established
+      
+      @note TOS is deprecated and replaced by DSCP, this is still used to
+      set DSCP however the first 2 bits of this value will be ignored as
+      they now belong to the ECN field.
+      
+      @return TS_SUCCESS if the (future?) server connection was modified
+  */
+  tsapi TSReturnCode TSHttpTxnServerPacketTosSet(TSHttpTxn txnp, int tos);
+
 
   tsapi void TSHttpTxnErrorBodySet(TSHttpTxn txnp, char* buf, int buflength, char* mimetype);
 
@@ -2227,9 +2393,6 @@ extern "C"
   tsapi TSReturnCode TSHttpArgIndexNameLookup(const char* name, int* arg_idx, const char** description);
   tsapi TSReturnCode TSHttpArgIndexLookup(int arg_idx, const char** name, const char** description);
 
-  /** @deprecated */
-  tsapi TS_DEPRECATED int TSHttpTxnMaxArgCntGet(void);
-
   tsapi int TSHttpTxnGetMaxHttpRetBodySize(void);
   tsapi void TSHttpTxnSetHttpRetBody(TSHttpTxn txnp, const char* body_msg, int plain_msg);
   tsapi void TSHttpTxnSetHttpRetStatus(TSHttpTxn txnp, TSHttpStatus http_retstatus);
@@ -2240,6 +2403,42 @@ extern "C"
   tsapi void TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout);
 
   tsapi TSServerState TSHttpTxnServerStateGet(TSHttpTxn txnp);
+
+  /* --------------------------------------------------------------------------
+     Transaction specific debugging control  */
+
+  /**
+         Set the transaction specific debugging flag for this transaction.
+         When turned on, internal debug messeges related to this transaction
+         will be written even if the debug tag isn't on.
+
+      @param txnp transaction to change.
+      @param on set to 1 to turn on, 0 to turn off.
+  */
+  tsapi void TSHttpTxnDebugSet(TSHttpTxn txnp, int on);
+  /**
+         Returns the transaction specific debugging flag for this transaction.
+
+      @param txnp transaction to check.
+      @return 1 if enabled, 0 otherwise.
+  */
+  tsapi int TSHttpTxnDebugGet(TSHttpTxn txnp);
+  /**
+         Set the session specific debugging flag for this client session.
+         When turned on, internal debug messeges related to this session and all transactions
+         in the session will be written even if the debug tag isn't on.
+
+      @param ssnp Client session to change.
+      @param on set to 1 to turn on, 0 to turn off.
+  */
+  tsapi void TSHttpSsnDebugSet(TSHttpSsn ssnp, int on);
+  /**
+         Returns the transaction specific debugging flag for this client session.
+
+      @param txnp Client session to check.
+      @return 1 if enabled, 0 otherwise.
+  */
+  tsapi int TSHttpSsnDebugGet(TSHttpSsn ssnp, int *on);
 
   /* --------------------------------------------------------------------------
      Intercepting Http Transactions */
@@ -2317,10 +2516,27 @@ extern "C"
       @param log_port port (in network byte order) that connection will
         be logged as coming from.
       @param vc will be set to point to the new TSVConn on success.
-      
+
    */
   tsapi TSVConn TSHttpConnect(struct sockaddr const* addr);
-  tsapi void TSFetchUrl(const char* headers, int request_len, unsigned int ip, int port , TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent events);
+
+    /* --------------------------------------------------------------------------
+     Initiate Transparent Http Connection */
+  /**
+      Allows the plugin to initiate a transparent http connection. This operates
+      identically to TSHttpConnect except that it is treated as an intercepted
+      transparent connection by the session and transaction state machines.
+
+      @param client_addr the address that the resulting connection will be seen as
+      	coming from
+      @param server_addr the address that the resulting connection will be seen as
+      	attempting to connect to when intercepted
+      @param vc will be set to point to the new TSVConn on success.
+
+   */
+  tsapi TSVConn TSHttpConnectTransparent(struct sockaddr const* client_addr, struct sockaddr const * server_addr);
+
+  tsapi void TSFetchUrl(const char* request,int request_len, struct sockaddr const* addr, TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent event);
   tsapi void TSFetchPages(TSFetchUrlParams_t* params);
 
   /* Check if HTTP State machine is internal or not */
@@ -2361,24 +2577,8 @@ extern "C"
 
   /* --------------------------------------------------------------------------
      Net VConnections */
-  /**
-      Returns the IP address of the remote host with which Traffic Server
-      is connected through the vconnection vc.
-      
-      @deprecated Use TSNetVConnRemoteAddrGet
 
-      @param vc representing a connection that your plugin has opened
-        between Traffic Server and a (remote) host.
-      @param ip will be set to the IP address of the remote host in
-        network byte order. Note: this value is 32-bit, for IPv4.
-
-   */
-  tsapi TS_DEPRECATED unsigned int TSNetVConnRemoteIPGet(TSVConn vc);
-  
   tsapi struct sockaddr const* TSNetVConnRemoteAddrGet(TSVConn vc);
-
-  /// @deprecated Use TSNetVConnRemoteAddrGet
-  tsapi TS_DEPRECATED int TSNetVConnRemotePortGet(TSVConn vc);
 
   /**
       Opens a network connection to the host specified by ip on the port
@@ -2401,24 +2601,43 @@ extern "C"
         or cancel the attempt to connect.
 
    */
-  tsapi TSAction TSNetConnect(
-    TSCont contp, ///< continuation that is called back when the attempted net connection either succeeds or fails.
-    struct sockaddr const* to ///< Address to which to connect.
+  tsapi TSAction TSNetConnect(TSCont contp, /**< continuation that is called back when the attempted net connection either succeeds or fails. */
+                              struct sockaddr const* to /**< Address to which to connect. */
   );
 
   tsapi TSAction TSNetAccept(TSCont contp, int port, int domain, int accept_threads);
 
+  /**
+    Listen on all SSL ports for connections for the specified protocol name.
+
+    TSNetAcceptNamedProtocol registers the specified protocol for all
+    statically configured TLS ports. When a client using the TLS Next Protocol
+    Negotiation extension negotiates the requested protocol, TrafficServer will
+    route the request to the given handler. Note that the protocol is not
+    registered on ports opened by other plugins.
+
+    The event and data provided to the handler are the same as for
+    TSNetAccept(). If a connection is successfully accepted, the event code
+    will be TS_EVENT_NET_ACCEPT and the event data will be a valid TSVConn
+    bound to the accepted connection.
+
+    Neither contp nor protocol are copied. They must remain valid for the
+    lifetime of the plugin.
+
+    TSNetAcceptNamedProtocol fails if the requested protocol cannot be
+    registered on all of the configured TLS ports. If it fails, the protocol
+    will not be registered on any ports (ie.. no partial failure).
+  */
+  tsapi TSReturnCode TSNetAcceptNamedProtocol(TSCont contp, const char * protocol);
+
   /* --------------------------------------------------------------------------
      DNS Lookups */
-  tsapi TSAction TSHostLookup(TSCont contp, char* hostname, int namelen);
-  /// @deprecated Use TSHostLookupResultAddrGet
-  tsapi TS_DEPRECATED unsigned int TSHostLookupResultIPGet(TSHostLookupResult lookup_result);
+  tsapi TSAction TSHostLookup(TSCont contp, const char* hostname, size_t namelen);
   tsapi struct sockaddr const* TSHostLookupResultAddrGet(TSHostLookupResult lookup_result);
-  /// @deprecated Use TSHttpTxnServerAddrSet
-  tsapi TS_DEPRECATED void TSOSIpSet(TSHttpTxn txnp, unsigned int ip);
-  // TODO: Eventually, we might want something like this as well, but it requires
-  // support for building the HostDBInfo struct:
-  // tsapi void TSHostLookupResultSet(TSHttpTxn txnp, TSHostLookupResult result);
+  /* TODO: Eventually, we might want something like this as well, but it requires
+     support for building the HostDBInfo struct:
+     tsapi void TSHostLookupResultSet(TSHttpTxn txnp, TSHostLookupResult result);
+  */
 
   /* --------------------------------------------------------------------------
      Cache VConnections */
@@ -2589,11 +2808,12 @@ extern "C"
   tsapi void TSIOBufferReaderConsume(TSIOBufferReader readerp, int64_t nbytes);
   tsapi int64_t TSIOBufferReaderAvail(TSIOBufferReader readerp);
 
+   tsapi struct sockaddr const* TSNetVConnLocalAddrGet(TSVConn vc);
 
   /* --------------------------------------------------------------------------
-     Stats based on librecords raw stats (this is prefered API until we rewrite
-     stats). This system has a limitation of up to 1,500 stats max, controlled via
-     proxy.config.stat_api.max_stats_allowed (default is 512).
+     Stats and configs based on librecords raw stats (this is prefered API until we
+     rewrite stats). This system has a limitation of up to 1,500 stats max, controlled
+     via proxy.config.stat_api.max_stats_allowed (default is 512).
 
      This is available as of Apache TS v2.2.*/
   typedef enum
@@ -2609,6 +2829,14 @@ extern "C"
     TS_STAT_SYNC_AVG,
     TS_STAT_SYNC_TIMEAVG
   } TSStatSync;
+
+  /* APIs to create new records.config configurations */
+  tsapi TSReturnCode TSMgmtStringCreate(TSRecordType rec_type, const char *name, const TSMgmtString data_default,
+                                        TSRecordUpdateType update_type, TSRecordCheckType check_type,
+                                        const char *check_regex, TSRecordAccessType access_type);
+  tsapi TSReturnCode TSMgmtIntCreate(TSRecordType rec_type, const char *name, TSMgmtInt data_default,
+                                     TSRecordUpdateType update_type, TSRecordCheckType check_type,
+                                     const char *check_regex, TSRecordAccessType access_type);
 
   /*  Note that only TS_RECORDDATATYPE_INT is supported at this point. */
   tsapi int TSStatCreate(const char* the_name, TSRecordDataType the_type, TSStatPersistence persist, TSStatSync sync);
@@ -2642,44 +2870,59 @@ extern "C"
   /* --------------------------------------------------------------------------
      uncoupled stats */
   /** @deprecated */
-  tsapi INKStat INKStatCreate(const char* the_name, INKStatTypes the_type);
+  tsapi TS_DEPRECATED INKStat INKStatCreate(const char* the_name, INKStatTypes the_type);
   /** @deprecated */
-  tsapi void INKStatIntAddTo(INKStat the_stat, int64_t amount);
+  tsapi TS_DEPRECATED void INKStatIntAddTo(INKStat the_stat, int64_t amount);
   /** @deprecated */
-  tsapi void INKStatFloatAddTo(INKStat the_stat, float amount);
+  tsapi TS_DEPRECATED void INKStatFloatAddTo(INKStat the_stat, float amount);
   /** @deprecated */
-  tsapi void INKStatDecrement(INKStat the_stat);
+  tsapi TS_DEPRECATED void INKStatDecrement(INKStat the_stat);
   /** @deprecated */
-  tsapi void INKStatIncrement(INKStat the_stat);
+  tsapi TS_DEPRECATED void INKStatIncrement(INKStat the_stat);
   /** @deprecated */
-  tsapi int64_t INKStatIntGet(INKStat the_stat);
+  tsapi TS_DEPRECATED int64_t INKStatIntGet(INKStat the_stat);
   /** @deprecated */
-  tsapi float INKStatFloatGet(INKStat the_stat);
+  tsapi TS_DEPRECATED float INKStatFloatGet(INKStat the_stat);
   /** @deprecated */
-  tsapi void INKStatIntSet(INKStat the_stat, int64_t value);
+  tsapi TS_DEPRECATED void INKStatIntSet(INKStat the_stat, int64_t value);
   /** @deprecated */
-  tsapi void INKStatFloatSet(INKStat the_stat, float value);
+  tsapi TS_DEPRECATED void INKStatFloatSet(INKStat the_stat, float value);
 
   /* --------------------------------------------------------------------------
      coupled stats */
   /** @deprecated */
-  tsapi INKCoupledStat INKStatCoupledGlobalCategoryCreate(const char* the_name);
+  tsapi TS_DEPRECATED INKCoupledStat INKStatCoupledGlobalCategoryCreate(const char* the_name);
   /** @deprecated */
-  tsapi INKCoupledStat INKStatCoupledLocalCopyCreate(const char* the_name, INKCoupledStat global_copy);
+  tsapi TS_DEPRECATED INKCoupledStat INKStatCoupledLocalCopyCreate(const char* the_name, INKCoupledStat global_copy);
   /** @deprecated */
-  tsapi void INKStatCoupledLocalCopyDestroy(INKCoupledStat local_copy);
+  tsapi TS_DEPRECATED void INKStatCoupledLocalCopyDestroy(INKCoupledStat local_copy);
   /** @deprecated */
-  tsapi INKStat INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char* the_name, INKStatTypes the_type);
+  tsapi TS_DEPRECATED INKStat INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char* the_name, INKStatTypes the_type);
   /** @deprecated */
-  tsapi INKStat INKStatCoupledLocalAdd(INKCoupledStat local_copy, const char* the_name, INKStatTypes the_type);
+  tsapi TS_DEPRECATED INKStat INKStatCoupledLocalAdd(INKCoupledStat local_copy, const char* the_name, INKStatTypes the_type);
   /** @deprecated */
-  tsapi void INKStatsCoupledUpdate(INKCoupledStat local_copy);
+  tsapi TS_DEPRECATED void INKStatsCoupledUpdate(INKCoupledStat local_copy);
 
   /* --------------------------------------------------------------------------
      tracing api */
 
   tsapi int TSIsDebugTagSet(const char* t);
-  tsapi void TSDebug(const char* tag, const char* format_str, ...);
+  tsapi void TSDebug(const char* tag, const char* format_str, ...) TS_PRINTFLIKE(2, 3);
+  /**
+      Output a debug line even if the debug tag is turned off, as long as
+      debugging is enabled. Could be used as follows:
+      @code
+      TSDebugSpecifc(TSHttpTxnDebugGet(txn), "plugin_tag" , "Hello World from transaction %p", txn);
+      @endcode
+      will be printed if the plugin_tag is enabled or the transaction specific
+      debugging is turned on for txn.
+
+      @param debug_flag boolean flag.
+      @param tag Debug tag for the line.
+      @param format Format string.
+      @param ... Format arguments.
+   */
+  tsapi void TSDebugSpecific(int debug_flag, const char* tag, const char* format_str, ...) TS_PRINTFLIKE(3, 4);
   extern int diags_on_for_plugins;
 #define TSDEBUG if (diags_on_for_plugins) TSDebug
 
@@ -2782,7 +3025,7 @@ extern "C"
           log write buffer). This error is very unusual.
 
    */
-  tsapi TSReturnCode TSTextLogObjectWrite(TSTextLogObject the_object, char* format, ...);
+  tsapi TSReturnCode TSTextLogObjectWrite(TSTextLogObject the_object, char* format, ...) TS_PRINTFLIKE(2, 3);
 
   /**
       This immediately flushes the contents of the log write buffer for
@@ -2865,7 +3108,7 @@ extern "C"
    */
   tsapi TSReturnCode TSAIOThreadNumSet(int thread_num);
 
-  /** 
+  /**
       Check if transaction was aborted (due client/server errors etc.)
 
       @return 1 if transaction was aborted
@@ -2901,11 +3144,6 @@ extern "C"
   */
   tsapi TSVConn TSVConnCreate(TSEventFunc event_funcp, TSMutex mutexp);
 
-  tsapi TS_DEPRECATED void TSIOBufferAppend(TSIOBuffer bufp, TSIOBufferBlock blockp);
-  tsapi TS_DEPRECATED TSIOBufferData TSIOBufferDataCreate(void* data, int size, TSIOBufferDataFlags flags);
-  tsapi TS_DEPRECATED TSIOBufferBlock TSIOBufferBlockCreate(TSIOBufferData datap, int size, int offset);
-
-
   /* api functions to access stats */
   /* ClientResp APIs exist as well and are exposed in PrivateFrozen  */
   tsapi int TSHttpTxnClientReqHdrBytesGet(TSHttpTxn txnp);
@@ -2925,8 +3163,8 @@ extern "C"
   tsapi void TSVConnActiveTimeoutSet(TSVConn connp, TSHRTime timeout);
   tsapi void TSVConnActiveTimeoutCancel(TSVConn connp);
 
-  /* 
-    ability to skip the remap phase of the State Machine 
+  /*
+    ability to skip the remap phase of the State Machine
     this only really makes sense in TS_HTTP_READ_REQUEST_HDR_HOOK
   */
   tsapi void TSSkipRemappingSet(TSHttpTxn txnp, int flag);
@@ -2957,12 +3195,17 @@ extern "C"
   tsapi int TSHttpCurrentIdleClientConnectionsGet(void);
   tsapi int TSHttpCurrentCacheConnectionsGet(void);
   tsapi int TSHttpCurrentServerConnectionsGet(void);
-  
+
   /* =====  Http Transactions =====  */
   tsapi TSReturnCode TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *offset);
   tsapi TSReturnCode TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup);
   tsapi TSReturnCode TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
   tsapi TSReturnCode TSHttpTxnCachedUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
+  tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
+
+  /* Expose internal Base64 Encoding / Decoding */
+  tsapi TSReturnCode TSBase64Decode(const char *str, size_t str_len, unsigned char *dst, size_t dst_size, size_t *length);
+  tsapi TSReturnCode TSBase64Encode(const char *str, size_t str_len, char *dst, size_t dst_size, size_t *length);
 
 #ifdef __cplusplus
 }

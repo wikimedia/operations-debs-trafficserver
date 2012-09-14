@@ -40,9 +40,9 @@ var_name_ptr(NULL),
 num_leaf(0)
 {
   if (t) {
-    node_name = xstrdup(t);
+    node_name = ats_strdup(t);
   } else {
-    node_name = xstrdup("root");
+    node_name = ats_strdup("root");
   }
 }
 
@@ -50,9 +50,7 @@ num_leaf(0)
 
 RecTreeNode::~RecTreeNode()
 {
-  if (node_name) {
-    xfree(node_name);
-  }
+  ats_free(node_name);
 }
 
 /**
@@ -238,9 +236,9 @@ RecTree::rec_tree_get_list(char *path_name, char ***buf, int *count)
     RecTreeDebug("RecTreeGetList subtree %s has %d leafs\n", subtree->this_node->node_name, (*count));
   }
 
-  *buf = (char **) xmalloc(sizeof(char *) * (*count));
+  *buf = (char **)ats_malloc(sizeof(char *) * (*count));
   for (i = 0; i < (*count); i++) {
-    (*buf)[i] = (char *) xmalloc(sizeof(char));
+    (*buf)[i] = (char *)ats_malloc(sizeof(char));
   }
 
   int index = 0;

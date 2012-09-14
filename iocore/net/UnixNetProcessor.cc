@@ -33,15 +33,19 @@ NetProcessor::AcceptOptions const NetProcessor::DEFAULT_ACCEPT_OPTIONS;
 NetProcessor::AcceptOptions&
 NetProcessor::AcceptOptions::reset()
 {
-  port = 0;
-  accept_threads = 0;
-  domain = AF_INET;
+  local_port = 0;
+  local_ip.invalidate();
+  accept_threads = -1;
+  ip_family = AF_INET;
   etype = ET_NET;
   f_callback_on_open = false;
+  localhost_only = false;
+  frequent_accept = true;
   recv_bufsize = 0;
   send_bufsize = 0;
   sockopt_flags = 0;
-  f_outbound_transparent = false;
+  packet_mark = 0;
+  packet_tos = 0;
   f_inbound_transparent = false;
   return *this;
 }
@@ -60,99 +64,39 @@ net_next_connection_number()
 }
 
 Action *
-NetProcessor::accept(Continuation * cont,
-                     int port,
-                     int domain,
-                     int accept_threads,
-                     bool frequent_accept,
-                     unsigned int accept_ip,
-                     char *accept_ip_str,
-                     bool callback_on_open,
-                     SOCKET listen_socket_in,
-                     int accept_pool_size,
-                     bool accept_only,
-                     sockaddr * bound_sockaddr,
-                     int *bound_sockaddr_size,
-                     int recv_bufsize, int send_bufsize, uint32_t sockopt_flags, EventType etype)
-{
-  (void) listen_socket_in;      // NT only
-  (void) accept_pool_size;      // NT only
-  (void) accept_only;           // NT only
-  (void) bound_sockaddr;        // NT only
-  (void) bound_sockaddr_size;   // NT only
+NetProcessor::accept(Continuation* cont,
+  AcceptOptions const& opt
+) {
   Debug("iocore_net_processor",
-        "NetProcessor::accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0lX",
-        port, recv_bufsize, send_bufsize, sockopt_flags);
+        "NetProcessor::accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0x",
+    opt.local_port, opt.recv_bufsize, opt.send_bufsize, opt.sockopt_flags);
 
-  AcceptOptions opt;
-
-  opt.port = port;
-  opt.domain = domain;
-  opt.etype = etype;
-  opt.f_callback_on_open = callback_on_open;
-  opt.recv_bufsize = recv_bufsize;
-  opt.send_bufsize = send_bufsize;
-  opt.sockopt_flags = opt.sockopt_flags;
-  opt.accept_threads = accept_threads;
-
-  return ((UnixNetProcessor *) this)->accept_internal(cont, NO_FD,
-                                                      bound_sockaddr,
-                                                      bound_sockaddr_size,
-                                                      frequent_accept,
-                                                      net_accept,
-                                                      accept_ip,
-                                                      accept_ip_str,
-                                                      opt);
+  return ((UnixNetProcessor *) this)->accept_internal(cont, NO_FD, opt);
 }
 
 Action *
-NetProcessor::main_accept(Continuation * cont, SOCKET fd, sockaddr * bound_sockaddr, int *bound_sockaddr_size,
-                          bool accept_only, bool localhost_only, AcceptOptions const& opt)
-{
-  (void) accept_only;           // NT only
-  Debug("iocore_net_processor", "NetProcessor::main_accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0lX",
-        opt.port, opt.recv_bufsize, opt.send_bufsize, opt.sockopt_flags);
-  if (localhost_only) {
-    static char localhost[] = "127.0.0.1";
-
-    return ((UnixNetProcessor *) this)->accept_internal(cont, fd,
-                                                        bound_sockaddr,
-                                                        bound_sockaddr_size,
-                                                        true,
-                                                        net_accept,
-                                                        inet_addr(localhost),
-                                                        localhost,
-                                                        opt);
-  } else {
-    return ((UnixNetProcessor *) this)->accept_internal(cont, fd,
-                                                        bound_sockaddr,
-                                                        bound_sockaddr_size,
-                                                        true,
-                                                        net_accept,
-                                                        ((UnixNetProcessor *) this)->incoming_ip_to_bind_saddr,
-                                                        ((UnixNetProcessor *) this)->incoming_ip_to_bind,
-                                                        opt);
-  }
+NetProcessor::main_accept(Continuation *cont,
+  SOCKET fd,
+  AcceptOptions const& opt
+) {
+  UnixNetProcessor* this_unp = static_cast<UnixNetProcessor*>(this);
+  Debug("iocore_net_processor", "NetProcessor::main_accept - port %d,recv_bufsize %d, send_bufsize %d, sockopt 0x%0x",
+        opt.local_port, opt.recv_bufsize, opt.send_bufsize, opt.sockopt_flags);
+  return this_unp->accept_internal(cont, fd, opt);
 }
 
-
-
 Action *
-UnixNetProcessor::accept_internal(Continuation * cont,
-                                  int fd,
-                                  struct sockaddr * bound_sockaddr,
-                                  int *bound_sockaddr_size,
-                                  bool frequent_accept,
-                                  AcceptFunction fn,
-                                  unsigned int accept_ip,
-                                  char *accept_ip_str,
-                                  AcceptOptions const& opt)
-{
+UnixNetProcessor::accept_internal(
+  Continuation *cont,
+  int fd,
+  AcceptOptions const& opt
+) {
   EventType et = opt.etype; // setEtype requires non-const ref.
   NetAccept *na = createNetAccept();
   EThread *thread = this_ethread();
   ProxyMutex *mutex = thread->mutex;
-  int accept_threads = opt.accept_threads;
+  int accept_threads = opt.accept_threads; // might be changed.
+  IpEndpoint accept_ip; // local binding address.
 
   // Potentially upgrade to SSL.
   upgradeEtype(et);
@@ -162,15 +106,36 @@ UnixNetProcessor::accept_internal(Continuation * cont,
     IOCORE_ReadConfigInteger(accept_threads, "proxy.config.accept_threads");
 
   NET_INCREMENT_DYN_STAT(net_accepts_currently_open_stat);
-  na->port = opt.port;
-  na->domain = opt.domain;
-  na->accept_fn = fn;
+
+  // We've handled the config stuff at start up, but there are a few cases
+  // we must handle at this point.
+  if (opt.localhost_only)
+    accept_ip.setToLoopback(opt.ip_family);
+  else if (opt.local_ip.isValid())
+    accept_ip.assign(opt.local_ip);
+  else
+    accept_ip.setToAnyAddr(opt.ip_family);
+  ink_debug_assert(0 < opt.local_port && opt.local_port < 65536);
+  accept_ip.port() = htons(opt.local_port);
+
+  na->accept_fn = net_accept; // All callers used this.
   na->server.fd = fd;
-  na->server.accept_ip = accept_ip;
-  na->server.accept_ip_str = accept_ip_str;
-  na->server.f_outbound_transparent = opt.f_outbound_transparent;
+  ats_ip_copy(&na->server.accept_addr, &accept_ip);
   na->server.f_inbound_transparent = opt.f_inbound_transparent;
-  if (opt.f_outbound_transparent) Debug("http_tproxy", "Marking accept server %x on port %d as outbound transparent.\n", na, opt.port);
+  if (opt.f_inbound_transparent) {
+    Debug(
+      "http_tproxy",
+      "Marking accept server %p on port %d as inbound transparent",
+      na, opt.local_port
+    );
+  }
+
+  int should_filter_int = 0;
+  na->server.http_accept_filter = false;
+  IOCORE_ReadConfigInteger(should_filter_int, "proxy.config.net.defer_accept");
+  if (should_filter_int > 0 && opt.etype == ET_NET)
+    na->server.http_accept_filter = true;
+
   na->action_ = NEW(new NetAcceptAction());
   *na->action_ = cont;
   na->action_->server = &na->server;
@@ -178,22 +143,24 @@ UnixNetProcessor::accept_internal(Continuation * cont,
   na->recv_bufsize = opt.recv_bufsize;
   na->send_bufsize = opt.send_bufsize;
   na->sockopt_flags = opt.sockopt_flags;
+  na->packet_mark = opt.packet_mark;
+  na->packet_tos = opt.packet_tos;
   na->etype = opt.etype;
   if (na->callback_on_open)
     na->mutex = cont->mutex;
-  if (frequent_accept) { // true
+  if (opt.frequent_accept) { // true
     if (accept_threads > 0)  {
-      if (0 == na->do_listen(BLOCKING)) {
+      if (0 == na->do_listen(BLOCKING, opt.f_inbound_transparent)) {
         NetAccept *a;
 
         for (int i=1; i < accept_threads; ++i) {
           a = createNetAccept();
           *a = *na;
           a->init_accept_loop();
-          Debug("iocore_net_accept", "Created accept thread #%d for port %d", i, opt.port);
+          Debug("iocore_net_accept", "Created accept thread #%d for port %d", i, ats_ip_port_host_order(&accept_ip));
         }
         // Start the "template" accept thread last.
-        Debug("iocore_net_accept", "Created accept thread #%d for port %d", accept_threads, opt.port);
+        Debug("iocore_net_accept", "Created accept thread #%d for port %d", accept_threads, ats_ip_port_host_order(&accept_ip));
         na->init_accept_loop();
       }
     } else {
@@ -201,25 +168,33 @@ UnixNetProcessor::accept_internal(Continuation * cont,
     }
   } else
     na->init_accept();
-  if (bound_sockaddr && bound_sockaddr_size)
-    safe_getsockname(na->server.fd, bound_sockaddr, bound_sockaddr_size);
 
 #ifdef TCP_DEFER_ACCEPT
   // set tcp defer accept timeout if it is configured, this will not trigger an accept until there is
   // data on the socket ready to be read
-  int accept_timeout = 0;
-  IOCORE_ReadConfigInteger(accept_timeout, "proxy.config.net.defer_accept");
-  if (accept_timeout > 0) {
-    setsockopt(na->server.fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &accept_timeout, sizeof(int));
+  if (should_filter_int > 0) {
+    setsockopt(na->server.fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &should_filter_int, sizeof(int));
   }
+#endif
+#ifdef TCP_INIT_CWND
+ int tcp_init_cwnd = 0;
+ IOCORE_ReadConfigInteger(tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
+ if(tcp_init_cwnd > 0) {
+    Debug("net", "Setting initial congestion window to %d", tcp_init_cwnd);
+    if(setsockopt(na->server.fd, IPPROTO_TCP, TCP_INIT_CWND, &tcp_init_cwnd, sizeof(int)) != 0) {
+      Error("Cannot set initial congestion window to %d", tcp_init_cwnd);
+    }
+ }
 #endif
   return na->action_;
 }
 
 Action *
-UnixNetProcessor::connect_re_internal(Continuation * cont,
-                                      unsigned int ip, int port,  NetVCOptions * opt)
-{
+UnixNetProcessor::connect_re_internal(
+  Continuation * cont,
+  sockaddr const* target,
+  NetVCOptions * opt
+) {
   ProxyMutex *mutex = cont->mutex;
   EThread *t = mutex->thread_holding;
   UnixNetVConnection *vc = allocateThread(t);
@@ -240,7 +215,7 @@ UnixNetProcessor::connect_re_internal(Continuation * cont,
                            * we need to connect using socks server even
                            * if this ip is in no_socks list.
                            */
-                          !socks_conf_stuff->ip_range.match(ip))
+                          !socks_conf_stuff->ip_map.contains(target))
 #endif
     );
   SocksEntry *socksEntry = NULL;
@@ -249,24 +224,23 @@ UnixNetProcessor::connect_re_internal(Continuation * cont,
   vc->id = net_next_connection_number();
   vc->submit_time = ink_get_hrtime();
   vc->setSSLClientConnection(true);
-  vc->ip = ip;
-  vc->port = port;
+  ats_ip_copy(&vc->server_addr, target);
   vc->mutex = cont->mutex;
   Action *result = &vc->action_;
 #ifndef INK_NO_SOCKS
   if (using_socks) {
-    Debug("Socks", "Using Socks ip: %u.%u.%u.%u:%d\n", PRINT_IP(ip), port);
+    char buff[INET6_ADDRPORTSTRLEN];
+    Debug("Socks", "Using Socks ip: %s\n", ats_ip_nptop(target, buff, sizeof(buff)));
     socksEntry = socksAllocator.alloc();
     socksEntry->init(cont->mutex, vc, opt->socks_support, opt->socks_version);        /*XXXX remove last two args */
     socksEntry->action_ = cont;
     cont = socksEntry;
-    if (socksEntry->server_ip == (uint32_t) - 1) {
+    if (!ats_is_ip(&socksEntry->server_addr)) {
       socksEntry->lerrno = ESOCK_NO_SOCK_SERVER_CONN;
       socksEntry->free();
       return ACTION_RESULT_DONE;
     }
-    vc->ip = socksEntry->server_ip;
-    vc->port = socksEntry->server_port;
+    ats_ip_copy(&vc->server_addr, &socksEntry->server_addr);
     result = &socksEntry->action_;
     vc->action_ = socksEntry;
   } else {
@@ -305,10 +279,11 @@ UnixNetProcessor::connect_re_internal(Continuation * cont,
 Action *
 UnixNetProcessor::connect(Continuation * cont,
                           UnixNetVConnection ** avc,
-                          unsigned int ip, int port, NetVCOptions * opt)
+                          sockaddr const* target,
+                          NetVCOptions * opt)
 {
   NOWARN_UNUSED(avc);
-  return connect_re(cont, ip, port, opt);
+  return connect_re(cont, target, opt);
 }
 
 struct CheckConnect:public Continuation
@@ -386,13 +361,13 @@ struct CheckConnect:public Continuation
     return EVENT_DONE;
   }
 
-  Action *connect_s(Continuation * cont, unsigned int ip, int port,
+  Action *connect_s(Continuation * cont, sockaddr const* target,
                     int _timeout, NetVCOptions * opt)
   {
     action_ = cont;
     timeout = HRTIME_SECONDS(_timeout);
     recursion++;
-    netProcessor.connect_re(this, ip, port, opt);
+    netProcessor.connect_re(this, target, opt);
     recursion--;
     if (connect_status != NET_EVENT_OPEN_FAILED)
       return &action_;
@@ -416,12 +391,12 @@ struct CheckConnect:public Continuation
 };
 
 Action *
-NetProcessor::connect_s(Continuation * cont, unsigned int ip,
-                        int port, int timeout, NetVCOptions * opt)
+NetProcessor::connect_s(Continuation * cont, sockaddr const* target,
+                        int timeout, NetVCOptions * opt)
 {
   Debug("iocore_net_connect", "NetProcessor::connect_s called");
   CheckConnect *c = NEW(new CheckConnect(cont->mutex));
-  return c->connect_s(cont, ip, port, timeout, opt);
+  return c->connect_s(cont, target, timeout, opt);
 }
 
 
@@ -442,14 +417,13 @@ UnixNetProcessor::start(int)
 
   n_netthreads = eventProcessor.n_threads_for_type[etype];
   netthreads = eventProcessor.eventthread[etype];
-  for (int i = 0; i < n_netthreads; i++) {
+  for (int i = 0; i < n_netthreads; ++i) {
     initialize_thread_for_net(netthreads[i], i);
+#ifndef STANDALONE_IOCORE
+    extern void initialize_thread_for_http_sessions(EThread *thread, int thread_index);
+    initialize_thread_for_http_sessions(netthreads[i], i);
+#endif
   }
-
-  if ((incoming_ip_to_bind = IOCORE_ConfigReadString("proxy.local.incoming_ip_to_bind")) != 0)
-    incoming_ip_to_bind_saddr = inet_addr(incoming_ip_to_bind);
-  else
-    incoming_ip_to_bind_saddr = 0;
 
   RecData d;
   d.rec_int = 0;

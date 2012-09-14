@@ -36,12 +36,26 @@
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
 
-#define FIRST_LEVEL_HASH(x)   x % HSM_LEVEL1_BUCKETS
-#define SECOND_LEVEL_HASH(x)  x % HSM_LEVEL2_BUCKETS
+#define FIRST_LEVEL_HASH(x)   ats_ip_hash(x) % HSM_LEVEL1_BUCKETS
+#define SECOND_LEVEL_HASH(x)  ats_ip_hash(x) % HSM_LEVEL2_BUCKETS
+
+// Initialize a thread to handle HTTP session management
+void
+initialize_thread_for_http_sessions(EThread *thread, int thread_index)
+{
+  NOWARN_UNUSED(thread_index);
+
+  thread->l1_hash = NEW(new SessionBucket[HSM_LEVEL1_BUCKETS]);
+  for (int i = 0; i < HSM_LEVEL1_BUCKETS; ++i)
+    thread->l1_hash[i].mutex = new_ProxyMutex();
+  //thread->l1_hash[i].mutex = thread->mutex;
+}
+
 
 HttpSessionManager httpSessionManager;
 
-SessionBucket::SessionBucket():Continuation(NULL)
+SessionBucket::SessionBucket()
+  : Continuation(NULL)
 {
   SET_HANDLER(&SessionBucket::session_handler);
 }
@@ -75,7 +89,7 @@ SessionBucket::session_handler(int event, void *data)
   }
 
   // Search the 2nd level bucket for appropriate netvc
-  int l2_index = SECOND_LEVEL_HASH(net_vc->get_remote_ip());
+  int l2_index = SECOND_LEVEL_HASH(net_vc->get_remote_addr());
   HttpConfigParams *http_config_params = HttpConfig::acquire();
   bool found = false;
 
@@ -84,7 +98,6 @@ SessionBucket::session_handler(int event, void *data)
 
   while (s != NULL) {
     if (s->get_netvc() == net_vc) {
-
       // if there was a timeout of some kind on a keep alive connection, and
       // keeping the connection alive will not keep us above the # of max connections
       // to the origin and we are below the min number of keep alive connections to this
@@ -92,15 +105,14 @@ SessionBucket::session_handler(int event, void *data)
       if ((event == VC_EVENT_INACTIVITY_TIMEOUT || event == VC_EVENT_ACTIVE_TIMEOUT) &&
           s->state == HSS_KA_SHARED &&
           s->enable_origin_connection_limiting) {
-
         bool connection_count_below_min = s->connection_count->getCount(s->server_ip) <= http_config_params->origin_min_keep_alive_connections;
 
         if (connection_count_below_min) {
           Debug("http_ss", "[%" PRId64 "] [session_bucket] session received io notice [%s], "
                 "reseting timeout to maintain minimum number of connections", s->con_id,
                 HttpDebugNames::get_event_name(event));
-          s->get_netvc()->set_inactivity_timeout(HRTIME_SECONDS(http_config_params->keep_alive_no_activity_timeout_out));
-          s->get_netvc()->set_active_timeout(HRTIME_SECONDS(http_config_params->keep_alive_no_activity_timeout_out));
+          s->get_netvc()->set_inactivity_timeout(s->get_netvc()->get_inactivity_timeout());
+          s->get_netvc()->set_active_timeout(s->get_netvc()->get_active_timeout());
           found = true;
           break;
         }
@@ -132,13 +144,6 @@ SessionBucket::session_handler(int event, void *data)
   return 0;
 }
 
-HttpSessionManager::HttpSessionManager()
-{
-}
-
-HttpSessionManager::~HttpSessionManager()
-{
-}
 
 void
 HttpSessionManager::init()
@@ -162,7 +167,7 @@ HttpSessionManager::purge_keepalives()
       while (b->lru_list.head) {
         HttpServerSession *sess = b->lru_list.head;
         b->lru_list.remove(sess);
-        int l2_index = SECOND_LEVEL_HASH(sess->server_ip);
+        int l2_index = SECOND_LEVEL_HASH(&sess->server_ip.sa);
         b->l2_hash[l2_index].remove(sess);
         sess->do_io_close();
       }
@@ -171,26 +176,59 @@ HttpSessionManager::purge_keepalives()
     }
   }
 }
+
 HSMresult_t
-HttpSessionManager::acquire_session(Continuation * cont, unsigned int ip, int port,
-                                    const char *hostname, HttpClientSession * ua_session, HttpSM * sm)
+_acquire_session(SessionBucket *bucket, sockaddr const* ip, INK_MD5 &hostname_hash, HttpSM *sm)
+{
+  HttpServerSession *b;
+  HttpServerSession *to_return = NULL;
+  int l2_index = SECOND_LEVEL_HASH(ip);
+
+  ink_assert(l2_index < HSM_LEVEL2_BUCKETS);
+
+  // Check to see if an appropriate connection is in
+  //  the 2nd level bucket
+  b = bucket->l2_hash[l2_index].head;
+  while (b != NULL) {
+    if (ats_ip_addr_eq(&b->server_ip.sa, ip) &&
+      ats_ip_port_cast(ip) == ats_ip_port_cast(&b->server_ip)
+    ) {
+      if (hostname_hash == b->hostname_hash) {
+        bucket->lru_list.remove(b);
+        bucket->l2_hash[l2_index].remove(b);
+        b->state = HSS_ACTIVE;
+        to_return = b;
+        Debug("http_ss", "[%" PRId64 "] [acquire session] " "return session from shared pool", to_return->con_id);
+        sm->attach_server_session(to_return);
+        return HSM_DONE;
+      }
+    }
+
+    b = b->hash_link.next;
+  }
+
+  return HSM_NOT_FOUND;
+}
+
+HSMresult_t
+HttpSessionManager::acquire_session(Continuation *cont, sockaddr const* ip,
+                                    const char *hostname, HttpClientSession *ua_session, HttpSM *sm)
 {
   NOWARN_UNUSED(cont);
   HttpServerSession *to_return = NULL;
 
-  // We compute the mmh for matching the hostname as the last
-  //  check for a match between the session the HttpSM is
-  //  looking for and the sessions we have.  The reason it's
-  //  the last check is to save the cycles of needless
-  //  computing extra mmhs.  We have to use the hostname
+  //  We compute the mmh for matching the hostname as the last
+  //  check for a match between the session the HttpSM is looking
+  //  for and the sessions we have. We have to use the hostname
   //  as part of the match because some stupid servers can't
   //  handle getting request for different virtual hosts over
   //  the same keep-alive session (INKqa05429).
-  // Also, note the ip is required as well to maintain client
+  // 
+  //  Also, note the ip is required as well to maintain client
   //  to server affinity so that we don't break certain types
   //  of authentication.
-  bool hash_computed = false;
   INK_MD5 hostname_hash;
+  bool hash_computed = false;
 
   // First check to see if there is a server session bound
   //   to the user agent session
@@ -198,10 +236,13 @@ HttpSessionManager::acquire_session(Continuation * cont, unsigned int ip, int po
   if (to_return != NULL) {
     ua_session->attach_server_session(NULL);
 
-    if (to_return->server_ip == ip && to_return->server_port == port) {
-
-      ink_code_MMH((unsigned char *) hostname, strlen(hostname), (unsigned char *) &hostname_hash);
-      hash_computed = true;
+    if (ats_ip_addr_eq(&to_return->server_ip.sa, ip) &&
+      ats_ip_port_cast(&to_return->server_ip) == ats_ip_port_cast(ip)
+    ) {
+      if (!hash_computed) {
+        ink_code_MMH((unsigned char *) hostname, strlen(hostname), (unsigned char *) &hostname_hash);
+        hash_computed = true;
+      }
 
       if (hostname_hash == to_return->hostname_hash) {
         Debug("http_ss", "[%" PRId64 "] [acquire session] returning attached session ", to_return->con_id);
@@ -216,89 +257,54 @@ HttpSessionManager::acquire_session(Continuation * cont, unsigned int ip, int po
     to_return->release();
     to_return = NULL;
   }
+
   // Now check to see if we have a connection is our
   //  shared connection pool
   int l1_index = FIRST_LEVEL_HASH(ip);
+  EThread *ethread = this_ethread();
 
   ink_assert(l1_index < HSM_LEVEL1_BUCKETS);
 
-  SessionBucket *bucket;
-  ProxyMutex *bucket_mutex;
-  EThread *ethread = this_ethread();
+  // Will need the hash for this lookup for sure.
+  if (!hash_computed)
+    ink_code_MMH((unsigned char *) hostname, strlen(hostname), (unsigned char *) &hostname_hash);
 
-  bucket = g_l1_hash + l1_index;
-  bucket_mutex = bucket->mutex;
-
-  MUTEX_TRY_LOCK(lock, bucket_mutex, ethread);
-  if (lock) {
-
-    int l2_index = SECOND_LEVEL_HASH(ip);
-    ink_assert(l2_index < HSM_LEVEL2_BUCKETS);
-
-    // Check to see if an appropriate connection is in
-    //  the 2nd level bucket
-    HttpServerSession *b;
-    b = bucket->l2_hash[l2_index].head;
-    while (b != NULL) {
-      if (b->server_ip == ip && b->server_port == port) {
-
-        if (hash_computed == false) {
-          ink_code_MMH((unsigned char *) hostname, strlen(hostname), (unsigned char *) &hostname_hash);
-          hash_computed = true;
-        }
-
-        if (hostname_hash == b->hostname_hash) {
-
-          // We found a match.  Since the lock for the 1st level
-          //  bucket is the same one that we use for the read
-          //  on the keep alive connection, we are safe since
-          //  we can not get called back from the netProcessor
-          //  here.  The SM will do a do_io when it gets the session,
-          //  effectively canceling the keep-alive read
-          bucket->lru_list.remove(b);
-          bucket->l2_hash[l2_index].remove(b);
-          b->state = HSS_ACTIVE;
-          to_return = b;
-          Debug("http_ss", "[%" PRId64 "] [acquire session] " "return session from shared pool", to_return->con_id);
-          sm->attach_server_session(to_return);
-          return HSM_DONE;
-        }
-      }
-
-      b = b->hash_link.next;
-    }
-
-    return HSM_NOT_FOUND;
+  if (2 == sm->t_state.txn_conf->share_server_sessions) {
+    ink_assert(ethread->l1_hash);
+    return _acquire_session(ethread->l1_hash + l1_index, ip, hostname_hash, sm);
   } else {
-    return HSM_RETRY;
+    SessionBucket *bucket = g_l1_hash + l1_index;
+
+    MUTEX_TRY_LOCK(lock, bucket->mutex, ethread);
+    if (lock) {
+      return _acquire_session(bucket, ip, hostname_hash, sm);
+    } else {
+      Debug("http_ss", "[acquire session] could not acquire session due to lock contention");
+    }
   }
+
+  return HSM_RETRY;
 }
 
-
 HSMresult_t
-HttpSessionManager::release_session(HttpServerSession * to_release)
+HttpSessionManager::release_session(HttpServerSession *to_release)
 {
-  int l1_index = FIRST_LEVEL_HASH(to_release->server_ip);
+  EThread *ethread = this_ethread();
+  int l1_index = FIRST_LEVEL_HASH(&to_release->server_ip.sa);
+  SessionBucket *bucket;
 
   ink_assert(l1_index < HSM_LEVEL1_BUCKETS);
 
-  EThread *ethread = this_ethread();
+  if (2 == to_release->share_session) {
+    bucket = ethread->l1_hash + l1_index;
+  } else {
+    bucket = g_l1_hash + l1_index;
+  }
 
-  ProxyMutex *bucket_mutex;
-  SessionBucket *bucket;
-
-#ifdef TRANSACTION_ON_A_THREAD
-  bucket = to_release->mutex->thread_holding->l1_hash + l1_index;
-  bucket_mutex = to_release->mutex;
-#else
-  bucket = g_l1_hash + l1_index;
-  bucket_mutex = bucket->mutex;
-#endif
-
-  MUTEX_TRY_LOCK(lock, bucket_mutex, ethread);
+  MUTEX_TRY_LOCK(lock, bucket->mutex, ethread);
   if (lock) {
+    int l2_index = SECOND_LEVEL_HASH(&to_release->server_ip.sa);
 
-    int l2_index = SECOND_LEVEL_HASH(to_release->server_ip);
     ink_assert(l2_index < HSM_LEVEL2_BUCKETS);
 
     // First insert the session on to our lists
@@ -316,12 +322,14 @@ HttpSessionManager::release_session(HttpServerSession * to_release)
     to_release->do_io_write(bucket, 0, NULL);
 
     // we probably don't need the active timeout set, but will leave it for now
-    to_release->get_netvc()->set_inactivity_timeout(HRTIME_SECONDS(HttpConfig::m_master.keep_alive_no_activity_timeout_out));
-    to_release->get_netvc()->set_active_timeout(HRTIME_SECONDS(HttpConfig::m_master.keep_alive_no_activity_timeout_out));
+    to_release->get_netvc()->set_inactivity_timeout(to_release->get_netvc()->get_inactivity_timeout());
+    to_release->get_netvc()->set_active_timeout(to_release->get_netvc()->get_active_timeout());
     Debug("http_ss", "[%" PRId64 "] [release session] " "session placed into shared pool", to_release->con_id);
+
     return HSM_DONE;
   } else {
     Debug("http_ss", "[%" PRId64 "] [release session] could not release session due to lock contention", to_release->con_id);
-    return HSM_RETRY;
   }
+
+  return HSM_RETRY;
 }

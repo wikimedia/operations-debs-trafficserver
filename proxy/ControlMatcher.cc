@@ -70,16 +70,16 @@ HttpRequestData::get_host()
   return hostname_str;
 }
 
-ip_addr_t
+sockaddr const*
 HttpRequestData::get_ip()
 {
-  return dest_ip;
+  return &dest_ip.sa;
 }
 
-ip_addr_t
+sockaddr const*
 HttpRequestData::get_client_ip()
 {
-  return src_ip;
+  return &src_ip.sa;
 }
 
 /*************************************************************
@@ -241,10 +241,10 @@ template<class Data, class Result> RegexMatcher<Data, Result>::~RegexMatcher()
 {
   for (int i = 0; i < num_el; i++) {
     pcre_free(re_array[i]);
-    xfree(re_str[i]);
+    ats_free(re_str[i]);
   }
   delete[]re_str;
-  xfree(re_array);
+  ats_free(re_array);
   delete[]data_array;
 }
 
@@ -270,7 +270,7 @@ template<class Data, class Result> void RegexMatcher<Data, Result>::AllocateSpac
   // Should not have been allocated before
   ink_assert(array_len == -1);
 
-  re_array = (pcre**) xmalloc(sizeof(pcre*) * num_entries);
+  re_array = (pcre**)ats_malloc(sizeof(pcre*) * num_entries);
   memset(re_array, 0, sizeof(pcre*) * num_entries);
 
   data_array = NEW(new Data[num_entries]);
@@ -309,14 +309,14 @@ template<class Data, class Result> char *RegexMatcher<Data, Result>::NewEntry(ma
   // Create the compiled regular expression
   re_array[num_el] = pcre_compile(pattern, 0, &error, &erroffset, NULL);
   if (!re_array[num_el]) {
-    errBuf = (char *) xmalloc(1024 * sizeof(char));
+    errBuf = (char *)ats_malloc(1024 * sizeof(char));
     *errBuf = '\0';
     snprintf(errBuf, 1024, "%s regular expression error at line %d position %d : %s",
                  matcher_name, line_info->line_num, erroffset, error);
     re_array[num_el] = NULL;
     return errBuf;
   }
-  re_str[num_el] = xstrdup(pattern);
+  re_str[num_el] = ats_strdup(pattern);
 
   // Remove our consumed label from the parsed line
   line_info->line[0][line_info->dest_entry] = 0;
@@ -330,7 +330,7 @@ template<class Data, class Result> char *RegexMatcher<Data, Result>::NewEntry(ma
     num_el++;
   } else {
     // There was a problem so undo the effects this function
-    xfree(re_str[num_el]);
+    ats_free(re_str[num_el]);
     re_str[num_el] = NULL;
     pcre_free(re_array[num_el]);
     re_array[num_el] = NULL;
@@ -361,7 +361,7 @@ template<class Data, class Result> void RegexMatcher<Data, Result>::Match(RD * r
   // Can't do a regex match with a NULL string so
   //  use an empty one instead
   if (url_str == NULL) {
-    url_str = xstrdup("");
+    url_str = ats_strdup("");
   }
   // INKqa12980
   // The function unescapifyStr() is already called in
@@ -380,7 +380,7 @@ template<class Data, class Result> void RegexMatcher<Data, Result>::Match(RD * r
     } // else it's -1 which means no match was found.
 
   }
-  xfree(url_str);
+  ats_free(url_str);
 }
 
 //
@@ -423,7 +423,7 @@ template<class Data, class Result> void HostRegexMatcher<Data, Result>::Match(RD
     r = pcre_exec(this->re_array[i], NULL, url_str, strlen(url_str), 0, 0, NULL, 0);
     if (r != -1) {
       Debug("matcher", "%s Matched %s with regex at line %d",
-            this->matcher_name, url_str, this->data_array[i].line_num);
+            const_cast<char*>(this->matcher_name), url_str, this->data_array[i].line_num);
       this->data_array[i].UpdateMatch(result, rdata);
     } else {
       // An error has occured
@@ -436,7 +436,6 @@ template<class Data, class Result> void HostRegexMatcher<Data, Result>::Match(RD
 // IpMatcher<Data,Result>::IpMatcher()
 //
 template<class Data, class Result> IpMatcher<Data, Result>::IpMatcher(const char *name, const char *filename):
-ip_lookup(NULL),
 data_array(NULL),
 array_len(-1),
 num_el(-1),
@@ -450,7 +449,6 @@ file_name(filename)
 //
 template<class Data, class Result> IpMatcher<Data, Result>::~IpMatcher()
 {
-  delete ip_lookup;
   delete[]data_array;
 }
 
@@ -461,8 +459,6 @@ template<class Data, class Result> void IpMatcher<Data, Result>::AllocateSpace(i
 {
   // Should not have been allocated before
   ink_assert(array_len == -1);
-
-  ip_lookup = NEW(new IpLookup(matcher_name));
 
   data_array = NEW(new Data[num_entries]);
 
@@ -487,7 +483,7 @@ template<class Data, class Result> char *IpMatcher<Data, Result>::NewEntry(match
   const char *errPtr;
   char *errBuf;
   char *match_data;
-  ip_addr_t addr1, addr2;
+  IpEndpoint addr1, addr2;
 
   // Make sure space has been allocated
   ink_assert(num_el >= 0);
@@ -503,10 +499,10 @@ template<class Data, class Result> char *IpMatcher<Data, Result>::NewEntry(match
   ink_assert(match_data != NULL);
 
   // Extract the IP range
-  errPtr = ExtractIpRange(match_data, &addr1, &addr2);
+  errPtr = ExtractIpRange(match_data, &addr1.sa, &addr2.sa);
   if (errPtr != NULL) {
     const size_t errorSize = 1024;
-    errBuf = (char *) xmalloc(errorSize * sizeof(char));
+    errBuf = (char *)ats_malloc(errorSize * sizeof(char));
     snprintf(errBuf, errorSize, "%s %s at %s line %d", matcher_name, errPtr, file_name, line_info->line_num);
     return errBuf;
   }
@@ -522,47 +518,38 @@ template<class Data, class Result> char *IpMatcher<Data, Result>::NewEntry(match
     return errBuf;
   }
 
-  ip_lookup->NewEntry(addr1, addr2, cur_d);
+  ip_map.mark(&addr1.sa, &addr2.sa, cur_d);
 
-  num_el++;
+  ++num_el;
   return NULL;
 }
 
 //
-// void IpMatcherData,Result>::Match(ip_addr_t addr, RD* rdata, Result* result)
+// void IpMatcherData,Result>::Match(in_addr_t addr, RD* rdata, Result* result)
 //
 template<class Data, class Result>
-  void IpMatcher<Data, Result>::Match(ip_addr_t addr, RD * rdata, Result * result)
+  void IpMatcher<Data, Result>::Match(sockaddr const* addr, RD * rdata, Result * result)
 {
-  Data *cur;
-  bool found;
-  IpLookupState s;
-
-  found = ip_lookup->MatchFirst(addr, &s, (void **) &cur);
-
-  while (found == true) {
-
-    ink_assert(cur != NULL);
-
+  void* raw;
+  if (ip_map.contains(addr, &raw)) {
+    Data *cur = static_cast<Data*>(raw);
+    ink_assert(cur != 0);
     cur->UpdateMatch(result, rdata);
-
-    found = ip_lookup->MatchNext(&s, (void **) &cur);
   }
 }
 
 
 template<class Data, class Result> void IpMatcher<Data, Result>::Print()
 {
-  printf("\tIp Matcher with %d elements\n", num_el);
-  if (ip_lookup != NULL) {
-    ip_lookup->Print(IpMatcher<Data, Result>::PrintFunc);
+  printf("\tIp Matcher with %d elements, %zu ranges.\n", num_el, ip_map.getCount());
+  for ( IpMap::iterator spot(ip_map.begin()), limit(ip_map.end()) ; spot != limit ; ++spot) {
+    char b1[INET6_ADDRSTRLEN], b2[INET6_ADDRSTRLEN];
+    printf("\tRange %s - %s ",
+      ats_ip_ntop(spot->min(), b1, sizeof b1),
+      ats_ip_ntop(spot->max(), b2, sizeof b2)
+    );
+    static_cast<Data*>(spot->data())->Print();
   }
-}
-
-template<class Data, class Result> void IpMatcher<Data, Result>::PrintFunc(void *opaque_data)
-{
-  Data *ptr = (Data *) opaque_data;
-  ptr->Print();
 }
 
 template<class Data, class Result>
@@ -578,7 +565,7 @@ template<class Data, class Result>
   ink_assert(config_tags != NULL);
 
   matcher_name = name;
-  config_file_var = xstrdup(file_var);
+  config_file_var = ats_strdup(file_var);
   config_file_path[0] = '\0';
 
   REC_ReadConfigStringAlloc(config_file, config_file_var);
@@ -587,7 +574,7 @@ template<class Data, class Result>
     ink_release_assert(config_file != NULL);
     ink_filepath_make(config_file_path, sizeof(config_file_path), system_config_directory, config_file);
   }
-  xfree(config_file);
+  ats_free(config_file);
 
   reMatch = NULL;
   hostMatch = NULL;
@@ -603,20 +590,12 @@ template<class Data, class Result>
 
 template<class Data, class Result> ControlMatcher<Data, Result>::~ControlMatcher()
 {
-  xfree(config_file_var);
+  ats_free(config_file_var);
 
-  if (reMatch != NULL) {
-    delete reMatch;
-  }
-  if (hostMatch != NULL) {
-    delete hostMatch;
-  }
-  if (ipMatch != NULL) {
-    delete ipMatch;
-  }
-  if (hrMatch != NULL) {
-    delete hrMatch;
-  }
+  delete reMatch;
+  delete hostMatch;
+  delete ipMatch;
+  delete hrMatch;
 }
 
 // void ControlMatcher<Data, Result>::Print()
@@ -709,7 +688,7 @@ template<class Data, class Result> int ControlMatcher<Data, Result>::BuildTableF
 
     if (*tmp != '#' && *tmp != '\0') {
 
-      current = (matcher_line *) xmalloc(sizeof(matcher_line));
+      current = (matcher_line *)ats_malloc(sizeof(matcher_line));
       errPtr = parseConfigLine((char *) tmp, current, config_tags);
 
       if (errPtr != NULL) {
@@ -718,7 +697,7 @@ template<class Data, class Result> int ControlMatcher<Data, Result>::BuildTableF
                    matcher_name, config_file_path, line_num, errPtr);
           SignalError(errBuf, alarmAlready);
         }
-        xfree(current);
+        ats_free(current);
       } else {
 
         // Line parsed ok.  Figure out what the destination
@@ -759,7 +738,7 @@ template<class Data, class Result> int ControlMatcher<Data, Result>::BuildTableF
 
   // Make we have something to do before going on
   if (numEntries == 0) {
-    xfree(first);
+    ats_free(first);
     return 0;
   }
   // Now allocate space for the record pointers
@@ -807,13 +786,13 @@ template<class Data, class Result> int ControlMatcher<Data, Result>::BuildTableF
     //   the NewEntry
     if (errPtr != NULL) {
       SignalError(errPtr, alarmAlready);
-      //xfree(errPtr); // XXX - why are we trying to free
+      //ats_free(errPtr); // XXX - why are we trying to free
       errPtr = NULL;
     }
     // Deallocate the parsing structure
     last = current;
     current = current->next;
-    xfree(last);
+    ats_free(last);
   }
 
   ink_assert(second_pass == numEntries);
@@ -838,7 +817,7 @@ template<class Data, class Result> int ControlMatcher<Data, Result>::BuildTable(
   }
 
   ret = BuildTableFromString(file_buf);
-  xfree(file_buf);
+  ats_free(file_buf);
   return ret;
 }
 

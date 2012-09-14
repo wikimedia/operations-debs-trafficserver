@@ -30,16 +30,12 @@
  ****************************************************************************/
 
 #include "ink_unused.h"    /* MAGIC_EDITING_TAG */
-#if !defined (_WIN32)
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
-#else
-#include "ink_platform.h"
-#endif
 #include "ink_assert.h"
 #include "IPRange.h"
 
@@ -135,7 +131,7 @@ IPRange::read_table_from_file(int fd, const char *identifier_str, bool localip)
       if (i == n)
         break;
       if (read_an_ip(line, &ip, &i, n) == 1) {
-        char *error_str = (char *) xmalloc(ERR_STRING_LEN);
+        char *error_str = (char *)ats_malloc(ERR_STRING_LEN);
         snprintf(error_str, ERR_STRING_LEN, "Incorrect Syntax in Socks Configuration at Line %d", line_no);
         return error_str;
       }
@@ -154,7 +150,7 @@ IPRange::read_table_from_file(int fd, const char *identifier_str, bool localip)
         i++;
         ip_ranges_start[(n_ip_ranges)] = ntohl(ip);
         if (read_an_ip(line, &ip, &i, n) == 1) {
-          char *error_str = (char *) xmalloc(ERR_STRING_LEN);
+          char *error_str = (char *)ats_malloc(ERR_STRING_LEN);
           snprintf(error_str, ERR_STRING_LEN, "Incorrect Syntax in Socks Configuration at Line %d", line_no);
           return error_str;
         }
@@ -166,7 +162,7 @@ IPRange::read_table_from_file(int fd, const char *identifier_str, bool localip)
         if (line[i] != ',') {
           TEST(printf("Socks Configuration (read_table_from_file1):Invalid Syntax in line %s\n", (char *) line);
             );
-          char *error_str = (char *) xmalloc(ERR_STRING_LEN);
+          char *error_str = (char *)ats_malloc(ERR_STRING_LEN);
           snprintf(error_str, ERR_STRING_LEN, "Incorrect Syntax in Socks Configuration at Line %d", line_no);
           return error_str;
         }
@@ -174,7 +170,7 @@ IPRange::read_table_from_file(int fd, const char *identifier_str, bool localip)
       } else {
         TEST(printf("Socks Configuration (read_table_from_file2):Invalid Syntax in line %s\n", (char *) line);
           );
-        char *error_str = (char *) xmalloc(ERR_STRING_LEN);
+        char *error_str = (char *)ats_malloc(ERR_STRING_LEN);
         snprintf(error_str, ERR_STRING_LEN, "Incorrect Syntax in Socks Configuration at Line %d", line_no);
         return error_str;
       }

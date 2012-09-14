@@ -546,7 +546,7 @@ Lagain:
           continue;
         }
       } else
-        DDebug("dir_probe_tag", "tag mismatch %X %X vs expected %X", e, dir_tag(e), key->word(3));
+        DDebug("dir_probe_tag", "tag mismatch %p %X vs expected %X", e, dir_tag(e), key->word(3));
     Lcont:
       p = e;
       e = next_dir(e, seg);
@@ -776,7 +776,7 @@ dir_lookaside_fixup(CacheKey *key, Vol *d)
   while (b) {
     if (b->evac_frags.key == *key) {
       int res = dir_overwrite(key, d, &b->new_dir, &b->dir, false);
-      DDebug("dir_lookaside", "fixup %X %X offset %d phase %d %d",
+      DDebug("dir_lookaside", "fixup %X %X offset %"PRId64" phase %d %d",
             key->word(0), key->word(1), dir_offset(&b->new_dir), dir_phase(&b->new_dir), res);
       d->ram_cache->fixup(key, 0, dir_offset(&b->dir), 0, dir_offset(&b->new_dir));
       d->lookaside[i].remove(b);
@@ -820,7 +820,7 @@ dir_lookaside_remove(CacheKey *key, Vol *d)
   EvacuationBlock *b = d->lookaside[i].head;
   while (b) {
     if (b->evac_frags.key == *key) {
-      DDebug("dir_lookaside", "remove %X %X offset %d phase %d",
+      DDebug("dir_lookaside", "remove %X %X offset %"PRId64" phase %d",
             key->word(0), key->word(1), dir_offset(&b->new_dir), dir_phase(&b->new_dir));
       d->lookaside[i].remove(b);
       free_EvacuationBlock(b, d->mutex->thread_holding);
@@ -940,8 +940,8 @@ sync_cache_dir_on_shutdown(void)
 
     if (buflen < dirlen) {
       if (buf)
-        ink_memalign_free(buf);
-      buf = (char *) ink_memalign(sysconf(_SC_PAGESIZE), dirlen);       // buf = (char*) valloc (dirlen);
+        ats_memalign_free(buf);
+      buf = (char *)ats_memalign(sysconf(_SC_PAGESIZE), dirlen);
       buflen = dirlen;
     }
 
@@ -961,7 +961,7 @@ sync_cache_dir_on_shutdown(void)
   }
   Debug("cache_dir_sync", "sync done");
   if (buf)
-    ink_memalign_free(buf);
+    ats_memalign_free(buf);
 }
 
 
@@ -981,7 +981,7 @@ Lrestart:
   if (vol >= gnvol) {
     vol = 0;
     if (buf) {
-      ink_memalign_free(buf);
+      ats_memalign_free(buf);
       buf = 0;
       buflen = 0;
     }
@@ -1044,8 +1044,8 @@ Lrestart:
       d->header->dirty = 0;
       if (buflen < dirlen) {
         if (buf)
-          ink_memalign_free(buf);
-        buf = (char *) ink_memalign(sysconf(_SC_PAGESIZE), dirlen);
+          ats_memalign_free(buf);
+        buf = (char *)ats_memalign(sysconf(_SC_PAGESIZE), dirlen);
         buflen = dirlen;
       }
       d->header->sync_serial++;
@@ -1096,7 +1096,7 @@ Vol::dir_check(bool fix)
 {
   NOWARN_UNUSED(fix);
   int hist[HIST_DEPTH + 1] = { 0 };
-  int *shist = (int*)xmalloc(segments * sizeof(int));
+  int *shist = (int*)ats_malloc(segments * sizeof(int));
   memset(shist, 0, segments * sizeof(int));
   int j;
   int stale = 0, full = 0, empty = 0;
@@ -1160,7 +1160,7 @@ Vol::dir_check(bool fix)
       printf("\n" "                           ");
   }
   printf("\n");
-  ::xfree(shist);
+  ats_free(shist);
   return 0;
 }
 

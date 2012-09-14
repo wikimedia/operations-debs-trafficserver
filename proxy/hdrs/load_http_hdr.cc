@@ -84,7 +84,7 @@ load_string(const char *s, int len, int offset)
     copy_from = "<BAD>";
     len = strlen(copy_from);
   }
-  char *r = (char *) malloc(len + 1);
+  char *r = (char *)ats_malloc(len + 1);
   memcpy(r, copy_from, len);
   r[len] = '\0';
   return r;
@@ -101,13 +101,13 @@ process_http_hdr_impl(HdrHeapObjImpl * obj, int offset)
     printf("    is a request hdr\n");
     s = load_string(hhdr->u.req.m_ptr_method, hhdr->u.req.m_len_method, offset);
     printf("    method: %s\n", s);
-    free(s);
+    ats_free(s);
   } else if (hhdr->m_polarity == HTTP_TYPE_RESPONSE) {
     printf("    is a response hdr\n");
     printf("    status code: %d\n", (int) hhdr->u.resp.m_status);
     s = load_string(hhdr->u.resp.m_ptr_reason, hhdr->u.resp.m_len_reason, offset);
     printf("    method: %s\n", s);
-    free(s);
+    ats_free(s);
   }
 }
 
@@ -127,14 +127,14 @@ process_mime_block_impl(MIMEFieldBlockImpl * mblock, int offset)
   for (unsigned int i = 0; i < freetop; i++) {
     MIMEField *f = &mblock->m_field_slots[i];
     if (hdrtoken_is_valid_wks_idx(f->m_wks_idx)) {
-      n = xstrdup(hdrtoken_index_to_wks(f->m_wks_idx));
+      n = ats_strdup(hdrtoken_index_to_wks(f->m_wks_idx));
     } else {
       n = load_string(f->m_ptr_name, f->m_len_name, offset);
     }
     v = load_string(f->m_ptr_value, f->m_len_value, offset);
     printf("    (%d) %s: %s\n", i, n, v);
-    free(n);
-    free(v);
+    ats_free(n);
+    ats_free(v);
   }
 }
 
@@ -211,7 +211,7 @@ load_buffer(int fd, hdr_type h_type)
     exit(1);
   }
 
-  char *file_buf = (char *) malloc(sizeof(char) * (s_info.st_size + 1));
+  char *file_buf = (char *)ats_malloc(sizeof(char) * (s_info.st_size + 1));
   file_buf[s_info.st_size] = '\0';
 
 
@@ -258,7 +258,7 @@ load_buffer(int fd, hdr_type h_type)
   hdr_size = (num_lines * 16);
   heap_load_size = hdr_size;
 
-  char *hdr_heap = (char *) malloc(hdr_size);
+  char *hdr_heap = (char *)ats_malloc(hdr_size);
   int bytes_read = 0;
   int cur_line = 0;
 

@@ -29,6 +29,7 @@
 
 #define PROGRAM_NAME        "traffic_logcat"
 #define MAX_LOGBUFFER_SIZE  65536
+#undef IOCORE_LOG_COLLATION
 
 #include <poll.h>
 
@@ -104,22 +105,13 @@ process_file(int in_fd, int out_fd)
     // read the first 8 bytes of the header, which will give us the
     // cookie and the version number.
     //
-    unsigned first_read_size = 2 * sizeof(unsigned);
+    unsigned first_read_size = sizeof(uint32_t) + sizeof(uint32_t);
     unsigned header_size = sizeof(LogBufferHeader);
     LogBufferHeader *header = (LogBufferHeader *) & buffer[0];
 
     nread = read(in_fd, buffer, first_read_size);
     if (!nread || nread == EOF)
       return 0;
-
-    // Make sure the header is correct
-    while (!header->cookie || (header->cookie != LOG_SEGMENT_COOKIE)) {
-      // It's not a proper segment yet, read more, one byte at a time...
-      memcpy(buffer, buffer + 1, first_read_size);
-      nread = read(in_fd, buffer + first_read_size - 1, 1);
-      if (!nread || nread == EOF)
-        return 0;
-    }
 
     // ensure that this is a valid logbuffer header
     //
@@ -141,7 +133,7 @@ process_file(int in_fd, int out_fd)
     }
     // read the rest of the buffer
     //
-    unsigned byte_count = header->byte_count;
+    uint32_t byte_count = header->byte_count;
 
     if (byte_count > sizeof(buffer)) {
       fprintf(stderr, "Buffer too large!\n");
@@ -315,14 +307,14 @@ main(int argc, char *argv[])
                                                      BINARY_LOG_OBJECT_FILENAME_EXTENSION) ==
                                               0 ? n - bin_ext_len : n) : n);
 
-          char *out_filename = (char *) xmalloc(copy_len + ascii_ext_len + 1);
+          char *out_filename = (char *)ats_malloc(copy_len + ascii_ext_len + 1);
 
           memcpy(out_filename, file_arguments[i], copy_len);
           memcpy(&out_filename[copy_len], ASCII_LOG_OBJECT_FILENAME_EXTENSION, ascii_ext_len);
           out_filename[copy_len + ascii_ext_len] = 0;
 
           out_fd = open_output_file(out_filename);
-          xfree(out_filename);
+          ats_free(out_filename);
 
           if (out_fd < 0) {
             error = DATA_PROCESSING_ERROR;

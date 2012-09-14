@@ -35,11 +35,13 @@
 #define _HTTP_SESSION_MANAGER_H_
 
 #include "P_EventSystem.h"
-
 #include "HttpServerSession.h"
 
 class HttpClientSession;
 class HttpSM;
+
+void
+initialize_thread_for_http_sessions(EThread *thread, int thread_index);
 
 #ifndef TS_MICRO
 #define  HSM_LEVEL1_BUCKETS   127
@@ -49,7 +51,7 @@ class HttpSM;
 #define  HSM_LEVEL2_BUCKETS   3
 #endif
 
-class SessionBucket:public Continuation
+class SessionBucket: public Continuation
 {
 public:
   SessionBucket();
@@ -64,20 +66,22 @@ enum HSMresult_t
 class HttpSessionManager
 {
 public:
-  HttpSessionManager();
-  ~HttpSessionManager();
-  HSMresult_t acquire_session(Continuation * cont,
-                              unsigned int ip, int port,
-                              const char *hostname, HttpClientSession * ua_session, HttpSM * sm);
-  HSMresult_t release_session(HttpServerSession * to_release);
+  HttpSessionManager()
+    { }
+
+  ~HttpSessionManager()
+    { }
+
+  HSMresult_t acquire_session(Continuation *cont,
+                              sockaddr const* addr,
+                              const char *hostname, HttpClientSession *ua_session, HttpSM *sm);
+  HSMresult_t release_session(HttpServerSession *to_release);
   void purge_keepalives();
   void init();
   int main_handler(int event, void *data);
 
-  // Private
-  //
-  //    Global l1 hash.  Used for the sessions that are
-  //      transaction on a thread bound
+private:
+  //    Global l1 hash, used when there is no per-thread buckets
   SessionBucket g_l1_hash[HSM_LEVEL1_BUCKETS];
 };
 

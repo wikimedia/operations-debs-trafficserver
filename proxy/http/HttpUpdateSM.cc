@@ -75,10 +75,9 @@ HttpUpdateSM::start_scheduled_update(Continuation * cont, HTTPHdr * request)
 
   // Fix ME: What should these be set to since there is not a
   //   real client
-  t_state.client_info.ip = inet_addr("127.0.0.1");
-  t_state.client_info.port = 0;
+  ats_ip4_set(&t_state.client_info.addr, htonl(INADDR_LOOPBACK), 0);
   t_state.backdoor_request = 0;
-  t_state.client_info.port_attribute = SERVER_PORT_DEFAULT;
+  t_state.client_info.port_attribute = HttpProxyPort::TRANSPORT_DEFAULT;
 
   t_state.req_flavor = HttpTransact::REQ_FLAVOR_SCHEDULED_UPDATE;
 

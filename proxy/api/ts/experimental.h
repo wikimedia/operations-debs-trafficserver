@@ -48,21 +48,13 @@ extern "C"
   tsapi void TSCacheHttpInfoKeySet(TSCacheHttpInfo infop, TSCacheKey key);
   tsapi void TSCacheHttpInfoSizeSet(TSCacheHttpInfo infop, int64_t size);
   tsapi int TSCacheHttpInfoVector(TSCacheHttpInfo infop, void *data, int length);
+  tsapi time_t TSCacheHttpInfoReqSentTimeGet(TSCacheHttpInfo infop);
+  tsapi time_t TSCacheHttpInfoRespReceivedTimeGet(TSCacheHttpInfo infop);
+  int64_t TSCacheHttpInfoSizeGet(TSCacheHttpInfo infop);
 
   /* Do not edit these apis, used internally */
   tsapi int TSMimeHdrFieldEqual(TSMBuffer bufp, TSMLoc hdr_obj, TSMLoc field1, TSMLoc field2);
   tsapi TSReturnCode TSHttpTxnHookRegisteredFor(TSHttpTxn txnp, TSHttpHookID id, TSEventFunc funcp);
-
-  /* IP Lookup */
-  typedef struct tsapi_iplookup* TSIPLookup;
-  typedef struct tsapi_iplookupstate* TSIPLookupState;
-  typedef void (*TSIPLookupPrintFunc) (void *data);
-
-  tsapi void TSIPLookupPrint(TSIPLookup iplu, TSIPLookupPrintFunc pf);
-  tsapi void TSIPLookupNewEntry(TSIPLookup iplu, uint32_t addr1, uint32_t addr2, void *data);
-  tsapi int TSIPLookupMatch(TSIPLookup iplu, uint32_t addr, void **data);
-  tsapi TSReturnCode TSIPLookupMatchFirst(TSIPLookup iplu, uint32_t addr, TSIPLookupState iplus, void **data);
-  tsapi TSReturnCode TSIPLookupMatchNext(TSIPLookup iplu, TSIPLookupState iplus, void **data);
 
   /* for Media-IXT mms over http */
   typedef enum
@@ -145,9 +137,6 @@ extern "C"
 #define TS_HRTIME_MSECONDS(_x) HRTIME_MSECONDS(_x)
 #define TS_HRTIME_USECONDS(_x) HRTIME_USECONDS(_x)
 #define TS_HRTIME_NSECONDS(_x) HRTIME_NSECONDS(_x)
-
-  /* ===== Time ===== */
-  tsapi TSHRTime TSBasedTimeGet();
 
   /****************************************************************************
    *  Get time when Http TXN started / ended

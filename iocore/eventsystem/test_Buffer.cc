@@ -83,7 +83,7 @@ reconfigure_diags()
   ////////////////////////////////////
   // change the diags config values //
   ////////////////////////////////////
-#if !defined (_IOCORE_WIN32) && !defined(__GNUC__) && !defined(hpux)
+#if !defined(__GNUC__) && !defined(hpux)
   diags->config = c;
 #else
   memcpy(((void *) &diags->config), ((void *) &c), sizeof(DiagsConfigState));
@@ -98,7 +98,7 @@ init_diags(char *bdt, char *bat)
 {
   FILE *diags_log_fp;
   char diags_logpath[500];
-  strcpy(diags_logpath, DIAGS_LOG_FILE);
+  ink_strlcpy(diags_logpath, DIAGS_LOG_FILE, sizeof(diags_logpath));
 
   diags_log_fp = fopen(diags_logpath, "w");
   if (diags_log_fp) {
@@ -151,10 +151,6 @@ main()
   }
 
   exit(0);
-#ifndef _IOCORE_WIN32_WINNT
   this_thread()->execute();
-#else
-  Sleep(INFINITE);
-#endif
   return 0;
 }

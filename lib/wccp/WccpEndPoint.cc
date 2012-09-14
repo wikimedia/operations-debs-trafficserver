@@ -23,8 +23,22 @@
 # include "WccpUtil.h"
 # include "WccpMeta.h"
 # include <errno.h>
+# include "ink_string.h"
 // ------------------------------------------------------
 namespace wccp {
+
+#if defined IP_RECVDSTADDR
+# define DSTADDR_SOCKOPT IP_RECVDSTADDR
+# define DSTADDR_DATASIZE (CMSG_SPACE(sizeof(struct in_addr)))
+# define dstaddr(x) (CMSG_DATA(x))
+#elif defined IP_PKTINFO
+# define DSTADDR_SOCKOPT IP_PKTINFO
+# define DSTADDR_DATASIZE (CMSG_SPACE(sizeof(struct in_pktinfo)))
+# define dstaddr(x) (&(((struct in_pktinfo *)(CMSG_DATA(x)))->ipi_addr))
+#else
+# error "can't determine socket option"
+#endif 
+
 // ------------------------------------------------------
 Impl::GroupData::GroupData()
   : m_generation(0)
@@ -35,7 +49,6 @@ Impl::GroupData::GroupData()
 Impl::GroupData&
 Impl::GroupData::setKey(char const* key) {
   m_use_security_key = true;
-  memset(m_security_key, 0, SecurityComp::KEY_SIZE);
   strncpy(m_security_key, key, SecurityComp::KEY_SIZE);
   return *this;
 }
@@ -95,7 +108,7 @@ Impl::open(uint addr) {
 
   // Enable retrieval of destination address on packets.
   int ip_pktinfo_flag = 1;
-  if (-1 == setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &ip_pktinfo_flag, sizeof(ip_pktinfo_flag))) {
+  if (-1 == setsockopt(fd, IPPROTO_IP, DSTADDR_SOCKOPT, &ip_pktinfo_flag, sizeof(ip_pktinfo_flag))) {
     log_errno(LVL_FATAL, "Failed to enable destination address retrieval");
     this->close();
     return -errno;
@@ -132,7 +145,7 @@ Impl::useMD5Security(ts::ConstBuffer const& key) {
   m_use_security_key = true;
   memset(m_security_key, 0, SecurityComp::KEY_SIZE);
   // Great. Have to cast or we get a link error.
-  strncpy(m_security_key, key._ptr, std::min(key._size, static_cast<size_t>(SecurityComp::KEY_SIZE)));
+  memcpy(m_security_key, key._ptr, std::min(key._size, static_cast<size_t>(SecurityComp::KEY_SIZE)));
 }
 
 SecurityOption
@@ -171,7 +184,7 @@ Impl::handleMessage() {
   IpHeader ip_header;
   static ssize_t const BUFFER_SIZE = 65536;
   char buffer[BUFFER_SIZE];
-  static size_t const ANC_BUFFER_SIZE = CMSG_ALIGN(CMSG_SPACE(sizeof(in_pktinfo)));
+  static size_t const ANC_BUFFER_SIZE = DSTADDR_DATASIZE;
   char anc_buffer[ANC_BUFFER_SIZE];
 
   if (ts::NO_FD == m_fd) return -ENOTCONN;
@@ -196,8 +209,8 @@ Impl::handleMessage() {
         anc;
         anc = CMSG_NXTHDR(&recv_hdr, anc)
   ) {
-    if (anc->cmsg_level == IPPROTO_IP && anc->cmsg_type == IP_PKTINFO) {
-      ip_header.m_dst = access_field(&in_pktinfo::ipi_addr, CMSG_DATA(anc)).s_addr;
+    if (anc->cmsg_level == IPPROTO_IP && anc->cmsg_type == DSTADDR_SOCKOPT) {
+      ip_header.m_dst = ((struct in_addr*)dstaddr(anc))->s_addr;
       break;
     }
   }
@@ -770,6 +783,7 @@ CacheImpl::handleISeeYou(IpHeader const& ip_hdr, ts::Buffer const& chunk) {
       );
     }
   }
+  time_t then = ar_spot->m_recv.m_time; // used for comparisons later.
   ar_spot->m_recv.set(now, recv_id);
   ar_spot->m_generation = msg.m_router_view.getChangeNumber();
   router_idx = ar_spot - group.m_routers.begin();
@@ -801,6 +815,11 @@ CacheImpl::handleISeeYou(IpHeader const& ip_hdr, ts::Buffer const& chunk) {
       ac_spot->m_src.resize(group.m_routers.size());
       logf(LVL_INFO, "Added cache %s to view %d", ip_addr_to_str(cache.getAddr()), group.m_svc.getSvcId());
       view_changed = true;
+    } else {
+      // Check if the cache wasn't reported last time but was reported
+      // this time. In that case we need to bump the view to trigger
+      // assignment generation.
+      if (ac_spot->m_src[router_idx].m_time != then) view_changed = true;
     }
     ac_spot->m_id.fill(cache);
     // If cache is this cache, update data in router record.

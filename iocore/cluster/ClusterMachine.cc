@@ -68,9 +68,13 @@ dead(false),
 hostname(ahostname),
 ip(aip),
 cluster_port(aport),
+num_connections(0),
+now_connections(0),
+free_connections(0),
+rr_count(0),
 msg_proto_major(0),
 msg_proto_minor(0),
-clusterHandler(0)
+clusterHandlers(0)
 {
   EThread *thread = this_ethread();
   ProxyMutex *mutex = thread->mutex;
@@ -83,7 +87,7 @@ clusterHandler(0)
       ink_release_assert(!gethostname(localhost, 1023));
       ahostname = localhost;
     }
-    hostname = xstrdup(ahostname);
+    hostname = ats_strdup(ahostname);
 
     // If we are running if the manager, it the our ip address for
     //   clustering from the manager, so the manager can control what
@@ -135,18 +139,29 @@ clusterHandler(0)
       *(uint32_t *) & x = (uint32_t) ip;
       Debug("machine_debug", "unable to reverse DNS %u.%u.%u.%u: %d", x[0], x[1], x[2], x[3], data.herrno);
     } else
-      hostname = xstrdup(r->h_name);
+      hostname = ats_strdup(r->h_name);
   }
   if (hostname)
     hostname_len = strlen(hostname);
   else
     hostname_len = 0;
+
+  IOCORE_ReadConfigInteger(num_connections, "proxy.config.cluster.num_of_cluster_connections");
+  clusterHandlers = (ClusterHandler **)ats_calloc(num_connections, sizeof(ClusterHandler *));
+}
+
+ClusterHandler *ClusterMachine::pop_ClusterHandler(int no_rr)
+{
+  int64_t now = rr_count;
+  if (no_rr == 0)
+    ink_atomic_increment64(&rr_count, 1);
+  return this->clusterHandlers[now % this->num_connections];
 }
 
 ClusterMachine::~ClusterMachine()
 {
-  if (hostname)
-    xfree(hostname);
+  ats_free(hostname);
+  ats_free(clusterHandlers);
 }
 
 #ifndef INK_NO_CLUSTER
@@ -194,13 +209,10 @@ read_MachineList(char *filename, int afd)
   MachineList *l = NULL;
   ink_assert(filename || (afd != -1));
   char p[PATH_NAME_MAX];
-  size_t remaining_str_size = sizeof p;
   if (filename) {
-    ink_strncpy(p, cache_system_config_directory, remaining_str_size);
-    remaining_str_size -= strlen(cache_system_config_directory);
-    strncat(p, "/", remaining_str_size);
-    remaining_str_size--;
-    strncat(p, filename, remaining_str_size);
+    ink_strlcpy(p, cache_system_config_directory, sizeof(p));
+    ink_strlcat(p, "/", sizeof(p));
+    ink_strlcat(p, filename, sizeof(p));
   }
   int fd = ((afd != -1) ? afd : open(p, O_RDONLY));
   if (fd >= 0) {
@@ -211,7 +223,7 @@ read_MachineList(char *filename, int afd)
       if (n == -1 && ParseRules::is_digit(*line)) {
         n = atoi(line);
         if (n > 0) {
-          l = (MachineList *) xmalloc(sizeof(MachineList) + (n - 1) * sizeof(MachineListElement));
+          l = (MachineList *)ats_malloc(sizeof(MachineList) + (n - 1) * sizeof(MachineListElement));
           l->n = 0;
         } else {
           l = NULL;
@@ -231,7 +243,7 @@ read_MachineList(char *filename, int afd)
           } else {
             char s[256];
             snprintf(s, sizeof s, "bad ip, line %d", ln);
-            return (MachineList *) xstrdup(s);
+            return (MachineList *) ats_strdup(s);
           }
         }
         l->machine[i].port = atoi(port);
@@ -247,7 +259,7 @@ read_MachineList(char *filename, int afd)
         } else {
           char s[256];
           snprintf(s, sizeof s, "bad port, line %d", ln);
-          return (MachineList *) xstrdup(s);
+          return (MachineList *) ats_strdup(s);
         }
       }
     }
@@ -262,8 +274,8 @@ read_MachineList(char *filename, int afd)
         Warning("read machine list failure, length mismatch");
         return NULL;
       } else
-        xfree(l);
-      return (MachineList *) xstrdup("number of machines does not match length of list\n");
+        ats_free(l);
+      return (MachineList *) ats_strdup("number of machines does not match length of list\n");
     }
   }
   return (afd != -1) ? (MachineList *) NULL : l;

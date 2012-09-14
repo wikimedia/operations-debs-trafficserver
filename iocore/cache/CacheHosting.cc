@@ -121,7 +121,7 @@ CacheHostMatcher::Match(char *rdata, int rlen, CacheHostResult * result)
 
   if (rlen == 0)
     return;
-  char *data = (char *) xmalloc(rlen + 1);
+  char *data = (char *)ats_malloc(rlen + 1);
   memcpy(data, rdata, rlen);
   *(data + rlen) = '\0';
   HostLookupState s;
@@ -135,7 +135,7 @@ CacheHostMatcher::Match(char *rdata, int rlen, CacheHostResult * result)
 
     r = host_lookup->MatchNext(&s, &opaque_ptr);
   }
-  xfree(data);
+  ats_free(data);
 }
 
 //
@@ -180,7 +180,7 @@ CacheHostMatcher::NewEntry(matcher_line * line_info)
     memset(cur_d, 0, sizeof(CacheHostRecord));
     return;
   }
-  Debug("cache_hosting", "hostname: %s, host record: %xd", match_data, cur_d);
+  Debug("cache_hosting", "hostname: %s, host record: %p", match_data, cur_d);
   // Fill in the matching info
   host_lookup->NewEntry(match_data, (line_info->type == MATCH_DOMAIN) ? true : false, cur_d);
 
@@ -208,7 +208,7 @@ CacheHostTable::CacheHostTable(Cache * c, int typ)
   ink_release_assert(config_file != NULL);
   Layout::relative_to(config_file_path, sizeof(config_file_path),
                       cache_system_config_directory, config_file);
-  xfree(config_file);
+  ats_free(config_file);
   hostMatch = NULL;
 
   m_numEntries = this->BuildTable();
@@ -306,14 +306,14 @@ CacheHostTable::BuildTableFromString(char *file_buf)
 
     if (*tmp != '#' && *tmp != '\0') {
 
-      current = (matcher_line *) xmalloc(sizeof(matcher_line));
+      current = (matcher_line *)ats_malloc(sizeof(matcher_line));
       errPtr = parseConfigLine((char *) tmp, current, config_tags);
 
       if (errPtr != NULL) {
         snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s",
                  matcher_name, config_file_path, line_num, errPtr);
         IOCORE_SignalError(errBuf, alarmAlready);
-        xfree(current);
+        ats_free(current);
       } else {
 
         // Line parsed ok.  Figure out what the destination
@@ -353,7 +353,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
     }
 
     if (first != NULL) {
-      xfree(first);
+      ats_free(first);
     }
     return 0;
   }
@@ -401,7 +401,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
     // Deallocate the parsing structure
     last = current;
     current = current->next;
-    xfree(last);
+    ats_free(last);
   }
 
   if (!generic_rec_initd) {
@@ -437,7 +437,7 @@ CacheHostTable::BuildTable()
   }
 
   ret = BuildTableFromString(file_buf);
-  xfree(file_buf);
+  ats_free(file_buf);
   return ret;
 }
 
@@ -453,13 +453,13 @@ CacheHostRecord::Init(int typ)
   err[0] = 0;
   num_vols = 0;
   type = typ;
-  cp = (CacheVol **) xmalloc(cp_list_len * sizeof(CacheVol *));
+  cp = (CacheVol **)ats_malloc(cp_list_len * sizeof(CacheVol *));
   memset(cp, 0, cp_list_len * sizeof(CacheVol *));
   num_cachevols = 0;
   CacheVol *cachep = cp_list.head;
   for (; cachep; cachep = cachep->link.next) {
     if (cachep->scheme == type) {
-      Debug("cache_hosting", "Host Record: %xd, Volume: %d, size: %u", this, cachep->vol_number, cachep->size);
+      Debug("cache_hosting", "Host Record: %p, Volume: %d, size: %u", this, cachep->vol_number, cachep->size);
       cp[num_cachevols] = cachep;
       num_cachevols++;
       num_vols += cachep->num_vols;
@@ -470,7 +470,7 @@ CacheHostRecord::Init(int typ)
     IOCORE_SignalError(err, alarmAlready);
     return -1;
   }
-  vols = (Vol **) xmalloc(num_vols * sizeof(Vol *));
+  vols = (Vol **)ats_malloc(num_vols * sizeof(Vol *));
   int counter = 0;
   for (i = 0; i < num_cachevols; i++) {
     CacheVol *cachep1 = cp[i];
@@ -504,7 +504,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
 
     if (!strcasecmp(label, "volume")) {
       /* parse the list of volumes */
-      val = xstrdup(line_info->line[1][i]);
+      val = ats_strdup(line_info->line[1][i]);
       char *vol_no = val;
       char *s = val;
       int volume_number;
@@ -512,7 +512,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
 
       /* first find out the number of volumes */
       while (*s) {
-        if ((*s == ',')) {
+        if (*s == ',') {
           num_cachevols++;
           s++;
           if (!(*s)) {
@@ -522,7 +522,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
                          "[CacheHosting]", config_file, line_info->line_num, errptr);
             IOCORE_SignalError(err, alarmAlready);
             if (val != NULL) {
-              xfree(val);
+              ats_free(val);
             }
             return -1;
           }
@@ -533,7 +533,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
                        "[CacheHosting]", config_file, line_info->line_num, *s);
           IOCORE_SignalError(err, alarmAlready);
           if (val != NULL) {
-            xfree(val);
+            ats_free(val);
           }
           return -1;
         }
@@ -541,7 +541,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
       }
       s = val;
       num_cachevols++;
-      cp = (CacheVol **) xmalloc(num_cachevols * sizeof(CacheVol *));
+      cp = (CacheVol **)ats_malloc(num_cachevols * sizeof(CacheVol *));
       memset(cp, 0, num_cachevols * sizeof(CacheVol *));
       num_cachevols = 0;
       while (1) {
@@ -554,10 +554,10 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
           for (; cachep; cachep = cachep->link.next) {
             if (cachep->vol_number == volume_number) {
               is_vol_present = 1;
-              if ((cachep->scheme == type)) {
+              if (cachep->scheme == type) {
                 Debug("cache_hosting",
-                      "Host Record: %xd, Volume: %d, size: %ld",
-                      this, volume_number, cachep->size * STORE_BLOCK_SIZE);
+                      "Host Record: %p, Volume: %d, size: %ld",
+                      this, volume_number, (long)(cachep->size * STORE_BLOCK_SIZE));
                 cp[num_cachevols] = cachep;
                 num_cachevols++;
                 num_vols += cachep->num_vols;
@@ -571,7 +571,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
                          "[CacheHosting]", config_file, line_info->line_num, volume_number);
             IOCORE_SignalError(err, alarmAlready);
             if (val != NULL) {
-              xfree(val);
+              ats_free(val);
             }
             return -1;
           }
@@ -582,7 +582,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
         s++;
       }
       if (val != NULL) {
-        xfree(val);
+        ats_free(val);
       }
       break;
     }
@@ -605,7 +605,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
   if (!num_vols) {
     return -1;
   }
-  vols = (Vol **) xmalloc(num_vols * sizeof(Vol *));
+  vols = (Vol **)ats_malloc(num_vols * sizeof(Vol *));
   int counter = 0;
   for (i = 0; i < num_cachevols; i++) {
     CacheVol *cachep = cp[i];
@@ -647,7 +647,7 @@ ConfigVolumes::read_config_file()
   ink_release_assert(config_file != NULL);
   Layout::relative_to(config_file_path, sizeof(config_file_path),
                       cache_system_config_directory, config_file);
-  xfree(config_file);
+  ats_free(config_file);
 
   file_buf = readIntoBuffer(config_file_path, "[CacheVolition]", NULL);
 
@@ -657,7 +657,7 @@ ConfigVolumes::read_config_file()
   }
 
   BuildListFromString(config_file_path, file_buf);
-  xfree(file_buf);
+  ats_free(file_buf);
   return;
 }
 
@@ -1144,14 +1144,14 @@ execute_and_verify(RegressionTest * t)
     CacheDisk *d = gdisks[i];
     if (is_debug_tag_set("cache_hosting")) {
 
-      Debug("cache_hosting", "Disk: %d: Vol Blocks: %ld: Free space: %ld",
+      Debug("cache_hosting", "Disk: %d: Vol Blocks: %u: Free space: %" PRIu64,
             i, d->header->num_diskvol_blks, d->free_space);
       for (int j = 0; j < (int) d->header->num_volumes; j++) {
 
-        Debug("cache_hosting", "\tVol: %d Size: %d", d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+        Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
       }
       for (int j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-        Debug("cache_hosting", "\tBlock No: %d Size: %d Free: %d",
+        Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
               d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
       }
     }
@@ -1186,10 +1186,8 @@ ClearCacheVolList(Queue<CacheVol> *cpl, int len)
   int i = 0;
   CacheVol *cp = NULL;
   while ((cp = cpl->dequeue())) {
-    if (cp->disk_vols)
-      xfree(cp->disk_vols);
-    if (cp->vols)
-      xfree(cp->vols);
+    ats_free(cp->disk_vols);
+    ats_free(cp->vols);
     delete(cp);
     i++;
   }
