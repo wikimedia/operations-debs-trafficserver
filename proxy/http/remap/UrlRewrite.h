@@ -61,7 +61,8 @@ typedef struct s_build_table_info
  * used for redirection, mapping, and reverse mapping
 **/
 enum mapping_type
-{ FORWARD_MAP, REVERSE_MAP, PERMANENT_REDIRECT, TEMPORARY_REDIRECT, FORWARD_MAP_REFERER, NONE };
+{ FORWARD_MAP, REVERSE_MAP, PERMANENT_REDIRECT, TEMPORARY_REDIRECT, FORWARD_MAP_REFERER,
+  FORWARD_MAP_WITH_RECV_PORT, NONE };
 
 /**
  *
@@ -70,12 +71,13 @@ class UrlRewrite
 {
 public:
   UrlRewrite(const char *file_var_in);
-   ~UrlRewrite();
+  ~UrlRewrite();
   int BuildTable();
   mapping_type Remap_redirect(HTTPHdr * request_header, URL *redirect_url, char **orig_url);
   bool ReverseMap(HTTPHdr *response_header);
   void SetReverseFlag(int flag);
   void Print();
+  bool is_valid() const { return _valid; };
 //  private:
 
   static const int MAX_REGEX_SUBS = 10;
@@ -116,7 +118,7 @@ public:
   void PerformACLFiltering(HttpTransact::State * s, url_mapping * mapping);
   url_mapping *SetupPacMapping();       // manager proxy-autconfig mapping
   url_mapping *SetupBackdoorMapping();
-  void PrintTable(InkHashTable * h_table);
+  void PrintStore(MappingsStore &store);
 
   void DestroyStore(MappingsStore &store)
   {
@@ -130,6 +132,7 @@ public:
   MappingsStore reverse_mappings;
   MappingsStore permanent_redirects;
   MappingsStore temporary_redirects;
+  MappingsStore forward_mappings_with_recv_port;
 
   bool forwardMappingLookup(URL *request_url, int request_port, const char *request_host,
                             int request_host_len, UrlMappingContainer &mapping_container)
@@ -155,6 +158,12 @@ public:
     return _mappingLookup(temporary_redirects, request_url, request_port, request_host, request_host_len,
                           mapping_container);
   }
+  bool forwardMappingWithRecvPortLookup(URL *request_url, int recv_port, const char *request_host,
+                                        int request_host_len, UrlMappingContainer &mapping_container)
+  {
+    return _mappingLookup(forward_mappings_with_recv_port, request_url, recv_port, request_host,
+                          request_host_len, mapping_container);
+  }
 
   int UrlWhack(char *toWhack, int *origLength);
 
@@ -179,8 +188,10 @@ public:
   int num_rules_reverse;
   int num_rules_redirect_permanent;
   int num_rules_redirect_temporary;
+  int num_rules_forward_with_recv_port;
 
 private:
+  bool _valid;
   void _doRemap(UrlMappingContainer &mapping_container, URL *request_url);
   bool _mappingLookup(MappingsStore &mappings, URL *request_url, int request_port, const char *request_host,
                       int request_host_len, UrlMappingContainer &mapping_container);
