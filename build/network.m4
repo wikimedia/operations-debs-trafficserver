@@ -95,20 +95,25 @@ AC_SUBST(gethostbyname_r_hostent_data)
 ])
 
 dnl
-dnl TS_CHECK_LOOPBACK_IFACE: try to figure out default loopback interface
+dnl TS_CHECK_DEFAULT_IFACE: try to figure out default network interface
 dnl
-AC_DEFUN([TS_CHECK_LOOPBACK_IFACE], [
-default_loopback_iface=""
-AC_MSG_CHECKING([for loopback network interface])
+AC_DEFUN([TS_CHECK_DEFAULT_IFACE], [
+default_net_iface=""
+AC_MSG_CHECKING([for default network interface])
 case $host_os in
   linux*)
-    default_loopback_iface=lo
+    default_net_iface=[`/sbin/ifconfig | sed 's/^ *$/CRLF/g' | tr '\n' ' ' | sed 's/CRLF /\n/g' | grep -v LOOPBACK | grep 'UP.*RUNNING' | head -1 | awk '{ n=1; print $n; }' 2>/dev/null`]
   ;;
 darwin* | freebsd* | solaris*)
-  default_loopback_iface=lo0
+  default_net_iface=[`/sbin/ifconfig -a | grep 'UP.*RUNNING' | grep -v LOOPBACK | head -1 | awk -F: '{  n=1; print $n; }'`]
   ;;
 esac
-AC_MSG_RESULT([$default_loopback_iface])
-AC_SUBST([default_loopback_iface])
+if test "x$default_net_iface" = "x"; then
+  AC_MSG_RESULT([not found. Using default eth0])
+  default_net_iface=eth0
+else
+  AC_MSG_RESULT([$default_net_iface])
+fi
+AC_SUBST([default_net_iface])
 ])
 dnl

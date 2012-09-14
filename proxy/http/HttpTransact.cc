@@ -2312,6 +2312,7 @@ HttpTransact::HandleCacheOpenReadHitFreshness(State* s)
 void
 HttpTransact::CallOSDNSLookup(State* s)
 {
+//printf("into HttpTransact::CallOSDNSLookup **\n");
   TRANSACT_RETURN(DNS_LOOKUP, OSDNSLookup);
 }
 
@@ -2725,8 +2726,10 @@ HttpTransact::build_response_from_cache(State* s, HTTPWarningCode warning_code)
       // only if the cached response is a 200 OK
       if (client_response_code == HTTP_STATUS_OK && client_request->presence(MIME_PRESENCE_RANGE)) {
         s->state_machine->do_range_setup_if_necessary();
-        if (s->range_setup == RANGE_NOT_SATISFIABLE && s->http_config_param->reverse_proxy_enabled) {
+        if (s->range_setup == RANGE_NOT_SATISFIABLE &&
+            s->http_config_param->reverse_proxy_enabled) {
           build_error_response(s, HTTP_STATUS_RANGE_NOT_SATISFIABLE, "Requested Range Not Satisfiable","","");
+
           s->cache_info.action = CACHE_DO_NO_ACTION;
           s->next_action = PROXY_INTERNAL_CACHE_NOOP;
           break;
@@ -3609,7 +3612,7 @@ HttpTransact::delete_srv_entry(State* s, int max_retries)
 
         /* no hosts DON'T match -- max out retries and return */
         if (still_ok_hosts.empty()) {
-          Debug("dns_srv", "No more SRV hosts to try that don't contain a host we just tried -- giving up");
+          Debug("dns_srv", "No more SRV hosts to try that dont contain a host we just tried -- giving up");
           s->current.attempts = max_retries;
           TRANSACT_RETURN(OS_RR_MARK_DOWN, ReDNSRoundRobin);
         }
@@ -4105,6 +4108,7 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State* s)
 
     } else if (s->cache_info.action == CACHE_DO_UPDATE && is_request_conditional(&s->hdr_info.server_request)) {
       // CACHE_DO_UPDATE and server response is cacheable
+
       if (is_request_conditional(&s->hdr_info.client_request)) {
         if (s->txn_conf->cache_when_to_revalidate != 4)
           client_response_code =
@@ -4132,12 +4136,6 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State* s)
           s->cache_info.action = CACHE_DO_UPDATE;
           s->next_action = SERVER_READ;
         } else {
-          if (s->hdr_info.client_request.presence(MIME_PRESENCE_RANGE)) {
-            s->state_machine->do_range_setup_if_necessary();
-            // Note that even if the Range request is not satisfiable, we
-            // update and serve this cache. This will give a 200 response to
-            // a bad client, but allows us to avoid pegging the origin (e.g. abuse).
-          }
           s->cache_info.action = CACHE_DO_SERVE_AND_UPDATE;
           s->next_action = SERVE_FROM_CACHE;
         }
@@ -6230,7 +6228,7 @@ HttpTransact::is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* respons
     // If a ttl is set, allow caching even if response contains
     // Cache-Control headers to prevent caching
     if (s->cache_control.ttl_in_cache > 0) {
-      Debug("http_trans", "[is_response_cacheable] Cache-control header directives in response overridden by ttl in cache.config");
+      Debug("http_trans", "[is_response_cacheable] Cache-control header directives in response overriden by ttl in cache.config");
     } else if (!s->cache_control.ignore_server_no_cache) {
       Debug("http_trans", "[is_response_cacheable] NO by response cache control");
       return false;
@@ -7018,7 +7016,7 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
         !is_response_body_precluded(s->hdr_info.client_response.status_get(), s->method) &&
          // we do not need chunked encoding for internal error messages
          // that are sent to the client if the server response is not valid.
-         (( (s->source == SOURCE_HTTP_ORIGIN_SERVER || s->source == SOURCE_TRANSFORM) &&
+         ((s->source == SOURCE_HTTP_ORIGIN_SERVER &&
          s->hdr_info.server_response.valid() &&
          // if we receive a 304, we will serve the client from the
          // cache and thus do not need chunked encoding.
