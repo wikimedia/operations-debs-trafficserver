@@ -97,7 +97,7 @@ traffic_manager_LDADD = \
   $(top_builddir)/mgmt/tools/libinkconfigapi.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBEXPAT@ @LIBPCRE@ \
-  @LIBTCL@ @LIBICONV@ \
+  @LIBSSL@ @LIBTCL@ @LIBICONV@ \
   -lm @LIBDL@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ \
   @LIBTHREAD@ @LIBRT@ @LIBEXECINFO@ @LIBCAP@
 
@@ -107,6 +107,3 @@ traffic_manager_LDADD += \
   $(top_builddir)/lib/wccp/libwccp.a \
   $(top_builddir)/lib/tsconfig/libtsconfig.la
 endif
-
-traffic_manager_LDADD += @LIBSSL@
-

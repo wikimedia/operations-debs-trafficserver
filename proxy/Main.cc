@@ -1251,7 +1251,6 @@ syslog_log_configure()
   }
   // TODO: Not really, what's up with this?
   Debug("server", "Setting syslog facility to %d\n", syslog_facility);
-  xfree(facility_str);
 }
 
 // void syslog_thr_init()

@@ -5232,15 +5232,11 @@ TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
   sdk_assert(buflength > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
-  HttpTransact::State *s = &(sm->t_state);
 
-  if (s->internal_msg_buffer)
-    HttpTransact::free_internal_msg_buffer(s->internal_msg_buffer, s->internal_msg_buffer_fast_allocator_size);
-
-  s->internal_msg_buffer = buf;
-  s->internal_msg_buffer_type = mimetype;
-  s->internal_msg_buffer_size = buflength;
-  s->internal_msg_buffer_fast_allocator_size = -1;
+  sm->t_state.internal_msg_buffer = buf;
+  sm->t_state.internal_msg_buffer_type = mimetype;
+  sm->t_state.internal_msg_buffer_size = buflength;
+  sm->t_state.internal_msg_buffer_fast_allocator_size = -1;
 }
 
 void
@@ -7074,7 +7070,9 @@ TSRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
 char*
 TSFetchRespGet(TSHttpTxn txnp, int *length)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
+
   FetchSM *fetch_sm = (FetchSM*)txnp;
   return fetch_sm->resp_get(length);
 }
@@ -7082,6 +7080,7 @@ TSFetchRespGet(TSHttpTxn txnp, int *length)
 TSReturnCode
 TSFetchPageRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)obj) == TS_SUCCESS);
 
@@ -7118,9 +7117,7 @@ TSFetchPages(TSFetchUrlParams_t *params)
 void
 TSFetchUrl(const char* headers, int request_len, unsigned int ip, int port , TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent events)
 {
-  if (callback_options != NO_CALLBACK) {
-    sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
-  }
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
 
   FetchSM *fetch_sm =  FetchSMAllocator.alloc();
 

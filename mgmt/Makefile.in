@@ -546,9 +546,9 @@ traffic_manager_LDADD = cluster/libcluster.a stats/libstats.a \
 	$(top_builddir)/mgmt/tools/libinksysapi.a \
 	$(top_builddir)/mgmt/tools/libinkconfigapi.a \
 	$(top_builddir)/lib/ts/libtsutil.la @LIBEXPAT@ @LIBPCRE@ \
-	@LIBTCL@ @LIBICONV@ -lm @LIBDL@ @LIBSOCKET@ @LIBNSL@ \
+	@LIBSSL@ @LIBTCL@ @LIBICONV@ -lm @LIBDL@ @LIBSOCKET@ @LIBNSL@ \
 	@LIBRESOLV@ @LIBTHREAD@ @LIBRT@ @LIBEXECINFO@ @LIBCAP@ \
-	$(am__append_1) @LIBSSL@
+	$(am__append_1)
 all: all-recursive
 
 .SUFFIXES:
