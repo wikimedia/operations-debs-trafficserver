@@ -204,7 +204,7 @@ NetAccept::init_accept_loop()
     action_->mutex = action_->continuation->mutex;
   }
   SET_CONTINUATION_HANDLER(this, &NetAccept::acceptLoopEvent);
-  eventProcessor.spawn_thread(this);
+  eventProcessor.spawn_thread(this, "[ACCEPT]");
 }
 
 
@@ -555,14 +555,13 @@ NetAccept::acceptLoopEvent(int event, Event * e)
 //
 //
 
-NetAccept::NetAccept():
-Continuation(NULL),
-port(0),
-period(0),
-alloc_cache(0),
-ifd(-1), callback_on_open(false), recv_bufsize(0), send_bufsize(0), sockopt_flags(0), etype(0)
-{
-}
+NetAccept::NetAccept()
+  : Continuation(NULL),
+    port(0),
+    period(0),
+    alloc_cache(0),
+    ifd(-1), callback_on_open(false), recv_bufsize(0), send_bufsize(0), sockopt_flags(0), etype(0)
+{ }
 
 
 //

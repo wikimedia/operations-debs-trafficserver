@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[2.1.8-unstable])
-m4_define([TS_VERSION_N],[2001008])
+m4_define([TS_VERSION_S],[2.1.9-unstable])
+m4_define([TS_VERSION_N],[2001009])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -256,6 +256,19 @@ AS_IF([test 0 -ne $has_standalone_iocore],
   ]
 )
 AM_CONDITIONAL([STANDALONE_IOCORE], [test 0 -ne $has_standalone_iocore])
+
+#
+# Force some static linkage (for testing / development only)
+#
+AC_MSG_CHECKING([whether to build some static libts (dev only)])
+AC_ARG_ENABLE([static-libts],
+  [AS_HELP_STRING([--enable-static-libts],[build some static libts (dev only)])],
+  [],
+  [enable_static_libts=no]
+)
+AC_MSG_RESULT([$enable_static_libts])
+TS_ARG_ENABLE_VAR([has],[static-libts])
+AM_CONDITIONAL([STATIC_LIBTS], [test 0 -ne $has_static_libts])
 
 #
 # Remote Coverity Prevent commit
@@ -923,6 +936,7 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   sys/ioctl.h \
                   sys/byteorder.h \
                   sys/sockio.h \
+		  sys/prctl.h \
                   arpa/inet.h \
                   arpa/nameser.h \
                   arpa/nameser_compat.h \
@@ -1139,6 +1153,7 @@ AC_MSG_NOTICE([Build using LDFLAGS=$LDFLAGS])
 AC_MSG_NOTICE([Build using SHARED_LDFLAGS=$SHARED_LDFLAGS])
 AC_MSG_NOTICE([Build using EXTRA_CC_LDFLAGS=$EXTRA_CC_LDFLAGS])
 AC_MSG_NOTICE([Build using EXTRA_CXX_LDFLAGS=$EXTRA_CXX_LDFLAGS])
+AC_MSG_NOTICE([Build using LIBTOOL_LINK_FLAGS=$LIBTOOL_LINK_FLAGS])
 AC_MSG_NOTICE([Build using MGMT_DEFS=$MGMT_DEFS])
 AC_MSG_NOTICE([Build using API_DEFS=$API_DEFS])
 
@@ -1150,6 +1165,7 @@ AC_SUBST([CXXFLAGS])
 AC_SUBST([EXPAT_LDFLAGS])
 AC_SUBST([EXTRA_CC_LDFLAGS])
 AC_SUBST([EXTRA_CXX_LDFLAGS])
+AC_SUBST([LIBTOOL_LINK_FLAGS])
 AC_SUBST([iocore_include_dirs])
 AC_SUBST([LDFLAGS])
 AC_SUBST([MGMT_DEFS])

@@ -493,6 +493,7 @@ static int
 synclient_txn_send_request(ClientTxn * txn, char *request)
 {
   TSCont cont;
+  sockaddr_storage addr;
 
   TSAssert(txn->magic == MAGIC_ALIVE);
   txn->request = xstrdup(request);
@@ -500,7 +501,9 @@ synclient_txn_send_request(ClientTxn * txn, char *request)
 
   cont = TSContCreate(synclient_txn_main_handler, TSMutexCreate());
   TSContDataSet(cont, txn);
-  TSNetConnect(cont, txn->connect_ip, txn->connect_port);
+  
+  ink_inet_ip4_set(&addr, txn->connect_ip, txn->connect_port);
+  TSNetConnect(cont, ink_inet_sa_cast(&addr));
   return 1;
 }
 
@@ -743,7 +746,7 @@ static int
 synserver_start(SocketServer * s)
 {
   TSAssert(s->magic == MAGIC_ALIVE);
-  s->accept_action = TSNetAccept(s->accept_cont, s->accept_port);
+  s->accept_action = TSNetAccept(s->accept_cont, s->accept_port, -1, 0);
   return 1;
 }
 
@@ -786,6 +789,7 @@ synserver_accept_handler(TSCont contp, TSEvent event, void *data)
   TSAssert(s->magic == MAGIC_ALIVE);
 
   if (event == TS_EVENT_NET_ACCEPT_FAILED) {
+    Warning("Synserver failed to bind to port %d.", ntohs(s->accept_port));
     ink_release_assert(!"Synserver must be able to bind to a port, check system netstat");
     TSDebug(SDBG_TAG, "NET_ACCEPT_FAILED");
     return TS_EVENT_IMMEDIATE;
