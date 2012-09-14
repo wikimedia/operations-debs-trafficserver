@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 
+#ifndef _WIN32
 #ifdef __cplusplus
 extern "C"
 {
@@ -45,5 +46,7 @@ void *event_poll_thread_main(void *arg);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* !_WIN32 */
 
 #endif /* _EVENT_REGISTRATION_H */

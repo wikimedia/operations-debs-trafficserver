@@ -23,11 +23,9 @@
 # include "WccpLocal.h"
 # include "WccpMeta.h"
 # include <sys/ioctl.h>
-# include <sys/socket.h>
 # include <net/if.h>
 # include <stdarg.h>
 # include <errno.h>
-# include <stdio.h>
 
 namespace wccp {
 // ------------------------------------------------------
@@ -161,10 +159,8 @@ vlogf_errno(ts::Errata::Code code, char const* format, va_list& rest) {
   char t_buffer[T_SIZE];
   
   n = vsnprintf(t_buffer, T_SIZE, format, rest);
-  if (0 <= n && n < T_SIZE) { // still have room.
-    strerror_r(e, e_buffer, E_SIZE);
-    n += snprintf(t_buffer + n, T_SIZE - n, "[%d] %s", e, e_buffer);
-  }
+  if (0 <= n && n < T_SIZE) // still have room.
+    n += snprintf(t_buffer + n, T_SIZE - n, "[%d] %s", e, strerror_r(e, e_buffer, E_SIZE));
   err.push(ts::Errata::Id(0), code, t_buffer);
   return err;
 }

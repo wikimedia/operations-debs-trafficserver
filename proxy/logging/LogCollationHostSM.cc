@@ -302,8 +302,7 @@ LogCollationHostSM::host_recv(int event, void *data)
       log_buffer_header = (LogBufferHeader *) m_read_buffer;
 
       // convert the buffer we just received to host order
-      // TODO: We currently don't try to make the log buffers handle little vs big endian. TS-1156.
-      // LogBuffer::convert_to_host_order(log_buffer_header);
+      LogBuffer::convert_to_host_order(log_buffer_header);
 
       version = log_buffer_header->version;
       if (version != LOG_SEGMENT_VERSION) {
@@ -326,7 +325,10 @@ LogCollationHostSM::host_recv(int event, void *data)
         //
         log_buffer = NEW(new LogBuffer(log_object, log_buffer_header));
         log_object->add_to_flush_queue(log_buffer);
+        ink_mutex_acquire(&Log::flush_mutex);
+        Log::flush_counter++;
         ink_cond_signal(&Log::flush_cond);
+        ink_mutex_release(&Log::flush_mutex);
       }
 
 #if defined(LOG_BUFFER_TRACKING)
@@ -400,7 +402,7 @@ LogCollationHostSM::read_hdr(int event, VIO * vio)
     m_read_bytes_received = 0;
     m_read_buffer = (char *) &m_net_msg_header;
     ink_assert(m_client_vc != NULL);
-    Debug("log-coll", "[%d]host:read_hdr - do_io_read(%"PRId64")", m_id, m_read_bytes_wanted);
+    Debug("log-coll", "[%d]host:read_hdr - do_io_read(%d)", m_id, m_read_bytes_wanted);
     m_client_vio = m_client_vc->do_io_read(this, m_read_bytes_wanted, m_client_buffer);
     ink_assert(m_client_vio != NULL);
     return EVENT_CONT;
@@ -450,13 +452,13 @@ LogCollationHostSM::read_body(int event, VIO * vio)
     Debug("log-coll", "[%d]host:read_body - SWITCH", m_id);
     m_read_state = LOG_COLL_READ_BODY;
 
-    m_read_bytes_wanted = m_net_msg_header.msg_bytes;
+    m_read_bytes_wanted = ntohl(m_net_msg_header.htonl_size);
     ink_assert(m_read_bytes_wanted > 0);
     m_read_bytes_received = 0;
     m_read_buffer = new char[m_read_bytes_wanted];
     ink_assert(m_read_buffer != NULL);
     ink_assert(m_client_vc != NULL);
-    Debug("log-coll", "[%d]host:read_body - do_io_read(%"PRId64")", m_id, m_read_bytes_wanted);
+    Debug("log-coll", "[%d]host:read_body - do_io_read(%d)", m_id, m_read_bytes_wanted);
     m_client_vio = m_client_vc->do_io_read(this, m_read_bytes_wanted, m_client_buffer);
     ink_assert(m_client_vio != NULL);
     return EVENT_CONT;

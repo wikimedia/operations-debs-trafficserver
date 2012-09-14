@@ -27,15 +27,15 @@ remap_plugin_info::remap_plugin_info(char *_path)
   :  next(0), path(NULL), path_size(0), dlh(NULL), fp_tsremap_init(NULL), fp_tsremap_done(NULL), fp_tsremap_new_instance(NULL),
      fp_tsremap_delete_instance(NULL), fp_tsremap_do_remap(NULL), fp_tsremap_os_response(NULL) 
 {
-  // coverity did not see ats_free
+  // coverity did not see xfree
   // coverity[ctor_dtor_leak]
-  if (_path && likely((path = ats_strdup(_path)) > 0))
+  if (_path && likely((path = xstrdup(_path)) > 0))
     path_size = strlen(path);
 }
 
 remap_plugin_info::~remap_plugin_info()
 {
-  ats_free(path);
+  xfree(path);
   if (dlh)
     dlclose(dlh);
 }

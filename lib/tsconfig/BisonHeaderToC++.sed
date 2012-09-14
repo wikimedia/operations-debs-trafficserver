@@ -1,5 +1,4 @@
-1a\
-namespace ts { namespace config {\
+1anamespace ts { namespace config {\
   enum TokenType {
 1,/^  *enum/d
 /^  *};/a\

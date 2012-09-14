@@ -33,7 +33,6 @@
 #include "mgmtapi.h"
 
 extern int Tcl_AppInit(Tcl_Interp * interp);
-extern void Tcl_ReadlineMain(void);
 extern int CliDisplayPrintf;
 void eventCallbackFn(char *name, char *msg, int pri, void *data);
 
@@ -87,10 +86,6 @@ main(int argc, char *argv[])
   }
 
   register_event_callback();
-
-#if HAVE_LIBREADLINE
-  Tcl_SetMainLoop(Tcl_ReadlineMain);
-#endif
 
   Tcl_Main(argc, argv, Tcl_AppInit);
   exit(0);

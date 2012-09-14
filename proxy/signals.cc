@@ -31,7 +31,9 @@
 #include "ProxyConfig.h"
 #include "P_EventSystem.h"
 #include "StatSystem.h"
+#include "P_Cache.h"
 #include "Main.h"
+
 
 // For backtraces on crash
 #include "ink_stack_trace.h"
@@ -72,7 +74,8 @@ public:
     NOWARN_UNUSED(e);
     if (sigusr1_received) {
       sigusr1_received = 0;
-      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+
+      xdump_to_file(stderr);
       ink_freelists_dump(stderr);
       if (!end)
         end = (char *) sbrk(0);
@@ -124,15 +127,15 @@ public:
     NOWARN_UNUSED(event);
     NOWARN_UNUSED(e);
     if (use_baseline) {
-      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      xdump_to_file_baseline_rel(stderr);
       ink_freelists_dump_baselinerel(stderr);
     } else {
-      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      xdump_to_file(stderr);
       ink_freelists_dump(stderr);
     }
     if (!baseline_taken && use_baseline) {
       ink_freelists_snap_baseline();
-      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      xdump_snap_baseline();
       baseline_taken = 1;
     }
     return EVENT_CONT;

@@ -22,11 +22,6 @@
  */
 #include "ink_config.h"
 #include "P_Net.h"
-#include "P_SSLNextProtocolSet.h"
-
-#if HAVE_OPENSSL_TLS1_H
-#include <openssl/tls1.h>
-#endif
 
 #define SSL_READ_ERROR_NONE	  0
 #define SSL_READ_ERROR		  1
@@ -39,59 +34,12 @@
 #define SSL_HANDSHAKE_WANT_ACCEPT 8
 #define SSL_HANDSHAKE_WANT_CONNECT 9
 #define SSL_WRITE_WOULD_BLOCK     10
-
 ClassAllocator<SSLNetVConnection> sslNetVCAllocator("sslNetVCAllocator");
+
 
 //
 // Private
 //
-
-#if TS_USE_TLS_SNI
-
-static int
-ssl_servername_callback(SSL * ssl, int * ad, void * arg)
-{
-  SSL_CTX *       ctx = NULL;
-  SSLCertLookup * lookup = (SSLCertLookup *) arg;
-  const char *    servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-
-  Debug("ssl", "ssl=%p ad=%d lookup=%p server=%s", ssl, *ad, lookup, servername);
-
-  if (likely(servername)) {
-    ctx = lookup->findInfoInHash((char *)servername);
-  }
-
-  if (ctx == NULL) {
-    ctx = lookup->defaultContext();
-  }
-
-  if (ctx == NULL) {
-    return SSL_TLSEXT_ERR_NOACK;
-  }
-
-  Debug("ssl", "found SSL context %p for requested name '%s'", ctx, servername);
-  SSL_set_SSL_CTX(ssl, ctx);
-
-  // We need to return one of the SSL_TLSEXT_ERR constants. If we return an
-  // error, we can fill in *ad with an alert code to propgate to the
-  // client, see SSL_AD_*.
-  return SSL_TLSEXT_ERR_OK;
-}
-
-#endif /* TS_USE_TLS_SNI */
-
-static SSL *
-make_ssl_connection(SSL_CTX * ctx, SSLNetVConnection * netvc)
-{
-  SSL * ssl;
-
-  if (likely(ssl = SSL_new(ctx))) {
-    SSL_set_fd(ssl, netvc->get_socket());
-    SSL_set_app_data(ssl, netvc);
-  }
-
-  return ssl;
-}
 
 static inline int
 do_SSL_write(SSL * ssl, void *buf, int size)
@@ -127,11 +75,12 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
   for (bytes_read = 0; (b != 0) && (sslErr == SSL_ERROR_NONE); b = b->next) {
     block_write_avail = b->write_avail();
 
-    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] b->write_avail()=%"PRId64, block_write_avail);
+    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] b->write_avail()=%d", block_write_avail);
 
     int64_t offset = 0;
     // while can be replaced with if - need to test what works faster with openssl
     while (block_write_avail > 0) {
+      sslvc->read_calls++;
       int rres = SSL_read(sslvc->ssl, b->end() + offset, (int)block_write_avail);
 
       Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] rres=%d", rres);
@@ -190,7 +139,7 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
   }                             // for ( bytes_read = 0; (b != 0); b = b->next)
 
   if (bytes_read > 0) {
-    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] bytes_read=%"PRId64, bytes_read);
+    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] bytes_read=%d", bytes_read);
     buf.writer()->fill(bytes_read);
     s->vio.ndone += bytes_read;
     vc->netActivity(lthread);
@@ -217,14 +166,13 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
 
 //changed by YTS Team, yamsat
 void
-SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
+SSLNetVConnection::net_read_io(NetHandler * nh, EThread * lthread)
 {
   int ret;
   int64_t r = 0;
   int64_t bytes = 0;
   NetState *s = &this->read;
-  MIOBufferAccessor &buf = s->vio.buffer;
-
+  MIOBufferAccessor & buf = s->vio.buffer;
   MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, lthread, s->vio._cont);
   if (!lock) {
     readReschedule(nh);
@@ -270,14 +218,10 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
       readReschedule(nh);
     return;
   }
-
   // If there is nothing to do, disable connection
   int64_t ntodo = s->vio.ntodo();
   if (ntodo <= 0) {
     read_disable(nh, this);
-    // Don't return early even if there's nothing. We still need
-    // to propagate events for zero-length reads.
-    readSignalDone(VC_EVENT_READ_COMPLETE, nh);
     return;
   }
 
@@ -311,10 +255,8 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   case SSL_READ_WOULD_BLOCK:
     if (lock.m.m_ptr != s->vio.mutex.m_ptr) {
       Debug("ssl", "ssl_read_from_net, mutex switched");
-      if (ret == SSL_READ_WOULD_BLOCK)
-        readReschedule(nh);
-      else
-        writeReschedule(nh);
+      if(ret == SSL_READ_WOULD_BLOCK) readReschedule(nh);
+      else writeReschedule(nh);
       return;
     }
     // reset the tigger and remove from the ready queue
@@ -323,10 +265,8 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     nh->read_ready_list.remove(this);
     Debug("ssl", "read_from_net, read finished - would block");
 #ifdef TS_USE_PORT
-    if (ret == SSL_READ_WOULD_BLOCK)
-      readReschedule(nh);
-    else
-      writeReschedule(nh);
+    if(ret == SSL_READ_WOULD_BLOCK) readReschedule(nh);
+    else writeReschedule(nh);
 #endif
     break;
 
@@ -357,8 +297,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
 
 
 int64_t
-SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf)
-{
+SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf) {
   ProxyMutex *mutex = this_ethread()->mutex;
   int64_t r = 0;
   int64_t l = 0;
@@ -383,8 +322,9 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
       break;
     wattempted = l;
     total_wrote += l;
-    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, before do_SSL_write, l=%"PRId64", towrite=%"PRId64", b=%p",
-          l, towrite, b);
+    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, before do_SSL_write, l = %d, towrite = %d, b = %x", l,
+          towrite, b);
+    write_calls++;
     r = do_SSL_write(ssl, b->start() + offset, (int)l);
     if (r == l) {
       wattempted = total_wrote;
@@ -392,7 +332,7 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
     // on to the next block
     offset = 0;
     b = b->next;
-    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite,Number of bytes written=%"PRId64" , total=%"PRId64"", r, total_wrote);
+    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite,Number of bytes written =%d , total =%d", r, total_wrote);
     NET_DEBUG_COUNT_DYN_STAT(net_calls_to_write_stat, 1);
   } while (r == l && total_wrote < towrite && b);
   if (r > 0) {
@@ -437,10 +377,28 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
 }
 
 SSLNetVConnection::SSLNetVConnection():
-  sslHandShakeComplete(false),
-  sslClientConnection(false),
-  npnSet(NULL),
-  npnEndpoint(NULL)
+  connect_calls(0),
+  connect_want_write(0),
+  connect_want_read(0),
+  connect_want_connect(0),
+  connect_want_ssl(0),
+  connect_want_syscal(0),
+  connect_want_accept(0),
+  connect_want_x509(0),
+  connect_error_zero(0),
+  accept_calls(0),
+  read_calls(0),
+  read_want_write(0),
+  read_want_read(0),
+  read_want_ssl(0),
+  read_want_syscal(0),
+  read_want_x509(0),
+  read_error_zero(0),
+  write_calls(0),
+  write_want_write(0),
+  write_want_read(0),
+  write_want_ssl(0),
+  write_want_syscal(0), write_want_x509(0), write_error_zero(0), sslHandShakeComplete(false), sslClientConnection(false)
 {
   ssl = NULL;
 }
@@ -452,6 +410,7 @@ SSLNetVConnection::free(EThread * t) {
   got_local_addr = 0;
   read.vio.mutex.clear();
   write.vio.mutex.clear();
+  action_.mutex.clear();
   this->mutex.clear();
   flags = 0;
   SET_CONTINUATION_HANDLER(this, (SSLNetVConnHandler) & SSLNetVConnection::startEvent);
@@ -461,15 +420,38 @@ SSLNetVConnection::free(EThread * t) {
   options.reset();
   closed = 0;
   ink_assert(con.fd == NO_FD);
+  read_calls = 0;
+  write_calls = 0;
+  connect_calls = 0;
+  accept_calls = 0;
+  connect_want_write = 0;
+  connect_want_read = 0;
+  connect_want_connect = 0;
+  connect_want_ssl = 0;
+  connect_want_syscal = 0;
+  connect_want_accept = 0;
+  connect_want_x509 = 0;
+  connect_error_zero = 0;
+  read_want_write = 0;
+  read_want_read = 0;
+  read_want_ssl = 0;
+  read_want_syscal = 0;
+  read_want_x509 = 0;
+  read_error_zero = 0;
+  write_want_write = 0;
+  write_want_read = 0;
+  write_want_ssl = 0;
+  write_want_syscal = 0;
+  write_want_x509 = 0;
+  write_error_zero = 0;
   if (ssl != NULL) {
     /*if (sslHandShakeComplete)
        SSL_set_shutdown(ssl, SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN); */
     SSL_free(ssl);
     ssl = NULL;
   }
-  sslHandShakeComplete = false;
-  sslClientConnection = false;
-  npnSet = NULL;
+  sslHandShakeComplete = 0;
+  sslClientConnection = 0;
 
   if (from_accept_thread) {
     sslNetVCAllocator.free(this);  
@@ -481,39 +463,37 @@ SSLNetVConnection::free(EThread * t) {
 int
 SSLNetVConnection::sslStartHandShake(int event, int &err)
 {
-  IpEndpoint ip;
+  SSL_CTX *ctx = NULL;
+  struct sockaddr_in sa;
+  struct in_addr ia;
+  int namelen = sizeof(sa);
+  char *strAddr;
 
   if (event == SSL_EVENT_SERVER) {
-    if (this->ssl == NULL) {
-      SSL_CTX * ctx;
-      int namelen = sizeof(ip);
-      char buff[INET6_ADDRSTRLEN];
-
-      safe_getsockname(get_socket(), &ip.sa, &namelen);
-      ats_ip_ntop(&ip.sa, buff, sizeof(buff));
-      ctx = sslCertLookup.findInfoInHash(buff);
-      if (ctx == NULL) {
-        ctx = sslCertLookup.defaultContext();
+    if (ssl == NULL) {
+      if (sslCertLookup.multipleCerts) {
+        safe_getsockname(get_socket(), (struct sockaddr *) &sa, &namelen);
+        ia.s_addr = sa.sin_addr.s_addr;
+        strAddr = inet_ntoa(ia);
+        ctx = sslCertLookup.findInfoInHash(strAddr);
+        if (ctx == NULL)
+          ctx = ssl_NetProcessor.ctx;
+      } else {
+        ctx = ssl_NetProcessor.ctx;
       }
-
-#if TS_USE_TLS_SNI
-      Debug("ssl", "setting SNI callbacks with initial ctx %p", ctx);
-      SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_callback);
-      SSL_CTX_set_tlsext_servername_arg(ctx, &sslCertLookup);
-#endif /* TS_USE_TLS_SNI */
-
-      this->ssl = make_ssl_connection(ctx, this);
-      if (this->ssl == NULL) {
+      ssl = SSL_new(ctx);
+      if (ssl != NULL) {
+        SSL_set_fd(ssl, get_socket());
+      } else {
         Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, ssl create failed");
-        SSLNetProcessor::logSSLError("SSL_StartHandShake");
-        return EVENT_ERROR;
       }
-    }
 
-    return sslServerHandShakeEvent(err);
+    }
+    return (sslServerHandShakeEvent(err));
   } else {
     if (ssl == NULL) {
-      ssl = make_ssl_connection(ssl_NetProcessor.client_ctx, this);
+      ssl = SSL_new(ssl_NetProcessor.client_ctx);
+      SSL_set_fd(ssl, get_socket());
     }
     ink_assert(event == SSL_EVENT_CLIENT);
     return (sslClientHandShakeEvent(err));
@@ -526,7 +506,10 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
 {
   int ret;
 
+  accept_calls++;
+  //printf("calling SSL_accept for fd %d\n",con.fd);
   ret = SSL_accept(ssl);
+
   switch (SSL_get_error(ssl, ret)) {
   case SSL_ERROR_NONE:
     Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, handshake completed successfully");
@@ -545,24 +528,6 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
       X509_free(client_cert);
     }
     sslHandShakeComplete = 1;
-
-#if TS_USE_TLS_NPN
-    {
-      const unsigned char * proto = NULL;
-      unsigned len = 0;
-
-      SSL_get0_next_proto_negotiated(ssl, &proto, &len);
-      if (len) {
-        if (this->npnSet) {
-          this->npnEndpoint = this->npnSet->findEndpoint(proto, len);
-          this->npnSet = NULL;
-        }
-        Debug("ssl", "client selected next protocol %.*s", len, proto);
-      } else {
-        Debug("ssl", "client did not select a next protocol");
-      }
-    }
-#endif /* TS_USE_TLS_NPN */
 
     return EVENT_DONE;
 
@@ -609,6 +574,8 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
 {
   int ret;
 
+  connect_calls++;
+  //printf("calling connect for fd %d\n",con.fd);
   ret = SSL_connect(ssl);
   switch (SSL_get_error(ssl, ret)) {
   case SSL_ERROR_NONE:
@@ -632,26 +599,33 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
     return EVENT_DONE;
 
   case SSL_ERROR_WANT_WRITE:
+    connect_want_write++;
     return SSL_HANDSHAKE_WANT_WRITE;
 
   case SSL_ERROR_WANT_READ:
+    connect_want_read++;
     return SSL_HANDSHAKE_WANT_READ;
 
   case SSL_ERROR_WANT_X509_LOOKUP:
+    connect_want_x509++;
     Debug("ssl", "SSLNetVConnection::sslClientHandShakeEvent, would block on read or write");
     break;
 
   case SSL_ERROR_WANT_ACCEPT:
+    connect_want_accept++;
     return SSL_HANDSHAKE_WANT_ACCEPT;
 
   case SSL_ERROR_WANT_CONNECT:
+    connect_want_connect++;
     break;
 
   case SSL_ERROR_ZERO_RETURN:
+    connect_error_zero++;
     Debug("ssl", "SSLNetVConnection::sslClientHandShakeEvent, EOS");
     return EVENT_ERROR;
 
   case SSL_ERROR_SYSCALL:
+    connect_want_syscal++;
     err = errno;
     Debug("ssl", "SSLNetVConnection::sslClientHandShakeEvent, syscall");
     return EVENT_ERROR;
@@ -660,6 +634,7 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
 
   case SSL_ERROR_SSL:
   default:
+    connect_want_ssl++;
     err = errno;
     SSLNetProcessor::logSSLError("sslClientHandShakeEvent");
     return EVENT_ERROR;
@@ -668,27 +643,4 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
   }
   return EVENT_CONT;
 
-}
-
-void
-SSLNetVConnection::registerNextProtocolSet(const SSLNextProtocolSet * s)
-{
-  ink_release_assert(this->npnSet == NULL);
-  this->npnSet = s;
-}
-
-int
-SSLNetVConnection::advertise_next_protocol(
-    SSL *ssl, const unsigned char **out, unsigned int *outlen, void *arg)
-{
-  SSLNetVConnection * netvc = (SSLNetVConnection *)SSL_get_app_data(ssl);
-
-  ink_release_assert(netvc != NULL);
-
-  if (netvc->npnSet && netvc->npnSet->advertiseProtocols(out, outlen)) {
-    // Successful return tells OpenSSL to advertise.
-    return SSL_TLSEXT_ERR_OK;
-  }
-
-  return SSL_TLSEXT_ERR_NOACK;
 }

@@ -27,8 +27,8 @@
 /* Defines
 */
 #define SIZE(x) (sizeof(x)/sizeof((x)[0]))
-#define SOCKOPT_ON ((char*)&on)
-#define SOCKOPT_OFF ((char*)&off)
+#define ON ((char*)&on)
+#define OFF ((char*)&off)
 #ifndef ABS
 #define ABS(_x_) (((_x_) < 0) ? ( - (_x_)) : (_x_))
 #endif
@@ -66,15 +66,12 @@ typedef void (*VI_PFN) (int);
  */
 #define	NOWARN_UNUSED(x)	(void)(x)
 #define	NOWARN_UNUSED_RETURN(x)	if (x) {}
-
+#ifdef __GNUC__
 /*  Enable this to get printf() style warnings on the Inktomi functions. */
 /* #define PRINTFLIKE(IDX, FIRST)  __attribute__((format (printf, IDX, FIRST))) */
-#if !defined(TS_PRINTFLIKE)
-#if defined(__GNUC__) || defined(__clang__)
-#define TS_PRINTFLIKE(fmt, arg) __attribute__((format(printf, fmt, arg)))
+#define PRINTFLIKE(IDX, FIRST)
 #else
-#define TS_PRINTFLIKE(fmt, arg)
-#endif
+#define PRINTFLIKE(IDX, FIRST)
 #endif
 
 /* Variables

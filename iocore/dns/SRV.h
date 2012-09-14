@@ -96,7 +96,8 @@ public:
       host[0] = '\0';
       return;
     }
-    ink_strlcpy(host, h, sizeof(host));
+    strncpy(host, (char *) h, MAXDNAME);
+    host[MAXDNAME - 1] = '\0';  /* just in case */
   }
 
 };

@@ -236,7 +236,9 @@ lockfile_kill_internal(pid_t init_pid, int init_sig, pid_t pid, const char *pnam
     }
   } while ((err == 0) || ((err < 0) && (errno == EINTR)));
 
-  ats_free(pidv);
+  if (pidv) {
+    xfree(pidv);
+  }
 
 #else
 
@@ -279,7 +281,7 @@ void
 Lockfile::KillGroup(int sig, int initial_sig, const char *pname)
 {
   int err;
-  pid_t pid;
+  int pid;
   pid_t holding_pid;
 
   err = Open(&holding_pid);
@@ -292,10 +294,11 @@ Lockfile::KillGroup(int sig, int initial_sig, const char *pname)
       pid = getpgid(holding_pid);
     } while ((pid < 0) && (errno == EINTR));
 
-    if ((pid < 0) || (pid == getpid()))
+    if (pid < 0) {
       pid = holding_pid;
-    else
+    } else {
       pid = -pid;
+    }
 
     if (pid != 0) {
       // We kill the holding_pid instead of the process_group

@@ -1,6 +1,6 @@
 /** @file
 
-  Memory allocation routines for libts
+  A brief file description
 
   @section license License
 
@@ -20,6 +20,15 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+
+/****************************************************************************
+
+  ink_memory.c
+
+  Memory allocation routines for libts
+
+ ****************************************************************************/
+
 #include "libts.h"
 
 #include <assert.h>
@@ -32,14 +41,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>
+#endif
+
+
 void *
-ats_malloc(size_t size)
+ink_malloc(size_t size)
 {
   void *ptr = NULL;
 
   /*
    * There's some nasty code in libts that expects
-   * a MALLOC of a zero-sized item to work properly. Rather
+   * a MALLOC of a zero-sized item to wotk properly. Rather
    * than allocate any space, we simply return a NULL to make
    * certain they die quickly & don't trash things.
    */
@@ -47,143 +61,223 @@ ats_malloc(size_t size)
   // Useful for tracing bad mallocs
   // ink_stack_trace_dump();
   if (likely(size > 0)) {
-#if TS_HAS_JEMALLOC
-    if (unlikely((ptr = JEMALLOC_P(malloc)(size)) == NULL)) {
-#else
     if (unlikely((ptr = malloc(size)) == NULL)) {
-#endif
       xdump();
-      ink_fatal(1, "ats_malloc: couldn't allocate %zu bytes", size);
+      ink_fatal(1, "ink_malloc: couldn't allocate %d bytes", size);
     }
   }
-  return ptr;
-}                               /* End ats_malloc */
+  return (ptr);
+}                               /* End ink_malloc */
+
 
 void *
-ats_calloc(size_t nelem, size_t elsize)
+ink_calloc(size_t nelem, size_t elsize)
 {
-#if TS_HAS_JEMALLOC
-  void *ptr = JEMALLOC_P(calloc)(nelem, elsize);
-#else
   void *ptr = calloc(nelem, elsize);
-#endif
   if (unlikely(ptr == NULL)) {
     xdump();
-    ink_fatal(1, "ats_calloc: couldn't allocate %zu %zu byte elements", nelem, elsize);
+    ink_fatal(1, "ink_calloc: couldn't allocate %d %d byte elements", nelem, elsize);
   }
-  return ptr;
-}                               /* End ats_calloc */
+  return (ptr);
+}                               /* End ink_calloc */
+
 
 void *
-ats_realloc(void *ptr, size_t size)
+ink_realloc(void *ptr, size_t size)
 {
-#if TS_HAS_JEMALLOC
-  void *newptr = JEMALLOC_P(realloc)(ptr, size);
-#else
   void *newptr = realloc(ptr, size);
-#endif
   if (unlikely(newptr == NULL)) {
     xdump();
-    ink_fatal(1, "ats_realloc: couldn't reallocate %zu bytes", size);
+    ink_fatal(1, "ink_realloc: couldn't reallocate %d bytes", size);
   }
-  return newptr;
-}                               /* End ats_realloc */
+  return (newptr);
+}                               /* End ink_realloc */
 
-// TODO: For Win32 platforms, we need to figure out what to do with memalign.
-// The older code had ifdef's around such calls, turning them into ats_malloc().
-void *
-ats_memalign(size_t alignment, size_t size)
+
+void
+ink_memalign_free(void *ptr)
 {
+  if (likely(ptr)) {
+    ink_free(ptr);
+  }
+}
+
+
+void *
+ink_memalign(size_t alignment, size_t size)
+{
+#ifndef NO_MEMALIGN
+
   void *ptr;
 
-#if TS_HAS_POSIX_MEMALIGN || TS_HAS_JEMALLOC
+#if TS_HAS_POSIX_MEMALIGN
   if (alignment <= 8)
-    return ats_malloc(size);
+    return ink_malloc(size);
 
-#if defined(openbsd)
-  if (alignment > PAGE_SIZE)
-      alignment = PAGE_SIZE;
-#endif
-
-#if TS_HAS_JEMALLOC
-  int retcode = JEMALLOC_P(posix_memalign)(&ptr, alignment, size);
-#else
   int retcode = posix_memalign(&ptr, alignment, size);
-#endif
-
   if (unlikely(retcode)) {
     if (retcode == EINVAL) {
-      ink_fatal(1, "ats_memalign: couldn't allocate %d bytes at alignment %d - invalid alignment parameter",
-                (int)size, (int)alignment);
+      ink_fatal(1, "ink_memalign: couldn't allocate %d bytes at alignment %d - invalid alignment parameter",
+                (int) size, (int) alignment);
     } else if (retcode == ENOMEM) {
-      ink_fatal(1, "ats_memalign: couldn't allocate %d bytes at alignment %d - insufficient memory",
-                (int)size, (int)alignment);
+      ink_fatal(1, "ink_memalign: couldn't allocate %d bytes at alignment %d - insufficient memory",
+                (int) size, (int) alignment);
     } else {
-      ink_fatal(1, "ats_memalign: couldn't allocate %d bytes at alignment %d - unknown error %d",
-                (int)size, (int)alignment, retcode);
+      ink_fatal(1, "ink_memalign: couldn't allocate %d bytes at alignment %d - unknown error %d",
+                (int) size, (int) alignment, retcode);
     }
   }
 #else
   ptr = memalign(alignment, size);
   if (unlikely(ptr == NULL)) {
-    ink_fatal(1, "ats_memalign: couldn't allocate %d bytes at alignment %d", (int) size, (int) alignment);
+    ink_fatal(1, "ink_memalign: couldn't allocate %d bytes at alignment %d", (int) size, (int) alignment);
   }
 #endif
-  return ptr;
-}                               /* End ats_memalign */
-
-void
-ats_free(void *ptr)
-{
-  if (likely(ptr != NULL))
-#if TS_HAS_JEMALLOC
-    JEMALLOC_P(free)(ptr);
+  return (ptr);
 #else
-    free(ptr);
-#endif
-}                               /* End ats_free */
-
-void*
-ats_free_null(void *ptr)
-{
-  if (likely(ptr != NULL))
-#if TS_HAS_JEMALLOC
-    JEMALLOC_P(free)(ptr);
-#else
-    free(ptr);
-#endif
+#if defined(freebsd) || defined(darwin)
+  /*
+   * DEC malloc calims to align for "any allocatable type",
+   * and the following code checks that.
+   */
+  switch (alignment) {
+  case 1:
+  case 2:
+  case 4:
+  case 8:
+  case 16:
+    return malloc(size);
+  case 32:
+  case 64:
+  case 128:
+  case 256:
+  case 512:
+  case 1024:
+  case 2048:
+  case 4096:
+  case 8192:
+    return valloc(size);
+  default:
+    abort();
+    break;
+  }
+# else
+#       error "Need a memalign"
+# endif
+#endif /* #ifndef NO_MEMALIGN */
   return NULL;
-}                               /* End ats_free_null */
+}                               /* End ink_memalign */
 
 void
-ats_memalign_free(void *ptr)
+ink_free(void *ptr)
 {
-  if (likely(ptr))
-#if TS_HAS_JEMALLOC
-    JEMALLOC_P(free)(ptr);
-#else
+  if (likely(ptr != NULL))
     free(ptr);
-#endif
-}
+  else
+    ink_warning("ink_free: freeing a NULL pointer");
+}                               /* End ink_free */
 
-// This effectively makes mallopt() a no-op (currently) when tcmalloc
-// or jemalloc is used. This might break our usage for increasing the
-// number of mmap areas (ToDo: Do we still really need that??).
-//
-// TODO: I think we might be able to get rid of this?
-int
-ats_mallopt(int param, int value)
+
+/* this routine has been renamed --- this stub is for portability & will disappear */
+
+char *
+ink_duplicate_string(char *ptr)
 {
-#if TS_HAS_JEMALLOC
-// TODO: jemalloc code ?
-#else
-#if TS_HAS_TCMALLOC
-// TODO: tcmalloc code ?
-#else
-#if defined(linux)
-  return mallopt(param, value);
-#endif // ! defined(linux)
-#endif // ! TS_HAS_TCMALLOC
-#endif // ! TS_HAS_JEMALLOC
-  return 0;
-}
+  ink_assert(!"don't use this slow code!");
+  return (ink_string_duplicate(ptr));
+}                               /* End ink_duplicate_string */
+
+void *
+ink_memcpy(void *s1, const void *s2, int n)
+{
+  register int i;
+  register char *s, *d;
+
+  s = (char *) s2;
+  d = (char *) s1;
+
+  if (n <= 8) {
+    switch (n) {
+    case 0:
+      break;
+    case 1:
+      d[0] = s[0];
+      break;
+    case 2:
+      d[0] = s[0];
+      d[1] = s[1];
+      break;
+    case 3:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      break;
+    case 4:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      d[3] = s[3];
+      break;
+    case 5:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      d[3] = s[3];
+      d[4] = s[4];
+      break;
+    case 6:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      d[3] = s[3];
+      d[4] = s[4];
+      d[5] = s[5];
+      break;
+    case 7:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      d[3] = s[3];
+      d[4] = s[4];
+      d[5] = s[5];
+      d[6] = s[6];
+      break;
+    case 8:
+      d[0] = s[0];
+      d[1] = s[1];
+      d[2] = s[2];
+      d[3] = s[3];
+      d[4] = s[4];
+      d[5] = s[5];
+      d[6] = s[6];
+      d[7] = s[7];
+      break;
+    default:
+      ink_assert(0);
+    }
+  } else if (n < 128) {
+    for (i = 0; i + 7 < n; i += 8) {
+      d[i + 0] = s[i + 0];
+      d[i + 1] = s[i + 1];
+      d[i + 2] = s[i + 2];
+      d[i + 3] = s[i + 3];
+      d[i + 4] = s[i + 4];
+      d[i + 5] = s[i + 5];
+      d[i + 6] = s[i + 6];
+      d[i + 7] = s[i + 7];
+    }
+    for (; i < n; i++)
+      d[i] = s[i];
+  } else {
+    memcpy(s1, s2, n);
+  }
+
+  return (s1);
+}                               /* End ink_memcpy */
+
+void
+ink_bcopy(void *s1, void *s2, size_t n)
+{
+  ink_assert(!"don't use this slow code!");
+  ink_memcpy(s2, s1, n);
+}                               /* End ink_bcopy */

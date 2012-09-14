@@ -32,7 +32,6 @@
  *
  ***************************************************************************/
 #include "ink_platform.h"
-#include "ink_string.h"
 #include "CfgContextManager.h"
 #include "CfgContextUtils.h"
 #include "CoreAPI.h"
@@ -100,7 +99,7 @@ CfgContextCommit(CfgContext * ctx, LLQ * errRules)
   if (!ctx)
     return TS_ERR_PARAMS;
 
-  new_text = (char *)ats_malloc(max_file_size + 1);
+  new_text = (char *) xmalloc(max_file_size + 1);
   new_text[0] = '\0';
   ele = ctx->first();
   index = 0;
@@ -108,9 +107,9 @@ CfgContextCommit(CfgContext * ctx, LLQ * errRules)
     rule = ele->formatEleToRule();      // use polymorphism
     if (!rule) {
       err = TS_ERR_INVALID_CONFIG_RULE;
-      rule = ats_strdup(FORMAT_TO_RULE_ERROR);
+      rule = xstrdup(FORMAT_TO_RULE_ERROR);
       if (errRules) {
-        iPtr = (int *)ats_malloc(sizeof(int));
+        iPtr = (int *) xmalloc(sizeof(int));
         *iPtr = index;
         enqueue(errRules, (void *) iPtr);
       }
@@ -120,12 +119,16 @@ CfgContextCommit(CfgContext * ctx, LLQ * errRules)
     size += len + 1;
     if (size > max_file_size) {
       max_file_size *= 2;
-      new_text = (char *)ats_realloc(new_text, max_file_size + 1);
+      new_text = (char *) xrealloc(new_text, max_file_size + 1);
+      if (!new_text) {          // out of memory
+        return TS_ERR_FAIL;
+      }
     }
-    ink_strlcat(new_text, rule, max_file_size + 1);
-    ink_strlcat(new_text, "\n", max_file_size + 1);
+    strncat(new_text, rule, len);
+    strncat(new_text, "\n", 1);
 
-    ats_free(rule);
+    if (rule)
+      xfree(rule);
     if (ele->getRuleType() != TS_TYPE_COMMENT)
       index++;
     ele = ctx->next(ele);
@@ -134,7 +137,7 @@ CfgContextCommit(CfgContext * ctx, LLQ * errRules)
   // commit new file
   ver = ctx->getVersion();
   ret = WriteFile(ctx->getFilename(), new_text, size, ver);
-  ats_free(new_text);
+  xfree(new_text);
   if (ret != TS_ERR_OKAY)
     return TS_ERR_FAIL;        // couldn't write file
 
@@ -166,9 +169,8 @@ CfgContextGet(CfgContext * ctx)
   // get copy of the file
   ret = ReadFile(ctx->getFilename(), &old_text, &size, &ver);
   if (ret != TS_ERR_OKAY) {
-    // TODO: Hmmm, this looks almost like a memory leak, why the strcmp ??
     if (old_text && strcmp(old_text, "") != 0)
-      ats_free(old_text);          // need to free memory
+      xfree(old_text);          // need to free memory
     return ret;                 // Pass the error code along
   }
   // store version number
@@ -187,14 +189,14 @@ CfgContextGet(CfgContext * ctx)
 
     ret = ctx->addEle(ele);
     if (ret != TS_ERR_OKAY) {
-      ats_free(old_text);        // need to free memory
+      if (old_text)
+        xfree(old_text);        // need to free memory
       return ret;
     }
   }
   delete(rule_list);            // free RuleList memory
-  // TODO: Hmmm, this looks almost like a memory leak, why the strcmp ??
   if (old_text && strcmp(old_text, "") != 0)
-    ats_free(old_text);            // need to free memory
+    xfree(old_text);            // need to free memory
   return TS_ERR_OKAY;
 }
 

@@ -276,14 +276,14 @@ CacheVC::openReadChooseWriter(int event, Event * e)
     vector.clear(false);
     if (!write_vc) {
       MUTEX_RELEASE(lock);
-      DDebug("cache_read_agg", "%p: key: %X writer alternate different: %d", this, first_key.word(1), alternate_index);
+      DDebug("cache_read_agg", "%x: key: %X %X writer alternate different: %d", this, first_key.word(1), alternate_index);
       od = NULL;
       SET_HANDLER(&CacheVC::openReadStartHead);
       return openReadStartHead(EVENT_IMMEDIATE, 0);
     }
 
     DDebug("cache_read_agg",
-          "%p: key: %X eKey: %d # alts: %d, ndx: %d, # writers: %d writer: %p",
+          "%x: key: %X eKey: %d # alts: %d, ndx: %d, # writers: %d writer: %x",
           this, first_key.word(1), write_vc->earliest_key.word(1),
           vector.count(), alternate_index, od->num_writers, write_vc);
   }
@@ -308,7 +308,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
   }
   cancel_trigger();
   intptr_t err = ECACHE_DOC_BUSY;
-  DDebug("cache_read_agg", "%p: key: %X In openReadFromWriter", this, first_key.word(1));
+  DDebug("cache_read_agg", "%x: key: %X In openReadFromWriter", this, first_key.word(1));
 #ifndef READ_WHILE_WRITER
   return openReadFromWriterFailure(CACHE_EVENT_OPEN_READ_FAILED, (Event *) -err);
 #else
@@ -336,7 +336,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
     if (writer_done()) {
       MUTEX_RELEASE(lock);
       DDebug("cache_read_agg",
-            "%p: key: %X writer %p has left, continuing as normal read", this, first_key.word(1), write_vc);
+            "%x: key: %X writer %x has left, continuing as normal read", this, first_key.word(1), write_vc);
       od = NULL;
       write_vc = NULL;
       SET_HANDLER(&CacheVC::openReadStartHead);
@@ -361,14 +361,14 @@ CacheVC::openReadFromWriter(int event, Event * e)
     if (!cache_config_read_while_writer || frag_type != CACHE_FRAG_TYPE_HTTP)
       return openReadFromWriterFailure(CACHE_EVENT_OPEN_READ_FAILED, (Event *) - err);
     DDebug("cache_read_agg",
-          "%p: key: %X writer: closed:%d, fragment:%d, retry: %d",
+          "%x: key: %X writer: closed:%d, fragment:%d, retry: %d",
           this, first_key.word(1), write_vc->closed, write_vc->fragment, writer_lock_retry);
     VC_SCHED_WRITER_RETRY();
   }
 
   CACHE_TRY_LOCK(writer_lock, write_vc->mutex, mutex->thread_holding);
   if (!writer_lock) {
-    DDebug("cache_read_agg", "%p: key: %X lock miss", this, first_key.word(1));
+    DDebug("cache_read_agg", "%x: key: %X lock miss", this, first_key.word(1));
     VC_SCHED_LOCK_RETRY();
   }
   MUTEX_RELEASE(lock);
@@ -378,7 +378,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
 #ifdef HTTP_CACHE
   if (frag_type == CACHE_FRAG_TYPE_HTTP) {
     DDebug("cache_read_agg",
-          "%p: key: %X http passed stage 1, closed: %d, frag: %d",
+          "%x: key: %X http passed stage 1, closed: %d, frag: %d",
           this, first_key.word(1), write_vc->closed, write_vc->fragment);
     if (!write_vc->alternate.valid())
       return openReadFromWriterFailure(CACHE_EVENT_OPEN_READ_FAILED, (Event *) - err);
@@ -395,7 +395,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
     } else {
       key = write_vc->update_key;
       ink_assert(write_vc->closed);
-      DDebug("cache_read_agg", "%p: key: %X writer header update", this, first_key.word(1));
+      DDebug("cache_read_agg", "%x: key: %X writer header update", this, first_key.word(1));
       // Update case (b) : grab doc_len from the writer's alternate
       doc_len = alternate.object_size_get();
       if (write_vc->update_key == cod->single_doc_key &&
@@ -426,7 +426,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
     }
   } else {
 #endif //HTTP_CACHE
-    DDebug("cache_read_agg", "%p: key: %X non-http passed stage 1", this, first_key.word(1));
+    DDebug("cache_read_agg", "%x: key: %X non-http passed stage 1", this, first_key.word(1));
     key = write_vc->earliest_key;
 #ifdef HTTP_CACHE
   }
@@ -435,7 +435,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
     doc_len = write_vc->vio.nbytes;
     last_collision = NULL;
     DDebug("cache_read_agg",
-          "%p: key: %X closed: %d, fragment: %d, len: %d starting first fragment",
+          "%x: key: %X closed: %d, fragment: %d, len: %d starting first fragment",
           this, first_key.word(1), write_vc->closed, write_vc->fragment, (int)doc_len);
     MUTEX_RELEASE(writer_lock);
     // either a header + body update or a new document
@@ -453,7 +453,7 @@ CacheVC::openReadFromWriter(int event, Event * e)
   doc_len = write_vc->total_len;
   dir_clean(&first_dir);
   dir_clean(&earliest_dir);
-  DDebug("cache_read_agg", "%p: key: %X %X: single fragment read", this, first_key.word(1), key.word(0));
+  DDebug("cache_read_agg", "%x key: %X %X: single fragment read", first_key.word(1), key.word(0));
   MUTEX_RELEASE(writer_lock);
   SET_HANDLER(&CacheVC::openReadFromWriterMain);
   CACHE_INCREMENT_DYN_STAT(cache_read_busy_success_stat);
@@ -581,17 +581,17 @@ CacheVC::openReadReadDone(int event, Event * e)
         last_collision = NULL;
         while (dir_probe(&earliest_key, vol, &dir, &last_collision)) {
           if (dir_offset(&dir) == dir_offset(&earliest_dir)) {
-            DDebug("cache_read_agg", "%p: key: %X ReadRead complete: %d",
+            DDebug("cache_read_agg", "%x: key: %X ReadRead complete: %d",
                   this, first_key.word(1), (int)vio.ndone);
             doc_len = vio.ndone;
             goto Ldone;
           }
         }
-        DDebug("cache_read_agg", "%p: key: %X ReadRead writer aborted: %d",
+        DDebug("cache_read_agg", "%x: key: %X ReadRead writer aborted: %d",
               this, first_key.word(1), (int)vio.ndone);
         goto Lerror;
       }
-      DDebug("cache_read_agg", "%p: key: %X ReadRead retrying: %d", this, first_key.word(1), (int)vio.ndone);
+      DDebug("cache_read_agg", "%x: key: %X ReadRead retrying: %d", this, first_key.word(1), (int)vio.ndone);
       VC_SCHED_WRITER_RETRY(); // wait for writer
     }
     // fall through for truncated documents
@@ -624,81 +624,43 @@ CacheVC::openReadMain(int event, Event * e)
   int64_t bytes = doc->len - doc_pos;
   IOBufferBlock *b = NULL;
   if (seek_to) { // handle do_io_pread
-    if (seek_to >= doc_len) {
+    if (seek_to >= (int)doc_len) {
       vio.ndone = doc_len;
       return calluser(VC_EVENT_EOS);
     }
     Doc *first_doc = (Doc*)first_buf->data();
-    Frag *frags = first_doc->frags();
-    if (is_debug_tag_set("cache_seek")) {
-      char b[33], c[33];
-      Debug("cache_seek", "Seek @ %"PRId64" in %s from #%d @ %"PRId64"/%d:%s",
-            seek_to, first_key.toHexStr(b), fragment, doc_pos, doc->len, doc->key.toHexStr(c));
-    }
-    /* Because single fragment objects can migrate to hang off an alt vector
-       they can appear to the VC as multi-fragment when they are not really.
-       The essential difference is the existence of a fragment table. All
-       fragments past the header fragment have the same value for this check
-       and it's consistent with the existence of a frag table in first_doc.
-       f.single_fragment is not (it can be false when this check is true).
-    */
-    if (!doc->single_fragment()) {
-      int target = 0;
-      uint64_t next_off = frags[target].offset;
-      int lfi = static_cast<int>(first_doc->nfrags()) - 1;
-      ink_debug_assert(lfi >= 0); // because it's not a single frag doc.
-
-      /* Note: frag[i].offset is the offset of the first byte past the
-         i'th fragment. So frag[0].offset is the offset of the first
-         byte of fragment 1. In addition the # of fragments is one
-         more than the fragment table length, the start of the last
-         fragment being the last offset in the table.
-      */
-      if (fragment == 0 ||
-          seek_to < frags[fragment-1].offset ||
-          (fragment <= lfi && frags[fragment].offset <= seek_to)
-        ) {
-        // search from frag 0 on to find the proper frag
-        while (seek_to >= next_off && target < lfi) {
-          next_off = frags[++target].offset;
-        }
-        if (target == lfi && seek_to >= next_off) ++target;
-      } else { // shortcut if we are in the fragment already
-        target = fragment;
+    Frag *first_frag = first_doc->frags();
+    if (!f.single_fragment) {
+      // find the target fragment
+      int i = 0;
+      for (; i < (int)first_doc->nfrags(); i++)
+        if (seek_to < (int64_t)first_frag[i].offset) break;
+      if (i >= (int)first_doc->nfrags()) {
+        Warning("bad fragment header");
+        return calluser(VC_EVENT_ERROR);
       }
-      if (target != fragment) {
-        // Lread will read the next fragment always, so if that
-        // is the one we want, we don't need to do anything
-        int cfi = fragment;
-        --target;
-        while (target > fragment) {
+      // fragment is the current fragment
+      // key is the next key (fragment + 1)
+      if (i != fragment) {
+        i--; // read will increment the key and fragment
+        while (i > fragment) {
           next_CacheKey(&key, &key);
-          ++fragment;
+          fragment++;
         }
-        while (target < fragment) {
+        while (i < fragment) {
           prev_CacheKey(&key, &key);
-          --fragment;
-        }
-
-        if (is_debug_tag_set("cache_seek")) {
-          char target_key_str[33];
-          key.toHexStr(target_key_str);
-          Debug("cache_seek", "Seek #%d @ %"PRId64" -> #%d @ %"PRId64":%s", cfi, doc_pos, target, seek_to, target_key_str);
+          fragment--;
         }
         goto Lread;
       }
     }
-    doc_pos = doc->prefix_len() + seek_to;
-    if (fragment) doc_pos -= static_cast<int64_t>(frags[fragment-1].offset);
+    if (fragment)
+      doc_pos = doc->prefix_len() + seek_to - (int64_t)first_frag[fragment-1].offset;
+    else
+      doc_pos = doc->prefix_len() + seek_to; 
     vio.ndone = 0;
     seek_to = 0;
     ntodo = vio.ntodo();
-    bytes = doc->len - doc_pos;
-    if (is_debug_tag_set("cache_seek")) {
-      char target_key_str[33];
-      key.toHexStr(target_key_str);
-      Debug("cache_seek", "Read # %d @ %"PRId64"/%d for %"PRId64, fragment, doc_pos, doc->len, bytes);
-    }
   }
   if (ntodo <= 0)
     return EVENT_CONT;
@@ -725,7 +687,7 @@ CacheVC::openReadMain(int event, Event * e)
     return EVENT_CONT;
   }
 Lread: {
-    if (vio.ndone >= (int64_t)doc_len)
+    if ((uint32_t)vio.ndone >= doc_len)
       // reached the end of the document and the user still wants more
       return calluser(VC_EVENT_EOS);
     last_collision = 0;
@@ -751,17 +713,17 @@ Lread: {
         last_collision = NULL;
         while (dir_probe(&earliest_key, vol, &dir, &last_collision)) {
           if (dir_offset(&dir) == dir_offset(&earliest_dir)) {
-            DDebug("cache_read_agg", "%p: key: %X ReadMain complete: %d",
+            DDebug("cache_read_agg", "%x: key: %X ReadMain complete: %d",
                   this, first_key.word(1), (int)vio.ndone);
             doc_len = vio.ndone;
             goto Leos;
           }
         }
-        DDebug("cache_read_agg", "%p: key: %X ReadMain writer aborted: %d",
+        DDebug("cache_read_agg", "%X: key: %X ReadMain writer aborted: %d",
               this, first_key.word(1), (int)vio.ndone);
         goto Lerror;
       }
-      DDebug("cache_read_agg", "%p: key: %X ReadMain retrying: %d", this, first_key.word(1), (int)vio.ndone);
+      DDebug("cache_read_agg", "%X: key: %X ReadMain retrying: %d", this, first_key.word(1), (int)vio.ndone);
       SET_HANDLER(&CacheVC::openReadMain);
       VC_SCHED_WRITER_RETRY();
     }
@@ -839,8 +801,8 @@ CacheVC::openReadStartEarliest(int event, Event * e)
     vol->begin_read(this);
 #ifdef HIT_EVACUATE
     if (vol->within_hit_evacuate_window(&earliest_dir) &&
-        (!cache_config_hit_evacuate_size_limit || doc_len <= (uint64_t)cache_config_hit_evacuate_size_limit)) {
-      DDebug("cache_hit_evac", "dir: %"PRId64", write: %"PRId64", phase: %d",
+        (!cache_config_hit_evacuate_size_limit || doc_len <= cache_config_hit_evacuate_size_limit)) {
+      DDebug("cache_hit_evac", "dir: %d, write: %d, phase: %d",
             dir_offset(&earliest_dir), offset_to_vol_offset(vol, vol->header->write_pos), vol->header->phase);
       f.hit_evacuate = 1;
     }
@@ -1093,14 +1055,6 @@ CacheVC::openReadStartHead(int event, Event * e)
       doc_pos = doc->prefix_len();
       doc_len = doc->total_len;
     }
-
-    if (is_debug_tag_set("cache_read")) { // amc debug
-      char xt[33],yt[33];
-      Debug("cache_rad", "CacheReadStartHead - read %s target %s - %s %d of %"PRId64" bytes, %d fragments",
-            doc->key.toHexStr(xt), key.toHexStr(yt),
-            f.single_fragment ? "single" : "multi",
-            doc->len, doc->total_len, doc->nfrags());
-    }
     // the first fragment might have been gc'ed. Make sure the first
     // fragment is there before returning CACHE_EVENT_OPEN_READ
     if (!f.single_fragment)
@@ -1108,8 +1062,8 @@ CacheVC::openReadStartHead(int event, Event * e)
 
 #ifdef HIT_EVACUATE
     if (vol->within_hit_evacuate_window(&dir) &&
-        (!cache_config_hit_evacuate_size_limit || doc_len <= (uint64_t)cache_config_hit_evacuate_size_limit)) {
-      DDebug("cache_hit_evac", "dir: %"PRId64", write: %"PRId64", phase: %d",
+        (!cache_config_hit_evacuate_size_limit || doc_len <= cache_config_hit_evacuate_size_limit)) {
+      DDebug("cache_hit_evac", "dir: %d, write: %d, phase: %d",
             dir_offset(&dir), offset_to_vol_offset(vol, vol->header->write_pos), vol->header->phase);
       f.hit_evacuate = 1;
     }

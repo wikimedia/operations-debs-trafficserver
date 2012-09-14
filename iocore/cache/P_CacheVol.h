@@ -47,7 +47,6 @@
 #define PIN_SCAN_EVERY                  16      // scan every 1/16 of disk
 #define VOL_HASH_TABLE_SIZE             32707
 #define VOL_HASH_EMPTY                 0xFFFF
-#define VOL_HASH_ALLOC_SIZE             (8 * 1024 * 1024)  // one chance per this unit
 #define LOOKASIDE_SIZE                  256
 #define EVACUATION_BUCKET_SIZE          (2 * EVACUATION_SIZE) // 16MB
 #define RECOVERY_SIZE                   EVACUATION_SIZE // 8MB
@@ -256,13 +255,17 @@ struct Vol: public Continuation
       evacuate_size(0), disk(NULL), last_sync_serial(0), last_write_serial(0), recover_wrapped(false),
       dir_sync_waiting(0), dir_sync_in_progress(0), writing_end_marker(0) {
     open_dir.mutex = mutex;
-    agg_buffer = (char *)ats_memalign(sysconf(_SC_PAGESIZE), AGG_SIZE);
+#if defined(_WIN32)
+    agg_buffer = (char *) malloc(AGG_SIZE);
+#else
+    agg_buffer = (char *) ink_memalign(sysconf(_SC_PAGESIZE), AGG_SIZE);
+#endif
     memset(agg_buffer, 0, AGG_SIZE);
     SET_HANDLER(&Vol::aggWrite);
   }
 
   ~Vol() {
-    ats_memalign_free(agg_buffer);
+    ink_memalign_free(agg_buffer);
   }
 };
 

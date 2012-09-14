@@ -86,14 +86,14 @@ overviewRecord::overviewRecord(unsigned long inet_addr, bool local, ClusterPeerI
   if (name_found == false || name_l == NULL) {
     nameFailed.s_addr = inetAddr;
     mgmt_log("[overviewRecord::overviewRecord] Unable to find hostname for %s\n", inet_ntoa(nameFailed));
-    ats_free(name_l);              // about to overwrite name_l, so we need to free it first
-    name_l = ats_strdup(inet_ntoa(nameFailed));
+    xfree(name_l);              // about to overwrite name_l, so we need to free it first
+    name_l = xstrdup(inet_ntoa(nameFailed));
   }
 
   const size_t hostNameLen = strlen(name_l) + 1;
   this->hostname = new char[hostNameLen];
-  ink_strlcpy(this->hostname, name_l, hostNameLen);
-  ats_free(name_l);
+  ink_strncpy(this->hostname, name_l, hostNameLen);
+  xfree(name_l);
 }
 
 overviewRecord::~overviewRecord()
@@ -359,7 +359,7 @@ overviewRecord::readString(const char *name, bool * found)
       order -= node_rec_first_ix; // Offset
       ink_release_assert(order < node_rec_data.num_recs);
       ink_debug_assert(order < node_rec_data.num_recs);
-      rec = ats_strdup(node_rec_data.recs[order].data.rec_string);
+      rec = xstrdup(node_rec_data.recs[order].data.rec_string);
     }
   } else {
     rec_status = RecGetRecordString_Xmalloc(name, &rec);
@@ -412,7 +412,7 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
   ///  b - bytes.  Ints and Counts only.  Amounts are
   //       transformed into one of GB, MB, KB, or B
   //
-  varName = ats_strdup(varNameConst);
+  varName = xstrdup(varNameConst);
   varNameLen = strlen(varName);
   if (varNameLen > 3 && varName[varNameLen - 2] == '\\') {
     formatOption = varName[varNameLen - 1];
@@ -423,12 +423,12 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
 
     // Return not found for unknown format options
     if (formatOption != 'b' && formatOption != 'm' && formatOption != 'c' && formatOption != 'p') {
-      ats_free(varName);
+      xfree(varName);
       return false;
     }
   }
   if (RecGetRecordDataType(varName, &varDataType) == REC_ERR_FAIL) {
-    ats_free(varName);
+    xfree(varName);
     return false;
   }
 
@@ -442,7 +442,7 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
     } else if (formatOption == 'c') {
       commaStrFromInt(data.int_data, bufVal);
     } else {
-      snprintf(bufVal, bufLen, "%" PRId64 "", data.int_data);
+      sprintf(bufVal, "%" PRId64 "", data.int_data);
     }
     break;
   case RECD_COUNTER:
@@ -454,7 +454,7 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
     } else if (formatOption == 'c') {
       commaStrFromInt(data.counter_data, bufVal);
     } else {
-      snprintf(bufVal, bufLen, "%" PRId64 "", data.counter_data);
+      sprintf(bufVal, "%" PRId64 "", data.counter_data);
     }
     break;
   case RECD_FLOAT:
@@ -469,10 +469,12 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
     data.string_data = this->readString(varName, &found);
     if (data.string_data == NULL) {
       bufVal[0] = '\0';
+    } else if (strlen(data.string_data) < (size_t) (bufLen - 1)) {
+      ink_strncpy(bufVal, data.string_data, bufLen);
     } else {
-      ink_strlcpy(bufVal, data.string_data, bufLen);
+      ink_strncpy(bufVal, data.string_data, bufLen);
     }
-    ats_free(data.string_data);
+    xfree(data.string_data);
     break;
   case RECD_NULL:
   default:
@@ -480,7 +482,7 @@ overviewRecord::varStrFromName(const char *varNameConst, char *bufVal, int bufLe
     break;
   }
 
-  ats_free(varName);
+  xfree(varName);
   return found;
 }
 
@@ -753,7 +755,7 @@ overviewPage::getClusterHosts(ExpandingArray * hosts)
 
   for (int i = 0; i < number; i++) {
     current = (overviewRecord *) sortRecords[i];
-    hosts->addEntry(ats_strdup(current->hostname));
+    hosts->addEntry(xstrdup(current->hostname));
   }
 
   ink_mutex_release(&accessLock);
@@ -909,18 +911,14 @@ overviewPage::agCacheHitRate()
   static ink_hrtime last_set_time = 0;
   const ink_hrtime window = 10 * HRTIME_SECOND; // update every 10 seconds
   static StatTwoIntSamples cluster_hit_count = { "proxy.node.cache_total_hits", 0, 0, 0, 0 };
-  static StatTwoIntSamples cluster_hit_mem_count = { "proxy.node.cache_total_hits_mem", 0, 0, 0, 0 };
   static StatTwoIntSamples cluster_miss_count = { "proxy.node.cache_total_misses", 0, 0, 0, 0 };
   static const char *cluster_hit_count_name = "proxy.cluster.cache_total_hits_avg_10s";
-  static const char *cluster_hit_mem_count_name = "proxy.cluster.cache_total_hits_mem_avg_10s";
   static const char *cluster_miss_count_name = "proxy.cluster.cache_total_misses_avg_10s";
 
   MgmtIntCounter totalHits = 0;
-  MgmtIntCounter totalMemHits = 0;
   MgmtIntCounter totalMisses = 0;
   MgmtIntCounter totalAccess = 0;
   MgmtFloat hitRate = 0.00;
-  MgmtFloat hitMemRate = 0.00;
 
   // get current time and delta to work with
   ink_hrtime current_time = ink_get_hrtime();
@@ -963,7 +961,6 @@ overviewPage::agCacheHitRate()
     ////////////////////////////////////////////////
     if ((current_time - last_set_time) > window) {
       RecInt num_hits = 0;
-      RecInt num_hits_mem = 0;
       RecInt num_misses = 0;
       RecInt diff = 0;
       RecInt total = 0;
@@ -972,10 +969,6 @@ overviewPage::agCacheHitRate()
       varSetInt(cluster_hit_count_name, diff);
       num_hits = diff;
 
-      diff = cluster_hit_mem_count.diff_value();
-      varSetInt(cluster_hit_mem_count_name, diff);
-      num_hits_mem = diff;
-
       diff = cluster_miss_count.diff_value();
       varSetInt(cluster_miss_count_name, diff);
       num_misses = diff;
@@ -983,10 +976,8 @@ overviewPage::agCacheHitRate()
       total = num_hits + num_misses;
       if (total == 0)
         hitRate = 0.00;
-      else {
+      else
         hitRate = (MgmtFloat) ((double) num_hits / (double) total);
-        hitMemRate = (MgmtFloat) ((double) num_hits_mem / (double) total);
-      }
 
       // Check if more than one cluster node
       MgmtInt num_nodes;
@@ -994,11 +985,9 @@ overviewPage::agCacheHitRate()
       if (1 == num_nodes) {
         // Only one node , so grab local value
         varFloatFromName("proxy.node.cache_hit_ratio_avg_10s", &hitRate);
-        varFloatFromName("proxy.node.cache_hit_mem_ratio_avg_10s", &hitMemRate);
       }
       // new stat
       varSetFloat("proxy.cluster.cache_hit_ratio_avg_10s", hitRate);
-      varSetFloat("proxy.cluster.cache_hit_mem_ratio_avg_10s", hitMemRate);
     }
     /////////////////////////////////////////////////
     // done with a cycle, update the last_set_time //
@@ -1007,19 +996,15 @@ overviewPage::agCacheHitRate()
   }
   // Deal with Lifetime stats
   clusterSumInt("proxy.node.cache_total_hits", &totalHits);
-  clusterSumInt("proxy.node.cache_total_hits_mem", &totalMemHits);
   clusterSumInt("proxy.node.cache_total_misses", &totalMisses);
   totalAccess = totalHits + totalMisses;
 
   if (totalAccess != 0) {
     hitRate = (MgmtFloat) ((double) totalHits / (double) totalAccess);
-    hitMemRate = (MgmtFloat) ((double) totalMemHits / (double) totalAccess);
   }
   // new stats
   ink_assert(varSetFloat("proxy.cluster.cache_hit_ratio", hitRate));
-  ink_assert(varSetFloat("proxy.cluster.cache_hit_mem_ratio", hitMemRate));
   ink_assert(varSetInt("proxy.cluster.cache_total_hits", totalHits));
-  ink_assert(varSetInt("proxy.cluster.cache_total_hits_mem", totalMemHits));
   ink_assert(varSetInt("proxy.cluster.cache_total_misses", totalMisses));
 }
 
@@ -1517,7 +1502,7 @@ overviewPage::resolvePeerHostname_ml(const char *peerIP)
 
   if (ink_hash_table_lookup(nodeRecords, (InkHashTableKey) ipAddr, &lookup)) {
     peerRecord = (overviewRecord *) lookup;
-    returnName = ats_strdup(peerRecord->hostname);
+    returnName = xstrdup(peerRecord->hostname);
   }
 
   return returnName;
@@ -1583,8 +1568,13 @@ overviewAlarmCallback(alarm_t newAlarm, char *ip, char *desc)
 
 AlarmListable::~AlarmListable()
 {
-  ats_free(ip);
-  ats_free(desc);
+  if (ip != NULL) {
+    xfree(ip);
+  }
+
+  if (desc != NULL) {
+    xfree(desc);
+  }
 }
 
 // int hostSortFunc(const void* arg1, const void* arg2)

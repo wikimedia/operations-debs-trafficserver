@@ -42,6 +42,8 @@ public:
   static void releaseReferences(Event * e);
 };
 
+#ifndef _IOCORE_WIN32_WINNT
 #include "P_UnixCompletionUtil.h"
+#endif
 
 #endif

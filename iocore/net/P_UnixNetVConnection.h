@@ -45,9 +45,9 @@ TS_INLINE void
 NetVCOptions::reset()
 {
   ip_proto = USE_TCP;
-  ip_family = AF_INET;
-  local_ip.invalidate();
   local_port = 0;
+  port_binding = ANY_PORT;
+  local_addr = 0;
   addr_binding = ANY_ADDR;
   f_blocking = false;
   f_blocking_connect = false;
@@ -61,21 +61,15 @@ NetVCOptions::reset()
 #endif
   socket_send_bufsize = 0;
   sockopt_flags = 0;
-  packet_mark = 0;
-  packet_tos = 0;
-
   etype = ET_NET;
 }
 
 TS_INLINE void
-NetVCOptions::set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags,
-                             unsigned long _packet_mark, unsigned long _packet_tos)
+NetVCOptions::set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags)
 {
   socket_recv_bufsize = _recv_bufsize;
   socket_send_bufsize = _send_bufsize;
   sockopt_flags = _opt_flags;
-  packet_mark = _packet_mark;
-  packet_tos = _packet_tos;
 }
 
 struct OOB_callback:public Continuation
@@ -102,8 +96,6 @@ public:
 
   virtual VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf);
   virtual VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false);
-
-  virtual bool get_data(int id, void *data);
 
   virtual Action *send_OOB(Continuation *cont, char *buf, int len);
   virtual void cancel_OOB();
@@ -213,8 +205,10 @@ public:
   EventIO ep;
   NetHandler *nh;
   unsigned int id;
-  // amc - what is this for? Why not use remote_addr or con.addr?
-  IpEndpoint server_addr; /// Server address and port.
+  unsigned int ip;
+  //  unsigned int _interface; // 'interface' conflicts with the C++ keyword
+  int accept_port;
+  int port;
 
   union
   {
@@ -223,10 +217,11 @@ public:
 #define NET_VC_SHUTDOWN_WRITE 2
     struct
     {
-      unsigned int got_local_addr:1;
+      unsigned int got_local_sa:1;
       unsigned int shutdown:2;
     } f;
   };
+  struct sockaddr_in local_sa;
 
   Connection con;
   int recursion;
@@ -245,8 +240,6 @@ public:
 
   virtual void set_local_addr();
   virtual void set_remote_addr();
-  virtual int set_tcp_init_cwnd(int init_cwnd);
-  virtual void apply_options();
 };
 
 extern ClassAllocator<UnixNetVConnection> netVCAllocator;
@@ -257,14 +250,14 @@ typedef int (UnixNetVConnection::*NetVConnHandler) (int, void *);
 TS_INLINE void
 UnixNetVConnection::set_remote_addr()
 {
-  ats_ip_copy(&remote_addr, &con.addr);
+  remote_addr = con.sa;
 }
 
 TS_INLINE void
 UnixNetVConnection::set_local_addr()
 {
   int local_sa_size = sizeof(local_addr);
-  safe_getsockname(con.fd, &local_addr.sa, &local_sa_size);
+  safe_getsockname(con.fd, (sockaddr *) & local_addr, &local_sa_size);
 }
 
 TS_INLINE ink_hrtime
@@ -343,21 +336,6 @@ UnixNetVConnection::cancel_active_timeout()
     active_timeout = NULL;
     active_timeout_in = 0;
   }
-}
-
-TS_INLINE int
-UnixNetVConnection::set_tcp_init_cwnd(int init_cwnd)
-{
-#ifdef TCP_INIT_CWND
-  int rv;
-  uint32_t val = init_cwnd;
-  rv = setsockopt(con.fd, IPPROTO_TCP, TCP_INIT_CWND, &val, sizeof(val));
-  Debug("socket", "Setting TCP initial congestion window (%d) -> %d", init_cwnd, rv);
-  return rv;
-#else
-  Debug("socket", "Setting TCP initial congestion window %d -> unsupported", init_cwnd);
-  return -1;
-#endif
 }
 
 TS_INLINE UnixNetVConnection::~UnixNetVConnection() { }

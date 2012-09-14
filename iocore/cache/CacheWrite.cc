@@ -179,24 +179,10 @@ CacheVC::handleWrite(int event, Event *e)
 
   // plain write case
   ink_assert(!trigger);
-  frag_len = 0;
-  if (f.use_first_key) { // Writing the header fragment.
-    if (fragment) { // Multi-fragment from cache fill.
-      frag_len = (fragment-1) * sizeof(Frag);
-    } else if (first_buf) {
-      Doc* old_header = reinterpret_cast<Doc*>(first_buf->data());
-      if (!frag && old_header->flen && !f.single_fragment) {
-        // There's a fragment table we need to preserve.
-        frag_len = old_header->flen;
-        if (is_debug_tag_set("cache_update")) {
-          char x[33];
-          Debug("cache_update", "Preserving fragment table (%d in %d bytes) for %s",
-                old_header->nfrags(), frag_len, first_key.toHexStr(x));
-        }
-      }
-    }
-  }
-
+  if (f.use_first_key && fragment) {
+    frag_len = (fragment-1) * sizeof(Frag);
+  } else
+    frag_len = 0;
   set_agg_write_in_progress();
   POP_HANDLER;
   agg_len = vol->round_to_approx_size(write_len + header_len + frag_len + sizeofDoc);
@@ -431,7 +417,7 @@ CacheVC::evacuateReadHead(int event, Event *e)
       goto Ldone;
     alternate_tmp = vector.get(alternate_index);
     doc_len = alternate_tmp->object_size_get();
-    Debug("cache_evac", "evacuateReadHead http earliest %X first: %X len: %"PRId64,
+    Debug("cache_evac", "evacuateReadHead http earliest %X first: %X len: %d",
           first_key.word(0), earliest_key.word(0), doc_len);
   } else
 #endif
@@ -443,7 +429,7 @@ CacheVC::evacuateReadHead(int event, Event *e)
       goto Ldone;
     doc_len = doc->total_len;
     DDebug("cache_evac",
-          "evacuateReadHead non-http earliest %X first: %X len: %"PRId64, first_key.word(0), earliest_key.word(0), doc_len);
+          "evacuateReadHead non-http earliest %X first: %X len: %d", first_key.word(0), earliest_key.word(0), doc_len);
   }
   if (doc_len == total_len) {
     // the whole document has been evacuated. Insert the directory
@@ -530,6 +516,7 @@ CacheVC::evacuateDocDone(int event, Event *e)
             // writer  exists
             DDebug("cache_evac", "overwriting the open directory %X %d %d",
                   (int) doc->first_key.word(0), (int) dir_offset(&cod->first_dir), (int) dir_offset(&dir));
+            ink_assert(dir_pinned(&dir));
             cod->first_dir = dir;
 
           }
@@ -670,7 +657,7 @@ Vol::evacuateDocReadDone(int event, Event *e)
       b->evac_frags.key = doc->key;
       b->evac_frags.earliest_key = doc->key;
       b->earliest_evacuator = doc_evacuator;
-      DDebug("cache_evac", "evacuating earliest %X %X evac: %p offset: %d",
+      DDebug("cache_evac", "evacuating earliest %X %X evac: %X offset: %d",
             (int) b->evac_frags.key.word(0), (int) doc->key.word(0),
             doc_evacuator, (int) dir_offset(&doc_evacuator->overwrite_dir));
       b->f.unused = 67;
@@ -707,8 +694,8 @@ Ldone:
 int
 Vol::evac_range(off_t low, off_t high, int evac_phase)
 {
-  off_t s = offset_to_vol_offset(this, low);
-  off_t e = offset_to_vol_offset(this, high);
+  int s = offset_to_vol_offset(this, low);
+  int e = offset_to_vol_offset(this, high);
   int si = dir_offset_evac_bucket(s);
   int ei = dir_offset_evac_bucket(e);
 
@@ -798,13 +785,8 @@ agg_copy(char *p, CacheVC *vc)
       doc->key = vc->key;
       dir_set_head(&vc->dir, !vc->fragment);
     }
-    if (doc->flen) {
-      // There's a fragment table to write.
-      // If this was a cache fill, the frag table is internal.
-      // If it's a header update (e.g. 304 NOT MODIFIED return on
-      // stale object) then the frag table is in the first_buf.
-      memcpy(doc->frags(), vc->get_frag_table(), doc->flen);
-    }
+    if (doc->flen)
+      memcpy(doc->frags(), &vc->frag[0], doc->flen);
 
 #ifdef HTTP_CACHE
     if (vc->f.rewrite_resident_alt) {
@@ -1030,10 +1012,7 @@ Lagain:
       ink_assert(false);
       while ((c = agg.dequeue())) {
         agg_todo_size -= c->agg_len;
-        if (c->initial_thread != NULL)
-          c->initial_thread->schedule_imm_signal(c, AIO_EVENT_DONE);
-        else
-          eventProcessor.schedule_imm_signal(c, ET_CALL, AIO_EVENT_DONE);
+        c->initial_thread->schedule_imm_signal(c, AIO_EVENT_DONE);
       }
       return EVENT_CONT;
     }
@@ -1049,7 +1028,7 @@ Lagain:
   if (evac_range(header->write_pos, end, !header->phase) < 0)
     goto Lwait;
   if (end > skip + len)
-    if (evac_range(start, start + (end - (skip + len)), header->phase) < 0)
+    if (evac_range(start, start + (end - (skip + len)), header->phase))
       goto Lwait;
 
   // if agg.head, then we are near the end of the disk, so
@@ -1092,10 +1071,8 @@ Lwait:
   while ((c = tocall.dequeue())) {
     if (event == EVENT_CALL && c->mutex->thread_holding == mutex->thread_holding)
       ret = EVENT_RETURN;
-    else if (c->initial_thread != NULL)
-      c->initial_thread->schedule_imm_signal(c, AIO_EVENT_DONE);
     else
-      eventProcessor.schedule_imm_signal(c, ET_CALL, AIO_EVENT_DONE);
+      c->initial_thread->schedule_imm_signal(c, AIO_EVENT_DONE);
   }
   return ret;
 }
@@ -1254,10 +1231,10 @@ CacheVC::openWriteCloseDataDone(int event, Event *e)
       else {
         if (fragment-1 >= INTEGRAL_FRAGS && IS_POWER_2((uint32)(fragment-1))) {
           Frag *t = frag;
-          frag = (Frag*)ats_malloc(sizeof(Frag) * (fragment-1)*2);
+          frag = (Frag*)xmalloc(sizeof(Frag) * (fragment-1)*2);
           memcpy(frag, t, sizeof(Frag) * (fragment-1));
           if (t != integral_frags)
-            ats_free(t);
+            xfree(t);
         }
       }
       frag[fragment-1].offset = write_pos;
@@ -1356,10 +1333,10 @@ CacheVC::openWriteWriteDone(int event, Event *e)
       else {
         if (fragment-1 >= INTEGRAL_FRAGS && IS_POWER_2((uint32_t)(fragment-1))) {
           Frag *t = frag;
-          frag = (Frag*)ats_malloc(sizeof(Frag) * (fragment-1)*2);
+          frag = (Frag*)xmalloc(sizeof(Frag) * (fragment-1)*2);
           memcpy(frag, t, sizeof(Frag) * (fragment-1));
           if (t != integral_frags)
-            ats_free(t);
+            xfree(t);
         }
       }
       frag[fragment-1].offset = write_pos;
@@ -1519,21 +1496,20 @@ CacheVC::openWriteStartDone(int event, Event *e)
       goto Lcancel;
 
     if (event == AIO_EVENT_DONE) {        // vector read done
-      Doc *doc = (Doc *) buf->data();
-      if (!io.ok()) {
-        err = ECACHE_READ_FAIL;
-        goto Lfailure;
-      }
-
+         Doc *doc = (Doc *) buf->data();
+          if (!io.ok()) {
+             err = ECACHE_READ_FAIL;
+             goto Lfailure;
+    }
       /* INKqa07123.
-         A directory entry which is no longer valid may have been overwritten.
+         A directory entry which is nolonger valid may have been overwritten.
          We need to start afresh from the beginning by setting last_collision
          to NULL.
        */
       if (!dir_valid(vol, &dir)) {
         DDebug("cache_write",
-               "OpenReadStartDone: Dir not valid: Write Head: %" PRId64 ", Dir: %"PRId64,
-               (int64_t)offset_to_vol_offset(vol, vol->header->write_pos), dir_offset(&dir));
+              "OpenReadStartDone: Dir not valid: Write Head: %lld, Dir: %"PRId64,
+              (long long)offset_to_vol_offset(vol, vol->header->write_pos), dir_offset(&dir));
         last_collision = NULL;
         goto Lcollision;
       }
@@ -1546,11 +1522,11 @@ CacheVC::openWriteStartDone(int event, Event *e)
       if (!doc->hlen) {
         err = ECACHE_BAD_META_DATA;
         goto Lfailure;
-      }
+     }
       ink_assert((((uintptr_t) &doc->hdr()[0]) & HDR_PTR_ALIGNMENT_MASK) == 0);
 
       if (write_vector->get_handles(doc->hdr(), doc->hlen, buf) != doc->hlen) {
-        err = ECACHE_BAD_META_DATA;
+       err = ECACHE_BAD_META_DATA;
         goto Lfailure;
       }
       ink_debug_assert(write_vector->count() > 0);
@@ -1563,15 +1539,17 @@ CacheVC::openWriteStartDone(int event, Event *e)
         dir_assign(&od->single_doc_dir, &dir);
         dir_set_tag(&od->single_doc_dir, od->single_doc_key.word(2));
       }
-      first_buf = buf;
-      goto Lsuccess;
     }
+    first_buf = buf;
+    goto Lsuccess;
+
 
 Lcollision:
+
     int if_writers = ((uintptr_t) info == CACHE_ALLOW_MULTIPLE_WRITES);
     if (!od) {
       if ((err = vol->open_write(
-                this, if_writers, cache_config_http_max_alts > 1 ? cache_config_http_max_alts : 0)) > 0)
+          this, if_writers, cache_config_http_max_alts > 1 ? cache_config_http_max_alts : 0)) > 0)
         goto Lfailure;
       if (od->has_multiple_writers()) {
         MUTEX_RELEASE(lock);

@@ -1,6 +1,6 @@
 /** @file
 
-  This file contains various utility functions which call the TSMgmtAPI.
+  A brief file description
 
   @section license License
 
@@ -21,6 +21,13 @@
   limitations under the License.
  */
 
+/****************************************************************
+ * Filename: CliMgmtUtils.cc
+ * Purpose: This file contains various utility functions which
+ *          call the TSMgmtAPI.
+ *
+ *
+ ****************************************************************/
 
 #include "libts.h"
 #include "I_Layout.h"
@@ -213,7 +220,7 @@ Cli_DisplayRules(TSFileNameT fname)
       // Fix TSqa12220: use printf directly since Cli_Printf may
       // not allocate enough buffer space to display the file contents
       puts(text);
-      ats_free(text);
+      xfree(text);
     } else {
       Cli_Printf("no rules\n");
     }
@@ -248,13 +255,15 @@ Cli_SetConfigFileFromUrl(TSFileNameT file, const char *url)
   if ((status = TSConfigFileWrite(file, buf, size, version))) {
     Cli_Debug(ERR_CONFIG_FILE_WRITE, file);
     Cli_DisplayMgmtAPI_Error(status);
-    if (size)
-      ats_free(buf);
+    if (size) {
+      xfree(buf);
+    }
     return status;
   }
 
-  if (size)
-    ats_free(buf);
+  if (size) {
+    xfree(buf);
+  }
 
   Cli_Printf("Successfully updated config file.\n");
 
@@ -545,7 +554,7 @@ int
 GetTSDirectory(char *ts_path, size_t ts_path_len)
 {
 
-  ink_strlcpy(ts_path, Layout::get()->bindir, ts_path_len);
+  ink_strncpy(ts_path, Layout::get()->bindir, ts_path_len);
   if (access(ts_path, R_OK) == -1) {
     Cli_Error("unable to access() '%s': %d, %s\n",
               ts_path, errno, strerror(errno));

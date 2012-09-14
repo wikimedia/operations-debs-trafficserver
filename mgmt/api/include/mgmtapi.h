@@ -33,16 +33,27 @@
 #ifndef __TS_MGMT_API_H__
 #define __TS_MGMT_API_H__
 
-#include <stdint.h>
+#include "ink_port.h"
 
 /***************************************************************************
  * System Specific Items
  ***************************************************************************/
 
+#if defined (_WIN32) && defined (_TS_EXPORT)
+#define tsapi __declspec( dllexport )
+#elif defined (_WIN32)
+#define tsapi __declspec( dllimport )
+#else
 #define tsapi
+#endif
 
+#if defined (_WIN32)
+#define inkexp __declspec( dllexport )
+#define inkimp __declspec( dllimport )
+#else
 #define inkexp
 #define inkimp
+#endif
 
 #if !defined(linux)
 #if defined (__SUNPRO_CC) || (defined (__GNUC__) || ! defined(__cplusplus))
@@ -1042,7 +1053,7 @@ extern "C"
 /*--- password operations -------------------------------------------------*/
 /* TSEncryptPassword: encrypts a password
  * Input: passwd - a password string to encrypt (can be NULL)
- * Output: e_passwd - an encrypted passwd (ats_malloc's memory)
+ * Output: e_passwd - an encrypted passwd (xmalloc's memory)
  */
   tsapi TSError TSEncryptPassword(char *passwd, char **e_passwd);
 

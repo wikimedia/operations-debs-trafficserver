@@ -132,7 +132,7 @@ int framepointer = 0;
 int program_counter = 0;
 #endif  // linux check
 
-#if defined(darwin) || defined(freebsd) || defined(solaris) || defined(openbsd) // FIXME: solaris x86
+#if defined(darwin) || defined(freebsd) || defined(solaris) // FIXME: solaris x86
 // TODO: Cleanup multiple includes
 #include <stdio.h>
 #include <stdlib.h>
@@ -151,6 +151,7 @@ FILE *fp;
 memTable default_memTable = { 0, 0, 0 };
 DynArray<struct memTable>arrayMem(&default_memTable, 0);
 
+const int HDR_HEAP_HDR_SIZE = ROUND(sizeof(HdrHeap), HDR_PTR_SIZE);
 HTTPHdrImpl *global_http;
 HttpSM *last_seen_http_sm = NULL;
 
@@ -301,17 +302,17 @@ CoreUtils::read_from_core(intptr_t vaddr, intptr_t bytes, char *buf)
   else {
     if (fseek(fp, offset2 + offset, SEEK_SET) != -1) {
       char *frameoff;
-      if ((frameoff = (char *)ats_malloc(sizeof(char) * bytes))) {
+      if ((frameoff = (char *) malloc(sizeof(char) * bytes))) {
         if (fread(frameoff, bytes, 1, fp) == 1) {
           memcpy(buf, frameoff, bytes);
           /*for(int j =0; j < bytes; j++) {
            *buf++ = getc(fp);
            }
            buf -= bytes;*/
-          ats_free(frameoff);
+          free(frameoff);
           return bytes;
         }
-        ats_free(frameoff);
+        free(frameoff);
       }
     } else
       return -1;
@@ -349,7 +350,7 @@ CoreUtils::get_base_frame(intptr_t threadId, core_stack_state * coress)
   if (fseek(fp, off + off2, SEEK_SET) != -1) {
     char *frameoff;
 
-    if ((frameoff = (char *)ats_malloc(sizeof(char) * sizeof(rwindow)))) {
+    if ((frameoff = (char *) malloc(sizeof(char) * sizeof(rwindow)))) {
       if (fread(frameoff, sizeof(rwindow), 1, fp) == 1) {
         // memcpy rwindow struct and print out
         struct rwindow regs, *r;
@@ -359,7 +360,7 @@ CoreUtils::get_base_frame(intptr_t threadId, core_stack_state * coress)
         framep = regs.rw_in[6];
         coress->framep = framep;
       }
-      ats_free(frameoff);
+      free(frameoff);
     } else {
       printf("Failed to seek to top of the stack\n");
     }
@@ -393,7 +394,7 @@ CoreUtils::get_next_frame(core_stack_state * coress)
     // seek to the framep offset
     if (fseek(fp, off + off2, SEEK_SET) != -1) {
       char *frameoff;
-      if ((frameoff = (char *)ats_malloc(sizeof(char) * sizeof(rwindow)))) {
+      if ((frameoff = (char *) malloc(sizeof(char) * sizeof(rwindow)))) {
         if (fread(frameoff, sizeof(rwindow), 1, fp) == 1) {
 
           // memcpy rwindow struct and print out
@@ -405,7 +406,7 @@ CoreUtils::get_next_frame(core_stack_state * coress)
           coress->framep = framep;
         }
       }
-      ats_free(frameoff);
+      free(frameoff);
     }
   }
   return 1;
@@ -460,7 +461,7 @@ CoreUtils::get_base_frame(intptr_t framep, core_stack_state *coress)
   // seek to the framep offset
   if (fseek(fp, off + off2, SEEK_SET) != -1) {
     void **frameoff;
-    if ((frameoff = (void **)ats_malloc(sizeof(long)))) {
+    if ((frameoff = (void **) malloc(sizeof(long)))) {
       if (fread(frameoff, 4, 1, fp) == 1) {
         coress->framep = (intptr_t) *frameoff;
         if (fread(frameoff, 4, 1, fp) == 1) {
@@ -473,7 +474,7 @@ CoreUtils::get_base_frame(intptr_t framep, core_stack_state *coress)
           }
         }
       }
-      ats_free(frameoff);
+      free(frameoff);
     }
   } else {
     printf("Failed to seek to top of the stack\n");
@@ -499,11 +500,11 @@ CoreUtils::get_next_frame(core_stack_state * coress)
   // seek to the framep offset
   if (fseek(fp, off + off2, SEEK_SET) != -1) {
     void **frameoff;
-    if ((frameoff = (void **)ats_malloc(sizeof(long)))) {
+    if ((frameoff = (void **) malloc(sizeof(long)))) {
       if (fread(frameoff, 4, 1, fp) == 1) {
         coress->framep = (intptr_t) *frameoff;
         if (*frameoff == NULL) {
-          ats_free(frameoff);
+          free(frameoff);
           return 0;
         }
         if (fread(frameoff, 4, 1, fp) == 1) {
@@ -515,7 +516,7 @@ CoreUtils::get_next_frame(core_stack_state * coress)
           }
         }
       }
-      ats_free(frameoff);
+      free(frameoff);
     }
     return 1;
   }
@@ -625,12 +626,12 @@ CoreUtils::process_HttpSM(HttpSM * core_ptr)
 
   // extracting the HttpSM from the core file
   if (last_seen_http_sm != core_ptr) {
-    HttpSM *http_sm = (HttpSM *)ats_malloc(sizeof(HttpSM));
+    HttpSM *http_sm = (HttpSM *) malloc(sizeof(HttpSM));
 
     if (read_from_core((intptr_t) core_ptr, sizeof(HttpSM), (char *) http_sm) < 0) {
       // This is not 64-bit correct ... /leif
       printf("ERROR: Failed to read httpSM @ 0x%p from core\n", core_ptr);
-      ats_free(http_sm);
+      free(http_sm);
       return;
     }
 
@@ -672,7 +673,7 @@ CoreUtils::process_HttpSM(HttpSM * core_ptr)
       }
     }
 
-    ats_free(http_sm);
+    free(http_sm);
   } else
     printf("process_HttpSM : last_seen_http_sm == core_ptr\n");
 }
@@ -702,7 +703,7 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
   HTTPHdr *http_hdr = core_hdr;
   HdrHeap *heap = (HdrHeap *) core_hdr->m_heap;
   HdrHeap *heap_ptr = (HdrHeap *) http_hdr->m_heap;
-  char *buf = (char *)ats_malloc(sizeof(char) * sizeof(HdrHeap));
+  char *buf = (char *) malloc(sizeof(char) * sizeof(HdrHeap));
   intptr_t ptr_heaps = 0;
   intptr_t ptr_heap_size = 0;
   intptr_t ptr_xl_size = 2;
@@ -728,9 +729,9 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
     heap = heap->m_next;
   } while (heap && ((intptr_t) heap != 0x1));
 
-  swizzle_heap = (HdrHeap *)ats_malloc(sizeof(HdrHeap));
+  swizzle_heap = (HdrHeap *) malloc(sizeof(HdrHeap));
   live_hdr->m_heap = swizzle_heap;
-  ptr_data = (char *)ats_malloc(sizeof(char) * ptr_heap_size);
+  ptr_data = (char *) malloc(sizeof(char) * ptr_heap_size);
   //heap = (HdrHeap*)http_hdr->m_heap;
 
   //  Build Hdr Heap Translation Table
@@ -784,8 +785,8 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
   swizzle_heap->m_ronly_heap[0].m_heap_start = (char *)(intptr_t)swizzle_heap->m_size;   // offset
   swizzle_heap->m_ronly_heap[0].m_ref_count_ptr.m_ptr = NULL;
 
-  for (int i = 1; i < HDR_BUF_RONLY_HEAPS; i++)
-    swizzle_heap->m_ronly_heap[i].m_heap_start = NULL;
+  swizzle_heap->m_ronly_heap[1].m_heap_start = NULL;
+  swizzle_heap->m_ronly_heap[2].m_heap_start = NULL;
 
   // Next order of business is to copy over string heaps
   //   As we are copying over the string heaps, build
@@ -797,7 +798,7 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
   if (heap->m_read_write_heap) {
     HdrStrHeap *hdr = (HdrStrHeap *) heap->m_read_write_heap.m_ptr;
     char *copy_start = ((char *) heap->m_read_write_heap.m_ptr) + sizeof(HdrStrHeap);
-    char *str_hdr = (char *)ats_malloc(sizeof(char) * sizeof(HdrStrHeap));
+    char *str_hdr = (char *) malloc(sizeof(char) * sizeof(HdrStrHeap));
     if (read_from_core((intptr_t) hdr, sizeof(HdrStrHeap), str_hdr) == -1) {
       printf("Cannot read from core\n");
       _exit(0);
@@ -805,11 +806,11 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
 
     char *free_start = (char *) (((HdrStrHeap *) str_hdr)->m_free_start);
     int nto_copy = abs((char *) copy_start - free_start);
-    ats_free(str_hdr);
+    free(str_hdr);
 #if defined(__GNUC__)
     char rw_heap[sizeof(char) * nto_copy];
 #else
-    char *rw_heap = (char *)ats_malloc(sizeof(char) * nto_copy);
+    char *rw_heap = (char *)xmalloc(sizeof(char) * nto_copy);
 #endif
     if (read_from_core((intptr_t) copy_start, nto_copy, rw_heap) == -1) {
       printf("Cannot read from core\n");
@@ -823,7 +824,7 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
     str_size += nto_copy;
     str_heaps++;
 #if !defined(__GNUC__)
-    ats_free(rw_heap);
+    xfree(rw_heap);
 #endif
   }
 
@@ -832,7 +833,7 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
 #if defined(__GNUC__)
       char ro_heap[sizeof(char) * heap->m_ronly_heap[i].m_heap_len];
 #else
-      char * ro_heap = (char *)ats_malloc(sizeof(char) * heap->m_ronly_heap[i].m_heap_len);
+      char * ro_heap = (char *) xmalloc(sizeof(char) * heap->m_ronly_heap[i].m_heap_len);
 #endif
       if (read_from_core((intptr_t) heap->m_ronly_heap[i].m_heap_start, heap->m_ronly_heap[i].m_heap_len, ro_heap) == -1) {
         printf("Cannot read from core\n");
@@ -848,7 +849,7 @@ CoreUtils::load_http_hdr(HTTPHdr * core_hdr, HTTPHdr * live_hdr)
       str_heaps++;
       str_size += heap->m_ronly_heap[i].m_heap_len;
 #if !defined(__GNUC__)
-      ats_free(ro_heap);
+      xfree(ro_heap);
 #endif
     }
   }
@@ -925,15 +926,21 @@ CoreUtils::dump_history(HttpSM * hsm)
     int e = (int) hsm->history[i].event;
     char *fileline = load_string(hsm->history[i].fileline);
 
-    fileline = (fileline != NULL) ? fileline : ats_strdup("UNKNOWN");
+    fileline = (fileline != NULL) ? fileline : xstrdup("UNKNOWN");
 
+#if defined(_WIN32)
+    // Visual C++ preprocessor is unable to stringify __LINE__
+    //   so we have to waste a ton a memory and store it
+    //   as an integer
+    printf("%d   %d   %s:%d", e, r, fileline, hsm->history[i].line);
+#else
     printf("%d   %d   %s", e, r, fileline);
-
+#endif
     char buffer[32];
     const char *msg = event_int_to_string(e, sizeof(buffer), buffer);
     printf("   event string: \"%s\"\n", msg);
 
-    ats_free(fileline);
+    xfree(fileline);
   }
 
   printf("-------- End History -----------\n\n");
@@ -964,14 +971,15 @@ CoreUtils::read_heap_header(intptr_t vaddr, intptr_t bytes, HdrHeap h)
 void
 CoreUtils::process_EThread(EThread * eth_test)
 {
-  char *buf = (char *)ats_malloc(sizeof(char) * sizeof(EThread));
+
+  char *buf = (char *) malloc(sizeof(char) * sizeof(EThread));
 
   if (read_from_core((intptr_t) eth_test, sizeof(EThread), buf) != -1) {
     EThread *loaded_eth = (EThread *) buf;
 
     // This is not 64-bit correct. /leif
     printf("----------- EThread @ 0x%p ----------\n", eth_test);
-#if !defined(kfreebsd) && (defined(freebsd) || defined(darwin) || defined(openbsd))
+#if !defined(kfreebsd) && (defined(freebsd) || defined(darwin))
     printf("   thread_id: %p\n", loaded_eth->tid);
 #else
     printf("   thread_id: %i\n", (int) loaded_eth->tid);
@@ -979,7 +987,7 @@ CoreUtils::process_EThread(EThread * eth_test)
     //    printf("   NetHandler: 0x%x\n\n", (int) loaded_eth->netHandler);
   }
 
-  ats_free(buf);
+  free(buf);
 }
 
 static void
@@ -995,17 +1003,17 @@ print_netstate(NetState * n)
 void
 CoreUtils::process_NetVC(UnixNetVConnection * nvc_test)
 {
-  char *buf = (char *)ats_malloc(sizeof(char) * sizeof(UnixNetVConnection));
+  char *buf = (char *) malloc(sizeof(char) * sizeof(UnixNetVConnection));
 
   if (read_from_core((intptr_t) nvc_test, sizeof(UnixNetVConnection), buf) != -1) {
     UnixNetVConnection *loaded_nvc = (UnixNetVConnection *) buf;
-    
+
     // Probably not 64-bit safe. /leif
-    char addrbuf[INET6_ADDRSTRLEN];
     printf("----------- UnixNetVConnection @ 0x%p ----------\n", nvc_test);
-    printf("     ip: %s    port: %d\n",
-        ats_ip_ntop(&loaded_nvc->server_addr.sa, addrbuf, sizeof(addrbuf)), 
-        ats_ip_port_host_order(&loaded_nvc->server_addr));
+    printf("     ip: %hhu.%hhu.%hhu.%hhu    port: %d\n",
+           ((unsigned char *) &loaded_nvc->ip)[0],
+           ((unsigned char *) &loaded_nvc->ip)[1],
+           ((unsigned char *) &loaded_nvc->ip)[2], ((unsigned char *) &loaded_nvc->ip)[3], loaded_nvc->port);
     printf("     closed: %d\n\n", loaded_nvc->closed);
     printf("     read state: \n");
     print_netstate(&loaded_nvc->read);
@@ -1013,7 +1021,7 @@ CoreUtils::process_NetVC(UnixNetVConnection * nvc_test)
     print_netstate(&loaded_nvc->write);
   }
 
-  ats_free(buf);
+  free(buf);
 }
 
 
@@ -1024,7 +1032,7 @@ CoreUtils::load_string(const char *addr)
   int index = 0;
 
   if (addr == NULL) {
-    return ats_strdup("NONE");
+    return xstrdup("NONE");
   }
 
   while (index < 2048) {
@@ -1033,7 +1041,7 @@ CoreUtils::load_string(const char *addr)
     }
 
     if (buf[index] == '\0') {
-      return ats_strdup(buf);
+      return xstrdup(buf);
     }
     index++;
   }
@@ -1112,7 +1120,7 @@ process_core(char *fname)
       printf("NOTE\n");
       if (fseek(fp, phdr.p_offset, SEEK_SET) != -1) {
         Elf32_Nhdr *nhdr, *thdr;
-        if ((nhdr = (Elf32_Nhdr *)ats_malloc(sizeof(Elf32_Nhdr) * phdr.p_filesz))) {
+        if ((nhdr = (Elf32_Nhdr *) malloc(sizeof(Elf32_Nhdr) * phdr.p_filesz))) {
           if (fread(nhdr, phdr.p_filesz, 1, fp) == 1) {
             int size = phdr.p_filesz;
             int sum = 0;
@@ -1187,7 +1195,7 @@ process_core(char *fname)
               size -= len;
             }
           }
-          ats_free(nhdr);
+          free(nhdr);
         }
       }
     }
@@ -1267,7 +1275,7 @@ process_core(char *fname)
 
       if (fseek(fp, phdr.p_offset, SEEK_SET) != -1) {
         Elf32_Nhdr *nhdr, *thdr;
-        if ((nhdr = (Elf32_Nhdr *)ats_malloc(sizeof(Elf32_Nhdr) * phdr.p_filesz))) {
+        if ((nhdr = (Elf32_Nhdr *) malloc(sizeof(Elf32_Nhdr) * phdr.p_filesz))) {
           if (fread(nhdr, phdr.p_filesz, 1, fp) == 1) {
             int size = phdr.p_filesz;
             int sum = 0;
@@ -1345,7 +1353,7 @@ process_core(char *fname)
               size -= len;
             }
           }
-          ats_free(nhdr);
+          free(nhdr);
         }
       }
     }

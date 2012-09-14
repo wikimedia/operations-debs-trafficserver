@@ -106,8 +106,8 @@ ClusterAccept::ClusterAcceptEvent(int event, void *data)
 	opt.recv_bufsize = socket_recv_bufsize;
 	opt.send_bufsize = socket_send_bufsize;
 	opt.etype = ET_CLUSTER;
-	opt.local_port = cluster_port;
-	opt.ip_family = AF_INET;
+	opt.port = cluster_port;
+	opt.domain = AF_INET;
         accept_action = netProcessor.main_accept(this, NO_FD,
                                                  NULL, NULL,
                                                  false, false, opt);
@@ -150,7 +150,7 @@ ClusterAccept::ClusterAcceptMachine(NetVConnection * NetVC)
   ch->machine = NEW(new ClusterMachine(NULL, remote_ip));
   ch->ip = remote_ip;
   ch->net_vc = NetVC;
-  eventProcessor.schedule_imm_signal(ch, ET_CLUSTER);
+  eventProcessor.schedule_imm(ch, ET_CLUSTER);
   return 1;
 }
 
@@ -162,20 +162,15 @@ make_cluster_connections(MachineList * l, MachineList * old)
   // Connect to all new machines.
   //
   uint32_t ip = this_cluster_machine()->ip;
-  int num_connections = this_cluster_machine()->num_connections;
 
   if (l) {
-    for (int i = 0; i < l->n; i++) {
+    for (int i = 0; i < l->n; i++)
 #ifdef LOCAL_CLUSTER_TEST_MODE
-      if (ip < l->machine[i].ip || (ip == l->machine[i].ip && (cluster_port < l->machine[i].port))) {
+      if (ip < l->machine[i].ip || (ip == l->machine[i].ip && (cluster_port < l->machine[i].port)))
 #else
-      if (ip < l->machine[i].ip) {
+      if (ip < l->machine[i].ip)
 #endif
-        for (int j = 0; j < num_connections; j++) {
-          clusterProcessor.connect(l->machine[i].ip, l->machine[i].port, j);
-        }
-      }
-    }
+        clusterProcessor.connect(l->machine[i].ip, l->machine[i].port);
   }
 }
 
@@ -475,7 +470,7 @@ cluster_machine_at_depth(unsigned int hash, int *pprobe_depth, ClusterMachine **
       continue;
     }
 
-    return (m != this_cluster_machine()) ? m : NULL;
+    return m;
   }
   return NULL;
 }

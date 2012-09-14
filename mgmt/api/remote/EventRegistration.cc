@@ -48,6 +48,8 @@
 #include "NetworkUtilsRemote.h"
 #include "EventCallback.h"
 
+#ifndef _WIN32
+
 CallbackTable *remote_event_callbacks;
 
 /**********************************************************************
@@ -163,3 +165,5 @@ event_callback_thread(void *arg)
   // all done!
   return NULL;
 }
+
+#endif

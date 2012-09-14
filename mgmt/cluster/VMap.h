@@ -1,7 +1,6 @@
 /** @file
 
-  Class definition for virtual ip cluster mgmt. Maintains the virtual
-  map for the cluster and provides support for mapping operations.
+  A brief file description
 
   @section license License
 
@@ -21,10 +20,55 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+
+/*
+ * VMap.h
+ *   Class definition for virtual ip cluster mgmt. Maintains the virtual
+ * map for the cluster and provides support for mapping operations.
+ *
+ * $Date: 2003-06-01 18:37:37 $
+ *
+ *
+ */
+
 #ifndef _VMAP_H
 #define _VMAP_H
 
 #include "libts.h"
+
+#ifdef _WIN32
+/* Currently, iphlpapi.h is not present in VC98\include;
+   However, its present in sdk
+*/
+#  include <iphlpapi.h>
+
+#define    NULL_IP_ADDR                 0
+#define    IP_ADDR_EQUAL(ip1, ip2)      ((ip1) == (ip2))
+
+#define MAX_INTERFACE_LENGTH   20
+
+#define INVALID_NTE_CONTEXT    0xffffffff
+
+typedef struct _vip_info
+{
+  char interface[MAX_INTERFACE_LENGTH];
+} VIPInfo;
+
+
+typedef struct _realip_info
+{
+  DWORD ifindex;
+  IPAddr subnet_mask;
+} RealIPInfo;
+
+typedef struct _vmap_info
+{
+  bool mapping;
+  ULONG nte_context;
+} VMAPInfo;
+
+
+#else // _WIN32
 
 #define MAX_INTERFACE  16
 #define MAX_SUB_ID      8
@@ -42,6 +86,8 @@ typedef struct _realip_info
   struct in_addr real_ip;
   bool mappings_for_interface;
 } RealIPInfo;
+
+#endif
 
 
 /*
@@ -67,8 +113,13 @@ public:
 
   void init();                  /* VIP is ON, initialize it */
 
+#ifdef _WIN32
+  bool upAddr(char *virt_ip, ULONG * Context);
+  bool downAddr(char *virt_ip, ULONG Context);
+#else
   bool upAddr(char *virt_ip);
   bool downAddr(char *virt_ip);
+#endif
   void downAddrs();
   void downOurAddrs();
   void rl_downAddrs();
@@ -86,17 +137,30 @@ public:
   bool rl_unmap(char *virt_ip, char *real_ip = NULL);
   bool rl_remap(char *virt_ip, char *cur_ip, char *dest_ip, int cur_naddr, int dest_naddr);
 
+#ifdef _WIN32
+  char *rl_checkConflict(char *virt_ip, VMAPInfo ** virt_hash_value);
+#else
   char *rl_checkConflict(char *virt_ip);
+#endif
   bool rl_checkGlobConflict(char *virt_ip);
+#ifdef _WIN32
+  void rl_resolveConflict(char *virt_ip, char *conf_ip, VMAPInfo * virt_ip_hash_value);
+#else
   void rl_resolveConflict(char *virt_ip, char *conf_ip);
+#endif
 
   int rl_boundAddr(char *virt_ip);
   unsigned long rl_boundTo(char *virt_ip);
   int rl_clearUnSeen(char *ip);
   void rl_resetSeenFlag(char *ip);
 
-  char vip_conf[PATH_NAME_MAX];
-  char absolute_vipconf_binary[PATH_NAME_MAX];
+#ifdef _WIN32
+  PMIB_IPADDRTABLE GetMyAddrTable(BOOL sort);
+  ULONG SearchAddrinMyAddrTable(PMIB_IPADDRTABLE AddrTable, IPAddr item);
+#else
+  char vip_conf[PATH_MAX];
+  char absolute_vipconf_binary[PATH_MAX];
+#endif
 
   int enabled;
   bool enabled_init;            /* have we initialized VIP? Call when VIP is turned on */

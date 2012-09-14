@@ -56,6 +56,13 @@ typedef void (*init_func_t) (int argc, char *argv[]);
 typedef void (*init_func_w_handle_t) (void *handle, int argc, char *argv[]);
 typedef int (*lic_req_func_t) (void);
 
+tsapi int
+load_in_export_symbols(int j)
+{
+  int i = eight_bit_table[j];
+  return i;
+}
+
 // Plugin registration vars
 //
 //    plugin_reg_list has an entry for each plugin
@@ -148,7 +155,7 @@ plugin_load(int argc, char *argv[], bool internal)
   //    plugin we're starting up
   ink_assert(plugin_reg_current == NULL);
   plugin_reg_current = new PluginRegInfo;
-  plugin_reg_current->plugin_path = ats_strdup(path);
+  plugin_reg_current->plugin_path = xstrdup(path);
 
   init_func_w_handle_t inith = (init_func_w_handle_t) dll_findsym(handle, "TSPluginInitwDLLHandle");
   if (inith) {
@@ -202,7 +209,7 @@ plugin_expand(char *arg)
       if (RecGetRecordFloat(arg, &float_val) != REC_ERR_OKAY) {
         goto not_found;
       }
-      str = (char *)ats_malloc(128);
+      str = (char *) xmalloc(128);
       snprintf(str, 128, "%f", (float) float_val);
       return str;
       break;
@@ -213,7 +220,7 @@ plugin_expand(char *arg)
       if (RecGetRecordInt(arg, &int_val) != REC_ERR_OKAY) {
         goto not_found;
       }
-      str = (char *)ats_malloc(128);
+      str = (char *) xmalloc(128);
       snprintf(str, 128, "%ld", (long int) int_val);
       return str;
       break;
@@ -224,7 +231,7 @@ plugin_expand(char *arg)
       if (RecGetRecordCounter(arg, &count_val) != REC_ERR_OKAY) {
         goto not_found;
       }
-      str = (char *)ats_malloc(128);
+      str = (char *) xmalloc(128);
       snprintf(str, 128, "%ld", (long int) count_val);
       return str;
       break;
@@ -290,7 +297,7 @@ plugin_init(const char *config_dir, bool internal)
     RecGetRecordString_Xmalloc("proxy.config.plugin.extensions_dir", (char**)&cfg);
     if (cfg != NULL) {
       extensions_dir = Layout::get()->relative(cfg);
-      ats_free(cfg);
+      xfree(cfg);
       cfg = NULL;
     }
     ink_filepath_make(path, sizeof(path), config_dir, "plugin.db");
@@ -366,8 +373,11 @@ plugin_init(const char *config_dir, bool internal)
 
     plugin_load(argc, argv, internal);
 
-    for (i = 0; i < argc; i++)
-      ats_free(vars[i]);
+    for (i = 0; i < argc; i++) {
+      if (vars[i]) {
+        xfree(vars[i]);
+      }
+    }
   }
 
   close(fd);

@@ -22,11 +22,8 @@
  */
 
 #include "ink_unused.h"    /* MAGIC_EDITING_TAG */
-#include "ink_string.h"    
 #include "HttpTransact.h"
 #include "HttpTransactHeaders.h"
-
-#define MAX_FIELD_VALUE_SIZE 512
 
 char request1[] =
   "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
@@ -93,17 +90,18 @@ make_comma_separated_header_field_value(HttpHeader * header, const char *fieldna
   /* This if is needed to put in the commas correctly */
   if (hfv) {
     str = hfv->get_raw();
-    ink_strlcat(full_str, str, MAX_FIELD_VALUE_SIZE);
+    strcat(full_str, str);
     hfv = hfv->next();
   }
   while (hfv) {
     str = hfv->get_raw();
-    ink_strlcat(full_str, ", ", MAX_FIELD_VALUE_SIZE);
-    ink_strlcat(full_str, str, MAX_FIELD_VALUE_SIZE);
+    strcat(full_str, ", ");
+    strcat(full_str, str);
     hfv = hfv->next();
   }
 }
 
+#define MAX_FIELD_VALUE_SIZE 512
 void
 test_headers()
 {

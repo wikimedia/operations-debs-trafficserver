@@ -6,4 +6,5 @@ to a specified URL ("url_redirect").
 Specify block_ip and url_redirect int the plugin.config file; for 
 example, enter the following line in plugin.config
 
-	redirect-1.so block_ip url_redirect 
+	On NT:	Redirect.dll block_ip url_redirect 
+	On Solaris: redirect-1.so block_ip url_redirect 

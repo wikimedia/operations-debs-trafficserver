@@ -25,11 +25,17 @@
 
 # include "Wccp.h"
 # include "WccpUtil.h"
-# include <ts/TsBuffer.h>
+# include <tsconfig/TsBuffer.h>
 // Needed for template use of byte ordering functions.
 # include <netinet/in.h>
 # include <memory.h>
+# include <malloc.h>
 # include <map>
+
+namespace ts {
+/// Null / invalid file descriptor.
+static const int NO_FD = -1;
+}
 
 namespace wccp {
 
@@ -3239,7 +3245,7 @@ detail::Assignment::getMask() const {
   return *m_mask_assign;
 }
 
-inline MsgBuffer::MsgBuffer() : super(0), _count(0) { }
+inline MsgBuffer::MsgBuffer() : super(0,0), _count(0) { }
 inline MsgBuffer::MsgBuffer(super const& that) : super(that), _count(0) { }
 inline MsgBuffer::MsgBuffer(void* p, size_t n)
   : super(static_cast<char*>(p),n)

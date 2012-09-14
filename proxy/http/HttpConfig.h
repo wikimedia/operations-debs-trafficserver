@@ -50,6 +50,12 @@
 #include "libts.h"
 #include "ProxyConfig.h"
 
+#undef MgmtInt
+#undef MgmtFloat
+#define MgmtInt RecInt
+#define MgmtFloat RecFloat
+
+
 #include "P_RecProcess.h"
 
 
@@ -212,7 +218,6 @@ enum
 
   // cache result stats
   http_cache_hit_fresh_stat,
-  http_cache_hit_mem_fresh_stat,
   http_cache_hit_reval_stat,
   http_cache_hit_ims_stat,
   http_cache_hit_stale_served_stat,
@@ -352,7 +357,7 @@ extern RecRawStatBlock *http_rsb;
 /* Stats should only be accessed using these macros */
 #define HTTP_INCREMENT_DYN_STAT(x) RecIncrRawStat(http_rsb, mutex->thread_holding, (int) x, 1)
 #define HTTP_DECREMENT_DYN_STAT(x) RecIncrRawStat(http_rsb, mutex->thread_holding, (int) x, -1)
-#define HTTP_SUM_DYN_STAT(x, y) RecIncrRawStat(http_rsb, mutex->thread_holding, (int) x, (int64_t) y)
+#define HTTP_SUM_DYN_STAT(x, y) RecIncrRawStat(http_rsb, mutex->thread_holding, (int) x, (int) y)
 #define HTTP_SUM_GLOBAL_DYN_STAT(x, y) RecIncrGlobalRawStatSum(http_rsb, x, y)
 
 #define HTTP_CLEAR_DYN_STAT(x) \
@@ -401,25 +406,22 @@ struct HttpConfigPortRange
 struct OverridableHttpConfigParams {
   OverridableHttpConfigParams()
     :  maintain_pristine_host_hdr(0), chunking_enabled(0),
-       negative_caching_enabled(0), cache_when_to_revalidate(0),
+       negative_caching_enabled(0), negative_caching_lifetime(0), cache_when_to_revalidate(0),
        keep_alive_enabled_in(0), keep_alive_enabled_out(0), keep_alive_post_out(0),
-       share_server_sessions(0), fwd_proxy_auth_to_parent(0),
+       sock_recv_buffer_size_out(0), sock_send_buffer_size_out(0), sock_option_flag_out(0),
+       fwd_proxy_auth_to_parent(0),
        anonymize_remove_from(0), anonymize_remove_referer(0), anonymize_remove_user_agent(0),
        anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
-       proxy_response_server_enabled(0), insert_squid_x_forwarded_for(0),
-       send_http11_requests(3), // SEND_HTTP11_IF_REQUEST_11_AND_HOSTDB
+       append_xforwards_header(0), proxy_response_server_enabled(0),
+
+       insert_squid_x_forwarded_for(0), send_http11_requests(3), // SEND_HTTP11_IF_REQUEST_11_AND_HOSTDB
        cache_http(0), cache_ignore_client_no_cache(0), cache_ignore_client_cc_max_age(1),
        cache_ims_on_client_no_cache(0), cache_ignore_server_no_cache(0), cache_responses_to_cookies(0),
        cache_ignore_auth(0), cache_urls_that_look_dynamic(0), cache_required_headers(0), // CACHE_REQUIRED_HEADERS_NONE
-       insert_request_via_string(0), insert_response_via_string(0), doc_in_cache_skip_dns(1),
-       negative_caching_lifetime(0),
-       sock_recv_buffer_size_out(0), sock_send_buffer_size_out(0), sock_option_flag_out(0),
-       sock_packet_mark_out(0), sock_packet_tos_out(0),
-       server_tcp_init_cwnd(0),
+       insert_request_via_string(0), insert_response_via_string(0),
        cache_heuristic_min_lifetime(0), cache_heuristic_max_lifetime(0),
        cache_guaranteed_min_lifetime(0), cache_guaranteed_max_lifetime(0), cache_max_stale_age(0),
        keep_alive_no_activity_timeout_in(0),
-       keep_alive_no_activity_timeout_out(0),
        transaction_no_activity_timeout_in(0), transaction_no_activity_timeout_out(0),
        transaction_active_timeout_out(0),
        origin_max_connections(0),
@@ -429,15 +431,16 @@ struct OverridableHttpConfigParams {
        down_server_timeout(0), client_abort_threshold(0),
        freshness_fuzz_time(0), freshness_fuzz_min_time(0),
        max_cache_open_read_retries(0), cache_open_read_retry_time(0),
+       doc_in_cache_skip_dns(1),
 
        // Strings / floats must come last
        proxy_response_server_string(NULL), proxy_response_server_string_len(0),
-       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0)
+       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0),
+       outgoing_ip_to_bind_saddr(0)
   { }
 
-  // A few rules here:
-  //   1. Place all MgmtByte configs before all other configs
-  //   1. all MgmtInt/Byte configs should come before string / float configs.
+  // IMPORTANT: All MgmtInt configs should come before any other string / float
+  // configs!!!
 
   // The first three configs used to be @-parameters in remap.config
   MgmtByte maintain_pristine_host_hdr;
@@ -447,6 +450,7 @@ struct OverridableHttpConfigParams {
   //  Negative Response Caching //
   ////////////////////////////////
   MgmtByte negative_caching_enabled;
+  MgmtInt negative_caching_lifetime;
 
   MgmtByte cache_when_to_revalidate;
 
@@ -454,7 +458,13 @@ struct OverridableHttpConfigParams {
   MgmtByte keep_alive_enabled_out;
   MgmtByte keep_alive_post_out;  // share server sessions for post
 
-  MgmtByte share_server_sessions;
+  ///////////////////////////////////////
+  // origin server connection settings //
+  ///////////////////////////////////////
+  MgmtInt sock_recv_buffer_size_out;
+  MgmtInt sock_send_buffer_size_out;
+  MgmtInt sock_option_flag_out;
+
   MgmtByte fwd_proxy_auth_to_parent;
 
   ///////////////////////////////////////////////////////////////////
@@ -466,6 +476,7 @@ struct OverridableHttpConfigParams {
   MgmtByte anonymize_remove_cookie;
   MgmtByte anonymize_remove_client_ip;
   MgmtByte anonymize_insert_client_ip;
+  MgmtByte append_xforwards_header;
 
   MgmtByte proxy_response_server_enabled;
 
@@ -495,27 +506,6 @@ struct OverridableHttpConfigParams {
   MgmtByte insert_request_via_string;
   MgmtByte insert_response_via_string;
 
-  //////////////////////
-  //  DOC IN CACHE NO DNS//
-  //////////////////////
-  MgmtByte doc_in_cache_skip_dns;
-
-  MgmtInt negative_caching_lifetime;
-
-  ///////////////////////////////////////
-  // origin server connection settings //
-  ///////////////////////////////////////
-  MgmtInt sock_recv_buffer_size_out;
-  MgmtInt sock_send_buffer_size_out;
-  MgmtInt sock_option_flag_out;
-  MgmtInt sock_packet_mark_out;
-  MgmtInt sock_packet_tos_out;
-
-  ///////////////////////////////
-  // Initial congestion window //
-  ///////////////////////////////
-  MgmtInt server_tcp_init_cwnd;
-
   /////////////////////
   // cache variables //
   /////////////////////
@@ -529,7 +519,6 @@ struct OverridableHttpConfigParams {
   // connection variables. timeouts are in seconds //
   ///////////////////////////////////////////////////
   MgmtInt keep_alive_no_activity_timeout_in;
-  MgmtInt keep_alive_no_activity_timeout_out;
   MgmtInt transaction_no_activity_timeout_in;
   MgmtInt transaction_no_activity_timeout_out;
   MgmtInt transaction_active_timeout_out;
@@ -557,6 +546,11 @@ struct OverridableHttpConfigParams {
   MgmtInt max_cache_open_read_retries;
   MgmtInt cache_open_read_retry_time;   // time is in mseconds
 
+  //////////////////////
+  //  DOC IN CACHE NO DNS//
+  //////////////////////
+  MgmtByte doc_in_cache_skip_dns;
+
   // IMPORTANT: Here comes all strings / floats configs.
 
   ///////////////////////////////////////////////////////////////////
@@ -567,6 +561,11 @@ struct OverridableHttpConfigParams {
 
   float cache_heuristic_lm_factor;
   float freshness_fuzz_prob;
+
+  ////////////////////////
+  //  Source IP         //
+  ////////////////////////
+  unsigned int outgoing_ip_to_bind_saddr; // This is kinda ugly for now, whatever ...
 };
 
 
@@ -602,8 +601,10 @@ public:
   char *proxy_hostname;
   int proxy_hostname_len;
 
-  IpAddr inbound_ip4, inbound_ip6;
-  IpAddr outbound_ip4, outbound_ip6;
+  char *incoming_ip_to_bind;
+  unsigned int incoming_ip_to_bind_saddr;
+
+  char *outgoing_ip_to_bind;
 
   MgmtInt server_max_connections;
   MgmtInt origin_min_keep_alive_connections; // TODO: This one really ought to be overridable, but difficult right now.
@@ -616,7 +617,8 @@ public:
   MgmtByte uncacheable_requests_bypass_parent;
   MgmtByte no_origin_server_dns;
   MgmtByte use_client_target_addr;
-  MgmtByte use_client_source_port;
+
+  MgmtByte verbose_via_string;
 
   char *proxy_request_via_string;
   int proxy_request_via_string_len;
@@ -644,6 +646,8 @@ public:
   MgmtByte session_auth_cache_keep_alive_enabled;
   MgmtInt origin_server_pipeline;
   MgmtInt user_agent_pipeline;
+  MgmtInt share_server_sessions;
+  MgmtInt keep_alive_no_activity_timeout_out;
   MgmtInt transaction_active_timeout_in;
   MgmtInt accept_no_activity_timeout;
   MgmtInt background_fill_active_timeout;
@@ -721,6 +725,11 @@ public:
   // HTTP Accept-Encoding filtering based on User-Agent //
   ////////////////////////////////////////////////////////
   MgmtByte accept_encoding_filter_enabled;
+
+  //////////////////////////
+  // HTTP Quick filtering //
+  //////////////////////////
+  MgmtInt quick_filter_mask;
 
   //////////////////
   // Transparency //
@@ -891,6 +900,9 @@ inline
 HttpConfigParams::HttpConfigParams()
   : proxy_hostname(0),
     proxy_hostname_len(0),
+    incoming_ip_to_bind(0),
+    incoming_ip_to_bind_saddr(0),
+    outgoing_ip_to_bind(0),
     server_max_connections(0),
     origin_min_keep_alive_connections(0),
     parent_proxy_routing_enable(0),
@@ -900,7 +912,7 @@ HttpConfigParams::HttpConfigParams()
     uncacheable_requests_bypass_parent(1),
     no_origin_server_dns(0),
     use_client_target_addr(0),
-    use_client_source_port(0),
+    verbose_via_string(0),
     proxy_request_via_string(0),
     proxy_request_via_string_len(0),
     proxy_response_via_string(0),
@@ -915,6 +927,8 @@ HttpConfigParams::HttpConfigParams()
     session_auth_cache_keep_alive_enabled(0),
     origin_server_pipeline(0),
     user_agent_pipeline(0),
+    share_server_sessions(0),
+    keep_alive_no_activity_timeout_out(0),
     transaction_active_timeout_in(0),
     accept_no_activity_timeout(0),
     background_fill_active_timeout(0),
@@ -944,6 +958,7 @@ HttpConfigParams::HttpConfigParams()
     referer_filter_enabled(0),
     referer_format_redirect(0),
     accept_encoding_filter_enabled(0),
+    quick_filter_mask(0),
     client_transparency_enabled(0),
     server_transparency_enabled(0),
     reverse_proxy_enabled(0),
@@ -966,29 +981,31 @@ HttpConfigParams::HttpConfigParams()
     ignore_accept_encoding_mismatch(0),
     ignore_accept_charset_mismatch(0),
     normalize_ae_gzip(1)
-{
-}
+{ }
 
 inline
 HttpConfigParams::~HttpConfigParams()
 {
-  ats_free(proxy_hostname);
-  ats_free(proxy_request_via_string);
-  ats_free(proxy_response_via_string);
-  ats_free(url_expansions_string);
-  ats_free(proxy_server_other_ports);
-  ats_free(anonymize_other_header_list);
-  ats_free(global_user_agent_header);
-  ats_free(oride.proxy_response_server_string);
-  ats_free(cache_vary_default_text);
-  ats_free(cache_vary_default_images);
-  ats_free(cache_vary_default_other);
-  ats_free(connect_ports_string);
-  ats_free(reverse_proxy_no_host_redirect);
-  ats_free(url_expansions);
+  xfree(proxy_hostname);
+  xfree(proxy_request_via_string);
+  xfree(proxy_response_via_string);
+  xfree(url_expansions_string);
+  xfree(proxy_server_other_ports);
+  xfree(anonymize_other_header_list);
+  xfree(global_user_agent_header);
+  xfree(oride.proxy_response_server_string);
+  xfree(cache_vary_default_text);
+  xfree(cache_vary_default_images);
+  xfree(cache_vary_default_other);
+  xfree(connect_ports_string);
+  xfree(reverse_proxy_no_host_redirect);
 
   if (connect_ports) {
     delete connect_ports;
+  }
+
+  if (url_expansions) {
+    xfree(url_expansions);
   }
 }
 #endif /* #ifndef _HttpConfig_h_ */

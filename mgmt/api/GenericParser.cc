@@ -37,15 +37,19 @@ Token::Token():name(NULL), value(NULL)
 
 Token::~Token()
 {
-  ats_free(name);
-  ats_free(value);
+  if (name) {
+    xfree(name);
+  }
+  if (value) {
+    xfree(value);
+  }
 }
 
 void
 Token::setName(const char *str)
 {
   name = (char *) strtrim(str);
-  //name = ats_strdup(str_copy); DOESN't WORK
+  //name = xstrdup(str_copy); DOESN't WORK
 }
 
 //
@@ -56,16 +60,16 @@ void
 Token::setValue(const char *str)
 {
   char *str_copy = (char *) strtrim(str);
-  // Can't use ats_strdup after strtrim?
-  //  value = ats_strdup(str);
+  // Can't use xstrdup after strtrim?
+  //  value = xstrdup(str);
   ink_assert(value == NULL);
   if (str_copy) {
     size_t len = strlen(str_copy);
-    value = (char *)ats_malloc(sizeof(char) * (BUFSIZ));
+    value = (char *) xmalloc(sizeof(char) * (BUFSIZ));
     len = (len < BUFSIZ) ? len : BUFSIZ - 1;
     memcpy(value, str_copy, len);
     value[len] = '\0';
-    ats_free(str_copy);
+    xfree(str_copy);
   }
 }
 
@@ -79,12 +83,13 @@ Token::appendValue(const char *str)
     setValue(str_copy);
   } else {
     if (!firstTime) {
-      ink_strlcat(value, " ", BUFSIZ);
+      strncat(value, " ", BUFSIZ - strlen(value) - 1);
     }
-    ink_strlcat(value, str_copy, BUFSIZ);
+    strncat(value, str_copy, BUFSIZ - strlen(value) - 1);;
   }
   firstTime = false;
-  ats_free(str_copy);
+  if (str_copy)
+    xfree(str_copy);
 }
 
 void
@@ -147,30 +152,40 @@ void
 Rule::setRuleStr(const char *str)
 {
   ink_assert(m_comment == NULL);
-  m_ruleStr = ats_strdup(str);
+  m_ruleStr = xstrdup(str);
 }
 
 void
 Rule::setComment(const char *str)
 {
   ink_assert(m_comment == NULL);
-  m_comment = ats_strdup(str);
+  m_comment = xstrdup(str);
 }
 
 void
 Rule::setErrorHint(const char *str)
 {
   ink_assert(m_errorHint == NULL);
-  m_errorHint = ats_strdup(str);
+  m_errorHint = xstrdup(str);
 }
 
 Rule::~Rule()
 {
-  delete tokenList;
-  ats_free(m_comment);
-  ats_free(m_errorHint);
-  ats_free(m_ruleStr);
-  ats_free(m_filename);
+  if (tokenList) {
+    delete(tokenList);
+  }
+  if (m_comment) {
+    xfree(m_comment);
+  }
+  if (m_errorHint) {
+    xfree(m_errorHint);
+  }
+  if (m_ruleStr) {
+    xfree(m_ruleStr);
+  }
+  if (m_filename) {
+    xfree(m_filename);
+  }
 }
 
 void
@@ -335,7 +350,7 @@ Rule::cacheParse(char *rule, unsigned short minNumToken, unsigned short maxNumTo
            for TSqa09488 */
         const char *secondEqual = strstr(strstr(tokenStr, "="), "=");
         secondEqual++;
-        subtoken = ats_strdup(secondEqual);
+        subtoken = xstrdup(secondEqual);
       }
       insideQuote = inQuote(subtoken);
 
@@ -349,13 +364,13 @@ Rule::cacheParse(char *rule, unsigned short minNumToken, unsigned short maxNumTo
         //          printf("%s 1\n", subtoken);
         token->appendValue(newStr);
       }
-      ats_free((void*)newStr);
+      xfree((char *) newStr);
 
     } else {
       //      printf("%s 2\n", tokenStr);
       newStr = strtrim(tokenStr, '\"');
       token->appendValue(newStr);
-      ats_free((void*)newStr);
+      xfree((char *) newStr);
       insideQuote = inQuote(tokenStr);
       if (insideQuote) {
         //              printf("enqueue\n");
@@ -644,7 +659,7 @@ Rule::socksParse(char *rule)
              for TSqa09488 */
           const char *secondEqual = strstr(strstr(tokenStr, "="), "=");
           secondEqual++;
-          subtoken = ats_strdup(secondEqual);
+          subtoken = xstrdup(secondEqual);
         }
         insideQuote = inQuote(subtoken);
 
@@ -658,13 +673,13 @@ Rule::socksParse(char *rule)
           //          printf("%s 1\n", subtoken);
           token->appendValue(newStr);
         }
-        ats_free((void*)newStr);
+        xfree((char *) newStr);
 
       } else {
         //      printf("%s 2\n", tokenStr);
         newStr = strtrim(tokenStr, '\"');
         token->appendValue(newStr);
-        ats_free((void*)newStr);
+        xfree((char *) newStr);
         insideQuote = inQuote(tokenStr);
         if (insideQuote) {
           //              printf("enqueue\n");
@@ -745,13 +760,13 @@ Rule::splitdnsParse(char *rule)
         //          printf("%s 1\n", subtoken);
         token->appendValue(newStr);
       }
-      ats_free((void*)newStr);
+      xfree((char *) newStr);
 
     } else {
       //            printf("%s 2\n", tokenStr);
       newStr = strtrim(tokenStr, '\"');
       token->appendValue(newStr);
-      ats_free((void*)newStr);
+      xfree((char *) newStr);
       insideQuote = inQuote(tokenStr);
       if (insideQuote) {
         //              printf("enqueue\n");
@@ -897,8 +912,9 @@ RuleList::RuleList()
 
 RuleList::~RuleList()
 {
-  ats_free(m_filename);
-
+  if (m_filename) {
+    xfree(m_filename);
+  }
   Rule *rule = NULL;
   while ((rule = dequeue())) {
     delete rule;
@@ -924,7 +940,7 @@ RuleList::Print()
 void
 RuleList::parse(char *fileBuf, const char *filename)
 {
-  m_filename = ats_strdup(filename);
+  m_filename = xstrdup(filename);
 
   if (strstr(filename, "cache.config")) {
     m_filetype = TS_FNAME_CACHE_OBJ;   /* cache.config */
@@ -979,7 +995,11 @@ RuleList::parse(char *fileBuf, const char *filename)
 void
 RuleList::parse(char *fileBuf, TSFileNameT filetype)
 {
+#ifdef _WIN32
+  Tokenizer lineTok("\r\n");
+#else
   Tokenizer lineTok("\n");
+#endif
   tok_iter_state lineTok_state;
   const char *line;
 
@@ -1003,12 +1023,14 @@ RuleList::parse(char *fileBuf, TSFileNameT filetype)
         rule->tokenList = m_tokenList;
       } else {
         //rule->setComment("## WARNING: The following configuration rule is invalid!");
+        char *error_rule;
         size_t error_rule_size = sizeof(char) * (strlen(line) + strlen("#ERROR: ") + 1);
-        char *error_rule = (char *)ats_malloc(error_rule_size);
-
-        snprintf(error_rule, error_rule_size, "#ERROR: %s", line);
-        rule->setComment(error_rule);
-        ats_free(error_rule);
+        error_rule = (char *) xmalloc(error_rule_size);
+        if (error_rule) {
+          snprintf(error_rule, error_rule_size, "#ERROR: %s", line);
+          rule->setComment(error_rule);
+          xfree(error_rule);
+        }
       }
     }
 
@@ -1046,7 +1068,7 @@ strtrim(char *str) {
 const char *
 strtrim(const char *str_in, char chr)
 {
-  char *str = ats_strdup(str_in);
+  char *str = xstrdup(str_in);
 
   char *str_ptr = str;          // so we can free str later if it changes
   while (*str == chr) {
@@ -1056,7 +1078,7 @@ strtrim(const char *str_in, char chr)
     str[strlen(str) - 1] = '\0';
   }
 
-  char *newStr = ats_strdup(str);
-  ats_free(str_ptr);
+  char *newStr = xstrdup(str);
+  xfree(str_ptr);
   return newStr;
 }

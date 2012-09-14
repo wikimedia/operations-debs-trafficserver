@@ -73,23 +73,26 @@ readIntoBuffer(char *file_path, const char *module_name, int *read_size_ptr)
   // Allocate a buffer large enough to hold the entire file
   //   File size should be small and this makes it easy to
   //   do two passes on the file
-  file_buf = (char *)ats_malloc(file_info.st_size + 1);
-  // Null terminate the buffer so that string operations will work
-  file_buf[file_info.st_size] = '\0';
+  if ((file_buf = (char *) xmalloc((file_info.st_size + 1))) != NULL) {
+    // Null terminate the buffer so that string operations will work
+    file_buf[file_info.st_size] = '\0';
 
-  read_size = (file_info.st_size > 0) ? read(fd, file_buf, file_info.st_size) : 0;
+    read_size = (file_info.st_size > 0) ? read(fd, file_buf, file_info.st_size) : 0;
 
-  // Check to make sure that we got the whole file
-  if (read_size < 0) {
-    Error("%s Read of %s file failed : %s", module_name, file_path, strerror(errno));
-    ats_free(file_buf);
-    file_buf = NULL;
-  } else if (read_size < file_info.st_size) {
-    // We don't want to signal this error on WIN32 because the sizes
-    // won't match if the file contains any CR/LF sequence.
-    Error("%s Only able to read %d bytes out %d for %s file",
-          module_name, read_size, (int) file_info.st_size, file_path);
-    file_buf[read_size] = '\0';
+    // Check to make sure that we got the whole file
+    if (read_size < 0) {
+      Error("%s Read of %s file failed : %s", module_name, file_path, strerror(errno));
+      xfree(file_buf);
+      file_buf = NULL;
+    } else if (read_size < file_info.st_size) {
+      // We don't want to signal this error on WIN32 because the sizes
+      // won't match if the file contains any CR/LF sequence.
+      Error("%s Only able to read %d bytes out %d for %s file",
+            module_name, read_size, (int) file_info.st_size, file_path);
+      file_buf[read_size] = '\0';
+    }
+  } else {
+    Error("%s Insufficient memory to read %s file", module_name, file_path);
   }
 
   if (file_buf && read_size_ptr) {
@@ -136,23 +139,8 @@ unescapifyStr(char *buffer)
   return (write - buffer);
 }
 
-char const*
-ExtractIpRange(char* match_str, in_addr_t* min, in_addr_t* max) {
-  IpEndpoint ip_min, ip_max;
-  char const* zret = ExtractIpRange(match_str, &ip_min.sa, &ip_max.sa);
-  if (0 == zret) { // success
-    if (ats_is_ip4(&ip_min) && ats_is_ip4(&ip_max)) {
-      if (min) *min = ntohl(ats_ip4_addr_cast(&ip_min));
-      if (max) *max = ntohl(ats_ip4_addr_cast(&ip_max));
-    } else {
-      zret = "The addresses were not IPv4 addresses.";
-    }
-  }
-  return zret;
-}
-
-//   char* ExtractIpRange(char* match_str, sockaddr* addr1,
-//                         sockaddr* addr2)
+//   char* ExtractIpRange(char* match_str, ip_addr_t* addr1,
+//                         ip_addr_t* addr2)
 //
 //   Attempts to extract either an Ip Address or an IP Range
 //     from match_str.  The range should be two addresses
@@ -166,15 +154,19 @@ ExtractIpRange(char* match_str, in_addr_t* min, in_addr_t* max) {
 //     that describes the reason for the error.
 //
 const char *
-ExtractIpRange(char *match_str, sockaddr* addr1, sockaddr* addr2)
+ExtractIpRange(char *match_str, ip_addr_t *addr1, ip_addr_t *addr2)
 {
   Tokenizer rangeTok("-/");
-  bool mask = strchr(match_str, '/') != NULL;
+  bool mask = false;
   int mask_bits;
   int mask_val;
   int numToks;
-  IpEndpoint la1, la2;
+  ip_addr_t addr1_local;
+  ip_addr_t addr2_local;
 
+  if (strchr(match_str, '/') != NULL) {
+    mask = true;
+  }
   // Extract the IP addresses from match data
   numToks = rangeTok.Initialize(match_str, SHARE_TOKS);
 
@@ -184,17 +176,15 @@ ExtractIpRange(char *match_str, sockaddr* addr1, sockaddr* addr2)
     return "malformed IP range";
   }
 
-  if (0 != ats_ip_pton(rangeTok[0], &la1.sa)) {
-    return "malformed IP address";
-  }
+  addr1_local = htonl(inet_addr(rangeTok[0]));
 
+  if (addr1_local == (ip_addr_t) - 1 && strcmp(rangeTok[0], "255.255.255.255") != 0) {
+    return "malformed ip address";
+  }
   // Handle a IP range
   if (numToks == 2) {
 
-    if (mask) {
-      if (!ats_is_ip4(&la1)) {
-        return "Masks supported only for IPv4";
-      }
+    if (mask == true) {
       // coverity[secure_coding]
       if (sscanf(rangeTok[1], "%d", &mask_bits) != 1) {
         return "bad mask specification";
@@ -207,28 +197,28 @@ ExtractIpRange(char *match_str, sockaddr* addr1, sockaddr* addr2)
       if (mask_bits == 32) {
         mask_val = 0;
       } else {
-        mask_val = htonl(0xffffffff >> mask_bits);
+        mask_val = 0xffffffff >> mask_bits;
       }
-      in_addr_t a = ats_ip4_addr_cast(&la1);
-      ats_ip4_set(&la2, a | mask_val);
-      ats_ip4_set(&la1, a & (mask_val ^ 0xffffffff));
+
+      addr2_local = addr1_local | mask_val;
+      addr1_local = addr1_local & (mask_val ^ 0xffffffff);
 
     } else {
-      if (0 != ats_ip_pton(rangeTok[1], &la2)) {
+      addr2_local = htonl(inet_addr(rangeTok[1]));
+      if (addr2_local == (ip_addr_t) - 1 && strcmp(rangeTok[1], "255.255.255.255") != 0) {
         return "malformed ip address at range end";
       }
     }
 
-    if (1 == ats_ip_addr_cmp(&la1.sa, &la2.sa)) {
+    if (addr1_local > addr2_local) {
       return "range start greater than range end";
     }
-
-    ats_ip_copy(addr2, &la2);
   } else {
-    ats_ip_copy(addr2, &la1);
+    addr2_local = addr1_local;
   }
 
-  ats_ip_copy(addr1, &la1);
+  *addr1 = addr1_local;
+  *addr2 = addr2_local;
   return NULL;
 }
 
@@ -585,7 +575,7 @@ parseConfigLine(char *line, matcher_line *p_line, const matcher_tags * tags)
     return "Malformed entry";
   }
 
-  if (!tags->empty() && p_line->type == MATCH_NONE) {
+  if (p_line->type == MATCH_NONE) {
     if (tags->dest_error_msg == false) {
       return "No source specifier";
     } else {

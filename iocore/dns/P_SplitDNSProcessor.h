@@ -162,11 +162,12 @@ TS_INLINE bool SplitDNSConfig::isSplitDNSEnabled()
    -------------------------------------------------------------- */
 struct DNSServer
 {
-  IpEndpoint x_server_ip[MAXNS];
+  unsigned int x_server_ip[MAXNS];
   char x_dns_ip_line[MAXDNAME * 2];
 
   char x_def_domain[MAXDNAME];
   char x_domain_srch_list[MAXDNAME];
+  int  x_dns_server_port[MAXNS];
 
   DNSHandler *x_dnsH;
 
@@ -174,6 +175,7 @@ struct DNSServer
   : x_dnsH(NULL)
   {
     memset(x_server_ip, 0, sizeof(x_server_ip));
+    memset(x_dns_server_port, 0, sizeof(x_dns_server_port));
 
     memset(x_def_domain, 0, MAXDNAME);
     memset(x_domain_srch_list, 0, MAXDNAME);
@@ -197,8 +199,8 @@ public:
 
   const char *get_host();
 
-  sockaddr const* get_ip(); // unused required virtual method.
-  sockaddr const* get_client_ip(); // unused required virtual method.
+  ip_addr_t get_ip();
+  ip_addr_t get_client_ip();
 
   const char *m_pHost;
 };
@@ -219,7 +221,7 @@ TS_INLINE DNSRequestData::DNSRequestData()
 TS_INLINE char *
 DNSRequestData::get_string()
 {
-  return ats_strdup((char *) m_pHost);
+  return xstrdup((char *) m_pHost);
 }
 
 
@@ -236,18 +238,18 @@ DNSRequestData::get_host()
 /* --------------------------------------------------------------
    DNSRequestData::get_ip()
    -------------------------------------------------------------- */
-TS_INLINE sockaddr const* DNSRequestData::get_ip()
+TS_INLINE ip_addr_t DNSRequestData::get_ip()
 {
-  return NULL;
+  return (ip_addr_t) 0;
 }
 
 
 /* --------------------------------------------------------------
    DNSRequestData::get_client_ip()
    -------------------------------------------------------------- */
-TS_INLINE sockaddr const* DNSRequestData::get_client_ip()
+TS_INLINE ip_addr_t DNSRequestData::get_client_ip()
 {
-  return NULL;
+  return (ip_addr_t) 0;
 }
 
 /* --------------------------------------------------------------

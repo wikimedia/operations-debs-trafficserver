@@ -27,8 +27,6 @@
 #include "HdrUtils.h"
 #include "HttpCompat.h"
 #include "I_Layout.h"
-#include <records/I_RecHttp.h>
-#include <ts/IpMapConf.h>
 
 #ifdef PREFETCH
 
@@ -78,9 +76,6 @@ KeepAliveConnTable *g_conn_table;
 
 static int prefetch_udp_fd = 0;
 static int32_t udp_seq_no;
-
-PrefetchBlastData const UDP_BLAST_DATA = { UDP_BLAST };
-PrefetchBlastData const TCP_BLAST_DATA = { TCP_BLAST };
 
 static inline uint32_t
 get_udp_seq_no()
@@ -311,9 +306,9 @@ PrefetchTransform::PrefetchTransform(HttpSM *sm, HTTPHdr *resp)
   memset(&hash_table[0], 0, HASH_TABLE_LENGTH * sizeof(hash_table[0]));
 
   udp_url_list = blasterUrlListAllocator.alloc();
-  udp_url_list->init(UDP_BLAST_DATA, prefetch_config.url_buffer_timeout, prefetch_config.url_buffer_size);
+  udp_url_list->init(UDP_BLAST, prefetch_config.url_buffer_timeout, prefetch_config.url_buffer_size);
   tcp_url_list = blasterUrlListAllocator.alloc();
-  tcp_url_list->init(TCP_BLAST_DATA, prefetch_config.url_buffer_timeout, prefetch_config.url_buffer_size);
+  tcp_url_list->init(TCP_BLAST, prefetch_config.url_buffer_timeout, prefetch_config.url_buffer_size);
 
   //extract domain
   host_start = request->url_get()->host_get(&host_len);
@@ -356,7 +351,8 @@ PrefetchTransform::~PrefetchTransform()
 
   if (m_output_buf)
     free_MIOBuffer(m_output_buf);
-  ats_free(url);
+  if (url)
+    xfree(url);
 }
 
 int
@@ -366,7 +362,7 @@ PrefetchTransform::handle_event(int event, void *edata)
 
   if (m_closed) {
     if (m_deletable) {
-      Debug("PrefetchParser", "PrefetchTransform free(): %"PRId64"", m_output_vio ? m_output_vio->ndone : 0);
+      Debug("PrefetchParser", "PrefetchTransform free(): %d", m_output_vio ? m_output_vio->ndone : 0);
       if (m_output_buf) {
         free_MIOBuffer(m_output_buf);
         m_output_buf = 0;
@@ -430,7 +426,7 @@ PrefetchTransform::handle_event(int event, void *edata)
           }
 
           if (towrite > 0) {
-            Debug("PrefetchParser", "handle_event() " "writing %"PRId64" bytes to output", towrite);
+            Debug("PrefetchParser", "handle_event() " "writing %d bytes to output", towrite);
 
             //Debug("PrefetchParser", "Read avail before = %d\n", avail);
 
@@ -487,8 +483,9 @@ PrefetchTransform::redirect(HTTPHdr *resp)
     int redirect_url_len = 0;
     const char *tmp_url = resp->value_get(MIME_FIELD_LOCATION, MIME_LEN_LOCATION, &redirect_url_len);
 
-    redirect_url = (char *)alloca(redirect_url_len + 1);
-    ink_strlcpy(redirect_url, tmp_url, redirect_url_len + 1);
+    redirect_url = (char *) xmalloc(redirect_url_len + 1);
+    strncpy(redirect_url, tmp_url, redirect_url_len);
+    redirect_url[redirect_url_len] = '\0';
     Debug("PrefetchTransform", "redirect_url = %s\n", redirect_url);
   } else {
     response_status = -1;
@@ -510,7 +507,8 @@ PrefetchTransform::redirect(HTTPHdr *resp)
       Debug("PrefetchTransform", "Redirect url to HTTP Hdr Location: \'%s\'\n", redirect_url);
       if (strncmp(redirect_url, req_url, location_len) == 0) {
         Debug("PrefetchTransform", "'%s' -> '%s' - Could be a loop. Discontinuing this path.\n", req_url, redirect_url);
-        ats_free(req_url);
+        xfree(redirect_url);
+        xfree(req_url);
         return 0;
       }
 
@@ -518,18 +516,22 @@ PrefetchTransform::redirect(HTTPHdr *resp)
 
       if (!entry) {
         Debug("PrefetchParserURLs", "Ignoring duplicate url '%s'", redirect_url);
-        ats_free(req_url);
+        xfree(redirect_url);
+        xfree(req_url);
         return 0;
       }
 
       Debug("PrefetchTransform", "Found embedded URL: %s", redirect_url);
-      entry->req_ip = m_sm->t_state.client_info.addr;
+      entry->req_ip = m_sm->t_state.client_info.ip;
 
       PrefetchBlaster *blaster = prefetchBlasterAllocator.alloc();
       blaster->init(entry, &m_sm->t_state.hdr_info.client_request, this);
-      ats_free(req_url);
+      if (req_url)
+        xfree(req_url);
     }
   }
+  if (redirect_url)
+    xfree(redirect_url);
   return 0;
 }
 
@@ -547,7 +549,7 @@ PrefetchTransform::parse_data(IOBufferReader *reader)
       continue;
     }
     //Debug("PrefetchParserURLs", "Found embedded URL: %s", url_start);
-    ats_ip_copy(&entry->req_ip, &m_sm->t_state.client_info.addr);
+    entry->req_ip = m_sm->t_state.client_info.ip;
 
     PrefetchBlaster *blaster = prefetchBlasterAllocator.alloc();
     blaster->init(entry, &m_sm->t_state.hdr_info.client_request, this);
@@ -576,27 +578,22 @@ PrefetchTransform::hash_add(char *s)
       return NULL;
 
   *e = prefetchUrlEntryAllocator.alloc();
-  (*e)->init(ats_strdup(s), md5);
+  (*e)->init(xstrdup(s), md5);
 
   return *e;
 }
 
-
-#define IS_RECURSIVE_PREFETCH(req_ip) \
-  (prefetch_config.max_recursion > 0 && ats_is_ip_loopback(&req_ip))
+#define IS_RECURSIVE_PREFETCH(req_ip) (prefetch_config.max_recursion > 0 &&\
+				       (req_ip) == htonl((127<<24)|1))
 
 static void
 check_n_attach_prefetch_transform(HttpSM *sm, HTTPHdr *resp, bool from_cache)
 {
   INKVConnInternal *prefetch_trans;
-  ip_text_buffer client_ipb;
 
-  IpEndpoint client_ip = sm->t_state.client_info.addr;
+  unsigned int client_ip = sm->t_state.client_info.ip;
 
-  // we depend on this to setup @a client_ipb for all subsequent Debug().
-  Debug("PrefetchParser", "Checking response for request from %s\n",
-    ats_ip_ntop(&client_ip, client_ipb, sizeof(client_ipb))
-  );
+  Debug("PrefetchParser", "Checking response for request from %u.%u.%u.%u\n", IPSTRARGS(client_ip));
 
   unsigned int rec_depth = 0;
   HTTPHdr *request = &sm->t_state.hdr_info.client_request;
@@ -612,9 +609,9 @@ check_n_attach_prefetch_transform(HttpSM *sm, HTTPHdr *resp, bool from_cache)
             "since recursion depth(%d) is greater than max allowed (%d)", rec_depth, prefetch_config.max_recursion);
       return;
     }
-  } else if (!prefetch_config.ip_map.contains(&client_ip)) {
-    Debug("PrefetchParser", "client (%s) does not match any of the "
-      "prefetch_children mentioned in configuration\n", client_ipb);
+  } else if (!prefetch_config.ip_range.match(client_ip)) {
+    Debug("PrefetchParser", "client (%u.%u.%u.%u) does not match any of the "
+          "prefetch_children mentioned in configuration\n", IPSTRARGS(client_ip));
     return;
   }
 
@@ -655,8 +652,8 @@ check_n_attach_prefetch_transform(HttpSM *sm, HTTPHdr *resp, bool from_cache)
     info.client_ip = client_ip;
     info.embedded_url = 0;
     info.present_in_cache = from_cache;
-    ink_zero(info.url_blast);
-    ink_zero(info.url_response_blast);
+    info.url_proto = 0;
+    info.url_response_proto = 0;
 
     info.object_buf = 0;
     info.object_buf_reader = 0;
@@ -876,28 +873,35 @@ PrefetchUrlBlaster::udpUrlBlaster(int event, void *data)
       MIOBuffer *buf = new_MIOBuffer();
       IOBufferReader *reader = buf->alloc_reader();
 
-      int udp_hdr_len = (TCP_BLAST == blast.type) ? 0 : PRELOAD_UDP_HEADER_LEN;
+      int udp_hdr_len = (proto == TCP_BLAST) ? 0 : PRELOAD_UDP_HEADER_LEN;
 
       buf->fill(udp_hdr_len + PRELOAD_HEADER_LEN);
 
       writeBuffer(buf);
 
-      if (TCP_BLAST == blast.type) {
+
+      if (proto == TCP_BLAST) {
         setup_object_header(reader->start(), reader->read_avail(), true);
         g_conn_table->append(url_head->child_ip, buf, reader);
         free();
       } else {
+
         IOBufferBlock *block = buf->get_current_block();
         ink_assert(reader->read_avail() == block->read_avail());
         setup_udp_header(block->start(), get_udp_seq_no(), 0, true);
         setup_object_header(block->start() + PRELOAD_UDP_HEADER_LEN, block->read_avail() - PRELOAD_UDP_HEADER_LEN, true);
 
-        IpEndpoint saddr;
-        ats_ip_copy(&saddr, &url_head->url_multicast_ip) ||
-          ats_ip_copy(&saddr, &url_head->child_ip);
-        ats_ip_port_cast(&saddr.sa) = htons(prefetch_config.stuffer_port);
+        struct sockaddr_in saddr;
+        saddr.sin_family = AF_INET;
+        saddr.sin_port = htons(prefetch_config.stuffer_port);
+        if (url_head->url_multicast_ip)
+          saddr.sin_addr.s_addr = url_head->url_multicast_ip;
+        else
+          saddr.sin_addr.s_addr = url_head->child_ip;
+        //saddr.sin_addr.s_addr = htonl((209<<24)|(131<<16)|(60<<8)|243);
+        //saddr.sin_addr.s_addr = htonl((209<<24)|(131<<16)|(48<<8)|52);
 
-        udpNet.sendto_re(this, NULL, prefetch_udp_fd, &saddr.sa, sizeof(saddr), block, block->read_avail());
+        udpNet.sendto_re(this, NULL, prefetch_udp_fd, (sockaddr *) & saddr, sizeof(saddr), block, block->read_avail());
       }
       break;
     }
@@ -959,7 +963,7 @@ PrefetchBlaster::init(PrefetchUrlEntry *entry, HTTPHdr *req_hdr, PrefetchTransfo
     char *topurl = req_hdr->url_get()->string_get(NULL, &topurl_len);
     if (topurl) {
       request->value_set(MIME_FIELD_REFERER, MIME_LEN_REFERER, topurl, topurl_len);
-      ats_free(topurl);
+      xfree(topurl);
     }
   }
 
@@ -991,16 +995,20 @@ PrefetchBlaster::init(PrefetchUrlEntry *entry, HTTPHdr *req_hdr, PrefetchTransfo
                       p_trans->domain_start, p_trans->domain_end,
                       p_trans->host_start, p_trans->host_len, p_trans->no_dot_in_host);
 
-  // FIXME? ip_len is pretty useless here.
   int ip_len;
   const char *ip_str;
   if (IS_RECURSIVE_PREFETCH(entry->req_ip) &&
       (ip_str = request->value_get(MIME_FIELD_CLIENT_IP, MIME_LEN_CLIENT_IP, &ip_len))) {
-    ip_text_buffer b;
     //this is a recursive prefetch. get child ip address from
     //Client-IP header
-    ink_strlcpy(b, ip_str, sizeof(b));
-    ats_ip_pton(b, &entry->child_ip.sa);
+    if (ip_len > 15)
+      ip_len = 15;
+
+    char ip_buf[16];
+    strncpy(ip_buf, ip_str, ip_len);
+    ip_buf[ip_len] = '\0';
+
+    entry->child_ip = inet_addr(ip_buf);
   } else
     entry->child_ip = entry->req_ip;
 
@@ -1097,11 +1105,12 @@ inline void
 cookie_debug(const char *level, const char *value, int value_len)
 {
   if (is_debug_tag_set("PrefetchCookies")) {
-    char *str = (char *)ats_malloc(value_len + 1);
+    char *str = (char *) xmalloc(value_len + 1);
     memcpy(str, value, value_len);
     str[value_len] = 0;
     Debug("PrefetchCookies", "Processing %s value: %s", level, str);
-    ats_free(str);
+    if (str)
+      xfree(str);
   }
 }
 
@@ -1500,12 +1509,9 @@ PrefetchBlaster::httpClient(int event, void *data)
   switch (event) {
 
   case EVENT_IMMEDIATE:{
-    IpEndpoint target;
-    target.setToLoopback(AF_INET);
-    target.port() = prefetch_config.local_http_server_port;
-    netProcessor.connect_re(this, &target.sa);
-    break;
-  }
+      netProcessor.connect_re(this, htonl((127 << 24) | 1), prefetch_config.local_http_server_port);
+      break;
+    }
 
   case NET_EVENT_OPEN:{
       serverVC = (VConnection *) data;
@@ -1576,7 +1582,7 @@ PrefetchBlaster::bufferObject(int event, void *data)
   case VC_EVENT_READ_READY:
     if (buf->high_water()) {
       //right now we don't handle DEL events on the child
-      Debug("PrefetchBlasterTemp", "The object is bigger than %"PRId64" bytes " "cancelling the url", buf->water_mark);
+      Debug("PrefetchBlasterTemp", "The object is bigger than %d bytes " "cancelling the url", buf->water_mark);
       buf->reset();
       buf->fill(PRELOAD_HEADER_LEN);
       buf->write("DEL ", 4);
@@ -1637,7 +1643,7 @@ PrefetchBlaster::blastObject(int event, void *data)
       break;
     }
 
-    if (data_blast.type == TCP_BLAST) {
+    if (data_proto == TCP_BLAST) {
       g_conn_table->append(url_ent->child_ip, buf, reader);
       buf = 0;
       free();
@@ -1676,18 +1682,15 @@ PrefetchBlaster::blastObject(int event, void *data)
 
       setup_udp_header(io_block->start(), seq_no, n_pkts_sent++, (towrite >= nread_avail));
 
-      IpEndpoint saddr;
-      ats_ip_copy(&saddr.sa,
-        ats_is_ip(&url_ent->data_multicast_ip)
-        ? &url_ent->data_multicast_ip.sa
-        : &url_ent->child_ip.sa
-      );
-      ats_ip_port_cast(&saddr) = htons(prefetch_config.stuffer_port);
+      struct sockaddr_in saddr;
+      saddr.sin_family = AF_INET;
+      saddr.sin_port = htons(prefetch_config.stuffer_port);
+      saddr.sin_addr.s_addr = (url_ent->data_multicast_ip) ? url_ent->data_multicast_ip : url_ent->child_ip;
 
       //saddr.sin_addr.s_addr = htonl((209<<24)|(131<<16)|(60<<8)|243);
       //saddr.sin_addr.s_addr = htonl((209<<24)|(131<<16)|(48<<8)|52);
 
-      udpNet.sendto_re(this, NULL, prefetch_udp_fd, &saddr.sa, sizeof(saddr), io_block, io_block->read_avail());
+      udpNet.sendto_re(this, NULL, prefetch_udp_fd, (sockaddr *) & saddr, sizeof(saddr), io_block, io_block->read_avail());
     }
     break;
 
@@ -1706,8 +1709,8 @@ PrefetchBlaster::invokeBlaster()
   int ret = (cache_http_info && !prefetch_config.push_cached_objects)
     ? TS_PREFETCH_DISCONTINUE : TS_PREFETCH_CONTINUE;
 
-  PrefetchBlastData url_blast = prefetch_config.default_url_blast;
-  data_blast = prefetch_config.default_data_blast;
+  unsigned int url_proto = prefetch_config.default_url_proto;
+  data_proto = prefetch_config.default_data_proto;
 
   if (prefetch_config.embedded_url_hook) {
 
@@ -1725,27 +1728,27 @@ PrefetchBlaster::invokeBlaster()
     info.client_ip = url_ent->child_ip;
     info.embedded_url = url_ent->url;
     info.present_in_cache = (cache_http_info != NULL);
-    info.url_blast = url_blast;
-    info.url_response_blast = data_blast;
+    info.url_proto = url_proto;
+    info.url_response_proto = data_proto;
 
     ret = (*prefetch_config.embedded_url_hook)
       (TS_PREFETCH_EMBEDDED_URL_HOOK, &info);
 
-    url_blast = info.url_blast;
-    data_blast = info.url_response_blast;
+    url_proto = info.url_proto;
+    data_proto = info.url_response_proto;
 
     url_ent->object_buf_status = info.object_buf_status;
   }
 
   if (ret == TS_PREFETCH_CONTINUE) {
 
-    if (MULTICAST_BLAST == url_blast.type)
-      ats_ip_copy(&url_ent->url_multicast_ip.sa, &url_blast.ip.sa);
-    if (MULTICAST_BLAST == data_blast.type)
-      ats_ip_copy(&url_ent->data_multicast_ip.sa, &data_blast.ip.sa);
+    if (url_proto != TCP_BLAST && url_proto != UDP_BLAST)
+      url_ent->url_multicast_ip = url_proto;
+    if (data_proto != TCP_BLAST && data_proto != UDP_BLAST)
+      url_ent->data_multicast_ip = data_proto;
 
     if (url_ent->object_buf_status != TS_PREFETCH_OBJ_BUF_NEEDED) {
-      if (url_blast.type == TCP_BLAST)
+      if (url_proto == TCP_BLAST)
         url_list = transform->tcp_url_list;
       else
         url_list = transform->udp_url_list;
@@ -1787,22 +1790,23 @@ PrefetchBlaster::initCacheLookupConfig()
 }
 
 static int
-config_read_proto(PrefetchBlastData &blast, const char *str)
+config_read_proto(unsigned int &proto, const char *str)
 {
   if (strncasecmp(str, "udp", 3) == 0)
-    blast.type = UDP_BLAST;
+    proto = UDP_BLAST;
   else if (strncasecmp(str, "tcp", 3) == 0)
-    blast.type = TCP_BLAST;
+    proto = TCP_BLAST;
   else {                        // this is a multicast address:
     if (strncasecmp("multicast:", str, 10) == 0) {
-      if (0 != ats_ip_pton(str, &blast.ip.sa)) {
+      unsigned int ip[4];
+      // coverity[secure_coding]
+      if (sscanf(str + 10, "%u.%u.%u.%u", &ip[0], &ip[1], &ip[2], &ip[3]) < 4) {
         Error("PrefetchProcessor: Address specified for multicast does not seem to "
               "be of the form multicast:ip_addr (eg: multicast:224.0.0.1)");
         return 1;
       } else {
-        ip_text_buffer ipb;
-        blast.type = MULTICAST_BLAST;
-        Debug("Prefetch", "Setting multicast address: %s\n", ats_ip_ntop(&blast.ip.sa, ipb, sizeof(ipb)));
+        proto = htonl(((ip[0] & 0xff) << 24) | ((ip[1] & 0xff) << 16) | ((ip[2] & 0xff) << 8) | (ip[3] & 0xff));
+        Debug("Prefetch", "Setting multicast address: %d.%d.%d.%d\n", ip[0], ip[1], ip[2], ip[3]);
       }
     } else {
       Error("PrefetchProcessor: The protocol for Prefetch should of the form: " "tcp or udp or multicast:ip_address");
@@ -1827,7 +1831,7 @@ PrefetchConfiguration::readConfiguration()
     return 0;
   }
 
-  local_http_server_port = HttpProxyPort::findHttp(AF_INET)->m_port;
+  TS_ReadConfigInteger(local_http_server_port, "proxy.config.http.server_port");
   TS_ReadConfigInteger(stuffer_port, "proxy.config.prefetch.child_port");
   TS_ReadConfigInteger(url_buffer_size, "proxy.config.prefetch.url_buffer_size");
   TS_ReadConfigInteger(url_buffer_timeout, "proxy.config.prefetch.url_buffer_timeout");
@@ -1844,11 +1848,11 @@ PrefetchConfiguration::readConfiguration()
   TS_ReadConfigInteger(redirection, "proxy.config.prefetch.redirection");
 
   char *tstr = TS_ConfigReadString("proxy.config.prefetch.default_url_proto");
-  if (config_read_proto(default_url_blast, tstr))
+  if (config_read_proto(default_url_proto, tstr))
     goto Lerror;
 
   tstr = TS_ConfigReadString("proxy.config.prefetch.default_data_proto");
-  if (config_read_proto(default_data_blast, tstr))
+  if (config_read_proto(default_data_proto, tstr))
     goto Lerror;
 
   //pre_parse_hook = 0;
@@ -1860,8 +1864,9 @@ PrefetchConfiguration::readConfiguration()
     Warning("PrefetchProcessor: No prefetch configuration file specified. Prefetch disabled\n");
     goto Lerror;
   }
-  Layout::relative_to(conf_path, sizeof(conf_path), system_config_directory, conf_file_name);
-  ats_free(conf_file_name);
+  Layout::relative_to(conf_path, sizeof(conf_path),
+                      system_config_directory, conf_file_name);
+  xfree(conf_file_name);
 
   fd = open(conf_path, O_RDONLY);
   if (fd < 0) {
@@ -1870,9 +1875,9 @@ PrefetchConfiguration::readConfiguration()
   }
 
   char *temp_str;
-  if ((temp_str = Load_IpMap_From_File(&ip_map, fd, "prefetch_children")) != 0) {
+  if ((temp_str = ip_range.read_table_from_file(fd, "prefetch_children", FALSE)) != 0) {
     Error("PrefetchProcessor: Error in reading ip_range from %s: %.256s\n", conf_path, temp_str);
-    ats_free(temp_str);
+    xfree(temp_str);
     goto Lerror;
   }
 
@@ -1920,21 +1925,21 @@ PrefetchConfiguration::readHtmlTags(int fd, html_tag ** ptags, html_tag ** pattr
     // coverity[secure_coding]
     if ((num = sscanf(buf, " html_tag %63s %63s %63s %63s", tag, attr, attr_tag, attr_attr)) >= 2) {
       Debug("Prefetch", "Read html_tag: %s %s\n", tag, attr);
-      tags[ntags].tag = ats_strdup(tag);
-      tags[ntags].attr = ats_strdup(attr);
+      tags[ntags].tag = xstrdup(tag);
+      tags[ntags].attr = xstrdup(attr);
       if (num >= 4) {
         if (!attrs_exist)
           attrs_exist = true;
-        attrs[ntags].tag = ats_strdup(attr_tag);
-        attrs[ntags].tag = ats_strdup(attr_attr);
+        attrs[ntags].tag = xstrdup(attr_tag);
+        attrs[ntags].tag = xstrdup(attr_attr);
       }
       ntags++;
     }
   }
 
   if (ntags > 0) {
-    html_tag *xtags = (html_tag *)ats_malloc((ntags + 3) * sizeof(html_tag));
-
+    html_tag *xtags = (html_tag *) xmalloc((ntags + 3) * sizeof(html_tag));
+    ink_assert(xtags);
     memcpy(xtags, &tags[0], ntags * sizeof(tags[0]));
     //the following two are always added
     xtags[ntags].tag = "base";
@@ -1945,7 +1950,7 @@ PrefetchConfiguration::readHtmlTags(int fd, html_tag ** ptags, html_tag ** pattr
 
     *ptags = xtags;
     if (attrs_exist) {
-      html_tag *xattrs = (html_tag *)ats_malloc((ntags + 3) * sizeof(html_tag));
+      html_tag *xattrs = (html_tag *) xmalloc((ntags + 3) * sizeof(html_tag));
       memcpy(xattrs, &attrs[0], 256 * sizeof(html_tag));
       *pattrs = xattrs;
     } else
@@ -1961,9 +1966,11 @@ PrefetchConfiguration::readHtmlTags(int fd, html_tag ** ptags, html_tag ** pattr
 
 #define CONN_ARR_SIZE 256
 inline int
-KeepAliveConnTable::ip_hash(IpEndpoint const& ip)
+KeepAliveConnTable::ip_hash(unsigned int ip)
 {
-  return ats_ip_hash(&ip.sa) & (CONN_ARR_SIZE - 1);
+  unsigned char *ip_str = (unsigned char *) &ip;
+
+  return (ip_str[0] ^ ip_str[1] ^ ip_str[2] ^ ip_str[3]) & (CONN_ARR_SIZE - 1);
 }
 
 inline int
@@ -2005,7 +2012,7 @@ KeepAliveConnTable::free()
 ClassAllocator<KeepAliveLockHandler> prefetchLockHandlerAllocator("prefetchLockHandlerAllocator");
 
 int
-KeepAliveConnTable::append(IpEndpoint const& ip, MIOBuffer *buf, IOBufferReader *reader)
+KeepAliveConnTable::append(unsigned int ip, MIOBuffer *buf, IOBufferReader *reader)
 {
   int index = ip_hash(ip);
 
@@ -2025,7 +2032,7 @@ KeepAliveConnTable::append(IpEndpoint const& ip, MIOBuffer *buf, IOBufferReader 
 
   KeepAliveConn **conn = &arr[index].conn;
 
-  while (*conn && ! ats_ip_addr_eq(&(*conn)->ip, &ip))
+  while (*conn && (*conn)->ip != ip)
     conn = &(*conn)->next;
 
   if (*conn) {
@@ -2040,7 +2047,7 @@ KeepAliveConnTable::append(IpEndpoint const& ip, MIOBuffer *buf, IOBufferReader 
 }
 
 int
-KeepAliveConn::init(IpEndpoint const& xip, MIOBuffer *xbuf, IOBufferReader *xreader)
+KeepAliveConn::init(unsigned int xip, MIOBuffer *xbuf, IOBufferReader *xreader)
 {
   mutex = g_conn_table->arr[KeepAliveConnTable::ip_hash(xip)].mutex;
 
@@ -2059,7 +2066,7 @@ KeepAliveConn::init(IpEndpoint const& xip, MIOBuffer *xbuf, IOBufferReader *xrea
   SET_HANDLER(&KeepAliveConn::handleEvent);
 
   //we are already under lock
-  netProcessor.connect_re(this, &ip.sa);
+  netProcessor.connect_re(this, ip, prefetch_config.stuffer_port);
 
   return 0;
 }
@@ -2097,8 +2104,6 @@ KeepAliveConn::free()
 int
 KeepAliveConn::handleEvent(int event, void *data)
 {
-  ip_text_buffer ipb;
-
   switch (event) {
 
   case NET_EVENT_OPEN:
@@ -2114,7 +2119,7 @@ KeepAliveConn::handleEvent(int event, void *data)
     break;
 
   case NET_EVENT_OPEN_FAILED:
-    Debug("PrefetchKeepAlive", "Connection to child %s failed\n", ats_ip_ntop(&ip.sa, ipb, sizeof(ipb)));
+    Debug("PrefetchKeepAlive", "Connection to child %u.%u.%u.%u failed\n", IPSTRARGS(ip));
     free();
     break;
 
@@ -2143,7 +2148,7 @@ KeepAliveConn::handleEvent(int event, void *data)
     break;
 
   case VC_EVENT_ERROR:
-    Debug("PrefetchKeepAlive", "got VC_ERROR.. connection problem? " "(ip: %s)", ats_ip_ntop(&ip.sa, ipb, sizeof(ipb)));
+    Debug("PrefetchKeepAlive", "got VC_ERROR.. connection problem? " "(ip: %u.%u.%u.%u)", IPSTRARGS(ip));
     free();
     break;
 

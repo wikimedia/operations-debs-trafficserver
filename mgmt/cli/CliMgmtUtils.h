@@ -1,6 +1,6 @@
 /** @file
 
-  This file declares various utility functions which call the TSMgmtAPI.
+  A brief file description
 
   @section license License
 
@@ -21,7 +21,19 @@
   limitations under the License.
  */
 
+/****************************************************************
+ * Filename: CliMgmtUtils.h
+ * Purpose: This file declares various utility functions which
+ *          call the TSMgmtAPI.
+ *
+ *
+ ****************************************************************/
+
 #include "mgmtapi.h"
+
+#define PATH_NAME_MAX         511 // instead of PATH_MAX which is inconsistent
+                                  // on various OSs (linux-4096,osx/bsd-1024,
+                                  //                 windows-260,etc)
 
 #define RECORD_GET 0
 #define RECORD_SET 1

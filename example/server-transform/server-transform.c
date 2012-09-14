@@ -27,7 +27,8 @@
  *
  *
  *	Usage:
- *	  server-transform.so
+ *	(NT): ServerTransform.dll
+ *	(Solaris): server-transform.so
  *
  *
  */
@@ -54,7 +55,11 @@
 #include <string.h>
 #include <stdio.h>
 
+#if !defined (_WIN32)
 #  include <netinet/in.h>
+#else
+#  include <windows.h>
+#endif
 
 #include <ts/ts.h>
 
@@ -100,7 +105,11 @@ static int transform_read_event(TSCont contp, TransformData * data, TSEvent even
 static int transform_bypass_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
 static int transform_handler(TSCont contp, TSEvent event, void *edata);
 
+#if !defined (_WIN32)
 static in_addr_t server_ip;
+#else
+static unsigned int server_ip;
+#endif
 
 static int server_port;
 
@@ -162,7 +171,6 @@ transform_connect(TSCont contp, TransformData * data)
 {
   TSAction action;
   int content_length;
-  struct sockaddr_in ip_addr;
 
   data->state = STATE_CONNECT;
 
@@ -197,14 +205,7 @@ transform_connect(TSCont contp, TransformData * data)
     return 0;
   }
 
-  /* TODO: This only supports IPv4, probably should be changed at some point, but
-     it's an example ... */
-  memset(&ip_addr, 0, sizeof(ip_addr));
-  ip_addr.sin_family = AF_INET;
-  ip_addr.sin_addr.s_addr = server_ip; /* Should be in network byte order */
-  ip_addr.sin_port = server_port;
-  action = TSNetConnect(contp, (struct sockaddr const*)&ip_addr);
-
+  action = TSNetConnect(contp, server_ip, server_port);
   if (!TSActionDone(action)) {
     data->pending_action = action;
   }

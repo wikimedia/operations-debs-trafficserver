@@ -118,9 +118,10 @@ DiagsConfig::reconfigure_diags()
     all_found = all_found && found;
     if (found) {
       parse_output_string(p, &(c.outputs[l]));
-      ats_free(p);
+      xfree(p);
     } else {
-      diags->print(NULL, DTA(DL_Error), "can't find config variable '%s'\n", record_name);
+      SrcLoc loc(__FILE__, __FUNCTION__, __LINE__);
+      diags->print(NULL, DL_Error, NULL, &loc, "can't find config variable '%s'\n", record_name);
     }
   }
 
@@ -138,7 +139,8 @@ DiagsConfig::reconfigure_diags()
   ///////////////////////////////////////////////////////////////////
 
   if (!all_found) {
-    diags->print(NULL, DTA(DL_Error), "couldn't fetch all proxy.config.diags values");
+    SrcLoc loc(__FILE__, __FUNCTION__, __LINE__);
+    diags->print(NULL, DL_Error, NULL, &loc, "couldn't fetch all proxy.config.diags values");
   } else {
     //////////////////////////////
     // clear out old tag tables //
@@ -162,14 +164,17 @@ DiagsConfig::reconfigure_diags()
 #else
     memcpy(((void *) &diags->config), ((void *) &c), sizeof(DiagsConfigState));
 #endif
-    diags->print(NULL, DTA(DL_Note), "updated diags config");
+    diags->print(NULL, DL_Note, NULL, NULL, "updated diags config");
   }
 
   ////////////////////////////////////
   // free the record.config strings //
   ////////////////////////////////////
-  ats_free(dt);
-  ats_free(at);
+
+  if (dt)
+    xfree(dt);
+  if (at)
+    xfree(at);
 }
 
 
@@ -339,11 +344,12 @@ DiagsConfig::DiagsConfig(char *bdt, char *bat, bool use_records)
 
   diags = NEW(new Diags(bdt, bat, diags_log_fp));
   if (diags_log_fp == NULL) {
+    SrcLoc loc(__FILE__, __FUNCTION__, __LINE__);
 
-    diags->print(NULL, DTA(DL_Warning),
+    diags->print(NULL, DL_Warning, NULL, &loc,
                  "couldn't open diags log file '%s', " "will not log to this file", diags_logpath);
   }
-  diags->print(NULL, DTA(DL_Status), "opened %s", diags_logpath);
+  diags->print(NULL, DL_Status, "STATUS", NULL, "opened %s", diags_logpath);
 
   register_diags_callbacks();
 
@@ -394,14 +400,14 @@ DiagsConfig::register_diags_callbacks()
   for (i = 0; config_record_names[i] != NULL; i++) {
     status = (REC_RegisterConfigUpdateFunc(config_record_names[i], diags_config_callback, o) == REC_ERR_OKAY);
     if (!status) {
-      diags->print(NULL, DTA(DL_Warning),
+      diags->print(NULL, DL_Warning, NULL, NULL,
                    "couldn't register variable '%s', is records.config up to date?", config_record_names[i]);
     }
     total_status = total_status && status;
   }
 
   if (total_status == FALSE) {
-    diags->print(NULL, DTA(DL_Error), "couldn't setup all diags callbacks, diagnostics may misbehave");
+    diags->print(NULL, DL_Error, NULL, NULL, "couldn't setup all diags callbacks, diagnostics may misbehave");
     callbacks_established = false;
   } else {
     callbacks_established = true;
@@ -416,4 +422,5 @@ DiagsConfig::~DiagsConfig()
     diags_log_fp = NULL;
   }
   delete diags;
+//  xfree(diags);
 }

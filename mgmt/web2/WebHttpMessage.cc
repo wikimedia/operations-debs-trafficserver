@@ -159,7 +159,7 @@ httpMessage::addRequestLine(char *request)
 
   // Make a copy of the string so that we
   //   log it later
-  client_request = ats_strdup(request);
+  client_request = xstrdup(request);
   requestLen = strlen(client_request);
   if (requestLen > 0 && client_request[requestLen - 1] == '\r') {
     client_request[requestLen - 1] = '\0';
@@ -223,7 +223,7 @@ httpMessage::addRequestLine(char *request)
   //  of the URI along with the query if any
   unsigned int amtToAllocate = strlen(URI) + 1;
   file = new char[amtToAllocate];
-  ink_strlcpy(file, URI, amtToAllocate + 1);
+  ink_strncpy(file, URI, amtToAllocate);
   tmp = strstr(file, "?");
   if (tmp != NULL) {
     // There is a form submission
@@ -260,24 +260,24 @@ httpMessage::addHeader(char *hdr)
   } else if (strncasecmp("Referer:", hdrName, 8) == 0) {
       unsigned int amtToAllocate = strlen(hdrArg1);
       referer = new char[amtToAllocate + 1];
-      ink_strlcpy(referer, hdrArg1, amtToAllocate + 1);
+      ink_strncpy(referer, hdrArg1, amtToAllocate);
   } else if (strncasecmp("Content-type:", hdrName, 13) == 0) {
     unsigned int amtToAllocate = strlen(hdrArg1);
     conType_str = new char[amtToAllocate + 1];
-    ink_strlcpy(conType_str, hdrArg1, amtToAllocate + 1);
+    ink_strncpy(conType_str, hdrArg1, amtToAllocate);
   } else if (strncasecmp("Authorization:", hdrName, 14) == 0) {
     authType = hdrArg1;
     if (strcmp(authType, "Basic") == 0) {
       auth = (*parser)[2];
       len = strlen(auth) + 1;
       authMessage = new char[len];
-      ink_strlcpy(authMessage, auth, len);
+      ink_strncpy(authMessage, auth, len - 1);
     }
   } else if (strncasecmp("If-Modified-Since:", hdrName, 18) == 0) {
     // Disabled due to thread safety issues
     getModDate();
-  }
-}
+      }
+    }
 
 
 // httpMessage::getModDate()
@@ -318,7 +318,7 @@ httpMessage::getModDate()
     // Rebuild the date string from the parsed
     //   stuff
     for (i = 0; i < numDateFields; i++) {
-      ink_strlcat(dateStr, (*parser)[i + 1], dateSize + 1);
+      strncat(dateStr, (*parser)[i + 1], dateSize + numDateFields - strlen(dateStr));
       tmpLen = strlen(dateStr);
       dateStr[tmpLen] = ' ';
       dateStr[tmpLen + 1] = '\0';
@@ -384,13 +384,27 @@ httpMessage::addRequestBody(SocketInfo socketD)
 
 httpMessage::~httpMessage()
 {
-  delete[]body;
-  delete[]file;
-  delete[]referer;
-  delete[]conType_str;
-  delete[]authMessage;
+  if (body != NULL) {
+    delete[]body;
+  }
 
-  ats_free(client_request);
+  if (file != NULL) {
+    delete[]file;
+  }
+
+  if (referer != NULL) {
+    delete[]referer;
+  }
+
+  if (conType_str != NULL) {
+    delete[]conType_str;
+  }
+
+  if (authMessage != NULL) {
+    delete[]authMessage;
+  }
+
+  xfree(client_request);
   delete parser;
 }
 
@@ -425,11 +439,23 @@ httpResponse::httpResponse()
 
 httpResponse::~httpResponse()
 {
-  ats_free(explicitConType);
-  ats_free(authRealm);
-  ats_free(refreshURL);
-  ats_free(locationURL);
-  ats_free(dateResponse);
+  if (explicitConType != NULL) {
+    xfree(explicitConType);
+  }
+
+  if (authRealm != NULL) {
+    xfree(authRealm);
+  }
+
+  if (refreshURL != NULL) {
+    xfree(refreshURL);
+  }
+
+  if (locationURL != NULL) {
+    xfree(locationURL);
+  }
+
+  xfree(dateResponse);
 }
 
 int
@@ -491,7 +517,7 @@ httpResponse::writeHdr(SocketInfo socketD)
   hdr.copyFrom(dateStr, strlen(dateStr));
   hdr.copyFrom(buffer, strlen(buffer));
   hdr.copyFrom("\r\n", 2);
-  dateResponse = ats_strdup(buffer);
+  dateResponse = xstrdup(buffer);
 
   // Not cachable if marked not cachable, or has no L-M date
   if ((getCachable() == 0) || (lastMod == -1)) {
@@ -540,7 +566,7 @@ void
 httpResponse::setContentType(const char *str)
 {
   if (str != NULL) {
-    explicitConType = ats_strdup(str);
+    explicitConType = xstrdup(str);
   }
 }
 
@@ -548,7 +574,7 @@ void
 httpResponse::setRealm(const char *realm)
 {
   if (realm != NULL) {
-    authRealm = ats_strdup(realm);
+    authRealm = xstrdup(realm);
   }
 }
 
@@ -556,7 +582,7 @@ void
 httpResponse::setRefreshURL(const char *url)
 {
   if (url != NULL) {
-    refreshURL = ats_strdup(url);
+    refreshURL = xstrdup(url);
   }
 }
 
@@ -564,7 +590,7 @@ void
 httpResponse::setLocationURL(const char *url)
 {
   if (url != NULL) {
-    locationURL = ats_strdup(url);
+    locationURL = xstrdup(url);
   }
 }
 

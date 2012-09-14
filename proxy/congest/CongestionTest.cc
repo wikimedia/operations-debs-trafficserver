@@ -383,7 +383,7 @@ struct CCCongestionDBTestCont: public Continuation
   CongestionControlRecord *rule;
   CongestionDB *db;
   int dbsize;
-  CongestionEntry *gen_CongestionEntry(sockaddr const* ip, int congested = 0);
+  CongestionEntry *gen_CongestionEntry(ip_addr_t ip, int congested = 0);
 
 
     CCCongestionDBTestCont(ProxyMutexPtr _mutex, RegressionTest * _test):Continuation(_mutex),
@@ -403,11 +403,12 @@ struct CCCongestionDBTestCont: public Continuation
 };
 
 CongestionEntry *
-CCCongestionDBTestCont::gen_CongestionEntry(sockaddr const* ip, int congested)
+CCCongestionDBTestCont::gen_CongestionEntry(ip_addr_t ip, int congested)
 {
-  char hostname[INET6_ADDRSTRLEN];
+  char *hostname;
+  struct in_addr addr;
   uint64_t key;
-  ats_ip_ntop(ip, hostname, sizeof(hostname));
+  hostname = (addr.s_addr = htonl(ip), inet_ntoa(addr));
   key = make_key(hostname, strlen(hostname), ip, rule->pRecord);
   CongestionEntry *ret = new CongestionEntry(hostname,
                                              ip,
@@ -473,11 +474,7 @@ CCCongestionDBTestCont::mainEvent(int event, Event * e)
   for (i = 0; i < dbsize; i++) {
     if (i % (dbsize / 25) == 0)
       fprintf(stderr, ".");
-
-    IpEndpoint ip;
-    ats_ip4_set(&ip, i + 255);
-    
-    CongestionEntry *tmp = gen_CongestionEntry(&ip.sa);
+    CongestionEntry *tmp = gen_CongestionEntry(i + 255);
     db->addRecord(tmp->m_key, tmp);
   }
   fprintf(stderr, "done\n");
@@ -493,10 +490,7 @@ CCCongestionDBTestCont::mainEvent(int event, Event * e)
   for (i = 0; i < to_add; i++) {
     if (i % (to_add / 25) == 0)
       fprintf(stderr, ".");
-
-    IpEndpoint ip;
-    ats_ip4_set(&ip, i + 255);
-    CongestionEntry *tmp = gen_CongestionEntry(&ip.sa);
+    CongestionEntry *tmp = gen_CongestionEntry(i + 255);
     db->addRecord(tmp->m_key, tmp);
   }
 
@@ -511,11 +505,7 @@ CCCongestionDBTestCont::mainEvent(int event, Event * e)
   for (i = 0; i < to_add; i++) {
     if (i % (to_add / 25) == 0)
       fprintf(stderr, ".");
-
-    IpEndpoint ip;
-    ats_ip4_set(&ip, i + 255);
-    
-    CongestionEntry *tmp = gen_CongestionEntry(&ip.sa, 1);
+    CongestionEntry *tmp = gen_CongestionEntry(i + 255, 1);
     db->addRecord(tmp->m_key, tmp);
   }
   items[2] = get_congest_list();

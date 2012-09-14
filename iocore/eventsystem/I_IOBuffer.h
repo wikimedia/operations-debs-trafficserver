@@ -54,7 +54,10 @@ inkcoreapi extern int64_t max_iobuffer_size;
 extern int64_t default_small_iobuffer_size;
 extern int64_t default_large_iobuffer_size; // matched to size of OS buffers
 
+#if !defined(PURIFY)
+// Define this macro to enable buffer usage tracking.
 #define TRACK_BUFFER_USER
+#endif
 
 enum AllocType
 { NO_ALLOC, FAST_ALLOCATED, XMALLOCED, MEMALIGNED,
@@ -834,7 +837,7 @@ public:
   /**
     Adds by reference len bytes of data pointed to by b to the end
     of the buffer.  b MUST be a pointer to the beginning of  block
-    allocated from the ats_xmalloc() routine. The data will be deallocated
+    allocated from the xmalloc() routine. The data will be deallocated
     by the buffer once all readers on the buffer have consumed it.
 
   */

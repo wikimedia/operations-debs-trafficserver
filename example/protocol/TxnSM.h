@@ -53,6 +53,7 @@ typedef struct _TxnSM
   TSCacheKey q_key;
 
   char *q_server_name;
+  uint32_t q_server_ip;
   int q_server_port;
 
   TSVIO q_client_read_vio;

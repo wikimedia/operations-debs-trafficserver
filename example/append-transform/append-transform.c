@@ -29,7 +29,8 @@
  *
  *
  *    Usage:
- *      append-transform.so <filename>
+ *     (NT): AppendTransform.dll <filename>
+ *     (Solaris): append-transform.so <filename>
  *
  *              <filename> is the name of the file containing the
  *              text to be appended
@@ -87,8 +88,8 @@ handle_transform(TSCont contp)
   TSVConn output_conn;
   TSVIO write_vio;
   MyData *data;
-  int64_t towrite;
-  int64_t avail;
+  int towrite;
+  int avail;
 
   /* Get the output connection where we'll write data to. */
   output_conn = TSTransformOutputVConnGet(contp);
@@ -267,7 +268,11 @@ transformable(TSHttpTxn txnp)
     }
 
     value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &val_length);
+#ifndef _WIN32
     if (value && (strncasecmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
+#else
+    if (value && (strnicmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
+#endif
       ASSERT_SUCCESS(TSHandleMLocRelease(bufp, hdr_loc, field_loc));
       ASSERT_SUCCESS(TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc));
 

@@ -151,6 +151,7 @@ RemapPlugins::run_single_remap()
     int toPathLen;
     int toHostLen;
 
+    map_from->path_get(&fromPathLen);
     toHost = map_to->host_get(&toHostLen);
     toPath = map_to->path_get(&toPathLen);
 
@@ -167,7 +168,6 @@ RemapPlugins::run_single_remap()
     if (to_scheme != map_from->scheme_get(&from_scheme_len))
       _request_url->scheme_set(to_scheme, to_scheme_len);
 
-    map_from->path_get(&fromPathLen);
     requestPath = _request_url->path_get(&requestPathLen);
     // Extra byte is potentially needed for prefix path '/'.
     // Added an extra 3 so that TS wouldn't crash in the field.
@@ -179,7 +179,7 @@ RemapPlugins::run_single_remap()
     unsigned int newPathLenNeed = (requestPathLen - fromPathLen) + toPathLen + 8; // 3 + some padding
 
     if (newPathLenNeed > sizeof(newPathTmp)) {
-      newPath = (newPathAlloc = (char *)ats_malloc(newPathLenNeed));
+      newPath = (newPathAlloc = (char *) xmalloc(newPathLenNeed));
       if (debug_on) {
         memset(newPath, 0, newPathLenNeed);
       }
@@ -193,7 +193,7 @@ RemapPlugins::run_single_remap()
     *newPath = 0;
 
     // Purify load run with QT in a reverse proxy indicated
-    // a UMR/ABR/MSE in the line where we do a *newPath == '/' and the ink_strlcpy
+    // a UMR/ABR/MSE in the line where we do a *newPath == '/' and the strncpy
     // that follows it.  The problem occurs if
     // requestPathLen,fromPathLen,toPathLen are all 0; in this case, we never
     // initialize newPath, but still de-ref it in *newPath == '/' comparison.
@@ -235,7 +235,7 @@ RemapPlugins::run_single_remap()
     _request_url->path_set(newPath, newPathLen);
 
     // TODO: This is horribly wrong and broken, when can this trigger??? Check
-    // above, we already return on _s->remap_redirect ... XXX.
+    // above, we already return on _s->remap_redirect ... 
     if (map->homePageRedirect && fromPathLen == requestPathLen && _s->remap_redirect) {
       URL redirect_url;
 
@@ -270,7 +270,8 @@ RemapPlugins::run_single_remap()
       redirect_url.destroy();
     }
 
-    ats_free(newPathAlloc);
+    if (unlikely(newPathAlloc))
+      xfree(newPathAlloc);
   }
 
 done:

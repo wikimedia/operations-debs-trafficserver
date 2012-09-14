@@ -27,7 +27,7 @@
 class Foo { public:
   int x;
 
-  void foo() {}
+  virtual void foo() {}
 
   SLINK(Foo, slink);
   LINK(Foo, dlink);

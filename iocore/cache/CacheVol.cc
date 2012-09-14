@@ -123,8 +123,8 @@ static char *make_vol_map(Vol *d)
   off_t start_offset = vol_offset_to_offset(d, 0);
   off_t vol_len = vol_relative_length(d, start_offset);
   size_t map_len = (vol_len + (SCAN_BUF_SIZE - 1)) / SCAN_BUF_SIZE;
-  char *vol_map = (char *)ats_malloc(map_len);
-
+  char *vol_map = (char *)xmalloc(map_len);
+  if (!vol_map) return NULL;
   memset(vol_map, 0, map_len);
 
   // Scan directories.
@@ -344,9 +344,9 @@ CacheVC::scanObject(int event, Event * e)
     scan_fix_buffer_offset = partial_object_len;
   } else { // Normal case, where we ended on a object boundary.
     io.aiocb.aio_offset += ((char *)doc - buf->data()) + next_object_len;
-    Debug("cache_scan_truss", "next %p:scanObject %" PRId64, this, (int64_t)io.aiocb.aio_offset);
+    Debug("cache_scan_truss", "next %p:scanObject %lld", this, io.aiocb.aio_offset);
     io.aiocb.aio_offset = next_in_map(vol, scan_vol_map, io.aiocb.aio_offset);
-    Debug("cache_scan_truss", "next_in_map %p:scanObject %" PRId64, this, (int64_t)io.aiocb.aio_offset);
+    Debug("cache_scan_truss", "next_in_map %p:scanObject %lld", this, io.aiocb.aio_offset);
     io.aiocb.aio_nbytes = SCAN_BUF_SIZE;
     io.aiocb.aio_buf = buf->data();
     scan_fix_buffer_offset = 0;
@@ -364,8 +364,8 @@ Lread:
     io.aiocb.aio_nbytes = vol->skip + vol->len - io.aiocb.aio_offset;
   offset = 0;
   ink_assert(ink_aio_read(&io) >= 0);
-  Debug("cache_scan_truss", "read %p:scanObject %" PRId64 " %zu", this,
-        (int64_t)io.aiocb.aio_offset, io.aiocb.aio_nbytes);
+  Debug("cache_scan_truss", "read %p:scanObject %lld %lld", this, 
+    (off_t)io.aiocb.aio_offset, (off_t)io.aiocb.aio_nbytes);
   return EVENT_CONT;
 
 Ldone:

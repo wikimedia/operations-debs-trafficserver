@@ -1,7 +1,6 @@
 /** @file
 
-  Platform specific defines and includes, this is to make the build
-  more portable.
+  A brief file description
 
   @section license License
 
@@ -128,6 +127,9 @@
 #ifdef HAVE_ALLOCA_H
 # include <alloca.h>
 #endif
+#ifdef HAVE_MALLOC_H
+# include <malloc.h>
+#endif
 
 #include <errno.h>
 #include <dirent.h>
@@ -208,9 +210,9 @@ typedef unsigned int in_addr_t;
 
 
 #ifndef PATH_NAME_MAX
-#define PATH_NAME_MAX 4096 // instead of PATH_MAX which is inconsistent
-                           // on various OSs (linux-4096,osx/bsd-1024,
-                           //                 windows-260,etc)
+#define PATH_NAME_MAX 511 // instead of PATH_MAX which is inconsistent
+                          // on various OSs (linux-4096,osx/bsd-1024,
+                          //                 windows-260,etc)
 #endif
 
 #endif /* _ink_platform_h */

@@ -1,6 +1,6 @@
 /** @file
 
-  Proxy Side Include plugin (PSI)
+  A brief file description
 
   @section license License
 
@@ -26,7 +26,8 @@
  *
  *
  *	Usage:
- *	  psi.so
+ * 	(NT): psi.dll
+ *	(Solaris): psi.so
  *
  *  Proxy Side Include plugin (PSI)
  *
@@ -617,6 +618,7 @@ handle_transform(TSCont contp)
   ContData *data;
   TSIOBufferReader input_reader;
   int toread, avail, psi, toconsume, towrite;
+  TSReturnCode retval;
 
   /* Get the output (downstream) vconnection where we'll write data to. */
   output_conn = TSTransformOutputVConnGet(contp);
@@ -667,8 +669,7 @@ handle_transform(TSCont contp)
         data->transform_bytes += towrite;
 
         /* Copy the data from the read buffer to the output buffer. */
-        /* TODO: Should we check the return value of TSIOBufferCopy() ? */
-        TSIOBufferCopy(TSVIOBufferGet(data->output_vio), TSVIOReaderGet(input_vio), towrite, 0);
+        retval = TSIOBufferCopy(TSVIOBufferGet(data->output_vio), TSVIOReaderGet(input_vio), towrite, 0);
         /* Reenable the output connection so it can read the data we've produced. */
         TSVIOReenable(data->output_vio);
       }
@@ -724,13 +725,10 @@ dump_psi(TSCont contp)
 {
   ContData *data;
   int psi_output_len;
-
-  /* TODO: This is odd, do we need to get the input_vio, but never use it ?? */
-#if 0
   TSVIO input_vio;
-  input_vio = TSVConnWriteVIOGet(contp);
-#endif
+  TSReturnCode retval;
 
+  input_vio = TSVConnWriteVIOGet(contp);
   data = TSContDataGet(contp);
   TSAssert(data->magic == MAGIC_ALIVE);
 
@@ -742,8 +740,7 @@ dump_psi(TSCont contp)
       data->transform_bytes += psi_output_len;
 
       TSDebug(DBG_TAG, "Inserting %d bytes from include file", psi_output_len);
-      /* TODO: Should we check the return value of TSIOBufferCopy() ? */
-      TSIOBufferCopy(TSVIOBufferGet(data->output_vio), data->psi_reader, psi_output_len, 0);
+      retval = TSIOBufferCopy(TSVIOBufferGet(data->output_vio), data->psi_reader, psi_output_len, 0);
       /* Consume all the output data */
       TSIOBufferReaderConsume(data->psi_reader, psi_output_len);
 

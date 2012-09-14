@@ -128,7 +128,7 @@ checkWebContext(WebContext * wctx, const char *desc)
   }
 
   defaultFile.copyFrom(wctx->docRoot, strlen(wctx->docRoot));
-  defaultFile.copyFrom("/", 1);
+  defaultFile.copyFrom(DIR_SEP, 1);
   defaultFile.copyFrom(wctx->defaultFile, strlen(wctx->defaultFile));
 
   if (stat(defaultFile.bufPtr(), &fInfo) < 0) {
@@ -172,7 +172,7 @@ newUNIXsocket(char *fpath)
   }
 
   serv_addr.sun_family = AF_UNIX;
-  ink_strlcpy(serv_addr.sun_path, fpath, sizeof(serv_addr.sun_path));
+  ink_strncpy(serv_addr.sun_path, fpath, sizeof(serv_addr.sun_path));
 #if defined(darwin) || defined(freebsd)
   servlen = sizeof(struct sockaddr_un);
 #else
@@ -417,8 +417,8 @@ webIntr_main(void *x)
     int err;
 
     if ((err = stat(autoconfContext.docRoot, &s)) < 0) {
-      ats_free(autoconfContext.docRoot);
-      autoconfContext.docRoot = ats_strdup(system_config_directory);
+      xfree(autoconfContext.docRoot);
+      autoconfContext.docRoot = xstrdup(system_config_directory);
       if ((err = stat(autoconfContext.docRoot, &s)) < 0) {
         mgmt_elog("[WebIntrMain] unable to stat() directory '%s': %d %d, %s\n",
                 autoconfContext.docRoot, err, errno, strerror(errno));
@@ -438,8 +438,8 @@ webIntr_main(void *x)
 
   bzero(api_sock_path, 1024);
   bzero(event_sock_path, 1024);
-  snprintf(api_sock_path, sizeof(api_sock_path), "%s/mgmtapisocket", system_runtime_dir);
-  snprintf(event_sock_path, sizeof(event_sock_path), "%s/eventapisocket", system_runtime_dir);
+  snprintf(api_sock_path, sizeof(api_sock_path), "%s%smgmtapisocket", system_runtime_dir, DIR_SEP);
+  snprintf(event_sock_path, sizeof(event_sock_path), "%s%seventapisocket", system_runtime_dir, DIR_SEP);
 
   // INKqa12562: MgmtAPI sockets should be created with 775 permission
   mode_t oldmask = umask(S_IWOTH);
@@ -506,7 +506,7 @@ webIntr_main(void *x)
     ink_atomic_increment((int32_t *) & numServiceThr, 1);
 
     // coverity[alloc_fn]
-    clientInfo = (struct sockaddr_in *)ats_malloc(sizeof(struct sockaddr_in));
+    clientInfo = (struct sockaddr_in *) xmalloc(sizeof(struct sockaddr_in));
     addrLen = sizeof(struct sockaddr_in);
 
     // coverity[noescape]
@@ -519,7 +519,7 @@ webIntr_main(void *x)
 #endif
       ink_atomic_increment((int32_t *) & numServiceThr, -1);
     } else {                    // Accept succeeded
-      if (safe_setsockopt(clientFD, IPPROTO_TCP, TCP_NODELAY, SOCKOPT_ON, sizeof(int)) < 0) {
+      if (safe_setsockopt(clientFD, IPPROTO_TCP, TCP_NODELAY, ON, sizeof(int)) < 0) {
         mgmt_log(stderr, "[WebIntrMain]Failed to set sock options: %s\n", strerror(errno));
       }
 
@@ -536,7 +536,7 @@ webIntr_main(void *x)
         ink_sem_post(&wGlobals.serviceThrCount);
 #endif
         ink_atomic_increment((int32_t *) & numServiceThr, -1);
-        ats_free(clientInfo);
+        xfree(clientInfo);
         close_socket(clientFD);
       } else {                  // IP is allowed
 
@@ -612,7 +612,7 @@ serviceThrMain(void *info)
     break;
   }
 
-  ats_free(threadInfo->clientInfo);
+  xfree(threadInfo->clientInfo);
 
   // Mark ourselves ready to be reaped
   ink_mutex_acquire(&wGlobals.serviceThrLock);

@@ -41,7 +41,6 @@
 #include "InkAPIInternal.h"
 #include "StatSystem.h"
 #include "HttpClientSession.h"
-#include "HdrUtils.h"
 //#include "AuthHttpAdapter.h"
 
 /* Enable LAZY_BUF_ALLOC to delay allocation of buffers until they
@@ -219,11 +218,7 @@ public:
   // setup Range transfomration if so.
   // return true when the Range is unsatisfiable
   void do_range_setup_if_necessary();
-  
-  void do_range_parse(MIMEField *range_field);
-  void calculate_output_cl(int64_t, int64_t);
-  void parse_range_and_compare(MIMEField*, int64_t);
-  
+
   // Called by transact to prevent reset problems
   //  failed PUSH requests
   void set_ua_half_close_flag();
@@ -275,7 +270,6 @@ public:
   int redirection_tries;        //To monitor number of redirections
   int64_t transfered_bytes;         //Added to calculate POST data
   bool post_failed;             //Added to identify post failure
-  bool debug_on;              //Transaction specific debug flag
 
   // Tunneling request to plugin
   HttpPluginTunnel_t plugin_tunnel_type;
@@ -478,8 +472,6 @@ public:
   int64_t server_response_body_bytes;
   int client_response_hdr_bytes;
   int64_t client_response_body_bytes;
-  int cache_response_hdr_bytes;
-  int64_t cache_response_body_bytes;
   int pushed_response_hdr_bytes;
   int64_t pushed_response_body_bytes;
   TransactionMilestones milestones;
@@ -517,9 +509,6 @@ protected:
 
 public:
   LINK(HttpSM, debug_link);
-
-public:
-  bool set_server_session_private(bool private_session);
 };
 
 //Function to get the cache_sm object - YTS Team, yamsat

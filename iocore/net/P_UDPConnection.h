@@ -46,7 +46,7 @@ public:
   int refcount;               // public for assertion
 
   SOCKET fd;
-  IpEndpoint binding;
+  struct sockaddr_in binding;
   int binding_valid;
   int tobedestroyed;
   int sendGenerationNum;
@@ -97,10 +97,7 @@ UDPConnectionInternal::UDPConnectionInternal()
 TS_INLINE
 UDPConnectionInternal::~UDPConnectionInternal()
 {
-  // TODO: This is not necessary, and should be removed with the
-  // elimination of UDP bandwidth limiting (used by long since
-  // removed UDP protocols). See bug TS-1067.
-  // udpNet.FreeBandwidth(this);
+  udpNet.FreeBandwidth(this);
   continuation = NULL;
   mutex = NULL;
 }
@@ -113,18 +110,18 @@ UDPConnection::getFd()
 }
 
 TS_INLINE void
-UDPConnection::setBinding(struct sockaddr const* s)
+UDPConnection::setBinding(struct sockaddr_in *s)
 {
   UDPConnectionInternal *p = (UDPConnectionInternal *) this;
-  ats_ip_copy(&p->binding, s);
+  memcpy(&p->binding, s, sizeof(p->binding));
   p->binding_valid = 1;
 }
 
 TS_INLINE int
-UDPConnection::getBinding(struct sockaddr *s)
+UDPConnection::getBinding(struct sockaddr_in *s)
 {
   UDPConnectionInternal *p = (UDPConnectionInternal *) this;
-  ats_ip_copy(s, &p->binding);
+  memcpy(s, &p->binding, sizeof(*s));
   return p->binding_valid;
 }
 
@@ -168,7 +165,7 @@ UDPConnection::GetSendGenerationNumber()
 TS_INLINE int
 UDPConnection::getPortNum(void)
 {
-  return ats_ip_port_host_order(&static_cast<UDPConnectionInternal *>(this)->binding);
+  return ((UDPConnectionInternal *) this)->binding.sin_port;
 }
 
 TS_INLINE int64_t

@@ -18,11 +18,7 @@
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
-  -I$(top_builddir)/proxy \
-  -I$(top_builddir)/proxy/api/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/preparse \
@@ -41,9 +37,12 @@ libhttp_remap_a_SOURCES = \
   RemapPlugins.h \
   RemapProcessor.cc \
   RemapProcessor.h \
+  StringHash.cc \
+  StringHash.h \
   UrlMapping.cc \
   UrlMapping.h \
   UrlRewrite.cc \
   UrlRewrite.h \
+  Trie.h \
   UrlMappingPathIndex.h \
   UrlMappingPathIndex.cc

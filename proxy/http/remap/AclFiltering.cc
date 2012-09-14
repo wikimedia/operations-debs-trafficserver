@@ -34,7 +34,7 @@ acl_filter_rule::reset(void)
 {
   int i;
   for (i = (argc = 0); i < ACL_FILTER_MAX_ARGV; i++) {
-    argv[i] = (char *)ats_free_null(argv[i]);
+    argv[i] = (char *) xfree_null(argv[i]);
   }
   for (i = (method_cnt = 0); i < ACL_FILTER_MAX_METHODS; i++) {
     method_array[i] = 0;
@@ -50,7 +50,7 @@ acl_filter_rule::reset(void)
 acl_filter_rule::acl_filter_rule():next(NULL), filter_name_size(0), filter_name(NULL), allow_flag(1),
 method_valid(0), src_ip_valid(0), active_queue_flag(0), argc(0)
 {
-  ink_zero(argv);
+  memset(argv, 0, sizeof(argv));
   reset();
 }
 
@@ -66,7 +66,7 @@ acl_filter_rule::add_argv(int _argc, char *_argv[])
   int real_cnt = 0;
   if (likely(_argv)) {
     for (int i = 0; i < _argc && argc < ACL_FILTER_MAX_ARGV; i++) {
-      if (likely(_argv[i] && (argv[argc] = ats_strdup(_argv[i])) != NULL)) {
+      if (likely(_argv[i] && (argv[argc] = xstrdup(_argv[i])) != NULL)) {
         real_cnt++;
         argc++;
       }
@@ -79,8 +79,8 @@ int
 acl_filter_rule::name(const char *_name)
 {
   filter_name_size = 0;
-  filter_name = (char *)ats_free_null(filter_name);
-  if (_name && _name[0] && (filter_name = ats_strdup(_name)) != NULL) {
+  filter_name = (char *) xfree_null(filter_name);
+  if (_name && _name[0] && (filter_name = xstrdup(_name)) != NULL) {
     filter_name_size = strlen(filter_name);
   }
   return filter_name_size;
@@ -100,11 +100,10 @@ acl_filter_rule::print(void)
   printf("\n");
   printf("src_ip_cnt=%d\n", src_ip_cnt);
   for (i = 0; i < src_ip_cnt; i++) {
-    ip_text_buffer b1, b2;
-    printf("%s - %s"
-      , ats_ip_ntop(&src_ip_array[i].start.sa, b1, sizeof(b1))
-      , ats_ip_ntop(&src_ip_array[i].end.sa, b2, sizeof(b2))
-    );
+    struct in_addr in;
+    in.s_addr = htonl((uint32_t) src_ip_array[i].start);
+    in.s_addr = htonl((uint32_t) src_ip_array[i].end);
+    printf(" - %s\n", inet_ntoa(in));
   }
   for (i = 0; i < argc; i++) {
     printf("argv[%d] = \"%s\"\n", i, argv[i]);

@@ -28,7 +28,6 @@
 # include <stdarg.h>
 # include <errno.h>
 # include <TsErrataUtil.h>
-# include "ink_string.h"
 
 namespace ts { namespace msg {
 
@@ -39,7 +38,8 @@ Errata::Code DEBUG = 0; /// Debugging information.
 
 # if defined(_MSC_VER)
 char* strerror_r(int err, char* s, size_t n) {
-    ink_strlcpy(s, strerror(err), n);
+    strncpy(s, strerror(err), n-1);
+    s[n-1] = 0; // guarantee null termination.
     return s;
 }
 
@@ -139,10 +139,8 @@ vlogf_errno(Errata& errata, Errata::Id id, Errata::Code code, char const* format
   char t_buffer[T_SIZE];
   
   n = vsnprintf(t_buffer, T_SIZE, format, rest);
-  if (0 <= n && n < T_SIZE) { // still have room.
-    strerror_r(e, e_buffer, E_SIZE);
-    n += snprintf(t_buffer + n, T_SIZE - n, "[%d] %s", e, e_buffer);
-  }
+  if (0 <= n && n < T_SIZE) // still have room.
+    n += snprintf(t_buffer + n, T_SIZE - n, "[%d] %s", e, strerror_r(e, e_buffer, E_SIZE));
   errata.push(id, code, t_buffer);
   return errata;
 }

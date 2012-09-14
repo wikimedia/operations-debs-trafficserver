@@ -127,19 +127,6 @@ enum ShutdownHowTo_t
   IO_SHUTDOWN_READWRITE
 };
 
-/** Used in VConnection::get_data(). */
-enum TSApiDataType
-{
-  TS_API_DATA_READ_VIO = VCONNECTION_API_DATA_BASE,
-  TS_API_DATA_WRITE_VIO,
-  TS_API_DATA_OUTPUT_VC,
-  TS_API_DATA_CLOSED
-};
-
-extern "C" {
-    typedef struct tsapi_vio* TSVIO;
-}
-
 /**
   Base class for the connection classes that provide IO capabilities.
 
@@ -317,6 +304,10 @@ public:
 
     VConnection(ProxyMutex *aMutex);
 
+#if defined (_IOCORE_WIN32_WINNT)
+  virtual void set_nbytes(VIO *vio, int64_t nbytes);
+#endif
+
   /** @deprecated */
   VIO *do_io(int op, Continuation *c = NULL, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0, int data = 0);
 
@@ -407,6 +398,14 @@ struct DummyVConnection: public VConnection
     (void) howto;
     ink_debug_assert(!"VConnection::do_io_shutdown -- " "cannot use default implementation");
   }
+#ifdef _IOCORE_WIN32_WINNT
+  virtual void set_nbytes(VIO *vio, int64_t nbytes)
+  {
+    (void) vio;
+    (void) nbytes;
+    ink_debug_assert(!"DummyVConnection::set_nbytes -- " "cannot use default implementation");
+  }
+#endif
 DummyVConnection(ProxyMutex *m):VConnection(m) {
   }
 };

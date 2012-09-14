@@ -38,7 +38,7 @@ HttpMessageBody::StatusCodeName(HTTPStatus status_code)
   (using malloc), and places the result body in the buffer. The body
   will be NUL terminated.
 
-  The caller must ats_free() the returned object when done.
+  The caller must free() the returned object when done.
 
   The reason string allows you to override the default reason phrase for
   the status code. If it is NULL, the default is used. If format is NULL
@@ -67,17 +67,19 @@ HttpMessageBody::MakeErrorBodyVA(int64_t max_buffer_length,
 
   for (pass = 1; pass <= 2; pass++) {
     if (pass == 2) {
-      ats_free(outbuf);
+      if (outbuf)
+        xfree(outbuf);
       if (output_length > max_buffer_length)
         return (NULL);
       else
-        outbuf = (char *)ats_malloc(output_length);
+        outbuf = (char *) xmalloc(output_length);
     }
 
     l = 0;
     p = outbuf;
 
-    ink_strlcpy(error_title, reason, sizeof(error_title));
+    error_title[sizeof(error_title) - 1] = '\0';
+    strncpy(error_title, reason, sizeof(error_title) - 1);
 
     p = (pass == 1 ? (char *) NULL : &(outbuf[l]));
     l += ink_bsprintf(p, "<HEAD><TITLE>%s</TITLE></HEAD>\n", error_title) - 1;

@@ -30,11 +30,12 @@
 
 class LogCollationBase
 {
+
 protected:
-  // ToDo: Can we we use the stuff from LogSock.h instead??
+
   struct NetMsgHeader
   {
-    int msg_bytes;              // length of the following message
+    int htonl_size;
   };
 
   enum LogCollEvent

@@ -1,6 +1,6 @@
 /** @file
 
-  This file produces Unicorns and Rainbows for the ATS community
+  A brief file description
 
   @section license License
 

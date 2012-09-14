@@ -31,7 +31,6 @@
 #include "HttpDebugNames.h"
 #include "URL.h"
 #include "HdrUtils.h"
-#include <records/I_RecHttp.h>
 //#include "MixtAPIInternal.h"
 
 RecRawStatBlock *update_rsb;
@@ -233,16 +232,17 @@ _offset_hour(0), _interval(0), _max_depth(0), _start_time(0), _expired(0), _sche
 
 UpdateEntry::~UpdateEntry()
 {
-  ats_free(_url);
-  _url = NULL;
-
+  if (_url) {
+    xfree(_url);
+    _url = NULL;
+  }
   if (_URLhandle.valid()) {
     _URLhandle.destroy();
   }
-
-  ats_free(_request_headers);
-  _request_headers = NULL;
-
+  if (_request_headers) {
+    xfree(_request_headers);
+    _request_headers = NULL;
+  }
   // INKqa12891: _http_hdr can be NULL
   if (_http_hdr && _http_hdr->valid()) {
     _http_hdr->destroy();
@@ -282,7 +282,7 @@ UpdateEntry::ValidURL(char *s, char *e)
   _URLhandle.create(NULL);
   err = _URLhandle.parse(&url_start, url_end);
   if (err >= 0) {
-    _url = ats_strdup(s);
+    _url = xstrdup(s);
     return 0;                   // Valid URL
   } else {
     _URLhandle.destroy();
@@ -384,7 +384,7 @@ UpdateEntry::ValidHeaders(char *s, char *e)
 
   // At least 1 valid header exists
 
-  _request_headers = ats_strdup(s);
+  _request_headers = xstrdup(s);
   return 0;                     // OK; > 1 valid headers
 }
 
@@ -505,7 +505,6 @@ UpdateEntry::ValidDepth(char *s, char *e)
   // Note: string 's' is null terminated.
 
   _max_depth = atoi(s);
-
   if ((_max_depth >= MIN_DEPTH) && (_max_depth <= MAX_DEPTH)) {
     return 0;                   // Valid data
   } else {
@@ -532,6 +531,7 @@ UpdateEntry::ComputeScheduleTime()
 {
   ink_hrtime ht;
   time_t cur_time;
+  time_t start_time_delta;
   struct tm cur_tm;
 
   if (_expired) {
@@ -541,24 +541,24 @@ UpdateEntry::ComputeScheduleTime()
       return;
     }
   }
-
   ht = ink_get_based_hrtime();
   cur_time = ht / HRTIME_SECOND;
+  ink_localtime_r(&cur_time, &cur_tm);
 
   if (!_start_time) {
-    time_t zero_hour; // absolute time of offset hour.
+    // Initial case
+    if (cur_tm.tm_hour == _offset_hour) {
+      start_time_delta = 24 * SECONDS_PER_HOUR;
 
-    // Get the current time in a TM struct so we can
-    // zero out the minute and second.
-    ink_localtime_r(&cur_time, &cur_tm);
-    cur_tm.tm_hour = _offset_hour;
-    cur_tm.tm_min = 0;
-    cur_tm.tm_sec = 0;
-    // Now we can find out when the offset hour is today.
-    zero_hour = convert_tm(&cur_tm);
-    // If it's in the future, back up a day and use that as the base.
-    if (zero_hour > cur_time) zero_hour -= 24 * SECONDS_PER_HOUR;
-    _start_time = cur_time + (_interval - ((cur_time - zero_hour) % _interval));
+    } else if (cur_tm.tm_hour < _offset_hour) {
+      start_time_delta = (_offset_hour - cur_tm.tm_hour) * SECONDS_PER_HOUR;
+
+    } else {
+      start_time_delta = ((24 - cur_tm.tm_hour) + _offset_hour) * SECONDS_PER_HOUR;
+    }
+    start_time_delta -= ((cur_tm.tm_min * SECONDS_PER_MIN) + cur_tm.tm_sec);
+    _start_time = cur_time + start_time_delta;
+
   } else {
     // Compute next start time
     _start_time += _interval;
@@ -717,10 +717,14 @@ UpdateConfigManager::~UpdateConfigManager()
 {
 }
 
+static RecInt local_http_server_port = 0;
+
 int
 UpdateConfigManager::init()
 {
   update_rsb = RecAllocateRawStatBlock((int) update_stat_count);
+
+  UpdateEstablishStaticConfigInteger(local_http_server_port, "proxy.config.http.server_port");
 
   _CP_actual = NEW(new UpdateConfigParams);
 
@@ -769,8 +773,8 @@ UpdateConfigManager::init()
   UPDATE_CLEAR_DYN_STAT(update_state_machines_stat);
 
   Debug("update",
-        "Update params: enable %"PRId64" force %"PRId64" rcnt %"PRId64" rint %"PRId64" updates %"PRId64" "
-        "max_sm %"PRId64" mem %"PRId64"",
+        "Update params: enable %d force %d rcnt %d rint %d updates %d "
+        "max_sm %d mem %d",
         _CP_actual->_enabled, _CP_actual->_immediate_update,
         _CP_actual->_retry_count, _CP_actual->_retry_interval,
         _CP_actual->_concurrent_updates, _CP_actual->_max_update_state_machines, _CP_actual->_memory_use_in_mb);
@@ -862,7 +866,7 @@ UpdateConfigManager::ProcessUpdate(int event, Event * e)
 
     if (!(*_CP == *p)) {
       _CP = p;
-      Debug("update", "enable %"PRId64" force %"PRId64" rcnt %"PRId64" rint %"PRId64" updates %"PRId64" state machines %"PRId64" mem %"PRId64"",
+      Debug("update", "enable %d force %d rcnt %d rint %d updates %d mem %d",
             p->_enabled, p->_immediate_update, p->_retry_count,
             p->_retry_interval, p->_concurrent_updates, p->_max_update_state_machines, p->_memory_use_in_mb);
     } else {
@@ -872,7 +876,7 @@ UpdateConfigManager::ProcessUpdate(int event, Event * e)
   }
   // Unknown event, ignore it.
 
-  Debug("update", "ProcessUpdate: Unknown event %d %p", event, e);
+  Debug("update", "ProcessUpdate: Unknown event %d 0x%x", event, e);
   return EVENT_DONE;
 }
 
@@ -883,14 +887,19 @@ UpdateConfigManager::BuildUpdateList()
 
   char ConfigFilePath[PATH_NAME_MAX];
   if (_filename) {
-    ink_strlcpy(ConfigFilePath, system_config_directory, sizeof(ConfigFilePath));
-    ink_strlcat(ConfigFilePath, "/", sizeof(ConfigFilePath));
-    ink_strlcat(ConfigFilePath, _filename, sizeof(ConfigFilePath));
+    ink_strncpy(ConfigFilePath, system_config_directory, sizeof(ConfigFilePath));
+    strncat(ConfigFilePath, "/", sizeof(ConfigFilePath) - strlen(ConfigFilePath) - 1);
+    strncat(ConfigFilePath, _filename, sizeof(ConfigFilePath) - strlen(ConfigFilePath) - 1);
   } else {
     return (UpdateConfigList *) NULL;
   }
 
+#ifdef _WIN32
+  // O_BINARY to avoid translation of CR-LF
+  int fd = open(ConfigFilePath, O_RDONLY | O_BINARY);
+#else
   int fd = open(ConfigFilePath, O_RDONLY);
+#endif
   if (fd < 0) {
     Warning("read update.config, open failed");
     SignalWarning(MGMT_SIGNAL_CONFIG_ERROR, "read update.config, open failed");
@@ -915,10 +924,10 @@ UpdateConfigManager::GetDataLine(int fd, int bufsize, char *buf, int field_delim
     //         does not exist in any data field.
     ////////////////////////////////////////////////////////////////////
 
-    if (0 == bytes_read) {
-      // A comment line, just return.
-      if (*line == '#') return rlen;
-      else if (1 == rlen) continue; // leading blank line, ignore.
+    // Just return data if we have a comment line
+
+    if (!bytes_read && *line == '#') {
+      return rlen;
     }
     bytes_read += rlen;
 
@@ -1666,7 +1675,7 @@ RecursiveHttpGet::RecursiveHttpGetEvent(int event, Event * d)
         } else {
           // Complete remaining UpdateEntry initializations
 
-          ue->_request_headers = ats_strdup(_request_headers);
+          ue->_request_headers = xstrdup(_request_headers);
           ue->BuildHttpRequest();
           ue->Init(1);          // Derived URL
 
@@ -2558,15 +2567,12 @@ ObjectReloadCont::ObjectReloadEvent(int event, void *d)
   switch (_state) {
   case START:
     {
-      IpEndpoint target;
       // Schedule connect to localhost:<proxy port>
       Debug("update-reload", "Connect start id=%d", _request_id);
       _state = ObjectReloadCont::ATTEMPT_CONNECT;
       MUTEX_TRY_LOCK(lock, this->mutex, this_ethread());
       ink_release_assert(lock);
-      target.setToLoopback(AF_INET);
-      target.port() = htons(HttpProxyPort::findHttp(AF_INET)->m_port);
-      _cur_action = netProcessor.connect_re(this, &target.sa);
+      _cur_action = netProcessor.connect_re(this, inet_addr("127.0.0.1"), local_http_server_port);
       return EVENT_DONE;
     }
   case ATTEMPT_CONNECT:

@@ -58,18 +58,15 @@
 #endif
 */
 
+/* #define USE_SPINLOCK_FOR_FREELIST */
+/* #define CHECK_FOR_DOUBLE_FREE */
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif                          /* __cplusplus */
 
   void ink_queue_load_64(void *dst, void *src);
-
-#ifdef __x86_64__
-#define INK_QUEUE_LD64(dst,src) *((uint64_t*)&(dst)) = *((uint64_t*)&(src))
-#else
-#define INK_QUEUE_LD64(dst,src) (ink_queue_load_64((void *)&(dst), (void *)&(src)))
-#endif
 
 /*
  * Generic Free List Manager
@@ -126,7 +123,23 @@ extern "C"
 
   typedef struct
   {
+#if (defined(INK_USE_MUTEX_FOR_FREELISTS) || defined(CHECK_FOR_DOUBLE_FREE))
+    ink_mutex inkfreelist_mutex;
+#endif
+#if (defined(USE_SPINLOCK_FOR_FREELIST) || defined(CHECK_FOR_DOUBLE_FREE))
+    /*
+      This assumes  we will never use anything other than Pthreads
+      on alpha
+    */
+    ink_mutex freelist_mutex;
+    volatile void_p *head;
+#ifdef CHECK_FOR_DOUBLE_FREE
+    volatile void_p *tail;
+#endif
+#else
     volatile head_p head;
+#endif
+
     const char *name;
     uint32_t type_size, chunk_size, count, allocated, offset, alignment;
     uint32_t allocated_base, count_base;
@@ -145,8 +158,29 @@ extern "C"
   inkcoreapi void ink_freelist_init(InkFreeList * fl, const char *name,
                                     uint32_t type_size, uint32_t chunk_size,
                                     uint32_t offset_to_next, uint32_t alignment);
+#if !defined(INK_USE_MUTEX_FOR_FREELISTS)
   inkcoreapi void *ink_freelist_new(InkFreeList * f);
   inkcoreapi void ink_freelist_free(InkFreeList * f, void *item);
+#else                           /* INK_USE_MUTEX_FOR_FREELISTS */
+  inkcoreapi void *ink_freelist_new_wrap(InkFreeList * f);
+  static inline void *ink_freelist_new(InkFreeList * f)
+  {
+    void *retval = NULL;
+
+    ink_mutex_acquire(&(f->inkfreelist_mutex));
+    retval = ink_freelist_new_wrap(f);
+    ink_mutex_release(&(f->inkfreelist_mutex));
+    return retval;
+  }
+
+  inkcoreapi void ink_freelist_free_wrap(InkFreeList * f, void *item);
+  static inline void ink_freelist_free(InkFreeList * f, void *item)
+  {
+    ink_mutex_acquire(&(f->inkfreelist_mutex));
+    ink_freelist_free_wrap(f, item);
+    ink_mutex_release(&(f->inkfreelist_mutex));
+  }
+#endif /* INK_USE_MUTEX_FOR_FREELISTS */
   void ink_freelists_dump(FILE * f);
   void ink_freelists_dump_baselinerel(FILE * f);
   void ink_freelists_snap_baseline();

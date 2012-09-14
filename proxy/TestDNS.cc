@@ -70,7 +70,7 @@ FILE *fin;
 class TestDnsStateMachine:public Continuation
 {
 public:
-  TestDnsStateMachine(char *ahost, size_t size);
+  TestDnsStateMachine(char *ahost);
    ~TestDnsStateMachine()
   {
 //        cout << "StateMachine::~StateMachine(). Terminating ... " << endl;
@@ -88,11 +88,11 @@ public:
   char host[100];
 };
 
-TestDnsStateMachine::TestDnsStateMachine(char *ahost, size_t size)
+TestDnsStateMachine::TestDnsStateMachine(char *ahost)
   :
 Continuation(new_ProxyMutex())
 {
-  ink_strlcpy(host, ahost, size);
+  strcpy(host, ahost);
   m_state = START;
   SET_HANDLER(processEvent);
   return;
@@ -247,7 +247,7 @@ test()
   start_time = ink_get_hrtime();
   last_measurement_time = ink_get_hrtime();
   while ((fscanf(fin, "%s", host) != EOF) && (i < state_machines_created)) {
-    test_dns_state_machine = new TestDnsStateMachine(host, sizeof(host));
+    test_dns_state_machine = new TestDnsStateMachine(host);
     test_dns_state_machine->handleEvent();
     i++;
   }

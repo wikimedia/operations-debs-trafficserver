@@ -134,7 +134,7 @@ HttpTransactHeaders::insert_supported_methods_in_response(HTTPHdr *response, int
     alloced_buffer = NULL;
     value_buffer = inline_buffer;
   } else {
-    alloced_buffer = (char *)ats_malloc(bytes);
+    alloced_buffer = (char *) xmalloc(bytes);
     value_buffer = alloced_buffer;
   }
 
@@ -158,7 +158,8 @@ HttpTransactHeaders::insert_supported_methods_in_response(HTTPHdr *response, int
   field->value_append(response->m_heap, response->m_mime, value_buffer, bytes);
 
   // step 6: free up temp storage
-  ats_free(alloced_buffer);
+  if (alloced_buffer)
+    xfree(alloced_buffer);
 }
 
 
@@ -435,17 +436,19 @@ HttpTransactHeaders::calculate_document_age(ink_time_t request_time,
     current_age = corrected_initial_age + resident_time;
   }
 
-  Debug("http_age", "[calculate_document_age] age_value:              %" PRId64, (int64_t)age_value);
-  Debug("http_age", "[calculate_document_age] date_value:             %" PRId64, (int64_t)date_value);
-  Debug("http_age", "[calculate_document_age] response_time:          %" PRId64, (int64_t)response_time);
-  Debug("http_age", "[calculate_document_age] now:                    %" PRId64, (int64_t)now);
-  Debug("http_age", "[calculate_document_age] now (fixed):            %" PRId64, (int64_t)now_value);
-  Debug("http_age", "[calculate_document_age] apparent_age:           %" PRId64, (int64_t)apparent_age);
-  Debug("http_age", "[calculate_document_age] corrected_received_age: %" PRId64, (int64_t)corrected_received_age);
-  Debug("http_age", "[calculate_document_age] response_delay:         %" PRId64, (int64_t)response_delay);
-  Debug("http_age", "[calculate_document_age] corrected_initial_age:  %" PRId64, (int64_t)corrected_initial_age);
-  Debug("http_age", "[calculate_document_age] resident_time:          %" PRId64, (int64_t)resident_time);
-  Debug("http_age", "[calculate_document_age] current_age:            %" PRId64, (int64_t)current_age);
+  if (diags->on()) {
+    DebugOn("http_age", "[calculate_document_age] age_value:              %ld", age_value);
+    DebugOn("http_age", "[calculate_document_age] date_value:             %ld", date_value);
+    DebugOn("http_age", "[calculate_document_age] response_time:          %ld", response_time);
+    DebugOn("http_age", "[calculate_document_age] now:                    %ld", now);
+    DebugOn("http_age", "[calculate_document_age] now (fixed):            %ld", now_value);
+    DebugOn("http_age", "[calculate_document_age] apparent_age:           %ld", apparent_age);
+    DebugOn("http_age", "[calculate_document_age] corrected_received_age: %ld", corrected_received_age);
+    DebugOn("http_age", "[calculate_document_age] response_delay:         %ld", response_delay);
+    DebugOn("http_age", "[calculate_document_age] corrected_initial_age:  %ld", corrected_initial_age);
+    DebugOn("http_age", "[calculate_document_age] resident_time:          %ld", resident_time);
+    DebugOn("http_age", "[calculate_document_age] current_age:            %ld", current_age);
+  }
 
   return current_age;
 }
@@ -1034,20 +1037,18 @@ HttpTransactHeaders::insert_server_header_in_response(const char *server_tag, in
 //
 ///////////////////////////////////////////////////////////////////////////////
 void
-HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHdr *header)
+HttpTransactHeaders::insert_via_header_in_request(HttpConfigParams *http_config_param, int scheme, HTTPHdr *header,
+                                                  char *incoming_via)
 {
   char new_via_string[1024]; // 512-bytes for hostname+via string, 512-bytes for the debug info
   char *via_string = new_via_string;
 
-  if ((s->http_config_param->proxy_hostname_len + s->http_config_param->proxy_request_via_string_len) > 512) {
+  if ((http_config_param->proxy_hostname_len + http_config_param->proxy_request_via_string_len) > 512) {
     header->value_append(MIME_FIELD_VIA, MIME_LEN_VIA, "TrafficServer", 13, true);
     return;
   }
 
-  char *incoming_via = s->via_string;
-  int scheme = s->orig_scheme;
   ink_assert(scheme >= 0);
-
   int scheme_len = hdrtoken_index_to_length(scheme);
   int32_t hversion = header->version_get().m_version;
 
@@ -1065,28 +1066,23 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
     *via_string++ = '0' + HTTP_MINOR(hversion);
     *via_string++ = ' ';
   }
-  via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
-
+  via_string += nstrcpy(via_string, http_config_param->proxy_hostname);
   *via_string++ = '[';
-  /* I thought we should use the transaction local outgoing IP address but
-     that makes cycle detection (which is the point) unrealiable. We must
-     use the same value every time to be sure.
-  */
-  memcpy(via_string, Machine::instance()->ip_hex_string, Machine::instance()->ip_hex_string_len);
-  via_string += Machine::instance()->ip_hex_string_len;
+  memcpy(via_string, this_machine()->ip_hex_string, this_machine()->ip_hex_string_len);
+  via_string += this_machine()->ip_hex_string_len;
   *via_string++ = ']';
   *via_string++ = ' ';
   *via_string++ = '(';
 
-  memcpy(via_string, s->http_config_param->proxy_request_via_string, s->http_config_param->proxy_request_via_string_len);
-  via_string += s->http_config_param->proxy_request_via_string_len;
+  memcpy(via_string, http_config_param->proxy_request_via_string, http_config_param->proxy_request_via_string_len);
+  via_string += http_config_param->proxy_request_via_string_len;
 
-  if (s->txn_conf->insert_request_via_string > 1) {
+  if (http_config_param->verbose_via_string != 0) {
     *via_string++ = ' ';
     *via_string++ = '[';
 
     // incoming_via can be max MAX_VIA_INDICES+1 long (i.e. around 25 or so)
-    if (s->txn_conf->insert_request_via_string > 2) { // Highest verbosity
+    if (http_config_param->verbose_via_string == 1) {
       via_string += nstrcpy(via_string, incoming_via);
     } else {
       memcpy(via_string, incoming_via + VIA_CLIENT, VIA_SERVER - VIA_CLIENT);
@@ -1104,18 +1100,16 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
 
 
 void
-HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPHdr *header)
+HttpTransactHeaders::insert_via_header_in_response(HttpConfigParams *http_config_param, int scheme, HTTPHdr *header,
+                                                   char *incoming_via)
 {
   char new_via_string[1024]; // 512-bytes for hostname+via string, 512-bytes for the debug info
   char *via_string = new_via_string;
 
-  if ((s->http_config_param->proxy_hostname_len + s->http_config_param->proxy_response_via_string_len) > 512) {
+  if ((http_config_param->proxy_hostname_len + http_config_param->proxy_response_via_string_len) > 512) {
     header->value_append(MIME_FIELD_VIA, MIME_LEN_VIA, "TrafficServer", 13, true);
     return;
   }
-
-  char *incoming_via =  s->via_string;
-  int scheme = s->next_hop_scheme;
 
   ink_assert(scheme >= 0);
   int scheme_len = hdrtoken_index_to_length(scheme);
@@ -1135,19 +1129,19 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
     *via_string++ = '0' + HTTP_MINOR(hversion);
     *via_string++ = ' ';
   }
-  via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
+  via_string += nstrcpy(via_string, http_config_param->proxy_hostname);
   *via_string++ = ' ';
   *via_string++ = '(';
 
-  memcpy(via_string, s->http_config_param->proxy_response_via_string, s->http_config_param->proxy_response_via_string_len);
-  via_string += s->http_config_param->proxy_response_via_string_len;
+  memcpy(via_string, http_config_param->proxy_response_via_string, http_config_param->proxy_response_via_string_len);
+  via_string += http_config_param->proxy_response_via_string_len;
 
-  if (s->txn_conf->insert_response_via_string > 1) {
+  if (http_config_param->verbose_via_string != 0) {
     *via_string++ = ' ';
     *via_string++ = '[';
 
     // incoming_via can be max MAX_VIA_INDICES+1 long (i.e. around 25 or so)
-    if (s->txn_conf->insert_response_via_string > 2) { // Highest verbosity
+    if (http_config_param->verbose_via_string == 1) {
       via_string += nstrcpy(via_string, incoming_via);
     } else {
       memcpy(via_string, incoming_via + VIA_CACHE, VIA_PROXY - VIA_CACHE);
@@ -1155,7 +1149,6 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
     }
     *via_string++ = ']';
   }
-
   *via_string++ = ')';
   *via_string = 0;
 

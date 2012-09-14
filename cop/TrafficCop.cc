@@ -1,6 +1,6 @@
 /** @file
 
-  Main entry point for the traffic_cop application.
+  A brief file description
 
   @section license License
 
@@ -48,6 +48,7 @@ union semun
 
 #define OPTIONS_MAX     32
 #define OPTIONS_LEN_MAX 1024
+#define MAX_PROXY_PORTS 48
 
 #ifndef WAIT_ANY
 #define WAIT_ANY (pid_t) -1
@@ -60,41 +61,36 @@ union semun
 static const char *root_dir;
 static const char *runtime_dir;
 static const char *config_dir;
-static char config_file[PATH_NAME_MAX];
+static char config_file[PATH_MAX];
 
-static char cop_lockfile[PATH_NAME_MAX];
-static char manager_lockfile[PATH_NAME_MAX];
-static char server_lockfile[PATH_NAME_MAX];
+static char cop_lockfile[PATH_MAX];
+static char manager_lockfile[PATH_MAX];
+static char server_lockfile[PATH_MAX];
 
-static int check_memory_min_swapfree_kb = 0;
-static int check_memory_min_memfree_kb = 0;
+#if defined(linux)
+static bool check_memory_required = false;
+#endif
+static int check_memory_min_swapfree_kb = 10240;
+static int check_memory_min_memfree_kb = 10240;
 
 static int syslog_facility = LOG_DAEMON;
-static char syslog_fac_str[PATH_NAME_MAX] = "LOG_DAEMON";
+static char syslog_fac_str[PATH_MAX] = "LOG_DAEMON";
 
 static int killsig = SIGKILL;
 static int coresig = 0;
 
-static char admin_user[256];
-static uid_t admin_uid;
-static gid_t admin_gid;
-static bool admin_user_p = false;
-static char manager_binary[PATH_NAME_MAX] = "traffic_manager";
-static char server_binary[PATH_NAME_MAX] = "traffic_server";
+static char admin_user[80];
+static char manager_binary[PATH_MAX] = "traffic_manager";
+static char server_binary[PATH_MAX] = "traffic_server";
 static char manager_options[OPTIONS_LEN_MAX] = "";
 
-static char log_file[PATH_NAME_MAX] = "traffic.out";
-static char bin_path[PATH_NAME_MAX] = "bin";
+static char log_file[PATH_MAX] = "traffic.out";
+static char bin_path[PATH_MAX] = "bin";
 
 static int autoconf_port = 8083;
 static int rs_port = 8088;
 static MgmtClusterType cluster_type = NO_CLUSTER;
 static int http_backdoor_port = 8084;
-
-#if defined(linux)
-// TS-1075 : auto-port ::connect DoS on high traffic linux systems
-static int source_port = 0;
-#endif
 
 static int manager_failures = 0;
 static int server_failures = 0;
@@ -122,29 +118,13 @@ static ink_hrtime manager_flap_retry_start_time = 0;    // first time we attempt
 
 static const int kill_timeout = 1 * 60; //  1 min
 
+
 static int child_pid = 0;
 static int child_status = 0;
 static int sem_id = 11452;
 
 AppVersionInfo appVersionInfo;
 static InkHashTable *configTable = NULL;
-
-static char const localhost[] = "127.0.0.1";
-
-static void cop_log(int priority, const char *format, ...) TS_PRINTFLIKE(2, 3);
-inline static void dummy_cop_log_trace(const char *format, ...) TS_PRINTFLIKE(1, 2);
-
-inline static void
-dummy_cop_log_trace(const char *format, ...)
-{
-  (void)format;
-}
-
-#ifdef TRACE_LOG_COP
-#define cop_log_trace(...)              cop_log(COP_DEBUG, __VA_ARGS__)
-#else
-#define cop_log_trace(...)      if (0) dummy_cop_log_trace(__VA_ARGS__)
-#endif
 
 
 static void
@@ -197,28 +177,42 @@ cop_log(int priority, const char *format, ...)
   va_end(args);
 }
 
-
 void
-chown_file_to_admin_user(const char *file) {
-  if (admin_user_p) {
-    if (chown(file, admin_uid, admin_gid) < 0) {
-      cop_log(
-        COP_FATAL,
-        "cop couldn't chown the file: '%s' for '%s' (%d/%d) : [%d] %s\n",
-        file, admin_user, admin_uid, admin_gid,
-        errno, strerror(errno)
-      );
+chown_file_to_user(const char *file, const char *user)
+{
+  struct passwd *pwd = NULL;
+
+  if (user && *user) {
+    if (*user == '#') {
+      int uid = atoi(user + 1);
+      if (uid == -1) {
+        // XXX: Can this call hapen after setuid?
+        uid = (int)geteuid();
+      }
+      pwd = getpwuid((uid_t)uid);
     }
+    else {
+      pwd = getpwnam(user);
+    }
+  }
+  if (pwd) {
+    if (chown(file, pwd->pw_uid, pwd->pw_gid) < 0) {
+      //cop_log(COP_FATAL, "cop couldn't chown the  file: %s\n", file);
+    }
+  } else {
+    cop_log(COP_FATAL, "can't get passwd entry for the admin user\n");
   }
 }
 static void
 sig_child(int signum)
 {
   NOWARN_UNUSED(signum);
-  pid_t pid = 0;
+  int pid = 0;
   int status = 0;
 
-  cop_log_trace("Entering sig_child(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering sig_child(%d)\n", signum);
+#endif
   for (;;) {
     pid = waitpid(WAIT_ANY, &status, WNOHANG);
 
@@ -234,58 +228,74 @@ sig_child(int signum)
     child_pid = pid;
     child_status = status;
   }
-  cop_log_trace("Leaving sig_child(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving sig_child(%d)\n", signum);
+#endif
 }
 
+// TODO: Use positive instead negative checks
+//       This should be #if defined(solaris)
 static void
-#if defined(solaris)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
 sig_fatal(int signum, siginfo_t * t, void *c)
 #else
 sig_fatal(int signum)
 #endif
 {
-  cop_log_trace("Entering sig_fatal(%d)\n", signum);
-#if defined(solaris)
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering sig_fatal(%d)\n", signum);
+#endif
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   if (t) {
     if (t->si_code <= 0) {
       cop_log(COP_FATAL, "cop received fatal user signal [%d] from"
-              " pid [%d] uid [%d]\n", signum, (int)(t->si_pid), t->si_uid);
+              " pid [%d] uid [%d]\n", signum, t->si_pid, t->si_uid);
     } else {
       cop_log(COP_FATAL, "cop received fatal kernel signal [%d], " "reason [%d]\n", signum, t->si_code);
     }
   } else {
 #endif
     cop_log(COP_FATAL, "cop received fatal signal [%d]\n", signum);
-#if defined(solaris)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   }
 #endif
-  cop_log_trace("Leaving sig_fatal(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving sig_fatal(%d)\n", signum);
+#endif
   abort();
 }
 
 static void
-#if defined(solaris)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
 sig_alarm_warn(int signum, siginfo_t * t, void *c)
 #else
 sig_alarm_warn(int signum)
 #endif
 {
   NOWARN_UNUSED(signum);
-  cop_log_trace("Entering sig_alarm_warn(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering sig_alarm_warn(%d)\n", signum);
+#endif
   cop_log(COP_WARNING, "unable to kill traffic_server for the last" " %d seconds\n", kill_timeout);
 
   // Set us up for another alarm
   alarm(kill_timeout);
-  cop_log_trace("Leaving sig_alarm_warn(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving sig_alarm_warn(%d)\n", signum);
+#endif
 }
 
 static void
 sig_ignore(int signum)
 {
   NOWARN_UNUSED(signum);
-  cop_log_trace("Entering sig_ignore(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering sig_ignore(%d)\n", signum);
+#endif
   // No code here yet...
-  cop_log_trace("Leaving sig_ignore(%d)\n", signum);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving sig_ignore(%d)\n", signum);
+#endif
 }
 
 static void
@@ -293,8 +303,10 @@ set_alarm_death()
 {
   struct sigaction action;
 
-  cop_log_trace("Entering set_alarm_death()\n");
-#if defined(solaris)
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering set_alarm_death()\n");
+#endif
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   action.sa_handler = NULL;
   action.sa_sigaction = sig_fatal;
   sigemptyset(&action.sa_mask);
@@ -306,7 +318,9 @@ set_alarm_death()
 #endif
 
   sigaction(SIGALRM, &action, NULL);
-  cop_log_trace("Leaving set_alarm_death()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving set_alarm_death()\n");
+#endif
 }
 
 static void
@@ -314,8 +328,10 @@ set_alarm_warn()
 {
   struct sigaction action;
 
-  cop_log_trace("Entering set_alarm_warn()\n");
-#if defined(solaris)
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering set_alarm_warn()\n");
+#endif
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   action.sa_handler = NULL;
   action.sa_sigaction = sig_alarm_warn;
   sigemptyset(&action.sa_mask);
@@ -327,7 +343,9 @@ set_alarm_warn()
 #endif
 
   sigaction(SIGALRM, &action, NULL);
-  cop_log_trace("Leaving set_alarm_warn()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving set_alarm_warn()\n");
+#endif
 
 }
 
@@ -336,7 +354,9 @@ process_syslog_config(void)
 {
   int new_fac;
 
-  cop_log_trace("Entering process_syslog_config()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering process_syslog_config()\n");
+#endif
   new_fac = facility_string_to_int(syslog_fac_str);
 
   if (new_fac >= 0 && new_fac != syslog_facility) {
@@ -344,19 +364,24 @@ process_syslog_config(void)
     openlog("traffic_cop", LOG_PID | LOG_NDELAY | LOG_NOWAIT, new_fac);
     syslog_facility = new_fac;
   }
-  cop_log_trace("Leaving process_syslog_config()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving process_syslog_config()\n");
+#endif
 }
 
 // Paranoia: wrap the process termination call within alarms
 //           so that when the killing call doesn't return we
 //           will still wake up
+// FIX THIS: We don't know what to do on NT yet.
 static void
 safe_kill(const char *lockfile_name, const char *pname, bool group)
 {
   Lockfile lockfile(lockfile_name);
-  chown_file_to_admin_user(lockfile_name);
+  chown_file_to_user(lockfile_name, admin_user);
 
-  cop_log_trace("Entering safe_kill(%s, %s, %d)\n", lockfile_name, pname, group);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering safe_kill(%s, %s, %d)\n", lockfile_name, pname, group);
+#endif
   set_alarm_warn();
   alarm(kill_timeout);
 
@@ -365,11 +390,13 @@ safe_kill(const char *lockfile_name, const char *pname, bool group)
   } else {
     lockfile.Kill(killsig, coresig, pname);
   }
-  chown_file_to_admin_user(lockfile_name);
+  chown_file_to_user(lockfile_name, admin_user);
 
   alarm(0);
   set_alarm_death();
-  cop_log_trace("Leaving safe_kill(%s, %s, %d)\n", lockfile_name, pname, group);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving safe_kill(%s, %s, %d)\n", lockfile_name, pname, group);
+#endif
 }
 
 
@@ -383,11 +410,15 @@ milliseconds(void)
 {
   struct timeval curTime;
 
-  cop_log_trace("Entering milliseconds()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering milliseconds()\n");
+#endif
   ink_gethrtimeofday(&curTime, NULL);
   // Make liberal use of casting to ink_hrtime to ensure the
   //  compiler does not truncate our result
-  cop_log_trace("Leaving milliseconds()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving milliseconds()\n");
+#endif
   return ((ink_hrtime) curTime.tv_sec * 1000) + ((ink_hrtime) curTime.tv_usec / 1000);
 }
 
@@ -396,17 +427,23 @@ millisleep(int ms)
 {
   struct timespec ts;
 
-  cop_log_trace("Entering millisleep(%d)\n", ms);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering millisleep(%d)\n", ms);
+#endif
   ts.tv_sec = ms / 1000;
   ts.tv_nsec = (ms - ts.tv_sec * 1000) * 1000 * 1000;
   nanosleep(&ts, NULL);
-  cop_log_trace("Leaving millisleep(%d)\n", ms);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving millisleep(%d)\n", ms);
+#endif
 }
 
 static bool
 transient_error(int error, int wait_ms)
 {
-  cop_log_trace("Entering transient_error(%d, %d)\n", error, wait_ms);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering transient_error(%d, %d)\n", error, wait_ms);
+#endif
 
   // switch cases originally from UnixNex::accept_error_seriousness()
   switch (error) {
@@ -420,7 +457,7 @@ transient_error(int error, int wait_ms)
 #ifdef ENOBUFS
   case ENOBUFS:
 #endif
-#if defined(ENOSR) && !defined(freebsd) && !defined(darwin)
+#if !defined(freebsd) && !defined(darwin)
   case ENOSR:
 #endif
     if (wait_ms)
@@ -428,10 +465,14 @@ transient_error(int error, int wait_ms)
     break;
 
   default:
-    cop_log_trace("Leaving transient_error(%d, %d) --> false\n", error, wait_ms);
+#ifdef TRACE_LOG_COP
+    cop_log(COP_DEBUG, "Leaving transient_error(%d, %d) --> false\n", error, wait_ms);
+#endif
     return false;
   }
-  cop_log_trace("Leaving transient_error(%d, %d) --> true\n", error, wait_ms);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving transient_error(%d, %d) --> true\n", error, wait_ms);
+#endif
   return true;
 }
 
@@ -442,7 +483,9 @@ build_config_table(FILE * fp)
   char *p;
   char buffer[4096], varname[1024];
 
-  cop_log_trace("Entering build_config_table(%p)\n", fp);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering build_config_table(%d)\n", fp);
+#endif
   if (configTable != NULL) {
     ink_hash_table_destroy_and_free_values(configTable);
   }
@@ -482,9 +525,11 @@ build_config_table(FILE * fp)
     }
     varname[i] = '\0';
 
-    ink_hash_table_insert(configTable, varname, ats_strdup(buffer));
+    ink_hash_table_insert(configTable, varname, xstrdup(buffer));
   }
-  cop_log_trace("Leaving build_config_table(%p)\n", fp);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving build_config_table(%d)\n", fp);
+#endif
 }
 
 static void
@@ -517,7 +562,7 @@ read_config_string(const char *str, char *val, size_t val_len, bool miss_ok = fa
     p += 1;
   }
 
-  ink_strlcpy(val, p, val_len);
+  ink_strncpy(val, p, val_len);
   return;
 
 ConfigStrFatalError:
@@ -564,47 +609,19 @@ ConfigIntFatalError:
 }
 
 
-bool
-get_admin_user() {
-  struct passwd *pwd = NULL;
-
-  read_config_string("proxy.config.admin.user_id", admin_user, sizeof(admin_user));
-
-  if (*admin_user) {
-    if (*admin_user == '#') {
-      int uid = atoi(admin_user + 1);
-      if (uid == -1) {
-        // XXX: Can this call hapen after setuid?
-        uid = (int)geteuid();
-      }
-      pwd = getpwuid((uid_t)uid);
-    } else {
-      pwd = getpwnam(admin_user);
-    }
-
-    if (pwd) {
-      admin_uid = pwd->pw_uid;
-      admin_gid = pwd->pw_gid;
-      admin_user_p = true;
-    } else {
-      cop_log(COP_FATAL, "can't get passwd entry for the admin user '%s' - [%d] %s\n", admin_user, errno, strerror(errno));
-      exit(1);
-    }
-  }
-  return admin_user_p;
-}
-
 static void
 read_config()
 {
   FILE *fp;
   struct stat stat_buf;
   static time_t last_mod = 0;
-  char log_dir[PATH_NAME_MAX];
-  char log_filename[PATH_NAME_MAX];
+  char log_dir[PATH_MAX];
+  char log_filename[PATH_MAX];
   int tmp_int;
 
-  cop_log_trace("Entering read_config()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering read_config()\n");
+#endif
   // coverity[fs_check_call]
   if (stat(config_file, &stat_buf) == -1) {
     cop_log(COP_FATAL, "could not stat \"%s\"\n", config_file);
@@ -629,8 +646,8 @@ read_config()
   fclose(fp);
 
   read_config_string("proxy.config.manager_binary", manager_binary, sizeof(manager_binary), true);
+  read_config_string("proxy.config.admin.user_id", admin_user, sizeof(admin_user));
   read_config_string("proxy.config.proxy_binary", server_binary, sizeof(server_binary), true);
-  get_admin_user();
 
   read_config_string("proxy.config.bin_path", bin_path, sizeof(bin_path), true);
   Layout::get()->relative(bin_path, sizeof(bin_path), bin_path);
@@ -639,7 +656,6 @@ read_config()
     if (access(bin_path, R_OK) == -1) {
       cop_log(COP_FATAL, "could not access() \"%s\"\n", bin_path);
       cop_log(COP_FATAL, "please set 'proxy.config.bin_path' \n");
-      exit(1);
     }
   }
   read_config_string("proxy.config.log.logfile_dir", log_dir, sizeof(log_dir));
@@ -649,7 +665,6 @@ read_config()
     if (access(log_dir, W_OK) == -1) {
       cop_log(COP_FATAL, "could not access() \"%s\"\n", log_dir);
       cop_log(COP_FATAL, "please set 'proxy.config.log.logfile_dir' \n");
-      exit(1);
     }
   }
   read_config_string("proxy.config.output.logfile", log_filename, sizeof(log_filename));
@@ -658,11 +673,6 @@ read_config()
   read_config_int("proxy.config.admin.autoconf_port", &autoconf_port, true);
   read_config_int("proxy.config.cluster.rsport", &rs_port, true);
   read_config_int("proxy.config.lm.sem_id", &sem_id, true);
-
-#if defined(linux)
-  // TS-1075 : auto-port ::connect DoS on high traffic linux systems
-  read_config_int("proxy.config.cop.source_port", &source_port, true);
-#endif
 
   read_config_int("proxy.local.cluster.type", &tmp_int);
   cluster_type = static_cast<MgmtClusterType>(tmp_int);
@@ -674,13 +684,16 @@ read_config()
   read_config_int("proxy.config.cop.linux_min_swapfree_kb", &check_memory_min_swapfree_kb, true);
   read_config_int("proxy.config.cop.linux_min_memfree_kb", &check_memory_min_memfree_kb, true);
 
-  cop_log_trace("Leaving read_config()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving read_config()\n");
+#endif
 }
+
 
 static void
 spawn_manager()
 {
-  char prog[PATH_NAME_MAX];
+  char prog[PATH_MAX];
   char *options[OPTIONS_MAX];
   char *last;
   char *tok;
@@ -688,7 +701,9 @@ spawn_manager()
   int err;
   int key;
 
-  cop_log_trace("Entering spawn_manager()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering spawn_manager()\n");
+#endif
   // Clean up shared memory segments.
   if (sem_id > 0) {
     key = sem_id;
@@ -718,7 +733,10 @@ spawn_manager()
     exit(1);
   }
 
-  cop_log_trace("spawn_manager: Launching %s with options '%s'\n", prog, manager_options);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "spawn_manager: Launching %s with options '%s'\n",
+          prog, manager_options);
+#endif
   int i;
   for (i = 0; i < OPTIONS_MAX; i++) {
     options[i] = NULL;
@@ -737,7 +755,7 @@ spawn_manager()
   //  of the way (TSqa2232)
   // coverity[fs_check_call]
   if (access(log_file, W_OK) < 0 && errno == EACCES) {
-    char old_log_file[PATH_NAME_MAX];
+    char old_log_file[PATH_MAX];
     snprintf(old_log_file, sizeof(old_log_file), "%s.old", log_file);
     // coverity[toctou]
     rename(log_file, old_log_file);
@@ -757,7 +775,9 @@ spawn_manager()
     }
 
     err = execv(prog, options);
-    cop_log_trace("Somehow execv(%s, options, NULL) failed (%d)!\n", prog, err);
+#ifdef TRACE_LOG_COP
+    cop_log(COP_DEBUG, "Somehow execv(%s, options, NULL) failed (%d)!\n", prog, err);
+#endif
     exit(1);
   } else if (err == -1) {
     cop_log(COP_FATAL, "unable to fork [%d '%s']\n", errno, strerror(errno));
@@ -767,45 +787,58 @@ spawn_manager()
   }
 
   manager_failures = 0;
-  cop_log_trace("Leaving spawn_manager()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving spawn_manager()\n");
+#endif
 }
 
 
+
 static int
-poll_read_or_write(int fd, int timeout, int inorout)
+poll_read(int fd, int timeout)
 {
   struct pollfd info;
   int err;
 
   info.fd = fd;
-  info.events = inorout;
+  info.events = POLLIN;
   info.revents = 0;
 
   do {
     err = poll(&info, 1, timeout);
   } while ((err < 0) && (transient_error(errno, TRANSIENT_ERROR_WAIT_MS)));
 
-  if ((err > 0) && (info.revents & inorout)) {
+  if ((err > 0) && (info.revents & POLLIN)) {
     return 1;
   }
 
   return err;
 }
 
-inline static int
-poll_read(int fd, int timeout)
-{
-  return poll_read_or_write(fd, timeout, POLLIN);
-}
-
-inline static int
+static int
 poll_write(int fd, int timeout)
 {
-  return poll_read_or_write(fd, timeout, POLLOUT);
+  struct pollfd info;
+  int err;
+
+  info.fd = fd;
+  info.events = POLLOUT;
+  info.revents = 0;
+
+  do {
+    err = poll(&info, 1, timeout);
+  } while ((err < 0) && (transient_error(errno, TRANSIENT_ERROR_WAIT_MS)));
+
+
+  if ((err > 0) && (info.revents & POLLOUT)) {
+    return 1;
+  }
+
+  return err;
 }
 
 static int
-open_socket(int port, const char *ip = NULL, char const *ip_to_bind = NULL)
+open_socket(int port, const char *ip = NULL, char *ip_to_bind = NULL)
 {
 
   int sock = 0;
@@ -815,18 +848,12 @@ open_socket(int port, const char *ip = NULL, char const *ip_to_bind = NULL)
   char port_str[8] = {'\0'};
   int err = 0;
 
-  cop_log_trace("Entering open_socket(%d, %s, %s)\n", port, ip, ip_to_bind);
-  if (!ip) {
-    ip = localhost;
-  }
-
-#if defined(linux)
-  // TS-1075 : auto-port ::connect DoS on high traffic linux systems
-  // unbound connections are "unsafe" in high connection count environments
-  if (!ip_to_bind) {
-    ip = localhost;
-  }
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering open_socket(%d, %s, %s)\n", port, ip, ip_to_bind);
 #endif
+  if (!ip) {
+    ip = "127.0.0.1";
+  }
 
   snprintf(port_str, sizeof(port_str), "%d", port);
   memset(&hints, 0, sizeof(hints));
@@ -861,24 +888,6 @@ open_socket(int port, const char *ip = NULL, char const *ip_to_bind = NULL)
       goto error;
     }
 
-#if defined(linux)
-    // TS-1075 : auto-port ::connect DoS on high traffic linux systems
-    // Bash the port on ::bind so that we always use the same port
-    if (0 != source_port) {
-      if (result_to_bind->ai_addr->sa_family == AF_INET) {
-        ((sockaddr_in *)result_to_bind->ai_addr)->sin_port = htons(source_port);
-      } else {
-        ((sockaddr_in6 *)result_to_bind->ai_addr)->sin6_port = htons(source_port);
-      }
-
-      // also set REUSEADDR so that previous cop connections in the TIME_WAIT state
-      // do not interfere
-      if (safe_setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, SOCKOPT_ON, sizeof(int)) < 0) {
-        cop_log (COP_WARNING, "(test) unable to set REUSEADDR socket option [%d '%s']\n", errno, strerror (errno));
-      }
-    }
-#endif
-
     if (safe_bind(sock, result_to_bind->ai_addr, result_to_bind->ai_addrlen) < 0) {
       cop_log (COP_WARNING, "(test) unable to bind socket [%d '%s']\n", errno, strerror (errno));
     }
@@ -905,7 +914,9 @@ open_socket(int port, const char *ip = NULL, char const *ip_to_bind = NULL)
     cop_log(COP_WARNING, "(test) unable to connect to server [%d '%s'] at port %d\n", errno, strerror(errno), port);
     goto error;
   }
-  cop_log_trace("Leaving open_socket(%d, %s, %s) --> %d\n", port, ip, ip_to_bind, sock);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving open_socket(%d, %s, %s) --> %d\n", port, ip, ip_to_bind, sock);
+#endif
   freeaddrinfo(result);
   return sock;
 
@@ -913,7 +924,9 @@ error:
   if (sock >= 0) {
     close_socket(sock);
   }
-  cop_log_trace("Leaving open_socket(%d, %s, %s) --> %d\n", port, ip, ip_to_bind, -1);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving open_socket(%d, %s, %s) --> %d\n", port, ip, ip_to_bind, -1);
+#endif
 getaddrinfo_error:
   freeaddrinfo(result);
   return -1;
@@ -921,7 +934,7 @@ getaddrinfo_error:
 
 static int
 test_port(int port, const char *request, char *buffer, int bufsize,
-          int64_t test_timeout, char const *ip = NULL, char const *ip_to_bind = NULL)
+          int64_t test_timeout, char *ip = NULL, char *ip_to_bind = NULL)
 {
   int64_t start_time, timeout;
   int sock;
@@ -968,7 +981,7 @@ test_port(int port, const char *request, char *buffer, int bufsize,
   idx = 0;
   for (;;) {
     if (idx >= bufsize) {
-      cop_log(COP_WARNING, "(test) response is too large [%" PRId64 "]\n", idx);
+      cop_log(COP_WARNING, "(test) response is too large [%d]\n", idx);
       goto error;
     }
 
@@ -1012,7 +1025,7 @@ error:
 }
 
 static int
-read_manager_string(const char *variable, char *value, size_t val_len)
+read_manager_string(const char *variable, char *value)
 {
   char buffer[4096];
   char request[1024];
@@ -1028,14 +1041,14 @@ read_manager_string(const char *variable, char *value, size_t val_len)
 
   p = strstr(buffer, variable);
   if (!p) {
-    cop_log(COP_WARNING, "(manager test) could not find record name in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find record " "name in response\n");
     return -1;
   }
   p += strlen(variable);
 
   p = strstr(p, "Val:");
   if (!p) {
-    cop_log(COP_WARNING, "(manager test) could not find record value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find record " "value in response\n");
     return -1;
   }
   p += sizeof("Val:") - 1;
@@ -1045,7 +1058,7 @@ read_manager_string(const char *variable, char *value, size_t val_len)
   }
 
   if (*p == '\0') {
-    cop_log(COP_WARNING, "(manager test) could not find properly delimited value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find properly " "delimited value in response\n");
     return -1;
   }
   p += 1;
@@ -1056,11 +1069,12 @@ read_manager_string(const char *variable, char *value, size_t val_len)
   }
 
   if (*e != '\'') {
-    cop_log(COP_WARNING, "(manager test) could not find properly delimited value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find properly " "delimited value in response\n");
     return -1;
   }
 
-  ink_strlcpy(value, p, e - p + 1);
+  strncpy(value, p, e - p);
+  value[e - p] = '\0';
 
   return 0;
 }
@@ -1082,14 +1096,14 @@ read_manager_int(const char *variable, int *value)
 
   p = strstr(buffer, variable);
   if (!p) {
-    cop_log(COP_WARNING, "(manager test) could not find record name in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find record " "name in response\n");
     return -1;
   }
   p += strlen(variable);
 
   p = strstr(p, "Val:");
   if (!p) {
-    cop_log(COP_WARNING, "(manager test) could not find record value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find record " "value in response\n");
     return -1;
   }
   p += sizeof("Val:") - 1;
@@ -1099,7 +1113,7 @@ read_manager_int(const char *variable, int *value)
   }
 
   if (*p == '\0') {
-    cop_log(COP_WARNING, "(manager test) could not find properly delimited value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find properly " "delimited value in response\n");
     return -1;
   }
   p += 1;
@@ -1111,7 +1125,7 @@ read_manager_int(const char *variable, int *value)
   }
 
   if (*p != '\'') {
-    cop_log(COP_WARNING, "(manager test) could not find properly delimited value in response\n");
+    cop_log(COP_WARNING, "(manager test) could not find properly " "delimited value in response\n");
     return -1;
   }
   return 0;
@@ -1137,7 +1151,7 @@ test_rs_port()
   char buffer[4096];
   int err;
 
-  err = read_manager_string("proxy.config.manager_binary", buffer, sizeof(buffer));
+  err = read_manager_string("proxy.config.manager_binary", buffer);
   if (err < 0) {
     return err;
   }
@@ -1174,7 +1188,7 @@ test_mgmt_cli_port()
 
 
 static int
-test_http_port(int port, char *request, int timeout, char const *ip = NULL, char const *ip_to_bind = NULL)
+test_http_port(int port, char *request, int timeout, char *ip = NULL, char *ip_to_bind = NULL)
 {
   char buffer[4096];
   char *p;
@@ -1202,8 +1216,8 @@ test_http_port(int port, char *request, int timeout, char const *ip = NULL, char
   }
 
   if (strncmp(p, "200", 3) != 0) {
-    char pstatus[4] = { 0 };
-    ink_strlcpy(pstatus, p, sizeof(pstatus));
+    char pstatus[4] = { '\0', '\0', '\0', '\0' };
+    strncpy(pstatus, p, 3);
     cop_log(COP_WARNING, "(http test) received non-200 status(%s)\n", pstatus);
     return -1;
   }
@@ -1235,6 +1249,7 @@ static int
 test_server_http_port()
 {
   char request[1024] = {'\0'};
+  static char localhost[] = "127.0.0.1";
 
   // Generate a request for a the 'synthetic.txt' document the manager
   // servers up on the autoconf port.
@@ -1248,27 +1263,35 @@ heartbeat_manager()
 {
   int err;
 
-  cop_log_trace("Entering heartbeat_manager()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering heartbeat_manager()\n");
+#endif
   // the CLI, and the rsport if cluster is enabled.
   err = test_mgmt_cli_port();
   if ((0 == err) && (cluster_type != NO_CLUSTER))
     err = test_rs_port();
 
   if (err < 0) {
-    // See heartbeat_server()'s comments for how we determine a server/manager failure.
-    manager_failures += 1;
-    cop_log(COP_WARNING, "manager heartbeat [variable] failed [%d]\n", manager_failures);
+    if (err < 0) {
+      manager_failures += 1;
+      cop_log(COP_WARNING, "manager heartbeat [variable] failed [%d]\n", manager_failures);
 
-    if (manager_failures > 1) {
-      manager_failures = 0;
-      cop_log(COP_WARNING, "killing manager\n");
-      safe_kill(manager_lockfile, manager_binary, true);
+      if (manager_failures > 1) {
+        manager_failures = 0;
+        cop_log(COP_WARNING, "killing manager\n");
+        safe_kill(manager_lockfile, manager_binary, true);
+      }
+#ifdef TRACE_LOG_COP
+      cop_log(COP_DEBUG, "Leaving heartbeat_manager() --> %d\n", err);
+#endif
+      return err;
     }
-    cop_log_trace("Leaving heartbeat_manager() --> %d\n", err);
-    return err;
   }
 
-  cop_log_trace("Leaving heartbeat_manager() --> %d\n", err);
+
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving heartbeat_manager() --> %d\n", err);
+#endif
   return err;
 }
 
@@ -1277,7 +1300,9 @@ heartbeat_server()
 {
   int err;
 
-  cop_log_trace("Entering heartbeat_server()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering heartbeat_server()\n");
+#endif
   err = test_server_http_port();
 
   if (err < 0) {
@@ -1312,7 +1337,9 @@ heartbeat_server()
     server_failures = 0;
   }
 
-  cop_log_trace("Leaving heartbeat_server() --> %d\n", err);
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving heartbeat_server() --> %d\n", err);
+#endif
   return err;
 }
 
@@ -1323,17 +1350,27 @@ server_up()
   int val = -1;
   int err;
 
-  cop_log_trace("Entering server_up()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering server_up()\n");
+#endif
   if (cluster_type != NO_CLUSTER) {
     err = read_manager_int("proxy.node.proxy_running", &val);
+    if (err < 0) {
+      cop_log(COP_WARNING, "could not contact manager, " "assuming server is down\n");
+#ifdef TRACE_LOG_COP
+      cop_log(COP_DEBUG, "Leaving server_up() --> 0\n");
+#endif
+      return 0;
+    }
   } else {
     err = read_mgmt_cli_int("proxy.node.proxy_running", &val);
-  }
-
-  if (err < 0) {
-    cop_log(COP_WARNING, "could not contact manager, assuming server is down\n");
-    cop_log_trace("Leaving server_up() --> 0\n");
-    return 0;
+    if (err < 0) {
+      cop_log(COP_WARNING, "could not contact manager, " "assuming server is down\n");
+#ifdef TRACE_LOG_COP
+      cop_log(COP_DEBUG, "Leaving server_up() --> 0\n");
+#endif
+      return 0;
+    }
   }
 
   if (val != old_val) {
@@ -1343,10 +1380,14 @@ server_up()
   }
 
   if (val == 1) {
-    cop_log_trace("Leaving server_up() --> 1\n");
+#ifdef TRACE_LOG_COP
+    cop_log(COP_DEBUG, "Leaving server_up() --> 1\n");
+#endif
     return 1;
   } else {
-    cop_log_trace("Leaving server_up() --> 0\n");
+#ifdef TRACE_LOG_COP
+    cop_log(COP_DEBUG, "Leaving server_up() --> 0\n");
+#endif
     return 0;
   }
 }
@@ -1373,13 +1414,15 @@ check_programs()
   int err;
   pid_t holding_pid;
 
-  cop_log_trace("Entering check_programs()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering check_programs()\n");
+#endif
 
   // Try to get the manager lock file. If we succeed in doing this,
   // it means there is no manager running.
   Lockfile manager_lf(manager_lockfile);
   err = manager_lf.Open(&holding_pid);
-  chown_file_to_admin_user(manager_lockfile);
+  chown_file_to_user(manager_lockfile, admin_user);
 #if defined(linux)
   // if lockfile held, but process doesn't exist, killall and try again
   if (err == 0) {
@@ -1501,19 +1544,19 @@ check_programs()
       alarm(0);
     }
   }
-  cop_log_trace("Leaving check_programs()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving check_programs()\n");
+#endif
 }
 
 static void
 check_memory()
 {
-  // TODO: We need to take care of other systems, ie bsd, solaris.
-  //    And we should try to summarize whether the swapping is really
-  //    putting the server under memory pressure. Or should we check
-  //    the process memory usage of the server & manager?
-  cop_log_trace("Entering check_memory()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering check_memory()\n");
+#endif
 #if defined(linux)
-  if (check_memory_min_swapfree_kb > 0 || check_memory_min_memfree_kb > 0) {
+  if (check_memory_required) {
     FILE *fp;
     char buf[LINE_MAX];
     long long memfree, swapfree, swapsize;
@@ -1528,7 +1571,7 @@ check_memory()
           swapsize = strtoll(buf + sizeof "SwapTotal:" - 1, 0, 10);
       }
       fclose(fp);
-      // simple heuristic for linux
+      // simple heuristic for linux 2.2.x
       //    swapsize swapfree memfree
       // 1:    >0      low     high    (bad)
       // 2:    >0      high    low     (okay)
@@ -1549,17 +1592,21 @@ check_memory()
     }
   }
 #endif
-  cop_log_trace("Leaving check_memory()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving check_memory()\n");
+#endif
 }
 
 static int
 check_no_run()
 {
-  char path[PATH_NAME_MAX * 2];
+  char path[PATH_MAX * 2];
   struct stat info;
   int err;
 
-  cop_log_trace("Entering check_no_run()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering check_no_run()\n");
+#endif
   snprintf(path, sizeof(path), "%s/internal/no_cop", config_dir);
 
   do {
@@ -1567,12 +1614,16 @@ check_no_run()
   } while ((err < 0) && (transient_error(errno, TRANSIENT_ERROR_WAIT_MS)));
 
   if (err < 0) {
-    cop_log_trace("Leaving check_no_run() --> 0\n");
+#ifdef TRACE_LOG_COP
+    cop_log(COP_DEBUG, "Leaving check_no_run() --> 0\n");
+#endif
     return 0;
   }
 
   cop_log(COP_WARNING, "encountered \"%s\" file...exiting\n", path);
-  cop_log_trace("Leaving check_no_run() --> -1\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving check_no_run() --> -1\n");
+#endif
   return -1;
 }
 
@@ -1584,13 +1635,15 @@ static void*
 check(void *arg)
 {
   bool mgmt_init = false;
-  cop_log_trace("Entering check()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering check()\n");
+#endif
 
   for (;;) {
     // problems with the ownership of this file as root Make sure it is
     // owned by the admin user
-    chown_file_to_admin_user(manager_lockfile);
-    chown_file_to_admin_user(server_lockfile);
+    chown_file_to_user(manager_lockfile, admin_user);
+    chown_file_to_user(server_lockfile, admin_user);
 
     alarm(2 * (sleep_time + manager_timeout * 2 + server_timeout));
 
@@ -1612,8 +1665,7 @@ check(void *arg)
         cop_log(COP_WARNING, "child terminated due to signal %d: %s\n", sig, strsignal(sig));
       }
 
-      child_pid = 0;
-      child_status = 0;
+      child_pid = child_status = 0;
     }
 
     // Re-read the config file information
@@ -1640,7 +1692,9 @@ check(void *arg)
   // Done with the mgmt API.
   TSTerminate();
 
-  cop_log_trace("Leaving check()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving check()\n");
+#endif
   return arg;
 }
 
@@ -1651,7 +1705,9 @@ check_lockfile()
   int err;
   pid_t holding_pid;
 
-  cop_log_trace("Entering check_lockfile()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering check_lockfile()\n");
+#endif
   Lockfile cop_lf(cop_lockfile);
   err = cop_lf.Get(&holding_pid);
   if (err < 0) {
@@ -1663,7 +1719,9 @@ check_lockfile()
   }
 
   cop_log(LOG_NOTICE, "--- Cop Starting [Version: %s] ---\n", appVersionInfo.FullVersionInfoStr);
-  cop_log_trace("Leaving check_lockfile()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving check_lockfile()\n");
+#endif
 }
 
 static void
@@ -1671,7 +1729,9 @@ init_signals()
 {
   struct sigaction action;
 
-  cop_log_trace("Entering init_signals()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering init_signals()\n");
+#endif
   // Handle the SIGCHLD signal. We simply reap all children that
   // die (which should only be spawned traffic_manager's).
   action.sa_handler = sig_child;
@@ -1684,14 +1744,14 @@ init_signals()
   // these signals arrive in order to generate a core. There is some
   // difficulty with generating core files when linking with libthread
   // under solaris.
-#if defined(solaris)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   action.sa_handler = NULL;
   action.sa_sigaction = sig_fatal;
 #else
   action.sa_handler = sig_fatal;
 #endif
   sigemptyset(&action.sa_mask);
-#if defined(solaris)
+#if !defined(linux) && !defined(freebsd) && !defined(darwin)
   action.sa_flags = SA_SIGINFO;
 #else
   action.sa_flags = 0;
@@ -1718,7 +1778,9 @@ init_signals()
   action.sa_flags = 0;
 
   sigaction(SIGPIPE, &action, NULL);
-  cop_log_trace("Leaving init_signals()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving init_signals()\n");
+#endif
 }
 
 static void
@@ -1727,7 +1789,9 @@ init_config_dir()
 
   struct stat info;
 
-  cop_log_trace("Entering init_config_dir()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering init_config_dir()\n");
+#endif
 
   root_dir = Layout::get()->prefix;
   runtime_dir = Layout::get()->runtimedir;
@@ -1750,22 +1814,28 @@ init_config_dir()
     cop_log(COP_FATAL, " please try setting correct root path in either env variable TS_ROOT \n");
     exit(1);
   }
-  cop_log_trace("Leaving init_config_dir()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving init_config_dir()\n");
+#endif
 }
 
 static void
 init_lockfiles()
 {
 
-  cop_log_trace("Entering init_lockfiles()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering init_lockfiles()\n");
+#endif
   Layout::relative_to(cop_lockfile, sizeof(cop_lockfile), Layout::get()->runtimedir, COP_LOCK);
   Layout::relative_to(manager_lockfile, sizeof(manager_lockfile), Layout::get()->runtimedir, MANAGER_LOCK);
   Layout::relative_to(server_lockfile, sizeof(server_lockfile), Layout::get()->runtimedir, SERVER_LOCK);
 
-  cop_log_trace("Leaving init_lockfiles()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving init_lockfiles()\n");
+#endif
 }
 
-inline static void
+static void
 init_syslog()
 {
   openlog("traffic_cop", LOG_PID | LOG_NDELAY | LOG_NOWAIT, LOG_DAEMON);
@@ -1776,22 +1846,31 @@ init_config_file()
 {
   struct stat info;
 
-  cop_log_trace("Entering init_config_file()\n");
-  Layout::relative_to(config_file, sizeof(config_file), config_dir, "records.config.shadow");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering init_config_file()\n");
+#endif
+  Layout::relative_to(config_file, sizeof(config_file),
+                      config_dir, "records.config.shadow");
   if (stat(config_file, &info) < 0) {
-    Layout::relative_to(config_file, sizeof(config_file), config_dir, "records.config");
+    Layout::relative_to(config_file, sizeof(config_file),
+                        config_dir, "records.config");
     if (stat(config_file, &info) < 0) {
-      cop_log(COP_FATAL, "unable to locate \"%s/records.config\" or \"%s/records.config.shadow\"\n", config_dir, config_dir);
+      cop_log(COP_FATAL, "unable to locate \"%s/records.config\" or \"%s/records.config.shadow\"\n",
+              config_dir, config_dir);
       exit(1);
     }
   }
-  cop_log_trace("Leaving init_config_file()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving init_config_file()\n");
+#endif
 }
 
 static void
 init()
 {
-  cop_log_trace("Entering init()\n");
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Entering init()\n");
+#endif
 
   init_signals();
   init_syslog();
@@ -1802,7 +1881,19 @@ init()
   init_lockfiles();
   check_lockfile();
 
-  cop_log_trace("Leaving init()\n");
+#if defined(linux)
+  struct utsname buf;
+  if (uname(&buf) >= 0) {
+    if (strncmp(buf.release, "2.2.", 4) == 0) {
+      cop_log(COP_WARNING, "Linux 2.2.x kernel detected; enabling low memory fault protection");
+      check_memory_required = true;
+    }
+  }
+#endif
+
+#ifdef TRACE_LOG_COP
+  cop_log(COP_DEBUG, "Leaving init()\n");
+#endif
 }
 
 int version_flag = 0;
@@ -1832,7 +1923,7 @@ main(int argc, char *argv[])
   signal(SIGTTIN, SIG_IGN);
 
   setsid();                     // Important, thanks Vlad. :)
-#if (defined(freebsd) && !defined(kfreebsd)) || defined(openbsd)
+#if defined(freebsd) && !defined(kfreebsd)
   setpgrp(0,0);
 #else
   setpgrp();
@@ -1857,4 +1948,3 @@ main(int argc, char *argv[])
 
   return 0;
 }
-

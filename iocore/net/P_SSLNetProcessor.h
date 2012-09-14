@@ -50,7 +50,11 @@ struct NetAccept;
 //
 //////////////////////////////////////////////////////////////////
 struct SSLNetProcessor:public
+#ifndef _IOCORE_WIN32_WINNT
   UnixNetProcessor
+#else
+  NTNetProcessor
+#endif
 {
 public:
 
@@ -58,28 +62,31 @@ public:
 
   void cleanup(void);
   int reconfigure();
-  int initSSLClient(const SslConfigParams * param);
+  int initSSL(SslConfigParams * param);
+  int initSSLClient(SslConfigParams * param);
+  int initSSLServerCTX(SslConfigParams * param,
+                       SSL_CTX * ctx, char *serverCertPtr, char *serverCaPtr, char *serverKeyPtr, bool defaultEnabled);
 
-  int initSSLServerCTX(SSL_CTX * ctx,
-    const SslConfigParams * param,
-    const char *serverCertPtr, const char *serverCaPtr,
-    const char *serverKeyPtr);
-
+  SSL_CTX *getSSL_CTX(void) const {return ctx; }
   SSL_CTX *getClientSSL_CTX(void) const { return client_ctx; }
+  int getAcceptPort() { return accept_port_number; }
 
   static void logSSLError(const char *errStr = "", int critical = 1);
 
-  SSLNetProcessor();
+  SSLNetProcessor()
+    : verify_depth(0), ctx(NULL), client_ctx(NULL), sslMutexArray(NULL), accept_port_number(-1)
+    {  };
   virtual ~SSLNetProcessor();
 
+  int verify_depth;
+  SSL_CTX *ctx;
   SSL_CTX *client_ctx;
   ProxyMutex **sslMutexArray;
-
-  static EventType ET_SSL;
 
   //
   // Private
   //
+#if !defined (_IOCORE_WIN32_WINNT)
 
   // Virtual function allows etype
   // to be upgraded to ET_SSL for SSLNetProcessor.
@@ -90,13 +97,20 @@ public:
   // netProcessor connect functions.
   virtual UnixNetVConnection *allocateThread(EThread * t);
   virtual void freeThread(UnixNetVConnection * vc, EThread * t);
-  virtual NetAccept *createNetAccept();
+virtual NetAccept *createNetAccept();
+#else // #if defined (_IOCORE_WIN32)
+
+public:
+  virtual NTNetVConnection * newNetVConnection(void);
+  virtual NTNetVConnection *newClientNetVConnection(void);
+#endif // #if defined (_IOCORE_WIN32)
 
 private:
   void initSSLLocks(void);
   SSLNetProcessor(const SSLNetProcessor &);
   SSLNetProcessor & operator =(const SSLNetProcessor &);
 
+  int accept_port_number;
   static bool open_ssl_initialized;
 };
 

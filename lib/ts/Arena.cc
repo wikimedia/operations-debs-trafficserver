@@ -44,7 +44,7 @@ blk_alloc(int size)
   if (size == DEFAULT_BLOCK_SIZE) {
     blk = (ArenaBlock *) defaultSizeArenaBlock.alloc_void();
   } else {
-    blk = (ArenaBlock *)ats_malloc(size + sizeof(ArenaBlock) - 8);
+    blk = (ArenaBlock *) xmalloc(size + sizeof(ArenaBlock) - 8);
   }
 
   blk->next = NULL;
@@ -66,7 +66,7 @@ blk_free(ArenaBlock * blk)
   if (size == DEFAULT_BLOCK_SIZE) {
     defaultSizeArenaBlock.free_void(blk);
   } else {
-    ats_free(blk);
+    xfree(blk);
   }
 }
 
