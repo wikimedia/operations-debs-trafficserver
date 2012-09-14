@@ -9,8 +9,8 @@ Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	dpkg-dev (>= 1.16.1~)
 Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
-Vcs-Svn: svn://scm.alioth.debian.org/svn/collab-maint/ext-maint/trafficserver/trunk
-Vcs-Browser: https://alioth.debian.org/scm/viewvc.php/ext-maint/trafficserver/trunk?root=collab-maint
+Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
 
 Package: trafficserver
 Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf

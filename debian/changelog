@@ -1,3 +1,9 @@
+trafficserver (3.2.0-2) UNRELEASED; urgency=low
+
+  * Switch packaging repository to Git.
+
+ -- Arno Töll <arno@debian.org>  Sat, 15 Sep 2012 00:57:11 +0200
+
 trafficserver (3.2.0-1) unstable; urgency=low
 
   * New upstream release
