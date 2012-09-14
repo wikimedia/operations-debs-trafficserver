@@ -1,5 +1,100 @@
                                                          -*- coding: utf-8 -*-
 
+Changes with Apache Traffic Server 2.1.9
+  *) [TS-805] HostDB wastes a lot of storage for round-robin entries,
+   and the calculations of size are off.
+
+  *) [TS-806] TS_ADDTO removes duplicates, so avoid this by using the
+   -R option to libtool
+
+  *) [TS-793] Improve print statements for ink_freelist debugging.
+
+  *) [TS-679] The external API was changed to make it IPv6 compliant
+     (although it doesn't actually work with IPv6). Old API functions
+     were deprecated but not removed.
+
+  *) [TS-797] Wrong delete used in stats processor.
+
+  *) [TS-769] Fixed infinite loop when getting a 505 response from the
+   origin and the connection is keep-alive.  Now downgrading keep-alive
+   all the time along with the protocol.
+
+  *) [TS-788] Cleaned up the request and response cacheable apis.
+
+  *) [TS-792] Add a config option (disabled by default) to support
+  mlock() and mlockall().
+
+  *) [TS-783] Port ATS to IA64. Author: Arno Toell.
+
+  *) [TS-778] Compile Fails on Solaris 10 (gcc). Author: Igor Brezac.
+
+  *) [TS-404] Add a new API, TSOSIpSet() which allows you to bypass the
+    origin server DNS lookup.
+
+  *) [TS-791] Remove ShmemClean.cc, it's no longer needed.
+
+  *) [TS-786] Add a perl module to edit a records.config configuration
+  file.
+
+  *) [TS-779] Set thread name for various event types.
+
+  *) [TS-784] Don not use class allocator for remap processing when no
+   remap threads are enabled.
+
+  *) [TS-782] Remap processor creates a remap thread even when asked not
+   to. 
+
+  *) [TS-781] Cleanup of unusual configs, and better defaults making
+   records.config leaner, and a little more useful. 
+
+  *) [TS-780] Retune the number of SSL threads.
+
+  *) [TS-775] Disable cluster autodiscovery via multicast when
+   clustering is disabled. This should hopefully fix run-time errors
+   with Ubuntu 11.x. 
+
+  *) [TS-776] memchr in glibc has evolved, and is faster than our
+   version, replaced.
+
+  *) [TS-774] Add a new configure option, --enable-static-libts, which
+   avoids the dynamic linking hassles involved with the dynamic nature
+   of libts. This is for devs only. 
+
+  *) [TS-773] Traffic server has a hard limit of 512 gigabytes per RAW
+   disk partition. This fix required changing the disk structure which
+   will result in a total disk cache clear (wipe) after upgrading.
+
+  *) [TS-772] Make proxy.config.http.doc_in_cache_skip_dns overridable.
+
+  *) [TS-770] proxy.config.http.doc_in_cache_skip_dns is not being read
+   from records.config. Author: Yakov Markovitch
+
+  *) [TS-738] 'make check` fails on x86.
+
+  *) [TS-771] Remove remaining v1 log buffer code.
+
+  *) [TS-562] Make --with-openssl path be honored with an -rpath to
+   libtool. This also fixes the same problem with other libraries,
+   e.g. pcre, zlib etc. 
+
+  *) [TS-765] Make the backdoor port (8084 by default) only listen on
+   127.0.0.1 .
+
+  *) [TS-762] Range values like -10 are processed. Author: William
+   Bardwell.
+
+  *) [TS-761] Fixed bug where 3 (or more) remap plugins in a chain
+   couldn't be loaded.
+
+  *) [TS-763] When creating multiple SSL accept threads, we use the
+   wrong instantiator.
+
+  *) [TS-757] Change TSNetAccept() API to take an option for enabling
+    (and number of) accept threads.
+
+  *) [TS-759] Makefile in proxy/config handles $DESTDIR incorrectly.
+   Author: Arno Toell
+
 Changes with Apache Traffic Server 2.1.8
   *) [TS-750] TS does not fail-over if one origin server for a 2 address
    hostname. Author: William Bardwell.
