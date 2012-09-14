@@ -43,6 +43,7 @@
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "LogBuffer.h"
+#include "LogBufferV1.h"
 #include "LogUtils.h"
 #include "LogSock.h"
 #include "Log.h"

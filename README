@@ -32,11 +32,10 @@ plugins to build large scale web applications.
   |-- configure.ac ....... autoconf configuration
   `-- Makefile.am ........ top level automake configuration
 
-
 2. REQUIREMENTS
     This section outlines different OS distributions
 
-  Fedora 11,12, 13, 14, 15:
+  Fedora 11,12:
     autoconf
     automake
     libtool
@@ -46,7 +45,6 @@ plugins to build large scale web applications.
     tcl-devel
     expat-devel
     pcre
-    libcap-devel
 
   Fedora 8 EC2 (Kernel: 2.6.21.7-2.ec2.v1.2.fc8xen):
     FC8 on EC2 requires unique configure declarations, please see that section
@@ -69,7 +67,7 @@ plugins to build large scale web applications.
     db4-devel
     pcre
 
-  Ubuntu 8.* ,9.*, 10.*, 11.*:
+  Ubuntu 8.04,8.10,9.10:
     autoconf 
     automake
     libtool 
@@ -79,7 +77,6 @@ plugins to build large scale web applications.
     expat 
     libexpat-dev 
     libpcre3-dev
-    libcap-dev
 
   Ubuntu EC2 9.10:
     NOTE: Alternately you may use the install scripts in 'contrib' which 
@@ -129,28 +126,7 @@ plugins to build large scale web applications.
     pcre
 
 
-3. Building from distribution
-
-You can download the latest source code from the official Apache Traffic
-Server site:
-
-       http://trafficserver.apache.org/downloads.html
-
-(or via the URL shortener: http://s.apache.org/uG). Once downloaded,
-follow the instructions:
-
-   tar xf trafficserver-2.1.8-unstable.tar.bz2
-   cd trafficserver-2.1.8-unstable
-  ./configure            # configure the build environment to create Makfiles
-  make                   # execute the compile
-
-This will build with a destination prefix of /usr/local. You can finish
-the installation with
-
-  sudo make install
-
-
-4. BUILDING FROM SVN REPO
+3. BUILDING FROM SVN REPO
 
   mkdir -p ~/dev         # make yourself a development dir
   cd ~/dev               # enter your development dir
@@ -160,7 +136,7 @@ the installation with
   ./configure            # configure the build environment to create Makfiles
   make                   # execute the compile
 
-4b. Instructions for building on EC2
+3b. Instructions for building on EC2
     NOTE: Alternately you may use the scripts under 'contrib' which will 
           automate the install for trafficserver under EC2 which is 
           HIGHLY RECOMMENDED. See 'README-EC2' for further details.
@@ -184,7 +160,7 @@ the installation with
    make
 
 
-5. INSTALLATION
+4. INSTALLATION
 
   DEFAULT DIR                        CONTENTS
   /usr/local/var/log/trafficserver   log files created at runtime
@@ -193,8 +169,7 @@ the installation with
   /usr/local/bin                     executable binaries
   /usr/local/libexec/trafficserver   plugins
 
-
-6. CRYPTO NOTICE
+5. CRYPTO NOTICE
 
   This distribution includes cryptographic software.  The country in
   which you currently reside may have restrictions on the import,
@@ -221,8 +196,7 @@ the installation with
     The functionality of OpenSSL <http://www.openssl.org/> is
     utilized in parts of the software.
 
-
-7. ADDITIONAL INFO
+6. ADDITIONAL INFO
 
   Web page: http://trafficserver.apache.org/
   Wiki: http://cwiki.apache.org/confluence/display/TS/

@@ -26,9 +26,8 @@
 
 
 EventType
-EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
+EventProcessor::spawn_event_threads(int n_threads)
 {
-  char thr_name[MAX_THREAD_NAME_LENGTH];
   EventType new_thread_group_id;
   int i;
 
@@ -46,10 +45,8 @@ EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
   }
 
   n_threads_for_type[new_thread_group_id] = n_threads;
-  for (i = 0; i < n_threads; i++) {
-    snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[%s %d]", et_name, i);
-    eventthread[new_thread_group_id][i]->start(thr_name);
-  }
+  for (i = 0; i < n_threads; i++)
+    eventthread[new_thread_group_id][i]->start();
 
   n_thread_groups++;
   n_ethreads += n_threads;
@@ -66,7 +63,6 @@ class EventProcessor eventProcessor;
 int
 EventProcessor::start(int n_event_threads)
 {
-  char thr_name[MAX_THREAD_NAME_LENGTH];
   int i;
 
   // do some sanity checking.
@@ -93,10 +89,8 @@ EventProcessor::start(int n_event_threads)
     t->set_event_type((EventType) ET_CALL);
   }
   n_threads_for_type[ET_CALL] = n_event_threads;
-  for (i = first_thread; i < n_ethreads; i++) {
-    snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ET_NET %d]", i);
-    all_ethreads[i]->start(thr_name);
-  }
+  for (i = first_thread; i < n_ethreads; i++)
+    all_ethreads[i]->start();
 
   return 0;
 }
@@ -107,16 +101,14 @@ EventProcessor::shutdown()
 }
 
 Event *
-EventProcessor::spawn_thread(Continuation *cont, const char* thr_name, ink_sem *sem)
+EventProcessor::spawn_thread(Continuation * cont, ink_sem * sem)
 {
   Event *e = eventAllocator.alloc();
-
   e->init(cont, 0, 0);
   dthreads[n_dthreads] = NEW(new EThread(DEDICATED, e, sem));
   e->ethread = dthreads[n_dthreads];
   e->mutex = e->continuation->mutex = dthreads[n_dthreads]->mutex;
   n_dthreads++;
-  e->ethread->start(thr_name);
-
+  e->ethread->start();
   return e;
 }

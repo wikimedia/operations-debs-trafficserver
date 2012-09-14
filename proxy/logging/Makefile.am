@@ -43,6 +43,7 @@ liblogging_a_SOURCES = \
   LogBuffer.cc \
   LogBuffer.h \
   LogBufferSink.h \
+  LogBufferV1.h \
   Log.cc \
   Log.h \
   LogConfig.cc \

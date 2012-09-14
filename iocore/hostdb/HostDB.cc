@@ -197,10 +197,10 @@ struct HostDBTestRR: public Continuation
     while (outstanding < 40) {
       if (!nb)
         goto Lreturn;
-      char *end = (char *)memchr(b, '\n', nb);
+      char *end = (char *) ink_memchr(b, '\n', nb);
       if (!end)
         read_some();
-      end = (char *)memchr(b, '\n', nb);
+      end = (char *) ink_memchr(b, '\n', nb);
       if (!end)
         nb = 0;
       else {
@@ -1989,21 +1989,23 @@ bool HostDBInfo::match(INK_MD5 & md5, int bucket, int buckets)
   if (md5[1] != md5_high)
     return false;
 
-  uint64_t folded_md5 = fold_md5(md5);
-  uint64_t ttag = folded_md5 / buckets;
+  uint64_t
+    folded_md5 = fold_md5(md5);
+  uint64_t
+    ttag = folded_md5 / buckets;
 
   if (!ttag)
     ttag = 1;
-
   struct
   {
-    unsigned int md5_low_low:24;
-    unsigned int md5_low;
+    unsigned int
+      md5_low_low:
+      24;
+    unsigned int
+      md5_low;
   } tmp;
-
   tmp.md5_low_low = (unsigned int) ttag;
   tmp.md5_low = (unsigned int) (ttag >> 24);
-
   return tmp.md5_low_low == md5_low_low && tmp.md5_low == md5_low;
 }
 
@@ -2197,7 +2199,7 @@ register_ShowHostDB(Continuation * c, HTTPHdr * h)
     s->sarg = xstrndup(query, query_len);
     char *gn = NULL;
     if (s->sarg)
-      gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
+      gn = (char *) ink_memchr(s->sarg, '=', strlen(s->sarg));
     if (gn)
       s->ip = ink_inet_addr(gn + 1);
     SET_CONTINUATION_HANDLER(s, &ShowHostDB::showLookup);
@@ -2208,7 +2210,7 @@ register_ShowHostDB(Continuation * c, HTTPHdr * h)
     s->sarg = xstrndup(query, query_len);
     char *gn = NULL;
     if (s->sarg)
-      gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
+      gn = (char *) ink_memchr(s->sarg, '=', strlen(s->sarg));
     if (gn)
       s->name = gn + 1;
     SET_CONTINUATION_HANDLER(s, &ShowHostDB::showLookup);

@@ -137,10 +137,11 @@ struct HostDBCache: public MultiCache<HostDBInfo>
   {
     return NEW(new HostDBCache);
   }
-
-  // This accounts for an average of 2 HostDBInfo per DNS cache (for round-robin etc.)
-  virtual size_t estimated_heap_bytes_per_entry() const { return sizeof(HostDBInfo) * 2; }
-
+  virtual float estimated_heap_bytes_per_entry()
+  {
+    //return 16.0;
+    return 24.0;
+  }
   Queue<HostDBContinuation, Continuation::Link_link> pending_dns[MULTI_CACHE_PARTITIONS];
   Queue<HostDBContinuation, Continuation::Link_link> &pending_dns_for_hash(INK_MD5 & md5);
   HostDBCache();
@@ -268,6 +269,7 @@ typedef int (HostDBContinuation::*HostDBContHandler) (int, void *);
 
 struct HostDBContinuation: public Continuation
 {
+
   Action action;
   unsigned int ip;
   unsigned int ttl;

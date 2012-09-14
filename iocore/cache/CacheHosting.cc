@@ -963,9 +963,9 @@ create_config(RegressionTest * t, int num)
       }
 
       // calculate the total free space
-      off_t total_space = 0;
+      uint64_t total_space = 0;
       for (i = 0; i < gndisks; i++) {
-        off_t vol_blocks = gdisks[i]->num_usable_blocks;
+        int vol_blocks = gdisks[i]->num_usable_blocks;
         /* round down the blocks to the nearest
            multiple of STORE_BLOCKS_PER_VOL */
         vol_blocks = (vol_blocks / STORE_BLOCKS_PER_VOL)
@@ -1003,7 +1003,7 @@ create_config(RegressionTest * t, int num)
     {
       /* calculate the total disk space */
       InkRand *gen = &this_ethread()->generator;
-      off_t total_space = 0;
+      uint64_t total_space = 0;
       vol_num = 1;
       if (num == 2) {
         rprintf(t, "Random Volumes after clearing the disks\n");
@@ -1012,7 +1012,7 @@ create_config(RegressionTest * t, int num)
       }
 
       for (i = 0; i < gndisks; i++) {
-        off_t vol_blocks = gdisks[i]->num_usable_blocks;
+        int vol_blocks = gdisks[i]->num_usable_blocks;
         /* round down the blocks to the nearest
            multiple of STORE_BLOCKS_PER_VOL */
         vol_blocks = (vol_blocks / STORE_BLOCKS_PER_VOL)
@@ -1037,7 +1037,7 @@ create_config(RegressionTest * t, int num)
         /* convert to 128 megs multiple */
         int scheme = (random_size % 2) ? CACHE_HTTP_TYPE : CACHE_RTSP_TYPE;
         random_size = ROUND_TO_VOL_SIZE(random_size);
-        off_t blocks = random_size / STORE_BLOCK_SIZE;
+        int blocks = random_size / STORE_BLOCK_SIZE;
         ink_assert(blocks <= (int) total_space);
         total_space -= blocks;
 
@@ -1072,6 +1072,7 @@ create_config(RegressionTest * t, int num)
 int
 execute_and_verify(RegressionTest * t)
 {
+  int i;
   cplist_init();
   cplist_reconfigure();
 
@@ -1085,7 +1086,7 @@ execute_and_verify(RegressionTest * t)
   ConfigVol *cp = config_volumes.cp_queue.head;
   CacheVol *cachep;
 
-  for (int i = 0; i < config_volumes.num_volumes; i++) {
+  for (i = 0; i < config_volumes.num_volumes; i++) {
     cachep = cp_list.head;
     while (cachep) {
       if (cachep->vol_number == cp->number) {
@@ -1140,17 +1141,18 @@ execute_and_verify(RegressionTest * t)
 
   ClearCacheVolList(&cp_list, cp_list_len);
 
-  for (int i = 0; i < gndisks; i++) {
+  for (i = 0; i < gndisks; i++) {
     CacheDisk *d = gdisks[i];
     if (is_debug_tag_set("cache_hosting")) {
+      int j;
 
       Debug("cache_hosting", "Disk: %d: Vol Blocks: %ld: Free space: %ld",
             i, d->header->num_diskvol_blks, d->free_space);
-      for (int j = 0; j < (int) d->header->num_volumes; j++) {
+      for (j = 0; j < (int) d->header->num_volumes; j++) {
 
         Debug("cache_hosting", "\tVol: %d Size: %d", d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
       }
-      for (int j = 0; j < (int) d->header->num_diskvol_blks; j++) {
+      for (j = 0; j < (int) d->header->num_diskvol_blks; j++) {
         Debug("cache_hosting", "\tBlock No: %d Size: %d Free: %d",
               d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
       }
