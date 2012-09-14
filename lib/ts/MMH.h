@@ -92,8 +92,7 @@ struct MMH
 
     for (i = 0, d = MMH_str, s = (char *) (&(b[0])); i < 8; i++, *d++ = *s++);
     for (i = 0, s = (char *) (&(b[1])); i < 8; i++, *d++ = *s++);
-
-    return (MMH_str);
+      return (MMH_str);
   }
   void encodeBuffer(unsigned char *buffer, int len)
   {
