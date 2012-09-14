@@ -23,7 +23,7 @@
  */
 
 # include "TsConfigTypes.h"
-# include <stdlib.h>
+# include <malloc.h>
 
 // Inhibit Bison definitions.
 # define YYMALLOC malloc
