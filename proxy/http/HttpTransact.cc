@@ -832,6 +832,7 @@ HttpTransact::EndRemapRequest(State* s)
   Debug("http_trans", "START HttpTransact::EndRemapRequest");
 
   HTTPHdr *incoming_request = &s->hdr_info.client_request;
+  //URL *url = incoming_request->url_get();
   int method = incoming_request->method_get_wksidx();
   int host_len;
   const char *host = incoming_request->host_get(&host_len);
@@ -952,6 +953,12 @@ done:
   if (handleIfRedirect(s)) {
     Debug("http_trans", "END HttpTransact::RemapRequest");
     TRANSACT_RETURN(PROXY_INTERNAL_CACHE_NOOP, NULL);
+  }
+
+  if (s->reverse_proxy) {
+    Debug("url_rewrite", "s->reverse_proxy is true");
+  } else {
+    Debug("url_rewrite", "s->reverse_proxy is false");
   }
 
   if (is_debug_tag_set("http_chdr_describe") || is_debug_tag_set("http_trans") || is_debug_tag_set("url_rewrite")) {
@@ -2566,7 +2573,7 @@ HttpTransact::HandleCacheOpenReadHit(State* s)
       // we haven't done the ICP lookup yet. The following is to
       // fake an icp_info to cater for build_request's needs
       s->icp_info.http_version.set(1, 0);
-      if (!s->txn_conf->keep_alive_enabled_out || s->http_config_param->origin_server_pipeline == 0) {
+      if (!s->txn_conf->keep_alive_enabled || s->http_config_param->origin_server_pipeline == 0) {
         s->icp_info.keep_alive = HTTP_NO_KEEPALIVE;
       } else {
         s->icp_info.keep_alive = HTTP_KEEPALIVE;
@@ -2598,8 +2605,8 @@ HttpTransact::HandleCacheOpenReadHit(State* s)
 
     if (server_up || s->stale_icp_lookup) {
       if (!s->stale_icp_lookup && s->current.server->ip == 0) {
-//        ink_release_assert(s->current.request_to == PARENT_PROXY ||
-//                    s->http_config_param->no_dns_forward_to_parent != 0);
+        ink_release_assert(s->current.request_to == PARENT_PROXY ||
+                    s->http_config_param->no_dns_forward_to_parent != 0);
 
         // Set ourselves up to handle pending revalidate issues
         //  after the PP DNS lookup
@@ -2615,8 +2622,6 @@ HttpTransact::HandleCacheOpenReadHit(State* s)
         //
         if (s->current.request_to == PARENT_PROXY) {
           TRANSACT_RETURN(DNS_LOOKUP, PPDNSLookup);
-        } else if (s->current.request_to == ORIGIN_SERVER) {
-          TRANSACT_RETURN(DNS_LOOKUP, OSDNSLookup);
         } else {
           handle_parent_died(s);
           return;
@@ -3044,7 +3049,7 @@ HttpTransact::HandleICPLookup(State* s)
     //   values are not initialized.
     // Force them to be initialized
     s->icp_info.http_version.set(1, 0);
-    if (!s->txn_conf->keep_alive_enabled_out || s->http_config_param->origin_server_pipeline == 0) {
+    if (!s->txn_conf->keep_alive_enabled || s->http_config_param->origin_server_pipeline == 0) {
       s->icp_info.keep_alive = HTTP_NO_KEEPALIVE;
     } else {
       s->icp_info.keep_alive = HTTP_KEEPALIVE;
@@ -3764,7 +3769,8 @@ HttpTransact::retry_server_connection_not_open(State* s, ServerState_t conn_stat
   ink_debug_assert(s->current.attempts <= max_retries);
   ink_debug_assert(s->current.server->connect_failure != 0);
 
-  char *url_string = s->hdr_info.client_request.url_string_get(&s->arena);
+  URL *url = s->hdr_info.client_request.url_get();
+  char *url_string = url->valid()? url->string_get(&s->arena) : NULL;
 
   Debug("http_trans", "[%d] failed to connect [%d] to %u.%u.%u.%u", s->current.attempts, conn_state,
         PRINT_IP(s->current.server->ip));
@@ -5079,7 +5085,7 @@ HttpTransact::get_ka_info_from_host_db(State *s, ConnectionAttributes *server_in
   /////////////////////////////
   // origin server keep_alive //
   /////////////////////////////
-  if ((!s->txn_conf->keep_alive_enabled_out) || (s->http_config_param->origin_server_pipeline == 0)) {
+  if ((!s->txn_conf->keep_alive_enabled) || (s->http_config_param->origin_server_pipeline == 0)) {
     server_info->keep_alive = HTTP_NO_KEEPALIVE;
   }
   ///////////////////////////////
@@ -5629,7 +5635,7 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
   //
   MIMEField *pc = incoming_request->field_find(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
 
-  if (!s->txn_conf->keep_alive_enabled_in || (s->http_config_param->server_transparency_enabled && pc != NULL)) {
+  if (!s->txn_conf->keep_alive_enabled || (s->http_config_param->server_transparency_enabled && pc != NULL)) {
     s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
 
     // If we need to send a close header later,

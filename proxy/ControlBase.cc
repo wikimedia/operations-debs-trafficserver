@@ -43,7 +43,6 @@
 #include "HTTP.h"
 #include "ControlMatcher.h"
 #include "HdrUtils.h"
-#include "Vec.h"
 
 #include "tsconfig/TsBuffer.h"
 
@@ -473,14 +472,21 @@ ControlBase::~ControlBase() {
 
 void
 ControlBase::clear() {
-  _mods.delete_and_clear();
+  // Free all of the modifiers.
+  for ( Array::iterator spot = _mods.begin(), limit = _mods.end()
+      ; spot != limit
+      ; ++spot
+  )
+    delete *spot;
+  // Erase the pointers.
+  _mods.clear();
 }
 
 // static const modifier_el default_el = { MOD_INVALID, NULL };
 
 void
 ControlBase::Print() {
-  int n = _mods.length();
+  int n = _mods.size();
 
   if (0 >= n) return;
 
@@ -514,8 +520,10 @@ ControlBase::CheckModifiers(HttpRequestData * request_data) {
   if (!request_data->tag && findModOfType(Modifier::MOD_TAG))
     return false;
 
-  forv_Vec(Modifier, cur_mod, _mods)
+  for (int i = 0, n = _mods.size() ; i < n; ++i) {
+    Modifier* cur_mod = _mods[i];
     if (cur_mod && ! cur_mod->check(request_data)) return false;
+  }
 
   return true;
 }
@@ -536,8 +544,10 @@ static const char *errorFormats[] = {
 
 ControlBase::Modifier*
 ControlBase::findModOfType(Modifier::Type t) const {
-  forv_Vec(Modifier, m, _mods)
-    if (m && t == m->type()) return m;
+  for (int i = 0, n = _mods.size(); i < n; ++i) {
+      Modifier* m = _mods[i];
+      if (m && t == m->type()) return m;
+  }
   return 0;
 }
 

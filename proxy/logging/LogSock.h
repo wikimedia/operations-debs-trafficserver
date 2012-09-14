@@ -27,6 +27,7 @@
 #define LOG_SOCK_H
 
 #include "libts.h"
+#include "LogLimits.h"
 
 /*-------------------------------------------------------------------------
   LogSock
@@ -68,8 +69,8 @@ public:
   };
 
 public:
-  LogSock(int max_connects = 1);
-  ~LogSock();
+    LogSock(int max_connects = 1);
+   ~LogSock();
 
   bool pending_any(int *cid, int timeout_msec = 0);
   bool pending_message_any(int *cid, int timeout_msec = 0);
@@ -93,12 +94,10 @@ public:
   {
     return ct[0].host;
   }
-
   int on_port()
   {
     return ct[0].port;
   }
-
   bool is_connected(int cid, bool ping = false);
   void check_connections();
   bool authorized_client(int cid, char *key);

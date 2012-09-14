@@ -45,8 +45,8 @@ lib/ts/test_List
 lib/ts/test_arena
 lib/ts/test_atomic
 lib/ts/test_freelist
-proxy/config/records.config.default
-proxy/config/storage.config.default
+proxy/config/records.config
+proxy/config/storage.config
 
 mgmt/api/remote/traffic_api_cli_remote
 mgmt/tools/traffic_mcast_snoop
@@ -59,6 +59,7 @@ mgmt/cli/traffic_line
 mgmt/cli/traffic_shell
 mgmt/tools/shmem_clean
 mgmt/traffic_manager
+mgmt/html2/tune/navigation_tree.xml
 proxy/traffic_logcat
 proxy/traffic_logstats
 proxy/traffic_sac
@@ -75,8 +76,6 @@ m4/lt~obsolete.m4
 
 rc/trafficserver
 rc/update_records
-rc/trafficserver.xml
-rc/trafficserver.conf
 
 proxy/api/include/ts
 proxy/api/ts/ts.h
@@ -86,9 +85,6 @@ example/app-template/records.config
 */.libs
 */*/.libs
 */*/*/.libs
-
-.svn
-*/.svn/
 
 tsxs
 

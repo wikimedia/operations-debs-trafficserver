@@ -40,6 +40,7 @@
 #include "WebIntrMain.h"
 #include "WebOverview.h"
 #include "FileManager.h"
+#include "WebReconfig.h"
 #include "I_Layout.h"
 #include "I_Version.h"
 #include "ink_syslog.h"
@@ -485,6 +486,8 @@ main(int argc, char **argv)
   time_t ticker;
   ink_thread webThrId;
 
+  while ((setsid() == (pid_t) - 1) && (errno == EINTR)) {
+  }
 
   // Set up the application version info
   appVersionInfo.setup(PACKAGE_NAME,"traffic_manager", PACKAGE_VERSION,
@@ -492,6 +495,10 @@ main(int argc, char **argv)
   initSignalHandlers();
 
   // Process Environment Variables
+  if ((envVar = getenv("MGMT_WEB_PORT")) != NULL) {
+    web_port_arg = atoi(envVar);
+  }
+
   if ((envVar = getenv("MGMT_ACONF_PORT")) != NULL) {
     aconf_port_arg = atoi(envVar);
   }
@@ -522,7 +529,10 @@ main(int argc, char **argv)
         // The rest of the options require an argument in the form of -<Flag> <val>
         if ((i + 1) < argc) {
 
-          if (strcmp(argv[i], "-aconfPort") == 0) {
+          if (strcmp(argv[i], "-webPort") == 0) {
+            ++i;
+            web_port_arg = atoi(argv[i]);
+          } else if (strcmp(argv[i], "-aconfPort") == 0) {
             ++i;
             aconf_port_arg = atoi(argv[i]);
           } else if (strcmp(argv[i], "-clusterPort") == 0) {
@@ -816,6 +826,7 @@ main(int argc, char **argv)
   // Now that we know our cluster ip address, add the
   //   UI record for this machine
   overviewGenerator->addSelfRecord();
+
   webThrId = ink_thread_create(webIntr_main, NULL);     /* Spin web agent thread */
   Debug("lm", "Created Web Agent thread (%d)", webThrId);
   lmgmt->listenForProxy();
@@ -875,10 +886,8 @@ main(int argc, char **argv)
       /* Proxy is not up, but we should still exchange config and alarm info */
       lmgmt->ccom->sendSharedData(false);
     }
-
     // Aggregate node statistics
-    // overviewGenerator->doClusterAg();
-
+    overviewGenerator->doClusterAg();
     lmgmt->ccom->checkPeers(&ticker);
     overviewGenerator->checkForUpdates();
 
@@ -1141,6 +1150,11 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "parent.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.parent_proxy.file");
 
+  } else if (strcmp(fname, "mgmt_allow.config") == 0) {
+    lmgmt->signalFileChange("proxy.config.admin.ip_allow.filename");
+    // signalFileChange does not cause callbacks in the manager
+    //  so generate one here by hand
+    markMgmtIpAllowChange();
   } else if (strcmp(fname, "ip_allow.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.ip_allow.filename");
   } else if (strcmp(fname, "vaddrs.config") == 0) {
@@ -1162,8 +1176,11 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "update.config") == 0) {
     lmgmt->signalFileChange("proxy.config.update.update_configuration");
 
-  } else if (strcmp(fname, "volume.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] volume.config changed, need restart\n");
+  } else if (strcmp(fname, "admin_access.config") == 0) {
+    lmgmt->signalFileChange("admin_access.config");
+
+  } else if (strcmp(fname, "partition.config") == 0) {
+    mgmt_log(stderr, "[fileUpdated] partition.config changed, need restart\n");
 
   } else if (strcmp(fname, "hosting.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.hosting_filename");

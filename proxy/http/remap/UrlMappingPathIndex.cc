@@ -20,14 +20,8 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
+#include "ink_config.h"
 #include "UrlMappingPathIndex.h"
-
-UrlMappingPathIndex::~UrlMappingPathIndex()
-{
-  for (UrlMappingGroup::iterator group_iter = m_tries.begin(); group_iter != m_tries.end(); ++group_iter)
-    delete group_iter->second; // Delete the Trie
-  m_tries.clear();
-}
 
 bool
 UrlMappingPathIndex::Insert(url_mapping *mapping)
@@ -59,7 +53,7 @@ UrlMappingPathIndex::Insert(url_mapping *mapping)
 url_mapping *
 UrlMappingPathIndex::Search(URL *request_url, int request_port, bool normal_search /* = true */) const
 {
-  url_mapping *retval = 0;
+  url_mapping **retval = 0;
   int scheme_idx;
   UrlMappingTrie *trie;
   int path_len;
@@ -74,19 +68,34 @@ UrlMappingPathIndex::Search(URL *request_url, int request_port, bool normal_sear
   }
 
   path = request_url->path_get(&path_len);
-  if (!(retval = trie->Search(path, path_len))) {
+  if (!trie->Search(path, retval, path_len)) {
     Debug("UrlMappingPathIndex::Search", "Couldn't find entry for url with path [%.*s]", path_len, path);
     goto lFail;
   }
-  return retval;
+  return *retval;
 
 lFail:
   return 0;
 }
 
 void
-UrlMappingPathIndex::Print()
+UrlMappingPathIndex::GetMappings(MappingList &mapping_list) const
 {
-  for (UrlMappingGroup::iterator group_iter = m_tries.begin(); group_iter != m_tries.end(); ++group_iter)
-    group_iter->second->Print();
+  for (UrlMappingGroup::const_iterator group_iter = m_tries.begin();
+       group_iter != m_tries.end(); ++group_iter) {
+    const UrlMappingTrie::ValuePointerList &value_pointers = group_iter->second->GetValues();
+    for (UrlMappingTrie::ValuePointerList::const_iterator list_iter = value_pointers.begin();
+         list_iter != value_pointers.end(); ++list_iter) {
+      mapping_list.push_back(*(*list_iter));
+    }
+  }
+}
+
+void
+UrlMappingPathIndex::Clear()
+{
+  for (UrlMappingGroup::iterator group_iter = m_tries.begin(); group_iter != m_tries.end(); ++group_iter) {
+    delete group_iter->second;
+  }
+  m_tries.clear();
 }

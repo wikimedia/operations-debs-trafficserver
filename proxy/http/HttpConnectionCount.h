@@ -22,10 +22,27 @@
  */
 
 //
-#include "libts.h"
-#include "Map.h"
+#include "ink_defs.h"
 
 #ifndef _HTTP_CONNECTION_COUNT_H_
+
+#if (__GNUC__ >= 3)
+#define _BACKWARD_BACKWARD_WARNING_H    // needed for gcc 4.3
+#include <ext/hash_map>
+#undef _BACKWARD_BACKWARD_WARNING_H
+#else
+#include <hash_map>
+#endif
+// XXX - had to include map to get around "max" begin defined as a macro
+// in the traffic server code, really odd
+#include <map>
+#include <ink_mutex.h>
+
+#if (__GNUC__ >= 3)
+using namespace __gnu_cxx;
+#endif
+using namespace std;
+
 
 /**
  * Singleton class to keep track of the number of connections per host
@@ -37,8 +54,15 @@ public:
    * Static method to get the instance of the class
    * @return Returns a pointer to the instance of the class
    */
-  static ConnectionCount *getInstance() {
-    return &_connectionCount;
+  static ConnectionCount *getInstance()
+  {
+    ink_mutex_acquire(&_mutex);
+    if (_connectionCount == NULL) {
+      _connectionCount = new ConnectionCount;
+    }
+    ink_mutex_release(&_mutex);
+
+    return _connectionCount;
   }
 
   /**
@@ -46,11 +70,17 @@ public:
    * @param ip IP address of the host
    * @return Number of connections
    */
-  int getCount(const unsigned int ip) {
+  int getCount(const unsigned int ip)
+  {
     ink_mutex_acquire(&_mutex);
-    int count = _hostCount.get(ip);
+    hash_map<unsigned int, int>::const_iterator it = _hostCount.find(ip);
     ink_mutex_release(&_mutex);
-    return count;
+
+    if (it != _hostCount.end()) {
+      return it->second;
+    } else {
+      return 0;
+    }
   }
 
   /**
@@ -60,18 +90,26 @@ public:
    */
   void incrementCount(const unsigned int ip, const int delta = 1) {
     ink_mutex_acquire(&_mutex);
-    int count = _hostCount.get(ip);
-    _hostCount.put(ip, count + delta);
+    hash_map<unsigned int, int>::iterator it = _hostCount.find(ip);
+    if (it != _hostCount.end()) {
+      it->second += delta;
+    } else {
+      _hostCount[ip] = delta;
+    }
     ink_mutex_release(&_mutex);
   }
 
 private:
   // Hide the constructor and copy constructor
-  ConnectionCount() { }
-  ConnectionCount(const ConnectionCount & x) { NOWARN_UNUSED(x); }
+  ConnectionCount() {
+  }
+  ConnectionCount(const ConnectionCount & x)
+  {
+    NOWARN_UNUSED(x);
+  }
 
-  static ConnectionCount _connectionCount;
-  Map<unsigned int, int> _hostCount;
+  static ConnectionCount *_connectionCount;
+  hash_map<unsigned int, int>_hostCount;
   static ink_mutex _mutex;
 };
 

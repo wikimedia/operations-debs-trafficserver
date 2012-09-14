@@ -55,6 +55,7 @@
 
 
 // the possible operations or msg types sent from remote client to TM
+#define TOTAL_NUM_OP_TYPES 22
 typedef enum
 {
   FILE_READ,
@@ -79,7 +80,7 @@ typedef enum
   DIAGS,
   STATS_RESET,
   ENCRYPT_TO_FILE,
-  UNDEFINED_OP /* This must be last */
+  UNDEFINED_OP
 } OpType;
 
 #endif

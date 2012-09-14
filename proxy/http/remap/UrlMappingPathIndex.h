@@ -21,10 +21,10 @@
     limitations under the License.
 */
 #ifndef _URL_MAPPING_PATH_INDEX_H
+
 #define _URL_MAPPING_PATH_INDEX_H
 
-#include "libts.h"
-#undef std  // FIXME: remove dependancy on the STL
+#include <list>
 #include <map>
 
 #include "URL.h"
@@ -35,24 +35,28 @@ class UrlMappingPathIndex
 {
 public:
   UrlMappingPathIndex()
-  { }
+    { }
 
-  virtual ~UrlMappingPathIndex();
   bool Insert(url_mapping *mapping);
-  url_mapping* Search(URL *request_url, int request_port, bool normal_search = true) const;
-  void Print();
+
+  url_mapping *Search(URL *request_url, int request_port, bool normal_search = true) const;
+
+  typedef std::list<url_mapping *> MappingList;
+
+  void GetMappings(MappingList &mapping_list) const;
+
+  void Clear();
+
+  virtual ~UrlMappingPathIndex() { Clear(); }
+
 
 private:
-  typedef Trie<url_mapping> UrlMappingTrie;
-
+  typedef Trie<url_mapping *> UrlMappingTrie;
   struct UrlMappingTrieKey {
     int scheme_wks_idx;
     int port;
 
-    UrlMappingTrieKey(int idx, int p)
-      : scheme_wks_idx(idx), port(p)
-    { }
-    
+    UrlMappingTrieKey(int idx, int p) : scheme_wks_idx(idx), port(p) { };
     bool operator <(const UrlMappingTrieKey &rhs) const {
       if (scheme_wks_idx == rhs.scheme_wks_idx) {
         return (port < rhs.port);
@@ -69,8 +73,7 @@ private:
   UrlMappingPathIndex(const UrlMappingPathIndex &rhs) { NOWARN_UNUSED(rhs); };
   UrlMappingPathIndex &operator =(const UrlMappingPathIndex &rhs) { NOWARN_UNUSED(rhs); return *this; }
 
-  inline UrlMappingTrie *
-  _GetTrie(URL *url, int &idx, int port, bool search = true) const {
+  inline UrlMappingTrie *_GetTrie(URL *url, int &idx, int port, bool search = true) const {
     idx = url->scheme_get_wksidx();
     UrlMappingGroup::const_iterator group_iter;
     if (search) { // normal search
@@ -84,6 +87,7 @@ private:
     }
     return 0;
   }
+
 };
 
 #endif // _URL_MAPPING_PATH_INDEX_H

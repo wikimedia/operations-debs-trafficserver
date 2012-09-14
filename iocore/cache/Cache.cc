@@ -97,8 +97,8 @@ int CacheProcessor::fix = 0;
 int CacheProcessor::start_internal_flags = 0;
 int CacheProcessor::auto_clear_flag = 0;
 CacheProcessor cacheProcessor;
-Vol **gvol = NULL;
-volatile int gnvol = 0;
+Part **gpart = NULL;
+volatile int gnpart = 0;
 ClassAllocator<CacheVC> cacheVConnectionAllocator("cacheVConnection");
 ClassAllocator<EvacuationBlock> evacuationBlockAllocator("evacuationBlock");
 ClassAllocator<CacheRemoveCont> cacheRemoveContAllocator("cacheRemoveCont");
@@ -121,38 +121,38 @@ void verify_cache_api() {
   ink_assert((int)TS_EVENT_CACHE_SCAN_DONE == (int)CACHE_EVENT_SCAN_DONE);
 }
 
-struct VolInitInfo
+struct PartInitInfo
 {
   off_t recover_pos;
-  AIOCallbackInternal vol_aio[4];
-  char *vol_h_f;
+  AIOCallbackInternal part_aio[4];
+  char *part_h_f;
 
-  VolInitInfo()
+  PartInitInfo()
   {
     recover_pos = 0;
-    if ((vol_h_f = (char *) valloc(4 * STORE_BLOCK_SIZE)) != NULL)
-      memset(vol_h_f, 0, 4 * STORE_BLOCK_SIZE);
+    if ((part_h_f = (char *) valloc(4 * STORE_BLOCK_SIZE)) != NULL)
+      memset(part_h_f, 0, 4 * STORE_BLOCK_SIZE);
   }
-  ~VolInitInfo()
+  ~PartInitInfo()
   {
     for (int i = 0; i < 4; i++) {
-      vol_aio[i].action = NULL;
-      vol_aio[i].mutex.clear();
+      part_aio[i].action = NULL;
+      part_aio[i].mutex.clear();
     }
-    free(vol_h_f);
+    free(part_h_f);
   }
 };
 
 void cplist_init();
 static void cplist_update();
 int cplist_reconfigure();
-static int create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp);
+static int create_partition(int partition_number, int size_in_blocks, int scheme, CachePart *cp);
 static void rebuild_host_table(Cache *cache);
 void register_cache_stats(RecRawStatBlock *rsb, const char *prefix);
 
-Queue<CacheVol> cp_list;
+Queue<CachePart> cp_list;
 int cp_list_len = 0;
-ConfigVolumes config_volumes;
+ConfigPartitions config_partitions;
 
 #if TS_HAS_TESTS
 void force_link_CacheTestCaller() {
@@ -161,25 +161,25 @@ void force_link_CacheTestCaller() {
 #endif
 
 int64_t
-cache_bytes_used(int volume)
+cache_bytes_used(int partition)
 {
   uint64_t used = 0;
-  int start = 0; // These defaults are for volume 0, or volume 1 with volume.config
+  int start = 0; // These defaults are for partition 0 or partition 1 (with partition.config)
   int end = 1;
 
-  if (-1 == volume) {
-    end = gnvol;
-  } else if (volume > 1) { // Special case when volume.config is used
-    start = volume - 1;
-    end = volume;
+  if (-1 == partition) {
+    end = gnpart;
+  } else if (partition > 1) { // Special case when partition.config is used
+    start = partition - 1;
+    end = partition;
   }
   
   for (int i = start; i < end; i++) {
-    if (!DISK_BAD(gvol[i]->disk)) {
-      if (!gvol[i]->header->cycle)
-          used += gvol[i]->header->write_pos - gvol[i]->start;
+    if (!DISK_BAD(gpart[i]->disk)) {
+      if (!gpart[i]->header->cycle)
+          used += gpart[i]->header->write_pos - gpart[i]->start;
       else
-          used += gvol[i]->len - vol_dirlen(gvol[i]) - EVACUATION_SIZE;
+          used += gpart[i]->len - part_dirlen(gpart[i]) - EVACUATION_SIZE;
     }
   }
   return used;
@@ -189,8 +189,8 @@ int64_t
 cache_bytes_total(void)
 {
   int64_t total = 0;
-  for (int i = 0; i < gnvol; i++)
-    total += gvol[i]->len - vol_dirlen(gvol[i]) - EVACUATION_SIZE;
+  for (int i = 0; i < gnpart; i++)
+    total += gpart[i]->len - part_dirlen(gpart[i]) - EVACUATION_SIZE;
 
   return total;
 }
@@ -198,17 +198,17 @@ cache_bytes_total(void)
 int
 cache_stats_bytes_used_cb(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  int volume = -1;
+  int partition = -1;
 
   NOWARN_UNUSED(data_type);
   NOWARN_UNUSED(data);
 
-  // Well, there's no way to pass along the volume ID, so extracting it from the stat name.
-  if (0 == strncmp(name+20, "volume_", 10))
-    volume = strtol(name+30, NULL, 10);
+  // Well, there's no way to pass along the partition ID, so extracting it from the stat name.
+  if (0 == strncmp(name+20, "partition_", 10))
+    partition = strtol(name+30, NULL, 10);
 
   if (cacheProcessor.initialized == CACHE_INITIALIZED)
-    RecSetGlobalRawStatSum(rsb, id, cache_bytes_used(volume));
+    RecSetGlobalRawStatSum(rsb, id, cache_bytes_used(partition));
 
   RecRawStatSyncSum(name, data_type, data, rsb, id);
 
@@ -445,7 +445,7 @@ CacheVC::get_disk_io_priority()
 }
 
 int
-Vol::begin_read(CacheVC *cont)
+Part::begin_read(CacheVC *cont)
 {
   ink_debug_assert(cont->mutex->thread_holding == this_ethread());
   ink_debug_assert(mutex->thread_holding == this_ethread());
@@ -477,7 +477,7 @@ Vol::begin_read(CacheVC *cont)
 }
 
 int
-Vol::close_read(CacheVC *cont)
+Part::close_read(CacheVC *cont)
 {
   EThread *t = cont->mutex->thread_holding;
   ink_debug_assert(t == this_ethread());
@@ -536,7 +536,7 @@ CacheProcessor::start_internal(int flags)
   gndisks = 0;
   ink_aio_set_callback(new AIO_Callback_handler());
   Span *sd;
-  config_volumes.read_config_file();
+  config_partitions.read_config_file();
   for (i = 0; i < theCacheStore.n_disks; i++) {
     sd = theCacheStore.disk[i];
     char path[PATH_MAX];
@@ -544,7 +544,7 @@ CacheProcessor::start_internal(int flags)
     ink_strlcpy(path, sd->pathname, sizeof(path));
     if (!sd->file_pathname) {
 #if !defined(_WIN32)
-      if (config_volumes.num_http_volumes && config_volumes.num_stream_volumes) {
+      if (config_partitions.num_http_partitions && config_partitions.num_stream_partitions) {
         Warning("It is suggested that you use raw disks if streaming and http are in the same cache");
       }
 #endif
@@ -644,66 +644,66 @@ CacheProcessor::diskInitialized()
       gndisks = gndisks - bad_disks;
     }
 
-    /* create the cachevol list only if num volumes are greater
+    /* create the cachepart list only if num partitions are greater
        than 0. */
-    if (config_volumes.num_volumes == 0) {
+    if (config_partitions.num_partitions == 0) {
       res = cplist_reconfigure();
-      /* if no volumes, default to just an http cache */
+      /* if no partitions, default to just an http cache */
     } else {
       // else
-      /* create the cachevol list. */
+      /* create the cachepart list. */
       cplist_init();
-      /* now change the cachevol list based on the config file */
+      /* now change the cachepart list based on the config file */
       res = cplist_reconfigure();
     }
 
     if (res == -1) {
-      /* problems initializing the volume.config. Punt */
-      gnvol = 0;
+      /* problems initializing the partition.config. Punt */
+      gnpart = 0;
       cacheInitialized();
       return;
     } else {
-      CacheVol *cp = cp_list.head;
+      CachePart *cp = cp_list.head;
       for (; cp; cp = cp->link.next) {
-        cp->vol_rsb = RecAllocateRawStatBlock((int) cache_stat_count);
-        char vol_stat_str_prefix[256];
-        snprintf(vol_stat_str_prefix, sizeof(vol_stat_str_prefix), "proxy.process.cache.volume_%d", cp->vol_number);
-        register_cache_stats(cp->vol_rsb, vol_stat_str_prefix);
+        cp->part_rsb = RecAllocateRawStatBlock((int) cache_stat_count);
+        char part_stat_str_prefix[256];
+        snprintf(part_stat_str_prefix, sizeof(part_stat_str_prefix), "proxy.process.cache.partition_%d", cp->part_number);
+        register_cache_stats(cp->part_rsb, part_stat_str_prefix);
       }
     }
 
-    gvol = (Vol **) xmalloc(gnvol * sizeof(Vol *));
-    memset(gvol, 0, gnvol * sizeof(Vol *));
-    gnvol = 0;
+    gpart = (Part **) xmalloc(gnpart * sizeof(Part *));
+    memset(gpart, 0, gnpart * sizeof(Part *));
+    gnpart = 0;
     for (i = 0; i < gndisks; i++) {
       CacheDisk *d = gdisks[i];
       if (is_debug_tag_set("cache_hosting")) {
         int j;
-        Debug("cache_hosting", "Disk: %d: Vol Blocks: %ld: Free space: %ld",
-              i, d->header->num_diskvol_blks, d->free_space);
-        for (j = 0; j < (int) d->header->num_volumes; j++) {
-          Debug("cache_hosting", "\tVol: %d Size: %d", d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+        Debug("cache_hosting", "Disk: %d: Part Blocks: %ld: Free space: %ld",
+              i, d->header->num_diskpart_blks, d->free_space);
+        for (j = 0; j < (int) d->header->num_partitions; j++) {
+          Debug("cache_hosting", "\tPart: %d Size: %d", d->disk_parts[j]->part_number, d->disk_parts[j]->size);
         }
-        for (j = 0; j < (int) d->header->num_diskvol_blks; j++) {
+        for (j = 0; j < (int) d->header->num_diskpart_blks; j++) {
           Debug("cache_hosting", "\tBlock No: %d Size: %d Free: %d",
-                d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
+                d->header->part_info[j].number, d->header->part_info[j].len, d->header->part_info[j].free);
         }
       }
       d->sync();
     }
-    if (config_volumes.num_volumes == 0) {
+    if (config_partitions.num_partitions == 0) {
       theCache = NEW(new Cache());
       theCache->scheme = CACHE_HTTP_TYPE;
       theCache->open(clear, fix);
       return;
     }
-    if (config_volumes.num_http_volumes != 0) {
+    if (config_partitions.num_http_partitions != 0) {
       theCache = NEW(new Cache());
       theCache->scheme = CACHE_HTTP_TYPE;
       theCache->open(clear, fix);
     }
 
-    if (config_volumes.num_stream_volumes != 0) {
+    if (config_partitions.num_stream_partitions != 0) {
       theStreamCache = NEW(new Cache());
       theStreamCache->scheme = CACHE_RTSP_TYPE;
       theStreamCache->open(clear, fix);
@@ -723,15 +723,15 @@ CacheProcessor::cacheInitialized()
   int caches_ready = 0;
   int cache_init_ok = 0;
   /* allocate ram size in proportion to the disk space the
-     volume accupies */
+     partition accupies */
   int64_t total_size = 0;
   uint64_t total_cache_bytes = 0;
   uint64_t total_direntries = 0;
   uint64_t used_direntries = 0;
-  uint64_t vol_total_cache_bytes = 0;
-  uint64_t vol_total_direntries = 0;
-  uint64_t vol_used_direntries = 0;
-  Vol *vol;
+  uint64_t part_total_cache_bytes = 0;
+  uint64_t part_total_direntries = 0;
+  uint64_t part_used_direntries = 0;
+  Part *part;
 
   ProxyMutex *mutex = this_ethread()->mutex;
 
@@ -769,51 +769,51 @@ CacheProcessor::cacheInitialized()
   }
 
   if (caches_ready) {
-    Debug("cache_init", "CacheProcessor::cacheInitialized - caches_ready=0x%0X, gnvol=%d",
-          (unsigned int) caches_ready, gnvol);
+    Debug("cache_init", "CacheProcessor::cacheInitialized - caches_ready=0x%0X, gnpart=%d",
+          (unsigned int) caches_ready, gnpart);
     int64_t ram_cache_bytes = 0;
-    if (gnvol) {
-      for (i = 0; i < gnvol; i++) {
+    if (gnpart) {
+      for (i = 0; i < gnpart; i++) {
         switch (cache_config_ram_cache_algorithm) {
           default:
           case RAM_CACHE_ALGORITHM_CLFUS:
-            gvol[i]->ram_cache = new_RamCacheCLFUS();
+            gpart[i]->ram_cache = new_RamCacheCLFUS();
             break;
           case RAM_CACHE_ALGORITHM_LRU:
-            gvol[i]->ram_cache = new_RamCacheLRU();
+            gpart[i]->ram_cache = new_RamCacheLRU();
             break;
         }
       }
       if (cache_config_ram_cache_size == AUTO_SIZE_RAM_CACHE) {
         Debug("cache_init", "CacheProcessor::cacheInitialized - cache_config_ram_cache_size == AUTO_SIZE_RAM_CACHE");
-        for (i = 0; i < gnvol; i++) {
-          vol = gvol[i];
-          gvol[i]->ram_cache->init(vol_dirlen(vol), vol);
-          ram_cache_bytes += vol_dirlen(gvol[i]);
+        for (i = 0; i < gnpart; i++) {
+          part = gpart[i];
+          gpart[i]->ram_cache->init(part_dirlen(part), part);
+          ram_cache_bytes += part_dirlen(gpart[i]);
           Debug("cache_init", "CacheProcessor::cacheInitialized - ram_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
                 ram_cache_bytes, ram_cache_bytes / (1024 * 1024));
           /*
-             CACHE_VOL_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat,
-             (int64_t)vol_dirlen(gvol[i]));
+             CACHE_PART_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat,
+             (int64_t)part_dirlen(gpart[i]));
            */
-          RecSetGlobalRawStatSum(vol->cache_vol->vol_rsb,
-                                 cache_ram_cache_bytes_total_stat, (int64_t) vol_dirlen(gvol[i]));
-          vol_total_cache_bytes = gvol[i]->len - vol_dirlen(gvol[i]);
-          total_cache_bytes += vol_total_cache_bytes;
+          RecSetGlobalRawStatSum(part->cache_part->part_rsb,
+                                 cache_ram_cache_bytes_total_stat, (int64_t) part_dirlen(gpart[i]));
+          part_total_cache_bytes = gpart[i]->len - part_dirlen(gpart[i]);
+          total_cache_bytes += part_total_cache_bytes;
           Debug("cache_init", "CacheProcessor::cacheInitialized - total_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
                 total_cache_bytes, total_cache_bytes / (1024 * 1024));
 
-          CACHE_VOL_SUM_DYN_STAT(cache_bytes_total_stat, vol_total_cache_bytes);
+          CACHE_PART_SUM_DYN_STAT(cache_bytes_total_stat, part_total_cache_bytes);
 
 
-          vol_total_direntries = gvol[i]->buckets * gvol[i]->segments * DIR_DEPTH;
-          total_direntries += vol_total_direntries;
-          CACHE_VOL_SUM_DYN_STAT(cache_direntries_total_stat, vol_total_direntries);
+          part_total_direntries = gpart[i]->buckets * gpart[i]->segments * DIR_DEPTH;
+          total_direntries += part_total_direntries;
+          CACHE_PART_SUM_DYN_STAT(cache_direntries_total_stat, part_total_direntries);
 
 
-          vol_used_direntries = dir_entries_used(gvol[i]);
-          CACHE_VOL_SUM_DYN_STAT(cache_direntries_used_stat, vol_used_direntries);
-          used_direntries += vol_used_direntries;
+          part_used_direntries = dir_entries_used(gpart[i]);
+          CACHE_PART_SUM_DYN_STAT(cache_direntries_used_stat, part_used_direntries);
+          used_direntries += part_used_direntries;
         }
 
       } else {
@@ -831,39 +831,39 @@ CacheProcessor::cacheInitialized()
         Debug("ram_cache", "config: size = %" PRId64 ", cutoff = %" PRId64 "",
               cache_config_ram_cache_size, cache_config_ram_cache_cutoff);
 
-        for (i = 0; i < gnvol; i++) {
-          vol = gvol[i];
+        for (i = 0; i < gnpart; i++) {
+          part = gpart[i];
           double factor;
-          if (gvol[i]->cache == theCache) {
-            factor = (double) (int64_t) (gvol[i]->len >> STORE_BLOCK_SHIFT) / (int64_t) theCache->cache_size;
+          if (gpart[i]->cache == theCache) {
+            factor = (double) (int64_t) (gpart[i]->len >> STORE_BLOCK_SHIFT) / (int64_t) theCache->cache_size;
             Debug("cache_init", "CacheProcessor::cacheInitialized - factor = %f", factor);
-            gvol[i]->ram_cache->init((int64_t) (http_ram_cache_size * factor), vol);
+            gpart[i]->ram_cache->init((int64_t) (http_ram_cache_size * factor), part);
             ram_cache_bytes += (int64_t) (http_ram_cache_size * factor);
-            CACHE_VOL_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat, (int64_t) (http_ram_cache_size * factor));
+            CACHE_PART_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat, (int64_t) (http_ram_cache_size * factor));
           } else {
-            factor = (double) (int64_t) (gvol[i]->len >> STORE_BLOCK_SHIFT) / (int64_t) theStreamCache->cache_size;
+            factor = (double) (int64_t) (gpart[i]->len >> STORE_BLOCK_SHIFT) / (int64_t) theStreamCache->cache_size;
             Debug("cache_init", "CacheProcessor::cacheInitialized - factor = %f", factor);
-            gvol[i]->ram_cache->init((int64_t) (stream_ram_cache_size * factor), vol);
+            gpart[i]->ram_cache->init((int64_t) (stream_ram_cache_size * factor), part);
             ram_cache_bytes += (int64_t) (stream_ram_cache_size * factor);
-            CACHE_VOL_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat, (int64_t) (stream_ram_cache_size * factor));
+            CACHE_PART_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat, (int64_t) (stream_ram_cache_size * factor));
           }
           Debug("cache_init", "CacheProcessor::cacheInitialized[%d] - ram_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
                 i, ram_cache_bytes, ram_cache_bytes / (1024 * 1024));
 
-          vol_total_cache_bytes = gvol[i]->len - vol_dirlen(gvol[i]);
-          total_cache_bytes += vol_total_cache_bytes;
-          CACHE_VOL_SUM_DYN_STAT(cache_bytes_total_stat, vol_total_cache_bytes);
+          part_total_cache_bytes = gpart[i]->len - part_dirlen(gpart[i]);
+          total_cache_bytes += part_total_cache_bytes;
+          CACHE_PART_SUM_DYN_STAT(cache_bytes_total_stat, part_total_cache_bytes);
           Debug("cache_init", "CacheProcessor::cacheInitialized - total_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
                 total_cache_bytes, total_cache_bytes / (1024 * 1024));
 
-          vol_total_direntries = gvol[i]->buckets * gvol[i]->segments * DIR_DEPTH;
-          total_direntries += vol_total_direntries;
-          CACHE_VOL_SUM_DYN_STAT(cache_direntries_total_stat, vol_total_direntries);
+          part_total_direntries = gpart[i]->buckets * gpart[i]->segments * DIR_DEPTH;
+          total_direntries += part_total_direntries;
+          CACHE_PART_SUM_DYN_STAT(cache_direntries_total_stat, part_total_direntries);
 
 
-          vol_used_direntries = dir_entries_used(gvol[i]);
-          CACHE_VOL_SUM_DYN_STAT(cache_direntries_used_stat, vol_used_direntries);
-          used_direntries += vol_used_direntries;
+          part_used_direntries = dir_entries_used(gpart[i]);
+          CACHE_PART_SUM_DYN_STAT(cache_direntries_used_stat, part_used_direntries);
+          used_direntries += part_used_direntries;
 
         }
       }
@@ -892,7 +892,7 @@ CacheProcessor::cacheInitialized()
       dir_sync_init();
       cache_init_ok = 1;
     } else
-      Warning("cache unable to open any vols, disabled");
+      Warning("cache unable to open any parts, disabled");
   }
   if (cache_init_ok) {
     // Initialize virtual cache
@@ -919,21 +919,21 @@ CacheProcessor::stop()
 int
 CacheProcessor::dir_check(bool afix)
 {
-  for (int i = 0; i < gnvol; i++)
-    gvol[i]->dir_check(afix);
+  for (int i = 0; i < gnpart; i++)
+    gpart[i]->dir_check(afix);
   return 0;
 }
 
 int
 CacheProcessor::db_check(bool afix)
 {
-  for (int i = 0; i < gnvol; i++)
-    gvol[i]->db_check(afix);
+  for (int i = 0; i < gnpart; i++)
+    gpart[i]->db_check(afix);
   return 0;
 }
 
 int
-Vol::db_check(bool fix)
+Part::db_check(bool fix)
 {
   (void) fix;
   char tt[256];
@@ -952,24 +952,24 @@ Vol::db_check(bool fix)
 }
 
 static void
-vol_init_data_internal(Vol *d)
+part_init_data_internal(Part *d)
 {
   d->buckets = ((d->len - (d->start - d->skip)) / cache_config_min_average_object_size) / DIR_DEPTH;
   d->segments = (d->buckets + (((1<<16)-1)/DIR_DEPTH)) / ((1<<16)/DIR_DEPTH);
   d->buckets = (d->buckets + d->segments - 1) / d->segments;
-  d->start = d->skip + 2 *vol_dirlen(d);
+  d->start = d->skip + 2 *part_dirlen(d);
 }
 
 static void
-vol_init_data(Vol *d) {
+part_init_data(Part *d) {
   // iteratively calculate start + buckets
-  vol_init_data_internal(d);
-  vol_init_data_internal(d);
-  vol_init_data_internal(d);
+  part_init_data_internal(d);
+  part_init_data_internal(d);
+  part_init_data_internal(d);
 }
 
 void
-vol_init_dir(Vol *d)
+part_init_dir(Part *d)
 {
   int b, s, l;
 
@@ -986,12 +986,12 @@ vol_init_dir(Vol *d)
 }
 
 void
-vol_clear_init(Vol *d)
+part_clear_init(Part *d)
 {
-  int dir_len = vol_dirlen(d);
+  int dir_len = part_dirlen(d);
   memset(d->raw_dir, 0, dir_len);
-  vol_init_dir(d);
-  d->header->magic = VOL_MAGIC;
+  part_init_dir(d);
+  d->header->magic = PART_MAGIC;
   d->header->version.ink_major = CACHE_DB_MAJOR_VERSION;
   d->header->version.ink_minor = CACHE_DB_MINOR_VERSION;
   d->scan_pos = d->header->agg_pos = d->header->write_pos = d->start;
@@ -1005,10 +1005,10 @@ vol_clear_init(Vol *d)
 }
 
 int
-vol_dir_clear(Vol *d)
+part_dir_clear(Part *d)
 {
-  int dir_len = vol_dirlen(d);
-  vol_clear_init(d);
+  int dir_len = part_dirlen(d);
+  part_clear_init(d);
 
   if (pwrite(d->fd, d->raw_dir, dir_len, d->skip) < 0) {
     Warning("unable to clear cache directory '%s'", d->hash_id);
@@ -1018,12 +1018,12 @@ vol_dir_clear(Vol *d)
 }
 
 int
-Vol::clear_dir()
+Part::clear_dir()
 {
-  int dir_len = vol_dirlen(this);
-  vol_clear_init(this);
+  int dir_len = part_dirlen(this);
+  part_clear_init(this);
 
-  SET_HANDLER(&Vol::handle_dir_clear);
+  SET_HANDLER(&Part::handle_dir_clear);
 
   io.aiocb.aio_fildes = fd;
   io.aiocb.aio_buf = raw_dir;
@@ -1037,7 +1037,7 @@ Vol::clear_dir()
 }
 
 int
-Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
+Part::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 {
   dir_skip = ROUND_TO_STORE_BLOCK((dir_skip < START_POS ? START_POS : dir_skip));
   path = xstrdup(s);
@@ -1049,14 +1049,14 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
            (uint64_t)dir_skip, (uint64_t)blocks);
   hash_id_md5.encodeBuffer(hash_id, strlen(hash_id));
   len = blocks * STORE_BLOCK_SIZE;
-  ink_assert(len <= MAX_VOL_SIZE);
+  ink_assert(len <= MAX_PART_SIZE);
   skip = dir_skip;
   int i;
   prev_recover_pos = 0;
 
   // successive approximation, directory/meta data eats up some storage
   start = dir_skip;
-  vol_init_data(this);
+  part_init_data(this);
   data_blocks = (len - (start - skip)) / STORE_BLOCK_SIZE;
 #ifdef HIT_EVACUATE
   hit_evacuate_window = (data_blocks * cache_config_hit_evacuate_percent) / 100;
@@ -1068,7 +1068,7 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
   memset(evacuate, 0, evac_len);
 
 #if !defined (_WIN32)
-  raw_dir = (char *) valloc(vol_dirlen(this));
+  raw_dir = (char *) valloc(part_dirlen(this));
 #else
   /* the directory should be page aligned for raw disk transfers.
      WIN32 does not support valloc
@@ -1077,42 +1077,42 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
      Don't need to keep track of the pointer to the original memory since
      we never free this */
   size_t alignment = getpagesize();
-  size_t mem_to_alloc = vol_dirlen(this) + (alignment - 1);
+  size_t mem_to_alloc = part_dirlen(this) + (alignment - 1);
   raw_dir = (char *) malloc(mem_to_alloc);
   raw_dir = (char *) align_pointer_forward(raw_dir, alignment);
 #endif
 
-  dir = (Dir *) (raw_dir + vol_headerlen(this));
-  header = (VolHeaderFooter *) raw_dir;
-  footer = (VolHeaderFooter *) (raw_dir + vol_dirlen(this) - ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter)));
+  dir = (Dir *) (raw_dir + part_headerlen(this));
+  header = (PartHeaderFooter *) raw_dir;
+  footer = (PartHeaderFooter *) (raw_dir + part_dirlen(this) - ROUND_TO_STORE_BLOCK(sizeof(PartHeaderFooter)));
 
   if (clear) {
     Note("clearing cache directory '%s'", hash_id);
     return clear_dir();
   }
 
-  init_info = new VolInitInfo();
-  int footerlen = ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter));
-  off_t footer_offset = vol_dirlen(this) - footerlen;
+  init_info = new PartInitInfo();
+  int footerlen = ROUND_TO_STORE_BLOCK(sizeof(PartHeaderFooter));
+  off_t footer_offset = part_dirlen(this) - footerlen;
   // try A
   off_t as = skip;
   if (is_debug_tag_set("cache_init"))
     Note("reading directory '%s'", hash_id);
-  SET_HANDLER(&Vol::handle_header_read);
-  init_info->vol_aio[0].aiocb.aio_offset = as;
-  init_info->vol_aio[1].aiocb.aio_offset = as + footer_offset;
-  off_t bs = skip + vol_dirlen(this);
-  init_info->vol_aio[2].aiocb.aio_offset = bs;
-  init_info->vol_aio[3].aiocb.aio_offset = bs + footer_offset;
+  SET_HANDLER(&Part::handle_header_read);
+  init_info->part_aio[0].aiocb.aio_offset = as;
+  init_info->part_aio[1].aiocb.aio_offset = as + footer_offset;
+  off_t bs = skip + part_dirlen(this);
+  init_info->part_aio[2].aiocb.aio_offset = bs;
+  init_info->part_aio[3].aiocb.aio_offset = bs + footer_offset;
 
   for (i = 0; i < 4; i++) {
-    AIOCallback *aio = &(init_info->vol_aio[i]);
+    AIOCallback *aio = &(init_info->part_aio[i]);
     aio->aiocb.aio_fildes = fd;
-    aio->aiocb.aio_buf = &(init_info->vol_h_f[i * STORE_BLOCK_SIZE]);
+    aio->aiocb.aio_buf = &(init_info->part_h_f[i * STORE_BLOCK_SIZE]);
     aio->aiocb.aio_nbytes = footerlen;
     aio->action = this;
     aio->thread = this_ethread();
-    aio->then = (i < 3) ? &(init_info->vol_aio[i + 1]) : 0;
+    aio->then = (i < 3) ? &(init_info->part_aio[i + 1]) : 0;
   }
 
   eventProcessor.schedule_imm(this, ET_CALL);
@@ -1120,9 +1120,9 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 }
 
 int
-Vol::handle_dir_clear(int event, void *data)
+Part::handle_dir_clear(int event, void *data)
 {
-  int dir_len = vol_dirlen(this);
+  int dir_len = part_dirlen(this);
   AIOCallback *op;
 
   if (event == AIO_EVENT_DONE) {
@@ -1136,21 +1136,21 @@ Vol::handle_dir_clear(int event, void *data)
       /* clear the header for directory B. We don't need to clear the
          whole of directory B. The header for directory B starts at
          skip + len */
-      op->aiocb.aio_nbytes = ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter));
+      op->aiocb.aio_nbytes = ROUND_TO_STORE_BLOCK(sizeof(PartHeaderFooter));
       op->aiocb.aio_offset = skip + dir_len;
       ink_assert(ink_aio_write(op));
       return EVENT_DONE;
     }
     set_io_not_in_progress();
-    SET_HANDLER(&Vol::dir_init_done);
+    SET_HANDLER(&Part::dir_init_done);
     dir_init_done(EVENT_IMMEDIATE, 0);
-    /* mark the volume as bad */
+    /* mark the partition as bad */
   }
   return EVENT_DONE;
 }
 
 int
-Vol::handle_dir_read(int event, void *data)
+Part::handle_dir_read(int event, void *data)
 {
   AIOCallback *op = (AIOCallback *) data;
 
@@ -1161,7 +1161,7 @@ Vol::handle_dir_read(int event, void *data)
     }
   }
 
-  if (header->magic != VOL_MAGIC || header->version.ink_major != CACHE_DB_MAJOR_VERSION || footer->magic != VOL_MAGIC) {
+  if (header->magic != PART_MAGIC || header->version.ink_major != CACHE_DB_MAJOR_VERSION || footer->magic != PART_MAGIC) {
     Warning("bad footer in cache directory for '%s', clearing", hash_id);
     Note("clearing cache directory '%s'", hash_id);
     clear_dir();
@@ -1169,7 +1169,7 @@ Vol::handle_dir_read(int event, void *data)
   }
   CHECK_DIR(this);
   sector_size = header->sector_size;
-  SET_HANDLER(&Vol::handle_recover_from_data);
+  SET_HANDLER(&Part::handle_recover_from_data);
   return handle_recover_from_data(EVENT_IMMEDIATE, 0);
 }
 
@@ -1210,7 +1210,7 @@ Vol::handle_dir_read(int event, void *data)
       */
 
 int
-Vol::handle_recover_from_data(int event, void *data)
+Part::handle_recover_from_data(int event, void *data)
 {
   (void) data;
   uint32_t got_len = 0;
@@ -1219,7 +1219,7 @@ Vol::handle_recover_from_data(int event, void *data)
   if (event == EVENT_IMMEDIATE) {
     if (header->sync_serial == 0) {
       io.aiocb.aio_buf = NULL;
-      SET_HANDLER(&Vol::handle_recover_write_dir);
+      SET_HANDLER(&Part::handle_recover_write_dir);
       return handle_recover_write_dir(EVENT_IMMEDIATE, 0);
     }
     // initialize
@@ -1392,7 +1392,7 @@ Vol::handle_recover_from_data(int event, void *data)
 Ldone:{
     /* if we come back to the starting position, then we don't have to recover anything */
     if (recover_pos == header->write_pos && recover_wrapped) {
-      SET_HANDLER(&Vol::handle_recover_write_dir);
+      SET_HANDLER(&Part::handle_recover_write_dir);
       if (is_debug_tag_set("cache_init"))
         Note("recovery wrapped around. nothing to clear\n");
       return handle_recover_write_dir(EVENT_IMMEDIATE, 0);
@@ -1413,8 +1413,8 @@ Ldone:{
     if (!(header->sync_serial & 1) == !(next_sync_serial & 1))
       next_sync_serial++;
     // clear effected portion of the cache
-    off_t clear_start = offset_to_vol_offset(this, header->write_pos);
-    off_t clear_end = offset_to_vol_offset(this, recover_pos);
+    off_t clear_start = offset_to_part_offset(this, header->write_pos);
+    off_t clear_end = offset_to_part_offset(this, recover_pos);
     if (clear_start <= clear_end)
       dir_clear_range(clear_start, clear_end, this);
     else {
@@ -1427,29 +1427,29 @@ Ldone:{
     footer->sync_serial = header->sync_serial = next_sync_serial;
 
     for (int i = 0; i < 3; i++) {
-      AIOCallback *aio = &(init_info->vol_aio[i]);
+      AIOCallback *aio = &(init_info->part_aio[i]);
       aio->aiocb.aio_fildes = fd;
       aio->action = this;
       aio->thread = AIO_CALLBACK_THREAD_ANY;
-      aio->then = (i < 2) ? &(init_info->vol_aio[i + 1]) : 0;
+      aio->then = (i < 2) ? &(init_info->part_aio[i + 1]) : 0;
     }
-    int footerlen = ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter));
-    int dirlen = vol_dirlen(this);
+    int footerlen = ROUND_TO_STORE_BLOCK(sizeof(PartHeaderFooter));
+    int dirlen = part_dirlen(this);
     int B = header->sync_serial & 1;
     off_t ss = skip + (B ? dirlen : 0);
 
-    init_info->vol_aio[0].aiocb.aio_buf = raw_dir;
-    init_info->vol_aio[0].aiocb.aio_nbytes = footerlen;
-    init_info->vol_aio[0].aiocb.aio_offset = ss;
-    init_info->vol_aio[1].aiocb.aio_buf = raw_dir + footerlen;
-    init_info->vol_aio[1].aiocb.aio_nbytes = dirlen - 2 * footerlen;
-    init_info->vol_aio[1].aiocb.aio_offset = ss + footerlen;
-    init_info->vol_aio[2].aiocb.aio_buf = raw_dir + dirlen - footerlen;
-    init_info->vol_aio[2].aiocb.aio_nbytes = footerlen;
-    init_info->vol_aio[2].aiocb.aio_offset = ss + dirlen - footerlen;
+    init_info->part_aio[0].aiocb.aio_buf = raw_dir;
+    init_info->part_aio[0].aiocb.aio_nbytes = footerlen;
+    init_info->part_aio[0].aiocb.aio_offset = ss;
+    init_info->part_aio[1].aiocb.aio_buf = raw_dir + footerlen;
+    init_info->part_aio[1].aiocb.aio_nbytes = dirlen - 2 * footerlen;
+    init_info->part_aio[1].aiocb.aio_offset = ss + footerlen;
+    init_info->part_aio[2].aiocb.aio_buf = raw_dir + dirlen - footerlen;
+    init_info->part_aio[2].aiocb.aio_nbytes = footerlen;
+    init_info->part_aio[2].aiocb.aio_offset = ss + dirlen - footerlen;
 
-    SET_HANDLER(&Vol::handle_recover_write_dir);
-    ink_assert(ink_aio_write(init_info->vol_aio));
+    SET_HANDLER(&Part::handle_recover_write_dir);
+    ink_assert(ink_aio_write(init_info->part_aio));
     return EVENT_CONT;
   }
 
@@ -1462,7 +1462,7 @@ Lclear:
 }
 
 int
-Vol::handle_recover_write_dir(int event, void *data)
+Part::handle_recover_write_dir(int event, void *data)
 {
   (void) event;
   (void) data;
@@ -1473,26 +1473,26 @@ Vol::handle_recover_write_dir(int event, void *data)
   set_io_not_in_progress();
   scan_pos = header->write_pos;
   periodic_scan();
-  SET_HANDLER(&Vol::dir_init_done);
+  SET_HANDLER(&Part::dir_init_done);
   return dir_init_done(EVENT_IMMEDIATE, 0);
 }
 
 int
-Vol::handle_header_read(int event, void *data)
+Part::handle_header_read(int event, void *data)
 {
   AIOCallback *op;
-  VolHeaderFooter *hf[4];
+  PartHeaderFooter *hf[4];
   switch (event) {
   case EVENT_IMMEDIATE:
   case EVENT_INTERVAL:
-    ink_assert(ink_aio_read(init_info->vol_aio));
+    ink_assert(ink_aio_read(init_info->part_aio));
     return EVENT_CONT;
 
   case AIO_EVENT_DONE:
     op = (AIOCallback *) data;
     for (int i = 0; i < 4; i++) {
       ink_assert(op != 0);
-      hf[i] = (VolHeaderFooter *) (op->aiocb.aio_buf);
+      hf[i] = (PartHeaderFooter *) (op->aiocb.aio_buf);
       if ((int) op->aio_result != (int) op->aiocb.aio_nbytes) {
         clear_dir();
         return EVENT_DONE;
@@ -1501,7 +1501,7 @@ Vol::handle_header_read(int event, void *data)
     }
 
     io.aiocb.aio_fildes = fd;
-    io.aiocb.aio_nbytes = vol_dirlen(this);
+    io.aiocb.aio_nbytes = part_dirlen(this);
     io.aiocb.aio_buf = raw_dir;
     io.action = this;
     io.thread = AIO_CALLBACK_THREAD_ANY;
@@ -1509,7 +1509,7 @@ Vol::handle_header_read(int event, void *data)
 
     if (hf[0]->sync_serial == hf[1]->sync_serial &&
         (hf[0]->sync_serial >= hf[2]->sync_serial || hf[2]->sync_serial != hf[3]->sync_serial)) {
-      SET_HANDLER(&Vol::handle_dir_read);
+      SET_HANDLER(&Part::handle_dir_read);
       if (is_debug_tag_set("cache_init"))
         Note("using directory A for '%s'", hash_id);
       io.aiocb.aio_offset = skip;
@@ -1518,10 +1518,10 @@ Vol::handle_header_read(int event, void *data)
     // try B
     else if (hf[2]->sync_serial == hf[3]->sync_serial) {
 
-      SET_HANDLER(&Vol::handle_dir_read);
+      SET_HANDLER(&Part::handle_dir_read);
       if (is_debug_tag_set("cache_init"))
         Note("using directory B for '%s'", hash_id);
-      io.aiocb.aio_offset = skip + vol_dirlen(this);
+      io.aiocb.aio_offset = skip + part_dirlen(this);
       ink_assert(ink_aio_read(&io));
     } else {
       Note("no good directory, clearing '%s'", hash_id);
@@ -1536,7 +1536,7 @@ Vol::handle_header_read(int event, void *data)
 }
 
 int
-Vol::dir_init_done(int event, void *data)
+Part::dir_init_done(int event, void *data)
 {
   (void) event;
   (void) data;
@@ -1544,110 +1544,110 @@ Vol::dir_init_done(int event, void *data)
     eventProcessor.schedule_in(this, HRTIME_MSECONDS(5), ET_CALL);
     return EVENT_CONT;
   } else {
-    int vol_no = ink_atomic_increment(&gnvol, 1);
-    ink_assert(!gvol[vol_no]);
-    gvol[vol_no] = this;
-    SET_HANDLER(&Vol::aggWrite);
+    int part_no = ink_atomic_increment(&gnpart, 1);
+    ink_assert(!gpart[part_no]);
+    gpart[part_no] = this;
+    SET_HANDLER(&Part::aggWrite);
     if (fd == -1)
-      cache->vol_initialized(0);
+      cache->part_initialized(0);
     else
-      cache->vol_initialized(1);
+      cache->part_initialized(1);
     return EVENT_DONE;
   }
 }
 
 void
-build_vol_hash_table(CacheHostRecord *cp)
+build_part_hash_table(CacheHostRecord *cp)
 {
-  int num_vols = cp->num_vols;
-  unsigned int *mapping = (unsigned int *) xmalloc(sizeof(unsigned int) * num_vols);
-  Vol **p = (Vol **) xmalloc(sizeof(Vol *) * num_vols);
+  int num_parts = cp->num_part;
+  unsigned int *mapping = (unsigned int *) xmalloc(sizeof(unsigned int) * num_parts);
+  Part **p = (Part **) xmalloc(sizeof(Part *) * num_parts);
 
-  memset(mapping, 0, num_vols * sizeof(unsigned int));
-  memset(p, 0, num_vols * sizeof(Vol *));
+  memset(mapping, 0, num_parts * sizeof(unsigned int));
+  memset(p, 0, num_parts * sizeof(Part *));
   uint64_t total = 0;
   int i = 0;
   int used = 0;
-  int bad_vols = 0;
+  int bad_parts = 0;
   int map = 0;
-  // initialize number of elements per vol
-  for (i = 0; i < num_vols; i++) {
-    if (DISK_BAD(cp->vols[i]->disk)) {
-      bad_vols++;
+  // initialize number of elements per part
+  for (i = 0; i < num_parts; i++) {
+    if (DISK_BAD(cp->parts[i]->disk)) {
+      bad_parts++;
       continue;
     }
     mapping[map] = i;
-    p[map++] = cp->vols[i];
-    total += (cp->vols[i]->len >> STORE_BLOCK_SHIFT);
+    p[map++] = cp->parts[i];
+    total += (cp->parts[i]->len >> STORE_BLOCK_SHIFT);
   }
 
-  num_vols -= bad_vols;
+  num_parts -= bad_parts;
 
-  if (!num_vols) {
+  if (!num_parts) {
     // all the disks are corrupt,
-    if (cp->vol_hash_table) {
-      new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
+    if (cp->part_hash_table) {
+      new_Freer(cp->part_hash_table, CACHE_MEM_FREE_TIMEOUT);
     }
-    cp->vol_hash_table = NULL;
+    cp->part_hash_table = NULL;
     xfree(mapping);
     xfree(p);
     return;
   }
 
 
-  unsigned int *forvol = (unsigned int *) alloca(sizeof(unsigned int) * num_vols);
-  unsigned int *rnd = (unsigned int *) alloca(sizeof(unsigned int) * num_vols);
-  unsigned short *ttable = (unsigned short *) xmalloc(sizeof(unsigned short) * VOL_HASH_TABLE_SIZE);
+  unsigned int *forpart = (unsigned int *) alloca(sizeof(unsigned int) * num_parts);
+  unsigned int *rnd = (unsigned int *) alloca(sizeof(unsigned int) * num_parts);
+  unsigned short *ttable = (unsigned short *) xmalloc(sizeof(unsigned short) * PART_HASH_TABLE_SIZE);
 
-  for (i = 0; i < num_vols; i++) {
-    forvol[i] = (VOL_HASH_TABLE_SIZE * (p[i]->len >> STORE_BLOCK_SHIFT)) / total;
-    used += forvol[i];
+  for (i = 0; i < num_parts; i++) {
+    forpart[i] = (PART_HASH_TABLE_SIZE * (p[i]->len >> STORE_BLOCK_SHIFT)) / total;
+    used += forpart[i];
   }
   // spread around the excess
-  int extra = VOL_HASH_TABLE_SIZE - used;
+  int extra = PART_HASH_TABLE_SIZE - used;
   for (i = 0; i < extra; i++) {
-    forvol[i % num_vols]++;
+    forpart[i % num_parts]++;
   }
   // seed random number generator
-  for (i = 0; i < num_vols; i++) {
+  for (i = 0; i < num_parts; i++) {
     uint64_t x = p[i]->hash_id_md5.fold();
     rnd[i] = (unsigned int) x;
   }
   // initialize table to "empty"
-  for (i = 0; i < VOL_HASH_TABLE_SIZE; i++)
-    ttable[i] = VOL_HASH_EMPTY;
+  for (i = 0; i < PART_HASH_TABLE_SIZE; i++)
+    ttable[i] = PART_HASH_EMPTY;
   // give each machine it's fav
-  int left = VOL_HASH_TABLE_SIZE;
+  int left = PART_HASH_TABLE_SIZE;
   int d = 0;
-  for (; left; d = (d + 1) % num_vols) {
-    if (!forvol[d])
+  for (; left; d = (d + 1) % num_parts) {
+    if (!forpart[d])
       continue;
     do {
-      i = next_rand(&rnd[d]) % VOL_HASH_TABLE_SIZE;
-    } while (ttable[i] != VOL_HASH_EMPTY);
+      i = next_rand(&rnd[d]) % PART_HASH_TABLE_SIZE;
+    } while (ttable[i] != PART_HASH_EMPTY);
     ttable[i] = mapping[d];
-    forvol[d]--;
+    forpart[d]--;
     left--;
   }
 
   // install new table
 
-  if (cp->vol_hash_table) {
-    new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
+  if (cp->part_hash_table) {
+    new_Freer(cp->part_hash_table, CACHE_MEM_FREE_TIMEOUT);
   }
   xfree(mapping);
   xfree(p);
-  cp->vol_hash_table = ttable;
+  cp->part_hash_table = ttable;
 }
 
 
 void
-Cache::vol_initialized(bool result)
+Cache::part_initialized(bool result)
 {
-  ink_atomic_increment(&total_initialized_vol, 1);
+  ink_atomic_increment(&total_initialized_part, 1);
   if (result)
-    ink_atomic_increment(&total_good_nvol, 1);
-  if (total_nvol == total_initialized_vol)
+    ink_atomic_increment(&total_good_npart, 1);
+  if (total_npart == total_initialized_part)
     open_done();
 }
 
@@ -1686,11 +1686,11 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data)
         uint64_t total_dir_delete = 0;
         uint64_t used_dir_delete = 0;
 
-        for (p = 0; p < gnvol; p++) {
-          if (d->fd == gvol[p]->fd) {
-            total_dir_delete += gvol[p]->buckets * gvol[p]->segments * DIR_DEPTH;
-            used_dir_delete += dir_entries_used(gvol[p]);
-            total_bytes_delete = gvol[p]->len - vol_dirlen(gvol[p]);
+        for (p = 0; p < gnpart; p++) {
+          if (d->fd == gpart[p]->fd) {
+            total_dir_delete += gpart[p]->buckets * gpart[p]->segments * DIR_DEPTH;
+            used_dir_delete += dir_entries_used(gpart[p]);
+            total_bytes_delete = gpart[p]->len - part_dirlen(gpart[p]);
           }
         }
 
@@ -1720,20 +1720,20 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data)
     return EVENT_DONE;
   }
 
-  if (theCache && !theCache->hosttable->gen_host_rec.vol_hash_table) {
+  if (theCache && !theCache->hosttable->gen_host_rec.part_hash_table) {
     unsigned int caches_ready = 0;
     caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_HTTP);
     caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_NONE);
     caches_ready = ~caches_ready;
     CacheProcessor::cache_ready &= caches_ready;
-    Warning("all volumes for http cache are corrupt, http cache disabled");
+    Warning("all partitions for http cache are corrupt, http cache disabled");
   }
-  if (theStreamCache && !theStreamCache->hosttable->gen_host_rec.vol_hash_table) {
+  if (theStreamCache && !theStreamCache->hosttable->gen_host_rec.part_hash_table) {
     unsigned int caches_ready = 0;
     caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_RTSP);
     caches_ready = ~caches_ready;
     CacheProcessor::cache_ready &= caches_ready;
-    Warning("all volumes for mixt cache are corrupt, mixt cache disabled");
+    Warning("all partitions for mixt cache are corrupt, mixt cache disabled");
   }
   delete cb;
   return EVENT_DONE;
@@ -1748,7 +1748,7 @@ Cache::open_done()
   statPagesManager.register_http("cache", register_ShowCache);
   statPagesManager.register_http("cache-internal", register_ShowCacheInternal);
 #endif
-  if (total_good_nvol == 0) {
+  if (total_good_npart == 0) {
     ready = CACHE_INIT_FAILED;
     cacheProcessor.cacheInitialized();
     return 0;
@@ -1757,7 +1757,7 @@ Cache::open_done()
   hosttable = NEW(new CacheHostTable(this, scheme));
   hosttable->register_config_callback(&hosttable);
 
-  if (hosttable->gen_host_rec.num_cachevols == 0)
+  if (hosttable->gen_host_rec.num_cachepart == 0)
     ready = CACHE_INIT_FAILED;
   else
     ready = CACHE_INITIALIZED;
@@ -1773,43 +1773,43 @@ Cache::open(bool clear, bool fix)
   int i;
   off_t blocks;
   cache_read_done = 0;
-  total_initialized_vol = 0;
-  total_nvol = 0;
-  total_good_nvol = 0;
+  total_initialized_part = 0;
+  total_npart = 0;
+  total_good_npart = 0;
 
 
   IOCORE_EstablishStaticConfigInt32(cache_config_min_average_object_size, "proxy.config.cache.min_average_object_size");
   Debug("cache_init", "Cache::open - proxy.config.cache.min_average_object_size = %d",
         (int)cache_config_min_average_object_size);
 
-  CacheVol *cp = cp_list.head;
+  CachePart *cp = cp_list.head;
   for (; cp; cp = cp->link.next) {
     if (cp->scheme == scheme) {
-      cp->vols = (Vol **) xmalloc(cp->num_vols * sizeof(Vol *));
-      int vol_no = 0;
+      cp->parts = (Part **) xmalloc(cp->num_parts * sizeof(Part *));
+      int part_no = 0;
       for (i = 0; i < gndisks; i++) {
-        if (cp->disk_vols[i] && !DISK_BAD(cp->disk_vols[i]->disk)) {
-          DiskVolBlockQueue *q = cp->disk_vols[i]->dpb_queue.head;
+        if (cp->disk_parts[i] && !DISK_BAD(cp->disk_parts[i]->disk)) {
+          DiskPartBlockQueue *q = cp->disk_parts[i]->dpb_queue.head;
           for (; q; q = q->link.next) {
-            cp->vols[vol_no] = NEW(new Vol());
-            CacheDisk *d = cp->disk_vols[i]->disk;
-            cp->vols[vol_no]->disk = d;
-            cp->vols[vol_no]->fd = d->fd;
-            cp->vols[vol_no]->cache = this;
-            cp->vols[vol_no]->cache_vol = cp;
+            cp->parts[part_no] = NEW(new Part());
+            CacheDisk *d = cp->disk_parts[i]->disk;
+            cp->parts[part_no]->disk = d;
+            cp->parts[part_no]->fd = d->fd;
+            cp->parts[part_no]->cache = this;
+            cp->parts[part_no]->cache_part = cp;
             blocks = q->b->len;
 
-            bool vol_clear = clear || d->cleared || q->new_block;
-            cp->vols[vol_no]->init(d->path, blocks, q->b->offset, vol_clear);
-            vol_no++;
+            bool part_clear = clear || d->cleared || q->new_block;
+            cp->parts[part_no]->init(d->path, blocks, q->b->offset, part_clear);
+            part_no++;
             cache_size += blocks;
           }
         }
       }
-      total_nvol += vol_no;
+      total_npart += part_no;
     }
   }
-  if (total_nvol == 0)
+  if (total_npart == 0)
     return open_done();
   cache_read_done = 1;
   return 0;
@@ -1863,18 +1863,18 @@ CacheVC::handleReadDone(int event, Event *e)
     if (is_io_in_progress())
       return EVENT_CONT;
   {
-    MUTEX_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
+    MUTEX_TRY_LOCK(lock, part->mutex, mutex->thread_holding);
     if (!lock)
       VC_SCHED_LOCK_RETRY();
-    if ((!dir_valid(vol, &dir)) || (!io.ok())) {
+    if ((!dir_valid(part, &dir)) || (!io.ok())) {
       if (!io.ok()) {
         Debug("cache_disk_error", "Read error on disk %s\n \
-	    read range : [%" PRIu64 " - %" PRIu64 " bytes]  [%" PRIu64 " - %" PRIu64 " blocks] \n", vol->hash_id, io.aiocb.aio_offset, io.aiocb.aio_offset + io.aiocb.aio_nbytes, io.aiocb.aio_offset / 512, (io.aiocb.aio_offset + io.aiocb.aio_nbytes) / 512);
+	    read range : [%" PRIu64 " - %" PRIu64 " bytes]  [%" PRIu64 " - %" PRIu64 " blocks] \n", part->hash_id, io.aiocb.aio_offset, io.aiocb.aio_offset + io.aiocb.aio_nbytes, io.aiocb.aio_offset / 512, (io.aiocb.aio_offset + io.aiocb.aio_nbytes) / 512);
       }
       goto Ldone;
     }
 
-    ink_assert(vol->mutex->nthread_holding < 1000);
+    ink_assert(part->mutex->nthread_holding < 1000);
     ink_assert(((Doc *) buf->data())->magic == DOC_MAGIC);
 #ifdef VERIFY_JTEST_DATA
     char xx[500];
@@ -1903,7 +1903,7 @@ CacheVC::handleReadDone(int event, Event *e)
         if (checksum != doc->checksum) {
           Note("cache: checksum error for [%" PRIu64 " %" PRIu64 "] len %d, hlen %d, disk %s, offset %" PRIu64 " size %d",
                doc->first_key.b[0], doc->first_key.b[1],
-               doc->len, doc->hlen, vol->path, io.aiocb.aio_offset, io.aiocb.aio_nbytes);
+               doc->len, doc->hlen, part->path, io.aiocb.aio_offset, io.aiocb.aio_nbytes);
           doc->magic = DOC_CORRUPT;
           okay = 0;
         }
@@ -1931,15 +1931,15 @@ CacheVC::handleReadDone(int event, Event *e)
                         || !cache_config_ram_cache_cutoff);
         if (cutoff_check && !f.doc_from_ram_cache) {
           uint64_t o = dir_offset(&dir);
-          vol->ram_cache->put(read_key, buf, doc->len, http_copy_hdr, (uint32_t)(o >> 32), (uint32_t)o);
+          part->ram_cache->put(read_key, buf, doc->len, http_copy_hdr, (uint32_t)(o >> 32), (uint32_t)o);
         }
         if (!doc_len) {
           // keep a pointer to it. In case the state machine decides to
           // update this document, we don't have to read it back in memory
           // again
-          vol->first_fragment_key = *read_key;
-          vol->first_fragment_offset = dir_offset(&dir);
-          vol->first_fragment_data = buf;
+          part->first_fragment_key = *read_key;
+          part->first_fragment_offset = dir_offset(&dir);
+          part->first_fragment_data = buf;
         }
       }                           // end VIO::READ check
 #ifdef HTTP_CACHE
@@ -1965,33 +1965,33 @@ CacheVC::handleRead(int event, Event *e)
   f.doc_from_ram_cache = false;
 
   // check ram cache
-  ink_debug_assert(vol->mutex->thread_holding == this_ethread());
-  if (vol->ram_cache->get(read_key, &buf, 0, dir_offset(&dir)))
+  ink_debug_assert(part->mutex->thread_holding == this_ethread());
+  if (part->ram_cache->get(read_key, &buf, 0, dir_offset(&dir)))
     goto LramHit;
 
   // check if it was read in the last open_read call
-  if (*read_key == vol->first_fragment_key && dir_offset(&dir) == vol->first_fragment_offset) {
-    buf = vol->first_fragment_data;
+  if (*read_key == part->first_fragment_key && dir_offset(&dir) == part->first_fragment_offset) {
+    buf = part->first_fragment_data;
     goto LmemHit;
   }
 
   // see if its in the aggregation buffer
-  if (dir_agg_buf_valid(vol, &dir)) {
-    int agg_offset = vol_offset(vol, &dir) - vol->header->write_pos;
+  if (dir_agg_buf_valid(part, &dir)) {
+    int agg_offset = part_offset(part, &dir) - part->header->write_pos;
     buf = new_IOBufferData(iobuffer_size_to_index(io.aiocb.aio_nbytes, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
-    ink_assert((agg_offset + io.aiocb.aio_nbytes) <= (unsigned) vol->agg_buf_pos);
+    ink_assert((agg_offset + io.aiocb.aio_nbytes) <= (unsigned) part->agg_buf_pos);
     char *doc = buf->data();
-    char *agg = vol->agg_buffer + agg_offset;
+    char *agg = part->agg_buffer + agg_offset;
     memcpy(doc, agg, io.aiocb.aio_nbytes);
     io.aio_result = io.aiocb.aio_nbytes;
     SET_HANDLER(&CacheVC::handleReadDone);
     return EVENT_RETURN;
   }
 
-  io.aiocb.aio_fildes = vol->fd;
-  io.aiocb.aio_offset = vol_offset(vol, &dir);
-  if ((off_t)(io.aiocb.aio_offset + io.aiocb.aio_nbytes) > (off_t)(vol->skip + vol->len))
-    io.aiocb.aio_nbytes = vol->skip + vol->len - io.aiocb.aio_offset;
+  io.aiocb.aio_fildes = part->fd;
+  io.aiocb.aio_offset = part_offset(part, &dir);
+  if ((off_t)(io.aiocb.aio_offset + io.aiocb.aio_nbytes) > (off_t)(part->skip + part->len))
+    io.aiocb.aio_nbytes = part->skip + part->len - io.aiocb.aio_offset;
   buf = new_IOBufferData(iobuffer_size_to_index(io.aiocb.aio_nbytes, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
   io.aiocb.aio_buf = buf->data();
   io.action = this;
@@ -2013,7 +2013,7 @@ LramHit: {
 LmemHit:
   io.aio_result = io.aiocb.aio_nbytes;
   POP_HANDLER;
-  return EVENT_RETURN; // allow the caller to release the volume lock
+  return EVENT_RETURN; // allow the caller to release the partition lock
 }
 
 Action *
@@ -2024,7 +2024,7 @@ Cache::lookup(Continuation *cont, CacheKey *key, CacheFragType type, char *hostn
     return ACTION_RESULT_DONE;
   }
 
-  Vol *vol = key_to_vol(key, hostname, host_len);
+  Part *part = key_to_part(key, hostname, host_len);
   ProxyMutex *mutex = cont->mutex;
   CacheVC *c = new_CacheVC(cont);
   SET_CONTINUATION_HANDLER(c, &CacheVC::openReadStartHead);
@@ -2034,7 +2034,7 @@ Cache::lookup(Continuation *cont, CacheKey *key, CacheFragType type, char *hostn
   c->first_key = c->key = *key;
   c->frag_type = type;
   c->f.lookup = 1;
-  c->vol = vol;
+  c->part = part;
   c->last_collision = NULL;
 
   if (c->handleEvent(EVENT_INTERVAL, 0) == EVENT_CONT)
@@ -2065,20 +2065,20 @@ CacheVC::removeEvent(int event, Event *e)
   cancel_trigger();
   set_io_not_in_progress();
   {
-    MUTEX_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
+    MUTEX_TRY_LOCK(lock, part->mutex, mutex->thread_holding);
     if (!lock)
       VC_SCHED_LOCK_RETRY();
     if (_action.cancelled) {
       if (od) {
-        vol->close_write(this);
+        part->close_write(this);
         od = 0;
       }
       goto Lfree;
     }
     if (!f.remove_aborted_writers) {
-      if (vol->open_write(this, true, 1)) {
+      if (part->open_write(this, true, 1)) {
         // writer  exists
-        ink_assert(od = vol->open_read(&key));
+        ink_assert(od = part->open_read(&key));
         od->dont_update_directory = 1;
         od = NULL;
       } else {
@@ -2089,11 +2089,11 @@ CacheVC::removeEvent(int event, Event *e)
   Lread:
     if (!buf)
       goto Lcollision;
-    if (!dir_valid(vol, &dir)) {
+    if (!dir_valid(part, &dir)) {
       last_collision = NULL;
       goto Lcollision;
     }
-    // check read completed correct FIXME: remove bad vols
+    // check read completed correct FIXME: remove bad parts
     if ((int) io.aio_result != (int) io.aiocb.aio_nbytes)
       goto Ldone;
     {
@@ -2102,9 +2102,9 @@ CacheVC::removeEvent(int event, Event *e)
       /* should be first_key not key..right?? */
       if (doc->first_key == key) {
         ink_assert(doc->magic == DOC_MAGIC);
-        if (dir_delete(&key, vol, &dir) > 0) {
+        if (dir_delete(&key, part, &dir) > 0) {
           if (od)
-            vol->close_write(this);
+            part->close_write(this);
           od = NULL;
           goto Lremoved;
         }
@@ -2113,7 +2113,7 @@ CacheVC::removeEvent(int event, Event *e)
     }
   Lcollision:
     // check for collision
-    if (dir_probe(&key, vol, &dir, &last_collision) > 0) {
+    if (dir_probe(&key, part, &dir, &last_collision) > 0) {
       int ret = do_read_call(&key);
       if (ret == EVENT_RETURN)
         goto Lread;
@@ -2122,9 +2122,9 @@ CacheVC::removeEvent(int event, Event *e)
   Ldone:
     CACHE_INCREMENT_DYN_STAT(cache_remove_failure_stat);
     if (od)
-      vol->close_write(this);
+      part->close_write(this);
   }
-  ink_debug_assert(!vol || this_ethread() != vol->mutex->thread_holding);
+  ink_debug_assert(!part || this_ethread() != part->mutex->thread_holding);
   _action.continuation->handleEvent(CACHE_EVENT_REMOVE_FAILED, (void *) -ECACHE_NO_DOC);
   goto Lfree;
 Lremoved:
@@ -2155,7 +2155,7 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type,
 
   CACHE_TRY_LOCK(lock, cont->mutex, this_ethread());
   ink_assert(lock);
-  Vol *vol = key_to_vol(key, hostname, host_len);
+  Part *part = key_to_part(key, hostname, host_len);
   // coverity[var_decl]
   Dir result;
   dir_clear(&result);           // initialized here, set result empty so we can recognize missed lock
@@ -2167,7 +2167,7 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type,
   c->base_stat = cache_remove_active_stat;
   CACHE_INCREMENT_DYN_STAT(c->base_stat + CACHE_STAT_ACTIVE);
   c->first_key = c->key = *key;
-  c->vol = vol;
+  c->part = part;
   c->dir = result;
   c->f.remove = 1;
 
@@ -2192,31 +2192,31 @@ cplist_init()
   cp_list_len = 0;
   for (i = 0; i < gndisks; i++) {
     CacheDisk *d = gdisks[i];
-    DiskVol **dp = d->disk_vols;
-    for (j = 0; j < d->header->num_volumes; j++) {
+    DiskPart **dp = d->disk_parts;
+    for (j = 0; j < d->header->num_partitions; j++) {
       ink_assert(dp[j]->dpb_queue.head);
-      CacheVol *p = cp_list.head;
+      CachePart *p = cp_list.head;
       while (p) {
-        if (p->vol_number == dp[j]->vol_number) {
+        if (p->part_number == dp[j]->part_number) {
           ink_assert(p->scheme == (int) dp[j]->dpb_queue.head->b->type);
           p->size += dp[j]->size;
-          p->num_vols += dp[j]->num_volblocks;
-          p->disk_vols[i] = dp[j];
+          p->num_parts += dp[j]->num_partblocks;
+          p->disk_parts[i] = dp[j];
           break;
         }
         p = p->link.next;
       }
       if (!p) {
-        // did not find a volume in the cache vol list...create
+        // did not find a partition in the cache part list...create
         // a new one
-        CacheVol *new_p = NEW(new CacheVol());
-        new_p->vol_number = dp[j]->vol_number;
-        new_p->num_vols = dp[j]->num_volblocks;
+        CachePart *new_p = NEW(new CachePart());
+        new_p->part_number = dp[j]->part_number;
+        new_p->num_parts = dp[j]->num_partblocks;
         new_p->size = dp[j]->size;
         new_p->scheme = dp[j]->dpb_queue.head->b->type;
-        new_p->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
-        memset(new_p->disk_vols, 0, gndisks * sizeof(DiskVol *));
-        new_p->disk_vols[i] = dp[j];
+        new_p->disk_parts = (DiskPart **) xmalloc(gndisks * sizeof(DiskPart *));
+        memset(new_p->disk_parts, 0, gndisks * sizeof(DiskPart *));
+        new_p->disk_parts[i] = dp[j];
         cp_list.enqueue(new_p);
         cp_list_len++;
       }
@@ -2228,38 +2228,38 @@ cplist_init()
 void
 cplist_update()
 {
-  /* go through cplist and delete volumes that are not in the volume.config */
-  CacheVol *cp = cp_list.head;
+  /* go through cplist and delete partitions that are not in the partition.config */
+  CachePart *cp = cp_list.head;
 
   while (cp) {
-    ConfigVol *config_vol = config_volumes.cp_queue.head;
-    for (; config_vol; config_vol = config_vol->link.next) {
-      if (config_vol->number == cp->vol_number) {
-        int size_in_blocks = config_vol->size << (20 - STORE_BLOCK_SHIFT);
-        if ((cp->size <= size_in_blocks) && (cp->scheme == config_vol->scheme)) {
-          config_vol->cachep = cp;
+    ConfigPart *config_part = config_partitions.cp_queue.head;
+    for (; config_part; config_part = config_part->link.next) {
+      if (config_part->number == cp->part_number) {
+        int size_in_blocks = config_part->size << (20 - STORE_BLOCK_SHIFT);
+        if ((cp->size <= size_in_blocks) && (cp->scheme == config_part->scheme)) {
+          config_part->cachep = cp;
         } else {
-          /* delete this volume from all the disks */
+          /* delete this partition from all the disks */
           int d_no;
           for (d_no = 0; d_no < gndisks; d_no++) {
-            if (cp->disk_vols[d_no])
-              cp->disk_vols[d_no]->disk->delete_volume(cp->vol_number);
+            if (cp->disk_parts[d_no])
+              cp->disk_parts[d_no]->disk->delete_partition(cp->part_number);
           }
-          config_vol = NULL;
+          config_part = NULL;
         }
         break;
       }
     }
 
-    if (!config_vol) {
-      // did not find a matching volume in the config file.
-      //Delete hte volume from the cache vol list
+    if (!config_part) {
+      // did not find a matching partition in the config file.
+      //Delete hte partition from the cache part list
       int d_no;
       for (d_no = 0; d_no < gndisks; d_no++) {
-        if (cp->disk_vols[d_no])
-          cp->disk_vols[d_no]->disk->delete_volume(cp->vol_number);
+        if (cp->disk_parts[d_no])
+          cp->disk_parts[d_no]->disk->delete_partition(cp->part_number);
       }
-      CacheVol *temp_cp = cp;
+      CachePart *temp_cp = cp;
       cp = cp->link.next;
       cp_list.remove(temp_cp);
       cp_list_len--;
@@ -2275,185 +2275,185 @@ cplist_reconfigure()
 {
   int i, j;
   int size;
-  int volume_number;
+  int partition_number;
   int size_in_blocks;
 
-  gnvol = 0;
-  if (config_volumes.num_volumes == 0) {
+  gnpart = 0;
+  if (config_partitions.num_partitions == 0) {
     /* only the http cache */
-    CacheVol *cp = NEW(new CacheVol());
-    cp->vol_number = 0;
+    CachePart *cp = NEW(new CachePart());
+    cp->part_number = 0;
     cp->scheme = CACHE_HTTP_TYPE;
-    cp->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
-    memset(cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
+    cp->disk_parts = (DiskPart **) xmalloc(gndisks * sizeof(DiskPart *));
+    memset(cp->disk_parts, 0, gndisks * sizeof(DiskPart *));
     cp_list.enqueue(cp);
     cp_list_len++;
     for (i = 0; i < gndisks; i++) {
-      if (gdisks[i]->header->num_volumes != 1 || gdisks[i]->disk_vols[0]->vol_number != 0) {
-        /* The user had created several volumes before - clear the disk
-           and create one volume for http */
+      if (gdisks[i]->header->num_partitions != 1 || gdisks[i]->disk_parts[0]->part_number != 0) {
+        /* The user had created several partitions before - clear the disk
+           and create one partition for http */
         Note("Clearing Disk: %s", gdisks[i]->path);
-        gdisks[i]->delete_all_volumes();
+        gdisks[i]->delete_all_partitions();
       }
       if (gdisks[i]->cleared) {
         uint64_t free_space = gdisks[i]->free_space * STORE_BLOCK_SIZE;
-        int vols = (free_space / MAX_VOL_SIZE) + 1;
-        for (int p = 0; p < vols; p++) {
-          off_t b = gdisks[i]->free_space / (vols - p);
+        int parts = (free_space / MAX_PART_SIZE) + 1;
+        for (int p = 0; p < parts; p++) {
+          off_t b = gdisks[i]->free_space / (parts - p);
           Debug("cache_hosting", "blocks = %d\n", b);
-          DiskVolBlock *dpb = gdisks[i]->create_volume(0, b, CACHE_HTTP_TYPE);
+          DiskPartBlock *dpb = gdisks[i]->create_partition(0, b, CACHE_HTTP_TYPE);
           ink_assert(dpb && dpb->len == b);
         }
         ink_assert(gdisks[i]->free_space == 0);
       }
 
-      ink_assert(gdisks[i]->header->num_volumes == 1);
-      DiskVol **dp = gdisks[i]->disk_vols;
-      gnvol += dp[0]->num_volblocks;
+      ink_assert(gdisks[i]->header->num_partitions == 1);
+      DiskPart **dp = gdisks[i]->disk_parts;
+      gnpart += dp[0]->num_partblocks;
       cp->size += dp[0]->size;
-      cp->num_vols += dp[0]->num_volblocks;
-      cp->disk_vols[i] = dp[0];
+      cp->num_parts += dp[0]->num_partblocks;
+      cp->disk_parts[i] = dp[0];
     }
 
   } else {
     for (i = 0; i < gndisks; i++) {
-      if (gdisks[i]->header->num_volumes == 1 && gdisks[i]->disk_vols[0]->vol_number == 0) {
-        /* The user had created several volumes before - clear the disk
-           and create one volume for http */
+      if (gdisks[i]->header->num_partitions == 1 && gdisks[i]->disk_parts[0]->part_number == 0) {
+        /* The user had created several partitions before - clear the disk
+           and create one partition for http */
         Note("Clearing Disk: %s", gdisks[i]->path);
-        gdisks[i]->delete_all_volumes();
+        gdisks[i]->delete_all_partitions();
       }
     }
 
     /* change percentages in the config patitions to absolute value */
     int64_t tot_space_in_blks = 0;
-    int blocks_per_vol = VOL_BLOCK_SIZE / STORE_BLOCK_SIZE;
+    int blocks_per_part = PART_BLOCK_SIZE / STORE_BLOCK_SIZE;
     /* sum up the total space available on all the disks.
        round down the space to 128 megabytes */
     for (i = 0; i < gndisks; i++)
-      tot_space_in_blks += (gdisks[i]->num_usable_blocks / blocks_per_vol) * blocks_per_vol;
+      tot_space_in_blks += (gdisks[i]->num_usable_blocks / blocks_per_part) * blocks_per_part;
 
     double percent_remaining = 100.00;
-    ConfigVol *config_vol = config_volumes.cp_queue.head;
-    for (; config_vol; config_vol = config_vol->link.next) {
-      if (config_vol->in_percent) {
-        if (config_vol->percent > percent_remaining) {
-          Warning("total volume sizes added up to more than 100%%!");
-          Warning("no volumes created");
+    ConfigPart *config_part = config_partitions.cp_queue.head;
+    for (; config_part; config_part = config_part->link.next) {
+      if (config_part->in_percent) {
+        if (config_part->percent > percent_remaining) {
+          Warning("total partition sizes added up to more than 100%%!");
+          Warning("no partitions created");
           return -1;
         }
-        int space_in_blks = (int) (((double) (config_vol->percent / percent_remaining)) * tot_space_in_blks);
+        int space_in_blks = (int) (((double) (config_part->percent / percent_remaining)) * tot_space_in_blks);
 
         space_in_blks = space_in_blks >> (20 - STORE_BLOCK_SHIFT);
         /* round down to 128 megabyte multiple */
         space_in_blks = (space_in_blks >> 7) << 7;
-        config_vol->size = space_in_blks;
+        config_part->size = space_in_blks;
         tot_space_in_blks -= space_in_blks << (20 - STORE_BLOCK_SHIFT);
-        percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
+        percent_remaining -= (config_part->size < 128) ? 0 : config_part->percent;
       }
-      if (config_vol->size < 128) {
-        Warning("the size of volume %d (%d) is less than the minimum required volume size",
-                config_vol->number, config_vol->size, 128);
-        Warning("volume %d is not created", config_vol->number);
+      if (config_part->size < 128) {
+        Warning("the size of partition %d (%d) is less than the minimum required partition size",
+                config_part->number, config_part->size, 128);
+        Warning("partition %d is not created", config_part->number);
       }
-      Debug("cache_hosting", "Volume: %d Size: %d", config_vol->number, config_vol->size);
+      Debug("cache_hosting", "Partition: %d Size: %d", config_part->number, config_part->size);
     }
     cplist_update();
-    /* go through volume config and grow and create volumes */
+    /* go through partition config and grow and create partitiosn */
 
-    config_vol = config_volumes.cp_queue.head;
+    config_part = config_partitions.cp_queue.head;
 
-    for (; config_vol; config_vol = config_vol->link.next) {
+    for (; config_part; config_part = config_part->link.next) {
 
-      size = config_vol->size;
+      size = config_part->size;
       if (size < 128)
         continue;
 
-      volume_number = config_vol->number;
+      partition_number = config_part->number;
 
       size_in_blocks = ((off_t) size * 1024 * 1024) / STORE_BLOCK_SIZE;
 
-      if (!config_vol->cachep) {
-        // we did not find a corresponding entry in cache vol...creat one
+      if (!config_part->cachep) {
+        // we did not find a corresponding entry in cache part...creat one
 
-        CacheVol *new_cp = NEW(new CacheVol());
-        new_cp->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
-        memset(new_cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
-        if (create_volume(config_vol->number, size_in_blocks, config_vol->scheme, new_cp))
+        CachePart *new_cp = NEW(new CachePart());
+        new_cp->disk_parts = (DiskPart **) xmalloc(gndisks * sizeof(DiskPart *));
+        memset(new_cp->disk_parts, 0, gndisks * sizeof(DiskPart *));
+        if (create_partition(config_part->number, size_in_blocks, config_part->scheme, new_cp))
           return -1;
         cp_list.enqueue(new_cp);
         cp_list_len++;
-        config_vol->cachep = new_cp;
-        gnvol += new_cp->num_vols;
+        config_part->cachep = new_cp;
+        gnpart += new_cp->num_parts;
         continue;
       }
 //    else
-      CacheVol *cp = config_vol->cachep;
+      CachePart *cp = config_part->cachep;
       ink_assert(cp->size <= size_in_blocks);
       if (cp->size == size_in_blocks) {
-        gnvol += cp->num_vols;
+        gnpart += cp->num_parts;
         continue;
       }
       // else the size is greater...
       /* search the cp_list */
 
-      int *sorted_vols = new int[gndisks];
+      int *sorted_part = new int[gndisks];
       for (i = 0; i < gndisks; i++) {
-        sorted_vols[i] = i;
+        sorted_part[i] = i;
       }
       for (i = 0; i < gndisks - 1; i++) {
-        int smallest = sorted_vols[i];
+        int smallest = sorted_part[i];
         int smallest_ndx = i;
         for (j = i + 1; j < gndisks; j++) {
-          int curr = sorted_vols[j];
-          DiskVol *dvol = cp->disk_vols[curr];
+          int curr = sorted_part[j];
+          DiskPart *dpart = cp->disk_parts[curr];
           if (gdisks[curr]->cleared) {
-            ink_assert(!dvol);
+            ink_assert(!dpart);
             // disks that are cleared should be filled first
             smallest = curr;
             smallest_ndx = j;
-          } else if (!dvol && cp->disk_vols[smallest]) {
+          } else if (!dpart && cp->disk_parts[smallest]) {
 
             smallest = curr;
             smallest_ndx = j;
-          } else if (dvol && cp->disk_vols[smallest] && (dvol->size < cp->disk_vols[smallest]->size)) {
+          } else if (dpart && cp->disk_parts[smallest] && (dpart->size < cp->disk_parts[smallest]->size)) {
             smallest = curr;
             smallest_ndx = j;
           }
         }
-        sorted_vols[smallest_ndx] = sorted_vols[i];
-        sorted_vols[i] = smallest;
+        sorted_part[smallest_ndx] = sorted_part[i];
+        sorted_part[i] = smallest;
       }
 
       int size_to_alloc = size_in_blocks - cp->size;
       int disk_full = 0;
       for (i = 0; (i < gndisks) && size_to_alloc; i++) {
 
-        int disk_no = sorted_vols[i];
-        ink_assert(cp->disk_vols[sorted_vols[gndisks - 1]]);
-        int largest_vol = cp->disk_vols[sorted_vols[gndisks - 1]]->size;
+        int disk_no = sorted_part[i];
+        ink_assert(cp->disk_parts[sorted_part[gndisks - 1]]);
+        int largest_part = cp->disk_parts[sorted_part[gndisks - 1]]->size;
 
         /* allocate storage on new disk. Find the difference
-           between the biggest volume on any disk and
-           the volume on this disk and try to make
+           between the biggest partition on any disk and
+           the partition on this disk and try to make
            them equal */
-        int size_diff = (cp->disk_vols[disk_no]) ? largest_vol - cp->disk_vols[disk_no]->size : largest_vol;
+        int size_diff = (cp->disk_parts[disk_no]) ? largest_part - cp->disk_parts[disk_no]->size : largest_part;
         size_diff = (size_diff < size_to_alloc) ? size_diff : size_to_alloc;
-        /* if size_diff == 0, then then the disks have volumes of the
+        /* if size_diff == 0, then then the disks have partitions of the
            same sizes, so we don't need to balance the disks */
         if (size_diff == 0)
           break;
 
-        DiskVolBlock *dpb;
+        DiskPartBlock *dpb;
         do {
-          dpb = gdisks[disk_no]->create_volume(volume_number, size_diff, cp->scheme);
+          dpb = gdisks[disk_no]->create_partition(partition_number, size_diff, cp->scheme);
           if (dpb) {
-            if (!cp->disk_vols[disk_no]) {
-              cp->disk_vols[disk_no] = gdisks[disk_no]->get_diskvol(volume_number);
+            if (!cp->disk_parts[disk_no]) {
+              cp->disk_parts[disk_no] = gdisks[disk_no]->get_diskpart(partition_number);
             }
             size_diff -= dpb->len;
             cp->size += dpb->len;
-            cp->num_vols++;
+            cp->num_parts++;
           } else
             break;
         } while ((size_diff > 0));
@@ -2465,47 +2465,47 @@ cplist_reconfigure()
 
       }
 
-      delete[]sorted_vols;
+      delete[]sorted_part;
 
       if (size_to_alloc) {
-        if (create_volume(volume_number, size_to_alloc, cp->scheme, cp)) {
+        if (create_partition(partition_number, size_to_alloc, cp->scheme, cp)) {
           return -1;
         }
       }
-      gnvol += cp->num_vols;
+      gnpart += cp->num_parts;
     }
   }
   return 0;
 }
 
 int
-create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp)
+create_partition(int partition_number, int size_in_blocks, int scheme, CachePart *cp)
 {
-  static int curr_vol = 0;
+  static int curr_part = 0;
   int to_create = size_in_blocks;
-  int blocks_per_vol = VOL_BLOCK_SIZE >> STORE_BLOCK_SHIFT;
+  int blocks_per_part = PART_BLOCK_SIZE >> STORE_BLOCK_SHIFT;
   int full_disks = 0;
 
   int *sp = new int[gndisks];
   memset(sp, 0, gndisks * sizeof(int));
 
-  int i = curr_vol;
+  int i = curr_part;
   while (size_in_blocks > 0) {
-    if (gdisks[i]->free_space >= (sp[i] + blocks_per_vol)) {
-      sp[i] += blocks_per_vol;
-      size_in_blocks -= blocks_per_vol;
+    if (gdisks[i]->free_space >= (sp[i] + blocks_per_part)) {
+      sp[i] += blocks_per_part;
+      size_in_blocks -= blocks_per_part;
       full_disks = 0;
     } else {
       full_disks += 1;
       if (full_disks == gndisks) {
         char config_file[PATH_NAME_MAX];
-        IOCORE_ReadConfigString(config_file, "proxy.config.cache.volume_filename", PATH_NAME_MAX);
+        IOCORE_ReadConfigString(config_file, "proxy.config.cache.partition_filename", PATH_NAME_MAX);
         if (cp->size)
-          Warning("not enough space to increase volume: [%d] to size: [%d]",
-                  volume_number, (to_create + cp->size) >> (20 - STORE_BLOCK_SHIFT));
+          Warning("not enough space to increase partition: [%d] to size: [%d]",
+                  partition_number, (to_create + cp->size) >> (20 - STORE_BLOCK_SHIFT));
         else
-          Warning("not enough space to create volume: [%d], size: [%d]",
-                  volume_number, to_create >> (20 - STORE_BLOCK_SHIFT));
+          Warning("not enough space to create partition: [%d], size: [%d]",
+                  partition_number, to_create >> (20 - STORE_BLOCK_SHIFT));
 
         Note("edit the %s file and restart traffic_server", config_file);
         delete[]sp;
@@ -2514,21 +2514,22 @@ create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp)
     }
     i = (i + 1) % gndisks;
   }
-  cp->vol_number = volume_number;
+  cp->part_number = partition_number;
   cp->scheme = scheme;
-  curr_vol = i;
+  curr_part = i;
   for (i = 0; i < gndisks; i++) {
     if (sp[i] > 0) {
       while (sp[i] > 0) {
-        DiskVolBlock *p = gdisks[i]->create_volume(volume_number, sp[i], scheme);
+        DiskPartBlock *p = gdisks[i]->create_partition(partition_number,
+                                                       sp[i], scheme);
 
-        ink_assert(p && (p->len >= (unsigned int) blocks_per_vol));
+        ink_assert(p && (p->len >= (unsigned int) blocks_per_part));
         sp[i] -= p->len;
-        cp->num_vols++;
+        cp->num_parts++;
         cp->size += p->len;
       }
-      if (!cp->disk_vols[i])
-        cp->disk_vols[i] = gdisks[i]->get_diskvol(volume_number);
+      if (!cp->disk_parts[i])
+        cp->disk_parts[i] = gdisks[i]->get_diskpart(partition_number);
     }
   }
   delete[]sp;
@@ -2538,50 +2539,50 @@ create_volume(int volume_number, int size_in_blocks, int scheme, CacheVol *cp)
 void
 rebuild_host_table(Cache *cache)
 {
-  build_vol_hash_table(&cache->hosttable->gen_host_rec);
+  build_part_hash_table(&cache->hosttable->gen_host_rec);
   if (cache->hosttable->m_numEntries != 0) {
     CacheHostMatcher *hm = cache->hosttable->getHostMatcher();
     CacheHostRecord *h_rec = hm->getDataArray();
     int h_rec_len = hm->getNumElements();
     int i;
     for (i = 0; i < h_rec_len; i++) {
-      build_vol_hash_table(&h_rec[i]);
+      build_part_hash_table(&h_rec[i]);
     }
   }
 }
 
-// if generic_host_rec.vols == NULL, what do we do???
-Vol *
-Cache::key_to_vol(CacheKey *key, char *hostname, int host_len)
+// if generic_host_rec.parts == NULL, what do we do???
+Part *
+Cache::key_to_part(CacheKey *key, char *hostname, int host_len)
 {
-  uint32_t h = (key->word(2) >> DIR_TAG_WIDTH) % VOL_HASH_TABLE_SIZE;
-  unsigned short *hash_table = hosttable->gen_host_rec.vol_hash_table;
+  uint32_t h = (key->word(2) >> DIR_TAG_WIDTH) % PART_HASH_TABLE_SIZE;
+  unsigned short *hash_table = hosttable->gen_host_rec.part_hash_table;
   CacheHostRecord *host_rec = &hosttable->gen_host_rec;
 
   if (hosttable->m_numEntries > 0 && host_len) {
     CacheHostResult res;
     hosttable->Match(hostname, host_len, &res);
     if (res.record) {
-      unsigned short *host_hash_table = res.record->vol_hash_table;
+      unsigned short *host_hash_table = res.record->part_hash_table;
       if (host_hash_table) {
         if (is_debug_tag_set("cache_hosting")) {
           char format_str[50];
-          snprintf(format_str, sizeof(format_str), "Volume: %%xd for host: %%.%ds", host_len);
+          snprintf(format_str, sizeof(format_str), "Partition: %%xd for host: %%.%ds", host_len);
           Debug("cache_hosting", format_str, res.record, hostname);
         }
-        return res.record->vols[host_hash_table[h]];
+        return res.record->parts[host_hash_table[h]];
       }
     }
   }
   if (hash_table) {
     if (is_debug_tag_set("cache_hosting")) {
       char format_str[50];
-      snprintf(format_str, sizeof(format_str), "Generic volume: %%xd for host: %%.%ds", host_len);
+      snprintf(format_str, sizeof(format_str), "Generic partition: %%xd for host: %%.%ds", host_len);
       Debug("cache_hosting", format_str, host_rec, hostname);
     }
-    return host_rec->vols[hash_table[h]];
+    return host_rec->parts[hash_table[h]];
   } else
-    return host_rec->vols[0];
+    return host_rec->parts[0];
 }
 
 static void reg_int(const char *str, int stat, RecRawStatBlock *rsb, const char *prefix, RecRawStatSyncCb sync_cb=RecRawStatSyncSum) {

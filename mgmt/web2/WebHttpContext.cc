@@ -50,6 +50,7 @@ WebHttpContextCreate(WebHttpConInfo * whci)
   // memset to 0; note strings are zero'd too
   memset(whc, 0, sizeof(WebHttpContext));
 
+  whc->current_user.access = WEB_HTTP_AUTH_ACCESS_NONE;
   whc->request = NEW(new httpMessage());
   whc->response_hdr = NEW(new httpResponse());
   whc->response_bdy = NEW(new textBuffer(8192));
@@ -61,11 +62,20 @@ WebHttpContextCreate(WebHttpConInfo * whci)
 
   // keep pointers into the context passed to us
   whc->client_info = whci->clientInfo;
+  whc->ssl_ctx = whci->context->SSL_Context;
   whc->default_file = whci->context->defaultFile;
   whc->doc_root = whci->context->docRoot;
-  whc->doc_root_len = whci->context->docRootLen;
+  whc->admin_user = whci->context->admin_user;
+  whc->other_users_ht = whci->context->other_users_ht;
+  whc->lang_dict_ht = whci->context->lang_dict_ht;
 
   // set server_state
+  if (whci->context->SSLenabled > 0) {
+    whc->server_state |= WEB_HTTP_SERVER_STATE_SSL_ENABLED;
+  }
+  if (whci->context->adminAuthEnabled > 0) {
+    whc->server_state |= WEB_HTTP_SERVER_STATE_AUTH_ENABLED;
+  }
   if (whci->context == &autoconfContext) {
     whc->server_state |= WEB_HTTP_SERVER_STATE_AUTOCONF;
   }
@@ -105,5 +115,19 @@ WebHttpContextDestroy(WebHttpContext * whc)
     if (whc->cache_query_result)
       xfree(whc->cache_query_result);
     xfree(whc);
+  }
+}
+
+//-------------------------------------------------------------------------
+// WebHttpContextPrint_Debug
+//-------------------------------------------------------------------------
+
+void
+WebHttpContextPrint_Debug(WebHttpContext * whc)
+{
+  if (whc) {
+    printf("[WebHttpContext]\n");
+    printf("-> default_file    : %s\n", whc->default_file);
+    printf("-> doc_root        : %s\n", whc->doc_root);
   }
 }

@@ -174,6 +174,7 @@ TSDomainList copy_domain_list(TSDomainList list);
 TSStringList copy_string_list(TSStringList list);
 TSIntList copy_int_list(TSIntList list);
 
+TSAdminAccessEle *copy_admin_access_ele(TSAdminAccessEle * ele);
 TSCacheEle *copy_cache_ele(TSCacheEle * ele);
 TSCongestionEle *copy_congestion_ele(TSCongestionEle * ele);
 TSHostingEle *copy_hosting_ele(TSHostingEle * ele);
@@ -182,8 +183,9 @@ TSIpAllowEle *copy_ip_allow_ele(TSIpAllowEle * ele);
 TSLogFilterEle *copy_log_filter_ele(TSLogFilterEle * ele);
 TSLogFormatEle *copy_log_format_ele(TSLogFormatEle * ele);
 TSLogObjectEle *copy_log_object_ele(TSLogObjectEle * ele);
+TSMgmtAllowEle *copy_mgmt_allow_ele(TSMgmtAllowEle * ele);
 TSParentProxyEle *copy_parent_proxy_ele(TSParentProxyEle * ele);
-TSVolumeEle *copy_volume_ele(TSVolumeEle * ele);
+TSPartitionEle *copy_partition_ele(TSPartitionEle * ele);
 TSPluginEle *copy_plugin_ele(TSPluginEle * ele);
 TSRemapEle *copy_remap_ele(TSRemapEle * ele);
 TSSocksEle *copy_socks_ele(TSSocksEle * ele);

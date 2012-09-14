@@ -304,15 +304,6 @@ public:
   Ptr<T> &operator =(const Ptr<T> &);
   Ptr<T> &operator =(T *);
 
-  T * to_ptr() {
-    if (m_ptr && m_ptr->m_refcount == 1) {
-      T * ptr = m_ptr;
-      m_ptr = 0;
-      ptr->m_refcount = 0;
-      return ptr;
-    }
-    return 0;
-  }
   operator  T *() const
   {
     return (m_ptr);

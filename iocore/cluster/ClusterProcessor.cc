@@ -205,11 +205,11 @@ ClusterProcessor::free_remote_data(char *p, int l)
   int data_hdr = ClusterControl::DATA_HDR;
 
   ink_release_assert(*((uint8_t *) (d - data_hdr + 1)) == (uint8_t) ALLOC_DATA_MAGIC);
-  unsigned char size_index = *(d - data_hdr);
-  if (!(size_index & 0x80)) {
-    ink_release_assert(size_index <= (DEFAULT_BUFFER_SIZES - 1));
+  char size_index = *(d - data_hdr);
+  if (size_index >= 0) {
+    ink_release_assert((0 <= size_index) && (size_index <= (DEFAULT_BUFFER_SIZES - 1)));
   } else {
-    ink_release_assert(size_index == 0xff);
+    ink_release_assert(size_index == -1);
   }
 
   // Extract 'this' pointer

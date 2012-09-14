@@ -45,6 +45,7 @@ noinst_LIBRARIES = libtrafficshell.a
 libtrafficshell_a_SOURCES = \
   CliCreateCommands.cc \
   CliCreateCommands.h \
+  CliCreateUpgradeCmd.cc \
   CliDisplay.cc \
   CliDisplay.h \
   CliMgmtUtils.cc \

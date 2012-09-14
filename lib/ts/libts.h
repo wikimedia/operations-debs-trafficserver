@@ -37,10 +37,6 @@
 #if !defined (_inktomiplus_h_)
 #define	_inktomiplus_h_
 
-/* Removed for now, to fix build on Solaris
-#define std *** _FIXME_REMOVE_DEPENDENCY_ON_THE_STL_ ***
-*/
-
 #include "ink_config.h"
 #include "ink_platform.h"
 #include "ink_port.h"
@@ -93,7 +89,6 @@
 #include "List.h"
 #include "INK_MD5.h"
 #include "MMH.h"
-#include "Map.h"
 #include "MimeTable.h"
 #include "ParseRules.h"
 #include "Ptr.h"
@@ -108,6 +103,5 @@
 #include "Regression.h"
 #include "HostLookup.h"
 #include "InkErrno.h"
-#include "Vec.h"
 
 #endif /*_inktomiplus_h_*/
