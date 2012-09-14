@@ -39,7 +39,7 @@
 class UnixUDPConnection:public UDPConnectionInternal
 {
 public:
-  void init(int the_fd);
+  void init(int fd);
   void setEthread(EThread * e);
   void errorAndDie(int e);
   int callbackHandler(int event, void *data);
@@ -54,7 +54,7 @@ public:
   EThread *ethread;
   EventIO ep;
 
-  UnixUDPConnection(int the_fd);
+  UnixUDPConnection(int fd);
   virtual ~ UnixUDPConnection();
 private:
   int m_errno;
@@ -62,22 +62,22 @@ private:
 };
 
 TS_INLINE
-UnixUDPConnection::UnixUDPConnection(int the_fd)
+UnixUDPConnection::UnixUDPConnection(int fd)
   : onCallbackQueue(0)
   , callbackAction(NULL)
   , ethread(NULL)
   , m_errno(0)
 {
-  fd = the_fd;
+  fd = fd;
   UDPPacketInternal p;
   ink_atomiclist_init(&inQueue, "Incoming UDP Packet queue", (char *) &p.alink.next - (char *) &p);
   SET_HANDLER(&UnixUDPConnection::callbackHandler);
 }
 
 TS_INLINE void
-UnixUDPConnection::init(int the_fd)
+UnixUDPConnection::init(int fd)
 {
-  fd = the_fd;
+  fd = fd;
   onCallbackQueue = 0;
   callbackAction = NULL;
   ethread = NULL;

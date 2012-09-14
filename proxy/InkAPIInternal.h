@@ -35,7 +35,6 @@
 #include "List.h"
 #include "ProxyConfig.h"
 #include "P_Cache.h"
-#include "I_Tasks.h"
 
 
 /* ****** Cache Structure ********* */
@@ -162,7 +161,7 @@ class ConfigUpdateCallback:public Continuation
 {
 public:
   ConfigUpdateCallback(INKContInternal * contp)
-    : Continuation(contp->mutex), m_cont(contp)
+  :Continuation(contp->mutex), m_cont(contp)
   {
     SET_HANDLER(&ConfigUpdateCallback::event_handler);
   }
@@ -172,7 +171,7 @@ public:
     if (m_cont->mutex != NULL) {
       MUTEX_TRY_LOCK(trylock, m_cont->mutex, this_ethread());
       if (!trylock) {
-        eventProcessor.schedule_in(this, HRTIME_MSECONDS(10), ET_TASK);
+        eventProcessor.schedule_in(this, HRTIME_MSECONDS(10), ET_NET);
       } else {
         m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, NULL);
         delete this;
@@ -186,7 +185,7 @@ public:
   }
 
 private:
-  INKContInternal *m_cont;
+  INKContInternal * m_cont;
 };
 
 class ConfigUpdateCbTable
@@ -195,7 +194,7 @@ public:
   ConfigUpdateCbTable();
   ~ConfigUpdateCbTable();
 
-  void insert(INKContInternal * contp, const char *name);
+  void insert(INKContInternal * contp, const char *name, const char *config_path);
   void invoke(const char *name);
   void invoke(INKContInternal * contp);
 

@@ -119,7 +119,7 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
   char *user, *password;
   int authval_length;
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client request header\n");
     goto done;
   }
@@ -131,15 +131,14 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
     goto done;
   }
 
-  val = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &authval_length);
-  if (NULL == val) {
+  if (TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &val, &authval_length) != TS_SUCCESS) {
     TSError("no value in Proxy-Authorization field\n");
     TSHandleMLocRelease(bufp, hdr_loc, field_loc);
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
   }
-
   ptr = val;
+
   if (strncmp(ptr, "Basic", 5) != 0) {
     TSError("no Basic auth type in Proxy-Authorization\n");
     TSHandleMLocRelease(bufp, hdr_loc, field_loc);
@@ -192,7 +191,7 @@ handle_response(TSHttpTxn txnp)
   const char *insert = "Basic realm=\"proxy\"";
   int len = strlen(insert);
 
-  if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client response header\n");
     goto done;
   }
@@ -202,7 +201,7 @@ handle_response(TSHttpTxn txnp)
                       TSHttpHdrReasonLookup(TS_HTTP_STATUS_PROXY_AUTHENTICATION_REQUIRED),
                       strlen(TSHttpHdrReasonLookup(TS_HTTP_STATUS_PROXY_AUTHENTICATION_REQUIRED)));
 
-  TSMimeHdrFieldCreate(bufp, hdr_loc, &field_loc); // Probably should check for errors
+  field_loc = TSMimeHdrFieldCreate(bufp, hdr_loc);
   TSMimeHdrFieldNameSet(bufp, hdr_loc, field_loc, TS_MIME_FIELD_PROXY_AUTHENTICATE, TS_MIME_LEN_PROXY_AUTHENTICATE);
   TSMimeHdrFieldValueStringInsert(bufp, hdr_loc, field_loc, -1,  insert, len);
   TSMimeHdrFieldAppend(bufp, hdr_loc, field_loc);
@@ -269,7 +268,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("Plugin registration failed.\n");
   }
 

@@ -7,7 +7,6 @@ plugins to build large scale web applications.
 1. DIRECTORY STRUCTURE
 
   traffic/ ............... top src dir
-  |-- cop ................ traffic_cop application
   |-- doc/ ............... generated documentation
   |-- example/ ........... example plugins
   |-- install/ ........... installation programs and scripts
@@ -17,8 +16,6 @@ plugins to build large scale web applications.
       |-- tsconfig/....... New config parser and library (experimental)
       |-- records/ ....... library for config files
   |-- m4/ ................ custom macros for configure.ac
-  |-- mgmt/ .............. Management server and tools (including traffic_manager)
-      |-- cli ............ Command line utilities and API
   |-- proxy/ ............. HTTP proxy logic
   |-- test/ .............. functional tests
   |-- .indent.pro ........ indent profile for coding style
@@ -44,9 +41,12 @@ plugins to build large scale web applications.
     openssl-devel
     tcl-devel
     expat-devel
+    sqlite-devel (or optionally, db4-devel)
     pcre
 
   Fedora 8 EC2 (Kernel: 2.6.21.7-2.ec2.v1.2.fc8xen):
+    You must either upgrade sqlite to >= 3.5 or use db4-devel.
+    We recommend that you when dealing with EC2 FC8 to just use db4-devel.
     FC8 on EC2 requires unique configure declarations, please see that section
     below. 
 
@@ -76,6 +76,7 @@ plugins to build large scale web applications.
     tcl-dev 
     expat 
     libexpat-dev 
+    libsqlite3-dev (or optionally, libdb-dev)
     libpcre3-dev
 
   Ubuntu EC2 9.10:
@@ -93,6 +94,7 @@ plugins to build large scale web applications.
     tcl-dev
     expat
     libexpat-dev
+    libsqlite3-dev (or optionally, libdb-dev)
     libpcre3-dev
 
   FreeBSD 7.2,8.0:
@@ -104,6 +106,7 @@ plugins to build large scale web applications.
     expat
     openssl
     pcre
+    sqlite3 (or optionally, db4)
 
   OpenSolaris osol0906:
     GCC 4.3.2 compiler suite (dev collection)
@@ -114,6 +117,7 @@ plugins to build large scale web applications.
     expat
     openssl
     pcre
+    sqlite3 (or optionally, db4)
 
   OSX 10.5:
     GCC 4.2.4 compiler suite (ports collection)
@@ -124,6 +128,9 @@ plugins to build large scale web applications.
     expat
     openssl
     pcre
+    sqlite3 (or optionally, db4)
+
+For using sqlite3, we only support v3.5 or later (basically, we require the v2 APIs).
 
 
 3. BUILDING FROM SVN REPO
@@ -156,7 +163,7 @@ plugins to build large scale web applications.
    svn checkout ...       # get the source code from ASF Subversion repo
    cd traffic             # enter the checkout dir
    autoreconf -i --force  # generate the configure script and Makefile.in files
-   ./configure --disable-eventfd
+   ./configure --without-sqlite3 --with-libdb --disable-eventfd
    make
 
 

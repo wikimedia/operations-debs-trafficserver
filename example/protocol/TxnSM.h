@@ -50,7 +50,7 @@ typedef struct _TxnSM
   char *q_server_response;
 
   char *q_file_name;
-  TSCacheKey q_key;
+  char *q_key;
 
   char *q_server_name;
   uint32_t q_server_ip;

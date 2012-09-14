@@ -96,9 +96,10 @@
 #define TS_HAS_STRLCPY                 @has_strlcpy@
 #define TS_HAS_STRLCAT                 @has_strlcat@
 
+#define TS_USE_SQLITE3                 @use_sqlite3@
+#define TS_USE_LIBDB                   @use_libdb@
 #define TS_HAS_BACKTRACE               @has_backtrace@
 #define TS_HAS_PROFILER                @has_profiler@
-#define TS_USE_FAST_SDK                @use_fast_sdk@
 #define TS_USE_DIAGS                   @use_diags@
 #define TS_USE_LIBEV                   @use_libev@
 #define TS_USE_EPOLL                   @use_epoll@
@@ -119,7 +120,9 @@
 #define TS_IS_MICRO_BUILD              @is_micro_build@
 #define TS_HAS_STANDALONE_IOCORE       @has_standalone_iocore@
 #define TS_HAS_INKAPI                  @has_inkapi@
+#define TS_HAS_CLI2                    @has_cli2@
 #define TS_HAS_WEBUI                   @has_webui@
+#define TS_HAS_V2STATS                 @has_v2stats@
 #define TS_HAS_PURIFY                  @has_purify@
 #define TS_HAS_DEMANGLE                @has_demangle@
 #define TS_HAS_TESTS                   @has_tests@
@@ -162,6 +165,10 @@
 # define HTTP_CACHE                     1
 #endif
 
+#if !TS_HAS_WEBUI
+# define NO_WEBUI                       1
+#endif
+
 #if TS_HAS_PURIFY
 # define PURIFY                         1
 #endif
@@ -172,24 +179,5 @@
 
 /* TODO: Fix those always defined features */
 #define MODULARIZED
-
-
-/* Various "build" defines */
-#define TS_BUILD_PREFIX "@prefix@"
-#define TS_BUILD_EXEC_PREFIX "@rel_exec_prefix@"
-#define TS_BUILD_BINDIR "@rel_bindir@"
-#define TS_BUILD_SBINDIR "@rel_sbindir@"
-#define TS_BUILD_SYSCONFDIR "@rel_sysconfdir@"
-#define TS_BUILD_SYSCONFIGDIR "@exp_sysconfdir@"
-#define TS_BUILD_DATADIR "@rel_datadir@"
-#define TS_BUILD_INCLUDEDIR "@rel_includedir@"
-#define TS_BUILD_LIBDIR "@rel_libdir@"
-#define TS_BUILD_LIBEXECDIR "@rel_libexecdir@"
-#define TS_BUILD_LOCALSTATEDIR "@rel_localstatedir@"
-#define TS_BUILD_RUNTIMEDIR "@rel_runtimedir@"
-#define TS_BUILD_LOGDIR "@rel_logdir@"
-#define TS_BUILD_MANDIR "@rel_mandir@"
-#define TS_BUILD_CACHEDIR "@rel_cachedir@"
-#define TS_BUILD_INFODIR "@rel_infodir@"
 
 #endif /* _ink_config_h */

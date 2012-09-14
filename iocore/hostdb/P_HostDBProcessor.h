@@ -22,7 +22,10 @@
  */
 
 /****************************************************************************
+
   P_HostDBProcessor.h
+
+
  ****************************************************************************/
 
 #ifndef _P_HostDBProcessor_h_
@@ -31,7 +34,8 @@
 #include "I_HostDBProcessor.h"
 
 
-#define HOSTDB_CLIENT_IP_HASH(_client_ip,_ip) (((_client_ip >> 16)^_client_ip^_ip^(_ip>>16))&0xFFFF)
+#define HOSTDB_CLIENT_IP_HASH(_client_ip,_ip) \
+(((_client_ip >> 16)^_client_ip^_ip^(_ip>>16))&0xFFFF)
 
 //
 // Constants
@@ -351,6 +355,7 @@ extern int hostdb_cluster_round_robin;
 extern int hostdb_lookup_timeout;
 extern int hostdb_insert_timeout;
 extern int hostdb_re_dns_on_reload;
+extern HostDBProcessor hostDBProcessor;
 
 // 0 = obey, 1 = ignore, 2 = min(X,ttl), 3 = max(X,ttl)
 enum

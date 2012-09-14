@@ -186,6 +186,11 @@ public:
   void writeReschedule(NetHandler *nh);
   void netActivity(EThread *lthread);
 
+  Action *action()
+  {
+    return &action_;
+  }
+
   Action action_;
   volatile int closed;
   NetState read;

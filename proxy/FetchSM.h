@@ -25,6 +25,7 @@
  *
  *  FetchSM.h header file for Fetch Page
  *
+ *
  ****************************************************************************/
 
 #ifndef _FETCH_SM_H
@@ -38,9 +39,9 @@ class FetchSM: public Continuation
 {
 public:
   FetchSM()
-  { }
-
-  void init(Continuation* cont, TSFetchWakeUpOptions options, TSFetchEvent events, const char* headers, int length, unsigned int ip, int port)
+  {
+  };
+  void init(TSCont cont, TSFetchWakeUpOptions options, TSFetchEvent events, const char* headers, int length,unsigned int ip, int port)
   {
     //_headers.assign(headers);
     Debug("FetchSM", "[%s] FetchSM initialized for request with headers\n--\n%s\n--", __FUNCTION__, headers);
@@ -70,12 +71,10 @@ public:
   void process_fetch_write(int event);
   void httpConnect();
   void cleanUp();
-  void get_info_from_buffer(IOBufferReader *reader);
+  void get_info_from_buffer(TSIOBufferReader reader);
   char* resp_get(int* length);
-
 private:
   int InvokePlugin(int event, void*data);
-
   void writeRequest(const char *headers,int length)
   {
     if(length == -1)
@@ -84,7 +83,10 @@ private:
     req_buffer->write(headers,length);
   }
 
-  int64_t getReqLen() const { return req_reader->read_avail(); }
+  int64_t getReqLen()
+  {
+    return req_reader->read_avail();
+  }
 
   TSVConn http_vc;
   VIO *read_vio;
@@ -97,7 +99,7 @@ private:
   int  client_bytes;
   MIOBuffer *resp_buffer;       // response to HttpConnect Call
   IOBufferReader *resp_reader;
-  Continuation *contp;
+  TSCont contp;
   HTTPParser http_parser;
   HTTPHdr client_response_hdr;
   TSFetchEvent callback_events;

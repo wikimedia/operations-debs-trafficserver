@@ -60,7 +60,7 @@ void *high_load_addr = NULL;
 int heap_load_size = 0;
 int marshalled = 0;
 
-//Diags *diags;
+Diags *diags;
 
 enum hdr_type
 {
@@ -127,7 +127,7 @@ process_mime_block_impl(MIMEFieldBlockImpl * mblock, int offset)
   for (unsigned int i = 0; i < freetop; i++) {
     MIMEField *f = &mblock->m_field_slots[i];
     if (hdrtoken_is_valid_wks_idx(f->m_wks_idx)) {
-      n = xstrdup(hdrtoken_index_to_wks(f->m_wks_idx));
+      n = strdup(hdrtoken_index_to_wks(f->m_wks_idx));
     } else {
       n = load_string(f->m_ptr_name, f->m_len_name, offset);
     }
@@ -309,7 +309,7 @@ main(int argc, const char *argv[])
 
   hdr_type h_type = UNKNOWN_HDR;
 
-  http_init();
+  http_init(NULL);
   diags = new Diags(NULL, NULL);
   if (argc != 3) {
     fprintf(stderr, "Usage: %s req|res <file>\n", argv[0]);

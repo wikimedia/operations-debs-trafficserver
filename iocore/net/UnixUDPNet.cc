@@ -1260,13 +1260,13 @@ UDPNetHandler::mainNetEvent(int event, Event * e)
 /////////////////////////////////////////////////////////////////////
 
 void
-UDPWorkContinuation::init(Continuation * c, int num_pairs,
+UDPWorkContinuation::init(Continuation * c, int numPairs,
                           unsigned int my_ip, unsigned int dest_ip, int s_bufsize, int r_bufsize)
 {
   mutex = c->mutex;
   cont = c;
   action = c;
-  numPairs = num_pairs;
+  numPairs = numPairs;
   myIP = my_ip;
   destIP = dest_ip;
   sendbufsize = s_bufsize;

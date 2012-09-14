@@ -452,8 +452,7 @@ bool LogFilterInt::toss_this_entry(LogAccess * lad)
   int64_t value;
 
   m_field->marshal(lad, (char *) &value);
-  // This used to do an ntohl() on value, but that breaks various filters.
-  // Long term we should move IPs to their own log type.
+  value = ntohl(value);
 
   // we don't use m_operator because we consider all operators to be
   // equivalent to "MATCH" for an integer field

@@ -44,6 +44,7 @@ accept_handler(TSCont contp, TSEvent event, void *edata)
 {
   TSCont txn_sm;
   TSMutex pmutex;
+  int lock;
 
   switch (event) {
   case TS_EVENT_NET_ACCEPT:
@@ -54,9 +55,10 @@ accept_handler(TSCont contp, TSEvent event, void *edata)
 
     /* This is no reason for not grabbing the lock.
        So skip the routine which handle LockTry failure case. */
-    TSMutexLockTry(pmutex); // TODO: why should it not check if we got the lock??
-    TSContCall(txn_sm, 0, NULL);
-    TSMutexUnlock(pmutex);
+    if (TSMutexLockTry(pmutex, &lock) == TS_SUCCESS) {
+      TSContCall(txn_sm, 0, NULL);
+      TSMutexUnlock(pmutex);
+    }
     break;
 
   default:
@@ -134,7 +136,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("[PluginInit] Plugin registration failed.\n");
     goto error;
   }

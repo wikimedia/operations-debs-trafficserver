@@ -34,44 +34,27 @@
 #define _CONTROL_BASE_H_
 
 #include "libts.h"
-#include <vector>
+#include "DynArray.h"
 class HttpRequestData;
 class Tokenizer;
 struct matcher_line;
 
-class ControlBase {
-public:
-  struct Modifier {
-    enum Type {
-      MOD_INVALID,
-      MOD_PORT,
-      MOD_SCHEME,
-      MOD_PREFIX,
-      MOD_SUFFIX,
-      MOD_METHOD,
-      MOD_TIME,
-      MOD_SRC_IP,
-      MOD_IPORT,
-      MOD_TAG
-    };
-    /// Destructor - force virtual.
-    virtual ~Modifier();
-    /// Return the modifier type.
-    virtual Type type() const;
-    /// Return the name for the modifier type.
-    virtual char const* name() const = 0;
-    /** Test if the modifier matches the request.
-        @return @c true if the request is matched, @c false if not.
-    */
-    virtual bool check(
-      HttpRequestData* req ///< Request to check.
-    ) const = 0;
-    /// Print the mod information.
-    virtual void print(
-      FILE* f ///< Output stream.
-    ) const = 0;
-  };
+// MOD_IPORT added
+enum ModifierTypes
+{ MOD_INVALID, MOD_PORT, MOD_SCHEME, MOD_PREFIX,
+  MOD_SUFFIX, MOD_METHOD, MOD_TIME, MOD_SRC_IP,
+  MOD_IPORT, MOD_TAG
+};
 
+struct modifier_el
+{
+  ModifierTypes type;
+  void *opaque_data;
+};
+
+class ControlBase
+{
+public:
   ControlBase();
   ~ControlBase();
   const char *ProcessModifiers(matcher_line * line_info);
@@ -79,33 +62,29 @@ public:
   bool CheckForMatch(HttpRequestData * request_data, int last_number);
   void Print();
   int line_num;
-  Modifier* findModOfType(Modifier::Type t) const;
-protected:
-  /// Get the text for the Scheme modifier, if any.
-  /// @return The text if present, 0 otherwise.
-  /// @internal Ugly but it's the only place external access is needed.
-  char const* getSchemeModText() const;
+  const void *getModElem(ModifierTypes t);
 private:
-  typedef std::vector<Modifier*> Array;
-  Array _mods;
+    DynArray<modifier_el> *mod_elements;
   const char *ProcessSrcIp(char *val, void **opaque_ptr);
   const char *ProcessTimeOfDay(char *val, void **opaque_ptr);
   const char *ProcessPort(char *val, void **opaque_ptr);
-
-  // Reset to default constructed state, free all allocations.
-  void clear();
 };
 
 inline
-ControlBase::ControlBase()
-  : line_num(0) {
+ControlBase::ControlBase():
+line_num(0),
+mod_elements(NULL)
+{
 }
 
 inline bool
-ControlBase::CheckForMatch(HttpRequestData * request_data, int last_number) {
-  return (last_number<0 || last_number> this->line_num)
-    && this->CheckModifiers(request_data)
-    ;
+ControlBase::CheckForMatch(HttpRequestData * request_data, int last_number)
+{
+  if ((last_number<0 || last_number> this->line_num) && this->CheckModifiers(request_data)) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 #endif

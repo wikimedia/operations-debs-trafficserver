@@ -459,15 +459,15 @@ ink_aio_write(AIOCallback *op, int fromAPI)
   return 1;
 }
 
-bool
+int
 ink_aio_thread_num_set(int thread_num)
 {
   if (thread_num > 0 && !thread_is_created) {
     api_config_threads_per_disk = thread_num;
-    return true;
+    return 1;
+  } else {
+    return 0;
   }
-
-  return false;
 }
 
 void *

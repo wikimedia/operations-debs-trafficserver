@@ -148,12 +148,13 @@ handle_client_lookup(TSHttpTxn txnp, TSCont contp)
   clientstring = inet_ntoa(tempstruct);
   TSDebug("redirect", "clientip is %s and block_ip is %s", clientstring, block_ip);
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client request header\n");
     goto done;
   }
 
-  if (TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
+  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
+  if (!url_loc) {
     TSError("couldn't retrieve request url\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
@@ -216,7 +217,7 @@ handle_response(TSHttpTxn txnp)
   char *errormsg_body = "All requests from this IP address are redirected.\n";
   char *tmp_body;
 
-  if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client response header\n");
     goto done;
   }
@@ -226,10 +227,11 @@ handle_response(TSHttpTxn txnp)
                       TSHttpHdrReasonLookup(TS_HTTP_STATUS_MOVED_PERMANENTLY),
                       strlen(TSHttpHdrReasonLookup(TS_HTTP_STATUS_MOVED_PERMANENTLY)));
 
-  TSMimeHdrFieldCreate(bufp, hdr_loc, &newfield_loc); /* Probably should check for errors ... */
+  newfield_loc = TSMimeHdrFieldCreate(bufp, hdr_loc);
   TSMimeHdrFieldNameSet(bufp, hdr_loc, newfield_loc, TS_MIME_FIELD_LOCATION, TS_MIME_LEN_LOCATION);
   TSMimeHdrFieldValueStringInsert(bufp, hdr_loc, newfield_loc, -1, uri_redirect, strlen(uri_redirect));
   TSMimeHdrFieldAppend(bufp, hdr_loc, newfield_loc);
+
 
   /*
    *  Note that we can't directly use errormsg_body, as TSHttpTxnErrorBodySet()
@@ -329,7 +331,7 @@ update_redirected_method_stats(TSMBuffer bufp, TSMLoc hdr_loc)
       INKStatFloatAddTo(method_count_redirected_icp_query, 1);
 
     else if (0 == strncmp(txn_method, TS_HTTP_METHOD_OPTIONS, length)) {
-      tempint = INKStatIntGet(method_count_redirected_options);
+      INKStatIntGet(method_count_redirected_options, &tempint);
       tempint++;
       INKStatIntSet(method_count_redirected_options, tempint);
     } else if (0 == strncmp(txn_method, TS_HTTP_METHOD_POST, length)) {
@@ -386,7 +388,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("Plugin registration failed.\n");
   }
 

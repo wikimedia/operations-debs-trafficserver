@@ -4,17 +4,13 @@
 /** @file
     Definitions for a buffer type, to carry a reference to a chunk of memory.
 
-    @section license License
+    Copyright 2010 Network Geographics, Inc.
 
-    Licensed to the Apache Software Foundation (ASF) under one
-    or more contributor license agreements.  See the NOTICE file
-    distributed with this work for additional information
-    regarding copyright ownership.  The ASF licenses this file
-    to you under the Apache License, Version 2.0 (the
-    "License"); you may not use this file except in compliance
-    with the License.  You may obtain a copy of the License at
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+       http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,14 +71,6 @@ namespace ts {
      */
     bool operator != (ConstBuffer const& that) const;
 
-    /// @name Accessors.
-    //@{
-    /// Get the data in the buffer.
-    char* data() const;
-    /// Get the size of the buffer.
-    size_t size() const;
-    //@}
-
     /// Set the chunk.
     /// Any previous values are discarded.
     /// @return @c this object.
@@ -142,14 +130,6 @@ namespace ts {
         Buffer const& that ///< Source buffer.
     );
 
-    /// @name Accessors.
-    //@{
-    /// Get the data in the buffer.
-    char const * data() const;
-    /// Get the size of the buffer.
-    size_t size() const;
-    //@}
-
     /// Set the chunk.
     /// Any previous values are discarded.
     /// @return @c this object.
@@ -176,8 +156,6 @@ namespace ts {
   inline bool Buffer::operator == (ConstBuffer const& that) const {
       return _size == that._size && 0 == memcmp(_ptr, that._ptr, _size);
   }
-  inline char * Buffer::data() const { return _ptr; }
-  inline size_t Buffer::size() const { return _size; }
 
   inline ConstBuffer::ConstBuffer() { }
   inline ConstBuffer::ConstBuffer(char const* ptr, size_t n) : _ptr(ptr), _size(n) { }
@@ -193,8 +171,6 @@ namespace ts {
   inline bool ConstBuffer::operator == (Buffer const& that) const {
       return _size == that._size && 0 == memcmp(_ptr, that._ptr, _size);
   }
-  inline char const * ConstBuffer::data() const { return _ptr; }
-  inline size_t ConstBuffer::size() const { return _size; }
 }
 
 # endif // TS_BUFFER_HEADER

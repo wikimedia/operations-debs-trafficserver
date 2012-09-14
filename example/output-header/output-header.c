@@ -64,19 +64,37 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
   char *output_string;
   int64_t output_len;
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
     TSDebug(DEBUG_TAG, "couldn't retrieve client request header");
     TSError("couldn't retrieve client request header\n");
     goto done;
   }
 
   output_buffer = TSIOBufferCreate();
+
+  /* TSIOBufferCreate may return an error pointer */
+  if ((void *) output_buffer == TS_ERROR_PTR) {
+    TSDebug(DEBUG_TAG, "couldn't allocate IOBuffer");
+    TSError("couldn't allocate IOBuffer\n");
+    goto done;
+  }
+
   reader = TSIOBufferReaderAlloc(output_buffer);
+
+  /* TSIOBufferReaderAlloc may return an error pointer */
+  if ((void *) reader == TS_ERROR_PTR) {
+    TSDebug(DEBUG_TAG, "couldn't allocate IOBufferReader");
+    TSError("couldn't allocate IOBufferReader\n");
+    goto done;
+  }
 
   /* This will print  just MIMEFields and not
      the http request line */
   TSDebug(DEBUG_TAG, "Printing the hdrs ... ");
-  TSMimeHdrPrint(bufp, hdr_loc, output_buffer);
+  if (TSMimeHdrPrint(bufp, hdr_loc, output_buffer) == TS_ERROR) {
+    TSDebug(DEBUG_TAG, "non-fatal: error printing mime-hdrs");
+    TSError("non-fatal: error printing mime-hdrs\n");
+  }
 
   if (TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc) == TS_ERROR) {
     TSDebug(DEBUG_TAG, "non-fatal: error releasing MLoc");
@@ -89,6 +107,13 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
      see the size of the entire header */
   total_avail = TSIOBufferReaderAvail(reader);
 
+  /* TSIOBufferReaderAvail may send an TS_ERROR */
+  if ((TSReturnCode) total_avail == TS_ERROR) {
+    TSDebug(DEBUG_TAG, "couldn't get available byte-count from IO-read-buffer");
+    TSError("couldn't get available byte-count from IO-read-buffer\n");
+    goto done;
+  }
+
   /* Allocate the string with an extra byte for the string
      terminator */
   output_string = (char *) TSmalloc(total_avail + 1);
@@ -98,8 +123,24 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
      sure we get the complete header since the header can
      be in multiple blocks */
   block = TSIOBufferReaderStart(reader);
+
+  /* TSIOBufferReaderStart may return an error pointer */
+  if (block == TS_ERROR_PTR) {
+    TSDebug(DEBUG_TAG, "couldn't get from IOBufferBlock");
+    TSError("couldn't get from IOBufferBlock\n");
+    goto done;
+  }
+
   while (block) {
+
     block_start = TSIOBufferBlockReadStart(block, reader, &block_avail);
+
+    /* TSIOBufferBlockReadStart may return an error pointer */
+    if (block_start == TS_ERROR_PTR) {
+      TSDebug(DEBUG_TAG, "couldn't read from IOBuffer");
+      TSError("couldn't read from IOBuffer\n");
+      goto done;
+    }
 
     /* We'll get a block pointer back even if there is no data
        left to read so check for this condition and break out of
@@ -114,11 +155,21 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
     output_len += block_avail;
 
     /* Consume the data so that we get to the next block */
-    TSIOBufferReaderConsume(reader, block_avail);
+    if (TSIOBufferReaderConsume(reader, block_avail) == TS_ERROR) {
+      TSDebug(DEBUG_TAG, "error consuming data from the ReaderBlock");
+      TSError("error consuming data from the ReaderBlock\n");
+    }
 
     /* Get the next block now that we've consumed the
        data off the last block */
     block = TSIOBufferReaderStart(reader);
+
+    /* TSIOBufferReaderStart may return an error pointer */
+    if (block == TS_ERROR_PTR) {
+      TSDebug(DEBUG_TAG, "couldn't get from IOBufferBlock");
+      TSError("couldn't get from IOBufferBlock\n");
+      goto done;
+    }
   }
 
   /* Terminate the string */
@@ -126,8 +177,15 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
   output_len++;
 
   /* Free up the TSIOBuffer that we used to print out the header */
-  TSIOBufferReaderFree(reader);
-  TSIOBufferDestroy(output_buffer);
+  if (TSIOBufferReaderFree(reader) != TS_SUCCESS) {
+    TSDebug(DEBUG_TAG, "non-fatal: error releasing IOBufferReader");
+    TSError("non-fatal: error releasing IOBufferReader\n");
+  }
+
+  if (TSIOBufferDestroy(output_buffer) != TS_SUCCESS) {
+    TSDebug(DEBUG_TAG, "non-fatal: error destroying IOBuffer");
+    TSError("non-fatal: error destroying IOBuffer\n");
+  }
 
   /* Although I'd never do this a production plugin, printf
      the header so that we can see it's all there */
@@ -189,7 +247,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("[PluginInit] Plugin registration failed.\n");
     goto error;
   }
