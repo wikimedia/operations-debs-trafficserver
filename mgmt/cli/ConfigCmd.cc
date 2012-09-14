@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  This file contains the CLI's "config" command implementation.
 
   @section license License
 
@@ -19,16 +19,12 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
- */
-
-/****************************************************************
- * Filename: ConfigCmd.cc
- * Purpose: This file contains the CLI's "config" command implementation.
- *
- *  createArgument("timezone",1,CLI_ARGV_OPTION_INT_VALUE,
+ 
+  @section description createArgument("timezone",1,CLI_ARGV_OPTION_INT_VALUE,
 		  (char*)NULL, CMD_CONFIG_TIMEZONE, "Time Zone",
                   (char*)NULL);
- ****************************************************************/
+ */
+
 
 #include "libts.h"
 #include "I_Layout.h"
@@ -225,16 +221,16 @@ Cmd_Config(ClientData clientData, Tcl_Interp * interp, int argc, const char *arg
   Tcl_Eval(interp, "info commands config* ");
 
   size_t cmdinfo_len = strlen(Tcl_GetStringResult(interp)) + 2;
-  cmdinfo = (char *) malloc(sizeof(char) * cmdinfo_len);
-  ink_strncpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_len);
+  cmdinfo = (char *)alloca(sizeof(char) * cmdinfo_len);
+  ink_strlcpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_len);
   size_t temp_len = strlen(cmdinfo) + 20;
-  temp = (char *) malloc(sizeof(char) * temp_len);
-  ink_strncpy(temp, "lsort \"", temp_len);
-  strncat(temp, cmdinfo, temp_len - strlen(temp));
-  strncat(temp, "\"", temp_len - strlen(temp));
+  temp = (char *)alloca(sizeof(char) * temp_len);
+  ink_strlcpy(temp, "lsort \"", temp_len);
+  ink_strlcat(temp, cmdinfo, temp_len);
+  ink_strlcat(temp, "\"", temp_len);
 
   Tcl_Eval(interp, temp);
-  ink_strncpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_len);
+  ink_strlcpy(cmdinfo, Tcl_GetStringResult(interp), cmdinfo_len);
   i = i + strlen("config ");
   while (cmdinfo[i] != 0) {
     if (cmdinfo[i] == ' ') {
@@ -247,8 +243,7 @@ Cmd_Config(ClientData clientData, Tcl_Interp * interp, int argc, const char *arg
   cmdinfo[i] = 0;
   Cli_Printf("Following are the available config commands\n");
   Cli_Printf(cmdinfo + strlen("config "));
-  free(cmdinfo);
-  free(temp);
+
   return CLI_OK;
 
 }
@@ -2647,7 +2642,7 @@ ConfigDate(char *datestr)
       return CLI_ERROR;
     }
 
-    mPtr = localtime(&(v.tv_sec));
+    mPtr = localtime((const time_t *)&(v.tv_sec));
 
     mPtr->tm_mday = dd;
     mPtr->tm_mon = mm - 1;
@@ -2731,7 +2726,7 @@ ConfigTime(char *timestr)
       return CLI_ERROR;
     }
 
-    mPtr = localtime(&(v.tv_sec));
+    mPtr = localtime((const time_t *)&(v.tv_sec));
 
     mPtr->tm_sec = sec;
     mPtr->tm_min = min;
@@ -2783,7 +2778,7 @@ ConfigTimezone(int index, int setvar)
   char new_zone[1024];
   char *zone;
 
-  ink_strncpy(new_zone, "", sizeof(new_zone));
+  new_zone[0] = 0;
 
   fp = fopen(zonetable, "r");
   tmp = fopen("/tmp/zonetab.tmp", "w");
@@ -2819,7 +2814,7 @@ ConfigTimezone(int index, int setvar)
     }
     if (setvar) {
       if (index == i) {
-        ink_strncpy(new_zone, zone, sizeof(new_zone));
+        ink_strlcpy(new_zone, zone, sizeof(new_zone));
       }
     }
     NOWARN_UNUSED_RETURN(fgets(buffer, 1024, fp));
@@ -3510,10 +3505,10 @@ ConfigVirtualipAdd(char *ip, char *device, int subinterface, int setvar)
 
     size = strlen(ip);
     VipElePtr->ip_addr = new char[size + 1];
-    ink_strncpy(VipElePtr->ip_addr, ip, size + 1);
+    ink_strlcpy(VipElePtr->ip_addr, ip, size + 1);
     size = strlen(device);
     VipElePtr->intr = new char[size + 1];
-    ink_strncpy(VipElePtr->intr, device, size + 1);
+    ink_strlcpy(VipElePtr->intr, device, size + 1);
     VipElePtr->sub_intr = subinterface;
     VipCtx = TSCfgContextCreate(TS_FNAME_VADDRS);
     if (TSCfgContextGet(VipCtx) != TS_ERR_OKAY)
@@ -3918,82 +3913,6 @@ pos_after_string(char *haystack, const char *needle)
   return retval;
 }
 
-int
-getnetparms(char *ipnum, char *mask)
-{
-  // TODO: Use detected values from configure
-#define BUFFLEN 256
-#if defined(linux)
-#define interface_name "eth0"
-#elif defined(darwin)
-#define interface_name "en0"
-#elif defined(freebsd)
-#define interface_name "eth0"
-#elif defined(solaris)
-#define interface_name "e1000g0" // FIXME: better way to get interface names
-#endif
-
-  FILE *ifconfig_data;
-  char buff[BUFFLEN];
-  char *p = NULL;
-
-  ifconfig_data = popen("/sbin/ifconfig -a" interface_name, "r");
-  if (ifconfig_data == NULL)
-    return -1;
-
-
-  /* We want to junk the first line. If there's no first line, then
-   * the named interface doesn't exist. */
-  if (fgets(buff, BUFFLEN, ifconfig_data) == NULL)
-    goto err;                   /* No such interface, no data on stream */
-
-  /* Flush to the end of the line. Should never be necessary. */
-  while (buff[0] != 0 && buff[strlen(buff) - 1] != '\n')
-    NOWARN_UNUSED_RETURN(fgets(buff, BUFFLEN, ifconfig_data));
-
-  /* Get the second line. */
-  if (fgets(buff, BUFFLEN, ifconfig_data) == NULL)
-    goto err;                   /* Mystery, shouldn't happen. */
-  if (buff[0] != 0 && buff[strlen(buff) - 1] != '\n') {
-    fprintf(stderr, "Error. I can't read the output of \"ifconfig\", it's giving\n");
-    fprintf(stderr, "me lines over %d characters long.\n", BUFFLEN);
-    goto err;
-  }
-#if defined(linux) || defined(darwin) || defined(freebsd)
-  p = pos_after_string(buff, "inet addr:");
-#endif
-
-  if (p != NULL) {
-
-    while (*p && !isspace(*p)) {
-      *(ipnum++) = *(p++);
-    }
-  } else {
-    fprintf(stderr, "Error. I don't understand the output format of \"ifconfig\"\n");
-    goto err;
-  }
-  *ipnum = 0;
-
-  p = pos_after_string(buff, "Mask:");
-
-  if (p != NULL) {
-
-    while (*p && !isspace(*p)) {
-      *(mask++) = *(p++);
-    }
-  } else {
-    fprintf(stderr, "Error. I don't understand the output format of \"ifconfig\"\n");
-    goto err;
-  }
-
-  *mask = 0;
-  pclose(ifconfig_data);
-  return CLI_OK;
-
-err:
-  pclose(ifconfig_data);
-  return CLI_ERROR;
-}
 
 int
 StartBinary(char *abs_bin_path, char *bin_options, int isScript)
@@ -4981,15 +4900,17 @@ ConfigAlarmNotify(char *string_val)
 int
 find_value(const char *pathname, const char *key, char *value, int value_len, const char *delim, int no)
 {
+  int find = 0;
+
+#if defined(linux) || defined(darwin) || defined(freebsd) || defined(solaris) \
+ || defined(openbsd)
   char buffer[1024];
   char *pos;
   char *open_quot, *close_quot;
   FILE *fp;
-  int find = 0;
   int counter = 0;
 
-#if defined(linux) || defined(darwin) || defined(freebsd) || defined(solaris)
-  ink_strncpy(value, "", value_len);
+  value[0] = 0;
   // coverity[fs_check_call]
   if (access(pathname, R_OK)) {
     return find;
@@ -5010,7 +4931,7 @@ find_value(const char *pathname, const char *key, char *value, int value_len, co
               close_quot = strrchr(pos, '"');
               *close_quot = '\0';
             }
-            ink_strncpy(value, pos, value_len);
+            ink_strlcpy(value, pos, value_len);
 
             if (value[strlen(value) - 1] == '\n') {
               value[strlen(value) - 1] = '\0';

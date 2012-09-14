@@ -54,7 +54,7 @@ struct ShowCont: public Continuation
     va_end(va_scratch);
     if (done > l - 256)
     {
-      char *start2 = (char *) xrealloc(start, (ebuf - start) * 2);
+      char *start2 = (char *)ats_realloc(start, (ebuf - start) * 2);
         ebuf = start2 + (ebuf - start) * 2;
         buf = start2 + (buf - start);
         start = start2;
@@ -83,7 +83,7 @@ struct ShowCont: public Continuation
       action.continuation->handleEvent(STAT_PAGE_SUCCESS, &data);
       start = 0;
     } else {
-      xfree(start);
+      ats_free(start);
       start = NULL;
     }
     return done(VIO::CLOSE, event, e);
@@ -91,7 +91,7 @@ struct ShowCont: public Continuation
 
   int complete_error(int event, Event * e)
   {
-    xfree(start);
+    ats_free(start);
     start = NULL;
     if (!action.cancelled)
       action.continuation->handleEvent(STAT_PAGE_FAILURE, NULL);
@@ -115,7 +115,7 @@ struct ShowCont: public Continuation
     NOWARN_UNUSED(event);
     NOWARN_UNUSED(data);
     if (sarg) {
-      xfree(sarg);
+      ats_free(sarg);
       sarg = NULL;
     }
     delete this;
@@ -127,13 +127,13 @@ ShowCont(Continuation * c, HTTPHdr * h):
     NOWARN_UNUSED(h);
     mutex = c->mutex;
     action = c;
-    buf = (char *) xmalloc(32000);
+    buf = (char *)ats_malloc(32000);
     start = buf;
     ebuf = buf + 32000;
   }
   ~ShowCont() {
     if (start)
-      xfree(start);
+      ats_free(start);
   }
 };
 

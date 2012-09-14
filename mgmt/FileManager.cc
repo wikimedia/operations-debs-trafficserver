@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Code for class to manage configuration updates
 
   @section license License
 
@@ -33,21 +33,11 @@
 #include "MgmtSocket.h"
 
 
-/****************************************************************************
- *
- *  FileManager.cc - Code for class to manage configuration updates
- *
- *
- ****************************************************************************/
 
 static const char snapDir[] = "snapshots";
 
-#ifndef _WIN32
 #define DIR_MODE S_IRWXU
 #define FILE_MODE S_IRWXU
-#else
-#define FILE_MODE S_IWRITE
-#endif
 
 typedef fileEntry snapshot;
 
@@ -85,7 +75,7 @@ FileManager::FileManager()
     Layout::get()->relative(configTmp, sizeof(configTmp), configTmp);
   }
   if (access(configTmp, R_OK) == -1) {
-    ink_strncpy(configTmp, system_config_directory,sizeof(configTmp));
+    ink_strlcpy(configTmp, system_config_directory,sizeof(configTmp));
     if (access(configTmp, R_OK) == -1) {
         mgmt_elog("[FileManager::FileManager] unable to access() directory '%s': %d, %s\n",
                 mgmt_path, errno, strerror(errno));
@@ -106,11 +96,7 @@ FileManager::FileManager()
   // Check to see if the directory already exists, if not create
   //  it
   if (access(snapshotDir, F_OK) == -1) {
-#ifndef _WIN32
     if (mkdir(snapshotDir, DIR_MODE) < 0) {
-#else
-    if (mkdir(snapshotDir) < 0) {
-#endif
       // Failed to create the snapshot directory
       mgmt_fatal(stderr, "[FileManager::FileManager] Failed to create the snapshot directory %s: %s\n", snapshotDir, strerror(errno));
     }
@@ -249,9 +235,9 @@ FileManager::fileChanged(const char *baseFileName)
   for (cb = cblist.head; cb != NULL; cb = cb->link.next) {
     // Dup the string for each callback to be
     //  defensive incase it modified when it is not supposed to be
-    filenameCopy = xstrdup(baseFileName);
+    filenameCopy = ats_strdup(baseFileName);
     (*cb->func) (filenameCopy);
-    xfree(filenameCopy);
+    ats_free(filenameCopy);
   }
   ink_mutex_release(&cbListLock);
 }
@@ -449,21 +435,15 @@ FileManager::restoreSnap(const char *snapName, const char *snapDir)
 SnapResult
 FileManager::removeSnap(const char *snapName, const char *snapDir)
 {
-#ifndef _WIN32
   struct dirent *dirEntrySpace;
   struct dirent *entryPtr;
   DIR *dir;
-#else
-  char *searchPattern;
-  WIN32_FIND_DATA W32FD;
-#endif
   char *snapPath;
   char *snapFilePath;
   bool unlinkFailed = false;
   SnapResult result = SNAP_OK;
   snapPath = newPathString(snapDir, snapName);
 
-#ifndef _WIN32
   dir = opendir(snapPath);
 
   if (dir == NULL) {
@@ -472,7 +452,7 @@ FileManager::removeSnap(const char *snapName, const char *snapDir)
     return SNAP_NOT_FOUND;
   }
 
-  dirEntrySpace = (struct dirent *) xmalloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
+  dirEntrySpace = (struct dirent *)ats_malloc(sizeof(struct dirent) + pathconf(".", _PC_NAME_MAX) + 1);
 
   while (readdir_r(dir, dirEntrySpace, &entryPtr) == 0) {
     if (!entryPtr)
@@ -492,35 +472,8 @@ FileManager::removeSnap(const char *snapName, const char *snapDir)
     delete[]snapFilePath;
   }
 
-  xfree(dirEntrySpace);
+  ats_free(dirEntrySpace);
   closedir(dir);
-#else
-  // Append '\*' as a wildcard for FindFirstFile()
-  searchPattern = newPathString(snapPath, "*");
-  HANDLE hDInfo = FindFirstFile(searchPattern, &W32FD);
-
-  if (INVALID_HANDLE_VALUE == hDInfo) {
-    mgmt_log(stderr, "[FileManager::removeSnap] FindFirstFile failed for %s: %s\n", searchPattern, ink_last_err());
-    delete[]searchPattern;
-    return SNAP_NOT_FOUND;
-  }
-  delete[]searchPattern;
-
-  while (FindNextFile(hDInfo, &W32FD)) {
-    if (W32FD.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-      continue;                 // ignore directories
-    }
-    snapFilePath = newPathString(snapPath, W32FD.cFileName);
-
-    if (unlink(snapFilePath) < 0) {
-      mgmt_log(stderr, "[FileManager::removeSnap] Unlink failed for %s: %s\n", snapFilePath, strerror(errno));
-      unlinkFailed = true;
-      result = SNAP_REMOVE_FAILED;
-    }
-    delete[]snapFilePath;
-  }
-  FindClose(hDInfo);
-#endif // !_WIN32
 
   // If we managed to get everything, remove the directory
   //
@@ -587,11 +540,7 @@ FileManager::takeSnap(const char *snapName, const char *snapDir)
       return SNAP_DIR_CREATE_FAILED;
     }
   }
-#ifndef _WIN32
   if (mkdir(snapPath, DIR_MODE) < 0) {
-#else
-  if (mkdir(snapPath) < 0) {
-#endif
     mgmt_log(stderr, "[FileManager::takeSnap] Failed to create directory for snapshot %s: %s\n",
              snapName, strerror(errno));
     delete[]snapPath;
@@ -659,9 +608,8 @@ FileManager::readFile(const char *filePath, textBuffer * contents)
     mgmt_log(stderr, "[FileManager::readFile] Open of snapshot file failed %s: %s\n", filePath, strerror(errno));
     return SNAP_FILE_ACCESS_FAILED;
   }
-#ifndef _WIN32                  // no need to set close-on-exec on NT
+
   fcntl(diskFD, F_SETFD, 1);
-#endif
 
   while ((readResult = contents->readFromFD(diskFD)) > 0);
   close(diskFD);
@@ -707,9 +655,8 @@ FileManager::copyFile(Rollback * rb, const char *snapPath)
     delete copyBuf;
     return SNAP_FILE_CREATE_FAILED;
   }
-#ifndef _WIN32                  // no need to set close-on-exec on NT
+
   fcntl(diskFD, F_SETFD, 1);
-#endif
 
   // Write the file contents to the copy
   if (write(diskFD, copyBuf->bufPtr(), copyBuf->spaceUsed()) < 0) {

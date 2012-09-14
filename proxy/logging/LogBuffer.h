@@ -52,10 +52,9 @@ class LogBufferIterator;
 
 struct LogEntryHeader
 {
-//    unsigned timestamp;
-  long timestamp;               // the seconds portion of the timestamp
-  long timestamp_usec;          // the microseconds portion of the timestamp
-  unsigned entry_len;
+  int64_t timestamp;               // the seconds portion of the timestamp
+  int32_t timestamp_usec;          // the microseconds portion of the timestamp
+  uint32_t entry_len;
 };
 
 /*-------------------------------------------------------------------------
@@ -66,29 +65,28 @@ struct LogEntryHeader
 
 struct LogBufferHeader
 {
-
-  unsigned cookie;              // so we can find it on disk
-  unsigned version;             // in case we want to change it later
-  unsigned format_type;         // SQUID_LOG, COMMON_LOG, ...
-  unsigned byte_count;          // acutal # of bytes for the segment
-  unsigned entry_count;         // actual number of entries stored
-  unsigned low_timestamp;       // lowest timestamp value of entries
-  unsigned high_timestamp;      // highest timestamp value of entries
-  unsigned int log_object_flags;        // log object flags
+  uint32_t cookie;              // so we can find it on disk
+  uint32_t version;             // in case we want to change it later
+  uint32_t format_type;         // SQUID_LOG, COMMON_LOG, ...
+  uint32_t byte_count;          // acutal # of bytes for the segment
+  uint32_t entry_count;         // actual number of entries stored
+  uint32_t low_timestamp;       // lowest timestamp value of entries
+  uint32_t high_timestamp;      // highest timestamp value of entries
+  uint32_t log_object_flags;        // log object flags
   uint64_t log_object_signature;  // log object signature
 #if defined(LOG_BUFFER_TRACKING)
-  unsigned int id;
+  uint32_t int id;
 #endif                          // defined(LOG_BUFFER_TRACKING)
 
   // all offsets are computed from the start of the buffer (ie, "this"),
   // and so any valid offset will be at least sizeof(LogBufferHeader).
 
-  unsigned fmt_name_offset;     // offset to format name string
-  unsigned fmt_fieldlist_offset;        // offset to format fieldlist string
-  unsigned fmt_printf_offset;   // offset to format printf string
-  unsigned src_hostname_offset; // offset to source (client) hostname
-  unsigned log_filename_offset; // offset to log filename
-  unsigned data_offset;         // offset to start of data entry
+  uint32_t fmt_name_offset;     // offset to format name string
+  uint32_t fmt_fieldlist_offset;        // offset to format fieldlist string
+  uint32_t fmt_printf_offset;   // offset to format printf string
+  uint32_t src_hostname_offset; // offset to source (client) hostname
+  uint32_t log_filename_offset; // offset to log filename
+  uint32_t data_offset;         // offset to start of data entry
   // section
 
   // some helper functions to return the header strings
@@ -129,108 +127,14 @@ union LB_State
   } s;
 };
 
-
-/* ---------------------------------- iObject ------------------------------ */
-class iObjectActivator;
-class iObject
-{
-private:
-  static iObject *free_heap;    /* list of free blocks */
-  static ink_mutex iObjectMutex;        /* mutex for access to iObject class global variables */
-
-  size_t class_size;            /* real class size */
-  iObject *next_object;
-
-
-protected:
-  iObject(const iObject &);   /* declared; not implemented - block copying and assignment */
-  iObject & operator=(const iObject &);       /* ditto */
-
-public:
-  static void Init(void);
-  void *operator  new(size_t size);
-  void operator  delete(void *p);
-
- iObject()
- {                             /* nop */
- }
-
- virtual ~iObject()
- {                             /* nop */
- }
-
- friend class iObjectActivator;
-};
-
-/* ------------------------------ iLogBufferBuffer ------------------------- */
-class iLogBufferBuffer
-{
-private:
-  static iLogBufferBuffer *free_heap;   /* list of free blocks */
-  static ink_mutex iLogBufferBufferMutex;       /* mutex for access iLogBufferBuffer class global variables */
-
-  iLogBufferBuffer *next;
-  size_t real_buf_size;
-
-
-  iLogBufferBuffer()
-  {
-    next = 0;
-    buf = 0;
-    real_buf_size = (size = 0);
-  }
-
-  ~iLogBufferBuffer()
-  {
-    if (buf)
-      xfree(buf);
-    real_buf_size = (size = 0);
-  }
-
-protected:
-  iLogBufferBuffer(const iLogBufferBuffer &);   /* declared; not implemented - block copying and assignment */
-  iLogBufferBuffer & operator=(const iLogBufferBuffer &);       /* ditto */
-
-public:
-  char *buf;
-  size_t size;
-
-  static void Init(void);
-  static iLogBufferBuffer *New_iLogBufferBuffer(size_t _buf_size);
-  static iLogBufferBuffer *Delete_iLogBufferBuffer(iLogBufferBuffer * _b);
-
-  friend class iObjectActivator;
-};
-
-/* ---------------------------- iObjectActivator --------------------------- */
-class iObjectActivator
-{
-public:
-  iObjectActivator()
-  {
-    iObject::Init();
-    iLogBufferBuffer::Init();
-  }
-
-  ~iObjectActivator()
-  {                             /* nop */
-  }
-};
-
 /*-------------------------------------------------------------------------
   LogBuffer
   -------------------------------------------------------------------------*/
-#define CLASS_SIGN_LOGBUFFER 0xFACE5370 /* LogBuffer class signature */
-
-class LogBuffer:public iObject
+class LogBuffer
 {
 public:
-  unsigned long sign;           /* class signature (must be CLASS_SIGN_LOGBUFFER) */
-  LogBuffer *next_flush;        /* next in flush list */
-  LogBuffer *next_list;         /* next in list */
-
-  enum LB_ResultCode
-  {
+  SLINK(LogBuffer, write_link);
+  enum LB_ResultCode {
     LB_OK = 0,
     LB_FULL_NO_WRITERS,
     LB_FULL_ACTIVE_WRITERS,
@@ -272,8 +176,7 @@ public:
 
   // this should only be called when buffer is ready to be flushed
   void update_header_data();
-  void convert_to_network_order();
-  void convert_to_host_order();
+
   uint32_t get_id()
   {
     return m_id;
@@ -283,27 +186,25 @@ public:
     return m_owner;
   };
 
-  Link<LogBuffer> link;
+  LINK(LogBuffer, link);;
 
   // static variables
   static vint32 M_ID;
 
   // static functions
   static size_t max_entry_bytes();
-  static int to_ascii(LogEntryHeader * entry, LogFormatType type,
-                      char *buf, int max_len, char *symbol_str, char *printf_str,
-                      unsigned buffer_version, char *alt_format = NULL);
-  static int resolve_custom_entry(LogFieldList * fieldlist,
-                                  char *printf_str, char *read_from, char *write_to,
-                                  int write_to_len, long timestamp, long timestamp_us,
-                                  unsigned buffer_version, LogFieldList * alt_fieldlist = NULL,
-                                  char *alt_printf_str = NULL);
-  static void convert_to_network_order(LogBufferHeader * header);
-  static void convert_to_host_order(LogBufferHeader * header);
+  static int to_ascii(
+      LogEntryHeader * entry, LogFormatType type,
+      char *buf, int max_len, char *symbol_str, char *printf_str,
+      unsigned buffer_version, char *alt_format = NULL);
+  static int resolve_custom_entry(
+      LogFieldList * fieldlist,
+      char *printf_str, char *read_from, char *write_to,
+      int write_to_len, long timestamp, long timestamp_us,
+      unsigned buffer_version, LogFieldList * alt_fieldlist = NULL,
+      char *alt_printf_str = NULL);
 
 private:
-  iLogBufferBuffer * m_bb;      // real buffer
-  char *m_new_buffer;           // new buffer (must be free)
   char *m_unaligned_buffer;     // the unaligned buffer
   char *m_buffer;               // the buffer
   size_t m_size;                // the buffer size
@@ -318,7 +219,10 @@ private:
   LogObject *m_owner;           // the LogObject that owns this buf.
   LogBufferHeader *m_header;
 
-  uint32_t m_id;                  // unique buffer id (for debugging)
+  uint32_t m_id;                // unique buffer id (for debugging)
+public:
+  volatile int m_references;    // oustanding checkout_write references.
+private:
 
   // private functions
   size_t _add_buffer_header();
@@ -343,14 +247,13 @@ class LogFile;
 class LogBufferList
 {
 private:
-  LogBuffer * m_list;
-  LogBuffer *m_list_last_ptr;
+  Queue<LogBuffer> m_buffer_list;
   ink_mutex m_mutex;
   int m_size;
 
 public:
-    LogBufferList();
-   ~LogBufferList();
+  LogBufferList();
+  ~LogBufferList();
 
   void add(LogBuffer * lb);
   LogBuffer *get(void);
@@ -366,8 +269,7 @@ public:
   This class will iterate over the entries in a LogBuffer.
   -------------------------------------------------------------------------*/
 
-class LogBufferIterator
-{
+class LogBufferIterator {
 public:
   LogBufferIterator(LogBufferHeader * header, bool in_network_order = false);
   ~LogBufferIterator();
@@ -396,10 +298,10 @@ private:
 
 inline
 LogBufferIterator::LogBufferIterator(LogBufferHeader * header, bool in_network_order)
-                  : m_in_network_order(in_network_order),
-                  m_next(0),
-                  m_iter_entry_count(0),
-                  m_buffer_entry_count(0)
+: m_in_network_order(in_network_order),
+  m_next(0),
+  m_iter_entry_count(0),
+  m_buffer_entry_count(0)
 {
   ink_debug_assert(header);
 

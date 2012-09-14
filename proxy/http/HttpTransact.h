@@ -41,6 +41,7 @@
 #include "api/ts/remap.h"
 #include "RemapPluginInfo.h"
 #include "UrlMapping.h"
+#include <records/I_RecHttp.h>
 
 #include "congest/Congestion.h"
 
@@ -82,7 +83,7 @@
 #define TRANSACT_RETURN(n, r)  \
 s->next_action = n; \
 s->transact_return_point = r; \
-Debug("http_trans", "Next action %s; %s", #n, #r); \
+DebugSpecific((s->state_machine && s->state_machine->debug_on), "http_trans", "Next action %s; %s", #n, #r); \
 return; \
 
 #define SET_UNPREPARE_CACHE_ACTION(C) \
@@ -650,13 +651,12 @@ public:
 
   enum RangeSetup_t
   {
-    RANGE_NONE,
-    RANGE_TRANSFORM,
+    RANGE_NONE = 0,
+    RANGE_REQUESTED,
     RANGE_NOT_SATISFIABLE,
     RANGE_NOT_HANDLED,
-    RANGE_REVALIDATE
   };
-
+  
   enum CacheAuth_t
   {
     CACHE_AUTH_NONE = 0,
@@ -779,20 +779,19 @@ public:
     bool connect_failure;
     TransferEncoding_t transfer_encoding;
 
-    // The mapping is that the IP is an unsigned network
-    // (big-endian) 32-bit number.  Each of the dotted
-    // components is a byte, so:
-    // 0x25364758 = 0x25.0x36.0x47.0x58 = 37.54.71.88 in decimal.
-    in_addr_t ip;
-    sockaddr_storage addr;
-
+    IpEndpoint addr;    // replaces 'ip' field
+    
     // port to connect to, except for client
     // connection where it is port on proxy
     // that client connected to.
-    int port;
+    // This field is managed separately from the port
+    // part of 'addr' above as in various cases the two
+    // are set/manipulated independently and things are
+    // clearer this way.
+    uint16_t port; // host order.
     ServerState_t state;
     AbortState_t abort;
-    HttpPortTypes port_attribute;
+    HttpProxyPort::TransportType port_attribute;
 
     /// @c true if the connection is transparent.
     bool is_transparent;
@@ -807,14 +806,13 @@ public:
         dns_round_robin(false),
         connect_failure(false),
         transfer_encoding(NO_TRANSFER_ENCODING),
-        ip(0), port(0),
+        port(0),
         state(STATE_UNDEFINED),
         abort(ABORT_UNDEFINED),
-        port_attribute(SERVER_PORT_DEFAULT),
+        port_attribute(HttpProxyPort::TRANSPORT_DEFAULT),
         is_transparent(false)
     {
-      ink_inet_init(&addr);
-//      memset(&addr, 0, sizeof(addr));
+      memset(&addr, 0, sizeof(addr));
     }
   } ConnectionAttributes;
 
@@ -857,8 +855,8 @@ public:
     HTTPHdr server_request;
     HTTPHdr server_response;
     HTTPHdr transform_response;
-    HTTPHdr transform_cached_request;
-    int64_t request_content_length;
+    HTTPHdr cache_response;
+   int64_t request_content_length;
     int64_t response_content_length;
     int64_t transform_request_cl;
     int64_t transform_response_cl;
@@ -874,7 +872,7 @@ public:
         server_request(),
         server_response(),
         transform_response(),
-        transform_cached_request(),
+        cache_response(),
         request_content_length(HTTP_UNDEFINED_CL),
         response_content_length(HTTP_UNDEFINED_CL),
         transform_request_cl(HTTP_UNDEFINED_CL),
@@ -916,7 +914,6 @@ public:
     RedirectInfo redirect_info;
     unsigned int updated_server_version;
     bool is_revalidation_necessary;     //Added to check if revalidation is necessary - YTS Team, yamsat
-    int HashTable_Tries;        // To limit hash tries - YTS Team, yamsat
     bool request_will_not_selfloop;     // To determine if process done - YTS Team, yamsat
     ConnectionAttributes client_info;
     ConnectionAttributes icp_info;
@@ -925,6 +922,7 @@ public:
     // ConnectionAttributes     router_info;
 
     Source_t source;
+    Source_t pre_transform_source;
     HttpRequestFlavor_t req_flavor;
 
     CurrentInfo current;
@@ -949,7 +947,6 @@ public:
     // FilterResult             content_control;
     bool backdoor_request;      // internal
     bool cop_test_page;         // internal
-    char *unmapped_request_url; // in
 
     StateMachineAction_t next_action;   // out
     StateMachineAction_t api_next_action;       // out
@@ -983,9 +980,6 @@ public:
 
     StatBlock first_stats;
     StatBlock *current_stats;
-
-    // for Range: to avoid write transfomed Range response into cache
-    RangeSetup_t range_setup;
 
     // for negative caching
     bool negative_caching;
@@ -1027,6 +1021,7 @@ public:
     bool api_server_request_body_set;
     bool api_req_cacheable;
     bool api_resp_cacheable;
+    bool api_server_addr_set;
     UpdateCachedObject_t api_update_cached_object;
     LockUrl_t api_lock_url;
     StateMachineAction_t saved_update_next_action;
@@ -1053,7 +1048,16 @@ public:
     URL pristine_url;  // pristine url is the url before remap
     
     bool api_skip_all_remapping;
-
+    
+    // Http Range: related variables
+    RangeSetup_t range_setup;
+    bool unsatisfiable_range;
+    bool not_handle_range;
+    int64_t num_range_fields;
+    int64_t range_output_cl;
+    int64_t current_range;
+    RangeRecord *ranges;
+    
     OverridableHttpConfigParams *txn_conf;
     OverridableHttpConfigParams my_txn_conf; // Storage for plugins, to avoid malloc
     
@@ -1069,9 +1073,9 @@ public:
     State()
       : m_magic(HTTP_TRANSACT_MAGIC_ALIVE), state_machine(NULL), http_config_param(NULL), force_dns(false),
         updated_server_version(HostDBApplicationInfo::HTTP_VERSION_UNDEFINED), is_revalidation_necessary(false),
-        HashTable_Tries(0),             //YTS Team, yamsat
         request_will_not_selfloop(false),       //YTS Team, yamsat
         source(SOURCE_NONE),
+        pre_transform_source(SOURCE_NONE),
         req_flavor(REQ_FLAVOR_FWDPROXY),
         pending_work(NULL),
         cdn_saved_next_action(STATE_MACHINE_ACTION_UNDEFINED),
@@ -1082,7 +1086,6 @@ public:
         cache_lookup_result(CACHE_LOOKUP_NONE),
         backdoor_request(false),
         cop_test_page(false),
-        unmapped_request_url(0),
         next_action(STATE_MACHINE_ACTION_UNDEFINED),
         api_next_action(STATE_MACHINE_ACTION_UNDEFINED),
         transact_return_point(NULL),
@@ -1105,7 +1108,6 @@ public:
         state_machine_id(0),
         first_stats(),
         current_stats(NULL),
-        range_setup(RANGE_NONE),
         negative_caching(false),
         www_auth_content(CACHE_AUTH_NONE),
         client_connection_enabled(true),
@@ -1131,6 +1133,7 @@ public:
         api_server_request_body_set(false),
         api_req_cacheable(false),
         api_resp_cacheable(false),
+        api_server_addr_set(false),
         api_update_cached_object(UPDATE_CACHED_OBJECT_NONE),
         api_lock_url(LOCK_URL_FIRST),
         saved_update_next_action(STATE_MACHINE_ACTION_UNDEFINED),
@@ -1145,6 +1148,13 @@ public:
         reverse_proxy(false), url_remap_success(false), remap_redirect(NULL), filter_mask(0), already_downgraded(false),
         pristine_url(),
         api_skip_all_remapping(false),
+        range_setup(RANGE_NONE),
+        unsatisfiable_range(false),
+        not_handle_range(false),
+        num_range_fields(0),
+        range_output_cl(0),
+        current_range(-1),
+        ranges(NULL),
         txn_conf(NULL)
     {
       int i;
@@ -1202,9 +1212,8 @@ public:
       if (internal_msg_buffer) {
         free_internal_msg_buffer(internal_msg_buffer, internal_msg_buffer_fast_allocator_size);
       }
-      //if (unmapped_request_url) xfree(unmapped_request_url);
       if (internal_msg_buffer_type)
-        xfree(internal_msg_buffer_type);
+        ats_free(internal_msg_buffer_type);
 
       ParentConfig::release(parent_params);
       parent_params = NULL;
@@ -1214,7 +1223,7 @@ public:
       hdr_info.server_request.destroy();
       hdr_info.server_response.destroy();
       hdr_info.transform_response.destroy();
-      hdr_info.transform_cached_request.destroy();
+      hdr_info.cache_response.destroy();
       cache_info.lookup_url_storage.destroy();
       cache_info.original_url.destroy();
       cache_info.store_url.destroy();
@@ -1234,6 +1243,10 @@ public:
       url_map.clear();
       arena.reset();
       pristine_url.clear();
+
+      delete[] ranges; ranges = NULL;
+      range_setup = RANGE_NONE;
+      unsatisfiable_range = true;
       return;
     }
 
@@ -1368,6 +1381,7 @@ public:
 
   static void build_response_copy(State* s, HTTPHdr* base_response, HTTPHdr* outgoing_response, HTTPVersion outgoing_version);
   static void handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* base);
+  static void change_response_header_because_of_range_request(State* s, HTTPHdr* header);
 
   static void handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
   static void handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
@@ -1412,7 +1426,7 @@ HttpTransact::free_internal_msg_buffer(char *buffer, int64_t size)
   if (size >= 0) {
     ioBufAllocator[size].free_void(buffer);
   } else {
-    xfree(buffer);
+    ats_free(buffer);
   }
 }
 

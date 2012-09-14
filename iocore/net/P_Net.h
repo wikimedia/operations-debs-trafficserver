@@ -105,7 +105,6 @@ do { \
 #include "P_UnixPollDescriptor.h"
 #include "P_Socks.h"
 #include "P_CompletionUtil.h"
-#include "P_UDPNet.h"
 #include "P_NetVCTest.h"
 #include "P_LibBulkIO.h"
 
@@ -120,12 +119,6 @@ do { \
                                        NET_SYSTEM_MODULE_MAJOR_VERSION, \
                                        NET_SYSTEM_MODULE_MINOR_VERSION, \
                                        PRIVATE_MODULE_HEADER)
-// libev backend flags
-#if defined(solaris)
-#define LIBEV_BACKEND_LIST (EVBACKEND_POLL | EVBACKEND_SELECT) // Level-Triggered
-#else
-  #define LIBEV_BACKEND_LIST 0 /* auto */
-#endif
 
 // For very verbose iocore debugging.
 #ifndef DEBUG

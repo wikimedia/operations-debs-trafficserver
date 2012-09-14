@@ -26,7 +26,8 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/mgmt/web2 \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/utils \
-  -I$(top_srcdir)/lib
+  -I$(top_srcdir)/lib \
+  -I$(top_srcdir)/lib/ts
 
 noinst_LIBRARIES = libreclocal.a librecprocess.a
 
@@ -53,6 +54,7 @@ libreclocal_a_SOURCES = \
   RecMessage.cc \
   RecMutex.cc \
   RecTree.cc \
+  I_RecHttp.h RecHttp.cc \
   RecUtils.cc
 
 librecprocess_a_CXXFLAGS = $(ink_with_modules_process)
@@ -78,5 +80,6 @@ librecprocess_a_SOURCES = \
   RecMutex.cc \
   RecProcess.cc \
   RecTree.cc \
+  I_RecHttp.h RecHttp.cc \
   RecUtils.cc
 

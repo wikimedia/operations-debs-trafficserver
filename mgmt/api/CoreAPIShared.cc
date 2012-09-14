@@ -1,6 +1,7 @@
 /** @file
 
-  A brief file description
+  This file contains functions that are shared by local and remote
+  API; in particular it has helper functions used by TSMgmtAPI.cc
 
   @section license License
 
@@ -20,17 +21,6 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-/*****************************************************************************
- * Filename: CoreAPIShared.cc
- * Purpose: This file contains functions that are shared by local and remote
- *          API; in particular it has helper functions used by TSMgmtAPI.cc
- * Created: 01/20/00
- * Created by: Lan Tran
- *
- *
- ***************************************************************************/
-
 #include "libts.h"
 
 #include "CoreAPIShared.h"
@@ -38,10 +28,8 @@
 
 // Forward declarations, used to be in the CoreAPIShared.h include file but
 // that doesn't make any sense since these are both statically declared. /leif
-#ifndef _WIN32
 static int poll_write(int fd, int timeout);
 static int poll_read(int fd, int timeout);
-#endif
 
 /* parseHTTPResponse
  * - parse the response buffer into header and body and calculate
@@ -92,20 +80,6 @@ END:
 TSError
 readHTTPResponse(int sock, char *buffer, int bufsize, uint64_t timeout)
 {
-#ifdef _WIN32
-  TimedIOStatus ret;
-  unsigned long bytesRead = 0L;
-
-  ret = TimedRead(sock, buffer, bufsize, &bytesRead, timeout);
-
-  if (ret != ERR_NONE) {
-    //      printf("(test) TimedRead failed: %d\n", ret);
-    goto error;
-  } else {
-    close_socket(sock);
-    return TS_ERR_OKAY;
-  }
-#else
   int64_t err, idx;
 
   idx = 0;
@@ -142,7 +116,6 @@ readHTTPResponse(int sock, char *buffer, int bufsize, uint64_t timeout)
       idx += err;
     }
   }
-#endif
 
 error:                         /* "Houston, we have a problem!" (Apollo 13) */
   if (sock >= 0) {
@@ -169,18 +142,6 @@ sendHTTPRequest(int sock, char *req, uint64_t timeout)
   snprintf(request, BUFSIZ, "GET %s HTTP/1.0\r\n\r\n", req);
   length = strlen(request);
 
-#ifdef _WIN32
-  TimedIOStatus ret;
-  unsigned long bytesWritten = 0L;
-
-  // Write the request to the server.
-  ret = TimedWrite(sock, request, length, &bytesWritten, timeout);
-
-  if (ret != ERR_NONE || bytesWritten != length) {
-    //      print("(test) TimedWrite failed: %d\n", ret);
-    goto error;
-  }
-#else
   int err = poll_write(sock, timeout);
   if (err < 0) {
     //      printf("(test) poll write failed [%d '%s']\n", errno, strerror (errno));
@@ -203,7 +164,6 @@ sendHTTPRequest(int sock, char *req, uint64_t timeout)
     requestPtr += err;
     length -= err;
   }
-#endif
 
   /* everything went well */
   return TS_ERR_OKAY;
@@ -222,9 +182,6 @@ int
 connectDirect(const char *host, int port, uint64_t timeout)
 {
   NOWARN_UNUSED(timeout);
-#ifdef _WIN32
-  TimedIOStatus ret;
-#endif
   int sock;
 
   // Create a socket
@@ -236,18 +193,7 @@ connectDirect(const char *host, int port, uint64_t timeout)
     //        printf("(test) unable to create socket [%d '%s']\n", errno, strerror(errno));
     goto error;
   }
-#ifdef _WIN32
-  struct hostent *pHostent;
-  pHostent = gethostbyname(host);
-  if (!pHostent) {
-    return -1;
-  }
-  ret = TimedConnect(sock, pHostent->h_addr, port, (int) timeout);
-  if (ret != ERR_NONE) {
-    //        printf("(test) TimedConnect failed: %d\n", ret);
-    goto error;
-  }
-#else
+
   struct sockaddr_in name;
   memset((void *) &name, 0, sizeof(sockaddr_in));
 
@@ -266,13 +212,13 @@ connectDirect(const char *host, int port, uint64_t timeout)
   // Connect to the specified port on the machine we're running on.
   name.sin_family = AF_INET;
   name.sin_port = htons(port);
-  //name.sin_addr.s_addr = inet_addr ("127.0.0.1");
+
   struct hostent *pHostent;
   pHostent = gethostbyname(host);
   if (!pHostent) {
     goto error;
   }
-  bcopy(pHostent->h_addr, (caddr_t) & (name.sin_addr), pHostent->h_length);
+  memcpy((caddr_t)&(name.sin_addr), pHostent->h_addr, pHostent->h_length);
 
   do {
     err = connect(sock, (struct sockaddr *) &name, sizeof(name));
@@ -282,7 +228,6 @@ connectDirect(const char *host, int port, uint64_t timeout)
     //        printf("(test) unable to connect to server [%d '%s'] at port %d\n", errno, strerror (errno), port);
     goto error;
   }
-#endif
   return sock;
 
 error:
@@ -293,7 +238,6 @@ error:
 }                               /* connectDirect */
 
 /* COPIED direclty form TrafficCop.cc */
-#ifndef _WIN32
 static int
 poll_read(int fd, int timeout)
 {
@@ -336,8 +280,6 @@ poll_write(int fd, int timeout)
 
   return err;
 }
-
-#endif // !_WIN32
 
 /***************************************************************************
  * socket_read_timeout
@@ -469,59 +411,59 @@ get_event_name(int id)
   memset(name, 0, MAX_EVENT_NAME_SIZE);
   switch (id) {
   case MGMT_ALARM_PROXY_PROCESS_DIED:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_PROCESS_DIED", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_PROCESS_DIED", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_PROCESS_BORN:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_PROCESS_BORN", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_PROCESS_BORN", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_PEER_BORN:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_PEER_BORN", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_PEER_BORN", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_PEER_DIED:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_PEER_DIED", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_PEER_DIED", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_CONFIG_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_CONFIG_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_CONFIG_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_SYSTEM_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_SYSTEM_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_SYSTEM_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_LOG_SPACE_CRISIS:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_LOG_SPACE_CRISIS", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_LOG_SPACE_CRISIS", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_CACHE_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_CACHE_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_CACHE_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_CACHE_WARNING:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_CACHE_WARNING", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_CACHE_WARNING", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_LOGGING_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_LOGGING_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_LOGGING_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_PROXY_LOGGING_WARNING:
-    ink_strncpy(name, "MGMT_ALARM_PROXY_LOGGING_WARNING", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PROXY_LOGGING_WARNING", sizeof(name));
     break;
   case MGMT_ALARM_MGMT_TEST:
-    ink_strncpy(name, "MGMT_ALARM_MGMT_TEST", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_MGMT_TEST", sizeof(name));
     break;
   case MGMT_ALARM_CONFIG_UPDATE_FAILED:
-    ink_strncpy(name, "MGMT_ALARM_CONFIG_UPDATE_FAILED", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_CONFIG_UPDATE_FAILED", sizeof(name));
     break;
   case MGMT_ALARM_WEB_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_WEB_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_WEB_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_PING_FAILURE:
-    ink_strncpy(name, "MGMT_ALARM_PING_FAILURE", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_PING_FAILURE", sizeof(name));
     break;
   case MGMT_ALARM_MGMT_CONFIG_ERROR:
-    ink_strncpy(name, "MGMT_ALARM_MGMT_CONFIG_ERROR", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_MGMT_CONFIG_ERROR", sizeof(name));
     break;
   case MGMT_ALARM_ADD_ALARM:
-    ink_strncpy(name, "MGMT_ALARM_ADD_ALARM", sizeof(name));
+    ink_strlcpy(name, "MGMT_ALARM_ADD_ALARM", sizeof(name));
     break;
   default:
     return NULL;
   }
 
-  return xstrdup(name);
+  return ats_strdup(name);
 }

@@ -44,7 +44,7 @@ extern "C" int plock(int);
 #include <sys/filio.h>
 #endif
 #include <syslog.h>
-#if !defined(darwin) && !defined(freebsd) && !defined(solaris)
+#if !defined(darwin) && !defined(freebsd) && !defined(solaris) && !defined(openbsd)
 #include <mcheck.h>
 #endif
 
@@ -54,6 +54,7 @@ extern "C" int plock(int);
 #include "StatSystem.h"
 #include "P_EventSystem.h"
 #include "P_Net.h"
+#include "P_UDPNet.h"
 #include "P_DNS.h"
 #include "P_SplitDNS.h"
 #include "P_Cluster.h"
@@ -62,6 +63,7 @@ extern "C" int plock(int);
 #include "I_Layout.h"
 #include "I_Machine.h"
 #include "RecordsConfig.h"
+#include "I_RecProcess.h"
 #include "Transform.h"
 #include "ProcessManager.h"
 #include "ProxyConfig.h"
@@ -73,23 +75,16 @@ extern "C" int plock(int);
 #include "CacheControl.h"
 #include "IPAllow.h"
 #include "ParentSelection.h"
-//#include "simple/Simple.h"
-
 #include "MgmtUtils.h"
 #include "StatPages.h"
 #include "HTTP.h"
 #include "Plugin.h"
 #include "DiagsConfig.h"
-
 #include "CoreUtils.h"
-
 #include "Update.h"
 #include "congest/Congestion.h"
-
 #include "RemapProcessor.h"
-
 #include "XmlUtils.h"
-
 #include "I_Tasks.h"
 
 #include <ts/ink_cap.h>
@@ -103,7 +98,6 @@ extern "C" int plock(int);
 //
 #define DEFAULT_NUMBER_OF_THREADS         ink_number_of_processors()
 #define DEFAULT_NUMBER_OF_UDP_THREADS     1
-#define DEFAULT_NUMBER_OF_CLUSTER_THREADS 1
 #define DEFAULT_NUMBER_OF_SSL_THREADS     0
 #define DEFAULT_NUM_ACCEPT_THREADS        0
 #define DEFAULT_NUM_TASK_THREADS          0
@@ -128,16 +122,17 @@ int stack_trace_flag = DEFAULT_STACK_TRACE_FLAG;
 
 int number_of_processors = ink_number_of_processors();
 int num_of_net_threads = DEFAULT_NUMBER_OF_THREADS;
-int num_of_cluster_threads = DEFAULT_NUMBER_OF_CLUSTER_THREADS;
+extern int num_of_cluster_threads;
 int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
 int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
 int num_task_threads = DEFAULT_NUM_TASK_THREADS;
 int run_test_hook = 0;
-int http_accept_port_number = DEFAULT_HTTP_ACCEPT_PORT_NUMBER;
+char http_accept_port_descriptor[TS_ARG_MAX + 1];
+#define TS_ARG_MAX_STR_FMT "S" TS_ARG_MAX_STR
 int http_accept_file_descriptor = NO_FD;
 int ssl_accept_file_descriptor = NO_FD;
-char accept_fd_list[1024] = "";
 char core_file[255] = "";
+bool enable_core_file_p = false; // Enable core file dump?
 int command_flag = DEFAULT_COMMAND_FLAG;
 #if TS_HAS_TESTS
 char regression_test[1024] = "";
@@ -173,18 +168,13 @@ int diags_init = 0;             // used by process manager
 
 char vingid_flag[255] = "";
 
-
 static int accept_mss = 0;
 static int cmd_line_dprintf_level = 0;  // default debug output level fro ink_dprintf function
 
 AppVersionInfo appVersionInfo;  // Build info for this application
 
-
 #if TS_HAS_TESTS
 extern int run_TestHook();
-// TODO: Maybe review and "fix" this test at some point?
-//
-//extern void run_SimpleHttp();
 #endif
 void deinitSubAgent();
 
@@ -208,10 +198,8 @@ ArgumentDescription argument_descriptions[] = {
    "PROXY_ACCEPT_THREAD", NULL},
   {"accept_till_done", 'b', "Accept Till Done", "T", &accept_till_done,
    "PROXY_ACCEPT_TILL_DONE", NULL},
-  {"httpport", 'p', "Port Number for HTTP Accept", "I",
-   &http_accept_port_number, "PROXY_HTTP_ACCEPT_PORT", NULL},
-  {"acceptfds", 'A', "File Descriptor List for Accept", "S1023",
-   accept_fd_list, "PROXY_ACCEPT_DESCRIPTOR_LIST", NULL},
+  {"httpport", 'p', "Port descriptor for HTTP Accept", TS_ARG_MAX_STR_FMT,
+   http_accept_port_descriptor, "PROXY_HTTP_ACCEPT_PORT", NULL},
   {"cluster_port", 'P', "Cluster Port Number", "I", &cluster_port_number,
    "PROXY_CLUSTER_PORT", NULL},
   {"dprintf_level", 'o', "Debug output level", "I", &cmd_line_dprintf_level,
@@ -348,7 +336,7 @@ check_lockfile()
     }
     _exit(1);
   }
-  xfree(lockfile);
+  ats_free(lockfile);
 }
 
 static void
@@ -415,7 +403,7 @@ initialize_process_manager()
   }
 
   if (access(management_directory, R_OK) == -1) {
-    ink_strncpy(management_directory, Layout::get()->sysconfdir, PATH_NAME_MAX);
+    ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
     if (access(management_directory, R_OK) == -1) {
       fprintf(stderr,"unable to access() management path '%s': %d, %s\n", management_directory, errno, strerror(errno));
       fprintf(stderr,"please set management path via command line '-d <managment directory>'\n");
@@ -844,118 +832,6 @@ check_for_root_uid()
 }
 #endif
 
-// static void print_accept_fd(HttpPortEntry* e)
-//
-static void
-print_accept_fd(HttpPortEntry * e)
-{
-  if (e) {
-    printf("Accept FDs: ");
-    while (e->fd != NO_FD) {
-      printf("%d:%d ", e->fd, e->type);
-      e++;
-    }
-    printf("\n");
-  }
-}
-
-// static HttpPortEntry* parse_accept_fd_list()
-//
-// Parses the list of FD's and types sent in by the manager
-//   with the -A flag
-//
-// If the NTTP Accept fd is in the list, sets global
-//   nttp_accept_fd
-//
-// If the SSL Accept fd is in the list, sets global
-//   ssl_accept_fd
-//
-// If there is no -A arg, returns NULL
-//
-//  Otherwise returns an array of HttpPortEntry which
-//   is terminated with a HttpPortEntry with the fd
-//   field set to NO_FD
-//
-static HttpPortEntry *
-parse_accept_fd_list()
-{
-  HttpPortEntry *accept_array;
-  int accept_index = 0;
-  int list_entries;
-  char *cur_entry;
-  char *attr_str;
-  HttpPortTypes attr = SERVER_PORT_DEFAULT;;
-  int fd = 0;
-  Tokenizer listTok(",");
-
-  if (!accept_fd_list[0] || (list_entries = listTok.Initialize(accept_fd_list, SHARE_TOKS)) <= 0)
-    return 0;
-
-  accept_array = new HttpPortEntry[list_entries + 1];
-  accept_array[0].fd = NO_FD;
-
-  for (int i = 0; i < list_entries; i++) {
-    cur_entry = (char *) listTok[i];
-
-    // Check to see if there is a port attribute
-    attr_str = strchr(cur_entry, ':');
-    if (attr_str != NULL) {
-      *attr_str = '\0';
-      attr_str = attr_str + 1;
-    }
-    // Handle the file descriptor
-    fd = strtoul(cur_entry, NULL, 10);
-
-    // Handle reading the attribute
-    if (attr_str == NULL) {
-      attr = SERVER_PORT_DEFAULT;
-    } else {
-      if (strlen(attr_str) > 2) {
-        Warning("too many port attribute fields (more than 2) '%s'", attr);
-        attr = SERVER_PORT_DEFAULT;
-      } else {
-        switch (*attr_str) {
-        case 'S':
-          // S is the special case of SSL term
-          ink_assert(ssl_accept_file_descriptor == NO_FD);
-          ssl_accept_file_descriptor = fd;
-          continue;
-        case 'C':
-          attr = SERVER_PORT_COMPRESSED;
-          break;
-        case 'T':
-          attr = SERVER_PORT_BLIND_TUNNEL;
-          break;
-        case 'X':
-        case '=':
-        case '<':
-        case '>':
-        case '\0':
-          attr = SERVER_PORT_DEFAULT;
-          break;
-        default:
-          Warning("unknown port attribute '%s'", attr_str);
-          attr = SERVER_PORT_DEFAULT;
-        };
-      }
-    }
-
-    accept_array[accept_index].fd = fd;
-    accept_array[accept_index].type = attr;
-    accept_index++;
-  }
-
-  ink_assert(accept_index < list_entries + 1);
-
-  accept_array[accept_index].fd = NO_FD;
-
-  return accept_array;
-}
-
-#if defined(linux)
-#include <sys/prctl.h>
-#endif
-
 static int
 set_core_size(const char *name, RecDataT data_type, RecData data, void *opaque_token)
 {
@@ -978,15 +854,8 @@ set_core_size(const char *name, RecDataT data_type, RecData data, void *opaque_t
     if (setrlimit(RLIMIT_CORE, &lim) < 0) {
       failed = true;
     }
-#if defined(linux)
-#ifndef PR_SET_DUMPABLE
-#define PR_SET_DUMPABLE 4
-#endif
-    // bz57317
-    if (size != 0)
-      prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
-#endif  // linux check
-
+    enable_core_file_p = size != 0;
+    EnableCoreFile(enable_core_file_p);
   }
 
   if (failed == true) {
@@ -1022,10 +891,11 @@ adjust_sys_settings(void)
   int mmap_max = -1;
   int fds_throttle = -1;
 
+  // TODO: I think we might be able to get rid of this?
   TS_ReadConfigInteger(mmap_max, "proxy.config.system.mmap_max");
-  if (mmap_max >= 0) {
-    mallopt(M_MMAP_MAX, mmap_max);      /*  INKqa10797: MALLOC_MMAP_MAX_=32768; export MALLOC_MMAP_MAX_ */
-  }
+  if (mmap_max >= 0)
+    ats_mallopt(ATS_MMAP_MAX, mmap_max);
+
   TS_ReadConfigInteger(fds_throttle, "proxy.config.net.connections_throttle");
 
   if (!getrlimit(RLIMIT_NOFILE, &lim)) {
@@ -1210,7 +1080,7 @@ syslog_log_configure()
   }
   // TODO: Not really, what's up with this?
   Debug("server", "Setting syslog facility to %d\n", syslog_facility);
-  xfree(facility_str);
+  ats_free(facility_str);
 }
 
 // void syslog_thr_init()
@@ -1239,6 +1109,7 @@ init_http_header()
   http_init();
 }
 
+// TODO: we should move this function out of the Main.cc
 static void
 init_http_aeua_filter(void)
 {
@@ -1256,15 +1127,15 @@ init_http_aeua_filter(void)
       ++cname;
       --j;
     }
-    ink_strncpy(buf, system_config_directory, sizeof(buf));
+    ink_strlcpy(buf, system_config_directory, sizeof(buf));
     if ((i = strlen(buf)) >= 0) {
       if (!i || (buf[i - 1] != '/' && buf[i - 1] != '\\' && i < (int) sizeof(buf))) {
-        strncat(buf, "/", 1);
+        ink_strlcat(buf, "/", sizeof(buf));
         ++i;
       }
     }
     if ((i + j + 1) < (int) sizeof(buf))
-      strncat(buf, cname, sizeof(_cname) - 1);
+      ink_strlcat(buf, cname, sizeof(buf));
   }
 
   i = HttpConfig::init_aeua_filter(buf[0] ? buf : NULL);
@@ -1352,22 +1223,16 @@ chdir_root()
 int
 getNumSSLThreads(void)
 {
-  int ssl_enabled = 0;
   int num_of_ssl_threads = 0;
 
-  TS_ReadConfigInteger(ssl_enabled, "proxy.config.ssl.enabled");
-
   // Set number of ssl threads equal to num of processors if
-  // SSL is enabled so it will scale properly.  If an accelerator card
-  // is present, there will be blocking, so scale threads up. If SSL is not
+  // SSL is enabled so it will scale properly. If SSL is not
   // enabled, leave num of ssl threads one, incase a remap rule
   // requires traffic server to act as an ssl client.
-  if (ssl_enabled) {
+  if (HttpProxyPort::hasSSL()) {
     int config_num_ssl_threads = 0;
-    int ssl_blocking = 0;
 
     TS_ReadConfigInteger(config_num_ssl_threads, "proxy.config.ssl.number.threads");
-    TS_ReadConfigInteger(ssl_blocking, "proxy.config.ssl.accelerator.type");
 
     if (config_num_ssl_threads != 0) {
       num_of_ssl_threads = config_num_ssl_threads;
@@ -1381,8 +1246,6 @@ getNumSSLThreads(void)
       // Last resort
       if (num_of_ssl_threads <= 0)
         num_of_ssl_threads = config_num_ssl_threads * 2;
-      if (ssl_blocking != 0)
-        num_of_ssl_threads *= 2; // Double when blocking I/O
     }
   }
 
@@ -1451,7 +1314,7 @@ change_uid_gid(const char *user)
     ink_fatal_die("sysconf() failed for _SC_GETPW_R_SIZE_MAX");
   }
 
-  char *buf = (char *)xmalloc(buflen);
+  char *buf = (char *)ats_malloc(buflen);
 
   if (0 != geteuid() && 0 == getuid()) seteuid(0); // revert euid if possible.
   if (0 != geteuid()) {
@@ -1503,7 +1366,11 @@ change_uid_gid(const char *user)
       }
     }
   }
-  xfree(buf);
+  ats_free(buf);
+
+  // Ugly but this gets reset when the process user ID is changed so
+  // it must be udpated here.
+  EnableCoreFile(enable_core_file_p);
 }
 
 //
@@ -1516,6 +1383,7 @@ main(int argc, char **argv)
 #if TS_HAS_PROFILER
   ProfilerStart("/tmp/ts.prof");
 #endif
+  bool admin_user_p = false;
 
   NOWARN_UNUSED(argc);
 
@@ -1533,8 +1401,8 @@ main(int argc, char **argv)
 
   // Before accessing file system initialize Layout engine
   Layout::create();
-  ink_strncpy(system_root_dir, Layout::get()->prefix, PATH_NAME_MAX);
-  ink_strncpy(management_directory, Layout::get()->sysconfdir, PATH_NAME_MAX);
+  ink_strlcpy(system_root_dir, Layout::get()->prefix, sizeof(system_root_dir));
+  ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
   chdir_root(); // change directory to the install root of traffic server.
 
   process_args(argument_descriptions, n_argument_descriptions, argv);
@@ -1594,24 +1462,30 @@ main(int argc, char **argv)
   if (!num_task_threads)
     TS_ReadConfigInteger(num_task_threads, "proxy.config.task_threads");
 
-  // change the user of the process
-  // do this before we start threads so we control the user id of the
+  const long max_login =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
+  char *user = (char *)ats_malloc(max_login);
+
+  *user = '\0';
+  admin_user_p = 
+    (REC_ERR_OKAY ==
+      TS_ReadConfigString(user, "proxy.config.admin.user_id", max_login)
+    ) && user[0] != '\0' && 0 != strcmp(user, "#-1")
+    ;
+
+# if TS_USE_POSIX_CAP
+  // Change the user of the process.
+  // Do this before we start threads so we control the user id of the
   // threads (rather than have it change asynchronously during thread
   // execution). We also need to do this before we fiddle with capabilities
   // as those are thread local and if we change the user id it will
-  // modified the capabilities in other threads, breaking things.
-  const long max_login =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
-  char *user = (char *)xmalloc(max_login);
-  *user = '\0';
-  if ((TS_ReadConfigString(user, "proxy.config.admin.user_id",
-                           max_login) == REC_ERR_OKAY) &&
-                           user[0] != '\0' &&
-                           strcmp(user, "#-1")) {
+  // modify the capabilities in other threads, breaking things.
+  if (admin_user_p) {
     PreserveCapabilities();
     change_uid_gid(user);
     RestrictCapabilities();
-    xfree(user);
+    ats_free(user);
   }
+# endif
 
   // Can't generate a log message yet, do that right after Diags is
   // setup.
@@ -1634,7 +1508,10 @@ main(int argc, char **argv)
   diags->prefix_str = "Server ";
   if (is_debug_tag_set("diags"))
     diags->dump();
-  DebugCapabilities("server"); // Can do this now, logging is up.
+# if TS_USE_POSIX_CAP
+  if (is_debug_tag_set("server"))
+    DebugCapabilities("server"); // Can do this now, logging is up.
+# endif
 
   // Check if we should do mlockall()
 #if defined(MCL_FUTURE)
@@ -1654,6 +1531,27 @@ main(int argc, char **argv)
     process_core(core_file);
     _exit(0);
   }
+
+  // We need to do this early so we can initialize the Machine
+  // singleton, which depends on configuration values loaded in this.
+  // We want to initialize Machine as early as possible because it
+  // has other dependencies. Hopefully not in init_HttpProxyServer().
+  HttpConfig::startup();
+  /* Set up the machine with the outbound address if that's set,
+     or the inbound address if set, otherwise let it default.
+  */
+  IpEndpoint machine_addr;
+  ink_zero(machine_addr);
+  if (HttpConfig::m_master.outbound_ip4.isValid())
+    machine_addr.assign(HttpConfig::m_master.outbound_ip4);
+  else if (HttpConfig::m_master.outbound_ip6.isValid())
+    machine_addr.assign(HttpConfig::m_master.outbound_ip6);
+  else if (HttpConfig::m_master.inbound_ip4.isValid())
+    machine_addr.assign(HttpConfig::m_master.inbound_ip4);
+  else if (HttpConfig::m_master.inbound_ip6.isValid())
+    machine_addr.assign(HttpConfig::m_master.inbound_ip6);
+  Machine::init(0, &machine_addr.sa);
+
   // pmgmt->start() must occur after initialization of Diags but
   // before calling RecProcessInit()
 
@@ -1668,7 +1566,7 @@ main(int argc, char **argv)
     char bwFilename[PATH_NAME_MAX];
 
     snprintf(bwFilename, sizeof(bwFilename), "%s/%s", system_config_directory, filename);
-    xfree(filename);
+    ats_free(filename);
 
     Debug("bw-mgmt", "Looking to read: %s for bw-mgmt", bwFilename);
     schema.LoadFile(bwFilename);
@@ -1680,13 +1578,6 @@ main(int argc, char **argv)
 
   // Init HTTP Accept-Encoding/User-Agent filter
   init_http_aeua_filter();
-
-  // Parse the accept port list from the manager
-  http_port_attr_array = parse_accept_fd_list();
-
-  if (is_debug_tag_set("accept_fd"))
-    print_accept_fd(http_port_attr_array);
-
 
   // Sanity checks
   //  if (!lock_process) check_for_root_uid();
@@ -1700,6 +1591,19 @@ main(int argc, char **argv)
 
   // Read proxy name
   TS_ReadConfigString(proxy_name, "proxy.config.proxy_name", 255);
+
+  // Alter the frequecies at which the update threads will trigger
+#define SET_INTERVAL(scope, name, var) do { \
+  RecInt tmpint; \
+  Debug("statsproc", "Looking for %s\n", name); \
+  if (RecGetRecordInt(name, &tmpint) == REC_ERR_OKAY) { \
+    Debug("statsproc", "Found %s\n", name); \
+    scope##_set_##var(tmpint); \
+  } \
+} while(0)
+  SET_INTERVAL(RecProcess, "proxy.config.config_update_interval_ms", config_update_interval_ms);
+  SET_INTERVAL(RecProcess, "proxy.config.raw_stat_sync_interval_ms", raw_stat_sync_interval_ms);
+  SET_INTERVAL(RecProcess, "proxy.config.remote_sync_interval_ms", remote_sync_interval_ms);
 
   // Initialize the stat pages manager
   statPagesManager.init();
@@ -1765,7 +1669,7 @@ main(int argc, char **argv)
     initCacheControl();
 #endif
     initCongestionControl();
-    initIPAllow();
+    IpAllow::InitInstance();
     ParentConfig::startup();
 #ifdef SPLIT_DNS
     SplitDNSConfig::startup();
@@ -1777,7 +1681,6 @@ main(int argc, char **argv)
 
     NetProcessor::accept_mss = accept_mss;
     netProcessor.start();
-    create_this_machine();
 #ifndef INK_NO_HOSTDB
     dnsProcessor.start();
     if (hostDBProcessor.start() < 0)
@@ -1788,8 +1691,13 @@ main(int argc, char **argv)
     clusterProcessor.init();
 #endif
 
+    // Load HTTP port data. getNumSSLThreads depends on this.
+    if (!HttpProxyPort::loadValue(http_accept_port_descriptor))
+      HttpProxyPort::loadConfig();
+    HttpProxyPort::loadDefaultIfEmpty();
+
     cacheProcessor.start();
-    udpNet.start(num_of_udp_threads);   // XXX : broken for __WIN32
+    udpNet.start(num_of_udp_threads);
     sslNetProcessor.start(getNumSSLThreads());
 
 #ifndef INK_NO_LOG
@@ -1843,6 +1751,26 @@ main(int argc, char **argv)
     // main server logic initiated here //
     //////////////////////////////////////
 
+#ifndef TS_NO_TRANSFORM
+    transformProcessor.start();
+#endif
+
+    init_HttpProxyServer();
+    int http_enabled = 1;
+    TS_ReadConfigInteger(http_enabled, "proxy.config.http.enabled");
+
+    if (http_enabled) {
+#ifndef INK_NO_ICP
+      int icp_enabled = 0;
+      TS_ReadConfigInteger(icp_enabled, "proxy.config.icp.enabled");
+#endif
+      start_HttpProxyServer(num_accept_threads);
+#ifndef INK_NO_ICP
+      if (icp_enabled)
+        icpProcessor.start();
+#endif
+    }
+
 #ifndef TS_NO_API
     plugin_init(system_config_directory, false);        // plugin.config
 #else
@@ -1851,29 +1779,6 @@ main(int argc, char **argv)
     init_inkapi_stat_system();
     // i.e. http_global_hooks
 #endif
-#ifndef TS_NO_TRANSFORM
-    transformProcessor.start();
-#endif
-
-    init_HttpProxyServer();
-    if (!http_accept_port_number) {
-      TS_ReadConfigInteger(http_accept_port_number, "proxy.config.http.server_port");
-    }
-    if ((unsigned int) http_accept_port_number >= 0xFFFF) {
-      ProcessFatal("\ncannot listen on port %d.\naccept port cannot be larger that 65535.\n"
-                   "please check your Traffic Server configurations", http_accept_port_number);
-      return (1);
-    }
-
-    int http_enabled = 1;
-    TS_ReadConfigInteger(http_enabled, "proxy.config.http.enabled");
-
-    if (http_enabled) {
-      start_HttpProxyServer(http_accept_file_descriptor, http_accept_port_number, ssl_accept_file_descriptor, num_accept_threads);
-#ifndef INK_NO_ICP
-      icpProcessor.start();
-#endif
-    }
 
     // "Task" processor, possibly with its own set of task threads
     tasksProcessor.start(num_task_threads);
@@ -1914,6 +1819,14 @@ main(int argc, char **argv)
 
     run_AutoStop();
   }
+
+# if ! TS_USE_POSIX_CAP
+  if (admin_user_p) {
+    change_uid_gid(user);
+    DebugCapabilities("server");
+    ats_free(user);
+  }
+# endif
 
   this_thread()->execute();
 }

@@ -53,9 +53,9 @@ BaseManager::~BaseManager()
 
   while (!queue_is_empty(mgmt_event_queue)) {
     MgmtMessageHdr *mh = (MgmtMessageHdr *) dequeue(mgmt_event_queue);
-    xfree(mh);
+    ats_free(mh);
   }
-  xfree(mgmt_event_queue);
+  ats_free(mgmt_event_queue);
 
   for (entry = ink_hash_table_iterator_first(mgmt_callback_table,
                                              &iterator_state);
@@ -63,12 +63,10 @@ BaseManager::~BaseManager()
     MgmtCallbackList *tmp, *cb_list = (MgmtCallbackList *) entry;
 
     for (tmp = cb_list->next; tmp; tmp = cb_list->next) {
-      xfree(cb_list);
+      ats_free(cb_list);
       cb_list = tmp;
     }
-    if (cb_list) {
-      xfree(cb_list);
-    }
+    ats_free(cb_list);
   }
 
   return;
@@ -104,12 +102,12 @@ BaseManager::registerMgmtCallback(int msg_id, MgmtCallback cb, void *opaque_cb_d
     MgmtCallbackList *tmp;
 
     for (tmp = cb_list; tmp->next; tmp = tmp->next);
-    ink_assert(tmp->next = (MgmtCallbackList *) xmalloc(sizeof(MgmtCallbackList)));
+    tmp->next = (MgmtCallbackList *)ats_malloc(sizeof(MgmtCallbackList));
     tmp->next->func = cb;
     tmp->next->opaque_data = opaque_cb_data;
     tmp->next->next = NULL;
   } else {
-    ink_assert(cb_list = (MgmtCallbackList *) xmalloc(sizeof(MgmtCallbackList)));
+    cb_list = (MgmtCallbackList *)ats_malloc(sizeof(MgmtCallbackList));
     cb_list->func = cb;
     cb_list->opaque_data = opaque_cb_data;
     cb_list->next = NULL;
@@ -144,12 +142,12 @@ BaseManager::signalMgmtEntity(int msg_id, char *data_raw, int data_len)
   MgmtMessageHdr *mh;
 
   if (data_raw) {
-    mh = (MgmtMessageHdr *) xmalloc(sizeof(MgmtMessageHdr) + data_len);
+    mh = (MgmtMessageHdr *)ats_malloc(sizeof(MgmtMessageHdr) + data_len);
     mh->msg_id = msg_id;
     mh->data_len = data_len;
     memcpy((char *) mh + sizeof(MgmtMessageHdr), data_raw, data_len);
   } else {
-    mh = (MgmtMessageHdr *) xmalloc(sizeof(MgmtMessageHdr));
+    mh = (MgmtMessageHdr *)ats_malloc(sizeof(MgmtMessageHdr));
     mh->msg_id = msg_id;
     mh->data_len = 0;
   }

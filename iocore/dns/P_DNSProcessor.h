@@ -198,8 +198,10 @@ struct DNSEntry;
 */
 struct DNSHandler: public Continuation
 {
-  unsigned int ip;
-  int port;
+  /// This is used as the target if round robin isn't set.
+  IpEndpoint ip;
+  IpEndpoint local_ipv6; ///< Local V6 address if set.
+  IpEndpoint local_ipv4; ///< Local V4 address if set.
   int ifd[MAX_NAMED];
   int n_con;
   DNSConnection con[MAX_NAMED];
@@ -225,7 +227,6 @@ struct DNSHandler: public Continuation
   // bitmap of query ids in use
   uint64_t qid_in_flight[(USHRT_MAX+1)/64];
 
-
   void received_one(int i)
   {
     failover_number[i] = failover_soon_number[i] = crossed_failover_number[i] = 0;
@@ -243,7 +244,7 @@ struct DNSHandler: public Continuation
   {
     if (is_debug_tag_set("dns")) {
       Debug("dns", "failover_now: Considering immediate failover, target time is %" PRId64 "",
-            HRTIME_SECONDS(dns_failover_period));
+            (ink_hrtime)HRTIME_SECONDS(dns_failover_period));
       Debug("dns", "\tdelta time is %" PRId64 "", (ink_get_hrtime() - crossed_failover_number[i]));
     }
     return (crossed_failover_number[i] &&
@@ -261,7 +262,7 @@ struct DNSHandler: public Continuation
   int startEvent_sdns(int event, Event *e);
   int mainEvent(int event, Event *e);
 
-  void open_con(unsigned int aip, int aport, bool failed = false, int icon = 0);
+  void open_con(sockaddr const* addr, bool failed = false, int icon = 0);
   void failover();
   void rr_failure(int ndx);
   void recover();
@@ -283,14 +284,19 @@ struct DNSHandler: public Continuation
   };
 
   DNSHandler();
+
+private:
+  // Check the IP address and switch to default if needed.
+  void validate_ip();
 };
 
 
 TS_INLINE DNSHandler::DNSHandler()
- : Continuation(NULL), ip(0), port(0), n_con(0), options(0), in_flight(0), name_server(0), in_write_dns(0),
+ : Continuation(NULL), n_con(0), options(0), in_flight(0), name_server(0), in_write_dns(0),
   hostent_cache(0), last_primary_retry(0), last_primary_reopen(0),
   m_res(0), txn_lookup_timeout(0), generator((uint32_t)((uintptr_t)time(NULL) ^ (uintptr_t)this))
 {
+  ats_ip_invalidate(&ip);
   for (int i = 0; i < MAX_NAMED; i++) {
     ifd[i] = -1;
     failover_number[i] = 0;

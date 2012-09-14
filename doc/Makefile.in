@@ -30,6 +30,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
 VPATH = @srcdir@
 pkgincludedir = $(includedir)/@PACKAGE@
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
@@ -47,32 +48,67 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 subdir = doc
-DIST_COMMON = $(srcdir)/Doxyfile.in $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in
+DIST_COMMON = $(dist_trafficshell_DATA) $(srcdir)/Doxyfile.in \
+	$(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/common.m4 \
-	$(top_srcdir)/build/crypto.m4 $(top_srcdir)/build/libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ts/ink_autoconf.h
 CONFIG_CLEAN_FILES = Doxyfile
 CONFIG_CLEAN_VPATH_FILES =
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 SOURCES =
 DIST_SOURCES =
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
+am__install_max = 40
+am__nobase_strip_setup = \
+  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
+am__nobase_strip = \
+  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
+am__nobase_list = $(am__nobase_strip_setup); \
+  for p in $$list; do echo "$$p $$p"; done | \
+  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
+  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
+    if (++n[$$2] == $(am__install_max)) \
+      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
+    END { for (dir in files) print dir, files[dir] }'
+am__base_list = \
+  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
+  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
+man1dir = $(mandir)/man1
+NROFF = nroff
+MANS = $(man1_MANS)
+am__installdirs = "$(DESTDIR)$(trafficshelldir)"
+DATA = $(dist_trafficshell_DATA)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 pkgdatadir = @pkgdatadir@
 pkglibdir = @pkglibdir@
 pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -126,10 +162,10 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBDEMANGLE = @LIBDEMANGLE@
 LIBDL = @LIBDL@
-LIBEV = @LIBEV@
 LIBEXC = @LIBEXC@
 LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
+LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
@@ -166,6 +202,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PCRE_CONFIG = @PCRE_CONFIG@
 PERL = @PERL@
 RANLIB = @RANLIB@
 RM = @RM@
@@ -196,6 +233,7 @@ TS_VERSION_NUMBER = @TS_VERSION_NUMBER@
 TS_VERSION_STRING = @TS_VERSION_STRING@
 VERSION = @VERSION@
 YACC = @YACC@
+YACCBIN = @YACCBIN@
 YFLAGS = @YFLAGS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -212,6 +250,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -241,6 +280,7 @@ execinfoh = @execinfoh@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
 exp_datadir = @exp_datadir@
+exp_docdir = @exp_docdir@
 exp_exec_prefix = @exp_exec_prefix@
 exp_includedir = @exp_includedir@
 exp_infodir = @exp_infodir@
@@ -262,17 +302,19 @@ has_backtrace = @has_backtrace@
 has_clock_gettime = @has_clock_gettime@
 has_demangle = @has_demangle@
 has_eventfd = @has_eventfd@
+has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_inkapi = @has_inkapi@
+has_ip_tos = @has_ip_tos@
 has_lrand48_r = @has_lrand48_r@
 has_posix_fadvise = @has_posix_fadvise@
 has_posix_memalign = @has_posix_memalign@
 has_profiler = @has_profiler@
-has_purify = @has_purify@
+has_so_mark = @has_so_mark@
 has_srand48_r = @has_srand48_r@
 has_standalone_iocore = @has_standalone_iocore@
 has_strlcat = @has_strlcat@
 has_strlcpy = @has_strlcpy@
-has_strndup = @has_strndup@
+has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
 host = @host@
@@ -281,6 +323,7 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
+ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
 ink_with_modules_def = @ink_with_modules_def@
@@ -291,6 +334,7 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 is_micro_build = @is_micro_build@
+jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
 libgenh = @libgenh@
@@ -303,6 +347,9 @@ malloch = @malloch@
 mandir = @mandir@
 mathh = @mathh@
 max_api_stats = @max_api_stats@
+max_event_threads = @max_event_threads@
+max_host_name_len = @max_host_name_len@
+max_threads_per_type = @max_threads_per_type@
 mkdir_p = @mkdir_p@
 need_union_semun = @need_union_semun@
 net_ppp_defsh = @net_ppp_defsh@
@@ -318,6 +365,7 @@ pcreh = @pcreh@
 pdfdir = @pdfdir@
 pkgbindir = @pkgbindir@
 pkgcachedir = @pkgcachedir@
+pkgdocdir = @pkgdocdir@
 pkglocalstatedir = @pkglocalstatedir@
 pkglogdir = @pkglogdir@
 pkgruntimedir = @pkgruntimedir@
@@ -328,9 +376,11 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
 rel_datadir = @rel_datadir@
+rel_docdir = @rel_docdir@
 rel_exec_prefix = @rel_exec_prefix@
 rel_includedir = @rel_includedir@
 rel_infodir = @rel_infodir@
@@ -369,15 +419,85 @@ top_srcdir = @top_srcdir@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
+use_freelist = @use_freelist@
+use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
-use_libev = @use_libev@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_tls_npn = @use_tls_npn@
+use_tls_sni = @use_tls_sni@
 use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-EXTRA_DIST = Doxyfile.in
+trafficshelldir = $(pkgdocdir)/trafficshell
+dist_trafficshell_DATA = \
+  man/config_alarms.1 \
+  man/config_cache.1 \
+  man/config_clock.1 \
+  man/config_dns.1 \
+  man/config_get.1 \
+  man/config_hard-restart.1 \
+  man/config_hostdb.1 \
+  man/config_http.1 \
+  man/config_icp.1 \
+  man/config_logging.1 \
+  man/config_name.1 \
+  man/config_network.1 \
+  man/config_parent.1 \
+  man/config_port-tunnels.1 \
+  man/config_remap.1 \
+  man/config_reset-stats.1 \
+  man/config_restart.1 \
+  man/config_root.1 \
+  man/config_scheduled-update.1 \
+  man/config_security.1 \
+  man/config_set.1 \
+  man/config_socks.1 \
+  man/config_ssl.1 \
+  man/config_start.1 \
+  man/config_stop.1 \
+  man/config_upgrade.1 \
+  man/config_virtual-ip.1 \
+  man/disable.1 \
+  man/enable.1 \
+  man/exit.1 \
+  man/show_alarms.1 \
+  man/show_cache.1 \
+  man/show_cache-stats.1 \
+  man/show_cluster.1 \
+  man/show_dns-resolver.1 \
+  man/show_dns-stats.1 \
+  man/show_hostdb.1 \
+  man/show_hostdb-stats.1 \
+  man/show_http.1 \
+  man/show_http-stats.1 \
+  man/show_http-trans-stats.1 \
+  man/show_icp.1 \
+  man/show_icp-stats.1 \
+  man/show_logging.1 \
+  man/show_logging-stats.1 \
+  man/show_network.1 \
+  man/show_parent.1 \
+  man/show_port-tunnels.1 \
+  man/show_proxy.1 \
+  man/show_proxy-stats.1 \
+  man/show_remap.1 \
+  man/show_scheduled-update.1 \
+  man/show_security.1 \
+  man/show_socks.1 \
+  man/show_ssl.1 \
+  man/show_status.1 \
+  man/show_version.1 \
+  man/show_virtual-ip.1
+
+man1_MANS = \
+  man/traffic_shell.1
+
+EXTRA_DIST = \
+  Doxyfile.in \
+  $(dist_trafficshell_DATA)
+
 all: all-am
 
 .SUFFIXES:
@@ -419,6 +539,61 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
+
+install-man1: $(man1_MANS)
+	@$(NORMAL_INSTALL)
+	test -z "$(man1dir)" || $(MKDIR_P) "$(DESTDIR)$(man1dir)"
+	@list='$(man1_MANS)'; test -n "$(man1dir)" || exit 0; \
+	{ for i in $$list; do echo "$$i"; done; \
+	} | while read p; do \
+	  if test -f $$p; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; echo "$$p"; \
+	done | \
+	sed -e 'n;s,.*/,,;p;h;s,.*\.,,;s,^[^1][0-9a-z]*$$,1,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,' | \
+	sed 'N;N;s,\n, ,g' | { \
+	list=; while read file base inst; do \
+	  if test "$$base" = "$$inst"; then list="$$list $$file"; else \
+	    echo " $(INSTALL_DATA) '$$file' '$(DESTDIR)$(man1dir)/$$inst'"; \
+	    $(INSTALL_DATA) "$$file" "$(DESTDIR)$(man1dir)/$$inst" || exit $$?; \
+	  fi; \
+	done; \
+	for i in $$list; do echo "$$i"; done | $(am__base_list) | \
+	while read files; do \
+	  test -z "$$files" || { \
+	    echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man1dir)'"; \
+	    $(INSTALL_DATA) $$files "$(DESTDIR)$(man1dir)" || exit $$?; }; \
+	done; }
+
+uninstall-man1:
+	@$(NORMAL_UNINSTALL)
+	@list='$(man1_MANS)'; test -n "$(man1dir)" || exit 0; \
+	files=`{ for i in $$list; do echo "$$i"; done; \
+	} | sed -e 's,.*/,,;h;s,.*\.,,;s,^[^1][0-9a-z]*$$,1,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,'`; \
+	test -z "$$files" || { \
+	  echo " ( cd '$(DESTDIR)$(man1dir)' && rm -f" $$files ")"; \
+	  cd "$(DESTDIR)$(man1dir)" && rm -f $$files; }
+install-dist_trafficshellDATA: $(dist_trafficshell_DATA)
+	@$(NORMAL_INSTALL)
+	test -z "$(trafficshelldir)" || $(MKDIR_P) "$(DESTDIR)$(trafficshelldir)"
+	@list='$(dist_trafficshell_DATA)'; test -n "$(trafficshelldir)" || list=; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(trafficshelldir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(trafficshelldir)" || exit $$?; \
+	done
+
+uninstall-dist_trafficshellDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(dist_trafficshell_DATA)'; test -n "$(trafficshelldir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	test -n "$$files" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(trafficshelldir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(trafficshelldir)" && rm -f $$files
 tags: TAGS
 TAGS:
 
@@ -458,8 +633,11 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile
+all-am: Makefile $(DATA)
 installdirs:
+	for dir in "$(DESTDIR)$(trafficshelldir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -505,7 +683,7 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-dist_trafficshellDATA
 
 install-dvi: install-dvi-am
 
@@ -521,7 +699,7 @@ install-info: install-info-am
 
 install-info-am:
 
-install-man:
+install-man: install-man1
 
 install-pdf: install-pdf-am
 
@@ -549,21 +727,25 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am:
+uninstall-am: uninstall-dist_trafficshellDATA
+
+uninstall-man: uninstall-man1
 
 .MAKE: install-am install-strip
 
 .PHONY: all all-am check check-am clean clean-generic clean-libtool \
 	clean-local distclean distclean-generic distclean-libtool \
 	distdir dvi dvi-am html html-am info info-am install \
-	install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
+	install-am install-data install-data-am \
+	install-dist_trafficshellDATA install-dvi install-dvi-am \
+	install-exec install-exec-am install-html install-html-am \
+	install-info install-info-am install-man install-man1 \
 	install-pdf install-pdf-am install-ps install-ps-am \
 	install-strip installcheck installcheck-am installdirs \
 	maintainer-clean maintainer-clean-generic mostlyclean \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	uninstall uninstall-am
+	uninstall uninstall-am uninstall-dist_trafficshellDATA \
+	uninstall-man uninstall-man1
 
 
 clean-local:

@@ -111,6 +111,8 @@ public:
   virtual SOCKET get_socket();
   virtual void set_local_addr();
   virtual void set_remote_addr();
+  virtual int set_tcp_init_cwnd(int init_cwnd);
+  virtual void apply_options();
 
   virtual bool get_data(int id, void *data);
   virtual bool set_data(int id, void *data);
@@ -176,11 +178,29 @@ public:
   Action *connect_re(Continuation * c);
   void kill_no_connect();
 
-  void set_active_addr(uint32_t ip, int port);
-  void set_passive_addr(uint32_t ip, int port);
+  /// Set the active address.
+  void set_active_addr(
+                       in_addr_t ip, ///< IPv4 address in host order.
+                       int port ///< IP Port in host order.
+                       );
+  /// Set the active address and port.
+  void set_active_addr(
+                       sockaddr const *ip ///< Address and port used.
+                       );
+  /// Set the passive address.
+  void set_passive_addr(
+                        in_addr_t ip, ///< IPv4 address in host order.
+                        int port ///< IP port in host order.
+                        );
+  /// Set the passive address.
+  void set_passive_addr(
+                        sockaddr const* ip ///< Address and port.
+                        );
 
   void set_active_data(void *data);
   void set_passive_data(void *data);
+
+  void set_transparent(bool passive_side, bool active_side);
 
 private:
 
@@ -200,8 +220,8 @@ private:
   MIOBuffer *a_to_p_buffer;
   IOBufferReader *a_to_p_reader;
 
-  struct sockaddr_storage passive_addr_struct;
-  struct sockaddr_storage active_addr_struct;
+  IpEndpoint passive_addr_struct;
+  IpEndpoint active_addr_struct;
 
   void *passive_data;
   void *active_data;
@@ -224,8 +244,8 @@ passive_data(NULL),
 active_data(NULL),
 id(0)
 {
-  memset(&active_addr_struct, 0, sizeof(struct sockaddr_storage));
-  memset(&passive_addr_struct, 0, sizeof(struct sockaddr_storage));
+  memset(&active_addr_struct, 0, sizeof active_addr_struct);
+  memset(&passive_addr_struct, 0, sizeof passive_addr_struct);
 
   id = ink_atomic_increment(&nextid, 1);
 }

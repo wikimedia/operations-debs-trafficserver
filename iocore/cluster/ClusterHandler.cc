@@ -141,6 +141,9 @@ ClusterHandler::ClusterHandler()
     hostname(NULL),
     machine(NULL),
     ifd(-1),
+    id(-1),
+    dead(true),
+    downing(false),
     active(false),
     on_stolen_thread(false),
     n_channels(0),
@@ -226,27 +229,32 @@ ClusterHandler::ClusterHandler()
 
 ClusterHandler::~ClusterHandler()
 {
+  bool free_m = false;
   if (net_vc) {
     net_vc->do_io(VIO::CLOSE);
     net_vc = 0;
   }
-  if (machine)
-    free_ClusterMachine(machine);
+  if (machine) {
+    MUTEX_TAKE_LOCK(the_cluster_config_mutex, this_ethread());
+    if (++machine->free_connections >= machine->num_connections)
+      free_m = true;
+    MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
+    if (free_m)
+      free_ClusterMachine(machine);
+  }
   machine = NULL;
-  if (hostname)
-    xfree(hostname);
+  ats_free(hostname);
   hostname = NULL;
-  if (channels)
-    xfree(channels);
+  ats_free(channels);
   channels = NULL;
   if (channel_data) {
     for (int i = 0; i < n_channels; ++i) {
       if (channel_data[i]) {
-        xfree(channel_data[i]);
+        ats_free(channel_data[i]);
         channel_data[i] = 0;
       }
     }
-    xfree(channel_data);
+    ats_free(channel_data);
     channel_data = NULL;
   }
   if (read_vcs)
@@ -304,10 +312,10 @@ ClusterHandler::close_ClusterVConnection(ClusterVConnection * vc)
   ink_assert(!vc->write_list_bytes);
   ink_assert(!vc->write_bytes_in_transit);
 
-  if (((!vc->remote_closed && !vc->have_all_data) || (vc->remote_closed == FORCE_CLOSE_ON_OPEN_CHANNEL)) && vc->machine) {
+  if (((!vc->remote_closed && !vc->have_all_data) || (vc->remote_closed == FORCE_CLOSE_ON_OPEN_CHANNEL)) && vc->ch) {
 
     CloseMessage msg;
-    int vers = CloseMessage::protoToVersion(vc->machine->msg_proto_major);
+    int vers = CloseMessage::protoToVersion(vc->ch->machine->msg_proto_major);
     void *data;
     int len;
 
@@ -325,7 +333,7 @@ ClusterHandler::close_ClusterVConnection(ClusterVConnection * vc)
       //////////////////////////////////////////////////////////////
       ink_release_assert(!"close_ClusterVConnection() bad msg version");
     }
-    clusterProcessor.invoke_remote(vc->machine, CLOSE_CHANNEL_CLUSTER_FUNCTION, data, len);
+    clusterProcessor.invoke_remote(vc->ch, CLOSE_CHANNEL_CLUSTER_FUNCTION, data, len);
   }
   ink_hrtime now = ink_get_hrtime();
   CLUSTER_DECREMENT_DYN_STAT(CLUSTER_CONNECTIONS_OPEN_STAT);
@@ -771,7 +779,7 @@ bool ClusterHandler::get_read_locks()
       int64_t read_avail = vc->read_block->read_avail();
 
       if (!vc->pending_remote_fill && read_avail) {
-        Debug("cluster_vc_xfer", "Deferred fill ch %d 0x%x %d bytes", vc->channel, vc, read_avail);
+        Debug("cluster_vc_xfer", "Deferred fill ch %d %p %"PRId64" bytes", vc->channel, vc, read_avail);
 
         vc->read.vio.buffer.writer()->append_block(vc->read_block->clone());
         if (complete_channel_read(read_avail, vc)) {
@@ -852,15 +860,15 @@ ClusterHandler::process_set_data_msgs()
     char *endp = p + read.msg.control_bytes;
     while (p < endp) {
       if (needByteSwap) {
-        swap32((uint32_t *) p);   // length
-        swap32((uint32_t *) (p + sizeof(int32_t))); // function code
+        ats_swap32((uint32_t *) p);   // length
+        ats_swap32((uint32_t *) (p + sizeof(int32_t))); // function code
       }
       int len = *(int32_t *) p;
       cluster_function_index = *(uint32_t *) (p + sizeof(int32_t));
 
       if ((cluster_function_index < (uint32_t) SIZE_clusterFunction)
           && (cluster_function_index == SET_CHANNEL_DATA_CLUSTER_FUNCTION)) {
-        clusterFunction[SET_CHANNEL_DATA_CLUSTER_FUNCTION].pfn(machine, p + (2 * sizeof(uint32_t)), len - sizeof(uint32_t));
+        clusterFunction[SET_CHANNEL_DATA_CLUSTER_FUNCTION].pfn(this, p + (2 * sizeof(uint32_t)), len - sizeof(uint32_t));
         // Mark message as processed.
         *((uint32_t *) (p + sizeof(uint32_t))) = ~*((uint32_t *) (p + sizeof(uint32_t)));
         p += (2 * sizeof(uint32_t)) + (len - sizeof(uint32_t));
@@ -869,8 +877,8 @@ ClusterHandler::process_set_data_msgs()
         // Reverse swap since this message will be reprocessed.
 
         if (needByteSwap) {
-          swap32((uint32_t *) p); // length
-          swap32((uint32_t *) (p + sizeof(int32_t)));       // function code
+          ats_swap32((uint32_t *) p); // length
+          ats_swap32((uint32_t *) (p + sizeof(int32_t)));       // function code
         }
         break;                  // End of set_data messages
       }
@@ -886,7 +894,7 @@ ClusterHandler::process_set_data_msgs()
 
     while (ic) {
       if (needByteSwap) {
-        swap32((uint32_t *) ic->data);    // function code
+        ats_swap32((uint32_t *) ic->data);    // function code
       }
       cluster_function_index = *((uint32_t *) ic->data);
 
@@ -894,13 +902,13 @@ ClusterHandler::process_set_data_msgs()
           && (cluster_function_index == SET_CHANNEL_DATA_CLUSTER_FUNCTION)) {
 
         char *p = ic->data;
-        clusterFunction[SET_CHANNEL_DATA_CLUSTER_FUNCTION].pfn(machine,
+        clusterFunction[SET_CHANNEL_DATA_CLUSTER_FUNCTION].pfn(this,
                                                                (void *) (p + sizeof(int32_t)), ic->len - sizeof(int32_t));
 
         // Reverse swap since this will be processed again for deallocation.
         if (needByteSwap) {
-          swap32((uint32_t *) p); // length
-          swap32((uint32_t *) (p + sizeof(int32_t)));       // function code
+          ats_swap32((uint32_t *) p); // length
+          ats_swap32((uint32_t *) (p + sizeof(int32_t)));       // function code
         }
         // Mark message as processed.
         // Defer dellocation until entire read is complete.
@@ -910,7 +918,7 @@ ClusterHandler::process_set_data_msgs()
       } else {
         // Reverse swap action this message will be reprocessed.
         if (needByteSwap) {
-          swap32((uint32_t *) ic->data);  // function code
+          ats_swap32((uint32_t *) ic->data);  // function code
         }
         break;
       }
@@ -938,8 +946,8 @@ ClusterHandler::process_small_control_msgs()
     // incoming queue for processing by callout threads.
     /////////////////////////////////////////////////////////////////
     if (needByteSwap) {
-      swap32((uint32_t *) p);     // length
-      swap32((uint32_t *) (p + sizeof(int32_t)));   // function code
+      ats_swap32((uint32_t *) p);     // length
+      ats_swap32((uint32_t *) (p + sizeof(int32_t)));   // function code
     }
     int len = *(int32_t *) p;
     p += sizeof(int32_t);
@@ -955,7 +963,7 @@ ClusterHandler::process_small_control_msgs()
       // Cluster function, can only be processed in ET_CLUSTER thread
       //////////////////////////////////////////////////////////////////////
       p += sizeof(uint32_t);
-      clusterFunction[cluster_function_index].pfn(machine, p, len - sizeof(int32_t));
+      clusterFunction[cluster_function_index].pfn(this, p, len - sizeof(int32_t));
       p += (len - sizeof(int32_t));
 
     } else {
@@ -993,7 +1001,7 @@ ClusterHandler::process_large_control_msgs()
 
   while ((ic = incoming_control.dequeue())) {
     if (needByteSwap) {
-      swap32((uint32_t *) ic->data);      // function code
+      ats_swap32((uint32_t *) ic->data);      // function code
     }
     cluster_function_index = *((uint32_t *) ic->data);
     ink_release_assert(cluster_function_index != SET_CHANNEL_DATA_CLUSTER_FUNCTION);
@@ -1013,7 +1021,7 @@ ClusterHandler::process_large_control_msgs()
 
     } else if (clusterFunction[cluster_function_index].ClusterFunc) {
       // Cluster message, process in ET_CLUSTER thread
-      clusterFunction[cluster_function_index].pfn(machine, (void *) (ic->data + sizeof(int32_t)),
+      clusterFunction[cluster_function_index].pfn(this, (void *) (ic->data + sizeof(int32_t)),
                                                   ic->len - sizeof(int32_t));
 
       // Deallocate memory
@@ -1203,7 +1211,7 @@ ClusterHandler::process_incoming_callouts(ProxyMutex * m)
           // Invoke processing function
           ////////////////////////////////
           ink_assert(!clusterFunction[cluster_function_index].ClusterFunc);
-          clusterFunction[cluster_function_index].pfn(machine, p, len - sizeof(int32_t));
+          clusterFunction[cluster_function_index].pfn(this, p, len - sizeof(int32_t));
           now = ink_get_hrtime();
           CLUSTER_SUM_DYN_STAT(CLUSTER_CTRL_MSGS_RECV_TIME_STAT, now - ic->recognized_time);
         } else {
@@ -1224,7 +1232,7 @@ ClusterHandler::process_incoming_callouts(ProxyMutex * m)
           // Invoke processing function
           ////////////////////////////////
           ink_assert(!clusterFunction[cluster_function_index].ClusterFunc);
-          clusterFunction[cluster_function_index].pfn(machine, (void *) (ic->data + sizeof(int32_t)),
+          clusterFunction[cluster_function_index].pfn(this, (void *) (ic->data + sizeof(int32_t)),
                                                       ic->len - sizeof(int32_t));
           now = ink_get_hrtime();
           CLUSTER_SUM_DYN_STAT(CLUSTER_CTRL_MSGS_RECV_TIME_STAT, now - ic->recognized_time);
@@ -1321,7 +1329,7 @@ ClusterHandler::update_channels_partial_read()
 
             if (!vc->pending_remote_fill) {
               if ((ProxyMutex *) vc->read_locked) {
-                Debug("cluster_vc_xfer", "Partial read, credit ch %d 0x%x %d bytes", vc->channel, vc, len);
+                Debug("cluster_vc_xfer", "Partial read, credit ch %d %p %d bytes", vc->channel, vc, len);
                 s->vio.buffer.writer()->append_block(vc->read_block->clone());
                 if (complete_channel_read(len, vc)) {
                   vc->read_block->consume(len); // note bytes moved to user
@@ -1333,12 +1341,12 @@ ClusterHandler::update_channels_partial_read()
                 // we will resume the read at this VC.
 
                 if (len == (int) read.msg.descriptor[i].length) {
-                  Debug("cluster_vc_xfer", "Partial read, byte bank move ch %d 0x%x %d bytes", vc->channel, vc, len);
+                  Debug("cluster_vc_xfer", "Partial read, byte bank move ch %d %p %d bytes", vc->channel, vc, len);
                   add_to_byte_bank(vc);
                 }
               }
             } else {
-              Debug("cluster_vc_xfer", "Partial remote fill read, credit ch %d 0x%x %d bytes", vc->channel, vc, len);
+              Debug("cluster_vc_xfer", "Partial remote fill read, credit ch %d %p %d bytes", vc->channel, vc, len);
               complete_channel_read(len, vc);
             }
             read.msg.descriptor[i].length -= len;
@@ -1371,7 +1379,7 @@ bool ClusterHandler::complete_channel_read(int len, ClusterVConnection * vc)
 
   ink_assert((ProxyMutex *) s->vio.mutex == (ProxyMutex *) s->vio._cont->mutex);
 
-  Debug("cluster_vc_xfer", "Complete read, credit ch %d 0x%x %d bytes", vc->channel, vc, len);
+  Debug("cluster_vc_xfer", "Complete read, credit ch %d %p %d bytes", vc->channel, vc, len);
   s->vio.ndone += len;
 
   if (s->vio.ntodo() <= 0) {
@@ -1427,7 +1435,7 @@ ClusterHandler::finish_delayed_reads()
             ClusterVC_remove_read(vc);
           }
           Debug("cluster_vc_xfer",
-                "Delayed read, credit ch %d 0x%x %d bytes", vc->channel, vc, d->get_block()->read_avail());
+                "Delayed read, credit ch %d %p %"PRId64" bytes", vc->channel, vc, d->get_block()->read_avail());
           vc->read.vio.buffer.writer()->append_block(d->get_block());
 
           if (complete_channel_read(d->get_block()->read_avail(), vc)) {
@@ -1476,7 +1484,7 @@ ClusterHandler::update_channels_written(bool bump_unhandled_channels)
           int len = write.msg.descriptor[i].length;
           vc->write_bytes_in_transit -= len;
           ink_release_assert(vc->write_bytes_in_transit >= 0);
-          Debug(CL_PROTO, "(%d) data sent %d %d", write.msg.descriptor[i].channel, len, s->vio.ndone);
+          Debug(CL_PROTO, "(%d) data sent %d %"PRId64, write.msg.descriptor[i].channel, len, s->vio.ndone);
 
           if (vc_ok_write(vc)) {
             vc->last_activity_time = current_time;      // note activity time
@@ -1734,7 +1742,7 @@ ClusterHandler::build_controlmsg_descriptors()
       control_msgs_built++;
 
       if (clusterFunction[*(int32_t *) c->data].post_pfn) {
-        clusterFunction[*(int32_t *) c->data].post_pfn(machine, c->data + sizeof(int32_t), c->len);
+        clusterFunction[*(int32_t *) c->data].post_pfn(this, c->data + sizeof(int32_t), c->len);
       }
       continue;
     }
@@ -1831,7 +1839,7 @@ ClusterHandler::build_controlmsg_descriptors()
       control_msgs_built++;
 
       if (clusterFunction[*(int32_t *) c->data].post_pfn) {
-        clusterFunction[*(int32_t *) c->data].post_pfn(machine, c->data + sizeof(int32_t), c->len);
+        clusterFunction[*(int32_t *) c->data].post_pfn(this, c->data + sizeof(int32_t), c->len);
       }
     }
   }
@@ -1854,18 +1862,11 @@ ClusterHandler::add_small_controlmsg_descriptors()
     c->free_data();
     c->mutex = NULL;
     p += c->len;
-#ifdef PURIFY
-    char *endp = p;
-#endif
     ink_hrtime now = ink_get_hrtime();
     CLUSTER_SUM_DYN_STAT(CLUSTER_CTRL_MSGS_SEND_TIME_STAT, now - c->submit_time);
     LOG_EVENT_TIME(c->submit_time, cluster_send_time_dist, cluster_send_events);
     c->freeall();
     p = (char *) DOUBLE_ALIGN(p);
-#ifdef PURIFY
-    if (endp < p)
-      memset(endp, 0, (p - endp));
-#endif
   }
   write.msg.control_bytes = p - (char *) &write.msg.descriptor[write.msg.count];
 
@@ -2219,7 +2220,7 @@ retry:
     // Push initial read data into VC
 
     if (ntodo >= bytes_to_move) {
-      Debug("cluster_vc_xfer", "finish initial data push ch %d bytes %d", vc->channel, vc->read_block->read_avail());
+      Debug("cluster_vc_xfer", "finish initial data push ch %d bytes %"PRId64, vc->channel, vc->read_block->read_avail());
 
       s->vio.buffer.writer()->append_block(vc->read_block->clone());
       vc->read_block = 0;
@@ -2227,7 +2228,7 @@ retry:
     } else {
       bytes_to_move = ntodo;
 
-      Debug("cluster_vc_xfer", "initial data push ch %d bytes %d", vc->channel, bytes_to_move);
+      Debug("cluster_vc_xfer", "initial data push ch %d bytes %"PRId64, vc->channel, bytes_to_move);
 
       // Clone a portion of the data
 
@@ -2282,7 +2283,7 @@ retry:
   }
 
   if ((vc->last_local_free == 0) || (nextfree >= vc->last_local_free)) {
-    Debug(CL_PROTO, "(%d) update freespace %d", vc->channel, nextfree);
+    Debug(CL_PROTO, "(%d) update freespace %"PRId64, vc->channel, nextfree);
     cluster_update_priority(this, vc, s, nextfree - vc->last_local_free, nb);
     cluster_reschedule(this, vc, s);
     //
@@ -2475,6 +2476,12 @@ ClusterHandler::mainClusterEvent(int event, Event * e)
   while (io_activity) {
     io_activity = 0;
     only_write_control_msgs = 0;
+
+    if (downing) {
+      machine_down();
+      break;
+    }
+
     //////////////////////////
     // Read Processing
     //////////////////////////
@@ -2505,12 +2512,13 @@ ClusterHandler::mainClusterEvent(int event, Event * e)
     // Process deferred open_local requests
     /////////////////////////////////////////
     if (!on_stolen_thread) {
-      do_open_local_requests();
+      if (do_open_local_requests())
+		thread->signal_hook(thread);
     }
   }
 
 #ifdef CLUSTER_IMMEDIATE_NETIO
-  if (!machine->dead && ((event == EVENT_POLL) || (event == EVENT_INTERVAL))) {
+  if (!dead && ((event == EVENT_POLL) || (event == EVENT_INTERVAL))) {
     if (res >= 0) {
       build_poll(true);
     }
@@ -2526,7 +2534,7 @@ ClusterHandler::process_read(ink_hrtime now)
 #ifdef CLUSTER_STATS
   _process_read_calls++;
 #endif
-  if (machine->dead) {
+  if (dead) {
     // Node is down
     return 0;
   }
@@ -3019,7 +3027,7 @@ ClusterHandler::process_write(ink_hrtime now, bool only_write_control_msgs)
         //
         // periodic activities
         //
-        if (!on_stolen_thread && !cur_vcs && !machine->dead) {
+        if (!on_stolen_thread && !cur_vcs && !dead) {
           //
           // check if this machine is supposed to be in the cluster
           //
@@ -3099,7 +3107,7 @@ ClusterHandler::do_open_local_requests()
 
       } else {
         // unable to get mutex, insert request back onto global queue.
-        Debug(CL_TRACE, "do_open_local_requests() unable to acquire mutex (cvc=0x%x)", cvc);
+        Debug(CL_TRACE, "do_open_local_requests() unable to acquire mutex (cvc=%p)", cvc);
         pending_request = 1;
         ink_atomiclist_push(&external_incoming_open_local, (void *) cvc);
       }

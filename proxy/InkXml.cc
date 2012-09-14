@@ -30,28 +30,20 @@
 
 #include "InkXml.h"
 
-/*--- for stand-alone testing
-#define xstrdup strdup
-#define xfree free
-#define xmalloc malloc
-#define NEW(x) x
-#define ink_isspace isspace
----*/
-
 /*-------------------------------------------------------------------------
   InkXmlAttr
   -------------------------------------------------------------------------*/
 
 InkXmlAttr::InkXmlAttr(char *tag, char *value)
 {
-  m_tag = xstrdup(tag);
-  m_value = xstrdup(value);
+  m_tag = ats_strdup(tag);
+  m_value = ats_strdup(value);
 }
 
 InkXmlAttr::~InkXmlAttr()
 {
-  xfree(m_tag);
-  xfree(m_value);
+  ats_free(m_tag);
+  ats_free(m_value);
 }
 
 void
@@ -66,13 +58,13 @@ InkXmlAttr::display(FILE * fd)
 
 InkXmlObject::InkXmlObject(char *object_name, bool dup_attrs_allowed)
 {
-  m_object_name = xstrdup(object_name);
+  m_object_name = ats_strdup(object_name);
   m_dup_attrs_allowed = dup_attrs_allowed;
 }
 
 InkXmlObject::~InkXmlObject()
 {
-  xfree(m_object_name);
+  ats_free(m_object_name);
   clear_tags();
 }
 
@@ -142,12 +134,12 @@ InkXmlConfigFile::InkXmlConfigFile(char *config_file):
 m_line(0),
 m_col(0)
 {
-  m_config_file = xstrdup(config_file);
+  m_config_file = ats_strdup(config_file);
 }
 
 InkXmlConfigFile::~InkXmlConfigFile()
 {
-  xfree(m_config_file);
+  ats_free(m_config_file);
   clear_objects();
 }
 

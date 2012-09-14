@@ -89,7 +89,7 @@ reconfigure_diags()
   // change the diags config values //
   ////////////////////////////////////
   // XXX: HP-UX ???
-#if !defined (_WIN32) && !defined(__GNUC__) && !defined(hpux)
+#if !defined(__GNUC__) && !defined(hpux)
   diags->config = c;
 #else
   memcpy(((void *) &diags->config), ((void *) &c), sizeof(DiagsConfigState));
@@ -104,7 +104,7 @@ init_diags(char *bdt, char *bat)
 {
   FILE *diags_log_fp;
   char diags_logpath[500];
-  strcpy(diags_logpath, DIAGS_LOG_FILE);
+  ink_strlcpy(diags_logpath, DIAGS_LOG_FILE, sizeof(diags_logpath));
 
   diags_log_fp = fopen(diags_logpath, "w");
   if (diags_log_fp) {

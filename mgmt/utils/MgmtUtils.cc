@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Some utility and support functions for the management module.
 
   @section license License
 
@@ -21,14 +21,6 @@
   limitations under the License.
  */
 
-/**************************************
- *
- * MgmtUtils.h
- *   Some utility and support functions for the management module.
- *
- *
- */
-
 #include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 
 #include "libts.h"
@@ -46,9 +38,6 @@
 
 extern int diags_init;
 
-#if defined (_WIN32)
-#define syslog(_X, _Y, _Z)
-#endif
 static int use_syslog = 0;
 
 /* mgmt_use_syslog()
@@ -143,8 +132,6 @@ mgmt_writeline(int soc, const char *data, int nbytes)
   return (nleft);               /* Paranoia */
 }                               /* End mgmt_writeline */
 
-#if !defined(_WIN32)
-
 /*
  * mgmt_read_pipe()
  * - Reads from a pipe
@@ -229,85 +216,12 @@ mgmt_write_pipe(int fd, char *buf, int bytes_to_write)
   return bytes_written;
 }
 
-#else
 
-/*
- * mgmt_read_pipe()
- * - Reads from a message type named pipe.
- * - Blocking.
- *
- * Returns: num bytes read
- *          -1  error
- */
-int
-mgmt_read_pipe(HANDLE hpipe, char *buf, int maxlen)
-{
-  DWORD bytesRead = 0;
-  OVERLAPPED ov;
-
-  ov.Internal = ov.InternalHigh = ov.Offset = ov.OffsetHigh = 0;
-  ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (ReadFile(hpipe, (LPVOID) buf, maxlen, NULL, &ov) == 0) {
-    if (GetLastError() != ERROR_IO_PENDING) {
-      CloseHandle(ov.hEvent);
-      return -1;
-    }
-  }
-  if (WaitForSingleObject(ov.hEvent, INFINITE) == WAIT_FAILED) {
-    CloseHandle(ov.hEvent);
-    return -1;
-  }
-  if (GetOverlappedResult(hpipe, &ov, &bytesRead, FALSE) == 0) {
-    CloseHandle(ov.hEvent);
-    return -1;
-  }
-
-  CloseHandle(ov.hEvent);
-  buf[bytesRead] = 0;
-  return bytesRead;
-}
-
-/*
- * mgmt_write_pipe()
- * - Writes to a message type named pipe.
- * - Blocking.
- *
- * Returns: num bytes not written
- *          -1  error
- */
-int
-mgmt_write_pipe(HANDLE hpipe, char *data, int nbytes)
-{
-  DWORD bytesWritten = 0;
-  OVERLAPPED ov;
-
-  ov.Internal = ov.InternalHigh = ov.Offset = ov.OffsetHigh = 0;
-  ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (WriteFile(hpipe, (LPCVOID) data, nbytes, NULL, &ov) == 0) {
-    if (GetLastError() != ERROR_IO_PENDING) {
-      CloseHandle(ov.hEvent);
-      return -1;
-    }
-  }
-  if (WaitForSingleObject(ov.hEvent, INFINITE) == WAIT_FAILED) {
-    CloseHandle(ov.hEvent);
-    return -1;
-  }
-  if (GetOverlappedResult(hpipe, &ov, &bytesWritten, FALSE) == 0) {
-    CloseHandle(ov.hEvent);
-    return -1;
-  }
-
-  CloseHandle(ov.hEvent);
-  return (nbytes - bytesWritten);
-}
-
-#endif // !_WIN32
 
 void
 mgmt_blockAllSigs()
 {
-#if !defined(linux) && !defined(_WIN32)
+#if !defined(linux)
   // Start by blocking all signals
   sigset_t allSigs;             // Set of all signals
   sigfillset(&allSigs);
@@ -333,7 +247,7 @@ mgmt_log(FILE * log, const char *message_format, ...)
 
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
-    diags->print_va(NULL, DL_Note, "NOTE", NULL, message_format, ap);
+    diags->print_va(NULL, DL_Note, NULL, message_format, ap);
   } else {
 #endif
 
@@ -363,7 +277,7 @@ mgmt_log(const char *message_format, ...)
   va_start(ap, message_format);
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
-    diags->print_va(NULL, DL_Note, "NOTE", NULL, message_format, ap);
+    diags->print_va(NULL, DL_Note, NULL, message_format, ap);
   } else {
 #endif
 
@@ -400,18 +314,16 @@ mgmt_elog(FILE * log, const char *message_format, ...)
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
     int lerrno = errno;
-    diags->print_va(NULL, DL_Error, "ERROR", NULL, message_format, ap);
-    snprintf(message, sizeof(message), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    diags->print(NULL, DL_Error, "ERROR", NULL, message);
+
+    diags->print_va(NULL, DL_Error, NULL, message_format, ap);
+    diags->print(NULL, DTA(DL_Error), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
   } else {
 #endif
     if (use_syslog) {
       snprintf(extended_format, sizeof(extended_format), "ERROR ==> %s", message_format);
       vsprintf(message, extended_format, ap);
-#if !defined (_WIN32)
       syslog(LOG_ERR, "%s", message);
       syslog(LOG_ERR, " (last system error %d: %s)", errno, strerror(errno));
-#endif
     } else {
       snprintf(extended_format, sizeof(extended_format), "[E. Mgmt] ERROR ==> %s", message_format);
       vsprintf(message, extended_format, ap);
@@ -439,9 +351,8 @@ mgmt_elog(const char *message_format, ...)
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
     int lerrno = errno;
-    diags->print_va(NULL, DL_Error, "ERROR", NULL, message_format, ap);
-    snprintf(message, sizeof(message), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    diags->print(NULL, DL_Error, "ERROR", NULL, message);
+    diags->print_va(NULL, DL_Error, NULL, message_format, ap);
+    diags->print(NULL, DTA(DL_Error), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
   } else {
 #endif
 
@@ -449,9 +360,7 @@ mgmt_elog(const char *message_format, ...)
       snprintf(extended_format, sizeof(extended_format), "ERROR ==> %s", message_format);
       vsprintf(message, extended_format, ap);
       syslog(LOG_ERR, "%s", message);
-#if !defined (_WIN32)
       syslog(LOG_ERR, " (last system error %d: %s)", errno, strerror(errno));
-#endif
     } else {
       snprintf(extended_format, sizeof(extended_format), "Manager ERROR: %s", message_format);
       vsprintf(message, extended_format, ap);
@@ -484,9 +393,8 @@ mgmt_fatal(FILE * log, const char *message_format, ...)
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
     int lerrno = errno;
-    diags->print_va(NULL, DL_Fatal, "FATAL", NULL, message_format, ap);
-    snprintf(message, sizeof(message), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    diags->print(NULL, DL_Fatal, "FATAL", NULL, message);
+    diags->print_va(NULL, DL_Fatal, NULL, message_format, ap);
+    diags->print(NULL, DTA(DL_Fatal), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
   } else {
 #endif
 
@@ -504,9 +412,7 @@ mgmt_fatal(FILE * log, const char *message_format, ...)
     perror("[E. Mgmt] ");
 
     if (use_syslog) {
-#if !defined (_WIN32)
       syslog(LOG_ERR, " (last system error %d: %s)", errno, strerror(errno));
-#endif
     }
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   }
@@ -531,9 +437,8 @@ mgmt_fatal(const char *message_format, ...)
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   if (diags_init) {
     int lerrno = errno;
-    diags->print_va(NULL, DL_Fatal, "FATAL", NULL, message_format, ap);
-    snprintf(message, sizeof(message), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    diags->print(NULL, DL_Fatal, "FATAL", NULL, message);
+    diags->print_va(NULL, DL_Fatal, NULL, message_format, ap);
+    diags->print(NULL, DTA(DL_Fatal), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
   } else {
 #endif
 
@@ -551,9 +456,7 @@ mgmt_fatal(const char *message_format, ...)
     perror("[E. Mgmt] ");
 
     if (use_syslog) {
-#if !defined (_WIN32)
       syslog(LOG_ERR, " (last system error %d: %s)", errno, strerror(errno));
-#endif
     }
 #if defined(LOCAL_MANAGER) || defined(PROCESS_MANAGER)
   }
@@ -575,7 +478,6 @@ mgmt_cleanup()
 #endif
 }
 
-#if !defined(_WIN32)
 static inline int
 get_interface_mtu(int sock_fd, struct ifreq *ifr)
 {
@@ -589,20 +491,17 @@ get_interface_mtu(int sock_fd, struct ifreq *ifr)
     return ifr->ifr_mtu;
 #endif
 }
-#endif
 
 bool
-mgmt_getAddrForIntr(char *intrName, struct in_addr * addr, int *mtu)
+mgmt_getAddrForIntr(char *intrName, sockaddr* addr, int *mtu)
 {
   bool found = false;
 
   if (intrName == NULL) {
     return false;
   }
-#if !defined(_WIN32)
 
   int fakeSocket;               // a temporary socket to pass to ioctl
-  struct sockaddr_in *tmp;      // a tmp ptr for addresses
   struct ifconf ifc;            // ifconf information
   char *ifbuf;                  // ifconf buffer
   struct ifreq *ifr, *ifend;    // pointer to individual inferface info
@@ -622,7 +521,7 @@ mgmt_getAddrForIntr(char *intrName, struct in_addr * addr, int *mtu)
   lastlen = 0;
   len = 128 * sizeof(struct ifreq);     // initial buffer size guess
   for (;;) {
-    ifbuf = (char *) xmalloc(len);
+    ifbuf = (char *)ats_malloc(len);
     memset(ifbuf, 0, len);      // prevent UMRs
     ifc.ifc_len = len;
     ifc.ifc_buf = ifbuf;
@@ -637,7 +536,7 @@ mgmt_getAddrForIntr(char *intrName, struct in_addr * addr, int *mtu)
       lastlen = ifc.ifc_len;
     }
     len *= 2;
-    xfree(ifbuf);
+    ats_free(ifbuf);
   }
 
   ifr = ifc.ifc_req;
@@ -652,8 +551,7 @@ mgmt_getAddrForIntr(char *intrName, struct in_addr * addr, int *mtu)
       } else {
         // Only look at the address if it an internet address
         if (ifr->ifr_ifru.ifru_addr.sa_family == AF_INET) {
-          tmp = (struct sockaddr_in *) &ifr->ifr_ifru.ifru_addr;
-          *addr = tmp->sin_addr;
+          ats_ip_copy(addr, &ifr->ifr_ifru.ifru_addr);
           found = true;
 
           if (mtu)
@@ -671,67 +569,8 @@ mgmt_getAddrForIntr(char *intrName, struct in_addr * addr, int *mtu)
     ifr = (struct ifreq *) (((char *) ifr) + sizeof(*ifr));
 #endif
   }
-  xfree(ifbuf);
+  ats_free(ifbuf);
   close(fakeSocket);
-
-#else /* _WIN32 */
-
-  // There is no notion of network interface names on NT.
-  // So we use a winnt_intr.config file to give each of
-  // the interface a name.
-
-  char intr_file[PATH_MAX + 1];
-  FILE *fp = NULL;
-
-#ifdef LOCAL_MANAGER
-  snprintf(intr_file, sizeof(intr_file), "%s%sconfig%s%s", ts_base_dir, DIR_SEP, DIR_SEP, "winnt_intr.config");
-#else
-  snprintf(intr_file, sizeof(intr_file), "%s%sconfig%s%s", system_base_install, DIR_SEP, DIR_SEP, "winnt_intr.config");
-#endif
-
-  if ((fp = fopen(intr_file, "r")) == NULL) {
-    mgmt_log(stderr, "[getAddrForIntr] Unable to open %s\n", intr_file);
-  } else {
-    char buffer[1024];
-    char *p = NULL;
-
-    while (!feof(fp)) {
-
-      if (!fgets(buffer, 1024, fp)) {
-        break;
-      }
-      // replace newline with null termination
-      p = strchr(buffer, '\n');
-      if (p) {
-        *p = '\0';
-      }
-      // skip beginning line spaces
-      p = buffer;
-      while (*p != '\0' && isspace(*p)) {
-        p++;
-      }
-
-      // skip blank or comment lines
-      if (*p == '#' || *p == '\0') {
-        continue;
-      }
-
-      if (p = strstr(p, intrName)) {
-        p = p + strlen(intrName) + 1;
-        in_addr_t cluster_ip = inet_addr(p);
-
-        if (cluster_ip != INADDR_NONE) {
-          addr->s_addr = cluster_ip;
-          found = true;
-          break;
-        }
-      }
-
-    }
-    fclose(fp);
-  }
-
-#endif // !_WIN32
 
   return found;
 }                               /* End mgmt_getAddrForIntr */
@@ -759,26 +598,6 @@ mgmt_sortipaddrs(int num, struct in_addr **list)
   return entry;
 }                               /* End mgmt_sortipaddrs */
 
-char *
-mgmt_localhost_ip()
-{
-#if defined(LOCAL_MANAGER)
-  bool found;
-  char *hostname;
-  unsigned int ip;
-  int rec_err = RecGetRecordString_Xmalloc("proxy.node.hostname_FQ", &hostname);
-  found = (rec_err == REC_ERR_OKAY);
-  if (found && hostname) {
-    ip = host_to_ip(hostname);
-    if (ip != INADDR_ANY) {
-      return inet_ntoa(*(struct in_addr *) &ip);
-    }
-  }
-#endif
-  return NULL;
-}
-
-#ifndef _WIN32
 void
 mgmt_sleep_sec(int seconds)
 {
@@ -790,16 +609,3 @@ mgmt_sleep_msec(int msec)
 {
   usleep(msec * 1000);
 }
-#else
-void
-mgmt_sleep_sec(int seconds)
-{
-  Sleep(1000 * seconds);
-}
-
-void
-mgmt_sleep_msec(int msec)
-{
-  Sleep(msec);
-}
-#endif

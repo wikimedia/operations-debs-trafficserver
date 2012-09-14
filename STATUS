@@ -1,22 +1,22 @@
-Traffic Server 3.0 STATUS:                                              -*-text-*-
+Traffic Server 3.2 STATUS:                                              -*-text-*-
 Last modified at [$Date$]
 
 The current version of this file can be found at:
 
-  * http://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=blob;f=STATUS;hb=3.0.x
+  * http://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=blob;f=STATUS;hb=master
 
 
 Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
-    
-    3.0.6           : Released on xxx, 2012 
-    3.0.5           : Released on May 11, 2012 
-    3.0.4           : Released on March 21, 2012 
-    3.0.3           : Released on Februrary 13, 2012
-    3.0.2           : Released on December 07th, 2011
-    3.0.1           : Released on July 18th, 2011
-    3.0.0           : Released on June 13th, 2011
+
+    3.2.0           : Released on June 19, 2012
+    3.0.5           : Released on June 6, 2012
+    3.0.4           : Released on March 21, 2012
+    3.0.3           : Released on Februrary 13, 201
+    3.0.2           : Released on December 07, 2011
+    3.0.1           : Released on July 19, 2011
+    3.0.0           : Released on June 14, 2011
     2.0.1           : Released on August 31, 2010
     2.0.0           : Released on April 28, 2010
 
@@ -32,33 +32,34 @@ Contributors looking for a mission:
   * Open bugs in the bug database.
 
 
-CURRENT RELEASE NOTES:
-
-
 RELEASE SHOWSTOPPERS:
 
-A list of all bugs open for the next v3.0.6 release can be found at
+A list of all bugs open for the next development release can be found at
 
-  http://s.apache.org/ts-3.0.6
+  http://s.apache.org/ts-3.3.0
 
-PATCHES ACCEPTED TO BACKPORT FROM TRUNK:
 
 PATCHES PROPOSED TO BACKPORT FROM TRUNK:
   [ New proposals should be added at the end of the list ]
 
+  *) Don't link libreadline with all binaries and plugins.
+   Trunk patch: 50c624f20a3ff09e5c62dc2b426c27fee3fd244c
+   Jira: https://issues.apache.org/jira/browse/TS-1296
+   +1: zwoop
 
-STALLED ISSUES
+  *) Don't link libz / liblmza with all binaries and plugins.
+   Trunk patch: 726cf61c203d5a90d7feeab5637a04cd803343da
+   Jira: https://issues.apache.org/jira/browse/TS-1297
+   +1: zwoop
+ 
+  *) Don't assume root privileges during make install
+   Trunk patch: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=commit;h=a862e283734c86d46a57624f9a05f09cfbbee175
+   Jira: https://issues.apache.org/jira/browse/TS-1295
 
-  *) key->volume hash table is not consistent when a disk is marked as bad or removed due to failure
-   Trunk patch: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=commit;h=b2109cdaf55234621d6c3b2fcb4f15774f0939ab
-   Jira: https://issues.apache.org/jira/browse/TS-949
-   +1: zym
-   -0: zwoop (I think this breaks compatibility with existing 3.0.x
-   caches, and I'm not positive it's a good idea to do so).
+
 
 RELEASE PROCESS
 
 The Traffic Server release process is documented at
 
-    https://cwiki.apache.org/confluence/display/TS/ReleaseProcess
-    https://cwiki.apache.org/confluence/display/TS/3.0.x-Series
+    http://cwiki.apache.org/confluence/display/TS/ReleaseProcess

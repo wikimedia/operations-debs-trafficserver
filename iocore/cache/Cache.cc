@@ -50,12 +50,14 @@ do { \
 	RecSetRawStatCount(rsb, x, 0); \
 } while (0);
 
+
 // Configuration
 
 int64_t cache_config_ram_cache_size = AUTO_SIZE_RAM_CACHE;
 int cache_config_ram_cache_algorithm = 0;
 int cache_config_ram_cache_compress = 0;
 int cache_config_ram_cache_compress_percent = 90;
+int cache_config_ram_cache_use_seen_filter = 0;
 int cache_config_http_max_alts = 3;
 int cache_config_dir_sync_frequency = 60;
 int cache_config_permit_pinning = 0;
@@ -130,9 +132,10 @@ struct VolInitInfo
   VolInitInfo()
   {
     recover_pos = 0;
-    if ((vol_h_f = (char *) valloc(4 * STORE_BLOCK_SIZE)) != NULL)
-      memset(vol_h_f, 0, 4 * STORE_BLOCK_SIZE);
+    vol_h_f = (char *)ats_memalign(sysconf(_SC_PAGESIZE), 4 * STORE_BLOCK_SIZE);
+    memset(vol_h_f, 0, 4 * STORE_BLOCK_SIZE);
   }
+
   ~VolInitInfo()
   {
     for (int i = 0; i < 4; i++) {
@@ -343,9 +346,6 @@ bool
 CacheVC::get_data(int i, void *data)
 {
   switch (i) {
-  case CACHE_DATA_SIZE:
-    *((int *) data) = doc_len;
-    return true;
 #ifdef HTTP_CACHE
   case CACHE_DATA_HTTP_INFO:
     *((CacheHTTPInfo **) data) = &alternate;
@@ -521,7 +521,7 @@ CacheProcessor::start_internal(int flags)
   /* read the config file and create the data structures corresponding
      to the file */
   gndisks = theCacheStore.n_disks;
-  gdisks = (CacheDisk **) xmalloc(gndisks * sizeof(CacheDisk *));
+  gdisks = (CacheDisk **)ats_malloc(gndisks * sizeof(CacheDisk *));
 
   gndisks = 0;
   ink_aio_set_callback(new AIO_Callback_handler());
@@ -529,15 +529,13 @@ CacheProcessor::start_internal(int flags)
   config_volumes.read_config_file();
   for (i = 0; i < theCacheStore.n_disks; i++) {
     sd = theCacheStore.disk[i];
-    char path[PATH_MAX];
+    char path[PATH_NAME_MAX];
     int opts = O_RDWR;
     ink_strlcpy(path, sd->pathname, sizeof(path));
     if (!sd->file_pathname) {
-#if !defined(_WIN32)
       if (config_volumes.num_http_volumes && config_volumes.num_stream_volumes) {
         Warning("It is suggested that you use raw disks if streaming and http are in the same cache");
       }
-#endif
       ink_strlcat(path, "/cache.db", sizeof(path));
       opts |= O_CREAT;
     }
@@ -552,27 +550,17 @@ CacheProcessor::start_internal(int flags)
     int fd = open(path, opts, 0644);
     int blocks = sd->blocks;
     if (fd > 0) {
-#if defined (_WIN32)
-      aio_completion_port.register_handle((void *) fd, 0);
-#endif
       if (!sd->file_pathname) {
         if (ftruncate(fd, ((uint64_t) blocks) * STORE_BLOCK_SIZE) < 0) {
           Warning("unable to truncate cache file '%s' to %d blocks", path, blocks);
           diskok = 0;
-#if defined(_WIN32)
-          /* We can do a specific check for FAT32 systems on NT,
-           * to print a specific warning */
-          if ((((uint64_t) blocks) * STORE_BLOCK_SIZE) > (1 << 32)) {
-            Warning("If you are using a FAT32 file system, please ensure that cachesize"
-                    "specified in storage.config, does not exceed 4GB!. ");
-          }
-#endif
         }
       }
       if (diskok) {
         gdisks[gndisks] = NEW(new CacheDisk());
         Debug("cache_hosting", "Disk: %d, blocks: %d", gndisks, blocks);
         int sector_size = sd->hw_sector_size;
+
         if (sector_size < cache_config_force_sector_size)
           sector_size = cache_config_force_sector_size;
         if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE) {
@@ -584,8 +572,12 @@ CacheProcessor::start_internal(int flags)
         gdisks[gndisks]->open(path, blocks, skip, sector_size, fd, clear);
         gndisks++;
       }
-    } else
-      Warning("cache unable to open '%s': %s", path, strerror(errno));
+    } else {
+      if (errno == EINVAL)
+        Warning("cache unable to open '%s': It must be placed on a file system that supports direct I/O.", path);
+      else
+        Warning("cache unable to open '%s': %s", path, strerror(errno));
+    }
   }
 
   if (gndisks == 0) {
@@ -600,10 +592,10 @@ CacheProcessor::start_internal(int flags)
 void
 CacheProcessor::diskInitialized()
 {
-  ink_atomic_increment(&initialize_disk, 1);
+  int n_init = ink_atomic_increment(&initialize_disk, 1);
   int bad_disks = 0;
   int res = 0;
-  if (initialize_disk == gndisks) {
+  if (n_init == gndisks - 1) {
 
     int i;
     for (i = 0; i < gndisks; i++) {
@@ -615,7 +607,7 @@ CacheProcessor::diskInitialized()
       // create a new array
       CacheDisk **p_good_disks;
       if ((gndisks - bad_disks) > 0)
-        p_good_disks = (CacheDisk **) xmalloc((gndisks - bad_disks) * sizeof(CacheDisk *));
+        p_good_disks = (CacheDisk **)ats_malloc((gndisks - bad_disks) * sizeof(CacheDisk *));
       else
         p_good_disks = 0;
 
@@ -629,7 +621,7 @@ CacheProcessor::diskInitialized()
           p_good_disks[insert_at++] = gdisks[i];
         }
       }
-      xfree(gdisks);
+      ats_free(gdisks);
       gdisks = p_good_disks;
       gndisks = gndisks - bad_disks;
     }
@@ -662,20 +654,20 @@ CacheProcessor::diskInitialized()
       }
     }
 
-    gvol = (Vol **) xmalloc(gnvol * sizeof(Vol *));
+    gvol = (Vol **)ats_malloc(gnvol * sizeof(Vol *));
     memset(gvol, 0, gnvol * sizeof(Vol *));
     gnvol = 0;
     for (i = 0; i < gndisks; i++) {
       CacheDisk *d = gdisks[i];
       if (is_debug_tag_set("cache_hosting")) {
         int j;
-        Debug("cache_hosting", "Disk: %d: Vol Blocks: %ld: Free space: %ld",
+        Debug("cache_hosting", "Disk: %d: Vol Blocks: %u: Free space: %" PRIu64,
               i, d->header->num_diskvol_blks, d->free_space);
         for (j = 0; j < (int) d->header->num_volumes; j++) {
-          Debug("cache_hosting", "\tVol: %d Size: %d", d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+          Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
         }
         for (j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-          Debug("cache_hosting", "\tBlock No: %d Size: %d Free: %d",
+          Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
                 d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
         }
       }
@@ -714,10 +706,10 @@ CacheProcessor::cacheInitialized()
   int cache_init_ok = 0;
   /* allocate ram size in proportion to the disk space the
      volume accupies */
-  int64_t total_size = 0;
-  uint64_t total_cache_bytes = 0;
-  uint64_t total_direntries = 0;
-  uint64_t used_direntries = 0;
+  int64_t total_size = 0;               // count in HTTP & MIXT
+  uint64_t total_cache_bytes = 0;       // bytes that can used in total_size
+  uint64_t total_direntries = 0;        // all the direntries in the cache
+  uint64_t used_direntries = 0;         //   and used
   uint64_t vol_total_cache_bytes = 0;
   uint64_t vol_total_direntries = 0;
   uint64_t vol_used_direntries = 0;
@@ -763,6 +755,7 @@ CacheProcessor::cacheInitialized()
           (unsigned int) caches_ready, gnvol);
     int64_t ram_cache_bytes = 0;
     if (gnvol) {
+      // new ram_caches, with algorithm from the config
       for (i = 0; i < gnvol; i++) {
         switch (cache_config_ram_cache_algorithm) {
           default:
@@ -774,6 +767,7 @@ CacheProcessor::cacheInitialized()
             break;
         }
       }
+      // let us cocalate the Size
       if (cache_config_ram_cache_size == AUTO_SIZE_RAM_CACHE) {
         Debug("cache_init", "CacheProcessor::cacheInitialized - cache_config_ram_cache_size == AUTO_SIZE_RAM_CACHE");
         for (i = 0; i < gnvol; i++) {
@@ -782,12 +776,8 @@ CacheProcessor::cacheInitialized()
           ram_cache_bytes += vol_dirlen(gvol[i]);
           Debug("cache_init", "CacheProcessor::cacheInitialized - ram_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
                 ram_cache_bytes, ram_cache_bytes / (1024 * 1024));
-          /*
-             CACHE_VOL_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat,
-             (int64_t)vol_dirlen(gvol[i]));
-           */
-          RecSetGlobalRawStatSum(vol->cache_vol->vol_rsb,
-                                 cache_ram_cache_bytes_total_stat, (int64_t) vol_dirlen(gvol[i]));
+          CACHE_VOL_SUM_DYN_STAT(cache_ram_cache_bytes_total_stat, (int64_t) vol_dirlen(gvol[i]));
+
           vol_total_cache_bytes = gvol[i]->len - vol_dirlen(gvol[i]);
           total_cache_bytes += vol_total_cache_bytes;
           Debug("cache_init", "CacheProcessor::cacheInitialized - total_cache_bytes = %" PRId64 " = %" PRId64 "Mb",
@@ -807,6 +797,9 @@ CacheProcessor::cacheInitialized()
         }
 
       } else {
+        // we got configured memory size
+        // TODO, should we check the available system memories, or you will
+        //   OOM or swapout, that is not a good situation for the server
         Debug("cache_init", "CacheProcessor::cacheInitialized - %" PRId64 " != AUTO_SIZE_RAM_CACHE",
               cache_config_ram_cache_size);
         int64_t http_ram_cache_size =
@@ -1030,10 +1023,10 @@ int
 Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 {
   dir_skip = ROUND_TO_STORE_BLOCK((dir_skip < START_POS ? START_POS : dir_skip));
-  path = xstrdup(s);
+  path = ats_strdup(s);
   const size_t hash_id_size = strlen(s) + 32;
-  hash_id = (char *) malloc(hash_id_size);
-  ink_strncpy(hash_id, s, hash_id_size);
+  hash_id = (char *)ats_malloc(hash_id_size);
+  ink_strlcpy(hash_id, s, hash_id_size);
   const size_t s_size = strlen(s);
   snprintf(hash_id + s_size, (hash_id_size - s_size), " %" PRIu64 ":%" PRIu64 "",
            (uint64_t)dir_skip, (uint64_t)blocks);
@@ -1054,24 +1047,10 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 
   evacuate_size = (int) (len / EVACUATION_BUCKET_SIZE) + 2;
   int evac_len = (int) evacuate_size * sizeof(DLL<EvacuationBlock>);
-  evacuate = (DLL<EvacuationBlock> *)malloc(evac_len);
+  evacuate = (DLL<EvacuationBlock> *)ats_malloc(evac_len);
   memset(evacuate, 0, evac_len);
 
-#if !defined (_WIN32)
-  raw_dir = (char *) valloc(vol_dirlen(this));
-#else
-  /* the directory should be page aligned for raw disk transfers.
-     WIN32 does not support valloc
-     or memalign, so we need to allocate extra space and then align the
-     pointer ourselves.
-     Don't need to keep track of the pointer to the original memory since
-     we never free this */
-  size_t alignment = getpagesize();
-  size_t mem_to_alloc = vol_dirlen(this) + (alignment - 1);
-  raw_dir = (char *) malloc(mem_to_alloc);
-  raw_dir = (char *) align_pointer_forward(raw_dir, alignment);
-#endif
-
+  raw_dir = (char *)ats_memalign(sysconf(_SC_PAGESIZE), vol_dirlen(this));
   dir = (Dir *) (raw_dir + vol_headerlen(this));
   header = (VolHeaderFooter *) raw_dir;
   footer = (VolHeaderFooter *) (raw_dir + vol_dirlen(this) - ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter)));
@@ -1221,11 +1200,7 @@ Vol::handle_recover_from_data(int event, void *data)
       recover_wrapped = 1;
       recover_pos = start;
     }
-#if defined(_WIN32)
-    io.aiocb.aio_buf = (char *) malloc(RECOVERY_SIZE);
-#else
-    io.aiocb.aio_buf = (char *) valloc(RECOVERY_SIZE);
-#endif
+    io.aiocb.aio_buf = (char *)ats_memalign(sysconf(_SC_PAGESIZE), RECOVERY_SIZE);
     io.aiocb.aio_nbytes = RECOVERY_SIZE;
     if ((off_t)(recover_pos + io.aiocb.aio_nbytes) > (off_t)(skip + len))
       io.aiocb.aio_nbytes = (skip + len) - recover_pos;
@@ -1546,22 +1521,38 @@ Vol::dir_init_done(int event, void *data)
   }
 }
 
+// explicit pair for random table in build_vol_hash_table
+struct rtable_pair {
+  unsigned int rval;
+  unsigned int vol;
+};
+
+// comparison operator for random table in build_vol_hash_table
+// sorts based on the randomly assigned rval
+static int
+cmprtable(const void *aa, const void *bb) {
+  rtable_pair *a = (rtable_pair*)aa;
+  rtable_pair *b = (rtable_pair*)bb;
+  if (a->rval < b->rval) return -1;
+  if (a->rval > b->rval) return 1;
+  return 0;
+}
+
 void
 build_vol_hash_table(CacheHostRecord *cp)
 {
   int num_vols = cp->num_vols;
-  unsigned int *mapping = (unsigned int *) xmalloc(sizeof(unsigned int) * num_vols);
-  Vol **p = (Vol **) xmalloc(sizeof(Vol *) * num_vols);
+  unsigned int *mapping = (unsigned int *)ats_malloc(sizeof(unsigned int) * num_vols);
+  Vol **p = (Vol **)ats_malloc(sizeof(Vol *) * num_vols);
 
   memset(mapping, 0, num_vols * sizeof(unsigned int));
   memset(p, 0, num_vols * sizeof(Vol *));
   uint64_t total = 0;
-  int i = 0;
-  int used = 0;
   int bad_vols = 0;
   int map = 0;
+  uint64_t used = 0;
   // initialize number of elements per vol
-  for (i = 0; i < num_vols; i++) {
+  for (int i = 0; i < num_vols; i++) {
     if (DISK_BAD(cp->vols[i]->disk)) {
       bad_vols++;
       continue;
@@ -1579,71 +1570,86 @@ build_vol_hash_table(CacheHostRecord *cp)
       new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
     }
     cp->vol_hash_table = NULL;
-    xfree(mapping);
-    xfree(p);
+    ats_free(mapping);
+    ats_free(p);
     return;
   }
 
+  unsigned int *forvol = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
+  unsigned int *gotvol = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
+  unsigned int *rnd = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
+  unsigned short *ttable = (unsigned short *)ats_malloc(sizeof(unsigned short) * VOL_HASH_TABLE_SIZE);
+  unsigned int *rtable_entries = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
+  unsigned int rtable_size = 0;
 
-  unsigned int *forvol = (unsigned int *) alloca(sizeof(unsigned int) * num_vols);
-  unsigned int *rnd = (unsigned int *) alloca(sizeof(unsigned int) * num_vols);
-  unsigned short *ttable = (unsigned short *) xmalloc(sizeof(unsigned short) * VOL_HASH_TABLE_SIZE);
-
-  for (i = 0; i < num_vols; i++) {
+  // estimate allocation
+  for (int i = 0; i < num_vols; i++) {
     forvol[i] = (VOL_HASH_TABLE_SIZE * (p[i]->len >> STORE_BLOCK_SHIFT)) / total;
     used += forvol[i];
+    rtable_entries[i] = p[i]->len / VOL_HASH_ALLOC_SIZE;
+    rtable_size += rtable_entries[i];
+    gotvol[i] = 0;
   }
   // spread around the excess
   int extra = VOL_HASH_TABLE_SIZE - used;
-  for (i = 0; i < extra; i++) {
+  for (int i = 0; i < extra; i++)
     forvol[i % num_vols]++;
-  }
   // seed random number generator
-  for (i = 0; i < num_vols; i++) {
+  for (int i = 0; i < num_vols; i++) {
     uint64_t x = p[i]->hash_id_md5.fold();
     rnd[i] = (unsigned int) x;
   }
   // initialize table to "empty"
-  for (i = 0; i < VOL_HASH_TABLE_SIZE; i++)
+  for (int i = 0; i < VOL_HASH_TABLE_SIZE; i++)
     ttable[i] = VOL_HASH_EMPTY;
-  // give each machine it's fav
-  int left = VOL_HASH_TABLE_SIZE;
-  int d = 0;
-  for (; left; d = (d + 1) % num_vols) {
-    if (!forvol[d])
-      continue;
-    do {
-      i = next_rand(&rnd[d]) % VOL_HASH_TABLE_SIZE;
-    } while (ttable[i] != VOL_HASH_EMPTY);
-    ttable[i] = mapping[d];
-    forvol[d]--;
-    left--;
+  // generate random numbers proportaion to allocation
+  rtable_pair *rtable = (rtable_pair *)ats_malloc(sizeof(rtable_pair) * rtable_size);
+  int rindex = 0;
+  for (int i = 0; i < num_vols; i++)
+    for (int j = 0; j < (int)rtable_entries[i]; j++) {
+      rtable[rindex].rval = next_rand(&rnd[i]);
+      rtable[rindex].vol = i;
+      rindex++;
+    }
+  ink_assert(rindex == (int)rtable_size);
+  // sort (rand #, vol $ pairs)
+  qsort(rtable, rtable_size, sizeof(rtable_pair), cmprtable);
+  unsigned int width = (1LL << 32) / VOL_HASH_TABLE_SIZE;
+  unsigned int pos = width / 2;  // target position to allocate
+  // select vol with closest random number for each bucket
+  int i = 0;  // index moving through the random numbers
+  for (int j = 0; j < VOL_HASH_TABLE_SIZE; j++) {
+    pos = width / 2 + j * width;  // position to select closest to
+    while (pos > rtable[i].rval && i < (int)rtable_size - 1) i++;
+    ttable[j] = rtable[i].vol;
+    gotvol[ttable[j]]++;
   }
-
+  for (int i = 0; i < num_vols; i++) {
+    Debug("cache_init", "build_vol_hash_table %d request %d got %d", i, forvol[i], gotvol[i]);
+  }
   // install new table
-
-  if (cp->vol_hash_table) {
+  if (cp->vol_hash_table)
     new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
-  }
-  xfree(mapping);
-  xfree(p);
+  ats_free(mapping);
+  ats_free(p);
+  ats_free(forvol);
+  ats_free(gotvol);
+  ats_free(rnd);
+  ats_free(rtable_entries);
+  ats_free(rtable);
   cp->vol_hash_table = ttable;
 }
 
-
 void
-Cache::vol_initialized(bool result)
-{
-  ink_atomic_increment(&total_initialized_vol, 1);
+Cache::vol_initialized(bool result) {
   if (result)
     ink_atomic_increment(&total_good_nvol, 1);
-  if (total_nvol == total_initialized_vol)
+  if (total_nvol == ink_atomic_increment(&total_initialized_vol, 1) + 1)
     open_done();
 }
 
 int
-AIO_Callback_handler::handle_disk_failure(int event, void *data)
-{
+AIO_Callback_handler::handle_disk_failure(int event, void *data) {
   (void) event;
   /* search for the matching file descriptor */
   if (!CacheProcessor::cache_ready)
@@ -1658,16 +1664,15 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data)
       d->num_errors++;
 
       if (!DISK_BAD(d)) {
-
         char message[128];
         snprintf(message, sizeof(message), "Error accessing Disk %s", d->path);
-        Warning(message);
+        Warning("%s", message);
         IOCORE_SignalManager(REC_SIGNAL_CACHE_WARNING, message);
       } else if (!DISK_BAD_SIGNALLED(d)) {
 
         char message[128];
         snprintf(message, sizeof(message), "too many errors accessing disk %s: declaring disk bad", d->path);
-        Warning(message);
+        Warning("%s", message);
         IOCORE_SignalManager(REC_SIGNAL_CACHE_ERROR, message);
         /* subtract the disk space that was being used from  the cache size stat */
         // dir entries stat
@@ -1698,10 +1703,8 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data)
       if (good_disks)
         return EVENT_DONE;
     }
-
     if (!DISK_BAD(d))
       good_disks++;
-
   }
   if (!good_disks) {
     Warning("all disks are bad, cache disabled");
@@ -1730,8 +1733,7 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data)
 }
 
 int
-Cache::open_done()
-{
+Cache::open_done() {
 #ifdef NON_MODULAR
   Action *register_ShowCache(Continuation * c, HTTPHdr * h);
   Action *register_ShowCacheInternal(Continuation *c, HTTPHdr *h);
@@ -1757,16 +1759,14 @@ Cache::open_done()
 }
 
 int
-Cache::open(bool clear, bool fix)
-{
+Cache::open(bool clear, bool fix) {
   NOWARN_UNUSED(fix);
   int i;
-  off_t blocks;
+  off_t blocks = 0;
   cache_read_done = 0;
   total_initialized_vol = 0;
   total_nvol = 0;
   total_good_nvol = 0;
-
 
   IOCORE_EstablishStaticConfigInt32(cache_config_min_average_object_size, "proxy.config.cache.min_average_object_size");
   Debug("cache_init", "Cache::open - proxy.config.cache.min_average_object_size = %d",
@@ -1775,7 +1775,7 @@ Cache::open(bool clear, bool fix)
   CacheVol *cp = cp_list.head;
   for (; cp; cp = cp->link.next) {
     if (cp->scheme == scheme) {
-      cp->vols = (Vol **) xmalloc(cp->num_vols * sizeof(Vol *));
+      cp->vols = (Vol **)ats_malloc(cp->num_vols * sizeof(Vol *));
       int vol_no = 0;
       for (i = 0; i < gndisks; i++) {
         if (cp->disk_vols[i] && !DISK_BAD(cp->disk_vols[i]->disk)) {
@@ -1805,16 +1805,13 @@ Cache::open(bool clear, bool fix)
   return 0;
 }
 
-
 int
-Cache::close()
-{
+Cache::close() {
   return -1;
 }
 
 int
-CacheVC::dead(int event, Event *e)
-{
+CacheVC::dead(int event, Event *e) {
   NOWARN_UNUSED(e);
   NOWARN_UNUSED(event);
   ink_assert(0);
@@ -1841,8 +1838,7 @@ static void unmarshal_helper(Doc *doc, Ptr<IOBufferData> &buf, int &okay) {
 #endif
 
 int
-CacheVC::handleReadDone(int event, Event *e)
-{
+CacheVC::handleReadDone(int event, Event *e) {
   NOWARN_UNUSED(e);
   cancel_trigger();
   ink_debug_assert(this_ethread() == mutex->thread_holding);
@@ -1878,6 +1874,18 @@ CacheVC::handleReadDone(int event, Event *e)
     }
 #endif
     Doc *doc = (Doc *) buf->data();
+
+    if (is_debug_tag_set("cache_read")) {
+      char xt[33];
+      Debug("cache_read"
+            , "Read fragment %s Length %d/%d/%"PRId64"[pre=%d] vc=%s doc=%s %d frags"
+            , doc->key.toHexStr(xt), doc->data_len(), doc->len, doc->total_len, doc->prefix_len()
+            , f.single_fragment ? "single" : "multi"
+            , doc->single_fragment() ? "single" : "multi"
+            , doc->nfrags()
+        );
+    }
+
     // put into ram cache?
     if (io.ok() &&
         ((doc->first_key == *read_key) || (doc->key == *read_key) || STORE_COLLISION) && doc->magic == DOC_MAGIC) {
@@ -1891,7 +1899,7 @@ CacheVC::handleReadDone(int event, Event *e)
           checksum += *b;
         ink_assert(checksum == doc->checksum);
         if (checksum != doc->checksum) {
-          Note("cache: checksum error for [%" PRIu64 " %" PRIu64 "] len %d, hlen %d, disk %s, offset %" PRIu64 " size %d",
+          Note("cache: checksum error for [%" PRIu64 " %" PRIu64 "] len %d, hlen %d, disk %s, offset %" PRIu64 " size %zu",
                doc->first_key.b[0], doc->first_key.b[1],
                doc->len, doc->hlen, vol->path, io.aiocb.aio_offset, io.aiocb.aio_nbytes);
           doc->magic = DOC_CORRUPT;
@@ -1985,22 +1993,23 @@ CacheVC::handleRead(int event, Event *e)
   buf = new_IOBufferData(iobuffer_size_to_index(io.aiocb.aio_nbytes, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
   io.aiocb.aio_buf = buf->data();
   io.action = this;
-  io.thread = mutex->thread_holding;
+  io.thread = mutex->thread_holding->tt == DEDICATED ? AIO_CALLBACK_THREAD_ANY : mutex->thread_holding;
   SET_HANDLER(&CacheVC::handleReadDone);
   ink_assert(ink_aio_read(&io) >= 0);
   CACHE_DEBUG_INCREMENT_DYN_STAT(cache_pread_count_stat);
   return EVENT_CONT;
 
 LramHit: {
+    f.doc_from_ram_cache = true;
     io.aio_result = io.aiocb.aio_nbytes;
     Doc *doc = (Doc*)buf->data();
     if (cache_config_ram_cache_compress && doc->ftype == CACHE_FRAG_TYPE_HTTP && doc->hlen) {
       SET_HANDLER(&CacheVC::handleReadDone);
-      f.doc_from_ram_cache = true;
       return EVENT_RETURN;
     }
   }
 LmemHit:
+  f.doc_from_ram_cache = true;
   io.aio_result = io.aiocb.aio_nbytes;
   POP_HANDLER;
   return EVENT_RETURN; // allow the caller to release the volume lock
@@ -2203,7 +2212,7 @@ cplist_init()
         new_p->num_vols = dp[j]->num_volblocks;
         new_p->size = dp[j]->size;
         new_p->scheme = dp[j]->dpb_queue.head->b->type;
-        new_p->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
+        new_p->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
         memset(new_p->disk_vols, 0, gndisks * sizeof(DiskVol *));
         new_p->disk_vols[i] = dp[j];
         cp_list.enqueue(new_p);
@@ -2272,7 +2281,7 @@ cplist_reconfigure()
     CacheVol *cp = NEW(new CacheVol());
     cp->vol_number = 0;
     cp->scheme = CACHE_HTTP_TYPE;
-    cp->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
+    cp->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
     memset(cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
     cp_list.enqueue(cp);
     cp_list_len++;
@@ -2288,7 +2297,7 @@ cplist_reconfigure()
         int vols = (free_space / MAX_VOL_SIZE) + 1;
         for (int p = 0; p < vols; p++) {
           off_t b = gdisks[i]->free_space / (vols - p);
-          Debug("cache_hosting", "blocks = %d\n", b);
+          Debug("cache_hosting", "blocks = %" PRId64, (int64_t)b);
           DiskVolBlock *dpb = gdisks[i]->create_volume(0, b, CACHE_HTTP_TYPE);
           ink_assert(dpb && dpb->len == (uint64_t)b);
         }
@@ -2340,7 +2349,7 @@ cplist_reconfigure()
         percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
       }
       if (config_vol->size < 128) {
-        Warning("the size of volume %d (%d) is less than the minimum required volume size",
+        Warning("the size of volume %d (%d) is less than the minimum required volume size %d",
                 config_vol->number, config_vol->size, 128);
         Warning("volume %d is not created", config_vol->number);
       }
@@ -2365,7 +2374,7 @@ cplist_reconfigure()
         // we did not find a corresponding entry in cache vol...creat one
 
         CacheVol *new_cp = NEW(new CacheVol());
-        new_cp->disk_vols = (DiskVol **) xmalloc(gndisks * sizeof(DiskVol *));
+        new_cp->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
         memset(new_cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
         if (create_volume(config_vol->number, size_in_blocks, config_vol->scheme, new_cp))
           return -1;
@@ -2487,11 +2496,11 @@ create_volume(int volume_number, off_t size_in_blocks, int scheme, CacheVol *cp)
         char config_file[PATH_NAME_MAX];
         IOCORE_ReadConfigString(config_file, "proxy.config.cache.volume_filename", PATH_NAME_MAX);
         if (cp->size)
-          Warning("not enough space to increase volume: [%d] to size: [%d]",
-                  volume_number, (to_create + cp->size) >> (20 - STORE_BLOCK_SHIFT));
+          Warning("not enough space to increase volume: [%d] to size: [%" PRId64 "]",
+                  volume_number, (int64_t)((to_create + cp->size) >> (20 - STORE_BLOCK_SHIFT)));
         else
-          Warning("not enough space to create volume: [%d], size: [%d]",
-                  volume_number, to_create >> (20 - STORE_BLOCK_SHIFT));
+          Warning("not enough space to create volume: [%d], size: [%" PRId64 "]",
+                  volume_number, (int64_t)(to_create >> (20 - STORE_BLOCK_SHIFT)));
 
         Note("edit the %s file and restart traffic_server", config_file);
         delete[]sp;
@@ -2581,16 +2590,14 @@ static void reg_int(const char *str, int stat, RecRawStatBlock *rsb, const char 
 void
 register_cache_stats(RecRawStatBlock *rsb, const char *prefix)
 {
-  char stat_str[256];
-
   // Special case for this sucker, since it uses its own aggregator.
   reg_int("bytes_used", cache_bytes_used_stat, rsb, prefix, cache_stats_bytes_used_cb);
 
   REG_INT("bytes_total", cache_bytes_total_stat);
-  snprintf(stat_str, sizeof(stat_str), "%s.%s", prefix, "ram_cache.total_bytes");
-  RecRegisterRawStat(rsb, RECT_PROCESS, stat_str, RECD_INT, RECP_NULL, (int) cache_ram_cache_bytes_total_stat, RecRawStatSyncSum);
+  REG_INT("ram_cache.total_bytes", cache_ram_cache_bytes_total_stat);
   REG_INT("ram_cache.bytes_used", cache_ram_cache_bytes_stat);
   REG_INT("ram_cache.hits", cache_ram_cache_hits_stat);
+  REG_INT("ram_cache.misses", cache_ram_cache_misses_stat);
   REG_INT("pread_count", cache_pread_count_stat);
   REG_INT("percent_full", cache_percent_full_stat);
   REG_INT("lookup.active", cache_lookup_active_stat);
@@ -2646,6 +2653,7 @@ ink_cache_init(ModuleVersion v)
   IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_algorithm, "proxy.config.cache.ram_cache.algorithm");
   IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_compress, "proxy.config.cache.ram_cache.compress");
   IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_compress_percent, "proxy.config.cache.ram_cache.compress_percent");
+  IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_use_seen_filter, "proxy.config.cache.ram_cache.use_seen_filter");
 
   IOCORE_EstablishStaticConfigInt32(cache_config_http_max_alts, "proxy.config.cache.limits.http.max_alts");
   Debug("cache_init", "proxy.config.cache.limits.http.max_alts = %d", cache_config_http_max_alts);
@@ -2694,11 +2702,9 @@ ink_cache_init(ModuleVersion v)
   }
   // TODO: These are left here, since they are only registered if HIT_EVACUATE is enabled.
 #ifdef HIT_EVACUATE
-  IOCORE_RegisterConfigInteger(RECT_CONFIG, "proxy.config.cache.hit_evacuate_percent", 0, RECU_DYNAMIC, RECC_NULL, NULL);
   IOCORE_EstablishStaticConfigInt32(cache_config_hit_evacuate_percent, "proxy.config.cache.hit_evacuate_percent");
   Debug("cache_init", "proxy.config.cache.hit_evacuate_percent = %d", cache_config_hit_evacuate_percent);
 
-  IOCORE_RegisterConfigInteger(RECT_CONFIG, "proxy.config.cache.hit_evacuate_size_limit", 0, RECU_DYNAMIC, RECC_NULL, NULL);
   IOCORE_EstablishStaticConfigInt32(cache_config_hit_evacuate_size_limit, "proxy.config.cache.hit_evacuate_size_limit");
   Debug("cache_init", "proxy.config.cache.hit_evacuate_size_limit = %d", cache_config_hit_evacuate_size_limit);
 #endif

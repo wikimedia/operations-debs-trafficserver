@@ -33,10 +33,10 @@
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
-void *operator
-new(size_t size)
+void *
+operator new(size_t size)
 {
-  return xmalloc((unsigned int) size);
+  return ats_malloc((unsigned int) size);
 }
 
 /*-------------------------------------------------------------------------
@@ -45,22 +45,24 @@ new(size_t size)
 void operator
 delete(void *p)
 {
-  _xfree(p);
+  ats_free(p);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
-void *operator  new[] (size_t size)
+void *
+operator  new[] (size_t size)
 {
-  return xmalloc((unsigned int) size);
+  return ats_malloc((unsigned int) size);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-void operator  delete[] (void *p)
+void
+operator  delete[] (void *p)
 {
-  _xfree(p);
+  ats_free(p);
 }
 
 #endif /* TRACK_MEMORY */

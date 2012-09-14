@@ -45,21 +45,18 @@ class HttpServerSession;
 
 class SecurityContext;
 
-class HttpClientSession:public VConnection
+class HttpClientSession: public VConnection
 {
 public:
   HttpClientSession();
   void cleanup();
   virtual void destroy();
 
-public:
   static HttpClientSession *allocate();
 
-public:
-  void new_connection(NetVConnection * new_vc, bool backdoor);
+  void new_connection(NetVConnection * new_vc, bool backdoor = false);
 
   virtual VIO *do_io_read(Continuation * c, int64_t nbytes = INT64_MAX, MIOBuffer * buf = 0);
-
   virtual VIO *do_io_write(Continuation * c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader * buf = 0, bool owner = false);
 
   virtual void do_io_close(int lerrno = -1);
@@ -96,6 +93,7 @@ private:
   int state_keep_alive(int event, void *data);
   int state_slave_keep_alive(int event, void *data);
   int state_wait_for_close(int event, void *data);
+  void set_tcp_init_cwnd();
 
   void handle_api_return(int event);
   int state_api_callout(int event, void *data);
@@ -114,6 +112,7 @@ private:
 
   NetVConnection *client_vc;
   int magic;
+  bool tcp_init_cwnd_set;
   int transact_count;
   bool half_close;
   bool conn_decrease;
@@ -134,6 +133,7 @@ private:
   TSHttpHookID cur_hook_id;
   APIHook *cur_hook;
   int cur_hooks;
+  bool proxy_allocated;
 
   // api_hooks must not be changed directly
   //  Use ssn_hook_{ap,pre}pend so hooks_set is
@@ -143,12 +143,24 @@ private:
 public:
   bool backdoor_connect;
   int hooks_set;
+  /// Local address for outbound connection.
+  IpAddr outbound_ip4;
+  /// Local address for outbound connection.
+  IpAddr outbound_ip6;
+  /// Local port for outbound connection.
+  uint16_t outbound_port;
+  /// Set outbound connection to transparent.
+  bool f_outbound_transparent;
+  /// acl method mask - cache IpAllow::match() call
+  uint32_t acl_method_mask;
 
   // for DI. An active connection is one that a request has
   // been successfully parsed (PARSE_DONE) and it remains to
   // be active until the transaction goes through or the client
   // aborts.
   bool m_active;
+  // Session specific debug flag
+  bool debug_on;
 };
 
 inline APIHook *

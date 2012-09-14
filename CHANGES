@@ -1,154 +1,687 @@
                                                          -*- coding: utf-8 -*-
-Changes with Apache Traffic Server 3.0.5
-  *) [TS-1049] TS dead locks on HTTPS POST requires.  
-	Author: Wilson Ho
+Changes with Apache Traffic Server 3.2.0
+  *) [TS-1286] Cleanup some code around freelists and allocators.
 
-  *) [TS-1111] fix crash in RangeTransform::handle_event  
 
-  *) [TS-1109] stack dump may crash too
+Changes with Apache Traffic Server 3.1.4
+  *) [TS-1281] make check fail on RHEL 5.x.
 
-  *) [TS-1098] make rc script support Amazon EC2 linux AMI
+  *) [TS-1282] Verbosity settings for Via headers is broken.
 
-  *) [TS-1185] fix build issues with clang
+  *) [TS-1279] Fix build system for gcc < 4.3.
 
-  *) [TS-1116] fix build issues with gcc 4.7 
- 
-  *) [TS-857] race condition UnixNetVConnection::do_io_close()
+  *) [TS-1277] Fixed issue with IPv6 URLs and remap configuration.
 
-  *) [TS-1158] race condition UnixNetVConnection::mainEvent() when handling
-     an inactivity timeout
+  *) [TS-1195] Support the use of raw IPv6 address in URLs and Host fields.
 
-  *) [TS-1114] crash from access to CacheVC::write_vector without vol lock.
+  *) [TS-1275] Fix startup problem where /var is on a volatile disk.
+   Author: Eric Connell.
 
-Changes with Apache Traffic Server 3.0.4
-  *) [TS-1154] quick_filter on HEAD does not work
-   Author: weijin
+  *) [TS-1274] Transformation plugins can send content-length with 
+   non-identity transfer encoding. Author: Otto van der Schaff.
 
-  *) [TS-824] Range requests that result in cache refresh give 200 status
-   response with full contents. Review and suggestions for improvements
-   by Charlie Gero.
+  *) [TS-1272] workaround for - FATAL: HttpSM.cc:890: failed assert `0`
 
-  *) [TS-880] Major performance problem with second request on same keep-alive connection
-   Author: 	weijin
+  *) [TS-1240] Fix race in log buffer queuing code.
+
+  *) [TS-1271] deprecate INKStats API
+
+  *) [TS-1250] Cache inspector does not seem to work properly
+
+  *) [TS-1269] Building outside source tree fails on plugins.
+
+  *) [TS-1222] single tcp connection will limit the cluster throughput.
+
+  *) [TS-475] Accelerated single range requests.
+     Based on initial work by ericb, with help from bwyatt.
+
+  *) [TS-1236] HTTP Accept filters do not work on Illumos.
+
+  *) [TS-1075] Workarounds for linux auto-port issues in transparent
+   deployments.
+
+  *) [TS-672] cleanup Win32 references.
+
+  *) [TS-1181] Make the overridable configs work with "byte" configs.
+
+  *) [TS-1252] Fixed include issues when using mgmtapi.h.
+
+  *) [TS-1248] update HTTP status codes and strings.
+
+  *) [TS-1245] proxy.config.http.connect_ports may be '*'.
+
+  *) [TS-1239] TSHttpTxnServerAddrSet implementation.
+
+  *) [TS-1237] custom log field/filtering improvements.
+
+  *) [TS-1090] SO_MARK and IP_TOS support for Linux.
+
+  *) [TS-1238] RAM cache hit rate unexpectedly low with CLFUS.
+
+  *) [TS-1242] Make it build with some more recent automake versions.
+
+  *) [TS-1241] Memory leaks when using TSHttpSchedule().
+   Author: Aidan McGurn.
+
+  *) [TS-1163] Support for raw disks larger than 2TB on Linux.
+
+  *) [TS-1230] added a paramter to the configure script to allow overriding
+   the calculated ARG_MAX value.
+
+  *) [TS-1208] enable check_memory() in traffic_cop for Linux.
+
+  *) [TS-1217] cop cleanup, remove unused variables & defines.
+
+  *) [TS-1209] Allow for background fill even when a transform plugin is
+   the producer. Author: Robert Logue.
+
+  *) [TS-1229] clean up RecordsCofing.cc, remove unused entries.
+
+  *) [TS-1142] record ram hit in stats.
+
+  *) [TS-1213] update will crash at HttpTransact::process_quick_http_filter.
+
+  *) [TS-1186] Fixed Perl stats API to work with 64-bit stat values
+
+  *) [TS-1227] header_filter "set" operator doesn't work if the header
+   doesn't already exist.
+
+  *) [TS-1210] remove 3.0.x deprecated APIs
+
+  *) [TS-1225] Remove 32 bit doc_len instances.
+
+  *) [TS-1226] Make header_filter support e.g. '=' characters in header
+   values.
+
+  *) [TS-1150] Some performance improvements around the heap guard.
+
+  *) [TS-1216] Remove the initializer for some gcc`s limits.
+
+  *) [TS-1205] double free when RecDataSet in cluster mode.
+
+  *) [TS-1220] stats: cleanup and fix the wrong values.
+
+  *) [TS-1212] can not limit ram cache, also fix the stats.
+
+  *) [TS-1214] another race condition in cache init.
+
+  *) [TS-1130] Wrong CAS operation on ink_time_t on 64 bit system.
+
+  *) [TS-1127] Wrong returned value of incoming port address. This
+   API is deprecated, so I also fixed the regression tests accordingly.
+   Authors: Yakov Kopel and Leif.
+
+  *) [TS-1211] Read backlog config value to set the listen backlog.
+
+  *) [TS-1202] Install traffic_shell man/doc pages in a more appropriate
+   location. Author: Igor Brezac.
+
+  *) [TS-1198] ssl crash when certificates are missing.
+
+  *) [TS-1164] a race condition in cache init.
+
+  *) [TS-1079] Add an API function to turn debugging on for specific
+   transactions/sessions. This also adds a new Debug() functionality in
+   both core and APIs. Author: Uri Shachar.
+
+  *) [TS-1194 Change conversions to build with gcc-4.6 on OmniOS/Solaris.
+   Also cleanup a couple of plugins to use our "core" build environment.
+
+  *) [TS-1192] Remove gethostbyname usage in test code
+
+  *) [TS-1147] deprecate records.config SSL configuration
+
+  *) [TS-1121] Make --disable-diags at least disable Debug etc.
+
+  *) [TS-1191] Change defaults for proxy.config.dns.search_default_domains to
+   not use the search domains in resolv.conf.
+
+  *) [TS-1190] Change defaults for proxy.config.http.share_server_sessions to
+   have a session pool per net-thread. This is best performance for most
+   common use cases.
+
+  *) [TS-1189] Build problem with older versions of OpenSSL.
+
+  *) [TS-1178] cop will kill manager & server, even cop it self, in cluster.
+
+  *) [TS-1156] Fix timestamp log fields, and stop supporting network byte
+   order in various log buffers. See TS-1182 for future enhancements.
+
+  *) [TS-1017] Update logging to be IPv6 compliant, including collation.
+
+  *) [TS-1080] If we run out of Log Buffer slots, we assert.
+
+  *) [TS-1176] Eliminates the need for a delayed "delete" of log buffers.
+   This was a serious race condition, which was previously sold by delaying
+   deletes via a ring buffer.
+
+  *) [TS-1036] Improve some squid log compatiblity. Suggestions from mnot.
+
+  *) [TS-1092] Remove specific SSL termination mode, we either terminate, or
+   we do not.
+
+  *) [TS-1173] Improve the comments in remap.config.
+
+  *) [TS-981] Remove the support for libev (for now at least).
+
+  *) [TS-1172] Remove remap/StringHash.{cc,h}, they are not used.
+
+  *) [TS-1171] http_ui cache lookup, double free.
+
+  *) [TS-1168] Change UrlRewrite::BuildTable to be IPv6 compliant.
+
+  *) [TS-1167] Updates parent socks server setup to be IPv6 compliant.
+
+  *) [TS-1166] Remove proxy/Stuffer.[cc,h] because they were unused.
+
+  *) [TS-1162] UnixNetVConnection assertion when accepting a TLS connection
+
+  *) [TS-1135] support wildcard certificates for ServerNameIndication (SNI)
+
+  *) [TS-1140] Combine IP Allow and QuickFilter.
+
+  *) [TS-1159] Add compiler hints to debug logging
+
+  *) [TS-1143] Fixed edge case problems in IpMap.
+
+  *) [TS-1114] Fix to lock vol for CacheVC::write_vector.
+
+  *) [TS-857] Possibly related race in UnixNetVConnection::mainEvent
+   on inactivity timeout.
+
+  *) [TS-1149] Pretty up automake output.
+
+
+Changes with Apache Traffic Server 3.1.3
+  *) [TS-1145] Additional clang build fixes. Author: Darrin Jewell.
+
+  *) [TS-1144] Fix out of tree builds. Author: Darrin Jewell.
+
+  *) [TS-1138] Fixed off by one range error in IpMap.
+
+  *) [TS-462] Support TLS Server Name Indication (SNI)
+
+  *) [TS-1134] TSNetAcceptNamedProtocol should fail if NPN is not supported.
+
+  *) [TS-1133] Make the max host-header length configure.ac configurable.
+
+  *) [TS-1002] fix custom loggin with cquuc cquup, and introduce cquuh
+   to recode the client_req_unmapped_url_host.
+
+  *) [TS-701] Remove mgmt/cli/script_configs.sh
+
+  *) [TS-1124] Move regex_remap, header_filter and stats_over_http from
+   the plugin repo to the main repo.
+
+  *) [TS-1111] fix crash in RangeTransform::handle_event
+
+  *) [TS-1109] fix stack dump crashing
+
+  *) [TS-1123] editline/readline conflicts when building on OSX.
+
+  *) [TS-1116] Fixes for building the source with clang/lvm.
+
+  *) [TS-1115] Fixes for building the source with Intel CC (icc).
+
+  *) [TS-1102] Cleanup of Diagnostics code. Author: Uri Shachar and Leif.
+
+  *) [TS-1117] Remove TS_HAS_PURIFY MACRO
+
+  *) [TS-937] EThread::execute still processing cancelled event
+
+  *) [TS-995] Name change for IP support (ink_inet.h).
+
+  *) [TS-841] support TLS NextProtocol negotiation
+
+Changes with Apache Traffic Server 3.1.2
 
   *) [TS-1110] logstats incorrectly bucketizes all status codes greater 
-  than 599 as 5xx
-  
-  *) [TS-1065] Traffic Cop: segment fault when TRACE_LOG_COP is enabled
-   Author: Conan Wang
+  than 599 as 5xx. Author: Manjesh Nilange
 
-  *) [TS-948] do not reload bad remap.config
+  *) [TS-1094] Fixed MIME parser so certain sequences of requests on
+   keep alive conections no longer wedge it.
 
-  *) [TS-845] make proxy.config.cluster.ethernet_interface default to
-   loopback interface: lo on linux and lo0 on bsd derivatives
+  *) [TS-1084] Add compile-time format string checking.
 
-Changes with Apache Traffic Server 3.0.3
+  *) [TS-1101] traffic_line -x no longer works, at least not in
+   reasonable time.
 
-  *) [TS-876] forward map based on request receive port
+  *) [TS-1098] Make RC script support Amazon EC2 Linux AMI.
 
-  *) [TS-1004] Transformation plugins cause connection close when content
-   length is not known ahead. Author: Otto van der Schaaf.
+  *) [TS-1035] EventProcessor::spawn_thread doesn't check that there
+   is enough event threads and segfaults.
 
-  *) [TS-1055]: Wrong implementation of TSHttpSsnArgGet().
-    Author: Yakov Kopel
+  *) [TS-1096] readline support for traffic_shell.
 
-  *) [TS-1074] PluginVC should schedule to the local queue instead of the
-  external queue.
+  *) [TS-1097] online help for traffic_shell.
 
   *) [TS-1066] TSHttpTxnServerReqHdrBytesGet in InkAPI.cc has an extra
    parameter (int *bytes) from the prototype in <ts/ts.h>.
    Author: Alistair Stevenson
 
-  *) [TS-874] make asf-dist work with git repo
+  *) [TS-1089] Added TSHttpConnectTransparent.
 
-  *) [TS-1038] SHttpTxnErrorBodySet() can leak memory.
+  *) [TS-1088] Added TSHttpTxnOutgoingTransparencySet to API to
+   control outbound transparency.
 
-  *) [TS-1095] ts.h.in has incorrect declaration for TSFetchURL
+  *) [TS-1083] Initial SSL next protocol negotiation support.
+
+  *) [TS-1082] Obey existing optimizer CXXFLAGS and CFLAGS at configure time.
+
+  *) [TS-1077] All proxy ports are now configured by
+   proxy.config.http.server_ports. All other port configuration values
+   are deprecated.
+
+  *) [TS-1091] CFLAGS=-w` causes configure script to wrongly guess style of
+   `gethostbyname_r` on BSD flavors. Author: Marc Abramowitz.
+
+  *) [TS-1073] no_dns_just_forward_to_parent configuration parameter is
+   ignored/not used. Author: Kevin Giles.
+
+  *) [TS-996] HTTPHdr::m_host goes stale if HdrHeap::evacuate_from_str_heaps
+   is called. Author: B. Wyatt.
+
+  *) [TS-1041] Populate sockaddr length. Author: James Peach.
+
+  *) [TS-1081] Eliminate an additional copy of the pristine URL string.
+
+  *) [TS-1038] TSHttpTxnErrorBodySet() can leak memory.
+   Author: Brian Geffon
+
+  *) [TS-1049] TS hangs (dead lock) on HTTPS POST requests.
+   Author: Wilson Ho
+
+  *) [TS-1056] Lost UA connections can show up as "400 ERR_INVALID_REQ"
+   in logs.
+
+  *) [TS-1048] Add TS API to enable plugins to use traffic server
+   configuration infrastructure. Author: Bianca Cooper.
+
+  *) [TS-1074] PluginVC should schedule to the local queue instead of the
+  external queue. Author: Brian Geffon
+
+  *) [TS-1032] Assertion when upstream connection is established (with event
+   handled by thread A) and immediately disconnected (handled by thread B).
+   Author: Uri Shachar.
+
+  *) [TS-1052] trafficserver restart does not work (needs to let the old
+   process die). Author: Billy Viera
+
+  *) [TS-1044] Fix TSVConn{Read,Write}VIOGet in UnixNetVConnection.
+    Author: James Peach.
+
+  *) [TS-1040] Teach TSHostLookup to use const. Author: James Peach.
+
+  *) [TS-1071] Debug statement in FetchSM broken. Author: Brian Geffon.
+
+  *) [TS-1057] Expose Base64-encoding through APIs.
+   Author: Yakov Kopel and leif
 
   *) [TS-1014] slow log can not print logs well on 32-bit system,
   changed the %d to RPI64. Author: weijin.
 
-  *) [TS-830] Better error when there are CLI permission problems, or
-   other problems preventing operation. Author: AdunGaos.
+  *) [TS-992] Various portability fixes. Author: Piotr Sikora
 
-  *) [TS-1046] Add possibility to extend tsxs command line for -Iincludes.
+  *) [TS-999] Deprecate TSUrlDestroy(), it's a no-op. Just make sure
+   to release the marshal buffers as normal.
 
-  *) [TS-1047] fix lots of spelling mistakes
-   Author: Arno Töll
+  *) [TS-245] Add TSStringPercentEncode(), TSUrlPercentEncode(), and
+   TSStringPercentDecode().
 
-Changes with Apache Traffic Server 3.0.2
+  *) [TS-1065] traffic_cop segment fault when enable TRACE_LOG_COP.
+   Author: Conan Wang.
+
+  *) [TS-1029] DNS crash if we free the memory into system. Author: weijin
+
+  *) [TS-1055] Wrong implementation of TSHttpSsnArgGet().
+   Author: Yakov Kopel
+
+  *) [TS-992] Portability fixes. Author: Piotr Sikora.
+
+  *) [TS-949] Fix key->vol hash to be consistent when a disk is marked bad.
+
+  *) [TS-1047] fix lots of spelling mistakes Author: Arno Töll
+
+  *) [TS-1042] correct debug message in FetchSM. Author: James Peach
+
+  *) [TS-1039] use pcre-config to find libpcre. Author: James Peach
+
+  *) [TS-1037] Fix for computing local machine address (was ignoring
+   general addresses).
+
   *) [TS-1030] Improve hashing mechanism on WKS.
-
-  *) [TS-1011]: SSL doesn't work on Solaris.
 
   *) [TS-1028] Avoid triggering assert when running debug build and enabling
    per-thread connection pols
 
   *) [TS-1021] Remove extra newline from binary logs.
 
-  *) [TS-1013]: Allow ssl_multicert.config to support CA chains per host
+  *) [TS-1022] Use size specific types for serialized data in binary logs.
 
-  *) [TS-944]: ssl.server.cert.path & ssl.server.private_key.path do not work as expected
+Changes with Apache Traffic Server 3.1.1
+  *) [TS-1020] Make logging to a named pipe work on Solaris.
 
-  *) [TS-906]: We do not honor / use the configuration option for
-   proxy.config.http.forward.proxy_auth_to_parent.
+  *) [TS-1016] Make the update frequency for stats configurable.
 
-  *) [TS-967]: Allow for our default -O3 options to be overriden via CFLAGS/CXXFLAGS
-   Author: Arno Toell and igalic
+  *) [TS-944] Align all configurations of paths to use the same function
 
-  *) [TS-969] tests failing on some Debian sid and Solaris
+  *) [TS-1018] Remove obsolete OpenSSL acceleration code and configs
 
-  *) [TS-867] PluginVC crashes with TSFetchURL
+  *) [TS-1013] Allow ssl_multicert.config to support CA chains per host
 
-  *) [TS-901] Valgrind found minor leaks and uninitialized variables
-    Author: William Bardwell
+  *) [TS-971] make cache evacuate work as expect.
+
+  *) [TS-982] Fixed PluginVC set active/passive address. Clarified that
+   it expects host order input.
+
+  *) [TS-1012] Eliminate proxy.config.http.append_xforwards_header, which
+   is never used.
+
+  *) [TS-1004] Transformation plugins cause connection close when content
+   length is not known ahead. Author: Otto van der Schaaf.
+
+  *) [TS-1011] Fixes for OpenSSL, specifically triggered for Solaris, but
+   generally broken assumptions in the old code.
+
+  *) [TS-989] Logging is now IPv6 compatible.
+
+  NOTE: IP addresses are now encoded as a specific type of binary
+  data, not a mix of unsigned ints and strings. This is a log binary
+  format change and therefore WILL BREAK ACCESS TO LOG DATA FROM
+  PREVIOUS VERSIONS.
+
+  *) [TS-1009] Disable starting ICP continuations if ICP is not enabled.
+
+  *) [TS-1005] Use traffic_line for reload option with RC script.
+   Author: Jan-Frode Myklebust.
+
+  *) [TS-984] Log roll crash fixed.
+
+  *) [TS-997] ATS crashes on remap plugin initialization failure.
+   Author: Manjesh Nilange.
+
+  *) [TS-988] Updated ICP for IPv6.
+
+  *) [TS-994] Removed the extra splace from X-Forwarded-For.
+
+  *) [TS-934] Added some wrapping around NetVConnection for server
+   handling so that connection objects can be safely locked across
+   threads.
+
+  *) [TS-991] Fixed race / stall condition for WCCP during restart.
+
+  *) [TS-985] ts/ts.h uses C++ comments, which are technically not C.
+
+  *) [TS-928] Compile problem in TsErrataUtil on FreeBSD 8.
+
+  *) [TS-973] Eliminate proxy.config.http.verbose_via_str.
+
+  *) [TS-747] Add a new option, proxy.config.ssl.compression, to turn
+   SSL compression on / off. This currently only works with OpenSSL
+   v1.0.0 and later.
+
+  *) [TS-963] Change the way ip_allow is parsed to be consistent with
+   earlier versions (first match). Added default IPv6 allow. Added
+   regression tests for the underlying IpMap class.
+
+  *) [TS-948] Don't reload or load a broken remap.config.
+
+  *) [TS-824] Range requests that result in cache refresh give 200 status
+   response with full contents. Review and suggestions for improvements
+   by Charlie Gero.
+
+  *) [TS-964] Add 64-bit integer plugin APIs for HTTP headers.
+
+  *) [TS-932] Fix m_pending_event == NULL crash in LogCollationClientSM.cc
+   Author: weijin
+
+  *) [TS-830] Better error when there are CLI permission problems, or
+   other problems preventing operation. Author: AdunGaos.
+
+  *) [TS-979] Found a few places where we can segfault with strlcpy.
+
+  *) [TS-938] Fix VIA to avoid loopback address. For Solaris only IPv4
+   is supported.
+
+  *) [TS-945] Convert transparent forward requests to server style when
+     forwarding to a parent proxy. Contributed by Yossi Gottlieb.
+
+  *) [TS-926] IPv6 conversion of iocore.
+
+  *) [TS-967] This is a simplified version of Arno Toell's patch which does
+   the same: Check if any -O options where given, and if so, use those, if
+   not, use our default -O3.
+
+  *) [TS-957] remove IE6 from the white list of ae_ua filter
+
+  *) [TS-955] Fix the logging regression testing.
+
+  *) [TS-962] typo of key name in logstats.cc. Author: Nick Berry.
+
+  *) [TS-958] Fix a few valgrind memory check errors.
+
+  *) [TS-567] A number of memory allocation clean up, and improvements. We
+   now also support building with tcmalloc, jemalloc, and you can also turn
+   off the freelist feature (for better debugging).
+
+  *) [TS-950] Make the HTTP header regressions work on 32-bit, inefficient,
+   but it works.
+
+  *) [TS-956] fix the building with zlib-1.2.5.1.
+
+  *) [TS-953] consolidate string copy/concat for examples.
+
+  *) [TS-924] More efficient sharing of origin connections.
+
+   This also overloads the config for shared connections as follows:
+
+       #  0 - Never
+       #  1 - Share, with a single global connection pool
+       #  2 - Share, with a connection pool per worker thread
+       CONFIG proxy.config.http.share_server_sessions INT 1
+
+   This option is now per-request (remap or plugin) overridable. This is
+   heavily based on William Bardwells and Weijin's work.
+
+  *) [TS-84] Unify all code to use PATH_NAME_MAX, and increase it to 4K.
+
+  *) [TS-943] Implement support for HTTP accept filters.
+
+  *) [TS-168] revert iObject and other changes, make collation client work
+   in the clean way.
+
+  *) [TS-941] invalid cast of off_t math to int. Author: B Wyatt.
+
+  *) [TS-940] Add new configuration option, and solaris support, to set
+  an initial congestion window size, proxy.config.http.server_tcp_init_cwnd.
+
+  *) [TS-931] cluster latency too high, about 24ms. this change will cut
+   the latency from 20+ms to about 10ms. Author: weijin
+
+  *) [TS-896] When logging config changes, we should check if it is remote
+   logging and clean up the collation client related data.
+
+  *) [TS-936] Fix problems with core file generation on Linux.
+
+  *) [TS-930] Fixed TSNetConnect to use network order for port.
+
+  *) [TS-1008] Add API to get TCP connection from SSN.
+
+Changes with Apache Traffic Server 3.1.0
+  *) Make sure --enable-purify works again
+
+  *) [TS-888] Fix SSL by enabling the right direction on successful setup.
+
+  *) [TS-925] Switch from integer thread IDs to hex thread IDs with the
+   diagnostics output. Author: Brian Geffon.
+
+  *) [TS-919] All of iocore is now IPv6 compatible. Much of this work
+   was contributed by Yossi Gottlieb.
+
+  *) [TS-867] moving to a different thread only if the pluginvc is invoked
+   from a non regular thread.
+
+  *) [TS-876] forward map based on request receive port. Author: Manjesh
+   Nilange.
+
+  *) [TS-880] Major performance problem with second request on same
+   keep-alive connection. This is a partial fix, another 2x improvement
+   can be made, but too risky right now. Authors: William Bardwell and
+   weijin.
+
+  *) [TS-900] TSHttpTxnNewCacheLookupDo (experimental) breaks requests
+   to origin server. Author: William Bardwell.
+
+  *) [TS-918] Allow interval-based rotation for round robin entries.
+   Author: M. Nunberg.
 
   *) [TS-916] TSHttpIsInternalRequest() crashes if client connection is
-    terminated prematurely.
-    Author: Manjesh Nilange
+   terminated prematurely. Author: Manjesh Nilange.
+
+  *) [TS-466] Multiline headers handled improperly.
+
+  *) [TS-914] fix iocore_net_main_poll debug info in UnixNet.cc
+   Author: taorui
+
+  *) [TS-911] Remove unecessary lock in HTTP accept.
+
+  *) [TS-908] HostDB now stores IPv6 addresses.
+
+  *) [TS-813] fix http_ui /stat/ to response with content type
+
+  *) [TS-849] fix some variables for traffic_line -s setting
+
+  *) [TS-874] make asf-dist work with git repo
+
+  *) [TS-906] ATS doesn't use proxy.config.http.forward.proxy_auth_to_parent.
+
+  *) [TS-592] DNS internals are now IPv6 compatible. Externally this means
+     DNS servers with IPv6 addresses can be used although only IPv4 responses
+     are useful until other IPv6 upgrades are done.
+
+  *) [TS-907] The source address for DNS requests can be set.
+
+  *) [TS-903] Internal resolver library now IPv6 compatible.
+     IP address matching libraries removed, replaced with IpMap which is
+     faster and IPv6 compatible. SOCKS and IpAllow configurations files
+     will now parse IPv6 ranges, although they do not current have effect.
+
+  *) [TS-901] Valgrind found minor leaks and uninitialized variables.
+   Author: William Bardwell.
+
+  *) [TS-863] Make proxy.config.http.keep_alive_no_activity_timeout_out
+   configurable per transaction. Author: William Bardwell.
+
+  *) [TS-859] Make parent proxy not not work anymore.
+
+  *) [TS-889] Disable warnings on deprecated APIs for Darwin (OSX). This
+   fixes build problesm on OSX 10.7 (Lion) when using the system OpenSSL.
+
+  *) [TS-890] update remap.config comments on regexes to be
+   accurate. Author: Manjesh Nilange.
+
+  *) TS-885 service trafficserver condrestart does the opposite of what´s
+    intended. Author: Jan-Frode Myklebust
+
+  *) [TS-898] "fixed" problems reported by Coverity
+    1. Changed sprintf to snprintf
+    2. ignore error on sscanf that is safe
+
+  *) [TS-807] no config item "proxy.config.hostdb.disable_reverse_lookup" in
+   hostdb. Author: weijin.
+
+  *) [TS-883] Fix help / usage text to be, ehm, correct.
+
+  *) [TS-567] Cleanup, removing unecessary, and unsupported, debug features.
+
+  *) [TS-848] fix crash in net pages and remove useless option.
+
+  *) IpLookup was removed from the experimental API.
+
+  *) proxy.config.http.cache.cache_responses_to_cookies can now be overridden
+   on a per request basis in cache.config.
+
+  *) [TS-816] Other ports now obey specified options for both normal
+   and standalone usage.
 
   *) [TS-882] traffic_logstats dies when printing log.
 
-  *) [TS-883] traffic_logstats provides conflicting help output
+  *) [TS-804] libcap required when running standalone.
 
-  *) [TS-730] Allow for the SSL Cipher Suite to be configured
+  *) [TS-730] Allow for the SSL Cipher Suite to be configured.
 
-  *) [TS-927] don't use malloc.h, it fails on FreeBSD
-    Author: Radim Kolar
+  *) [TS-881] Better error message from TrafficCop when admin user lookup
+   fails.
 
-  *) [TS-888] fix SSL by enabling the right direction on successful setup
+  *) [TS-875] TSFetchRestpGet(), TSFetchPageResptGet() and TSFetchUrl() have
+   incorrect asserts. Author: Manjesh Nilange.
 
-  *) [TS-859] ATS requesting to origin instead to the parent server
+  *) [TS-853] Fix a few example plugins to use the new (appropriate) sockaddr
+   based APIs (and not the deprecated APIs).
 
-Changes with Apache Traffic Server 3.0.1
-  *) [TS-842] remove uninstall target from build system
+  *) [TS-870] Fix evacuate relevant codes in cache to work, Author: mohan_zl
+
+  *) [TS-869] The stat code for ram_cache miss is lost, Author: mohan_zl
+
+  *) [TS-873] Wrong code in iocore/net/UnixNet.cc, Author: mohan_zl
+
+  *) [TS-833] Continuation::handleEvent deadbeef fix, authors jplevyak and
+  taorui.
+
+  *) [TS-834] InactivityCopy::check_inactivity crash.
+
+  *) [TS-864] Need more information from CacheHttpInfo (req time, resp time,
+  size). Author: William Bardwell.
+
+  *) [TS-860] Built in error for host not found looks like Internet Explorer
+  error. Author: William Bardwell.
+
+  *) [TS-861] Need a way to disable Vary: Accept-Encoding checking so a plugin
+  can take care of that. Author: William Bardwell.
+
+  *) [TS-862] Need to be able to make keep alive connections not shared on a
+  per-transaction basis. Author: William Bardwell.
+
+  *) [TS-865] Need to get address for a VConn from a plugin similar to how you
+   can get it for the various things in a transaction. Author: William
+   Bardwell.
 
   *) [TS-868] build fails with --as-needed. Author: Ilya Barygin.
 
-  *) [TS-860] Built in error for host not found looks like Internet Explorer
-    error. Author: William Bardwell 
+  *) [TS-851] run TS without a real interface
 
-  *) [TS-875]: TSFetchRestpGet(), TSFetchPageResptGet() and TSFetchUrl() have
-    incorrect asserts. Author: Manjesh Nilange 
+  *) [TS-822] make cluster thread number configable
 
-  *) [TS-834] InactivityCop::check_inactivity crash
+  *) [TS-845] make proxy.config.cluster.ethernet_interface default to
+   loopback interface: lo on linux and lo0 on bsd derivatives
 
-  *) [TS-826] TSHttpTxnErrorBodySet() can leak memory.
-    Author: William Bardwell 
+  *) [TS-847] Bad timeout when using CONNECT method.
 
-  *) [TS-833] Continuation::handleEvent deadbeef fix. This fixes most of the
-    dns related crashes
-
-  *) [TS-828]: Various memory leaks and uninitialized values.
-    Author: William Bardwell 
-
-  *) [TS-839] Build problems when specifying lmza location.
+  *) [TS-826] TSHttpTxnErrorBodySet() can leak memory. Author: William
+  Bardwell.
 
   *) [TS-840] Regression checks fail (again) due to faulty assert use.
    Author: Arno Toell.
 
-  *) [TS-847] Bad timeout when using CONNECT method.
+  *) [TS-842] remove uninstall target from build system
 
+  *) [TS-648] Use hwloc library when available. This can be disabled
+   with --disable-hwloc.
+
+  *) [TS-398] Autoscaling threads vs Hyper Threading. This requires
+   support for hwloc as well.
+
+  *) [TS-760] Cleanup mgmt types.
+
+  *) [TS-359] Remove DIR_SEP and use slash directly.
+
+  *) [TS-839] Build problems when specifying lmza location.
+
+  *) [TS-828] Various memory leaks and uninitialized values. Author:
+   William Bardwell.
+
+  *) [TS-815] make sure that a missing yacc/bison|flex/lex is *fatal* when
+   building with wccp. Author: Arno Toll.
 
 Changes with Apache Traffic Server 3.0.0
   *) [TS-827] TSMimeHdrFieldValueStringInsert() can use freed memory to
@@ -168,7 +701,6 @@ Changes with Apache Traffic Server 3.0.0
 
   *) [TS-798] We add broken remap rules when we encounter parse errors of
    remap.config.
-
 
 Changes with Apache Traffic Server 2.1.9
   *) [TS-805] HostDB wastes a lot of storage for round-robin entries,
@@ -212,23 +744,23 @@ Changes with Apache Traffic Server 2.1.9
    remap threads are enabled.
 
   *) [TS-782] Remap processor creates a remap thread even when asked not
-   to. 
+   to.
 
   *) [TS-781] Cleanup of unusual configs, and better defaults making
-   records.config leaner, and a little more useful. 
+   records.config leaner, and a little more useful.
 
   *) [TS-780] Retune the number of SSL threads.
 
   *) [TS-775] Disable cluster autodiscovery via multicast when
    clustering is disabled. This should hopefully fix run-time errors
-   with Ubuntu 11.x. 
+   with Ubuntu 11.x.
 
   *) [TS-776] memchr in glibc has evolved, and is faster than our
    version, replaced.
 
   *) [TS-774] Add a new configure option, --enable-static-libts, which
    avoids the dynamic linking hassles involved with the dynamic nature
-   of libts. This is for devs only. 
+   of libts. This is for devs only.
 
   *) [TS-773] Traffic server has a hard limit of 512 gigabytes per RAW
    disk partition. This fix required changing the disk structure which
@@ -245,7 +777,7 @@ Changes with Apache Traffic Server 2.1.9
 
   *) [TS-562] Make --with-openssl path be honored with an -rpath to
    libtool. This also fixes the same problem with other libraries,
-   e.g. pcre, zlib etc. 
+   e.g. pcre, zlib etc.
 
   *) [TS-765] Make the backdoor port (8084 by default) only listen on
    127.0.0.1 .
@@ -295,7 +827,7 @@ Changes with Apache Traffic Server 2.1.8
   *) [TS-716] Bug where NetVC could be double free'd.
    Fix for DNS crash: bad memory management of HostEnt structures. It is
    not clear that this fixes the bug entirely.  Some of the stack traces
-   are consistent with this bug, but some are not.  
+   are consistent with this bug, but some are not.
 
   *) [TS-743] Support separate configs for keep-alive enabled for _in
    and _out connections.
@@ -429,15 +961,14 @@ Changes with Apache Traffic Server 2.1.7
 
   *) [TS-675] Make redirect and reverse maps work again.
 
-
 Changes with Apache Traffic Server 2.1.6
 
   *) [TS-678] Add a config option for try-lock retry delay.
-    
+
    This adds a configuration option
-    
+
          proxy.config.cache.mutex_retry_delay INT 2
-    
+
    2ms seems to be fairly optimal, with little detrimental effect on CPU
    usage. We'll fine tune this further in the next release.
 
@@ -501,16 +1032,15 @@ Changes with Apache Traffic Server 2.1.6
   *) [TS-650] Remove the dead v2 stats code.
 
   *) [TS-649] Dynamic libraries for mgmt APIs.
-    
+
     This makes libts -> libtsutil, and we now support making .so's for
     libtsutil.so and libtsmgmt.so. All binaries are changed to use this,
     except traffic_server which continues to use the libtsutil.a library
     (for performance on e.g. 32-bit platforms).
-    
-    This also renames the public API include file to be
-    
-         #include <ts/mgmtapi.h>
 
+    This also renames the public API include file to be
+
+         #include <ts/mgmtapi.h>
 
   *) [TS-647] Move Layout out of iocore and into lib/ts.
 
@@ -550,10 +1080,9 @@ Changes with Apache Traffic Server 2.1.6
 
   *) [TS-618] Removing traces of CCAS/CCASFLAGS.
 
-  *) [TS-627] Fixes for "make check" to succeed (author: Arno Toell). 
+  *) [TS-627] Fixes for "make check" to succeed (author: Arno Toell).
 
   *) [TS-632] Fixes for bad cast and cleanup for Intel CC.
-
 
 Changes with Apache Traffic Server 2.1.5
 
@@ -583,7 +1112,7 @@ Changes with Apache Traffic Server 2.1.5
   *) Added support to allow some select (~50 or so) records.config
   configurations to be overridable per transaction. This is done via new SDK
   APIs, as well as a remap plugin provided with the core [TS-599]. The new
-  APIs available are 
+  APIs available are
 
       TSHttpTxnConfigIntSet()
       TSHttpTxnConfigIntGet()
@@ -598,17 +1127,17 @@ Changes with Apache Traffic Server 2.1.5
 
   *) Eliminate proxy.config.net.max_poll_delay configs [TS-605].
 
-  *) Old traffic_net configurations are eliminated [TS-601]. 
+  *) Old traffic_net configurations are eliminated [TS-601].
 
   *) Multiple preads: this patch is only active if you call do_io_pread on
   the cache.  This includes a regression test for do_io_pread which is at
   least a smoke test of the new code. [TS-61]
 
   *) Migrate from home-grown regular expression classes to pcre [TS-604]
-  
+
   *) Reduce number of calls to regex matcher for standard requests with
    well-known-strings (WKS). [TS-603]
-  
+
   *) Parse Range: requests a bit better. Prior, a request like like Range:
    bytes=100-200 would return 0-200. Additionally, Range: bytes=100- would
    not parse properly. [TS-596]
@@ -645,7 +1174,6 @@ Changes with Apache Traffic Server 2.1.5
      This reduces the amount of memory allocation for plugins, but requires
      that plugins now religiously release the handles that they are expected
      to release (i.e. no automatic gc is done for lazy developers).
-
 
   *) Fixes for getting the altinfo regression check to succeeds [TS-171].
 
@@ -768,13 +1296,13 @@ Changes with Apache Traffic Server 2.1.5
 
    This is a sad day of defeat.  Not my defeat, but more a collective human
    defeat.
-    
+
    Question: "Chips fabricated today don't have 64bit atomic primitives?"
    Answer: "Be sad."
-    
+
    The ARM box we're working on (armv5tejl) doesn't support any 64bit
    primitives.
-    
+
    This means we need a method of using a global (yes, giant lock of death)
    to protect modifications of arbitrary 64bit integers in process space.
    We could make this less contentious by allocating pagesize/8 mutexs and
@@ -785,7 +1313,7 @@ Changes with Apache Traffic Server 2.1.5
 
    TS_ARCHITECTURE_LACKS_64BIT_INSTRUCTIONS and turn on the global death
    lock based on that.
-    
+
    This does not change performance on any other platform -- it's compile
    time capital punishment. [TS-533] and [TS-135].
 
@@ -796,7 +1324,6 @@ Changes with Apache Traffic Server 2.1.5
      ts/ts.h ts/experimental.h ts/remap.h
 
   Various other cleanup related to the APIs was also done [TS-522].
-
 
 Changes with Apache Traffic Server 2.1.4
 
@@ -826,7 +1353,7 @@ Changes with Apache Traffic Server 2.1.4
   *) Experimental supoprt for a dedicated DNS thread. This can be enabled
    with the records.config option
 
-   	   CONFIG proxy.config.dns.dedicated_thread INT 1
+      CONFIG proxy.config.dns.dedicated_thread INT 1
 
   This feature is possibly useful for very busy forward or transparent
   proxies [TS-307].
@@ -871,7 +1398,6 @@ Changes with Apache Traffic Server 2.1.4
   *) Cleanup / optimize Via: string generation [TS-460]. Also make the
    default for Via: on responses to be disabled (it can leak info).
 
-
 Changes with Apache Traffic Server 2.1.3
 
   *) Removed the remnants of NCA from the source [TS-455].
@@ -906,7 +1432,7 @@ Changes with Apache Traffic Server 2.1.3
    new standard). Autodetected for raw devices on Linux (no support for
    other OSes yet), and added a new configuration
 
-   	 CONFIG proxy.config.cache.force_sector_size INT 4096
+       CONFIG proxy.config.cache.force_sector_size INT 4096
 
    This change invalidates the entire cache as well, since it's no longer
    compatible [TS-43].
@@ -948,7 +1474,6 @@ Changes with Apache Traffic Server 2.1.3
 
   *) Duplication of RAM cache hits and miss statistics (reading 2x) (author:
    John Plevyak) [TS-453].
-
 
 Changes with Apache Traffic Server 2.1.2
 
@@ -1022,7 +1547,6 @@ Changes with Apache Traffic Server 2.1.2
 
   *) Solaris 10 port work.
 
-
 Changes with Apache Traffic Server 2.1.1
 
   *) Allow SI decimal multipliers for numeric configuration parameters
@@ -1038,11 +1562,10 @@ Changes with Apache Traffic Server 2.1.1
 
   *) HTTP state machine is now 64-bit "clean", allowing for caching and
    proxying documents larger than 2GB [TS-34].
-  
+
   *) Fix for truncated Content-Type on TS-generated responses [TS-290].
 
   *) Performance improvements on cache for larger(ish) objects.
-
 
 Changes with Apache Traffic Server 2.1.0
 
@@ -1062,7 +1585,6 @@ Changes with Apache Traffic Server 2.1.0
 
   *) The cache is now 64-bit "clean".
 
-
 Changes with Apache Traffic Server 2.0.1
 
   *) Port of CVE-2010-2952 for 2.0.x [TS-425].
@@ -1072,7 +1594,6 @@ Changes with Apache Traffic Server 2.0.1
 
   *) Backport TS-336 to 2.0.x. Problems with make install DESTDIR=...
 
-
 Changes with Apache Traffic Server 2.0.0
 
   *) Change SDK versioning schemes to 2.0 [TS-249).
@@ -1080,7 +1601,6 @@ Changes with Apache Traffic Server 2.0.0
   *) Minor additions to the SDK (see the docs for details).
 
   *) Support regexe_map rules in remap.config [TS-80]
-
 
 Changes with Apache Traffic Server 2.0.0-alpha
 

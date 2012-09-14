@@ -160,18 +160,15 @@ is_inkeylist(char *key, ...)
 
 /**
   Cleanup *char[] array - each item in array must be allocated via
-  xmalloc or similar "x..." function.
+  ats_malloc or similar "x..." function.
 
 */
 static void
 clear_xstr_array(char *v[], int vsize)
 {
   if (v && vsize > 0) {
-    for (int i = 0; i < vsize; i++) {
-      if (v[i]) {
-        v[i] = (char *) xfree_null(v[i]);
-      }
-    }
+    for (int i = 0; i < vsize; i++)
+      v[i] = (char *)ats_free_null(v[i]);
   }
 }
 
@@ -181,7 +178,7 @@ validate_filter_args(acl_filter_rule ** rule_pp, char **argv, int argc, char *er
   acl_filter_rule *rule;
   unsigned long ul;
   char *argptr, tmpbuf[1024];
-  SRC_IP_INFO *ipi;
+  src_ip_info_t *ipi;
   int i, j, m;
   bool new_rule_flg = false;
 
@@ -310,9 +307,9 @@ validate_filter_args(acl_filter_rule ** rule_pp, char **argv, int argc, char *er
       ipi = &rule->src_ip_array[rule->src_ip_cnt];
       if (ul & REMAP_OPTFLG_INVERT)
         ipi->invert = true;
-      strncpy(tmpbuf, argptr, sizeof(tmpbuf) - 1);
-      tmpbuf[sizeof(tmpbuf) - 1] = 0; // important! use copy of argument
-      if (ExtractIpRange(tmpbuf, (unsigned long*) &ipi->start, &ipi->end) != NULL) {
+      ink_strlcpy(tmpbuf, argptr, sizeof(tmpbuf));
+      // important! use copy of argument
+      if (ExtractIpRange(tmpbuf, &ipi->start.sa, &ipi->end.sa) != NULL) {
         Debug("url_rewrite", "[validate_filter_args] Unable to parse IP value in %s", argv[i]);
         snprintf(errStrBuf, errStrBufSize, "Unable to parse IP value in %s", argv[i]);
         errStrBuf[errStrBufSize - 1] = 0;
@@ -488,7 +485,7 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   char *config_file = NULL;
 
   ink_assert(file_var_in != NULL);
-  this->file_var = xstrdup(file_var_in);
+  this->file_var = ats_strdup(file_var_in);
   config_file_path[0] = '\0';
 
   REVERSE_ReadConfigStringAlloc(config_file, file_var_in);
@@ -504,7 +501,7 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   if (this->ts_name == NULL) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to read proxy.config.proxy_name");
     Warning("%s Unable to determine proxy name.  Incorrect redirects could be generated", modulePrefix);
-    this->ts_name = xstrdup("");
+    this->ts_name = ats_strdup("");
   }
 
   this->http_default_redirect_url = NULL;
@@ -512,7 +509,7 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   if (this->http_default_redirect_url == NULL) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to read proxy.config.http.referer_default_redirect");
     Warning("%s Unable to determine default redirect url for \"referer\" filter.", modulePrefix);
-    this->http_default_redirect_url = xstrdup("http://www.apache.org");
+    this->http_default_redirect_url = ats_strdup("http://www.apache.org");
   }
 
   REVERSE_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
@@ -522,18 +519,18 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   REVERSE_ReadConfigInteger(url_remap_mode, "proxy.config.url_remap.url_remap_mode");
   REVERSE_ReadConfigInteger(backdoor_enabled, "proxy.config.url_remap.handle_backdoor_urls");
 
-  ink_strncpy(config_file_path, system_config_directory, sizeof(config_file_path));
-  strncat(config_file_path, "/", sizeof(config_file_path) - strlen(config_file_path) - 1);
-  strncat(config_file_path, config_file, sizeof(config_file_path) - strlen(config_file_path) - 1);
-  xfree(config_file);
+  ink_strlcpy(config_file_path, system_config_directory, sizeof(config_file_path));
+  ink_strlcat(config_file_path, "/", sizeof(config_file_path));
+  ink_strlcat(config_file_path, config_file, sizeof(config_file_path));
+  ats_free(config_file);
 
   if (0 == this->BuildTable()) {
     _valid = true;
-    pcre_malloc = &ink_malloc;
-    pcre_free = &xfree;
+    pcre_malloc = &ats_malloc;
+    pcre_free = &ats_free;
 
     if (is_debug_tag_set("url_rewrite"))
-     Print();
+      Print();
   } else {
     Warning("something failed during BuildTable() -- check your remap plugins!");
   }
@@ -542,9 +539,9 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
 
 UrlRewrite::~UrlRewrite()
 {
-  xfree(this->file_var);
-  xfree(this->ts_name);
-  xfree(this->http_default_redirect_url);
+  ats_free(this->file_var);
+  ats_free(this->ts_name);
+  ats_free(this->http_default_redirect_url);
 
   DestroyStore(forward_mappings);
   DestroyStore(reverse_mappings);
@@ -850,7 +847,7 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
     i = (method = s->hdr_info.client_request.method_get_wksidx()) - HTTP_WKSIDX_CONNECT;
     if (likely(i >= 0 && i < ACL_FILTER_MAX_METHODS)) {
       bool client_enabled_flag = true;
-      unsigned long client_ip = ntohl(s->client_info.ip);
+      ink_release_assert(ats_is_ip(&s->client_info.addr));
       for (acl_filter_rule * rp = map->filter; rp; rp = rp->next) {
         bool match = true;
         if (rp->method_valid) {
@@ -860,7 +857,7 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
         if (match && rp->src_ip_valid) {
           match = false;
           for (int j = 0; j < rp->src_ip_cnt && !match; j++) {
-            res = (rp->src_ip_array[j].start <= client_ip && client_ip <= rp->src_ip_array[j].end) ? 1 : 0;
+            res = rp->src_ip_array[j].contains(s->client_info.addr) ? 1 : 0;
             if (rp->src_ip_array[j].invert) {
               if (res != 1)
                 match = true;
@@ -894,7 +891,7 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
    ought to point to the new, mapped URL when the function exits.
 */
 mapping_type
-UrlRewrite::Remap_redirect(HTTPHdr *request_header, URL *redirect_url, char **orig_url)
+UrlRewrite::Remap_redirect(HTTPHdr *request_header, URL *redirect_url)
 {
   URL *request_url;
   mapping_type mappingType;
@@ -973,7 +970,6 @@ UrlRewrite::Remap_redirect(HTTPHdr *request_header, URL *redirect_url, char **or
 
   if (mappingType != NONE) {
     ink_assert((mappingType == PERMANENT_REDIRECT) || (mappingType == TEMPORARY_REDIRECT));
-    *orig_url = NULL;
 
     // Make a copy of the request url so that we can munge it
     //   for the redirect
@@ -1089,7 +1085,7 @@ UrlRewrite::BuildTable()
   memset(&bti, 0, sizeof(bti));
 
   if ((file_buf = readIntoBuffer(config_file_path, modulePrefix, NULL)) == NULL) {
-	Warning("Can't load remapping configuration file - %s", config_file_path);
+    Warning("Can't load remapping configuration file - %s", config_file_path);
     return 1;
   }
 
@@ -1141,9 +1137,9 @@ UrlRewrite::BuildTable()
     for (int j = 0; j < tok_count; j++) {
       if (((char *) whiteTok[j])[0] == '@') {
         if (((char *) whiteTok[j])[1])
-          bti.argv[bti.argc++] = xstrdup(&(((char *) whiteTok[j])[1]));
+          bti.argv[bti.argc++] = ats_strdup(&(((char *) whiteTok[j])[1]));
       } else {
-        bti.paramv[bti.paramc++] = xstrdup((char *) whiteTok[j]);
+        bti.paramv[bti.paramc++] = ats_strdup((char *) whiteTok[j]);
       }
     }
 
@@ -1276,7 +1272,7 @@ UrlRewrite::BuildTable()
     // Check if a tag is specified.
     if (bti.paramv[3] != NULL) {
       if (maptype == FORWARD_MAP_REFERER) {
-        new_mapping->filter_redirect_url = xstrdup(bti.paramv[3]);
+        new_mapping->filter_redirect_url = ats_strdup(bti.paramv[3]);
         if (!strcasecmp(bti.paramv[3], "<default>") || !strcasecmp(bti.paramv[3], "default") ||
             !strcasecmp(bti.paramv[3], "<default_redirect_url>") || !strcasecmp(bti.paramv[3], "default_redirect_url"))
           new_mapping->default_redirect_url = true;
@@ -1312,7 +1308,7 @@ UrlRewrite::BuildTable()
           }
         }
       } else {
-        new_mapping->tag = xstrdup(&(bti.paramv[3][0]));
+        new_mapping->tag = ats_strdup(&(bti.paramv[3][0]));
       }
     }
     // Check to see the fromHost remapping is a relative one
@@ -1348,10 +1344,7 @@ UrlRewrite::BuildTable()
 
 
     if (unlikely(fromHostLen >= (int) sizeof(fromHost_lower_buf))) {
-      if (unlikely((fromHost_lower = (fromHost_lower_ptr = (char *) xmalloc(fromHostLen + 1))) == NULL)) {
-        fromHost_lower = &fromHost_lower_buf[0];
-        fromHostLen = (int) (sizeof(fromHost_lower_buf) - 1);
-      }
+      fromHost_lower = (fromHost_lower_ptr = (char *)ats_malloc(fromHostLen + 1));
     } else {
       fromHost_lower = &fromHost_lower_buf[0];
     }
@@ -1383,32 +1376,26 @@ UrlRewrite::BuildTable()
     // and gives a new remap rule with the IPv4 addr.
     if ((maptype == FORWARD_MAP || maptype == FORWARD_MAP_REFERER || maptype == FORWARD_MAP_WITH_RECV_PORT) &&
         fromScheme == URL_SCHEME_TUNNEL && (fromHost_lower[0]<'0' || fromHost_lower[0]> '9')) {
-      ink_gethostbyname_r_data d;
-      struct hostent *h;
-      h = ink_gethostbyname_r(fromHost_lower, &d);
-      // We only handle IPv4 addresses which are 4-byte long.
-      if ((h != NULL) && (h->h_length == 4)) {
-        char ipv4_name[128];
-        url_mapping *u_mapping;
-        for (int i = 0; h->h_addr_list[i] != NULL; i++) {
-          ipv4_name[0] = '\0';
-          int ip_len = snprintf(ipv4_name, sizeof(ipv4_name), "%hhu.%hhu.%hhu.%hhu",
-                                (unsigned char) h->h_addr_list[i][0],
-                                (unsigned char) h->h_addr_list[i][1],
-                                (unsigned char) h->h_addr_list[i][2],
-                                (unsigned char) h->h_addr_list[i][3]);
-          if (ip_len > 0 && ip_len < (int) sizeof(ipv4_name)) {       // Create a new url mapping with the IPv4 address.
+      addrinfo* ai_records; // returned records.
+      ip_text_buffer ipb; // buffer for address string conversion.
+      if (0 == getaddrinfo(fromHost_lower, 0, 0, &ai_records)) {
+        for ( addrinfo* ai_spot = ai_records ; ai_spot ; ai_spot = ai_spot->ai_next) {
+          if (ats_is_ip(ai_spot->ai_addr) &&
+              !ats_is_ip_any(ai_spot->ai_addr)) {
+            url_mapping *u_mapping;
+
+            ats_ip_ntop(ai_spot->ai_addr, ipb, sizeof ipb);
             u_mapping = NEW(new url_mapping);
             u_mapping->fromURL.create(NULL);
             u_mapping->fromURL.copy(&new_mapping->fromURL);
-            u_mapping->fromURL.host_set(ipv4_name, strlen(ipv4_name));
+            u_mapping->fromURL.host_set(ipb, strlen(ipb));
             u_mapping->toUrl.create(NULL);
             u_mapping->toUrl.copy(&new_mapping->toUrl);
             if (bti.paramv[3] != NULL)
-              u_mapping->tag = xstrdup(&(bti.paramv[3][0]));
+              u_mapping->tag = ats_strdup(&(bti.paramv[3][0]));
             bool insert_result = (maptype != FORWARD_MAP_WITH_RECV_PORT) ? 
-              TableInsert(forward_mappings.hash_lookup, u_mapping, ipv4_name) :
-              TableInsert(forward_mappings_with_recv_port.hash_lookup, u_mapping, ipv4_name);
+              TableInsert(forward_mappings.hash_lookup, u_mapping, ipb) :
+              TableInsert(forward_mappings_with_recv_port.hash_lookup, u_mapping, ipb);
             if (!insert_result) {
               errStr = "Unable to add mapping rule to lookup table";
               goto MAP_ERROR;
@@ -1417,6 +1404,7 @@ UrlRewrite::BuildTable()
             SetHomePageRedirectFlag(u_mapping, u_mapping->toUrl);
           }
         }
+        freeaddrinfo(ai_records);
       }
     }
 
@@ -1483,8 +1471,7 @@ UrlRewrite::BuildTable()
       goto MAP_ERROR;
     }
 
-    if (unlikely(fromHost_lower_ptr))
-      fromHost_lower_ptr = (char *) xfree_null(fromHost_lower_ptr);
+    fromHost_lower_ptr = (char *)ats_free_null(fromHost_lower_ptr);
 
     cur_line = tokLine(NULL, &tok_state);
     ++cln;
@@ -1552,8 +1539,7 @@ UrlRewrite::BuildTable()
     forward_mappings_with_recv_port.hash_lookup = ink_hash_table_destroy(
       forward_mappings_with_recv_port.hash_lookup);
   }
-
-  xfree(file_buf);
+  ats_free(file_buf);
 
   return 0;
 }
@@ -1599,7 +1585,7 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
   TSRemapInterface ri;
   struct stat stat_buf;
   remap_plugin_info *pi;
-  char *c, *err, tmpbuf[2048], *parv[1024], default_path[PATH_MAX];
+  char *c, *err, tmpbuf[2048], *parv[1024], default_path[PATH_NAME_MAX];
   char *new_argv[1024];
   int idx = 0, retcode = 0;
   int parc = 0;
@@ -1637,12 +1623,12 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     const char *plugin_default_path = TSPluginDirGet();
 
     // Try with the plugin path instead
-    if (strlen(c) + strlen(plugin_default_path) > (PATH_MAX - 1)) {
+    if (strlen(c) + strlen(plugin_default_path) > (PATH_NAME_MAX - 1)) {
       Debug("remap_plugin", "way too large a path specified for remap plugin");
       return -3;
     }
 
-    snprintf(default_path, PATH_MAX, "%s/%s", plugin_default_path, c);
+    snprintf(default_path, PATH_NAME_MAX, "%s/%s", plugin_default_path, c);
     Debug("remap_plugin", "attempting to stat default plugin path: %s", default_path);
 
     if (stat(default_path, &stat_buf) == 0) {
@@ -1666,7 +1652,7 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     Debug("remap_plugin", "New remap plugin info created for \"%s\"", c);
 
     if ((pi->dlh = dlopen(c, RTLD_NOW)) == NULL) {
-#if defined(freebsd)
+#if defined(freebsd) || defined(openbsd)
       err = (char *)dlerror();
 #else
       err = dlerror();
@@ -1719,15 +1705,15 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
     snprintf(errbuf, errbufsize, "Can't load fromURL from URL class");
     return -7;
   }
-  parv[parc++] = xstrdup(err);
-  xfree(err);
+  parv[parc++] = ats_strdup(err);
+  ats_free(err);
 
   if ((err = mp->toUrl.string_get(NULL)) == NULL) {
     snprintf(errbuf, errbufsize, "Can't load toURL from URL class");
     return -7;
   }
-  parv[parc++] = xstrdup(err);
-  xfree(err);
+  parv[parc++] = ats_strdup(err);
+  ats_free(err);
 
   bool plugin_encountered = false;
   // how many plugin parameters we have for this remapping
@@ -1764,8 +1750,8 @@ UrlRewrite::load_remap_plugin(char *argv[], int argc, url_mapping *mp, char *err
 
   Debug("remap_plugin", "done creating new plugin instance");
 
-  xfree(parv[0]);               // fromURL
-  xfree(parv[1]);               // toURL
+  ats_free(parv[0]);               // fromURL
+  ats_free(parv[1]);               // toURL
 
   if (res != TS_SUCCESS) {
     snprintf(errbuf, errbufsize, "Can't create new remap instance for plugin \"%s\" - %s", c,
@@ -1790,10 +1776,10 @@ UrlRewrite::_mappingLookup(MappingsStore &mappings, URL *request_url,
                            int request_port, const char *request_host, int request_host_len,
                            UrlMappingContainer &mapping_container)
 {
-  char request_host_lower[256];
+  char request_host_lower[TS_MAX_HOST_NAME_LEN];
 
   if (!request_host || !request_url ||
-      (request_host_len < 0) || (request_host_len >= 256)) {
+      (request_host_len < 0) || (request_host_len >= TS_MAX_HOST_NAME_LEN)) {
     Debug("url_rewrite", "Invalid arguments!");
     return false;
   }
@@ -1969,7 +1955,7 @@ UrlRewrite::_destroyList(RegexMappingList &mappings)
       pcre_free(list_iter->re_extra);
     }
     if (list_iter->to_url_host_template) {
-      ink_free(list_iter->to_url_host_template);
+      ats_free(list_iter->to_url_host_template);
     }
     delete list_iter;
   }
@@ -2003,7 +1989,7 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
   // as this one will be NULL-terminated (required by pcre_compile)
   reg_map->re = pcre_compile(from_host_lower, 0, &str, &str_index, NULL);
   if (reg_map->re == NULL) {
-	Warning("pcre_compile failed! Regex has error starting at %s", from_host_lower + str_index);
+    Warning("pcre_compile failed! Regex has error starting at %s", from_host_lower + str_index);
     goto lFail;
   }
 
@@ -2020,7 +2006,7 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
   }
   if (n_captures >= MAX_REGEX_SUBS) { // off by one for $0 (implicit capture)
     Warning("Regex has %d capturing subpatterns (including entire regex); Max allowed: %d",
-          n_captures + 1, MAX_REGEX_SUBS);
+            n_captures + 1, MAX_REGEX_SUBS);
     goto lFail;
   }
 
@@ -2029,7 +2015,7 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
     if (to_host[i] == '$') {
       if (substitution_count > MAX_REGEX_SUBS) {
         Warning("Cannot have more than %d substitutions in mapping with host [%s]",
-              MAX_REGEX_SUBS, from_host_lower);
+                MAX_REGEX_SUBS, from_host_lower);
         goto lFail;
       }
       substitution_id = to_host[i + 1] - '0';
@@ -2049,7 +2035,7 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
   // in this buffer
   str = new_mapping->toUrl.host_get(&str_index); // reusing str and str_index
   reg_map->to_url_host_template_len = str_index;
-  reg_map->to_url_host_template = static_cast<char *>(ink_malloc(str_index));
+  reg_map->to_url_host_template = static_cast<char *>(ats_malloc(str_index));
   memcpy(reg_map->to_url_host_template, str, str_index);
 
   return true;
@@ -2064,7 +2050,7 @@ UrlRewrite::_processRegexMappingConfig(const char *from_host_lower, url_mapping 
     reg_map->re_extra = NULL;
   }
   if (reg_map->to_url_host_template) {
-    ink_free(reg_map->to_url_host_template);
+    ats_free(reg_map->to_url_host_template);
     reg_map->to_url_host_template = NULL;
     reg_map->to_url_host_template_len = 0;
   }

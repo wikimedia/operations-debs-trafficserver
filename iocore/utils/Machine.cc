@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  Support class for describing the local machine.
 
   @section license License
 
@@ -24,113 +24,161 @@
 #include "libts.h"
 #include "I_Machine.h"
 
+# if TS_HAVE_IFADDRS_H
+#include <ifaddrs.h>
+# else
+# endif
+
 // Singleton
-static Machine *machine = NULL;
+Machine* Machine::_instance = NULL;
 
-// Moved from HttpTransactHeaders.cc, we should probably move this somewhere ...
-#define H(_x) (((_x)>9)?((_x)-10+'A'):((_x)+'0'))
-int
-nstrhex(char *d, unsigned int i)
-{
-  unsigned char *p = (unsigned char *) &i;
-  d[0] = H(p[0] >> 4);
-  d[1] = H(p[0] & 0xF);
-  d[2] = H(p[1] >> 4);
-  d[3] = H(p[1] & 0xF);
-  d[4] = H(p[2] >> 4);
-  d[5] = H(p[2] & 0xF);
-  d[6] = H(p[3] >> 4);
-  d[7] = H(p[3] & 0xF);
-  return 8;
+Machine*
+Machine::instance() {
+  ink_assert(_instance || !"Machine instance accessed before initialization");
+  return Machine::_instance;
 }
 
-
-// Machine class. TODO: This has to deal with IPv6!
-Machine *
-this_machine()
-{
-  if (machine == NULL) {
-    ink_assert("need to call create_this_machine before accessing" "this_machine()");
-  }
-  return machine;
+Machine*
+Machine::init(char const* name, sockaddr const* ip) {
+  ink_assert(!_instance || !"Machine instance initialized twice.");
+  Machine::_instance = new Machine(name, ip);
+  return Machine::_instance;
 }
 
-void
-create_this_machine(char *hostname, unsigned int ip)
+Machine::Machine(char const* the_hostname, sockaddr const* addr)
+  : hostname(0), hostname_len(0)
+  , ip_string_len(0)
+  , ip_hex_string_len(0)
 {
-  machine = NEW(new Machine(hostname, ip));
-}
+  char localhost[1024];
+  int status; // return for system calls.
 
-Machine::Machine(char *ahostname, unsigned int aip)
-  : hostname(ahostname), ip(aip)
-{
-  if (!aip) {
-    char localhost[1024];
+  ip_string[0] = 0;
+  ip_hex_string[0] = 0;
+  ink_zero(ip);
+  ink_zero(ip4);
+  ink_zero(ip6);
 
-    if (!ahostname) {
-      ink_release_assert(!gethostname(localhost, 1023));
-      ahostname = localhost;
+  localhost[sizeof(localhost)-1] = 0; // ensure termination.
+
+  if (!ats_is_ip(addr)) {
+    if (!the_hostname) {
+      ink_release_assert(!gethostname(localhost, sizeof(localhost)-1));
+      the_hostname = localhost;
     }
-    hostname = xstrdup(ahostname);
+    hostname = ats_strdup(the_hostname);
 
-    ink_gethostbyname_r_data data;
-    struct hostent *r = ink_gethostbyname_r(ahostname, &data);
-
-    if (!r) {
-      Warning("unable to DNS %s: %d", ahostname, data.herrno);
-      ip = 0;
-    } else {
-      ip = (unsigned int) -1;   // 0xFFFFFFFF
-      for (int i = 0; r->h_addr_list[i]; i++) {
-        if (ip > *(unsigned int *) r->h_addr_list[i])
-          ip = *(unsigned int *) r->h_addr_list[i];
+#   if TS_HAVE_IFADDRS_H
+      ifaddrs* ifa_addrs = 0;
+      status = getifaddrs(&ifa_addrs);
+#   else
+      int s = socket(AF_INET, SOCK_DGRAM, 0);
+      // This number is hard to determine, but needs to be much larger than
+      // you would expect. On a normal system with just two interfaces and
+      // one address / interface the return count is 120. Stack space is
+      // cheap so it's best to go big.
+      static const int N_REQ = 1024;
+      ifconf conf;
+      ifreq req[N_REQ];
+      if (0 <= s) {
+        conf.ifc_len = sizeof(req);
+        conf.ifc_req = req;
+        status = ioctl(s, SIOCGIFCONF, &conf);
+        close(s);
+      } else {
+        status = -1;
       }
-      if (ip == (unsigned int) -1)
-        ip = 0;
+#   endif
+
+    if (0 != status) {
+      Warning("Unable to determine local host '%s' address information - %s"
+        , hostname
+        , strerror(errno)
+      );
+    } else {
+      // Loop through the interface addresses and prefer by type.
+      enum {
+        NA, // Not an (IP) Address.
+        LO, // Loopback.
+        NR, // Non-Routable.
+        MC, // Multicast.
+        GA  // Globally unique Address.
+      } spot_type = NA, ip4_type = NA, ip6_type = NA;
+      sockaddr const* ifip;
+      for (
+#     if TS_HAVE_IFADDRS_H
+        ifaddrs* spot = ifa_addrs ; spot ; spot = spot->ifa_next
+#     else
+          ifreq* spot = req, *req_limit = req + (conf.ifc_len/sizeof(*req)) ; spot < req_limit ; ++spot
+#     endif
+      ) {
+#     if TS_HAVE_IFADDRS_H
+        ifip = spot->ifa_addr;
+#     else
+        ifip = &spot->ifr_addr;
+#     endif
+
+        if (!ats_is_ip(ifip)) spot_type = NA;
+        else if (ats_is_ip_loopback(ifip)) spot_type = LO;
+        else if (ats_is_ip_nonroutable(ifip)) spot_type = NR;
+        else if (ats_is_ip_multicast(ifip)) spot_type = MC;
+        else spot_type = GA;
+
+        if (spot_type == NA) continue; // Next!
+
+        if (ats_is_ip4(ifip)) {
+          if (spot_type > ip4_type) {
+            ats_ip_copy(&ip4, ifip);
+            ip4_type = spot_type;
+          }
+        } else if (ats_is_ip6(ifip)) {
+          if (spot_type > ip6_type) {
+            ats_ip_copy(&ip6, ifip);
+            ip6_type = spot_type;
+          }
+        }
+      }
+
+#     if TS_HAVE_IFADDRS_H
+      freeifaddrs(ifa_addrs);
+#     endif
+
+      // What about the general address? Prefer IPv4?
+      if (ip4_type >= ip6_type)
+        ats_ip_copy(&ip.sa, &ip4.sa);
+      else
+        ats_ip_copy(&ip.sa, &ip6.sa);
     }
-    //ip = htonl(ip); for the alpha! TODO
-  } else {
-    ip = aip;
+  } else { // address provided.
+    ats_ip_copy(&ip, addr);
+    if (ats_is_ip4(addr)) ats_ip_copy(&ip4, addr);
+    else if (ats_is_ip6(addr)) ats_ip_copy(&ip6, addr);
 
-    ink_gethostbyaddr_r_data data;
-    struct hostent *r = ink_gethostbyaddr_r((char *) &ip, sizeof(int), AF_INET, &data);
+    status = getnameinfo(
+      addr, ats_ip_size(addr),
+      localhost, sizeof(localhost) - 1,
+      0, 0, // do not request service info
+      0 // no flags.
+    );
 
-    if (r == NULL) {
-      unsigned char x[4];
-
-      memset(x, 0, sizeof(x));
-      *(uint32_t *) & x = (uint32_t) ip;
-      Debug("machine_debug", "unable to reverse DNS %hhu.%hhu.%hhu.%hhu: %d", x[0], x[1], x[2], x[3], data.herrno);
+    if (0 != status) {
+      ip_text_buffer ipbuff;
+      Warning("Failed to find hostname for address '%s' - %s"
+        , ats_ip_ntop(addr, ipbuff, sizeof(ipbuff))
+        , gai_strerror(status)
+      );
     } else
-      hostname = xstrdup(r->h_name);
+      hostname = ats_strdup(localhost);
   }
 
-  if (hostname)
-    hostname_len = strlen(hostname);
-  else
-    hostname_len = 0;
+  hostname_len = hostname ? strlen(hostname) : 0;
 
-  unsigned char x[4];
-
-  memset(x, 0, sizeof(x));
-  *(uint32_t *) & x = (uint32_t) ip;
-  const size_t ip_string_size = sizeof(char) * 16;
-  ip_string = (char *) xmalloc(ip_string_size);
-  snprintf(ip_string, ip_string_size, "%hhu.%hhu.%hhu.%hhu", x[0], x[1], x[2], x[3]);
+  ats_ip_ntop(&ip.sa, ip_string, sizeof(ip_string));
   ip_string_len = strlen(ip_string);
-
-  ip_hex_string = (char*)xmalloc(9);
-  memset(ip_hex_string, 0, 9);
-  nstrhex(ip_hex_string, ip);
-  ip_hex_string_len = strlen(ip_hex_string);
+  ip_hex_string_len = ats_ip_to_hex(&ip.sa, ip_hex_string, sizeof(ip_hex_string));
 }
 
 Machine::~Machine()
 {
-  if (hostname)
-    xfree(hostname);
-  if (ip_string)
-    xfree(ip_string);
-  if (ip_hex_string)
-    xfree(ip_hex_string);
+  ats_free(hostname);
 }

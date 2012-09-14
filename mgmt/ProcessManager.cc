@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  File contains the member function defs and thread loop for the process manager.
 
   @section license License
 
@@ -21,16 +21,6 @@
   limitations under the License.
  */
 
-/*
- *
- * ProcessManager.cc
- *   The Process Manager of the management system. File contains the
- * member function defs and thread loop for the process manager.
- *
- * $Date: 2007-10-05 16:56:44 $
- *
- *
- */
 
 #include "libts.h"
 #undef HTTP_CACHE
@@ -85,7 +75,7 @@ ProcessManager::ProcessManager(bool rlm, char *mpath):
 BaseManager(), require_lm(rlm), mgmt_sync_key(0), local_manager_sockfd(0)
 {
   NOWARN_UNUSED(mpath);
-  ink_strncpy(pserver_path, Layout::get()->runtimedir, sizeof(pserver_path));
+  ink_strlcpy(pserver_path, Layout::get()->runtimedir, sizeof(pserver_path));
   mgmt_signal_queue = create_queue();
 
   // Set temp. process/manager timeout. Will be reconfigure later.
@@ -121,7 +111,7 @@ ProcessManager::signalManager(int msg_id, const char *data_raw, int data_len)
 
   MgmtMessageHdr *mh;
 
-  mh = (MgmtMessageHdr *) xmalloc(sizeof(MgmtMessageHdr) + data_len);
+  mh = (MgmtMessageHdr *)ats_malloc(sizeof(MgmtMessageHdr) + data_len);
   mh->msg_id = msg_id;
   mh->data_len = data_len;
   memcpy((char *) mh + sizeof(MgmtMessageHdr), data_raw, data_len);
@@ -149,7 +139,7 @@ ProcessManager::processEventQueue()
       mgmt_log(stderr, "[ProcessManager::processEventQueue] Shutdown msg received, exiting\n");
       _exit(0);
     }                           /* Exit on shutdown */
-    xfree(mh);
+    ats_free(mh);
     ret = true;
   }
   return ret;
@@ -166,18 +156,11 @@ ProcessManager::processSignalQueue()
 
     Debug("pmgmt", "[ProcessManager] ==> Signalling local manager '%d'\n", mh->msg_id);
 
-#ifndef _WIN32
     if (require_lm && mgmt_write_pipe(local_manager_sockfd, (char *) mh, sizeof(MgmtMessageHdr) + mh->data_len) <= 0) {
-#else
-
-#error "[ewong] need to port the new messaging mechanism to windows!"
-
-    if (require_lm && mgmt_write_pipe(local_manager_hpipe, tmp, strlen(tmp)) != 0) {
-#endif
       mgmt_fatal(stderr, "[ProcessManager::processSignalQueue] Error writing message!");
       //ink_assert(enqueue(mgmt_signal_queue, mh));
     } else {
-      xfree(mh);
+      ats_free(mh);
       ret = true;
     }
   }
@@ -196,7 +179,6 @@ ProcessManager::initLMConnection()
   int data_len;
   char *sync_key_raw = NULL;
 
-#ifndef _WIN32
   int servlen;
   struct sockaddr_un serv_addr;
 
@@ -205,7 +187,7 @@ ProcessManager::initLMConnection()
   serv_addr.sun_family = AF_UNIX;
 
   snprintf(message, sizeof(message), "%s/%s", pserver_path, LM_CONNECTION_SERVER);
-  ink_strncpy(serv_addr.sun_path, message, sizeof(serv_addr.sun_path));
+  ink_strlcpy(serv_addr.sun_path, message, sizeof(serv_addr.sun_path));
 #if defined(darwin) || defined(freebsd)
   servlen = sizeof(sockaddr_un);
 #else
@@ -245,27 +227,7 @@ ProcessManager::initLMConnection()
     }
   }
 
-#else
 
-#error "[ewong] need to port the new messaging mechanism to windows!"
-
-  sprintf(message, "\\\\.\\pipe\\traffic_server_%s", LM_CONNECTION_SERVER);
-  local_manager_hpipe = CreateFile(message, GENERIC_READ | GENERIC_WRITE,
-                                   0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED | FILE_ATTRIBUTE_NORMAL, NULL);
-
-  if (local_manager_hpipe == INVALID_HANDLE_VALUE) {
-    mgmt_fatal(stderr, "[ProcessManager::initLMConnection] Error opening named pipe: %s\n", ink_last_err());
-  }
-
-  sprintf(message, "pid: %ld", pid);
-  if (mgmt_write_pipe(local_manager_hpipe, message, strlen(message)) != 0) {
-    mgmt_fatal(stderr, "[ProcessManager::initLMConnection] Error writing message! %s\n", ink_last_err());
-  }
-
-  if (mgmt_read_pipe(local_manager_hpipe, message, 1024) < 0) {
-    mgmt_fatal(stderr, "[ProcessManager::initLMConnection] Error reading sem message! %s\n", ink_last_err());
-  }
-#endif
 
   if (sync_key_raw)
     memcpy(&mgmt_sync_key, sync_key_raw, sizeof(mgmt_sync_key));
@@ -284,7 +246,6 @@ ProcessManager::pollLMConnection()
   MgmtMessageHdr *mh_full;
   char *data_raw;
 
-#ifndef _WIN32
   int num;
   fd_set fdlist;
 
@@ -327,32 +288,6 @@ ProcessManager::pollLMConnection()
     }
 
   }
-#else
-
-#error "[ewong] need to port the new messaging mechanism to windows!"
-
-  char message[1024];
-  DWORD bytesAvail = 0;
-  BOOL status = PeekNamedPipe(local_manager_hpipe, NULL, 0, NULL, &bytesAvail, NULL);
-
-  if (status != FALSE && bytesAvail != 0) {
-    res = mgmt_read_pipe(local_manager_hpipe, message, 1024);
-
-    if (res < 0) {              /* Error */
-      status = FALSE;
-    } else {
-      Debug("pmgmt", "[ProcessManager::pollLMConnection] Message: '%s'\n", message);
-      handleMgmtMsgFromLM(message);
-    }
-  } else {
-    // avoid tight poll loop -- select() in Unix version above times out if no data.
-    mgmt_sleep_msec(poll_timeout.tv_sec * 1000 + poll_timeout.tv_usec / 1000);
-  }
-  if (status == FALSE) {
-    CloseHandle(local_manager_hpipe);
-    mgmt_fatal(stderr, "[ProcessManager::pollLMConnection] Lost Manager! %s\n", ink_last_err());
-  }
-#endif // !_WIN32
 
 }                               /* End ProcessManager::pollLMConnection */
 

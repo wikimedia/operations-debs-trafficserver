@@ -58,15 +58,17 @@ subdir = lib/ts
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/ink_autoconf.h.in $(srcdir)/ink_config.h.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/common.m4 \
-	$(top_srcdir)/build/crypto.m4 $(top_srcdir)/build/libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
+	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -97,21 +99,24 @@ am__base_list = \
 am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtsutil_la_DEPENDENCIES = @LIBOBJS@
-am_libtsutil_la_OBJECTS = Allocator.lo Arena.lo Bitops.lo Diags.lo \
-	HostLookup.lo ink_args.lo ink_assert.lo ink_auth_api.lo \
-	ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo \
-	ink_file.lo ink_hash_table.lo ink_hrtime.lo ink_inet.lo \
-	ink_isolatin_table.lo ink_killall.lo ink_memory.lo \
-	ink_mutex.lo ink_queue.lo ink_queue_utils.lo ink_rand.lo \
-	ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
+am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo Diags.lo HostLookup.lo \
+	ink_args.lo ink_assert.lo ink_auth_api.lo ink_base64.lo \
+	ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo ink_file.lo \
+	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_killall.lo \
+	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_utils.lo \
+	ink_rand.lo ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
 	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
 	ink_string.lo ink_string++.lo ink_sys_control.lo ink_syslog.lo \
 	ink_thread.lo ink_time.lo fastlz.lo llqueue.lo lockfile.lo \
-	Layout.lo MatcherUtils.lo MimeTable.lo MMH.lo ParseRules.lo \
-	RawHashTable.lo Regex.lo Regression.lo Resource.lo \
-	TextBuffer.lo Tokenizer.lo Vec.lo Version.lo
+	IpMap.lo IpMapConf.lo IpMapTest.lo Layout.lo MatcherUtils.lo \
+	MimeTable.lo MMH.lo ParseRules.lo RawHashTable.lo Regex.lo \
+	Regression.lo Resource.lo TextBuffer.lo Tokenizer.lo Vec.lo \
+	Version.lo
 libtsutil_la_OBJECTS = $(am_libtsutil_la_OBJECTS)
-libtsutil_la_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
+AM_V_lt = $(am__v_lt_$(V))
+am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
+am__v_lt_0 = --silent
+libtsutil_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(libtsutil_la_LDFLAGS) $(LDFLAGS) -o $@
 PROGRAMS = $(noinst_PROGRAMS)
@@ -127,49 +132,76 @@ test_List_LDADD = $(LDADD)
 am_test_Map_OBJECTS = test_Map.$(OBJEXT)
 test_Map_OBJECTS = $(am_test_Map_OBJECTS)
 test_Map_DEPENDENCIES = libtsutil.la
+test_Map_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(test_Map_LDFLAGS) $(LDFLAGS) -o $@
 am_test_Vec_OBJECTS = test_Vec.$(OBJEXT)
 test_Vec_OBJECTS = $(am_test_Vec_OBJECTS)
 test_Vec_DEPENDENCIES = libtsutil.la
+test_Vec_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(test_Vec_LDFLAGS) $(LDFLAGS) -o $@
 am_test_arena_OBJECTS = test_arena.$(OBJEXT)
 test_arena_OBJECTS = $(am_test_arena_OBJECTS)
 test_arena_DEPENDENCIES = libtsutil.la
-test_arena_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
+test_arena_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(test_arena_LDFLAGS) $(LDFLAGS) -o $@
 am_test_atomic_OBJECTS = test_atomic.$(OBJEXT)
 test_atomic_OBJECTS = $(am_test_atomic_OBJECTS)
 test_atomic_DEPENDENCIES = libtsutil.la
-test_atomic_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
+test_atomic_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(test_atomic_LDFLAGS) $(LDFLAGS) -o $@
 am_test_freelist_OBJECTS = test_freelist.$(OBJEXT)
 test_freelist_OBJECTS = $(am_test_freelist_OBJECTS)
 test_freelist_DEPENDENCIES = libtsutil.la
-test_freelist_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_freelist_LDFLAGS) $(LDFLAGS) -o $@
+test_freelist_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_freelist_LDFLAGS) $(LDFLAGS) \
+	-o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-LTCOMPILE = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 CCLD = $(CC)
-LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
-	$(LDFLAGS) -o $@
+LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
-LTCXXCOMPILE = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CXXFLAGS) $(CXXFLAGS)
+AM_V_CXX = $(am__v_CXX_$(V))
+am__v_CXX_ = $(am__v_CXX_$(AM_DEFAULT_VERBOSITY))
+am__v_CXX_0 = @echo "  CXX   " $@;
 CXXLD = $(CXX)
-CXXLINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
-	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
-	$(LDFLAGS) -o $@
+CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CXXLD = $(am__v_CXXLD_$(V))
+am__v_CXXLD_ = $(am__v_CXXLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CXXLD_0 = @echo "  CXXLD " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
 	$(test_Vec_SOURCES) $(test_arena_SOURCES) \
@@ -188,6 +220,7 @@ pkglibdir = @pkglibdir@
 pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -241,10 +274,10 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBDEMANGLE = @LIBDEMANGLE@
 LIBDL = @LIBDL@
-LIBEV = @LIBEV@
 LIBEXC = @LIBEXC@
 LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
+LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
@@ -281,6 +314,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PCRE_CONFIG = @PCRE_CONFIG@
 PERL = @PERL@
 RANLIB = @RANLIB@
 RM = @RM@
@@ -311,6 +345,7 @@ TS_VERSION_NUMBER = @TS_VERSION_NUMBER@
 TS_VERSION_STRING = @TS_VERSION_STRING@
 VERSION = @VERSION@
 YACC = @YACC@
+YACCBIN = @YACCBIN@
 YFLAGS = @YFLAGS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -327,6 +362,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -356,6 +392,7 @@ execinfoh = @execinfoh@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
 exp_datadir = @exp_datadir@
+exp_docdir = @exp_docdir@
 exp_exec_prefix = @exp_exec_prefix@
 exp_includedir = @exp_includedir@
 exp_infodir = @exp_infodir@
@@ -377,17 +414,19 @@ has_backtrace = @has_backtrace@
 has_clock_gettime = @has_clock_gettime@
 has_demangle = @has_demangle@
 has_eventfd = @has_eventfd@
+has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_inkapi = @has_inkapi@
+has_ip_tos = @has_ip_tos@
 has_lrand48_r = @has_lrand48_r@
 has_posix_fadvise = @has_posix_fadvise@
 has_posix_memalign = @has_posix_memalign@
 has_profiler = @has_profiler@
-has_purify = @has_purify@
+has_so_mark = @has_so_mark@
 has_srand48_r = @has_srand48_r@
 has_standalone_iocore = @has_standalone_iocore@
 has_strlcat = @has_strlcat@
 has_strlcpy = @has_strlcpy@
-has_strndup = @has_strndup@
+has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
 host = @host@
@@ -396,6 +435,7 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
+ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
 ink_with_modules_def = @ink_with_modules_def@
@@ -406,6 +446,7 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 is_micro_build = @is_micro_build@
+jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
 libgenh = @libgenh@
@@ -418,6 +459,9 @@ malloch = @malloch@
 mandir = @mandir@
 mathh = @mathh@
 max_api_stats = @max_api_stats@
+max_event_threads = @max_event_threads@
+max_host_name_len = @max_host_name_len@
+max_threads_per_type = @max_threads_per_type@
 mkdir_p = @mkdir_p@
 need_union_semun = @need_union_semun@
 net_ppp_defsh = @net_ppp_defsh@
@@ -433,6 +477,7 @@ pcreh = @pcreh@
 pdfdir = @pdfdir@
 pkgbindir = @pkgbindir@
 pkgcachedir = @pkgcachedir@
+pkgdocdir = @pkgdocdir@
 pkglocalstatedir = @pkglocalstatedir@
 pkglogdir = @pkglogdir@
 pkgruntimedir = @pkgruntimedir@
@@ -443,9 +488,11 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
 rel_datadir = @rel_datadir@
+rel_docdir = @rel_docdir@
 rel_exec_prefix = @rel_exec_prefix@
 rel_includedir = @rel_includedir@
 rel_infodir = @rel_infodir@
@@ -484,27 +531,29 @@ top_srcdir = @top_srcdir@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
+use_freelist = @use_freelist@
+use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
-use_libev = @use_libev@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
+use_tls_npn = @use_tls_npn@
+use_tls_sni = @use_tls_sni@
 use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
 TESTS = $(check_PROGRAMS)
+AM_CPPFLAGS = -I$(top_srcdir)/lib
 lib_LTLIBRARIES = libtsutil.la
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
-libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ -lc
+libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ @LIBHWLOC@ -lc
 libtsutil_la_SOURCES = \
-  Allocator.cc \
   Allocator.h \
   Arena.cc \
   Arena.h \
   Bitops.cc \
   Bitops.h \
   Compatability.h \
-  DAllocator.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
@@ -542,8 +591,6 @@ libtsutil_la_SOURCES = \
   ink_inet.cc \
   ink_inet.h \
   ink_inout.h \
-  ink_isolatin_table.cc \
-  ink_isolatin_table.h \
   ink_killall.cc \
   ink_killall.h \
   ink_llqueue.h \
@@ -595,6 +642,8 @@ libtsutil_la_SOURCES = \
   llqueue.cc \
   lockfile.cc \
   I_Layout.h \
+  IntrusiveDList.h \
+  IpMap.h IpMap.cc IpMapConf.h IpMapConf.cc IpMapTest.cc \
   Layout.cc \
   MatcherUtils.cc \
   MatcherUtils.h \
@@ -625,19 +674,21 @@ libtsutil_la_SOURCES = \
 
 mkdfa_SOURCES = mkdfa.c
 test_atomic_SOURCES = test_atomic.cc
-test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
 test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_freelist_SOURCES = test_freelist.cc
-test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
 test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_arena_SOURCES = test_arena.cc
-test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@
+test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
 test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
-test_Map_LDADD = libtsutil.la
+test_Map_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Vec_SOURCES = test_Vec.cc
-test_Vec_LDADD = libtsutil.la
+test_Vec_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 CompileParseRules_SOURCES = CompileParseRules.cc
 all: ink_autoconf.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
@@ -725,7 +776,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libtsutil.la: $(libtsutil_la_OBJECTS) $(libtsutil_la_DEPENDENCIES) 
-	$(libtsutil_la_LINK) -rpath $(libdir) $(libtsutil_la_OBJECTS) $(libtsutil_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(libtsutil_la_LINK) -rpath $(libdir) $(libtsutil_la_OBJECTS) $(libtsutil_la_LIBADD) $(LIBS)
 
 clean-checkPROGRAMS:
 	@list='$(check_PROGRAMS)'; test -n "$$list" || exit 0; \
@@ -746,28 +797,28 @@ clean-noinstPROGRAMS:
 	rm -f $$list
 CompileParseRules$(EXEEXT): $(CompileParseRules_OBJECTS) $(CompileParseRules_DEPENDENCIES) 
 	@rm -f CompileParseRules$(EXEEXT)
-	$(CXXLINK) $(CompileParseRules_OBJECTS) $(CompileParseRules_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(CompileParseRules_OBJECTS) $(CompileParseRules_LDADD) $(LIBS)
 mkdfa$(EXEEXT): $(mkdfa_OBJECTS) $(mkdfa_DEPENDENCIES) 
 	@rm -f mkdfa$(EXEEXT)
-	$(LINK) $(mkdfa_OBJECTS) $(mkdfa_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(mkdfa_OBJECTS) $(mkdfa_LDADD) $(LIBS)
 test_List$(EXEEXT): $(test_List_OBJECTS) $(test_List_DEPENDENCIES) 
 	@rm -f test_List$(EXEEXT)
-	$(CXXLINK) $(test_List_OBJECTS) $(test_List_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_List_OBJECTS) $(test_List_LDADD) $(LIBS)
 test_Map$(EXEEXT): $(test_Map_OBJECTS) $(test_Map_DEPENDENCIES) 
 	@rm -f test_Map$(EXEEXT)
-	$(CXXLINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_Map_LINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
 test_Vec$(EXEEXT): $(test_Vec_OBJECTS) $(test_Vec_DEPENDENCIES) 
 	@rm -f test_Vec$(EXEEXT)
-	$(CXXLINK) $(test_Vec_OBJECTS) $(test_Vec_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_Vec_LINK) $(test_Vec_OBJECTS) $(test_Vec_LDADD) $(LIBS)
 test_arena$(EXEEXT): $(test_arena_OBJECTS) $(test_arena_DEPENDENCIES) 
 	@rm -f test_arena$(EXEEXT)
-	$(test_arena_LINK) $(test_arena_OBJECTS) $(test_arena_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_arena_LINK) $(test_arena_OBJECTS) $(test_arena_LDADD) $(LIBS)
 test_atomic$(EXEEXT): $(test_atomic_OBJECTS) $(test_atomic_DEPENDENCIES) 
 	@rm -f test_atomic$(EXEEXT)
-	$(test_atomic_LINK) $(test_atomic_OBJECTS) $(test_atomic_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_atomic_LINK) $(test_atomic_OBJECTS) $(test_atomic_LDADD) $(LIBS)
 test_freelist$(EXEEXT): $(test_freelist_OBJECTS) $(test_freelist_DEPENDENCIES) 
 	@rm -f test_freelist$(EXEEXT)
-	$(test_freelist_LINK) $(test_freelist_OBJECTS) $(test_freelist_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_freelist_LINK) $(test_freelist_OBJECTS) $(test_freelist_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -775,12 +826,14 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Allocator.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Arena.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Bitops.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CompileParseRules.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Diags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HostLookup.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMap.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMapConf.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMapTest.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Layout.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MMH.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MatcherUtils.Plo@am__quote@
@@ -807,7 +860,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hash_table.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hrtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_inet.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_isolatin_table.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_killall.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_memory.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_mutex.Plo@am__quote@
@@ -838,43 +890,49 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_freelist.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
 
 .c.lo:
-@am__fastdepCC_TRUE@	$(LTCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LTCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
 
 .cc.o:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ $<
 
 .cc.obj:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
 .cc.lo:
-@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
+@am__fastdepCXX_FALSE@	$(AM_V_CXX) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LTCXXCOMPILE) -c -o $@ $<
@@ -1183,7 +1241,7 @@ uninstall-am: uninstall-libLTLIBRARIES
 
 
 # Special hacks to generate the parser rules
-ParseRules.cc: ParseRulesCType
+$(srcdir)/ParseRules.cc: ParseRulesCType
 
 ParseRulesCType: CompileParseRules
 	./CompileParseRules

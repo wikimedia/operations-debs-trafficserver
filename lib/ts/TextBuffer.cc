@@ -46,19 +46,17 @@ textBuffer::textBuffer(int size)
       size = 1024;
     }
 
-    bufferStart = (char *) xmalloc(size);
-    if (bufferStart != NULL) {
-      nextAdd = bufferStart;
-      currentSize = size;
-      spaceLeft = size - 1;     // Leave room for a terminator;
-      nextAdd[0] = '\0';
-    }
+    bufferStart = (char *)ats_malloc(size);
+    nextAdd = bufferStart;
+    currentSize = size;
+    spaceLeft = size - 1;     // Leave room for a terminator;
+    nextAdd[0] = '\0';
   }
 }
 
 textBuffer::~textBuffer()
 {
-  xfree(bufferStart);
+  ats_free(bufferStart);
 }
 
 // void textBuffer::reUse()
@@ -127,7 +125,7 @@ textBuffer::enlargeBuffer(int N)
       newSize *= 2;
     }
 
-    newSpace = (char *) xrealloc(bufferStart, newSize);
+    newSpace = (char *)ats_realloc(bufferStart, newSize);
     if (newSpace != NULL) {
       nextAdd = newSpace + (unsigned int) (nextAdd - bufferStart);
       bufferStart = newSpace;

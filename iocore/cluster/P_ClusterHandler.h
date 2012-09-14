@@ -83,7 +83,7 @@ struct ClusterControl: public Continuation
 
 struct OutgoingControl: public ClusterControl
 {
-  ClusterMachine *m;
+  ClusterHandler *ch;
   ink_hrtime submit_time;
 
   static OutgoingControl *alloc();
@@ -176,9 +176,9 @@ struct Descriptor
 
   inline void SwapBytes()
   {
-    swap16((uint16_t *) this);    // Hack
-    swap16((uint16_t *) & sequence_number);
-    swap32((uint32_t *) & length);
+    ats_swap16((uint16_t *) this);    // Hack
+    ats_swap16((uint16_t *) & sequence_number);
+    ats_swap32((uint32_t *) & length);
   }
 };
 
@@ -205,12 +205,12 @@ struct ClusterMsgHeader
   }
   inline void SwapBytes()
   {
-    swap16((uint16_t *) & count);
-    swap16((uint16_t *) & descriptor_cksum);
-    swap16((uint16_t *) & control_bytes_cksum);
-    swap16((uint16_t *) & unused);
-    swap32((uint32_t *) & control_bytes);
-    swap32((uint32_t *) & count_check);
+    ats_swap16((uint16_t *) & count);
+    ats_swap16((uint16_t *) & descriptor_cksum);
+    ats_swap16((uint16_t *) & control_bytes_cksum);
+    ats_swap16((uint16_t *) & unused);
+    ats_swap32((uint32_t *) & control_bytes);
+    ats_swap32((uint32_t *) & count_check);
   }
 };
 
@@ -430,6 +430,9 @@ struct ClusterHandler:public ClusterHandlerBase
   char *hostname;
   ClusterMachine *machine;
   int ifd;
+  int id;
+  bool dead;
+  bool downing;
 
   int32_t active;                 // handler currently running
   bool on_stolen_thread;

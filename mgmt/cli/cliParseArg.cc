@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  contains the implementation for parsing CLI arguments
 
   @section license License
 
@@ -19,20 +19,15 @@
   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   See the License for the specific language governing permissions and
   limitations under the License.
+
+  @section Description
+  cliParseArgument(int argc,char **argv,cli_ArgvInfo *argTable)
+  compares the given arguments with the expected arguments and
+  returns error if they are not same
+  If arguments are are valid it converts string arguments to the proper type
  */
 
 
-/*cliParseArgument.c
-
- *
- *      cliParseArgument(int argc,char **argv,cli_ArgvInfo *argTable)
- *      compares the given arguments with the expected arguments and
- *      returns error if they are not same
- *      If arguments are are valid it converts string arguments to the proper type
- *
- *
- *      Date : 12/11/00
- */
 
 
 #include <tcl.h>
@@ -129,12 +124,12 @@ cliParseArgument(int argc, const char **argv, cli_CommandInfo * commandInfo)
     parsedArgTable[i].arg_int = CLI_DEFAULT_INT_OR_FLOAT_VALUE;
 
     if (parsedArgTable[i].data && (parsedArgTable[i].data != (char *) NULL)) {
-      free(parsedArgTable[i].data);
+      ats_free(parsedArgTable[i].data);
       parsedArgTable[i].data = (char *) NULL;
 
     }
     if (parsedArgTable[i].arg_string && parsedArgTable[i].arg_string != (char *) NULL) {
-      free(parsedArgTable[i].arg_string);
+      ats_free(parsedArgTable[i].arg_string);
       parsedArgTable[i].arg_string = (char *) NULL;
     }
   }
@@ -143,7 +138,7 @@ cliParseArgument(int argc, const char **argv, cli_CommandInfo * commandInfo)
   parsedInfoPtr = parsedArgTable;
   srcIndex = 1;
   while (argc > 0) {
-    ink_strncpy(curArg, argv[srcIndex], sizeof(curArg));
+    ink_strlcpy(curArg, argv[srcIndex], sizeof(curArg));
     argc--;
     srcIndex++;
     length = strlen(curArg);
@@ -178,7 +173,7 @@ cliParseArgument(int argc, const char **argv, cli_CommandInfo * commandInfo)
         if (prevMatchPtr != NULL && prevPtr == prevMatchPtr) {
           if (prevMatchPtr->type == CLI_ARGV_OPTION_NAME_VALUE) {
             if (prev_parsedInfoPtr->arg_string) {
-              free(prev_parsedInfoPtr->arg_string);
+              ats_free(prev_parsedInfoPtr->arg_string);
               prev_parsedInfoPtr->arg_string = NULL;
             }
           }
@@ -253,14 +248,14 @@ cliParseArgument(int argc, const char **argv, cli_CommandInfo * commandInfo)
             Tcl_AppendResult(interp, "\"", curArg, "\" option requires an additional argument", (char *) NULL);
             return TCL_ERROR;
           }
-          parsedInfoPtr->arg_string = xstrdup(argv[srcIndex]);
+          parsedInfoPtr->arg_string = ats_strdup(argv[srcIndex]);
           parsedInfoPtr->parsed_args = infoPtr->arg_ref;
           srcIndex++;
           argc--;
           break;
         case CLI_ARGV_OPTION_NAME_VALUE:
           if (argc > 0) {
-            parsedInfoPtr->arg_string = xstrdup(argv[srcIndex]);
+            parsedInfoPtr->arg_string = ats_strdup(argv[srcIndex]);
           }
           parsedInfoPtr->parsed_args = infoPtr->arg_ref;
           break;
@@ -361,13 +356,13 @@ cliParseArgument(int argc, const char **argv, cli_CommandInfo * commandInfo)
 
 
         if (prevMatchPtr->type != CLI_ARGV_OPTION_NAME_VALUE) {
-          parsedInfoPtr->data = xstrdup(curArg);
+          parsedInfoPtr->data = ats_strdup(curArg);
           parsedInfoPtr->parsed_args = CLI_PARSED_ARGV_DATA;
         } else
           parsedInfoPtr--;
 
       } else {
-        parsedInfoPtr->data = xstrdup(curArg);
+        parsedInfoPtr->data = ats_strdup(curArg);
         parsedInfoPtr->parsed_args = CLI_PARSED_ARGV_DATA;
       }
     }

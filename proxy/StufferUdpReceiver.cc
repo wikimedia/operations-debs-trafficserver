@@ -302,13 +302,7 @@ main(int argc, char *argv[])
 
   stream_hash_table = new StreamHashTable(257);
 
-  char *pkt_buf = (char *) malloc(UDP_BUF_SIZE);
-
-  if (!pkt_buf) {
-    perror("malloc()");
-    return 0;
-  }
-
+  char *pkt_buf = (char *)ats_malloc(UDP_BUF_SIZE);
   int fd = socket(PF_INET, SOCK_DGRAM, 0);
 
   struct sockaddr_in saddr;
@@ -318,7 +312,7 @@ main(int argc, char *argv[])
 
   if ((bind(fd, (struct sockaddr *) &saddr, sizeof(saddr))) < 0) {
     perror("bind(udp_fd)");
-    free(pkt_buf);
+    ats_free(pkt_buf);
     return 0;
   }
 
@@ -337,5 +331,5 @@ main(int argc, char *argv[])
       stream_hash_table->deleteStaleStreams(now);
   }
 
-  free(pkt_buf);
+  ats_free(pkt_buf);
 }

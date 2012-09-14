@@ -605,7 +605,7 @@ hostArray::~hostArray()
   for (int i = 0; i < num_el; i++) {
     ink_assert(branch_array[i] != NULL);
     ink_assert(match_data[i] != NULL);
-    xfree(match_data[i]);
+    ats_free(match_data[i]);
   }
 }
 
@@ -622,7 +622,7 @@ hostArray::Insert(const char *match_data_in, HostBranch * toInsert)
     return false;
   } else {
     branch_array[num_el] = toInsert;
-    match_data[num_el] = xstrdup(match_data_in);
+    match_data[num_el] = ats_strdup(match_data_in);
     num_el++;
     return true;
   }
@@ -791,7 +791,7 @@ HostLookup::~HostLookup()
   if (leaf_array != NULL) {
     // Free up the match strings
     for (int i = 0; i < num_el; i++) {
-      xfree(leaf_array[i].match);
+      ats_free(leaf_array[i].match);
     }
     delete[]leaf_array;
   }
@@ -1045,7 +1045,7 @@ HostLookup::TableInsert(const char *match_data, int index, bool domain_record)
 {
   HostBranch *cur = this->root;
   HostBranch *next;
-  char *match_copy = xstrdup(match_data);
+  char *match_copy = ats_strdup(match_data);
   Tokenizer match_tok(".");
   int numTok;
   int i;
@@ -1110,7 +1110,7 @@ HostLookup::TableInsert(const char *match_data, int index, bool domain_record)
   //   HOST_BRANCH
   cur->leaf_indexs(cur->leaf_indexs.length()) = index;
 
-  xfree(match_copy);
+  ats_free(match_copy);
 }
 
 // bool HostLookup::MatchArray(HostLookupState* s, void**opaque_ptr, DynArray<int>& array,
@@ -1186,7 +1186,7 @@ HostLookup::MatchFirst(const char *host, HostLookupState * s, void **opaque_ptr)
   s->table_level = 0;
   s->array_index = -1;
   s->hostname = host ? host : "";
-  s->host_copy = xstrdup(s->hostname);
+  s->host_copy = ats_strdup(s->hostname);
   LowerCaseStr(s->host_copy);
 
   // Find the top level domain in the host copy
@@ -1314,7 +1314,7 @@ HostLookup::NewEntry(const char *match_data, bool domain_record, void *opaque_da
   // Make sure we do not overrun the array;
   ink_assert(num_el < array_len);
 
-  leaf_array[num_el].match = xstrdup(match_data);
+  leaf_array[num_el].match = ats_strdup(match_data);
   leaf_array[num_el].opaque_data = opaque_data_in;
 
   if ('!' != *(leaf_array[num_el].match)) {

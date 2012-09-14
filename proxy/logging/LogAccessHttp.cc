@@ -51,8 +51,9 @@
   -------------------------------------------------------------------------*/
 
 LogAccessHttp::LogAccessHttp(HttpSM * sm)
-:m_http_sm(sm), m_arena(), m_url(NULL), m_client_request(NULL), m_proxy_response(NULL), m_proxy_request(NULL), m_server_response(NULL), m_client_req_url_str(NULL), m_client_req_url_len(0), m_client_req_url_canon_str(NULL), m_client_req_url_canon_len(0), m_client_req_unmapped_url_canon_str(NULL), m_client_req_unmapped_url_canon_len(-1),      // undetermined
+:m_http_sm(sm), m_arena(), m_url(NULL), m_client_request(NULL), m_proxy_response(NULL), m_proxy_request(NULL), m_server_response(NULL), m_cache_response(NULL), m_client_req_url_str(NULL), m_client_req_url_len(0), m_client_req_url_canon_str(NULL), m_client_req_url_canon_len(0), m_client_req_unmapped_url_canon_str(NULL), m_client_req_unmapped_url_canon_len(-1),      // undetermined
   m_client_req_unmapped_url_path_str(NULL), m_client_req_unmapped_url_path_len(-1),     // undetermined
+  m_client_req_unmapped_url_host_str(NULL), m_client_req_unmapped_url_host_len(-1),
   m_client_req_url_path_str(NULL),
 m_client_req_url_path_len(0), m_proxy_resp_content_type_str(NULL), m_proxy_resp_content_type_len(0)
 {
@@ -124,6 +125,9 @@ LogAccessHttp::init()
   if (hdr->server_response.valid()) {
     m_server_response = &(hdr->server_response);
   }
+  if (hdr->cache_response.valid()) {
+    m_cache_response = &(hdr->cache_response);
+  }
 }
 
 /*-------------------------------------------------------------------------
@@ -140,17 +144,7 @@ LogAccessHttp::init()
 int
 LogAccessHttp::marshal_client_host_ip(char *buf)
 {
-  char *str = NULL;
-  int len = INK_MIN_ALIGN;
-  char buffer[INET6_ADDRSTRLEN];
-
-  str = const_cast<char*>(ink_inet_ntop(((struct sockaddr *)&(m_http_sm->t_state.client_info.addr)), buffer, sizeof(buffer)));
-  len = LogAccess::strlen(str);
-
-  if (buf) {
-    marshal_str (buf, str, len);
-  }
-  return len;
+  return marshal_ip(buf, &m_http_sm->t_state.client_info.addr.sa);
 }
 
 /*-------------------------------------------------------------------------
@@ -186,11 +180,10 @@ void
 LogAccessHttp::validate_unmapped_url(void)
 {
   if (m_client_req_unmapped_url_canon_len < 0) {
-
-    char *unmapped_url = m_http_sm->t_state.unmapped_request_url;
+    int unmapped_url_len;
+    char *unmapped_url = m_http_sm->t_state.pristine_url.string_get_ref(&unmapped_url_len);
 
     if (unmapped_url && unmapped_url[0] != 0) {
-      int unmapped_url_len =::strlen(unmapped_url);
       m_client_req_unmapped_url_canon_str =
         LogUtils::escapify_url(&m_arena, unmapped_url, unmapped_url_len, &m_client_req_unmapped_url_canon_len);
     } else {
@@ -210,7 +203,7 @@ LogAccessHttp::validate_unmapped_url_path(void)
   int len;
   char *c;
 
-  if (m_client_req_unmapped_url_path_len < 0) {
+  if (m_client_req_unmapped_url_path_len < 0 && m_client_req_unmapped_url_host_len < 0) {
     // Use unmapped canonical URL as default
     m_client_req_unmapped_url_path_str = m_client_req_unmapped_url_canon_str;
     m_client_req_unmapped_url_path_len = m_client_req_unmapped_url_canon_len;
@@ -220,22 +213,23 @@ LogAccessHttp::validate_unmapped_url_path(void)
       if (c && (len = (int) (c - m_client_req_unmapped_url_path_str)) <= 4) {   // 4 - max schema size
         if (len + 2 <= m_client_req_unmapped_url_canon_len && c[1] == '/' && c[2] == '/') {
           len += 3;             // Skip "://"
-          m_client_req_unmapped_url_path_str = &m_client_req_unmapped_url_canon_str[len];
-          m_client_req_unmapped_url_path_len -= len;
+          m_client_req_unmapped_url_host_str = &m_client_req_unmapped_url_canon_str[len];
+          m_client_req_unmapped_url_host_len = m_client_req_unmapped_url_path_len - len;
           // Attempt to find first '/' in the path
-          if (m_client_req_unmapped_url_path_len > 0 &&
+          if (m_client_req_unmapped_url_host_len > 0 &&
               (c =
-               (char *) memchr((void *) m_client_req_unmapped_url_path_str, '/',
+               (char *) memchr((void *) m_client_req_unmapped_url_host_str, '/',
                                m_client_req_unmapped_url_path_len)) != 0) {
-            len = (int) (c - m_client_req_unmapped_url_path_str) + 1;
-            m_client_req_unmapped_url_path_str = &m_client_req_unmapped_url_path_str[len];
-            m_client_req_unmapped_url_path_len -= len;
+            m_client_req_unmapped_url_host_len = (int) (c - m_client_req_unmapped_url_host_str);
+            m_client_req_unmapped_url_path_str = &m_client_req_unmapped_url_host_str[m_client_req_unmapped_url_host_len];
+            m_client_req_unmapped_url_path_len = m_client_req_unmapped_url_path_len - len - m_client_req_unmapped_url_host_len;
           }
         }
       }
     }
   }
 }
+
 
 /*-------------------------------------------------------------------------
   This is the method, url, and version all rolled into one.  Use the
@@ -346,6 +340,25 @@ LogAccessHttp::marshal_client_req_unmapped_url_path(char *buf)
   len = round_strlen(m_client_req_unmapped_url_path_len + 1);   // +1 for eos
   if (buf) {
     marshal_mem(buf, m_client_req_unmapped_url_path_str, m_client_req_unmapped_url_path_len, len);
+  }
+  return len;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_client_req_unmapped_url_host(char *buf)
+{
+
+  validate_unmapped_url();
+
+  validate_unmapped_url_path();
+
+  int len = round_strlen(m_client_req_unmapped_url_host_len + 1);      // +1 for eos
+
+  if (buf) {
+    marshal_mem(buf, m_client_req_unmapped_url_host_str, m_client_req_unmapped_url_host_len, len);
   }
   return len;
 }
@@ -639,17 +652,16 @@ LogAccessHttp::marshal_proxy_req_server_name(char *buf)
   return len;
 }
 
+// TODO: Change marshalling code to support both IPv4 and IPv6 addresses.
 int
 LogAccessHttp::marshal_proxy_req_server_ip(char *buf)
 {
-  if (buf) {
-    unsigned int the_ip = 0;
-    if (m_http_sm->t_state.current.server != NULL) {
-      the_ip = m_http_sm->t_state.current.server->ip;
-    }
-    marshal_int(buf, (int64_t)ntohl(the_ip));
-  }
-  return INK_MIN_ALIGN;
+  return marshal_ip(
+    buf,
+    m_http_sm->t_state.current.server != NULL
+      ? &m_http_sm->t_state.current.server->addr.sa
+      : 0
+  );
 }
 
 /*-------------------------------------------------------------------------
@@ -668,20 +680,21 @@ LogAccessHttp::marshal_proxy_hierarchy_route(char *buf)
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
+// TODO: Change marshalling code to support both IPv4 and IPv6 addresses.
 int
 LogAccessHttp::marshal_server_host_ip(char *buf)
 {
-  if (buf) {
-    unsigned int val = 0;
-    val = m_http_sm->t_state.server_info.ip;
-    if (val == 0) {
-      if (m_http_sm->t_state.current.server != NULL) {
-        val = m_http_sm->t_state.current.server->ip;
-      }
+  sockaddr const* ip = 0;
+  ip = &m_http_sm->t_state.server_info.addr.sa;
+  if (! ats_is_ip(ip)) {
+    if (m_http_sm->t_state.current.server) {
+      ip = &m_http_sm->t_state.current.server->addr.sa;
+      if (! ats_is_ip(ip)) ip = 0;
+    } else {
+      ip = 0;
     }
-    marshal_int(buf, (int64_t)ntohl(val));
   }
-  return INK_MIN_ALIGN;
+  return marshal_ip(buf, ip);
 }
 
 
@@ -736,17 +749,15 @@ LogAccessHttp::marshal_client_accelerator_id(char *buf)
 
       if (field) {
         str = (char *) field->value_get(&actual_len);
-        padded_len = round_strlen(actual_len + 1);      // +1 for trailing 0
-      } else {
-        str = NULL;
-        actual_len = 0;
-        padded_len = INK_MIN_ALIGN;
+        /* Ugly subtlety here. marshal_mem, despite the name, adds a
+           terminating nul. It does this at the index actual_len and
+           so requires paddedlen > actual_len (why it can't do the
+           padding calculation escapes me - are there instances where
+           that's different?
+        */
+        padded_len = round_strlen(actual_len+1);
       }
     }
-  } else {
-    str = NULL;
-    actual_len = 0;
-    padded_len = INK_MIN_ALIGN;
   }
 
   if (buf) {
@@ -821,6 +832,73 @@ LogAccessHttp::marshal_server_resp_http_version(char *buf)
   }
   return (2 * INK_MIN_ALIGN);
 }
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_cache_resp_status_code(char *buf)
+{
+  if (buf) {
+    HTTPStatus status;
+    if (m_cache_response) {
+      status = m_cache_response->status_get();
+    } else {
+      status = HTTP_STATUS_NONE;
+    }
+    marshal_int(buf, (int64_t) status);
+  }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_cache_resp_content_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_cache_response) {
+      val = m_http_sm->cache_response_body_bytes;
+    }
+    marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_cache_resp_header_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_cache_response) {
+      val = m_http_sm->cache_response_hdr_bytes;
+    }
+    marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_cache_resp_http_version(char *buf)
+{
+  if (buf) {
+    int64_t major = 0;
+    int64_t minor = 0;
+    if (m_cache_response) {
+      major = HTTP_MAJOR(m_cache_response->version_get().m_version);
+      minor = HTTP_MINOR(m_cache_response->version_get().m_version);
+    }
+    marshal_int(buf, major);
+    marshal_int((buf + INK_MIN_ALIGN), minor);
+  }
+  return (2 * INK_MIN_ALIGN);
+}
+
 
 int
 LogAccessHttp::marshal_client_retry_after_time(char *buf)
@@ -950,6 +1028,10 @@ LogAccessHttp::marshal_http_header_field(LogField::Container container, char *fi
     header = m_server_response;
     break;
 
+  case LogField::CSSH:
+    header = m_cache_response;
+    break;
+
   default:
     header = NULL;
     break;
@@ -1045,6 +1127,10 @@ LogAccessHttp::marshal_http_header_field_escapify(LogField::Container container,
 
   case LogField::ESSH:
     header = m_server_response;
+    break;
+
+  case LogField::ECSSH:
+    header = m_cache_response;
     break;
 
   default:
