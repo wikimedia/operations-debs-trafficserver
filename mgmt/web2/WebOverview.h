@@ -132,6 +132,7 @@ public:
   MgmtInt readInteger(const char *nodeName, const char *name, bool * found = NULL);
   MgmtFloat readFloat(const char *nodeName, const char *name, bool * found = NULL);
   MgmtString readString(const char *nodeName, const char *name, bool * found = NULL);
+  void doClusterAg();
   void addSelfRecord();
 
   int varClusterFloatFromName(char *, MgmtFloat *);

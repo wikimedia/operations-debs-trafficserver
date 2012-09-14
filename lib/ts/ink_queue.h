@@ -77,11 +77,11 @@ extern "C"
 #if (defined(__i386__) || defined(__arm__)) && (SIZEOF_VOIDP == 4)
     struct
     {
-      volatile void *pointer;
-      volatile int32_t version;
+      void *pointer;
+      int32_t version;
     } s;
 #endif
-    volatile int64_t data;
+    int64_t data;
   } head_p;
 
 /*
@@ -109,7 +109,7 @@ extern "C"
 #define FREELIST_VERSION(_x) (_x).s.version
 #define SET_FREELIST_POINTER_VERSION(_x,_p,_v) \
 (_x).s.pointer = _p; (_x).s.version = _v
-#elif defined(__x86_64__) || defined(__ia64__)
+#elif defined(__x86_64__)
 #define FREELIST_POINTER(_x) ((void*)(((((intptr_t)(_x).data)<<16)>>16) | \
  (((~((((intptr_t)(_x).data)<<16>>63)-1))>>48)<<48)))  // sign extend
 #define FREELIST_VERSION(_x) (((intptr_t)(_x).data)>>48)

@@ -1,5 +1,5 @@
 Traffic Server 2.1 STATUS:                                              -*-text-*-
-Last modified at [$Date: 2011-05-27 11:06:19 -0600 (Fri, 27 May 2011) $]
+Last modified at [$Date: 2011-03-17 16:35:56 +0100 (Do, 17 Mär 2011) $]
 
 The current version of this file can be found at:
 
@@ -10,8 +10,6 @@ Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
 
-    2.1.9-unstable  : Released on May 30, 2011
-    2.1.8-unstable  : Released on May 5, 2011
     2.1.7-unstable  : Released on March 21, 2011
     2.1.6-unstable  : Released on March 3, 2011
     2.1.5-unstable  : Released on January 12, 2011
@@ -40,7 +38,7 @@ RELEASE SHOWSTOPPERS:
 
 A list of all bugs scheduled for the next release can be found at
 
-  http://s.apache.org/ts-2.1.9
+  http://s.apache.org/ts-2.1.8
 
 
 RELEASE PROCESS

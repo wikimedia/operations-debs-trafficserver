@@ -526,6 +526,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.session_auth_cache_keep_alive_enabled
  proxy.config.http.share_server_sessions
  proxy.config.http.slow.log.threshold
+ proxy.config.http.snarf_username_from_authorization
  proxy.config.http.connect_ports
  proxy.config.http.transaction_active_timeout_in
  proxy.config.http.transaction_active_timeout_out
@@ -615,6 +616,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.net.ink_disk_io_watermark
  proxy.config.net.listen_backlog
  proxy.config.net.max_kqueue_len
+ proxy.config.net.nt.main_accept_pool_size
  proxy.config.net_snapshot_filename
  proxy.config.net.sock_mss_in
  proxy.config.net.sock_option_flag_in

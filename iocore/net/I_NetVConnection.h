@@ -369,7 +369,7 @@ public:
   virtual ink_hrtime get_inactivity_timeout() = 0;
 
   /** Returns local sockaddr storage. */
-  sockaddr_storage const* get_local_addr();
+  const struct sockaddr_storage &get_local_addr();
 
   /** Returns local ip. */
   unsigned int get_local_ip();
@@ -378,7 +378,7 @@ public:
   int get_local_port();
 
   /** Returns remote sockaddr storage. */
-  sockaddr_storage const* get_remote_addr();
+  const struct sockaddr_storage &get_remote_addr();
 
   /** Returns remote ip. */
   unsigned int get_remote_ip();

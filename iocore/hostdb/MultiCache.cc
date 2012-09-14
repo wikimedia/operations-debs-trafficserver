@@ -188,13 +188,12 @@ MultiCacheBase::initialize(Store * astore, char *afilename,
 
   unsigned int blocks = (size + (STORE_BLOCK_SIZE - 1)) / STORE_BLOCK_SIZE;
 
-  heap_size = int ((float)totalelements * estimated_heap_bytes_per_entry());
+  heap_size = int ((float) totalelements * estimated_heap_bytes_per_entry() * 4.0);
   blocks += bytes_to_blocks(heap_size);
 
   blocks += 1;                  // header
-  totalsize = (int64_t) blocks *(int64_t) STORE_BLOCK_SIZE;
 
-  Debug("multicache", "heap_size = %d, totalelements = %d, totalsize = %d", heap_size, totalelements, totalsize);
+  totalsize = (int64_t) blocks *(int64_t) STORE_BLOCK_SIZE;
 
   //
   //  Spread alloc from the store (using storage that can be mmapped)
@@ -1336,9 +1335,9 @@ void *
 MultiCacheBase::alloc(int *poffset, int asize)
 {
   int h = heap_halfspace;
-  int size = (asize + MULTI_CACHE_HEAP_ALIGNMENT - 1) & ~(MULTI_CACHE_HEAP_ALIGNMENT - 1);
+  int size = (asize + MULTI_CACHE_HEAP_ALIGNMENT - 1)
+    & ~(MULTI_CACHE_HEAP_ALIGNMENT - 1);
   int o = ink_atomic_increment((int *) &heap_used[h], size);
-
   if (o + size > halfspace_size()) {
     ink_atomic_increment((int *) &heap_used[h], -size);
     ink_assert(!"out of space");

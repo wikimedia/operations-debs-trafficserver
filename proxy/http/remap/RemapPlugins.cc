@@ -30,9 +30,9 @@ RemapPlugins::run_plugin(remap_plugin_info* plugin)
 {
   TSRemapStatus plugin_retcode;
   TSRemapRequestInfo rri;
-  url_mapping *map = _s->url_map.getMapping();
+  url_mapping *map = _map_container->getMapping();
   URL *map_from = &(map->fromURL);
-  URL *map_to = _s->url_map.getToURL();
+  URL *map_to = _map_container->getToURL();
 
   // This is the equivalent of TSHttpTxnClientReqGet(), which every remap plugin would
   // have to call.
@@ -104,9 +104,9 @@ RemapPlugins::run_single_remap()
 
   const char *requestPath;
   int requestPathLen;
-  url_mapping *map = _s->url_map.getMapping();
+  url_mapping *map = _map_container->getMapping();
   URL *map_from = &(map->fromURL);
-  URL *map_to = _s->url_map.getToURL();
+  URL *map_to = _map_container->getToURL();
 
   int redirect_host_len;
 

@@ -40,18 +40,19 @@ extern int cache_config_max_disk_errors;
 #define ROUND_DOWN_TO_STORE_BLOCK(_x)   (((_x) >> STORE_BLOCK_SHIFT) << STORE_BLOCK_SHIFT)
 
 #define STORE_BLOCKS_PER_VOL            (VOL_BLOCK_SIZE / STORE_BLOCK_SIZE)
-#define DISK_HEADER_MAGIC               0xABCD1237
+#define DISK_HEADER_MAGIC               0xABCD1236
 
 /* each disk vol block has a corresponding Vol object */
 struct CacheDisk;
 
 struct DiskVolBlock
 {
-  uint64_t offset;  // offset in bytes from the start of the disk
-  uint64_t len;  // length in in store blocks
-  int number;
+  off_t offset;
+  unsigned short number;
+  unsigned int len:26;
   unsigned int type:3;
   unsigned int free:1;
+  unsigned int unused:2;
 };
 
 struct DiskVolBlockQueue
@@ -69,7 +70,7 @@ struct DiskVol
 {
   int num_volblocks;           /* number of disk volume blocks in this volume */
   int vol_number;              /* the volume number of this volume */
-  uint64_t size;                  /* size in store blocks */
+  off_t size;                  /* size in store blocks */
   CacheDisk *disk;
   Queue<DiskVolBlockQueue> dpb_queue;
 };
@@ -81,7 +82,7 @@ struct DiskHeader
   unsigned int num_free;               /* number of disk volume blocks free */
   unsigned int num_used;               /* number of disk volume blocks in use */
   unsigned int num_diskvol_blks;       /* number of disk volume blocks */
-  uint64_t num_blocks;
+  off_t num_blocks;
   DiskVolBlock vol_info[1];
 };
 
@@ -94,7 +95,7 @@ struct CacheDisk: public Continuation
   off_t len;                // in blocks (STORE_BLOCK)
   off_t start;
   off_t skip;
-  off_t num_usable_blocks;
+  int num_usable_blocks;
   int hw_sector_size;
   int fd;
   off_t free_space;

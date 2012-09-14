@@ -50,6 +50,7 @@
 #include "LogAccess.h"
 #include "LogConfig.h"
 #include "LogBuffer.h"
+#include "LogBufferV1.h"
 #include "LogFormatType.h"
 #include "Log.h"
 
