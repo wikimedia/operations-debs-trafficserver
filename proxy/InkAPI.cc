@@ -5232,11 +5232,15 @@ TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
   sdk_assert(buflength > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
+  HttpTransact::State *s = &(sm->t_state);
 
-  sm->t_state.internal_msg_buffer = buf;
-  sm->t_state.internal_msg_buffer_type = mimetype;
-  sm->t_state.internal_msg_buffer_size = buflength;
-  sm->t_state.internal_msg_buffer_fast_allocator_size = -1;
+  if (s->internal_msg_buffer)
+    HttpTransact::free_internal_msg_buffer(s->internal_msg_buffer, s->internal_msg_buffer_fast_allocator_size);
+
+  s->internal_msg_buffer = buf;
+  s->internal_msg_buffer_type = mimetype;
+  s->internal_msg_buffer_size = buflength;
+  s->internal_msg_buffer_fast_allocator_size = -1;
 }
 
 void
@@ -7070,9 +7074,7 @@ TSRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
 char*
 TSFetchRespGet(TSHttpTxn txnp, int *length)
 {
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)length) == TS_SUCCESS);
-
   FetchSM *fetch_sm = (FetchSM*)txnp;
   return fetch_sm->resp_get(length);
 }
@@ -7080,7 +7082,6 @@ TSFetchRespGet(TSHttpTxn txnp, int *length)
 TSReturnCode
 TSFetchPageRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
 {
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)obj) == TS_SUCCESS);
 
@@ -7117,7 +7118,9 @@ TSFetchPages(TSFetchUrlParams_t *params)
 void
 TSFetchUrl(const char* headers, int request_len, unsigned int ip, int port , TSCont contp, TSFetchWakeUpOptions callback_options,TSFetchEvent events)
 {
-  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  if (callback_options != NO_CALLBACK) {
+    sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  }
 
   FetchSM *fetch_sm =  FetchSMAllocator.alloc();
 
@@ -7132,9 +7135,11 @@ TSHttpIsInternalRequest(TSHttpTxn txnp)
 
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
   HttpClientSession *cs = (HttpClientSession *) ssnp;
-  NetVConnection *vc = cs->get_netvc();
+  if (!cs)
+    return TS_ERROR;
 
-  if (!cs || !vc)
+  NetVConnection *vc = cs->get_netvc();
+  if (!vc)
     return TS_ERROR;
 
   return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
@@ -7283,6 +7288,9 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
     break;
   case TS_CONFIG_NET_SOCK_OPTION_FLAG_OUT:
     ret = &sm->t_state.txn_conf->sock_option_flag_out;
+    break;
+  case TS_CONFIG_HTTP_FORWARD_PROXY_AUTH_TO_PARENT:
+    ret = &sm->t_state.txn_conf->fwd_proxy_auth_to_parent;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM:
     ret = &sm->t_state.txn_conf->anonymize_remove_from;
@@ -7783,6 +7791,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 's':
       if (!strncmp(name, "proxy.config.http.connect_attempts_max_retries", length))
         cnf = TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES;
+      break;
+    case 't':
+      if (!strncmp(name, "proxy.config.http.forward.proxy_auth_to_parent", length))
+        cnf = TS_CONFIG_HTTP_FORWARD_PROXY_AUTH_TO_PARENT;
       break;
     }
     break;

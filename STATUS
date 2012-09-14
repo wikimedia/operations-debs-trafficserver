@@ -1,5 +1,5 @@
 Traffic Server 3.0 STATUS:                                              -*-text-*-
-Last modified at [$Date: 2011-06-09 11:46:50 -0600 (Thu, 09 Jun 2011) $]
+Last modified at [$Date: 2011-12-04 22:48:00 +0100 (Sun, 04 Dec 2011) $]
 
 The current version of this file can be found at:
 
@@ -10,7 +10,9 @@ Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
 
-    3.0.0           : Released on <xyz>, 2011
+    3.0.2           : Released on <xyz>, 2011
+    3.0.1           : Released on July 18th, 2011
+    3.0.0           : Released on June 13th, 2011
     2.0.1           : Released on August 31, 2010
     2.0.0           : Released on April 28, 2010
 
@@ -31,17 +33,29 @@ CURRENT RELEASE NOTES:
 
 RELEASE SHOWSTOPPERS:
 
-A list of all bugs open for the next v3.0.1 release can be found at
+A list of all bugs open for the next v3.0.2 release can be found at
 
-  http://s.apache.org/ts-3.0.1
+  http://s.apache.org/ts-3.0.2
+
+PATCHES ACCEPTED TO BACKPORT FROM TRUNK:
 
 
 PATCHES PROPOSED TO BACKPORT FROM TRUNK:
   [ New proposals should be added at the end of the list ]
 
 
+  *) IOCORE: Fix for cross thread closing of VCs.
+   Trunk patch: http://svn.apache.org/viewvc?view=rev&rev=1201397
+   Jira: https://issues.apache.org/jira/browse/TS-857
+   +1: zym, ericb
+   -1: amc, zwoop [I believe this is the base cause of the 3.1.1 instability]
+   Note: we have find that something need to be fixed after TS-857, we'd like
+     this patch to be merge later and leave some time for us to find out how to
+     fix it. we are now testing the fix.
+
 RELEASE PROCESS
 
 The Traffic Server release process is documented at
 
-    http://cwiki.apache.org/confluence/display/TS/ReleaseProcess
+    https://cwiki.apache.org/confluence/display/TS/ReleaseProcess
+    https://cwiki.apache.org/confluence/display/TS/3.0.x-Series
