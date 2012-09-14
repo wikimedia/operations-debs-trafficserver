@@ -62,7 +62,7 @@ my_data_alloc()
   MyData *data;
 
   data = (MyData *) TSmalloc(sizeof(MyData));
-  TSReleaseAssert(data && data != TS_ERROR_PTR);
+  TSReleaseAssert(data);
 
   data->output_vio = NULL;
   data->output_buffer = NULL;
@@ -76,9 +76,8 @@ static void
 my_data_destroy(MyData * data)
 {
   if (data) {
-    if (data->output_buffer) {
-      ASSERT_SUCCESS(TSIOBufferDestroy(data->output_buffer));
-    }
+    if (data->output_buffer)
+      TSIOBufferDestroy(data->output_buffer);
     TSfree(data);
   }
 }
@@ -115,7 +114,7 @@ handle_transform(TSCont contp)
     data->output_buffer = TSIOBufferCreate();
     data->output_reader = TSIOBufferReaderAlloc(data->output_buffer);
     data->output_vio = TSVConnWrite(output_conn, contp, data->output_reader, towrite);
-    ASSERT_SUCCESS(TSContDataSet(contp, data));
+    TSContDataSet(contp, data);
   }
 
   /* We also check to see if the write VIO's buffer is non-NULL. A
@@ -131,9 +130,9 @@ handle_transform(TSCont contp)
       TSIOBufferCopy(TSVIOBufferGet(data->output_vio), append_buffer_reader, append_buffer_length, 0);
     }
 
-    ASSERT_SUCCESS(TSVIONBytesSet(data->output_vio, TSVIONDoneGet(write_vio) + append_buffer_length));
+    TSVIONBytesSet(data->output_vio, TSVIONDoneGet(write_vio) + append_buffer_length);
+    TSVIOReenable(data->output_vio);
 
-    ASSERT_SUCCESS(TSVIOReenable(data->output_vio));
     return;
   }
 
@@ -155,11 +154,11 @@ handle_transform(TSCont contp)
 
       /* Tell the read buffer that we have read the data and are no
          longer interested in it. */
-      ASSERT_SUCCESS(TSIOBufferReaderConsume(TSVIOReaderGet(write_vio), towrite));
+      TSIOBufferReaderConsume(TSVIOReaderGet(write_vio), towrite);
 
       /* Modify the write VIO to reflect how much data we've
          completed. */
-      ASSERT_SUCCESS(TSVIONDoneSet(write_vio, TSVIONDoneGet(write_vio) + towrite));
+      TSVIONDoneSet(write_vio, TSVIONDoneGet(write_vio) + towrite);
     }
   }
 
@@ -171,7 +170,7 @@ handle_transform(TSCont contp)
          connection by reenabling the output VIO. This will wakeup
          the output connection and allow it to consume data from the
          output buffer. */
-      ASSERT_SUCCESS(TSVIOReenable(data->output_vio));
+      TSVIOReenable(data->output_vio);
 
       /* Call back the write VIO continuation to let it know that we
          are ready for more data. */
@@ -188,9 +187,8 @@ handle_transform(TSCont contp)
        expect. This allows the output connection to know when it
        is done reading. We then reenable the output connection so
        that it can consume the data we just gave it. */
-    ASSERT_SUCCESS(TSVIONBytesSet(data->output_vio, TSVIONDoneGet(write_vio) + append_buffer_length));
-
-    ASSERT_SUCCESS(TSVIOReenable(data->output_vio));
+    TSVIONBytesSet(data->output_vio, TSVIONDoneGet(write_vio) + append_buffer_length);
+    TSVIOReenable(data->output_vio);
 
     /* Call back the write VIO continuation to let it know that we
        have completed the write operation. */
@@ -205,7 +203,7 @@ append_transform(TSCont contp, TSEvent event, void *edata)
      TSVConnClose. */
   if (TSVConnClosedGet(contp)) {
     my_data_destroy(TSContDataGet(contp));
-    ASSERT_SUCCESS(TSContDestroy(contp));
+    TSContDestroy(contp);
     return 0;
   } else {
     switch (event) {
@@ -228,7 +226,7 @@ append_transform(TSCont contp, TSEvent event, void *edata)
          reading all the data we've written to it then we should
          shutdown the write portion of its connection to
          indicate that we don't want to hear about it anymore. */
-      ASSERT_SUCCESS(TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1));
+      TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
       break;
     case TS_EVENT_VCONN_WRITE_READY:
     default:
@@ -269,22 +267,20 @@ transformable(TSHttpTxn txnp)
       return 0;
     }
 
-    if (TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &value, &val_length) == TS_SUCCESS) {
+    value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, 0, &val_length);
 #ifndef _WIN32
-      if (value && (strncasecmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
+    if (value && (strncasecmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
 #else
-      if (value && (strnicmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
+    if (value && (strnicmp(value, "text/html", sizeof("text/html") - 1) == 0)) {
 #endif
-        ASSERT_SUCCESS(TSHandleMLocRelease(bufp, hdr_loc, field_loc));
-        ASSERT_SUCCESS(TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc));
+      ASSERT_SUCCESS(TSHandleMLocRelease(bufp, hdr_loc, field_loc));
+      ASSERT_SUCCESS(TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc));
 
-        return 1;
-      } else {
-        ASSERT_SUCCESS(TSHandleMLocRelease(bufp, hdr_loc, field_loc));
-        ASSERT_SUCCESS(TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc));
-
-        return 0;
-      }
+      return 1;
+    } else {
+      ASSERT_SUCCESS(TSHandleMLocRelease(bufp, hdr_loc, field_loc));
+      ASSERT_SUCCESS(TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc));
+      return 0;
     }
   }
 
@@ -297,10 +293,7 @@ transform_add(TSHttpTxn txnp)
   TSVConn connp;
 
   connp = TSTransformCreate(append_transform, txnp);
-
-  if (TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp) == TS_ERROR) {
-    TSError("[append-transform] Unable to attach plugin to http transaction\n");
-  }
+  TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp);
 }
 
 static int
@@ -313,7 +306,7 @@ transform_plugin(TSCont contp, TSEvent event, void *edata)
     if (transformable(txnp)) {
       transform_add(txnp);
     }
-    ASSERT_SUCCESS(TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE));
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     return 0;
   default:
     break;
@@ -338,7 +331,6 @@ load(const char *filename)
 
   append_buffer = TSIOBufferCreate();
   append_buffer_reader = TSIOBufferReaderAlloc(append_buffer);
-  TSAssert(append_buffer_reader != TS_ERROR_PTR);
 
   for (;;) {
     blk = TSIOBufferStart(append_buffer);
@@ -346,7 +338,7 @@ load(const char *filename)
 
     err = TSfread(fp, p, avail);
     if (err > 0) {
-      ASSERT_SUCCESS(TSIOBufferProduce(append_buffer, err));
+      TSIOBufferProduce(append_buffer, err);
     } else {
       break;
     }
@@ -393,7 +385,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
+  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
     goto Lerror;
   }
@@ -413,11 +405,7 @@ TSPluginInit(int argc, const char *argv[])
     goto Lerror;
   }
 
-  if (TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, NULL)) == TS_ERROR) {
-    TSError("[append-transform] Unable to set read response header\n");
-    goto Lerror;
-  }
-
+  TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, NULL));
   return;
 
 Lerror:

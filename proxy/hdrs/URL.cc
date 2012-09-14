@@ -92,14 +92,14 @@ int url_hash_method = 0;
   -------------------------------------------------------------------------*/
 
 void
-url_init(const char *path)
+url_init()
 {
   static int init = 1;
 
   if (init) {
     init = 0;
 
-    hdrtoken_init(path);
+    hdrtoken_init();
 
     URL_SCHEME_FILE = hdrtoken_string_to_wks("file");
     URL_SCHEME_FTP = hdrtoken_string_to_wks("ftp");
@@ -199,7 +199,7 @@ url_create(HdrHeap * heap)
   url->m_url_type = URL_TYPE_NONE;
   url->m_scheme_wks_idx = -1;
   url_clear_string_ref(url);
-  return (url);
+  return url;
 }
 
 /*-------------------------------------------------------------------------
@@ -221,7 +221,7 @@ url_copy(URLImpl * s_url, HdrHeap * s_heap, HdrHeap * d_heap, bool inherit_strs)
 {
   URLImpl *d_url = url_create(d_heap);
   url_copy_onto(s_url, s_heap, d_url, d_heap, inherit_strs);
-  return (d_url);
+  return d_url;
 }
 
 /*-------------------------------------------------------------------------
@@ -389,7 +389,7 @@ url_scheme_set(HdrHeap * heap, URLImpl * url, const char *scheme_str, int scheme
   else
     url->m_url_type = URL_TYPE_HTTP;
 
-  return (scheme_wks);          // tokenized string or NULL if not well known
+  return scheme_wks;          // tokenized string or NULL if not well known
 }
 
 /*-------------------------------------------------------------------------
@@ -452,12 +452,16 @@ url_port_set(HdrHeap * heap, URLImpl * url, const char *value, int length, bool 
 void
 url_port_set(HdrHeap * heap, URLImpl * url, unsigned int port)
 {
-  char value[6];
-  int length;
-
   url_called_set(url);
-  length = ink_fast_itoa(port, value, sizeof(value));
-  mime_str_u16_set(heap, value, length, &(url->m_ptr_port), &(url->m_len_port), true);
+  if (port > 0) {
+    char value[6];
+    int length;
+
+    length = ink_fast_itoa(port, value, sizeof(value));
+    mime_str_u16_set(heap, value, length, &(url->m_ptr_port), &(url->m_len_port), true);
+  } else {
+    mime_str_u16_set(heap, NULL, 0, &(url->m_ptr_port), &(url->m_len_port), true);
+  }
   url->m_port = port;
 }
 
@@ -645,7 +649,7 @@ url_scheme_get(URLImpl * url, int *length)
     str = url->m_ptr_scheme;
     *length = url->m_len_scheme;
   }
-  return (str);
+  return str;
 }
 
 /*-------------------------------------------------------------------------
@@ -655,7 +659,7 @@ const char *
 url_user_get(URLImpl * url, int *length)
 {
   *length = url->m_len_user;
-  return (url->m_ptr_user);
+  return url->m_ptr_user;
 }
 
 /*-------------------------------------------------------------------------
@@ -665,7 +669,7 @@ const char *
 url_password_get(URLImpl * url, int *length)
 {
   *length = url->m_len_password;
-  return (url->m_ptr_password);
+  return url->m_ptr_password;
 }
 
 /*-------------------------------------------------------------------------
@@ -675,7 +679,7 @@ const char *
 url_host_get(URLImpl * url, int *length)
 {
   *length = url->m_len_host;
-  return (url->m_ptr_host);
+  return url->m_ptr_host;
 }
 
 /*-------------------------------------------------------------------------
@@ -684,7 +688,7 @@ url_host_get(URLImpl * url, int *length)
 int
 url_port_get(URLImpl * url)
 {
-  return (url->m_port);
+  return url->m_port;
 }
 
 /*-------------------------------------------------------------------------
@@ -694,7 +698,7 @@ const char *
 url_path_get(URLImpl * url, int *length)
 {
   *length = url->m_len_path;
-  return (url->m_ptr_path);
+  return url->m_ptr_path;
 }
 
 /*-------------------------------------------------------------------------
@@ -704,7 +708,7 @@ const char *
 url_params_get(URLImpl * url, int *length)
 {
   *length = url->m_len_params;
-  return (url->m_ptr_params);
+  return url->m_ptr_params;
 }
 
 /*-------------------------------------------------------------------------
@@ -714,7 +718,7 @@ const char *
 url_query_get(URLImpl * url, int *length)
 {
   *length = url->m_len_query;
-  return (url->m_ptr_query);
+  return url->m_ptr_query;
 }
 
 /*-------------------------------------------------------------------------
@@ -724,7 +728,7 @@ const char *
 url_fragment_get(URLImpl * url, int *length)
 {
   *length = url->m_len_fragment;
-  return (url->m_ptr_fragment);
+  return url->m_ptr_fragment;
 }
 
 /*-------------------------------------------------------------------------
@@ -733,7 +737,7 @@ url_fragment_get(URLImpl * url, int *length)
 int
 url_type_get(URLImpl * url)
 {
-  return (url->m_type_code);
+  return url->m_type_code;
 }
 
 /*-------------------------------------------------------------------------
@@ -786,7 +790,7 @@ url_length_get(URLImpl * url)
   if (url->m_ptr_fragment)
     length += url->m_len_fragment + 1;        // +1 for "/"
 
-  return (length);
+  return length;
 }
 
 /*-------------------------------------------------------------------------
@@ -869,7 +873,7 @@ url_to_string(URLImpl * url, Arena * arena, int *length)
 
   ink_release_assert(idx == len);
 
-  return (str);
+  return str;
 }
 
 /*-------------------------------------------------------------------------
@@ -1027,7 +1031,7 @@ url_unescapify(Arena * arena, const char *str, int length)
   unescape_str(t, e, str, str + length, s);
   *t = '\0';
 
-  return (buffer);
+  return buffer;
 }
 
 /*-------------------------------------------------------------------------
@@ -1583,7 +1587,7 @@ url_print(URLImpl * url, char *buf_start, int buf_length, int *buf_index_inout, 
                        buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
   }
 
-  return (1);
+  return 1;
 
 #undef TRY
 }

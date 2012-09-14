@@ -27,6 +27,7 @@
 
 #include "P_Net.h"
 #include "Show.h"
+#include "I_Tasks.h"
 
 struct ShowNet;
 typedef int (ShowNet::*ShowNetEventHandler) (int event, Event * data);
@@ -73,7 +74,8 @@ struct ShowNet: public ShowCont
       snprintf(interbuf, sizeof(interbuf), "[%s] %hhu.%hhu.%hhu.%hhu", vc->options.toString(vc->options.addr_binding), PRINT_IP(vc->options.local_addr));
       CHECK_SHOW(show("<tr>"
                       // "<td><a href=\"/connection/%d\">%d</a></td>"
-                      "<td>%d</td>" "<td>%s</td>"       // ipbuf
+                      "<td>%d</td>"     // ID
+                      "<td>%s</td>"     // ipbuf
                       "<td>%d</td>"     // port
                       "<td>%d</td>"     // fd
                       "<td>%s</td>"     // interbuf
@@ -90,7 +92,8 @@ struct ShowNet: public ShowCont
                       "<td>%d secs</td>"        // Activity timeout at
                       "<td>%d</td>"     // shutdown
                       "<td>-%s</td>"    // comments
-                      "</tr>\n", vc->id,        // vc->id,
+                      "</tr>\n",
+                      vc->id,
                       ipbuf,
                       vc->port,
                       vc->con.fd,
@@ -131,17 +134,18 @@ struct ShowNet: public ShowCont
                     "<th>Time Started</th>"
                     "<th>Thread</th>"
                     "<th>Read Enabled</th>"
-                    "<th>Read Priority</th>"
                     "<th>Read NBytes</th>"
                     "<th>Read NDone</th>"
                     "<th>Write Enabled</th>"
-                    "<th>Write Priority</th>"
                     "<th>Write NBytes</th>"
                     "<th>Write NDone</th>"
                     "<th>Inactive Timeout</th>"
-                    "<th>Active   Timeout</th>" "<th>Shutdown</th>" "<th>Comments</th>" "</tr>\n"));
+                    "<th>Active   Timeout</th>"
+                    "<th>Shutdown</th>"
+                    "<th>Comments</th>"
+                    "</tr>\n"));
     SET_HANDLER(&ShowNet::showConnectionsOnThread);
-    eventProcessor.eventthread[ET_NET][0]->schedule_imm(this);
+    eventProcessor.eventthread[ET_NET][0]->schedule_imm(this); // This can not use ET_TASK.
     return EVENT_CONT;
   }
 
@@ -181,7 +185,7 @@ struct ShowNet: public ShowCont
   {
     CHECK_SHOW(begin("Net Threads"));
     SET_HANDLER(&ShowNet::showSingleThread);
-    eventProcessor.eventthread[ET_NET][0]->schedule_imm(this);
+    eventProcessor.eventthread[ET_NET][0]->schedule_imm(this); // This can not use ET_TASK
     return EVENT_CONT;
   }
   int showSingleConnection(int event, Event * e)
@@ -209,6 +213,7 @@ register_ShowNet(Continuation * c, HTTPHdr * h)
   ShowNet *s = NEW(new ShowNet(c, h));
   int path_len;
   const char *path = h->url_get()->path_get(&path_len);
+
   SET_CONTINUATION_HANDLER(s, &ShowNet::showMain);
   if (STREQ_PREFIX(path, path_len, "connections")) {
     SET_CONTINUATION_HANDLER(s, &ShowNet::showConnections);
@@ -235,7 +240,7 @@ register_ShowNet(Continuation * c, HTTPHdr * h)
       s->port = atoi(gn + 1);
     SET_CONTINUATION_HANDLER(s, &ShowNet::showConnections);
   }
-  eventProcessor.schedule_imm(s, ET_NET);
+  eventProcessor.schedule_imm(s, ET_TASK);
   return &s->action;
 }
 

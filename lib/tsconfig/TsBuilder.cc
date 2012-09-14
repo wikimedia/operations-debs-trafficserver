@@ -2,13 +2,17 @@
 
     Implementation of the handler for parsing events.
 
-    Copyright 2010 Network Geographics, Inc.
+    @section license License
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +22,7 @@
  */
 
 # include "TsBuilder.h"
-# include <TsErrataUtil.h>
+# include "TsErrataUtil.h"
 # include "TsConfigLexer.h"
 # include "TsConfigGrammar.hpp"
 # include <stdlib.h>
@@ -39,6 +43,8 @@ size_t unescape_string(char* text, size_t len) {
     char* src = dst + 1; // skip escape char
     for ( *dst++ = *src++ ; src < limit ; ++src )
       if ('\\' != *src) *dst++ = *src;
+      else if (++src < limit) *dst++ = *src;
+      else *dst++ = '\\'; // trailing backslash.
     zret = dst - text;
   }
   return zret;
@@ -194,8 +200,8 @@ void Builder::literalValue(Token const& token) {
     } else if (STRING == token._type) {
         ++text._ptr, text._size -= 2;  // Don't include the quotes.
         text._size = unescape_string(text._ptr, text._size);
+        text._ptr[text._size] = 0; // OK because we have the trailing quote.
         cv = _v.makeString(text, _name);
-        token._s[token._n-1] = 0;
     } else {
         msg::logf(_errata, msg::WARN, PRE "Unexpected literal type %d.", token._type);
     }

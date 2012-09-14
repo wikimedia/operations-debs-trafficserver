@@ -25,10 +25,10 @@ AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/proxy \
-  -I$(top_srcdir)/proxy/mgmt2/preparse \
   -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_srcdir)/proxy/mgmt2 \
-  -I$(top_srcdir)/proxy/mgmt2/utils
+  -I$(top_srcdir)/mgmt \
+  -I$(top_srcdir)/mgmt/preparse \
+  -I$(top_srcdir)/mgmt/utils
 endif
 
 
@@ -94,12 +94,4 @@ libinknet_a_SOURCES = \
 if BUILD_TESTS
   libinknet_a_SOURCES += NetVCTest.cc \
     P_NetVCTest.h
-endif
-
-
-# TODO: These two should probably be moved to somewhere else (libintkomi++?)
-if BUILD_DETAILED_LOG
-  libinknet_a_SOURCES += \
-    DetailedLog.cc \
-    DetailedLog.h
 endif

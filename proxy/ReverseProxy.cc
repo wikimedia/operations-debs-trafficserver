@@ -52,6 +52,7 @@
 // Global Ptrs
 static Ptr<ProxyMutex> reconfig_mutex = NULL;
 UrlRewrite *rewrite_table = NULL;
+remap_plugin_info *remap_pi_list; // We never reload the remap plugins, just append to 'em.
 
 // Tokens for the Callback function
 #define FILE_CHANGED 0
@@ -93,19 +94,34 @@ init_reverse_proxy()
 // odd ball configs, for example if you use the "CONNECT" method, or if you set
 // set proxy.config.url_remap.url_remap_mode to "2" (which is a completely undocumented "feature").
 bool
-request_url_remap(HttpTransact::State * s, HTTPHdr * request_header, char **redirect_url, char **orig_url, char *tag,
+request_url_remap(HttpTransact::State * s, HTTPHdr * request_header, char **redirect_url, char **orig_url,
                   unsigned int filter_mask)
 {
   NOWARN_UNUSED(s);
   NOWARN_UNUSED(request_header);
   NOWARN_UNUSED(redirect_url);
   NOWARN_UNUSED(orig_url);
-  NOWARN_UNUSED(tag);
   NOWARN_UNUSED(filter_mask);
   return false;
   // return rewrite_table ? rewrite_table->Remap(s, request_header, redirect_url, orig_url, tag, filter_mask) : false;
 }
 
+/**
+   This function is used to figure out if a URL needs to be remapped
+   according to the rules in remap.config.
+*/
+mapping_type
+request_url_remap_redirect(HTTPHdr *request_header, URL *redirect_url, char **orig_url)
+{
+  return rewrite_table ? rewrite_table->Remap_redirect(request_header, redirect_url, orig_url) : NONE;
+}
+
+bool
+response_url_remap(HTTPHdr *response_header)
+{
+  return rewrite_table ? rewrite_table->ReverseMap(response_header) : false;
+}
+ 
 
 //
 //
@@ -121,11 +137,13 @@ struct UR_UpdateContinuation: public Continuation
   {
     NOWARN_UNUSED(etype);
     NOWARN_UNUSED(data);
+
     reloadUrlRewrite();
     delete this;
-      return EVENT_DONE;
+    return EVENT_DONE;
   }
-  UR_UpdateContinuation(ProxyMutex * m):Continuation(m)
+  UR_UpdateContinuation(ProxyMutex * m)
+    : Continuation(m)
   {
     SET_HANDLER((UR_UpdContHandler) & UR_UpdateContinuation::file_update_handler);
   }
@@ -142,10 +160,10 @@ struct UR_FreerContinuation: public Continuation
   {
     NOWARN_UNUSED(event);
     NOWARN_UNUSED(e);
-    Debug("url_rewrite", "Deleting old table");
+    Debug("url_rewrite", "Deleting old remap.config table");
     delete p;
     delete this;
-      return EVENT_DONE;
+    return EVENT_DONE;
   }
   UR_FreerContinuation(UrlRewrite * ap):Continuation(new_ProxyMutex()), p(ap)
   {
@@ -164,9 +182,10 @@ reloadUrlRewrite()
 {
   UrlRewrite *newTable;
 
-  Debug("url_rewrite", "remap.config updated, reloading");
-  eventProcessor.schedule_in(new UR_FreerContinuation(rewrite_table), URL_REWRITE_TIMEOUT, ET_CACHE);
+  Debug("url_rewrite", "remap.config updated, reloading...");
+  eventProcessor.schedule_in(new UR_FreerContinuation(rewrite_table), URL_REWRITE_TIMEOUT, ET_TASK);
   newTable = new UrlRewrite("proxy.config.url_remap.filename");
+  Debug("url_rewrite", "remap.config done reloading!");
   ink_atomic_swap_ptr(&rewrite_table, newTable);
 }
 
@@ -181,19 +200,23 @@ url_rewrite_CB(const char *name, RecDataT data_type, RecData data, void *cookie)
   case REVERSE_CHANGED:
     rewrite_table->SetReverseFlag(data.rec_int);
     break;
+
   case TSNAME_CHANGED:
   case DEFAULT_TO_PAC_CHANGED:
   case DEFAULT_TO_PAC_PORT_CHANGED:
   case FILE_CHANGED:
   case HTTP_DEFAULT_REDIRECT_CHANGED:
-    eventProcessor.schedule_imm(NEW(new UR_UpdateContinuation(reconfig_mutex)), ET_CACHE);
+    eventProcessor.schedule_imm(NEW(new UR_UpdateContinuation(reconfig_mutex)), ET_TASK);
     break;
+
   case AC_PORT_CHANGED:
     // The AutoConf port does not current change on manager except at restart
     break;
+
   case URL_REMAP_MODE_CHANGED:
     // You need to restart TS.
     break;
+
   default:
     ink_assert(0);
     break;

@@ -608,7 +608,6 @@ LogBuffer::update_header_data()
   This static function simply returns the greatest number of bytes than an
   entry can be and fit into a LogBuffer.
   -------------------------------------------------------------------------*/
-
 size_t LogBuffer::max_entry_bytes()
 {
   return (Log::config->log_buffer_size - sizeof(LogBufferHeader));
@@ -617,7 +616,6 @@ size_t LogBuffer::max_entry_bytes()
 /*-------------------------------------------------------------------------
   LogBuffer::resolve_custom_entry
   -------------------------------------------------------------------------*/
-
 int
 LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
                                 char *printf_str, char *read_from, char *write_to,
@@ -630,7 +628,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
   int *readfrom_map = NULL;
 
   if (alt_fieldlist && alt_printf_str) {
-
     LogField *f, *g;
     int n_alt_fields = alt_fieldlist->count();
     if (unlikely((readfrom_map = (int *) xmalloc(n_alt_fields * sizeof(int))) == NULL))
@@ -666,6 +663,7 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
   int printf_len = (int)::strlen(printf_str);   // OPTIMIZE
   int bytes_written = 0;
   int res, i;
+
   const char *buffer_size_exceeded_msg =
     "Traffic Server is skipping the current log entry because its size "
     "exceeds the maximum line (entry) size for an ascii log buffer";
@@ -678,15 +676,12 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
         // for timestamps that are not aggregates, we take the
         // value from the function argument;  otherwise we use the
         // unmarshaling function
-
         bool non_aggregate_timestamp = false;
 
         if (field->aggregate() == LogField::NO_AGGREGATE) {
-
           char *sym = field->symbol();
 
           if (strcmp(sym, "cqts") == 0) {
-
             // unmarshal_int_to_str expects data in
             // network order
             timestamp = htonl(timestamp);
@@ -700,7 +695,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
             non_aggregate_timestamp = true;
 
           } else if (strcmp(sym, "cqth") == 0) {
-
             // unmarshal_int_to_str_hex expects data in
             // network order
             timestamp = htonl(timestamp);
@@ -714,8 +708,8 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
             non_aggregate_timestamp = true;
 
           } else if (strcmp(sym, "cqtq") == 0) {
-
-            res = LogUtils::squid_timestamp_to_buf(to, write_to_len - bytes_written, timestamp, timestamp_usec);
+            // From lib/ts
+            res = squid_timestamp_to_buf(to, write_to_len - bytes_written, timestamp, timestamp_usec);
             if (res < 0)
               res = -1;
 
@@ -727,7 +721,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
             non_aggregate_timestamp = true;
 
           } else if (strcmp(sym, "cqtn") == 0) {
-
             char *str = LogUtils::timestamp_to_netscape_str(timestamp);
             res = (int)::strlen(str);
             if (res < write_to_len - bytes_written) {
@@ -743,7 +736,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
             non_aggregate_timestamp = true;
 
           } else if (strcmp(sym, "cqtd") == 0) {
-
             char *str = LogUtils::timestamp_to_date_str(timestamp);
             res = (int)::strlen(str);
             if (res < write_to_len - bytes_written) {
@@ -759,7 +751,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
             non_aggregate_timestamp = true;
 
           } else if (strcmp(sym, "cqtt") == 0) {
-
             char *str = LogUtils::timestamp_to_time_str(timestamp);
             res = (int)::strlen(str);
             if (res < write_to_len - bytes_written) {
@@ -816,7 +807,6 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
   space provided, and returns the length of the new string (not including
   trailing null, like strlen).
   -------------------------------------------------------------------------*/
-
 int
 LogBuffer::to_ascii(LogEntryHeader * entry, LogFormatType type,
                     char *buf, int buf_len, char *symbol_str, char *printf_str,

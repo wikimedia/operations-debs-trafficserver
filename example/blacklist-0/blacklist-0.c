@@ -47,13 +47,12 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
   int i;
   int host_length;
 
-  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
+  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve client request header\n");
     goto done;
   }
 
-  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
-  if (!url_loc) {
+  if (TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve request url\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
@@ -93,7 +92,7 @@ handle_response(TSHttpTxn txnp)
   char *buf;
   int url_length;
 
-  if (!TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc)) {
+  if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve client response header\n");
     goto done;
   }
@@ -103,14 +102,13 @@ handle_response(TSHttpTxn txnp)
                       TSHttpHdrReasonLookup(TS_HTTP_STATUS_FORBIDDEN),
                       strlen(TSHttpHdrReasonLookup(TS_HTTP_STATUS_FORBIDDEN)));
 
-  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
+  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve client request header\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
   }
 
-  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
-  if (!url_loc) {
+  if (!TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
     TSError("couldn't retrieve request url\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
@@ -184,7 +182,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
+  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
 
   }

@@ -76,24 +76,24 @@ struct EvacuationBlock;
 
 #define VC_LOCK_RETRY_EVENT() \
   do { \
-    trigger = mutex->thread_holding->schedule_in_local(this,MUTEX_RETRY_DELAY,event); \
+    trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay), event); \
     return EVENT_CONT; \
   } while (0)
 
 #define VC_SCHED_LOCK_RETRY() \
   do { \
-    trigger = mutex->thread_holding->schedule_in_local(this,MUTEX_RETRY_DELAY); \
+    trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay)); \
     return EVENT_CONT; \
   } while (0)
 
 #define CONT_SCHED_LOCK_RETRY_RET(_c) \
   do { \
-    _c->mutex->thread_holding->schedule_in_local(_c, MUTEX_RETRY_DELAY); \
+    _c->mutex->thread_holding->schedule_in_local(_c, HRTIME_MSECONDS(cache_config_mutex_retry_delay)); \
     return EVENT_CONT; \
   } while (0)
 
 #define CONT_SCHED_LOCK_RETRY(_c) \
-  _c->mutex->thread_holding->schedule_in_local(_c, MUTEX_RETRY_DELAY)
+  _c->mutex->thread_holding->schedule_in_local(_c, HRTIME_MSECONDS(cache_config_mutex_retry_delay))
 
 #define VC_SCHED_WRITER_RETRY() \
   do { \
@@ -169,40 +169,40 @@ extern RecRawStatBlock *cache_rsb;
 
 #define CACHE_SET_DYN_STAT(x,y) \
 	RecSetGlobalRawStatSum(cache_rsb, (x), (y)) \
-	RecSetGlobalRawStatSum(part->cache_part->part_rsb, (x), (y))
+	RecSetGlobalRawStatSum(vol->cache_vol->vol_rsb, (x), (y))
 
 #define CACHE_INCREMENT_DYN_STAT(x) \
 	RecIncrRawStat(cache_rsb, mutex->thread_holding, (int) (x), 1); \
-	RecIncrRawStat(part->cache_part->part_rsb, mutex->thread_holding, (int) (x), 1);
+	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), 1);
 
 #define CACHE_DECREMENT_DYN_STAT(x) \
 	RecIncrRawStat(cache_rsb, mutex->thread_holding, (int) (x), -1); \
-	RecIncrRawStat(part->cache_part->part_rsb, mutex->thread_holding, (int) (x), -1);
+	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), -1);
 
-#define CACHE_PART_SUM_DYN_STAT(x,y) \
-        RecIncrRawStat(part->cache_part->part_rsb, mutex->thread_holding, (int) (x), (int) y);
+#define CACHE_VOL_SUM_DYN_STAT(x,y) \
+        RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int) y);
 
 #define CACHE_SUM_DYN_STAT(x, y) \
 	RecIncrRawStat(cache_rsb, mutex->thread_holding, (int) (x), (int) (y)); \
-	RecIncrRawStat(part->cache_part->part_rsb, mutex->thread_holding, (int) (x), (int) (y));
+	RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int) (x), (int) (y));
 
 #define CACHE_SUM_DYN_STAT_THREAD(x, y) \
 	RecIncrRawStat(cache_rsb, this_ethread(), (int) (x), (int) (y)); \
-	RecIncrRawStat(part->cache_part->part_rsb, this_ethread(), (int) (x), (int) (y));
+	RecIncrRawStat(vol->cache_vol->vol_rsb, this_ethread(), (int) (x), (int) (y));
 
 #define GLOBAL_CACHE_SUM_GLOBAL_DYN_STAT(x, y) \
 	RecIncrGlobalRawStatSum(cache_rsb,(x),(y))
 
 #define CACHE_SUM_GLOBAL_DYN_STAT(x, y) \
 	RecIncrGlobalRawStatSum(cache_rsb,(x),(y)) \
-	RecIncrGlobalRawStatSum(part->cache_part->part_rsb,(x),(y))
+	RecIncrGlobalRawStatSum(vol->cache_vol->vol_rsb,(x),(y))
 
 #define CACHE_CLEAR_DYN_STAT(x) \
 do { \
 	RecSetRawStatSum(cache_rsb, (x), 0); \
 	RecSetRawStatCount(cache_rsb, (x), 0); \
-	RecSetRawStatSum(part->cache_part->part_rsb, (x), 0); \
-	RecSetRawStatCount(part->cache_part->part_rsb, (x), 0); \
+	RecSetRawStatSum(vol->cache_vol->vol_rsb, (x), 0); \
+	RecSetRawStatCount(vol->cache_vol->vol_rsb, (x), 0); \
 } while (0);
 
 // Configuration
@@ -228,6 +228,7 @@ extern int cache_config_hit_evacuate_size_limit;
 #endif
 extern int cache_config_force_sector_size;
 extern int cache_config_target_fragment_size;
+extern int cache_config_mutex_retry_delay;
 
 // CacheVC
 struct CacheVC: public CacheVConnection
@@ -242,10 +243,7 @@ struct CacheVC: public CacheVConnection
   void reenable_re(VIO *avio);
   bool get_data(int i, void *data);
   bool set_data(int i, void *data);
-  Action *action()
-  {
-    return &_action;
-  }
+
   bool is_ram_cache_hit()
   {
     ink_assert(vio.op == VIO::READ);
@@ -330,7 +328,7 @@ struct CacheVC: public CacheVConnection
   int linkWrite(int event, Event *e);
   int derefRead(int event, Event *e);
 
-  int scanPart(int event, Event *e);
+  int scanVol(int event, Event *e);
   int scanObject(int event, Event *e);
   int scanUpdateDone(int event, Event *e);
   int scanOpenWrite(int event, Event *e);
@@ -427,7 +425,7 @@ struct CacheVC: public CacheVConnection
   uint32_t write_serial;  // serial of the final write for SYNC
   Frag *frag;           // arraylist of fragment offset
   Frag integral_frags[INTEGRAL_FRAGS];
-  Part *part;
+  Vol *vol;
   Dir *last_collision;
   Event *trigger;
   CacheKey *read_key;
@@ -483,6 +481,12 @@ struct CacheVC: public CacheVConnection
 #endif
     } f;
   };
+  // BTF optimization used to skip reading stuff in cache partition that doesn't contain any
+  // dir entries.
+  char *scan_vol_map; 
+  // BTF fix to handle objects that overlapped over two different reads,
+  // this is how much we need to back up the buffer to get the start of the overlapping object.
+  off_t scan_fix_buffer_offset;
   //end region C
 };
 
@@ -500,7 +504,9 @@ struct CacheRemoveCont: public Continuation
 {
   int event_handler(int event, void *data);
 
-  CacheRemoveCont():Continuation(NULL) { }
+  CacheRemoveCont()
+    : Continuation(NULL)
+  { }
 };
 
 
@@ -514,8 +520,7 @@ extern CacheSync *cacheDirSync;
 int cache_write(CacheVC *, CacheHTTPInfoVector *);
 int get_alternate_index(CacheHTTPInfoVector *cache_vector, CacheKey key);
 #endif
-int evacuate_segments(CacheKey *key, int force, Part *part);
-CacheVC *new_DocEvacuator(int nbytes, Part *d);
+CacheVC *new_DocEvacuator(int nbytes, Vol *d);
 
 // inline Functions
 
@@ -546,11 +551,13 @@ free_CacheVC(CacheVC *cont)
 {
   Debug("cache_free", "free %p", cont);
   ProxyMutex *mutex = cont->mutex;
-  Part *part = cont->part;
-  CACHE_DECREMENT_DYN_STAT(cont->base_stat + CACHE_STAT_ACTIVE);
-  if (cont->closed > 0) {
-    CACHE_INCREMENT_DYN_STAT(cont->base_stat + CACHE_STAT_SUCCESS);
-  }                             // else abort,cancel
+  Vol *vol = cont->vol;
+  if (vol) {
+    CACHE_DECREMENT_DYN_STAT(cont->base_stat + CACHE_STAT_ACTIVE);
+    if (cont->closed > 0) {
+      CACHE_INCREMENT_DYN_STAT(cont->base_stat + CACHE_STAT_SUCCESS);
+    }                             // else abort,cancel
+  }
   ink_debug_assert(mutex->thread_holding == this_ethread());
   if (cont->trigger)
     cont->trigger->cancel();
@@ -587,6 +594,8 @@ free_CacheVC(CacheVC *cont)
   cont->alternate_index = CACHE_ALT_INDEX_DEFAULT;
   if (cont->frag && cont->frag != cont->integral_frags)
     xfree(cont->frag);
+  if (cont->scan_vol_map)
+    xfree(cont->scan_vol_map);
   memset((char *) &cont->vio, 0, cont->size_to_init);
 #ifdef CACHE_STAT_PAGES
   ink_assert(!cont->stat_link.next && !cont->stat_link.prev);
@@ -602,7 +611,7 @@ TS_INLINE int
 CacheVC::calluser(int event)
 {
   recursive++;
-  ink_debug_assert(!part || this_ethread() != part->mutex->thread_holding);
+  ink_debug_assert(!vol || this_ethread() != vol->mutex->thread_holding);
   vio._cont->handleEvent(event, (void *) &vio);
   recursive--;
   if (closed) {
@@ -616,7 +625,7 @@ TS_INLINE int
 CacheVC::callcont(int event)
 {
   recursive++;
-  ink_debug_assert(!part || this_ethread() != part->mutex->thread_holding);
+  ink_debug_assert(!vol || this_ethread() != vol->mutex->thread_holding);
   _action.continuation->handleEvent(event, this);
   recursive--;
   if (closed)
@@ -686,10 +695,10 @@ CacheVC::handleWriteLock(int event, Event *e)
   cancel_trigger();
   int ret = 0;
   {
-    CACHE_TRY_LOCK(lock, part->mutex, mutex->thread_holding);
+    CACHE_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
     if (!lock) {
       set_agg_write_in_progress();
-      trigger = mutex->thread_holding->schedule_in_local(this, MUTEX_RETRY_DELAY);
+      trigger = mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay));
       return EVENT_CONT;
     }
     ret = handleWrite(EVENT_CALL, e);
@@ -718,7 +727,7 @@ CacheVC::writer_done()
 {
   OpenDirEntry *cod = od;
   if (!cod)
-    cod = part->open_read(&first_key);
+    cod = vol->open_read(&first_key);
   CacheVC *w = (cod) ? cod->writers.head : NULL;
   // If the write vc started after the reader, then its not the
   // original writer, since we never choose a writer that started
@@ -731,7 +740,7 @@ CacheVC::writer_done()
 }
 
 TS_INLINE int
-Part::close_write(CacheVC *cont)
+Vol::close_write(CacheVC *cont)
 {
 
 #ifdef CACHE_STAT_PAGES
@@ -744,9 +753,9 @@ Part::close_write(CacheVC *cont)
 
 // Returns 0 on success or a positive error code on failure
 TS_INLINE int
-Part::open_write(CacheVC *cont, int allow_if_writers, int max_writers)
+Vol::open_write(CacheVC *cont, int allow_if_writers, int max_writers)
 {
-  Part *part = this;
+  Vol *vol = this;
   bool agg_error = false;
   if (!cont->f.remove) {
     agg_error = (!cont->f.update && agg_todo_size > cache_config_agg_write_backlog);
@@ -771,7 +780,7 @@ Part::open_write(CacheVC *cont, int allow_if_writers, int max_writers)
 }
 
 TS_INLINE int
-Part::close_write_lock(CacheVC *cont)
+Vol::close_write_lock(CacheVC *cont)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
@@ -781,7 +790,7 @@ Part::close_write_lock(CacheVC *cont)
 }
 
 TS_INLINE int
-Part::open_write_lock(CacheVC *cont, int allow_if_writers, int max_writers)
+Vol::open_write_lock(CacheVC *cont, int allow_if_writers, int max_writers)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
@@ -791,7 +800,7 @@ Part::open_write_lock(CacheVC *cont, int allow_if_writers, int max_writers)
 }
 
 TS_INLINE OpenDirEntry *
-Part::open_read_lock(INK_MD5 *key, EThread *t)
+Vol::open_read_lock(INK_MD5 *key, EThread *t)
 {
   CACHE_TRY_LOCK(lock, mutex, t);
   if (!lock)
@@ -800,7 +809,7 @@ Part::open_read_lock(INK_MD5 *key, EThread *t)
 }
 
 TS_INLINE int
-Part::begin_read_lock(CacheVC *cont)
+Vol::begin_read_lock(CacheVC *cont)
 {
   // no need for evacuation as the entire document is already in memory
 #ifndef  CACHE_STAT_PAGES
@@ -816,7 +825,7 @@ Part::begin_read_lock(CacheVC *cont)
 }
 
 TS_INLINE int
-Part::close_read_lock(CacheVC *cont)
+Vol::close_read_lock(CacheVC *cont)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
@@ -826,7 +835,7 @@ Part::close_read_lock(CacheVC *cont)
 }
 
 TS_INLINE int
-dir_delete_lock(CacheKey *key, Part *d, ProxyMutex *m, Dir *del)
+dir_delete_lock(CacheKey *key, Vol *d, ProxyMutex *m, Dir *del)
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
@@ -836,7 +845,7 @@ dir_delete_lock(CacheKey *key, Part *d, ProxyMutex *m, Dir *del)
 }
 
 TS_INLINE int
-dir_insert_lock(CacheKey *key, Part *d, Dir *to_part, ProxyMutex *m)
+dir_insert_lock(CacheKey *key, Vol *d, Dir *to_part, ProxyMutex *m)
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
@@ -846,7 +855,7 @@ dir_insert_lock(CacheKey *key, Part *d, Dir *to_part, ProxyMutex *m)
 }
 
 TS_INLINE int
-dir_overwrite_lock(CacheKey *key, Part *d, Dir *to_part, ProxyMutex *m, Dir *overwrite, bool must_overwrite = true)
+dir_overwrite_lock(CacheKey *key, Vol *d, Dir *to_part, ProxyMutex *m, Dir *overwrite, bool must_overwrite = true)
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
@@ -858,10 +867,8 @@ dir_overwrite_lock(CacheKey *key, Part *d, Dir *to_part, ProxyMutex *m, Dir *ove
 void TS_INLINE
 rand_CacheKey(CacheKey *next_key, ProxyMutex *mutex)
 {
-  uint32_t *b = (uint32_t *) & next_key->b[0];
-  InkRand & g = mutex->thread_holding->generator;
-  for (int i = 0; i < 4; i++)
-    b[i] = (uint32_t) g.random();
+  next_key->b[0] = mutex->thread_holding->generator.random();
+  next_key->b[1] = mutex->thread_holding->generator.random();
 }
 
 extern uint8_t CacheKey_next_table[];
@@ -934,18 +941,18 @@ int64_t cache_bytes_total(void);
 #endif
 
 struct CacheHostRecord;
-struct Part;
+struct Vol;
 class CacheHostTable;
 
 struct Cache
 {
   volatile int cache_read_done;
-  volatile int total_good_npart;
-  int total_npart;
+  volatile int total_good_nvol;
+  int total_nvol;
   volatile int ready;
   int64_t cache_size;             //in store block size
   CacheHostTable *hosttable;
-  volatile int total_initialized_part;
+  volatile int total_initialized_vol;
   int scheme;
 
   int open(bool reconfigure, bool fix);
@@ -976,23 +983,22 @@ struct Cache
   Action *open_write(Continuation *cont, URL *url, CacheHTTPHdr *request,
                      CacheHTTPInfo *old_info, time_t pin_in_cache = (time_t) 0,
                      CacheFragType type = CACHE_FRAG_TYPE_HTTP);
-  Action *remove(Continuation *cont, URL *url, CacheFragType type);
   static void generate_key(INK_MD5 *md5, URL *url, CacheHTTPHdr *request);
 #endif
 
   Action *link(Continuation *cont, CacheKey *from, CacheKey *to, CacheFragType type, char *hostname, int host_len);
   Action *deref(Continuation *cont, CacheKey *key, CacheFragType type, char *hostname, int host_len);
 
-  void part_initialized(bool result);
+  void vol_initialized(bool result);
 
   int open_done();
 
-  Part *key_to_part(CacheKey *key, char *hostname, int host_len);
+  Vol *key_to_vol(CacheKey *key, char *hostname, int host_len);
 
-  Cache():cache_read_done(0), total_good_npart(0), total_npart(0), ready(CACHE_INITIALIZING), cache_size(0),  // in store block size
-          hosttable(NULL), total_initialized_part(0), scheme(CACHE_NONE_TYPE)
-    {
-    }
+  Cache()
+    : cache_read_done(0), total_good_nvol(0), total_nvol(0), ready(CACHE_INITIALIZING), cache_size(0),  // in store block size
+      hosttable(NULL), total_initialized_vol(0), scheme(CACHE_NONE_TYPE)
+    { }
 };
 
 extern Cache *theCache;
@@ -1176,6 +1182,7 @@ TS_INLINE Action *
 CacheProcessor::remove(Continuation *cont, CacheKey *key, CacheFragType frag_type,
                        bool rm_user_agents, bool rm_link, char *hostname, int host_len)
 {
+  Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %u", cache_hash(*key));
 #ifdef CLUSTER_CACHE
   if (cache_clustering_enabled > 0) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));

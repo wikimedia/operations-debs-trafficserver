@@ -147,11 +147,9 @@ Store::sort()
       if (next && !strcmp(sd->pathname, next->pathname)) {
         if (!sd->file_pathname) {
           sd->blocks += next->blocks;
-        } else if (sd->offset == next->end()) {
-          sd->blocks += next->blocks;
-          sd->offset -= next->blocks;
-        } else if (sd->offset == next->end()) {
-          sd->blocks += next->blocks;
+        } else if (next->offset <= sd->end()) {
+          if (next->end() >= sd->end())
+            sd->blocks += (next->end() - sd->end());
         } else {
           sd = next;
           continue;
@@ -371,7 +369,7 @@ Store::write_config_data(int fd)
   return 0;
 }
 
-#if defined(freebsd) || defined(darwin) || defined(solaris)
+#if defined(freebsd) || defined(darwin)
 // TODO: Those are probably already included from the ink_platform.h
 #include <ctype.h>
 #include <sys/types.h>
@@ -382,9 +380,6 @@ Store::write_config_data(int fd)
 //#include <sys/diskslice.h>
 #elif defined(darwin)
 #include <sys/disk.h>
-#include <sys/statvfs.h>
-#elif defined(solaris)
-#include <sys/statfs.h>
 #include <sys/statvfs.h>
 #endif
 #include <string.h>
@@ -406,22 +401,25 @@ Span::init(char *an, int64_t size)
   char *n = NULL;
   int n_len = 0;
   char real_n[PATH_NAME_MAX];
+
   if ((n_len = readlink(an, real_n, sizeof(real_n) - 1)) > 0) {
     real_n[n_len] = 0;
     if (*real_n != '/') {
       char *rs = strrchr(an, '/');
-      int l = (rs - an) + 1;
-      const char *ann = an;
-      if (!rs) {
-        ann = "./";
-        l = 2;
+      int l = 2;
+      const char *ann = "./";
+
+      if (rs) {
+        ann = an;
+        l = (rs - an) + 1;
       }
       memmove(real_n + l, real_n, strlen(real_n) + 1);
-      memcpy(real_n, an, l);
+      memcpy(real_n, ann, l);
     }
     n = real_n;
-  } else
+  } else {
     n = an;
+  }
 
   // stat the file system
 
@@ -437,21 +435,12 @@ Span::init(char *an, int64_t size)
     return "unable to open";
   }
 
-#if defined(solaris)
-  struct statvfs fs;
-  if ((ret = fstatvfs(fd, &fs)) < 0) {
-    Warning("unable to statvfs '%s': %d %d, %s", n, ret, errno, strerror(errno));
-    socketManager.close(fd);
-    return "unable to statvfs";
-  }
-#else
   struct statfs fs;
   if ((ret = fstatfs(fd, &fs)) < 0) {
     Warning("unable to statfs '%s': %d %d, %s", n, ret, errno, strerror(errno));
     socketManager.close(fd);
     return "unable to statfs";
   }
-#endif
 
   hw_sector_size = fs.f_bsize;
   int64_t fsize = (int64_t) fs.f_blocks * (int64_t) fs.f_bsize;
@@ -460,11 +449,11 @@ Span::init(char *an, int64_t size)
 
   case S_IFBLK:{
   case S_IFCHR:
-#ifdef HAVE_RAW_DISK_SUPPORT // FIXME: darwin, freebsd, solaris
+#ifdef HAVE_RAW_DISK_SUPPORT // FIXME: darwin, freebsd
       struct disklabel dl;
       struct diskslices ds;
       if (ioctl(fd, DIOCGDINFO, &dl) < 0) {
-      LpartError:
+      lvolError:
         Warning("unable to get label information for '%s': %s", n, strerror(errno));
         err = "unable to get label information";
         goto Lfail;
@@ -475,16 +464,16 @@ Span::init(char *an, int64_t size)
         if ((s2 = strrchr(s1, '/')))
           s1 = s2 + 1;
         else
-          goto LpartError;
+          goto lvolError;
         for (s2 = s1; *s2 && !ParseRules::is_digit(*s2); s2++);
         if (!*s2 || s2 == s1)
-          goto LpartError;
+          goto lvolError;
         while (ParseRules::is_digit(*++s2));
         s1 = s2;
         if (*s2 == 's') {
           slice = ink_atoi(s2 + 1);
           if (slice<1 || slice> MAX_SLICES - BASE_SLICE)
-            goto LpartError;
+            goto lvolError;
           slice = BASE_SLICE + slice - 1;
           while (ParseRules::is_digit(*++s2));
         }
@@ -495,13 +484,14 @@ Span::init(char *an, int64_t size)
         }
         if (slice >= 0) {
           if (ioctl(fd, DIOCGSLICEINFO, &ds) < 0)
-            goto LpartError;
+            goto lvolError;
           if (slice >= (int) ds.dss_nslices || !ds.dss_slices[slice].ds_size)
-            goto LpartError;
+            goto lvolError;
           fsize = (int64_t) ds.dss_slices[slice].ds_size * dl.d_secsize;
         } else {
           if (part < 0)
-            goto LpartError;
+            goto lvolError;
+          // This is odd, the dl struct isn't defined anywhere ...
           fsize = (int64_t) dl.d_partitions[part].p_size * dl.d_secsize;
         }
         devnum = s.st_rdev;
@@ -555,6 +545,100 @@ Lfail:
 }
 #endif
 
+#if defined(solaris)
+// TODO: Those are probably already included from the ink_platform.h
+#include <ctype.h>
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <string.h>
+
+const char *
+Span::init(char *filename, int64_t size)
+{
+  int devnum = 0;
+  const char *err = NULL;
+  int ret = 0;
+
+  //
+  // All file types on Solaris can be mmaped
+  //
+  is_mmapable_internal = true;
+
+  int fd = socketManager.open(filename, O_RDONLY);
+  if (fd < 0) {
+    Warning("unable to open '%s': %d, %s", filename, fd, strerror(errno));
+    return "unable to open";
+  }
+
+  // stat the file system
+  struct stat s;
+  if ((ret = fstat(fd, &s)) < 0) {
+    Warning("unable to fstat '%s': %d %d, %s", filename, ret, errno, strerror(errno));
+    err = "unable to fstat";
+    goto Lfail;
+  }
+
+
+  switch ((s.st_mode & S_IFMT)) {
+
+  case S_IFBLK:
+  case S_IFCHR:
+    devnum = s.st_rdev;
+    // maybe we should use lseek(fd, 0, SEEK_END) here (it is portable)
+    size = (int64_t) s.st_size;
+    hw_sector_size = s.st_blksize;
+    break;
+  case S_IFDIR:
+  case S_IFREG:
+    int64_t fsize;
+    struct statvfs fs;
+    if ((ret = fstatvfs(fd, &fs)) < 0) {
+      Warning("unable to statvfs '%s': %d %d, %s", filename, ret, errno, strerror(errno));
+      err = "unable to statvfs";
+      goto Lfail;
+    }
+
+    hw_sector_size = fs.f_bsize;
+    fsize = (int64_t) fs.f_blocks * (int64_t) hw_sector_size;
+
+    if (size <= 0 || size > fsize) {
+      Warning("bad or missing size for '%s': size %" PRId64 " fsize %" PRId64 "", filename, (int64_t) size, fsize);
+      err = "bad or missing size";
+      goto Lfail;
+    }
+
+    devnum = s.st_dev;
+    break;
+
+  default:
+    Warning("unknown file type '%s': %d", filename, s.st_mode);
+    err = "unknown file type";
+    goto Lfail;
+  }
+
+  // estimate the disk SOLARIS specific
+  if ((devnum >> 16) == 0x80) {
+    disk_id = (devnum >> 3) & 0x3F;
+  } else {
+    disk_id = devnum;
+  }
+
+  pathname = xstrdup(filename);
+  // is this right Seems like this should be size / hw_sector_size
+  blocks = size / STORE_BLOCK_SIZE;
+  file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
+
+  Debug("cache_init", "Span::init - %s hw_sector_size = %d  size = %" PRId64 ", blocks = %" PRId64 ", disk_id = %d, file_pathname = %d", filename, hw_sector_size, size, blocks, disk_id, file_pathname);
+
+Lfail:
+  socketManager.close(fd);
+  return err;
+}
+#endif
+
 #if defined(linux)
 // TODO: Axe extra includes
 #include <stdlib.h>
@@ -569,7 +653,7 @@ Lfail:
 const char *
 Span::init(char *filename, int64_t size)
 {
-  int devnum = 0, fd, arg;
+  int devnum = 0, fd, arg = 0;
   int ret = 0, is_disk = 0;
   unsigned int heads, sectors, cylinders, adjusted_sec;
 
@@ -818,10 +902,10 @@ Store::try_realloc(Store & s, Store & diff)
               } else {
                 Span *x = NEW(new Span(*d));
                 x->pathname = xstrdup(x->pathname);
-                // d will be the first part
+                // d will be the first vol
                 d->blocks = sd->offset - d->offset;
                 d->link.next = x;
-                // x will be the last part
+                // x will be the last vol
                 x->offset = sd->offset + sd->blocks;
                 x->blocks -= x->offset - d->offset;
                 goto Lfound;
@@ -1071,8 +1155,8 @@ Store::clear(char *filename, bool clear_dirs)
       int fd =::open(path, O_RDWR | O_CREAT, 0644);
       if (fd < 0)
         return -1;
-      for (int b = 0; ds->blocks; b++)
-        if (socketManager.pwrite(fd, z, STORE_BLOCK_SIZE, ds->offset + (b * STORE_BLOCK_SIZE)) < 0) {
+      for (int b = 0; d->blocks; b++)
+        if (socketManager.pwrite(fd, z, STORE_BLOCK_SIZE, d->offset + (b * STORE_BLOCK_SIZE)) < 0) {
           close(fd);
           return -1;
         }
