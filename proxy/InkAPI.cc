@@ -5237,11 +5237,6 @@ TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
   if (s->internal_msg_buffer)
     HttpTransact::free_internal_msg_buffer(s->internal_msg_buffer, s->internal_msg_buffer_fast_allocator_size);
 
-  if (s->internal_msg_buffer_type) {
-    xfree(s->internal_msg_buffer_type);
-    s->internal_msg_buffer_type = NULL;
-  }
-
   s->internal_msg_buffer = buf;
   s->internal_msg_buffer_type = mimetype;
   s->internal_msg_buffer_size = buflength;
@@ -5452,7 +5447,7 @@ TSHttpSsnArgSet(TSHttpSsn ssnp, int arg_idx, void *arg)
 }
 
 void *
-TSHttpSsnArgGet(TSHttpSsn ssnp, int arg_idx)
+TSHttpSsnArgGet(TSHttpSsn ssnp, int arg_idx, void **argp)
 {
   sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
   sdk_assert(arg_idx >= 0 && arg_idx < HTTP_SSN_TXN_MAX_USER_ARG);
@@ -5590,7 +5585,7 @@ TSHttpTxnClientReqBodyBytesGet(TSHttpTxn txnp)
 }
 
 int
-TSHttpTxnServerReqHdrBytesGet(TSHttpTxn txnp)
+TSHttpTxnServerReqHdrBytesGet(TSHttpTxn txnp, int *bytes)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 

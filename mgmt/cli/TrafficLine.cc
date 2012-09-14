@@ -80,7 +80,7 @@ handleArgInvocation()
       TSRecordEle *rec_ele = TSRecordEleCreate();
 
       if ((err = TSRecordGet(ReadVar, rec_ele)) != TS_ERR_OKAY) {
-        fprintf(stderr, "%s: %s\n", programName, TSGetErrorMessage(err));
+        fprintf(stderr, "%s: Variable Not Found\n", programName);
       } else {
         switch (rec_ele->rec_type) {
         case TS_REC_INT:
