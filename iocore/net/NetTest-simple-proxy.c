@@ -41,7 +41,7 @@ get_addr(char *host)
 
 
 
-char *origin_server = "trafficserver.apache.org";
+char *origin_server = "npdev.inktomi.com";
 unsigned int origin_server_ip;
 unsigned short origin_server_port = 8080;
 

@@ -39,7 +39,7 @@
 #include "I_Layout.h"
 
 #include "InkAPITestTool.cc"
-#include "http/HttpSM.h"
+#include "http2/HttpSM.h"
 
 #define TC_PASS 1
 #define TC_FAIL 0
@@ -162,9 +162,7 @@ REGRESSION_TEST(SDK_API_TSPluginDirGet) (RegressionTest * test, int atype, int *
   //      since the location can be anywhere
   //      We only pass this test, with the default layout.
   if (strstr(plugin_dir, "libexec/trafficserver") == NULL) {
-    SDK_RPRINT(test, "TSPluginDirGet", "TestCase2", TC_FAIL,
-               "plugin dir(%s) is incorrect, expected (%s) in path. Are you using the default layout?",
-               plugin_dir,"libexec/trafficserver");
+    SDK_RPRINT(test, "TSPluginDirGet", "TestCase2", TC_FAIL, "plugin dir(%s) is incorrect, expected (%s) in path. Are you using the default layout?",plugin_dir,"libexec/trafficserver");
     *pstatus = REGRESSION_TEST_FAILED;
     return;
   }
@@ -222,14 +220,14 @@ REGRESSION_TEST(SDK_API_TSConfig) (RegressionTest * test, int atype, int *pstatu
   if (!test_config) {
     SDK_RPRINT(test, "TSConfigSet", "TestCase1", TC_FAIL, "can't correctly set global config structure");
     SDK_RPRINT(test, "TSConfigGet", "TestCase1", TC_FAIL, "can't correctly get global config structure");
-    TSConfigRelease(my_config_id, reinterpret_cast<TSConfig>(config));
+    TSConfigRelease(my_config_id, config);
     *pstatus = REGRESSION_TEST_FAILED;
     return;
   }
 
   if (TSConfigDataGet(test_config) != config) {
     SDK_RPRINT(test, "TSConfigDataGet", "TestCase1", TC_FAIL, "failed to get config data");
-    TSConfigRelease(my_config_id, reinterpret_cast<TSConfig>(config));
+    TSConfigRelease(my_config_id, config);
     *pstatus = REGRESSION_TEST_FAILED;
     return;
   }
@@ -238,7 +236,7 @@ REGRESSION_TEST(SDK_API_TSConfig) (RegressionTest * test, int atype, int *pstatu
   SDK_RPRINT(test, "TSConfigSet", "TestCase1", TC_PASS, "ok");
   SDK_RPRINT(test, "TSConfigDataGet", "TestCase1", TC_PASS, "ok");
 
-  TSConfigRelease(my_config_id, reinterpret_cast<TSConfig>(config));
+  TSConfigRelease(my_config_id, config);
   *pstatus = REGRESSION_TEST_PASSED;
   return;
 }
@@ -286,8 +284,8 @@ client_handler(TSCont contp, TSEvent event, void *data)
 
     unsigned int input_server_ip = 0;
     int input_server_port = 0;
-    input_server_ip = TSNetVConnRemoteIPGet((TSVConn)data);
-    input_server_port = TSNetVConnRemotePortGet((TSVConn) data);
+    TSNetVConnRemoteIPGet((TSVConn) data, &input_server_ip);
+    TSNetVConnRemotePortGet((TSVConn) data, &input_server_port);
 
     if (input_server_ip != htonl(LOCAL_IP)) {
       SDK_RPRINT(SDK_NetVConn_test, "TSNetVConnRemoteIPGet", "TestCase1", TC_FAIL, "server ip is incorrect");
@@ -465,7 +463,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     SDK_RPRINT(SDK_Cache_test, "TSCacheRead", "TestCase1", TC_PASS, "ok");
 
     cache_vconn->read_vconnp = (TSVConn) data;
-    content_length = TSVConnCacheObjectSizeGet(cache_vconn->read_vconnp);
+    TSVConnCacheObjectSizeGet(cache_vconn->read_vconnp, &content_length);
     Debug(UTDBG_TAG "_cache_read", "In cache open read [Content-Length: %d]", content_length);
     if (content_length != OBJECT_SIZE) {
       SDK_RPRINT(SDK_Cache_test, "TSVConnCacheObjectSizeGet", "TestCase1", TC_FAIL, "cached data size is incorrect");
@@ -755,9 +753,20 @@ REGRESSION_TEST(SDK_API_TSCache) (RegressionTest * test, int atype, int *pstatus
 
   // Create CacheKey
   char key_name[] = "key_for_regression_test";
-  TSCacheKey key = TSCacheKeyCreate();
-  TSCacheKey key_cmp = TSCacheKeyCreate();
-  SDK_RPRINT(test, "TSCacheKeyCreate", "TestCase1", TC_PASS, "ok");
+  TSCacheKey key, key_cmp;
+  TSCacheKeyCreate(&key);
+  TSCacheKeyCreate(&key_cmp);
+  if (key == NULL) {
+    SDK_RPRINT(test, "TSCacheKeyCreate", "TestCase1", TC_FAIL, "can't malloc memory for key");
+
+    // no need to continue, return
+    *pstatus = REGRESSION_TEST_FAILED;
+    if (key_cmp != NULL)
+      TSCacheKeyDestroy(key_cmp);
+    return;
+  } else {
+    SDK_RPRINT(test, "TSCacheKeyCreate", "TestCase1", TC_PASS, "ok");
+  }
   TSCacheKeyDigestSet(key, key_name, strlen(key_name));
   TSCacheKeyDigestSet(key_cmp, key_name, strlen(key_name));
 
@@ -1309,11 +1318,15 @@ REGRESSION_TEST(SDK_API_TSContCreate) (RegressionTest * test, int atype, int *ps
 
   TSMutex mutexp = TSMutexCreate();
   TSCont contp = TSContCreate(cont_handler, mutexp);
+  int lock = 0;
 
-  if (TS_SUCCESS == TSMutexLockTry(mutexp)) { // Mutex is grabbed succesfully
+  TSMutexLockTry(mutexp, &lock);
+  if (lock)     //mutex is grabbed
+  {
     TSContCall(contp, (TSEvent) 0, NULL);
     TSMutexUnlock(mutexp);
-  } else {                       //mutex has problems
+  } else                        //mutex has problems
+  {
     SDK_RPRINT(SDK_ContCreate_test, "TSContCreate", "TestCase1", TC_FAIL, "continuation creation has problems");
     SDK_RPRINT(SDK_ContCreate_test, "TSContCall", "TestCase1", TC_FAIL, "continuation has problems");
 
@@ -1421,6 +1434,7 @@ REGRESSION_TEST(SDK_API_TSContMutexGet) (RegressionTest * test, int atype, int *
   *pstatus = ((test_passed == true) ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED);
 
   TSContDestroy(contp);
+
 }
 
 //////////////////////////////////////////////
@@ -1451,7 +1465,8 @@ cont_schedule_handler(TSCont contp, TSEvent event, void *edata)
     tc2_count++;
   } else {
     // If we receive a bad event, it's a failure
-    SDK_RPRINT(SDK_ContSchedule_test, "TSContSchedule", "TestCase1|2", TC_FAIL, "received unexpected event number %d", event);
+    SDK_RPRINT(SDK_ContSchedule_test, "TSContSchedule", "TestCase1|2",
+               TC_FAIL, "received unexpected event number %d", event);
     *SDK_ContSchedule_pstatus = REGRESSION_TEST_FAILED;
     return 0;
   }
@@ -1495,12 +1510,12 @@ REGRESSION_TEST(SDK_API_TSMutexCreate) (RegressionTest * test, int atype, int *p
   TSMutexLock(mutexp);
 
   /* This is normal because all locking is from the same thread */
-  TSReturnCode lock = TS_ERROR;
+  int lock = 0;
 
-  lock = TSMutexLockTry(mutexp);
-  lock = TSMutexLockTry(mutexp);
+  TSMutexLockTry(mutexp, &lock);
+  TSMutexLockTry(mutexp, &lock);
 
-  if (TS_SUCCESS == lock) {
+  if (lock) {
     SDK_RPRINT(test, "TSMutexCreate", "TestCase1", TC_PASS, "ok");
     SDK_RPRINT(test, "TSMutexLock", "TestCase1", TC_PASS, "ok");
     SDK_RPRINT(test, "TSMutexLockTry", "TestCase1", TC_PASS, "ok");
@@ -1544,7 +1559,9 @@ REGRESSION_TEST(SDK_API_TSIOBufferCreate) (RegressionTest * test, int atype, int
   TSIOBuffer bufp = TSIOBufferCreate();
 
   TSIOBufferWaterMarkSet(bufp, watermark);
-  watermark = TSIOBufferWaterMarkGet(bufp);
+
+  watermark = 0;
+  TSIOBufferWaterMarkGet(bufp, &watermark);
 
   if (watermark == 1000) {
     SDK_RPRINT(test, "TSIOBufferCreate", "TestCase1", TC_PASS, "ok");
@@ -1855,7 +1872,7 @@ REGRESSION_TEST(SDK_API_INKStatIntSet) (RegressionTest * test, int atype, int *p
   INKStatIntSet(stat, 100);
   int64_t stat_val;
 
-  stat_val = INKStatIntGet(stat);
+  INKStatIntGet(stat, &stat_val);
 
   if (stat_val == 100) {
     SDK_RPRINT(test, "INKStatIntSet", "TestCase1", TC_PASS, "ok");
@@ -1886,7 +1903,7 @@ REGRESSION_TEST(SDK_API_INKStatIntAddTo) (RegressionTest * test, int atype, int 
   INKStatIntAddTo(stat, 100);
   int64_t stat_val;
 
-  stat_val = INKStatIntGet(stat);
+  INKStatIntGet(stat, &stat_val);
 
   if (stat_val == 100) {
     SDK_RPRINT(test, "INKStatIntAddTo", "TestCase1", TC_PASS, "ok");
@@ -1916,7 +1933,8 @@ REGRESSION_TEST(SDK_API_INKStatFloatAddTo) (RegressionTest * test, int atype, in
   INKStat stat = INKStatCreate("stat_fa", INKSTAT_TYPE_FLOAT);
 
   INKStatFloatAddTo(stat, 100.0);
-  float stat_val = INKStatFloatGet(stat);
+  float stat_val;
+  INKStatFloatGet(stat, &stat_val);
 
   if (stat_val == 100.0) {
     SDK_RPRINT(test, "INKStatFloatAddTo", "TestCase1", TC_PASS, "ok");
@@ -1945,7 +1963,8 @@ REGRESSION_TEST(SDK_API_INKStatFloatSet) (RegressionTest * test, int atype, int 
   INKStat stat = INKStatCreate("stat_fs", INKSTAT_TYPE_FLOAT);
 
   INKStatFloatSet(stat, 100.0);
-  float stat_val = INKStatFloatGet(stat);
+  float stat_val;
+  INKStatFloatGet(stat, &stat_val);
 
   if (stat_val == 100.0) {
     SDK_RPRINT(test, "INKStatFloatSet", "TestCase1", TC_PASS, "ok");
@@ -1979,7 +1998,8 @@ REGRESSION_TEST(SDK_API_INKStatIncrement) (RegressionTest * test, int atype, int
   INKStat stat_2 = INKStatCreate("stat_2", INKSTAT_TYPE_FLOAT);
 
   INKStatIncrement(stat_1);
-  int64_t stat1_val =  INKStatIntGet(stat_1);
+  int64_t stat1_val;
+  INKStatIntGet(stat_1, &stat1_val);
 
   if (stat1_val == 1) {
     SDK_RPRINT(test, "INKStatIncrement", "TestCase1", TC_PASS, "ok for int stat");
@@ -1989,7 +2009,7 @@ REGRESSION_TEST(SDK_API_INKStatIncrement) (RegressionTest * test, int atype, int
   }
 
   INKStatDecrement(stat_1);
-  stat1_val = INKStatIntGet(stat_1);
+  INKStatIntGet(stat_1, &stat1_val);
 
   if (stat1_val == 0) {
     SDK_RPRINT(test, "INKStatDecrement", "TestCase1", TC_PASS, "ok for int stat");
@@ -1999,7 +2019,8 @@ REGRESSION_TEST(SDK_API_INKStatIncrement) (RegressionTest * test, int atype, int
   }
 
   INKStatIncrement(stat_2);
-  float stat2_val = INKStatFloatGet(stat_2);
+  float stat2_val;
+  INKStatFloatGet(stat_2, &stat2_val);
 
   if (stat2_val == 1.0) {
     SDK_RPRINT(test, "INKStatIncrement", "TestCase2", TC_PASS, "ok for float stat");
@@ -2011,7 +2032,7 @@ REGRESSION_TEST(SDK_API_INKStatIncrement) (RegressionTest * test, int atype, int
   }
 
   INKStatDecrement(stat_2);
-  stat2_val = INKStatFloatGet(stat_2);
+  INKStatFloatGet(stat_2, &stat2_val);
 
   if (stat2_val == 0.0) {
     SDK_RPRINT(test, "INKStatDecrement", "TestCase2", TC_PASS, "ok for float stat");
@@ -2046,32 +2067,57 @@ REGRESSION_TEST(SDK_API_INKStatCoupled) (RegressionTest * test, int atype, int *
 
   /* Create global category and its stats */
   INKCoupledStat stat_global_category = INKStatCoupledGlobalCategoryCreate("global.category");
-  INKStat global_stat_sum = INKStatCoupledGlobalAdd(stat_global_category, "global.statsum", INKSTAT_TYPE_FLOAT);
-  INKStat global_stat_1 = INKStatCoupledGlobalAdd(stat_global_category, "global.stat1", INKSTAT_TYPE_INT64);
-  INKStat global_stat_2 = INKStatCoupledGlobalAdd(stat_global_category, "global.stat2", INKSTAT_TYPE_INT64);
+
+  INKStat global_stat_sum = INKStatCoupledGlobalAdd(stat_global_category,
+                                                    "global.statsum",
+                                                    INKSTAT_TYPE_FLOAT);
+
+  INKStat global_stat_1 = INKStatCoupledGlobalAdd(stat_global_category,
+                                                  "global.stat1",
+                                                  INKSTAT_TYPE_INT64);
+
+  INKStat global_stat_2 = INKStatCoupledGlobalAdd(stat_global_category,
+                                                  "global.stat2",
+                                                  INKSTAT_TYPE_INT64);
 
   /* Create local category and its stats */
-  INKCoupledStat stat_local_copy = INKStatCoupledLocalCopyCreate("local.copy", stat_global_category);
-  INKStat local_stat_sum = INKStatCoupledLocalAdd(stat_local_copy, "local.statsum", INKSTAT_TYPE_FLOAT);
-  INKStat local_stat_1 = INKStatCoupledLocalAdd(stat_local_copy, "local.stat1", INKSTAT_TYPE_INT64);
-  INKStat local_stat_2 = INKStatCoupledLocalAdd(stat_local_copy, "local.stat2", INKSTAT_TYPE_INT64);
+  INKCoupledStat stat_local_copy = INKStatCoupledLocalCopyCreate("local.copy",
+                                                                 stat_global_category);
+
+  INKStat local_stat_sum = INKStatCoupledLocalAdd(stat_local_copy,
+                                                  "local.statsum",
+                                                  INKSTAT_TYPE_FLOAT);
+
+  INKStat local_stat_1 = INKStatCoupledLocalAdd(stat_local_copy,
+                                                "local.stat1",
+                                                INKSTAT_TYPE_INT64);
+
+  INKStat local_stat_2 = INKStatCoupledLocalAdd(stat_local_copy,
+                                                "local.stat2",
+                                                INKSTAT_TYPE_INT64);
 
   /* stat operation */
   INKStatIntSet(local_stat_1, 100);
   INKStatIntSet(local_stat_2, 100);
-  float local_val_1 = INKStatFloatGet(local_stat_1);
-  float local_val_2 = INKStatFloatGet(local_stat_2);
+  float local_val_1;
+  INKStatFloatGet(local_stat_1, &local_val_1);
+  float local_val_2;
+  INKStatFloatGet(local_stat_2, &local_val_2);
 
   INKStatFloatAddTo(local_stat_sum, local_val_1);
   INKStatFloatAddTo(local_stat_sum, local_val_2);
-  float local_val_sum = INKStatFloatGet(local_stat_sum);
+  float local_val_sum;
+  INKStatFloatGet(local_stat_sum, &local_val_sum);
 
   INKStatsCoupledUpdate(stat_local_copy);
   INKStatCoupledLocalCopyDestroy(stat_local_copy);
 
-  float global_val_sum = INKStatFloatGet(global_stat_sum);
-  int64_t global_val_1 = INKStatIntGet(global_stat_1);
-  int64_t global_val_2 = INKStatIntGet(global_stat_2);
+  float global_val_sum;
+  INKStatFloatGet(global_stat_sum, &global_val_sum);
+  int64_t global_val_1;
+  INKStatIntGet(global_stat_1, &global_val_1);
+  int64_t global_val_2;
+  INKStatIntGet(global_stat_2, &global_val_2);
 
   if (local_val_1 == global_val_1 && local_val_2 == global_val_2 && local_val_sum == global_val_sum) {
     SDK_RPRINT(test, "INKStatCoupledGlobalCategoryCreate", "TestCase1", TC_PASS, "ok");
@@ -2082,11 +2128,14 @@ REGRESSION_TEST(SDK_API_INKStatCoupled) (RegressionTest * test, int atype, int *
     SDK_RPRINT(test, "INKStatCoupledUpdate", "TestCase1", TC_PASS, "ok");
     *pstatus = REGRESSION_TEST_PASSED;
   } else {
-    SDK_RPRINT(test, "INKStatCoupledGlobalCategoryCreate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
+    SDK_RPRINT(test, "INKStatCoupledGlobalCategoryCreate", "TestCase1", TC_FAIL,
+               "global stats' value is not equal to local one");
     SDK_RPRINT(test, "INKStatCoupledGlobalAdd", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyCreate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
+    SDK_RPRINT(test, "INKStatCoupledLocalCopyCreate", "TestCase1", TC_FAIL,
+               "global stats' value is not equal to local one");
     SDK_RPRINT(test, "INKStatCoupledLocalAdd", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyDestroy", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
+    SDK_RPRINT(test, "INKStatCoupledLocalCopyDestroy", "TestCase1", TC_FAIL,
+               "global stats' value is not equal to local one");
     SDK_RPRINT(test, "INKStatCoupledUpdate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
 
     *pstatus = REGRESSION_TEST_FAILED;
@@ -2252,7 +2301,7 @@ checkHttpTxnClientIncomingPortGet(SocketTest * test, void *data)
     return TS_EVENT_CONTINUE;
   }
 
-  if (TSMgmtIntGet("proxy.config.http.server_port", &port_from_config_file) != TS_SUCCESS) {
+  if (TSMgmtIntGet("proxy.config.http.server_port", &port_from_config_file) == 0) {
     port_from_config_file = 8080;
   }
 
@@ -2309,14 +2358,16 @@ checkHttpTxnClientReqGet(SocketTest * test, void *data)
   TSMLoc mloc;
   TSHttpTxn txnp = (TSHttpTxn) data;
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &mloc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &mloc)) {
     test->test_client_req_get = false;
     SDK_RPRINT(test->regtest, "TSHttpTxnClientReqGet", "TestCase1", TC_FAIL, "Unable to get handle to client request");
     return TS_EVENT_CONTINUE;
   }
 
-  if ((bufp == reinterpret_cast<TSMBuffer>(&((HttpSM *) txnp)->t_state.hdr_info.client_request)) &&
-      (mloc == reinterpret_cast<TSMLoc>(((HttpSM *)txnp)->t_state.hdr_info.client_request.m_http))) {
+
+  if ((bufp == (&((HttpSM *) txnp)->t_state.hdr_info.client_request)) &&
+      (mloc == (((HttpSM *) txnp)->t_state.hdr_info.client_request.m_http))
+    ) {
     test->test_client_req_get = true;
     SDK_RPRINT(test->regtest, "TSHttpTxnClientReqGet", "TestCase1", TC_PASS, "ok");
   } else {
@@ -2336,14 +2387,16 @@ checkHttpTxnClientRespGet(SocketTest * test, void *data)
   TSMLoc mloc;
   TSHttpTxn txnp = (TSHttpTxn) data;
 
-  if (TSHttpTxnClientRespGet(txnp, &bufp, &mloc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientRespGet(txnp, &bufp, &mloc)) {
     test->test_client_resp_get = false;
-    SDK_RPRINT(test->regtest, "TSHttpTxnClientRespGet", "TestCase1", TC_FAIL, "Unable to get handle to client response");
+    SDK_RPRINT(test->regtest, "TSHttpTxnClientRespGet", "TestCase1", TC_FAIL,
+               "Unable to get handle to client response");
     return TS_EVENT_CONTINUE;
   }
 
-  if ((bufp == reinterpret_cast<TSMBuffer>(&((HttpSM *) txnp)->t_state.hdr_info.client_response)) &&
-      (mloc == reinterpret_cast<TSMLoc>(((HttpSM *) txnp)->t_state.hdr_info.client_response.m_http))) {
+  if ((bufp == (&((HttpSM *) txnp)->t_state.hdr_info.client_response)) &&
+      (mloc == (((HttpSM *) txnp)->t_state.hdr_info.client_response.m_http))
+    ) {
     test->test_client_resp_get = true;
     SDK_RPRINT(test->regtest, "TSHttpTxnClientRespGet", "TestCase1", TC_PASS, "ok");
   } else {
@@ -2363,14 +2416,15 @@ checkHttpTxnServerReqGet(SocketTest * test, void *data)
   TSMLoc mloc;
   TSHttpTxn txnp = (TSHttpTxn) data;
 
-  if (TSHttpTxnServerReqGet(txnp, &bufp, &mloc) != TS_SUCCESS) {
+  if (!TSHttpTxnServerReqGet(txnp, &bufp, &mloc)) {
     test->test_server_req_get = false;
     SDK_RPRINT(test->regtest, "TSHttpTxnServerReqGet", "TestCase1", TC_FAIL, "Unable to get handle to server request");
     return TS_EVENT_CONTINUE;
   }
 
-  if ((bufp == reinterpret_cast<TSMBuffer>(&((HttpSM *) txnp)->t_state.hdr_info.server_request)) &&
-      (mloc == reinterpret_cast<TSMLoc>(((HttpSM *) txnp)->t_state.hdr_info.server_request.m_http))) {
+  if ((bufp == (&((HttpSM *) txnp)->t_state.hdr_info.server_request)) &&
+      (mloc == (((HttpSM *) txnp)->t_state.hdr_info.server_request.m_http))
+    ) {
     test->test_server_req_get = true;
     SDK_RPRINT(test->regtest, "TSHttpTxnServerReqGet", "TestCase1", TC_PASS, "ok");
   } else {
@@ -2390,14 +2444,16 @@ checkHttpTxnServerRespGet(SocketTest * test, void *data)
   TSMLoc mloc;
   TSHttpTxn txnp = (TSHttpTxn) data;
 
-  if (TSHttpTxnServerRespGet(txnp, &bufp, &mloc) != TS_SUCCESS) {
+  if (!TSHttpTxnServerRespGet(txnp, &bufp, &mloc)) {
     test->test_server_resp_get = false;
-    SDK_RPRINT(test->regtest, "TSHttpTxnServerRespGet", "TestCase1", TC_FAIL, "Unable to get handle to server response");
+    SDK_RPRINT(test->regtest, "TSHttpTxnServerRespGet", "TestCase1", TC_FAIL,
+               "Unable to get handle to server response");
     return TS_EVENT_CONTINUE;
   }
 
-  if ((bufp == reinterpret_cast<TSMBuffer>(&((HttpSM *) txnp)->t_state.hdr_info.server_response)) &&
-      (mloc == reinterpret_cast<TSMLoc>(((HttpSM *) txnp)->t_state.hdr_info.server_response.m_http))) {
+  if ((bufp == (&((HttpSM *) txnp)->t_state.hdr_info.server_response)) &&
+      (mloc == (((HttpSM *) txnp)->t_state.hdr_info.server_response.m_http))
+    ) {
     test->test_server_resp_get = true;
     SDK_RPRINT(test->regtest, "TSHttpTxnServerRespGet", "TestCase1", TC_PASS, "ok");
   } else {
@@ -2431,8 +2487,12 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
       test->hook_mask |= 1;
     }
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 1;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 1;
+    }
     break;
 
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -2442,8 +2502,13 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     TSSkipRemappingSet((TSHttpTxn) data,1);
     checkHttpTxnClientReqGet(test, data);
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 2;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 2;
+    }
+
     break;
 
   case TS_EVENT_HTTP_OS_DNS:
@@ -2457,16 +2522,24 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     checkHttpTxnClientIPGet(test, data);
     checkHttpTxnServerIPGet(test, data);
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 8;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 8;
+    }
     break;
 
   case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE:
     if (test->hook_mask == 3) {
       test->hook_mask |= 4;
     }
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 4;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 4;
+    }
     break;
 
   case TS_EVENT_HTTP_SEND_REQUEST_HDR:
@@ -2477,8 +2550,14 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     checkHttpTxnServerReqGet(test, data);
     checkHttpTxnNextHopIPGet(test, data);
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 16;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 16;
+    }
+
+
     break;
 
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
@@ -2487,8 +2566,13 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
     }
     checkHttpTxnServerRespGet(test, data);
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 32;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 32;
+    }
+
     break;
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
@@ -2498,8 +2582,13 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
 
     checkHttpTxnClientRespGet(test, data);
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 64;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 64;
+    }
+
     break;
 
   case TS_EVENT_HTTP_TXN_CLOSE:
@@ -2507,8 +2596,12 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
       test->hook_mask |= 128;
     }
 
-    TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE);
-    test->reenable_mask |= 128;
+    if (TSHttpTxnReenable((TSHttpTxn) data, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(test->regtest, "TSHttpTxnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    } else {
+      test->reenable_mask |= 128;
+    }
     break;
 
   case TS_EVENT_IMMEDIATE:
@@ -2546,7 +2639,8 @@ mytest_handler(TSCont contp, TSEvent event, void *data)
           (test->test_client_resp_get != true) ||
           (test->test_server_ip_get != true) ||
           (test->test_server_req_get != true) ||
-          (test->test_server_resp_get != true) || (test->test_next_hop_ip_get != true)) {
+          (test->test_server_resp_get != true) || (test->test_next_hop_ip_get != true)
+        ) {
         *(test->pstatus) = REGRESSION_TEST_FAILED;
       }
       // transaction is over. clean up.
@@ -2678,7 +2772,9 @@ test_url_print(TSMBuffer bufp, TSMLoc hdr_loc)
 
   /* This will print  just MIMEFields and not
      the http request line */
-  TSUrlPrint(bufp, hdr_loc, output_buffer);
+  if (TSUrlPrint(bufp, hdr_loc, output_buffer) != TS_SUCCESS) {
+    return NULL;
+  }
 
   /* Find out how the big the complete header is by
      seeing the total bytes in the buffer.  We need to
@@ -2733,9 +2829,9 @@ test_url_print(TSMBuffer bufp, TSMLoc hdr_loc)
 REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
 {
   NOWARN_UNUSED(atype);
-  TSMBuffer bufp1 = (TSMBuffer)NULL;
-  TSMBuffer bufp2 = (TSMBuffer)NULL;
-  TSMBuffer bufp3 = (TSMBuffer)NULL;
+  TSMBuffer bufp1 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp2 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp3 = (TSMBuffer) TS_ERROR_PTR;
   TSMLoc url_loc1;
   TSMLoc url_loc2;
   TSMLoc url_loc3;
@@ -2759,16 +2855,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   const char *fragment = "yyy";
   const char *fragment_get;
   char *url_expected_string;
-  char *url_string_from_1 = (char *)NULL;
-  char *url_string_from_2 = (char *)NULL;
-  char *url_string_from_3 = (char *)NULL;
-  char *url_string_from_print = (char *)NULL;
+  char *url_string_from_1 = (char *) TS_ERROR_PTR;
+  char *url_string_from_2 = (char *) TS_ERROR_PTR;
+  char *url_string_from_3 = (char *) TS_ERROR_PTR;
+  char *url_string_from_print = (char *) TS_ERROR_PTR;
   int url_expected_length;
   int url_length_from_1;
   int url_length_from_2;
   int type = 'a';
   int type_get;
-  int tmp_len;
 
   bool test_passed_create = false;
   bool test_passed_destroy = false;
@@ -2831,8 +2926,12 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
 
   // Set Functions
 
-  bufp1 = TSMBufferCreate();
-  if (TSUrlCreate(bufp1, &url_loc1) != TS_SUCCESS) {
+  if ((bufp1 = TSMBufferCreate()) == TS_ERROR_PTR) {
+    // Cannot proceed with tests.
+    SDK_RPRINT(test, "TSMBufferCreate", "TestCase1", TC_FAIL, "unable to allocate MBuffer.");
+    goto print_results;
+  };
+  if ((url_loc1 = TSUrlCreate(bufp1)) == TS_ERROR_PTR) {
     // Cannot proceed with tests.
     SDK_RPRINT(test, "TSUrlCreate", "TestCase1", TC_FAIL, "unable to create URL within buffer.");
     goto print_results;
@@ -2841,12 +2940,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlSchemeSet(bufp1, url_loc1, scheme, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlSchemeSet", "TestCase1", TC_FAIL, "TSUrlSchemeSet Returned TS_ERROR");
   } else {
-    scheme_get = TSUrlSchemeGet(bufp1, url_loc1, &length);
-    if (strncmp(scheme_get, scheme, length) == 0) {
-      SDK_RPRINT(test, "TSUrlSchemeSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_scheme = true;
+    if ((scheme_get = TSUrlSchemeGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlSchemeSet|Get", "TestCase1", TC_FAIL, "TSUrlSchemeGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlSchemeSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (strncmp(scheme_get, scheme, length) == 0) {
+        SDK_RPRINT(test, "TSUrlSchemeSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_scheme = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlSchemeSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2854,12 +2956,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlUserSet(bufp1, url_loc1, user, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlUserSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    user_get = TSUrlUserGet(bufp1, url_loc1, &length);
-    if (((user_get == NULL) && (user == NULL)) || (strncmp(user_get, user, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlUserSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_user = true;
+    if ((user_get = TSUrlUserGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlUserSet|Get", "TestCase1", TC_FAIL, "TSUrlUserGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlUserSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((user_get == NULL) && (user == NULL)) || (strncmp(user_get, user, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlUserSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_user = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlUserSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2867,12 +2972,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlPasswordSet(bufp1, url_loc1, password, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlPasswordSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    password_get = TSUrlPasswordGet(bufp1, url_loc1, &length);
-    if (((password_get == NULL) && (password == NULL)) || (strncmp(password_get, password, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlPasswordSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_password = true;
+    if ((password_get = TSUrlPasswordGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlPasswordSet|Get", "TestCase1", TC_FAIL, "TSUrlPasswordGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlPasswordSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((password_get == NULL) && (password == NULL)) || (strncmp(password_get, password, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlPasswordSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_password = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlPasswordSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2880,12 +2988,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlHostSet(bufp1, url_loc1, host, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlHostSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    host_get = TSUrlHostGet(bufp1, url_loc1, &length);
-    if (strncmp(host_get, host, length) == 0) {
-      SDK_RPRINT(test, "TSUrlHostSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_host = true;
+    if ((host_get = TSUrlHostGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlHostSet|Get", "TestCase1", TC_FAIL, "TSUrlHostGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlHostSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (strncmp(host_get, host, length) == 0) {
+        SDK_RPRINT(test, "TSUrlHostSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_host = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlHostSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2893,12 +3004,16 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlPortSet(bufp1, url_loc1, port) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlPortSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    port_get = TSUrlPortGet(bufp1, url_loc1);
-    if (port_get == port) {
-      SDK_RPRINT(test, "TSUrlPortSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_port = true;
+    port_get = 80;
+    if ((port_get = TSUrlPortGet(bufp1, url_loc1)) == TS_ERROR) {
+      SDK_RPRINT(test, "TSUrlPortSet|Get", "TestCase1", TC_FAIL, "TSUrlPortGet Returned TS_ERROR");
     } else {
-      SDK_RPRINT(test, "TSUrlPortSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (port_get == port) {
+        SDK_RPRINT(test, "TSUrlPortSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_port = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlPortSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2906,12 +3021,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlPathSet(bufp1, url_loc1, path, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlPathSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    path_get = TSUrlPathGet(bufp1, url_loc1, &length);
-    if (((path == NULL) && (path_get == NULL)) || (strncmp(path, path_get, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlPathSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_path = true;
+    if ((path_get = TSUrlPathGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlPathSet|Get", "TestCase1", TC_FAIL, "TSUrlPathGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlPathSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((path == NULL) && (path_get == NULL)) || (strncmp(path, path_get, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlPathSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_path = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlPathSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2919,12 +3037,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlHttpParamsSet(bufp1, url_loc1, params, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlHttpParamsSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    params_get = TSUrlHttpParamsGet(bufp1, url_loc1, &length);
-    if (((params == NULL) && (params_get == NULL)) || (strncmp(params, params_get, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlHttpParamsSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_params = true;
+    if ((params_get = TSUrlHttpParamsGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlHttpParamsSet|Get", "TestCase1", TC_FAIL, "TSUrlHttpParamsGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlHttpParamsSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((params == NULL) && (params_get == NULL)) || (strncmp(params, params_get, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlHttpParamsSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_params = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlHttpParamsSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2932,12 +3053,15 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlHttpQuerySet(bufp1, url_loc1, query, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlHttpQuerySet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    query_get = TSUrlHttpQueryGet(bufp1, url_loc1, &length);
-    if (((query == NULL) && (query_get == NULL)) || (strncmp(query, query_get, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlHttpQuerySet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_query = true;
+    if ((query_get = TSUrlHttpQueryGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlHttpQuerySet|Get", "TestCase1", TC_FAIL, "TSUrlHttpQueryGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlHttpQuerySet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((query == NULL) && (query_get == NULL)) || (strncmp(query, query_get, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlHttpQuerySet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_query = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlHttpQuerySet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
@@ -2945,36 +3069,52 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlHttpFragmentSet(bufp1, url_loc1, fragment, -1) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlHttpFragmentSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
-    fragment_get = TSUrlHttpFragmentGet(bufp1, url_loc1, &length);
-    if (((fragment == NULL) && (fragment_get == NULL)) || (strncmp(fragment, fragment_get, length) == 0)) {
-      SDK_RPRINT(test, "TSUrlHttpFragmentSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_fragment = true;
+    if ((fragment_get = TSUrlHttpFragmentGet(bufp1, url_loc1, &length)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlHttpFragmentSet|Get", "TestCase1", TC_FAIL,
+                 "TSUrlHttpFragmentGet Returned TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlHttpFragmentSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (((fragment == NULL) && (fragment_get == NULL)) || (strncmp(fragment, fragment_get, length) == 0)) {
+        SDK_RPRINT(test, "TSUrlHttpFragmentSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_fragment = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlHttpFragmentSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
   //Length
-  url_length_from_1 = TSUrlLengthGet(bufp1, url_loc1);
-  if (url_length_from_1 == url_expected_length) {
-    SDK_RPRINT(test, "TSUrlLengthGet", "TestCase1", TC_PASS, "ok");
-    test_passed_length1 = true;
+  if ((url_length_from_1 = TSUrlLengthGet(bufp1, url_loc1)) == TS_ERROR) {
+    SDK_RPRINT(test, "TSUrlLengthGet", "TestCase1", TC_FAIL, "Returns TS_ERROR");
   } else {
-    SDK_RPRINT(test, "TSUrlLengthGet", "TestCase1", TC_FAIL, "Values don't match");
+    if (url_length_from_1 == url_expected_length) {
+      SDK_RPRINT(test, "TSUrlLengthGet", "TestCase1", TC_PASS, "ok");
+      test_passed_length1 = true;
+    } else {
+      SDK_RPRINT(test, "TSUrlLengthGet", "TestCase1", TC_FAIL, "Values don't match");
+    }
   }
+
 
   //String
-  url_string_from_1 = TSUrlStringGet(bufp1, url_loc1, &tmp_len);
-  if (strcmp(url_string_from_1, url_expected_string) == 0) {
-    SDK_RPRINT(test, "TSUrlStringGet", "TestCase1", TC_PASS, "ok");
-    test_passed_string1 = true;
+  if ((url_string_from_1 = TSUrlStringGet(bufp1, url_loc1, NULL)) == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSUrlStringGet", "TestCase1", TC_FAIL, "Returns TS_ERROR_PTR");
   } else {
-    SDK_RPRINT(test, "TSUrlStringGet", "TestCase1", TC_FAIL, "Values don't match");
+    if (strcmp(url_string_from_1, url_expected_string) == 0) {
+      SDK_RPRINT(test, "TSUrlStringGet", "TestCase1", TC_PASS, "ok");
+      test_passed_string1 = true;
+    } else {
+      SDK_RPRINT(test, "TSUrlStringGet", "TestCase1", TC_FAIL, "Values don't match");
+    }
   }
 
+
   //Copy
-  bufp2 = TSMBufferCreate();
-  if (TSUrlCreate(bufp2, &url_loc2) != TS_SUCCESS) {
+  if ((bufp2 = TSMBufferCreate()) == TS_ERROR_PTR) {
+    // Cannot proceed with tests.
+    SDK_RPRINT(test, "TSMBufferCreate", "TestCase2", TC_FAIL, "unable to allocate MBuffer for TSUrlCopy.");
+    goto print_results;
+  };
+  if ((url_loc2 = TSUrlCreate(bufp2)) == TS_ERROR_PTR) {
     // Cannot proceed with tests.
     SDK_RPRINT(test, "TSUrlCreate", "TestCase2", TC_FAIL, "unable to create URL within buffer for TSUrlCopy.");
     goto print_results;
@@ -2983,22 +3123,28 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
     SDK_RPRINT(test, "TSUrlCopy", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
     //Length Test Case 2
-    url_length_from_2 = TSUrlLengthGet(bufp2, url_loc2);
-    if (url_length_from_2 == url_expected_length) {
-      SDK_RPRINT(test, "TSUrlLengthGet", "TestCase2", TC_PASS, "ok");
-      test_passed_length2 = true;
+    if ((url_length_from_2 = TSUrlLengthGet(bufp2, url_loc2)) == TS_ERROR) {
+      SDK_RPRINT(test, "TSUrlLengthGet", "TestCase2", TC_FAIL, "Returns TS_ERROR");
     } else {
-      SDK_RPRINT(test, "TSUrlCopy", "TestCase1", TC_FAIL, "Values don't match");
+      if (url_length_from_2 == url_expected_length) {
+        SDK_RPRINT(test, "TSUrlLengthGet", "TestCase2", TC_PASS, "ok");
+        test_passed_length2 = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlCopy", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
 
 
     //String Test Case 2
-    url_string_from_2 = TSUrlStringGet(bufp2, url_loc2, &tmp_len);
-    if (strcmp(url_string_from_2, url_expected_string) == 0) {
-      SDK_RPRINT(test, "TSUrlStringGet", "TestCase2", TC_PASS, "ok");
-      test_passed_string2 = true;
+    if ((url_string_from_2 = TSUrlStringGet(bufp2, url_loc2, NULL)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlStringGet", "TestCase2", TC_FAIL, "Returns TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlStringGet", "TestCase2", TC_FAIL, "Values don't match");
+      if (strcmp(url_string_from_2, url_expected_string) == 0) {
+        SDK_RPRINT(test, "TSUrlStringGet", "TestCase2", TC_PASS, "ok");
+        test_passed_string2 = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlStringGet", "TestCase2", TC_FAIL, "Values don't match");
+      }
     }
 
     // Copy Test Case
@@ -3011,18 +3157,25 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   }
 
   //Clone
-  bufp3 = TSMBufferCreate();
-  if (TSUrlClone(bufp3, bufp1, url_loc1, &url_loc3) != TS_SUCCESS) {
-    SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_FAIL, "Returned TS_ERROR");
+  if ((bufp3 = TSMBufferCreate()) == TS_ERROR_PTR) {
+    // Cannot proceed with tests.
+    SDK_RPRINT(test, "TSMBufferCreate", "TestCase2", TC_FAIL, "unable to allocate MBuffer for TSUrlClone.");
+    goto print_results;
+  };
+  if ((url_loc3 = TSUrlClone(bufp3, bufp1, url_loc1)) == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_FAIL, "Returned TS_ERROR_PTR");
   } else {
     //String Test Case 2
-    url_string_from_3 = TSUrlStringGet(bufp3, url_loc3, &tmp_len);
-    // Copy Test Case
-    if (strcmp(url_string_from_1, url_string_from_3) == 0) {
-      SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_PASS, "ok");
-      test_passed_clone = true;
+    if ((url_string_from_3 = TSUrlStringGet(bufp3, url_loc3, NULL)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlClone", "TestCase2", TC_FAIL, "TSUrlStringGet Returns TS_ERROR_PTR");
     } else {
-      SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_FAIL, "Values Don't Match");
+      // Copy Test Case
+      if (strcmp(url_string_from_1, url_string_from_3) == 0) {
+        SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_PASS, "ok");
+        test_passed_clone = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlClone", "TestCase1", TC_FAIL, "Values Don't Match");
+      }
     }
   }
 
@@ -3043,19 +3196,22 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
   if (TSUrlFtpTypeSet(bufp1, url_loc1, type) != TS_SUCCESS) {
     SDK_RPRINT(test, "TSUrlFtpTypeSet", "TestCase1", TC_FAIL, "TSUrlFtpTypeSet Returned TS_ERROR");
   } else {
-    type_get = TSUrlFtpTypeGet(bufp1, url_loc1);
-    if (type_get == type) {
-      SDK_RPRINT(test, "TSUrlFtpTypeSet&Get", "TestCase1", TC_PASS, "ok");
-      test_passed_type = true;
+    if ((type_get = TSUrlFtpTypeGet(bufp1, url_loc1)) == TS_ERROR) {
+      SDK_RPRINT(test, "TSUrlFtpTypeSet|Get", "TestCase1", TC_FAIL, "TSUrlFtpTypeGet Returned TS_ERROR");
     } else {
-      SDK_RPRINT(test, "TSUrlFtpTypeSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      if (type_get == type) {
+        SDK_RPRINT(test, "TSUrlFtpTypeSet&Get", "TestCase1", TC_PASS, "ok");
+        test_passed_type = true;
+      } else {
+        SDK_RPRINT(test, "TSUrlFtpTypeSet&Get", "TestCase1", TC_FAIL, "Values don't match");
+      }
     }
   }
 
 
   if ((TSUrlDestroy(bufp1, url_loc1) == TS_ERROR) &&
-      (TSUrlDestroy(bufp2, url_loc2) == TS_ERROR) &&
-      (TSUrlDestroy(bufp3, url_loc3) == TS_ERROR)) {
+      (TSUrlDestroy(bufp2, url_loc2) == TS_ERROR) && (TSUrlDestroy(bufp3, url_loc3) == TS_ERROR)
+    ) {
     SDK_RPRINT(test, "TSUrlCreate", "TestCase1&2", TC_PASS, "ok");
     SDK_RPRINT(test, "TSUrlDestroy", "TestCase1|2|3", TC_FAIL, "Returns TS_ERROR");
   } else {
@@ -3070,22 +3226,22 @@ REGRESSION_TEST(SDK_API_TSUrl) (RegressionTest * test, int atype, int *pstatus)
 
 print_results:
   TSfree(url_expected_string);
-  if (url_string_from_1 != NULL) {
+  if (url_string_from_1 != TS_ERROR_PTR) {
     TSfree(url_string_from_1);
   }
-  if (url_string_from_2 != NULL) {
+  if (url_string_from_2 != TS_ERROR_PTR) {
     TSfree(url_string_from_2);
   }
-  if (url_string_from_3 != NULL) {
+  if (url_string_from_3 != TS_ERROR_PTR) {
     TSfree(url_string_from_3);
   }
-  if (bufp1 != NULL) {
+  if (bufp1 != TS_ERROR_PTR) {
     TSMBufferDestroy(bufp1);
   }
-  if (bufp2 != NULL) {
+  if (bufp2 != TS_ERROR_PTR) {
     TSMBufferDestroy(bufp2);
   }
-  if (bufp3 != NULL) {
+  if (bufp3 != TS_ERROR_PTR) {
     TSMBufferDestroy(bufp3);
   }
   if ((test_passed_create == false) ||
@@ -3104,7 +3260,8 @@ print_results:
       (test_passed_string1 == false) ||
       (test_passed_string2 == false) ||
       (test_passed_print == false) ||
-      (test_passed_length1 == false) || (test_passed_length2 == false) || (test_passed_type == false)) {
+      (test_passed_length1 == false) || (test_passed_length2 == false) || (test_passed_type == false)
+    ) {
         /*** Debugging the test itself....
 	(test_passed_create == false)?printf("test_passed_create is false\n"):printf("");
 	(test_passed_destroy == false)?printf("test_passed_destroy is false\n"):printf("");
@@ -3157,15 +3314,15 @@ print_results:
 REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstatus)
 {
   NOWARN_UNUSED(atype);
-  TSMBuffer bufp1 = (TSMBuffer)NULL;
-  TSMBuffer bufp2 = (TSMBuffer)NULL;
-  TSMBuffer bufp3 = (TSMBuffer)NULL;
-  TSMBuffer bufp4 = (TSMBuffer)NULL;
+  TSMBuffer bufp1 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp2 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp3 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp4 = (TSMBuffer) TS_ERROR_PTR;
 
-  TSMLoc hdr_loc1 = (TSMLoc)NULL;
-  TSMLoc hdr_loc2 = (TSMLoc)NULL;
-  TSMLoc hdr_loc3 = (TSMLoc)NULL;
-  TSMLoc hdr_loc4 = (TSMLoc)NULL;
+  TSMLoc hdr_loc1 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc hdr_loc2 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc hdr_loc3 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc hdr_loc4 = (TSMLoc) TS_ERROR_PTR;
 
   TSHttpType hdr1type;
   TSHttpType hdr2type;
@@ -3221,18 +3378,25 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
-  bufp1 = TSMBufferCreate();
-  bufp2 = TSMBufferCreate();
-  bufp3 = TSMBufferCreate();
-  bufp4 = TSMBufferCreate();
-
+  if (((bufp1 = TSMBufferCreate()) == TS_ERROR_PTR) ||
+      ((bufp2 = TSMBufferCreate()) == TS_ERROR_PTR) ||
+      ((bufp3 = TSMBufferCreate()) == TS_ERROR_PTR) || ((bufp4 = TSMBufferCreate()) == TS_ERROR_PTR)
+    ) {
+    SDK_RPRINT(test, "TSHttpHdr", "All Test Cases", TC_FAIL,
+               "TSMBufferCreate returns TS_ERROR_PTR. Cannot test the functions");
+    test_buffer_created = true;
+  }
   // Create
   if (test_buffer_created == true) {
-    hdr_loc1 = TSHttpHdrCreate(bufp1);
-    hdr_loc2 = TSHttpHdrCreate(bufp2);
-    hdr_loc3 = TSHttpHdrCreate(bufp3);
-    SDK_RPRINT(test, "TSHttpHdrCreate", "TestCase1&2&3", TC_PASS, "ok");
-    test_passed_Http_Hdr_Create = true;
+    if (((hdr_loc1 = TSHttpHdrCreate(bufp1)) == TS_ERROR_PTR) ||
+        ((hdr_loc2 = TSHttpHdrCreate(bufp2)) == TS_ERROR_PTR) ||
+        ((hdr_loc3 = TSHttpHdrCreate(bufp3)) == TS_ERROR_PTR)
+      ) {
+      SDK_RPRINT(test, "TSHttpHdrCreate", "TestCase1|2|3", TC_FAIL, "TSHttpHdrCreate returns TS_ERROR_PTR.");
+    } else {
+      SDK_RPRINT(test, "TSHttpHdrCreate", "TestCase1&2&3", TC_PASS, "ok");
+      test_passed_Http_Hdr_Create = true;
+    }
   } else {
     SDK_RPRINT(test, "TSHttpHdrCreate", "All Test Cases", TC_FAIL, "Cannot run test as unable to allocate MBuffers");
   }
@@ -3241,20 +3405,26 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
   // Type
   if (test_passed_Http_Hdr_Create == true) {
     if ((TSHttpHdrTypeSet(bufp1, hdr_loc1, TS_HTTP_TYPE_REQUEST) == TS_ERROR) ||
-        (TSHttpHdrTypeSet(bufp2, hdr_loc2, TS_HTTP_TYPE_RESPONSE) == TS_ERROR)) {
+        (TSHttpHdrTypeSet(bufp2, hdr_loc2, TS_HTTP_TYPE_RESPONSE) == TS_ERROR)
+      ) {
       SDK_RPRINT(test, "TSHttpHdrTypeSet", "TestCase1|2", TC_FAIL, "TSHttpHdrTypeSet returns TS_ERROR");
     } else {
-      hdr1type = TSHttpHdrTypeGet(bufp1, hdr_loc1);
-      hdr2type = TSHttpHdrTypeGet(bufp2, hdr_loc2);
-      if ((hdr1type == TS_HTTP_TYPE_REQUEST) && (hdr2type == TS_HTTP_TYPE_RESPONSE)) {
-        SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "TestCase1&2", TC_PASS, "ok");
-        test_passed_Http_Hdr_Type = true;
+      if (((hdr1type = TSHttpHdrTypeGet(bufp1, hdr_loc1)) == (TSHttpType) TS_ERROR) ||
+          ((hdr2type = TSHttpHdrTypeGet(bufp2, hdr_loc2)) == (TSHttpType) TS_ERROR)
+        ) {
+        SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "TestCase1|2", TC_FAIL, "TSHttpHdrTypeGet returns TS_ERROR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "TestCase1&2", TC_FAIL, "Values mismatch");
+        if ((hdr1type == TS_HTTP_TYPE_REQUEST) && (hdr2type == TS_HTTP_TYPE_RESPONSE)) {
+          SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "TestCase1&2", TC_PASS, "ok");
+          test_passed_Http_Hdr_Type = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "TestCase1&2", TC_FAIL, "Values mismatch");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header Creation Test failed");
+    SDK_RPRINT(test, "TSHttpHdrTypeSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header Creation Test failed");
   }
 
   // Method
@@ -3262,28 +3432,33 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
     if (TSHttpHdrMethodSet(bufp1, hdr_loc1, TS_HTTP_METHOD_GET, -1) == TS_ERROR) {
       SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrMethodSet returns TS_ERROR");
     } else {
-      methodGet = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length);
-      if ((strncmp(methodGet, TS_HTTP_METHOD_GET, length) == 0) && (length == (int) strlen(TS_HTTP_METHOD_GET))) {
-        SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_PASS, "ok");
-        test_passed_Http_Hdr_Method = true;
+      if ((methodGet = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrMethodGet retuns TS_ERROR_PTR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        if ((strncmp(methodGet, TS_HTTP_METHOD_GET, length) == 0) && (length == (int) strlen(TS_HTTP_METHOD_GET))) {
+          SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_PASS, "ok");
+          test_passed_Http_Hdr_Method = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header's Type cannot be set");
+    SDK_RPRINT(test, "TSHttpHdrMethodSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header's Type cannot be set");
   }
 
   // Url
   if (test_passed_Http_Hdr_Type == true) {
-    if (TSUrlCreate(bufp1, &url_loc) != TS_SUCCESS) {
-      SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "Cannot run test as TSUrlCreate returns TS_ERROR");
+    if ((url_loc = TSUrlCreate(bufp1)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL,
+                 "Cannot run test as TSUrlCreate returns TS_ERROR_PTR");
     } else {
       if (TSHttpHdrUrlSet(bufp1, hdr_loc1, url_loc) == TS_ERROR) {
         SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlSet returns TS_ERROR");
       } else {
-        if (TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc_Get) != TS_SUCCESS) {
-          SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlGet retuns TS_ERROR");
+        if ((url_loc_Get = TSHttpHdrUrlGet(bufp1, hdr_loc1)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlGet retuns TS_ERROR_PTR");
         } else {
           if (url_loc == url_loc_Get) {
             SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_PASS, "ok");
@@ -3319,7 +3494,8 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header's Type cannot be set");
+    SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header's Type cannot be set");
   }
 
   // Reason
@@ -3327,16 +3503,20 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
     if (TSHttpHdrReasonSet(bufp2, hdr_loc2, response_reason, -1) == TS_ERROR) {
       SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrReasonSet returns TS_ERROR");
     } else {
-      response_reason_get = TSHttpHdrReasonGet(bufp2, hdr_loc2, &length);
-      if ((strncmp(response_reason_get, response_reason, length) == 0) && (length == (int) strlen(response_reason))) {
-        SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_PASS, "ok");
-        test_passed_Http_Hdr_Reason = true;
+      if ((response_reason_get = TSHttpHdrReasonGet(bufp2, hdr_loc2, &length)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrReasonGet returns TS_ERROR_PTR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        if ((strncmp(response_reason_get, response_reason, length) == 0) && (length == (int) strlen(response_reason))) {
+          SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_PASS, "ok");
+          test_passed_Http_Hdr_Reason = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header's Type cannot be set");
+    SDK_RPRINT(test, "TSHttpHdrReasonSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header's Type cannot be set");
   }
 
   // Status
@@ -3344,16 +3524,20 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
     if (TSHttpHdrStatusSet(bufp2, hdr_loc2, TS_HTTP_STATUS_OK) == TS_ERROR) {
       SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrStatusSet returns TS_ERROR");
     } else {
-      status_get = TSHttpHdrStatusGet(bufp2, hdr_loc2);
-      if (status_get == TS_HTTP_STATUS_OK) {
-        SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_PASS, "ok");
-        test_passed_Http_Hdr_Status = true;
+      if ((status_get = TSHttpHdrStatusGet(bufp2, hdr_loc2)) == (TSHttpStatus) TS_ERROR) {
+        SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrStatusGet returns TS_ERROR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        if (status_get == TS_HTTP_STATUS_OK) {
+          SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_PASS, "ok");
+          test_passed_Http_Hdr_Status = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header's Type cannot be set");
+    SDK_RPRINT(test, "TSHttpHdrStatusSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header's Type cannot be set");
   }
 
   //Version
@@ -3361,16 +3545,20 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
     if (TSHttpHdrVersionSet(bufp1, hdr_loc1, TS_HTTP_VERSION(version_major, version_minor)) == TS_ERROR) {
       SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrVersionSet returns TS_ERROR");
     } else {
-      version_get = TSHttpHdrVersionGet(bufp1, hdr_loc1);
-      if ((version_major == TS_HTTP_MAJOR(version_get)) && (version_minor == TS_HTTP_MINOR(version_get))) {
-        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_PASS, "ok");
-        test_passed_Http_Hdr_Version = true;
+      if ((version_get = TSHttpHdrVersionGet(bufp1, hdr_loc1)) == TS_ERROR) {
+        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrVersionGet returns TS_ERROR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        if ((version_major == TS_HTTP_MAJOR(version_get)) && (version_minor == TS_HTTP_MINOR(version_get))) {
+          SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_PASS, "ok");
+          test_passed_Http_Hdr_Version = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase1", TC_FAIL, "Value's mismatch");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "All Test Case", TC_FAIL, "Cannot run test as Header's Type cannot be set");
+    SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "All Test Case", TC_FAIL,
+               "Cannot run test as Header's Type cannot be set");
   }
 
   if (test_passed_Http_Hdr_Version == true) {
@@ -3378,19 +3566,23 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
       SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_FAIL, "TSHttpHdrVersionSet returns TS_ERROR");
       test_passed_Http_Hdr_Version = false;
     } else {
-      version_get = TSHttpHdrVersionGet(bufp2, hdr_loc2);
-      if ((version_major == TS_HTTP_MAJOR(version_get)) && (version_minor == TS_HTTP_MINOR(version_get))) {
-        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_PASS, "ok");
-      } else {
-        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_FAIL, "Value's mismatch");
+      if ((version_get = TSHttpHdrVersionGet(bufp2, hdr_loc2)) == TS_ERROR) {
+        SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_FAIL, "TSHttpHdrVersionGet returns TS_ERROR");
         test_passed_Http_Hdr_Version = false;
+      } else {
+        if ((version_major == TS_HTTP_MAJOR(version_get)) && (version_minor == TS_HTTP_MINOR(version_get))) {
+          SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_PASS, "ok");
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrVersionSet&Get", "TestCase2", TC_FAIL, "Value's mismatch");
+          test_passed_Http_Hdr_Version = false;
+        }
       }
     }
   }
   //Reason Lookup
   if (strcmp("None", TSHttpHdrReasonLookup(TS_HTTP_STATUS_NONE)) != 0) {
     SDK_RPRINT(test, "TSHttpHdrReasonLookup", "TestCase1", TC_FAIL,
-               "TSHttpHdrReasonLookup returns Value's mismatch");
+               "TSHttpHdrReasonLookup returns TS_ERROR_PTR or Value's mismatch");
   } else {
     SDK_RPRINT(test, "TSHttpHdrReasonLookup", "TestCase1", TC_PASS, "ok");
     test_passed_Http_Hdr_Reason_Lookup = true;
@@ -3398,7 +3590,7 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   if (strcmp("Ok", TSHttpHdrReasonLookup(TS_HTTP_STATUS_OK)) != 0) {
     SDK_RPRINT(test, "TSHttpHdrReasonLookup", "TestCase2", TC_FAIL,
-               "TSHttpHdrReasonLookup returns Value's mismatch");
+               "TSHttpHdrReasonLookup returns TS_ERROR_PTR or Value's mismatch");
     if (test_passed_Http_Hdr_Reason_Lookup == true) {
       test_passed_Http_Hdr_Reason_Lookup = false;
     }
@@ -3408,7 +3600,7 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   if (strcmp("Continue", TSHttpHdrReasonLookup(TS_HTTP_STATUS_CONTINUE)) != 0) {
     SDK_RPRINT(test, "TSHttpHdrReasonLookup", "TestCase3", TC_FAIL,
-               "TSHttpHdrReasonLookup returns Value's mismatch");
+               "TSHttpHdrReasonLookup returns TS_ERROR_PTR or Value's mismatch");
     if (test_passed_Http_Hdr_Reason_Lookup == true) {
       test_passed_Http_Hdr_Reason_Lookup = false;
     }
@@ -3418,7 +3610,7 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   if (strcmp("Not Modified", TSHttpHdrReasonLookup(TS_HTTP_STATUS_NOT_MODIFIED)) != 0) {
     SDK_RPRINT(test, "TSHttpHdrReasonLookup", "TestCase2", TC_FAIL,
-               "TSHttpHdrReasonLookup returns Value's mismatch");
+               "TSHttpHdrReasonLookup returns TS_ERROR_PTR or Value's mismatch");
     if (test_passed_Http_Hdr_Reason_Lookup == true) {
       test_passed_Http_Hdr_Reason_Lookup = false;
     }
@@ -3435,38 +3627,59 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
       bool flag = true;
       // Check the type
       if (flag == true) {
-        TSHttpType type1 = TSHttpHdrTypeGet(bufp1, hdr_loc1);
-        TSHttpType type2 = TSHttpHdrTypeGet(bufp3, hdr_loc3);
+        TSHttpType type1;
+        TSHttpType type2;
 
-        if (type1 != type2) {
-          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Type mismatch in both headers");
+        if (((type1 = TSHttpHdrTypeGet(bufp1, hdr_loc1)) == (TSHttpType) TS_ERROR) ||
+            ((type2 = TSHttpHdrTypeGet(bufp3, hdr_loc3)) == (TSHttpType) TS_ERROR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSHttpTypeGet returns TS_ERROR.");
           flag = false;
+        } else {
+          if (type1 != type2) {
+            SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Type mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the Version
       if (flag == true) {
-        int version1 = TSHttpHdrVersionGet(bufp1, hdr_loc1);
-        int version2 = TSHttpHdrVersionGet(bufp3, hdr_loc3);
+        int version1;
+        int version2;
 
-        if (version1 != version2) {
-          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Version mismatch in both headers");
+        if (((version1 = TSHttpHdrVersionGet(bufp1, hdr_loc1)) == TS_ERROR) ||
+            ((version2 = TSHttpHdrVersionGet(bufp3, hdr_loc3)) == TS_ERROR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
+        } else {
+          if (version1 != version2) {
+            SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Version mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the Method
       if (flag == true) {
-        method1 = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length1);
-        method2 = TSHttpHdrMethodGet(bufp3, hdr_loc3, &length2);
-        if ((length1 != length2) || (strncmp(method1, method2, length1) != 0)) {
-          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Method mismatch in both headers");
+
+        if (((method1 = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length1)) == TS_ERROR_PTR) ||
+            ((method2 = TSHttpHdrMethodGet(bufp3, hdr_loc3, &length2)) == TS_ERROR_PTR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
+        } else {
+          if ((length1 != length2) || (strncmp(method1, method2, length1) != 0)) {
+            SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Method mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the URL
       if (flag == true) {
 
-        if ((TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc1) != TS_SUCCESS) ||
-            (TSHttpHdrUrlGet(bufp3, hdr_loc3, &url_loc2) != TS_SUCCESS)) {
+        if (((url_loc1 = TSHttpHdrUrlGet(bufp1, hdr_loc1)) == TS_ERROR_PTR) ||
+            ((url_loc2 = TSHttpHdrUrlGet(bufp3, hdr_loc3)) == TS_ERROR_PTR)
+          ) {
           SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
         } else {
@@ -3483,49 +3696,76 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
           const char *path2;
 
           // URL Scheme
-          scheme1 = TSUrlSchemeGet(bufp1, url_loc1, &length1);
-          scheme2 = TSUrlSchemeGet(bufp3, url_loc2, &length2);
-          if ((length1 != length2) || (strncmp(scheme1, scheme2, length1) != 0)) {
-            SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Scheme has different values in both headers");
+          if (((scheme1 = TSUrlSchemeGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+              ((scheme2 = TSUrlSchemeGet(bufp3, url_loc2, &length2)) == TS_ERROR_PTR)
+            ) {
+            SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSUrlSchemeGet returns TS_ERROR_PTR");
             flag = false;
+          } else {
+            if ((length1 != length2) || (strncmp(scheme1, scheme2, length1) != 0)) {
+              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                         "Url Scheme has different values in both headers");
+              flag = false;
+            }
           }
 
           // URL Host
           if (flag == true) {
-            host1 = TSUrlHostGet(bufp1, url_loc1, &length1);
-            host2 = TSUrlHostGet(bufp3, url_loc2, &length2);
-            if ((length1 != length2) || (strncmp(host1, host2, length1) != 0)) {
-              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Host has different values in both headers");
+            if (((host1 = TSUrlHostGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+                ((host2 = TSUrlHostGet(bufp3, url_loc2, &length2)) == TS_ERROR_PTR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSUrlHostGet returns TS_ERROR_PTR");
               flag = false;
+            } else {
+              if ((length1 != length2) || (strncmp(host1, host2, length1) != 0)) {
+                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                           "Url Host has different values in both headers");
+                flag = false;
+              }
             }
           }
           // URL Port
           if (flag == true) {
-            port1 = TSUrlPortGet(bufp1, url_loc1);
-            port2 = TSUrlPortGet(bufp3, url_loc2);
-            if (port1 != port2) {
-              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Port has different values in both headers");
+            if (((port1 = TSUrlPortGet(bufp1, url_loc1)) == TS_ERROR) ||
+                ((port2 = TSUrlPortGet(bufp3, url_loc2)) == TS_ERROR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSUrlPortGet returns TS_ERROR");
               flag = false;
+            } else {
+              if (port1 != port2) {
+                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                           "Url Port has different values in both headers");
+                flag = false;
+              }
             }
           }
           // URL Path
           if (flag == true) {
-            path1 = TSUrlPathGet(bufp1, url_loc1, &length1);
-            path2 = TSUrlPathGet(bufp3, url_loc2, &length2);
-            if ((path1 != NULL) && (path2 != NULL)) {
-              if ((length1 != length2) || (strncmp(path1, path2, length1) != 0)) {
-                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Path has different values in both headers");
-                flag = false;
-              }
+            if (((path1 = TSUrlPathGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+                ((path2 = TSUrlPathGet(bufp3, url_loc2, &length2)) == TS_ERROR_PTR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSUrlPathGet returns TS_ERROR_PTR");
+              flag = false;
             } else {
-              if (path1 != path2) {
-                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Host has different values in both headers");
-                flag = false;
+              if ((path1 != NULL) && (path2 != NULL)) {
+                if ((length1 != length2) || (strncmp(path1, path2, length1) != 0)) {
+                  SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                             "Url Path has different values in both headers");
+                  flag = false;
+                }
+              } else {
+                if (path1 != path2) {
+                  SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                             "Url Host has different values in both headers");
+                  flag = false;
+                }
               }
             }
             if ((TSHandleMLocRelease(bufp1, hdr_loc1, url_loc1) == TS_ERROR) ||
-                (TSHandleMLocRelease(bufp3, hdr_loc3, url_loc2) == TS_ERROR)) {
-              SDK_RPRINT(test, "TSHandleMLocRelease", "", TC_FAIL, "Unable to release Handle acquired by TSHttpHdrUrlGet");
+                (TSHandleMLocRelease(bufp3, hdr_loc3, url_loc2) == TS_ERROR)
+              ) {
+              SDK_RPRINT(test, "TSHandleMLocRelease", "", TC_FAIL,
+                         "Unable to release Handle acquired by TSHttpHdrUrlGet");
             }
           }
 
@@ -3542,45 +3782,66 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   // Clone
   if (test_passed_Http_Hdr_Create == true) {
-    if (TSHttpHdrClone(bufp4, bufp1, hdr_loc1, &hdr_loc4) != TS_SUCCESS) {
-      SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpHdrClone returns TS_ERROR");
+    if ((hdr_loc4 = TSHttpHdrClone(bufp4, bufp1, hdr_loc1)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpHdrClone returns TS_ERROR_PTR");
     } else {
 
       bool flag = true;
       // Check the type
       if (flag == true) {
-        TSHttpType type1 = TSHttpHdrTypeGet(bufp1, hdr_loc1);
-        TSHttpType type2 = TSHttpHdrTypeGet(bufp4, hdr_loc4);
+        TSHttpType type1;
+        TSHttpType type2;
 
-        if (type1 != type2) {
-          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Type mismatch in both headers");
+        if (((type1 = TSHttpHdrTypeGet(bufp1, hdr_loc1)) == (TSHttpType) TS_ERROR) ||
+            ((type2 = TSHttpHdrTypeGet(bufp4, hdr_loc4)) == (TSHttpType) TS_ERROR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpTypeGet returns TS_ERROR.");
           flag = false;
+        } else {
+          if (type1 != type2) {
+            SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Type mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the Version
       if (flag == true) {
-        int version1 = TSHttpHdrVersionGet(bufp1, hdr_loc1);
-        int version2 = TSHttpHdrVersionGet(bufp4, hdr_loc4);
+        int version1;
+        int version2;
 
-        if (version1 != version2) {
-          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Version mismatch in both headers");
+        if (((version1 = TSHttpHdrVersionGet(bufp1, hdr_loc1)) == TS_ERROR) ||
+            ((version2 = TSHttpHdrVersionGet(bufp4, hdr_loc4)) == TS_ERROR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
+        } else {
+          if (version1 != version2) {
+            SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Version mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the Method
       if (flag == true) {
-        method1 = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length1);
-        method2 = TSHttpHdrMethodGet(bufp4, hdr_loc4, &length2);
-        if ((length1 != length2) || (strncmp(method1, method2, length1) != 0)) {
-          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Method mismatch in both headers");
+
+        if (((method1 = TSHttpHdrMethodGet(bufp1, hdr_loc1, &length1)) == TS_ERROR_PTR) ||
+            ((method2 = TSHttpHdrMethodGet(bufp4, hdr_loc4, &length2)) == TS_ERROR_PTR)
+          ) {
+          SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
+        } else {
+          if ((length1 != length2) || (strncmp(method1, method2, length1) != 0)) {
+            SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Method mismatch in both headers");
+            flag = false;
+          }
         }
       }
       // Check the URL
       if (flag == true) {
 
-        if ((TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc1) != TS_SUCCESS) ||
-            (TSHttpHdrUrlGet(bufp4, hdr_loc4, &url_loc2) != TS_SUCCESS)) {
+        if (((url_loc1 = TSHttpHdrUrlGet(bufp1, hdr_loc1)) == TS_ERROR_PTR) ||
+            ((url_loc2 = TSHttpHdrUrlGet(bufp4, hdr_loc4)) == TS_ERROR_PTR)
+          ) {
           SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
           flag = false;
         } else {
@@ -3597,49 +3858,77 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
           const char *path2;
 
           // URL Scheme
-          scheme1 = TSUrlSchemeGet(bufp1, url_loc1, &length1);
-          scheme2 = TSUrlSchemeGet(bufp4, url_loc2, &length2);
-          if ((length1 != length2) || (strncmp(scheme1, scheme2, length1) != 0)) {
-            SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Url Scheme has different values in both headers");
+          if (((scheme1 = TSUrlSchemeGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+              ((scheme2 = TSUrlSchemeGet(bufp4, url_loc2, &length2)) == TS_ERROR_PTR)
+            ) {
+            SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSUrlSchemeGet returns TS_ERROR_PTR");
             flag = false;
+          } else {
+            if ((length1 != length2) || (strncmp(scheme1, scheme2, length1) != 0)) {
+              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL,
+                         "Url Scheme has different values in both headers");
+              flag = false;
+            }
           }
+
 
           // URL Host
           if (flag == true) {
-            host1 = TSUrlHostGet(bufp1, url_loc1, &length1);
-            host2 = TSUrlHostGet(bufp4, url_loc2, &length2);
-            if ((length1 != length2) || (strncmp(host1, host2, length1) != 0)) {
-              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Url Host has different values in both headers");
+            if (((host1 = TSUrlHostGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+                ((host2 = TSUrlHostGet(bufp4, url_loc2, &length2)) == TS_ERROR_PTR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSUrlHostGet returns TS_ERROR_PTR");
               flag = false;
+            } else {
+              if ((length1 != length2) || (strncmp(host1, host2, length1) != 0)) {
+                SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL,
+                           "Url Host has different values in both headers");
+                flag = false;
+              }
             }
           }
           // URL Port
           if (flag == true) {
-            port1 = TSUrlPortGet(bufp1, url_loc1);
-            port2 = TSUrlPortGet(bufp4, url_loc2);
-            if (port1 != port2) {
-              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "Url Port has different values in both headers");
+            if (((port1 = TSUrlPortGet(bufp1, url_loc1)) == TS_ERROR) ||
+                ((port2 = TSUrlPortGet(bufp4, url_loc2)) == TS_ERROR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSUrlPortGet returns TS_ERROR");
               flag = false;
+            } else {
+              if (port1 != port2) {
+                SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL,
+                           "Url Port has different values in both headers");
+                flag = false;
+              }
             }
           }
           // URL Path
           if (flag == true) {
-            path1 = TSUrlPathGet(bufp1, url_loc1, &length1);
-            path2 = TSUrlPathGet(bufp4, url_loc2, &length2);
-            if ((path1 != NULL) && (path2 != NULL)) {
-              if ((length1 != length2) || (strncmp(path1, path2, length1) != 0)) {
-                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Path has different values in both headers");
-                flag = false;
-              }
+            if (((path1 = TSUrlPathGet(bufp1, url_loc1, &length1)) == TS_ERROR_PTR) ||
+                ((path2 = TSUrlPathGet(bufp4, url_loc2, &length2)) == TS_ERROR_PTR)
+              ) {
+              SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSUrlPathGet returns TS_ERROR_PTR");
+              flag = false;
             } else {
-              if (path1 != path2) {
-                SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "Url Host has different values in both headers");
-                flag = false;
+              if ((path1 != NULL) && (path2 != NULL)) {
+                if ((length1 != length2) || (strncmp(path1, path2, length1) != 0)) {
+                  SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                             "Url Path has different values in both headers");
+                  flag = false;
+                }
+              } else {
+                if (path1 != path2) {
+                  SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL,
+                             "Url Host has different values in both headers");
+                  flag = false;
+                }
               }
             }
             if ((TSHandleMLocRelease(bufp1, hdr_loc1, url_loc1) == TS_ERROR) ||
-                (TSHandleMLocRelease(bufp4, hdr_loc4, url_loc2) == TS_ERROR)) {
-              SDK_RPRINT(test, "TSHandleMLocRelease", "", TC_FAIL, "Unable to release Handle acquired by TSHttpHdrUrlGet");
+                (TSHandleMLocRelease(bufp4, hdr_loc4, url_loc2) == TS_ERROR)
+              ) {
+              SDK_RPRINT(test, "TSHandleMLocRelease", "", TC_FAIL,
+                         "Unable to release Handle acquired by TSHttpHdrUrlGet");
             }
           }
 
@@ -3657,107 +3946,147 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
 
   //LengthGet
   if (test_passed_Http_Hdr_Create == true) {
-    actual_length = TSHttpHdrLengthGet(bufp1, hdr_loc1);
-    TSIOBuffer iobuf = TSIOBufferCreate();
-    TSHttpHdrPrint(bufp1, hdr_loc1, iobuf);
-    TSIOBufferReader iobufreader = TSIOBufferReaderAlloc(iobuf);
-
-    expected_length = TSIOBufferReaderAvail(iobufreader);
-    if (actual_length == expected_length) {
-      SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_PASS, "ok");
-      test_passed_Http_Hdr_Length = true;
+    if ((actual_length = TSHttpHdrLengthGet(bufp1, hdr_loc1)) == TS_ERROR) {
+      SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL, "TSHttpHdrLengthGet returns TS_ERROR");
     } else {
-      SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL, "Incorrect value returned.");
-    }
+      TSIOBuffer iobuf;
 
-    // Print.
-    if ((test_passed_Http_Hdr_Method == true) && (test_passed_Http_Hdr_Url == true) &&
-        (test_passed_Http_Hdr_Version == true) && (test_passed_Http_Hdr_Length == true) &&
-        (try_print_function == true)) {
-      char *actual_iobuf = NULL;
-
-      actual_iobuf = (char *) TSmalloc((actual_length + 1) * sizeof(char));
-
-      if (actual_iobuf == NULL) {
-        SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Unable to allocate memory");
+      if ((iobuf = TSIOBufferCreate()) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL,
+                   "Cannot create iobuffer. Cannot continue with test");
       } else {
-
-        TSIOBufferBlock iobufblock;
-        int64_t bytes_read;
-
-        memset(actual_iobuf, 0, (actual_length + 1) * sizeof(char));
-        bytes_read = 0;
-
-        iobufblock = TSIOBufferReaderStart(iobufreader);
-
-        while (iobufblock != NULL) {
-          const char *block_start;
-          int64_t block_size;
-
-          block_start = TSIOBufferBlockReadStart(iobufblock, iobufreader, &block_size);
-          if (block_size <= 0)
-            break;
-
-          memcpy(actual_iobuf + bytes_read, block_start, block_size);
-          bytes_read += block_size;
-          TSIOBufferReaderConsume(iobufreader, block_size);
-          iobufblock = TSIOBufferReaderStart(iobufreader);
-        }
-        if (strcmp(actual_iobuf, expected_iobuf) == 0) {
-          SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_PASS, "ok");
-          test_passed_Http_Hdr_Print = true;
+        if (TSHttpHdrPrint(bufp1, hdr_loc1, iobuf) == TS_ERROR) {
+          SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL, "TSHttpHdrPrint returned TS_ERROR");
         } else {
-          SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Value's mismatch");
-        }
+          TSIOBufferReader iobufreader;
+          if ((iobufreader = TSIOBufferReaderAlloc(iobuf)) == TS_ERROR_PTR) {
+            SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL, "Cannot allocate a reader to io buffer");
+          } else {
+            if ((expected_length = TSIOBufferReaderAvail(iobufreader)) == TS_ERROR) {
+              SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL,
+                         "Cannot calculate the length to be expected.");
+            } else {
+              if (actual_length == expected_length) {
+                SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_PASS, "ok");
+                test_passed_Http_Hdr_Length = true;
+              } else {
+                SDK_RPRINT(test, "TSHttpHdrLengthGet", "TestCase1", TC_FAIL, "Incorrect value returned.");
+              }
+            }
+          }
 
-        TSfree(actual_iobuf);
-        TSIOBufferReaderFree(iobufreader);
-        TSIOBufferDestroy(iobuf);
+          // Print.
+          if ((test_passed_Http_Hdr_Method == true) && (test_passed_Http_Hdr_Url == true) &&
+              (test_passed_Http_Hdr_Version == true) && (test_passed_Http_Hdr_Length == true) &&
+              (try_print_function == true)
+            ) {
+            char *actual_iobuf = NULL;
+
+            actual_iobuf = (char *) TSmalloc((actual_length + 1) * sizeof(char));
+
+            if (actual_iobuf == NULL) {
+              SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Unable to allocate memory");
+            } else {
+
+              TSIOBufferBlock iobufblock;
+              int64_t bytes_read;
+
+              memset(actual_iobuf, 0, (actual_length + 1) * sizeof(char));
+              bytes_read = 0;
+
+              iobufblock = TSIOBufferReaderStart(iobufreader);
+
+              while ((iobufblock != NULL) && (iobufblock != TS_ERROR_PTR)) {
+                const char *block_start;
+                int64_t block_size;
+                block_start = TSIOBufferBlockReadStart(iobufblock, iobufreader, &block_size);
+
+                if ((block_start == TS_ERROR_PTR) || (block_size == 0) || (block_size == TS_ERROR)) {
+                  break;
+                }
+
+                memcpy(actual_iobuf + bytes_read, block_start, block_size);
+                bytes_read += block_size;
+
+                /*
+                   if (TSIOBufferReaderConsume(iobufreader,block_size)==TS_ERROR) {
+                   break;
+                   }
+                 */
+                TSIOBufferReaderConsume(iobufreader, block_size);
+                iobufblock = TSIOBufferReaderStart(iobufreader);
+              }
+              if (strcmp(actual_iobuf, expected_iobuf) == 0) {
+                SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_PASS, "ok");
+                test_passed_Http_Hdr_Print = true;
+              } else {
+                SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Value's mismatch");
+              }
+
+              TSfree(actual_iobuf);
+              /*
+                 if ((TSIOBufferReaderFree(iobufreader)==TS_ERROR) ||
+                 (TSIOBufferDestroy(iobuf)==TS_ERROR)
+                 ) {
+                 SDK_RPRINT(test,"TSIOBuffer","",TC_FAIL,"Unable to free memory");
+                 }
+               */
+              TSIOBufferReaderFree(iobufreader);
+              TSIOBufferDestroy(iobuf);
+            }
+          } else {
+            SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Unable to run test for TSHttpHdrPrint");
+          }
+
+        }
       }
-    } else {
-      SDK_RPRINT(test, "TSHttpHdrPrint", "TestCase1", TC_FAIL, "Unable to run test for TSHttpHdrPrint");
     }
   } else {
-    SDK_RPRINT(test, "TSHttpHdrLengthGet", "All Test Cases", TC_PASS, "Cannot run test as TSHttpHdrCreate has failed");
+    SDK_RPRINT(test, "TSHttpHdrLengthGet", "All Test Cases", TC_PASS,
+               "Cannot run test as TSHttpHdrCreate has failed");
   }
 
   // Destroy
   if (test_passed_Http_Hdr_Create == true) {
-    TSHttpHdrDestroy(bufp1, hdr_loc1);
-    TSHttpHdrDestroy(bufp2, hdr_loc2);
-    TSHttpHdrDestroy(bufp3, hdr_loc3);
-    TSHttpHdrDestroy(bufp4, hdr_loc4);
-    if ((TSHandleMLocRelease(bufp1, TS_NULL_MLOC, hdr_loc1) == TS_ERROR) ||
-        (TSHandleMLocRelease(bufp2, TS_NULL_MLOC, hdr_loc2) == TS_ERROR) ||
-        (TSHandleMLocRelease(bufp3, TS_NULL_MLOC, hdr_loc3) == TS_ERROR) ||
-        (TSHandleMLocRelease(bufp4, TS_NULL_MLOC, hdr_loc4) == TS_ERROR)) {
-      SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase1|2|3|4", TC_FAIL, "Unable to release the handle to headers");
+    if ((TSHttpHdrDestroy(bufp1, hdr_loc1) == TS_ERROR) ||
+        (TSHttpHdrDestroy(bufp2, hdr_loc2) == TS_ERROR) ||
+        (TSHttpHdrDestroy(bufp3, hdr_loc3) == TS_ERROR) || (TSHttpHdrDestroy(bufp4, hdr_loc4) == TS_ERROR)
+      ) {
+      SDK_RPRINT(test, "TSHttpHdrDestroy", "TestCase1|2|3|4", TC_FAIL, "TSHttpHdrDestroy returns TS_ERROR.");
+    } else {
+      if ((TSHandleMLocRelease(bufp1, TS_NULL_MLOC, hdr_loc1) == TS_ERROR) ||
+          (TSHandleMLocRelease(bufp2, TS_NULL_MLOC, hdr_loc2) == TS_ERROR) ||
+          (TSHandleMLocRelease(bufp3, TS_NULL_MLOC, hdr_loc3) == TS_ERROR) ||
+          (TSHandleMLocRelease(bufp4, TS_NULL_MLOC, hdr_loc4) == TS_ERROR)
+        ) {
+        SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase1|2|3|4", TC_FAIL, "Unable to release the handle to headers");
+      }
+      SDK_RPRINT(test, "TSHttpHdrDestroy", "TestCase1&2&3&4", TC_PASS, "ok");
+      test_passed_Http_Hdr_Destroy = true;
     }
-    SDK_RPRINT(test, "TSHttpHdrDestroy", "TestCase1&2&3&4", TC_PASS, "ok");
-    test_passed_Http_Hdr_Destroy = true;
   } else {
     SDK_RPRINT(test, "TSHttpHdrDestroy", "All Test Cases", TC_FAIL, "Cannot run test as header was not created");
   }
 
-  if (bufp1) {
+  if (bufp1 != TS_ERROR_PTR) {
     if (TSMBufferDestroy(bufp1) == TS_ERROR) {
       SDK_RPRINT(test, "TSMBufferDestroy", "TestCase1", TC_FAIL, "Unable to destroy MBuffer");
     }
   }
 
-  if (bufp2) {
+  if (bufp2 != TS_ERROR_PTR) {
     if (TSMBufferDestroy(bufp2) == TS_ERROR) {
       SDK_RPRINT(test, "TSMBufferDestroy", "TestCase2", TC_FAIL, "Unable to destroy MBuffer");
     }
   }
 
-  if (bufp3) {
+  if (bufp3 != TS_ERROR_PTR) {
     if (TSMBufferDestroy(bufp3) == TS_ERROR) {
       SDK_RPRINT(test, "TSMBufferDestroy", "TestCase3", TC_FAIL, "Unable to destroy MBuffer");
     }
   }
 
-  if (bufp4) {
+  if (bufp4 != TS_ERROR_PTR) {
     if (TSMBufferDestroy(bufp4) == TS_ERROR) {
       SDK_RPRINT(test, "TSMBufferDestroy", "TestCase4", TC_FAIL, "Unable to destroy MBuffer");
     }
@@ -3774,7 +4103,8 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int atype, int *pstat
       (test_passed_Http_Hdr_Copy == true) &&
       (test_passed_Http_Hdr_Clone == true) &&
       (test_passed_Http_Hdr_Length == true) &&
-      (test_passed_Http_Hdr_Print == true) && (test_passed_Http_Hdr_Destroy == true)) {
+      (test_passed_Http_Hdr_Print == true) && (test_passed_Http_Hdr_Destroy == true)
+    ) {
     *pstatus = REGRESSION_TEST_PASSED;
   } else {
     *pstatus = REGRESSION_TEST_FAILED;
@@ -3832,8 +4162,13 @@ compare_field_names(RegressionTest * test, TSMBuffer bufp1, TSMLoc mime_loc1, TS
   int length1;
   int length2;
 
-  name1 = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc1, &length1);
-  name2 = TSMimeHdrFieldNameGet(bufp2, mime_loc2, field_loc2, &length2);
+  if ((name1 = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc1, &length1)) == TS_ERROR_PTR) {
+    return TS_ERROR;
+  }
+
+  if ((name2 = TSMimeHdrFieldNameGet(bufp2, mime_loc2, field_loc2, &length2)) == TS_ERROR_PTR) {
+    return TS_ERROR;
+  }
 
   if ((length1 == length2) && (strncmp(name1, name2, length1) == 0) ) {
     return TS_SUCCESS;
@@ -3845,15 +4180,15 @@ compare_field_names(RegressionTest * test, TSMBuffer bufp1, TSMLoc mime_loc1, TS
 REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *pstatus)
 {
   NOWARN_UNUSED(atype);
-  TSMBuffer bufp1 = (TSMBuffer)NULL;
+  TSMBuffer bufp1 = (TSMBuffer) TS_ERROR_PTR;
 
-  TSMLoc mime_loc1 = (TSMLoc)NULL;
+  TSMLoc mime_loc1 = (TSMLoc) TS_ERROR_PTR;
 
-  TSMLoc field_loc11 = (TSMLoc)NULL;
-  TSMLoc field_loc12 = (TSMLoc)NULL;
-  TSMLoc field_loc13 = (TSMLoc)NULL;
-  TSMLoc field_loc14 = (TSMLoc)NULL;
-  TSMLoc field_loc15 = (TSMLoc)NULL;
+  TSMLoc field_loc11 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc field_loc12 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc field_loc13 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc field_loc14 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc field_loc15 = (TSMLoc) TS_ERROR_PTR;
 
 
   const char *field1Name = "field1";
@@ -3880,11 +4215,11 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
   int field4_length;
   /* int field5_length; unused: lv */
 
-  TSMLoc test_field_loc11 = (TSMLoc)NULL;
-  TSMLoc test_field_loc12 = (TSMLoc)NULL;
-  TSMLoc test_field_loc13 = (TSMLoc)NULL;
-  TSMLoc test_field_loc14 = (TSMLoc)NULL;
-  TSMLoc test_field_loc15 = (TSMLoc)NULL;
+  TSMLoc test_field_loc11 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc test_field_loc12 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc test_field_loc13 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc test_field_loc14 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc test_field_loc15 = (TSMLoc) TS_ERROR_PTR;
 
   int actualNumberOfFields;
   int numberOfFields;
@@ -3989,14 +4324,18 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
   // TSMBufferCreate
-  bufp1 = TSMBufferCreate();
-  SDK_RPRINT(test, "TSMBufferCreate", "TestCase1", TC_PASS, "ok");
-  test_passed_MBuffer_Create = true;
+  if ((bufp1 = TSMBufferCreate()) == TS_ERROR_PTR) {
+    // Cannot proceed with tests.
+    SDK_RPRINT(test, "TSMBufferCreate", "TestCase1", TC_FAIL, "TSMBufferCreate Returns TS_ERROR_PTR");
+  } else {
+    SDK_RPRINT(test, "TSMBufferCreate", "TestCase1", TC_PASS, "ok");
+    test_passed_MBuffer_Create = true;
+  }
 
   // TSMimeHdrCreate
   if (test_passed_MBuffer_Create == true) {
-    if (TSMimeHdrCreate(bufp1, &mime_loc1) != TS_SUCCESS) {
-      SDK_RPRINT(test, "TSMimeHdrCreate", "TestCase1", TC_FAIL, "TSMimeHdrCreate Returns TS_ERROR");
+    if ((mime_loc1 = TSMimeHdrCreate(bufp1)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSMimeHdrCreate", "TestCase1", TC_FAIL, "TSMimeHdrCreate Returns TS_ERROR_PTR");
     } else {
       SDK_RPRINT(test, "TSMimeHdrCreate", "TestCase1", TC_PASS, "ok");
       test_passed_Mime_Hdr_Create = true;
@@ -4007,18 +4346,21 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
 
   // TSMimeHdrFieldCreate
   if (test_passed_Mime_Hdr_Create == true) {
-    if ((TSMimeHdrFieldCreate(bufp1, mime_loc1, &field_loc11) != TS_SUCCESS) ||
-        (TSMimeHdrFieldCreate(bufp1, mime_loc1, &field_loc12) != TS_SUCCESS) ||
-        (TSMimeHdrFieldCreate(bufp1, mime_loc1, &field_loc13) != TS_SUCCESS) ||
-        (TSMimeHdrFieldCreate(bufp1, mime_loc1, &field_loc14) != TS_SUCCESS) ||
-        (TSMimeHdrFieldCreate(bufp1, mime_loc1, &field_loc15) != TS_SUCCESS)) {
-      SDK_RPRINT(test, "TSMimeHdrFieldCreate", "TestCase1|2|3|4|5", TC_FAIL, "TSMimeHdrFieldCreate Returns TS_ERROR");
+    if (((field_loc11 = TSMimeHdrFieldCreate(bufp1, mime_loc1)) == TS_ERROR_PTR) ||
+        ((field_loc12 = TSMimeHdrFieldCreate(bufp1, mime_loc1)) == TS_ERROR_PTR) ||
+        ((field_loc13 = TSMimeHdrFieldCreate(bufp1, mime_loc1)) == TS_ERROR_PTR) ||
+        ((field_loc14 = TSMimeHdrFieldCreate(bufp1, mime_loc1)) == TS_ERROR_PTR) ||
+        ((field_loc15 = TSMimeHdrFieldCreate(bufp1, mime_loc1)) == TS_ERROR_PTR)
+      ) {
+      SDK_RPRINT(test, "TSMimeHdrFieldCreate", "TestCase1|2|3|4|5", TC_FAIL,
+                 "TSMimeHdrFieldCreate Returns TS_ERROR_PTR");
     } else {
       SDK_RPRINT(test, "TSMimeHdrFieldCreate", "TestCase1|2|3|4|5", TC_PASS, "ok");
       test_passed_Mime_Hdr_Field_Create = true;
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldCreate", "All Test Case", TC_FAIL, "Cannot run test as Test for TSMimeHdrCreate Failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldCreate", "All Test Case", TC_FAIL,
+               "Cannot run test as Test for TSMimeHdrCreate Failed");
   }
 
 
@@ -4028,23 +4370,43 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
         (TSMimeHdrFieldNameSet(bufp1, mime_loc1, field_loc12, field2Name, -1) == TS_ERROR) ||
         (TSMimeHdrFieldNameSet(bufp1, mime_loc1, field_loc13, field3Name, -1) == TS_ERROR) ||
         (TSMimeHdrFieldNameSet(bufp1, mime_loc1, field_loc14, field4Name, -1) == TS_ERROR) ||
-        (TSMimeHdrFieldNameSet(bufp1, mime_loc1, field_loc15, field5Name, -1) == TS_ERROR)) {
-      SDK_RPRINT(test, "TSMimeHdrFieldNameSet", "TestCase1|2|3|4|5", TC_FAIL, "TSMimeHdrFieldNameSet Returns TS_ERROR");
+        (TSMimeHdrFieldNameSet(bufp1, mime_loc1, field_loc15, field5Name, -1) == TS_ERROR)
+      ) {
+      SDK_RPRINT(test, "TSMimeHdrFieldNameSet", "TestCase1|2|3|4|5", TC_FAIL,
+                 "TSMimeHdrFieldNameSet Returns TS_ERROR_PTR");
     } else {
-      field1NameGet = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc11, &field1NameGetLength);
-      field2NameGet = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc12, &field2NameGetLength);
-      field3NameGet = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc13, &field3NameGetLength);
-      field4NameGet = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc14, &field4NameGetLength);
-      field5NameGet = TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc15, &field5NameGetLength);
-      if (((strncmp(field1NameGet, field1Name, field1NameGetLength) == 0) && (field1NameGetLength == (int) strlen(field1Name))) &&
-          ((strncmp(field2NameGet, field2Name, field2NameGetLength) == 0) && (field2NameGetLength == (int) strlen(field2Name))) &&
-          ((strncmp(field3NameGet, field3Name, field3NameGetLength) == 0) && (field3NameGetLength == (int) strlen(field3Name))) &&
-          ((strncmp(field4NameGet, field4Name, field4NameGetLength) == 0) && (field4NameGetLength == (int) strlen(field4Name))) &&
-          ((strncmp(field5NameGet, field5Name, field5NameGetLength) == 0) && field5NameGetLength == (int) strlen(field5Name))) {
-        SDK_RPRINT(test, "TSMimeHdrFieldNameGet&Set", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Name = true;
+      if (((field1NameGet =
+            TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc11, &field1NameGetLength)) == TS_ERROR_PTR) ||
+          ((field2NameGet =
+            TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc12, &field2NameGetLength)) == TS_ERROR_PTR) ||
+          ((field3NameGet =
+            TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc13, &field3NameGetLength)) == TS_ERROR_PTR) ||
+          ((field4NameGet =
+            TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc14, &field4NameGetLength)) == TS_ERROR_PTR) ||
+          ((field5NameGet =
+            TSMimeHdrFieldNameGet(bufp1, mime_loc1, field_loc15, &field5NameGetLength)) == TS_ERROR_PTR)
+        ) {
+        SDK_RPRINT(test, "TSMimeHdrFieldNameGet", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldNameGet Returns TS_ERROR_PTR");
+        SDK_RPRINT(test, "TSMimeHdrFieldNameGet|Set", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldNameGet Returns TS_ERROR_PTR");
       } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldNameGet&Set", "TestCase1|2|3|4|5", TC_FAIL, "Values Don't Match");
+        if (((strncmp(field1NameGet, field1Name, field1NameGetLength) == 0) &&
+             (field1NameGetLength == (int) strlen(field1Name))) &&
+            ((strncmp(field2NameGet, field2Name, field2NameGetLength) == 0) &&
+             (field2NameGetLength == (int) strlen(field2Name))) &&
+            ((strncmp(field3NameGet, field3Name, field3NameGetLength) == 0) &&
+             (field3NameGetLength == (int) strlen(field3Name))) &&
+            ((strncmp(field4NameGet, field4Name, field4NameGetLength) == 0) &&
+             (field4NameGetLength == (int) strlen(field4Name))) &&
+            ((strncmp(field5NameGet, field5Name, field5NameGetLength) == 0) &&
+             field5NameGetLength == (int) strlen(field5Name))
+          ) {
+          SDK_RPRINT(test, "TSMimeHdrFieldNameGet&Set", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Name = true;
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldNameGet&Set", "TestCase1|2|3|4|5", TC_FAIL, "Values Don't Match");
+        }
       }
     }
   } else {
@@ -4053,24 +4415,30 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
   }
 
 
+
+
   // TSMimeHdrFieldAppend, TSMimeHdrFieldGet, TSMimeHdrFieldNext
   if (test_passed_Mime_Hdr_Field_Name == true) {
-    if ((TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc11) != TS_SUCCESS) ||
-        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc12) != TS_SUCCESS) ||
-        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc13) != TS_SUCCESS) ||
-        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc14) != TS_SUCCESS) ||
-        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc15) != TS_SUCCESS)) {
-      SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1|2|3|4|5", TC_FAIL, "TSMimeHdrFieldAppend Returns TS_ERROR");
+    if ((TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc11) == TS_ERROR) ||
+        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc12) == TS_ERROR) ||
+        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc13) == TS_ERROR) ||
+        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc14) == TS_ERROR) ||
+        (TSMimeHdrFieldAppend(bufp1, mime_loc1, field_loc15) == TS_ERROR)
+      ) {
+      SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1|2|3|4|5", TC_FAIL,
+                 "TSMimeHdrFieldAppend Returns TS_ERROR");
     } else {
-      if (TS_NULL_MLOC == (test_field_loc11 = TSMimeHdrFieldGet(bufp1, mime_loc1, 0))) {
-        SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1|2|3|4|5", TC_FAIL, "TSMimeHdrFieldGet Returns TS_NULL_MLOC");
+      if ((test_field_loc11 = TSMimeHdrFieldGet(bufp1, mime_loc1, 0)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldGet Returns TS_ERROR_PTR");
         SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase1", TC_FAIL,
-                   "Cannot Test TSMimeHdrFieldNext as TSMimeHdrFieldGet Returns TS_NULL_MLOC");
-        SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase1", TC_FAIL, "TSMimeHdrFieldGet Returns TS_NULL_MLOC");
+                   "Cannot Test TSMimeHdrFieldNext as TSMimeHdrFieldGet Returns TS_ERROR_PTR");
+        SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase1", TC_FAIL, "TSMimeHdrFieldGet Returns TS_ERROR_PTR");
       } else {
         if (compare_field_names(test, bufp1, mime_loc1, field_loc11, bufp1, mime_loc1, test_field_loc11) == TS_ERROR) {
           SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase1", TC_FAIL, "Cannot Test TSMimeHdrFieldNext as Values don't match");
+          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase1", TC_FAIL,
+                     "Cannot Test TSMimeHdrFieldNext as Values don't match");
           SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase1", TC_FAIL, "Values Don't match");
         } else {
           SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase1", TC_PASS, "ok");
@@ -4081,65 +4449,103 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
       }
 
       if (test_passed_Mime_Hdr_Field_Append == true) {
-        test_field_loc12 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc11);
-        if (compare_field_names(test, bufp1, mime_loc1, field_loc12, bufp1, mime_loc1, test_field_loc12) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase2", TC_PASS, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase2", TC_PASS, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase2", TC_PASS, "Values Don't match");
+        if ((test_field_loc12 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc11)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase2", TC_FAIL,
+                     "TSMimeHdrFieldAppend failed as TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase2", TC_FAIL, "TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase2", TC_FAIL,
+                     "Cannot be sure that TSMimeHdrFieldGet passed as TSMimeHdrFieldNext Returns TS_ERROR_PTR");
           test_passed_Mime_Hdr_Field_Append = false;
           test_passed_Mime_Hdr_Field_Next = false;
           test_passed_Mime_Hdr_Field_Get = false;
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase2", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase2", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase2", TC_PASS, "ok");
-          test_passed_Mime_Hdr_Field_Next = true;
+          if (compare_field_names(test, bufp1, mime_loc1, field_loc12, bufp1, mime_loc1, test_field_loc12) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase2", TC_PASS, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase2", TC_PASS, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase2", TC_PASS, "Values Don't match");
+            test_passed_Mime_Hdr_Field_Append = false;
+            test_passed_Mime_Hdr_Field_Next = false;
+            test_passed_Mime_Hdr_Field_Get = false;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase2", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase2", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase2", TC_PASS, "ok");
+            test_passed_Mime_Hdr_Field_Next = true;
+          }
         }
       }
 
       if (test_passed_Mime_Hdr_Field_Append == true) {
-        test_field_loc13 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc12);
-        if (compare_field_names(test, bufp1, mime_loc1, field_loc13, bufp1, mime_loc1, test_field_loc13) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase3", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase3", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase3", TC_FAIL, "Values Don't match");
+        if ((test_field_loc13 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc12)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase3", TC_FAIL,
+                     "TSMimeHdrFieldNext Returns TS_ERROR. Cannot check.");
+          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase3", TC_FAIL, "TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase3", TC_FAIL,
+                     "Cannot be sure that TSMimeHdrFieldGet passed as TSMimeHdrFieldNext Returns TS_ERROR_PTR");
           test_passed_Mime_Hdr_Field_Append = false;
           test_passed_Mime_Hdr_Field_Next = false;
           test_passed_Mime_Hdr_Field_Get = false;
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase3", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase3", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase3", TC_PASS, "ok");
+          if (compare_field_names(test, bufp1, mime_loc1, field_loc13, bufp1, mime_loc1, test_field_loc13) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase3", TC_FAIL, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase3", TC_FAIL, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase3", TC_FAIL, "Values Don't match");
+            test_passed_Mime_Hdr_Field_Append = false;
+            test_passed_Mime_Hdr_Field_Next = false;
+            test_passed_Mime_Hdr_Field_Get = false;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase3", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase3", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase3", TC_PASS, "ok");
+          }
         }
       }
 
       if (test_passed_Mime_Hdr_Field_Append == true) {
-        test_field_loc14 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc13);
-        if (compare_field_names(test, bufp1, mime_loc1, field_loc14, bufp1, mime_loc1, test_field_loc14) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase4", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase4", TC_FAIL, "Values Don't match");
+        if ((test_field_loc14 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc13)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_FAIL,
+                     "TSMimeHdrFieldNext Returns TS_ERROR. Cannot check.");
+          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase4", TC_FAIL, "TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_FAIL,
+                     "Cannot be sure that TSMimeHdrFieldGet passed as TSMimeHdrFieldNext Returns TS_ERROR.");
           test_passed_Mime_Hdr_Field_Append = false;
           test_passed_Mime_Hdr_Field_Next = false;
           test_passed_Mime_Hdr_Field_Get = false;
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase4", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase4", TC_PASS, "ok");
+          if (compare_field_names(test, bufp1, mime_loc1, field_loc14, bufp1, mime_loc1, test_field_loc14) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_FAIL, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase4", TC_FAIL, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase4", TC_FAIL, "Values Don't match");
+            test_passed_Mime_Hdr_Field_Append = false;
+            test_passed_Mime_Hdr_Field_Next = false;
+            test_passed_Mime_Hdr_Field_Get = false;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase4", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase4", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldGet", "TestCase4", TC_PASS, "ok");
+          }
         }
       }
 
       if (test_passed_Mime_Hdr_Field_Append == true) {
-        test_field_loc15 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc14);
-        if (compare_field_names(test, bufp1, mime_loc1, field_loc15, bufp1, mime_loc1, test_field_loc15) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase5", TC_FAIL, "Values Don't match");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase5", TC_FAIL, "Values Don't match");
+        if ((test_field_loc15 = TSMimeHdrFieldNext(bufp1, mime_loc1, test_field_loc14)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase5", TC_FAIL, "TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase5", TC_FAIL,
+                     "TSMimeHdrFieldNext Returns TS_ERROR. Cannot check.");
           test_passed_Mime_Hdr_Field_Append = false;
           test_passed_Mime_Hdr_Field_Next = false;
           test_passed_Mime_Hdr_Field_Get = false;
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase5", TC_PASS, "ok");
-          SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase5", TC_PASS, "ok");
+          if (compare_field_names(test, bufp1, mime_loc1, field_loc15, bufp1, mime_loc1, test_field_loc15) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase5", TC_FAIL, "Values Don't match");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase5", TC_FAIL, "Values Don't match");
+            test_passed_Mime_Hdr_Field_Append = false;
+            test_passed_Mime_Hdr_Field_Next = false;
+            test_passed_Mime_Hdr_Field_Get = false;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldAppend", "TestCase5", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldNext", "TestCase5", TC_PASS, "ok");
+          }
         }
       }
 
@@ -4147,7 +4553,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
           (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc12) == TS_ERROR) ||
           (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc13) == TS_ERROR) ||
           (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc14) == TS_ERROR) ||
-          (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc15) == TS_ERROR)) {
+          (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc15) == TS_ERROR)
+        ) {
         SDK_RPRINT(test, "TSMimeHdrFieldAppend/Next/Get", "", TC_FAIL,
                    "Unable to release handle using TSHandleMLocRelease. Can be bad handle.");
       }
@@ -4160,20 +4567,24 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
 
   //TSMimeHdrFieldsCount
   if (test_passed_Mime_Hdr_Field_Create == true) {
-    if ((numberOfFields = TSMimeHdrFieldsCount(bufp1, mime_loc1)) < 0 ) {
+    if ((numberOfFields = TSMimeHdrFieldsCount(bufp1, mime_loc1)) == TS_ERROR) {
       SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL, "TSMimeHdrFieldsCount Returns TS_ERROR");
     } else {
       actualNumberOfFields = 0;
-      if ((field_loc = TSMimeHdrFieldGet(bufp1, mime_loc1, actualNumberOfFields)) == TS_NULL_MLOC) {
-        SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL, "TSMimeHdrFieldGet Returns TS_NULL_MLOC");
+      if ((field_loc = TSMimeHdrFieldGet(bufp1, mime_loc1, actualNumberOfFields)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL, "TSMimeHdrFieldGet Returns TS_ERROR_PTR");
       } else {
         while (field_loc != NULL) {
           TSMLoc next_field_loc;
 
           actualNumberOfFields++;
-          next_field_loc = TSMimeHdrFieldNext(bufp1, mime_loc1, field_loc);
+          if ((next_field_loc = TSMimeHdrFieldNext(bufp1, mime_loc1, field_loc)) == TS_ERROR_PTR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL,
+                       "TSMimeHdrFieldNext Returns TS_ERROR_PTR");
+          }
           if (TSHandleMLocRelease(bufp1, mime_loc1, field_loc) == TS_ERROR) {
-            SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL, "Unable to release handle using TSHandleMLocRelease");
+            SDK_RPRINT(test, "TSMimeHdrFieldsCount", "TestCase1", TC_FAIL,
+                       "Unable to release handle using TSHandleMLocRelease");
           }
           field_loc = next_field_loc;
           next_field_loc = NULL;
@@ -4196,7 +4607,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
         (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc11, 0, field1Value1, -1) == TS_ERROR) ||
         (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc11, -1, field1Value5, -1) == TS_ERROR) ||
         (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc11, 2, field1Value4, -1) == TS_ERROR) ||
-        (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc11, 2, field1Value3, -1) == TS_ERROR)) {
+        (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc11, 2, field1Value3, -1) == TS_ERROR)
+      ) {
       SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1|2|3|4|5", TC_FAIL,
                  "TSMimeHdrFieldValueStringInsert Returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1&2&3&4&5", TC_FAIL,
@@ -4204,81 +4616,119 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
       SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueStringInsert returns TS_ERROR");
     } else {
-      field1Value1Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 0, &lengthField1Value1);
-      field1Value2Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 1, &lengthField1Value2);
-      field1Value3Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 2, &lengthField1Value3);
-      field1Value4Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 3, &lengthField1Value4);
-      field1Value5Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 4, &lengthField1Value5);
-      if (((strncmp(field1Value1Get, field1Value1, lengthField1Value1) == 0) && lengthField1Value1 == (int) strlen(field1Value1)) &&
-          ((strncmp(field1Value2Get, field1Value2, lengthField1Value2) == 0) && lengthField1Value2 == (int) strlen(field1Value2)) &&
-          ((strncmp(field1Value3Get, field1Value3, lengthField1Value3) == 0) && lengthField1Value3 == (int) strlen(field1Value3)) &&
-          ((strncmp(field1Value4Get, field1Value4, lengthField1Value4) == 0) && lengthField1Value4 == (int) strlen(field1Value4)) &&
-          ((strncmp(field1Value5Get, field1Value5, lengthField1Value5) == 0) && lengthField1Value5 == (int) strlen(field1Value5))) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Value_String_Insert = true;
-        test_passed_Mime_Hdr_Field_Value_String_Get = true;
-
-        if ((TSMimeHdrFieldValueStringSet(bufp1, mime_loc1, field_loc11, 3, field1ValueNew, -1)) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueStringSet returns TS_ERROR");
-        } else {
-          field1ValueNewGet = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 3, &lengthField1ValueNew);
-          if ((strncmp(field1ValueNewGet, field1ValueNew, lengthField1ValueNew) == 0) &&
-              (lengthField1ValueNew == (int) strlen(field1ValueNew))) {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_PASS, "ok");
-            test_passed_Mime_Hdr_Field_Value_String_Set = true;
-          } else {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL, "Value's Don't match");
-          }
-        }
-      } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+      if ((TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 0, &field1Value1Get, &lengthField1Value1) ==
+           TS_ERROR) ||
+          (TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 1, &field1Value2Get, &lengthField1Value2) ==
+           TS_ERROR) ||
+          (TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 2, &field1Value3Get, &lengthField1Value3) ==
+           TS_ERROR) ||
+          (TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 3, &field1Value4Get, &lengthField1Value4) ==
+           TS_ERROR) ||
+          (TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 4, &field1Value5Get, &lengthField1Value5) ==
+           TS_ERROR)
+        ) {
+        SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert|Get", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldValueStringGet Returns TS_ERROR");
         SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL,
                    "TSMimeHdrFieldValueStringSet cannot be tested as TSMimeHdrFieldValueStringInsert|Get failed");
+      } else {
+        if (((strncmp(field1Value1Get, field1Value1, lengthField1Value1) == 0) &&
+             lengthField1Value1 == (int) strlen(field1Value1)) &&
+            ((strncmp(field1Value2Get, field1Value2, lengthField1Value2) == 0) &&
+             lengthField1Value2 == (int) strlen(field1Value2)) &&
+            ((strncmp(field1Value3Get, field1Value3, lengthField1Value3) == 0) &&
+             lengthField1Value3 == (int) strlen(field1Value3)) &&
+            ((strncmp(field1Value4Get, field1Value4, lengthField1Value4) == 0) &&
+             lengthField1Value4 == (int) strlen(field1Value4)) &&
+            ((strncmp(field1Value5Get, field1Value5, lengthField1Value5) == 0) &&
+             lengthField1Value5 == (int) strlen(field1Value5))
+          ) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Value_String_Insert = true;
+          test_passed_Mime_Hdr_Field_Value_String_Get = true;
+
+          if ((TSMimeHdrFieldValueStringSet(bufp1, mime_loc1, field_loc11, 3, field1ValueNew, -1)) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL,
+                       "TSMimeHdrFieldValueStringSet returns TS_ERROR");
+          } else {
+            if (TSMimeHdrFieldValueStringGet
+                (bufp1, mime_loc1, field_loc11, 3, &field1ValueNewGet, &lengthField1ValueNew) == TS_ERROR) {
+              SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL,
+                         "TSMimeHdrFieldValueStringGet returns TS_ERROR");
+            } else {
+              if ((strncmp(field1ValueNewGet, field1ValueNew, lengthField1ValueNew) == 0) &&
+                  (lengthField1ValueNew == (int) strlen(field1ValueNew))) {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_PASS, "ok");
+                test_passed_Mime_Hdr_Field_Value_String_Set = true;
+              } else {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL, "Value's Don't match");
+              }
+            }
+          }
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueStringSet", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValueStringSet cannot be tested as TSMimeHdrFieldValueStringInsert|Get failed");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert&Set&Get", "All", TC_FAIL, "Cannot run Test as TSMimeHdrFieldCreate failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert&Set&Get", "All", TC_FAIL,
+               "Cannot run Test as TSMimeHdrFieldCreate failed");
   }
 
 
   // TSMimeHdrFieldValueDateInsert, TSMimeHdrFieldValueDateGet, TSMimeHdrFieldValueDateSet
   if (test_passed_Mime_Hdr_Field_Create == true) {
     if (TSMimeHdrFieldValueDateInsert(bufp1, mime_loc1, field_loc12, field2Value1) == TS_ERROR) {
-      SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueDateInsert Returns TS_ERROR");
+      SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_FAIL,
+                 "TSMimeHdrFieldValueDateInsert Returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueDateGet", "TestCase1", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueDateInsert returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueDateInsert returns TS_ERROR");
     } else {
-      field2Value1Get = TSMimeHdrFieldValueDateGet(bufp1, mime_loc1, field_loc12);
-      if (field2Value1Get == field2Value1) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_PASS, "ok");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueDateGet", "TestCase1", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Value_Date_Insert = true;
-        test_passed_Mime_Hdr_Field_Value_Date_Get = true;
-        field2ValueNew = time(NULL);
-        if ((TSMimeHdrFieldValueDateSet(bufp1, mime_loc1, field_loc12, field2ValueNew)) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueDateSet returns TS_ERROR");
-        } else {
-          field2ValueNewGet = TSMimeHdrFieldValueDateGet(bufp1, mime_loc1, field_loc12);
-          if (field2ValueNewGet == field2ValueNew) {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_PASS, "ok");
-            test_passed_Mime_Hdr_Field_Value_Date_Set = true;
-          } else {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL, "Value's Don't match");
-          }
-        }
-      } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_PASS, "Value's Don't Match");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueDateGet", "TestCase1", TC_PASS, "Value's Don't Match");
+      if (TSMimeHdrFieldValueDateGet(bufp1, mime_loc1, field_loc12, &field2Value1Get) == TS_ERROR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert|Get", "TestCase1", TC_FAIL,
+                   "TSMimeHdrFieldValueDateGet Returns TS_ERROR");
         SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL,
                    "TSMimeHdrFieldValueDateSet cannot be tested as TSMimeHdrFieldValueDateInsert|Get failed");
+      } else {
+        if (field2Value1Get == field2Value1) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_PASS, "ok");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueDateGet", "TestCase1", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Value_Date_Insert = true;
+          test_passed_Mime_Hdr_Field_Value_Date_Get = true;
+          field2ValueNew = time(NULL);
+          if ((TSMimeHdrFieldValueDateSet(bufp1, mime_loc1, field_loc12, field2ValueNew)) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL,
+                       "TSMimeHdrFieldValueDateSet returns TS_ERROR");
+          } else {
+            if (TSMimeHdrFieldValueDateGet(bufp1, mime_loc1, field_loc12, &field2ValueNewGet) == TS_ERROR) {
+              SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL,
+                         "TSMimeHdrFieldValueDateGet returns TS_ERROR");
+            } else {
+              if (field2ValueNewGet == field2ValueNew) {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_PASS, "ok");
+                test_passed_Mime_Hdr_Field_Value_Date_Set = true;
+              } else {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL, "Value's Don't match");
+              }
+            }
+          }
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert", "TestCase1", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueDateGet", "TestCase1", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueDateSet", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValueDateSet cannot be tested as TSMimeHdrFieldValueDateInsert|Get failed");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert&Set&Get", "TestCase1", TC_FAIL, "Cannot run Test as TSMimeHdrFieldCreate failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueDateInsert&Set&Get", "TestCase1", TC_FAIL,
+               "Cannot run Test as TSMimeHdrFieldCreate failed");
   }
 
 
@@ -4288,44 +4738,61 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
         (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc13, 0, field3Value1) == TS_ERROR) ||
         (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc13, -1, field3Value5) == TS_ERROR) ||
         (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc13, 2, field3Value4) == TS_ERROR) ||
-        (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc13, 2, field3Value3) == TS_ERROR)) {
-      SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1|2|3|4|5", TC_FAIL, "TSMimeHdrFieldValueIntInsert Returns TS_ERROR");
+        (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc13, 2, field3Value3) == TS_ERROR)
+      ) {
+      SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1|2|3|4|5", TC_FAIL,
+                 "TSMimeHdrFieldValueIntInsert Returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueIntGet", "TestCase1&2&3&4&5", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueIntInsert returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueIntInsert returns TS_ERROR");
     } else {
-      field3Value1Get = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 0);
-      field3Value2Get = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 1);
-      field3Value3Get = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 2);
-      field3Value4Get = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 3);
-      field3Value5Get = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 4);
-      if ((field3Value1Get == field3Value1) && (field3Value2Get == field3Value2) && (field3Value3Get == field3Value3) &&
-          (field3Value4Get == field3Value4) && (field3Value5Get == field3Value5)) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueIntGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Value_Int_Insert = true;
-        test_passed_Mime_Hdr_Field_Value_Int_Get = true;
-        if ((TSMimeHdrFieldValueIntSet(bufp1, mime_loc1, field_loc13, 3, field3ValueNew)) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueIntSet returns TS_ERROR");
-        } else {
-          field3ValueNewGet = TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 3);
-          if (field3ValueNewGet == field3ValueNew) {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_PASS, "ok");
-            test_passed_Mime_Hdr_Field_Value_Int_Set = true;
-          } else {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL, "Value's Don't match");
-          }
-        }
-      } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueIntGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+      if ((TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 0, &field3Value1Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 1, &field3Value2Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 2, &field3Value3Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 3, &field3Value4Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 4, &field3Value5Get) == TS_ERROR)
+        ) {
+        SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert|Get", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldValueIntGet Returns TS_ERROR");
         SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL,
                    "TSMimeHdrFieldValueIntSet cannot be tested as TSMimeHdrFieldValueIntInsert|Get failed");
+      } else {
+        if ((field3Value1Get == field3Value1) &&
+            (field3Value2Get == field3Value2) &&
+            (field3Value3Get == field3Value3) && (field3Value4Get == field3Value4) && (field3Value5Get == field3Value5)
+          ) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueIntGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Value_Int_Insert = true;
+          test_passed_Mime_Hdr_Field_Value_Int_Get = true;
+          if ((TSMimeHdrFieldValueIntSet(bufp1, mime_loc1, field_loc13, 3, field3ValueNew)) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL,
+                       "TSMimeHdrFieldValueIntSet returns TS_ERROR");
+          } else {
+            if (TSMimeHdrFieldValueIntGet(bufp1, mime_loc1, field_loc13, 3, &field3ValueNewGet) == TS_ERROR) {
+              SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL,
+                         "TSMimeHdrFieldValueIntGet returns TS_ERROR");
+            } else {
+              if (field3ValueNewGet == field3ValueNew) {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_PASS, "ok");
+                test_passed_Mime_Hdr_Field_Value_Int_Set = true;
+              } else {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL, "Value's Don't match");
+              }
+            }
+          }
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueIntGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueIntSet", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValueIntSet cannot be tested as TSMimeHdrFieldValueIntInsert|Get failed");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert&Set&Get", "All", TC_FAIL, "Cannot run Test as TSMimeHdrFieldCreate failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueIntInsert&Set&Get", "All", TC_FAIL,
+               "Cannot run Test as TSMimeHdrFieldCreate failed");
   }
 
   // TSMimeHdrFieldValueUintInsert, TSMimeHdrFieldValueUintGet, TSMimeHdrFieldValueUintSet
@@ -4334,7 +4801,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
         (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc14, 0, field4Value1) == TS_ERROR) ||
         (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc14, -1, field4Value5) == TS_ERROR) ||
         (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc14, 2, field4Value4) == TS_ERROR) ||
-        (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc14, 2, field4Value3) == TS_ERROR)) {
+        (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc14, 2, field4Value3) == TS_ERROR)
+      ) {
       SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert", "TestCase1|2|3|4|5", TC_FAIL,
                  "TSMimeHdrFieldValueUintInsert Returns TS_ERROR");
       SDK_RPRINT(test, "TSMimeHdrFieldValueUintGet", "TestCase1&2&3&4&5", TC_FAIL,
@@ -4342,37 +4810,52 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
       SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL,
                  "Cannot run Test as TSMimeHdrFieldValueUintInsert returns TS_ERROR");
     } else {
-      field4Value1Get = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 0);
-      field4Value2Get = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 1);
-      field4Value3Get = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 2);
-      field4Value4Get = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 3);
-      field4Value5Get = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 4);
-      if ((field4Value1Get == field4Value1) && (field4Value2Get == field4Value2) && (field4Value3Get == field4Value3) &&
-          (field4Value4Get == field4Value4) && (field4Value5Get == field4Value5)) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueUintGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Value_Uint_Insert = true;
-        test_passed_Mime_Hdr_Field_Value_Uint_Get = true;
-        if ((TSMimeHdrFieldValueUintSet(bufp1, mime_loc1, field_loc14, 3, field4ValueNew)) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueUintSet returns TS_ERROR");
-        } else {
-          field4ValueNewGet = TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 3);
-          if (field4ValueNewGet == field4ValueNew) {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_PASS, "ok");
-            test_passed_Mime_Hdr_Field_Value_Uint_Set = true;
-          } else {
-            SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL, "Value's Don't match");
-          }
-        }
-      } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
-        SDK_RPRINT(test, "TSMimeHdrFieldValueUintGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+      if ((TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 0, &field4Value1Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 1, &field4Value2Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 2, &field4Value3Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 3, &field4Value4Get) == TS_ERROR) ||
+          (TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 4, &field4Value5Get) == TS_ERROR)
+        ) {
+        SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert|Get", "TestCase1|2|3|4|5", TC_FAIL,
+                   "TSMimeHdrFieldValueUintGet Returns TS_ERROR");
         SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL,
                    "TSMimeHdrFieldValueUintSet cannot be tested as TSMimeHdrFieldValueUintInsert|Get failed");
+      } else {
+        if ((field4Value1Get == field4Value1) &&
+            (field4Value2Get == field4Value2) &&
+            (field4Value3Get == field4Value3) && (field4Value4Get == field4Value4) && (field4Value5Get == field4Value5)
+          ) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueUintGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Value_Uint_Insert = true;
+          test_passed_Mime_Hdr_Field_Value_Uint_Get = true;
+          if ((TSMimeHdrFieldValueUintSet(bufp1, mime_loc1, field_loc14, 3, field4ValueNew)) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL,
+                       "TSMimeHdrFieldValueUintSet returns TS_ERROR");
+          } else {
+            if (TSMimeHdrFieldValueUintGet(bufp1, mime_loc1, field_loc14, 3, &field4ValueNewGet) == TS_ERROR) {
+              SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL,
+                         "TSMimeHdrFieldValueUintGet returns TS_ERROR");
+            } else {
+              if (field4ValueNewGet == field4ValueNew) {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_PASS, "ok");
+                test_passed_Mime_Hdr_Field_Value_Uint_Set = true;
+              } else {
+                SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL, "Value's Don't match");
+              }
+            }
+          }
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueUintGet", "TestCase1|2|3|4|5", TC_PASS, "Value's Don't Match");
+          SDK_RPRINT(test, "TSMimeHdrFieldValueUintSet", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValueUintSet cannot be tested as TSMimeHdrFieldValueUintInsert|Get failed");
+        }
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert&Set&Get", "All", TC_FAIL, "Cannot run Test as TSMimeHdrFieldCreate failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueUintInsert&Set&Get", "All", TC_FAIL,
+               "Cannot run Test as TSMimeHdrFieldCreate failed");
   }
 
   // TSMimeHdrFieldLengthGet
@@ -4380,7 +4863,9 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
   field2_length = TSMimeHdrFieldLengthGet(bufp1, mime_loc1, field_loc12);
   field3_length = TSMimeHdrFieldLengthGet(bufp1, mime_loc1, field_loc13);
   field4_length = TSMimeHdrFieldLengthGet(bufp1, mime_loc1, field_loc14);
-  if ((field1_length == 0) || (field2_length == 0) || (field3_length == 0) || (field4_length == 0)) {
+  if ((field1_length == TS_ERROR || field1_length == 0) ||
+      (field2_length == TS_ERROR || field2_length == 0) ||
+      (field3_length == TS_ERROR || field3_length == 0) || (field4_length == TS_ERROR || field4_length == 0)) {
     SDK_RPRINT(test, "TSMimeHdrFieldLengthGet", "TestCase1", TC_FAIL, "Returned bad length");
     test_passed_Mime_Hdr_Field_Length_Get = false;
   } else {
@@ -4396,7 +4881,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
     if ((TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc15, -1, field5Value1, -1) == TS_ERROR) ||
         (TSMimeHdrFieldValueIntInsert(bufp1, mime_loc1, field_loc15, -1, field5Value2) == TS_ERROR) ||
         (TSMimeHdrFieldValueStringInsert(bufp1, mime_loc1, field_loc15, -1, field5Value3, -1) == TS_ERROR) ||
-        (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc15, -1, field5Value4) == TS_ERROR)) {
+        (TSMimeHdrFieldValueUintInsert(bufp1, mime_loc1, field_loc15, -1, field5Value4) == TS_ERROR)
+      ) {
       SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL,
                  "TSMimeHdrFieldValueString|Int|UintInsert returns TS_ERROR. Cannot create field for testing.");
       SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL,
@@ -4410,81 +4896,114 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
         SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL,
                    "TSMimeHdrFieldValueAppend returns TS_ERROR");
       } else {
-        fieldValueAppendGet = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc15, 0, &lengthFieldValueAppended);
-        char *expected_value;
-        size_t len = strlen(field5Value1) + strlen(field5Value1Append) + 1;
-        expected_value = (char *) TSmalloc(len);
-        memset(expected_value, 0, strlen(field5Value1) + strlen(field5Value1Append) + 1);
-        ink_strncpy(expected_value, field5Value1, len);
-        strncat(expected_value, field5Value1Append, len - strlen(expected_value) - 1);
-        if ((strncmp(fieldValueAppendGet, expected_value, lengthFieldValueAppended) == 0) &&
-            (lengthFieldValueAppended = strlen(expected_value))) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_PASS, "ok");
-          test_passed_Mime_Hdr_Field_Value_Append = true;
+        if ((TSMimeHdrFieldValueStringGet
+             (bufp1, mime_loc1, field_loc15, 0, &fieldValueAppendGet, &lengthFieldValueAppended)) != TS_SUCCESS) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValueStringGet doesn't return TS_SUCCESS");
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL, "Values mismatch");
+          char *expected_value;
+          size_t len = strlen(field5Value1) + strlen(field5Value1Append) + 1;
+          expected_value = (char *) TSmalloc(len);
+          memset(expected_value, 0, strlen(field5Value1) + strlen(field5Value1Append) + 1);
+          ink_strncpy(expected_value, field5Value1, len);
+          strncat(expected_value, field5Value1Append, len - strlen(expected_value) - 1);
+          if ((strncmp(fieldValueAppendGet, expected_value, lengthFieldValueAppended) == 0) &&
+              (lengthFieldValueAppended = strlen(expected_value))
+            ) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_PASS, "ok");
+            test_passed_Mime_Hdr_Field_Value_Append = true;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL, "Values mismatch");
+          }
+          TSfree(expected_value);
         }
-        TSfree(expected_value);
       }
 
-      numberOfValueInField = TSMimeHdrFieldValuesCount(bufp1, mime_loc1, field_loc15);
-      if (numberOfValueInField == 4) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Values_Count = true;
+      if ((numberOfValueInField = TSMimeHdrFieldValuesCount(bufp1, mime_loc1, field_loc15)) == TS_ERROR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_FAIL,
+                   "TSMimeHdrFieldValuesCount returns TS_ERROR");
       } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_FAIL, "Values don't match");
+        if (numberOfValueInField == 4) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Values_Count = true;
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_FAIL, "Values don't match");
+        }
       }
+
 
       if (TSMimeHdrFieldValueDelete(bufp1, mime_loc1, field_loc15, 2) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL, "TSMimeHdrFieldValueDelete Returns TS_ERROR");
+        SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL,
+                   "TSMimeHdrFieldValueDelete Returns TS_ERROR");
       } else {
-        fieldValueDeleteGet = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc15, 2, &lengthFieldValueDeleteGet);
-        if ((strncmp(fieldValueDeleteGet, field5Value3, lengthFieldValueDeleteGet) == 0) &&
-            (lengthFieldValueDeleteGet == (int) strlen(field5Value3))) {
+        if ((TSMimeHdrFieldValueStringGet
+             (bufp1, mime_loc1, field_loc15, 2, &fieldValueDeleteGet, &lengthFieldValueDeleteGet)) != TS_SUCCESS) {
           SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL,
-                     "Value not deleted from field or incorrect index deleted from field.");
+                     "TSMimeHdrFieldValueStringGet doesn't return TS_SUCCESS. Cannot test for TSMimeHdrFieldValueDelete");
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_PASS, "ok");
-          test_passed_Mime_Hdr_Field_Value_Delete = true;
+          if ((strncmp(fieldValueDeleteGet, field5Value3, lengthFieldValueDeleteGet) == 0) &&
+              (lengthFieldValueDeleteGet == (int) strlen(field5Value3))) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL,
+                       "Value not deleted from field or incorrect index deleted from field.");
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_PASS, "ok");
+            test_passed_Mime_Hdr_Field_Value_Delete = true;
+          }
         }
       }
 
       if (TSMimeHdrFieldValuesClear(bufp1, mime_loc1, field_loc15) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL, "TSMimeHdrFieldValuesClear returns TS_ERROR");
+        SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL,
+                   "TSMimeHdrFieldValuesClear returns TS_ERROR");
       } else {
-        numberOfValueInField = TSMimeHdrFieldValuesCount(bufp1, mime_loc1, field_loc15);
-        if (numberOfValueInField == 0) {
-          SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_PASS, "ok");
-          test_passed_Mime_Hdr_Field_Values_Clear = true;
+        if ((numberOfValueInField = TSMimeHdrFieldValuesCount(bufp1, mime_loc1, field_loc15)) == TS_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL,
+                     "TSMimeHdrFieldValuesCount returns TS_ERROR. Cannot test TSMimeHdrFieldValuesClear");
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL, "Values don't match");
+          if (numberOfValueInField == 0) {
+            SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_PASS, "ok");
+            test_passed_Mime_Hdr_Field_Values_Clear = true;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL, "Values don't match");
+          }
         }
       }
     }
 
     // TSMimeHdrFieldDestroy
-    if (TSMimeHdrFieldDestroy(bufp1, mime_loc1, field_loc15) != TS_SUCCESS) {
+    if (TSMimeHdrFieldDestroy(bufp1, mime_loc1, field_loc15) == TS_ERROR) {
       SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "TSMimeHdrFieldDestroy returns TS_ERROR");
     } else {
-      if ((test_field_loc15 = TSMimeHdrFieldFind(bufp1, mime_loc1, field5Name, -1)) == TS_NULL_MLOC) {
-        SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_PASS, "ok");
-        test_passed_Mime_Hdr_Field_Destroy = true;
+      if ((test_field_loc15 = TSMimeHdrFieldFind(bufp1, mime_loc1, field5Name, -1)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_ERROR_PTR");
       } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "Field not destroyed");
-        if (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc15) == TS_ERROR) {
-          SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "Unable to release handle using TSHandleMLocRelease");
+        if (test_field_loc15 == NULL) {
+          SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_PASS, "ok");
+          test_passed_Mime_Hdr_Field_Destroy = true;
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "Field not destroyed");
+          if (TSHandleMLocRelease(bufp1, mime_loc1, test_field_loc15) == TS_ERROR) {
+            SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL,
+                       "Unable to release handle using TSHandleMLocRelease");
+          }
         }
       }
       if (TSHandleMLocRelease(bufp1, mime_loc1, field_loc15) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase2", TC_FAIL, "Unable to release handle using TSHandleMLocRelease");
+        SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase2", TC_FAIL,
+                   "Unable to release handle using TSHandleMLocRelease");
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrFieldCreate has failed");
-    SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrFieldCreate has failed");
-    SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrFieldCreate has failed");
-    SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrFieldCreate has failed");
-    SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrFieldCreate has failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueAppend", "TestCase1", TC_FAIL,
+               "Cannot run test as TSMimeHdrFieldCreate has failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValueDelete", "TestCase1", TC_FAIL,
+               "Cannot run test as TSMimeHdrFieldCreate has failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValuesCount", "TestCase1", TC_FAIL,
+               "Cannot run test as TSMimeHdrFieldCreate has failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldValuesClear", "TestCase1", TC_FAIL,
+               "Cannot run test as TSMimeHdrFieldCreate has failed");
+    SDK_RPRINT(test, "TSMimeHdrFieldDestroy", "TestCase1", TC_FAIL,
+               "Cannot run test as TSMimeHdrFieldCreate has failed");
   }
 
   // Mime Hdr Fields Clear
@@ -4492,7 +5011,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
     if (TSMimeHdrFieldsClear(bufp1, mime_loc1) != TS_SUCCESS) {
       SDK_RPRINT(test, "TSMimeHdrFieldsClear", "TestCase1", TC_FAIL, "TSMimeHdrFieldsClear returns TS_ERROR");
     } else {
-      if ((numberOfFields = TSMimeHdrFieldsCount(bufp1, mime_loc1)) < 0) {
+      if ((numberOfFields = TSMimeHdrFieldsCount(bufp1, mime_loc1)) == TS_ERROR) {
         SDK_RPRINT(test, "TSMimeHdrFieldsClear", "TestCase1", TC_FAIL, "TSMimeHdrFieldsCount returns TS_ERROR");
       } else {
         if (numberOfFields == 0) {
@@ -4505,7 +5024,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
       if ((TSHandleMLocRelease(bufp1, mime_loc1, field_loc11) == TS_ERROR) ||
           (TSHandleMLocRelease(bufp1, mime_loc1, field_loc12) == TS_ERROR) ||
           (TSHandleMLocRelease(bufp1, mime_loc1, field_loc13) == TS_ERROR) ||
-          (TSHandleMLocRelease(bufp1, mime_loc1, field_loc14) == TS_ERROR)) {
+          (TSHandleMLocRelease(bufp1, mime_loc1, field_loc14) == TS_ERROR)
+        ) {
         SDK_RPRINT(test, "TSMimeHdrFieldsDestroy", "", TC_FAIL, "Unable to release handle using TSHandleMLocRelease");
       }
     }
@@ -4574,7 +5094,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int atype, int *
       (test_passed_Mime_Hdr_Field_Destroy == true) &&
       (test_passed_Mime_Hdr_Fields_Clear == true) &&
       (test_passed_Mime_Hdr_Destroy == true) &&
-      (test_passed_MBuffer_Destroy == true) && (test_passed_Mime_Hdr_Field_Length_Get == true)) {
+      (test_passed_MBuffer_Destroy == true) && (test_passed_Mime_Hdr_Field_Length_Get == true)
+    ) {
     *pstatus = REGRESSION_TEST_PASSED;
   } else {
     *pstatus = REGRESSION_TEST_FAILED;
@@ -4684,10 +5205,10 @@ REGRESSION_TEST(SDK_API_TSHttpHdrParse) (RegressionTest * test, int atype, int *
   int retval;
 
   TSMBuffer reqbufp;
-  TSMBuffer respbufp = (TSMBuffer)NULL;
+  TSMBuffer respbufp = (TSMBuffer) TS_ERROR_PTR;
 
-  TSMLoc req_hdr_loc = (TSMLoc)NULL;
-  TSMLoc resp_hdr_loc = (TSMLoc)NULL;
+  TSMLoc req_hdr_loc = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc resp_hdr_loc = (TSMLoc) TS_ERROR_PTR;
 
   TSHttpParser parser;
 
@@ -4700,41 +5221,78 @@ REGRESSION_TEST(SDK_API_TSHttpHdrParse) (RegressionTest * test, int atype, int *
 
   //Create Parser
   parser = TSHttpParserCreate();
-  SDK_RPRINT(test, "TSHttpParserCreate", "TestCase1", TC_PASS, "ok");
+  if (parser == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSHttpParserCreate", "TestCase1", TC_FAIL, "TSHttpParserCreate returns TS_ERROR_PTR");
+    SDK_RPRINT(test, "TSHttpParserDestroy", "TestCase1", TC_FAIL, "Unable to run test as TSHttpParserCreate failed");
+    SDK_RPRINT(test, "TSHttpParserClear", "TestCase1", TC_FAIL, "Unable to run test as TSHttpParserCreate failed");
+    SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Unable to run test as TSHttpParserCreate failed");
+    SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Unable to run test as TSHttpParserCreate failed");
+
+    *pstatus = REGRESSION_TEST_FAILED;
+    return;
+  } else {
+    SDK_RPRINT(test, "TSHttpParserCreate", "TestCase1", TC_PASS, "ok");
+  }
 
   // Request
   reqbufp = TSMBufferCreate();
-  req_hdr_loc = TSHttpHdrCreate(reqbufp);
-  start = req;
-  end = req + strlen(req) + 1;
-  if ((retval = TSHttpHdrParseReq(parser, reqbufp, req_hdr_loc, &start, end)) == TS_PARSE_ERROR) {
-    SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "TSHttpHdrParseReq returns TS_PARSE_ERROR");
+  if (reqbufp == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Cannot create buffer for parsing request");
   } else {
-    if (retval == TS_PARSE_DONE) {
-      test_passed_parse_req = true;
+    req_hdr_loc = TSHttpHdrCreate(reqbufp);
+    if (req_hdr_loc == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Cannot create Http hdr for parsing request");
+      if (TSMBufferDestroy(reqbufp) == TS_ERROR) {
+        SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
+      }
     } else {
-      SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Parsing Error");
+      start = req;
+      end = req + strlen(req) + 1;
+      if ((retval = TSHttpHdrParseReq(parser, reqbufp, req_hdr_loc, &start, end)) == TS_PARSE_ERROR) {
+        SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "TSHttpHdrParseReq returns TS_PARSE_ERROR");
+      } else {
+        if (retval == TS_PARSE_DONE) {
+          test_passed_parse_req = true;
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Parsing Error");
+        }
+      }
     }
   }
 
-  TSHttpParserClear(parser);
-  SDK_RPRINT(test, "TSHttpParserClear", "TestCase1", TC_PASS, "ok");
-  test_passed_parser_clear = true;
+  if (TSHttpParserClear(parser) == TS_ERROR) {
+    SDK_RPRINT(test, "TSHttpParserClear", "TestCase1", TC_FAIL, "TSHttpParserClear returns TS_ERROR");
+    SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Cannot run test as TSHttpParserClear Failed");
+  } else {
+    SDK_RPRINT(test, "TSHttpParserClear", "TestCase1", TC_PASS, "ok");
+    test_passed_parser_clear = true;
+  }
 
   // Response
   if (test_passed_parser_clear == true) {
     respbufp = TSMBufferCreate();
-    resp_hdr_loc = TSHttpHdrCreate(respbufp);
-    start = resp;
-    end = resp + strlen(resp) + 1;
-    if ((retval = TSHttpHdrParseResp(parser, respbufp, resp_hdr_loc, &start, end)) == TS_PARSE_ERROR) {
-      SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL,
-                 "TSHttpHdrParseReq returns TS_PARSE_ERROR. Maybe an error with TSHttpParserClear.");
+    if (respbufp == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Cannot create buffer for parsing response");
     } else {
-      if (retval == TS_PARSE_DONE) {
-        test_passed_parse_resp = true;
+      resp_hdr_loc = TSHttpHdrCreate(respbufp);
+      if (resp_hdr_loc == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Cannot create Http hdr for parsing response");
+        if (TSMBufferDestroy(respbufp) == TS_ERROR) {
+          SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
+        }
       } else {
-        SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Parsing Error");
+        start = resp;
+        end = resp + strlen(resp) + 1;
+        if ((retval = TSHttpHdrParseResp(parser, respbufp, resp_hdr_loc, &start, end)) == TS_PARSE_ERROR) {
+          SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL,
+                     "TSHttpHdrParseReq returns TS_PARSE_ERROR. Maybe an error with TSHttpParserClear.");
+        } else {
+          if (retval == TS_PARSE_DONE) {
+            test_passed_parse_resp = true;
+          } else {
+            SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "Parsing Error");
+          }
+        }
       }
     }
   } else {
@@ -4763,12 +5321,16 @@ REGRESSION_TEST(SDK_API_TSHttpHdrParse) (RegressionTest * test, int atype, int *
     TSfree(temp);
   }
 
-  TSHttpParserDestroy(parser);
-  SDK_RPRINT(test, "TSHttpParserDestroy", "TestCase1", TC_PASS, "ok");
-  test_passed_parser_destroy = true;
+  if (TSHttpParserDestroy(parser) != TS_SUCCESS) {
+    SDK_RPRINT(test, "TSHttpParserDestroy", "TestCase1", TC_FAIL, "TSHttpParserDestroy doesn't return TS_SUCCESS");
+  } else {
+    SDK_RPRINT(test, "TSHttpParserDestroy", "TestCase1", TC_PASS, "ok");
+    test_passed_parser_destroy = true;
+  }
 
   if ((test_passed_parse_req != true) ||
-      (test_passed_parse_resp != true) || (test_passed_parser_clear != true) || (test_passed_parser_destroy != true)) {
+      (test_passed_parse_resp != true) || (test_passed_parser_clear != true) || (test_passed_parser_destroy != true)
+    ) {
     *pstatus = REGRESSION_TEST_FAILED;
   } else {
     *pstatus = REGRESSION_TEST_PASSED;
@@ -4889,9 +5451,9 @@ convert_mime_hdr_to_string(TSMBuffer bufp, TSMLoc hdr_loc)
 
 TSReturnCode
 compare_field_values(RegressionTest * test, TSMBuffer bufp1, TSMLoc hdr_loc1, TSMLoc field_loc1, TSMBuffer bufp2,
-                     TSMLoc hdr_loc2, TSMLoc field_loc2, bool first_time)
+                     TSMBuffer hdr_loc2, TSMLoc field_loc2, bool first_time)
 {
-  NOWARN_UNUSED(first_time);
+
   int no_of_values1;
   int no_of_values2;
   int i;
@@ -4904,14 +5466,23 @@ compare_field_values(RegressionTest * test, TSMBuffer bufp1, TSMLoc hdr_loc1, TS
 
   no_of_values1 = TSMimeHdrFieldValuesCount(bufp1, hdr_loc1, field_loc1);
   no_of_values2 = TSMimeHdrFieldValuesCount(bufp2, hdr_loc2, field_loc2);
+  if ((no_of_values1 == TS_ERROR) || (no_of_values2 == TS_ERROR)) {
+    SDK_RPRINT(test, "compare_field_values", "TestCase", TC_FAIL, "TSMimeHdrFieldValuesCount returns TS_ERROR");
+    return TS_ERROR;
+  }
+
   if (no_of_values1 != no_of_values2) {
     SDK_RPRINT(test, "compare_field_values", "TestCase", TC_FAIL, "Field Values not equal");
     return TS_ERROR;
   }
 
   for (i = 0; i < no_of_values1; i++) {
-    str1 = TSMimeHdrFieldValueStringGet(bufp1, hdr_loc1, field_loc1, i, &length1);
-    str2 = TSMimeHdrFieldValueStringGet(bufp2, hdr_loc2, field_loc2, i, &length2);
+    if ((TSMimeHdrFieldValueStringGet(bufp1, hdr_loc1, field_loc1, i, &str1, &length1) != TS_SUCCESS) ||
+        (TSMimeHdrFieldValueStringGet(bufp2, hdr_loc2, field_loc2, i, &str2, &length2) != TS_SUCCESS)) {
+      SDK_RPRINT(test, "compare_field_values", "TestCase", TC_FAIL,
+                 "TSMimeHdrFieldValueStringGet doesn't return TS_SUCCESS");
+      return TS_ERROR;
+    }
     if (!((length1 == length2) && (strncmp(str1, str2, length1) == 0))) {
       SDK_RPRINT(test, "compare_field_values", "TestCase", TC_FAIL, "Field Value %d differ from each other", i);
       return TS_ERROR;
@@ -4932,22 +5503,22 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
 
   TSMimeParser parser;
 
-  TSMBuffer bufp1 = (TSMBuffer)NULL;
-  TSMBuffer bufp2 = (TSMBuffer)NULL;
-  TSMBuffer bufp3 = (TSMBuffer)NULL;
+  TSMBuffer bufp1 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp2 = (TSMBuffer) TS_ERROR_PTR;
+  TSMBuffer bufp3 = (TSMBuffer) TS_ERROR_PTR;
 
-  TSMLoc mime_hdr_loc1 = (TSMLoc)NULL;
-  TSMLoc mime_hdr_loc2 = (TSMLoc)NULL;
-  TSMLoc mime_hdr_loc3 = (TSMLoc)NULL;
+  TSMLoc mime_hdr_loc1 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc mime_hdr_loc2 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc mime_hdr_loc3 = (TSMLoc) TS_ERROR_PTR;
 
-  TSMLoc field_loc1 = (TSMLoc)NULL;
-  TSMLoc field_loc2 = (TSMLoc)NULL;
+  TSMLoc field_loc1 = (TSMLoc) TS_ERROR_PTR;
+  TSMLoc field_loc2 = (TSMLoc) TS_ERROR_PTR;
 
   const char *start;
   const char *end;
   char *temp;
 
-  TSParseResult retval;
+  int retval;
   int hdrLength;
 
   bool test_passed_parser_create = false;
@@ -4967,56 +5538,79 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
 
   //Create Parser
   parser = TSMimeParserCreate();
-  SDK_RPRINT(test, "TSMimeParserCreate", "TestCase1", TC_PASS, "ok");
-  test_passed_parser_create = true;
+  if (parser == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSMimeParserCreate", "TestCase1", TC_FAIL, "TSMimeParserCreate returns TS_ERROR_PTR");
+  } else {
+    SDK_RPRINT(test, "TSMimeParserCreate", "TestCase1", TC_PASS, "ok");
+    test_passed_parser_create = true;
+  }
 
   if (test_passed_parser_create == true) {
     // Parsing
     bufp1 = TSMBufferCreate();
-    if (TSMimeHdrCreate(bufp1, &mime_hdr_loc1) != TS_SUCCESS) {
-      SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Cannot create Mime hdr for parsing");
-      SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL, "Cannot run test as unable to create Mime Header for parsing");
-      SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "Cannot run test as unable to create Mime Header for parsing");
-
-      if (TSMBufferDestroy(bufp1) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
-      }
+    if (bufp1 == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Cannot create buffer for parsing");
+      SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL,
+                 "Cannot run test as unable to create a buffer for parsing");
+      SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL,
+                 "Cannot run test as unable to create a buffer for parsing");
     } else {
-      start = parse_string;
-      end = parse_string + strlen(parse_string) + 1;
-      if ((retval = TSMimeHdrParse(parser, bufp1, mime_hdr_loc1, &start, end)) == TS_PARSE_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "TSMimeHdrParse returns TS_PARSE_ERROR");
-        SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrParse returned Error.");
-        SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrParse returned Error.");
-      } else {
-        if (retval == TS_PARSE_DONE) {
-          temp = convert_mime_hdr_to_string(bufp1, mime_hdr_loc1);    // Implements TSMimeHdrPrint.
-          if (strcmp(parse_string, temp) == 0) {
-            SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_PASS, "ok");
-            SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_PASS, "ok");
+      mime_hdr_loc1 = TSMimeHdrCreate(bufp1);
+      if (mime_hdr_loc1 == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Cannot create Mime hdr for parsing");
+        SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL,
+                   "Cannot run test as unable to create Mime Header for parsing");
+        SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL,
+                   "Cannot run test as unable to create Mime Header for parsing");
 
-            // TSMimeHdrLengthGet
-            hdrLength = TSMimeHdrLengthGet(bufp1, mime_hdr_loc1);
-            if (hdrLength == (int) strlen(temp)) {
-              SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_PASS, "ok");
-              test_passed_mime_hdr_length_get = true;
+        if (TSMBufferDestroy(bufp1) == TS_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
+        }
+      } else {
+        start = parse_string;
+        end = parse_string + strlen(parse_string) + 1;
+        if ((retval = TSMimeHdrParse(parser, bufp1, mime_hdr_loc1, &start, end)) == TS_PARSE_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "TSMimeHdrParse returns TS_PARSE_ERROR");
+          SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL,
+                     "Cannot run test as TSMimeHdrParse returned Error.");
+          SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL,
+                     "Cannot run test as TSMimeHdrParse returned Error.");
+        } else {
+          if (retval == TS_PARSE_DONE) {
+            temp = convert_mime_hdr_to_string(bufp1, mime_hdr_loc1);    // Implements TSMimeHdrPrint.
+            if (strcmp(parse_string, temp) == 0) {
+              SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_PASS, "ok");
+              SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_PASS, "ok");
+
+              // TSMimeHdrLengthGet
+              if ((hdrLength = TSMimeHdrLengthGet(bufp1, mime_hdr_loc1)) == TS_ERROR) {
+                SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "TSMimeHdrLengthGet returns TS_ERROR");
+              } else {
+                if (hdrLength == (int) strlen(temp)) {
+                  SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_PASS, "ok");
+                  test_passed_mime_hdr_length_get = true;
+                } else {
+                  SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "Value's Mismatch");
+                }
+              }
+
+              test_passed_parse = true;
+              test_passed_mime_hdr_print = true;
             } else {
-              SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "Value's Mismatch");
+              SDK_RPRINT(test, "TSMimeHdrParse|TSMimeHdrPrint", "TestCase1", TC_FAIL,
+                         "Incorrect parsing or incorrect Printing");
+              SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL,
+                         "Cannot run test as TSMimeHdrParse|TSMimeHdrPrint failed.");
             }
 
-            test_passed_parse = true;
-            test_passed_mime_hdr_print = true;
+            TSfree(temp);
           } else {
-            SDK_RPRINT(test, "TSMimeHdrParse|TSMimeHdrPrint", "TestCase1", TC_FAIL, "Incorrect parsing or incorrect Printing");
+            SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Parsing Error");
+            SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL,
+                       "Cannot run test as TSMimeHdrParse returned error.");
             SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL,
-                       "Cannot run test as TSMimeHdrParse|TSMimeHdrPrint failed.");
+                       "Cannot run test as TSMimeHdrParse returned error.");
           }
-
-          TSfree(temp);
-        } else {
-          SDK_RPRINT(test, "TSMimeHdrParse", "TestCase1", TC_FAIL, "Parsing Error");
-          SDK_RPRINT(test, "TSMimeHdrPrint", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrParse returned error.");
-          SDK_RPRINT(test, "TSMimeHdrLengthGet", "TestCase1", TC_FAIL, "Cannot run test as TSMimeHdrParse returned error.");
         }
       }
     }
@@ -5029,45 +5623,58 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
 
   // HOW DO I CHECK FOR PARSER CLEAR????
   if (test_passed_parser_create == true) {
-    TSMimeParserClear(parser);
-    SDK_RPRINT(test, "TSMimeParserClear", "TestCase1", TC_PASS, "ok");
-    test_passed_parser_clear = true;
+    if (TSMimeParserClear(parser) == TS_ERROR) {
+      SDK_RPRINT(test, "TSMimeParserClear", "TestCase1", TC_FAIL, "TSMimeParserClear returns TS_ERROR");
+    } else {
+      SDK_RPRINT(test, "TSMimeParserClear", "TestCase1", TC_PASS, "ok");
+      test_passed_parser_clear = true;
+    }
   } else {
     SDK_RPRINT(test, "TSMimeParserClear", "TestCase1", TC_FAIL, "Cannot run test as unable to create a parser");
   }
 
 
   if (test_passed_parser_create == true) {
-    TSMimeParserDestroy(parser);
-    SDK_RPRINT(test, "TSMimeParserDestroy", "TestCase1", TC_PASS, "ok");
-    test_passed_parser_destroy = true;
+    if (TSMimeParserDestroy(parser) != TS_SUCCESS) {
+      SDK_RPRINT(test, "TSMimeParserDestroy", "TestCase1", TC_FAIL, "TSMimeParserDestroy doesn't return TS_SUCCESS");
+    } else {
+      SDK_RPRINT(test, "TSMimeParserDestroy", "TestCase1", TC_PASS, "ok");
+      test_passed_parser_destroy = true;
+    }
   } else {
     SDK_RPRINT(test, "TSMimeParserDestroy", "TestCase1", TC_FAIL, "Cannot run test as unable to create a parser");
   }
 
   //TSMimeHdrFieldNextDup
   if (test_passed_parse == true) {
-    if ((field_loc1 = TSMimeHdrFieldFind(bufp1, mime_hdr_loc1, DUPLICATE_FIELD_NAME, -1)) == TS_NULL_MLOC) {
-      SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_NULL_MLOC");
-      SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "TSMimeHdrFieldFind returns TS_NULL_MLOC");
+    if ((field_loc1 = TSMimeHdrFieldFind(bufp1, mime_hdr_loc1, DUPLICATE_FIELD_NAME, -1)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_ERROR_PTR");
+      SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "TSMimeHdrFieldFind returns TS_ERROR_PTR");
     } else {
       const char *fieldName;
       int length;
-
-      fieldName = TSMimeHdrFieldNameGet(bufp1, mime_hdr_loc1, field_loc1, &length);
-      if (strncmp(fieldName, DUPLICATE_FIELD_NAME, length) == 0) {
-        SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "ok");
-        test_passed_mime_hdr_field_find = true;
+      if ((fieldName = TSMimeHdrFieldNameGet(bufp1, mime_hdr_loc1, field_loc1, &length)) != TS_ERROR_PTR) {
+        if (strncmp(fieldName, DUPLICATE_FIELD_NAME, length) == 0) {
+          SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "ok");
+          test_passed_mime_hdr_field_find = true;
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS,
+                     "TSMimeHdrFieldFind returns incorrect field pointer");
+        }
       } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "TSMimeHdrFieldFind returns incorrect field pointer");
+        SDK_RPRINT(test, "TSMimeHdrFieldFind", "TestCase1", TC_PASS, "TSMimeHdrFieldNameGet returns TS_ERROR_PTR");
       }
 
-      field_loc2 = TSMimeHdrFieldNextDup(bufp1, mime_hdr_loc1, field_loc1);
-      if (compare_field_names(test, bufp1, mime_hdr_loc1, field_loc1, bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_FAIL, "Incorrect Pointer");
+      if ((field_loc2 = TSMimeHdrFieldNextDup(bufp1, mime_hdr_loc1, field_loc1)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_FAIL,
+                   "TSMimeHdrFieldNextDup returns TS_ERROR_PTR");
       } else {
-        SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_PASS, "ok");
-        test_passed_mime_hdr_field_next_dup = true;
+        if (compare_field_names(test, bufp1, mime_hdr_loc1, field_loc1, bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_FAIL, "Incorrect Pointer");
+        } else {
+          SDK_RPRINT(test, "TSMimeHdrFieldNextDup", "TestCase1", TC_PASS, "ok");
+          test_passed_mime_hdr_field_next_dup = true;
+        }
       }
 
       // TSHandleMLocRelease
@@ -5078,7 +5685,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
         test_passed_handle_mloc_release = true;
       }
 
-      if (field_loc2 != NULL) {
+      if ((field_loc2 != NULL) && (field_loc2 != TS_ERROR_PTR)) {
         if (TSHandleMLocRelease(bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
           SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase2", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
           test_passed_handle_mloc_release = false;
@@ -5095,23 +5702,28 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
   if (test_passed_parse == true) {
     // Parsing
     bufp2 = TSMBufferCreate();
-    if (TSMimeHdrCreate(bufp2, &mime_hdr_loc2) != TS_SUCCESS) {
-      SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Cannot create Mime hdr for copying");
-      if (TSMBufferDestroy(bufp2) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
-      }
+    if (bufp2 == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Cannot create buffer for copying.");
     } else {
-      if (TSMimeHdrCopy(bufp2, mime_hdr_loc2, bufp1, mime_hdr_loc1) == TS_ERROR) {
-        SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "TSMimeHdrCopy returns TS_ERROR");
-      } else {
-        temp = convert_mime_hdr_to_string(bufp2, mime_hdr_loc2);      // Implements TSMimeHdrPrint.
-        if (strcmp(parse_string, temp) == 0) {
-          SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_PASS, "ok");
-          test_passed_mime_hdr_copy = true;
-        } else {
-          SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Value's Mismatch");
+      mime_hdr_loc2 = TSMimeHdrCreate(bufp2);
+      if (mime_hdr_loc2 == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Cannot create Mime hdr for copying");
+        if (TSMBufferDestroy(bufp2) == TS_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
         }
-        TSfree(temp);
+      } else {
+        if (TSMimeHdrCopy(bufp2, mime_hdr_loc2, bufp1, mime_hdr_loc1) == TS_ERROR) {
+          SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "TSMimeHdrCopy returns TS_ERROR");
+        } else {
+          temp = convert_mime_hdr_to_string(bufp2, mime_hdr_loc2);      // Implements TSMimeHdrPrint.
+          if (strcmp(parse_string, temp) == 0) {
+            SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_PASS, "ok");
+            test_passed_mime_hdr_copy = true;
+          } else {
+            SDK_RPRINT(test, "TSMimeHdrCopy", "TestCase1", TC_FAIL, "Value's Mismatch");
+          }
+          TSfree(temp);
+        }
       }
     }
   } else {
@@ -5119,32 +5731,34 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
   }
 
   bufp3 = TSMBufferCreate();
-  TSMimeHdrCreate(bufp3, &mime_hdr_loc3);
+  mime_hdr_loc3 = TSMimeHdrCreate(bufp3);
   test_passed_mime_hdr_clone = true;
 
   // TSMimeHdrFieldRemove
   if (test_passed_mime_hdr_copy == true) {
-    if ((field_loc1 = TSMimeHdrFieldFind(bufp2, mime_hdr_loc2, REMOVE_FIELD_NAME, -1)) == TS_NULL_MLOC) {
-      SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_NULL_MLOC");
+    if ((field_loc1 = TSMimeHdrFieldFind(bufp2, mime_hdr_loc2, REMOVE_FIELD_NAME, -1)) == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_ERROR_PTR");
     } else {
-      if (TSMimeHdrFieldRemove(bufp2, mime_hdr_loc2, field_loc1) != TS_SUCCESS) {
-        SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "TSMimeHdrFieldRemove returns TS_ERROR");
+      if (TSMimeHdrFieldRemove(bufp2, mime_hdr_loc2, field_loc1) == TS_ERROR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "TSMimeHdrFieldRemove returns TS_ERROR_PTR");
       } else {
-        // Make sure the remove actually took effect
-        field_loc2 = TSMimeHdrFieldFind(bufp2, mime_hdr_loc2, REMOVE_FIELD_NAME, -1);
-        if ((field_loc2 == TS_NULL_MLOC) || (field_loc1 != field_loc2)) {
-          test_passed_mime_hdr_field_remove = true;
+        if ((field_loc2 = TSMimeHdrFieldFind(bufp2, mime_hdr_loc2, REMOVE_FIELD_NAME, -1)) == TS_ERROR_PTR) {
+          SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "TSMimeHdrFieldFind returns TS_ERROR_PTR");
         } else {
-          SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "Field Not Removed");
-        }
-
-        if ((test_passed_mime_hdr_field_remove == true)) {
-          if (TSMimeHdrFieldAppend(bufp2, mime_hdr_loc2, field_loc1) != TS_SUCCESS) {
-            SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL,
-                       "Unable to readd the field to mime header. Probably destroyed");
-            test_passed_mime_hdr_field_remove = false;
+          if ((field_loc2 == NULL) || (field_loc1 != field_loc2)) {
+            test_passed_mime_hdr_field_remove = true;
           } else {
-            SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_PASS, "ok");
+            SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL, "Field Not Removed");
+          }
+
+          if ((test_passed_mime_hdr_field_remove == true)) {
+            if (TSMimeHdrFieldAppend(bufp2, mime_hdr_loc2, field_loc1) == TS_ERROR) {
+              SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_FAIL,
+                         "Unable to readd the field to mime header. Probably destroyed");
+              test_passed_mime_hdr_field_remove = false;
+            } else {
+              SDK_RPRINT(test, "TSMimeHdrFieldRemove", "TestCase1", TC_PASS, "ok");
+            }
           }
         }
       }
@@ -5157,7 +5771,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
         SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase3", TC_PASS, "ok");
       }
 
-      if (field_loc2 != NULL) {
+      if ((field_loc2 != NULL) && (field_loc2 != TS_ERROR_PTR)) {
         if (TSHandleMLocRelease(bufp2, mime_hdr_loc2, field_loc2) == TS_ERROR) {
           SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase4", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
           test_passed_handle_mloc_release = false;
@@ -5172,10 +5786,10 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
 
   // TSMimeHdrFieldCopy
   if (test_passed_mime_hdr_copy == true) {
-    if (TSMimeHdrFieldCreate(bufp2, mime_hdr_loc2, &field_loc1) != TS_SUCCESS) {
+    if ((field_loc1 = TSMimeHdrFieldCreate(bufp2, mime_hdr_loc2)) == TS_ERROR_PTR) {
       SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL, "Unable to create field for Copying");
     } else {
-      if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_NULL_MLOC) {
+      if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_ERROR_PTR) {
         SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL, "Unable to get source field for copying");
       } else {
         if (TSMimeHdrFieldCopy(bufp2, mime_hdr_loc2, field_loc1, bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
@@ -5197,7 +5811,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
         SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase5", TC_PASS, "ok");
       }
 
-      if (field_loc2 != NULL) {
+      if ((field_loc2 != NULL) && (field_loc2 != TS_ERROR_PTR)) {
         if (TSHandleMLocRelease(bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
           SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase6", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
           test_passed_handle_mloc_release = false;
@@ -5207,18 +5821,19 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL, "Unable to run test as bufp2 might not have been created");
+    SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL,
+               "Unable to run test as bufp2 might not have been created");
   }
 
   // TSMimeHdrFieldClone
   if (test_passed_mime_hdr_clone == true) {
     field_loc1 = NULL;
     field_loc2 = NULL;
-    if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_NULL_MLOC) {
+    if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_ERROR_PTR) {
       SDK_RPRINT(test, "TSMimeHdrFieldClone", "TestCase1", TC_FAIL, "Unable to get source field for copying");
     } else {
-      if (TSMimeHdrFieldClone(bufp3, mime_hdr_loc3, bufp1, mime_hdr_loc1, field_loc2, &field_loc1) != TS_SUCCESS) {
-        SDK_RPRINT(test, "TSMimeHdrFieldClone", "TestCase1", TC_FAIL, "TSMimeHdrFieldClone returns TS_ERROR");
+      if ((field_loc1 = TSMimeHdrFieldClone(bufp3, mime_hdr_loc3, bufp1, mime_hdr_loc1, field_loc2)) == TS_ERROR_PTR) {
+        SDK_RPRINT(test, "TSMimeHdrFieldClone", "TestCase1", TC_FAIL, "TSMimeHdrFieldClone returns TS_ERROR_PTR");
       } else {
         if ((compare_field_names(test, bufp3, mime_hdr_loc3, field_loc1, bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) ||
             (compare_field_values(test, bufp3, mime_hdr_loc3, field_loc1, bufp1, mime_hdr_loc1, field_loc2, true) == TS_ERROR)) {
@@ -5228,7 +5843,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
         }
       }
     }
-    if (field_loc1 != NULL) {
+    if ((field_loc1 != NULL) && (field_loc1 != TS_ERROR_PTR)) {
       if (TSHandleMLocRelease(bufp3, mime_hdr_loc3, field_loc1) == TS_ERROR) {
         SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase7", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
         test_passed_handle_mloc_release = false;
@@ -5237,7 +5852,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
       }
     }
 
-    if (field_loc2 != NULL) {
+    if ((field_loc2 != NULL) && (field_loc2 != TS_ERROR_PTR)) {
       if (TSHandleMLocRelease(bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
         SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase8", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
         test_passed_handle_mloc_release = false;
@@ -5246,15 +5861,16 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldClone", "TestCase1", TC_FAIL, "Unable to run test as bufp3 might not have been created");
+    SDK_RPRINT(test, "TSMimeHdrFieldClone", "TestCase1", TC_FAIL,
+               "Unable to run test as bufp3 might not have been created");
   }
 
   // TSMimeHdrFieldCopyValues
   if (test_passed_mime_hdr_copy == true) {
-    if (TSMimeHdrFieldCreate(bufp2, mime_hdr_loc2, &field_loc1) != TS_SUCCESS) {
+    if ((field_loc1 = TSMimeHdrFieldCreate(bufp2, mime_hdr_loc2)) == TS_ERROR_PTR) {
       SDK_RPRINT(test, "TSMimeHdrFieldCopyValues", "TestCase1", TC_FAIL, "Unable to create field for Copying");
     } else {
-      if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_NULL_MLOC) {
+      if ((field_loc2 = TSMimeHdrFieldGet(bufp1, mime_hdr_loc1, 0)) == TS_ERROR_PTR) {
         SDK_RPRINT(test, "TSMimeHdrFieldCopyValues", "TestCase1", TC_FAIL, "Unable to get source field for copying");
       } else {
         if (TSMimeHdrFieldCopyValues(bufp2, mime_hdr_loc2, field_loc1, bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
@@ -5275,7 +5891,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
         SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase9", TC_PASS, "ok");
       }
 
-      if (field_loc2 != NULL) {
+      if ((field_loc2 != NULL) && (field_loc2 != TS_ERROR_PTR)) {
         if (TSHandleMLocRelease(bufp1, mime_hdr_loc1, field_loc2) == TS_ERROR) {
           SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase10", TC_FAIL, "TSHandleMLocRelease returns TS_ERROR");
           test_passed_handle_mloc_release = false;
@@ -5285,23 +5901,27 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
       }
     }
   } else {
-    SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL, "Unable to run test as bufp2 might not have been created");
+    SDK_RPRINT(test, "TSMimeHdrFieldCopy", "TestCase1", TC_FAIL,
+               "Unable to run test as bufp2 might not have been created");
   }
 
   if ((TSMimeHdrDestroy(bufp1, mime_hdr_loc1) == TS_ERROR) ||
-      (TSMimeHdrDestroy(bufp2, mime_hdr_loc2) == TS_ERROR) || (TSMimeHdrDestroy(bufp3, mime_hdr_loc3) == TS_ERROR)) {
+      (TSMimeHdrDestroy(bufp2, mime_hdr_loc2) == TS_ERROR) || (TSMimeHdrDestroy(bufp3, mime_hdr_loc3) == TS_ERROR)
+    ) {
     SDK_RPRINT(test, "", "TestCase", TC_FAIL, "TSMimeHdrDestroy returns TS_ERROR");
   }
 
   if ((TSHandleMLocRelease(bufp1, TS_NULL_MLOC, mime_hdr_loc1) == TS_ERROR) ||
       (TSHandleMLocRelease(bufp2, TS_NULL_MLOC, mime_hdr_loc2) == TS_ERROR) ||
-      (TSHandleMLocRelease(bufp3, TS_NULL_MLOC, mime_hdr_loc3) == TS_ERROR)) {
+      (TSHandleMLocRelease(bufp3, TS_NULL_MLOC, mime_hdr_loc3) == TS_ERROR)
+    ) {
     SDK_RPRINT(test, "TSHandleMLocRelease", "TestCase11|12|13", TC_FAIL, "Unable to release handle to Mime Hdrs");
     test_passed_handle_mloc_release = false;
   }
 
   if ((TSMBufferDestroy(bufp1) == TS_ERROR) ||
-      (TSMBufferDestroy(bufp2) == TS_ERROR) || (TSMBufferDestroy(bufp3) == TS_ERROR)) {
+      (TSMBufferDestroy(bufp2) == TS_ERROR) || (TSMBufferDestroy(bufp3) == TS_ERROR)
+    ) {
     SDK_RPRINT(test, "", "TestCase", TC_FAIL, "TSMBufferDestroy returns TS_ERROR");
   }
 
@@ -5318,7 +5938,8 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
       (test_passed_mime_hdr_field_copy != true) ||
       (test_passed_mime_hdr_field_copy_values != true) ||
       (test_passed_handle_mloc_release != true) ||
-      (test_passed_mime_hdr_field_find != true)) {
+      (test_passed_mime_hdr_field_find != true)
+    ) {
     *pstatus = REGRESSION_TEST_FAILED;
   } else {
     *pstatus = REGRESSION_TEST_PASSED;
@@ -5343,7 +5964,7 @@ REGRESSION_TEST(SDK_API_TSUrlParse) (RegressionTest * test, int atype, int *psta
   int retval;
 
   TSMBuffer bufp;
-  TSMLoc url_loc = (TSMLoc)NULL;
+  TSMLoc url_loc = (TSMLoc) TS_ERROR_PTR;
   bool test_passed_parse_url = false;
   int length;
 
@@ -5351,28 +5972,37 @@ REGRESSION_TEST(SDK_API_TSUrlParse) (RegressionTest * test, int atype, int *psta
 
 
   bufp = TSMBufferCreate();
-  if (TSUrlCreate(bufp, &url_loc) != TS_SUCCESS) {
-    SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Cannot create Url for parsing the url");
-    if (TSMBufferDestroy(bufp) == TS_ERROR) {
-      SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
-    }
+  if (bufp == TS_ERROR_PTR) {
+    SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Cannot create buffer for parsing url");
   } else {
-    start = url;
-    end = url + strlen(url) + 1;
-    if ((retval = TSUrlParse(bufp, url_loc, &start, end)) == TS_PARSE_ERROR) {
-      SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "TSUrlParse returns TS_PARSE_ERROR");
+    url_loc = TSUrlCreate(bufp);
+    if (url_loc == TS_ERROR_PTR) {
+      SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Cannot create Url for parsing the url");
+      if (TSMBufferDestroy(bufp) == TS_ERROR) {
+        SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
+      }
     } else {
-      if (retval == TS_PARSE_DONE) {
-        temp = TSUrlStringGet(bufp, url_loc, &length);
-        if (strncmp(url, temp, length) == 0) {
-          SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_PASS, "ok");
-          test_passed_parse_url = true;
-        } else {
-          SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Value's Mismatch");
-        }
-        TSfree(temp);
+      start = url;
+      end = url + strlen(url) + 1;
+      if ((retval = TSUrlParse(bufp, url_loc, &start, end)) == TS_PARSE_ERROR) {
+        SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "TSUrlParse returns TS_PARSE_ERROR");
       } else {
-        SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Parsing Error");
+        if (retval == TS_PARSE_DONE) {
+          temp = TSUrlStringGet(bufp, url_loc, &length);
+          if (temp == TS_ERROR_PTR) {
+            SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "TSUrlStringGet returns TS_ERROR_PTR");
+          } else {
+            if (strncmp(url, temp, length) == 0) {
+              SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_PASS, "ok");
+              test_passed_parse_url = true;
+            } else {
+              SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Value's Mismatch");
+            }
+            TSfree(temp);
+          }
+        } else {
+          SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Parsing Error");
+        }
       }
     }
   }
@@ -5492,8 +6122,14 @@ REGRESSION_TEST(SDK_API_TSTextLog) (RegressionTest * test, int atype, int *pstat
     SDK_RPRINT(test, "TSTextLogObjectWrite", "TestCase1", TC_PASS, "ok");
   }
 
-  TSTextLogObjectFlush(log);
-  SDK_RPRINT(test, "TSTextLogObjectFlush", "TestCase1", TC_PASS, "ok");
+  retVal = TSTextLogObjectFlush(log);
+  if (retVal != TS_SUCCESS) {
+    SDK_RPRINT(test, "TSTextLogObjectFlush", "TestCase1", TC_FAIL, "can not flush log object");
+    *pstatus = REGRESSION_TEST_FAILED;
+    return;
+  } else {
+    SDK_RPRINT(test, "TSTextLogObjectFlush", "TestCase1", TC_PASS, "ok");
+  }
 
   retVal = TSTextLogObjectDestroy(log);
   if (retVal != TS_SUCCESS) {
@@ -5544,14 +6180,17 @@ REGRESSION_TEST(SDK_API_TSMgmtGet) (RegressionTest * test, int atype, int *pstat
 
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
+  int retVal;
   int err = 0;
   TSMgmtCounter cvalue = 0;
   TSMgmtFloat fvalue = 0.0;
   TSMgmtInt ivalue = -1;
   TSMgmtString svalue = NULL;
 
-  if (TS_SUCCESS != TSMgmtCounterGet(CONFIG_PARAM_COUNTER_NAME, &cvalue)) {
-    SDK_RPRINT(test, "TSMgmtCounterGet", "TestCase1.1", TC_FAIL, "can not get value of param %s", CONFIG_PARAM_COUNTER_NAME);
+  retVal = TSMgmtCounterGet(CONFIG_PARAM_COUNTER_NAME, &cvalue);
+  if (retVal == 0) {
+    SDK_RPRINT(test, "TSMgmtCounterGet", "TestCase1.1", TC_FAIL, "can not get value of param %s",
+               CONFIG_PARAM_COUNTER_NAME);
     err = 1;
   } else if (cvalue != CONFIG_PARAM_COUNTER_VALUE) {
     SDK_RPRINT(test, "TSMgmtCounterGet", "TestCase1.1", TC_FAIL,
@@ -5562,22 +6201,26 @@ REGRESSION_TEST(SDK_API_TSMgmtGet) (RegressionTest * test, int atype, int *pstat
     SDK_RPRINT(test, "TSMgmtCounterGet", "TestCase1.1", TC_PASS, "ok");
   }
 
-  if ((TS_SUCCESS != TSMgmtFloatGet(CONFIG_PARAM_FLOAT_NAME, &fvalue)) || (fvalue != CONFIG_PARAM_FLOAT_VALUE)) {
+  retVal = TSMgmtFloatGet(CONFIG_PARAM_FLOAT_NAME, &fvalue);
+  if ((retVal == 0) || (fvalue != CONFIG_PARAM_FLOAT_VALUE)) {
     SDK_RPRINT(test, "TSMgmtFloatGet", "TestCase2", TC_FAIL, "can not get value of param %s", CONFIG_PARAM_FLOAT_NAME);
     err = 1;
   } else {
     SDK_RPRINT(test, "TSMgmtFloatGet", "TestCase1.2", TC_PASS, "ok");
   }
 
-  if ((TSMgmtIntGet(CONFIG_PARAM_INT_NAME, &ivalue) != TS_SUCCESS) || (ivalue != CONFIG_PARAM_INT_VALUE)) {
+  retVal = TSMgmtIntGet(CONFIG_PARAM_INT_NAME, &ivalue);
+  if ((retVal == 0) || (ivalue != CONFIG_PARAM_INT_VALUE)) {
     SDK_RPRINT(test, "TSMgmtIntGet", "TestCase1.3", TC_FAIL, "can not get value of param %s", CONFIG_PARAM_INT_NAME);
     err = 1;
   } else {
     SDK_RPRINT(test, "TSMgmtIntGet", "TestCase1.3", TC_PASS, "ok");
   }
 
-  if (TS_SUCCESS != TSMgmtStringGet(CONFIG_PARAM_STRING_NAME, &svalue)) {
-    SDK_RPRINT(test, "TSMgmtStringGet", "TestCase1.4", TC_FAIL, "can not get value of param %s", CONFIG_PARAM_STRING_NAME);
+  retVal = TSMgmtStringGet(CONFIG_PARAM_STRING_NAME, &svalue);
+  if (retVal == 0) {
+    SDK_RPRINT(test, "TSMgmtStringGet", "TestCase1.4", TC_FAIL, "can not get value of param %s",
+               CONFIG_PARAM_STRING_NAME);
     err = 1;
   } else if (strcmp(svalue, CONFIG_PARAM_STRING_VALUE) != 0) {
     SDK_RPRINT(test, "TSMgmtStringGet", "TestCase1.4", TC_FAIL,
@@ -5595,6 +6238,43 @@ REGRESSION_TEST(SDK_API_TSMgmtGet) (RegressionTest * test, int atype, int *pstat
 
   *pstatus = REGRESSION_TEST_PASSED;
   SDK_RPRINT(test, "TSMgmtGet", "TestCase1", TC_PASS, "ok");
+  return;
+}
+
+
+//////////////////////////////////////////////
+//       SDK_API_TSMgmtUpdateRegister
+//
+// Unit Test for APIs: TSMgmtUpdateRegister
+//
+// FIX ME: How to test this API automatically
+// as it requires a GUI action ??
+//////////////////////////////////////////////
+
+// dummy handler. Should never get called.
+int
+gui_update_handler(TSCont contp, TSEvent event, void *edata)
+{
+  NOWARN_UNUSED(contp);
+  NOWARN_UNUSED(event);
+  NOWARN_UNUSED(edata);
+  TSReleaseAssert(!"gui_update_handler should not be called");
+  return 0;
+}
+
+REGRESSION_TEST(SDK_API_TSMgmtUpdateRegister) (RegressionTest * test, int atype, int *pstatus)
+{
+  NOWARN_UNUSED(atype);
+  *pstatus = REGRESSION_TEST_INPROGRESS;
+
+  TSCont mycont = TSContCreate(gui_update_handler, TSMutexCreate());
+
+  if (TSMgmtUpdateRegister(mycont, "myPlugin", "myPluginPath/myGui.cgi") != TS_SUCCESS) {
+    SDK_RPRINT(test, "TSMgmtUpdateRegister", "TestCase1", TC_FAIL, "can not register plugin interface");
+    *pstatus = REGRESSION_TEST_FAILED;
+  } else {
+    *pstatus = REGRESSION_TEST_PASSED;
+  }
   return;
 }
 
@@ -6004,10 +6684,19 @@ checkHttpTxnParentProxy(ContData * data, TSHttpTxn txnp)
   char *hostnameget = NULL;
   int portget = 0;
 
-  TSHttpTxnParentProxySet(txnp, (char*)hostname, port);
+  if (TSHttpTxnParentProxySet(txnp, (char*)hostname, port) != TS_SUCCESS) {
+    SDK_RPRINT(data->test, "TSHttpTxnParentProxySet", "TestCase1", TC_FAIL,
+               "TSHttpTxnParentProxySet doesn't return TS_SUCCESS");
+    SDK_RPRINT(data->test, "TSHttpTxnParentProxyGet", "TestCase1", TC_FAIL,
+               "TSHttpTxnParentProxySet doesn't return TS_SUCCESS");
+    return TS_EVENT_CONTINUE;
+  }
+
   if (TSHttpTxnParentProxyGet(txnp, &hostnameget, &portget) != TS_SUCCESS) {
-    SDK_RPRINT(data->test, "TSHttpTxnParentProxySet", "TestCase1", TC_FAIL, "TSHttpTxnParentProxyGet doesn't return TS_SUCCESS");
-    SDK_RPRINT(data->test, "TSHttpTxnParentProxyGet", "TestCase1", TC_FAIL, "TSHttpTxnParentProxyGet doesn't return TS_SUCCESS");
+    SDK_RPRINT(data->test, "TSHttpTxnParentProxySet", "TestCase1", TC_FAIL,
+               "TSHttpTxnParentProxyGet doesn't return TS_SUCCESS");
+    SDK_RPRINT(data->test, "TSHttpTxnParentProxyGet", "TestCase1", TC_FAIL,
+               "TSHttpTxnParentProxyGet doesn't return TS_SUCCESS");
     return TS_EVENT_CONTINUE;
   }
 
@@ -6030,8 +6719,8 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
 
   TSHttpTxn txnp = NULL;
   ContData *data = NULL;
-  data = (ContData *)TSContDataGet(contp);
-  if (data == NULL) {
+  data = (ContData *) TSContDataGet(contp);
+  if ((data == TS_ERROR_PTR) || (data == NULL)) {
     switch (event) {
     case TS_EVENT_HTTP_SSN_START:
       TSHttpSsnReenable((TSHttpSsn) edata, TS_EVENT_HTTP_CONTINUE);
@@ -6050,8 +6739,15 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
   switch (event) {
   case TS_EVENT_HTTP_SSN_START:
     data->ssnp = (TSHttpSsn) edata;
-    TSHttpSsnHookAdd(data->ssnp, TS_HTTP_TXN_START_HOOK, contp);
-    TSHttpSsnReenable(data->ssnp, TS_EVENT_HTTP_CONTINUE);
+    if (TSHttpSsnHookAdd(data->ssnp, TS_HTTP_TXN_START_HOOK, contp) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpSsnHookAdd", "TestCase1", TC_FAIL, "TSHttpSsnHookAdd doesn't return TS_SUCCESS");
+      data->test_passed_ssn_hook_add--;
+    }
+    if (TSHttpSsnReenable(data->ssnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpSsnReenable", "TestCase1", TC_FAIL,
+                 "TSHttpSsnReenable doesn't return TS_SUCCESS");
+      data->test_passed_ssn_reenable--;
+    }
     break;
 
   case TS_EVENT_HTTP_TXN_START:
@@ -6072,8 +6768,14 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
         SDK_RPRINT(data->test, "TSHttpTxnSsnGet", "TestCase1", TC_PASS, "ok");
         data->test_passed_txn_ssn_get++;
       }
-      TSHttpTxnHookAdd(txnp, TS_HTTP_OS_DNS_HOOK, contp);
-      TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+      if (TSHttpTxnHookAdd(txnp, TS_HTTP_OS_DNS_HOOK, contp) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpTxnHookAdd", "TestCase1", TC_FAIL,
+                   "TSHttpTxnHookAdd doesn't return TS_SUCCESS");
+        data->test_passed_txn_hook_add--;
+      }
+      if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpSsn", "TestCase1", TC_FAIL, "TSHttpTxnReenable doesn't return TS_SUCCESS");
+      }
     }
     break;
 
@@ -6082,10 +6784,16 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
     data->test_passed_txn_hook_add++;
     txnp = (TSHttpTxn) edata;
 
-    TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
+    if (TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpTxnHookAdd", "TestCase1", TC_FAIL, "TSHttpTxnHookAdd doesn't return TS_SUCCESS");
+      data->test_passed_txn_hook_add--;
+    }
+
     checkHttpTxnParentProxy(data, txnp);
 
-    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_ERROR);
+    if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_ERROR) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpSsn", "TestCase1", TC_FAIL, "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    }
     break;
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
@@ -6094,9 +6802,15 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
     txnp = (TSHttpTxn) edata;
     if (1) {
       char *temp = TSstrdup(ERROR_BODY);
-      TSHttpTxnErrorBodySet(txnp, temp, strlen(temp), NULL);
+      if (TSHttpTxnErrorBodySet(txnp, temp, strlen(temp), NULL) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpTxnErrorBodySet", "TestCase1", TC_FAIL,
+                   "TSHttpTxnErrorBodySet doesn't return TS_SUCCESS");
+        data->test_passed_txn_error_body_set--;
+      }
     }
-    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpSsn", "TestCase1", TC_FAIL, "TSHttpTxnReenable doesn't return TS_SUCCESS");
+    }
     break;
 
   case TS_EVENT_IMMEDIATE:
@@ -6121,7 +6835,8 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
           data->test_passed_txn_error_body_set++;
         }
       } else {
-        SDK_RPRINT(data->test, "TSHttpTxnErrorBodySet", "TestCase1", TC_FAIL, "strstr returns NULL. Didn't find end of headers.");
+        SDK_RPRINT(data->test, "TSHttpTxnErrorBodySet", "TestCase1", TC_FAIL,
+                   "strstr returns NULL. Didn't find end of headers.");
         data->test_passed_txn_error_body_set--;
       }
 
@@ -6131,7 +6846,8 @@ ssn_handler(TSCont contp, TSEvent event, void *edata)
           (data->test_passed_ssn_reenable == 1) &&
           (data->test_passed_txn_ssn_get == 1) &&
           (data->test_passed_txn_hook_add == 2) && (data->test_passed_txn_error_body_set == 1)
-          && (data->test_passed_Parent_Proxy == true)) {
+          && (data->test_passed_Parent_Proxy == true)
+        ) {
         *(data->pstatus) = REGRESSION_TEST_PASSED;
       } else {
         *(data->pstatus) = REGRESSION_TEST_FAILED;
@@ -6163,7 +6879,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpSsn) (RegressionTest * test, int atype, in
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
   TSCont cont = TSContCreate(ssn_handler, TSMutexCreate());
-  if (cont == NULL) {
+  if ((cont == NULL) || (cont == TS_ERROR_PTR)) {
     SDK_RPRINT(test, "TSHttpSsn", "TestCase1", TC_FAIL, "Unable to create Continuation.");
     *pstatus = REGRESSION_TEST_FAILED;
     return;
@@ -6226,9 +6942,9 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
 {
 
   TSHttpTxn txnp = NULL;
-  CacheTestData *data = (CacheTestData *)TSContDataGet(contp);
-
-  if (data == NULL) {
+  CacheTestData *data = NULL;
+  data = (CacheTestData *) TSContDataGet(contp);
+  if ((data == TS_ERROR_PTR) || (data == NULL)) {
     switch (event) {
     case TS_EVENT_IMMEDIATE:
     case TS_EVENT_TIMEOUT:
@@ -6282,7 +6998,9 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
           }
         }
       }
-      TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+      if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpTxnCacheLookupStatusGet", "", TC_FAIL, "Unable to reenable the transaction");
+      }
     }
     break;
   case TS_EVENT_HTTP_READ_CACHE_HDR:
@@ -6295,11 +7013,12 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
 
       txnp = (TSHttpTxn) edata;
 
-      if (TSHttpTxnCachedReqGet(txnp, &reqbuf, &reqhdr) != TS_SUCCESS) {
+      if (TSHttpTxnCachedReqGet(txnp, &reqbuf, &reqhdr) == 0) {
         SDK_RPRINT(data->test, "TSHttpTxnCachedReqGet", "TestCase1", TC_FAIL, "TSHttpTxnCachedReqGet returns 0");
       } else {
-        if ((reqbuf == reinterpret_cast<TSMBuffer>(((HttpSM *) txnp)->t_state.cache_req_hdr_heap_handle)) &&
-            (reqhdr == reinterpret_cast<TSMLoc>((((HttpSM *) txnp)->t_state.cache_info.object_read->request_get())->m_http))) {
+        if ((reqbuf == (((HttpSM *) txnp)->t_state.cache_req_hdr_heap_handle)) &&
+            (reqhdr == ((((HttpSM *) txnp)->t_state.cache_info.object_read->request_get())->m_http))
+          ) {
           SDK_RPRINT(data->test, "TSHttpTxnCachedReqGet", "TestCase1", TC_PASS, "ok");
           data->test_passed_txn_cached_req_get = true;
         } else {
@@ -6307,11 +7026,12 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
         }
       }
 
-      if (TSHttpTxnCachedRespGet(txnp, &respbuf, &resphdr) != TS_SUCCESS) {
+      if (TSHttpTxnCachedRespGet(txnp, &respbuf, &resphdr) == 0) {
         SDK_RPRINT(data->test, "TSHttpTxnCachedRespGet", "TestCase1", TC_FAIL, "TSHttpTxnCachedRespGet returns 0");
       } else {
-        if ((respbuf == reinterpret_cast<TSMBuffer>(((HttpSM *) txnp)->t_state.cache_resp_hdr_heap_handle)) &&
-            (resphdr == reinterpret_cast<TSMLoc>((((HttpSM *) txnp)->t_state.cache_info.object_read->response_get())->m_http))) {
+        if ((respbuf == (((HttpSM *) txnp)->t_state.cache_resp_hdr_heap_handle)) &&
+            (resphdr == ((((HttpSM *) txnp)->t_state.cache_info.object_read->response_get())->m_http))
+          ) {
           SDK_RPRINT(data->test, "TSHttpTxnCachedRespGet", "TestCase1", TC_PASS, "ok");
           data->test_passed_txn_cached_resp_get = true;
         } else {
@@ -6320,11 +7040,14 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
       }
 
       if ((TSHandleMLocRelease(reqbuf, TS_NULL_MLOC, reqhdr) != TS_SUCCESS) ||
-          (TSHandleMLocRelease(respbuf, TS_NULL_MLOC, resphdr) != TS_SUCCESS)) {
+          (TSHandleMLocRelease(respbuf, TS_NULL_MLOC, resphdr) != TS_SUCCESS)
+        ) {
         SDK_RPRINT(data->test, "TSHttpTxnCache", "", TC_FAIL, "Unable to release handle to headers.");
       }
 
-      TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+      if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpTxnCache", "", TC_FAIL, "Unable to reenable the transaction.");
+      }
     }
 
     break;
@@ -6363,7 +7086,8 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
       if ((data->browser1->status == REQUEST_SUCCESS) &&
           (data->browser2->status == REQUEST_SUCCESS) &&
           (data->test_passed_txn_cached_req_get == true) &&
-          (data->test_passed_txn_cached_resp_get == true) && (data->test_passed_txn_cache_lookup_status == true)) {
+          (data->test_passed_txn_cached_resp_get == true) && (data->test_passed_txn_cache_lookup_status == true)
+        ) {
         *(data->pstatus) = REGRESSION_TEST_PASSED;
       } else {
         *(data->pstatus) = REGRESSION_TEST_FAILED;
@@ -6394,8 +7118,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpTxnCache) (RegressionTest * test, int atyp
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
   TSCont cont = TSContCreate(cache_hook_handler, TSMutexCreate());
-
-  if (cont == NULL) {
+  if ((cont == NULL) || (cont == TS_ERROR_PTR)) {
     SDK_RPRINT(test, "TSHttpSsn", "TestCase1", TC_FAIL, "Unable to create Continuation.");
     *pstatus = REGRESSION_TEST_FAILED;
     return;
@@ -6676,7 +7399,7 @@ transformable(TSHttpTxn txnp, TransformTestData * data)
   TSMBuffer bufp;
   TSMLoc hdr_loc;
 
-  if (TSHttpTxnServerRespGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (TSHttpTxnServerRespGet(txnp, &bufp, &hdr_loc) == 0) {
     SDK_RPRINT(data->test, "TSHttpTxnTransform", "", TC_FAIL, "[transformable]: TSHttpTxnServerRespGet return 0");
   }
 
@@ -6703,12 +7426,14 @@ transform_add(TSHttpTxn txnp, TransformTestData * data)
 
   connp = TSTransformCreate(transformtest_transform, txnp);
   TSContDataSet(connp, data);
-  if (connp == NULL) {
+  if ((connp == NULL) || (connp == TS_ERROR_PTR)) {
     SDK_RPRINT(data->test, "TSHttpTxnTransform", "", TC_FAIL, "Unable to create Transformation.");
     return;
   }
 
-  TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp);
+  if (TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp) != TS_SUCCESS) {
+    SDK_RPRINT(data->test, "TSHttpTxnTransform", "", TC_FAIL, "Unable to add Transformation to the transform hook.");
+  }
   return;
 }
 
@@ -6743,7 +7468,7 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
   TSHttpTxn txnp = NULL;
   TransformTestData *data = NULL;
   data = (TransformTestData *) TSContDataGet(contp);
-  if (data == NULL) {
+  if ((data == TS_ERROR_PTR) || (data == NULL)) {
     switch (event) {
     case TS_EVENT_IMMEDIATE:
     case TS_EVENT_TIMEOUT:
@@ -6774,35 +7499,58 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
       TSMLoc hdr;
       TSMLoc field;
 
-      if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr) != TS_SUCCESS) {
+      if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr) == 0) {
         SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL, "TSHttpTxnClientReqGet returns 0");
       } else {
-        if (TS_NULL_MLOC == (field = TSMimeHdrFieldFind(bufp, hdr, "Request", -1))) {
+        field = TSMimeHdrFieldFind(bufp, hdr, "Request", -1);
+        if ((field == NULL) || (field == TS_ERROR_PTR)) {
           SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL, "Didn't find field request");
         } else {
-          int reqid =TSMimeHdrFieldValueIntGet(bufp, hdr, field, 0);
-          if (reqid == 1) {
-            TSHttpTxnTransformedRespCache(txnp, 0);
-            TSHttpTxnUntransformedRespCache(txnp, 1);
-          }
-          if (reqid == 2) {
-            TSHttpTxnTransformedRespCache(txnp, 1);
-            TSHttpTxnUntransformedRespCache(txnp, 0);
+          int reqid;
+          if (TSMimeHdrFieldValueIntGet(bufp, hdr, field, 0, &reqid) != TS_SUCCESS) {
+            SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL, "Error in getting field Value");
+          } else {
+            if (reqid == 1) {
+              if ((TSHttpTxnTransformedRespCache(txnp, 0) != TS_SUCCESS) ||
+                  (TSHttpTxnUntransformedRespCache(txnp, 1) != TS_SUCCESS)
+                ) {
+                SDK_RPRINT(data->test, "TSHttpTxnTransformedRespCache", "TestCase", TC_FAIL,
+                           "TSHttpTxnTransformedRespCache or TSHttpTxnUntransformedRespCache doesn't return TS_SUCCESS.reqid=%d",
+                           reqid);
+              }
+            }
+            if (reqid == 2) {
+              if ((TSHttpTxnTransformedRespCache(txnp, 1) != TS_SUCCESS) ||
+                  (TSHttpTxnUntransformedRespCache(txnp, 0) != TS_SUCCESS)
+                ) {
+                SDK_RPRINT(data->test, "TSHttpTxnTransformedRespCache", "TestCase", TC_FAIL,
+                           "TSHttpTxnTransformedRespCache or TSHttpTxnUntransformedRespCache doesn't return TS_SUCCESS.reqid=%d",
+                           reqid);
+              }
+            }
           }
           if (TSHandleMLocRelease(bufp, hdr, field) != TS_SUCCESS) {
-            SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL, "Unable to release handle to field in Client request");
+            SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL,
+                       "Unable to release handle to field in Client request");
           }
         }
         if (TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr) != TS_SUCCESS) {
-          SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL, "Unable to release handle to Client request");
+          SDK_RPRINT(data->test, "TSHttpTxnTransform", "TestCase", TC_FAIL,
+                     "Unable to release handle to Client request");
         }
       }
     }
 
     /* Add the transaction hook to SEND_RESPONSE_HDR_HOOK */
-    TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
+    if (TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpTxnTransform", "", TC_FAIL,
+                 "Cannot add transaction hook to SEND_RESPONSE_HDR_HOOK");
+    }
     /* Reenable the transaction */
-    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpTxnTransform", "", TC_FAIL,
+                 "Reenabling the transaction doesn't return TS_SUCCESS");
+    }
     break;
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
@@ -6810,12 +7558,14 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
       TSMBuffer bufp;
       TSMLoc hdr;
       txnp = (TSHttpTxn) edata;
-      if (TSHttpTxnTransformRespGet(txnp, &bufp, &hdr) != TS_SUCCESS) {
-        SDK_RPRINT(data->test, "TSHttpTxnTransformRespGet", "TestCase", TC_FAIL, "TSHttpTxnTransformRespGet returns 0");
+      if (TSHttpTxnTransformRespGet(txnp, &bufp, &hdr) == 0) {
+        SDK_RPRINT(data->test, "TSHttpTxnTransformRespGet", "TestCase", TC_FAIL,
+                   "TSHttpTxnTransformRespGet returns 0");
         data->test_passed_txn_transform_resp_get = false;
       } else {
-        if ((bufp == reinterpret_cast<TSMBuffer>(&(((HttpSM *) txnp)->t_state.hdr_info.transform_response))) &&
-            (hdr == reinterpret_cast<TSMLoc>((&(((HttpSM *) txnp)->t_state.hdr_info.transform_response))->m_http))) {
+        if ((bufp == &(((HttpSM *) txnp)->t_state.hdr_info.transform_response)) &&
+            (hdr == (&(((HttpSM *) txnp)->t_state.hdr_info.transform_response))->m_http)
+          ) {
           SDK_RPRINT(data->test, "TSHttpTxnTransformRespGet", "TestCase", TC_PASS, "ok");
         } else {
           SDK_RPRINT(data->test, "TSHttpTxnTransformRespGet", "TestCase", TC_FAIL, "Value's Mismatch");
@@ -6828,7 +7578,10 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
 
       }
     }
-    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    if (TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE) != TS_SUCCESS) {
+      SDK_RPRINT(data->test, "TSHttpTxnTransformRespGet", "", TC_FAIL,
+                 "Reenabling the transaction doesn't return TS_SUCCESS");
+    }
     break;
 
   case TS_EVENT_IMMEDIATE:
@@ -6889,7 +7642,8 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
     {
       /* Check if we got the response we were expecting or not */
       if ((strstr(data->browser1->response, TRANSFORM_APPEND_STRING) != NULL) &&
-          (strstr(data->browser3->response, TRANSFORM_APPEND_STRING) == NULL)) {
+          (strstr(data->browser3->response, TRANSFORM_APPEND_STRING) == NULL)
+        ) {
         SDK_RPRINT(data->test, "TSHttpTxnUntransformedResponseCache", "TestCase1", TC_PASS, "ok");
         data->test_passed_txn_untransformed_resp_cache = true;
       } else {
@@ -6897,7 +7651,8 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
       }
 
       if ((strstr(data->browser2->response, TRANSFORM_APPEND_STRING) != NULL) &&
-          (strstr(data->browser4->response, TRANSFORM_APPEND_STRING) != NULL)) {
+          (strstr(data->browser4->response, TRANSFORM_APPEND_STRING) != NULL)
+        ) {
         SDK_RPRINT(data->test, "TSHttpTxnTransformedResponseCache", "TestCase1", TC_PASS, "ok");
         data->test_passed_txn_transformed_resp_cache = true;
       } else {
@@ -6967,7 +7722,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpTxnTransform) (RegressionTest * test, int 
   Debug(UTDBG_TAG "_transform", "Starting test");
 
   TSCont cont = TSContCreate(transform_hook_handler, TSMutexCreate());
-  if (cont == NULL) {
+  if ((cont == NULL) || (cont == TS_ERROR_PTR)) {
     SDK_RPRINT(test, "TSHttpSsn", "TestCase1", TC_FAIL, "Unable to create Continuation.");
     *pstatus = REGRESSION_TEST_FAILED;
     return;
@@ -7048,7 +7803,7 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
   TSHttpTxn txnp = NULL;
 
   data = (AltInfoTestData *) TSContDataGet(contp);
-  if (data == NULL) {
+  if ((data == TS_ERROR_PTR) || (data == NULL)) {
     switch (event) {
     case TS_EVENT_IMMEDIATE:
     case TS_EVENT_TIMEOUT:
@@ -7087,8 +7842,9 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
                    "TSHttpAltInfoClientReqGet doesn't return TS_SUCCESS");
         data->test_passed_txn_alt_info_client_req_get = false;
       } else {
-        if ((clientreqbuf == reinterpret_cast<TSMBuffer>(&(((HttpAltInfo *)infop)->m_client_req))) &&
-            (clientreqhdr == reinterpret_cast<TSMLoc>(((HttpAltInfo *)infop)->m_client_req.m_http))) {
+        if ((clientreqbuf == (&(((HttpAltInfo *) infop)->m_client_req))) &&
+            (clientreqhdr == ((HttpAltInfo *) infop)->m_client_req.m_http)
+          ) {
           SDK_RPRINT(data->test, "TSHttpAltInfoClientReqGet", "TestCase", TC_PASS, "ok");
         } else {
           SDK_RPRINT(data->test, "TSHttpAltInfoClientReqGet", "TestCase", TC_FAIL, "Value's Mismatch");
@@ -7101,8 +7857,9 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
                    "TSHttpAltInfoCachedReqGet doesn't return TS_SUCCESS");
         data->test_passed_txn_alt_info_cached_req_get = false;
       } else {
-        if ((cachereqbuf == reinterpret_cast<TSMBuffer>(&(((HttpAltInfo *) infop)->m_cached_req))) &&
-            (cachereqhdr == reinterpret_cast<TSMLoc>(((HttpAltInfo *) infop)->m_cached_req.m_http))) {
+        if ((cachereqbuf == (&(((HttpAltInfo *) infop)->m_cached_req))) &&
+            (cachereqhdr == ((HttpAltInfo *) infop)->m_cached_req.m_http)
+          ) {
           SDK_RPRINT(data->test, "TSHttpAltInfoCachedReqGet", "TestCase", TC_PASS, "ok");
         } else {
           SDK_RPRINT(data->test, "TSHttpAltInfoCachedReqGet", "TestCase", TC_FAIL, "Value's Mismatch");
@@ -7115,8 +7872,9 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
                    "TSHttpAltInfoCachedRespGet doesn't return TS_SUCCESS");
         data->test_passed_txn_alt_info_cached_resp_get = false;
       } else {
-        if ((cacherespbuf == reinterpret_cast<TSMBuffer>(&(((HttpAltInfo *) infop)->m_cached_resp))) &&
-            (cacheresphdr == reinterpret_cast<TSMLoc>(((HttpAltInfo *) infop)->m_cached_resp.m_http))) {
+        if ((cacherespbuf == (&(((HttpAltInfo *) infop)->m_cached_resp))) &&
+            (cacheresphdr == ((HttpAltInfo *) infop)->m_cached_resp.m_http)
+          ) {
           SDK_RPRINT(data->test, "TSHttpAltInfoCachedRespGet", "TestCase", TC_PASS, "ok");
         } else {
           SDK_RPRINT(data->test, "TSHttpAltInfoCachedRespGet", "TestCase", TC_FAIL, "Value's Mismatch");
@@ -7124,8 +7882,13 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
         }
       }
 
-      TSHttpAltInfoQualitySet(infop, 0.5);
-      SDK_RPRINT(data->test, "TSHttpAltInfoQualitySet", "TestCase", TC_PASS, "ok");
+      if (TSHttpAltInfoQualitySet(infop, 0.5) != TS_SUCCESS) {
+        SDK_RPRINT(data->test, "TSHttpAltInfoQualityset", "TestCase", TC_FAIL,
+                   "TSHttpAltInfoQualitySet doesn't return TS_SUCCESS");
+        data->test_passed_txn_alt_info_quality_set = false;
+      } else {
+        SDK_RPRINT(data->test, "TSHttpAltInfoQualitySet", "TestCase", TC_PASS, "ok");
+      }
     }
 
     break;
@@ -7158,7 +7921,10 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
         synclient_txn_send_request(data->browser3, data->request3);
 
         /* Register to HTTP hooks that are called in case of alternate selection */
-        TSHttpHookAdd(TS_HTTP_SELECT_ALT_HOOK, contp);
+        if (TSHttpHookAdd(TS_HTTP_SELECT_ALT_HOOK, contp) != TS_SUCCESS) {
+          SDK_RPRINT(data->test, "TSHttpAltInfo", "", TC_FAIL, "TSHttpHookAdd doesn't return TS_SUCCESS");
+        }
+
         TSContSchedule(contp, 25, TS_THREAD_POOL_DEFAULT);
         return 0;
       }
@@ -7168,7 +7934,8 @@ altinfo_hook_handler(TSCont contp, TSEvent event, void *edata)
           (data->test_passed_txn_alt_info_client_req_get == true) &&
           (data->test_passed_txn_alt_info_cached_req_get == true) &&
           (data->test_passed_txn_alt_info_cached_resp_get == true) &&
-          (data->test_passed_txn_alt_info_quality_set == true) && (data->run_at_least_once == true)) {
+          (data->test_passed_txn_alt_info_quality_set == true) && (data->run_at_least_once == true)
+        ) {
         *(data->pstatus) = REGRESSION_TEST_PASSED;
       } else {
         if (data->run_at_least_once == false) {
@@ -7208,7 +7975,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpAltInfo) (RegressionTest * test, int atype
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
   TSCont cont = TSContCreate(altinfo_hook_handler, TSMutexCreate());
-  if (cont == NULL) {
+  if ((cont == NULL) || (cont == TS_ERROR_PTR)) {
     SDK_RPRINT(test, "TSHttpSsn", "TestCase1", TC_FAIL, "Unable to create Continuation.");
     *pstatus = REGRESSION_TEST_FAILED;
     return;
@@ -7421,7 +8188,8 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_TSHttpConnectIntercept) (RegressionTest * test
   /* Now send a request to the OS via TS using TSHttpConnect */
 
   /* ip and log do not matter as it is used for logging only */
-  data->vc = TSHttpConnect(1, 1);
+  TSHttpConnect(1, 1, &(data->vc));
+
   synclient_txn_send_request_to_vc(data->browser, data->request, data->vc);
 
   /* Wait until transaction is done */
@@ -7459,7 +8227,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_TSHttpConnectServerIntercept) (RegressionTest 
   /* Now send a request to the OS via TS using TSHttpConnect */
 
   /* ip and log do not matter as it is used for logging only */
-  data->vc = TSHttpConnect(2, 2);
+  TSHttpConnect(2, 2, &(data->vc));
 
   synclient_txn_send_request_to_vc(data->browser, data->request, data->vc);
 
@@ -7551,12 +8319,11 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int atype, 
   TSRecordDataType type;
   HttpSM* s = HttpSM::allocate();
   bool success = true;
-  TSHttpTxn txnp = reinterpret_cast<TSHttpTxn>(s);
+  TSHttpTxn txnp = static_cast<TSHttpTxn>(s); // Convenience ...
   TSMgmtInt ival;
   TSMgmtFloat fval;
   const char* sval;
   const char* test_string = "The Apache Traffic Server";
-  int tmp_int;
 
   s->init();
 
@@ -7598,7 +8365,7 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int atype, 
 
     case TS_RECORDDATATYPE_STRING:
       TSHttpTxnConfigStringSet(txnp, key, test_string, -1);
-      TSHttpTxnConfigStringGet(txnp, key, &sval, &tmp_int);
+      TSHttpTxnConfigStringGet(txnp, key, &sval, NULL);
       if (test_string != sval) {
         SDK_RPRINT(test, "TSHttpTxnConfigStringSet", "TestCase1", TC_FAIL, "Failed on %s, expected 17, got %s", conf, sval);
         success = false;

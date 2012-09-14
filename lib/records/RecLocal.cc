@@ -70,10 +70,10 @@ sync_thr(void *data)
 
 //-------------------------------------------------------------------------
 //
-// REC_BUILD_MGMT IMPLEMENTATION
+// REC_BUILD_MGMT2 IMPLEMENTATION
 //
 //-------------------------------------------------------------------------
-#elif defined (REC_BUILD_MGMT)
+#elif defined (REC_BUILD_MGMT2)
 
 #include "Main.h"
 

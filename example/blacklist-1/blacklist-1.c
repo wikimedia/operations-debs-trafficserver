@@ -74,13 +74,16 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
   const char *host;
   int i;
   int host_length;
+  int lock;
+  TSReturnCode ret_code;
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client request header\n");
     goto done;
   }
 
-  if (TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
+  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
+  if (!url_loc) {
     TSError("couldn't retrieve request url\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
@@ -96,7 +99,16 @@ handle_dns(TSHttpTxn txnp, TSCont contp)
 
   /* We need to lock the sites_mutex as that is the mutex that is
      protecting the global list of all blacklisted sites. */
-  if (TSMutexLockTry(sites_mutex) != TS_SUCCESS) {
+
+  ret_code = TSMutexLockTry(sites_mutex, &lock);
+
+  if (ret_code == TS_ERROR) {
+    TSError("Error while locking mutex. Cannot check URL against list. Allowing Site....");
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
+    return;
+  }
+
+  if (!lock) {
     TSDebug("blacklist-1", "Unable to get lock. Will retry after some time");
     TSHandleMLocRelease(bufp, hdr_loc, url_loc);
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
@@ -138,7 +150,7 @@ handle_response(TSHttpTxn txnp, TSCont contp)
   char *buf;
   int url_length;
 
-  if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client response header\n");
     goto done;
   }
@@ -148,13 +160,14 @@ handle_response(TSHttpTxn txnp, TSCont contp)
                       TSHttpHdrReasonLookup(TS_HTTP_STATUS_FORBIDDEN),
                       strlen(TSHttpHdrReasonLookup(TS_HTTP_STATUS_FORBIDDEN)));
 
-  if (TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc) != TS_SUCCESS) {
+  if (!TSHttpTxnClientReqGet(txnp, &bufp, &hdr_loc)) {
     TSError("couldn't retrieve client request header\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
   }
 
-  if (TSHttpHdrUrlGet(bufp, hdr_loc, &url_loc) != TS_SUCCESS) {
+  url_loc = TSHttpHdrUrlGet(bufp, hdr_loc);
+  if (!url_loc) {
     TSError("couldn't retrieve request url\n");
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
     goto done;
@@ -179,13 +192,22 @@ read_blacklist(TSCont contp)
 {
   char blacklist_file[1024];
   TSFile file;
+  int lock;
+  TSReturnCode ret_code;
 
   sprintf(blacklist_file, "%s/blacklist.txt", TSPluginDirGet());
   file = TSfopen(blacklist_file, "r");
+
+  ret_code = TSMutexLockTry(sites_mutex, &lock);
+
+  if (ret_code == TS_ERROR) {
+    TSError("Failed to lock mutex. Cannot read new blacklist file. Exiting ...\n");
+    return;
+  }
   nsites = 0;
 
   /* If the Mutext lock is not successful try again in RETRY_TIME */
-  if (TSMutexLockTry(sites_mutex) != TS_SUCCESS) {
+  if (!lock) {
     TSContSchedule(contp, RETRY_TIME, TS_THREAD_POOL_DEFAULT);
     return;
   }
@@ -341,7 +363,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("Plugin registration failed.\n");
   }
 

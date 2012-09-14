@@ -197,10 +197,10 @@ RecMessageSend(RecMessage * msg)
 
 //-------------------------------------------------------------------------
 //
-// REC_BUILD_MGMT IMPLEMENTATION
+// REC_BUILD_MGMT2 IMPLEMENTATION
 //
 //-------------------------------------------------------------------------
-#elif defined (REC_BUILD_MGMT)
+#elif defined (REC_BUILD_MGMT2)
 
 #if defined(LOCAL_MANAGER)
 #include "LocalManager.h"
@@ -265,7 +265,7 @@ RecMessageSend(RecMessage * msg)
 
 #else
 
-#error "Required #define not specificed; expected REC_BUILD_STAND_ALONE, REC_BUILD_MGMT, or REC_BUILD_STUB"
+#error "Required #define not specificed; expected REC_BUILD_STAND_ALONE, REC_BUILD_MGMT2, or REC_BUILD_STUB"
 
 #endif
 
@@ -573,7 +573,7 @@ RecMessageWriteToDisk(RecMessage *msg, const char *fpath)
 
 //
 // [hack for tsunami, bevans] -- I need this exported to the ACC module somehow,
-// the acc module can't include stuff out put proxy/ or mgmt/
+// the acc module can't include stuff out put proxy/ or mgmt2/
 //
 int
 RecAlarmSignal(int code, const char *msg, int msg_size)

@@ -585,7 +585,6 @@ dyn_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
   //*(ink_statval_t *)res = count;
   ink_atomic_swap64((ink_statval_t *) res, count);
   return res;
@@ -596,7 +595,6 @@ dyn_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
   //*(ink_statval_t *)res = sum;
   ink_atomic_swap64((ink_statval_t *) res, sum);
   return res;
@@ -620,7 +618,6 @@ dyn_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
   *(float *) res = *(double *) &sum;
   return res;
 }
@@ -710,7 +707,6 @@ http_trans_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
   //*(ink_statval_t *)res = count;
   ink_atomic_swap64((ink_statval_t *) res, count);
   return res;
@@ -721,7 +717,6 @@ http_trans_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
   //*(ink_statval_t *)res = sum;
   ink_atomic_swap64((ink_statval_t *) res, sum);
   return res;
@@ -745,7 +740,6 @@ http_trans_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
   *(float *) res = *(double *) &sum;
   return res;
 }

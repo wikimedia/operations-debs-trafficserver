@@ -60,10 +60,10 @@ static void bri_box(char *s);
 int
 main(int argc, char *argv[])
 {
-  hdrtoken_init();
-  url_init();
-  mime_init();
-  http_init();
+  hdrtoken_init(NULL);
+  url_init(NULL);
+  mime_init(NULL);
+  http_init(NULL);
 
   test_str_replace_slice();
   test_accept_language_match();
@@ -208,7 +208,7 @@ test_url()
     "http://some.place/path;params?query#fragment",
 
     // Start with an easy one...
-    "http://trafficserver.apache.org/index.html",
+    "http://www.inktomi.com/index.html",
 
     "cheese://bogosity",
 
@@ -927,8 +927,8 @@ test_regex()
   printf("   <<< MUST BE HAND-VERIFIED >>>\n\n");
 
   dfa.compile("(.*\\.inktomi\\.com#1#)|(.*\\.inktomi\\.org#2#)");
-  printf("match www.example.com [%d]\n", dfa.match("www.example.com"));
-  printf("match www.apache.org [%d]\n", dfa.match("www.apache.org"));
+  printf("match www.inktomi.com [%d]\n", dfa.match("www.inktomi.com"));
+  printf("match www.inktomi.org [%d]\n", dfa.match("www.inktomi.org"));
 }
 
 

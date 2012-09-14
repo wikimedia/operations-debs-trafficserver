@@ -123,15 +123,25 @@ handle_buffering(TSCont contp, MyData * data)
 
     if (towrite > 0) {
       /* Copy the data from the read buffer to the input buffer. */
-      TSIOBufferCopy(data->output_buffer, TSVIOReaderGet(write_vio), towrite, 0);
+      if (TSIOBufferCopy(data->output_buffer, TSVIOReaderGet(write_vio), towrite, 0) == TS_ERROR) {
+        TSError("[bnull-transform] Unable to copy read buffer\n");
+        goto Lerror;
+      }
 
       /* Tell the read buffer that we have read the data and are no
          longer interested in it. */
-      TSIOBufferReaderConsume(TSVIOReaderGet(write_vio), towrite);
+      if (TSIOBufferReaderConsume(TSVIOReaderGet(write_vio), towrite) == TS_ERROR) {
+        TSError("[bnull-transform] Unable to copy read buffer\n");
+        goto Lerror;
+      }
 
       /* Modify the write VIO to reflect how much data we've
          completed. */
-      TSVIONDoneSet(write_vio, TSVIONDoneGet(write_vio) + towrite);
+      if (TSVIONDoneSet(write_vio, TSVIONDoneGet(write_vio)
+                         + towrite) == TS_ERROR) {
+        TSError("[bnull-transform] Unable to copy read buffer\n");
+        goto Lerror;
+      }
     }
   }
 
@@ -151,6 +161,8 @@ handle_buffering(TSCont contp, MyData * data)
   }
 
   return 1;
+
+Lerror:
 
   /* If we are in this code path then something is seriously wrong. */
   TSError("[bnull-transform] Fatal error in plugin");
@@ -216,7 +228,7 @@ bnull_transform(TSCont contp, TSEvent event, void *edata)
 
   if (TSVConnClosedGet(contp)) {
     my_data_destroy(TSContDataGet(contp));
-    TSContDestroy(contp);
+    TSAssert(TSContDestroy(contp) == TS_SUCCESS);
   } else {
     switch (event) {
     case TS_EVENT_ERROR:{
@@ -239,7 +251,7 @@ bnull_transform(TSCont contp, TSEvent event, void *edata)
          shutdown the write portion of its connection to
          indicate that we don't want to hear about it anymore. */
 
-      TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
+      TSAssert(TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1) != TS_ERROR);
       break;
 
     case TS_EVENT_VCONN_WRITE_READY:
@@ -282,7 +294,12 @@ transform_add(TSHttpTxn txnp)
   TSVConn connp;
 
   connp = TSTransformCreate(bnull_transform, txnp);
-  TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp);
+  if (TSHttpTxnHookAdd(txnp, TS_HTTP_RESPONSE_TRANSFORM_HOOK, connp)
+      == TS_ERROR) {
+    /* this should not happen */
+    TSError("[bnull-transform] Error adding transform to transaction\n");
+  }
+
   return;
 }
 
@@ -341,7 +358,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("[bnull-transform] Plugin registration failed.\n");
     goto Lerror;
   }
@@ -354,7 +371,11 @@ TSPluginInit(int argc, const char *argv[])
   /* This is call we could use if we need to protect global data */
   /* TSReleaseAssert ((mutex = TSMutexCreate()) != TS_NULL_MUTEX); */
 
-  TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, mutex));
+  if (TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(transform_plugin, mutex)) == TS_ERROR) {
+    TSError("[bnull-transform] Unable to add READ_RESPONSE_HDR_HOOK\n");
+    goto Lerror;
+  }
+
   return;
 
 Lerror:

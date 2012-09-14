@@ -434,16 +434,15 @@ struct HostDBProcessor: public Processor
     HOSTDB_DO_NOT_ROUND_ROBIN = 4
   };
 
-  HostDBProcessor()
-  { }
+  inkcoreapi Action *getbyname_re(Continuation * cont, char *hostname, int len = 0,
+                                  int port = 0, int flags = HOSTDB_DO_NOT_FORCE_DNS);
 
-  inkcoreapi Action *getbyname_re(Continuation * cont, char *hostname, int len = 0, int port = 0,
-                                  int flags = HOSTDB_DO_NOT_FORCE_DNS);
+  Action *getSRVbyname_imm(Continuation * cont, process_srv_info_pfn process_srv_info,
+                           char *hostname, int len = 0, int port = 0, int flags = HOSTDB_DO_NOT_FORCE_DNS, int timeout =
+                           0);
 
-  Action *getSRVbyname_imm(Continuation * cont, process_srv_info_pfn process_srv_info, char *hostname, int len = 0,
-                           int port = 0, int flags = HOSTDB_DO_NOT_FORCE_DNS, int timeout = 0);
-
-  Action *getbyname_imm(Continuation * cont, process_hostdb_info_pfn process_hostdb_info, char *hostname, int len = 0,
+  Action *getbyname_imm(Continuation * cont, process_hostdb_info_pfn process_hostdb_info,
+                        char *hostname, int len = 0,
                         int port = 0, int flags = HOSTDB_DO_NOT_FORCE_DNS, int timeout = 0);
 
 
@@ -490,6 +489,7 @@ struct HostDBProcessor: public Processor
                 unsigned int ip, bool aforce_dns, int timeout = 0);
   void setby(char *hostname, int len, int port, unsigned int aip, HostDBApplicationInfo * app);
 
+  HostDBProcessor();
 };
 
 void run_HostDBTest();

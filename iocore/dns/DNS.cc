@@ -318,10 +318,10 @@ DNSEntry::init(const char *x, int len, int qtype_arg,
 #if defined(darwin)
     static int qnum = 0;
     char sname[NAME_MAX];
-
+    int retval;
     qnum++;
     snprintf(sname,NAME_MAX,"%s%d","DNSEntry",qnum);
-    ink_sem_unlink(sname); // FIXME: remove, semaphore should be properly deleted after usage
+    retval = ink_sem_unlink(sname); // FIXME: remove, semaphore should be properly deleted after usage
     sem = ink_sem_open(sname, O_CREAT | O_EXCL, 0777, 0);
 #else /* !darwin */
     ink_sem_init(&sem, 0);
@@ -1373,9 +1373,9 @@ dns_process(DNSHandler * handler, HostEnt * buf, int len)
         break;
       }
       cp += n;
-      short int type;
+      short int type, cls;
       GETSHORT(type, cp);
-      cp += NS_INT16SZ;  // GETSHORT(cls, cp);
+      GETSHORT(cls, cp); // NOTE: Don't eliminate this, it'll break badly.
       GETLONG(temp_ttl, cp); // NOTE: this is not a "long" but 32-bits (from nameser_compat.h)
       if ((temp_ttl < buf->ttl) || (buf->ttl == 0))
         buf->ttl = temp_ttl;

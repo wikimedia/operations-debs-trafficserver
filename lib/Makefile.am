@@ -20,5 +20,5 @@ SUBDIRS = ts records
 
 # TsConfig is only built for WCCP until the bugs are worked out.
 if BUILD_WCCP
-SUBDIRS += tsconfig wccp
+SUBDIRS += tsconfig
 endif

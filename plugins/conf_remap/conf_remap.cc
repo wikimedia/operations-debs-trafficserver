@@ -175,46 +175,52 @@ RemapConfigs::parse_file(const char* fn)
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the plugin as a remap plugin.
 //
-TSReturnCode
-TSRemapInit(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
+int
+tsremap_init(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
 {
   if (!api_info) {
-    strncpy(errbuf, "[TSRemapInit] - Invalid TSRemapInterface argument", errbuf_size - 1);
-    return TS_ERROR;
+    strncpy(errbuf, "[tsremap_init] - Invalid TSRemapInterface argument", errbuf_size - 1);
+    return -1;
   }
 
   if (api_info->size < sizeof(TSRemapInterface)) {
-    strncpy(errbuf, "[TSRemapInit] - Incorrect size of TSRemapInterface structure", errbuf_size - 1);
-    return TS_ERROR;
+    strncpy(errbuf, "[tsremap_init] - Incorrect size of TSRemapInterface structure", errbuf_size - 1);
+    return -2;
+  }
+
+  if (api_info->tsremap_version < TSREMAP_VERSION) {
+    snprintf(errbuf, errbuf_size - 1, "[tsremap_init] - Incorrect API version %ld.%ld",
+             api_info->tsremap_version >> 16, (api_info->tsremap_version & 0xffff));
+    return -3;
   }
 
   TSDebug(PLUGIN_NAME, "remap plugin is succesfully initialized");
-  return TS_SUCCESS;                     /* success */
+  return 0;                     /* success */
 }
 
 
-TSReturnCode
-TSRemapNewInstance(int argc, char* argv[], void** ih, char* errbuf, int errbuf_size)
+int
+tsremap_new_instance(int argc, char* argv[], ihandle* ih, char* errbuf, int errbuf_size)
 {
   if (argc < 3) {
     TSError("Unable to create remap instance, need configuration file");
-    return TS_ERROR;
+    return -1;
   } else {
     RemapConfigs* conf = new(RemapConfigs);
 
     if (conf->parse_file(argv[2])) {
-      *ih = static_cast<void*>(conf);
+      *ih = static_cast<ihandle>(conf);
     } else {
       *ih = NULL;
       delete conf;
     }
   }
 
-  return TS_SUCCESS;
+  return 0;
 }
 
 void
-TSRemapDeleteInstance(void* ih)
+tsremap_delete_instance(ihandle ih)
 {
   RemapConfigs* conf = static_cast<RemapConfigs*>(ih);
 
@@ -230,8 +236,8 @@ TSRemapDeleteInstance(void* ih)
 ///////////////////////////////////////////////////////////////////////////////
 // Main entry point when used as a remap plugin.
 //
-TSRemapStatus
-TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
+int
+tsremap_remap(ihandle ih, rhandle rh, TSRemapRequestInfo *rri)
 {
   if (NULL != ih) {
     RemapConfigs* conf = static_cast<RemapConfigs*>(ih);
@@ -253,7 +259,7 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
     }
   }
 
-  return TSREMAP_NO_REMAP; // This plugin never rewrites anything.
+  return 0; // This plugin never rewrites anything.
 }
 
 

@@ -21,15 +21,12 @@
 # http://www.gnu.org/software/automake/manual/automake.html#Local-Macros
 ACLOCAL_AMFLAGS = -I build
 
-# TODO: There's still some weirdness in the dependencies between proxy
-# and mgmt, hence we have to build proxy/hdrs first.
-
 # proxy/api/ts has to be built first, since so much of libraries and "core
 # depends on the generates ts/ts.h include file.
 if STANDALONE_IOCORE
-SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop plugins tools
+SUBDIRS =  proxy/api/ts iocore lib @hdr_dirs@ proxy plugins
 else
-SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop rc doc plugins tools
+SUBDIRS =  proxy/api/ts iocore lib proxy rc doc plugins
 endif
 
 DIST_BUILD_USER=`id -nu`
@@ -37,6 +34,7 @@ DIST_BUILD_USER_GROUP=`id -ng`
 DISTCHECK_CONFIGURE_FLAGS=--with-user=${DIST_BUILD_USER} --with-group=${DIST_BUILD_USER_GROUP}
 
 EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README.libev README-EC2 REVIEWERS
+bin_SCRIPTS = tsxs
 
 installcheck-local:
 	$(DESTDIR)$(bindir)/traffic_server -R 1

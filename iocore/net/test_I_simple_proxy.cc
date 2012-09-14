@@ -45,7 +45,7 @@ get_addr(char *host)
 
 #define MAX_INT 32767
 
-char *origin_server = "trafficserver.apache.org";
+char *origin_server = "npdev.inktomi.com";
 unsigned short origin_server_port = 8080;
 
 struct NetTesterSM:public Continuation

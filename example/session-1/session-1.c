@@ -43,8 +43,9 @@ txn_handler(TSHttpTxn txnp, TSCont contp)
   int64_t num_txns = 0;
 
   INKStatIncrement(transaction_count);
-  num_txns = INKStatIntGet(transaction_count);
+  INKStatIntGet(transaction_count, &num_txns);
   TSDebug("tag_session", "The number of transactions is %d\n", num_txns);
+
 }
 
 
@@ -54,7 +55,7 @@ handle_session(TSHttpSsn ssnp, TSCont contp)
   int64_t num_ssn = 0;
 
   INKStatIncrement(session_count);
-  num_ssn = INKStatIntGet(session_count);
+  INKStatIntGet(session_count, &num_ssn);
   TSDebug("tag_session", "The number of sessions is %d\n", num_ssn);
   TSHttpSsnHookAdd(ssnp, TS_HTTP_TXN_START_HOOK, contp);
 }
@@ -122,7 +123,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "MyCompany";
   info.support_email = "ts-api-support@MyCompany.com";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (!TSPluginRegister(TS_SDK_VERSION_3_0, &info)) {
     TSError("[PluginInit] Plugin registration failed.\n");
     goto error;
   }

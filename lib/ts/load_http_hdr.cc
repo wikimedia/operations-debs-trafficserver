@@ -216,7 +216,7 @@ main(int argc, const char *argv[])
 
   hdr_type h_type = UNKNOWN_HDR;
 
-  http_init();
+  http_init(NULL);
   if (argc != 3) {
     fprintf(stderr, "Usage: %s req|res <file>\n", argv[0]);
     exit(1);

@@ -22,6 +22,8 @@
  */
 
 
+
+
 #include "P_Cache.h"
 
 // Cache Inspector and State Pages
@@ -76,7 +78,6 @@ int cache_config_enable_checksum = 0;
 int cache_config_alt_rewrite_max_size = 4096;
 int cache_config_read_while_writer = 0;
 char cache_system_config_directory[PATH_NAME_MAX + 1];
-int cache_config_mutex_retry_delay = 2;
 
 // Globals
 
@@ -148,7 +149,7 @@ static void cplist_update();
 int cplist_reconfigure();
 static int create_partition(int partition_number, int size_in_blocks, int scheme, CachePart *cp);
 static void rebuild_host_table(Cache *cache);
-void register_cache_stats(RecRawStatBlock *rsb, const char *prefix);
+void register_cache_stats(RecRawStatBlock *rsb, const char *prefix, bool reg_bytes_used=true);
 
 Queue<CachePart> cp_list;
 int cp_list_len = 0;
@@ -161,25 +162,15 @@ void force_link_CacheTestCaller() {
 #endif
 
 int64_t
-cache_bytes_used(int partition)
+cache_bytes_used(void)
 {
   uint64_t used = 0;
-  int start = 0; // These defaults are for partition 0 or partition 1 (with partition.config)
-  int end = 1;
-
-  if (-1 == partition) {
-    end = gnpart;
-  } else if (partition > 1) { // Special case when partition.config is used
-    start = partition - 1;
-    end = partition;
-  }
-  
-  for (int i = start; i < end; i++) {
+  for (int i = 0; i < gnpart; i++) {
     if (!DISK_BAD(gpart[i]->disk)) {
       if (!gpart[i]->header->cycle)
-          used += gpart[i]->header->write_pos - gpart[i]->start;
+        used += gpart[i]->header->write_pos - gpart[i]->start;
       else
-          used += gpart[i]->len - part_dirlen(gpart[i]) - EVACUATION_SIZE;
+        used += gpart[i]->len - part_dirlen(gpart[i]) - EVACUATION_SIZE;
     }
   }
   return used;
@@ -198,29 +189,26 @@ cache_bytes_total(void)
 int
 cache_stats_bytes_used_cb(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  int partition = -1;
-
+  NOWARN_UNUSED(name);
   NOWARN_UNUSED(data_type);
   NOWARN_UNUSED(data);
-
-  // Well, there's no way to pass along the partition ID, so extracting it from the stat name.
-  if (0 == strncmp(name+20, "partition_", 10))
-    partition = strtol(name+30, NULL, 10);
-
-  if (cacheProcessor.initialized == CACHE_INITIALIZED)
-    RecSetGlobalRawStatSum(rsb, id, cache_bytes_used(partition));
-
+  if (cacheProcessor.initialized == CACHE_INITIALIZED) {
+    RecSetGlobalRawStatSum(rsb, id, cache_bytes_used());
+  }
   RecRawStatSyncSum(name, data_type, data, rsb, id);
 
   return 1;
 }
 
 static int
-validate_rww(int new_value)
+update_cache_config(const char *name, RecDataT data_type, RecData data, void *cookie)
 {
+  (void) name;
+  (void) data_type;
+  (void) cookie;
+  int new_value = data.rec_int;
   if (new_value) {
     float http_bg_fill;
-
     IOCORE_ReadConfigFloat(http_bg_fill, "proxy.config.http.background_fill_completed_threshold");
     if (http_bg_fill > 0.0) {
       Note("to enable reading while writing a document, %s should be 0.0: read while writing disabled",
@@ -232,21 +220,8 @@ validate_rww(int new_value)
            "proxy.config.cache.max_doc_size");
       return 0;
     }
-    return new_value;
   }
-  return 0;
-}
-
-static int
-update_cache_config(const char *name, RecDataT data_type, RecData data, void *cookie)
-{
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(cookie);
-
-  volatile int new_value = validate_rww(data.rec_int);
   cache_config_read_while_writer = new_value;
-
   return 0;
 }
 
@@ -349,8 +324,7 @@ CacheVC::reenable_re(VIO *avio)
   }
 }
 
-bool
-CacheVC::get_data(int i, void *data)
+bool CacheVC::get_data(int i, void *data)
 {
   switch (i) {
   case CACHE_DATA_SIZE:
@@ -585,10 +559,8 @@ CacheProcessor::start_internal(int flags)
         int sector_size = sd->hw_sector_size;
         if (sector_size < cache_config_force_sector_size)
           sector_size = cache_config_force_sector_size;
-        if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE) {
-          Warning("bad hardware sector size %d, resetting to %d", sector_size, STORE_BLOCK_SIZE);
-          sector_size = STORE_BLOCK_SIZE;
-        }
+        if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE)
+          Error("bad hardware sector size");
         off_t skip = ROUND_TO_STORE_BLOCK((sd->offset < START_POS ? START_POS + sd->alignment : sd->offset));
         blocks = blocks - ROUND_TO_STORE_BLOCK(sd->offset + skip);
         gdisks[gndisks]->open(path, blocks, skip, sector_size, fd, clear);
@@ -1040,7 +1012,7 @@ int
 Part::init(char *s, off_t blocks, off_t dir_skip, bool clear)
 {
   dir_skip = ROUND_TO_STORE_BLOCK((dir_skip < START_POS ? START_POS : dir_skip));
-  path = xstrdup(s);
+  path = strdup(s);
   const size_t hash_id_size = strlen(s) + 32;
   hash_id = (char *) malloc(hash_id_size);
   ink_strncpy(hash_id, s, hash_id_size);
@@ -2178,11 +2150,25 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type,
   else
     return &c->_action;
 }
+
+#ifdef NON_MODULAR
+Action *
+Cache::remove(Continuation *cont, CacheURL *url, CacheFragType type)
+{
+  INK_MD5 md5;
+  url->MD5_get(&md5);
+  int host_len = 0;
+  const char *hostname = url->host_get(&host_len);
+  return remove(cont, &md5, type, true, false, (char *) hostname, host_len);
+}
+#endif
+
 // CacheVConnection
 
 CacheVConnection::CacheVConnection()
-  : VConnection(NULL)
-{ }
+:VConnection(NULL)
+{
+}
 
 void
 cplist_init()
@@ -2558,7 +2544,6 @@ Cache::key_to_part(CacheKey *key, char *hostname, int host_len)
   uint32_t h = (key->word(2) >> DIR_TAG_WIDTH) % PART_HASH_TABLE_SIZE;
   unsigned short *hash_table = hosttable->gen_host_rec.part_hash_table;
   CacheHostRecord *host_rec = &hosttable->gen_host_rec;
-
   if (hosttable->m_numEntries > 0 && host_len) {
     CacheHostResult res;
     hosttable->Match(hostname, host_len, &res);
@@ -2595,12 +2580,15 @@ static void reg_int(const char *str, int stat, RecRawStatBlock *rsb, const char 
 
 // Register Stats
 void
-register_cache_stats(RecRawStatBlock *rsb, const char *prefix)
+register_cache_stats(RecRawStatBlock *rsb, const char *prefix, bool reg_bytes_used)
 {
   char stat_str[256];
 
-  // Special case for this sucker, since it uses its own aggregator.
-  reg_int("bytes_used", cache_bytes_used_stat, rsb, prefix, cache_stats_bytes_used_cb);
+  // TODO: At some point we should figure out how to calculate bytes_used for the per partition stats. Right now they will be zero.
+  if (reg_bytes_used) {
+    REG_INT("bytes_used", cache_bytes_used_stat);
+  }
+ 
 
   REG_INT("bytes_total", cache_bytes_total_stat);
   snprintf(stat_str, sizeof(stat_str), "%s.%s", prefix, "ram_cache.total_bytes");
@@ -2686,11 +2674,8 @@ ink_cache_init(ModuleVersion v)
   Debug("cache_init", "proxy.config.cache.max_doc_size = %d = %dMb",
         cache_config_max_doc_size, cache_config_max_doc_size / (1024 * 1024));
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_mutex_retry_delay, "proxy.config.cache.mutex_retry_delay");
-  Debug("cache_init", "proxy.config.cache.mutex_retry_delay = %dms", cache_config_mutex_retry_delay);
-
   // This is just here to make sure IOCORE "standalone" works, it's usually configured in RecordsConfig.cc
-  IOCORE_RegisterConfigString(RECT_CONFIG, "proxy.config.config_dir", TS_BUILD_SYSCONFDIR, RECU_DYNAMIC, RECC_NULL, NULL);
+  IOCORE_RegisterConfigString(RECT_CONFIG, "proxy.config.config_dir", SYSCONFDIR, RECU_DYNAMIC, RECC_NULL, NULL);
   IOCORE_ReadConfigString(cache_system_config_directory, "proxy.config.config_dir", PATH_NAME_MAX);
   if (cache_system_config_directory[0] != '/') {
     // Not an absolute path so use system one
@@ -2747,11 +2732,13 @@ ink_cache_init(ModuleVersion v)
   Debug("cache_init", "proxy.config.cache.alt_rewrite_max_size = %d", cache_config_alt_rewrite_max_size);
 
   IOCORE_EstablishStaticConfigInt32(cache_config_read_while_writer, "proxy.config.cache.enable_read_while_writer");
-  cache_config_read_while_writer = validate_rww(cache_config_read_while_writer);
   IOCORE_RegisterConfigUpdateFunc("proxy.config.cache.enable_read_while_writer", update_cache_config, NULL);
   Debug("cache_init", "proxy.config.cache.enable_read_while_writer = %d", cache_config_read_while_writer);
 
-  register_cache_stats(cache_rsb, "proxy.process.cache");
+  // Special case here for cache.bytes_used, since it uses a different CB than the "normal" SUM. This
+  // is a little ugly, but it's for one single stat, and saves an entire thread (and unecessary callbacks).
+  reg_int("bytes_used", cache_bytes_used_stat, cache_rsb, "proxy.process.cache", cache_stats_bytes_used_cb);
+  register_cache_stats(cache_rsb, "proxy.process.cache", false);
 
   const char *err = NULL;
   if ((err = theCacheStore.read_config())) {
@@ -2814,28 +2801,14 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url,
 }
 
 //----------------------------------------------------------------------------
-// Note: this should not be called from from the cluster processor, or bad
-// recursion could occur. This is merely a convenience wrapper.
 Action *
 CacheProcessor::remove(Continuation *cont, URL *url, CacheFragType frag_type)
 {
-  INK_MD5 md5;
-  int len = 0;
-  const char *hostname;
-
-  url->MD5_get(&md5);
-  hostname = url->host_get(&len);
-
-  Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %s", url->string_get_ref());
 #ifdef CLUSTER_CACHE
   if (cache_clustering_enabled > 0) {
-    // Remove from cluster
-    return remove(cont, &md5, frag_type, true, false, const_cast<char *>(hostname), len);
   }
 #endif
-
-  // Remove from local cache only.
-  return caches[frag_type]->remove(cont, &md5, frag_type, true, false, const_cast<char*>(hostname), len);
+  return caches[frag_type]->remove(cont, url, frag_type);
 }
 
 #endif

@@ -25,6 +25,7 @@
  *
  *  ParentSelection.cc - Implementation of Parent Proxy routing
  *
+ *
  ****************************************************************************/
 
 #include "ink_unused.h"  /* MAGIC_EDITING_TAG */
@@ -74,8 +75,7 @@ static const char *ParentRRStr[] = {
 //  Config Callback Prototypes
 //
 enum ParentCB_t
-{
-  PARENT_FILE_CB, PARENT_DEFAULT_CB,
+{ PARENT_FILE_CB, PARENT_DEFAULT_CB,
   PARENT_RETRY_CB, PARENT_ENABLE_CB,
   PARENT_THRESHOLD_CB, PARENT_DNS_ONLY_CB
 };
@@ -86,9 +86,10 @@ enum ParentCB_t
 //   between HttpTransact & the parent selection code.  The following
 ParentRecord *const extApiRecord = (ParentRecord *) 0xeeeeffff;
 
-ParentConfigParams::ParentConfigParams()
-  : ParentTable(NULL), DefaultParent(NULL), ParentRetryTime(30), ParentEnable(0), FailThreshold(10), DNS_ParentOnly(0)
-{ }
+ParentConfigParams::ParentConfigParams():
+ParentTable(NULL), DefaultParent(NULL), ParentRetryTime(30), ParentEnable(0), FailThreshold(10), DNS_ParentOnly(0)
+{
+}
 
 ParentConfigParams::~ParentConfigParams()
 {
@@ -101,11 +102,25 @@ ParentConfigParams::~ParentConfigParams()
   }
 }
 
-int ParentConfig::m_id = 0;
+int
+  ParentConfig::m_id = 0;
 
 //
 //   Begin API functions
 //
+
+ParentConfigParams *
+ParentConfig::acquire()
+{
+  return (ParentConfigParams *) configProcessor.get(ParentConfig::m_id);
+}
+
+void
+ParentConfig::release(ParentConfigParams * params)
+{
+  configProcessor.release(ParentConfig::m_id, params);
+}
+
 void
 ParentConfig::startup()
 {
@@ -134,6 +149,7 @@ ParentConfig::startup()
 void
 ParentConfig::reconfigure()
 {
+
   char *default_val = NULL;
   int retry_time = 30;
   int enable = 0;
@@ -220,7 +236,7 @@ ParentConfigParams::parentExists(HttpRequestData * rdata)
 }
 
 void
-ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result)
+ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result, char *tag)
 {
   P_table *tablePtr = ParentTable;
   ParentRecord *defaultPtr = DefaultParent;
@@ -247,6 +263,7 @@ ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result)
   // Check to see if the parent was set through the
   //   api
   if (apiParentExists(rdata)) {
+
     result->r = PARENT_SPECIFIED;
     result->hostname = rdata->api_info->parent_proxy_name;
     result->port = rdata->api_info->parent_proxy_port;
@@ -258,6 +275,7 @@ ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result)
     Debug("parent_select", "Result for %s was API set parent %s:%d", rdata->get_host(), result->hostname, result->port);
   }
 
+  rdata->tag = tag;
   tablePtr->Match(rdata, result);
   rec = result->rec;
 
@@ -284,6 +302,7 @@ ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result)
     rec->FindParent(true, result, rdata, this);
 
   if (is_debug_tag_set("parent_select") || is_debug_tag_set("cdn")) {
+
     switch (result->r) {
     case PARENT_UNDEFINED:
       Debug("cdn", "PARENT_UNDEFINED");
@@ -327,6 +346,7 @@ ParentConfigParams::findParent(HttpRequestData * rdata, ParentResult * result)
 void
 ParentConfigParams::recordRetrySuccess(ParentResult * result)
 {
+
   pRecord *pRec;
 
   //  Make sure that we are being called back with with a
@@ -357,6 +377,7 @@ ParentConfigParams::recordRetrySuccess(ParentResult * result)
 void
 ParentConfigParams::markParentDown(ParentResult * result)
 {
+
   time_t now;
   pRecord *pRec;
   int new_fail_count = 0;
@@ -385,6 +406,7 @@ ParentConfigParams::markParentDown(ParentResult * result)
   //   must update move the failedAt timestamp to now so that we continue
   //   negative cache the parent
   if (pRec->failedAt == 0 || result->retry == true) {
+
     // Reread the current time.  We want this to be accurate since
     //   it relates to how long the parent has been down.
     now = time(NULL);
@@ -398,11 +420,11 @@ ParentConfigParams::markParentDown(ParentResult * result)
       new_fail_count = pRec->failCount = 1;
     }
 
-    Debug("parent_select", "Parent %s marked as down %s:%d", (result->retry) ? "retry" : "initially", pRec->hostname, pRec->port);
+    Debug("parent_select", "Parent %s marked as down %s:%d",
+          (result->retry) ? "retry" : "initially", pRec->hostname, pRec->port);
 
   } else {
     int old_count = ink_atomic_increment(&pRec->failCount, 1);
-
     Debug("parent_select", "Parent fail count increased to %d for %s:%d", old_count + 1, pRec->hostname, pRec->port);
     new_fail_count = old_count + 1;
   }
@@ -525,6 +547,7 @@ ParentRecord::FindParent(bool first_call, ParentResult * result, RD * rdata, Par
       }
     }
   } else {
+
     // Move to next parent due to failure
     cur_index = (result->last_parent + 1) % num_parents;
 
@@ -731,6 +754,7 @@ ParentRecord::DefaultInit(char *val)
 char *
 ParentRecord::Init(matcher_line * line_info)
 {
+
   const char *errPtr = NULL;
   char *errBuf;
   const int errBufLen = 1024;
@@ -806,7 +830,7 @@ ParentRecord::Init(matcher_line * line_info)
     }
     // record SCHEME modifier if present.
     // NULL if not present
-    this->scheme = this->getSchemeModText();
+    this->scheme = (const char *) getModElem(MOD_SCHEME);
     if (this->scheme != NULL) {
       // update parent entries' schemes
       for (int j = 0; j < num_parents; j++) {
@@ -826,6 +850,7 @@ ParentRecord::Init(matcher_line * line_info)
 void
 ParentRecord::UpdateMatch(ParentResult * result, RD * rdata)
 {
+
   if (this->CheckForMatch((HttpRequestData *) rdata, result->line_number) == true) {
     result->rec = this;
     result->line_number = this->line_num;
@@ -857,6 +882,7 @@ ParentRecord::Print()
 //
 struct PA_UpdateContinuation: public Continuation
 {
+
   int handle_event(int event, void *data)
   {
     NOWARN_UNUSED(event);
@@ -933,8 +959,23 @@ parentSelection_CB(const char *name, RecDataT data_type, RecData data, void *coo
 //ParentConfig equivalent functions for SocksServerConfig
 //
 
-int SocksServerConfig::m_id = 0;
-static ProxyMutexPtr socks_server_reconfig_mutex = NULL;
+int
+  SocksServerConfig::m_id = 0;
+static ProxyMutexPtr
+  socks_server_reconfig_mutex = NULL;
+
+ParentConfigParams *
+SocksServerConfig::acquire()
+{
+  return (ParentConfigParams *) configProcessor.get(SocksServerConfig::m_id);
+}
+
+void
+SocksServerConfig::release(ParentConfigParams * params)
+{
+  configProcessor.release(SocksServerConfig::m_id, params);
+}
+
 void
 SocksServerConfig::startup()
 {
@@ -950,6 +991,7 @@ static int
 setup_socks_servers(ParentRecord * rec_arr, int len)
 {
   /* This changes hostnames into ip addresses and sets go_direct to false */
+
   for (int j = 0; j < len; j++) {
     rec_arr[j].go_direct = false;
 
@@ -980,6 +1022,7 @@ setup_socks_servers(ParentRecord * rec_arr, int len)
 void
 SocksServerConfig::reconfigure()
 {
+
   char *default_val = NULL;
   int retry_time = 30;
   int fail_threshold;
@@ -1066,6 +1109,123 @@ request_to_data(HttpRequestData * req, ip_addr_t srcip, ip_addr_t dstip, const c
 
   http_parser_clear(&parser);
 }
+
+/*
+REGRESSION_TEST(ParentResult) {
+  bool err = REGRESSION_TEST_PASSED;
+  int test_id = 0;
+
+  ParentConfigParams test;
+  HttpRequestData rd;
+  ParentEnable = 1;
+  test.ParentTable = new P_table("","ParentSelection test",&http_dest_tags,ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_IP_TABLE | DONT_BUILD_TABLE);
+  request_to_data(&rd,IP(209,3,24,36),0,
+		  "GET http://www.inktomi.com HTTP/1.0\r\n"
+		  "\r\n");
+
+  // request for inktomi.com matches inktomi.com
+  test_id++;
+  {
+    test.ParentTable->BuildTableFromString(
+      "dest_domain=inktomi.com parent=foobar:8080\n"
+      );
+    {
+      ParentResult r;
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_SPECIFIED) {
+	TEST_FAIL("Request for www.inktomi.com matches inktomi.com");
+      }
+      test.nextParent(&rd,&r);
+      if (r.r != PARENT_FAIL) {
+	TEST_FAIL("next parent request should go direct.");
+      }
+    }
+    {
+      ParentResult r;
+      rd.xact_start = time(NULL);
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_FAIL) {
+	TEST_FAIL("firstParent request should return FAIL since retry timeout has not been reached.");
+      }
+    }
+    {
+      ParentResult r;
+      rd.xact_start = time(NULL) + ParentRetryTime+2;
+      //printf("third request, xact_start = %d\n",rd.xact_start);
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_SPECIFIED) {
+	TEST_FAIL("after retry timeout, firstParent request should return parent.");
+      }
+      test.nextParent(&rd,&r);
+      if (r.r != PARENT_FAIL) {
+	TEST_FAIL("next parent request should go direct(2).");
+      }
+    }
+  }
+
+  {
+    test.ParentTable->BuildTableFromString(
+      "dest_domain=com parent=foobar:8080\n"
+      );
+    {
+      ParentResult r;
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_SPECIFIED) {
+	TEST_FAIL("request for www.inktomi.com matches .com");
+      }
+    }
+  }
+
+  {
+    test.ParentTable->BuildTableFromString(
+      "dest_domain=edu parent=foobar:8080\n"
+      );
+    {
+      ParentResult r;
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_DIRECT) {
+	TEST_FAIL("request for www.inktomi.com doesn't match .edu");
+      }
+    }
+  }
+
+  {
+    test.ParentTable->BuildTableFromString(
+      "dest_host=www.inktomi.com parent=foobar:8080\n"
+      );
+    {
+      ParentResult r;
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_SPECIFIED) {
+	TEST_FAIL("request for www.inktomi.com matches host www.inktomi.com");
+      }
+    }
+  }
+
+  {
+    test.ParentTable->BuildTableFromString(
+      "dest_ip=209.1.12.219 parent=foobar:8080\n"
+      );
+    {
+      ParentResult r;
+      test.findParent(&rd,&r);
+
+      if (r.r != PARENT_SPECIFIED) {
+	TEST_FAIL("request for www.inktomi.com matches 209.1.12.219");
+      }
+    }
+  }
+
+  return err;
+}
+
+*/
 
 
 #define IP(a,b,c,d) htonl((a) << 24 | (b) << 16 | (c) << 8 | (d))

@@ -25,7 +25,7 @@
 
   ink_memory.h
 
-  Memory allocation routines for libts
+  Memory allocation routines for libts.a.
 
  ****************************************************************************/
 

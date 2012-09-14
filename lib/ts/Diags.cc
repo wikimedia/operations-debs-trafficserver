@@ -48,9 +48,6 @@
 int diags_on_for_plugins = 0;
 bool DiagsConfigState::enabled[2] = { false, false };
 
-// Global, used for all diagnostics
-inkcoreapi Diags *diags = NULL;
-
 //////////////////////////////////////////////////////////////////////////////
 //
 //      char *SrcLoc::str(char *buf, int buflen)

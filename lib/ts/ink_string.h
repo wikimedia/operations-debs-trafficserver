@@ -25,7 +25,7 @@
 
   ink_string.h
 
-  String and text processing routines for libts
+  String and text processing routines for libts.a.
 
  ****************************************************************************/
 
