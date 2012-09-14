@@ -101,7 +101,6 @@ Impl::open(uint addr) {
     return -errno;
   }
 
-# if defined IP_MTU_DISCOVER
   /// Disable PMTU on Linux because of a bug in IOS routers.
   /// WCCP packets are rejected as duplicates if the IP fragment
   /// identifier is 0, which is the value used when PMTU is enabled.
@@ -111,7 +110,6 @@ Impl::open(uint addr) {
     this->close();
     return -errno;
   }
-# endif
 
   m_fd = fd;
   return 0;

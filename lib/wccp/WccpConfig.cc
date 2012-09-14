@@ -465,9 +465,11 @@ load_routers (
   std::vector<uint32_t>& addrs ///< Output list
 ) {
   ts::Errata zret;
+  int src_line;
   char const* text;
   static char const * const NAME = "IPv4 Address";
 
+  src_line = setting.getSourceLine();
   if (setting.isContainer()) {
     int nr = setting.childCount();
     for ( int i = 0 ; i < nr ; ++i ) {

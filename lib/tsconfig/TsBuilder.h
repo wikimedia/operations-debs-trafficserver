@@ -46,8 +46,6 @@ public:
 
     /// Default constructor.
     Builder();
-    /// Destructor.
-    virtual ~Builder() {}
     /// Construct with existing configuration.
     Builder(Configuration const& config);
     /// Build the table.

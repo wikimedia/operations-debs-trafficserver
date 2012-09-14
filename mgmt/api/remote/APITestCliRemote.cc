@@ -359,6 +359,10 @@ print_pd_sspec(TSPdSsFormat info)
   case TS_SCHEME_HTTPS:
     printf("HTTPS\n");
     break;
+  case TS_SCHEME_RTSP:
+  case TS_SCHEME_MMS:
+    printf("MIXT\n");
+    break;
   case TS_SCHEME_UNDEFINED:
     printf("UNDEFINED\n");
     break;
@@ -367,6 +371,43 @@ print_pd_sspec(TSPdSsFormat info)
   return;
 }
 
+
+//
+// Ele printing functions
+//
+
+void
+print_admin_access_ele(TSAdminAccessEle * ele)
+{
+  if (!ele) {
+    fprintf(stderr, "print_admin_access_ele: ele is NULL\n");
+    return;
+  }
+
+  char accessType;
+  switch (ele->access) {
+  case TS_ACCESS_NONE:
+    accessType = '0';
+    break;
+  case TS_ACCESS_MONITOR:
+    accessType = '1';
+    break;
+  case TS_ACCESS_MONITOR_VIEW:
+    accessType = '2';
+    break;
+  case TS_ACCESS_MONITOR_CHANGE:
+    accessType = '3';
+    break;
+  default:
+    accessType = '?';           /* lv: to make gcc happy and don't brake fprintf */
+    // Handled here:
+    // TS_ACCESS_UNDEFINED
+    break;
+  }
+
+  fprintf(stderr, "%s:%s:%c:\n", ele->user, ele->password, accessType);
+  return;
+}
 
 void
 print_cache_ele(TSCacheEle * ele)
@@ -461,7 +502,7 @@ print_hosting_ele(TSHostingEle * ele)
     break;
   }
 
-  print_int_list(ele->volumes);
+  print_int_list(ele->partitions);
 }
 
 void
@@ -506,6 +547,16 @@ print_ip_allow_ele(TSIpAllowEle * ele)
 }
 
 void
+print_mgmt_allow_ele(TSMgmtAllowEle * ele)
+{
+  if (!ele) {
+    printf("can't print ele\n");
+  }
+
+  print_ip_addr_ele(ele->src_ip_addr);
+}
+
+void
 print_parent_ele(TSParentProxyEle * ele)
 {
   if (!ele) {
@@ -521,20 +572,20 @@ print_parent_ele(TSParentProxyEle * ele)
 }
 
 void
-print_volume_ele(TSVolumeEle * ele)
+print_partition_ele(TSPartitionEle * ele)
 {
   if (!ele) {
     printf("can't print ele\n");
   }
 
-  printf("volume #: %d\n", ele->volume_num);
+  printf("partition #: %d\n", ele->partition_num);
   printf("scheme: %d\n", ele->scheme);
   switch (ele->size_format) {
   case TS_SIZE_FMT_ABSOLUTE:
-    printf("volume_size=%d\n", ele->volume_size);
+    printf("partition_size=%d\n", ele->partition_size);
     break;
   case TS_SIZE_FMT_PERCENT:
-    printf("volume_size=%% %d\n", ele->volume_size);
+    printf("partition_size=%% %d\n", ele->partition_size);
     break;
   default:
     // Handled here:
@@ -598,6 +649,12 @@ print_remap_ele(TSRemapEle * ele)
   case TS_SCHEME_HTTPS:
     strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
     break;
+  case TS_SCHEME_RTSP:
+    strncat(buf, "rtsp", sizeof(buf) - strlen(buf) - 1);
+    break;
+  case TS_SCHEME_MMS:
+    strncat(buf, "mms", sizeof(buf) - strlen(buf) - 1);
+    break;
   default:
     // Handled here:
     // TS_SCHEME_NONE, TS_SCHEME_UNDEFINED, TS_SCHEME_NONE,
@@ -629,6 +686,12 @@ print_remap_ele(TSRemapEle * ele)
     break;
   case TS_SCHEME_HTTPS:
     strncat(buf, "https", sizeof(buf) - strlen(buf) - 1);
+    break;
+  case TS_SCHEME_RTSP:
+    strncat(buf, "rtsp", sizeof(buf) - strlen(buf) - 1);
+    break;
+  case TS_SCHEME_MMS:
+    strncat(buf, "mms", sizeof(buf) - strlen(buf) - 1);
     break;
   default:
     // Handled here:
@@ -794,6 +857,9 @@ print_ele_list(TSFileNameT file, TSCfgContext ctx)
     ele = TSCfgContextGetEleAt(ctx, i);
 
     switch (filename) {
+    case TS_FNAME_ADMIN_ACCESS:
+      print_admin_access_ele((TSAdminAccessEle *) ele);
+      break;
     case TS_FNAME_CACHE_OBJ:
       print_cache_ele((TSCacheEle *) ele);
       break;
@@ -808,11 +874,14 @@ print_ele_list(TSFileNameT file, TSCfgContext ctx)
       break;
     case TS_FNAME_LOGS_XML:
       break;                    /*NOT DONE */
+    case TS_FNAME_MGMT_ALLOW:
+      print_mgmt_allow_ele((TSMgmtAllowEle *) ele);
+      break;
     case TS_FNAME_PARENT_PROXY:
       print_parent_ele((TSParentProxyEle *) ele);
       break;
-    case TS_FNAME_VOLUME:
-      print_volume_ele((TSVolumeEle *) ele);
+    case TS_FNAME_PARTITION:
+      print_partition_ele((TSPartitionEle *) ele);
       break;
     case TS_FNAME_PLUGIN:
       print_plugin_ele((TSPluginEle *) ele);
@@ -1547,7 +1616,9 @@ test_cfg_context_get(char *args)
   name[strlen(filename) - 1] = '\0';
 
   // convert file name to TSFileNameT
-  if (strcmp(name, "cache.config") == 0) {
+  if (strcmp(name, "admin_access.config") == 0) {
+    file = TS_FNAME_ADMIN_ACCESS;
+  } else if (strcmp(name, "cache.config") == 0) {
     file = TS_FNAME_CACHE_OBJ;
   } else if (strcmp(name, "congestion.config") == 0) {
     file = TS_FNAME_CONGESTION;
@@ -1559,10 +1630,12 @@ test_cfg_context_get(char *args)
     file = TS_FNAME_IP_ALLOW;
   } else if (strcmp(name, "logs_xml.config") == 0) {
     file = TS_FNAME_LOGS_XML;
+  } else if (strcmp(name, "mgmt_allow.config") == 0) {
+    file = TS_FNAME_MGMT_ALLOW;
   } else if (strcmp(name, "parent.config") == 0) {
     file = TS_FNAME_PARENT_PROXY;
-  } else if (strcmp(name, "volume.config") == 0) {
-    file = TS_FNAME_VOLUME;
+  } else if (strcmp(name, "partition.config") == 0) {
+    file = TS_FNAME_PARTITION;
   } else if (strcmp(name, "plugin.config") == 0) {
     file = TS_FNAME_PLUGIN;
   } else if (strcmp(name, "remap.config") == 0) {
@@ -1619,7 +1692,9 @@ test_cfg_context_move(char *args)
   name[strlen(filename) - 1] = '\0';
 
   // convert file name to TSFileNameT
-  if (strcmp(name, "cache.config") == 0) {
+  if (strcmp(name, "admin_access.config") == 0) {
+    file = TS_FNAME_ADMIN_ACCESS;
+  } else if (strcmp(name, "cache.config") == 0) {
     file = TS_FNAME_CACHE_OBJ;
   } else if (strcmp(name, "congestion.config") == 0) {
     file = TS_FNAME_CONGESTION;
@@ -1631,10 +1706,12 @@ test_cfg_context_move(char *args)
     file = TS_FNAME_IP_ALLOW;
   } else if (strcmp(name, "logs_xml.config") == 0) {
     file = TS_FNAME_LOGS_XML;
+  } else if (strcmp(name, "mgmt_allow.config") == 0) {
+    file = TS_FNAME_MGMT_ALLOW;
   } else if (strcmp(name, "parent.config") == 0) {
     file = TS_FNAME_PARENT_PROXY;
-  } else if (strcmp(name, "volume.config") == 0) {
-    file = TS_FNAME_VOLUME;
+  } else if (strcmp(name, "partition.config") == 0) {
+    file = TS_FNAME_PARTITION;
   } else if (strcmp(name, "remap.config") == 0) {
     file = TS_FNAME_REMAP;
   } else if (strcmp(name, "socks.config") == 0) {
@@ -2210,6 +2287,8 @@ set_stats()
   TSRecordSetInt("proxy.process.http.current_server_transactions", 100, &action);
 
 
+  TSRecordSetFloat("proxy.node.http.cache_hit_ratio", 110.0, &action);
+  TSRecordSetFloat("proxy.node.http.bandwidth_hit_ratio", 110.0, &action);
   TSRecordSetFloat("proxy.node.bandwidth_hit_ratio", 110, &action);
   TSRecordSetFloat("proxy.node.hostdb.hit_ratio", 110, &action);
   TSRecordSetFloat("proxy.node.cache.percent_free", 110, &action);
@@ -2220,7 +2299,8 @@ set_stats()
   TSRecordSetFloat("proxy.node.http.cache_hit_ims_avg_10s", 100, &action);
   TSRecordSetFloat("proxy.node.client_throughput_out", 110, &action);
 
-  TSRecordSetInt("proxy.node.cache_hit_ratio_int_pct", 110, &action);
+  TSRecordSetInt("proxy.node.http.cache_hit_ratio_int_pct", 110, &action);
+  TSRecordSetInt("proxy.node.http.bandwidth_hit_ratio_int_pct", 110, &action);
   TSRecordSetInt("proxy.node.bandwidth_hit_ratio_int_pct", 110, &action);
   TSRecordSetInt("proxy.node.hostdb.hit_ratio_int_pct", 110, &action);
   TSRecordSetInt("proxy.node.proxy_running", 110, &action);
@@ -2234,20 +2314,21 @@ set_stats()
   TSRecordSetFloat("proxy.cluster.origin_server_total_bytes_avg_10s", 110, &action);
   TSRecordSetFloat("proxy.cluster.bandwidth_hit_ratio", 110, &action);
   TSRecordSetFloat("proxy.cluster.bandwidth_hit_ratio_avg_10s", 110, &action);
-  TSRecordSetFloat("proxy.cluster.cache_hit_ratio", 110, &action);
+  TSRecordSetFloat("proxy.cluster.http.cache_hit_ratio", 110, &action);
+  TSRecordSetFloat("proxy.cluster.http.bandwidth_hit_ratio", 110, &action);
 
-  TSRecordSetInt("proxy.cluster.cache_hit_ratio_int_pct", 110, &action);
+  TSRecordSetInt("proxy.cluster.http.cache_hit_ratio_int_pct", 110, &action);
   TSRecordSetInt("proxy.cluster.bandwidth_hit_ratio_int_pct", 110, &action);
-  TSRecordSetInt("proxy.cluster.cache_total_hits", 110, &action);
-  TSRecordSetInt("proxy.cluster.cache_total_misses", 110, &action);
+  TSRecordSetInt("proxy.cluster.http.cache_total_hits", 110, &action);
+  TSRecordSetInt("proxy.cluster.http.cache_total_misses", 110, &action);
   TSRecordSetInt("proxy.cluster.http.throughput", 110, &action);
 }
 
 void
 print_stats()
 {
-  TSFloat f1, f2, f3, f4, f5, f6, f7, f8, f9;
-  TSInt i1, i2, i3, i4, i5, i6, i7, i8, i9;
+  TSFloat f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11;
+  TSInt i1, i2, i3, i4, i5, i6, i7, i8, i9, i10;
 
   fprintf(stderr, "[print_stats]\n");
 
@@ -2263,46 +2344,50 @@ print_stats()
 
   fprintf(stderr, "%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "\n", i1, i2, i3, i4, i5, i6, i7, i8);
 
-  TSRecordGetFloat("proxy.node.bandwidth_hit_ratio", &f1);
-  TSRecordGetFloat("proxy.node.hostdb.hit_ratio", &f2);
-  TSRecordGetFloat("proxy.node.cache.percent_free", &f3);
-  TSRecordGetFloat("proxy.node.cache_hit_ratio", &f4);
-  TSRecordGetFloat("proxy.node.bandwidth_hit_ratio_avg_10s", &f5);
-  TSRecordGetFloat("proxy.node.http.cache_hit_fresh_avg_10s", &f6);
-  TSRecordGetFloat("proxy.node.http.cache_hit_revalidated_avg_10s", &f7);
-  TSRecordGetFloat("proxy.node.http.cache_hit_ims_avg_10s", &f8);
-  TSRecordGetFloat("proxy.node.client_throughput_out", &f9);
+  TSRecordGetFloat("proxy.node.http.cache_hit_ratio", &f1);
+  TSRecordGetFloat("proxy.node.http.bandwidth_hit_ratio", &f2);
+  TSRecordGetFloat("proxy.node.bandwidth_hit_ratio", &f3);
+  TSRecordGetFloat("proxy.node.hostdb.hit_ratio", &f4);
+  TSRecordGetFloat("proxy.node.cache.percent_free", &f5);
+  TSRecordGetFloat("proxy.node.cache_hit_ratio", &f6);
+  TSRecordGetFloat("proxy.node.bandwidth_hit_ratio_avg_10s", &f7);
+  TSRecordGetFloat("proxy.node.http.cache_hit_fresh_avg_10s", &f8);
+  TSRecordGetFloat("proxy.node.http.cache_hit_revalidated_avg_10s", &f9);
+  TSRecordGetFloat("proxy.node.http.cache_hit_ims_avg_10s", &f10);
+  TSRecordGetFloat("proxy.node.client_throughput_out", &f11);
 
-  fprintf(stderr, "NODE stats: \n%f, %f, %f, %f, %f, %f, %f, %f, %f\n",
-          f1, f2, f3, f4, f5, f6, f7, f8, f9);
+  fprintf(stderr, "NODE stats: \n%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
+          f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11);
 
-  TSRecordGetInt("proxy.node.cache_hit_ratio_int_pct", &i1);
-  TSRecordGetInt("proxy.node.bandwidth_hit_ratio_int_pct", &i2);
-  TSRecordGetInt("proxy.node.hostdb.hit_ratio_int_pct", &i3);
-  TSRecordGetInt("proxy.node.proxy_running", &i4);
-  TSRecordGetInt("proxy.node.hostdb.hit_ratio_int_pct", &i5);
-  TSRecordGetInt("proxy.node.proxy_running", &i6);
-  TSRecordGetInt("proxy.node.cache_hit_ratio_int_pct", &i7);
-  TSRecordGetInt("proxy.node.current_client_connections", &i8);
-  TSRecordGetInt("proxy.node.current_cache_connections", &i9);
+  TSRecordGetInt("proxy.node.http.cache_hit_ratio_int_pct", &i1);
+  TSRecordGetInt("proxy.node.http.bandwidth_hit_ratio_int_pct", &i2);
+  TSRecordGetInt("proxy.node.bandwidth_hit_ratio_int_pct", &i3);
+  TSRecordGetInt("proxy.node.hostdb.hit_ratio_int_pct", &i4);
+  TSRecordGetInt("proxy.node.proxy_running", &i5);
+  TSRecordGetInt("proxy.node.hostdb.hit_ratio_int_pct", &i6);
+  TSRecordGetInt("proxy.node.proxy_running", &i7);
+  TSRecordGetInt("proxy.node.cache_hit_ratio_int_pct", &i8);
+  TSRecordGetInt("proxy.node.current_client_connections", &i9);
+  TSRecordGetInt("proxy.node.current_cache_connections", &i10);
 
-  fprintf(stderr, "%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "\n",
-          i1, i2, i3, i4, i5, i6, i7, i8, i9);
+  fprintf(stderr, "%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "\n",
+          i1, i2, i3, i4, i5, i6, i7, i8, i9, i10);
 
   TSRecordGetFloat("proxy.cluster.user_agent_total_bytes_avg_10s", &f1);
   TSRecordGetFloat("proxy.cluster.origin_server_total_bytes_avg_10s", &f2);
   TSRecordGetFloat("proxy.cluster.bandwidth_hit_ratio", &f3);
   TSRecordGetFloat("proxy.cluster.bandwidth_hit_ratio_avg_10s", &f4);
-  TSRecordGetFloat("proxy.cluster.cache_hit_ratio", &f5);
+  TSRecordGetFloat("proxy.cluster.http.cache_hit_ratio", &f5);
+  TSRecordGetFloat("proxy.cluster.http.bandwidth_hit_ratio", &f6);
 
-  TSRecordGetInt("proxy.cluster.cache_hit_ratio_int_pct", &i1);
+  TSRecordGetInt("proxy.cluster.http.cache_hit_ratio_int_pct", &i1);
   TSRecordGetInt("proxy.cluster.bandwidth_hit_ratio_int_pct", &i2);
-  TSRecordGetInt("proxy.cluster.cache_total_hits", &i3);
-  TSRecordGetInt("proxy.cluster.cache_total_misses", &i4);
+  TSRecordGetInt("proxy.cluster.http.cache_total_hits", &i3);
+  TSRecordGetInt("proxy.cluster.http.cache_total_misses", &i4);
   TSRecordGetInt("proxy.cluster.http.throughput", &i5);
 
   fprintf(stderr, "CLUSTER stats: \n");
-  fprintf(stderr, "%f, %f, %f, %f, %f\n", f1, f2, f3, f4, f5);
+  fprintf(stderr, "%f, %f, %f, %f, %f, %f\n", f1, f2, f3, f4, f5, f6);
   fprintf(stderr, "%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 "\n", i1, i2, i3, i4, i5);
 
   fprintf(stderr, "PROCESS stats: \n");

@@ -449,11 +449,11 @@ Span::init(char *an, int64_t size)
 
   case S_IFBLK:{
   case S_IFCHR:
-#ifdef HAVE_RAW_DISK_SUPPORT // FIXME: darwin, freebsd
+#ifdef HAVE_RAW_DISK_SUPPORT // FIXME: darwin, freebsd, solaris
       struct disklabel dl;
       struct diskslices ds;
       if (ioctl(fd, DIOCGDINFO, &dl) < 0) {
-      lvolError:
+      LpartError:
         Warning("unable to get label information for '%s': %s", n, strerror(errno));
         err = "unable to get label information";
         goto Lfail;
@@ -464,16 +464,16 @@ Span::init(char *an, int64_t size)
         if ((s2 = strrchr(s1, '/')))
           s1 = s2 + 1;
         else
-          goto lvolError;
+          goto LpartError;
         for (s2 = s1; *s2 && !ParseRules::is_digit(*s2); s2++);
         if (!*s2 || s2 == s1)
-          goto lvolError;
+          goto LpartError;
         while (ParseRules::is_digit(*++s2));
         s1 = s2;
         if (*s2 == 's') {
           slice = ink_atoi(s2 + 1);
           if (slice<1 || slice> MAX_SLICES - BASE_SLICE)
-            goto lvolError;
+            goto LpartError;
           slice = BASE_SLICE + slice - 1;
           while (ParseRules::is_digit(*++s2));
         }
@@ -484,14 +484,13 @@ Span::init(char *an, int64_t size)
         }
         if (slice >= 0) {
           if (ioctl(fd, DIOCGSLICEINFO, &ds) < 0)
-            goto lvolError;
+            goto LpartError;
           if (slice >= (int) ds.dss_nslices || !ds.dss_slices[slice].ds_size)
-            goto lvolError;
+            goto LpartError;
           fsize = (int64_t) ds.dss_slices[slice].ds_size * dl.d_secsize;
         } else {
           if (part < 0)
-            goto lvolError;
-          // This is odd, the dl struct isn't defined anywhere ...
+            goto LpartError;
           fsize = (int64_t) dl.d_partitions[part].p_size * dl.d_secsize;
         }
         devnum = s.st_rdev;
@@ -653,7 +652,7 @@ Lfail:
 const char *
 Span::init(char *filename, int64_t size)
 {
-  int devnum = 0, fd, arg = 0;
+  int devnum = 0, fd, arg;
   int ret = 0, is_disk = 0;
   unsigned int heads, sectors, cylinders, adjusted_sec;
 
@@ -902,10 +901,10 @@ Store::try_realloc(Store & s, Store & diff)
               } else {
                 Span *x = NEW(new Span(*d));
                 x->pathname = xstrdup(x->pathname);
-                // d will be the first vol
+                // d will be the first part
                 d->blocks = sd->offset - d->offset;
                 d->link.next = x;
-                // x will be the last vol
+                // x will be the last part
                 x->offset = sd->offset + sd->blocks;
                 x->blocks -= x->offset - d->offset;
                 goto Lfound;

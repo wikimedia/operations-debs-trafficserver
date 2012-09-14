@@ -32,6 +32,7 @@
 #include "ink_platform.h"
 
 #include "LogFormatType.h"
+#include "LogLimits.h"
 #include "LogField.h"
 #include "LogFilter.h"
 #include "LogFormat.h"

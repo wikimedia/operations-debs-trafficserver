@@ -20,20 +20,30 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
+
+
+
 #ifndef LOG_HOST_H
 #define LOG_HOST_H
 
 class LogSock;
 class LogBuffer;
+//#if defined(IOCORE_LOG_COLLATION)
+// ifdef removed so friend declaration won't break compile
+// friend needed so LogCollationClientSM will compile
 class LogCollationClientSM;
+//#endif
 
 #include "LogBufferSink.h"
 
 /*-------------------------------------------------------------------------
   LogHost
-  This object corresponds to a named log collation host.
+
+  This is a new addition to the Traffic Server logging as of the 3.1
+  (Panda) release.  This object corresponds to a named log collation host.
   -------------------------------------------------------------------------*/
-class LogHost: public LogBufferSink
+
+class LogHost:public LogBufferSink
 {
 
 //#if defined(IOCORE_LOG_COLLATION)
@@ -41,9 +51,9 @@ class LogHost: public LogBufferSink
 //#endif
 
 public:
-  LogHost(char *object_filename, uint64_t object_signature);
-  LogHost(const LogHost &);
-  ~LogHost();
+    LogHost(char *object_filename, uint64_t object_signature);
+    LogHost(const LogHost &);
+   ~LogHost();
 
   int set_name_or_ipstr(char *name_or_ipstr);
   int set_ipstr_port(char *ipstr, unsigned int port);
@@ -54,16 +64,33 @@ public:
   void disconnect();
   int write(LogBuffer * lb, size_t * to_disk, size_t * to_net, size_t * to_pipe);
 
-  char *name() const { return (char *) ((m_name) ? m_name : "UNKNOWN"); }
-  unsigned port() const { return m_port; }
-  unsigned ip() const { return m_ip; }
-  char *ipstr() const { return m_ipstr; }
+  char *name()
+  {
+    return (char *) ((m_name) ? m_name : "UNKNOWN");
+  }
+  unsigned port()
+  {
+    return m_port;
+  }
+  unsigned ip()
+  {
+    return m_ip;
+  }
+  char *ipstr()
+  {
+    return m_ipstr;
+  };
 
   void display(FILE * fd = stdout);
-
-  LogFile *get_orphan_logfile() const { return m_orphan_file; }
+  LogFile *get_orphan_logfile()
+  {
+    return m_orphan_file;
+  };
   // check if we will be able to write orphan file
-  int do_filesystem_checks() { return m_orphan_file->do_filesystem_checks(); }
+  int do_filesystem_checks()
+  {
+    return m_orphan_file->do_filesystem_checks();
+  };
 
 private:
   void clear();
@@ -99,6 +126,7 @@ private:
 /*-------------------------------------------------------------------------
   LogHostList
   -------------------------------------------------------------------------*/
+
 class LogHostList:public LogBufferSink
 {
 public:
@@ -110,8 +138,14 @@ public:
   void clear();
   int write(LogBuffer * lb, size_t * to_disk = 0, size_t * to_net = 0, size_t * to_pipe = 0);
 
-  LogHost *first() { return m_host_list.head; }
-  LogHost *next(LogHost * here) { return (here->link).next; }
+  LogHost *first()
+  {
+    return m_host_list.head;
+  }
+  LogHost *next(LogHost * here)
+  {
+    return (here->link).next;
+  }
 
   void display(FILE * fd = stdout);
   bool operator==(LogHostList & rhs);

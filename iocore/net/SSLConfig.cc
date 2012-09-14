@@ -61,8 +61,6 @@ SslConfigParams::SslConfigParams()
   termMode = SSL_TERM_MODE_NONE;
   ssl_ctx_options = 0;
   ssl_accelerator_required = SSL_ACCELERATOR_REQ_NO;
-  ssl_session_cache = SSL_SESSION_CACHE_MODE_SERVER;
-  ssl_session_cache_size = 1024*20;
 }
 
 SslConfigParams::~SslConfigParams()
@@ -166,7 +164,8 @@ SslConfigParams::initialize()
 
   cleanup();
 
-  //+++++++++++++++++++++++++ Server part +++++++++++++++++++++++++++++++++
+//+++++++++++++++++++++++++ Server part +++++++++++++++++++++++++++++++++
+
   verify_depth = 7;
 
   IOCORE_ReadConfigInteger(ssl_accelerator_required, "proxy.config.ssl.accelerator_required");
@@ -366,12 +365,7 @@ SslConfigParams::initialize()
     xfree(abs_path);
     xfree(CACertRelativePath);
   }
-
-  // SSL session cache configurations
-  IOCORE_ReadConfigInteger(ssl_session_cache, "proxy.config.ssl.session_cache");
-  IOCORE_ReadConfigInteger(ssl_session_cache_size, "proxy.config.ssl.session_cache.size");
-
-  // ++++++++++++++++++++++++ Client part ++++++++++++++++++++
+// ++++++++++++++++++++++++ Client part ++++++++++++++++++++
   client_verify_depth = 7;
   IOCORE_ReadConfigInt32(clientVerify, "proxy.config.ssl.client.verify.server");
 
@@ -453,6 +447,7 @@ SslConfigParams::initialize()
 #endif
     xfree(clientCACertRelativePath);
   }
+
 }
 
 

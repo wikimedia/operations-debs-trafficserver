@@ -27,190 +27,169 @@ use IO::Socket::UNIX;
 use IO::Select;
 our $VERSION = "0.01";
 
-use constant {
-    TS_FILE_READ            => 0,
-    TS_FILE_WRITE           => 1,
-    TS_RECORD_SET           => 2,
-    TS_RECORD_GET           => 3,
-    TS_PROXY_STATE_GET      => 4,
-    TS_PROXY_STATE_SET      => 5,
-    TS_RECONFIGURE          => 6,
-    TS_RESTART              => 7,
-    TS_BOUNCE               => 8,
-    TS_EVENT_RESOLVE        => 9,
-    TS_EVENT_GET_MLT        => 10,
-    TS_EVENT_ACTIVE         => 11,
-    TS_EVENT_REG_CALLBACK   => 12,
-    TS_EVENT_UNREG_CALLBACK => 13,
-    TS_EVENT_NOTIFY         => 14,
-    TS_SNAPSHOT_TAKE        => 15,
-    TS_SNAPSHOT_RESTORE     => 16,
-    TS_SNAPSHOT_REMOVE      => 17,
-    TS_SNAPSHOT_GET_MLT     => 18,
-    TS_DIAGS                => 19,
-    TS_STATS_RESET          => 20,
-    TS_ENCRYPT_TO_FILE      => 21
+use constant { TS_FILE_READ => 0,
+               TS_FILE_WRITE => 1,
+               TS_RECORD_SET => 2,
+               TS_RECORD_GET => 3,
+               TS_PROXY_STATE_GET => 4,
+               TS_PROXY_STATE_SET => 5,
+               TS_RECONFIGURE => 6,
+               TS_RESTART => 7,
+               TS_BOUNCE => 8,
+               TS_EVENT_RESOLVE => 9,
+               TS_EVENT_GET_MLT => 10,
+               TS_EVENT_ACTIVE => 11,
+               TS_EVENT_REG_CALLBACK => 12,
+               TS_EVENT_UNREG_CALLBACK => 13,
+               TS_EVENT_NOTIFY => 14,
+               TS_SNAPSHOT_TAKE => 15,
+               TS_SNAPSHOT_RESTORE => 16,
+               TS_SNAPSHOT_REMOVE => 17,
+               TS_SNAPSHOT_GET_MLT => 18,
+               TS_DIAGS => 19,
+               TS_STATS_RESET => 20,
+               TS_ENCRYPT_TO_FILE => 21
 };
 
 # We treat both REC_INT and REC_COUNTER the same here
-use constant {
-    TS_REC_INT     => 0,
-    TS_REC_COUNTER => 0,
-    TS_REC_FLOAT   => 2,
-    TS_REC_STRING  => 3
+use constant { TS_REC_INT => 0,
+               TS_REC_COUNTER => 0,
+               TS_REC_FLOAT => 2,
+               TS_REC_STRING => 3
 };
 
-use constant {
-    TS_ERR_OKAY                => 0,
-    TS_ERR_READ_FILE           => 1,
-    TS_ERR_WRITE_FILE          => 2,
-    TS_ERR_PARSE_CONFIG_RULE   => 3,
-    TS_ERR_INVALID_CONFIG_RULE => 4,
-    TS_ERR_NET_ESTABLISH       => 5,
-    TS_ERR_NET_READ            => 6,
-    TS_ERR_NET_WRITE           => 7,
-    TS_ERR_NET_EOF             => 8,
-    TS_ERR_NET_TIMEOUT         => 9,
-    TS_ERR_SYS_CALL            => 10,
-    TS_ERR_PARAMS              => 11,
-    TS_ERR_FAIL                => 12
+use constant { TS_ERR_OKAY => 0,
+               TS_ERR_READ_FILE => 1,
+               TS_ERR_WRITE_FILE => 2,
+               TS_ERR_PARSE_CONFIG_RULE => 3,
+               TS_ERR_INVALID_CONFIG_RULE => 4,
+               TS_ERR_NET_ESTABLISH => 5,
+               TS_ERR_NET_READ => 6,
+               TS_ERR_NET_WRITE => 7,
+               TS_ERR_NET_EOF => 8,
+               TS_ERR_NET_TIMEOUT => 9,
+               TS_ERR_SYS_CALL => 10,
+               TS_ERR_PARAMS => 11,
+               TS_ERR_FAIL => 12
 };
+
 
 #
 # Constructor
 #
 sub new {
-    my ( $class, %args ) = @_;
-    my $self = {};
+  my $class = shift @_;
+  my $self = {};
+  my %args = @_;
 
-    $self->{_socket_path} = $args{socket_path} || _find_socket();
-    $self->{_socket} = undef;
-    croak
-"Unable to locate socket, please pass socket_pass with the management api socket location to Apache::TS::AdminClient"
-      if ( !$self->{_socket_path} );
-    if (   ( !-r $self->{_socket_path} )
-        or ( !-w $self->{_socket_path} )
-        or ( !-S $self->{_socket_path} ) )
-    {
-        croak "Unable to open $self->{_socket_path} for reads or writes";
+  $self->{_socket_path} = $args{socket_path} || "/usr/local/var/trafficserver/mgmtapisocket"; # TODO: fix on install
+  $self->{_socket} = undef;
 
-        # see croak in "sub open_socket()" for other source of carp errors
-    }
+  if ( (! -r $self->{_socket_path}) or (! -w $self->{_socket_path}) or (! -S $self->{_socket_path}) ) {
+    croak "Unable to open $self->{_socket_path} for reads or writes";
+    # see croak in "sub open_socket()" for other source of carp errors
+  }
 
-    $self->{_select} = IO::Select->new();
-    bless $self, $class;
+  $self->{_select} = IO::Select->new();
+  bless $self, $class;
 
-    $self->open_socket();
+  $self->open_socket();
 
-    return $self;
-}
-
-sub _find_socket {
-    my @sockets_def = (
-        '/usr/local/var/trafficserver/mgmtapisocket',
-        '/var/trafficserver/mgmtapisocket'
-    );
-    foreach my $socket (@sockets_def) {
-        return $socket if ( -S $socket );
-    }
-    return undef;
+  return $self;
 }
 
 #
 # Destructor
 #
 sub DESTROY {
-    my $self = shift;
-    return $self->close_socket();
+  my $self = shift;
+  return $self->close_socket();
 }
+
 
 #
 # Open the socket (Unix domain)
 #
 sub open_socket {
-    my $self = shift;
-    my %args = @_;
+  my $self = shift;
+  my %args = @_;
 
-    if ( defined( $self->{_socket} ) ) {
-        if ( $args{force} || $args{reopen} ) {
-            $self->close_socket();
-        }
-        else {
-            return undef;
-        }
+  if (defined($self->{_socket})) {
+    if ($args{force} || $args{reopen}) {
+      $self->close_socket();
+    } else {
+      return undef ;
     }
+  }
 
-    $self->{_socket} = IO::Socket::UNIX->new(
-        Type => SOCK_STREAM,
-        Peer => $self->{_socket_path}
-    ) or croak("Error opening socket - $@");
 
-    return undef unless defined( $self->{_socket} );
-    $self->{_select}->add( $self->{_socket} );
+  $self->{_socket} = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $self->{_socket_path}) or croak ("Error opening socket - $@");
 
-    return $self;
+  return undef unless defined($self->{_socket});
+  $self->{_select}->add($self->{_socket});
+
+  return $self;
 }
 
 sub close_socket {
-    my $self = shift;
+  my $self = shift;
 
-    # if socket doesn't exist, return as there's nothing to do.
-    return unless defined( $self->{_socket} );
+  # if socket doesn't exist, return as there's nothing to do.
+  return unless defined($self->{_socket});
 
-    # gracefully close socket.
-    $self->{_select}->remove( $self->{_socket} );
-    $self->{_socket}->close();
-    $self->{_socket} = undef;
+  # gracefully close socket.
+  $self->{_select}->remove($self->{_socket});
+  $self->{_socket}->close();
+  $self->{_socket} = undef;
 
-    return $self;
+  return $self; 
 }
+
 
 #
 # Get (read) a stat out of the local manager. Note that the assumption is
 # that you are calling this with an existing stats "name".
 #
 sub get_stat {
-    my ( $self, $stat ) = @_;
-    my $res               = "";
-    my $max_read_attempts = 25;
+  my $self = shift;
+  my $stat = shift;
+  my $res = "";
+  my $max_read_attempts = 25;
 
-    return undef unless defined( $self->{_socket} );
-    return undef unless $self->{_select}->can_write(10);
+  return undef unless defined($self->{_socket});
+  return undef unless $self->{_select}->can_write(10);
 
-# This is a total hack for now, we need to wrap this into the proper mgmt API library.
-    $self->{_socket}
-      ->print( pack( "sla*", TS_RECORD_GET, length($stat) ), $stat );
+  # This is a total hack for now, we need to wrap this into the proper mgmt API library.
+  $self->{_socket}->print(pack("sla*", TS_RECORD_GET, length($stat)), $stat);
+  
+  while ($res eq "") {
+    return undef if ($max_read_attempts-- < 0);
+    return undef unless $self->{_select}->can_read(10);
 
-    while ( $res eq "" ) {
-        return undef if ( $max_read_attempts-- < 0 );
-        return undef unless $self->{_select}->can_read(10);
+    my $status = $self->{_socket}->sysread($res, 1024);
+    return undef unless defined($status) || ($status == 0);
+    
+  }
+  my @resp = unpack("sls", $res);
+  return undef unless (scalar(@resp) == 3);
 
-        my $status = $self->{_socket}->sysread( $res, 1024 );
-        return undef unless defined($status) || ( $status == 0 );
-
+  if ($resp[0] == TS_ERR_OKAY) {
+    if ($resp[2] < TS_REC_FLOAT) {
+      @resp = unpack("slsl", $res);
+      return undef unless (scalar(@resp) == 4);
+      return int($resp[3]);
+    } elsif ($resp[2] == TS_REC_FLOAT) {
+      @resp = unpack("slsf", $res);
+      return undef unless (scalar(@resp) == 4);
+      return $resp[3];
+    } elsif ($resp[2] == TS_REC_STRING) {
+      @resp = unpack("slsa*", $res);
+      return undef unless (scalar(@resp) == 4);
+      return float($resp[3]);
     }
-    my @resp = unpack( "sls", $res );
-    return undef unless ( scalar(@resp) == 3 );
-
-    if ( $resp[0] == TS_ERR_OKAY ) {
-        if ( $resp[2] < TS_REC_FLOAT ) {
-            @resp = unpack( "slsl", $res );
-            return undef unless ( scalar(@resp) == 4 );
-            return int( $resp[3] );
-        }
-        elsif ( $resp[2] == TS_REC_FLOAT ) {
-            @resp = unpack( "slsf", $res );
-            return undef unless ( scalar(@resp) == 4 );
-            return $resp[3];
-        }
-        elsif ( $resp[2] == TS_REC_STRING ) {
-            @resp = unpack( "slsa*", $res );
-            return undef unless ( scalar(@resp) == 4 );
-            return $resp[3];
-        }
-    }
-
-    return undef;
+  }
+    
+  return undef;
 }
 
 1;
@@ -265,15 +244,31 @@ The Apache Traffic Server Administration Manual will explain what these strings 
 
  proxy.config.accept_threads
  proxy.config.task_threads
+ proxy.config.admin.access_control_file
+ proxy.config.admin.admin_password
  proxy.config.admin.admin_user
+ proxy.config.admin.advanced_ui
  proxy.config.admin.autoconf.localhost_only
  proxy.config.admin.autoconf.pac_filename
  proxy.config.admin.autoconf_port
- proxy.config.admin.autoconf.doc_root
  proxy.config.admin.autoconf.wpad_filename
+ proxy.config.admin.basic_auth
  proxy.config.admin.cli_path
+ proxy.config.admin.cli_port
+ proxy.config.admin.html_doc_root
+ proxy.config.admin.ip_allow.filename
+ proxy.config.admin.lang_dict
+ proxy.config.admin.load_factor
+ proxy.config.admin.log_mgmt_access
+ proxy.config.admin.log_resolve_hostname
  proxy.config.admin.number_config_bak
+ proxy.config.admin.session
+ proxy.config.admin.session.timeout
+ proxy.config.admin.ssl_cert_file
+ proxy.config.admin.ui_refresh_rate
  proxy.config.admin.user_id
+ proxy.config.admin.use_ssl
+ proxy.config.admin.web_interface_port
  proxy.config.alarm.abs_path
  proxy.config.alarm.bin
  proxy.config.alarm_email
@@ -301,7 +296,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cache.max_disk_errors
  proxy.config.cache.max_doc_size
  proxy.config.cache.min_average_object_size
- proxy.config.cache.volume_filename
+ proxy.config.cache.partition_filename
  proxy.config.cache.permit.pinning
  proxy.config.cache.ram_cache_cutoff
  proxy.config.cache.ram_cache.size
@@ -376,6 +371,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.exec_thread.autoconfig
  proxy.config.exec_thread.autoconfig.scale
  proxy.config.exec_thread.limit
+ proxy.config.feature_set
  proxy.config.header.parse.no_host_url_redirect
  proxy.config.history_info_enabled
  proxy.config.hostdb
@@ -477,8 +473,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.insert_request_via_str
  proxy.config.http.insert_response_via_str
  proxy.config.http.insert_squid_x_forwarded_for
- proxy.config.http.keep_alive_enabled_in
- proxy.config.http.keep_alive_enabled_out
+ proxy.config.http.keep_alive_enabled
  proxy.config.http.keep_alive_no_activity_timeout_in
  proxy.config.http.keep_alive_no_activity_timeout_out
  proxy.config.http.keep_alive_post_out

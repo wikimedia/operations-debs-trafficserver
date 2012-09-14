@@ -27,53 +27,55 @@
 
 #define CACHE_MEM_FREE_TIMEOUT     HRTIME_SECONDS(1)
 
-struct Vol;
-struct CacheVol;
+struct Part;
+struct CachePart;
 
 struct CacheHostResult;
+//struct CacheHostRequestData;
 struct Cache;
 
 struct CacheHostRecord
 {
+
   int Init(int typ);
-  int Init(matcher_line *line_info, int typ);
-  void UpdateMatch(CacheHostResult *r, char *rd);
+  int Init(matcher_line * line_info, int typ);
+  void UpdateMatch(CacheHostResult * r, char *rd);
   void Print();
-  ~CacheHostRecord()
+   ~CacheHostRecord()
   {
-    if (vols)
-      xfree(vols);
-    if (vol_hash_table)
-      xfree(vol_hash_table);
+    if (parts)
+      xfree(parts);
+    if (part_hash_table)
+      xfree(part_hash_table);
     if (cp)
       xfree(cp);
   }
 
   int type;
-  Vol **vols;
-  volatile int good_num_vols;
-  volatile int num_vols;
+  Part **parts;
+  volatile int good_num_part;
+  volatile int num_part;
   int num_initialized;
-  unsigned short *vol_hash_table;
-  CacheVol **cp;
-  int num_cachevols;
-
-  CacheHostRecord():
-    type(0), vols(NULL), good_num_vols(0), num_vols(0),
-    num_initialized(0), vol_hash_table(0), cp(NULL), num_cachevols(0)
-  { }
+  unsigned short *part_hash_table;
+  CachePart **cp;
+  int num_cachepart;
+CacheHostRecord():
+  type(0), parts(NULL), good_num_part(0), num_part(0),
+    num_initialized(0), part_hash_table(0), cp(NULL), num_cachepart(0) {
+  }
 
 };
 
-void build_vol_hash_table(CacheHostRecord *cp);
+void build_part_hash_table(CacheHostRecord * cp);
 
 struct CacheHostResult
 {
+
   CacheHostRecord *record;
 
-  CacheHostResult()
-    : record(NULL)
-  { }
+    CacheHostResult():record(NULL)
+  {
+  }
 };
 
 
@@ -81,17 +83,23 @@ class CacheHostMatcher
 {
 public:
   CacheHostMatcher(const char *name, const char *filename, int typ);
-  ~CacheHostMatcher();
-
-  void Match(char *rdata, int rlen, CacheHostResult *result);
+   ~CacheHostMatcher();
+  void Match(char *rdata, int rlen, CacheHostResult * result);
   void AllocateSpace(int num_entries);
-  void NewEntry(matcher_line *line_info);
+  void NewEntry(matcher_line * line_info);
   void Print();
-
-  int getNumElements() const { return num_el; }
-  CacheHostRecord *getDataArray() const { return data_array; }
-  HostLookup *getHLookup() const { return host_lookup; }
-
+  int getNumElements()
+  {
+    return num_el;
+  };
+  CacheHostRecord *getDataArray()
+  {
+    return data_array;
+  };
+  HostLookup *getHLookup()
+  {
+    return host_lookup;
+  };
 private:
   static void PrintFunc(void *opaque_data);
   HostLookup *host_lookup;      // Data structure to do the lookups
@@ -108,22 +116,27 @@ class CacheHostTable
 public:
   // Parameter name must not be deallocated before this
   //  object is
-  CacheHostTable(Cache *c, int typ);
+  CacheHostTable(Cache * c, int typ);
    ~CacheHostTable();
   int BuildTable();
   int BuildTableFromString(char *str);
-  void Match(char *rdata, int rlen, CacheHostResult *result);
+  void Match(char *rdata, int rlen, CacheHostResult * result);
   void Print();
-
-  int getEntryCount() const { return m_numEntries; }
-  CacheHostMatcher *getHostMatcher() const { return hostMatch; }
+  int getEntryCount()
+  {
+    return m_numEntries;
+  }
+  CacheHostMatcher *getHostMatcher()
+  {
+    return hostMatch;
+  }
 
   static int config_callback(const char *, RecDataT, RecData, void *);
-
   void register_config_callback(CacheHostTable ** p)
   {
     IOCORE_RegisterConfigUpdateFunc("proxy.config.cache.hosting_filename", CacheHostTable::config_callback, (void *) p);
   }
+
 
   int type;
   Cache *cache;
@@ -131,10 +144,11 @@ public:
   CacheHostRecord gen_host_rec;
 
 private:
-  CacheHostMatcher *hostMatch;
+  CacheHostMatcher * hostMatch;
   const matcher_tags *config_tags;
   char config_file_path[PATH_NAME_MAX];
   const char *matcher_name;     // Used for Debug/Warning/Error messages
+
 };
 
 struct CacheHostTableConfig;
@@ -142,13 +156,12 @@ typedef int (CacheHostTableConfig::*CacheHostTabHandler) (int, void *);
 struct CacheHostTableConfig: public Continuation
 {
   CacheHostTable **ppt;
-  CacheHostTableConfig(CacheHostTable ** appt)
-    : Continuation(NULL), ppt(appt)
+    CacheHostTableConfig(CacheHostTable ** appt)
+  : Continuation(NULL), ppt(appt)
   {
     SET_HANDLER((CacheHostTabHandler) & CacheHostTableConfig::mainEvent);
   }
-
-  int mainEvent(int event, Event *e)
+  int mainEvent(int event, Event * e)
   {
     (void) e;
     (void) event;
@@ -160,38 +173,39 @@ struct CacheHostTableConfig: public Continuation
 };
 
 
-/* list of volumes in the volume.config file */
-struct ConfigVol
+/* list of partitions in the partition.config file */
+struct ConfigPart
 {
   int number;
   int scheme;
   int size;
   bool in_percent;
   int percent;
-  CacheVol *cachep;
-  LINK(ConfigVol, link);
+  CachePart *cachep;
+  LINK(ConfigPart, link);
 };
 
-struct ConfigVolumes
+struct ConfigPartitions
 {
-  int num_volumes;
-  int num_http_volumes;
-  int num_stream_volumes;
-  Queue<ConfigVol> cp_queue;
+  int num_partitions;
+  int num_http_partitions;
+  int num_stream_partitions;
+  Queue<ConfigPart> cp_queue;
   void read_config_file();
   void BuildListFromString(char *config_file_path, char *file_buf);
-
   void clear_all(void)
   {
-    // remove all the volumes from the queue
-    for (int i = 0; i < num_volumes; i++) {
+    // remove all the partitions from the queue
+    for (int i = 0; i < num_partitions; i++)
+    {
       cp_queue.pop();
     }
     // reset count variables
-    num_volumes = 0;
-    num_http_volumes = 0;
-    num_stream_volumes = 0;
+    num_partitions = 0;
+    num_http_partitions = 0;
+    num_stream_partitions = 0;
   }
+
 };
 
 #endif

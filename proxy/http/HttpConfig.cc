@@ -1178,8 +1178,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigStringAlloc(c.url_expansions_string, "proxy.config.dns.url_expansions");
   HttpEstablishStaticConfigLongLong(c.proxy_server_port, "proxy.config.http.server_port");
   HttpEstablishStaticConfigStringAlloc(c.proxy_server_other_ports, "proxy.config.http.server_other_ports");
-  HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_in, "proxy.config.http.keep_alive_enabled_in");
-  HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_out, "proxy.config.http.keep_alive_enabled_out");
+  HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled, "proxy.config.http.keep_alive_enabled");
   HttpEstablishStaticConfigByte(c.oride.chunking_enabled, "proxy.config.http.chunking_enabled");
   HttpEstablishStaticConfigByte(c.session_auth_cache_keep_alive_enabled,
                                 "proxy.config.http.session_auth_cache_keep_alive_enabled");
@@ -1457,8 +1456,7 @@ HttpConfig::reconfigure()
 
   params->proxy_server_port = m_master.proxy_server_port;
   params->proxy_server_other_ports = xstrdup(m_master.proxy_server_other_ports);
-  params->oride.keep_alive_enabled_in = INT_TO_BOOL(m_master.oride.keep_alive_enabled_in);
-  params->oride.keep_alive_enabled_out = INT_TO_BOOL(m_master.oride.keep_alive_enabled_out);
+  params->oride.keep_alive_enabled = INT_TO_BOOL(m_master.oride.keep_alive_enabled);
   params->oride.chunking_enabled = INT_TO_BOOL(m_master.oride.chunking_enabled);
   params->session_auth_cache_keep_alive_enabled = INT_TO_BOOL(m_master.session_auth_cache_keep_alive_enabled);
   params->origin_server_pipeline = m_master.origin_server_pipeline;
@@ -1505,7 +1503,7 @@ HttpConfig::reconfigure()
   params->oride.proxy_response_server_string = xstrdup(m_master.oride.proxy_response_server_string);
   params->oride.proxy_response_server_string_len = params->oride.proxy_response_server_string ?
     strlen(params->oride.proxy_response_server_string) : 0;
-  params->oride.proxy_response_server_enabled = m_master.oride.proxy_response_server_enabled;
+  params->oride.proxy_response_server_enabled = INT_TO_BOOL(m_master.oride.proxy_response_server_enabled);
 
   params->oride.insert_squid_x_forwarded_for = INT_TO_BOOL(m_master.oride.insert_squid_x_forwarded_for);
   params->insert_age_in_response = INT_TO_BOOL(m_master.insert_age_in_response);

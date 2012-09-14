@@ -145,7 +145,11 @@ ClusterControl::free_data()
       ink_release_assert(*(((uint8_t *) data) - DATA_HDR + 1) == (uint8_t) ALLOC_DATA_MAGIC);
       *(((uint8_t *) data) - DATA_HDR + 1) = (uint8_t) ~ ALLOC_DATA_MAGIC;
 
-      ink_release_assert(*(((char *) data) - DATA_HDR) == size_index);         
+      if (size_index >= 0) {
+        ink_release_assert(*(((char *) data) - DATA_HDR) == size_index);
+      } else {
+        ink_release_assert(*(((char *) data) - DATA_HDR) == -1);
+      }
     } else {
       // malloc'ed memory, not alloced via real_alloc_data().
       // Data will be xfree()'ed when IOBufferBlock is freed

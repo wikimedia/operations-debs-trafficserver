@@ -195,7 +195,7 @@ void RecSignalManager(int, const char *);
 // that the byte type is just a wrapper around RECD_INT.
 #define REC_EstablishStaticConfigByte(_var, _config_var_name) do { \
     RecLinkConfigByte(_config_var_name, &_var); \
-    _var = (RecByte)REC_ConfigReadInteger(_config_var_name);    \
+    _var = REC_ConfigReadInteger(_config_var_name) ? true : false; \
   } while (0)
 
 RecInt REC_ConfigReadInteger(const char *name);
