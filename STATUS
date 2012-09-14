@@ -1,4 +1,5 @@
-Traffic Server 3.0 STATUS:                                              -*-text-*- Last modified at [$Date: 2011-07-15 15:36:27 -0600 (Fri, 15 Jul 2011) $]
+Traffic Server 3.0 STATUS:                                              -*-text-*-
+Last modified at [$Date: 2011-06-09 11:46:50 -0600 (Thu, 09 Jun 2011) $]
 
 The current version of this file can be found at:
 
@@ -9,8 +10,7 @@ Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
 
-    3.0.1           : Released on July 18th, 2011
-    3.0.0           : Released on June 13th, 2011
+    3.0.0           : Released on <xyz>, 2011
     2.0.1           : Released on August 31, 2010
     2.0.0           : Released on April 28, 2010
 
@@ -40,10 +40,8 @@ PATCHES PROPOSED TO BACKPORT FROM TRUNK:
   [ New proposals should be added at the end of the list ]
 
 
-
 RELEASE PROCESS
 
 The Traffic Server release process is documented at
 
-    https://cwiki.apache.org/confluence/display/TS/ReleaseProcess
-    https://cwiki.apache.org/confluence/display/TS/3.0.x-Series
+    http://cwiki.apache.org/confluence/display/TS/ReleaseProcess
