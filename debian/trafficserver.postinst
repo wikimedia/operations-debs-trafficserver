@@ -89,12 +89,21 @@ configure)
                 # 0 => ATS is running
                 # 4 => Status is unknown
                 # 1,2,3 => ATS is not running
+
+                # using /bin/echo to make sure -e is supported
+                ECHO=`which echo`
                 if [ "$RET" -gt 0 ] && [ "$RET" -ne 4 ] && [ -f /var/cache/trafficserver/host.db ] ; then
                         echo "Purging TrafficServer cache upon upgrade."
-                        traffic_server -Cclear > /dev/null 2>&1
+                        RET=0
+                        traffic_server -Cclear > /dev/null 2>&1 || RET=$?
+                        if [ "$RET" -ne 0 ] ; then
+                                $ECHO "======================================================================="
+                                $ECHO -e "WARNING: Apache TrafficServer's cache couldn't be purged during the upgrade.\n" \
+                                        "Please inspect the situation manually and call 'traffic_server -Cclear'\n" \
+                                        "afterwards to purge the caches."
+                                $ECHO "======================================================================="
+                        fi
                 else
-                    # using /bin/echo to make sure -e is supported
-                    ECHO=`which echo`
                     $ECHO "======================================================================="
                     $ECHO -e "WARNING: Apache TrafficServer is not running or its state couldn't be\n" \
                         "determined. Please inspect the situation manually and call\n" \

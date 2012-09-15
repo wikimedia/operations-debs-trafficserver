@@ -1,8 +1,10 @@
 trafficserver (3.2.0-2) UNRELEASED; urgency=low
 
   * Switch packaging repository to Git.
+  * Fix "Upgrade fails if purging of cache fails" by not dying in a fire when
+    the postinst fails to purge the cache (Closes: #687698)
 
- -- Arno Töll <arno@debian.org>  Sat, 15 Sep 2012 00:57:11 +0200
+ -- Arno Töll <arno@debian.org>  Sat, 15 Sep 2012 14:48:33 +0200
 
 trafficserver (3.2.0-1) unstable; urgency=low
 
