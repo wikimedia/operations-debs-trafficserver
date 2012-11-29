@@ -1055,7 +1055,7 @@ HttpSM::state_raw_http_server_open(int event, void *data)
 {
   STATE_ENTER(&HttpSM::state_raw_http_server_open, event);
   ink_assert(server_entry == NULL);
-  // milestones.server_connect_end = ink_get_hrtime();
+  milestones.server_connect_end = ink_get_hrtime();
   NetVConnection *netvc = NULL;
 
   pending_action = NULL;
@@ -1606,7 +1606,7 @@ HttpSM::state_http_server_open(int event, void *data)
   // TODO decide whether to uncomment after finish testing redirect
   // ink_assert(server_entry == NULL);
   pending_action = NULL;
-  // milestones.server_connect_end = ink_get_hrtime();
+  milestones.server_connect_end = ink_get_hrtime();
   HttpServerSession *session;
 
   switch (event) {
@@ -2274,8 +2274,8 @@ HttpSM::state_icp_lookup(int event, void *data)
 int
 HttpSM::state_cache_open_write(int event, void *data)
 {
-STATE_ENTER(&HttpSM:state_cache_open_write, event);
-  // milestones.cache_open_write_end = ink_get_hrtime();
+  STATE_ENTER(&HttpSM:state_cache_open_write, event);
+  milestones.cache_open_write_end = ink_get_hrtime();
   pending_action = NULL;
 
   switch (event) {
@@ -2286,7 +2286,7 @@ STATE_ENTER(&HttpSM:state_cache_open_write, event);
     t_state.cache_info.write_lock_state = HttpTransact::CACHE_WL_SUCCESS;
     break;
 
-  case CACHE_EVENT_OPEN_WRITE_FAILED:
+  case CACHE_EVENT_OPEN_WRITE_FAILED: 
     // Failed on the write lock and retrying the vector
     //  for reading
     t_state.cache_info.write_lock_state = HttpTransact::CACHE_WL_FAIL;
@@ -2918,7 +2918,7 @@ HttpSM::is_bg_fill_necessary(HttpTunnelConsumer * c)
     // If threshold is 0.0 or negative then do background
     //   fill regardless of the content length.  Since this
     //   is floating point just make sure the number is near zero
-    if (t_state.http_config_param->background_fill_threshold <= 0.001) {
+    if (t_state.txn_conf->background_fill_threshold <= 0.001) {
       return true;
     }
 
@@ -2931,7 +2931,7 @@ HttpSM::is_bg_fill_necessary(HttpTunnelConsumer * c)
       // If we got a good content lenght.  Check to make sure that we haven't already
       //  done more the content length since that would indicate the content-legth
       //  is bogus.  If we've done more than the threshold, continue the background fill
-      if (pDone <= 1.0 && pDone > t_state.http_config_param->background_fill_threshold) {
+      if (pDone <= 1.0 && pDone > t_state.txn_conf->background_fill_threshold) {
         return true;
       } else {
         DebugSM("http", "[%" PRId64 "] no background.  Only %%%f done", sm_id, pDone);
@@ -2976,7 +2976,7 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer * c)
       ink_assert(server_entry->vc == c->producer->vc);
       ink_assert(server_session == c->producer->vc);
       server_session->get_netvc()->
-        set_active_timeout(HRTIME_SECONDS(t_state.http_config_param->background_fill_active_timeout));
+        set_active_timeout(HRTIME_SECONDS(t_state.txn_conf->background_fill_active_timeout));
     } else {
       // No bakground fill
       p = c->producer;
@@ -4086,11 +4086,11 @@ HttpSM::do_range_setup_if_necessary()
     do_range_parse(field);
     
     if (t_state.range_setup == HttpTransact::RANGE_REQUESTED && 
-        t_state.num_range_fields > 1 &&
+        (t_state.num_range_fields > 1 || !cache_sm.cache_read_vc->is_pread_capable()) &&
         api_hooks.get(TS_HTTP_RESPONSE_TRANSFORM_HOOK) == NULL
        ) 
     {
-          Debug("http_trans", "Handling multiple Range: requests");
+          Debug("http_trans", "Unable to accelerate range request, fallback to transform");
           content_type = t_state.cache_info.object_read->response_get()->value_get(MIME_FIELD_CONTENT_TYPE, MIME_LEN_CONTENT_TYPE, &field_content_type_len);
           //create a Range: transform processor for requests of type Range: bytes=1-2,4-5,10-100 (eg. multiple ranges)
           range_trans = transformProcessor.range_transform(mutex, 
@@ -4200,6 +4200,7 @@ HttpSM::do_cache_prepare_write()
 {
   // statistically no need to retry when we are trying to lock
   // LOCK_URL_SECOND url because the server's behavior is unlikely to change
+  milestones.cache_open_write_begin = ink_get_hrtime();
   bool retry = (t_state.api_lock_url == HttpTransact::LOCK_URL_FIRST);
   do_cache_prepare_action(&cache_sm, t_state.cache_info.object_read, retry);
 }
@@ -4822,6 +4823,12 @@ HttpSM::handle_post_failure()
 
   // First order of business is to clean up from
   //  the tunnel
+  // note: since the tunnel is providing the buffer for a lingering
+  // client read (for abort watching purposes), we need to stop
+  // the read
+  if (false == t_state.redirect_info.redirect_in_process) {
+    ua_entry->read_vio = ua_session->do_io_read(this, 0, NULL);
+  }
   ua_entry->in_tunnel = false;
   server_entry->in_tunnel = false;
   tunnel.deallocate_buffers();
@@ -5451,7 +5458,7 @@ HttpSM::setup_server_send_request()
   /*if (server_session->www_auth_content && t_state.www_auth_content == HttpTransact::CACHE_AUTH_NONE) {
     t_state.www_auth_content = HttpTransact::CACHE_AUTH_TRUE;
   }*/
-  // milestones.server_begin_write = ink_get_hrtime();
+  milestones.server_begin_write = ink_get_hrtime();
   server_entry->write_vio = server_entry->vc->do_io_write(this, hdr_length, buf_start);
 }
 
@@ -6143,8 +6150,7 @@ HttpSM::setup_blind_tunnel(bool send_response_hdr)
   IOBufferReader *r_from = from_ua_buf->alloc_reader();
   IOBufferReader *r_to = to_ua_buf->alloc_reader();
 
-  // milestones.server_begin_write = ink_get_hrtime();
-
+  milestones.server_begin_write = ink_get_hrtime();
   if (send_response_hdr) {
     client_response_hdr_bytes = write_response_header_into_buffer(&t_state.hdr_info.client_response, to_ua_buf);
   } else {

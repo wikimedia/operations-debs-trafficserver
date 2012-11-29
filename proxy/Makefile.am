@@ -22,7 +22,7 @@ noinst_LIBRARIES = libTrafficServerStandalone.a
 bin_PROGRAMS =
 noinst_PROGRAMS =
 else
-SUBDIRS = congest http logging config stats
+SUBDIRS = congest http logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -145,7 +145,6 @@ traffic_server_LDADD = \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
-  stats/libstats.a \
   hdrs/libhdrs.a  \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -166,6 +165,7 @@ traffic_server_LDADD = \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ @LIBHWLOC@ \
+  @LIBZ@ @LIBLZMA@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
 
 traffic_logcat_SOURCES = logcat.cc
@@ -240,7 +240,6 @@ traffic_sac_LDADD = \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
-  stats/libstats.a \
   hdrs/libhdrs.a \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -259,7 +258,7 @@ traffic_sac_LDADD = \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
-  @LIBEXECINFO@
+  @LIBZ@ @LIBLZMA@ @LIBEXECINFO@
 
 if BUILD_TESTS
   traffic_sac_LDADD += RegressionSM.o
@@ -282,15 +281,30 @@ test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc DiagsConfig.cc
 versiondir = $(pkgsysconfdir)
 
 install-data-local:
-	$(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) $(DESTDIR)$(pkgruntimedir) $(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgsysconfdir)/internal $(DESTDIR)$(pkgdatadir) $(DESTDIR)$(pkgcachedir)
+	if [ `id -un` != "root" ]; then \
+		$(INSTALL) -d $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) $(DESTDIR)$(pkgruntimedir) \
+				$(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgsysconfdir)/internal $(DESTDIR)$(pkgdatadir) \
+				$(DESTDIR)$(pkgcachedir); \
+	else \
+		 $(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) \
+				$(DESTDIR)$(pkgruntimedir) $(DESTDIR)$(pkgsysconfdir) \
+				$(DESTDIR)$(pkgsysconfdir)/internal $(DESTDIR)$(pkgdatadir) $(DESTDIR)$(pkgcachedir); \
+	fi
 
 install-data-hook:
-	-chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgdatadir)
+	if [ `id -un` == "root" ]; then \
+		chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgdatadir);\
+	fi
 	-echo "<TS_VERSION> $(PACKAGE_VERSION)" > $(DESTDIR)$(pkgsysconfdir)/trafficserver-release
 
 install-exec-local:
-	$(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglibexecdir)
+	if [ `id -un` != "root" ]; then \
+		$(INSTALL) -d $(DESTDIR)$(pkglibexecdir); \
+	else \
+		$(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglibexecdir); fi
 
 install-exec-hook:
-	-chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkglibexecdir)
+	if [ `id -un` == "root" ]; then \
+		chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkglibexecdir); \
+	fi
 

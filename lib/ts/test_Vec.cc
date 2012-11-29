@@ -27,25 +27,51 @@
 #include <ink_assert.h>
 #include "Vec.h"
 
-int main(int argc, char **argv) {
+static void test_append()
+{
+  static const char value[] = "this is a string";
+  static const int len = (int)sizeof(value) - 1;
+
+  Vec<char> str;
+
+  str.append(value, 0);
+  ink_assert(str.length() == 0);
+
+  str.append(value, len);
+  ink_assert(memcmp(&str[0], value, len) == 0);
+  ink_assert(str.length() == len);
+
+  str.clear();
+  ink_assert(str.length() == 0);
+
+  for (unsigned i = 0; i < 1000; ++i) {
+    str.append(value, len);
+    ink_assert(memcmp(&str[i * len], value, len) == 0);
+  }
+
+  ink_assert(str.length() == 1000 * len);
+}
+
+static void test_basic()
+{
   Vec<void *> v, vv, vvv;
   int tt = 99 * 50, t = 0;
-  
-  for (int i = 0; i < 100; i++)
+
+  for (size_t i = 0; i < 100; i++)
     v.add((void*)(intptr_t)i);
-  for (int i = 0; i < 100; i++)
+  for (size_t i = 0; i < 100; i++)
     t += (int)(intptr_t)v.v[i];
   ink_assert(t == tt);
 
   t = 0;
-  for (int i = 1; i < 100; i++)
+  for (size_t i = 1; i < 100; i++)
     vv.set_add((void*)(intptr_t)i);
-  for (int i = 1; i < 100; i++)
+  for (size_t i = 1; i < 100; i++)
     vvv.set_add((void*)(intptr_t)i);
-  for (int i = 1; i < 100; i++)
+  for (size_t i = 1; i < 100; i++)
     vvv.set_add((void*)(intptr_t)(i * 1000));
   vv.set_union(vvv);
-  for (int i = 0; i < vv.n; i++)
+  for (size_t i = 0; i < vv.n; i++)
     if (vv.v[i])
       t += (int)(intptr_t)vv.v[i];
   ink_assert(t == tt + 1000 * tt);
@@ -53,12 +79,12 @@ int main(int argc, char **argv) {
   v.clear();
   v.reserve(1000);
   t = 0;
-  for (int i = 0; i < 1000; i++)
+  for (size_t i = 0; i < 1000; i++)
     v.add((void*)(intptr_t)i);
-  for (int i = 0; i < 1000; i++)
+  for (size_t i = 0; i < 1000; i++)
     t += (int)(intptr_t)v.v[i];
   ink_assert(t == 999 * 500);
-  printf("%d %d\n", v.n, v.i);
+  printf("%zu %zu\n", v.n, v.i);
 
   Intervals in;
   in.insert(1);
@@ -93,5 +119,11 @@ int main(int argc, char **argv) {
   uf.unify(1,2);
   ink_assert(uf.find(0) == uf.find(3));
   ink_assert(uf.find(1) == uf.find(3));
+}
+
+int main(int argc, char **argv)
+{
+  test_append();
+  test_basic();
   printf("test_Vec PASSED\n");
 }

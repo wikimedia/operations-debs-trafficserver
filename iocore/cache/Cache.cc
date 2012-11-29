@@ -260,7 +260,9 @@ CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
   vio.ndone = 0;
   vio.nbytes = nbytes;
   vio.vc_server = this;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -277,7 +279,9 @@ CacheVC::do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *abuf, int64_t o
   vio.nbytes = nbytes;
   vio.vc_server = this;
   seek_to = offset;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -293,7 +297,9 @@ CacheVC::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuf, bool
   vio.ndone = 0;
   vio.nbytes = nbytes;
   vio.vc_server = this;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -315,7 +321,9 @@ CacheVC::reenable(VIO *avio)
 {
   DDebug("cache_reenable", "reenable %p", this);
   (void) avio;
+#ifdef DEBUG
   ink_assert(avio->mutex->thread_holding);
+#endif
   if (!trigger) {
 #ifndef USELESS_REENABLES
     if (vio.op == VIO::READ) {
@@ -333,7 +341,9 @@ CacheVC::reenable_re(VIO *avio)
 {
   DDebug("cache_reenable", "reenable_re %p", this);
   (void) avio;
+#ifdef DEBUG
   ink_assert(avio->mutex->thread_holding);
+#endif
   if (!trigger) {
     if (!is_io_in_progress() && !recursive) {
       handleEvent(EVENT_NONE, (void *) 0);
@@ -504,6 +514,8 @@ CacheProcessor::start(int)
   return start_internal(0);
 }
 
+static const int DEFAULT_CACHE_OPTIONS = (O_RDWR | _O_ATTRIB_OVERLAPPED);
+
 int
 CacheProcessor::start_internal(int flags)
 {
@@ -530,7 +542,8 @@ CacheProcessor::start_internal(int flags)
   for (i = 0; i < theCacheStore.n_disks; i++) {
     sd = theCacheStore.disk[i];
     char path[PATH_NAME_MAX];
-    int opts = O_RDWR;
+    int opts = DEFAULT_CACHE_OPTIONS;
+
     ink_strlcpy(path, sd->pathname, sizeof(path));
     if (!sd->file_pathname) {
       if (config_volumes.num_http_volumes && config_volumes.num_stream_volumes) {
@@ -539,7 +552,7 @@ CacheProcessor::start_internal(int flags)
       ink_strlcat(path, "/cache.db", sizeof(path));
       opts |= O_CREAT;
     }
-    opts |= _O_ATTRIB_OVERLAPPED;
+
 #ifdef O_DIRECT
     opts |= O_DIRECT;
 #endif
@@ -549,6 +562,10 @@ CacheProcessor::start_internal(int flags)
 
     int fd = open(path, opts, 0644);
     int blocks = sd->blocks;
+
+    if (fd < 0 && (opts & O_CREAT))  // Try without O_DIRECT if this is a file on filesystem, e.g. tmpfs.
+      fd = open(path, DEFAULT_CACHE_OPTIONS | O_CREAT, 0644);
+
     if (fd > 0) {
       if (!sd->file_pathname) {
         if (ftruncate(fd, ((uint64_t) blocks) * STORE_BLOCK_SIZE) < 0) {
@@ -1685,13 +1702,13 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data) {
           if (d->fd == gvol[p]->fd) {
             total_dir_delete += gvol[p]->buckets * gvol[p]->segments * DIR_DEPTH;
             used_dir_delete += dir_entries_used(gvol[p]);
-            total_bytes_delete = gvol[p]->len - vol_dirlen(gvol[p]);
+            total_bytes_delete += gvol[p]->len - vol_dirlen(gvol[p]);
           }
         }
 
         RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_bytes_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_dir_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -cache_direntries_used_stat);
+        RecIncrGlobalRawStat(cache_rsb, cache_direntries_total_stat, -total_dir_delete);
+        RecIncrGlobalRawStat(cache_rsb, cache_direntries_used_stat, -used_dir_delete);
 
         if (theCache) {
           rebuild_host_table(theCache);
@@ -1964,7 +1981,8 @@ CacheVC::handleRead(int event, Event *e)
 
   // check ram cache
   ink_debug_assert(vol->mutex->thread_holding == this_ethread());
-  if (vol->ram_cache->get(read_key, &buf, 0, dir_offset(&dir)))
+  int64_t o = dir_offset(&dir);
+  if (vol->ram_cache->get(read_key, &buf, (uint32_t)(o >> 32), (uint32_t)o))
     goto LramHit;
 
   // check if it was read in the last open_read call
@@ -2086,6 +2104,7 @@ CacheVC::removeEvent(int event, Event *e)
       f.remove_aborted_writers = 1;
     }
   Lread:
+    SET_HANDLER(&CacheVC::removeEvent);
     if (!buf)
       goto Lcollision;
     if (!dir_valid(vol, &dir)) {
@@ -2233,7 +2252,7 @@ cplist_update()
     ConfigVol *config_vol = config_volumes.cp_queue.head;
     for (; config_vol; config_vol = config_vol->link.next) {
       if (config_vol->number == cp->vol_number) {
-        int size_in_blocks = config_vol->size << (20 - STORE_BLOCK_SHIFT);
+        off_t size_in_blocks = config_vol->size << (20 - STORE_BLOCK_SHIFT);
         if ((cp->size <= size_in_blocks) && (cp->scheme == config_vol->scheme)) {
           config_vol->cachep = cp;
         } else {
@@ -2349,11 +2368,11 @@ cplist_reconfigure()
         percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
       }
       if (config_vol->size < 128) {
-        Warning("the size of volume %d (%d) is less than the minimum required volume size %d",
-                config_vol->number, config_vol->size, 128);
+        Warning("the size of volume %d (%"PRId64") is less than the minimum required volume size %d",
+                config_vol->number, (int64_t)config_vol->size, 128);
         Warning("volume %d is not created", config_vol->number);
       }
-      Debug("cache_hosting", "Volume: %d Size: %d", config_vol->number, config_vol->size);
+      Debug("cache_hosting", "Volume: %d Size: %"PRId64, config_vol->number, (int64_t)config_vol->size);
     }
     cplist_update();
     /* go through volume config and grow and create volumes */

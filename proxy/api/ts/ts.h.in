@@ -266,16 +266,6 @@ extern "C"
   } TSHttpHookID;
   #define TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK TS_HTTP_PRE_REMAP_HOOK  /* backwards compat */
 
-  typedef enum
-  {
-    TS_CACHE_PLUGIN_HOOK,
-    TS_CACHE_LOOKUP_HOOK,
-    TS_CACHE_READ_HOOK,
-    TS_CACHE_WRITE_HOOK,
-    TS_CACHE_DELETE_HOOK,
-    TS_CACHE_LAST_HOOK
-  } TSCacheHookID;
-
   /**
       TSEvents are sent to continuations when they are called back.
       The TSEvent provides the continuation's handler function with
@@ -613,11 +603,14 @@ extern "C"
     TS_CONFIG_HTTP_CACHE_FUZZ_TIME,
     TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME,
     TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS,
+    TS_CONFIG_HTTP_BACKGROUND_FILL_ACTIVE_TIMEOUT,
     TS_CONFIG_HTTP_RESPONSE_SERVER_STR,
     TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR,
     TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY,
+    TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD,
     TS_CONFIG_NET_SOCK_PACKET_MARK_OUT,
     TS_CONFIG_NET_SOCK_PACKET_TOS_OUT,
+    TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE,
     TS_CONFIG_LAST_ENTRY
   } TSOverridableConfigKey;
 
@@ -637,6 +630,34 @@ extern "C"
     } TSThreadPool;
 
   typedef int64_t TSHRTime;
+
+  /* The TSMilestonesType is an enum defining all the various milestones ("timers") that
+     we track for a request. */
+  typedef enum
+    {
+      TS_MILESTONE_NULL = -1,
+      TS_MILESTONE_UA_BEGIN,
+      TS_MILESTONE_UA_READ_HEADER_DONE,
+      TS_MILESTONE_UA_BEGIN_WRITE,
+      TS_MILESTONE_UA_CLOSE,
+      TS_MILESTONE_SERVER_FIRST_CONNECT,
+      TS_MILESTONE_SERVER_CONNECT,
+      TS_MILESTONE_SERVER_CONNECT_END,
+      TS_MILESTONE_SERVER_BEGIN_WRITE,
+      TS_MILESTONE_SERVER_FIRST_READ,
+      TS_MILESTONE_SERVER_READ_HEADER_DONE,
+      TS_MILESTONE_SERVER_CLOSE,
+      TS_MILESTONE_CACHE_OPEN_READ_BEGIN,
+      TS_MILESTONE_CACHE_OPEN_READ_END,
+      TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN,
+      TS_MILESTONE_CACHE_OPEN_WRITE_END,
+      TS_MILESTONE_DNS_LOOKUP_BEGIN,
+      TS_MILESTONE_DNS_LOOKUP_END,
+      TS_MILESTONE_SM_START,
+      TS_MILESTONE_SM_FINISH,
+      TS_MILESTONE_LAST_ENTRY
+    } TSMilestonesType;
+
 
   /* These typedefs are used with the corresponding TSMgmt*Get functions
      for storing the values retrieved by those functions. For example,
@@ -659,6 +680,7 @@ extern "C"
   typedef struct tsapi_cachehttpinfo* TSCacheHttpInfo;
   typedef struct tsapi_cachetxn* TSCacheTxn;
 
+  typedef struct tsapi_port* TSPortDescriptor;
   typedef struct tsapi_vio* TSVIO;
   typedef struct tsapi_thread* TSThread;
   typedef struct tsapi_mutex* TSMutex;
@@ -2180,10 +2202,6 @@ extern "C"
   tsapi void TSHttpHookAdd(TSHttpHookID id, TSCont contp);
 
   /* --------------------------------------------------------------------------
-     Cache hook */
-  tsapi TSReturnCode TSCacheHookAdd(TSCacheHookID id, TSCont contp);
-
-  /* --------------------------------------------------------------------------
      HTTP sessions */
   tsapi void TSHttpSsnHookAdd(TSHttpSsn ssnp, TSHttpHookID id, TSCont contp);
   tsapi void TSHttpSsnReenable(TSHttpSsn ssnp, TSEvent event);
@@ -2195,8 +2213,7 @@ extern "C"
   tsapi TSHttpSsn TSHttpTxnSsnGet(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnClientReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi TSReturnCode TSHttpTxnPristineUrlGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* url_loc);
-  /* Get the request headers as sent by the Client */
-  tsapi TSReturnCode TSHttpTxnClientDataGet(TSHttpTxn txnp, const char **bufp, int *len);
+
   /** Get the effective URL for the transaction.
       The effective URL is the URL taking in to account both the explicit
       URL in the request and the HOST field.
@@ -2216,6 +2233,22 @@ extern "C"
   tsapi TSReturnCode TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi void TSHttpTxnRespCacheableSet(TSHttpTxn txnp, int flag);
   tsapi void TSHttpTxnReqCacheableSet(TSHttpTxn txnp, int flag);
+
+  /** Set flag indicating whether or not to cache the server response for
+      given TSHttpTxn
+
+      @note This should be done in the HTTP_READ_RESPONSE_HDR_HOOK or earlier.
+
+      @note If TSHttpTxnRespCacheableSet() is not working the way you expect,
+      this may be the function you should use instead.
+
+      @param txnp The transaction whose server response you do not want to store.
+      @param flag Set 0 to allow storing and 1 to disable storing.
+
+      @return TS_SUCCESS.
+  */
+  tsapi TSReturnCode TSHttpTxnServerRespNoStoreSet(TSHttpTxn txnp, int flag);
+
   tsapi TSReturnCode TSFetchPageRespGet (TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
   tsapi char* TSFetchRespGet(TSHttpTxn txnp, int* length);
   tsapi TSReturnCode TSHttpTxnCacheLookupStatusGet(TSHttpTxn txnp, int* lookup_status);
@@ -2630,6 +2663,20 @@ extern "C"
   */
   tsapi TSReturnCode TSNetAcceptNamedProtocol(TSCont contp, const char * protocol);
 
+  /**
+    Create a new port from the string specification used by the
+    proxy.config.http.server_ports configuration value.
+   */
+  tsapi TSPortDescriptor TSPortDescriptorParse(const char * descriptor);
+
+  /**
+     Start listening on the given port descriptor. If a connection is
+     successfully accepted, the TS_EVENT_NET_ACCEPT is delivered to the
+     continuation. The event data will be a valid TSVConn bound to the accepted
+     connection.
+   */
+  tsapi TSReturnCode TSPortDescriptorAccept(TSPortDescriptor, TSCont);
+
   /* --------------------------------------------------------------------------
      DNS Lookups */
   tsapi TSAction TSHostLookup(TSCont contp, const char* hostname, size_t namelen);
@@ -2854,54 +2901,6 @@ extern "C"
   /* tsapi TSReturnCode TSStatFloatSet(int the_stat, float value); */
 
   tsapi TSReturnCode TSStatFindName(const char* name, int* idp);
-
-  /* --------------------------------------------------------------------------
-     This is the old stats system, it's deprecated, and should preferably not
-     be used. It has serious limitations both in scalability and performance. */
-  typedef enum
-  {
-    INKSTAT_TYPE_INT64,
-    INKSTAT_TYPE_FLOAT
-  } INKStatTypes;
-
-  typedef void* INKStat;
-  typedef void* INKCoupledStat;
-
-  /* --------------------------------------------------------------------------
-     uncoupled stats */
-  /** @deprecated */
-  tsapi TS_DEPRECATED INKStat INKStatCreate(const char* the_name, INKStatTypes the_type);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatIntAddTo(INKStat the_stat, int64_t amount);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatFloatAddTo(INKStat the_stat, float amount);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatDecrement(INKStat the_stat);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatIncrement(INKStat the_stat);
-  /** @deprecated */
-  tsapi TS_DEPRECATED int64_t INKStatIntGet(INKStat the_stat);
-  /** @deprecated */
-  tsapi TS_DEPRECATED float INKStatFloatGet(INKStat the_stat);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatIntSet(INKStat the_stat, int64_t value);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatFloatSet(INKStat the_stat, float value);
-
-  /* --------------------------------------------------------------------------
-     coupled stats */
-  /** @deprecated */
-  tsapi TS_DEPRECATED INKCoupledStat INKStatCoupledGlobalCategoryCreate(const char* the_name);
-  /** @deprecated */
-  tsapi TS_DEPRECATED INKCoupledStat INKStatCoupledLocalCopyCreate(const char* the_name, INKCoupledStat global_copy);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatCoupledLocalCopyDestroy(INKCoupledStat local_copy);
-  /** @deprecated */
-  tsapi TS_DEPRECATED INKStat INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char* the_name, INKStatTypes the_type);
-  /** @deprecated */
-  tsapi TS_DEPRECATED INKStat INKStatCoupledLocalAdd(INKCoupledStat local_copy, const char* the_name, INKStatTypes the_type);
-  /** @deprecated */
-  tsapi TS_DEPRECATED void INKStatsCoupledUpdate(INKCoupledStat local_copy);
 
   /* --------------------------------------------------------------------------
      tracing api */
@@ -3202,10 +3201,28 @@ extern "C"
   tsapi TSReturnCode TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
   tsapi TSReturnCode TSHttpTxnCachedUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
   tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
+  tsapi int TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp);
 
   /* Expose internal Base64 Encoding / Decoding */
   tsapi TSReturnCode TSBase64Decode(const char *str, size_t str_len, unsigned char *dst, size_t dst_size, size_t *length);
   tsapi TSReturnCode TSBase64Encode(const char *str, size_t str_len, char *dst, size_t dst_size, size_t *length);
+
+  /* Get milestone timers, useful for measuring where we are spending time in the transaction processing */
+  /**
+     Return the particular milestone timer for the transaction. If 0 is returned, it means
+     the transaction has not yet reached that milestone. Asking for an "unknown" milestone is
+     an error.
+
+     @param txnp the transaction pointer
+     @param milestone the requested milstone timer
+     was created.
+     @param time a pointer to a TSHRTime where we will store the timer
+
+     @return @c TS_SUCCESS if the milestone is supported, TS_ERROR otherwise
+
+  */
+  tsapi TSReturnCode TSHttpTxnMilestoneGet(TSHttpTxn txnp, TSMilestonesType milestone, TSHRTime *time);
+
 
 #ifdef __cplusplus
 }

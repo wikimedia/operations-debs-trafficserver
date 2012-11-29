@@ -142,7 +142,7 @@ Trie<T>::Insert(const char *key, T* value, int rank, int key_len /* = -1 */)
   }
 
   if (curr_node->occupied) {
-    Error("Cannot insert duplicate!");
+    Debug("Trie::Insert", "Cannot insert duplicate!");
     return false;
   }
 
@@ -170,13 +170,8 @@ Trie<T>::Search(const char *key, int key_len /* = -1 */) const
       curr_node->Print("Trie::Search");
     }
     if (curr_node->occupied) {
-      if (!found_node) {
+      if (!found_node || curr_node->rank <= found_node->rank) {
         found_node = curr_node;
-      }
-      else {
-        if (curr_node->rank < found_node->rank) {
-          found_node = curr_node;
-        }
       }
     }
     if (i == key_len) {

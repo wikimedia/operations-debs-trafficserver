@@ -117,25 +117,27 @@ extern "C" int plock(int);
 
 #define DEFAULT_REMOTE_MANAGEMENT_FLAG    0
 
-int version_flag = DEFAULT_VERSION_FLAG;
-int stack_trace_flag = DEFAULT_STACK_TRACE_FLAG;
+static void * mgmt_restart_shutdown_callback(void *, char *, int data_len);
+static bool xmlBandwidthSchemaRead(XMLNode * node);
 
-int number_of_processors = ink_number_of_processors();
-int num_of_net_threads = DEFAULT_NUMBER_OF_THREADS;
+static int version_flag = DEFAULT_VERSION_FLAG;
+
+static int const number_of_processors = ink_number_of_processors();
+static int num_of_net_threads = DEFAULT_NUMBER_OF_THREADS;
 extern int num_of_cluster_threads;
-int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
-int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
-int num_task_threads = DEFAULT_NUM_TASK_THREADS;
-int run_test_hook = 0;
-char http_accept_port_descriptor[TS_ARG_MAX + 1];
-#define TS_ARG_MAX_STR_FMT "S" TS_ARG_MAX_STR
+static int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
+static int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
+static int num_task_threads = DEFAULT_NUM_TASK_THREADS;
+#if TS_HAS_TESTS
+static int run_test_hook = 0;
+#endif
+static char * http_accept_port_descriptor;
 int http_accept_file_descriptor = NO_FD;
-int ssl_accept_file_descriptor = NO_FD;
-char core_file[255] = "";
-bool enable_core_file_p = false; // Enable core file dump?
+static char core_file[255] = "";
+static bool enable_core_file_p = false; // Enable core file dump?
 int command_flag = DEFAULT_COMMAND_FLAG;
 #if TS_HAS_TESTS
-char regression_test[1024] = "";
+static char regression_test[1024] = "";
 #endif
 int auto_clear_hostdb_flag = 0;
 int lock_process = DEFAULT_LOCK_PROCESS;
@@ -146,7 +148,7 @@ char cluster_host[MAXDNAME + 1] = DEFAULT_CLUSTER_HOST;
 
 //         = DEFAULT_CLUSTER_PORT_NUMBER;
 char proxy_name[MAXDNAME + 1] = "unknown";
-char command_string[512] = "";
+static char command_string[512] = "";
 int remote_management_flag = DEFAULT_REMOTE_MANAGEMENT_FLAG;
 
 char management_directory[PATH_NAME_MAX+1];      // Layout->sysconfdir
@@ -155,18 +157,16 @@ char system_runtime_dir[PATH_NAME_MAX + 1];  // Layout->runtimedir
 char system_config_directory[PATH_NAME_MAX + 1]; // Layout->sysconfdir
 char system_log_dir[PATH_NAME_MAX + 1];          // Layout->logdir
 
-int logging_port_override = 0;
-char logging_server_override[256] = " do not override";
-char error_tags[1024] = "";
-char action_tags[1024] = "";
-int show_statistics = 0;
-int history_info_enabled = 1;
+static char error_tags[1024] = "";
+static char action_tags[1024] = "";
+static int show_statistics = 0;
+static int history_info_enabled = 1;
 //inkcoreapi Diags *diags = NULL;
-inkcoreapi DiagsConfig *diagsConfig = NULL;
+static inkcoreapi DiagsConfig *diagsConfig = NULL;
 HttpBodyFactory *body_factory = NULL;
-int diags_init = 0;             // used by process manager
+static int diags_init = 0;             // used by process manager
 
-char vingid_flag[255] = "";
+static char vingid_flag[255] = "";
 
 static int accept_mss = 0;
 static int cmd_line_dprintf_level = 0;  // default debug output level fro ink_dprintf function
@@ -176,16 +176,15 @@ AppVersionInfo appVersionInfo;  // Build info for this application
 #if TS_HAS_TESTS
 extern int run_TestHook();
 #endif
-void deinitSubAgent();
 
-Version version = {
+const Version version = {
   {CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION},     // cacheDB
   {CACHE_DIR_MAJOR_VERSION, CACHE_DIR_MINOR_VERSION},   // cacheDir
   {CLUSTER_MAJOR_VERSION, CLUSTER_MINOR_VERSION},       // current clustering
   {MIN_CLUSTER_MAJOR_VERSION, MIN_CLUSTER_MINOR_VERSION},       // min clustering
 };
 
-ArgumentDescription argument_descriptions[] = {
+static const ArgumentDescription argument_descriptions[] = {
   {"lock_memory", 'l', "Lock process in memory (must be root)",
    "I", &lock_process, "PROXY_LOCK_PROCESS", NULL},
   {"net_threads", 'n', "Number of Net Threads", "I", &num_of_net_threads,
@@ -198,8 +197,8 @@ ArgumentDescription argument_descriptions[] = {
    "PROXY_ACCEPT_THREAD", NULL},
   {"accept_till_done", 'b', "Accept Till Done", "T", &accept_till_done,
    "PROXY_ACCEPT_TILL_DONE", NULL},
-  {"httpport", 'p', "Port descriptor for HTTP Accept", TS_ARG_MAX_STR_FMT,
-   http_accept_port_descriptor, "PROXY_HTTP_ACCEPT_PORT", NULL},
+  {"httpport", 'p', "Port descriptor for HTTP Accept", "S*",
+   &http_accept_port_descriptor, "PROXY_HTTP_ACCEPT_PORT", NULL},
   {"cluster_port", 'P', "Cluster Port Number", "I", &cluster_port_number,
    "PROXY_CLUSTER_PORT", NULL},
   {"dprintf_level", 'o', "Debug output level", "I", &cmd_line_dprintf_level,
@@ -262,7 +261,7 @@ ArgumentDescription argument_descriptions[] = {
    NULL, NULL},
   {"help", 'h', "HELP!", NULL, NULL, NULL, usage},
 };
-int n_argument_descriptions = SIZE(argument_descriptions);
+static const unsigned n_argument_descriptions = SIZE(argument_descriptions);
 
 //
 // Initialize operating system related information/services
@@ -677,7 +676,7 @@ cmd_clear(char *cmd)
 
 static int cmd_help(char *cmd);
 
-static struct CMD
+static const struct CMD
 {
   const char *n;                      // name
   const char *d;                      // description (part of a line)
@@ -736,13 +735,11 @@ commands[] = {
       "EXAMPLES: help help\n"
       "          help commit\n" "\n" "Provide a short description of a command (like this).\n", cmd_help},};
 
-#define N_CMDS ((int)(sizeof(commands)/sizeof(commands[0])))
-
 static int
 cmd_index(char *p)
 {
   p += strspn(p, " \t");
-  for (int c = 0; c < N_CMDS; c++) {
+  for (unsigned c = 0; c < SIZE(commands); c++) {
     const char *l = commands[c].n;
     while (l) {
       const char *s = strchr(l, '/');
@@ -760,16 +757,15 @@ cmd_index(char *p)
 static int
 cmd_help(char *cmd)
 {
-  int i;
-
   (void) cmd;
   printf("HELP\n\n");
   cmd = skip(cmd, true);
   if (!cmd) {
-    for (i = 0; i < N_CMDS; i++) {
+    for (unsigned i = 0; i < SIZE(commands); i++) {
       printf("%15s  %s\n", commands[i].n, commands[i].d);
     }
   } else {
+    int i;
     if ((i = cmd_index(cmd)) < 0) {
       printf("\nno help found for: %s\n", cmd);
       return CMD_FAILED;
@@ -1109,40 +1105,6 @@ init_http_header()
   http_init();
 }
 
-// TODO: we should move this function out of the Main.cc
-static void
-init_http_aeua_filter(void)
-{
-  char buf[2048], _cname[1024], *cname;
-  int i, j;
-
-  cname = &_cname[0];
-  memset(buf, 0, sizeof(buf));
-  memset(_cname, 0, sizeof(_cname));
-
-  TS_ReadConfigString(_cname, "proxy.config.http.accept_encoding_filter.filename", (int) sizeof(_cname));
-
-  if (_cname[0] && (j = strlen(_cname)) > 0) {
-    while (j && (*cname == '/' || *cname == '\\')) {
-      ++cname;
-      --j;
-    }
-    ink_strlcpy(buf, system_config_directory, sizeof(buf));
-    if ((i = strlen(buf)) >= 0) {
-      if (!i || (buf[i - 1] != '/' && buf[i - 1] != '\\' && i < (int) sizeof(buf))) {
-        ink_strlcat(buf, "/", sizeof(buf));
-        ++i;
-      }
-    }
-    if ((i + j + 1) < (int) sizeof(buf))
-      ink_strlcat(buf, cname, sizeof(buf));
-  }
-
-  i = HttpConfig::init_aeua_filter(buf[0] ? buf : NULL);
-
-  Debug("http_aeua", "[init_http_aeua_filter] - Total loaded %d REGEXP for Accept-Enconding/User-Agent filtering", i);
-}
-
 struct AutoStopCont: public Continuation
 {
   int mainEvent(int event, Event * e)
@@ -1220,7 +1182,7 @@ chdir_root()
 }
 
 
-int
+static int
 getNumSSLThreads(void)
 {
   int num_of_ssl_threads = 0;
@@ -1300,7 +1262,7 @@ adjust_num_of_net_threads(void)
  * Change the uid and gid to what is in the passwd entry for supplied user name.
  * @param user User name in the passwd file to change the uid and gid to.
  */
-void
+static void
 change_uid_gid(const char *user)
 {
   struct passwd pwbuf;
@@ -1560,7 +1522,6 @@ main(int argc, char **argv)
 
   {
     XMLDom schema;
-    bool xmlBandwidthSchemaRead(XMLNode * node);
     //char *configPath = TS_ConfigReadString("proxy.config.config_dir");
     char *filename = TS_ConfigReadString("proxy.config.bandwidth_mgmt.filename");
     char bwFilename[PATH_NAME_MAX];
@@ -1575,9 +1536,6 @@ main(int argc, char **argv)
 
 
   init_http_header();
-
-  // Init HTTP Accept-Encoding/User-Agent filter
-  init_http_aeua_filter();
 
   // Sanity checks
   //  if (!lock_process) check_for_root_uid();
@@ -1775,8 +1733,6 @@ main(int argc, char **argv)
     plugin_init(system_config_directory, false);        // plugin.config
 #else
     api_init();                 // we still need to initialize some of the data structure other module needs.
-    extern void init_inkapi_stat_system();
-    init_inkapi_stat_system();
     // i.e. http_global_hooks
 #endif
 
@@ -1797,8 +1753,6 @@ main(int argc, char **argv)
     // Initialize Scheduled Update subsystem
     ///////////////////////////////////////////
     updateManager.start();
-
-    void *mgmt_restart_shutdown_callback(void *, char *, int data_len);
 
     pmgmt->registerMgmtCallback(MGMT_EVENT_SHUTDOWN, mgmt_restart_shutdown_callback, NULL);
     pmgmt->registerMgmtCallback(MGMT_EVENT_RESTART, mgmt_restart_shutdown_callback, NULL);
@@ -1832,7 +1786,7 @@ main(int argc, char **argv)
 }
 
 
-bool
+static bool
 xmlBandwidthSchemaRead(XMLNode * node)
 {
   XMLNode *child, *c2;
@@ -1919,7 +1873,7 @@ REGRESSION_TEST(Hdrs) (RegressionTest * t, int atype, int *pstatus) {
 }
 #endif
 
-void *
+static void *
 mgmt_restart_shutdown_callback(void *, char *, int data_len)
 {
   NOWARN_UNUSED(data_len);

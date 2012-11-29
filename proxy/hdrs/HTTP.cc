@@ -445,6 +445,9 @@ http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hdr, char *buf, int bufsize, int *buf
       if (hdr->u.req.m_url_impl) {
         TRY(url_print(hdr->u.req.m_url_impl, buf, bufsize, bufindex, dumpoffset));
         if (bufsize - *bufindex >= 1) {
+          if (hdr->u.req.m_method_wks_idx == HTTP_WKSIDX_CONNECT) {
+              *bufindex -= 1; // remove trailing slash for CONNECT request
+          }
           p = buf + *bufindex;
           *p++ = ' ';
           *bufindex += 1;
@@ -914,13 +917,6 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
     ink_assert((end - cur) < UINT16_MAX);
 
     must_copy_strings = (must_copy_strings || (!line_is_real));
-
-#if ENABLE_SAVE_ORIGINAL_REQUEST
-    mime_str_u16_set(heap, line_start, strlen(line_start),
-                     &(hh->u.req.m_url_impl->the_request),
-                     &(hh->u.req.m_url_impl->the_request_len),
-                     must_copy_strings);
-#endif
 
 #if (ENABLE_PARSER_FAST_PATHS)
     // first try fast path

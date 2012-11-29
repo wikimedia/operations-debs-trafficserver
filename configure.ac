@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.2.0])
-m4_define([TS_VERSION_N],[3002000])
+m4_define([TS_VERSION_S],[3.3.0-dev])
+m4_define([TS_VERSION_N],[3003000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -288,6 +288,20 @@ TS_ARG_ENABLE_VAR([has],[wccp])
 AC_SUBST(has_wccp)
 AM_CONDITIONAL([BUILD_WCCP], [test 0 -ne $has_wccp])
 
+#
+# CPP 11 API
+#
+AC_MSG_CHECKING([whether to enable c++11 api])
+AC_ARG_WITH([cpp11api],
+  [AS_HELP_STRING([--with-cpp11api],[enable support for cpp11api [default=no]])],
+  [cpp11api=$withval],
+  [cpp11api=no]
+)
+AC_MSG_RESULT([$cpp11api])
+AM_CONDITIONAL([BUILD_CPP11API], [test "$cpp11api" = yes])
+
+
+
 # Google profiler
 AC_MSG_CHECKING([whether to enable profiler])
 AC_ARG_WITH([profiler],
@@ -415,6 +429,18 @@ AC_ARG_WITH([max-threads-per-type],
 )
 AC_SUBST(max_threads_per_type)
 
+#
+# Experimental plugins
+#
+
+AC_MSG_CHECKING([whether to enable experimental plugins])
+AC_ARG_ENABLE([experimental-plugins],
+  [AS_HELP_STRING([--enable-experimental-plugins],[build experimental plugins])],
+  [],
+  [enable_experimental_plugins=no]
+)
+AC_MSG_RESULT([$enable_experimental_plugins])
+AM_CONDITIONAL([BUILD_EXPERIMENTAL_PLUGINS], [ test "x${enable_experimental_plugins}" = "xyes" ])
 
 #
 # Installation directories
@@ -508,26 +534,62 @@ AC_CHECK_PROG(RM, rm, rm)
 AC_CHECK_PROG(ASCPP, cpp, cpp)
 AC_CHECK_TOOL(AR, ar, ar)
 AC_ISC_POSIX
+# Do bison check by hand because we must do a version check.
+# Use YACC because it makes autotools shut up.
+BISON_MAJOR=2
+BISON_MINOR=4
+BISON_POINT=1
+AC_CHECK_PROG([YACC],[bison],[bison])
+AS_IF([test -n "$YACC"],
+      [ bison_version_check=`$YACC --version 2>&1 | \
+        $SED -n '/bison/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\)[[^0-9]]*$/\1/p' | \
+        $AWK "{ if (\\$1 > $BISON_MAJOR || (\\$1 == $BISON_MAJOR && (\\$2 > $BISON_MINOR || (\\$2 == $BISON_MINOR && (NR == 2 || \\$3 >= $BISON_POINT))))) print \"yes\"; else printf(\"version %d.%d.%d\",\\$1,\\$2,\\$3); }" FS=. \
+        `
+        AS_IF([test "x$bison_version_check" != "xyes"],
+          [ YACC=''
+	    AS_IF([test -z "$bison_version_check"],
+	      [bison_version_check='no version data']
+	    )
+	  ]
+        )
+      ],
+      [ YACC=''
+        bison_version_check="nothing"
+      ]
+)
+# Check lex/flex by hand because we need flex of a sufficient version.
+FLEX_MAJOR=2
+FLEX_MINOR=5
+FLEX_POINT=33
+dnl ylwrap requires the lexer executable to be an absolute path or in the srcdir.
+dnl but we need various other LEX values.
+AC_PROG_LEX
+AS_IF([test -n "$LEX"],
+      [ flex_version_check=`$LEX --version 2>&1 | \
+        $SED -n '/flex/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\)[[^0-9]]*$/\1/p' | \
+        $AWK "{ if (\\$1 > $FLEX_MAJOR || (\\$1 == $FLEX_MAJOR && (\\$2 > $FLEX_MINOR || (\\$2 == $FLEX_MINOR && (NR == 2 || \\$3 >= $FLEX_POINT))))) print \"yes\"; else printf(\"version %d.%d.%d\",\\$1,\\$2,\\$3); }" FS=. \
+        `
+        AS_IF([test "x$flex_version_check" != "xyes"],
+          [ LEX=''
+	    AS_IF([test -z "$flex_version_check"],
+	      [flex_version_check='no version data']
+	    )
+	  ]
+        )
+      ],
+      [ LEX=''
+        flex_version_check="nothing"
+      ]
+)
+
 AS_IF([test "x$enable_wccp" = "xyes"],
   [
-
-    # If flex is found, set output variable LEX to ‘flex’ 
-    # Otherwise set LEX to ‘lex’ 
-    # If neither variant is available, set LEX to ‘:’;
-    AC_PROG_LEX
-    AS_IF([test "x$LEX" = "x:"  ],
-       AC_MSG_ERROR([Need flex when enabling WCCP])
+    AS_IF([test -z "$LEX"  ],
+       AC_MSG_ERROR([Need flex version $FLEX_MAJOR.$FLEX_MINOR.$FLEX_POINT or better to enable WCCP (found $flex_version_check)])
     )
 
-    # If bison is found, set output variable YACC to ‘bison -y’. 
-    # Otherwise, if byacc is found, set YACC to ‘byacc’. 
-    # Otherwise set YACC to ‘yacc’. 
-    AC_PROG_YACC
-    AS_IF([test "x$YACC" = "xyacc" ],
-	AC_CHECK_PROG([YACCBIN],[yacc],[yacc],[])
-	AS_IF([test "x$YACCBIN" = "x"],
-		AC_MSG_ERROR([Need at YACC when enabling WCCP])
-	)
+    AS_IF([test -z "$YACC" ],
+        AC_MSG_ERROR([Need bison version $BISON_MAJOR.$BISON_MINOR.$BISON_POINT or better to enable WCCP (found $bison_version_check)])
     )
 
   ]
@@ -1044,24 +1106,51 @@ TS_CHECK_JEMALLOC
 TS_CHECK_TCMALLOC
 
 #
-# Determine ARG_MAX
-# Default to 2048 if we cannot resolve ARG_MAX for some reason
-AC_ARG_WITH([arg_max],
-  [AS_HELP_STRING([--with-arg-max=[ARG_MAX]],[override the computed maxmium argument length])],
-  [
-  arg_max="$withval"
-  ],[
-  arg_max="`getconf ARG_MAX`"
-  if test "x${arg_max}" = x ; then
-    arg_max=2048
-  fi
-  ]
-)
-AC_SUBST(arg_max)
-
-#
 # Check for libreadline/libedit
 AX_LIB_READLINE
+
+#
+# Check for Lua, at least version 5.1, sets LUA_CFLAGS and LUA_LIBS. We support both standard
+# Lua and LuaJIT, preferring LuaJIT if the user did not indicate a preference.
+AC_ARG_ENABLE([luajit], [
+  AS_HELP_STRING([--enable-luajit], [enable LuaJIT support @<:@default=check@:>@])
+], [
+  enable_luajit="${enableval}"
+], [
+  enable_luajit=check
+])
+
+PKG_CHECK_MODULES([luajit], [luajit], [have_luajit=yes], [have_luajit=no])
+CHECK_LUA([have_lua=yes], [have_lua=no])
+
+AS_IF([ test "x$enable_luajit" = "xno" ], [
+  # LuaJIT disabled, just check for the regular Lua support.
+  enable_lua_support="${have_lua}"
+], [test "x$enable_luajit" = "xyes"], [
+  # LuaJIT required. Fail if it's not available.
+  AS_IF([ test "x${have_luajit}" = "xyes" ], [
+    LUA_CFLAGS="${luajit_CFLAGS}"
+    LUA_LIBS="${luajit_LIBS}"
+    enable_lua_support=LuaJIT
+  ], [
+    AC_MSG_ERROR([LuaJIT package not available])
+  ])
+], [
+  # No user preference, prefer LuaJIT over standard Lua.
+  AS_IF([ test "x${have_luajit}" = "xyes" ], [
+    LUA_CFLAGS="${luajit_CFLAGS}"
+    LUA_LIBS="${luajit_LIBS}"
+    enable_lua_support=LuaJIT
+  ], [
+    enable_lua_support="${have_lua}"
+  ])
+])
+
+AC_SUBST(LUA_CFLAGS)
+AC_SUBST(LUA_LIBS)
+AC_MSG_CHECKING([whether to enable Lua support])
+AM_CONDITIONAL([BUILD_LUA_SUPPORT], [ test "x${enable_lua_support}" != "xno" ])
+AC_MSG_RESULT([$enable_lua_support])
 
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
@@ -1349,6 +1438,13 @@ TS_CHECK_LOOPBACK_IFACE
 TS_CHECK_GETHOSTBYNAME_R_STYLE
 TS_CHECK_MACRO_IN6_IS_ADDR_UNSPECIFIED
 
+AC_CHECK_TYPE([struct tcp_info],
+  [enable_tcpinfo_plugin=yes],
+  [enable_tcpinfo_plugin=no],
+  [[#include <netinet/tcp.h>]]
+)
+AM_CONDITIONAL([BUILD_TCPINFO_PLUGIN], [ test "x${enable_tcpinfo_plugin}" != "xno" ])
+
 #
 # use modular IOCORE
 #
@@ -1425,6 +1521,7 @@ AC_CONFIG_FILES([iocore/utils/Makefile])
 AC_CONFIG_FILES([lib/Makefile])
 AC_CONFIG_FILES([lib/ts/Makefile])
 AC_CONFIG_FILES([lib/records/Makefile])
+AC_CONFIG_FILES([lib/cpp11api/Makefile])
 AC_CONFIG_FILES([lib/tsconfig/Makefile])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([proxy/config/body_factory/default/Makefile])
@@ -1448,7 +1545,6 @@ AC_CONFIG_FILES([mgmt/stats/Makefile])
 AC_CONFIG_FILES([mgmt/tools/Makefile])
 AC_CONFIG_FILES([mgmt/utils/Makefile])
 AC_CONFIG_FILES([mgmt/web2/Makefile])
-AC_CONFIG_FILES([proxy/stats/Makefile])
 AC_CONFIG_FILES([lib/wccp/Makefile])
 AC_CONFIG_FILES([proxy/api/ts/Makefile])
 # Traffic Cop
@@ -1459,6 +1555,13 @@ AC_CONFIG_FILES([plugins/conf_remap/Makefile])
 AC_CONFIG_FILES([plugins/regex_remap/Makefile])
 AC_CONFIG_FILES([plugins/header_filter/Makefile])
 AC_CONFIG_FILES([plugins/stats_over_http/Makefile])
+# experimental plugins
+AC_CONFIG_FILES([plugins/experimental/esi/Makefile])
+AC_CONFIG_FILES([plugins/experimental/lua/Makefile])
+AC_CONFIG_FILES([plugins/experimental/rfc5861/Makefile])
+AC_CONFIG_FILES([plugins/experimental/tcp_info/Makefile])
+AC_CONFIG_FILES([plugins/experimental/custom_redirect/Makefile])
+AC_CONFIG_FILES([plugins/experimental/header_rewrite/Makefile])
 # various tools
 AC_CONFIG_FILES([tools/Makefile])
 # example plugins

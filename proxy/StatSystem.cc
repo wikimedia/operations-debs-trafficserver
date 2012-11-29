@@ -522,7 +522,7 @@ initialize_all_global_stats()
 
   // TODO: HMMMM, wtf does this do? The following is that this 
   // function does:
-  // ink_atomic_swap_ptr(&this->f_update_lock, (void *) func)
+  // ink_atomic_swap(&this->f_update_lock, (void *) func)
   //
   // pmgmt->record_data->registerUpdateLockFunc(tmp_stats_lock_function);
 
@@ -577,7 +577,7 @@ dyn_stats_count_cb(void *data, void *res)
   READ_DYN_STAT((long) data, count, sum);
   NOWARN_UNUSED(sum);
   //*(ink_statval_t *)res = count;
-  ink_atomic_swap64((ink_statval_t *) res, count);
+  ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
 
@@ -588,7 +588,7 @@ dyn_stats_sum_cb(void *data, void *res)
   READ_DYN_STAT((long) data, count, sum);
   NOWARN_UNUSED(count);
   //*(ink_statval_t *)res = sum;
-  ink_atomic_swap64((ink_statval_t *) res, sum);
+  ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
 
@@ -702,7 +702,7 @@ http_trans_stats_count_cb(void *data, void *res)
   READ_HTTP_TRANS_STAT((long) data, count, sum);
   NOWARN_UNUSED(sum);
   //*(ink_statval_t *)res = count;
-  ink_atomic_swap64((ink_statval_t *) res, count);
+  ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
 
@@ -713,7 +713,7 @@ http_trans_stats_sum_cb(void *data, void *res)
   READ_HTTP_TRANS_STAT((long) data, count, sum);
   NOWARN_UNUSED(count);
   //*(ink_statval_t *)res = sum;
-  ink_atomic_swap64((ink_statval_t *) res, sum);
+  ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
 
@@ -799,27 +799,4 @@ http_trans_stats_time_useconds_cb(void *data, void *res)
   }
   *(float *) res = r;
   return res;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-//  TransactionMilestones::TransactionMilestones()
-//
-//////////////////////////////////////////////////////////////////////////////
-TransactionMilestones::TransactionMilestones()
-:
-ua_begin(0), ua_read_header_done(0), ua_begin_write(0), ua_close(0), server_first_connect(0), server_connect(0),
-  // server_connect_end(0),
-  // server_begin_write(0),
-  server_first_read(0), server_read_header_done(0), server_close(0), cache_open_read_begin(0), cache_open_read_end(0),
-  // cache_read_begin(0),
-  // cache_read_end(0),
-  // cache_open_write_begin(0),
-  // cache_open_write_end(0),
-  // cache_write_begin(0),
-  // cache_write_end(0),
-  dns_lookup_begin(0), dns_lookup_end(0), sm_start(0),  // init
-  sm_finish(0)                  // kill_this
-{
-  return;
 }
