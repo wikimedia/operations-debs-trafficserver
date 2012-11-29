@@ -1,3 +1,9 @@
+trafficserver (3.3.0-1) experimental; urgency=low
+
+  * Upload upstream development release to experimental.
+
+ -- Aron Xu <aron@debian.org>  Thu, 29 Nov 2012 22:13:55 +0800
+
 trafficserver (3.2.0-2) UNRELEASED; urgency=low
 
   * Switch packaging repository to Git.
