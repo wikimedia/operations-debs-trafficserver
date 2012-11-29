@@ -1195,8 +1195,8 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.transaction_active_timeout_out, "proxy.config.http.transaction_active_timeout_out");
   HttpEstablishStaticConfigLongLong(c.accept_no_activity_timeout, "proxy.config.http.accept_no_activity_timeout");
 
-  HttpEstablishStaticConfigLongLong(c.background_fill_active_timeout, "proxy.config.http.background_fill_active_timeout");
-  HttpEstablishStaticConfigFloat(c.background_fill_threshold, "proxy.config.http.background_fill_completed_threshold");
+  HttpEstablishStaticConfigLongLong(c.oride.background_fill_active_timeout, "proxy.config.http.background_fill_active_timeout");
+  HttpEstablishStaticConfigFloat(c.oride.background_fill_threshold, "proxy.config.http.background_fill_completed_threshold");
 
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_max_retries, "proxy.config.http.connect_attempts_max_retries");
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_max_retries_dead_server,
@@ -1236,7 +1236,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.insert_squid_x_forwarded_for, "proxy.config.http.insert_squid_x_forwarded_for");
 
 
-  HttpEstablishStaticConfigByte(c.insert_age_in_response, "proxy.config.http.insert_age_in_response");
+  HttpEstablishStaticConfigByte(c.oride.insert_age_in_response, "proxy.config.http.insert_age_in_response");
 
   HttpEstablishStaticConfigByte(c.avoid_content_spoofing, "proxy.config.http.avoid_content_spoofing");
 
@@ -1468,8 +1468,8 @@ HttpConfig::reconfigure()
   params->transaction_active_timeout_in = m_master.transaction_active_timeout_in;
   params->oride.transaction_active_timeout_out = m_master.oride.transaction_active_timeout_out;
   params->accept_no_activity_timeout = m_master.accept_no_activity_timeout;
-  params->background_fill_active_timeout = m_master.background_fill_active_timeout;
-  params->background_fill_threshold = m_master.background_fill_threshold;
+  params->oride.background_fill_active_timeout = m_master.oride.background_fill_active_timeout;
+  params->oride.background_fill_threshold = m_master.oride.background_fill_threshold;
 
   params->oride.connect_attempts_max_retries = m_master.oride.connect_attempts_max_retries;
   params->oride.connect_attempts_max_retries_dead_server = m_master.oride.connect_attempts_max_retries_dead_server;
@@ -1507,7 +1507,7 @@ HttpConfig::reconfigure()
   params->oride.proxy_response_server_enabled = m_master.oride.proxy_response_server_enabled;
 
   params->oride.insert_squid_x_forwarded_for = INT_TO_BOOL(m_master.oride.insert_squid_x_forwarded_for);
-  params->insert_age_in_response = INT_TO_BOOL(m_master.insert_age_in_response);
+  params->oride.insert_age_in_response = INT_TO_BOOL(m_master.oride.insert_age_in_response);
   params->avoid_content_spoofing = INT_TO_BOOL(m_master.avoid_content_spoofing);
   params->enable_http_stats = INT_TO_BOOL(m_master.enable_http_stats);
   params->normalize_ae_gzip = INT_TO_BOOL(m_master.normalize_ae_gzip);
@@ -1644,219 +1644,6 @@ void
 HttpConfig::release(HttpConfigParams * params)
 {
   configProcessor.release(m_id, params);
-}
-
-/*
-  Static Accept-Encoding/User-Agent filtering table
-  The format of this table is compatible with ae_ua.config file
-  */
-
-static char *static_aeua_filter_array[] = {
-//    ".substring Mozilla/4.",
-  NULL
-};
-
-static int
-read_string(FILE * fp, char *buf, int size)
-{
-  int i, retsize = (-1);
-  if (fp && --size > 0 && buf) {
-    for (buf[(retsize = 0)] = 0; (i = fgetc(fp)) != EOF;) {
-      if (i == '\n' || i == '\r')
-        break;
-      if ((i == ' ' || i == '\t') && !retsize)
-        continue;
-      if (retsize < size)
-        buf[retsize++] = (char) i;
-    }
-    buf[retsize] = 0;
-    if (i == EOF && !retsize)
-      retsize = (-1);           /* i == EOF && retsize == 0 */
-  }
-  return retsize;
-}
-
-static bool
-store_error_message(char *err_msg_buf, int err_msg_buf_size, const char *fmt, ...)
-{
-  if (likely(err_msg_buf && err_msg_buf_size > 0)) {
-    char buf[2048];
-    va_list ap;
-    va_start(ap, fmt);
-    (void) vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
-    ink_strlcpy(err_msg_buf, buf, err_msg_buf_size);
-    va_end(ap);
-  }
-  return false;
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpConfig::init_aeua_filter()
-//
-// TODO: make aeua_filter more flex
-////////////////////////////////////////////////////////////////
-int
-HttpConfig::init_aeua_filter(char *config_fname)
-{
-  char errmsgbuf[1024], line[2048], *c;
-  HttpUserAgent_RegxEntry *ua, **uaa, *u;
-  FILE *fp;
-  int i, size;
-  int retcount = 0;
-
-  Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Config: \"%s\"", config_fname ? config_fname : "<NULL>");
-
-  for (uaa = &HttpConfig::user_agent_list, i = 0; static_aeua_filter_array[i]; i++) {
-    memset(errmsgbuf, 0, sizeof(errmsgbuf));
-    ua = NEW(new HttpUserAgent_RegxEntry);
-    if (!ua->create(static_aeua_filter_array[i], errmsgbuf, sizeof(errmsgbuf))) {
-      ink_error("[HttpConfig::init_aeua_filter] - internal list - %s - %s",
-                static_aeua_filter_array[i], errmsgbuf[0] ? errmsgbuf : "Unknown error");
-      delete ua;
-      ua = 0;
-    } else {
-      *uaa = ua;
-      uaa = &(ua->next);
-      retcount++;
-    }
-    Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Add \"%s\" filter - %s",
-          static_aeua_filter_array[i], ua ? "Success" : "Error");
-  }
-  if (config_fname && config_fname[0]) {
-    Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Opening config \"%s\"", config_fname);
-    if ((fp = fopen(config_fname, "r")) != NULL) {
-      while ((i = read_string(fp, line, (int) sizeof(line))) >= 0) {
-        if (!i)
-          continue;
-        for (c = line; *c == ' ' || *c == '\t'; c++);
-        if (*c == '#' || (size = strlen(c)) <= 0)
-          continue;
-        while (size > 0 && (c[size - 1] == ' ' || c[size - 1] == '\t' || c[size - 1] == '\n' || c[size - 1] == '\r'))
-          c[--size] = 0;
-        if (size <= 0)
-          continue;
-        Debug("http_aeua", "[HttpConfig::init_aeua_filter] - \"%s\"", c);
-        for (u = HttpConfig::user_agent_list; u; u = u->next) {
-          if (u->user_agent_str_size && u->user_agent_str && !strcmp(u->user_agent_str, c))
-            break;
-        }
-        if (!u) {
-          ua = NEW(new HttpUserAgent_RegxEntry);
-          if (!ua->create(c, errmsgbuf, sizeof(errmsgbuf))) {
-            ink_error("[HttpConfig::init_aeua_filter] - config list - %s - %s", c,
-                      errmsgbuf[0] ? errmsgbuf : "Unknown error");
-            delete ua;
-            ua = 0;
-          } else {
-            *uaa = ua;
-            uaa = &(ua->next);
-            retcount++;
-          }
-          Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Add \"%s\" filter - %s", c, ua ? "Success" : "Error");
-        } else {
-          Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Duplicate record \"%s\"", c);
-        }
-      }
-      fclose(fp);
-    } else {
-      ink_error("[HttpConfig::init_aeua_filter] - Can't open \"%s\"", config_fname);
-    }
-  }
-  Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Added %d REGEXP filters", retcount);
-  return retcount;
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::HttpUserAgent_RegxEntry()
-//
-////////////////////////////////////////////////////////////////
-HttpUserAgent_RegxEntry::HttpUserAgent_RegxEntry()
-{
-  next = 0;
-  user_agent_str_size = 0;
-  user_agent_str = 0;
-  regx_valid = false;
-  stype = STRTYPE_UNKNOWN;
-  memset(&regx, 0, sizeof(regx));
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::~HttpUserAgent_RegxEntry()
-//
-////////////////////////////////////////////////////////////////
-HttpUserAgent_RegxEntry::~HttpUserAgent_RegxEntry()
-{
-  (void) create();              /* just for clean up */
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::create()
-//
-////////////////////////////////////////////////////////////////
-bool
-HttpUserAgent_RegxEntry::create(char *_refexp_str, char *errmsgbuf, int errmsgbuf_size)
-{
-  char *c, *refexp_str, refexp_str_buf[2048];
-  bool retcode = false;
-
-  user_agent_str = (char *)ats_free_null(user_agent_str);
-  user_agent_str_size = 0;
-  stype = STRTYPE_UNKNOWN;
-  if (regx_valid) {
-    pcre_free(regx);
-    regx_valid = false;
-  }
-  if (errmsgbuf && errmsgbuf_size > 0)
-    errmsgbuf[0] = 0;
-
-
-  if (_refexp_str && *_refexp_str) {
-    ink_strlcpy(refexp_str_buf, _refexp_str, sizeof(refexp_str_buf));
-    refexp_str = refexp_str_buf;
-
-    Debug("http_aeua", "[HttpUserAgent_RegxEntry::create] - \"%s\"", refexp_str);
-    while (*refexp_str && (*refexp_str == ' ' || *refexp_str == '\t'))
-      refexp_str++;
-    if (*refexp_str == '.') {
-      for (c = refexp_str; *refexp_str && *refexp_str != ' ' && *refexp_str != '\t'; refexp_str++);
-      while (*refexp_str && (*refexp_str == ' ' || *refexp_str == '\t'))
-        *refexp_str++ = 0;
-      if (*refexp_str) {
-        if (!strcasecmp(c, ".substring") || !strcasecmp(c, ".string"))
-          stype = STRTYPE_SUBSTR_CASE;
-        else if (!strcasecmp(c, ".substring_ncase") || !strcasecmp(c, ".string_ncase"))
-          stype = STRTYPE_SUBSTR_NCASE;
-        else if (!strcasecmp(c, ".regexp") || !strcasecmp(c, ".regex"))
-          stype = STRTYPE_REGEXP;
-        else
-          return store_error_message(errmsgbuf, errmsgbuf_size, "Unknown string type \"%s\"", c);
-      } else
-        return store_error_message(errmsgbuf, errmsgbuf_size, "Empty string with \"%s\" string type", c);
-    } else
-      return store_error_message(errmsgbuf, errmsgbuf_size, "Incorrect string type - must start with '.'");
-
-    user_agent_str = ats_strdup(refexp_str);
-    retcode = true;
-    if (stype == STRTYPE_REGEXP) {
-      const char* error;
-      int erroffset;
-
-      regx = pcre_compile((const char *) user_agent_str, PCRE_CASELESS, &error, &erroffset, NULL);
-      if (regx == NULL) {
-        if (errmsgbuf && (errmsgbuf_size - 1) > 0)
-          ink_strlcpy(errmsgbuf, error, errmsgbuf_size);
-        user_agent_str = (char *)ats_free_null(user_agent_str);
-        retcode = false;
-      } else
-        regx_valid = true;
-    }
-    user_agent_str_size = user_agent_str ? strlen(user_agent_str) : 0;
-  }
-  return retcode;
 }
 
 ////////////////////////////////////////////////////////////////

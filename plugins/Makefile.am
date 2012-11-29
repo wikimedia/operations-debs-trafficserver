@@ -15,3 +15,13 @@
 #  limitations under the License.
 
 SUBDIRS = conf_remap regex_remap header_filter stats_over_http
+
+if BUILD_EXPERIMENTAL_PLUGINS
+SUBDIRS += \
+ experimental/lua \
+ experimental/esi \
+ experimental/rfc5861 \
+ experimental/tcp_info \
+ experimental/custom_redirect \
+ experimental/header_rewrite
+endif

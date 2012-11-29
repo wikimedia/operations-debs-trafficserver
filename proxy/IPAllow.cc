@@ -121,7 +121,7 @@ IpAllow::InitInstance() {
   // Should not have been initialized before
   ink_assert(_instance == NULL);
 
-  ALL_METHOD_MASK = ~(~0 << HTTP_WKSIDX_METHODS_CNT);
+  ALL_METHOD_MASK = ~0;
 
   ip_reconfig_mutex = new_ProxyMutex();
 
@@ -135,7 +135,7 @@ void
 IpAllow::ReloadInstance() {
   self *new_table;
 
-  Debug("ip_allow", "ip_allow.config updated, reloading");
+  Debug("ip-allow", "ip_allow.config updated, reloading");
 
   // Schedule the current table for deallocation in the future
   eventProcessor.schedule_in(NEW(new IPAllow_FreerContinuation(_instance)), IP_ALLOW_TIMEOUT, ET_CACHE);
@@ -143,7 +143,7 @@ IpAllow::ReloadInstance() {
   new_table = NEW(new self("proxy.config.cache.ip_allow.filename", "IpAllow", "ip_allow"));
   new_table->BuildTable();
 
-  ink_atomic_swap_ptr(_instance, new_table);
+  ink_atomic_swap(&_instance, new_table);
 }
 
 //

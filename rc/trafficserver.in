@@ -15,6 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# chkconfig: - 90 10
+# description: Apache Traffic Server is a fast, scalable and extensible  \
+#             HTTP/1.1 compliant caching proxy server.
+# processname: traffic_cop traffic_manager traffic_server
+# config: /etc/trafficserver
+# config: /etc/sysconfig/trafficserver
+# pidfile: /var/run/trafficserver/cop.pid
+#
 # Template from /etc/init.d/skeleton on Ubuntu
 #
 ### BEGIN INIT INFO
@@ -134,6 +142,9 @@ fi
 
 # Ubuntu: Read configuration variable file if it is present
 test -r /etc/default/$NAME && . /etc/default/$NAME
+
+# RHEL/Fedora: Read configuration variable file if it is present
+test -r /etc/sysconfig/$NAME && . /etc/sysconfig/$NAME
 
 # Ubuntu: Load the VERBOSE setting and other rcS variables
 test -f /etc/default/rcS && . /etc/default/rcS

@@ -1,4 +1,4 @@
-Traffic Server 3.2 STATUS:                                              -*-text-*-
+Traffic Server 3.3 STATUS:                                              -*-text-*-
 Last modified at [$Date$]
 
 The current version of this file can be found at:
@@ -10,8 +10,10 @@ Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
 
-    3.2.0           : Released on June 19, 2012
-    3.0.5           : Released on June 6, 2012
+    3.3.0           : Released on X Y, 2012
+
+    3.2.0           : Released on June <x>, 2012
+    3.0.5           : Released on June 06, 2012
     3.0.4           : Released on March 21, 2012
     3.0.3           : Released on Februrary 13, 201
     3.0.2           : Released on December 07, 2011
@@ -37,25 +39,6 @@ RELEASE SHOWSTOPPERS:
 A list of all bugs open for the next development release can be found at
 
   http://s.apache.org/ts-3.3.0
-
-
-PATCHES PROPOSED TO BACKPORT FROM TRUNK:
-  [ New proposals should be added at the end of the list ]
-
-  *) Don't link libreadline with all binaries and plugins.
-   Trunk patch: 50c624f20a3ff09e5c62dc2b426c27fee3fd244c
-   Jira: https://issues.apache.org/jira/browse/TS-1296
-   +1: zwoop
-
-  *) Don't link libz / liblmza with all binaries and plugins.
-   Trunk patch: 726cf61c203d5a90d7feeab5637a04cd803343da
-   Jira: https://issues.apache.org/jira/browse/TS-1297
-   +1: zwoop
- 
-  *) Don't assume root privileges during make install
-   Trunk patch: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=commit;h=a862e283734c86d46a57624f9a05f09cfbbee175
-   Jira: https://issues.apache.org/jira/browse/TS-1295
-
 
 
 RELEASE PROCESS

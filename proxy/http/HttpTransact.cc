@@ -5240,7 +5240,7 @@ HttpTransact::RequestError_t HttpTransact::check_request_validity(State* s, HTTP
     return MISSING_HOST_FIELD;
   }
 
-  if (hostname_len >= MAXDNAME) {
+  if (hostname_len >= MAXDNAME || hostname_len <= 0) {
     return BAD_HTTP_HEADER_SYNTAX;
   }
 
@@ -7219,7 +7219,7 @@ HttpTransact::calculate_document_freshness_limit(State *s, HTTPHdr *response, ti
 
       *heuristic = true;
       if (date_set && last_modified_set) {
-        float f = s->txn_conf->cache_heuristic_lm_factor;
+        MgmtFloat f = s->txn_conf->cache_heuristic_lm_factor;
         ink_debug_assert((f >= 0.0) && (f <= 1.0));
         ink_time_t time_since_last_modify = date_value - last_modified_value;
         int h_freshness = (int) (time_since_last_modify * f);
@@ -7871,7 +7871,7 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
       HttpTransactHeaders::copy_header_fields(base_response, outgoing_response, s->txn_conf->fwd_proxy_auth_to_parent);
       HttpTransactHeaders::process_connection_headers(base_response, outgoing_response);
 
-      if (s->http_config_param->insert_age_in_response)
+      if (s->txn_conf->insert_age_in_response)
         HttpTransactHeaders::insert_time_and_age_headers_in_response(s->request_sent_time, s->response_received_time,
                                                                      s->current.now, base_response, outgoing_response);
 
@@ -8345,13 +8345,8 @@ ink_cluster_time(void)
   old = global_time;
 
   while (local_time > global_time) {
-    if (sizeof(ink_time_t) == 4) {
-      if (ink_atomic_cas((int32_t *) & global_time, *((int32_t *) & old), *((int32_t *) & local_time)))
-        break;
-    } else if (sizeof(ink_time_t) == 8) {
-      if (ink_atomic_cas64((int64_t *) & global_time, *((int64_t *) & old), *((int64_t *) & local_time)))
-        break;
-    }
+    if (ink_atomic_cas(&global_time, old, local_time))
+      break;
     old = global_time;
   }
 

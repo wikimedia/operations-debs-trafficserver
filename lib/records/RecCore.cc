@@ -97,7 +97,7 @@ link_int(const char *name, RecDataT data_type, RecData data, void *cookie)
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
   RecInt *rec_int = (RecInt *) cookie;
-  ink_atomic_swap64(rec_int, data.rec_int);
+  ink_atomic_swap(rec_int, data.rec_int);
   return REC_ERR_OKAY;
 }
 
@@ -134,7 +134,7 @@ link_counter(const char *name, RecDataT data_type, RecData data, void *cookie)
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
   RecCounter *rec_counter = (RecCounter *) cookie;
-  ink_atomic_swap64(rec_counter, data.rec_counter);
+  ink_atomic_swap(rec_counter, data.rec_counter);
   return REC_ERR_OKAY;
 }
 
@@ -148,7 +148,7 @@ link_byte(const char *name, RecDataT data_type, RecData data, void *cookie)
   RecByte *rec_byte = (RecByte *) cookie;
   RecByte byte = static_cast<RecByte>(data.rec_int);
 
-  ink_atomic_swap8(rec_byte, byte);
+  ink_atomic_swap(rec_byte, byte);
   return REC_ERR_OKAY;
 }
 
@@ -188,7 +188,7 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   }
 
   // set our diags
-  ink_atomic_swap_ptr(&g_diags, _diags);
+  ink_atomic_swap(&g_diags, _diags);
 
   g_records_tree = new RecTree(NULL);
   g_num_records = 0;
@@ -251,7 +251,7 @@ RecSetDiags(Diags * _diags)
 {
   // Warning! It's very dangerous to change diags on the fly!  This
   // function only exists so that we can boot-strap TM on startup.
-  ink_atomic_swap_ptr(&g_diags, _diags);
+  ink_atomic_swap(&g_diags, _diags);
   return REC_ERR_OKAY;
 }
 
@@ -939,7 +939,7 @@ int
 RecGetRecordPrefix_Xmalloc(char *prefix, char **buf, int *buf_len)
 {
   int num_records = g_num_records;
-  int result_size = num_records * 128;  /* estimate buffer size */
+  int result_size = num_records * 256;  /* estimate buffer size */
   int num_matched = 0;
   char *result = NULL;
 
@@ -947,32 +947,46 @@ RecGetRecordPrefix_Xmalloc(char *prefix, char **buf, int *buf_len)
   memset(result, 0, result_size * sizeof(char));
 
   int i;
-  for (i = 0; i < num_records; i++) {
+  int total_bytes_written = 0;
+  int error = 0;
+  for (i = 0; !error && i < num_records; i++) {
+    int bytes_written = 0;
+    int bytes_avail = result_size - total_bytes_written;
     RecRecord *r = &(g_records[i]);
     if (strncmp(prefix, r->name, strlen(prefix)) == 0) {
       rec_mutex_acquire(&(r->lock));
       switch (r->data_type) {
       case RECD_INT:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
         break;
       case RECD_FLOAT:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%f\r\n", r->name, r->data.rec_float);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%f\r\n", r->name, r->data.rec_float);
         break;
       case RECD_STRING:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%s\r\n", r->name, r->data.rec_string ? r->data.rec_string : "NULL");
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%s\r\n", r->name, r->data.rec_string ? r->data.rec_string : "NULL");
         break;
       case RECD_COUNTER:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
         break;
       default:
         break;
       }
+
+      if(bytes_written <= 0 || bytes_written > bytes_avail) {
+        error = 1;
+      } else
+        total_bytes_written += bytes_written;
+
       rec_mutex_release(&(r->lock));
     }
+  }
+
+  if(error || total_bytes_written == result_size) {
+    RecLog(DL_Error, "Stat system was unable to fully generate stat list, size exceeded limit of %d", result_size);
   }
 
   *buf = result;

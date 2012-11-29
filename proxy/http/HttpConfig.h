@@ -404,6 +404,7 @@ struct OverridableHttpConfigParams {
        negative_caching_enabled(0), cache_when_to_revalidate(0),
        keep_alive_enabled_in(0), keep_alive_enabled_out(0), keep_alive_post_out(0),
        share_server_sessions(0), fwd_proxy_auth_to_parent(0),
+       insert_age_in_response(1),
        anonymize_remove_from(0), anonymize_remove_referer(0), anonymize_remove_user_agent(0),
        anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
        proxy_response_server_enabled(0), insert_squid_x_forwarded_for(0),
@@ -429,10 +430,12 @@ struct OverridableHttpConfigParams {
        down_server_timeout(0), client_abort_threshold(0),
        freshness_fuzz_time(0), freshness_fuzz_min_time(0),
        max_cache_open_read_retries(0), cache_open_read_retry_time(0),
+       background_fill_active_timeout(0),
 
        // Strings / floats must come last
        proxy_response_server_string(NULL), proxy_response_server_string_len(0),
-       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0)
+       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0),
+       background_fill_threshold(0.5)
   { }
 
   // A few rules here:
@@ -456,6 +459,8 @@ struct OverridableHttpConfigParams {
 
   MgmtByte share_server_sessions;
   MgmtByte fwd_proxy_auth_to_parent;
+
+  MgmtByte insert_age_in_response;
 
   ///////////////////////////////////////////////////////////////////
   // Privacy: fields which are removed from the user agent request //
@@ -557,6 +562,8 @@ struct OverridableHttpConfigParams {
   MgmtInt max_cache_open_read_retries;
   MgmtInt cache_open_read_retry_time;   // time is in mseconds
 
+  MgmtInt background_fill_active_timeout;
+
   // IMPORTANT: Here comes all strings / floats configs.
 
   ///////////////////////////////////////////////////////////////////
@@ -565,8 +572,9 @@ struct OverridableHttpConfigParams {
   char *proxy_response_server_string; // This does not get free'd by us!
   size_t proxy_response_server_string_len; // Updated when server_string is set.
 
-  float cache_heuristic_lm_factor;
-  float freshness_fuzz_prob;
+  MgmtFloat cache_heuristic_lm_factor;
+  MgmtFloat freshness_fuzz_prob;
+  MgmtFloat background_fill_threshold;
 };
 
 
@@ -646,8 +654,6 @@ public:
   MgmtInt user_agent_pipeline;
   MgmtInt transaction_active_timeout_in;
   MgmtInt accept_no_activity_timeout;
-  MgmtInt background_fill_active_timeout;
-  MgmtFloat background_fill_threshold;
 
   ////////////////////////////////////
   // origin server connect attempts //
@@ -670,7 +676,6 @@ public:
   /////////////////////
   // Benchmark hacks //
   /////////////////////
-  MgmtByte insert_age_in_response;
   MgmtByte avoid_content_spoofing;
   MgmtByte enable_http_stats;
 
@@ -917,15 +922,12 @@ HttpConfigParams::HttpConfigParams()
     user_agent_pipeline(0),
     transaction_active_timeout_in(0),
     accept_no_activity_timeout(0),
-    background_fill_active_timeout(0),
-    background_fill_threshold(0.0),
     parent_connect_attempts(0),
     per_parent_connect_attempts(0),
     parent_connect_timeout(0),
     anonymize_other_header_list(NULL),
     global_user_agent_header(NULL),
     global_user_agent_header_size(0),
-    insert_age_in_response(1),
     avoid_content_spoofing(1),
     enable_http_stats(1),
     icp_enabled(0),
