@@ -11,8 +11,10 @@ iocore/fastio/inkfio/inkfio.conf
 **/*.lai
 **/*.lo
 **/Makefile
+**/TODO
 .vimrc
 .gitignore
+**/.gitignore
 .git/
 .indent.pro
 aclocal.m4
@@ -98,3 +100,5 @@ lib/tsconfig/test-1.tsconfig
 rc/solaris.txt
 rc/trafficserver.service
 tools/http_load/
+plugins/experimental/stale_while_revalidate/stale_while_revalidate.conf
+plugins/experimental/tcp_info/tcp_info.config

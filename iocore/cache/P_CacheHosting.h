@@ -35,8 +35,8 @@ struct Cache;
 
 struct CacheHostRecord
 {
-  int Init(int typ);
-  int Init(matcher_line *line_info, int typ);
+  int Init(CacheType typ);
+  int Init(matcher_line *line_info, CacheType typ);
   void UpdateMatch(CacheHostResult *r, char *rd);
   void Print();
   ~CacheHostRecord()
@@ -46,7 +46,7 @@ struct CacheHostRecord
     ats_free(cp);
   }
 
-  int type;
+  CacheType type;
   Vol **vols;
   volatile int good_num_vols;
   volatile int num_vols;
@@ -56,7 +56,7 @@ struct CacheHostRecord
   int num_cachevols;
 
   CacheHostRecord():
-    type(0), vols(NULL), good_num_vols(0), num_vols(0),
+    type(CACHE_NONE_TYPE), vols(NULL), good_num_vols(0), num_vols(0),
     num_initialized(0), vol_hash_table(0), cp(NULL), num_cachevols(0)
   { }
 
@@ -77,7 +77,7 @@ struct CacheHostResult
 class CacheHostMatcher
 {
 public:
-  CacheHostMatcher(const char *name, const char *filename, int typ);
+  CacheHostMatcher(const char * name, CacheType typ);
   ~CacheHostMatcher();
 
   void Match(char *rdata, int rlen, CacheHostResult *result);
@@ -94,10 +94,8 @@ private:
   HostLookup *host_lookup;      // Data structure to do the lookups
   CacheHostRecord *data_array;  // array of all data items
   int array_len;                // the length of the arrays
-  int num_el;                   // the numbe of itmems in the tree
-  const char *matcher_name;     // Used for Debug/Warning/Error messages
-  const char *file_name;        // Used for Debug/Warning/Error messages
-  int type;
+  int num_el;                   // the number of itmems in the tree
+  CacheType type;
 };
 
 class CacheHostTable
@@ -105,7 +103,7 @@ class CacheHostTable
 public:
   // Parameter name must not be deallocated before this
   //  object is
-  CacheHostTable(Cache *c, int typ);
+  CacheHostTable(Cache *c, CacheType typ);
    ~CacheHostTable();
   int BuildTable();
   int BuildTableFromString(char *str);
@@ -122,7 +120,7 @@ public:
     IOCORE_RegisterConfigUpdateFunc("proxy.config.cache.hosting_filename", CacheHostTable::config_callback, (void *) p);
   }
 
-  int type;
+  CacheType type;
   Cache *cache;
   int m_numEntries;
   CacheHostRecord gen_host_rec;
@@ -161,7 +159,7 @@ struct CacheHostTableConfig: public Continuation
 struct ConfigVol
 {
   int number;
-  int scheme;
+  CacheType scheme;
   off_t size;
   bool in_percent;
   int percent;

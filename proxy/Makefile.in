@@ -62,12 +62,15 @@ EXTRA_PROGRAMS = test_xml_parser$(EXEEXT)
 @BUILD_TESTS_TRUE@    RegressionSM.cc \
 @BUILD_TESTS_TRUE@    TestHook.cc
 
-@BUILD_TESTS_TRUE@am__append_2 = RegressionSM.o
+@BUILD_LUA_SUPPORT_TRUE@am__append_2 = @LUA_LUAJIT_LDFLAGS@
+@BUILD_TESTS_TRUE@am__append_3 = RegressionSM.o
 subdir = proxy
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -95,8 +98,8 @@ am__v_at_0 = @
 libTrafficServerStandalone_a_AR = $(AR) $(ARFLAGS)
 libTrafficServerStandalone_a_LIBADD =
 am_libTrafficServerStandalone_a_OBJECTS = signals.$(OBJEXT) \
-	Error.$(OBJEXT) ProxyConfig.$(OBJEXT) EventName.$(OBJEXT) \
-	DiagsConfig.$(OBJEXT) StatPages.$(OBJEXT) StatSystem.$(OBJEXT) \
+	Error.$(OBJEXT) EventName.$(OBJEXT) DiagsConfig.$(OBJEXT) \
+	StatPages.$(OBJEXT) StatSystem.$(OBJEXT) \
 	AbstractBuffer.$(OBJEXT) Initialize.$(OBJEXT)
 libTrafficServerStandalone_a_OBJECTS =  \
 	$(am_libTrafficServerStandalone_a_OBJECTS)
@@ -139,10 +142,10 @@ am_traffic_sac_OBJECTS = sac.$(OBJEXT)
 traffic_sac_OBJECTS = $(am_traffic_sac_OBJECTS)
 traffic_sac_DEPENDENCIES = ICP.o ICPConfig.o ICPProcessor.o ICPStats.o \
 	IPAllow.o ParentSelection.o ControlBase.o ControlMatcher.o \
-	CacheControl.o StatSystem.o ReverseProxy.o ProxyConfig.o \
-	signals.o Error.o EventName.o DiagsConfig.o StatPages.o \
-	PluginVC.o AbstractBuffer.o Transform.o Prefetch.o Update.o \
-	Plugin.o PluginDB.o InkAPI.o FetchSM.o InkIOCoreAPI.o InkXml.o \
+	CacheControl.o StatSystem.o ReverseProxy.o signals.o Error.o \
+	EventName.o DiagsConfig.o StatPages.o PluginVC.o \
+	AbstractBuffer.o Transform.o Prefetch.o Update.o Plugin.o \
+	PluginDB.o InkAPI.o FetchSM.o InkIOCoreAPI.o InkXml.o \
 	http/libhttp.a http/remap/libhttp_remap.a \
 	congest/libCongestionControl.a logging/liblogging.a \
 	logging/liblogcollation.a hdrs/libhdrs.a \
@@ -159,40 +162,40 @@ traffic_sac_DEPENDENCIES = ICP.o ICPConfig.o ICPProcessor.o ICPStats.o \
 	$(top_builddir)/iocore/net/libinknet.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/records/librecprocess.a \
-	$(top_builddir)/lib/ts/libtsutil.la $(am__append_2)
+	$(top_builddir)/lib/ts/libtsutil.la $(am__append_3)
 traffic_sac_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(traffic_sac_LDFLAGS) $(LDFLAGS) -o $@
 am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
-	CacheControl.cc CacheControl.h ProxyConfig.cc ProxyConfig.h \
-	ControlBase.cc ControlBase.h ControlMatcher.cc \
-	ControlMatcher.h CoreUtils.cc CoreUtils.h DiagsConfig.cc \
-	DiagsConfig.h DynamicStats.h Error.cc Error.h EventName.cc \
-	HttpTransStats.h ICP.cc ICP.h ICPConfig.cc ICPevents.h \
-	ICPlog.h ICPProcessor.cc ICPProcessor.h ICPStats.cc InkAPI.cc \
-	FetchSM.cc InkAPIInternal.h InkIOCoreAPI.cc InkXml.cc InkXml.h \
-	IPAllow.cc IPAllow.h Main.cc Main.h ParentSelection.cc \
-	ParentSelection.h Plugin.cc Plugin.h PluginDB.cc PluginDB.h \
-	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h Raf.h \
-	ReverseProxy.cc ReverseProxy.h RniTransStats.h signals.cc \
-	signals.h SocksProxy.cc StatPages.cc StatPages.h StatSystem.cc \
-	StatSystem.h Transform.cc Transform.h TransformInternal.h \
-	Update.cc Update.h InkAPITest.cc RegressionSM.h \
-	RegressionSM.cc TestHook.cc
+	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
+	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
+	DiagsConfig.cc DiagsConfig.h DynamicStats.h Error.cc Error.h \
+	EventName.cc HttpTransStats.h ICP.cc ICP.h ICPConfig.cc \
+	ICPevents.h ICPlog.h ICPProcessor.cc ICPProcessor.h \
+	ICPStats.cc InkAPI.cc FetchSM.cc InkAPIInternal.h \
+	InkIOCoreAPI.cc InkXml.cc InkXml.h IPAllow.cc IPAllow.h \
+	Main.cc Main.h ParentSelection.cc ParentSelection.h Plugin.cc \
+	Plugin.h PluginDB.cc PluginDB.h PluginVC.cc PluginVC.h \
+	Prefetch.cc Prefetch.h Raf.h ReverseProxy.cc ReverseProxy.h \
+	RniTransStats.h signals.cc signals.h SocksProxy.cc \
+	StatPages.cc StatPages.h StatSystem.cc StatSystem.h \
+	Transform.cc Transform.h TransformInternal.h Update.cc \
+	Update.h InkAPITest.cc RegressionSM.h RegressionSM.cc \
+	TestHook.cc
 @BUILD_TESTS_TRUE@am__objects_1 = InkAPITest.$(OBJEXT) \
 @BUILD_TESTS_TRUE@	RegressionSM.$(OBJEXT) TestHook.$(OBJEXT)
 am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
-	CacheControl.$(OBJEXT) ProxyConfig.$(OBJEXT) \
-	ControlBase.$(OBJEXT) ControlMatcher.$(OBJEXT) \
-	CoreUtils.$(OBJEXT) DiagsConfig.$(OBJEXT) Error.$(OBJEXT) \
-	EventName.$(OBJEXT) ICP.$(OBJEXT) ICPConfig.$(OBJEXT) \
-	ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) InkAPI.$(OBJEXT) \
-	FetchSM.$(OBJEXT) InkIOCoreAPI.$(OBJEXT) InkXml.$(OBJEXT) \
-	IPAllow.$(OBJEXT) Main.$(OBJEXT) ParentSelection.$(OBJEXT) \
-	Plugin.$(OBJEXT) PluginDB.$(OBJEXT) PluginVC.$(OBJEXT) \
-	Prefetch.$(OBJEXT) ReverseProxy.$(OBJEXT) signals.$(OBJEXT) \
-	SocksProxy.$(OBJEXT) StatPages.$(OBJEXT) StatSystem.$(OBJEXT) \
-	Transform.$(OBJEXT) Update.$(OBJEXT) $(am__objects_1)
+	CacheControl.$(OBJEXT) ControlBase.$(OBJEXT) \
+	ControlMatcher.$(OBJEXT) CoreUtils.$(OBJEXT) \
+	DiagsConfig.$(OBJEXT) Error.$(OBJEXT) EventName.$(OBJEXT) \
+	ICP.$(OBJEXT) ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) \
+	ICPStats.$(OBJEXT) InkAPI.$(OBJEXT) FetchSM.$(OBJEXT) \
+	InkIOCoreAPI.$(OBJEXT) InkXml.$(OBJEXT) IPAllow.$(OBJEXT) \
+	Main.$(OBJEXT) ParentSelection.$(OBJEXT) Plugin.$(OBJEXT) \
+	PluginDB.$(OBJEXT) PluginVC.$(OBJEXT) Prefetch.$(OBJEXT) \
+	ReverseProxy.$(OBJEXT) signals.$(OBJEXT) SocksProxy.$(OBJEXT) \
+	StatPages.$(OBJEXT) StatSystem.$(OBJEXT) Transform.$(OBJEXT) \
+	Update.$(OBJEXT) $(am__objects_1)
 traffic_server_OBJECTS = $(am_traffic_server_OBJECTS)
 traffic_server_DEPENDENCIES = http/libhttp.a \
 	http/remap/libhttp_remap.a congest/libCongestionControl.a \
@@ -319,6 +322,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -392,6 +397,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -586,6 +592,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -606,16 +613,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -672,21 +682,22 @@ EXTRA_LIBRARIES = \
 @STATIC_LIBTS_TRUE@which_libts = $(top_builddir)/lib/ts/.libs/libtsutil.a
 EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
 traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
-	CacheControl.cc CacheControl.h ProxyConfig.cc ProxyConfig.h \
-	ControlBase.cc ControlBase.h ControlMatcher.cc \
-	ControlMatcher.h CoreUtils.cc CoreUtils.h DiagsConfig.cc \
-	DiagsConfig.h DynamicStats.h Error.cc Error.h EventName.cc \
-	HttpTransStats.h ICP.cc ICP.h ICPConfig.cc ICPevents.h \
-	ICPlog.h ICPProcessor.cc ICPProcessor.h ICPStats.cc InkAPI.cc \
-	FetchSM.cc InkAPIInternal.h InkIOCoreAPI.cc InkXml.cc InkXml.h \
-	IPAllow.cc IPAllow.h Main.cc Main.h ParentSelection.cc \
-	ParentSelection.h Plugin.cc Plugin.h PluginDB.cc PluginDB.h \
-	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h Raf.h \
-	ReverseProxy.cc ReverseProxy.h RniTransStats.h signals.cc \
-	signals.h SocksProxy.cc StatPages.cc StatPages.h StatSystem.cc \
-	StatSystem.h Transform.cc Transform.h TransformInternal.h \
-	Update.cc Update.h $(am__append_1)
-traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
+	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
+	DiagsConfig.cc DiagsConfig.h DynamicStats.h Error.cc Error.h \
+	EventName.cc HttpTransStats.h ICP.cc ICP.h ICPConfig.cc \
+	ICPevents.h ICPlog.h ICPProcessor.cc ICPProcessor.h \
+	ICPStats.cc InkAPI.cc FetchSM.cc InkAPIInternal.h \
+	InkIOCoreAPI.cc InkXml.cc InkXml.h IPAllow.cc IPAllow.h \
+	Main.cc Main.h ParentSelection.cc ParentSelection.h Plugin.cc \
+	Plugin.h PluginDB.cc PluginDB.h PluginVC.cc PluginVC.h \
+	Prefetch.cc Prefetch.h Raf.h ReverseProxy.cc ReverseProxy.h \
+	RniTransStats.h signals.cc signals.h SocksProxy.cc \
+	StatPages.cc StatPages.h StatSystem.cc StatSystem.h \
+	Transform.cc Transform.h TransformInternal.h Update.cc \
+	Update.h $(am__append_1)
+traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
+	$(am__append_2)
 traffic_server_LDADD = \
   http/libhttp.a \
   http/remap/libhttp_remap.a \
@@ -756,10 +767,10 @@ traffic_sac_SOURCES = sac.cc
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = ICP.o ICPConfig.o ICPProcessor.o ICPStats.o \
 	IPAllow.o ParentSelection.o ControlBase.o ControlMatcher.o \
-	CacheControl.o StatSystem.o ReverseProxy.o ProxyConfig.o \
-	signals.o Error.o EventName.o DiagsConfig.o StatPages.o \
-	PluginVC.o AbstractBuffer.o Transform.o Prefetch.o Update.o \
-	Plugin.o PluginDB.o InkAPI.o FetchSM.o InkIOCoreAPI.o InkXml.o \
+	CacheControl.o StatSystem.o ReverseProxy.o signals.o Error.o \
+	EventName.o DiagsConfig.o StatPages.o PluginVC.o \
+	AbstractBuffer.o Transform.o Prefetch.o Update.o Plugin.o \
+	PluginDB.o InkAPI.o FetchSM.o InkIOCoreAPI.o InkXml.o \
 	http/libhttp.a http/remap/libhttp_remap.a \
 	congest/libCongestionControl.a logging/liblogging.a \
 	logging/liblogcollation.a hdrs/libhdrs.a \
@@ -780,11 +791,10 @@ traffic_sac_LDADD = ICP.o ICPConfig.o ICPProcessor.o ICPStats.o \
 	@LIBNSL@ @LIBRESOLV@ @LIBRT@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
 	@LIBDL@ @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ \
 	-lm @LIBPROFILER@ @LIBZ@ @LIBLZMA@ @LIBEXECINFO@ \
-	$(am__append_2)
+	$(am__append_3)
 libTrafficServerStandalone_a_SOURCES = \
   signals.cc \
   Error.cc \
-  ProxyConfig.cc \
   EventName.cc \
   DiagsConfig.cc \
   StatPages.cc \
@@ -934,7 +944,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PluginDB.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PluginVC.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Prefetch.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ProxyConfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionSM.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ReverseProxy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SocksProxy.Po@am__quote@

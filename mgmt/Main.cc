@@ -57,6 +57,7 @@
 #if TS_USE_POSIX_CAP
 #include <sys/capability.h>
 #endif
+#include <grp.h>
 
 #define FD_THROTTLE_HEADROOM (128 + 64) // TODO: consolidate with THROTTLE_FD_HEADROOM
 
@@ -1101,13 +1102,13 @@ fileUpdated(char *fname)
     lmgmt->signalFileChange("proxy.config.log.xml_config_file");
 
   } else if (strcmp(fname, "splitdns.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] splitdns.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
 
   } else if (strcmp(fname, "plugin.config") == 0) {
     mgmt_log(stderr, "[fileUpdated] plugin.config file has been modified\n");
 
   } else if (strcmp(fname, "ssl_multicert.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] ssl_multicert.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
 
   } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
     lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
@@ -1119,6 +1120,8 @@ fileUpdated(char *fname)
     mgmt_log(stderr, "[fileUpdated] stats.config.xml file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
+  } else if (strcmp(fname, "prefetch.config") == 0) {
+    lmgmt->signalFileChange("proxy.config.prefetch.config_file");
   } else {
     mgmt_elog(stderr, "[fileUpdated] Unknown config file updated '%s'\n", fname);
 
@@ -1234,6 +1237,11 @@ runAsUser(char *userName)
     if (uid != result->pw_uid && euid != result->pw_uid) {
       mgmt_elog(stderr, "[runAsUser] Fatal Error: Failed to switch to user %s\n", userName);
       _exit(1);
+    }
+
+    // setup supplementary groups if it is not set.
+    if (0 == getgroups(0, NULL)) {
+      initgroups(&userName[0],result->pw_gid);
     }
 
 #if TS_USE_POSIX_CAP

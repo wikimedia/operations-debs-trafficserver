@@ -52,7 +52,9 @@ check_PROGRAMS = docnode_test$(EXEEXT) parser_test$(EXEEXT) \
 subdir = plugins/experimental/esi
 DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -182,6 +184,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -255,6 +259,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -449,6 +454,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -469,16 +475,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -533,15 +542,15 @@ esi_la_SOURCES = \
 esi_la_LIBADD = libesi.la
 esi_la_LDFLAGS = -module -avoid-version -shared
 docnode_test_SOURCES = test/docnode_test.cc test/print_funcs.cc
-docnode_test_LDADD = libesi.la
+docnode_test_LDADD = libesi.la  -ldl -lz -lpthread
 parser_test_SOURCES = test/parser_test.cc test/print_funcs.cc
-parser_test_LDADD = libesi.la
+parser_test_LDADD = libesi.la  -ldl -lz -lpthread
 processor_test_SOURCES = test/processor_test.cc test/HandlerMap.cc test/StubIncludeHandler.cc test/print_funcs.cc
-processor_test_LDADD = libesi.la
+processor_test_LDADD = libesi.la  -ldl -lz -lpthread
 utils_test_SOURCES = test/utils_test.cc test/print_funcs.cc
-utils_test_LDADD = libesi.la
+utils_test_LDADD = libesi.la  -ldl -lz -lpthread
 vars_test_SOURCES = test/vars_test.cc test/print_funcs.cc
-vars_test_LDADD = libesi.la
+vars_test_LDADD = libesi.la -ldl -lz -lpthread
 TESTS = $(check_PROGRAMS)
 all: all-am
 
@@ -1217,7 +1226,7 @@ uninstall-am: uninstall-libLTLIBRARIES uninstall-pkglibLTLIBRARIES
 
 
 test:: $(TESTS)
-	for f in $(TESTS) ; do $$f ; done
+	for f in $(TESTS) ; do ./$$f ; done
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -127,18 +127,21 @@ FetchSM::process_fetch_read(int event)
   Debug(DEBUG_TAG, "[%s] I am here read", __FUNCTION__);
   int64_t bytes;
   int bytes_used;
-  int64_t actual_bytes_copied = 0;
+  int64_t total_bytes_copied = 0;
 
   switch (event) {
   case TS_EVENT_VCONN_READ_READY:
     bytes = resp_reader->read_avail();
-    Debug(DEBUG_TAG, "[%s] number of bytes in read ready %"PRId64"", __FUNCTION__, bytes);
-    while (actual_bytes_copied < bytes) {
+    Debug(DEBUG_TAG, "[%s] number of bytes in read ready %" PRId64"", __FUNCTION__, bytes);
+    while (total_bytes_copied < bytes) {
+       int64_t actual_bytes_copied;
        actual_bytes_copied = response_buffer->write(resp_reader, bytes, 0);
-      resp_reader->consume(actual_bytes_copied);
-      bytes = resp_reader->read_avail();
+       if (actual_bytes_copied <= 0) {
+           break;
+       }
+       total_bytes_copied += actual_bytes_copied;
     }
-    resp_reader->consume(bytes);
+    resp_reader->consume(total_bytes_copied);
     if (header_done == 0 && callback_options == AFTER_HEADER) {
       if (client_response_hdr.parse_resp(&http_parser, response_reader, &bytes_used, 0) == PARSE_DONE) {
         //InvokePlugin( TS_EVENT_INTERNAL_60201, (void *) &client_response_hdr);
@@ -154,11 +157,11 @@ FetchSM::process_fetch_read(int event)
     bytes = response_reader->read_avail();
 
     get_info_from_buffer(response_reader);
-    Debug(DEBUG_TAG, "[%s] number of bytes %"PRId64"", __FUNCTION__, bytes);
+    Debug(DEBUG_TAG, "[%s] number of bytes %" PRId64"", __FUNCTION__, bytes);
     if(client_response!=NULL)
       client_response[bytes] = '\0';
       //client_response[bytes + _headers.size()] = '\0';
-    Debug(DEBUG_TAG, "[%s] Completed data fetch of size %"PRId64", notifying caller", __FUNCTION__, bytes);
+    Debug(DEBUG_TAG, "[%s] Completed data fetch of size %" PRId64", notifying caller", __FUNCTION__, bytes);
     //InvokePlugin( TS_EVENT_INTERNAL_60200, (void *) client_response);
    client_bytes = bytes;
     //InvokePlugin( TS_EVENT_INTERNAL_60200, (void *) this);
@@ -188,6 +191,7 @@ FetchSM::process_fetch_write(int event)
     req_finished = true;
     break;
   case TS_EVENT_VCONN_WRITE_READY:
+    break; //just ignore this event 
   case TS_EVENT_ERROR:
     //InvokePlugin( TS_EVENT_ERROR, NULL);
       InvokePlugin( callback_events.failure_event_id, NULL);

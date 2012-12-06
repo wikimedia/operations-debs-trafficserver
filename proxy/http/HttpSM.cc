@@ -1623,7 +1623,7 @@ HttpSM::state_http_server_open(int event, void *data)
     // the connection count.
     if (t_state.txn_conf->origin_max_connections > 0 ||
         t_state.http_config_param->origin_min_keep_alive_connections > 0) {
-      DebugSM("http_ss", "[%" PRId64 "] max number of connections: %"PRIu64, sm_id, t_state.txn_conf->origin_max_connections);
+      DebugSM("http_ss", "[%" PRId64 "] max number of connections: %" PRIu64, sm_id, t_state.txn_conf->origin_max_connections);
       session->enable_origin_connection_limiting = true;
     }
     /*UnixNetVConnection * vc = (UnixNetVConnection*)(ua_session->client_vc);
@@ -2700,7 +2700,7 @@ HttpSM::is_http_server_eos_truncation(HttpTunnelProducer * p)
   int64_t cl = t_state.hdr_info.server_response.get_content_length();
 
   if (cl != UNDEFINED_COUNT && cl > server_response_body_bytes) {
-    DebugSM("http", "[%" PRId64 "] server eos after %"PRId64".  Expected %"PRId64, sm_id, cl, server_response_body_bytes);
+    DebugSM("http", "[%" PRId64 "] server eos after %" PRId64".  Expected %" PRId64, sm_id, cl, server_response_body_bytes);
     return true;
   } else {
     return false;
@@ -4037,7 +4037,7 @@ HttpSM::calculate_output_cl(int64_t content_length, int64_t num_chars)
     t_state.range_output_cl += boundary_size + 2;
   }
 
-  Debug("http_range", "Pre-calculated Content-Length for Range response is %"PRId64, t_state.range_output_cl);
+  Debug("http_range", "Pre-calculated Content-Length for Range response is %" PRId64, t_state.range_output_cl);
 }
 
 void
@@ -4183,7 +4183,7 @@ HttpSM::do_cache_delete_all_alts(Continuation * cont)
 
   Action *cache_action_handle = NULL;
 
-  cache_action_handle = cacheProcessor.remove(cont, t_state.cache_info.lookup_url);
+  cache_action_handle = cacheProcessor.remove(cont, t_state.cache_info.lookup_url, t_state.cache_control.cluster_cache_local);
   if (cont != NULL) {
     if (cache_action_handle != ACTION_RESULT_DONE) {
       ink_assert(!pending_action);
@@ -4375,7 +4375,7 @@ HttpSM::do_http_server_open(bool raw)
 
   if (raw == false && t_state.txn_conf->share_server_sessions &&
       (t_state.txn_conf->keep_alive_post_out == 1 || t_state.hdr_info.request_content_length == 0) &&
-      ua_session != NULL) {
+       !is_private() && ua_session != NULL) {
     shared_result = httpSessionManager.acquire_session(this,    // state machine
                                                        &t_state.current.server->addr.sa,    // ip + port
                                                        t_state.current.server->name,    // hostname
@@ -4402,7 +4402,7 @@ HttpSM::do_http_server_open(bool raw)
   // This bug was due to when share_server_sessions is set to 0
   // and we have keep-alive, we are trying to open a new server session
   // when we already have an attached server session.
-  else if ((!t_state.txn_conf->share_server_sessions) && (ua_session != NULL)) {
+  else if ((!t_state.txn_conf->share_server_sessions || is_private()) && (ua_session != NULL)) {
     HttpServerSession *existing_ss = ua_session->get_server_session();
 
     if (existing_ss) {
@@ -5441,23 +5441,15 @@ HttpSM::setup_server_send_request()
 
   // the plugin decided to append a message to the request
   if (api_set) {
-    DebugSM("http", "[%" PRId64 "] appending msg of %"PRId64" bytes to request %s", sm_id, msg_len, t_state.internal_msg_buffer);
+    DebugSM("http", "[%" PRId64 "] appending msg of %" PRId64" bytes to request %s", sm_id, msg_len, t_state.internal_msg_buffer);
     hdr_length += server_entry->write_buffer->write(t_state.internal_msg_buffer, msg_len);
     server_request_body_bytes = msg_len;
   }
-  // If we are sending authorizations headers, mark the connection
-  //  private
-  /*if (t_state.hdr_info.server_request.presence(MIME_PRESENCE_AUTHORIZATION | MIME_PRESENCE_PROXY_AUTHORIZATION)) {
-    server_session->private_session = true;
-    if (t_state.hdr_info.server_request.presence(MIME_PRESENCE_AUTHORIZATION)) {
-      // we need this variable for the session based Authentication
-      // like NTLM.
-      server_session->www_auth_content = true;
-    }
-  }*/
-  /*if (server_session->www_auth_content && t_state.www_auth_content == HttpTransact::CACHE_AUTH_NONE) {
-    t_state.www_auth_content = HttpTransact::CACHE_AUTH_TRUE;
-  }*/
+  // If we are sending authorizations headers, mark the connection private
+  if (t_state.hdr_info.server_request.presence(MIME_PRESENCE_AUTHORIZATION | MIME_PRESENCE_PROXY_AUTHORIZATION
+					       | MIME_PRESENCE_WWW_AUTHENTICATE)) {
+      server_session->private_session = true;
+  }
   milestones.server_begin_write = ink_get_hrtime();
   server_entry->write_vio = server_entry->vc->do_io_write(this, hdr_length, buf_start);
 }
@@ -5574,6 +5566,7 @@ HttpSM::setup_cache_read_transfer()
   // w/o providing a Content-Length header
   if ( t_state.client_info.receive_chunked_response ) {
     tunnel.set_producer_chunking_action(p, client_response_hdr_bytes, TCA_CHUNK_CONTENT);
+    tunnel.set_producer_chunking_size(p, t_state.txn_conf->http_chunking_size);
   }
   ua_entry->in_tunnel = true;
   cache_sm.cache_read_vc = NULL;
@@ -5942,6 +5935,7 @@ HttpSM::setup_transfer_from_transform()
 
   if ( t_state.client_info.receive_chunked_response ) {
     tunnel.set_producer_chunking_action(p, client_response_hdr_bytes, TCA_CHUNK_CONTENT);
+    tunnel.set_producer_chunking_size(p, t_state.txn_conf->http_chunking_size);
   }
 
   return p;
@@ -6006,6 +6000,7 @@ HttpSM::setup_server_transfer_to_cache_only()
                                               "http server");
 
   tunnel.set_producer_chunking_action(p, 0, action);
+  tunnel.set_producer_chunking_size(p, t_state.txn_conf->http_chunking_size);
 
   setup_cache_write_transfer(&cache_sm, server_entry->vc, &t_state.cache_info.object_store, 0, "cache write");
 
@@ -6094,6 +6089,7 @@ HttpSM::setup_server_transfer()
      }
    */
   tunnel.set_producer_chunking_action(p, client_response_hdr_bytes, action);
+  tunnel.set_producer_chunking_size(p, t_state.txn_conf->http_chunking_size);
 }
 
 void
@@ -6693,17 +6689,28 @@ HttpSM::set_next_state()
         break;
       } else  if (t_state.http_config_param->use_client_target_addr
         && !t_state.url_remap_success
+        && t_state.parent_result.r != PARENT_SPECIFIED
         && t_state.client_info.is_transparent
         && ats_is_ip(addr = t_state.state_machine->ua_session->get_netvc()->get_local_addr())
       ) {
         ip_text_buffer ipb;
-        /* If the connection is client side transparent and the URL
-           was not remapped, we can use the client destination IP
-           address instead of doing a DNS lookup. This is controlled
-           by the 'use_client_target_addr' configuration parameter.
-        */
+        /* If the connection is client side transparent and the URL was not
+         * remapped/directed to parent proxy, we can use the client destination
+         * IP address instead of doing a DNS lookup. This is controlled by the
+         * 'use_client_target_addr' configuration parameter.
+         */
         DebugSM("dns", "[HttpTransact::HandleRequest] Skipping DNS lookup for client supplied target %s.\n", ats_ip_ntop(addr, ipb, sizeof(ipb)));
         ats_ip_copy(t_state.host_db_info.ip(), addr);
+        /* Since we won't know the server HTTP version (no hostdb lookup), we assume it matches the
+         * client request version. Seems to be the most correct thing to do in the transparent use-case.
+         */
+        if (t_state.hdr_info.client_request.version_get() == HTTPVersion(0, 9))
+          t_state.host_db_info.app.http_data.http_version =  HostDBApplicationInfo::HTTP_VERSION_09;
+        else if (t_state.hdr_info.client_request.version_get() == HTTPVersion(1, 0))
+          t_state.host_db_info.app.http_data.http_version =  HostDBApplicationInfo::HTTP_VERSION_10;
+        else
+          t_state.host_db_info.app.http_data.http_version =  HostDBApplicationInfo::HTTP_VERSION_11;
+
         t_state.dns_info.lookup_success = true;
         call_transact_and_set_next_state(NULL);
         break;
@@ -7286,3 +7293,17 @@ HttpSM::set_server_session_private(bool private_session)
   return false;
 }
 
+inline bool
+HttpSM::is_private()
+{
+    bool res = false;
+    if (server_session) {
+        res = server_session->private_session;
+    } else if (ua_session) {
+        HttpServerSession * ss = ua_session->get_server_session();
+        if (ss) {
+            res = ss->private_session;
+        }
+    }
+    return res;
+}

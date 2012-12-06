@@ -1,14 +1,69 @@
-What this plugin does
+What this plugin does:
+
 =====================
+this plugin gzips or deflates or deflates responses, whichever is applicable
+it can compress origin respones as well as cached responses
 
-in spite of its name, it compresses responses to the raw deflate format.
-it also normalizes the accept-encoding header from user agent requests 
-to either deflate or nothing. it compresses responses from origins only,
-though it can be modified easily to also compress contents from cache.
+installation:
+make && sudo make install
 
-Major issues
-============
-- there is an issue with *some* origins that send connection:close. 
-  the plugin will not execute in that situation as a temporary fix.
-- the workings of this plugin support our use case, but probably is not 
-  on size fits all. it shouldnt be too hard to adjust it to your own needs though.
+if no makefile is present, you can compile it using
+    tsxs -C *.cc -o gzip.so
+and then install it using 
+    tsxs -i -o gzip.so
+
+after installation, add a line to plugin.config:
+gzip.so
+
+in this case, the plugin will use a default behaviour:
+- use caching
+- compress text/* for every origin
+- don't hide accept encoding from origin servers (for an offloading reverse proxy)
+- no urls are disallowed from compression
+
+alternatively, a configuration can also be specified:
+gzip.so <path-to-plugin>/sample.gzip.config
+
+after modifying plugin.cofnig, restart traffic server (sudo traffic_line -L)
+the configuration is re-read when a management update is given (sudo traffic_line -x)
+
+a sample configuration (sample.gzip.config):
+
+######################################################################
+#flags and options are:
+#
+# enable-gzip: default true, set true/false to enable/disable plugin for specific host
+#
+# remove-accept-encoding: this sets if the plugin should hide the accept encoding from origin servers
+# - to ease the load on the origins
+# - for when the proxy parses responses, and the resulting compression/decompression
+#   is wastefull
+#
+# cache: when set, the plugin stores the uncompressed and compressed response as alternates
+#
+# compressible-content-type: wildcard pattern for matching compressible content types
+#
+# disallow: wildcard pattern for disablign compression on urls
+######################################################################
+
+#first, we configure the default/global plugin behaviour
+enabled true
+remove-accept-encoding true
+cache false
+
+compressible-content-type text/*
+compressible-content-type *javascript*
+disallow /notthis/*.js
+disallow /notthat*
+disallow */bla*
+
+#override the global configuration for a host. 
+#www.foo.nl does NOT inherit anything
+[www.foo.nl]
+enabled true
+remove-accept-encoding true
+compressible-content-type text/*
+
+cache false
+disallow /notthis/*.js
+disallow /notthat*

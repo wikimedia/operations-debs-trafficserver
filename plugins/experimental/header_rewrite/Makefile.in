@@ -50,7 +50,9 @@ host_triplet = @host@
 subdir = plugins/experimental/header_rewrite
 DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in TODO
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -97,7 +99,16 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(pkglibdir)"
 LTLIBRARIES = $(pkglib_LTLIBRARIES)
 header_rewrite_la_LIBADD =
-am_header_rewrite_la_OBJECTS = header_rewrite.lo
+am__header_rewrite_la_SOURCES_DIST = condition.cc conditions.cc \
+	factory.cc header_rewrite.cc matcher.cc operator.cc \
+	operators.cc parser.cc regex_helper.cc resources.cc ruleset.cc \
+	statement.cc
+@BUILD_HAVE_BOOST_TRUE@am_header_rewrite_la_OBJECTS = condition.lo \
+@BUILD_HAVE_BOOST_TRUE@	conditions.lo factory.lo \
+@BUILD_HAVE_BOOST_TRUE@	header_rewrite.lo matcher.lo \
+@BUILD_HAVE_BOOST_TRUE@	operator.lo operators.lo parser.lo \
+@BUILD_HAVE_BOOST_TRUE@	regex_helper.lo resources.lo ruleset.lo \
+@BUILD_HAVE_BOOST_TRUE@	statement.lo
 header_rewrite_la_OBJECTS = $(am_header_rewrite_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -106,6 +117,8 @@ header_rewrite_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(header_rewrite_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
+@BUILD_HAVE_BOOST_TRUE@am_header_rewrite_la_rpath = -rpath \
+@BUILD_HAVE_BOOST_TRUE@	$(pkglibdir)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
@@ -133,7 +146,7 @@ AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(header_rewrite_la_SOURCES)
-DIST_SOURCES = $(header_rewrite_la_SOURCES)
+DIST_SOURCES = $(am__header_rewrite_la_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -150,6 +163,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -223,6 +238,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -417,6 +433,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -437,16 +454,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -471,12 +491,14 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-AM_CPPFLAGS = -I$(top_builddir)/proxy/api -I$(top_srcdir)/proxy/api \
-              -I$(top_srcdir)/lib/ts -I$(top_builddir)/lib/ts
+@BUILD_HAVE_BOOST_TRUE@AM_CPPFLAGS = $(BOOST_CPPFLAGS) \
+@BUILD_HAVE_BOOST_TRUE@	      -I$(top_builddir)/proxy/api -I$(top_srcdir)/proxy/api \
+@BUILD_HAVE_BOOST_TRUE@              -I$(top_srcdir)/lib/ts -I$(top_builddir)/lib/ts
 
-pkglib_LTLIBRARIES = header_rewrite.la
-header_rewrite_la_SOURCES = header_rewrite.cc
-header_rewrite_la_LDFLAGS = -module -avoid-version -shared
+@BUILD_HAVE_BOOST_TRUE@AM_LDFLAGS = $(BOOST_LDFLAGS)
+@BUILD_HAVE_BOOST_TRUE@pkglib_LTLIBRARIES = header_rewrite.la
+@BUILD_HAVE_BOOST_TRUE@header_rewrite_la_SOURCES = condition.cc conditions.cc factory.cc header_rewrite.cc matcher.cc operator.cc operators.cc parser.cc regex_helper.cc resources.cc ruleset.cc statement.cc
+@BUILD_HAVE_BOOST_TRUE@header_rewrite_la_LDFLAGS = -module -avoid-version -shared
 all: all-am
 
 .SUFFIXES:
@@ -543,7 +565,7 @@ clean-pkglibLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 header_rewrite.la: $(header_rewrite_la_OBJECTS) $(header_rewrite_la_DEPENDENCIES) $(EXTRA_header_rewrite_la_DEPENDENCIES) 
-	$(AM_V_CXXLD)$(header_rewrite_la_LINK) -rpath $(pkglibdir) $(header_rewrite_la_OBJECTS) $(header_rewrite_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(header_rewrite_la_LINK) $(am_header_rewrite_la_rpath) $(header_rewrite_la_OBJECTS) $(header_rewrite_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -551,7 +573,18 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/condition.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conditions.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/factory.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/header_rewrite.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/matcher.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/operator.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/operators.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regex_helper.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/resources.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ruleset.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statement.Plo@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

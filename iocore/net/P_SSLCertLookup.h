@@ -21,41 +21,30 @@
   limitations under the License.
  */
 
-#ifndef _ssl_Cert_Lookup_h_
-#define _ssl_Cert_Lookup_h_
-#include "libts.h"
-#include "P_SSLNetProcessor.h"
+#ifndef __P_SSLCERTLOOKUP_H__
+#define __P_SSLCERTLOOKUP_H__
 
-class SSLContextStorage;
+#include "ProxyConfig.h"
+#include "P_SSLUtils.h"
 
-class SSLCertLookup
+struct SSLConfigParams;
+struct SSLContextStorage;
+
+struct SSLCertLookup : public ConfigInfo
 {
-  bool buildTable();
-  const char *extractIPAndCert(
-    matcher_line * line_info, char **addr, char **cert, char **ca, char **priKey) const;
-  bool addInfoToHash(
-    const char *strAddr, const char *cert, const char *ca, const char *serverPrivateKey);
-
-  char config_file_path[PATH_NAME_MAX];
-  SslConfigParams *param;
-  bool multipleCerts;
-
   SSLContextStorage * ssl_storage;
-  SSL_CTX * ssl_default;
+  SSL_CTX *           ssl_default;
 
-public:
-  bool hasMultipleCerts() const { return multipleCerts; }
-
-  void init(SslConfigParams * param);
-  SSL_CTX *findInfoInHash(const char * address) const;
+  bool insert(SSL_CTX * ctx, const char * name);
+  bool insert(SSL_CTX * ctx, const IpEndpoint& address);
+  SSL_CTX * findInfoInHash(const char * address) const;
+  SSL_CTX * findInfoInHash(const IpEndpoint& address) const;
 
   // Return the last-resort default TLS context if there is no name or address match.
-  SSL_CTX *defaultContext() const { return ssl_default; }
+  SSL_CTX * defaultContext() const { return ssl_default; }
 
   SSLCertLookup();
-  ~SSLCertLookup();
+  virtual ~SSLCertLookup();
 };
 
-extern SSLCertLookup sslCertLookup;
-
-#endif
+#endif /* __P_SSLCERTLOOKUP_H__ */

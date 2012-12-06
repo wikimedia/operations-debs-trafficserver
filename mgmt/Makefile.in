@@ -61,7 +61,9 @@ bin_PROGRAMS = traffic_manager$(EXEEXT)
 subdir = mgmt
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -90,6 +92,7 @@ libmgmt_p_a_AR = $(AR) $(ARFLAGS)
 libmgmt_p_a_LIBADD =
 am_libmgmt_p_a_OBJECTS = libmgmt_p_a-BaseManager.$(OBJEXT) \
 	libmgmt_p_a-ProcessManager.$(OBJEXT) \
+	libmgmt_p_a-ProxyConfig.$(OBJEXT) \
 	libmgmt_p_a-RecordsConfig.$(OBJEXT)
 libmgmt_p_a_OBJECTS = $(am_libmgmt_p_a_OBJECTS)
 am__installdirs = "$(DESTDIR)$(bindir)"
@@ -208,6 +211,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -281,6 +286,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -475,6 +481,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -495,16 +502,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -572,6 +582,8 @@ libmgmt_p_a_SOURCES = \
   MgmtDefs.h \
   ProcessManager.cc \
   ProcessManager.h \
+  ProxyConfig.cc \
+  ProxyConfig.h \
   RecordsConfig.cc \
   RecordsConfig.h
 
@@ -713,6 +725,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rollback.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-BaseManager.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-ProcessManager.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-ProxyConfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-RecordsConfig.Po@am__quote@
 
 .cc.o:
@@ -763,6 +776,20 @@ libmgmt_p_a-ProcessManager.obj: ProcessManager.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProcessManager.cc' object='libmgmt_p_a-ProcessManager.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProcessManager.obj `if test -f 'ProcessManager.cc'; then $(CYGPATH_W) 'ProcessManager.cc'; else $(CYGPATH_W) '$(srcdir)/ProcessManager.cc'; fi`
+
+libmgmt_p_a-ProxyConfig.o: ProxyConfig.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProxyConfig.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo -c -o libmgmt_p_a-ProxyConfig.o `test -f 'ProxyConfig.cc' || echo '$(srcdir)/'`ProxyConfig.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo $(DEPDIR)/libmgmt_p_a-ProxyConfig.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProxyConfig.cc' object='libmgmt_p_a-ProxyConfig.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProxyConfig.o `test -f 'ProxyConfig.cc' || echo '$(srcdir)/'`ProxyConfig.cc
+
+libmgmt_p_a-ProxyConfig.obj: ProxyConfig.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProxyConfig.obj -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo -c -o libmgmt_p_a-ProxyConfig.obj `if test -f 'ProxyConfig.cc'; then $(CYGPATH_W) 'ProxyConfig.cc'; else $(CYGPATH_W) '$(srcdir)/ProxyConfig.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo $(DEPDIR)/libmgmt_p_a-ProxyConfig.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProxyConfig.cc' object='libmgmt_p_a-ProxyConfig.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProxyConfig.obj `if test -f 'ProxyConfig.cc'; then $(CYGPATH_W) 'ProxyConfig.cc'; else $(CYGPATH_W) '$(srcdir)/ProxyConfig.cc'; fi`
 
 libmgmt_p_a-RecordsConfig.o: RecordsConfig.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-RecordsConfig.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-RecordsConfig.Tpo -c -o libmgmt_p_a-RecordsConfig.o `test -f 'RecordsConfig.cc' || echo '$(srcdir)/'`RecordsConfig.cc

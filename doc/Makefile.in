@@ -51,7 +51,9 @@ subdir = doc
 DIST_COMMON = $(dist_trafficshell_DATA) $(srcdir)/Doxyfile.in \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -104,8 +106,9 @@ am__uninstall_files_from_dir = { \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
 man1dir = $(mandir)/man1
+man3dir = $(mandir)/man3
 NROFF = nroff
-MANS = $(man1_MANS)
+MANS = $(man1_MANS) $(man3_MANS)
 am__installdirs = "$(DESTDIR)$(trafficshelldir)"
 DATA = $(dist_trafficshell_DATA)
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -122,6 +125,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -195,6 +200,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -389,6 +395,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -409,16 +416,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -507,6 +517,17 @@ dist_trafficshell_DATA = \
 man1_MANS = \
   man/traffic_shell.1
 
+man3_MANS = \
+  sdk/TSAPI.3 \
+  sdk/TSDebug.3 \
+  sdk/TSInstallDirGet.3 \
+  sdk/TSMBufferCreate.3 \
+  sdk/TSMalloc.3 \
+  sdk/TSPluginInit.3 \
+  sdk/TSRemapInit.3 \
+  sdk/TSTrafficServerVersionGet.3 \
+  sdk/TSUrlCreate.3
+
 EXTRA_DIST = \
   Doxyfile.in \
   $(dist_trafficshell_DATA)
@@ -585,6 +606,39 @@ uninstall-man1:
 	} | sed -e 's,.*/,,;h;s,.*\.,,;s,^[^1][0-9a-z]*$$,1,;x' \
 	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,'`; \
 	dir='$(DESTDIR)$(man1dir)'; $(am__uninstall_files_from_dir)
+
+install-man3: $(man3_MANS)
+	@$(NORMAL_INSTALL)
+	test -z "$(man3dir)" || $(MKDIR_P) "$(DESTDIR)$(man3dir)"
+	@list='$(man3_MANS)'; test -n "$(man3dir)" || exit 0; \
+	{ for i in $$list; do echo "$$i"; done; \
+	} | while read p; do \
+	  if test -f $$p; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; echo "$$p"; \
+	done | \
+	sed -e 'n;s,.*/,,;p;h;s,.*\.,,;s,^[^3][0-9a-z]*$$,3,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,' | \
+	sed 'N;N;s,\n, ,g' | { \
+	list=; while read file base inst; do \
+	  if test "$$base" = "$$inst"; then list="$$list $$file"; else \
+	    echo " $(INSTALL_DATA) '$$file' '$(DESTDIR)$(man3dir)/$$inst'"; \
+	    $(INSTALL_DATA) "$$file" "$(DESTDIR)$(man3dir)/$$inst" || exit $$?; \
+	  fi; \
+	done; \
+	for i in $$list; do echo "$$i"; done | $(am__base_list) | \
+	while read files; do \
+	  test -z "$$files" || { \
+	    echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man3dir)'"; \
+	    $(INSTALL_DATA) $$files "$(DESTDIR)$(man3dir)" || exit $$?; }; \
+	done; }
+
+uninstall-man3:
+	@$(NORMAL_UNINSTALL)
+	@list='$(man3_MANS)'; test -n "$(man3dir)" || exit 0; \
+	files=`{ for i in $$list; do echo "$$i"; done; \
+	} | sed -e 's,.*/,,;h;s,.*\.,,;s,^[^3][0-9a-z]*$$,3,;x' \
+	      -e 's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,'`; \
+	dir='$(DESTDIR)$(man3dir)'; $(am__uninstall_files_from_dir)
 install-dist_trafficshellDATA: $(dist_trafficshell_DATA)
 	@$(NORMAL_INSTALL)
 	test -z "$(trafficshelldir)" || $(MKDIR_P) "$(DESTDIR)$(trafficshelldir)"
@@ -713,7 +767,7 @@ install-info: install-info-am
 
 install-info-am:
 
-install-man: install-man1
+install-man: install-man1 install-man3
 
 install-pdf: install-pdf-am
 
@@ -743,7 +797,7 @@ ps-am:
 
 uninstall-am: uninstall-dist_trafficshellDATA
 
-uninstall-man: uninstall-man1
+uninstall-man: uninstall-man1 uninstall-man3
 
 .MAKE: install-am install-strip
 
@@ -754,12 +808,13 @@ uninstall-man: uninstall-man1
 	install-dist_trafficshellDATA install-dvi install-dvi-am \
 	install-exec install-exec-am install-html install-html-am \
 	install-info install-info-am install-man install-man1 \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	uninstall uninstall-am uninstall-dist_trafficshellDATA \
-	uninstall-man uninstall-man1
+	install-man3 install-pdf install-pdf-am install-ps \
+	install-ps-am install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
+	ps ps-am uninstall uninstall-am \
+	uninstall-dist_trafficshellDATA uninstall-man uninstall-man1 \
+	uninstall-man3
 
 
 clean-local:

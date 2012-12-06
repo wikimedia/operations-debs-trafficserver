@@ -289,7 +289,7 @@ RamCacheCLFUSEntry *RamCacheCLFUS::destroy(RamCacheCLFUSEntry *e) {
   if (!e->flag_bits.lru) {
     objects--;
     bytes -= e->size + ENTRY_OVERHEAD;
-    CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, -e->size);
+    CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, -(int64_t)e->size);
     e->data = NULL;
   } else
     history--;
@@ -510,7 +510,7 @@ int RamCacheCLFUS::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool copy
       return 0;
     }
     bytes -= victim->size + ENTRY_OVERHEAD;
-    CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, -victim->size);
+    CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, -(int64_t)victim->size);
     victims.enqueue(victim);
     if (victim == compressed)
       compressed = 0;
@@ -525,7 +525,7 @@ int RamCacheCLFUS::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool copy
       if (bytes + victim->size + size > max_bytes && CACHE_VALUE(victim) > CACHE_VALUE(e)) {
         requeue_victims(this, victims);
         lru[1].enqueue(e);
-        DDebug("ram_cache", "put %X %d %d size %d INC %"PRId64" HISTORY",
+        DDebug("ram_cache", "put %X %d %d size %d INC %" PRId64" HISTORY",
                key->word(3), auxkey1, auxkey2, e->size, e->hits);
         return 0;
       }

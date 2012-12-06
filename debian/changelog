@@ -1,3 +1,12 @@
+trafficserver (3.3.0+git20121208-0exp1) experimental; urgency=low
+
+  * Upstream git snapshot.
+  * Enable most of experimental plugins, install related libraries.
+  * Run dh_autoreconf.
+  * Make dh_auto_test errors non-fatal.
+
+ -- Aron Xu <aron@debian.org>  Thu, 06 Dec 2012 23:32:25 +0800
+
 trafficserver (3.3.0-1) experimental; urgency=low
 
   * Upload upstream development release to experimental.

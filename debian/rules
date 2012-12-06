@@ -13,6 +13,7 @@ configure_flags = \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
 	--with-user=root --with-group=root --with-arg-max=131072 \
 	--disable-silent-rules \
+	--enable-experimental-plugins \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
@@ -20,7 +21,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@
+	dh $@ --with autoreconf
 
 override_dh_auto_configure:
 	# autoreconf -i
@@ -48,4 +49,5 @@ override_dh_installexamples:
 
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/trafficserver
-
+override_dh_auto_test:
+	-dh_auto_test
