@@ -37,12 +37,10 @@ bool alarmAlready = false;
  *   Begin class HostMatcher
  *************************************************************/
 
-CacheHostMatcher::CacheHostMatcher(const char *name, const char *filename, int typ):
+CacheHostMatcher::CacheHostMatcher(const char * name, CacheType typ):
 data_array(NULL),
 array_len(-1),
 num_el(-1),
-matcher_name(name),
-file_name(filename),
 type(typ)
 {
   host_lookup = NEW(new HostLookup(name));
@@ -192,7 +190,7 @@ CacheHostMatcher::NewEntry(matcher_line * line_info)
  *   End class HostMatcher
  *************************************************************/
 
-CacheHostTable::CacheHostTable(Cache * c, int typ)
+CacheHostTable::CacheHostTable(Cache * c, CacheType typ)
 {
 
 
@@ -359,7 +357,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
   }
 
   if (hostDomain > 0) {
-    hostMatch = NEW(new CacheHostMatcher(matcher_name, config_file_path, type));
+    hostMatch = NEW(new CacheHostMatcher(matcher_name, type));
     hostMatch->AllocateSpace(hostDomain);
   }
   // Traverse the list and build the records table
@@ -442,7 +440,7 @@ CacheHostTable::BuildTable()
 }
 
 int
-CacheHostRecord::Init(int typ)
+CacheHostRecord::Init(CacheType typ)
 {
 
   int i, j;
@@ -459,7 +457,7 @@ CacheHostRecord::Init(int typ)
   CacheVol *cachep = cp_list.head;
   for (; cachep; cachep = cachep->link.next) {
     if (cachep->scheme == type) {
-      Debug("cache_hosting", "Host Record: %p, Volume: %d, size: %"PRId64, this, cachep->vol_number, (int64_t)cachep->size);
+      Debug("cache_hosting", "Host Record: %p, Volume: %d, size: %" PRId64, this, cachep->vol_number, (int64_t)cachep->size);
       cp[num_cachevols] = cachep;
       num_cachevols++;
       num_vols += cachep->num_vols;
@@ -485,7 +483,7 @@ CacheHostRecord::Init(int typ)
 }
 
 int
-CacheHostRecord::Init(matcher_line * line_info, int typ)
+CacheHostRecord::Init(matcher_line * line_info, CacheType typ)
 {
   int i, j;
   extern Queue<CacheVol> cp_list;
@@ -686,7 +684,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
   int state = 0;                //changed by YTS Team, yamsat for bug id 59632
   int manager_alarmed = false;
   int volume_number = 0;
-  int scheme = CACHE_NONE_TYPE;
+  CacheType scheme = CACHE_NONE_TYPE;
   int size = 0;
   int in_percent = 0;
   const char *matcher_name = "[CacheVolition]";
@@ -1035,7 +1033,7 @@ create_config(RegressionTest * t, int num)
 
         off_t random_size = (gen->random() % modu) + 1;
         /* convert to 128 megs multiple */
-        int scheme = (random_size % 2) ? CACHE_HTTP_TYPE : CACHE_RTSP_TYPE;
+        CacheType scheme = (random_size % 2) ? CACHE_HTTP_TYPE : CACHE_RTSP_TYPE;
         random_size = ROUND_TO_VOL_SIZE(random_size);
         off_t blocks = random_size / STORE_BLOCK_SIZE;
         ink_assert(blocks <= (int) total_space);
@@ -1148,10 +1146,10 @@ execute_and_verify(RegressionTest * t)
             i, d->header->num_diskvol_blks, d->free_space);
       for (int j = 0; j < (int) d->header->num_volumes; j++) {
 
-        Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+        Debug("cache_hosting", "\tVol: %d Size: %" PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
       }
       for (int j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-        Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
+        Debug("cache_hosting", "\tBlock No: %d Size: %" PRIu64" Free: %u",
               d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
       }
     }

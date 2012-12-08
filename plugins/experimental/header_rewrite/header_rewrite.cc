@@ -1,3 +1,20 @@
+/*
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+*/
 //////////////////////////////////////////////////////////////////////////////////////////////
 // header_rewrite: YTS plugin to do header rewrites
 // --------------
@@ -76,6 +93,7 @@ parse_config(const std::string fname, TSHttpHookID default_hook)
 
     getline(f, line);
     ++lineno; // ToDo: we should probably use this for error messages ...
+    TSDebug(PLUGIN_NAME, "Reading line: %d: %s", lineno, line.c_str());
 
     boost::trim(line);
     if (line.empty() || (line[0] == '#'))
@@ -206,8 +224,10 @@ TSPluginInit(int argc, const char *argv[])
     TSError("header_rewrite: plugin registration failed.\n"); 
   }
 
+  TSDebug(PLUGIN_NAME, "number of arguments: %d", argc);
   if (argc != 2) {
     TSError("usage: %s <config-file>\n", argv[0] );
+    assert(argc == 2);
   }
 
   // Initialize the globals
@@ -326,6 +346,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
 
   }
 
+  TSDebug(PLUGIN_NAME, "returing with status: %d", rval);
   return rval;
 }
 

@@ -51,10 +51,12 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 subdir = lib/cpp11api
-DIST_COMMON = $(include_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = $(am__include_HEADERS_DIST) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -101,11 +103,13 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(includedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libatscpp11api_la_LIBADD =
-am_libatscpp11api_la_OBJECTS = cpp11api.lo
+am__libatscpp11api_la_SOURCES_DIST = cpp11api.cc
+@BUILD_HAVE_CXX_11_TRUE@am_libatscpp11api_la_OBJECTS = cpp11api.lo
 libatscpp11api_la_OBJECTS = $(am_libatscpp11api_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
+@BUILD_HAVE_CXX_11_TRUE@am_libatscpp11api_la_rpath = -rpath $(libdir)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
@@ -133,7 +137,8 @@ AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libatscpp11api_la_SOURCES)
-DIST_SOURCES = $(libatscpp11api_la_SOURCES)
+DIST_SOURCES = $(am__libatscpp11api_la_SOURCES_DIST)
+am__include_HEADERS_DIST = ts-cpp11.h ts-cpp11-headers.h
 HEADERS = $(include_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -151,6 +156,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -224,6 +231,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -418,6 +426,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -438,16 +447,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -472,13 +484,14 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-AM_CPPFLAGS = -I$(top_builddir)/proxy/api/ts -std=c++11
-lib_LTLIBRARIES = libatscpp11api.la
-libatscpp11api_la_SOURCES = \
-  cpp11api.cc
+AM_CPPFLAGS = -I$(top_builddir)/proxy/api/ts
+@BUILD_HAVE_CXX_11_TRUE@@BUILD_HAVE_LIBCXX_TRUE@AM_CXXFLAGS = -stdlib=libc++
+@BUILD_HAVE_CXX_11_TRUE@lib_LTLIBRARIES = libatscpp11api.la
+@BUILD_HAVE_CXX_11_TRUE@libatscpp11api_la_SOURCES = \
+@BUILD_HAVE_CXX_11_TRUE@  cpp11api.cc
 
-include_HEADERS = \
-  ts-cpp11.h
+@BUILD_HAVE_CXX_11_TRUE@include_HEADERS = \
+@BUILD_HAVE_CXX_11_TRUE@  ts-cpp11.h ts-cpp11-headers.h
 
 all: all-am
 
@@ -546,7 +559,7 @@ clean-libLTLIBRARIES:
 	  rm -f "$${dir}/so_locations"; \
 	done
 libatscpp11api.la: $(libatscpp11api_la_OBJECTS) $(libatscpp11api_la_DEPENDENCIES) $(EXTRA_libatscpp11api_la_DEPENDENCIES) 
-	$(AM_V_CXXLD)$(CXXLINK) -rpath $(libdir) $(libatscpp11api_la_OBJECTS) $(libatscpp11api_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_libatscpp11api_la_rpath) $(libatscpp11api_la_OBJECTS) $(libatscpp11api_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

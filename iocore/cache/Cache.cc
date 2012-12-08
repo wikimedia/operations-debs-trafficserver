@@ -251,6 +251,13 @@ CacheVC::CacheVC():alternate_index(CACHE_ALT_INDEX_DEFAULT)
   //coverity[uninit_member]
 }
 
+HTTPInfo::FragOffset*
+CacheVC::get_frag_table()
+{
+  ink_debug_assert(alternate.valid());
+  return alternate.valid() ? alternate.get_frag_table() : 0;
+}
+
 VIO *
 CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
 {
@@ -681,10 +688,10 @@ CacheProcessor::diskInitialized()
         Debug("cache_hosting", "Disk: %d: Vol Blocks: %u: Free space: %" PRIu64,
               i, d->header->num_diskvol_blks, d->free_space);
         for (j = 0; j < (int) d->header->num_volumes; j++) {
-          Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+          Debug("cache_hosting", "\tVol: %d Size: %" PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
         }
         for (j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-          Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
+          Debug("cache_hosting", "\tBlock No: %d Size: %" PRIu64" Free: %u",
                 d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
         }
       }
@@ -1067,6 +1074,8 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
   evacuate = (DLL<EvacuationBlock> *)ats_malloc(evac_len);
   memset(evacuate, 0, evac_len);
 
+  Debug("cache_init", "allocating %zu directory bytes for a %lld byte volume (%lf%%)",
+    vol_dirlen(this), (long long)this->len, (double)vol_dirlen(this) / (double)this->len * 100.0);
   raw_dir = (char *)ats_memalign(sysconf(_SC_PAGESIZE), vol_dirlen(this));
   dir = (Dir *) (raw_dir + vol_headerlen(this));
   header = (VolHeaderFooter *) raw_dir;
@@ -1835,6 +1844,12 @@ CacheVC::dead(int event, Event *e) {
   return EVENT_DONE;
 }
 
+bool
+CacheVC::is_pread_capable()
+{
+  return alternate.get_frag_offset_count() > 0;
+}
+
 #define STORE_COLLISION 1
 
 #ifdef HTTP_CACHE
@@ -1895,11 +1910,8 @@ CacheVC::handleReadDone(int event, Event *e) {
     if (is_debug_tag_set("cache_read")) {
       char xt[33];
       Debug("cache_read"
-            , "Read fragment %s Length %d/%d/%"PRId64"[pre=%d] vc=%s doc=%s %d frags"
+            , "Read complete on fragment %s. Length: data payload=%d this fragment=%d total doc=%" PRId64" prefix=%d"
             , doc->key.toHexStr(xt), doc->data_len(), doc->len, doc->total_len, doc->prefix_len()
-            , f.single_fragment ? "single" : "multi"
-            , doc->single_fragment() ? "single" : "multi"
-            , doc->nfrags()
         );
     }
 
@@ -2167,7 +2179,7 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type,
 
   ink_assert(this);
 
-  ProxyMutexPtr mutex = NULL;
+  Ptr<ProxyMutex> mutex = NULL;
   if (!cont)
     cont = new_CacheRemoveCont();
 
@@ -2368,11 +2380,11 @@ cplist_reconfigure()
         percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
       }
       if (config_vol->size < 128) {
-        Warning("the size of volume %d (%"PRId64") is less than the minimum required volume size %d",
+        Warning("the size of volume %d (%" PRId64") is less than the minimum required volume size %d",
                 config_vol->number, (int64_t)config_vol->size, 128);
         Warning("volume %d is not created", config_vol->number);
       }
-      Debug("cache_hosting", "Volume: %d Size: %"PRId64, config_vol->number, (int64_t)config_vol->size);
+      Debug("cache_hosting", "Volume: %d Size: %" PRId64, config_vol->number, (int64_t)config_vol->size);
     }
     cplist_update();
     /* go through volume config and grow and create volumes */
@@ -2784,11 +2796,11 @@ ink_cache_init(ModuleVersion v)
 #ifdef NON_MODULAR
 //----------------------------------------------------------------------------
 Action *
-CacheProcessor::open_read(Continuation *cont, URL *url, CacheHTTPHdr *request,
+CacheProcessor::open_read(Continuation *cont, URL *url, bool cluster_cache_local, CacheHTTPHdr *request,
                           CacheLookupHttpConfig *params, time_t pin_in_cache, CacheFragType type)
 {
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     return open_read_internal(CACHE_OPEN_READ_LONG, cont, (MIOBuffer *) 0,
                               url, request, params, (CacheKey *) 0, pin_in_cache, type, (char *) 0, 0);
   }
@@ -2799,11 +2811,11 @@ CacheProcessor::open_read(Continuation *cont, URL *url, CacheHTTPHdr *request,
 
 //----------------------------------------------------------------------------
 Action *
-CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url,
+CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url, bool cluster_cache_local,
                            CacheHTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache, CacheFragType type)
 {
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     INK_MD5 url_md5;
     Cache::generate_key(&url_md5, url, request);
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(url_md5));
@@ -2826,7 +2838,7 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url,
 // Note: this should not be called from from the cluster processor, or bad
 // recursion could occur. This is merely a convenience wrapper.
 Action *
-CacheProcessor::remove(Continuation *cont, URL *url, CacheFragType frag_type)
+CacheProcessor::remove(Continuation *cont, URL *url, bool cluster_cache_local, CacheFragType frag_type)
 {
   INK_MD5 md5;
   int len = 0;
@@ -2837,9 +2849,9 @@ CacheProcessor::remove(Continuation *cont, URL *url, CacheFragType frag_type)
 
   Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %s", url->string_get_ref());
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     // Remove from cluster
-    return remove(cont, &md5, frag_type, true, false, const_cast<char *>(hostname), len);
+    return remove(cont, &md5, cluster_cache_local, frag_type, true, false, const_cast<char *>(hostname), len);
   }
 #endif
 

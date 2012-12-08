@@ -49,13 +49,16 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+check_PROGRAMS = test_certlookup$(EXEEXT)
 @BUILD_TESTS_TRUE@am__append_1 = NetVCTest.cc \
 @BUILD_TESTS_TRUE@    P_NetVCTest.h
 
 subdir = iocore/net
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/build/ax_lib_readline.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
+	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
@@ -94,32 +97,38 @@ am__libinknet_a_SOURCES_DIST = Connection.cc I_NetErrno.h I_Net.h \
 	P_UnixNetState.h P_UnixNetVConnection.h P_UnixPollDescriptor.h \
 	P_UnixUDPConnection.h Socks.cc SSLCertLookup.cc SSLConfig.cc \
 	SSLNetProcessor.cc SSLNetVConnection.cc SSLNetAccept.cc \
-	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc UDPIOEvent.cc \
-	UnixConnection.cc UnixNetAccept.cc UnixNet.cc UnixNetPages.cc \
-	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
-	UnixUDPNet.cc Inline.cc NetVCTest.cc P_NetVCTest.h
+	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLUtils.cc \
+	UDPIOEvent.cc UnixConnection.cc UnixNetAccept.cc UnixNet.cc \
+	UnixNetPages.cc UnixNetProcessor.cc UnixNetVConnection.cc \
+	UnixUDPConnection.cc UnixUDPNet.cc Inline.cc NetVCTest.cc \
+	P_NetVCTest.h
 @BUILD_TESTS_TRUE@am__objects_1 = NetVCTest.$(OBJEXT)
 am_libinknet_a_OBJECTS = Connection.$(OBJEXT) Net.$(OBJEXT) \
 	NetVConnection.$(OBJEXT) Socks.$(OBJEXT) \
 	SSLCertLookup.$(OBJEXT) SSLConfig.$(OBJEXT) \
 	SSLNetProcessor.$(OBJEXT) SSLNetVConnection.$(OBJEXT) \
 	SSLNetAccept.$(OBJEXT) SSLNextProtocolAccept.$(OBJEXT) \
-	SSLNextProtocolSet.$(OBJEXT) UDPIOEvent.$(OBJEXT) \
-	UnixConnection.$(OBJEXT) UnixNetAccept.$(OBJEXT) \
-	UnixNet.$(OBJEXT) UnixNetPages.$(OBJEXT) \
-	UnixNetProcessor.$(OBJEXT) UnixNetVConnection.$(OBJEXT) \
-	UnixUDPConnection.$(OBJEXT) UnixUDPNet.$(OBJEXT) \
-	Inline.$(OBJEXT) $(am__objects_1)
+	SSLNextProtocolSet.$(OBJEXT) SSLUtils.$(OBJEXT) \
+	UDPIOEvent.$(OBJEXT) UnixConnection.$(OBJEXT) \
+	UnixNetAccept.$(OBJEXT) UnixNet.$(OBJEXT) \
+	UnixNetPages.$(OBJEXT) UnixNetProcessor.$(OBJEXT) \
+	UnixNetVConnection.$(OBJEXT) UnixUDPConnection.$(OBJEXT) \
+	UnixUDPNet.$(OBJEXT) Inline.$(OBJEXT) $(am__objects_1)
 libinknet_a_OBJECTS = $(am_libinknet_a_OBJECTS)
+am_test_certlookup_OBJECTS = test_certlookup.$(OBJEXT) \
+	SSLCertLookup.$(OBJEXT)
+test_certlookup_OBJECTS = $(am_test_certlookup_OBJECTS)
+test_certlookup_DEPENDENCIES = $(top_builddir)/lib/ts/libtsutil.la \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
 LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
 	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
@@ -153,10 +162,13 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(libinknet_a_SOURCES)
-DIST_SOURCES = $(am__libinknet_a_SOURCES_DIST)
+SOURCES = $(libinknet_a_SOURCES) $(test_certlookup_SOURCES)
+DIST_SOURCES = $(am__libinknet_a_SOURCES_DIST) \
+	$(test_certlookup_SOURCES)
 ETAGS = etags
 CTAGS = ctags
+am__tty_colors = \
+red=; grn=; lgn=; blu=; std=
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 pkgdatadir = @pkgdatadir@
 pkglibdir = @pkglibdir@
@@ -171,6 +183,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BOOST_CPPFLAGS = @BOOST_CPPFLAGS@
+BOOST_LDFLAGS = @BOOST_LDFLAGS@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -244,6 +258,7 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LIBS = @LUA_LIBS@
+LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -438,6 +453,7 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
+pthread_nph = @pthread_nph@
 readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
@@ -458,16 +474,19 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
+schedh = @schedh@
 sharedstatedir = @sharedstatedir@
 siginfoh = @siginfoh@
 srcdir = @srcdir@
 stroptsh = @stroptsh@
 sys_byteorderh = @sys_byteorderh@
+sys_cpuseth = @sys_cpuseth@
 sys_epollh = @sys_epollh@
 sys_eventh = @sys_eventh@
 sys_ioctlh = @sys_ioctlh@
 sys_mounth = @sys_mounth@
 sys_paramh = @sys_paramh@
+sys_pseth = @sys_pseth@
 sys_sockioh = @sys_sockioh@
 sys_sysctlh = @sys_sysctlh@
 sys_sysinfoh = @sys_sysinfoh@
@@ -508,7 +527,17 @@ zlibh = @zlibh@
 @STANDALONE_IOCORE_TRUE@  -I$(top_srcdir)/lib/records \
 @STANDALONE_IOCORE_TRUE@  -I$(top_srcdir)/lib/ts
 
+TESTS = $(check_PROGRAMS)
 noinst_LIBRARIES = libinknet.a
+test_certlookup_SOURCES = \
+  test_certlookup.cc \
+  SSLCertLookup.cc
+
+test_certlookup_LDADD = \
+  $(top_builddir)/lib/ts/libtsutil.la \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  @LIBSSL@
+
 libinknet_a_SOURCES = Connection.cc I_NetErrno.h I_Net.h \
 	I_NetProcessor.h I_NetVConnection.h I_Socks.h \
 	I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Net.cc \
@@ -521,10 +550,10 @@ libinknet_a_SOURCES = Connection.cc I_NetErrno.h I_Net.h \
 	P_UnixNetState.h P_UnixNetVConnection.h P_UnixPollDescriptor.h \
 	P_UnixUDPConnection.h Socks.cc SSLCertLookup.cc SSLConfig.cc \
 	SSLNetProcessor.cc SSLNetVConnection.cc SSLNetAccept.cc \
-	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc UDPIOEvent.cc \
-	UnixConnection.cc UnixNetAccept.cc UnixNet.cc UnixNetPages.cc \
-	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
-	UnixUDPNet.cc Inline.cc $(am__append_1)
+	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLUtils.cc \
+	UDPIOEvent.cc UnixConnection.cc UnixNetAccept.cc UnixNet.cc \
+	UnixNetPages.cc UnixNetProcessor.cc UnixNetVConnection.cc \
+	UnixUDPConnection.cc UnixUDPNet.cc Inline.cc $(am__append_1)
 all: all-am
 
 .SUFFIXES:
@@ -567,6 +596,18 @@ libinknet.a: $(libinknet_a_OBJECTS) $(libinknet_a_DEPENDENCIES) $(EXTRA_libinkne
 	$(AM_V_AR)$(libinknet_a_AR) libinknet.a $(libinknet_a_OBJECTS) $(libinknet_a_LIBADD)
 	$(AM_V_at)$(RANLIB) libinknet.a
 
+clean-checkPROGRAMS:
+	@list='$(check_PROGRAMS)'; test -n "$$list" || exit 0; \
+	echo " rm -f" $$list; \
+	rm -f $$list || exit $$?; \
+	test -n "$(EXEEXT)" || exit 0; \
+	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
+	echo " rm -f" $$list; \
+	rm -f $$list
+test_certlookup$(EXEEXT): $(test_certlookup_OBJECTS) $(test_certlookup_DEPENDENCIES) $(EXTRA_test_certlookup_DEPENDENCIES) 
+	@rm -f test_certlookup$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_certlookup_OBJECTS) $(test_certlookup_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -585,6 +626,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNetVConnection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolAccept.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolSet.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLUtils.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Socks.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UDPIOEvent.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UnixConnection.Po@am__quote@
@@ -595,6 +637,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UnixNetVConnection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UnixUDPConnection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UnixUDPNet.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_certlookup.Po@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -675,6 +718,99 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
+check-TESTS: $(TESTS)
+	@failed=0; all=0; xfail=0; xpass=0; skip=0; \
+	srcdir=$(srcdir); export srcdir; \
+	list=' $(TESTS) '; \
+	$(am__tty_colors); \
+	if test -n "$$list"; then \
+	  for tst in $$list; do \
+	    if test -f ./$$tst; then dir=./; \
+	    elif test -f $$tst; then dir=; \
+	    else dir="$(srcdir)/"; fi; \
+	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *[\ \	]$$tst[\ \	]*) \
+		xpass=`expr $$xpass + 1`; \
+		failed=`expr $$failed + 1`; \
+		col=$$red; res=XPASS; \
+	      ;; \
+	      *) \
+		col=$$grn; res=PASS; \
+	      ;; \
+	      esac; \
+	    elif test $$? -ne 77; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *[\ \	]$$tst[\ \	]*) \
+		xfail=`expr $$xfail + 1`; \
+		col=$$lgn; res=XFAIL; \
+	      ;; \
+	      *) \
+		failed=`expr $$failed + 1`; \
+		col=$$red; res=FAIL; \
+	      ;; \
+	      esac; \
+	    else \
+	      skip=`expr $$skip + 1`; \
+	      col=$$blu; res=SKIP; \
+	    fi; \
+	    echo "$${col}$$res$${std}: $$tst"; \
+	  done; \
+	  if test "$$all" -eq 1; then \
+	    tests="test"; \
+	    All=""; \
+	  else \
+	    tests="tests"; \
+	    All="All "; \
+	  fi; \
+	  if test "$$failed" -eq 0; then \
+	    if test "$$xfail" -eq 0; then \
+	      banner="$$All$$all $$tests passed"; \
+	    else \
+	      if test "$$xfail" -eq 1; then failures=failure; else failures=failures; fi; \
+	      banner="$$All$$all $$tests behaved as expected ($$xfail expected $$failures)"; \
+	    fi; \
+	  else \
+	    if test "$$xpass" -eq 0; then \
+	      banner="$$failed of $$all $$tests failed"; \
+	    else \
+	      if test "$$xpass" -eq 1; then passes=pass; else passes=passes; fi; \
+	      banner="$$failed of $$all $$tests did not behave as expected ($$xpass unexpected $$passes)"; \
+	    fi; \
+	  fi; \
+	  dashes="$$banner"; \
+	  skipped=""; \
+	  if test "$$skip" -ne 0; then \
+	    if test "$$skip" -eq 1; then \
+	      skipped="($$skip test was not run)"; \
+	    else \
+	      skipped="($$skip tests were not run)"; \
+	    fi; \
+	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$skipped"; \
+	  fi; \
+	  report=""; \
+	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
+	    report="Please report to $(PACKAGE_BUGREPORT)"; \
+	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$report"; \
+	  fi; \
+	  dashes=`echo "$$dashes" | sed s/./=/g`; \
+	  if test "$$failed" -eq 0; then \
+	    col="$$grn"; \
+	  else \
+	    col="$$red"; \
+	  fi; \
+	  echo "$${col}$$dashes$${std}"; \
+	  echo "$${col}$$banner$${std}"; \
+	  test -z "$$skipped" || echo "$${col}$$skipped$${std}"; \
+	  test -z "$$report" || echo "$${col}$$report$${std}"; \
+	  echo "$${col}$$dashes$${std}"; \
+	  test "$$failed" -eq 0; \
+	else :; fi
+
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
@@ -706,6 +842,8 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(LIBRARIES)
 installdirs:
@@ -741,8 +879,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstLIBRARIES \
-	mostlyclean-am
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
+	clean-noinstLIBRARIES mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -810,20 +948,21 @@ ps-am:
 
 uninstall-am:
 
-.MAKE: install-am install-strip
+.MAKE: check-am install-am install-strip
 
-.PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLIBRARIES ctags distclean \
-	distclean-compile distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am
+.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
+	clean-checkPROGRAMS clean-generic clean-libtool \
+	clean-noinstLIBRARIES ctags distclean distclean-compile \
+	distclean-generic distclean-libtool distclean-tags distdir dvi \
+	dvi-am html html-am info info-am install install-am \
+	install-data install-data-am install-dvi install-dvi-am \
+	install-exec install-exec-am install-html install-html-am \
+	install-info install-info-am install-man install-pdf \
+	install-pdf-am install-ps install-ps-am install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

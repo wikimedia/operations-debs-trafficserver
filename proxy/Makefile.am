@@ -71,8 +71,6 @@ traffic_server_SOURCES = \
   AbstractBuffer.h \
   CacheControl.cc \
   CacheControl.h \
-  ProxyConfig.cc \
-  ProxyConfig.h \
   ControlBase.cc \
   ControlBase.h \
   ControlMatcher.cc \
@@ -168,6 +166,10 @@ traffic_server_LDADD = \
   @LIBZ@ @LIBLZMA@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
 
+if BUILD_LUA_SUPPORT
+traffic_server_LDFLAGS += @LUA_LUAJIT_LDFLAGS@
+endif
+
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
@@ -218,7 +220,6 @@ traffic_sac_LDADD = \
   CacheControl.o \
   StatSystem.o \
   ReverseProxy.o \
-  ProxyConfig.o \
   signals.o \
   Error.o \
   EventName.o \
@@ -267,7 +268,6 @@ endif
 libTrafficServerStandalone_a_SOURCES = \
   signals.cc \
   Error.cc \
-  ProxyConfig.cc \
   EventName.cc \
   DiagsConfig.cc \
   StatPages.cc \

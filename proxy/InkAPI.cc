@@ -403,11 +403,10 @@ TSError(const char *fmt, ...)
 }
 
 // Assert in debug AND optim
-int
+void
 _TSReleaseAssert(const char *text, const char *file, int line)
 {
   _ink_assert(text, file, line);
-  return 0;
 }
 
 // Assert only in debug
@@ -430,7 +429,7 @@ _TSAssert(const char *text, const char *file, int line)
 #define sdk_assert(EX) (void)(EX)
 #else
 #define sdk_assert(EX)                                          \
-  (void)((EX) || (_TSReleaseAssert(#EX, __FILE__, __LINE__)))
+  ( (void)((EX) ? (void)0 : _TSReleaseAssert(#EX, __FILE__, __LINE__)) )
 #endif
 
 
@@ -6606,7 +6605,7 @@ TSCacheRead(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   Continuation *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.open_read(i, &info->cache_key, info->frag_type, info->hostname, info->len);
+  return (TSAction)cacheProcessor.open_read(i, &info->cache_key, true, info->frag_type, info->hostname, info->len);
 }
 
 TSAction
@@ -6620,7 +6619,7 @@ TSCacheWrite(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   Continuation *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.open_write(i, &info->cache_key, info->frag_type, 0, false, info->pin_in_cache,
+  return (TSAction)cacheProcessor.open_write(i, &info->cache_key, true, info->frag_type, 0, false, info->pin_in_cache,
                                              info->hostname, info->len);
 }
 
@@ -6635,7 +6634,7 @@ TSCacheRemove(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   INKContInternal *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.remove(i, &info->cache_key, info->frag_type, true, false, info->hostname, info->len);
+  return (TSAction)cacheProcessor.remove(i, &info->cache_key, true, info->frag_type, true, false, info->hostname, info->len);
 }
 
 TSAction
@@ -6814,7 +6813,7 @@ TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_objec
 }
 
 TSReturnCode
-TSTextLogObjectWrite(TSTextLogObject the_object, char *format, ...)
+TSTextLogObjectWrite(TSTextLogObject the_object, const char *format, ...)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)format) == TS_SUCCESS);
@@ -7435,6 +7434,9 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_CACHE_HTTP:
     ret = &sm->t_state.txn_conf->cache_http;
     break;
+  case TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL:
+    ret = &sm->t_state.txn_conf->cache_cluster_cache_local;
+    break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE:
     ret = &sm->t_state.txn_conf->cache_ignore_client_no_cache;
     break;
@@ -7572,6 +7574,10 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
     typ = OVERRIDABLE_TYPE_STRING;
     ret = &sm->t_state.txn_conf->proxy_response_server_string;
+    break;
+  case TS_CONFIG_HTTP_CHUNKING_SIZE:
+    typ = OVERRIDABLE_TYPE_INT;
+    ret = &sm->t_state.txn_conf->http_chunking_size;
     break;
 
     // This helps avoiding compiler warnings, yet detect unhandled enum members.
@@ -7756,6 +7762,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     if (!strncmp(name, "proxy.config.http.cache.http", length))
       cnf = TS_CONFIG_HTTP_CACHE_HTTP;
     break;
+  case 31:
+    if (!strncmp(name, "proxy.config.http.chunking.size", length))
+      cnf = TS_CONFIG_HTTP_CHUNKING_SIZE;
+    break;
 
   case 33:
     if (!strncmp(name, "proxy.config.http.cache.fuzz.time", length))
@@ -7907,6 +7917,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 'e':
       if (!strncmp(name, "proxy.config.http.negative_caching_lifetime", length))
         cnf = TS_CONFIG_HTTP_NEGATIVE_CACHING_LIFETIME;
+      break;
+    case 'l':
+      if (!strncmp(name, "proxy.config.http.cache.cluster_cache_local", length))
+        cnf = TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL;
       break;
     case 'r':
       if (!strncmp(name, "proxy.config.http.cache.heuristic_lm_factor", length))

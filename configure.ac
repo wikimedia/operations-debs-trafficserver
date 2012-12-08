@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.3.0-dev])
-m4_define([TS_VERSION_N],[3003000])
+m4_define([TS_VERSION_S],[3.3.1-dev])
+m4_define([TS_VERSION_N],[3003001])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -288,20 +288,6 @@ TS_ARG_ENABLE_VAR([has],[wccp])
 AC_SUBST(has_wccp)
 AM_CONDITIONAL([BUILD_WCCP], [test 0 -ne $has_wccp])
 
-#
-# CPP 11 API
-#
-AC_MSG_CHECKING([whether to enable c++11 api])
-AC_ARG_WITH([cpp11api],
-  [AS_HELP_STRING([--with-cpp11api],[enable support for cpp11api [default=no]])],
-  [cpp11api=$withval],
-  [cpp11api=no]
-)
-AC_MSG_RESULT([$cpp11api])
-AM_CONDITIONAL([BUILD_CPP11API], [test "$cpp11api" = yes])
-
-
-
 # Google profiler
 AC_MSG_CHECKING([whether to enable profiler])
 AC_ARG_WITH([profiler],
@@ -493,15 +479,29 @@ TS_SUBST([pkgdocdir])
 
 # AC_PROG can sometimes mangle CFLAGS etc.
 # in particular, on Linux they insert -g -O2, here we preserve any user CFLAGS
-
-#CC=gcc
-#CXX=g++
-
-REAL_CFLAGS="${CFLAGS}"
-REAL_CXXFLAGS="${CXXFLAGS}"
+_ts_saved_CFLAGS="${CFLAGS}"
+_ts_saved_CXXFLAGS="${CXXFLAGS}"
 
 AC_PROG_CC
 AC_PROG_CXX
+
+CFLAGS="${_ts_saved_CFLAGS}"
+CXXFLAGS="${_ts_saved_CXXFLAGS}"
+
+# AX_CXX_COMPILE_STDCXX_11 requires the current language to be C++.
+AC_LANG_PUSH([C++])
+
+AX_CXX_COMPILE_STDCXX_11( [noext], [enable_cxx_11_support=yes], [
+  enable_cxx_11_support=no
+  AC_MSG_NOTICE([disabling features that depend on C++11 support])
+])
+
+AM_CONDITIONAL([BUILD_HAVE_CXX_11], [ test "x${enable_cxx_11_support}" = "xyes" ])
+if test "x${enable_cxx_11_support}" = "xyes" ; then
+  AC_DEFINE(HAVE_CXX_11, 1, [Whether the compiler support C++11])
+fi
+
+AC_LANG_POP()
 
 # Check for ccache (if explicitly enabled)
 if test "x$enable_ccache" = "xyes"; then
@@ -566,7 +566,7 @@ dnl but we need various other LEX values.
 AC_PROG_LEX
 AS_IF([test -n "$LEX"],
       [ flex_version_check=`$LEX --version 2>&1 | \
-        $SED -n '/flex/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\)[[^0-9]]*$/\1/p' | \
+        $SED -n '/flex/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\)[[^0-9]]*.*$/\1/p' | \
         $AWK "{ if (\\$1 > $FLEX_MAJOR || (\\$1 == $FLEX_MAJOR && (\\$2 > $FLEX_MINOR || (\\$2 == $FLEX_MINOR && (NR == 2 || \\$3 >= $FLEX_POINT))))) print \"yes\"; else printf(\"version %d.%d.%d\",\\$1,\\$2,\\$3); }" FS=. \
         `
         AS_IF([test "x$flex_version_check" != "xyes"],
@@ -603,9 +603,6 @@ AS_IF([test "x$PERL" = "xnot found"],
 AC_ARG_VAR([DOXYGEN], [full path of Doxygen executable])
 AC_ARG_VAR([PERL], [full path of Perl executable])
 
-CFLAGS="${REAL_CFLAGS}"
-CXXFLAGS="${REAL_CXXFLAGS}"
-
 # Check for GNU-style -On and for Solaris Studio style -xOn.
 AC_MSG_CHECKING([checking whether to auto-set compiler optimization flags])
 has_optimizer_flags=`echo "$CFLAGS $CXXFLAGS" | ${AWK} '$0 !~ /-x?O.?/{print "no"}'`
@@ -620,6 +617,8 @@ AS_IF([test "x${has_optimizer_flags}" = "xno"],
 		AC_MSG_RESULT([no])
 	]
 )
+
+AM_CONDITIONAL([BUILD_HAVE_LIBCXX], [ false ])
 
 base_cc=`basename $CC`
 # These are shortcuts used in combination for the compiler options below
@@ -671,6 +670,8 @@ case $host_os in
       debug_opt="$common_opt"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
+      # clang on Darwin needs to use libc++ for any C++11 code.
+      AM_CONDITIONAL([BUILD_HAVE_LIBCXX], [ true ])
       ;;
     *) # gcc
       common_opt="-pipe -Wall -Werror -Wno-deprecated-declarations"
@@ -720,8 +721,6 @@ case $host_os in
       release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
     fi
-    TS_ADDTO(LDFLAGS, [-L/lib])
-    TS_ADDTO(LDFLAGS, [-L/usr/local/lib])
     ;;
   *)
     common_opt="-pipe -Wall -Werror"
@@ -881,6 +880,18 @@ fi
 # Note:  This macro may set certain parameters when run.
 #
 
+#
+# CPP 11 API
+#
+AC_MSG_CHECKING([whether to enable c++11 api])
+AC_ARG_WITH([cpp11api],
+  [AS_HELP_STRING([--with-cpp11api],[enable support for cpp11api [default=auto]])],
+  [cpp11api=$withval],
+  [cpp11api=$enable_cxx_11_support]
+)
+AC_MSG_RESULT([$cpp11api])
+AM_CONDITIONAL([BUILD_CPP11API], [test "$cpp11api" = yes])
+
 
 # -----------------------------------------------------------------------------
 # 4. CHECK FOR LIBRARIES
@@ -897,6 +908,13 @@ AC_CHECK_LIB([rt],[clock_gettime],[AC_SUBST([LIBRT],["-lrt"])])
 AC_CHECK_LIB([posix4],[clock_gettime],[AC_SUBST([LIBRT],["-lposix4"])])
 AC_CHECK_LIB([iconv],[iconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
 AC_CHECK_LIB([iconv],[libiconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
+
+#
+# The header_rewrite module depends on boost.
+AX_BOOST_BASE([1.50],
+  [ AM_CONDITIONAL([BUILD_HAVE_BOOST], [true]) ],
+  [ AM_CONDITIONAL([BUILD_HAVE_BOOST], [false]) ]
+)
 
 #
 # Check for SSL presence and usability
@@ -1150,13 +1168,31 @@ AC_SUBST(LUA_CFLAGS)
 AC_SUBST(LUA_LIBS)
 AC_MSG_CHECKING([whether to enable Lua support])
 AM_CONDITIONAL([BUILD_LUA_SUPPORT], [ test "x${enable_lua_support}" != "xno" ])
+AM_CONDITIONAL([BUILD_HAVE_LUAJIT], [ test "x${have_luajit}" = "xyes" ])
 AC_MSG_RESULT([$enable_lua_support])
+
+# On Darwin LuaJIT requires magic link options, otherwise it will crash in luaL_openlibs() at startup. See
+# http://luajit.org/install.html.
+case $host_os in
+  darwin*)
+    if test "x${have_luajit}" = "xyes"; then
+      LUA_LUAJIT_LDFLAGS="-Wl,-pagezero_size,10000 -Wl,-image_base,100000000"
+    fi
+    ;;
+esac
+
+AC_SUBST(LUA_LUAJIT_LDFLAGS)
+
 
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
 
 TS_FLAG_HEADERS([sys/epoll.h \
                   sys/event.h \
+                  sys/param.h \
+                  sys/pset.h \
+                  sched.h \
+                  pthread_np.h \
                   machine/endian.h \
                   endian.h \
                   sys/sysinfo.h \
@@ -1167,7 +1203,7 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   sys/ioctl.h \
                   sys/byteorder.h \
                   sys/sockio.h \
-		  sys/prctl.h \
+                  sys/prctl.h \
                   arpa/nameser.h \
                   arpa/nameser_compat.h \
                   execinfo.h \
@@ -1186,6 +1222,7 @@ TS_FLAG_HEADERS([sys/epoll.h \
                   sys/sysmacros.h \
                   math.h \
                   stdint.h \
+                  stdbool.h \
                   net/ppp_defs.h \
                   ifaddrs.h\
 		  readline/readline.h \
@@ -1195,6 +1232,11 @@ AC_SUBST(sys_epollh)
 AC_SUBST(sys_eventh)
 AC_SUBST(machine_endianh)
 AC_SUBST(endianh)
+AC_SUBST(pthread_nph)
+AC_SUBST(sys_paramh)
+AC_SUBST(sys_cpuseth)
+AC_SUBST(sys_pseth)
+AC_SUBST(schedh)
 AC_SUBST(netinet_inh)
 AC_SUBST(netinet_in_systmh)
 AC_SUBST(netinet_tcph)
@@ -1229,6 +1271,12 @@ AC_SUBST(ifaddrsh)
 AC_SUBST(readline_readlineh)
 
 TS_FLAG_HEADERS([sys/sysctl.h], [], [],
+                 [[#ifdef HAVE_SYS_PARAM_H
+                    #include <sys/param.h>
+                   #endif
+                 ]])
+
+TS_FLAG_HEADERS([sys/cpuset.h], [], [],
                  [[#ifdef HAVE_SYS_PARAM_H
                     #include <sys/param.h>
                    #endif
@@ -1556,12 +1604,17 @@ AC_CONFIG_FILES([plugins/regex_remap/Makefile])
 AC_CONFIG_FILES([plugins/header_filter/Makefile])
 AC_CONFIG_FILES([plugins/stats_over_http/Makefile])
 # experimental plugins
+AC_CONFIG_FILES([plugins/experimental/Makefile])
 AC_CONFIG_FILES([plugins/experimental/esi/Makefile])
 AC_CONFIG_FILES([plugins/experimental/lua/Makefile])
 AC_CONFIG_FILES([plugins/experimental/rfc5861/Makefile])
 AC_CONFIG_FILES([plugins/experimental/tcp_info/Makefile])
 AC_CONFIG_FILES([plugins/experimental/custom_redirect/Makefile])
 AC_CONFIG_FILES([plugins/experimental/header_rewrite/Makefile])
+AC_CONFIG_FILES([plugins/experimental/metalink/Makefile])
+AC_CONFIG_FILES([plugins/experimental/gzip/Makefile])
+AC_CONFIG_FILES([plugins/experimental/spdy/Makefile])
+AC_CONFIG_FILES([plugins/experimental/channel_stats/Makefile])
 # various tools
 AC_CONFIG_FILES([tools/Makefile])
 # example plugins

@@ -35,7 +35,6 @@
 #include "ParseRules.h"
 #include "HTTP.h"
 #include "HdrUtils.h"
-#include "HttpMessageBody.h"
 #include "MimeTable.h"
 #include "logging/Log.h"
 #include "logging/LogUtils.h"
@@ -1265,7 +1264,7 @@ HttpTransact::HandleRequest(State* s)
     TRANSACT_RETURN(DNS_LOOKUP, OSDNSLookup);   // After handling the request, DNS is done.
   } else {
     // After the requested is properly handled No need of requesting the DNS directly check the ACLs
-    // if the request is Authorised
+    // if the request is authorized
     StartAccessControl(s);
   }
 }
@@ -1275,7 +1274,7 @@ HttpTransact::setup_plugin_request_intercept(State* s)
 {
   ink_debug_assert(s->state_machine->plugin_tunnel != NULL);
 
-  // Plugin is incerpting the request which means
+  // Plugin is intercepting the request which means
   //  that we don't do dns, cache read or cache write
   //
   // We just want to write the request straight to the plugin
@@ -1404,7 +1403,7 @@ HttpTransact::PPDNSLookup(State* s)
     s->parent_info.dns_round_robin = s->dns_info.round_robin;
 
     char addrbuf[INET6_ADDRSTRLEN];
-    DebugTxn("http_trans", "[PPDNSLookup] DNS lookup for sm_id[%"PRId64"] successful IP: %s",
+    DebugTxn("http_trans", "[PPDNSLookup] DNS lookup for sm_id[%" PRId64"] successful IP: %s",
           s->state_machine->sm_id, ats_ip_ntop(&s->parent_info.addr.sa, addrbuf, sizeof(addrbuf)));
   }
 
@@ -1745,7 +1744,7 @@ void
 HttpTransact::DecideCacheLookup(State* s)
 {
   // Check if a client request is lookupable.
-  if (s->redirect_info.redirect_in_process) {
+  if (s->redirect_info.redirect_in_process || s->cop_test_page) {
     // for redirect, we want to skip cache lookup and write into
     // the cache directly with the URL before the redirect
     s->cache_info.action = CACHE_DO_NO_ACTION;
@@ -3378,7 +3377,7 @@ HttpTransact::handle_response_from_parent(State* s)
         if ((s->current.attempts - 1) % s->http_config_param->per_parent_connect_attempts != 0) {
           // No we are not done with this parent so retry
           s->next_action = how_to_open_connection(s);
-          DebugTxn("http_trans", "%s Retrying parent for attempt %d, max %"PRId64,
+          DebugTxn("http_trans", "%s Retrying parent for attempt %d, max %" PRId64,
                 "[handle_response_from_parent]", s->current.attempts, s->http_config_param->per_parent_connect_attempts);
           return;
         } else {
@@ -5660,7 +5659,7 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
     int64_t length = incoming_request->get_content_length();
     s->hdr_info.request_content_length = (length >= 0) ? length : HTTP_UNDEFINED_CL;    // content length less than zero is invalid
 
-    DebugTxn("http_trans", "[init_stat_vars_from_req] set req cont length to %"PRId64,
+    DebugTxn("http_trans", "[init_stat_vars_from_req] set req cont length to %" PRId64,
           s->hdr_info.request_content_length);
 
   } else {
@@ -6749,7 +6748,7 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
         header->field_delete(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
         s->hdr_info.trust_response_cl = false;
       }
-      Debug("http_trans", "[handle_content_length_header] RESPONSE cont len in hdr is %"PRId64, header->get_content_length());
+      Debug("http_trans", "[handle_content_length_header] RESPONSE cont len in hdr is %" PRId64, header->get_content_length());
     } else {
       // No content length header
       if (s->source == SOURCE_CACHE) {
@@ -6811,7 +6810,7 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
       header->field_delete(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
       s->hdr_info.request_content_length = HTTP_UNDEFINED_CL;
     }
-    DebugTxn("http_trans", "[handle_content_length_header] cont len in hdr is %"PRId64", stat var is %"PRId64,
+    DebugTxn("http_trans", "[handle_content_length_header] cont len in hdr is %" PRId64", stat var is %" PRId64,
           header->get_content_length(), s->hdr_info.request_content_length);
   }
 
@@ -6983,7 +6982,9 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
           // length (e.g. no Content-Length and Connection:close in HTTP/1.1 responses)
           s->hdr_info.trust_response_cl == false)) ||
          // handle serve from cache (read-while-write) case
-         (s->source == SOURCE_CACHE && s->hdr_info.trust_response_cl == false))) {
+         (s->source == SOURCE_CACHE && s->hdr_info.trust_response_cl == false) ||
+	  //any transform will potentially alter the content length. try chunking if possible
+	  (s->source == SOURCE_TRANSFORM && s->hdr_info.trust_response_cl == false ))) {
       s->client_info.receive_chunked_response = true;
       heads->value_append(MIME_FIELD_TRANSFER_ENCODING, MIME_LEN_TRANSFER_ENCODING, HTTP_VALUE_CHUNKED, HTTP_LEN_CHUNKED, true);
     } else {
@@ -7861,7 +7862,7 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
                              HTTPStatus status_code, const char *reason_phrase)
 {
   if (reason_phrase == NULL) {
-    reason_phrase = HttpMessageBody::StatusCodeName(status_code);
+    reason_phrase = http_hdr_reason_lookup(status_code);
   }
 
   if (base_response == NULL) {
@@ -7958,10 +7959,8 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
   HttpTransactHeaders::convert_response(outgoing_version, outgoing_response);
 
   // process reverse mappings on the location header
-  HTTPStatus outgoing_status = outgoing_response->status_get();
-
-  if ((outgoing_status != 200) && (((outgoing_status >= 300) && (outgoing_status < 400)) || (outgoing_status == 201)))
-    response_url_remap(outgoing_response);
+  // TS-1364: do this regardless of response code
+  response_url_remap(outgoing_response);
 
   if (s->http_config_param->enable_http_stats) {
     if (s->hdr_info.server_response.valid() && s->http_config_param->wuts_enabled) {
@@ -8099,7 +8098,7 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   }
 
   va_start(ap, format);
-  reason_phrase = (reason_phrase_or_null ? reason_phrase_or_null : (char *) (HttpMessageBody::StatusCodeName(status_code)));
+  reason_phrase = (reason_phrase_or_null ? reason_phrase_or_null : (char *) (http_hdr_reason_lookup(status_code)));
   if (unlikely(!reason_phrase))
     reason_phrase = "Unknown HTTP Status";
 
@@ -8224,7 +8223,7 @@ HttpTransact::build_redirect_response(State* s)
   char body_language[256], body_type[256];
 
   HTTPStatus status_code = HTTP_STATUS_MOVED_TEMPORARILY;
-  char *reason_phrase = (char *) (HttpMessageBody::StatusCodeName(status_code));
+  char *reason_phrase = (char *) (http_hdr_reason_lookup(status_code));
 
   build_response(s, &s->hdr_info.client_response, s->client_info.http_version, status_code, reason_phrase);
 
@@ -8623,10 +8622,8 @@ HttpTransact::client_result_stat(State* s, ink_hrtime total_time, ink_hrtime req
     break;
   default:
     HTTP_SUM_TRANS_STAT(http_ua_msecs_counts_other_unclassified_stat, total_msec);
-    if (is_debug_tag_set("http")) {
-      ink_release_assert(!"unclassified statistic");
-    }
-    //debug_tag_assert("http",!"unclassified statistic");
+    // This can happen if a plugin manually sets the status code after an error.
+    DebugTxn("http", "Unclassified statistic");
     break;
   }
 }
@@ -8924,7 +8921,7 @@ HttpTransact::change_response_header_because_of_range_request(State *s, HTTPHdr 
     char numbers[RANGE_NUMBERS_LENGTH];
 
     field = header->field_create(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
-    snprintf(numbers, sizeof(numbers), "bytes %"PRId64"-%"PRId64"/%"PRId64, s->ranges[0]._start, s->ranges[0]._end, s->cache_info.object_read->object_size_get());
+    snprintf(numbers, sizeof(numbers), "bytes %" PRId64"-%" PRId64"/%" PRId64, s->ranges[0]._start, s->ranges[0]._end, s->cache_info.object_read->object_size_get());
     field->value_append(header->m_heap, header->m_mime, numbers, strlen(numbers));
     header->field_attach(field);
     header->set_content_length(s->range_output_cl);

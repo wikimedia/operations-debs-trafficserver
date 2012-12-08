@@ -1176,6 +1176,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_in, "proxy.config.http.keep_alive_enabled_in");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_out, "proxy.config.http.keep_alive_enabled_out");
   HttpEstablishStaticConfigByte(c.oride.chunking_enabled, "proxy.config.http.chunking_enabled");
+  HttpEstablishStaticConfigLongLong(c.oride.http_chunking_size, "proxy.config.http.chunking.size");
   HttpEstablishStaticConfigByte(c.session_auth_cache_keep_alive_enabled,
                                 "proxy.config.http.session_auth_cache_keep_alive_enabled");
   HttpEstablishStaticConfigLongLong(c.origin_server_pipeline, "proxy.config.http.origin_server_pipeline");
@@ -1272,6 +1273,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.max_cache_open_write_retries, "proxy.config.http.cache.max_open_write_retries");
 
   HttpEstablishStaticConfigByte(c.oride.cache_http, "proxy.config.http.cache.http");
+  HttpEstablishStaticConfigByte(c.oride.cache_cluster_cache_local, "proxy.config.http.cache.cluster_cache_local");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_no_cache, "proxy.config.http.cache.ignore_client_no_cache");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_cc_max_age, "proxy.config.http.cache.ignore_client_cc_max_age");
   HttpEstablishStaticConfigByte(c.oride.cache_ims_on_client_no_cache, "proxy.config.http.cache.ims_on_client_no_cache");
@@ -1455,6 +1457,7 @@ HttpConfig::reconfigure()
   params->oride.keep_alive_enabled_in = INT_TO_BOOL(m_master.oride.keep_alive_enabled_in);
   params->oride.keep_alive_enabled_out = INT_TO_BOOL(m_master.oride.keep_alive_enabled_out);
   params->oride.chunking_enabled = INT_TO_BOOL(m_master.oride.chunking_enabled);
+  params->oride.http_chunking_size = m_master.oride.http_chunking_size;
   params->session_auth_cache_keep_alive_enabled = INT_TO_BOOL(m_master.session_auth_cache_keep_alive_enabled);
   params->origin_server_pipeline = m_master.origin_server_pipeline;
   params->user_agent_pipeline = m_master.user_agent_pipeline;
@@ -1539,6 +1542,7 @@ HttpConfig::reconfigure()
   params->max_cache_open_write_retries = m_master.max_cache_open_write_retries;
 
   params->oride.cache_http = INT_TO_BOOL(m_master.oride.cache_http);
+  params->oride.cache_cluster_cache_local = INT_TO_BOOL(m_master.oride.cache_cluster_cache_local);
   params->oride.cache_ignore_client_no_cache = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
   params->oride.cache_ignore_client_cc_max_age = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
   params->oride.cache_ims_on_client_no_cache = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
@@ -1615,9 +1619,9 @@ HttpConfig::reconfigure()
 
 // Redirection debug statements
   Debug("http_init", "proxy.config.http.redirection_enabled = %d", params->redirection_enabled);
-  Debug("http_init", "proxy.config.http.number_of_redirections = %"PRId64"", params->number_of_redirections);
+  Debug("http_init", "proxy.config.http.number_of_redirections = %" PRId64"", params->number_of_redirections);
 
-  Debug("http_init", "proxy.config.http.post_copy_size = %"PRId64"", params->post_copy_size);
+  Debug("http_init", "proxy.config.http.post_copy_size = %" PRId64"", params->post_copy_size);
 }
 
 ////////////////////////////////////////////////////////////////

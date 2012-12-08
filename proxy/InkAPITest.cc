@@ -515,7 +515,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
 
     cache_vconn->read_vconnp = (TSVConn) data;
     content_length = TSVConnCacheObjectSizeGet(cache_vconn->read_vconnp);
-    Debug(UTDBG_TAG "_cache_read", "In cache open read [Content-Length: %"PRId64"]", content_length);
+    Debug(UTDBG_TAG "_cache_read", "In cache open read [Content-Length: %" PRId64"]", content_length);
     if (content_length != OBJECT_SIZE) {
       SDK_RPRINT(SDK_Cache_test, "TSVConnCacheObjectSizeGet", "TestCase1", TC_FAIL, "cached data size is incorrect");
 
@@ -566,7 +566,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->write_vio);
     ndone = TSVIONDoneGet(cache_vconn->write_vio);
     ntodo = TSVIONTodoGet(cache_vconn->write_vio);
-    Debug(UTDBG_TAG "_cache_write", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_write", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (ndone == (OBJECT_SIZE / 2)) {
       TSVIONBytesSet(cache_vconn->write_vio, (OBJECT_SIZE - 100));
@@ -669,7 +669,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->write_vio);
     ndone = TSVIONDoneGet(cache_vconn->write_vio);
     ntodo = TSVIONTodoGet(cache_vconn->write_vio);
-    Debug(UTDBG_TAG "_cache_write", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_write", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     TSVIOReenable(cache_vconn->write_vio);
     return 1;
@@ -687,7 +687,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->read_vio);
     ntodo = TSVIONTodoGet(cache_vconn->read_vio);
     ndone = TSVIONDoneGet(cache_vconn->read_vio);
-    Debug(UTDBG_TAG "_cache_read", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_read", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (nbytes != (ndone + ntodo)) {
       SDK_RPRINT(SDK_Cache_test, "TSVIONBytesGet", "TestCase1", TC_FAIL, "read_vio corrupted");
@@ -734,7 +734,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->read_vio);
     ntodo = TSVIONTodoGet(cache_vconn->read_vio);
     ndone = TSVIONDoneGet(cache_vconn->read_vio);
-    Debug(UTDBG_TAG "_cache_read", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_read", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (nbytes != (ndone + ntodo)) {
       SDK_RPRINT(SDK_Cache_test, "TSVIONBytesGet", "TestCase1", TC_FAIL, "read_vio corrupted");
@@ -753,7 +753,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     // Fix for bug INKqa12276: Must consume data from iobuffer
     nbytes = TSIOBufferReaderAvail(cache_vconn->out_readerp);
     TSIOBufferReaderConsume(cache_vconn->out_readerp, nbytes);
-    TSDebug(UTDBG_TAG "_cache_read", "Consuming %"PRId64" bytes from cache read VC", nbytes);
+    TSDebug(UTDBG_TAG "_cache_read", "Consuming %" PRId64" bytes from cache read VC", nbytes);
 
     TSVIOReenable(cache_vconn->read_vio);
     Debug(UTDBG_TAG "_cache_read", "finishing up [j]");
@@ -7362,6 +7362,7 @@ const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {
   "proxy.config.http.server_tcp_init_cwnd",
   "proxy.config.http.send_http11_requests",
   "proxy.config.http.cache.http",
+  "proxy.config.http.cache.cluster_cache_local",
   "proxy.config.http.cache.ignore_client_no_cache",
   "proxy.config.http.cache.ignore_client_cc_max_age",
   "proxy.config.http.cache.ims_on_client_no_cache",
@@ -7500,6 +7501,7 @@ REGRESSION_TEST(SDK_API_ENCODING) (RegressionTest * test, int atype, int *pstatu
   const char *url_encoded =
     "http://www.example.com/foo?fie=%20%22%23%25%3C%3E%5B%5D%5C%5E%60%7B%7D%7E&bar=%7Btest%7D&fum=Apache%20Traffic%20Server";
   const char *url_base64 = "aHR0cDovL3d3dy5leGFtcGxlLmNvbS9mb28/ZmllPSAiIyU8PltdXF5ge31+JmJhcj17dGVzdH0mZnVtPUFwYWNoZSBUcmFmZmljIFNlcnZlcg==";
+  const char *url2 = "http://www.example.com/"; // No Percent encoding necessary
   char buf[1024];
   size_t length;
   bool success = true;
@@ -7516,12 +7518,36 @@ REGRESSION_TEST(SDK_API_ENCODING) (RegressionTest * test, int atype, int *pstatu
     }
   }
 
+  if (TS_SUCCESS != TSStringPercentEncode(url2, strlen(url2), buf, sizeof(buf), &length, NULL)) {
+    SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_FAIL, "Failed on %s", url2);
+    success = false;
+  } else {
+    if (strcmp(buf, url2)) {
+      SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_FAIL, "Failed on %s != %s", buf, url2);
+      success = false;
+    } else {
+      SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_PASS, "ok");
+    }
+  }
+
   if (TS_SUCCESS != TSStringPercentDecode(url_encoded, strlen(url_encoded), buf, sizeof(buf), &length)) {
     SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s", url_encoded);
     success = false;
   } else {
     if (length != strlen(url) || strcmp(buf, url)) {
       SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s != %s", buf, url);
+      success = false;
+    } else {
+      SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_PASS, "ok");
+    }
+  }
+
+  if (TS_SUCCESS != TSStringPercentDecode(url2, strlen(url2), buf, sizeof(buf), &length)) {
+    SDK_RPRINT(test, "TSStringPercentDecode", "TestCase2", TC_FAIL, "Failed on %s", url2);
+    success = false;
+  } else {
+    if (length != strlen(url2) || strcmp(buf, url2)) {
+      SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s != %s", buf, url2);
       success = false;
     } else {
       SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_PASS, "ok");

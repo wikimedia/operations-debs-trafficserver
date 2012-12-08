@@ -409,7 +409,7 @@ struct OverridableHttpConfigParams {
        anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
        proxy_response_server_enabled(0), insert_squid_x_forwarded_for(0),
        send_http11_requests(3), // SEND_HTTP11_IF_REQUEST_11_AND_HOSTDB
-       cache_http(0), cache_ignore_client_no_cache(0), cache_ignore_client_cc_max_age(1),
+       cache_http(0), cache_cluster_cache_local(0), cache_ignore_client_no_cache(0), cache_ignore_client_cc_max_age(1),
        cache_ims_on_client_no_cache(0), cache_ignore_server_no_cache(0), cache_responses_to_cookies(0),
        cache_ignore_auth(0), cache_urls_that_look_dynamic(0), cache_required_headers(0), // CACHE_REQUIRED_HEADERS_NONE
        insert_request_via_string(0), insert_response_via_string(0), doc_in_cache_skip_dns(1),
@@ -431,6 +431,7 @@ struct OverridableHttpConfigParams {
        freshness_fuzz_time(0), freshness_fuzz_min_time(0),
        max_cache_open_read_retries(0), cache_open_read_retry_time(0),
        background_fill_active_timeout(0),
+       http_chunking_size(0),
 
        // Strings / floats must come last
        proxy_response_server_string(NULL), proxy_response_server_string_len(0),
@@ -488,6 +489,7 @@ struct OverridableHttpConfigParams {
   // cache control //
   ///////////////////
   MgmtByte cache_http;
+  MgmtByte cache_cluster_cache_local;
   MgmtByte cache_ignore_client_no_cache;
   MgmtByte cache_ignore_client_cc_max_age;
   MgmtByte cache_ims_on_client_no_cache;
@@ -563,6 +565,8 @@ struct OverridableHttpConfigParams {
   MgmtInt cache_open_read_retry_time;   // time is in mseconds
 
   MgmtInt background_fill_active_timeout;
+
+  MgmtInt http_chunking_size; // Maximum chunk size for chunked output.
 
   // IMPORTANT: Here comes all strings / floats configs.
 

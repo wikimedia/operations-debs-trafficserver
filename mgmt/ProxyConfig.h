@@ -33,7 +33,6 @@
 
 #include "libts.h"
 #include "ProcessManager.h"
-#include "Error.h"
 
 void *config_int_cb(void *data, void *value);
 void *config_long_long_cb(void *data, void *value);
@@ -50,15 +49,13 @@ void *config_string_alloc_cb(void *data, void *value);
 #define RegisterMgmtCallback(_signal,_fn,_data) \
 pmgmt->registerMgmtCallback(_signal,_fn,_data)
 
-
 #define MAX_CONFIGS  100
-
 
 struct ConfigInfo
 {
   volatile int m_refcount;
 
-    virtual ~ ConfigInfo()
+  virtual ~ ConfigInfo()
   {
   }
 };
@@ -68,6 +65,19 @@ class ConfigProcessor
 {
 public:
   ConfigProcessor();
+
+  template <typename ClassType, typename ConfigType>
+  struct scoped_config {
+    scoped_config() : ptr(ClassType::acquire()) {}
+    ~scoped_config() { ClassType::release(ptr); }
+
+    operator bool() const { return ptr != 0; }
+    operator const ConfigType * () const { return ptr; }
+    const ConfigType * operator->() const { return ptr; }
+
+  private:
+    ConfigType * ptr;
+  };
 
   unsigned int set(unsigned int id, ConfigInfo * info);
   ConfigInfo *get(unsigned int id);

@@ -41,13 +41,23 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#ifndef tsapi
 #define tsapi
+#endif
 
 #if !defined(TS_PRINTFLIKE)
 #if defined(__GNUC__) || defined(__clang__)
 #define TS_PRINTFLIKE(fmt, arg) __attribute__((format(printf, fmt, arg)))
 #else
 #define TS_PRINTFLIKE(fmt, arg)
+#endif
+#endif
+
+#if !defined(TS_NORETURN)
+#if defined(__GNUC__) || defined(__clang__)
+#define TS_NORETURN __attribute__((noreturn))
+#else
+#define TS_NORETURN
 #endif
 #endif
 
@@ -572,6 +582,7 @@ extern "C"
     TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND,
     TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS,
     TS_CONFIG_HTTP_CACHE_HTTP,
+    TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL,
     TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE,
     TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE,
     TS_CONFIG_HTTP_CACHE_IMS_ON_CLIENT_NO_CACHE,
@@ -611,7 +622,8 @@ extern "C"
     TS_CONFIG_NET_SOCK_PACKET_MARK_OUT,
     TS_CONFIG_NET_SOCK_PACKET_TOS_OUT,
     TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE,
-    TS_CONFIG_LAST_ENTRY
+    TS_CONFIG_LAST_ENTRY,
+    TS_CONFIG_HTTP_CHUNKING_SIZE
   } TSOverridableConfigKey;
 
   /* The TASK pool of threads is the primary method of off-loading continuations from the
@@ -1248,11 +1260,11 @@ extern "C"
 
   /* --------------------------------------------------------------------------
      Assertions */
-  tsapi int _TSReleaseAssert(const char* txt, const char* f, int l);
+  tsapi void _TSReleaseAssert(const char* txt, const char* f, int l) TS_NORETURN;
   tsapi int _TSAssert(const char* txt, const char* f, int l);
 
 #define TSReleaseAssert(EX) \
-            (void)((EX) || (_TSReleaseAssert(#EX, __FILE__, __LINE__)))
+            ( (void)((EX) ? (void)0 : _TSReleaseAssert(#EX, __FILE__, __LINE__)) )
 
 #define TSAssert(EX) \
             (void)((EX) || (_TSAssert(#EX, __FILE__, __LINE__)))
@@ -2211,7 +2223,20 @@ extern "C"
      HTTP transactions */
   tsapi void TSHttpTxnHookAdd(TSHttpTxn txnp, TSHttpHookID id, TSCont contp);
   tsapi TSHttpSsn TSHttpTxnSsnGet(TSHttpTxn txnp);
+
+  /* Gets the client request header for a specified HTTP transaction. */
   tsapi TSReturnCode TSHttpTxnClientReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+  /* Gets the client response header for a specified HTTP transaction. */
+  tsapi TSReturnCode TSHttpTxnClientRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+  /* Gets the server request header from a specified HTTP transaction. */
+  tsapi TSReturnCode TSHttpTxnServerReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+  /* Gets the server response header from a specified HTTP transaction. */
+  tsapi TSReturnCode TSHttpTxnServerRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+  /* Gets the cached request header for a specified HTTP transaction. */
+  tsapi TSReturnCode TSHttpTxnCachedReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+  /* Gets the cached response header for a specified HTTP transaction. */
+  tsapi TSReturnCode TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+
   tsapi TSReturnCode TSHttpTxnPristineUrlGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* url_loc);
 
   /** Get the effective URL for the transaction.
@@ -2226,11 +2251,7 @@ extern "C"
   tsapi char* TSHttpTxnEffectiveUrlStringGet(TSHttpTxn txnp,
                                              int* length /**< String length return, may be @c NULL. */
                                              );
-  tsapi TSReturnCode TSHttpTxnClientRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
-  tsapi TSReturnCode TSHttpTxnServerReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
-  tsapi TSReturnCode TSHttpTxnServerRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
-  tsapi TSReturnCode TSHttpTxnCachedReqGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
-  tsapi TSReturnCode TSHttpTxnCachedRespGet(TSHttpTxn txnp, TSMBuffer* bufp, TSMLoc* offset);
+
   tsapi void TSHttpTxnRespCacheableSet(TSHttpTxn txnp, int flag);
   tsapi void TSHttpTxnReqCacheableSet(TSHttpTxn txnp, int flag);
 
@@ -3024,7 +3045,7 @@ extern "C"
           log write buffer). This error is very unusual.
 
    */
-  tsapi TSReturnCode TSTextLogObjectWrite(TSTextLogObject the_object, char* format, ...) TS_PRINTFLIKE(2, 3);
+  tsapi TSReturnCode TSTextLogObjectWrite(TSTextLogObject the_object, const char* format, ...) TS_PRINTFLIKE(2, 3);
 
   /**
       This immediately flushes the contents of the log write buffer for
