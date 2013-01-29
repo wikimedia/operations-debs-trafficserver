@@ -102,9 +102,9 @@ libtsutil_la_DEPENDENCIES = @LIBOBJS@
 am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo Diags.lo HostLookup.lo \
 	ink_args.lo ink_assert.lo ink_auth_api.lo ink_base64.lo \
 	ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo ink_file.lo \
-	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_killall.lo \
-	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_utils.lo \
-	ink_rand.lo ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
+	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_memory.lo \
+	ink_mutex.lo ink_queue.lo ink_queue_utils.lo ink_rand.lo \
+	ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
 	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
 	ink_string.lo ink_string++.lo ink_sys_control.lo ink_syslog.lo \
 	ink_thread.lo ink_time.lo fastlz.lo llqueue.lo lockfile.lo \
@@ -279,11 +279,13 @@ LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
 LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
+LIBLZMA = @LIBLZMA@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBRT = @LIBRT@
 LIBS = @LIBS@
@@ -293,6 +295,7 @@ LIBTCL = @LIBTCL@
 LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
+LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -362,7 +365,6 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
-arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -591,8 +593,6 @@ libtsutil_la_SOURCES = \
   ink_inet.cc \
   ink_inet.h \
   ink_inout.h \
-  ink_killall.cc \
-  ink_killall.h \
   ink_llqueue.h \
   ink_lockfile.h \
   INK_MD5.h \
@@ -860,7 +860,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hash_table.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_hrtime.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_inet.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_killall.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_memory.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_mutex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_queue.Plo@am__quote@

@@ -374,8 +374,8 @@ Store::write_config_data(int fd)
 #include <sys/param.h>
 #include <sys/mount.h>
 #if defined(freebsd)
+#include <sys/disk.h>
 #include <sys/disklabel.h>
-//#include <sys/diskslice.h>
 #elif defined(darwin)
 #include <sys/disk.h>
 #include <sys/statvfs.h>
@@ -389,9 +389,6 @@ Span::init(char *an, int64_t size)
   const char *err = NULL;
   int ret = 0;
 
-  //
-  // All file types on Solaris can be mmaped
-  //
   is_mmapable_internal = true;
 
   // handle symlinks
@@ -447,64 +444,25 @@ Span::init(char *an, int64_t size)
 
   case S_IFBLK:{
   case S_IFCHR:
-#ifdef HAVE_RAW_DISK_SUPPORT // FIXME: darwin, freebsd
-      struct disklabel dl;
-      struct diskslices ds;
-      if (ioctl(fd, DIOCGDINFO, &dl) < 0) {
-      lvolError:
-        Warning("unable to get label information for '%s': %s", n, strerror(errno));
+    // These IOCTLs are standard across the BSD family; Darwin has a different set though.
+#if defined(DIOCGMEDIASIZE) && defined(DIOCGSECTORSIZE)
+      if (ioctl(fd, DIOCGMEDIASIZE, &size) < 0) {
+        Warning("unable to get disk information for '%s': %s", n, strerror(errno));
         err = "unable to get label information";
         goto Lfail;
       }
-      {
-        char *s1 = n, *s2;
-        int slice = -1, part = -1;
-        if ((s2 = strrchr(s1, '/')))
-          s1 = s2 + 1;
-        else
-          goto lvolError;
-        for (s2 = s1; *s2 && !ParseRules::is_digit(*s2); s2++);
-        if (!*s2 || s2 == s1)
-          goto lvolError;
-        while (ParseRules::is_digit(*++s2));
-        s1 = s2;
-        if (*s2 == 's') {
-          slice = ink_atoi(s2 + 1);
-          if (slice<1 || slice> MAX_SLICES - BASE_SLICE)
-            goto lvolError;
-          slice = BASE_SLICE + slice - 1;
-          while (ParseRules::is_digit(*++s2));
-        }
-        if (*s2 >= 'a' && *s2 <= 'a' + MAXPARTITIONS - 1) {
-          if (slice == -1)
-            slice = COMPATIBILITY_SLICE;
-          part = *s2++ - 'a';
-        }
-        if (slice >= 0) {
-          if (ioctl(fd, DIOCGSLICEINFO, &ds) < 0)
-            goto lvolError;
-          if (slice >= (int) ds.dss_nslices || !ds.dss_slices[slice].ds_size)
-            goto lvolError;
-          fsize = (int64_t) ds.dss_slices[slice].ds_size * dl.d_secsize;
-        } else {
-          if (part < 0)
-            goto lvolError;
-          // This is odd, the dl struct isn't defined anywhere ...
-          fsize = (int64_t) dl.d_partitions[part].p_size * dl.d_secsize;
-        }
-        devnum = s.st_rdev;
-        if (size <= 0)
-          size = fsize;
-        if (size > fsize)
-          size = fsize;
-        break;
+      if (ioctl(fd, DIOCGSECTORSIZE, &hw_sector_size) < 0) {
+        Warning("unable to get disk information for '%s': %s", n, strerror(errno));
+        err = "unable to get label information";
+        goto Lfail;
       }
-#else /* !HAVE_RAW_DISK_SUPPORT */
-    Warning("Currently Raw Disks are not supported" );
-    err = "Currently Raw Disks are not supported";
-    goto Lfail;
-    break;
-#endif /* !HAVE_RAW_DISK_SUPPORT */
+      devnum = s.st_rdev;
+      break;
+#else
+      Warning("unable to get disk information for '%s': %s", n, strerror(errno));
+      err = "no raw disk support on this platform";
+      goto Lfail;
+#endif
     }
   case S_IFDIR:
   case S_IFREG:
@@ -522,21 +480,20 @@ Span::init(char *an, int64_t size)
     break;
   }
 
-  // estimate the disk SOLARIS specific
-  if ((devnum >> 16) == 0x80)
-    disk_id = (devnum >> 3) & 0x3F;
-  else {
-    disk_id = devnum;
-  }
+  disk_id = devnum;
 
   pathname = ats_strdup(an);
-  blocks = size / STORE_BLOCK_SIZE;
+  blocks = size / hw_sector_size;
   file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
 
+  // This is so FreeBSD admins don't worry about our malicious code creating boot sector viruses:
   if (((s.st_mode & S_IFMT) == S_IFBLK) || ((s.st_mode & S_IFMT) == S_IFCHR)) {
     blocks--;
     offset = 1;
   }
+
+  Debug("cache_init", "Span::init - %s hw_sector_size = %d  size = %" PRId64 ", blocks = %" PRId64 ", disk_id = %d, file_pathname = %d", pathname, hw_sector_size, size, blocks, disk_id, file_pathname);
+
 Lfail:
   socketManager.close(fd);
   return err;

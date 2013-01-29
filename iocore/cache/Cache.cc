@@ -504,6 +504,8 @@ CacheProcessor::start(int)
   return start_internal(0);
 }
 
+static const int DEFAULT_CACHE_OPTIONS = (O_RDWR | _O_ATTRIB_OVERLAPPED);
+
 int
 CacheProcessor::start_internal(int flags)
 {
@@ -530,7 +532,8 @@ CacheProcessor::start_internal(int flags)
   for (i = 0; i < theCacheStore.n_disks; i++) {
     sd = theCacheStore.disk[i];
     char path[PATH_NAME_MAX];
-    int opts = O_RDWR;
+    int opts = DEFAULT_CACHE_OPTIONS;
+
     ink_strlcpy(path, sd->pathname, sizeof(path));
     if (!sd->file_pathname) {
       if (config_volumes.num_http_volumes && config_volumes.num_stream_volumes) {
@@ -539,7 +542,7 @@ CacheProcessor::start_internal(int flags)
       ink_strlcat(path, "/cache.db", sizeof(path));
       opts |= O_CREAT;
     }
-    opts |= _O_ATTRIB_OVERLAPPED;
+
 #ifdef O_DIRECT
     opts |= O_DIRECT;
 #endif
@@ -549,6 +552,10 @@ CacheProcessor::start_internal(int flags)
 
     int fd = open(path, opts, 0644);
     int blocks = sd->blocks;
+
+    if (fd < 0 && (opts & O_CREAT))  // Try without O_DIRECT if this is a file on filesystem, e.g. tmpfs.
+      fd = open(path, DEFAULT_CACHE_OPTIONS | O_CREAT, 0644);
+
     if (fd > 0) {
       if (!sd->file_pathname) {
         if (ftruncate(fd, ((uint64_t) blocks) * STORE_BLOCK_SIZE) < 0) {
@@ -1685,13 +1692,13 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data) {
           if (d->fd == gvol[p]->fd) {
             total_dir_delete += gvol[p]->buckets * gvol[p]->segments * DIR_DEPTH;
             used_dir_delete += dir_entries_used(gvol[p]);
-            total_bytes_delete = gvol[p]->len - vol_dirlen(gvol[p]);
+            total_bytes_delete += gvol[p]->len - vol_dirlen(gvol[p]);
           }
         }
 
         RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_bytes_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_dir_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -cache_direntries_used_stat);
+        RecIncrGlobalRawStat(cache_rsb, cache_direntries_total_stat, -total_dir_delete);
+        RecIncrGlobalRawStat(cache_rsb, cache_direntries_used_stat, -used_dir_delete);
 
         if (theCache) {
           rebuild_host_table(theCache);
@@ -2086,6 +2093,7 @@ CacheVC::removeEvent(int event, Event *e)
       f.remove_aborted_writers = 1;
     }
   Lread:
+    SET_HANDLER(&CacheVC::removeEvent);
     if (!buf)
       goto Lcollision;
     if (!dir_valid(vol, &dir)) {
@@ -2349,11 +2357,11 @@ cplist_reconfigure()
         percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
       }
       if (config_vol->size < 128) {
-        Warning("the size of volume %d (%d) is less than the minimum required volume size %d",
-                config_vol->number, config_vol->size, 128);
+        Warning("the size of volume %d (%"PRId64") is less than the minimum required volume size %d",
+                config_vol->number, (int64_t)config_vol->size, 128);
         Warning("volume %d is not created", config_vol->number);
       }
-      Debug("cache_hosting", "Volume: %d Size: %d", config_vol->number, config_vol->size);
+      Debug("cache_hosting", "Volume: %d Size: %"PRId64, config_vol->number, (int64_t)config_vol->size);
     }
     cplist_update();
     /* go through volume config and grow and create volumes */

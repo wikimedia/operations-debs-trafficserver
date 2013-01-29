@@ -110,7 +110,8 @@ traffic_shell_DEPENDENCIES = libtrafficshell.a \
 	$(top_builddir)/mgmt/api/remote/libtsmgmt.la \
 	$(top_builddir)/mgmt/tools/libinkconfigapi.a \
 	$(top_builddir)/mgmt/utils/libutils_lm.a \
-	$(top_builddir)/lib/ts/libtsutil.la $(am__DEPENDENCIES_1)
+	$(top_builddir)/lib/ts/libtsutil.la $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1)
 traffic_shell_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_shell_LDFLAGS) $(LDFLAGS) \
@@ -225,11 +226,13 @@ LIBEXECINFO = @LIBEXECINFO@
 LIBEXPAT = @LIBEXPAT@
 LIBHWLOC = @LIBHWLOC@
 LIBICONV = @LIBICONV@
+LIBLZMA = @LIBLZMA@
 LIBMLD = @LIBMLD@
 LIBNSL = @LIBNSL@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBRT = @LIBRT@
 LIBS = @LIBS@
@@ -239,6 +242,7 @@ LIBTCL = @LIBTCL@
 LIBTHREAD = @LIBTHREAD@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
+LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
@@ -308,7 +312,6 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
-arg_max = @arg_max@
 arpa_ineth = @arpa_ineth@
 arpa_nameser_compath = @arpa_nameser_compath@
 arpa_nameserh = @arpa_nameserh@
@@ -550,7 +553,7 @@ traffic_shell_LDADD = \
   $(LIBTCL) $(LIBREADLINE) \
   @LIBDL@ -lm @LIBICONV@ @LIBEXPAT@ @LIBSSL@ \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ \
-  @LIBRT@ @LIBEXECINFO@ @LIBPCRE@
+  @LIBRT@ @LIBEXECINFO@ @LIBPCRE@ @LIBREADLINE@
 
 traffic_line_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_line_LDADD = \

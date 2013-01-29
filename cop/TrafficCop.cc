@@ -27,12 +27,12 @@
 #include "mgmtapi.h"
 #include "ClusterCom.h"
 
-#if defined(linux)
+#if defined(linux) || defined (solaris)
 #include "sys/utsname.h"
-#include "ink_killall.h"
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
+#include <grp.h>
 
 union semun
 {
@@ -211,6 +211,7 @@ chown_file_to_admin_user(const char *file) {
     }
   }
 }
+
 static void
 sig_child(int signum)
 {
@@ -235,6 +236,41 @@ sig_child(int signum)
     child_status = status;
   }
   cop_log_trace("Leaving sig_child(%d)\n", signum);
+}
+
+static void
+sig_term(int signum)
+{
+  pid_t pid = 0;
+  int status = 0;
+
+  //killsig = SIGTERM;
+
+  cop_log_trace("Entering sig_term(%d)\n", signum);
+
+  // safely^W commit suicide.
+  cop_log_trace("Sending signal %d to entire group\n", signum);
+  killpg(0, signum);
+  
+  cop_log_trace("Waiting for children to exit.");
+
+  for (;;) {
+    pid = waitpid(WAIT_ANY, &status, WNOHANG);
+
+    if (pid <= 0) {
+      break;
+    }
+    // TSqa03086 - We can not log the child status signal from
+    //   the signal handler since syslog can deadlock.  Record
+    //   the pid and the status in a global for logging
+    //   next time through the event loop.  We will occasionally
+    //   lose some information if we get two sig childs in rapid
+    //   succession
+    child_pid = pid;
+    child_status = status;
+  }
+  cop_log_trace("Leaving sig_term(%d), exiting traffic_cop\n", signum);
+  exit(0);
 }
 
 static void
@@ -1380,18 +1416,7 @@ check_programs()
   Lockfile manager_lf(manager_lockfile);
   err = manager_lf.Open(&holding_pid);
   chown_file_to_admin_user(manager_lockfile);
-#if defined(linux)
-  // if lockfile held, but process doesn't exist, killall and try again
-  if (err == 0) {
-    if (kill(holding_pid, 0) == -1) {
-      cop_log(COP_WARNING, "%s's lockfile is held, but its pid (%d) is missing;"
-              " killing all processes named '%s' and retrying\n", manager_binary, holding_pid, manager_binary);
-      ink_killall(manager_binary, killsig);
-      sleep(1);                 // give signals a chance to be received
-      err = manager_lf.Open(&holding_pid);
-    }
-  }
-#endif
+
   if (err > 0) {
     // 'lockfile_open' returns the file descriptor of the opened
     // lockfile.  We need to close this before spawning the
@@ -1472,18 +1497,7 @@ check_programs()
 
     Lockfile server_lf(server_lockfile);
     err = server_lf.Open(&holding_pid);
-#if defined(linux)
-    // if lockfile held, but process doesn't exist, killall and try again
-    if (err == 0) {
-      if (kill(holding_pid, 0) == -1) {
-        cop_log(COP_WARNING, "%s's lockfile is held, but its pid (%d) is missing;"
-                " killing all processes named '%s' and retrying\n", server_binary, holding_pid, server_binary);
-        ink_killall(server_binary, killsig);
-        sleep(1);               // give signals a chance to be received
-        err = server_lf.Open(&holding_pid);
-      }
-    }
-#endif
+
     if (err > 0) {
       server_lf.Close();
 
@@ -1672,6 +1686,15 @@ init_signals()
   struct sigaction action;
 
   cop_log_trace("Entering init_signals()\n");
+  // Handle the SIGTERM and SIGINT signal:
+  // We kill the process group and wait() for all children
+  action.sa_handler = sig_term;
+  sigemptyset(&action.sa_mask);
+  action.sa_flags = 0;
+
+  sigaction(SIGTERM, &action, NULL);
+  sigaction(SIGINT, &action, NULL);
+
   // Handle the SIGCHLD signal. We simply reap all children that
   // die (which should only be spawned traffic_manager's).
   action.sa_handler = sig_child;
@@ -1830,6 +1853,23 @@ main(int argc, char *argv[])
   signal(SIGTSTP, SIG_IGN);
   signal(SIGTTOU, SIG_IGN);
   signal(SIGTTIN, SIG_IGN);
+
+  // setup supplementary groups if it is not set. any way, worth a try.
+  if (0 == getgroups(0, NULL)) {
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    const int bufSize = 1024;
+    char buf[bufSize];
+
+    struct passwd passwdInfo;
+    struct passwd *ppasswd = NULL;
+    int res;
+    res = getpwuid_r(uid, &passwdInfo, buf, bufSize, &ppasswd);
+    if (!res && ppasswd) {
+        initgroups(ppasswd->pw_name,gid);
+    }
+  }
 
   setsid();                     // Important, thanks Vlad. :)
 #if (defined(freebsd) && !defined(kfreebsd)) || defined(openbsd)

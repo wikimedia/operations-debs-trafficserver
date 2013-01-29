@@ -1,9 +1,84 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 3.2.4
+
+  *) [TS-1657] Traffic Cop doesn't wait() for its children
+
+  *) [TS-1656] to make read from writer work
+
+  *) [TS-1658] RAW disk support for FreeBSD
+
+  *) [TS-1651] raw disk cache disabled when system start
+
+  *) [TS-1652] Mutex leak plugged.
+
+  *) [TS-1585] plugins need memory barriers for ARM
+
+  *) [TS-1575] Ranges broken, "fix" by dsiabling
+ 
+  *) [TS-1536] SNI support breaks IP-based lookup
+
+  *) [TS-1523] High CPU on *BSD
+
+  *) [TS-1522] improve RT on Cluster purge missing objects
+   Author: Bin Chen
+
+  *) [TS-1484] SSL-crashed every now and then with 3.2.0 + SNI-fixes
+
+  *) [TS-1514] Fix collation in custom logging.
+   Author: bettydramit
+
+  *) [TS-1498] Fix header_filter plugin for ARM.
+
+  *) [TS-1497] stats codes mess up when disk fail
+
+  *) [TS-1436] Added Yahoo directory layout
+
+  *) [TS-1474] disable ssl compression by default
+
+  *) [TS-1472] Fix RAM cache stats for CLFUS.
+
+  *) [TS-1430] Remove TS_ARG_MAX usage so that platforms with
+  unlimited ARG_MAX can build correctly.
+
+  *) [TS-1471] Fix SNI certificate fallback path
+
+  *) [TS-1470] Fix cache sizes > 16TB
+   Author: Jan Van Doorn <Jan_VanDoorn@cable.comcast.com>
+
+Changes with Apache Traffic Server 3.2.1
+
+  *) [TS-1358] Don't link libreadline with all binaries and plugins.
+
+  *) [TS-1374] Cert path not working using intermdiate certificate
+
+  *) [TS-1373] Silence spurious error when adding SSL certificates with alternate names
+
+  *) [TS-1338] SSL not handling some events properly
+
+  *) [TS-1362] Allow to open cache disk without O_DIRECT, for e.g. tmpfs
+   "disk" cache.
+
+  *) [TS-1361] Fix a endless loop in CacheVC::removeEvent.
+   Author: weijin & Hua Cai
+
+  *) [TS-1359] Don't assume root privileges during make install.
+   Author: Jan-Frode Myklebust
+
+  *) [TS-1357] Don't link libz / liblmza with all binaries and plugins.
+
+  *) [TS-1360] Fix WCCP build issues on FBSD.
+
+  *) [TS-1367] Prevent range acceleration for cluster and objects with
+     more than one alternate.
+
+
 Changes with Apache Traffic Server 3.2.0
+
   *) [TS-1286] Cleanup some code around freelists and allocators.
 
 
 Changes with Apache Traffic Server 3.1.4
+
   *) [TS-1281] make check fail on RHEL 5.x.
 
   *) [TS-1282] Verbosity settings for Via headers is broken.
@@ -193,6 +268,7 @@ Changes with Apache Traffic Server 3.1.4
 
 
 Changes with Apache Traffic Server 3.1.3
+
   *) [TS-1145] Additional clang build fixes. Author: Darrin Jewell.
 
   *) [TS-1144] Fix out of tree builds. Author: Darrin Jewell.
@@ -234,6 +310,7 @@ Changes with Apache Traffic Server 3.1.3
   *) [TS-841] support TLS NextProtocol negotiation
 
 Changes with Apache Traffic Server 3.1.2
+
 
   *) [TS-1110] logstats incorrectly bucketizes all status codes greater 
   than 599 as 5xx. Author: Manjesh Nilange
@@ -359,6 +436,7 @@ Changes with Apache Traffic Server 3.1.2
   *) [TS-1022] Use size specific types for serialized data in binary logs.
 
 Changes with Apache Traffic Server 3.1.1
+
   *) [TS-1020] Make logging to a named pipe work on Solaris.
 
   *) [TS-1016] Make the update frequency for stats configurable.
@@ -508,6 +586,7 @@ Changes with Apache Traffic Server 3.1.1
   *) [TS-1008] Add API to get TCP connection from SSN.
 
 Changes with Apache Traffic Server 3.1.0
+
   *) Make sure --enable-purify works again
 
   *) [TS-888] Fix SSL by enabling the right direction on successful setup.
@@ -684,6 +763,7 @@ Changes with Apache Traffic Server 3.1.0
    building with wccp. Author: Arno Toll.
 
 Changes with Apache Traffic Server 3.0.0
+
   *) [TS-827] TSMimeHdrFieldValueStringInsert() can use freed memory to
   edit headers. Author: William Bardwell.
 
@@ -703,6 +783,7 @@ Changes with Apache Traffic Server 3.0.0
    remap.config.
 
 Changes with Apache Traffic Server 2.1.9
+
   *) [TS-805] HostDB wastes a lot of storage for round-robin entries,
    and the calculations of size are off.
 
@@ -798,6 +879,7 @@ Changes with Apache Traffic Server 2.1.9
    Author: Arno Toell
 
 Changes with Apache Traffic Server 2.1.8
+
   *) [TS-750] TS does not fail-over if one origin server for a 2 address
    hostname. Author: William Bardwell.
 
@@ -906,6 +988,7 @@ Changes with Apache Traffic Server 2.1.8
    concept of "tags" for MIXT media. Cleanup remaining MIXT junk.
 
 Changes with Apache Traffic Server 2.1.7
+
   *) [TS-711] Don't schedule remap.config reloads on a network threads.
    We now schedule this task on an ET_TASK thread, which avoids blocking
    a net-thread for several seconds (when reloading very large remaps).

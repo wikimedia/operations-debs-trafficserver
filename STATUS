@@ -10,6 +10,7 @@ Release history:
     [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
           while x.{even}.z versions are Stable/GA releases.]
 
+    3.2.3           : Released on XXX XX, 2012
     3.2.0           : Released on June 19, 2012
     3.0.5           : Released on June 6, 2012
     3.0.4           : Released on March 21, 2012
@@ -20,7 +21,7 @@ Release history:
     2.0.1           : Released on August 31, 2010
     2.0.0           : Released on April 28, 2010
 
-
+ 
 Contributors looking for a mission:
 
   * Just do an egrep on "TODO" or "XXX" in the source.
@@ -36,27 +37,23 @@ RELEASE SHOWSTOPPERS:
 
 A list of all bugs open for the next development release can be found at
 
-  http://s.apache.org/ts-3.3.0
+  http://s.apache.org/ts-3.2.3
 
+PATCHES ACCEPTED TO BACKPORT FROM TRUNK:
 
 PATCHES PROPOSED TO BACKPORT FROM TRUNK:
   [ New proposals should be added at the end of the list ]
 
-  *) Don't link libreadline with all binaries and plugins.
-   Trunk patch: 50c624f20a3ff09e5c62dc2b426c27fee3fd244c
-   Jira: https://issues.apache.org/jira/browse/TS-1296
-   +1: zwoop
+  fix wccp's out of tree build
+  Jira: https://issues.apache.org/jira/browse/TS-1368
+  Patch: 682c4e3938b8aee288facdcfd0750571edcb20b0
+         72dcbdc58024abc6f67a592853e488d7f9eebd83
+  igalic says: This still needs some more patches I haven't identified.
 
-  *) Don't link libz / liblmza with all binaries and plugins.
-   Trunk patch: 726cf61c203d5a90d7feeab5637a04cd803343da
-   Jira: https://issues.apache.org/jira/browse/TS-1297
-   +1: zwoop
- 
-  *) Don't assume root privileges during make install
-   Trunk patch: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=commit;h=a862e283734c86d46a57624f9a05f09cfbbee175
-   Jira: https://issues.apache.org/jira/browse/TS-1295
-
-
+  Fix SSL accept performance regression
+  Jira: https://issues.apache.org/jira/browse/TS-1538
+  Patch: ccc4b37b91f25c2e985f195b77369ce20e2e8e81
+  +1: jpeach
 
 RELEASE PROCESS
 

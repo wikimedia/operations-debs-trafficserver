@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.2.0])
-m4_define([TS_VERSION_N],[3002000])
+m4_define([TS_VERSION_S],[3.2.4])
+m4_define([TS_VERSION_N],[3002004])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -658,8 +658,6 @@ case $host_os in
       release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
     fi
-    TS_ADDTO(LDFLAGS, [-L/lib])
-    TS_ADDTO(LDFLAGS, [-L/usr/local/lib])
     ;;
   *)
     common_opt="-pipe -Wall -Werror"
@@ -1042,22 +1040,6 @@ AC_SUBST(use_hwloc)
 # Check for tcmalloc and jemalloc
 TS_CHECK_JEMALLOC
 TS_CHECK_TCMALLOC
-
-#
-# Determine ARG_MAX
-# Default to 2048 if we cannot resolve ARG_MAX for some reason
-AC_ARG_WITH([arg_max],
-  [AS_HELP_STRING([--with-arg-max=[ARG_MAX]],[override the computed maxmium argument length])],
-  [
-  arg_max="$withval"
-  ],[
-  arg_max="`getconf ARG_MAX`"
-  if test "x${arg_max}" = x ; then
-    arg_max=2048
-  fi
-  ]
-)
-AC_SUBST(arg_max)
 
 #
 # Check for libreadline/libedit
