@@ -6,8 +6,9 @@ trafficserver (3.2.4-1) UNRELEASED; urgency=low
     + Add gbp.conf file for those using git-buildpackage
   * Fix "Upgrade fails if purging of cache fails" by not dying in a fire when
     the postinst fails to purge the cache (Closes: #687698)
+  * Drop --with-arg-max from ./configure, it's not needed anymore.
 
- -- Arno Töll <arno@debian.org>  Tue, 29 Jan 2013 23:25:59 +0100
+ -- Arno Töll <arno@debian.org>  Tue, 29 Jan 2013 23:54:44 +0100
 
 trafficserver (3.2.0-1) unstable; urgency=low
 
