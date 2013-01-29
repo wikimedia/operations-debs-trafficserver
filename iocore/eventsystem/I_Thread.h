@@ -129,7 +129,7 @@ private:
   Thread & operator =(const Thread &);
 
 public:
-  ink_thread start(const char* name, ThreadFunction f = NULL, void *a = NULL, size_t stacksize = 0);
+  void start(const char* name, ThreadFunction f = NULL, void *a = NULL, size_t stacksize = 0);
 
   virtual void execute()
   {  }

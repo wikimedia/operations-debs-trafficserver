@@ -35,6 +35,7 @@
 #include "ParseRules.h"
 #include "HTTP.h"
 #include "HdrUtils.h"
+#include "HttpMessageBody.h"
 #include "MimeTable.h"
 #include "logging/Log.h"
 #include "logging/LogUtils.h"
@@ -1264,7 +1265,7 @@ HttpTransact::HandleRequest(State* s)
     TRANSACT_RETURN(DNS_LOOKUP, OSDNSLookup);   // After handling the request, DNS is done.
   } else {
     // After the requested is properly handled No need of requesting the DNS directly check the ACLs
-    // if the request is authorized
+    // if the request is Authorised
     StartAccessControl(s);
   }
 }
@@ -1274,7 +1275,7 @@ HttpTransact::setup_plugin_request_intercept(State* s)
 {
   ink_debug_assert(s->state_machine->plugin_tunnel != NULL);
 
-  // Plugin is intercepting the request which means
+  // Plugin is incerpting the request which means
   //  that we don't do dns, cache read or cache write
   //
   // We just want to write the request straight to the plugin
@@ -1403,7 +1404,7 @@ HttpTransact::PPDNSLookup(State* s)
     s->parent_info.dns_round_robin = s->dns_info.round_robin;
 
     char addrbuf[INET6_ADDRSTRLEN];
-    DebugTxn("http_trans", "[PPDNSLookup] DNS lookup for sm_id[%" PRId64"] successful IP: %s",
+    DebugTxn("http_trans", "[PPDNSLookup] DNS lookup for sm_id[%"PRId64"] successful IP: %s",
           s->state_machine->sm_id, ats_ip_ntop(&s->parent_info.addr.sa, addrbuf, sizeof(addrbuf)));
   }
 
@@ -1744,7 +1745,7 @@ void
 HttpTransact::DecideCacheLookup(State* s)
 {
   // Check if a client request is lookupable.
-  if (s->redirect_info.redirect_in_process || s->cop_test_page) {
+  if (s->redirect_info.redirect_in_process) {
     // for redirect, we want to skip cache lookup and write into
     // the cache directly with the URL before the redirect
     s->cache_info.action = CACHE_DO_NO_ACTION;
@@ -3377,7 +3378,7 @@ HttpTransact::handle_response_from_parent(State* s)
         if ((s->current.attempts - 1) % s->http_config_param->per_parent_connect_attempts != 0) {
           // No we are not done with this parent so retry
           s->next_action = how_to_open_connection(s);
-          DebugTxn("http_trans", "%s Retrying parent for attempt %d, max %" PRId64,
+          DebugTxn("http_trans", "%s Retrying parent for attempt %d, max %"PRId64,
                 "[handle_response_from_parent]", s->current.attempts, s->http_config_param->per_parent_connect_attempts);
           return;
         } else {
@@ -5239,7 +5240,7 @@ HttpTransact::RequestError_t HttpTransact::check_request_validity(State* s, HTTP
     return MISSING_HOST_FIELD;
   }
 
-  if (hostname_len >= MAXDNAME || hostname_len <= 0) {
+  if (hostname_len >= MAXDNAME) {
     return BAD_HTTP_HEADER_SYNTAX;
   }
 
@@ -5659,7 +5660,7 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
     int64_t length = incoming_request->get_content_length();
     s->hdr_info.request_content_length = (length >= 0) ? length : HTTP_UNDEFINED_CL;    // content length less than zero is invalid
 
-    DebugTxn("http_trans", "[init_stat_vars_from_req] set req cont length to %" PRId64,
+    DebugTxn("http_trans", "[init_stat_vars_from_req] set req cont length to %"PRId64,
           s->hdr_info.request_content_length);
 
   } else {
@@ -6748,7 +6749,7 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
         header->field_delete(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
         s->hdr_info.trust_response_cl = false;
       }
-      Debug("http_trans", "[handle_content_length_header] RESPONSE cont len in hdr is %" PRId64, header->get_content_length());
+      Debug("http_trans", "[handle_content_length_header] RESPONSE cont len in hdr is %"PRId64, header->get_content_length());
     } else {
       // No content length header
       if (s->source == SOURCE_CACHE) {
@@ -6810,7 +6811,7 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
       header->field_delete(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
       s->hdr_info.request_content_length = HTTP_UNDEFINED_CL;
     }
-    DebugTxn("http_trans", "[handle_content_length_header] cont len in hdr is %" PRId64", stat var is %" PRId64,
+    DebugTxn("http_trans", "[handle_content_length_header] cont len in hdr is %"PRId64", stat var is %"PRId64,
           header->get_content_length(), s->hdr_info.request_content_length);
   }
 
@@ -6982,9 +6983,7 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
           // length (e.g. no Content-Length and Connection:close in HTTP/1.1 responses)
           s->hdr_info.trust_response_cl == false)) ||
          // handle serve from cache (read-while-write) case
-         (s->source == SOURCE_CACHE && s->hdr_info.trust_response_cl == false) ||
-	  //any transform will potentially alter the content length. try chunking if possible
-	  (s->source == SOURCE_TRANSFORM && s->hdr_info.trust_response_cl == false ))) {
+         (s->source == SOURCE_CACHE && s->hdr_info.trust_response_cl == false))) {
       s->client_info.receive_chunked_response = true;
       heads->value_append(MIME_FIELD_TRANSFER_ENCODING, MIME_LEN_TRANSFER_ENCODING, HTTP_VALUE_CHUNKED, HTTP_LEN_CHUNKED, true);
     } else {
@@ -7220,7 +7219,7 @@ HttpTransact::calculate_document_freshness_limit(State *s, HTTPHdr *response, ti
 
       *heuristic = true;
       if (date_set && last_modified_set) {
-        MgmtFloat f = s->txn_conf->cache_heuristic_lm_factor;
+        float f = s->txn_conf->cache_heuristic_lm_factor;
         ink_debug_assert((f >= 0.0) && (f <= 1.0));
         ink_time_t time_since_last_modify = date_value - last_modified_value;
         int h_freshness = (int) (time_since_last_modify * f);
@@ -7862,7 +7861,7 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
                              HTTPStatus status_code, const char *reason_phrase)
 {
   if (reason_phrase == NULL) {
-    reason_phrase = http_hdr_reason_lookup(status_code);
+    reason_phrase = HttpMessageBody::StatusCodeName(status_code);
   }
 
   if (base_response == NULL) {
@@ -7872,7 +7871,7 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
       HttpTransactHeaders::copy_header_fields(base_response, outgoing_response, s->txn_conf->fwd_proxy_auth_to_parent);
       HttpTransactHeaders::process_connection_headers(base_response, outgoing_response);
 
-      if (s->txn_conf->insert_age_in_response)
+      if (s->http_config_param->insert_age_in_response)
         HttpTransactHeaders::insert_time_and_age_headers_in_response(s->request_sent_time, s->response_received_time,
                                                                      s->current.now, base_response, outgoing_response);
 
@@ -7959,8 +7958,10 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
   HttpTransactHeaders::convert_response(outgoing_version, outgoing_response);
 
   // process reverse mappings on the location header
-  // TS-1364: do this regardless of response code
-  response_url_remap(outgoing_response);
+  HTTPStatus outgoing_status = outgoing_response->status_get();
+
+  if ((outgoing_status != 200) && (((outgoing_status >= 300) && (outgoing_status < 400)) || (outgoing_status == 201)))
+    response_url_remap(outgoing_response);
 
   if (s->http_config_param->enable_http_stats) {
     if (s->hdr_info.server_response.valid() && s->http_config_param->wuts_enabled) {
@@ -8098,7 +8099,7 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   }
 
   va_start(ap, format);
-  reason_phrase = (reason_phrase_or_null ? reason_phrase_or_null : (char *) (http_hdr_reason_lookup(status_code)));
+  reason_phrase = (reason_phrase_or_null ? reason_phrase_or_null : (char *) (HttpMessageBody::StatusCodeName(status_code)));
   if (unlikely(!reason_phrase))
     reason_phrase = "Unknown HTTP Status";
 
@@ -8223,7 +8224,7 @@ HttpTransact::build_redirect_response(State* s)
   char body_language[256], body_type[256];
 
   HTTPStatus status_code = HTTP_STATUS_MOVED_TEMPORARILY;
-  char *reason_phrase = (char *) (http_hdr_reason_lookup(status_code));
+  char *reason_phrase = (char *) (HttpMessageBody::StatusCodeName(status_code));
 
   build_response(s, &s->hdr_info.client_response, s->client_info.http_version, status_code, reason_phrase);
 
@@ -8344,8 +8345,13 @@ ink_cluster_time(void)
   old = global_time;
 
   while (local_time > global_time) {
-    if (ink_atomic_cas(&global_time, old, local_time))
-      break;
+    if (sizeof(ink_time_t) == 4) {
+      if (ink_atomic_cas((int32_t *) & global_time, *((int32_t *) & old), *((int32_t *) & local_time)))
+        break;
+    } else if (sizeof(ink_time_t) == 8) {
+      if (ink_atomic_cas64((int64_t *) & global_time, *((int64_t *) & old), *((int64_t *) & local_time)))
+        break;
+    }
     old = global_time;
   }
 
@@ -8622,8 +8628,10 @@ HttpTransact::client_result_stat(State* s, ink_hrtime total_time, ink_hrtime req
     break;
   default:
     HTTP_SUM_TRANS_STAT(http_ua_msecs_counts_other_unclassified_stat, total_msec);
-    // This can happen if a plugin manually sets the status code after an error.
-    DebugTxn("http", "Unclassified statistic");
+    if (is_debug_tag_set("http")) {
+      ink_release_assert(!"unclassified statistic");
+    }
+    //debug_tag_assert("http",!"unclassified statistic");
     break;
   }
 }
@@ -8921,7 +8929,7 @@ HttpTransact::change_response_header_because_of_range_request(State *s, HTTPHdr 
     char numbers[RANGE_NUMBERS_LENGTH];
 
     field = header->field_create(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
-    snprintf(numbers, sizeof(numbers), "bytes %" PRId64"-%" PRId64"/%" PRId64, s->ranges[0]._start, s->ranges[0]._end, s->cache_info.object_read->object_size_get());
+    snprintf(numbers, sizeof(numbers), "bytes %"PRId64"-%"PRId64"/%"PRId64, s->ranges[0]._start, s->ranges[0]._end, s->cache_info.object_read->object_size_get());
     field->value_append(header->m_heap, header->m_mime, numbers, strlen(numbers));
     header->field_attach(field);
     header->set_content_length(s->range_output_cl);

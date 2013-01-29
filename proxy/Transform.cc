@@ -65,6 +65,7 @@
 #include "P_Net.h"
 #include "MimeTable.h"
 #include "TransformInternal.h"
+#include "HttpMessageBody.h"
 #include "HdrUtils.h"
 #include "Log.h"
 
@@ -614,7 +615,7 @@ NullTransform::handle_event(int event, void *edata)
 
   if (m_closed) {
     if (m_deletable) {
-      Debug("transform", "NullTransform destroy: %" PRId64" [%p]", m_output_vio ? m_output_vio->ndone : 0, this);
+      Debug("transform", "NullTransform destroy: %"PRId64" [%p]", m_output_vio ? m_output_vio->ndone : 0, this);
       delete this;
     }
   } else {
@@ -670,7 +671,7 @@ NullTransform::handle_event(int event, void *edata)
           }
 
           if (towrite > 0) {
-            Debug("transform", "[NullTransform::handle_event] " "writing %" PRId64" bytes to output", towrite);
+            Debug("transform", "[NullTransform::handle_event] " "writing %"PRId64" bytes to output", towrite);
             m_output_buf->write(m_write_vio.get_reader(), towrite);
 
             m_write_vio.get_reader()->consume(towrite);
@@ -767,7 +768,7 @@ RangeTransform::handle_event(int event, void *edata)
 
   if (m_closed) {
     if (m_deletable) {
-      Debug("http_trans", "RangeTransform destroy: %p ndone=%" PRId64, this, m_output_vio ? m_output_vio->ndone : 0);
+      Debug("http_trans", "RangeTransform destroy: %p ndone=%"PRId64, this, m_output_vio ? m_output_vio->ndone : 0);
       delete this;
     }
   } else {
@@ -879,7 +880,7 @@ RangeTransform::transform_to_range()
           add_boundary(true);
         }
 
-        Debug("http_trans", "total bytes of Range response body is %" PRId64, m_done);
+        Debug("http_trans", "total bytes of Range response body is %"PRId64, m_done);
         m_output_vio->nbytes = m_done;
         m_output_vio->reenable();
 
@@ -996,7 +997,7 @@ RangeTransform::change_response_header()
 
   status_code = HTTP_STATUS_PARTIAL_CONTENT;
   m_transform_resp->status_set(status_code);
-  reason_phrase = (char *) (http_hdr_reason_lookup(status_code));
+  reason_phrase = (char *) (HttpMessageBody::StatusCodeName(status_code));
   m_transform_resp->reason_set(reason_phrase, strlen(reason_phrase));
 
   // set the right Content-Type for multiple entry Range

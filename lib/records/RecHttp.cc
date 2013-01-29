@@ -178,7 +178,7 @@ HttpProxyPort::loadConfig(Vec<self>& entries) {
       } else if (-1 != ssl_port) {
 	// -1 is used as the sentinel value in the config record for
 	// "not set by user".
-        Warning("SSL enabled but port value %" PRId64" is not in the range 1..65535.\n",
+        Warning("SSL enabled but port value %"PRId64" is not in the range 1..65535.\n",
                 ssl_port);
       }
     }
@@ -314,13 +314,8 @@ HttpProxyPort::processOptions(char const* opts) {
       m_type = TRANSPORT_BLIND_TUNNEL;
     } else if (0 == strcasecmp("X6", item) || 0 == strcasecmp(OPT_IPV6, item)) {
       m_family = AF_INET6;
-      af_set_p = true;
       m_type = TRANSPORT_DEFAULT;
-    } else if (0 == strcasecmp("=6", item)) {
-      m_family = AF_INET6;
       af_set_p = true;
-      m_type = TRANSPORT_DEFAULT;
-      m_inbound_transparent_p = m_outbound_transparent_p = true;
     } else if (0 == strcasecmp(OPT_IPV4, item)) {
       m_family = AF_INET;
       af_set_p = true;

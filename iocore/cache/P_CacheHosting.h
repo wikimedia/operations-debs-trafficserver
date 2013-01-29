@@ -35,8 +35,8 @@ struct Cache;
 
 struct CacheHostRecord
 {
-  int Init(CacheType typ);
-  int Init(matcher_line *line_info, CacheType typ);
+  int Init(int typ);
+  int Init(matcher_line *line_info, int typ);
   void UpdateMatch(CacheHostResult *r, char *rd);
   void Print();
   ~CacheHostRecord()
@@ -46,7 +46,7 @@ struct CacheHostRecord
     ats_free(cp);
   }
 
-  CacheType type;
+  int type;
   Vol **vols;
   volatile int good_num_vols;
   volatile int num_vols;
@@ -56,7 +56,7 @@ struct CacheHostRecord
   int num_cachevols;
 
   CacheHostRecord():
-    type(CACHE_NONE_TYPE), vols(NULL), good_num_vols(0), num_vols(0),
+    type(0), vols(NULL), good_num_vols(0), num_vols(0),
     num_initialized(0), vol_hash_table(0), cp(NULL), num_cachevols(0)
   { }
 
@@ -77,7 +77,7 @@ struct CacheHostResult
 class CacheHostMatcher
 {
 public:
-  CacheHostMatcher(const char * name, CacheType typ);
+  CacheHostMatcher(const char *name, const char *filename, int typ);
   ~CacheHostMatcher();
 
   void Match(char *rdata, int rlen, CacheHostResult *result);
@@ -94,8 +94,10 @@ private:
   HostLookup *host_lookup;      // Data structure to do the lookups
   CacheHostRecord *data_array;  // array of all data items
   int array_len;                // the length of the arrays
-  int num_el;                   // the number of itmems in the tree
-  CacheType type;
+  int num_el;                   // the numbe of itmems in the tree
+  const char *matcher_name;     // Used for Debug/Warning/Error messages
+  const char *file_name;        // Used for Debug/Warning/Error messages
+  int type;
 };
 
 class CacheHostTable
@@ -103,7 +105,7 @@ class CacheHostTable
 public:
   // Parameter name must not be deallocated before this
   //  object is
-  CacheHostTable(Cache *c, CacheType typ);
+  CacheHostTable(Cache *c, int typ);
    ~CacheHostTable();
   int BuildTable();
   int BuildTableFromString(char *str);
@@ -120,7 +122,7 @@ public:
     IOCORE_RegisterConfigUpdateFunc("proxy.config.cache.hosting_filename", CacheHostTable::config_callback, (void *) p);
   }
 
-  CacheType type;
+  int type;
   Cache *cache;
   int m_numEntries;
   CacheHostRecord gen_host_rec;
@@ -148,7 +150,7 @@ struct CacheHostTableConfig: public Continuation
     (void) e;
     (void) event;
     CacheHostTable *t = NEW(new CacheHostTable((*ppt)->cache, (*ppt)->type));
-    CacheHostTable *old = (CacheHostTable *) ink_atomic_swap(&t, *ppt);
+    CacheHostTable *old = (CacheHostTable *) ink_atomic_swap_ptr(&t, ppt);
     new_Deleter(old, CACHE_MEM_FREE_TIMEOUT);
     return EVENT_DONE;
   }
@@ -159,7 +161,7 @@ struct CacheHostTableConfig: public Continuation
 struct ConfigVol
 {
   int number;
-  CacheType scheme;
+  int scheme;
   off_t size;
   bool in_percent;
   int percent;

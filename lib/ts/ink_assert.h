@@ -43,23 +43,20 @@ extern "C"
 #undef __ASSERT_H__
 #define __ASSERT_H__
 
-  inkcoreapi void _ink_assert(const char *a, const char *f, int l) TS_NORETURN;
+  inkcoreapi int _ink_assert(const char *a, const char *f, int l);
 
 #ifdef DEBUG
-#define ink_assert(EX) ( \
-            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__)) \
-)
-#define ink_debug_assert(EX) ( \
-            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__)) \
-)
+#define ink_assert(EX) (\
+            void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
+#define ink_debug_assert(EX) \
+            (void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
 #else
 #define ink_assert(EX) (void)(EX)
 #define ink_debug_assert(EX)
 #endif
 
-#define ink_release_assert(EX) ( \
-            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__)) \
-)
+#define ink_release_assert(EX) \
+            (void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
 
 #ifdef __cplusplus
 }

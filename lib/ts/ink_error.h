@@ -36,33 +36,25 @@
 #include "ink_platform.h"
 
 #include "ink_apidefs.h"
-
-
-/* Compiler Hints
- * XXX(igalic): This has been pulled from ink_defs.h because
- * Solaris CC compiler complained about hwloc. Don't. Ask.
- */
-#define	NOWARN_UNUSED(x)	(void)(x)
-#define	NOWARN_UNUSED_RETURN(x)	if (x) {}
-
+#include "ink_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif                          /* __cplusplus */
 
-inkcoreapi void ink_fatal_va(int return_code, const char *message_format, va_list ap) TS_NORETURN;
-void ink_fatal(int return_code, const char *message_format, ...) TS_PRINTFLIKE(2, 3) TS_NORETURN;
-void ink_pfatal(int return_code, const char *message_format, ...) TS_PRINTFLIKE(2, 3) TS_NORETURN;
+inkcoreapi void ink_fatal_va(int return_code, const char *message_format, va_list ap);
+void ink_fatal(int return_code, const char *message_format, ...) TS_PRINTFLIKE(2, 3);
+void ink_pfatal(int return_code, const char *message_format, ...) TS_PRINTFLIKE(2, 3);
 void ink_warning(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_pwarning(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_notice(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_eprintf(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_error(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 void ink_dprintf(int debug_level, const char *message_format, ...) TS_PRINTFLIKE(2, 3);
-void ink_fatal_die(const char *message_format, ...) TS_PRINTFLIKE(1, 2) TS_NORETURN;
+void ink_fatal_die(const char *message_format, ...) TS_PRINTFLIKE(1, 2);
 
-void ink_die_die_die(int retval) TS_NORETURN;
-void ink_segv() TS_NORETURN;
+void ink_die_die_die(int retval);
+void ink_segv();
 int ink_set_dprintf_level(int debug_level);
 
 #ifdef __cplusplus

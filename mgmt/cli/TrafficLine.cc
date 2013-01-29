@@ -182,11 +182,7 @@ main(int argc, char **argv)
   }
 
   // Connect to Local Manager and do it.
-  if (TS_ERR_OKAY != TSInit(NULL, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS))) {
-    fprintf(stderr, "error: could not connect to management port, make sure traffic_manager is running\n");
-    exit(1);
-  }
-    
+  TSInit(NULL, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS));
   status = handleArgInvocation();
 
   // Done with the mgmt API.

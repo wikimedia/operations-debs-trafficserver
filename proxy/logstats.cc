@@ -50,9 +50,6 @@
 #include <algorithm>
 #include <vector>
 #include <list>
-#include <functional>
-#include <fcntl.h>
-
 #if (__GNUC__ >= 3)
 #define _BACKWARD_BACKWARD_WARNING_H    // needed for gcc 4.3
 #include <ext/hash_map>
@@ -63,26 +60,14 @@
 #include <hash_set>
 #include <map>
 #endif
-
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
 #endif
+#include <fcntl.h>
 
 #if defined(__GNUC__)
-using __gnu_cxx::hash_map;
-using __gnu_cxx::hash_set;
-
-// GCC 4.7 appears to want the std::hash implementation from <functional>, whereas previous gcc versions
-// use the __gnu_cxx::hash GNU extension. Clang (at least on OS X) is happy with the GNU extension as long
-// as it is using the GNU libstdc++.
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 7)
-using std::hash;
-#else
-using __gnu_cxx::hash;
+using namespace __gnu_cxx;
 #endif
-
-#endif
-
 using namespace std;
 
 // Constants, please update the VERSION number when you make a new build!!!

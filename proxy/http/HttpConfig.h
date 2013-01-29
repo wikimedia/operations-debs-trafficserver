@@ -404,12 +404,11 @@ struct OverridableHttpConfigParams {
        negative_caching_enabled(0), cache_when_to_revalidate(0),
        keep_alive_enabled_in(0), keep_alive_enabled_out(0), keep_alive_post_out(0),
        share_server_sessions(0), fwd_proxy_auth_to_parent(0),
-       insert_age_in_response(1),
        anonymize_remove_from(0), anonymize_remove_referer(0), anonymize_remove_user_agent(0),
        anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
        proxy_response_server_enabled(0), insert_squid_x_forwarded_for(0),
        send_http11_requests(3), // SEND_HTTP11_IF_REQUEST_11_AND_HOSTDB
-       cache_http(0), cache_cluster_cache_local(0), cache_ignore_client_no_cache(0), cache_ignore_client_cc_max_age(1),
+       cache_http(0), cache_ignore_client_no_cache(0), cache_ignore_client_cc_max_age(1),
        cache_ims_on_client_no_cache(0), cache_ignore_server_no_cache(0), cache_responses_to_cookies(0),
        cache_ignore_auth(0), cache_urls_that_look_dynamic(0), cache_required_headers(0), // CACHE_REQUIRED_HEADERS_NONE
        insert_request_via_string(0), insert_response_via_string(0), doc_in_cache_skip_dns(1),
@@ -430,13 +429,10 @@ struct OverridableHttpConfigParams {
        down_server_timeout(0), client_abort_threshold(0),
        freshness_fuzz_time(0), freshness_fuzz_min_time(0),
        max_cache_open_read_retries(0), cache_open_read_retry_time(0),
-       background_fill_active_timeout(0),
-       http_chunking_size(0),
 
        // Strings / floats must come last
        proxy_response_server_string(NULL), proxy_response_server_string_len(0),
-       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0),
-       background_fill_threshold(0.5)
+       cache_heuristic_lm_factor(0.0), freshness_fuzz_prob(0.0)
   { }
 
   // A few rules here:
@@ -460,8 +456,6 @@ struct OverridableHttpConfigParams {
 
   MgmtByte share_server_sessions;
   MgmtByte fwd_proxy_auth_to_parent;
-
-  MgmtByte insert_age_in_response;
 
   ///////////////////////////////////////////////////////////////////
   // Privacy: fields which are removed from the user agent request //
@@ -489,7 +483,6 @@ struct OverridableHttpConfigParams {
   // cache control //
   ///////////////////
   MgmtByte cache_http;
-  MgmtByte cache_cluster_cache_local;
   MgmtByte cache_ignore_client_no_cache;
   MgmtByte cache_ignore_client_cc_max_age;
   MgmtByte cache_ims_on_client_no_cache;
@@ -564,10 +557,6 @@ struct OverridableHttpConfigParams {
   MgmtInt max_cache_open_read_retries;
   MgmtInt cache_open_read_retry_time;   // time is in mseconds
 
-  MgmtInt background_fill_active_timeout;
-
-  MgmtInt http_chunking_size; // Maximum chunk size for chunked output.
-
   // IMPORTANT: Here comes all strings / floats configs.
 
   ///////////////////////////////////////////////////////////////////
@@ -576,9 +565,8 @@ struct OverridableHttpConfigParams {
   char *proxy_response_server_string; // This does not get free'd by us!
   size_t proxy_response_server_string_len; // Updated when server_string is set.
 
-  MgmtFloat cache_heuristic_lm_factor;
-  MgmtFloat freshness_fuzz_prob;
-  MgmtFloat background_fill_threshold;
+  float cache_heuristic_lm_factor;
+  float freshness_fuzz_prob;
 };
 
 
@@ -658,6 +646,8 @@ public:
   MgmtInt user_agent_pipeline;
   MgmtInt transaction_active_timeout_in;
   MgmtInt accept_no_activity_timeout;
+  MgmtInt background_fill_active_timeout;
+  MgmtFloat background_fill_threshold;
 
   ////////////////////////////////////
   // origin server connect attempts //
@@ -680,6 +670,7 @@ public:
   /////////////////////
   // Benchmark hacks //
   /////////////////////
+  MgmtByte insert_age_in_response;
   MgmtByte avoid_content_spoofing;
   MgmtByte enable_http_stats;
 
@@ -926,12 +917,15 @@ HttpConfigParams::HttpConfigParams()
     user_agent_pipeline(0),
     transaction_active_timeout_in(0),
     accept_no_activity_timeout(0),
+    background_fill_active_timeout(0),
+    background_fill_threshold(0.0),
     parent_connect_attempts(0),
     per_parent_connect_attempts(0),
     parent_connect_timeout(0),
     anonymize_other_header_list(NULL),
     global_user_agent_header(NULL),
     global_user_agent_header_size(0),
+    insert_age_in_response(1),
     avoid_content_spoofing(1),
     enable_http_stats(1),
     icp_enabled(0),

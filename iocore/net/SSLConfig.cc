@@ -22,7 +22,7 @@
  */
 
 /*************************** -*- Mod: C++ -*- ******************************
-  SSLConfig.cc
+  SslConfig.cc
    Created On      : 07/20/2000
 
    Description:
@@ -34,27 +34,25 @@
 
 #include <string.h>
 #include "P_Net.h"
-#include "P_SSLConfig.h"
-#include "P_SSLUtils.h"
-#include "P_SSLCertLookup.h"
 #include <records/I_RecHttp.h>
+#include <openssl/ssl.h>
 
-int SSLConfig::configid = 0;
-int SSLCertificateConfig::configid = 0;
+int SslConfig::id = 0;
 
-static Ptr<ProxyMutex> ssl_certificate_mutex = NULL;
+SslConfig sslTerminationConfig;
 
-SSLConfigParams::SSLConfigParams()
+#ifndef USE_CONFIG_PROCESSOR
+SslConfigParams *SslConfig::ssl_config_params;
+#endif
+
+SslConfigParams::SslConfigParams()
 {
   serverCertPathOnly =
     serverCertChainPath =
     configFilePath =
-    serverCACertFilename =
-    serverCACertPath =
-    clientCertPath =
-    clientKeyPath =
-    clientCACertFilename =
-    clientCACertPath =
+    CACertFilename = CACertPath =
+    clientCertPath = clientKeyPath =
+    clientCACertFilename = clientCACertPath =
     cipherSuite =
     serverKeyPathOnly = NULL;
 
@@ -65,17 +63,17 @@ SSLConfigParams::SSLConfigParams()
   ssl_session_cache_size = 1024*20;
 }
 
-SSLConfigParams::~SSLConfigParams()
+SslConfigParams::~SslConfigParams()
 {
   cleanup();
 }
 
 void
-SSLConfigParams::cleanup()
+SslConfigParams::cleanup()
 {
   ats_free_null(serverCertChainPath);
-  ats_free_null(serverCACertFilename);
-  ats_free_null(serverCACertPath);
+  ats_free_null(CACertFilename);
+  ats_free_null(CACertPath);
   ats_free_null(clientCertPath);
   ats_free_null(clientKeyPath);
   ats_free_null(clientCACertFilename);
@@ -116,7 +114,7 @@ set_paths_helper(const char *path, const char *filename, char **final_path, char
 }
 
 void
-SSLConfigParams::initialize()
+SslConfigParams::initialize()
 {
   char serverCertRelativePath[PATH_NAME_MAX] = "";
   char *ssl_server_private_key_path = NULL;
@@ -178,9 +176,9 @@ SSLConfigParams::initialize()
   set_paths_helper(ssl_server_private_key_path, NULL, &serverKeyPathOnly, NULL);
   ats_free(ssl_server_private_key_path);
 
-  IOCORE_ReadConfigStringAlloc(serverCACertFilename, "proxy.config.ssl.CA.cert.filename");
+  IOCORE_ReadConfigStringAlloc(CACertFilename, "proxy.config.ssl.CA.cert.filename");
   IOCORE_ReadConfigStringAlloc(CACertRelativePath, "proxy.config.ssl.CA.cert.path");
-  set_paths_helper(CACertRelativePath, serverCACertFilename, &serverCACertPath, &serverCACertFilename);
+  set_paths_helper(CACertRelativePath, CACertFilename, &CACertPath, &CACertFilename);
   ats_free(CACertRelativePath);
 
   // SSL session cache configurations
@@ -212,94 +210,43 @@ SSLConfigParams::initialize()
   ats_free(clientCACertRelativePath);
 }
 
+
 void
-SSLConfig::startup()
+SslConfig::startup()
 {
   reconfigure();
 }
 
+
 void
-SSLConfig::reconfigure()
+SslConfig::reconfigure()
 {
-  SSLConfigParams *params;
-  params = NEW(new SSLConfigParams);
+  SslConfigParams *params;
+  params = NEW(new SslConfigParams);
   params->initialize();         // re-read configuration
-  configid = configProcessor.set(configid, params);
+#ifdef USE_CONFIG_PROCESSOR
+  id = configProcessor.set(id, params);
+#else
+  ssl_config_params = params;
+#endif
 }
 
-SSLConfigParams *
-SSLConfig::acquire()
+SslConfigParams *
+SslConfig::acquire()
 {
-  return ((SSLConfigParams *) configProcessor.get(configid));
-}
-
-void
-SSLConfig::release(SSLConfigParams * params)
-{
-  configProcessor.release(configid, params);
-}
-
-// struct SSLCertificateUpdate
-//
-//   Used to read the ssl_multicert.config file after the manager signals
-//      a change
-//
-struct SSLCertificateUpdate : public Continuation
-{
-  int file_update_handler(int /* etype */, void * /* data */) {
-    SSLCertificateConfig::reconfigure();
-    delete this;
-    return EVENT_DONE;
-  }
-
-  SSLCertificateUpdate(ProxyMutex * m) : Continuation(m) {
-    SET_HANDLER(&SSLCertificateUpdate::file_update_handler);
-  }
-};
-
-static int
-sslCertFile_CB(const char * name, RecDataT data_type, RecData data, void * cookie)
-{
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
-  eventProcessor.schedule_imm(NEW(new SSLCertificateUpdate(ssl_certificate_mutex)), ET_CALL);
-  return 0;
+#ifndef USE_CONFIG_PROCESSOR
+  return ssl_config_params;
+#else
+  return ((SslConfigParams *) configProcessor.get(id));
+#endif
 }
 
 void
-SSLCertificateConfig::startup()
+SslConfig::release(SslConfigParams * params)
 {
-  reconfigure();
-
-  ssl_certificate_mutex = new_ProxyMutex();
-  REC_RegisterConfigUpdateFunc("proxy.config.ssl.server.multicert.filename", sslCertFile_CB, NULL);
-  REC_RegisterConfigUpdateFunc("proxy.config.ssl.server.cert.path", sslCertFile_CB, NULL);
-  REC_RegisterConfigUpdateFunc("proxy.config.ssl.server.private_key.path", sslCertFile_CB, NULL);
-  REC_RegisterConfigUpdateFunc("proxy.config.ssl.server.cert_chain.filename", sslCertFile_CB, NULL);
-}
-
-void
-SSLCertificateConfig::reconfigure()
-{
-  SSLConfig::scoped_config params;
-  SSLCertLookup * lookup = NEW(new SSLCertLookup());
-
-  if (SSLParseCertificateConfiguration(params, lookup)) {
-    configid = configProcessor.set(configid, lookup);
-  }
-}
-
-SSLCertLookup *
-SSLCertificateConfig::acquire()
-{
-  return (SSLCertLookup *)configProcessor.get(configid);
-}
-
-void
-SSLCertificateConfig::release(SSLCertLookup * lookup)
-{
-  configProcessor.release(configid, lookup);
+  (void) params;
+#ifdef USE_CONFIG_PROCESSOR
+  configProcessor.release(id, params);
+#endif
 }
 

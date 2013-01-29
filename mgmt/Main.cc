@@ -1102,13 +1102,13 @@ fileUpdated(char *fname)
     lmgmt->signalFileChange("proxy.config.log.xml_config_file");
 
   } else if (strcmp(fname, "splitdns.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
+    mgmt_log(stderr, "[fileUpdated] splitdns.config file has been modified\n");
 
   } else if (strcmp(fname, "plugin.config") == 0) {
     mgmt_log(stderr, "[fileUpdated] plugin.config file has been modified\n");
 
   } else if (strcmp(fname, "ssl_multicert.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
+    mgmt_log(stderr, "[fileUpdated] ssl_multicert.config file has been modified\n");
 
   } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
     lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
@@ -1120,8 +1120,6 @@ fileUpdated(char *fname)
     mgmt_log(stderr, "[fileUpdated] stats.config.xml file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
-  } else if (strcmp(fname, "prefetch.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.prefetch.config_file");
   } else {
     mgmt_elog(stderr, "[fileUpdated] Unknown config file updated '%s'\n", fname);
 

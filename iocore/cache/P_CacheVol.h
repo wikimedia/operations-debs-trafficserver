@@ -279,7 +279,7 @@ struct CacheVol
 {
   int vol_number;
   int scheme;
-  off_t size;
+  int size;
   int num_vols;
   Vol **vols;
   DiskVol **disk_vols;
@@ -290,6 +290,11 @@ struct CacheVol
   CacheVol()
     : vol_number(-1), scheme(0), size(0), num_vols(0), vols(NULL), disk_vols(0), vol_rsb(0)
   { }
+};
+
+// element of the fragment table in the head of a multi-fragment document
+struct Frag {
+  uint64_t offset; // start offset of data stored in this fragment
 };
 
 // Note : hdr() needs to be 8 byte aligned.
@@ -303,7 +308,7 @@ struct Doc
   INK_MD5 key;
   uint32_t hlen;          // header length
   uint32_t ftype:8;       // fragment type CACHE_FRAG_TYPE_XX
-  uint32_t _flen:24;       // fragment table length [amc] NOT USED
+  uint32_t flen:24;       // fragment table length
   uint32_t sync_serial;
   uint32_t write_serial;
   uint32_t pinned;        // pinned until
@@ -313,7 +318,9 @@ struct Doc
   uint32_t prefix_len();
   int single_fragment();
   int no_data_in_fragment();
+  uint32_t nfrags();
   char *hdr();
+  Frag *frags();
   char *data();
 };
 
@@ -411,13 +418,13 @@ vol_relative_length(Vol *v, off_t start_offset)
 TS_INLINE uint32_t
 Doc::prefix_len()
 {
-  return sizeofDoc + hlen + _flen;
+  return sizeofDoc + hlen + flen;
 }
 
 TS_INLINE uint32_t
 Doc::data_len()
 {
-  return len - sizeofDoc - hlen - _flen;
+  return len - sizeofDoc - hlen - flen;
 }
 
 TS_INLINE int
@@ -426,16 +433,27 @@ Doc::single_fragment()
   return (total_len && (data_len() == total_len));
 }
 
+TS_INLINE uint32_t
+Doc::nfrags() {
+  return flen / sizeof(Frag);
+}
+
+TS_INLINE Frag *
+Doc::frags()
+{
+  return (Frag*)(((char *) this) + sizeofDoc);
+}
+
 TS_INLINE char *
 Doc::hdr()
 {
-  return ((char *) this) + sizeofDoc + _flen;
+  return ((char *) this) + sizeofDoc + flen;
 }
 
 TS_INLINE char *
 Doc::data()
 {
-  return ((char *) this) + sizeofDoc + _flen + hlen;
+  return ((char *) this) + sizeofDoc + flen + hlen;
 }
 
 int vol_dir_clear(Vol *d);

@@ -624,20 +624,24 @@ CacheVC::openReadMain(int event, Event * e)
       vio.ndone = doc_len;
       return calluser(VC_EVENT_EOS);
     }
-    HTTPInfo::FragOffset* frags = alternate.get_frag_table();
+    Doc *first_doc = (Doc*)first_buf->data();
+    Frag *frags = first_doc->frags();
     if (is_debug_tag_set("cache_seek")) {
       char b[33], c[33];
-      Debug("cache_seek", "Seek @ %" PRId64" in %s from #%d @ %" PRId64"/%d:%s",
+      Debug("cache_seek", "Seek @ %"PRId64" in %s from #%d @ %"PRId64"/%d:%s",
             seek_to, first_key.toHexStr(b), fragment, doc_pos, doc->len, doc->key.toHexStr(c));
     }
     /* Because single fragment objects can migrate to hang off an alt vector
        they can appear to the VC as multi-fragment when they are not really.
-       The essential difference is the existence of a fragment table.
+       The essential difference is the existence of a fragment table. All
+       fragments past the header fragment have the same value for this check
+       and it's consistent with the existence of a frag table in first_doc.
+       f.single_fragment is not (it can be false when this check is true).
     */
-    if (frags) {
+    if (!doc->single_fragment()) {
       int target = 0;
-      HTTPInfo::FragOffset next_off = frags[target];
-      int lfi = static_cast<int>(alternate.get_frag_offset_count()) - 1;
+      uint64_t next_off = frags[target].offset;
+      int lfi = static_cast<int>(first_doc->nfrags()) - 1;
       ink_debug_assert(lfi >= 0); // because it's not a single frag doc.
 
       /* Note: frag[i].offset is the offset of the first byte past the
@@ -647,12 +651,12 @@ CacheVC::openReadMain(int event, Event * e)
          fragment being the last offset in the table.
       */
       if (fragment == 0 ||
-          seek_to < frags[fragment-1] ||
-          (fragment <= lfi && frags[fragment] <= seek_to)
+          seek_to < frags[fragment-1].offset ||
+          (fragment <= lfi && frags[fragment].offset <= seek_to)
         ) {
         // search from frag 0 on to find the proper frag
         while (seek_to >= next_off && target < lfi) {
-          next_off = frags[++target];
+          next_off = frags[++target].offset;
         }
         if (target == lfi && seek_to >= next_off) ++target;
       } else { // shortcut if we are in the fragment already
@@ -675,13 +679,13 @@ CacheVC::openReadMain(int event, Event * e)
         if (is_debug_tag_set("cache_seek")) {
           char target_key_str[33];
           key.toHexStr(target_key_str);
-          Debug("cache_seek", "Seek #%d @ %" PRId64" -> #%d @ %" PRId64":%s", cfi, doc_pos, target, seek_to, target_key_str);
+          Debug("cache_seek", "Seek #%d @ %"PRId64" -> #%d @ %"PRId64":%s", cfi, doc_pos, target, seek_to, target_key_str);
         }
         goto Lread;
       }
     }
     doc_pos = doc->prefix_len() + seek_to;
-    if (fragment) doc_pos -= static_cast<int64_t>(frags[fragment-1]);
+    if (fragment) doc_pos -= static_cast<int64_t>(frags[fragment-1].offset);
     vio.ndone = 0;
     seek_to = 0;
     ntodo = vio.ntodo();
@@ -689,7 +693,7 @@ CacheVC::openReadMain(int event, Event * e)
     if (is_debug_tag_set("cache_seek")) {
       char target_key_str[33];
       key.toHexStr(target_key_str);
-      Debug("cache_seek", "Read # %d @ %" PRId64"/%d for %" PRId64, fragment, doc_pos, doc->len, bytes);
+      Debug("cache_seek", "Read # %d @ %"PRId64"/%d for %"PRId64, fragment, doc_pos, doc->len, bytes);
     }
   }
   if (ntodo <= 0)
@@ -832,7 +836,7 @@ CacheVC::openReadStartEarliest(int event, Event * e)
 #ifdef HIT_EVACUATE
     if (vol->within_hit_evacuate_window(&earliest_dir) &&
         (!cache_config_hit_evacuate_size_limit || doc_len <= (uint64_t)cache_config_hit_evacuate_size_limit)) {
-      DDebug("cache_hit_evac", "dir: %" PRId64", write: %" PRId64", phase: %d",
+      DDebug("cache_hit_evac", "dir: %"PRId64", write: %"PRId64", phase: %d",
             dir_offset(&earliest_dir), offset_to_vol_offset(vol, vol->header->write_pos), vol->header->phase);
       f.hit_evacuate = 1;
     }
@@ -1088,10 +1092,10 @@ CacheVC::openReadStartHead(int event, Event * e)
 
     if (is_debug_tag_set("cache_read")) { // amc debug
       char xt[33],yt[33];
-      Debug("cache_read", "CacheReadStartHead - read %s target %s - %s %d of %" PRId64" bytes, %d fragments",
+      Debug("cache_rad", "CacheReadStartHead - read %s target %s - %s %d of %"PRId64" bytes, %d fragments",
             doc->key.toHexStr(xt), key.toHexStr(yt),
             f.single_fragment ? "single" : "multi",
-            doc->len, doc->total_len, alternate.get_frag_offset_count());
+            doc->len, doc->total_len, doc->nfrags());
     }
     // the first fragment might have been gc'ed. Make sure the first
     // fragment is there before returning CACHE_EVENT_OPEN_READ
@@ -1101,7 +1105,7 @@ CacheVC::openReadStartHead(int event, Event * e)
 #ifdef HIT_EVACUATE
     if (vol->within_hit_evacuate_window(&dir) &&
         (!cache_config_hit_evacuate_size_limit || doc_len <= (uint64_t)cache_config_hit_evacuate_size_limit)) {
-      DDebug("cache_hit_evac", "dir: %" PRId64", write: %" PRId64", phase: %d",
+      DDebug("cache_hit_evac", "dir: %"PRId64", write: %"PRId64", phase: %d",
             dir_offset(&dir), offset_to_vol_offset(vol, vol->header->write_pos), vol->header->phase);
       f.hit_evacuate = 1;
     }

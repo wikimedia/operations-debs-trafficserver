@@ -36,10 +36,9 @@
 #include "ts/IpMap.h"
 #include "vector"
 #include "ts/Vec.h"
-#include "ProxyConfig.h"
 
 // forward declare in name only so it can be a friend.
-struct IpAllowUpdate;
+struct IPAllow_UpdateContinuation;
 
 //
 // Timeout the IpAllowTable * this amount of time after the
@@ -64,11 +63,9 @@ struct AclRecord {
 
 /** Singleton class for access controls.
  */
-class IpAllow : public ConfigInfo
-{
+class IpAllow {
   friend int main(int, char**);
-  friend struct IpAllowUpdate;
-
+  friend struct IPAllow_UpdateContinuation;
 public:
   typedef IpAllow self; ///< Self reference type.
 
@@ -80,18 +77,15 @@ public:
   uint32_t match(sockaddr const* ip) const;
 
   /// @return The global instance.
-  static IpAllow * acquire();
-  static void release(IpAllow * params);
+  static self* instance();
 
   static bool CheckMask(uint32_t, int);
   /// @return A mask that permits all methods.
   static uint32_t AllMethodMask() {
     return ALL_METHOD_MASK;
   }
-
-  typedef ConfigProcessor::scoped_config<IpAllow, IpAllow> scoped_config;
-
 private:
+
   static void InitInstance();
   static void ReloadInstance();
   static uint32_t MethodIdxToMask(int);
@@ -104,8 +98,10 @@ private:
   Vec<AclRecord> _acls;
   static uint32_t ALL_METHOD_MASK;
 
-  static int configid;
+  static self* _instance;
 };
+
+inline IpAllow* IpAllow::instance() { return _instance; }
 
 inline uint32_t IpAllow::MethodIdxToMask(int idx) { return 1 << (idx - HTTP_WKSIDX_CONNECT); }
 

@@ -325,7 +325,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->counter_val = (TSCounter) counter_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
     break;
 
   case RECD_INT:
@@ -334,7 +334,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->int_val = (TSInt) int_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
     break;
 
   case RECD_FLOAT:
@@ -381,7 +381,7 @@ determine_action_need(const char *rec_name)
 {
   RecUpdateT update_t;
 
-  if (REC_ERR_OKAY != RecGetRecordUpdateType(rec_name, &update_t))
+  if (REC_ERR_OKAY == RecGetRecordUpdateType(rec_name, &update_t))
     return TS_ACTION_UNDEFINED;
 
   switch (update_t) {
@@ -394,7 +394,7 @@ determine_action_need(const char *rec_name)
   case RECU_RESTART_TS:          // requires TS restart
     return TS_ACTION_RESTART;
 
-  case RECU_RESTART_TM:          // requires TM/TS restart
+  case RECU_RESTART_TM:          // requirs TM/TS restart
     return TS_ACTION_RESTART;
 
   case RECU_RESTART_TC:          // requires TC/TM/TS restart

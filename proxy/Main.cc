@@ -128,9 +128,7 @@ extern int num_of_cluster_threads;
 static int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
 static int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
 static int num_task_threads = DEFAULT_NUM_TASK_THREADS;
-#if TS_HAS_TESTS
 static int run_test_hook = 0;
-#endif
 static char * http_accept_port_descriptor;
 int http_accept_file_descriptor = NO_FD;
 static char core_file[255] = "";
@@ -1105,6 +1103,40 @@ init_http_header()
   http_init();
 }
 
+// TODO: we should move this function out of the Main.cc
+static void
+init_http_aeua_filter(void)
+{
+  char buf[2048], _cname[1024], *cname;
+  int i, j;
+
+  cname = &_cname[0];
+  memset(buf, 0, sizeof(buf));
+  memset(_cname, 0, sizeof(_cname));
+
+  TS_ReadConfigString(_cname, "proxy.config.http.accept_encoding_filter.filename", (int) sizeof(_cname));
+
+  if (_cname[0] && (j = strlen(_cname)) > 0) {
+    while (j && (*cname == '/' || *cname == '\\')) {
+      ++cname;
+      --j;
+    }
+    ink_strlcpy(buf, system_config_directory, sizeof(buf));
+    if ((i = strlen(buf)) >= 0) {
+      if (!i || (buf[i - 1] != '/' && buf[i - 1] != '\\' && i < (int) sizeof(buf))) {
+        ink_strlcat(buf, "/", sizeof(buf));
+        ++i;
+      }
+    }
+    if ((i + j + 1) < (int) sizeof(buf))
+      ink_strlcat(buf, cname, sizeof(buf));
+  }
+
+  i = HttpConfig::init_aeua_filter(buf[0] ? buf : NULL);
+
+  Debug("http_aeua", "[init_http_aeua_filter] - Total loaded %d REGEXP for Accept-Enconding/User-Agent filtering", i);
+}
+
 struct AutoStopCont: public Continuation
 {
   int mainEvent(int event, Event * e)
@@ -1537,6 +1569,9 @@ main(int argc, char **argv)
 
   init_http_header();
 
+  // Init HTTP Accept-Encoding/User-Agent filter
+  init_http_aeua_filter();
+
   // Sanity checks
   //  if (!lock_process) check_for_root_uid();
   check_fd_limit();
@@ -1733,6 +1768,8 @@ main(int argc, char **argv)
     plugin_init(system_config_directory, false);        // plugin.config
 #else
     api_init();                 // we still need to initialize some of the data structure other module needs.
+    extern void init_inkapi_stat_system();
+    init_inkapi_stat_system();
     // i.e. http_global_hooks
 #endif
 

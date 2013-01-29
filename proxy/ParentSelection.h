@@ -159,7 +159,7 @@ struct pRecord
 {
   char hostname[MAXDNAME + 1];
   int port;
-  time_t failedAt;
+  int32_t failedAt;
   int failCount;
   int32_t upAt;
   const char *scheme;           // for which parent matches (if any)

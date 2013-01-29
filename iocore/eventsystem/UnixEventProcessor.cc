@@ -22,77 +22,8 @@
  */
 
 #include "P_EventSystem.h"      /* MAGIC_EDITING_TAG */
-#include <sched.h>
-#if TS_USE_HWLOC
-
-#if HAVE_HWLOC_H
-#include <hwloc.h>
-#endif
-
-#if HAVE_SCHED_H
-#include <sched.h>
-#if !defined(solaris) && !defined(freebsd)
-typedef cpu_set_t ink_cpuset_t;
-#define PTR_FMT PRIuPTR
-#endif
-#endif
-
-#if HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-
-#if HAVE_SYS_CPUSET_H
-#include <sys/cpuset.h>
-typedef cpuset_t ink_cpuset_t;
-#define PTR_FMT "p"
-#endif
-
-#if HAVE_PTHREAD_NP_H
-#include <pthread_np.h>
-#endif
-
-#if HAVE_SYS_PSET_H
-#include <sys/pset.h>
-typedef psetid_t ink_cpuset_t;
-#define PTR_FMT PRIuPTR
-#endif
-
-#if HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-
-#endif
-#include "ink_defs.h"
-
-#if TS_USE_HWLOC
-static void
-set_cpu(ink_cpuset_t *cpuset, int cpu)
-{
-#if !defined(solaris)
-  CPU_ZERO(cpuset);
-  CPU_SET(cpu, cpuset);
-#else
-  pset_create(cpuset);
-  pset_assign(*cpuset, cpu, NULL);
-#endif
-}
 
 
-static bool
-bind_cpu(ink_cpuset_t *cpuset, pthread_t tid)
-{
-  if ( 0 != 
-#if !defined(solaris)
-    pthread_setaffinity_np(tid, sizeof(ink_cpuset_t), cpuset)
-#else
-    pset_bind(*cpuset, P_LWPID, P_MYID, NULL)
-#endif
-    ){
-    return false;
-  }
-  return true;
-}
-#endif
 
 EventType
 EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
@@ -162,34 +93,11 @@ EventProcessor::start(int n_event_threads)
     t->set_event_type((EventType) ET_CALL);
   }
   n_threads_for_type[ET_CALL] = n_event_threads;
-
-#if TS_USE_HWLOC
-  int affinity = 0;
-  REC_ReadConfigInteger(affinity, "proxy.config.exec_thread.affinity");
-  ink_cpuset_t cpuset;
-  const hwloc_topology_t *topology = ink_get_topology();
-  int cu = hwloc_get_nbobjs_by_type(*topology, HWLOC_OBJ_CORE);
-  int pu = hwloc_get_nbobjs_by_type(*topology, HWLOC_OBJ_PU);
-  int num_cpus = cu;
-  Debug("iocore_thread", "cu: %d pu: %d affinity: %d", cu, pu, affinity);
-#endif
-
   for (i = first_thread; i < n_ethreads; i++) {
     snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ET_NET %d]", i);
-    ink_thread tid = all_ethreads[i]->start(thr_name);
-    (void)tid;
-
-#if TS_USE_HWLOC
-    if (affinity == 1) {
-      int cpu = (i - 1) % num_cpus;
-      set_cpu(&cpuset, cpu);
-      Debug("iocore_thread", "setaffinity tid: %" PTR_FMT ", net thread: %u, cpu: %d", tid, i, cpu);
-      if (!bind_cpu(&cpuset, tid)){
-        Debug("iocore_thread", "setaffinity for tid: %" PTR_FMT ", net thread: %u, cpu: %d failed with: %d", tid, i, cpu, errno);
-      }
-    }
-#endif
+    all_ethreads[i]->start(thr_name);
   }
+
   Debug("iocore_thread", "Created event thread group id %d with %d threads", ET_CALL, n_event_threads);
   return 0;
 }

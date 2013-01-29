@@ -604,7 +604,7 @@ Config_SaveVersion(char *file)
   len = sizeof("Version") + 1;
   parentAttributes3[1] = new char[len];
   snprintf(parentAttributes3[1], len, "%s", "Version");
-  parentAttributes3[2] = NULL;
+  parentAttributes3[2] = '\0';
   child2->setAttributes(parentAttributes3);
   child2->setNodeName("CONFIG_TYPE");
 
@@ -634,6 +634,30 @@ int
 Config_SetNTP_Off(void)
 {
   return Time_SetNTP_Off();
+}
+
+int
+Config_User_Root(int *old_euid)
+{
+  return Sys_User_Root(old_euid);
+}
+
+int
+Config_User_Inktomi(int euid)
+{
+  return Sys_User_Inktomi(euid);
+}
+
+int
+Config_Grp_Root(int *old_egid)
+{
+  return Sys_Grp_Root(old_egid);
+}
+
+int
+Config_Grp_Inktomi(int egid)
+{
+  return Sys_Grp_Inktomi(egid);
 }
 
 #if defined(linux)
@@ -776,12 +800,14 @@ Config_RestoreNetConfig(char *file)
     }
 
     // Get Admin GUI encrypted password.
-    TSActionNeedT action_need = TS_ACTION_UNDEFINED;
+    TSActionNeedT action_need, top_action_req = TS_ACTION_UNDEFINED;
     char *mail_address = netXml.getXmlTagValue("MailAddress");
     if (mail_address != NULL) {
       if (MgmtRecordSet("proxy.config.alarm_email", mail_address, &action_need) != TS_ERR_OKAY) {
         DPRINTF(("Config_FloppyNetRestore: failed to set new mail_address %s!\n", mail_address));
       } else {
+        if (action_need < top_action_req)       // a more "severe" action is needed...
+          top_action_req = action_need;
         DPRINTF(("Config_FloppyNetRestore: set new mail_address %s!\n", mail_address));
       }
       ats_free(mail_address);
@@ -805,8 +831,7 @@ Config_RestoreNetConfig(char *file)
     ats_free(TagValue);
   }
 
-  if(setreuid(old_euid, old_euid) != 0)
-    perror("Config_RestoreNetConfig set old uid failed: "); //happens only for floppy config
+  setreuid(old_euid, old_euid); //happens only for floppy config
   return 0;
 }
 
@@ -832,7 +857,7 @@ Config_SaveNetConfig(char *file)
   len = sizeof("Version") + 1;
   parentAttributes3[1] = new char[len];
   snprintf(parentAttributes3[1], len, "%s", "Version");
-  parentAttributes3[2] = NULL;
+  parentAttributes3[2] = '\0';
   child2->setAttributes(parentAttributes3);
   child2->setNodeName("CONFIG_TYPE");
 
@@ -857,7 +882,7 @@ Config_SaveNetConfig(char *file)
   len = sizeof("NW Settings") + 1;
   parentAttributes[1] = new char[len];
   snprintf(parentAttributes[1], len, "%s", "NW Settings");
-  parentAttributes[2] = NULL;
+  parentAttributes[2] = '\0';
   child->setAttributes(parentAttributes);
   child->setNodeName("CONFIG_TYPE");
 
@@ -894,7 +919,7 @@ Config_SaveNetConfig(char *file)
       attributes[0] = new char[len];
       snprintf(attributes[0], len, "%s", "InterfaceName");
       attributes[1] = Int;
-      attributes[2] = NULL;
+      attributes[2] = '\0';
       PerNICDefaultGateway->setAttributes(attributes);
       child->AppendChild(PerNICDefaultGateway);
     }
@@ -912,7 +937,7 @@ Config_SaveNetConfig(char *file)
       attributes[0] = new char[len];
       snprintf(attributes[0], len, "%s", "InterfaceName");
       attributes[1] = Int;
-      attributes[2] = NULL;
+      attributes[2] = '\0';
       InterfaceIPAddress->setAttributes(attributes);
       child->AppendChild(InterfaceIPAddress);
     }
@@ -930,7 +955,7 @@ Config_SaveNetConfig(char *file)
       attributes[0] = new char[len];
       snprintf(attributes[0], len, "%s", "InterfaceName");
       attributes[1] = Int;
-      attributes[2] = NULL;
+      attributes[2] = '\0';
       InterfaceNetmask->setAttributes(attributes);
       child->AppendChild(InterfaceNetmask);
     }
@@ -960,7 +985,7 @@ Config_SaveNetConfig(char *file)
        sprintf(attributes[0], "%s", "DomainControllerOrder");
        attributes[1] = new char[sizeof(int)+1];;
        sprintf(attributes[1], "%d", index+1);
-       attributes[2] = NULL;
+       attributes[2] = '\0';
        DNSSearch->setAttributes(attributes);
        child->AppendChild(DNSSearch);
      }
@@ -985,7 +1010,7 @@ Config_SaveNetConfig(char *file)
       len = sizeof(int) + 1;
       attributes[1] = new char[len];;
       snprintf(attributes[1], len, "%d", index + 1);
-      attributes[2] = NULL;
+      attributes[2] = '\0';
       DNSServer->setAttributes(attributes);
       child->AppendChild(DNSServer);
     }
@@ -1009,7 +1034,7 @@ Config_SaveNetConfig(char *file)
   len = sizeof("OS Settings") + 1;
   parentAttributes1[1] = new char[len];
   snprintf(parentAttributes1[1], len, "%s", "OS Settings");
-  parentAttributes1[2] = NULL;
+  parentAttributes1[2] = '\0';
   child1->setAttributes(parentAttributes1);
   child1->setNodeName("CONFIG_TYPE");
 

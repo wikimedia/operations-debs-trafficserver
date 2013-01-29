@@ -32,8 +32,9 @@
  * responsible for freeing the strings.
  */
 #include "libts.h"
-#include "ink_bool.h"
+
 #include "ink_assert.h"
+#include "ink_bool.h"
 #include "ink_resource.h"
 #include "ink_unused.h"
 

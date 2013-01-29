@@ -22,7 +22,3 @@ SUBDIRS = ts records
 if BUILD_WCCP
 SUBDIRS += tsconfig wccp
 endif
-
-if BUILD_CPP11API
-SUBDIRS += cpp11api
-endif

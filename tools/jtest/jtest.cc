@@ -39,20 +39,41 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <poll.h>
+#if !defined(IRIX) && !defined(_WIN32)
 #include <netinet/tcp.h>
+#endif
 #include <sys/resource.h>
+#if defined(__alpha)
+#include <sys/sysinfo.h>
+#include <machine/hal_sysinfo.h>
+#include <timers.h>
+#endif
 #include <math.h>
 #include <limits.h>
 #include <sys/mman.h>
 
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
+#ifdef __alpha
+#define ink64 long
+#define inku64 unsigned long
+#else
+#define ink64 long long
+#define inku64 unsigned long long
+#endif
 
-#include <time.h>
-#include <sys/time.h>
-#include <stdlib.h>
-
-typedef int64_t ink_hrtime;
+#if !defined (sparc) && !defined (_WIN32)
+#  include <time.h>
+#  include <sys/time.h>
+#  include <stdlib.h>
+   typedef ink64 ink_hrtime;
+#else /* !defined (NEED_HRTIME) || defined (_WIN32) */
+#  if !defined (_WIN32)
+#      include <sys/time.h>
+       typedef hrtime_t ink_hrtime;
+#  else
+#      include <time.h>
+      typedef ink64 ink_hrtime;
+#  endif
+#endif
 
 #define bool int
 #define false 0
@@ -180,8 +201,8 @@ float total_ops = 0;
 int running_sops = 0, new_sops = 0, total_sops = 0;
 int running_latency = 0, latency = 0;
 int lat_ops = 0, b1_ops = 0, running_b1latency = 0, b1latency = 0;
-uint64_t running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
-uint64_t running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
+int running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
+int running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
 int average_over = 5;
 double hitrate = 0.4;
 int hotset = 1000;
@@ -220,16 +241,16 @@ char urlsdump_file[256] = "";
 FILE * urlsdump_fp = NULL;
 int drand_seed = 0;
 int docsize = -1;
-int url_hash_entries = 1000000;
+int url_hash_entries = 100000;
 char url_hash_filename[256] = "";
 int bandwidth_test = 0;
 int bandwidth_test_to_go = 0;
-uint64_t total_client_request_bytes = 0;
-uint64_t total_proxy_request_bytes = 0;
-uint64_t total_server_response_body_bytes = 0;
-uint64_t total_server_response_header_bytes = 0;
-uint64_t total_proxy_response_body_bytes = 0;
-uint64_t total_proxy_response_header_bytes = 0;
+int total_client_request_bytes = 0;
+int total_proxy_request_bytes = 0;
+int total_server_response_body_bytes = 0;
+int total_server_response_header_bytes = 0;
+int total_proxy_response_body_bytes = 0;
+int total_proxy_response_header_bytes = 0;
 ink_hrtime now = 0, start_time = 0;
 ArgumentFunction jtest_usage;
 int extra_headers = 0;
@@ -726,9 +747,9 @@ ink_atoui(const char *str) {
     num = (num * 10) + (*str++ - '0');
   return num;
 }
-inline int64_t
+inline ink64 
 ink_atoll(const char *str) {
-  int64_t num = 0;
+  ink64 num = 0;
   int negative = 0;
   while (*str && ParseRules::is_wslfcr(*str))
     str += 1;
@@ -753,7 +774,12 @@ ink_atoll(const char *str) {
 #define HRTIME_SECOND   (1000*HRTIME_MSECOND)
 #define HRTIME_MSECOND  (1000*HRTIME_USECOND)
 #define HRTIME_USECOND  (1000*HRTIME_NSECOND)
+#if !defined (_WIN32)
 #define HRTIME_NSECOND  (1LL)
+#else
+#define HRTIME_NSECOND  (1i64)
+#endif
+
 #define MAX_FILE_ARGUMENTS 100
 
 char * file_arguments[MAX_FILE_ARGUMENTS] = { 0 };
@@ -803,15 +829,27 @@ void ink_warning(const char *message_format, ...);
 
 inline ink_hrtime ink_get_hrtime()
 {
-#    if defined(FreeBSD)
+#if !defined (_WIN32)
+#  if !defined (sparc)
+#    if defined (irix)
+      timespec ts;
+      clock_gettime(CLOCK_SGI_CYCLE, &ts);
+      return (ts.tv_sec * HRTIME_SECOND + ts.tv_nsec * HRTIME_NSECOND);
+#    elif defined(FreeBSD)
       timespec ts;
       clock_gettime(CLOCK_REALTIME, &ts);
       return (ts.tv_sec * HRTIME_SECOND + ts.tv_nsec * HRTIME_NSECOND);
-#    else
+#    else /* !defined (__alpha) && !defined(IRIX) */
       timeval tv;
       gettimeofday(&tv,NULL);
       return (tv.tv_sec * HRTIME_SECOND + tv.tv_usec * HRTIME_USECOND);
 #    endif
+#  else /* !defined (NEED_HRTIME) */
+      return gethrtime();
+#  endif
+#else /* WIN32 */
+    return ink_getHiResTime();
+#endif
 }
 
 typedef struct {
@@ -924,6 +962,12 @@ static void panic_perror(char * s) {
 }
 
 int max_limit_fd() {
+#ifdef __alpha
+#ifdef GSI_FD_NEWMAX
+  assert(!setsysinfo(SSI_FD_NEWMAX,0,0,0,1));
+#endif
+#endif
+
   struct rlimit rl;
   if (getrlimit(RLIMIT_NOFILE,&rl) >= 0) {
 #ifdef OPEN_MAX
@@ -943,6 +987,7 @@ int max_limit_fd() {
 }
 
 int read_ready(int fd) {
+#if !defined (_WIN32)
   struct pollfd p;
   p.events = POLLIN;
   p.fd = fd;
@@ -950,6 +995,9 @@ int read_ready(int fd) {
   if (r<=0) return r;
   if (p.revents & (POLLERR|POLLNVAL)) return -1;
   if (p.revents & (POLLIN|POLLHUP)) return 1;
+#else /* WIN32 */
+  return 1;
+#endif
   return 0;
 }
 
@@ -979,7 +1027,7 @@ static void poll_init_set(int sock, poll_cb read_cb, poll_cb write_cb = NULL) {
 
 static int fast(int sock, int speed, int d) {
   if (!speed) return 0;
-  int64_t t = now - fd[sock].start + 1;
+  ink64 t = now - fd[sock].start + 1;
   int target = (int)(((t / HRTIME_MSECOND) * speed) / 1000);
   int delta = d - target;
   if (delta > 0) {
@@ -993,7 +1041,7 @@ static int fast(int sock, int speed, int d) {
 
 static int faster_than(int sock, int speed, int d) {
   if (!speed) return 1;
-  int64_t t = now - fd[sock].start + 1;
+  ink64 t = now - fd[sock].start + 1;
   int target = (int)(((t / HRTIME_MSECOND) * speed) / 1000);
   int delta = d - target;
   if (delta > 0)
@@ -2865,7 +2913,7 @@ void interval_report() {
   now = ink_get_hrtime();
   if (!(here++ % 20))
     printf(
- " con  new     ops   1B  lat      bytes/per     svrs  new  ops      total   time  err\n");
+ " con  new    ops 1byte   lat   bytes/per     svrs  new  ops    total   time  err\n");
   RUNNING(clients);
   RUNNING_AVG(running_latency,latency,lat_ops); lat_ops = 0;
   RUNNING_AVG(running_b1latency,b1latency,b1_ops); b1_ops = 0;
@@ -2875,8 +2923,8 @@ void interval_report() {
   RUNNING(sops);
   RUNNING(tbytes);
   float t = (float)(now - start_time);
-  uint64_t per = current_clients ? running_cbytes / current_clients : 0;
-  printf("%4d %4d %7.1f %4d %4d %10" PRIu64"/%-6" PRIu64"  %4d %4d %4d  %9" PRIu64" %6.1f %4d\n",
+  int per = current_clients ? running_cbytes / current_clients : 0;
+  printf("%4d %4d %6.1f %5d %5d %7d/%-6d  %4d %4d %4d  %7d %6.1f %4d\n", 
          current_clients, // clients, n_ka_cache,
          running_clients,
          running_ops, running_b1latency, running_latency,
@@ -2887,15 +2935,15 @@ void interval_report() {
          t/((float)HRTIME_SECOND),
          errors);
   if (is_done()) {
-    printf("Total Client Request Bytes:\t\t%" PRIu64"\n", total_client_request_bytes);
-    printf("Total Server Response Header Bytes:\t%" PRIu64"\n",
+    printf("Total Client Request Bytes:\t\t%d\n", total_client_request_bytes);
+    printf("Total Server Response Header Bytes:\t%d\n", 
            total_server_response_header_bytes);
-    printf("Total Server Response Body Bytes:\t%" PRIu64"\n",
+    printf("Total Server Response Body Bytes:\t%d\n", 
            total_server_response_body_bytes);
-    printf("Total Proxy Request Bytes:\t\t%" PRIu64"\n", total_proxy_request_bytes);
-    printf("Total Proxy Response Header Bytes:\t%" PRIu64"\n",
+    printf("Total Proxy Request Bytes:\t\t%d\n", total_proxy_request_bytes);
+    printf("Total Proxy Response Header Bytes:\t%d\n", 
            total_proxy_response_header_bytes);
-    printf("Total Proxy Response Body Bytes:\t%" PRIu64"\n",
+    printf("Total Proxy Response Body Bytes:\t%d\n", 
            total_proxy_response_body_bytes);
   }
 }
@@ -2954,7 +3002,7 @@ struct UrlHashTable {
 
   void alloc(unsigned int want);
 
-  void set(uint64_t i) {
+  void set(inku64 i) {
     BEGIN_HASH_LOOP {
       if (!ENTRY_TAG(e)) {
         SET_ENTRY_TAG(e,tag);
@@ -2974,7 +3022,7 @@ struct UrlHashTable {
     ink_fatal(1, "overview entries overflow");
   }
 
-  void clear(uint64_t i) {
+  void clear(inku64 i) {
     BEGIN_HASH_LOOP {
       if (ENTRY_TAG(e) == tag) {
         if (e != last)
@@ -2988,7 +3036,7 @@ struct UrlHashTable {
             (int)(base-bytes), tag);
   }
 
-  int is_set(uint64_t i) {
+  int is_set(inku64 i) {
     BEGIN_HASH_LOOP {
       if (ENTRY_TAG(e) == tag)
         return 1;
@@ -3050,7 +3098,11 @@ UrlHashTable::UrlHashTable() {
     ink_assert( !ftruncate(fd,numbytes) );
     bytes = (unsigned char *)
       mmap(NULL,numbytes,PROT_READ|PROT_WRITE,
+#if defined(__alpha) || defined(mips)
+           MAP_SHARED,
+#else
            MAP_SHARED|MAP_NORESERVE,
+#endif
            fd, 0);
     if (bytes == (unsigned char*)MAP_FAILED || !bytes)
       panic("unable to map URL Hash file\n");
@@ -3074,7 +3126,7 @@ int seen_it(char * url) {
     return 0;
   union {
     unsigned char md5[16];
-    uint64_t i[2];
+    inku64 i[2];
   } u;
   int l = 0;
   char * para = strrchr(url, '#');
@@ -3083,7 +3135,7 @@ int seen_it(char * url) {
   else
     l = strlen(url);
   ink_code_md5((unsigned char*)url,l,u.md5);
-  uint64_t x = u.i[0] + u.i[1];
+  inku64 x = u.i[0] + u.i[1];
   if (uniq_urls->is_set(x)) {
     if (verbose) printf("YES: seen it '%s'\n", url);
     return 1;
@@ -4523,7 +4575,7 @@ static void process_arg(ArgumentDescription * argument_descriptions,
           *(double *)argument_descriptions[i].location = atof(arg);
           break;
         case 'L':
-          *(int64_t *)argument_descriptions[i].location = ink_atoll(arg);
+          *(ink64 *)argument_descriptions[i].location = ink_atoll(arg);
           break;
         case 'S': strncpy((char *)argument_descriptions[i].location,arg,
                           atoi(argument_descriptions[i].type+1));
@@ -4564,10 +4616,12 @@ void show_argument_configuration(ArgumentDescription * argument_descriptions,
         printf("%f",*(double*)argument_descriptions[i].location);
         break;
       case 'L':
-#if defined(FreeBSD)
-        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
+#if defined(__alpha)
+        printf("%ld",*(ink64*)argument_descriptions[i].location);
+#elif defined(FreeBSD)
+        printf("%qd",*(ink64*)argument_descriptions[i].location);
 #else
-        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
+        printf("%lld",*(ink64*)argument_descriptions[i].location);
 #endif
         break;
       case 'S':
@@ -4603,7 +4657,7 @@ void process_args(ArgumentDescription * argument_descriptions,
         *(double *)argument_descriptions[i].location = atof(env);
         break;
       case 'L':
-        *(int64_t *)argument_descriptions[i].location = ink_atoll(env);
+        *(ink64 *)argument_descriptions[i].location = ink_atoll(env);
         break;
       case 'S':
         strncpy((char *)argument_descriptions[i].location,env,
@@ -4670,12 +4724,14 @@ void usage(ArgumentDescription * argument_descriptions,
       case 0: fprintf(stderr, "          "); break;
       case 'L':
         fprintf(stderr, 
-#if defined(FreeBSD)
-                " %-9" PRId64"",
+#ifdef __alpha
+                " %-9ld", 
+#elif defined(FreeBSD)
+                " %-9qd", 
 #else
-                " %-9" PRId64"",
+                " %-9lld",
 #endif
-                *(int64_t*)argument_descriptions[i].location);
+                *(ink64*)argument_descriptions[i].location);
         break;
       case 'S':
         if (*(char*)argument_descriptions[i].location) {

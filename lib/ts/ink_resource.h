@@ -102,11 +102,8 @@ public:
   /// Auto convert to a raw pointer.
   operator T* () { return m_ptr; }
 
-  /// Auto convert to raw pointer.
+  /// Auto conver to raw pointer.
   operator T const* () const { return m_ptr; }
-
-  /// Boolean operator. Returns true if we are pointing to valid memory.
-  operator bool() const { return m_ptr != 0; }
 
   /** Release memory from control of this instance.
 

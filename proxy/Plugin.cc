@@ -36,6 +36,7 @@
 #include "Main.h"
 #include "Plugin.h"
 #include "PluginDB.h"
+#include "stats/Stats.h"
 
 // HPUX:
 //   LD_SHAREDCMD=ld -b
@@ -281,6 +282,7 @@ plugin_init(const char *config_dir, bool internal)
 
   if (INIT_ONCE) {
     api_init();
+    init_inkapi_stat_system();
     char *cfg = NULL;
 
     plugin_dir = TSPluginDirGet();

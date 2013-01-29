@@ -22,7 +22,7 @@ noinst_LIBRARIES = libTrafficServerStandalone.a
 bin_PROGRAMS =
 noinst_PROGRAMS =
 else
-SUBDIRS = congest http logging config
+SUBDIRS = congest http logging config stats
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -71,6 +71,8 @@ traffic_server_SOURCES = \
   AbstractBuffer.h \
   CacheControl.cc \
   CacheControl.h \
+  ProxyConfig.cc \
+  ProxyConfig.h \
   ControlBase.cc \
   ControlBase.h \
   ControlMatcher.cc \
@@ -143,6 +145,7 @@ traffic_server_LDADD = \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
+  stats/libstats.a \
   hdrs/libhdrs.a  \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -165,10 +168,6 @@ traffic_server_LDADD = \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ @LIBHWLOC@ \
   @LIBZ@ @LIBLZMA@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
-
-if BUILD_LUA_SUPPORT
-traffic_server_LDFLAGS += @LUA_LUAJIT_LDFLAGS@
-endif
 
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
@@ -220,6 +219,7 @@ traffic_sac_LDADD = \
   CacheControl.o \
   StatSystem.o \
   ReverseProxy.o \
+  ProxyConfig.o \
   signals.o \
   Error.o \
   EventName.o \
@@ -241,6 +241,7 @@ traffic_sac_LDADD = \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
+  stats/libstats.a \
   hdrs/libhdrs.a \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -268,6 +269,7 @@ endif
 libTrafficServerStandalone_a_SOURCES = \
   signals.cc \
   Error.cc \
+  ProxyConfig.cc \
   EventName.cc \
   DiagsConfig.cc \
   StatPages.cc \

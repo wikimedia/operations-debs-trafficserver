@@ -340,7 +340,7 @@ ParentConfigParams::recordRetrySuccess(ParentResult * result)
   ink_assert((int) (result->last_parent) < result->rec->num_parents);
   pRec = result->rec->parents + result->last_parent;
 
-  ink_atomic_swap(&pRec->failedAt, (time_t)0);
+  ink_atomic_swap(&pRec->failedAt, 0);
   int old_count = ink_atomic_swap(&pRec->failCount, 0);
 
   if (old_count > 0) {
@@ -551,12 +551,12 @@ ParentRecord::FindParent(bool first_call, ParentResult * result, RD * rdata, Par
     if ((parents[cur_index].failedAt == 0) || (parents[cur_index].failCount < config->FailThreshold)) {
       Debug("parent_select", "config->FailThreshold = %d", config->FailThreshold);
       Debug("parent_select", "Selecting a down parent due to little failCount"
-            "(faileAt: %u failCount: %d)", (unsigned)parents[cur_index].failedAt, parents[cur_index].failCount);
+            "(faileAt: %u failCount: %d)", parents[cur_index].failedAt, parents[cur_index].failCount);
       parentUp = true;
     } else {
       if ((result->wrap_around) || ((parents[cur_index].failedAt + config->ParentRetryTime) < request_info->xact_start)) {
         Debug("parent_select", "Parent[%d].failedAt = %u, retry = %u,xact_start = %" PRId64 " but wrap = %d", cur_index,
-              (unsigned)parents[cur_index].failedAt, config->ParentRetryTime, (int64_t)request_info->xact_start, result->wrap_around);
+              parents[cur_index].failedAt, config->ParentRetryTime, (int64_t)request_info->xact_start, result->wrap_around);
         // Reuse the parent
         parentUp = true;
         parentRetry = true;
@@ -935,7 +935,7 @@ parentSelection_CB(const char *name, RecDataT data_type, RecData data, void *coo
 //
 
 int SocksServerConfig::m_id = 0;
-static Ptr<ProxyMutex> socks_server_reconfig_mutex = NULL;
+static ProxyMutexPtr socks_server_reconfig_mutex = NULL;
 void
 SocksServerConfig::startup()
 {

@@ -26,6 +26,7 @@
 
 #include "Diags.h"
 #include "ink_atomic.h"
+#include "ink_defs.h"
 
 #include "P_RecDefs.h"
 

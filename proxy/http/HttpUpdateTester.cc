@@ -37,17 +37,12 @@ public:
 private:
   void make_requests();
   int active_req;
-#ifdef GO_AWAY
   int total_req;
   FILE *file;
-#endif
 };
 
 UpTest::UpTest(FILE * f, ProxyMutex * amutex):
-Continuation(amutex), active_req(0)
-#ifdef GO_AWAY
-  , total_req(0), file(f)
-#endif
+Continuation(amutex), active_req(0), total_req(0), file(f)
 {
   SET_HANDLER(&UpTest::main_handler);
 }

@@ -36,7 +36,6 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-#include "ink_apidefs.h"
 #include "ink_defs.h"
 
 int

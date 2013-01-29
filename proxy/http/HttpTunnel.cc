@@ -41,11 +41,9 @@
 static const int max_chunked_ahead_bytes = 1 << 15;
 static const int max_chunked_ahead_blocks = 128;
 static const int min_block_transfer_bytes = 256;
-static char const * const CHUNK_HEADER_FMT = "%" PRIx64"\r\n";
-// This should be as small as possible because it will only hold the
-// header and trailer per chunk - the chunk body will be a reference to
-// a block in the input stream.
-static int const CHUNK_IOBUFFER_SIZE_INDEX = MIN_IOBUFFER_SIZE;
+static const int max_chunk_size = 4096;
+static char max_chunk_buf[10];
+static int max_chunk_buf_len;
 
 static void
 chunked_reenable(HttpTunnelProducer * p, HttpTunnel * tunnel)
@@ -124,11 +122,17 @@ add_chunked_reenable(HttpTunnelProducer * p, HttpTunnel * tunnel)
   }
 }
 
+// global initialization once
+void
+init_max_chunk_buf()
+{
+  max_chunk_buf_len = snprintf(max_chunk_buf, sizeof(max_chunk_buf), "%x\r\n", max_chunk_size);
+}
+
 ChunkedHandler::ChunkedHandler()
   : chunked_reader(NULL), dechunked_buffer(NULL), dechunked_size(0), dechunked_reader(NULL), chunked_buffer(NULL),
     chunked_size(0), truncation(false), skip_bytes(0), state(CHUNK_READ_CHUNK), cur_chunk_size(0),
-    bytes_left(0), last_server_event(VC_EVENT_NONE), running_sum(0), num_digits(0),
-    max_chunk_size(DEFAULT_MAX_CHUNK_SIZE), max_chunk_header_len(0)
+    bytes_left(0), last_server_event(VC_EVENT_NONE), running_sum(0), num_digits(0)
 {
 }
 
@@ -144,25 +148,17 @@ ChunkedHandler::init(IOBufferReader * buffer_in, HttpTunnelProducer * p)
   if (p->do_chunking) {
     dechunked_reader = buffer_in->mbuf->clone_reader(buffer_in);
     dechunked_reader->mbuf->water_mark = min_block_transfer_bytes;
-    chunked_buffer = new_MIOBuffer(CHUNK_IOBUFFER_SIZE_INDEX);
+    chunked_buffer = new_MIOBuffer(MAX_IOBUFFER_SIZE);
     chunked_size = 0;
   } else {
     ink_assert(p->do_dechunking || p->do_chunked_passthru);
     chunked_reader = buffer_in->mbuf->clone_reader(buffer_in);
 
     if (p->do_dechunking) {
-      // This is the min_block_transfer_bytes value.
-      dechunked_buffer = new_MIOBuffer(BUFFER_SIZE_INDEX_256);
+      dechunked_buffer = new_MIOBuffer(MAX_IOBUFFER_SIZE);
       dechunked_size = 0;
     }
   }
-}
-
-void
-ChunkedHandler::set_max_chunk_size(int64_t size)
-{
-  max_chunk_size = size ? size : DEFAULT_MAX_CHUNK_SIZE;
-  max_chunk_header_len = snprintf(max_chunk_header, sizeof(max_chunk_header), CHUNK_HEADER_FMT, max_chunk_size);
 }
 
 void
@@ -284,7 +280,7 @@ ChunkedHandler::read_chunk()
 
   ink_assert(bytes_left >= 0);
   if (bytes_left == 0) {
-    Debug("http_chunk", "completed read of chunk of %" PRId64" bytes", cur_chunk_size);
+    Debug("http_chunk", "completed read of chunk of %"PRId64" bytes", cur_chunk_size);
 
     // Check to see if we need to flow control the output
     if (dechunked_buffer &&
@@ -296,7 +292,7 @@ ChunkedHandler::read_chunk()
       state = CHUNK_READ_SIZE_START;
     }
   } else if (bytes_left > 0) {
-    Debug("http_chunk", "read %" PRId64" bytes of an %" PRId64" chunk", b, cur_chunk_size);
+    Debug("http_chunk", "read %"PRId64" bytes of an %"PRId64" chunk", b, cur_chunk_size);
   }
 }
 
@@ -375,9 +371,6 @@ bool ChunkedHandler::generate_chunked_content()
 {
   char tmp[16];
   bool server_done = false;
-  int64_t r_avail;
-
-  ink_debug_assert(max_chunk_header_len);
 
   switch (last_server_event) {
   case VC_EVENT_EOS:
@@ -387,8 +380,9 @@ bool ChunkedHandler::generate_chunked_content()
     break;
   }
 
-  while ((r_avail = dechunked_reader->read_avail()) > 0 && state != CHUNK_WRITE_DONE) {
-    int64_t write_val = MIN(max_chunk_size, r_avail);
+  while (dechunked_reader->read_avail() > 0 && state != CHUNK_WRITE_DONE) {
+    // TODO: Should this be 64-bit?
+    int write_val = MIN(max_chunk_size, dechunked_reader->read_avail());
 
     // If the server is still alive, check to see if too much data is
     //    pilling up on the client's buffer.  If the server is done, ignore
@@ -402,16 +396,16 @@ bool ChunkedHandler::generate_chunked_content()
       return false;
     } else {
       state = CHUNK_WRITE_CHUNK;
-      Debug("http_chunk", "creating a chunk of size %" PRId64" bytes", write_val);
+      Debug("http_chunk", "creating a chunk of size %d bytes", write_val);
 
       // Output the chunk size.
       if (write_val != max_chunk_size) {
-        int len = snprintf(tmp, sizeof(tmp), CHUNK_HEADER_FMT, write_val);
+        int len = snprintf(tmp, sizeof(tmp), "%x\r\n", write_val);
         chunked_buffer->write(tmp, len);
         chunked_size += len;
       } else {
-        chunked_buffer->write(max_chunk_header, max_chunk_header_len);
-        chunked_size += max_chunk_header_len;
+        chunked_buffer->write(max_chunk_buf, max_chunk_buf_len);
+        chunked_size += max_chunk_buf_len;
       }
 
       // Output the chunk itself.
@@ -558,7 +552,6 @@ HttpTunnel::deallocate_buffers()
       producers[i].chunked_handler.chunked_buffer = NULL;
       num++;
     }
-    producers[i].chunked_handler.max_chunk_header_len = 0;
   }
   return num;
 }
@@ -580,12 +573,6 @@ HttpTunnel::set_producer_chunking_action(HttpTunnelProducer * p, int64_t skip_by
   default:
     break;
   };
-}
-
-void
-HttpTunnel::set_producer_chunking_size(HttpTunnelProducer* p, int64_t size)
-{
-  p->chunked_handler.set_max_chunk_size(size);
 }
 
 // HttpTunnelProducer* HttpTunnel::add_producer
@@ -781,7 +768,7 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
     } else if (p->do_dechunking) {
       // bz57413
       Debug("http_tunnel",
-            "[producer_run] do_dechunking p->chunked_handler.chunked_reader->read_avail() = %" PRId64"",
+            "[producer_run] do_dechunking p->chunked_handler.chunked_reader->read_avail() = %"PRId64"",
             p->chunked_handler.chunked_reader->read_avail());
 
       // initialize a reader to dechunked buffer start before writing to keep ref count
@@ -792,7 +779,7 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
       if (!transform_consumer) {
         p->chunked_handler.dechunked_buffer->write(p->buffer_start, p->chunked_handler.skip_bytes);
 
-        Debug("http_tunnel", "[producer_run] do_dechunking::Copied header of size %" PRId64"", p->chunked_handler.skip_bytes);
+        Debug("http_tunnel", "[producer_run] do_dechunking::Copied header of size %"PRId64"", p->chunked_handler.skip_bytes);
       }
     }
   }
@@ -878,12 +865,12 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
   // including the maximum configured post data size
   if (p->alive && sm->t_state.method == HTTP_WKSIDX_POST && sm->enable_redirection
       && sm->redirection_tries == 0 && (p->vc_type == HT_HTTP_CLIENT)) {
-    Debug("http_redirect", "[HttpTunnel::producer_run] client post: %" PRId64" max size: %" PRId64"",
+    Debug("http_redirect", "[HttpTunnel::producer_run] client post: %"PRId64" max size: %"PRId64"",
           p->buffer_start->read_avail(), HttpConfig::m_master.post_copy_size);
 
     // (note that since we are not dechunking POST, this is the chunked size if chunked)
     if (p->buffer_start->read_avail() > HttpConfig::m_master.post_copy_size) {
-      Debug("http_redirect", "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64" limit=%" PRId64"",
+      Debug("http_redirect", "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%"PRId64" limit=%"PRId64"",
             p->buffer_start->read_avail(), HttpConfig::m_master.post_copy_size);
       sm->enable_redirection = false;
     } else {
@@ -909,11 +896,11 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
     // bz57413
     // If there is no transformation plugin, then we didn't add the header, hence no need to consume it
     Debug("http_tunnel",
-          "[producer_run] do_dechunking p->chunked_handler.chunked_reader->read_avail() = %" PRId64"",
+          "[producer_run] do_dechunking p->chunked_handler.chunked_reader->read_avail() = %"PRId64"",
           p->chunked_handler.chunked_reader->read_avail());
     if (!transform_consumer && (p->chunked_handler.chunked_reader->read_avail() >= p->chunked_handler.skip_bytes)) {
       p->chunked_handler.chunked_reader->consume(p->chunked_handler.skip_bytes);
-      Debug("http_tunnel", "[producer_run] do_dechunking p->chunked_handler.skip_bytes = %" PRId64"",
+      Debug("http_tunnel", "[producer_run] do_dechunking p->chunked_handler.skip_bytes = %"PRId64"",
             p->chunked_handler.skip_bytes);
     }
     //if(p->chunked_handler.chunked_reader->read_avail() > 0)
@@ -1096,7 +1083,7 @@ bool HttpTunnel::producer_handler(int event, HttpTunnelProducer * p)
     if ((postbuf->postdata_copy_buffer_start->read_avail() + postbuf->ua_buffer_reader->read_avail())
         > HttpConfig::m_master.post_copy_size) {
       Debug("http_redirect",
-            "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64" reader_avail=%" PRId64" limit=%" PRId64"",
+            "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%"PRId64" reader_avail=%"PRId64" limit=%"PRId64"",
             postbuf->postdata_copy_buffer_start->read_avail(), postbuf->ua_buffer_reader->read_avail(),
             HttpConfig::m_master.post_copy_size);
       deallocate_redirect_postdata_buffers();
@@ -1523,7 +1510,7 @@ void
 HttpTunnel::copy_partial_post_data()
 {
   postbuf->postdata_copy_buffer->write(postbuf->ua_buffer_reader);
-  Debug("http_redirect", "[HttpTunnel::copy_partial_post_data] wrote %" PRId64" bytes to buffers %" PRId64"",
+  Debug("http_redirect", "[HttpTunnel::copy_partial_post_data] wrote %"PRId64" bytes to buffers %"PRId64"",
         postbuf->ua_buffer_reader->read_avail(), postbuf->postdata_copy_buffer_start->read_avail());
   postbuf->ua_buffer_reader->consume(postbuf->ua_buffer_reader->read_avail());
 }

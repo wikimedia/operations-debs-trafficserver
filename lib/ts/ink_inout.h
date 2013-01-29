@@ -30,13 +30,10 @@
 #define _INOUT_H
 
 // source of good macros..
-#ifdef __cplusplus
-extern "C" {
-#endif                          /* __cplusplus */
+extern "C"
+{
 #include "/usr/include/arpa/nameser.h"
-#ifdef __cplusplus
 }
-#endif                          /* __cplusplus */
 
 #define GETCHAR(s, cp) { \
         (s) = *(cp)++; \

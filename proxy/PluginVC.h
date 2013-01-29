@@ -152,11 +152,10 @@ private:
   int reentrancy_count;
 
   ink_hrtime active_timeout;
-  Event *active_event;
-
   ink_hrtime inactive_timeout;
-  ink_hrtime inactive_timeout_at;
+  Event *active_event;
   Event *inactive_event;
+
 };
 
 class PluginVCCore:public Continuation

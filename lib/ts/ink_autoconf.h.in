@@ -23,9 +23,6 @@
 /* Define to 1 if you have the <arpa/nameser.h> header file. */
 #undef HAVE_ARPA_NAMESER_H
 
-/* define if the Boost library is available */
-#undef HAVE_BOOST
-
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
@@ -34,9 +31,6 @@
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
-
-/* Whether the compiler support C++11 */
-#undef HAVE_CXX_11
 
 /* Define to 1 if you have the declaration of `EVP_PKEY_CTX_new', and to 0 if
    you don't. */
@@ -165,9 +159,6 @@
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN
 
-/* Define to 1 if you have the <pthread_np.h> header file. */
-#undef HAVE_PTHREAD_NP_H
-
 /* Define to 1 if you have the <readline.h> header file. */
 #undef HAVE_READLINE_H
 
@@ -179,9 +170,6 @@
 
 /* Define to 1 if you have the <readline/readline.h> header file. */
 #undef HAVE_READLINE_READLINE_H
-
-/* Define to 1 if you have the <sched.h> header file. */
-#undef HAVE_SCHED_H
 
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
@@ -204,9 +192,6 @@
 
 /* Define to 1 if you have the `SSL_select_next_proto' function. */
 #undef HAVE_SSL_SELECT_NEXT_PROTO
-
-/* Define to 1 if you have the <stdbool.h> header file. */
-#undef HAVE_STDBOOL_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -244,9 +229,6 @@
 /* Define to 1 if you have the <sys/capability.h> header file. */
 #undef HAVE_SYS_CAPABILITY_H
 
-/* Define to 1 if you have the <sys/cpuset.h> header file. */
-#undef HAVE_SYS_CPUSET_H
-
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
 
@@ -267,9 +249,6 @@
 
 /* Define to 1 if you have the <sys/prctl.h> header file. */
 #undef HAVE_SYS_PRCTL_H
-
-/* Define to 1 if you have the <sys/pset.h> header file. */
-#undef HAVE_SYS_PSET_H
 
 /* Define to 1 if you have the <sys/sockio.h> header file. */
 #undef HAVE_SYS_SOCKIO_H

@@ -108,19 +108,16 @@ int
 RegressionTest::run_some()
 {
 
-  if (current) {
-    if (current->status == REGRESSION_TEST_INPROGRESS)
-      return REGRESSION_TEST_INPROGRESS;
-    else if (current->status != REGRESSION_TEST_NOT_RUN) {
-      if (!current->printed) {
-        current->printed = true;
-        fprintf(stderr, "    REGRESSION_RESULT %s:%*s %s\n", current->name,
-                40 - (int)strlen(current->name), " ", regression_status_string(current->status));
-      }
-      current = current->next;
+  if (current->status == REGRESSION_TEST_INPROGRESS)
+    return REGRESSION_TEST_INPROGRESS;
+  else if (current->status != REGRESSION_TEST_NOT_RUN) {
+    if (!current->printed) {
+      current->printed = true;
+      fprintf(stderr, "    REGRESSION_RESULT %s:%*s %s\n", current->name,
+              40 - (int)strlen(current->name), " ", regression_status_string(current->status));
     }
+    current = current->next;
   }
-
   for (; current; current = current->next) {
     if ((dfa.match(current->name) >= 0)) {
       int res = start_test(current);

@@ -32,9 +32,6 @@
 #ifndef ABS
 #define ABS(_x_) (((_x_) < 0) ? ( - (_x_)) : (_x_))
 #endif
-#if TS_USE_HWLOC
-#include <hwloc.h>
-#endif
 
 /* Debugging
 */
@@ -65,6 +62,21 @@ typedef void (*VVP_PFN) (void *);
 typedef void (*VV_PFN) (void);
 typedef void (*VI_PFN) (int);
 
+/* Compiler Hints
+ */
+#define	NOWARN_UNUSED(x)	(void)(x)
+#define	NOWARN_UNUSED_RETURN(x)	if (x) {}
+
+/*  Enable this to get printf() style warnings on the Inktomi functions. */
+/* #define PRINTFLIKE(IDX, FIRST)  __attribute__((format (printf, IDX, FIRST))) */
+#if !defined(TS_PRINTFLIKE)
+#if defined(__GNUC__) || defined(__clang__)
+#define TS_PRINTFLIKE(fmt, arg) __attribute__((format(printf, fmt, arg)))
+#else
+#define TS_PRINTFLIKE(fmt, arg)
+#endif
+#endif
+
 /* Variables
 */
 extern int debug_level;
@@ -75,10 +87,6 @@ extern int on;
 */
 int ink_sys_name_release(char *name, int namelen, char *release, int releaselen);
 int ink_number_of_processors();
-#if TS_USE_HWLOC
-// Get the hardware topology
-const hwloc_topology_t* ink_get_topology();
-#endif
 
 /** Constants.
  */

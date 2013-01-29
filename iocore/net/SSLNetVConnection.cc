@@ -23,7 +23,6 @@
 #include "ink_config.h"
 #include "P_Net.h"
 #include "P_SSLNextProtocolSet.h"
-#include "P_SSLUtils.h"
 
 #define SSL_READ_ERROR_NONE	  0
 #define SSL_READ_ERROR		  1
@@ -90,7 +89,7 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
   for (bytes_read = 0; (b != 0) && (sslErr == SSL_ERROR_NONE); b = b->next) {
     block_write_avail = b->write_avail();
 
-    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] b->write_avail()=%" PRId64, block_write_avail);
+    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] b->write_avail()=%"PRId64, block_write_avail);
 
     int64_t offset = 0;
     // while can be replaced with if - need to test what works faster with openssl
@@ -103,10 +102,7 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
       switch (sslErr) {
       case SSL_ERROR_NONE:
 
-#if DEBUG
-        SSLDebugBufferPrint("ssl_buff", b->end() + offset, rres, "SSL Read");
-#endif
-
+        DebugBufferPrint("ssl_buff", b->end() + offset, rres, "SSL Read");
         ink_debug_assert(rres);
 
         bytes_read += rres;
@@ -121,12 +117,9 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
         Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_WOULD_BLOCK(write)");
         break;
       case SSL_ERROR_WANT_READ:
-        event = SSL_READ_WOULD_BLOCK;
-        Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_WOULD_BLOCK(read)");
-        break;
       case SSL_ERROR_WANT_X509_LOOKUP:
         event = SSL_READ_WOULD_BLOCK;
-        Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_WOULD_BLOCK(read/x509 lookup)");
+        Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_WOULD_BLOCK(read)");
         break;
       case SSL_ERROR_SYSCALL:
         if (rres != 0) {
@@ -159,7 +152,7 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
   }                             // for ( bytes_read = 0; (b != 0); b = b->next)
 
   if (bytes_read > 0) {
-    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] bytes_read=%" PRId64, bytes_read);
+    Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] bytes_read=%"PRId64, bytes_read);
     buf.writer()->fill(bytes_read);
     s->vio.ndone += bytes_read;
     vc->netActivity(lthread);
@@ -264,7 +257,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   if (bytes > 0) {
     if (ret == SSL_READ_WOULD_BLOCK) {
       if (readSignalAndUpdate(VC_EVENT_READ_READY) != EVENT_CONT) {
-        Debug("ssl", "ssl_read_from_net, readSignal != EVENT_CONT");
+        Debug("ssl", "ssl_read_from_net, readSignal !=EVENT_CONT");
         return;
       }
     }
@@ -352,7 +345,7 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
       break;
     wattempted = l;
     total_wrote += l;
-    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, before do_SSL_write, l=%" PRId64", towrite=%" PRId64", b=%p",
+    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, before do_SSL_write, l=%"PRId64", towrite=%"PRId64", b=%p",
           l, towrite, b);
     r = do_SSL_write(ssl, b->start() + offset, (int)l);
     if (r == l) {
@@ -361,7 +354,7 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
     // on to the next block
     offset = 0;
     b = b->next;
-    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite,Number of bytes written=%" PRId64" , total=%" PRId64"", r, total_wrote);
+    Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite,Number of bytes written=%"PRId64" , total=%"PRId64"", r, total_wrote);
     NET_DEBUG_COUNT_DYN_STAT(net_calls_to_write_stat, 1);
   } while (r == l && total_wrote < towrite && b);
   if (r > 0) {
@@ -398,7 +391,7 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
     default:
       r = -errno;
       Debug("ssl", "SSL_write-SSL_ERROR_SSL");
-      SSLError("SSL_write");
+      SSLNetProcessor::logSSLError("SSL_write");
       break;
     }
     return (r);
@@ -456,30 +449,28 @@ SSLNetVConnection::sslStartHandShake(int event, int &err)
     if (this->ssl == NULL) {
       SSL_CTX * ctx;
       int namelen = sizeof(ip);
-      SSLCertificateConfig::scoped_config lookup;
+      char buff[INET6_ADDRSTRLEN];
 
       safe_getsockname(get_socket(), &ip.sa, &namelen);
-
-      ip.port() = 0; // XXX certificate lookup can't check the port yet; TS-1500
-      ctx = lookup->findInfoInHash(ip);
-      Debug("ssl", "IP context is %p, default context %p", ctx, lookup->defaultContext());
+      ats_ip_ntop(&ip.sa, buff, sizeof(buff));
+      ctx = sslCertLookup.findInfoInHash(buff);
+      Debug("ssl", "IP context is %p, default context %p", ctx, sslCertLookup.defaultContext());
       if (ctx == NULL) {
-        ctx = lookup->defaultContext();
+        ctx = sslCertLookup.defaultContext();
       }
 
       this->ssl = make_ssl_connection(ctx, this);
       if (this->ssl == NULL) {
         Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, ssl create failed");
-        SSLError("SSL_StartHandShake");
+        SSLNetProcessor::logSSLError("SSL_StartHandShake");
         return EVENT_ERROR;
       }
     }
 
     return sslServerHandShakeEvent(err);
   } else {
-    ink_assert(event == SSL_EVENT_CLIENT);
-    if (this->ssl == NULL) {
-      this->ssl = make_ssl_connection(ssl_NetProcessor.client_ctx, this);
+    if (ssl == NULL) {
+      ssl = make_ssl_connection(ssl_NetProcessor.client_ctx, this);
     }
     ink_assert(event == SSL_EVENT_CLIENT);
     return (sslClientHandShakeEvent(err));
@@ -562,7 +553,7 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
   default:
     err = errno;
     Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, error");
-    SSLError("SSL_ServerHandShake");
+    SSLNetProcessor::logSSLError("SSL_ServerHandShake");
     return EVENT_ERROR;
     break;
   }
@@ -627,7 +618,7 @@ SSLNetVConnection::sslClientHandShakeEvent(int &err)
   case SSL_ERROR_SSL:
   default:
     err = errno;
-    SSLError("sslClientHandShakeEvent");
+    SSLNetProcessor::logSSLError("sslClientHandShakeEvent");
     return EVENT_ERROR;
     break;
 

@@ -31,84 +31,112 @@
 #ifndef __P_SSLCONFIG_H__
 #define __P_SSLCONFIG_H__
 
-#include "ProxyConfig.h"
+#include "libts.h"
 
-struct SSLCertLookup;
 
+//
+// Dynamic updates of SSL settings are not implemented yet.
+//
 /////////////////////////////////////////////////////////////
 //
-// struct SSLConfigParams
+// struct SslConfigParams
 //
 // configuration parameters as they apear in the global
 // configuration file.
 /////////////////////////////////////////////////////////////
 
 
-struct SSLConfigParams : public ConfigInfo
+struct SslConfigParams
+#ifdef USE_CONFIG_PROCESSOR
+: public ConfigInfo
+#endif
 {
+public:
   enum SSL_SESSION_CACHE_MODE
   {
     SSL_SESSION_CACHE_MODE_OFF = 0,
     SSL_SESSION_CACHE_MODE_SERVER = 1
   };
 
-  SSLConfigParams();
-  virtual ~SSLConfigParams();
+  char *getConfigFilePath(void) const { return configFilePath; }
+  char *getServerCertPathOnly(void) const { return serverCertPathOnly; }
+  char *getServerCACertPathOnly(void) const { return CACertPath; }
+  char *getServerKeyPathOnly(void) const { return serverKeyPathOnly; }
 
-  char *  serverCertPathOnly;
-  char *  serverCertChainPath;
-  char *  serverKeyPathOnly;
-  char *  serverCACertFilename;
-  char *  serverCACertPath;
-  char *  configFilePath;
-  char *  cipherSuite;
-  int     clientCertLevel;
-  int     verify_depth;
-  int     ssl_session_cache; // SSL_SESSION_CACHE_MODE
-  int     ssl_session_cache_size;
+  SslConfigParams();
+  virtual ~SslConfigParams();
 
-  char *  clientCertPath;
-  char *  clientKeyPath;
-  char *  clientCACertFilename;
-  char *  clientCACertPath;
-  int     clientVerify;
-  int     client_verify_depth;
-  long    ssl_ctx_options;
-
+private:
   void initialize();
   void cleanup();
+
+  char *serverCertPathOnly;
+  char *serverCertChainPath;
+  char *serverKeyPathOnly;
+  char *CACertFilename;
+  char *CACertPath;
+  char *configFilePath;
+  char *cipherSuite;
+  int clientCertLevel;
+  int verify_depth;
+  int ssl_session_cache;
+  int ssl_session_cache_size;
+
+  char *clientCertPath;
+  char *clientKeyPath;
+  char *clientCACertFilename;
+  char *clientCACertPath;
+  int clientVerify;
+  int client_verify_depth;
+
+  long ssl_ctx_options;
+
+  friend struct SSLNetProcessor;
+  friend class SslConfig;
 };
 
 /////////////////////////////////////////////////////////////
 //
-// class SSLConfig
+// class SslConfig
 //
 /////////////////////////////////////////////////////////////
-
-struct SSLConfig
+class SslConfig
 {
+public:
   static void startup();
   static void reconfigure();
-  static SSLConfigParams * acquire();
-  static void release(SSLConfigParams * params);
-
-  typedef ConfigProcessor::scoped_config<SSLConfig, SSLConfigParams> scoped_config;
+  static SslConfigParams *acquire();
+  static void release(SslConfigParams * params);
 
 private:
-  static int configid;
+  static int id;
+#ifndef USE_CONFIG_PROCESSOR
+  static SslConfigParams *ssl_config_params;
+#endif
+  friend struct SSLNetProcessor;
 };
 
-struct SSLCertificateConfig
+extern SslConfig sslTerminationConfig;
+
+#include "Diags.h"
+
+TS_INLINE void
+DebugBufferPrint(const char *tag, char *buff, int blen, const char *message = NULL)
 {
-  static void startup();
-  static void reconfigure();
-  static SSLCertLookup * acquire();
-  static void release(SSLCertLookup * params);
-
-  typedef ConfigProcessor::scoped_config<SSLCertificateConfig, SSLCertLookup> scoped_config;
-
-private:
-  static int configid;
-};
+  (void) tag;
+  (void) buff;
+  (void) blen;
+  (void) message;
+#if defined (_DEBUG)
+  if (is_debug_tag_set(tag)) {
+    if (message != NULL)
+      fprintf(stdout, "%s\n", message);
+    for (int ii = 0; ii < blen; ii++) {
+      putc(buff[ii], stdout);
+    }
+    putc('\n', stdout);
+  }
+#endif
+}
 
 #endif

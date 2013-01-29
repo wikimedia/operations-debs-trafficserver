@@ -152,7 +152,7 @@ HttpClientSession::new_transaction()
   /////////////////////////
   // set up timeouts     //
   /////////////////////////
-  DebugSsn("http_cs", "[%" PRId64 "] using accept inactivity timeout [%" PRId64" seconds]",
+  DebugSsn("http_cs", "[%" PRId64 "] using accept inactivity timeout [%"PRId64" seconds]",
         con_id, HttpConfig::m_master.accept_no_activity_timeout);
   client_vc->set_inactivity_timeout(HRTIME_SECONDS(HttpConfig::m_master.accept_no_activity_timeout));
 
@@ -195,7 +195,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   this->backdoor_connect = backdoor;
 
   // Unique client session identifier.
-  con_id = ink_atomic_increment((int64_t *) (&next_cs_id), 1);
+  con_id = ink_atomic_increment64((int64_t *) (&next_cs_id), 1);
 
   HTTP_INCREMENT_DYN_STAT(http_current_client_connections_stat);
   conn_decrease = true;
@@ -239,7 +239,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   // when we return from do_api_callout, the ClientSession may
   // have already been deallocated.
   EThread *ethis = this_ethread();
-  Ptr<ProxyMutex> lmutex = this->mutex;
+  ProxyMutexPtr lmutex = this->mutex;
   MUTEX_TAKE_LOCK(lmutex, ethis);
   do_api_callout(TS_HTTP_SSN_START_HOOK);
   MUTEX_UNTAKE_LOCK(lmutex, ethis);
@@ -577,7 +577,8 @@ HttpClientSession::attach_server_session(HttpServerSession * ssession, bool tran
     if (transaction_done) {
       ssession->get_netvc()->
         set_inactivity_timeout(HRTIME_SECONDS(current_reader->t_state.txn_conf->keep_alive_no_activity_timeout_out));
-      ssession->get_netvc()->cancel_active_timeout();
+      ssession->get_netvc()->
+        set_active_timeout(HRTIME_SECONDS(current_reader->t_state.txn_conf->keep_alive_no_activity_timeout_out));
     } else {
       // we are serving from the cache - this could take a while.
       ssession->get_netvc()->cancel_inactivity_timeout();
@@ -629,7 +630,7 @@ HttpClientSession::release(IOBufferReader * r)
     ka_vio = this->do_io_read(this, INT64_MAX, read_buffer);
     ink_assert(slave_ka_vio != ka_vio);
     client_vc->set_inactivity_timeout(HRTIME_SECONDS(ka_in));
-    client_vc->cancel_active_timeout();
+    client_vc->set_active_timeout(HRTIME_SECONDS(ka_in));
   }
 }
 

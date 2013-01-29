@@ -108,6 +108,7 @@ do { \
 #include "P_NetVCTest.h"
 #include "P_LibBulkIO.h"
 
+#include "P_SSLConfig.h"
 #include "P_SSLNetVConnection.h"
 #include "P_SSLNetProcessor.h"
 #include "P_SSLNetAccept.h"

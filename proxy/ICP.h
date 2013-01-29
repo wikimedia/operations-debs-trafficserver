@@ -216,7 +216,7 @@ public:
   void Unlock();
 
 private:
-    Ptr<ProxyMutex> _mutex;
+    ProxyMutexPtr _mutex;
 };
 
 #else // USE_CAS_FOR_ATOMICLOCK

@@ -378,19 +378,16 @@ int
 LogAccess::marshal_proxy_host_name(char *buf)
 {
   char *str = NULL;
-  int len = 0;
   Machine *machine = Machine::instance();
 
   if (machine) {
     str = machine->hostname;
-    len = LogAccess::strlen(str);
-
-    if (buf) {
-      marshal_str(buf, str, len);
-      return len;
-    }
   }
-  return 0;
+  int len = LogAccess::strlen(str);
+  if (buf) {
+    marshal_str(buf, str, len);
+  }
+  return len;
 }
 
 /*-------------------------------------------------------------------------

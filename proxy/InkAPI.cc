@@ -49,6 +49,8 @@
 #include "I_RecCore.h"
 #include "I_RecSignals.h"
 #include "ProxyConfig.h"
+#include "stats/CoupledStats.h"
+#include "stats/Stats.h"
 #include "Plugin.h"
 #include "LogObject.h"
 #include "LogConfig.h"
@@ -65,7 +67,6 @@
 
 #include "I_RecDefs.h"
 #include "I_RecCore.h"
-#include "HttpProxyServerMain.h"
 
 
 /****************************************************************
@@ -403,10 +404,11 @@ TSError(const char *fmt, ...)
 }
 
 // Assert in debug AND optim
-void
+int
 _TSReleaseAssert(const char *text, const char *file, int line)
 {
   _ink_assert(text, file, line);
+  return 0;
 }
 
 // Assert only in debug
@@ -429,7 +431,7 @@ _TSAssert(const char *text, const char *file, int line)
 #define sdk_assert(EX) (void)(EX)
 #else
 #define sdk_assert(EX)                                          \
-  ( (void)((EX) ? (void)0 : _TSReleaseAssert(#EX, __FILE__, __LINE__)) )
+  (void)((EX) || (_TSReleaseAssert(#EX, __FILE__, __LINE__)))
 #endif
 
 
@@ -1180,8 +1182,7 @@ INKVConnInternal::get_data(int id, void *data)
   }
 }
 
-bool
-INKVConnInternal::set_data(int id, void *data)
+bool INKVConnInternal::set_data(int id, void *data)
 {
   switch (id) {
   case TS_API_DATA_OUTPUT_VC:
@@ -4551,6 +4552,20 @@ TSHttpTxnClientKeepaliveSet(TSHttpTxn txnp, int set)
 
   s->hdr_info.trust_response_cl = (set != 0) ? true : false;
 }
+TSReturnCode
+TSHttpTxnClientDataGet(TSHttpTxn txnp, const char **bufp, int *len)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  
+  HttpSM *sm = (HttpSM *) txnp;
+  HTTPHdr *hptr = &(sm->t_state.hdr_info.client_request);
+  if (hptr->valid()) {
+    *bufp = hptr->m_url_cached.m_url_impl->the_request;
+    *len = hptr->m_url_cached.m_url_impl->the_request_len;
+    return TS_SUCCESS;
+  }
+  return TS_ERROR;
+}
 
 TSReturnCode
 TSHttpTxnClientReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
@@ -5099,12 +5114,12 @@ TSHttpTxnCacheLookupSkip(TSHttpTxn txnp)
 }
 
 TSReturnCode
-TSHttpTxnServerRespNoStoreSet(TSHttpTxn txnp, int flag)
+TSHttpTxnServerRespNoStore(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
-  s->api_server_response_no_store = (flag != 0);
+  s->api_server_response_no_store = true;
 
   return TS_SUCCESS;
 }
@@ -5310,7 +5325,7 @@ TSHttpTxnServerAddrSet(TSHttpTxn txnp, struct sockaddr const* addr)
 // [amc] This might use the port. The code path should do that but it
 // hasn't been tested.
 TSReturnCode
-TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, const struct sockaddr *addr)
+TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, const struct sockaddr *addr, socklen_t addrlen)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   HttpSM *sm = (HttpSM *) txnp;
@@ -5354,10 +5369,6 @@ TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag)
 # endif
 
   HttpSM *sm = reinterpret_cast<HttpSM*>(txnp);
-  if (NULL == sm || NULL == sm->ua_session) {
-    return TS_ERROR;
-  }
-
   sm->ua_session->f_outbound_transparent = flag;
   return TS_SUCCESS;
 }
@@ -5898,81 +5909,32 @@ TSHttpTxnPushedRespBodyBytesGet(TSHttpTxn txnp)
   return sm->pushed_response_body_bytes;
 }
 
-// Get a particular milestone hrtime'r. Note that this can return 0, which means it has not
-// been set yet.
 TSReturnCode
-TSHttpTxnMilestoneGet(TSHttpTxn txnp, TSMilestonesType milestone, ink_hrtime *time)
+TSHttpTxnStartTimeGet(TSHttpTxn txnp, ink_hrtime *start_time)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr(time) == TS_SUCCESS);
+
   HttpSM *sm = (HttpSM *) txnp;
-  TSReturnCode ret = TS_SUCCESS;
 
-  switch(milestone) {
-  case TS_MILESTONE_UA_BEGIN:
-    *time = sm->milestones.ua_begin;
-    break;
-  case TS_MILESTONE_UA_READ_HEADER_DONE:
-    *time = sm->milestones.ua_read_header_done;
-    break;
-  case TS_MILESTONE_UA_BEGIN_WRITE:
-    *time = sm->milestones.ua_begin_write;
-    break;
-  case TS_MILESTONE_UA_CLOSE:
-    *time = sm->milestones.ua_close;
-    break;
-  case TS_MILESTONE_SERVER_FIRST_CONNECT:
-    *time = sm->milestones.server_first_connect;
-    break;
-  case TS_MILESTONE_SERVER_CONNECT:
-    *time = sm->milestones.server_connect;
-    break;
-  case TS_MILESTONE_SERVER_CONNECT_END:
-    *time = sm->milestones.server_connect_end;
-    break;
-  case TS_MILESTONE_SERVER_BEGIN_WRITE:
-    *time = sm->milestones.server_begin_write;
-    break;
-  case TS_MILESTONE_SERVER_FIRST_READ:
-    *time = sm->milestones.server_first_read;
-    break;
-  case TS_MILESTONE_SERVER_READ_HEADER_DONE:
-    *time = sm->milestones.server_read_header_done;
-    break;
-  case TS_MILESTONE_SERVER_CLOSE:
-    *time = sm->milestones.server_close;
-    break;
-  case TS_MILESTONE_CACHE_OPEN_READ_BEGIN:
-    *time = sm->milestones.cache_open_read_begin;
-    break;
-  case TS_MILESTONE_CACHE_OPEN_READ_END:
-    *time = sm->milestones.cache_open_read_end;
-    break;
-  case TS_MILESTONE_CACHE_OPEN_WRITE_BEGIN:
-    *time = sm->milestones.cache_open_write_begin;
-    break;
-  case TS_MILESTONE_CACHE_OPEN_WRITE_END:
-    *time = sm->milestones.cache_open_write_end;
-    break;
-  case TS_MILESTONE_DNS_LOOKUP_BEGIN:
-    *time = sm->milestones.dns_lookup_begin;
-    break;
-  case TS_MILESTONE_DNS_LOOKUP_END:
-    *time = sm->milestones.dns_lookup_end;
-    break;
-  case TS_MILESTONE_SM_START:
-    *time = sm->milestones.sm_start;
-    break;
-  case TS_MILESTONE_SM_FINISH:
-    *time = sm->milestones.sm_finish;
-    break;
-  default:
-    *time = -1;
-    ret = TS_ERROR;
-    break;
-  }
+  if (sm->milestones.ua_begin == 0)
+    return TS_ERROR;
 
-  return ret;
+  *start_time = sm->milestones.ua_begin;
+  return TS_SUCCESS;
+}
+
+TSReturnCode
+TSHttpTxnEndTimeGet(TSHttpTxn txnp, ink_hrtime *end_time)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+
+  if (sm->milestones.ua_close == 0)
+    return TS_ERROR;
+
+  *end_time = sm->milestones.ua_close;
+  return TS_SUCCESS;
 }
 
 TSReturnCode
@@ -6605,7 +6567,7 @@ TSCacheRead(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   Continuation *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.open_read(i, &info->cache_key, true, info->frag_type, info->hostname, info->len);
+  return (TSAction)cacheProcessor.open_read(i, &info->cache_key, info->frag_type, info->hostname, info->len);
 }
 
 TSAction
@@ -6619,7 +6581,7 @@ TSCacheWrite(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   Continuation *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.open_write(i, &info->cache_key, true, info->frag_type, 0, false, info->pin_in_cache,
+  return (TSAction)cacheProcessor.open_write(i, &info->cache_key, info->frag_type, 0, false, info->pin_in_cache,
                                              info->hostname, info->len);
 }
 
@@ -6634,7 +6596,7 @@ TSCacheRemove(TSCont contp, TSCacheKey key)
   CacheInfo *info = (CacheInfo *) key;
   INKContInternal *i = (INKContInternal *) contp;
 
-  return (TSAction)cacheProcessor.remove(i, &info->cache_key, true, info->frag_type, true, false, info->hostname, info->len);
+  return (TSAction)cacheProcessor.remove(i, &info->cache_key, info->frag_type, true, false, info->hostname, info->len);
 }
 
 TSAction
@@ -6740,6 +6702,178 @@ ink_sanity_check_stat_structure(void *obj)
   return TS_SUCCESS;
 }
 
+INKStat
+INKStatCreate(const char *the_name, INKStatTypes the_type)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+
+  StatDescriptor *n = NULL;
+
+  switch (the_type) {
+  case INKSTAT_TYPE_INT64:
+    n = StatDescriptor::CreateDescriptor(the_name, (int64_t) 0);
+    break;
+
+  case INKSTAT_TYPE_FLOAT:
+    n = StatDescriptor::CreateDescriptor(the_name, (float) 0);
+    break;
+
+  default:
+    sdk_assert(!"Bad Input");
+    break;
+  };
+
+  return (INKStat)n;
+}
+
+void
+INKStatIntAddTo(INKStat the_stat, int64_t amount)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
+  statp->add(amount);
+}
+
+void
+INKStatFloatAddTo(INKStat the_stat, float amount)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
+  statp->add(amount);
+}
+
+void
+INKStatDecrement(INKStat the_stat)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
+  statp->decrement();
+}
+
+void
+INKStatIncrement(INKStat the_stat)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *)the_stat;
+  statp->increment();
+}
+
+int64_t
+INKStatIntGet(INKStat the_stat)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  return statp->int_value();
+}
+
+float
+INKStatFloatGet(INKStat the_stat)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  return statp->flt_value();
+}
+
+void
+INKStatIntSet(INKStat the_stat, int64_t value)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  statp->set(value);
+}
+
+void
+INKStatFloatSet(INKStat the_stat, float value)
+{
+  sdk_assert(ink_sanity_check_stat_structure(the_stat) == TS_SUCCESS);
+
+  StatDescriptor *statp = (StatDescriptor *) the_stat;
+  statp->set(value);
+}
+
+INKCoupledStat
+INKStatCoupledGlobalCategoryCreate(const char *the_name)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+
+  CoupledStats *category = NEW(new CoupledStats(the_name));
+  return (INKCoupledStat)category;
+}
+
+INKCoupledStat
+INKStatCoupledLocalCopyCreate(const char *the_name, INKCoupledStat global_copy)
+{
+  sdk_assert(ink_sanity_check_stat_structure(global_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+
+  CoupledStatsSnapshot *snap = NEW(new CoupledStatsSnapshot((CoupledStats *) global_copy));
+return (INKCoupledStat)snap;
+}
+
+void
+INKStatCoupledLocalCopyDestroy(INKCoupledStat stat)
+{
+  sdk_assert(ink_sanity_check_stat_structure(stat) == TS_SUCCESS);
+
+  CoupledStatsSnapshot *snap = (CoupledStatsSnapshot *)stat;
+
+  if (snap) {
+    delete snap;
+  }
+}
+
+INKStat
+INKStatCoupledGlobalAdd(INKCoupledStat global_copy, const char *the_name, INKStatTypes the_type)
+{
+  sdk_assert(ink_sanity_check_stat_structure(global_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+
+  CoupledStats *category = (CoupledStats *) global_copy;
+  StatDescriptor *n = NULL;
+
+  switch (the_type) {
+  case INKSTAT_TYPE_INT64:
+    n = category->CreateStat(the_name, (int64_t) 0);
+    break;
+
+  case INKSTAT_TYPE_FLOAT:
+    n = category->CreateStat(the_name, (float) 0);
+    break;
+
+  default:
+    sdk_assert(!"Bad stat type");
+    break;
+  };
+
+  return (INKStat)n;
+}
+
+INKStat
+INKStatCoupledLocalAdd(INKCoupledStat local_copy, const char *the_name, INKStatTypes the_type)
+{
+  sdk_assert(ink_sanity_check_stat_structure(local_copy) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)the_name) == TS_SUCCESS);
+  sdk_assert((the_type == INKSTAT_TYPE_INT64) || (the_type == INKSTAT_TYPE_FLOAT));
+
+  StatDescriptor *n = ((CoupledStatsSnapshot *) local_copy)->fetchNext();
+  return (INKStat)n;
+}
+
+void
+INKStatsCoupledUpdate(INKCoupledStat local_copy)
+{
+  sdk_assert(ink_sanity_check_stat_structure(local_copy) == TS_SUCCESS);
+  ((CoupledStatsSnapshot *) local_copy)->CommitUpdates();
+}
+
+
 /**************************   Tracing API   ****************************/
 // returns 1 or 0 to indicate whether TS is being run with a debug tag.
 int
@@ -6813,7 +6947,7 @@ TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_objec
 }
 
 TSReturnCode
-TSTextLogObjectWrite(TSTextLogObject the_object, const char *format, ...)
+TSTextLogObjectWrite(TSTextLogObject the_object, char *format, ...)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)format) == TS_SUCCESS);
@@ -7434,9 +7568,6 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_CACHE_HTTP:
     ret = &sm->t_state.txn_conf->cache_http;
     break;
-  case TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL:
-    ret = &sm->t_state.txn_conf->cache_cluster_cache_local;
-    break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE:
     ret = &sm->t_state.txn_conf->cache_ignore_client_no_cache;
     break;
@@ -7550,13 +7681,6 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
   case TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS:
     ret = &sm->t_state.txn_conf->doc_in_cache_skip_dns;
     break;
-  case TS_CONFIG_HTTP_BACKGROUND_FILL_ACTIVE_TIMEOUT:
-    ret = &sm->t_state.txn_conf->background_fill_active_timeout;
-    break;
-  case TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE:
-    typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->insert_age_in_response;
-    break;
 
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR:
     typ = OVERRIDABLE_TYPE_FLOAT;
@@ -7566,18 +7690,10 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
     typ = OVERRIDABLE_TYPE_FLOAT;
     ret = &sm->t_state.txn_conf->freshness_fuzz_prob;
     break;
-  case TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD:
-    typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf->background_fill_threshold;
-    break;
 
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
     typ = OVERRIDABLE_TYPE_STRING;
     ret = &sm->t_state.txn_conf->proxy_response_server_string;
-    break;
-  case TS_CONFIG_HTTP_CHUNKING_SIZE:
-    typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->http_chunking_size;
     break;
 
     // This helps avoiding compiler warnings, yet detect unhandled enum members.
@@ -7762,10 +7878,6 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     if (!strncmp(name, "proxy.config.http.cache.http", length))
       cnf = TS_CONFIG_HTTP_CACHE_HTTP;
     break;
-  case 31:
-    if (!strncmp(name, "proxy.config.http.chunking.size", length))
-      cnf = TS_CONFIG_HTTP_CHUNKING_SIZE;
-    break;
 
   case 33:
     if (!strncmp(name, "proxy.config.http.cache.fuzz.time", length))
@@ -7844,8 +7956,6 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 'e':
       if (!strncmp(name, "proxy.config.http.down_server.cache_time", length))
         cnf = TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME;
-      else if (!strncmp(name, "proxy.config.http.insert_age_in_response", length))
-        cnf = TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE;
       break;
     case 'r':
       if (!strncmp(name, "proxy.config.url_remap.pristine_host_hdr", length))
@@ -7917,10 +8027,6 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 'e':
       if (!strncmp(name, "proxy.config.http.negative_caching_lifetime", length))
         cnf = TS_CONFIG_HTTP_NEGATIVE_CACHING_LIFETIME;
-      break;
-    case 'l':
-      if (!strncmp(name, "proxy.config.http.cache.cluster_cache_local", length))
-        cnf = TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL;
       break;
     case 'r':
       if (!strncmp(name, "proxy.config.http.cache.heuristic_lm_factor", length))
@@ -8008,16 +8114,8 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
         cnf = TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE;
       break;
     case 't':
-      switch (name[length-4]) {
-        case '_':
-        if (!strncmp(name, "proxy.config.http.transaction_active_timeout_out", length))
-          cnf = TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT;
-        break;
-        case 'e':
-        if (!strncmp(name, "proxy.config.http.background_fill_active_timeout", length))
-          cnf = TS_CONFIG_HTTP_BACKGROUND_FILL_ACTIVE_TIMEOUT;
-        break;
-      }
+      if (!strncmp(name, "proxy.config.http.transaction_active_timeout_out", length))
+        cnf = TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT;
       break;
     }
     break;
@@ -8050,16 +8148,8 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 53:
-    switch (name[length-1]) {
-      case 't':
-      if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_out", length))
-        cnf = TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT;
-      break;
-      case 'd':
-      if (!strncmp(name, "proxy.config.http.background_fill_completed_threshold", length))
-        cnf = TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD;
-      break;
-    }
+    if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_out", length))
+      cnf = TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT;
     break;
 
   case 58:
@@ -8094,8 +8184,6 @@ TSMgmtStringCreate(TSRecordType rec_type, const char *name, const TSMgmtString d
                    TSRecordUpdateType update_type, TSRecordCheckType check_type,
                    const char *check_regex, TSRecordAccessType access_type)
 {
-  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL)
-      return TS_ERROR;
   if (REC_ERR_OKAY != RecRegisterConfigString((enum RecT)rec_type, name, data_default, (enum RecUpdateT)update_type,
                                               (enum RecCheckT)check_type, check_regex, (enum RecAccessT)access_type))
     return TS_ERROR;
@@ -8108,43 +8196,11 @@ TSMgmtIntCreate(TSRecordType rec_type, const char *name, TSMgmtInt data_default,
                 TSRecordUpdateType update_type, TSRecordCheckType check_type,
                 const char *check_regex, TSRecordAccessType access_type)
 {
-  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL)
-      return TS_ERROR;
   if (REC_ERR_OKAY != RecRegisterConfigInt((enum RecT)rec_type, name, (RecInt)data_default, (enum RecUpdateT)update_type,
                                            (enum RecCheckT)check_type, check_regex, (enum RecAccessT)access_type))
     return TS_ERROR;
 
   return TS_SUCCESS;
-}
-
-// Parse a port descriptor for the proxy.config.http.server_ports descriptor format.
-TSPortDescriptor
-TSPortDescriptorParse(const char * descriptor)
-{
-  HttpProxyPort * port = NEW(new HttpProxyPort());
-
-  if (descriptor && port->processOptions(descriptor)) {
-    return (TSPortDescriptor)port;
-  }
-
-  delete port;
-  return NULL;
-}
-
-TSReturnCode
-TSPortDescriptorAccept(TSPortDescriptor descp, TSCont contp)
-{
-  HttpProxyPort * port = (HttpProxyPort *)descp;
-  return start_HttpProxyPort(*port, 0 /* nthreads */) ? TS_SUCCESS : TS_ERROR;
-}
-
-int
-TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp)
-{
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  HttpSM *s = (HttpSM*) txnp;
-
-  return (s->background_fill == BACKGROUND_FILL_STARTED);
 }
 
 #endif //TS_NO_API

@@ -101,14 +101,14 @@ struct LogBufferHeader
 
 union LB_State
 {
-  LB_State()
-    : ival(0)
-  { }
+  LB_State():ival(0)
+  {
+  };
 
   LB_State(volatile LB_State & vs)
   {
     ival = vs.ival;
-  }
+  };
 
   LB_State & operator =(volatile LB_State & vs)
   {
@@ -116,7 +116,7 @@ union LB_State
     return *this;
   }
 
-  int64_t ival;
+  uint64_t ival;
   struct
   {
     uint16_t offset;              // buffer should be <= 64KB
@@ -158,7 +158,7 @@ public:
   int switch_state(LB_State & old_state, LB_State & new_state)
   {
     INK_WRITE_MEMORY_BARRIER;
-    return (ink_atomic_cas( & m_state.ival, old_state.ival, new_state.ival));
+    return (ink_atomic_cas64((int64_t *) & m_state.ival, old_state.ival, new_state.ival));
   };
 
   LB_ResultCode checkout_write(size_t * write_offset, size_t write_size);

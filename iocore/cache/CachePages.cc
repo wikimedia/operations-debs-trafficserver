@@ -27,7 +27,6 @@
 #include "api/ts/ts.h"
 #include "Show.h"
 #include "I_Tasks.h"
-#include "CacheControl.h"
 
 struct ShowCache: public ShowCont {
   enum scan_type {
@@ -324,6 +323,7 @@ ShowCache::handleCacheEvent(int event, Event *e) {
         CHECK_SHOW(show("<tr><td>write_serial</td><td>%lu</tr>\n", d->write_serial));
         CHECK_SHOW(show("<tr><td>header length</td><td>%lu</tr>\n", d->hlen));
         CHECK_SHOW(show("<tr><td>fragment type</td><td>%lu</tr>\n", d->ftype));
+        CHECK_SHOW(show("<tr><td>fragment table length</td><td>%lu</tr>\n", d->flen));
         CHECK_SHOW(show("<tr><td>No of Alternates</td><td>%d</td></tr>\n", alt_count));
 
         CHECK_SHOW(show("<tr><td>Action</td>\n"
@@ -421,7 +421,7 @@ ShowCache::lookup_url(int event, Event *e) {
   url.MD5_get(&md5);
   const char *hostname = url.host_get(&len);
   SET_HANDLER(&ShowCache::handleCacheEvent);
-  Action *lookup_result = cacheProcessor.open_read(this, &md5, getClusterCacheLocal(&url, (char *)hostname), CACHE_FRAG_TYPE_HTTP, (char *) hostname, len);
+  Action *lookup_result = cacheProcessor.open_read(this, &md5, CACHE_FRAG_TYPE_HTTP, (char *) hostname, len);
   if (!lookup_result)
     lookup_result = ACTION_IO_ERROR;
   if (lookup_result == ACTION_RESULT_DONE)
@@ -459,9 +459,7 @@ ShowCache::delete_url(int event, Event *e)
   // increment the index so that the next time
   // delete_url is called you delete the next url
   urlstrs_index++;
-  int len;
-  const char *hostname = url.host_get(&len);
-  cacheProcessor.remove(this, &url, getClusterCacheLocal(&url, (char *)hostname), CACHE_FRAG_TYPE_HTTP);
+  cacheProcessor.remove(this, &url, CACHE_FRAG_TYPE_HTTP);
   return EVENT_DONE;
 }
 

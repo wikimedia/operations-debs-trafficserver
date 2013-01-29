@@ -37,7 +37,7 @@ namespace wccp {
 namespace detail {
   class Assignment;
   namespace cache {
-    struct RouterData;
+    class RouterData;
   }
 }
 
@@ -109,6 +109,8 @@ public:
     void* ptr, ///< Pointer to buffer.
     size_t n ///< Size of buffer.
   );
+  /// Extract memory chunk
+  operator super const& () const;
 
   /// Get the buffer size.
   size_t getSize() const;
@@ -1562,6 +1564,12 @@ public:
   /// Access a bucket.
   Bucket const& bucket(
     int idx ///< Index of target bucket.
+  ) const;
+  /** Compare a set of buckets.
+      @return @c true if the buckets are the same, @c false otherwise.
+  */
+  bool compare(
+    Bucket const buckets[N_BUCKETS] ///< Buckets to compare.
   ) const;
   //@}
 
@@ -3253,6 +3261,10 @@ inline MsgBuffer& MsgBuffer::set(void *ptr, size_t n) {
   return *this;
 }
 
+inline MsgBuffer::operator MsgBuffer::super const& () const {
+  return *this;
+}
+
 inline MsgBuffer&
 MsgBuffer::use(size_t n) {
   _count += std::min(n, this->getSpace());
@@ -3444,6 +3456,10 @@ CompWithHeader<T>::checkHeader(MsgBuffer const& buffer, CompType ect) {
 
 inline AssignInfoComp::Bucket& AssignInfoComp::bucket(int idx) { return m_buckets[idx]; }
 inline AssignInfoComp::Bucket const& AssignInfoComp::bucket(int idx) const{ return m_buckets[idx]; }
+inline bool AssignInfoComp::compare(Bucket const buckets[N_BUCKETS]) const {
+  return 0 == memcmp(buckets, m_buckets, sizeof(buckets));
+}
+
 inline RouterViewComp::RouterViewComp()
   : m_cache_count(0) {
   memset(m_cache_ids, 0, sizeof(m_cache_ids));
