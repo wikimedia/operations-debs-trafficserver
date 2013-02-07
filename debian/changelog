@@ -1,4 +1,4 @@
-trafficserver (3.2.4-1) UNRELEASED; urgency=low
+trafficserver (3.2.4-1) unstable; urgency=low
 
   * New upstream release
     + Delete upstream's .gitignore file in our source tree
@@ -8,7 +8,7 @@ trafficserver (3.2.4-1) UNRELEASED; urgency=low
     the postinst fails to purge the cache (Closes: #687698)
   * Drop --with-arg-max from ./configure, it's not needed anymore.
 
- -- Arno Töll <arno@debian.org>  Tue, 29 Jan 2013 23:54:44 +0100
+ -- Arno Töll <arno@debian.org>  Thu, 07 Feb 2013 23:37:35 +0100
 
 trafficserver (3.2.0-1) unstable; urgency=low
 
