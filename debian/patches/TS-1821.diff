@@ -1,0 +1,50 @@
+--- a/iocore/aio/AIO.cc
++++ b/iocore/aio/AIO.cc
+@@ -45,10 +45,10 @@
+ // Don't need to acquire this for searching the array
+ static ink_mutex insert_mutex;
+ 
+-RecInt cache_config_threads_per_disk = 12;
+-RecInt api_config_threads_per_disk = 12;
+ int thread_is_created = 0;
+ #endif // AIO_MODE == AIO_MODE_NATIVE
++RecInt cache_config_threads_per_disk = 12;
++RecInt api_config_threads_per_disk = 12;
+ 
+ RecRawStatBlock *aio_rsb = NULL;
+ Continuation *aio_err_callbck = 0;
+@@ -163,9 +163,8 @@
+ #if AIO_MODE != AIO_MODE_NATIVE
+   memset(&aio_reqs, 0, MAX_DISKS_POSSIBLE * sizeof(AIO_Reqs *));
+   ink_mutex_init(&insert_mutex, NULL);
+-
+-  REC_ReadConfigInteger(cache_config_threads_per_disk, "proxy.config.cache.threads_per_disk");
+ #endif
++  REC_ReadConfigInteger(cache_config_threads_per_disk, "proxy.config.cache.threads_per_disk");
+ }
+ 
+ int
+--- a/iocore/aio/test_AIO.cc
++++ b/iocore/aio/test_AIO.cc
+@@ -482,10 +482,20 @@
+   RecProcessInit(RECM_STAND_ALONE);
+   ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
+   eventProcessor.start(ink_number_of_processors());
++#if AIO_MODE == AIO_MODE_NATIVE
++  int etype = ET_NET;
++  int n_netthreads = eventProcessor.n_threads_for_type[etype];
++  EThread **netthreads = eventProcessor.eventthread[etype];
++  for (int i = 0; i < n_netthreads; ++i) {
++    netthreads[i]->diskHandler = new DiskHandler();
++    netthreads[i]->schedule_imm(netthreads[i]->diskHandler);
++  }
++#endif
++
+   RecProcessStart();
+   ink_aio_init(AIO_MODULE_VERSION);
+   srand48(time(NULL));
+-
++  printf("input file %s\n", argv[1]);
+   if (!read_config(argv[1]))
+     exit(1);
+ 
