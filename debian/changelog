@@ -1,3 +1,14 @@
+trafficserver (3.3.2-1) UNRELEASED; urgency=low
+
+  [ Arno Töll ]
+  * Drop --with-arg-max from configure
+  * Update changelog in view of the new upstream version
+
+  [ Aron Xu ]
+  * Imported Upstream version 3.3.2
+
+ -- Aron Xu <aron@debian.org>  Thu, 09 May 2013 01:00:04 +0800
+
 trafficserver (3.3.0+git20121208-0exp1) experimental; urgency=low
 
   * Upstream git snapshot.
