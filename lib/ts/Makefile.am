@@ -25,7 +25,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/lib
 lib_LTLIBRARIES = libtsutil.la
 
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
-libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBICONV@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ @LIBHWLOC@ -lc
+libtsutil_la_LIBADD = @LIBOBJS@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBRESOLV@ @LIBRT@ @LIBSOCKET@ @LIBNSL@ @LIBCAP@ @LIBHWLOC@ -lc
 
 libtsutil_la_SOURCES = \
   Allocator.h \
@@ -71,8 +71,6 @@ libtsutil_la_SOURCES = \
   ink_inet.cc \
   ink_inet.h \
   ink_inout.h \
-  ink_killall.cc \
-  ink_killall.h \
   ink_llqueue.h \
   ink_lockfile.h \
   INK_MD5.h \
@@ -85,6 +83,8 @@ libtsutil_la_SOURCES = \
   ink_port.h \
   ink_queue.cc \
   ink_queue.h \
+  ink_queue_ext.cc \
+  ink_queue_ext.h \
   ink_queue_utils.cc \
   ink_rand.cc \
   ink_rand.h \
@@ -161,24 +161,24 @@ ParseRulesCType: CompileParseRules
 mkdfa_SOURCES = mkdfa.c
 
 test_atomic_SOURCES = test_atomic.cc
-test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_atomic_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBEXECINFO@ @LIBPCRE@
 test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_freelist_SOURCES = test_freelist.cc
-test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_freelist_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBEXECINFO@ @LIBPCRE@
 test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_arena_SOURCES = test_arena.cc
-test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_arena_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBEXECINFO@ @LIBPCRE@
 test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
-test_Map_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_Map_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBEXECINFO@ @LIBPCRE@
 test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_Vec_SOURCES = test_Vec.cc
-test_Vec_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBICONV@ @LIBEXECINFO@ @LIBPCRE@
+test_Vec_LDADD = libtsutil.la @LIBTHREAD@ @LIBTCL@ @LIBEXECINFO@ @LIBPCRE@
 test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 CompileParseRules_SOURCES = CompileParseRules.cc

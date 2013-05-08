@@ -22,10 +22,7 @@
 #include "ink_config.h"
 #include "libts.h"
 #include "I_Layout.h"
-#include "P_EventSystem.h"
-#include "P_SSLUtils.h"
-#include "P_SSLConfig.h"
-#include "P_SSLCertLookup.h"
+#include "P_Net.h"
 
 #include <openssl/err.h>
 #include <openssl/bio.h>
@@ -123,9 +120,10 @@ end:
 static int
 ssl_servername_callback(SSL * ssl, int * ad, void * arg)
 {
-  SSL_CTX *       ctx = NULL;
-  SSLCertLookup * lookup = (SSLCertLookup *) arg;
-  const char *    servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+  SSL_CTX *           ctx = NULL;
+  SSLCertLookup *     lookup = (SSLCertLookup *) arg;
+  const char *        servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+  SSLNetVConnection * netvc = (SSLNetVConnection *)SSL_get_app_data(ssl);
 
   Debug("ssl", "ssl=%p ad=%d lookup=%p server=%s", ssl, *ad, lookup, servername);
 
@@ -134,6 +132,15 @@ ssl_servername_callback(SSL * ssl, int * ad, void * arg)
   // already made a best effort to find the best match.
   if (likely(servername)) {
     ctx = lookup->findInfoInHash((char *)servername);
+  }
+
+  // If there's no match on the server name, try to match on the peer address.
+  if (ctx == NULL) {
+    IpEndpoint ip;
+    int namelen = sizeof(ip);
+
+    safe_getsockname(netvc->get_socket(), &ip.sa, &namelen);
+    ctx = lookup->findInfoInHash(ip);
   }
 
   if (ctx != NULL) {
@@ -176,6 +183,8 @@ void
 SSLInitializeLibrary()
 {
   if (!open_ssl_initialized) {
+    CRYPTO_set_mem_functions(ats_malloc, ats_realloc, ats_free);
+
     SSL_load_error_strings();
     SSL_library_init();
 
@@ -440,6 +449,10 @@ struct ats_x509_certificate
   explicit ats_x509_certificate(X509 * x) : x509(x) {}
   ~ats_x509_certificate() { if (x509) X509_free(x509); }
 
+  operator bool() const {
+      return x509 != NULL;
+  }
+
   X509 * x509;
 
 private:
@@ -545,7 +558,7 @@ ssl_store_ssl_context(
   xptr<char>  certpath;
 
   ctx = ssl_context_enable_sni(SSLInitServerContext(params, cert, ca, key), lookup);
-  if (!cert) {
+  if (!ctx) {
     SSLError("failed to create new SSL server context");
     return;
   }
@@ -670,14 +683,14 @@ SSLParseCertificateConfiguration(
       if (errPtr != NULL) {
         snprintf(errBuf, sizeof(errBuf), "%s: discarding %s entry at line %d: %s",
                      __func__, params->configFilePath, line_num, errPtr);
-        IOCORE_SignalError(errBuf, alarmAlready);
+        REC_SignalError(errBuf, alarmAlready);
       } else {
         if (ssl_extract_certificate(&line_info, addr, cert, ca, key)) {
           ssl_store_ssl_context(params, lookup, addr, cert, ca, key);
         } else {
           snprintf(errBuf, sizeof(errBuf), "%s: discarding invalid %s entry at line %u",
                        __func__, params->configFilePath, line_num);
-          IOCORE_SignalError(errBuf, alarmAlready);
+          REC_SignalError(errBuf, alarmAlready);
         }
       }
 

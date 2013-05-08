@@ -25,6 +25,7 @@
 #define _I_REC_HTTP_H
 
 #include <ts/ink_inet.h>
+#include <ts/ink_resolver.h>
 #include <ts/Vec.h>
 
 /// Load default inbound IP addresses from the configuration file.
@@ -95,6 +96,7 @@ public:
     TRANSPORT_BLIND_TUNNEL, ///< Blind tunnel (no processing).
     TRANSPORT_SSL ///< SSL connection.
   };
+
   int m_fd; ///< Pre-opened file descriptor if present.
   TransportType m_type; ///< Type of connection.
   int m_port; ///< Port on which to listen.
@@ -103,12 +105,20 @@ public:
   bool m_inbound_transparent_p;
   /// True if outbound connections (to origin servers) are transparent.
   bool m_outbound_transparent_p;
+  // True if transparent pass-through is enabled on this port.
+  bool m_transparent_passthrough;
   /// Local address for inbound connections (listen address).
   IpAddr m_inbound_ip;
   /// Local address for outbound connections (to origin server).
   IpAddr m_outbound_ip4;
   /// Local address for outbound connections (to origin server).
   IpAddr m_outbound_ip6;
+  /// Ordered preference for DNS resolution family ( @c FamilyPrefence )
+  /// A value of @c PREFER_NONE indicates that entry and subsequent ones
+  /// are invalid.
+  HostResPreferenceOrder m_host_res_preference;
+  /// Static preference list that is the default value.
+  static HostResPreferenceOrder const DEFAULT_HOST_RES_PREFERENCE;
 
   /// Default constructor.
   HttpProxyPort();
@@ -251,11 +261,17 @@ public:
   static char const* const OPT_TRANSPARENT_INBOUND; ///< Inbound transparent.
   static char const* const OPT_TRANSPARENT_OUTBOUND; ///< Outbound transparent.
   static char const* const OPT_TRANSPARENT_FULL; ///< Full transparency.
+  static char const* const OPT_TRANSPARENT_PASSTHROUGH; ///< Pass-through non-HTTP.
   static char const* const OPT_SSL; ///< SSL (experimental)
   static char const* const OPT_BLIND_TUNNEL; ///< Blind tunnel.
   static char const* const OPT_COMPRESSED; ///< Compressed.
+  static char const* const OPT_HOST_RES; ///< Set DNS family preference.
 
   static Vec<self>& m_global; ///< Global ("default") data.
+
+protected:
+  /// Process @a value for DNS resolution family preferences.
+  void processFamilyPreferences(char const* value);
 };
 
 inline bool HttpProxyPort::isSSL() const { return TRANSPORT_SSL == m_type; }

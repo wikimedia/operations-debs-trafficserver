@@ -106,8 +106,6 @@ traffic_server_SOURCES = \
   ParentSelection.h \
   Plugin.cc \
   Plugin.h \
-  PluginDB.cc \
-  PluginDB.h \
   PluginVC.cc \
   PluginVC.h \
   Prefetch.cc \
@@ -162,7 +160,7 @@ traffic_server_LDADD = \
   $(which_libts) \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ @LIBHWLOC@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBCAP@ @LIBHWLOC@ \
   @LIBZ@ @LIBLZMA@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
 
@@ -170,13 +168,14 @@ if BUILD_LUA_SUPPORT
 traffic_server_LDFLAGS += @LUA_LUAJIT_LDFLAGS@
 endif
 
-traffic_logcat_SOURCES = logcat.cc
+traffic_logcat_SOURCES = \
+  logcat.cc \
+  signals.cc \
+  InkXml.cc \
+  DiagsConfig.cc \
+  UglyLogStubs.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
-  signals.o \
-  InkXml.o \
-  DiagsConfig.o \
-  UglyLogStubs.o \
   logging/liblogging.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
@@ -185,16 +184,17 @@ traffic_logcat_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
 
-traffic_logstats_SOURCES = logstats.cc
+traffic_logstats_SOURCES = \
+  logstats.cc \
+  signals.cc \
+  InkXml.cc \
+  DiagsConfig.cc \
+  UglyLogStubs.cc
 traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logstats_LDADD = \
-  signals.o \
-  InkXml.o \
-  DiagsConfig.o \
-  UglyLogStubs.o \
   logging/liblogging.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
@@ -203,39 +203,41 @@ traffic_logstats_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
 
-traffic_sac_SOURCES = sac.cc
+
+traffic_sac_SOURCES = \
+  sac.cc \
+  ICP.cc \
+  ICPConfig.cc \
+  ICPProcessor.cc \
+  ICPStats.cc \
+  IPAllow.cc \
+  ParentSelection.cc \
+  ControlBase.cc \
+  ControlMatcher.cc \
+  CacheControl.cc \
+  StatSystem.cc \
+  ReverseProxy.cc \
+  signals.cc \
+  Error.cc \
+  EventName.cc \
+  DiagsConfig.cc \
+  StatPages.cc \
+  PluginVC.cc \
+  AbstractBuffer.cc \
+  Transform.cc \
+  Prefetch.cc \
+  Update.cc \
+  Plugin.cc \
+  InkAPI.cc \
+  FetchSM.cc \
+  InkIOCoreAPI.cc \
+  InkXml.cc
+
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
-  ICP.o \
-  ICPConfig.o \
-  ICPProcessor.o \
-  ICPStats.o \
-  IPAllow.o \
-  ParentSelection.o \
-  ControlBase.o \
-  ControlMatcher.o \
-  CacheControl.o \
-  StatSystem.o \
-  ReverseProxy.o \
-  signals.o \
-  Error.o \
-  EventName.o \
-  DiagsConfig.o \
-  StatPages.o \
-  PluginVC.o \
-  AbstractBuffer.o \
-  Transform.o \
-  Prefetch.o \
-  Update.o \
-  Plugin.o \
-  PluginDB.o \
-  InkAPI.o \
-  FetchSM.o \
-  InkIOCoreAPI.o \
-  InkXml.o \
   http/libhttp.a \
   http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
@@ -258,11 +260,11 @@ traffic_sac_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBZ@ @LIBLZMA@ @LIBEXECINFO@
 
 if BUILD_TESTS
-  traffic_sac_LDADD += RegressionSM.o
+  traffic_sac_SOURCES += RegressionSM.cc
 endif
 
 libTrafficServerStandalone_a_SOURCES = \
@@ -274,7 +276,6 @@ libTrafficServerStandalone_a_SOURCES = \
   StatSystem.cc \
   AbstractBuffer.cc \
   Initialize.cc
-
 
 test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc DiagsConfig.cc
 

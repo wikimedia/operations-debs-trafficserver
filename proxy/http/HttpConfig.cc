@@ -1139,6 +1139,13 @@ HttpConfig::startup()
   RecHttpLoadIp("proxy.local.incoming_ip_to_bind", c.inbound_ip4, c.inbound_ip6);
   RecHttpLoadIp("proxy.local.outgoing_ip_to_bind", c.outbound_ip4, c.outbound_ip6);
 
+#if TS_USE_RECLAIMABLE_FREELIST
+  HttpEstablishStaticConfigLongLong(cfg_debug_filter, "proxy.config.allocator.debug_filter");
+  HttpEstablishStaticConfigLongLong(cfg_enable_reclaim, "proxy.config.allocator.enable_reclaim");
+  HttpEstablishStaticConfigLongLong(cfg_max_overage, "proxy.config.allocator.max_overage");
+  HttpEstablishStaticConfigFloat(cfg_reclaim_factor, "proxy.config.allocator.reclaim_factor");
+#endif
+
   HttpEstablishStaticConfigLongLong(c.server_max_connections, "proxy.config.http.server_max_connections");
   HttpEstablishStaticConfigLongLong(c.oride.server_tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections, "proxy.config.http.origin_max_connections");
@@ -1166,9 +1173,6 @@ HttpConfig::startup()
   c.proxy_request_via_string_len = -1;
   HttpEstablishStaticConfigStringAlloc(c.proxy_response_via_string, "proxy.config.http.response_via_str");
   c.proxy_response_via_string_len = -1;
-
-  HttpEstablishStaticConfigByte(c.wuts_enabled, "proxy.config.http.wuts_enabled");
-  HttpEstablishStaticConfigByte(c.log_spider_codes, "proxy.config.http.log_spider_codes");
 
   HttpEstablishStaticConfigStringAlloc(c.url_expansions_string, "proxy.config.dns.url_expansions");
   HttpEstablishStaticConfigLongLong(c.proxy_server_port, "proxy.config.http.server_port");
@@ -1445,9 +1449,6 @@ HttpConfig::reconfigure()
   params->proxy_request_via_string_len = (params->proxy_request_via_string) ? strlen(params->proxy_request_via_string) : 0;
   params->proxy_response_via_string = ats_strdup(m_master.proxy_response_via_string);
   params->proxy_response_via_string_len = (params->proxy_response_via_string) ? strlen(params->proxy_response_via_string) : 0;
-
-  params->wuts_enabled = INT_TO_BOOL(m_master.wuts_enabled);
-  params->log_spider_codes = INT_TO_BOOL(m_master.log_spider_codes);
 
   params->url_expansions_string = ats_strdup(m_master.url_expansions_string);
   params->url_expansions = parse_url_expansions(params->url_expansions_string, &params->num_url_expansions);

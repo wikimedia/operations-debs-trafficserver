@@ -1362,7 +1362,7 @@ REGRESSION_TEST(SDK_API_TSContCreate) (RegressionTest * test, int atype, int *ps
   TSMutex mutexp = TSMutexCreate();
   TSCont contp = TSContCreate(cont_handler, mutexp);
 
-  if (TS_SUCCESS == TSMutexLockTry(mutexp)) { // Mutex is grabbed succesfully
+  if (TS_SUCCESS == TSMutexLockTry(mutexp)) { // Mutex is grabbed successfully
     TSContCall(contp, (TSEvent) 0, NULL);
     TSMutexUnlock(mutexp);
   } else {                       //mutex has problems
@@ -5132,7 +5132,8 @@ REGRESSION_TEST(SDK_API_TSUrlParse) (RegressionTest * test, int atype, int *psta
       "ftp://abc:def@www.example.com:3426/homepage.cgi;ab?abc=def#abc",
       "file:///c:/test.dat;ab?abc=def#abc", // Note: file://c: is malformed URL because no host is present.
       "file:///test.dat;ab?abc=def#abc",
-      "foo://bar.com/baz/"
+      "foo://bar.com/baz/",
+      "http://a.b.com/xx.jpg?newpath=http://b.c.com" // https://issues.apache.org/jira/browse/TS-1635
   };
 
   static int const num_urls = sizeof(urls) / sizeof(urls[0]);
@@ -5630,13 +5631,6 @@ typedef enum
 
 typedef enum
 {
-  ORIG_TS_DATA_ALLOCATE,
-  ORIG_TS_DATA_MALLOCED,
-  ORIG_TS_DATA_CONSTANT
-} ORIG_TSIOBufferDataFlags;
-
-typedef enum
-{
   ORIG_TS_VC_CLOSE_ABORT = -1,
   ORIG_TS_VC_CLOSE_NORMAL = 1
 } ORIG_TSVConnCloseFlags;
@@ -5788,10 +5782,6 @@ REGRESSION_TEST(SDK_API_TSConstant) (RegressionTest * test, int atype, int *psta
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_DELETE_ALL_ALTERNATES);
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_UPDATE);
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_RETRY);
-
-  PRINT_DIFF(TS_DATA_ALLOCATE);
-  PRINT_DIFF(TS_DATA_MALLOCED);
-  PRINT_DIFF(TS_DATA_CONSTANT);
 
   PRINT_DIFF(TS_VC_CLOSE_ABORT);
   PRINT_DIFF(TS_VC_CLOSE_NORMAL);

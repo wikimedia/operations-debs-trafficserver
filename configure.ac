@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.3.1-dev])
-m4_define([TS_VERSION_N],[3003001])
+m4_define([TS_VERSION_S],[3.3.2-dev])
+m4_define([TS_VERSION_N],[3003002])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -41,14 +41,13 @@ AC_CONFIG_AUX_DIR([build/aux])
 AC_CONFIG_SRCDIR([proxy/Main.cc])
 AC_CONFIG_MACRO_DIR([build])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign no-installinfo no-installman 1.9.2])
-AM_CONFIG_HEADER([lib/ts/ink_autoconf.h])
+AC_CONFIG_HEADERS([lib/ts/ink_autoconf.h])
 
 # Configure with --disable-silent-rules to get verbose output. For more info, see
 # http://www.gnu.org/software/automake/manual/html_node/Automake-silent_002drules-Option.html
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-# Not sure this is needed, and seems to break with some versions of automake
-#LT_INIT([dlopen])
+AC_DISABLE_STATIC
 
 # Libtool versioning uses different conventions on different
 # platforms.  At least on FreeBSD, libtool uses an overly complex
@@ -378,6 +377,48 @@ TS_ARG_ENABLE_VAR([use], [freelist])
 AC_SUBST(use_freelist)
 
 #
+# The original InkFreeList memory pool could not reclaim itself
+# automatically. We can use '--enable-reclaimable-freelist' option
+# to enable the reclaiming feature. This option is effective only
+# when freelist is enable.
+#
+if test "x${enable_freelist}" = "xyes"; then
+  AC_MSG_CHECKING([whether to enable reclaimable freelist])
+  AC_ARG_ENABLE([reclaimable-freelist],
+		[AS_HELP_STRING([--enable-reclaimable-freelist],
+				[enable reclaimable freelist support (effective only when freelist is enabled)])],
+		[],
+		[enable_recalimable_freelist="yes"])
+  AC_MSG_RESULT([$enable_reclaimable_freelist])
+else
+  enable_reclaimable_freelist="no"
+fi
+TS_ARG_ENABLE_VAR([use], [reclaimable_freelist])
+AC_SUBST(use_reclaimable_freelist)
+
+#
+# If the OS is linux, we can use the '--enable-linux-native-aio' option to
+# replace the aio thread mode. Effective only on the linux system.
+#
+
+AC_MSG_CHECKING([whether to enable Linux native AIO])
+AC_ARG_ENABLE([linux-native-aio],
+  [AS_HELP_STRING([--enable-linux-native-aio], [enable native Linux AIO support @<:@default=no@:>@])],
+  [enable_linux_native_aio="${enableval}"],
+  [enable_linux_native_aio=no]
+)
+
+case $host_os in
+  linux*);;
+  *) AS_IF([test "x$enable_linux_native_aio" = "xyes"], [
+      AC_MSG_ERROR([Linux native AIO can only be enabled on Linux systems])
+    ])
+esac
+
+AC_MSG_RESULT([$enable_linux_native_aio])
+TS_ARG_ENABLE_VAR([use], [linux_native_aio])
+AC_SUBST(use_linux_native_aio)
+
 # Configure how many stats to allocate for plugins. Default is 512.
 #
 AC_ARG_WITH([max-api-stats],
@@ -906,8 +947,6 @@ AC_CHECK_LIB([resolv],[__putlong],[AC_SUBST([LIBRESOLV],["-lresolv"])])
 AC_CHECK_LIB([pthread],[pthread_exit],[AC_SUBST([LIBTHREAD],["-lpthread"])])
 AC_CHECK_LIB([rt],[clock_gettime],[AC_SUBST([LIBRT],["-lrt"])])
 AC_CHECK_LIB([posix4],[clock_gettime],[AC_SUBST([LIBRT],["-lposix4"])])
-AC_CHECK_LIB([iconv],[iconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
-AC_CHECK_LIB([iconv],[libiconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
 
 #
 # The header_rewrite module depends on boost.
@@ -1087,6 +1126,38 @@ AC_MSG_RESULT([$msg])
 
 AC_SUBST(need_union_semun)
 
+AC_MSG_CHECKING(for 128bit CAS support)
+AC_LANG_PUSH([C++])
+
+TS_TRY_COMPILE_NO_WARNING([],[
+    __int128_t x = 0;
+    __sync_bool_compare_and_swap(&x,0,10);
+  ], [
+    AC_MSG_RESULT(yes)
+    has_128bit_cas=1
+  ], [
+      dnl If 128bit CAS fails, try again with the -mcx16 option. GCC needs this;
+      dnl clang doesn't; icc is unknown but presumed sane.
+    __saved_CXXFLAGS="${CXXFLAGS}"
+    TS_ADDTO(CXXFLAGS, [-mcx16])
+    TS_TRY_COMPILE_NO_WARNING([],[
+        __int128_t x = 0;
+        __sync_bool_compare_and_swap(&x,0,10);
+      ], [
+        AC_MSG_RESULT(yes)
+        has_128bit_cas=1
+        dnl Keep CFLAGS and CXXFLAGS in sync.
+        TS_ADDTO(CFLAGS, [-mcx16])
+      ], [
+        AC_MSG_RESULT(no)
+        has_128bit_cas=0
+        CXXFLAGS="${__saved_CXXFLAGS}"
+    ])
+])
+
+AC_LANG_POP
+AC_SUBST(has_128bit_cas)
+
 # Check for POSIX capabilities library.
 # If we don't find it, disable checking for header.
 use_posix_cap=0
@@ -1099,7 +1170,7 @@ AS_IF([test "x$enable_posix_cap" != "xno"],
       AC_MSG_FAILURE([POSIX capabilities enabled but system library not found.])
      ],[
       [enable_posix_cap=no]
-    ])
+    ]    )
    ]
   )
 )
@@ -1130,13 +1201,12 @@ AX_LIB_READLINE
 #
 # Check for Lua, at least version 5.1, sets LUA_CFLAGS and LUA_LIBS. We support both standard
 # Lua and LuaJIT, preferring LuaJIT if the user did not indicate a preference.
-AC_ARG_ENABLE([luajit], [
-  AS_HELP_STRING([--enable-luajit], [enable LuaJIT support @<:@default=check@:>@])
-], [
-  enable_luajit="${enableval}"
-], [
-  enable_luajit=check
-])
+AC_MSG_CHECKING([whether to enable Linux LuaJIT support])
+AC_ARG_ENABLE([luajit],
+  [AS_HELP_STRING([--enable-luajit], [enable LuaJIT support @<:@default=check@:>@])],
+  [enable_luajit="${enableval}"],
+  [enable_luajit=check]
+)
 
 PKG_CHECK_MODULES([luajit], [luajit], [have_luajit=yes], [have_luajit=no])
 CHECK_LUA([have_lua=yes], [have_lua=no])
@@ -1183,6 +1253,8 @@ esac
 
 AC_SUBST(LUA_LUAJIT_LDFLAGS)
 
+# We should be able to build http_load if epoll(2) is available.
+AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
 
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
@@ -1368,6 +1440,11 @@ if test "x${enable_hwloc}" = "xyes"; then
     []
   )
 fi
+
+# Check for high-resolution timestamps in struct stat
+AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
+AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
+
 
 #
 # Configure sockopt value for TPROXY. Look at the enable flag.
@@ -1615,34 +1692,12 @@ AC_CONFIG_FILES([plugins/experimental/metalink/Makefile])
 AC_CONFIG_FILES([plugins/experimental/gzip/Makefile])
 AC_CONFIG_FILES([plugins/experimental/spdy/Makefile])
 AC_CONFIG_FILES([plugins/experimental/channel_stats/Makefile])
+AC_CONFIG_FILES([plugins/experimental/authproxy/Makefile])
+AC_CONFIG_FILES([plugins/experimental/cacheurl/Makefile])
 # various tools
 AC_CONFIG_FILES([tools/Makefile])
 # example plugins
 AC_CONFIG_FILES([example/Makefile])
-AC_CONFIG_FILES([example/add-header/Makefile])
-AC_CONFIG_FILES([example/append-transform/Makefile])
-AC_CONFIG_FILES([example/basic-auth/Makefile])
-AC_CONFIG_FILES([example/blacklist-0/Makefile])
-AC_CONFIG_FILES([example/blacklist-1/Makefile])
-AC_CONFIG_FILES([example/bnull-transform/Makefile])
-AC_CONFIG_FILES([example/cache_scan/Makefile])
-AC_CONFIG_FILES([example/file-1/Makefile])
-AC_CONFIG_FILES([example/hello/Makefile])
-AC_CONFIG_FILES([example/null-transform/Makefile])
-AC_CONFIG_FILES([example/output-header/Makefile])
-AC_CONFIG_FILES([example/prefetch/Makefile])
-AC_CONFIG_FILES([example/protocol/Makefile])
-AC_CONFIG_FILES([example/redirect-1/Makefile])
-AC_CONFIG_FILES([example/query_remap/Makefile])
-AC_CONFIG_FILES([example/remap/Makefile])
-AC_CONFIG_FILES([example/replace-header/Makefile])
-AC_CONFIG_FILES([example/response-header-1/Makefile])
-AC_CONFIG_FILES([example/server-transform/Makefile])
-AC_CONFIG_FILES([example/session-1/Makefile])
-AC_CONFIG_FILES([example/thread-1/Makefile])
-AC_CONFIG_FILES([example/thread-pool/Makefile])
-# example app w/ standalone iocore
-AC_CONFIG_FILES([example/app-template/Makefile example/app-template/records.config])
 
 # -----------------------------------------------------------------------------
 # 7. autoheader TEMPLATES

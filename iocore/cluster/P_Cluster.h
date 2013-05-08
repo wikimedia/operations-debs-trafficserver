@@ -24,11 +24,6 @@
 #ifndef _P_CLUSTER_H__
 #define _P_CLUSTER_H__
 
-#ifndef INLINE_CC
-#undef  TS_INLINE
-#define TS_INLINE inline
-#endif
-
 #include "libts.h"
 #include "P_EventSystem.h"
 #include "I_RecProcess.h"
@@ -131,7 +126,7 @@ extern RecRawStatBlock *cluster_rsb;
 #define CLUSTER_DECREMENT_DYN_STAT(x) \
 	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, -1);
 #define CLUSTER_SUM_DYN_STAT(x, y) \
-	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, (int) y);
+	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, y);
 #define CLUSTER_SUM_GLOBAL_DYN_STAT(x, y) \
 	RecIncrGlobalRawStatSum(cluster_rsb,x,y)
 #define CLUSTER_CLEAR_DYN_STAT(x) \

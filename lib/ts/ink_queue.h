@@ -71,20 +71,38 @@ extern "C"
 #define INK_QUEUE_LD64(dst,src) (ink_queue_load_64((void *)&(dst), (void *)&(src)))
 #endif
 
+#if TS_HAS_128BIT_CAS
+#define INK_QUEUE_LD(dst, src) do { \
+  *(__int128_t*)&(dst) = __sync_val_compare_and_swap((__int128_t*)&(src), 0, 0); \
+} while (0)
+#else
+#define INK_QUEUE_LD(dst,src) INK_QUEUE_LD64(dst,src)
+#endif
+
 /*
  * Generic Free List Manager
  */
-
+  // Warning: head_p is read and written in multiple threads without a
+  // lock, use INK_QUEUE_LD to read safely.
   typedef union
   {
 #if (defined(__i386__) || defined(__arm__)) && (SIZEOF_VOIDP == 4)
     struct
     {
-      volatile void *pointer;
-      volatile int32_t version;
+      void *pointer;
+      int32_t version;
     } s;
+    int64_t data;
+#elif TS_HAS_128BIT_CAS
+    struct
+    {
+      void *pointer;
+      int64_t version;
+    } s;
+    __int128_t data;
+#else
+    int64_t data;
 #endif
-    volatile int64_t data;
   } head_p;
 
 /*
@@ -112,6 +130,11 @@ extern "C"
 #define FREELIST_VERSION(_x) (_x).s.version
 #define SET_FREELIST_POINTER_VERSION(_x,_p,_v) \
 (_x).s.pointer = _p; (_x).s.version = _v
+#elif TS_HAS_128BIT_CAS
+#define FREELIST_POINTER(_x) (_x).s.pointer
+#define FREELIST_VERSION(_x) (_x).s.version
+#define SET_FREELIST_POINTER_VERSION(_x,_p,_v) \
+(_x).s.pointer = _p; (_x).s.version = _v
 #elif defined(__x86_64__) || defined(__ia64__)
 #define FREELIST_POINTER(_x) ((void*)(((((intptr_t)(_x).data)<<16)>>16) | \
  (((~((((intptr_t)(_x).data)<<16>>63)-1))>>48)<<48)))  // sign extend
@@ -124,27 +147,42 @@ extern "C"
 
   typedef void *void_p;
 
-  typedef struct
+#if TS_USE_RECLAIMABLE_FREELIST
+  extern float cfg_reclaim_factor;
+  extern int64_t cfg_max_overage;
+  extern int64_t cfg_enable_reclaim;
+  extern int64_t cfg_debug_filter;
+#else
+  struct _InkFreeList
   {
     volatile head_p head;
     const char *name;
-    uint32_t type_size, chunk_size, count, allocated, offset, alignment;
+    uint32_t type_size, chunk_size, count, allocated, alignment;
     uint32_t allocated_base, count_base;
-  } InkFreeList, *PInkFreeList;
+  };
 
   inkcoreapi extern volatile int64_t fastalloc_mem_in_use;
   inkcoreapi extern volatile int64_t fastalloc_mem_total;
   inkcoreapi extern volatile int64_t freelist_allocated_mem;
+#endif
 
-/*
- * alignment must be a power of 2
- */
+  typedef struct _InkFreeList InkFreeList, *PInkFreeList;
+  typedef struct _ink_freelist_list
+  {
+    InkFreeList *fl;
+    struct _ink_freelist_list *next;
+  } ink_freelist_list;
+  extern ink_freelist_list *freelists;
+
+  /*
+   * alignment must be a power of 2
+   */
   InkFreeList *ink_freelist_create(const char *name, uint32_t type_size,
-                                   uint32_t chunk_size, uint32_t offset_to_next, uint32_t alignment);
+                                   uint32_t chunk_size, uint32_t alignment);
 
-  inkcoreapi void ink_freelist_init(InkFreeList * fl, const char *name,
+  inkcoreapi void ink_freelist_init(InkFreeList **fl, const char *name,
                                     uint32_t type_size, uint32_t chunk_size,
-                                    uint32_t offset_to_next, uint32_t alignment);
+                                    uint32_t alignment);
   inkcoreapi void *ink_freelist_new(InkFreeList * f);
   inkcoreapi void ink_freelist_free(InkFreeList * f, void *item);
   void ink_freelists_dump(FILE * f);

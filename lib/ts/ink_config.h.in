@@ -119,8 +119,10 @@
 #define TS_HAS_IP_TOS                  @has_ip_tos@
 #define TS_USE_HWLOC                   @use_hwloc@
 #define TS_USE_FREELIST                @use_freelist@
+#define TS_USE_RECLAIMABLE_FREELIST    @use_reclaimable_freelist@
 #define TS_USE_TLS_NPN                 @use_tls_npn@
 #define TS_USE_TLS_SNI                 @use_tls_sni@
+#define TS_USE_LINUX_NATIVE_AIO        @use_linux_native_aio@
 
 /* OS API definitions */
 #define GETHOSTBYNAME_R_HOSTENT_DATA   @gethostbyname_r_hostent_data@
@@ -128,6 +130,7 @@
 #define NEED_UNION_SEMUN               @need_union_semun@
 #define SIZEOF_VOID_POINTER            @ac_cv_sizeof_voidp@
 #define TS_IP_TRANSPARENT              @ip_transparent@
+#define TS_HAS_128BIT_CAS              @has_128bit_cas@
 
 /* API */
 #define TS_IS_MICRO_BUILD              @is_micro_build@

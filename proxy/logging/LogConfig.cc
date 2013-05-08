@@ -317,7 +317,7 @@ LogConfig::read_configuration_variables()
   }
 
   // X-UID logging enabled.
-  val = (int) LOG_ConfigReadInteger("proxy.config.log.xuid_logging_enabledq");
+  val = (int) LOG_ConfigReadInteger("proxy.config.log.xuid_logging_enabled");
   if (val == 0 || val == 1) {
     xuid_logging_enabled = val;
   }
@@ -952,9 +952,6 @@ LogConfig::add_filters_to_search_log_object(const char *format_name)
 //
 // This function adds the pre-defined objects to the global_object_list.
 //
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
 
 void
 LogConfig::create_pre_defined_objects_with_filter(const PreDefinedFormatInfoList & pre_def_info_list, size_t num_filters,

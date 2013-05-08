@@ -28,6 +28,7 @@
 #include "P_RecProcess.h"
 #include "P_RecMessage.h"
 #include "P_RecUtils.h"
+#include "P_RecCompatibility.h"
 
 #include "mgmtapi.h"
 
@@ -36,14 +37,47 @@ static bool g_message_initialized = false;
 static bool g_started = false;
 static ink_cond g_force_req_cond;
 static ink_mutex g_force_req_mutex;
-static RecModeT g_mode_type = RECM_NULL;
 static int g_rec_raw_stat_sync_interval_ms = REC_RAW_STAT_SYNC_INTERVAL_MS;
 static int g_rec_config_update_interval_ms = REC_CONFIG_UPDATE_INTERVAL_MS;
 static int g_rec_remote_sync_interval_ms = REC_REMOTE_SYNC_INTERVAL_MS;
 
-#define REC_PROCESS
-#include "P_RecCore.i"
-#undef  REC_PROCESS
+//-------------------------------------------------------------------------
+// i_am_the_record_owner, only used for librecprocess.a
+//-------------------------------------------------------------------------
+bool
+i_am_the_record_owner(RecT rec_type)
+{
+  if (g_mode_type == RECM_CLIENT) {
+    switch (rec_type) {
+    case RECT_PROCESS:
+    case RECT_PLUGIN:
+      return true;
+    case RECT_CONFIG:
+    case RECT_NODE:
+    case RECT_CLUSTER:
+    case RECT_LOCAL:
+      return false;
+    default:
+      ink_debug_assert(!"Unexpected RecT type");
+      return false;
+    }
+  } else if (g_mode_type == RECM_STAND_ALONE) {
+    switch (rec_type) {
+    case RECT_CONFIG:
+    case RECT_PROCESS:
+    case RECT_NODE:
+    case RECT_CLUSTER:
+    case RECT_LOCAL:
+    case RECT_PLUGIN:
+      return true;
+    default:
+      ink_debug_assert(!"Unexpected RecT type");
+      return false;
+    }
+  }
+
+  return false;
+}
 
 //-------------------------------------------------------------------------
 // Simple setters for the intervals to decouple this from the proxy
@@ -84,6 +118,9 @@ raw_stat_get_total(RecRawStatBlock *rsb, int id, RecRawStat *total)
     total->sum += tlp->sum;
     total->count += tlp->count;
   }
+  if (total->sum < 0) { // Assure that we stay positive
+    total->sum = 0;
+  }
 
   return REC_ERR_OKAY;
 }
@@ -108,6 +145,9 @@ raw_stat_sync_to_global(RecRawStatBlock *rsb, int id)
     total.sum += tlp->sum;
     total.count += tlp->count;
   }
+  if (total.sum < 0) { // Assure that we stay positive
+    total.sum = 0;
+  }
 
   // lock so the setting of the globals and last values are atomic
   ink_mutex_acquire(&(rsb->mutex));
@@ -131,6 +171,34 @@ raw_stat_sync_to_global(RecRawStatBlock *rsb, int id)
 
   ink_mutex_release(&(rsb->mutex));
 
+  return REC_ERR_OKAY;
+}
+
+
+//-------------------------------------------------------------------------
+// raw_stat_clear
+//-------------------------------------------------------------------------
+static int
+raw_stat_clear(RecRawStatBlock *rsb, int id)
+{
+  Debug("stats", "raw_stat_clear(): rsb pointer:%p id:%d\n", rsb, id);
+
+  // the globals need to be reset too
+  // lock so the setting of the globals and last values are atomic
+  ink_mutex_acquire(&(rsb->mutex));
+  ink_atomic_swap(&(rsb->global[id]->sum), (int64_t)0);
+  ink_atomic_swap(&(rsb->global[id]->last_sum), (int64_t)0);
+  ink_atomic_swap(&(rsb->global[id]->count), (int64_t)0);
+  ink_atomic_swap(&(rsb->global[id]->last_count), (int64_t)0);
+  ink_mutex_release(&(rsb->mutex));
+
+  // reset the local stats
+  RecRawStat *tlp;
+  for (int i = 0; i < eventProcessor.n_ethreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_ethreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->sum), (int64_t)0);
+    ink_atomic_swap(&(tlp->count), (int64_t)0);
+  }
   return REC_ERR_OKAY;
 }
 
@@ -245,7 +313,7 @@ struct config_update_cont: public Continuation
     REC_NOWARN_UNUSED(event);
     REC_NOWARN_UNUSED(e);
     while (true) {
-      RecExecConfigUpdateCbs();
+      RecExecConfigUpdateCbs(REC_PROCESS_UPDATE_REQUIRED);
       Debug("statsproc", "config_update_cont() processed");
       usleep(g_rec_config_update_interval_ms * 1000);
     }
@@ -349,7 +417,7 @@ RecProcessInitMessage(RecModeT mode_type)
     return REC_ERR_OKAY;
   }
 
-  if (RecMessageInit(mode_type) == REC_ERR_FAIL) {
+  if (RecMessageInit() == REC_ERR_FAIL) {
     return REC_ERR_FAIL;
   }
 
@@ -753,6 +821,7 @@ RecRegisterRawStatSyncCb(const char *name, RecRawStatSyncCb sync_cb, RecRawStatB
         r->stat_meta.sync_rsb = rsb;
         r->stat_meta.sync_id = id;
         r->stat_meta.sync_cb = sync_cb;
+        r->stat_meta.sync_rsb->global[r->stat_meta.sync_id]->version = r->version;
         err = REC_ERR_OKAY;
       } else {
         ink_release_assert(false); // We shouldn't register CBs twice...
@@ -781,7 +850,12 @@ RecExecRawStatSyncCbs()
     rec_mutex_acquire(&(r->lock));
     if (REC_TYPE_IS_STAT(r->rec_type)) {
       if (r->stat_meta.sync_cb) {
-        (*(r->stat_meta.sync_cb)) (r->name, r->data_type, &(r->data), r->stat_meta.sync_rsb, r->stat_meta.sync_id);
+        if (r->version && r->version != r->stat_meta.sync_rsb->global[r->stat_meta.sync_id]->version) {
+          raw_stat_clear(r->stat_meta.sync_rsb, r->stat_meta.sync_id);
+          r->stat_meta.sync_rsb->global[r->stat_meta.sync_id]->version = r->version;
+        } else {
+          (*(r->stat_meta.sync_cb)) (r->name, r->data_type, &(r->data), r->stat_meta.sync_rsb, r->stat_meta.sync_id);
+        }
         r->sync_required = REC_SYNC_REQUIRED;
       }
     }

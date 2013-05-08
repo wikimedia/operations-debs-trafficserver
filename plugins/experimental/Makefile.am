@@ -25,5 +25,7 @@ SUBDIRS = \
  metalink \
  gzip \
  spdy \
- channel_stats
+ channel_stats \
+ authproxy \
+ cacheurl
 endif

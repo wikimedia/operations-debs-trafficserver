@@ -5306,6 +5306,14 @@ TSHttpTxnServerAddrSet(TSHttpTxn txnp, struct sockaddr const* addr)
   }
 }
 
+void
+TSHttpTxnClientIncomingPortSet(TSHttpTxn txnp, int port)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+  sm->t_state.client_info.port = port;
+}
 
 // [amc] This might use the port. The code path should do that but it
 // hasn't been tested.
@@ -7316,10 +7324,14 @@ TSAIOWrite(int fd, off_t offset, char* buf, const size_t bufSize, TSCont contp)
 TSReturnCode
 TSAIOThreadNumSet(int thread_num)
 {
+#if AIO_MODE == AIO_MODE_NATIVE
+  return TS_SUCCESS;
+#else
   if (ink_aio_thread_num_set(thread_num))
     return TS_SUCCESS;
 
   return TS_ERROR;
+#endif
 }
 
 void
@@ -8115,6 +8127,26 @@ TSMgmtIntCreate(TSRecordType rec_type, const char *name, TSMgmtInt data_default,
     return TS_ERROR;
 
   return TS_SUCCESS;
+}
+
+TSReturnCode
+TSHttpTxnCloseAfterResponse (TSHttpTxn txnp, int should_close)
+{
+    if (sdk_sanity_check_txn(txnp)!=TS_SUCCESS) {
+           return TS_ERROR;
+    }
+
+    HttpSM *sm = (HttpSM*)txnp;
+    if (should_close) {
+        sm->t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
+        if (sm->ua_session) sm->set_ua_half_close_flag();
+    }
+    // Don't change if PIPELINE is set...
+    else if (sm->t_state.client_info.keep_alive == HTTP_NO_KEEPALIVE) {
+        sm->t_state.client_info.keep_alive = HTTP_KEEPALIVE;
+    }
+
+    return TS_SUCCESS;
 }
 
 // Parse a port descriptor for the proxy.config.http.server_ports descriptor format.

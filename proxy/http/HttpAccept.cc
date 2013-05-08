@@ -27,8 +27,6 @@
 #include "I_Machine.h"
 #include "Error.h"
 
-HttpAccept::Options const HttpAccept::DEFAULT_OPTIONS;
-
 int
 HttpAccept::mainEvent(int event, void *data)
 {
@@ -65,9 +63,11 @@ HttpAccept::mainEvent(int event, void *data)
 
    // copy over session related data.
     new_session->f_outbound_transparent = f_outbound_transparent;
+    new_session->f_transparent_passthrough = f_transparent_passthrough;
     new_session->outbound_ip4 = outbound_ip4;
     new_session->outbound_ip6 = outbound_ip6;
     new_session->outbound_port = outbound_port;
+    new_session->host_res_style = ats_host_res_from(client_ip->sa_family, host_res_preference);
     new_session->acl_method_mask = acl_method_mask;
 
     new_session->new_connection(netvc, backdoor);

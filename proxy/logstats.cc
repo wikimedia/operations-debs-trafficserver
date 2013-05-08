@@ -53,16 +53,10 @@
 #include <functional>
 #include <fcntl.h>
 
-#if (__GNUC__ >= 3)
 #define _BACKWARD_BACKWARD_WARNING_H    // needed for gcc 4.3
 #include <ext/hash_map>
 #include <ext/hash_set>
 #undef _BACKWARD_BACKWARD_WARNING_H
-#else
-#include <hash_map>
-#include <hash_set>
-#include <map>
-#endif
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
@@ -71,16 +65,6 @@
 #if defined(__GNUC__)
 using __gnu_cxx::hash_map;
 using __gnu_cxx::hash_set;
-
-// GCC 4.7 appears to want the std::hash implementation from <functional>, whereas previous gcc versions
-// use the __gnu_cxx::hash GNU extension. Clang (at least on OS X) is happy with the GNU extension as long
-// as it is using the GNU libstdc++.
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 7)
-using std::hash;
-#else
-using __gnu_cxx::hash;
-#endif
-
 #endif
 
 using namespace std;
@@ -119,13 +103,6 @@ const int RSSp_AS_INT = 728986482;      // For "RSS+"
 const int PLAI_AS_INT = 1767992432;     // For "plain"
 const int IMAG_AS_INT = 1734438249;     // For "image"
 const int HTTP_AS_INT = 1886680168;     // For "http" followed by "s://" or "://"
-
-/*
-#include <stdio.h>
-int main(int argc, char** argv) {
-  printf("%s is %d\n", argv[1], *((int*)argv[1]));
-}
-*/
 
 // Store our "state" (position in log file etc.)
 struct LastState
@@ -361,8 +338,24 @@ struct eqstr
   }
 };
 
-typedef hash_map <const char *, OriginStats *, hash <const char *>, eqstr> OriginStorage;
-typedef hash_set <const char *, hash <const char *>, eqstr> OriginSet;
+struct hash_fnv32 {
+  inline uint32_t operator()(const char* s) const 
+  {
+    uint32_t hval = (uint32_t)0x811c9dc5; /* FNV1_32_INIT */
+
+    if (s) {
+      while (*s) {
+        hval ^= (uint32_t)*s++;
+        hval *= (uint32_t)0x01000193;  /* FNV_32_PRIME */
+      }
+    }
+
+    return hval;
+  }
+};
+
+typedef hash_map <const char *, OriginStats *, hash_fnv32, eqstr> OriginStorage;
+typedef hash_set <const char *, hash_fnv32, eqstr> OriginSet;
 
 
 // LRU class for the URL data
@@ -371,7 +364,7 @@ void  update_elapsed(ElapsedStats &stat, const int elapsed, const StatsCounter &
 class UrlLru
 {
   typedef list<UrlStats> LruStack;
-  typedef hash_map<const char *, LruStack::iterator, hash <const char *>, eqstr> LruHash;
+  typedef hash_map<const char *, LruStack::iterator, hash_fnv32, eqstr> LruHash;
 
 public:
   UrlLru(int size=1000000, int show_urls=0)

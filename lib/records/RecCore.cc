@@ -52,14 +52,11 @@ RecTree *g_records_tree = NULL;
 // register_record
 //-------------------------------------------------------------------------
 static RecRecord *
-register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default, bool release_record_lock)
+register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default)
 {
   RecRecord *r = NULL;
 
   if (ink_hash_table_lookup(g_records_ht, name, (void **) &r)) {
-    if (release_record_lock) {
-      rec_mutex_acquire(&(r->lock));
-    }
     ink_release_assert(r->rec_type == rec_type);
     ink_release_assert(r->data_type == data_type);
     // Note: do not set r->data as we want to keep the previous value
@@ -67,9 +64,6 @@ register_record(RecT rec_type, const char *name, RecDataT data_type, RecData dat
   } else {
     if ((r = RecAlloc(rec_type, name, data_type)) == NULL) {
       return NULL;
-    }
-    if (release_record_lock) {
-      rec_mutex_acquire(&(r->lock));
     }
     // Set the r->data to its default value as this is a new record
     RecDataSet(r->data_type, &(r->data), &(data_default));
@@ -79,10 +73,7 @@ register_record(RecT rec_type, const char *name, RecDataT data_type, RecData dat
 
   // we're now registered
   r->registered = true;
-
-  if (release_record_lock) {
-    rec_mutex_release(&(r->lock));
-  }
+  r->version = 0;
 
   return r;
 }
@@ -153,29 +144,29 @@ link_byte(const char *name, RecDataT data_type, RecData data, void *cookie)
 }
 
 // mimic Config.cc::config_string_alloc_cb
+// cookie e.g. is the DEFAULT_xxx_str value which this functiion keeps up to date with
+// the latest default applied during a config update from records.config
 static int
 link_string_alloc(const char *name, RecDataT data_type, RecData data, void *cookie)
 {
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
 
-  RecString _ss = (RecString) cookie;
-  RecString _new_value = 0;
+  RecString _ss = data.rec_string;
+  RecString _new_value = NULL;
 
-  int len = -1;
   if (_ss) {
-    len = strlen(_ss);
-    _new_value = (RecString)ats_malloc(len + 1);
-    memcpy(_new_value, _ss, len + 1);
+    _new_value = ats_strdup(_ss);
   }
 
-  RecString _temp2 = data.rec_string;
-  data.rec_string = _new_value;
+  // set new string for DEFAULT_xxx_str tp point to
+  RecString _temp2 = *((RecString *)cookie);
+  *((RecString *)cookie) = _new_value;
+  // free previous string DEFAULT_xxx_str points to
   ats_free(_temp2);
 
   return REC_ERR_OKAY;
 }
-
 
 //-------------------------------------------------------------------------
 // RecCoreInit
@@ -733,9 +724,8 @@ RecRegisterStat(RecT rec_type, const char *name, RecDataT data_type, RecData dat
   RecRecord *r = NULL;
 
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default, false)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
     r->stat_meta.persist_type = persist_type;
-    rec_mutex_release(&(r->lock));
   } else {
     ink_debug_assert(!"Can't register record!");
   }
@@ -755,7 +745,7 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
 {
   RecRecord *r;
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default, false)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
     // Note: do not modify 'record->config_meta.update_required'
     r->config_meta.update_type = update_type;
     r->config_meta.check_type = check_type;
@@ -765,7 +755,6 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
     r->config_meta.check_expr = ats_strdup(check_expr);
     r->config_meta.update_cb_list = NULL;
     r->config_meta.access_type = access_type;
-    rec_mutex_release(&(r->lock));
   }
   ink_rwlock_unlock(&g_records_rwlock);
 

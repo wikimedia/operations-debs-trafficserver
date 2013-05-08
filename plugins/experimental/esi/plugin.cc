@@ -38,13 +38,14 @@
 #include "ts/experimental.h"
 #include <ts/remap.h>
 
+#include "lib/Utils.h"
+#include "lib/gzip.h"
+#include "EsiGzip.h"
 #include "EsiProcessor.h"
 #include "HttpDataFetcher.h"
-#include "Utils.h"
 #include "HandlerManager.h"
 #include "serverIntercept.h"
 #include "Stats.h"
-#include "gzip.h"
 #include "HttpDataFetcherImpl.h"
 #include "FailureInfo.h"
 using std::string;
@@ -57,12 +58,14 @@ struct OptionInfo
   bool packed_node_support;
   bool private_response;
   bool disable_gzip_output;
+  bool first_byte_flush;
 };
 
 static HandlerManager *gHandlerManager = NULL;
 
 #define DEBUG_TAG "plugin_esi"
 #define PROCESSOR_DEBUG_TAG "plugin_esi_processor"
+#define GZIP_DEBUG_TAG "plugin_esi_gzip"
 #define PARSER_DEBUG_TAG "plugin_esi_parser"
 #define FETCHER_DEBUG_TAG "plugin_esi_fetcher"
 #define VARS_DEBUG_TAG "plugin_esi_vars"
@@ -91,11 +94,13 @@ struct ContData
   STATE curr_state;
   TSVIO input_vio;
   TSIOBufferReader input_reader;
+  TSVIO output_vio;
   TSIOBuffer output_buffer;
   TSIOBufferReader output_reader;
   Variables *esi_vars;
   HttpDataFetcherImpl *data_fetcher;
   EsiProcessor *esi_proc;
+  EsiGzip *esi_gzip;
   TSCont contp;
   TSHttpTxn txnp;
   const struct OptionInfo *option_info;
@@ -116,9 +121,9 @@ struct ContData
   list<string> post_headers;
 
   ContData(TSCont contptr, TSHttpTxn tx)
-    : curr_state(READING_ESI_DOC), input_vio(NULL),
+    : curr_state(READING_ESI_DOC), input_vio(NULL), output_vio(NULL),
       output_buffer(NULL), output_reader(NULL),
-      esi_vars(NULL), data_fetcher(NULL), esi_proc(NULL),
+      esi_vars(NULL), data_fetcher(NULL), esi_proc(NULL), esi_gzip(NULL), 
       contp(contptr), txnp(tx), request_url(NULL),
       input_type(DATA_TYPE_RAW_ESI), packed_node_list(""),
       gzipped_data(""), gzip_output(false),
@@ -212,10 +217,20 @@ ContData::init()
     }
     input_reader = TSVIOReaderGet(input_vio);
 
+    // get downstream VIO
+    TSVConn output_conn;
+    output_conn = TSTransformOutputVConnGet(contp);
+    if(!output_conn) {
+      TSError("[%s] Error while getting transform VC", __FUNCTION__);
+      goto lReturn;
+    }
     output_buffer = TSIOBufferCreate();
     output_reader = TSIOBufferReaderAlloc(output_buffer);
 
-    string fetcher_tag, vars_tag, expr_tag, proc_tag;
+    // we don't know how much data we are going to write, so INT_MAX
+    output_vio = TSVConnWrite(output_conn, contp, output_reader, INT64_MAX);
+
+    string fetcher_tag, vars_tag, expr_tag, proc_tag, gzip_tag;
     if (!data_fetcher) {
       data_fetcher = new HttpDataFetcherImpl(contp, client_addr,
                                              createDebugTag(FETCHER_DEBUG_TAG, contp, fetcher_tag));
@@ -228,6 +243,9 @@ ContData::init()
                                 createDebugTag(PARSER_DEBUG_TAG, contp, fetcher_tag),
                                 createDebugTag(EXPR_DEBUG_TAG, contp, expr_tag),
                                 &TSDebug, &TSError, *data_fetcher, *esi_vars, *gHandlerManager);
+    
+    esi_gzip = new EsiGzip(createDebugTag(GZIP_DEBUG_TAG, contp, gzip_tag), &TSDebug, &TSError);
+
     TSDebug(debug_tag, "[%s] Set input data type to [%s]", __FUNCTION__,
              DATA_TYPE_NAMES_[input_type]);
 
@@ -471,6 +489,9 @@ ContData::~ContData()
   if (esi_proc) {
     delete esi_proc;
   }
+  if(esi_gzip) {
+    delete esi_gzip;
+  }
 }
 
 static int removeCacheHandler(TSCont contp, TSEvent event, void *edata) {
@@ -610,7 +631,9 @@ transformData(TSCont contp)
       if (!cont_data->data_fetcher->isFetchComplete()) {
         TSDebug(cont_data->debug_tag,
                  "[%s] input_vio NULL, but data needs to be fetched. Returning control", __FUNCTION__);
-        return 1;
+        if(!cont_data->option_info->first_byte_flush) {
+          return 1;
+        }
       } else {
         TSDebug(cont_data->debug_tag,
                  "[%s] input_vio NULL, but processing needs to (and can) be completed", __FUNCTION__);
@@ -714,7 +737,8 @@ transformData(TSCont contp)
     }
   }
 
-  if (cont_data->curr_state == ContData::FETCHING_DATA) { // retest as state may have changed in previous block
+  if ((cont_data->curr_state == ContData::FETCHING_DATA) &&
+      (!cont_data->option_info->first_byte_flush)) { // retest as state may have changed in previous block
     if (cont_data->data_fetcher->isFetchComplete()) {
       TSDebug(cont_data->debug_tag, "[%s] data ready; going to process doc", __FUNCTION__);
       const char *out_data;
@@ -777,6 +801,88 @@ transformData(TSCont contp)
     } else {
       TSDebug(cont_data->debug_tag, "[%s] Data not available yet; cannot process document",
                __FUNCTION__);
+    }
+  }
+
+  if ((cont_data->curr_state == ContData::FETCHING_DATA) &&
+      (cont_data->option_info->first_byte_flush)) { // retest as state may have changed in previous block
+    TSDebug(cont_data->debug_tag, "[%s] trying to process doc", __FUNCTION__);
+    string out_data;
+    string cdata;
+    int overall_len;
+    EsiProcessor::ReturnCode retval = cont_data->esi_proc->flush(out_data, overall_len);
+
+    if (cont_data->data_fetcher->isFetchComplete()) {
+      TSDebug(cont_data->debug_tag, "[%s] data ready; last process() will have finished the entire processing", __FUNCTION__);
+      cont_data->curr_state = ContData::PROCESSING_COMPLETE;
+    }
+
+    if (retval == EsiProcessor::SUCCESS) {
+      TSDebug(cont_data->debug_tag,
+                 "[%s] ESI processor output document of size %d starting with [%.10s]",
+                 __FUNCTION__, (int) out_data.size(), (out_data.size() ? out_data.data() : "(null)"));
+    } else {
+      TSError("[%s] ESI processor failed to process document; will return empty document", __FUNCTION__);
+      out_data.assign("");
+        
+      if(!cont_data->xform_closed) {
+        TSVIONBytesSet(cont_data->output_vio, 0);
+        TSVIOReenable(cont_data->output_vio);
+      }
+    }
+
+    // make sure transformation has not been prematurely terminated
+    if (!cont_data->xform_closed && out_data.size() > 0) {
+      if (cont_data->gzip_output) {
+        if (!cont_data->esi_gzip->stream_encode(out_data, cdata)) {
+          TSError("[%s] Error while gzipping content", __FUNCTION__);
+        } else {
+          TSDebug(cont_data->debug_tag, "[%s] Compressed document from size %d to %d bytes",
+                     __FUNCTION__, (int) out_data.size(), (int) cdata.size());
+        }
+      }
+
+      if (cont_data->gzip_output) {
+        if (TSIOBufferWrite(TSVIOBufferGet(cont_data->output_vio), cdata.data(), cdata.size()) == TS_ERROR) {
+          TSError("[%s] Error while writing bytes to downstream VC", __FUNCTION__);
+          return 0;
+        }
+      } else {
+        if (TSIOBufferWrite(TSVIOBufferGet(cont_data->output_vio), out_data.data(), out_data.size()) == TS_ERROR) {
+          TSError("[%s] Error while writing bytes to downstream VC", __FUNCTION__);
+          return 0;
+        }
+      }
+    }
+    if(!cont_data->xform_closed) {     
+      // should not set any fixed length
+      if(cont_data->curr_state == ContData::PROCESSING_COMPLETE) {
+        if(cont_data->gzip_output) {
+          string cdata;
+          int downstream_length;
+          if(!cont_data->esi_gzip->stream_finish(cdata, downstream_length)) {
+            TSError("[%s] Error while finishing gzip", __FUNCTION__);
+            return 0;  
+          } else {   
+            if (TSIOBufferWrite(TSVIOBufferGet(cont_data->output_vio), cdata.data(), cdata.size()) == TS_ERROR) {
+              TSError("[%s] Error while writing bytes to downstream VC", __FUNCTION__);
+              return 0;
+            }
+            TSDebug(cont_data->debug_tag,
+                 "[%s] ESI processed overall/gzip: %d",
+                 __FUNCTION__, downstream_length );
+            TSVIONBytesSet(cont_data->output_vio, downstream_length);          
+          }
+        } else {
+          TSDebug(cont_data->debug_tag,
+                 "[%s] ESI processed overall: %d",
+                 __FUNCTION__, overall_len );
+          TSVIONBytesSet(cont_data->output_vio, overall_len);
+        }
+      } 
+   
+      // Reenable the output connection so it can read the data we've produced.
+      TSVIOReenable(cont_data->output_vio);
     }
   }
 
@@ -859,8 +965,14 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
       transformData(contp);
       break;
 
+    case TS_EVENT_VCONN_WRITE_READY:
+      TSDebug(cont_debug_tag, "[%s] WRITE_READY", __FUNCTION__);
+      if(!cont_data->option_info->first_byte_flush) {
+        TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
+      }
+      break;
+
     case TS_EVENT_VCONN_WRITE_COMPLETE:
-    case TS_EVENT_VCONN_WRITE_READY:     // we write only once to downstream VC
       TSDebug(cont_debug_tag, "[%s] shutting down transformation", __FUNCTION__);
       TSVConnShutdown(TSTransformOutputVConnGet(contp), 0, 1);
       break;
@@ -874,13 +986,15 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
       if (is_fetch_event) {
         TSDebug(cont_debug_tag, "[%s] Handling fetch event %d...", __FUNCTION__, event);
         if (cont_data->data_fetcher->handleFetchEvent(event, edata)) {
-          if ((cont_data->curr_state == ContData::FETCHING_DATA) &&
-              cont_data->data_fetcher->isFetchComplete()) {
+          if (cont_data->curr_state == ContData::FETCHING_DATA) {
             // there's a small chance that fetcher is ready even before
             // parsing is complete; hence we need to check the state too
-            TSDebug(cont_debug_tag, "[%s] fetcher is ready with data, going into process stage",
+            if(cont_data->option_info->first_byte_flush ||
+               cont_data->data_fetcher->isFetchComplete()){
+              TSDebug(cont_debug_tag, "[%s] fetcher is ready with data, going into process stage",
                      __FUNCTION__);
-            transformData(contp);
+              transformData(contp);
+            }
           }
         } else {
           TSError("[%s] Could not handle fetch event!", __FUNCTION__);
@@ -1513,17 +1627,18 @@ static int esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptio
   if (argc > 1) {
     int c;
     static const struct option longopts[] = {
-      { "packed-node-support", no_argument, NULL, 'n' },
-      { "private-response", no_argument, NULL, 'p' },
-      { "disable-gzip-output", no_argument, NULL, 'z' },
-      { "handler-filename", required_argument, NULL, 'f' },
+      { const_cast<char *>("packed-node-support"), no_argument, NULL, 'n' },
+      { const_cast<char *>("private-response"), no_argument, NULL, 'p' },
+      { const_cast<char *>("disable-gzip-output"), no_argument, NULL, 'z' },
+      { const_cast<char *>("first-byte-flush"), no_argument, NULL, 'b' },
+      { const_cast<char *>("handler-filename"), required_argument, NULL, 'f' },
       { NULL, 0, NULL, 0 }
     };
 
     optarg = NULL;
     optind = opterr = optopt = 0;
     int longindex = 0;
-    while ((c = getopt_long(argc, (char * const*) argv, "npzf:", longopts, &longindex)) != -1) {
+    while ((c = getopt_long(argc, (char * const*) argv, "npzbf:", longopts, &longindex)) != -1) {
       switch (c) {
         case 'n':
           pOptionInfo->packed_node_support = true;
@@ -1533,6 +1648,9 @@ static int esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptio
           break;
         case 'z':
           pOptionInfo->disable_gzip_output = true;
+          break;
+        case 'b':
+          pOptionInfo->first_byte_flush = true;
           break;
         case 'f':
           {
@@ -1553,6 +1671,7 @@ static int esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptio
     bKeySet = true;
     if ((result=pthread_key_create(&threadKey, NULL)) != 0) {
       TSError("[%s] Could not create key", __FUNCTION__);
+      TSDebug(DEBUG_TAG, "[%s] Could not create key", __FUNCTION__);
     }
   }
   else {
@@ -1562,9 +1681,9 @@ static int esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptio
   if (result == 0) {
     TSDebug(DEBUG_TAG, "[%s] Plugin started%s, " \
         "packed-node-support: %d, private-response: %d, " \
-        "disable-gzip-output: %d", __FUNCTION__, bKeySet ? " and key is set" : "",
+        "disable-gzip-output: %d, first-byte-flush: %d ", __FUNCTION__, bKeySet ? " and key is set" : "",
         pOptionInfo->packed_node_support, pOptionInfo->private_response,
-        pOptionInfo->disable_gzip_output);
+        pOptionInfo->disable_gzip_output, pOptionInfo->first_byte_flush);
   }
 
   return result;
@@ -1600,24 +1719,28 @@ TSReturnCode
 TSRemapInit(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
 {
   if (!api_info) {
-    TSstrlcpy(errbuf, "[TSRemapInit] - Invalid TSRemapInterface argument", errbuf_size);
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Invalid TSRemapInterface argument");
+    TSError("[TSRemapInit] - Invalid TSRemapInterface argument");
     return TS_ERROR;
   }
 
   if (api_info->size < sizeof(TSRemapInterface)) {
-    TSstrlcpy(errbuf, "[TSRemapInit] - Incorrect size of TSRemapInterface structure", errbuf_size);
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Incorrect size of TSRemapInterface structure");
+    TSError("[TSRemapInit] - Incorrect size of TSRemapInterface structure");
     return TS_ERROR;
   }
 
-  TSDebug(DEBUG_TAG, "esi remap plugin is succesfully initialized");
+  TSDebug(DEBUG_TAG, "esi remap plugin is successfully initialized");
   return TS_SUCCESS;
 }
 
 TSReturnCode
 TSRemapNewInstance(int argc, char* argv[], void** ih, char* errbuf, int errbuf_size)
 {
-  if (argc < 3) {
-    TSError("Unable to create remap instance, need configuration file");
+  if (argc < 2) {
+    snprintf(errbuf, errbuf_size, "Unable to create remap instance, " \
+        "argc: %d < 2", argc);
+    TSError("Unable to create remap instance! argc: %d < 2", argc);
     return TS_ERROR;
   }
 
@@ -1632,6 +1755,7 @@ TSRemapNewInstance(int argc, char* argv[], void** ih, char* errbuf, int errbuf_s
 
   struct OptionInfo *pOptionInfo = (struct OptionInfo *)TSmalloc(sizeof(struct OptionInfo));
   if (pOptionInfo == NULL) {
+    snprintf(errbuf, errbuf_size, "malloc %d bytes fail", (int)sizeof(struct OptionInfo));
     TSError("[%s] malloc %d bytes fail", __FUNCTION__, (int)sizeof(struct OptionInfo));
     return TS_ERROR;
   }

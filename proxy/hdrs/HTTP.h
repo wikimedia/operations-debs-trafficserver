@@ -125,7 +125,6 @@ enum SquidLogCode
   SQUID_LOG_TCP_SWAPFAIL = 'b',
   SQUID_LOG_TCP_DENIED = 'c',
   SQUID_LOG_TCP_WEBFETCH_MISS = 'd',
-  SQUID_LOG_TCP_SPIDER_BYPASS = 'e',
   SQUID_LOG_TCP_FUTURE_2 = 'f',
   SQUID_LOG_TCP_HIT_REDIRECT = '[',       // standard redirect
   SQUID_LOG_TCP_MISS_REDIRECT = ']',      // standard redirect
@@ -159,22 +158,6 @@ enum SquidLogCode
   SQUID_LOG_ERR_PROXY_DENIED = 'G',
   SQUID_LOG_ERR_WEBFETCH_DETECTED = 'H',
   SQUID_LOG_ERR_FUTURE_1 = 'I',
-  SQUID_LOG_ERR_SPIDER_MEMBER_ABORTED = 'J',
-  SQUID_LOG_ERR_SPIDER_PARENTAL_CONTROL_RESTRICTION = 'K',
-  SQUID_LOG_ERR_SPIDER_UNSUPPORTED_HTTP_VERSION = 'L',
-  SQUID_LOG_ERR_SPIDER_UIF = 'M',
-  SQUID_LOG_ERR_SPIDER_FUTURE_USE_1 = 'N',
-  SQUID_LOG_ERR_SPIDER_TIMEOUT_WHILE_PASSING = 'O',
-  SQUID_LOG_ERR_SPIDER_TIMEOUT_WHILE_DRAINING = 'P',
-  SQUID_LOG_ERR_SPIDER_GENERAL_TIMEOUT = 'Q',
-  SQUID_LOG_ERR_SPIDER_CONNECT_FAILED = 'R',
-  SQUID_LOG_ERR_SPIDER_FUTURE_USE_2 = 'S',
-  SQUID_LOG_ERR_SPIDER_NO_RESOURCES = 'T',
-  SQUID_LOG_ERR_SPIDER_INTERNAL_ERROR = 'U',
-  SQUID_LOG_ERR_SPIDER_INTERNAL_IO_ERROR = 'V',
-  SQUID_LOG_ERR_SPIDER_DNS_TEMP_ERROR = 'W',
-  SQUID_LOG_ERR_SPIDER_DNS_HOST_NOT_FOUND = 'X',
-  SQUID_LOG_ERR_SPIDER_DNS_NO_ADDRESS = 'Y',
   SQUID_LOG_ERR_UNKNOWN = 'Z'
 };
 
@@ -584,10 +567,22 @@ public:
     Arena* arena = 0, ///< Arena to use, or @c malloc if NULL.
     int* length = 0 ///< Store string length here.
   );
+  /** Get a string with the effective URL in it.
+      This is automatically allocated if needed in the request heap.
 
-  void url_set(URL *url);
-  void url_set_as_server_url(URL *url);
-  void url_set(const char *str, int length);
+      @see url_string_get
+   */
+  char* url_string_get_ref(
+    int* length = 0 ///< Store string length here.
+  );
+
+  /** Get the URL path.
+      This is a reference, not allocated.
+      @return A pointer to the path or @c NULL if there is no valid URL.
+  */
+  char const* path_get(
+		       int* length ///< Storage for path length.
+		       );
 
   /** Get the target host name.
       The length is returned in @a length if non-NULL.
@@ -603,6 +598,17 @@ public:
       @return The canonicalized target port.
   */
   int port_get();
+
+  /** Get the URL scheme.
+      This is a reference, not allocated.
+      @return A pointer to the scheme or @c NULL if there is no valid URL.
+  */
+  char const* scheme_get(
+		       int* length ///< Storage for path length.
+		       );
+  void url_set(URL *url);
+  void url_set_as_server_url(URL *url);
+  void url_set(const char *str, int length);
 
   /// Check location of target host.
   /// @return @c true if the host was in the URL, @c false otherwise.
@@ -652,6 +658,8 @@ protected:
       @ _fill_target_cache @b always does a cache fill.
   */
   void _test_and_fill_target_cache() const;
+
+  static Arena* const USE_HDR_HEAP_MAGIC;
 
 private:
   // No gratuitous copies!
@@ -1235,6 +1243,26 @@ HTTPHdr::is_pragma_no_cache_set()
   return (get_cooked_pragma_no_cache());
 }
 
+inline char*
+HTTPHdr::url_string_get_ref(int* length)
+{
+  return this->url_string_get(USE_HDR_HEAP_MAGIC, length);
+}
+
+inline char const*
+HTTPHdr::path_get(int* length)
+{
+  URL* url = this->url_get();
+  return url ? url->path_get(length) : 0;
+}
+
+inline char const*
+HTTPHdr::scheme_get(int* length)
+{
+  URL* url = this->url_get();
+  return url ? url->scheme_get(length) : 0;
+}
+
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -1296,7 +1324,7 @@ struct HTTPCacheAlt
   //  destroyed we decrement the refcount
   //  on that buffer so that it gets destroyed
   // We don't want to use a ref count ptr (Ptr<>)
-  //  since our ownership model requires explict
+  //  since our ownership model requires explicit
   //  destroys and ref count pointers defeat this
   RefCountObj *m_ext_buffer;
 };

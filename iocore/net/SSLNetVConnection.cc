@@ -258,11 +258,11 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     if (ret == SSL_READ_READY || ret == SSL_READ_ERROR_NONE) {
       bytes += r;
     }
-
-  } while (ret == SSL_READ_READY || ret == SSL_READ_ERROR_NONE);
+    ink_debug_assert(bytes >= 0);
+  } while ((ret == SSL_READ_READY && bytes == 0) || ret == SSL_READ_ERROR_NONE);
 
   if (bytes > 0) {
-    if (ret == SSL_READ_WOULD_BLOCK) {
+    if (ret == SSL_READ_WOULD_BLOCK || ret == SSL_READ_READY) {
       if (readSignalAndUpdate(VC_EVENT_READ_READY) != EVENT_CONT) {
         Debug("ssl", "ssl_read_from_net, readSignal != EVENT_CONT");
         return;
@@ -273,8 +273,8 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   switch (ret) {
   case SSL_READ_ERROR_NONE:
   case SSL_READ_READY:
-    // how did we exit the while loop above? should never happen.
-    ink_debug_assert(false);
+    readReschedule(nh);
+    return;
     break;
   case SSL_WRITE_WOULD_BLOCK:
   case SSL_READ_WOULD_BLOCK:
@@ -450,24 +450,14 @@ SSLNetVConnection::free(EThread * t) {
 int
 SSLNetVConnection::sslStartHandShake(int event, int &err)
 {
-  IpEndpoint ip;
-
   if (event == SSL_EVENT_SERVER) {
     if (this->ssl == NULL) {
-      SSL_CTX * ctx;
-      int namelen = sizeof(ip);
       SSLCertificateConfig::scoped_config lookup;
 
-      safe_getsockname(get_socket(), &ip.sa, &namelen);
-
-      ip.port() = 0; // XXX certificate lookup can't check the port yet; TS-1500
-      ctx = lookup->findInfoInHash(ip);
-      Debug("ssl", "IP context is %p, default context %p", ctx, lookup->defaultContext());
-      if (ctx == NULL) {
-        ctx = lookup->defaultContext();
-      }
-
-      this->ssl = make_ssl_connection(ctx, this);
+      // Attach the default SSL_CTX to this SSL session. The default context is never going to be able
+      // to negotiate a SSL session, but it's enough to trampoline us into the SNI callback where we
+      // can select the right server certificate.
+      this->ssl = make_ssl_connection(lookup->defaultContext(), this);
       if (this->ssl == NULL) {
         Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, ssl create failed");
         SSLError("SSL_StartHandShake");
