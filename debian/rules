@@ -15,7 +15,7 @@ configure_flags = \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	configure_flags += --enable-wccp
+	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
 %:
