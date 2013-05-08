@@ -86,6 +86,7 @@ extern "C" int plock(int);
 #include "RemapProcessor.h"
 #include "XmlUtils.h"
 #include "I_Tasks.h"
+#include "InkAPIInternal.h"
 
 #include <ts/ink_cap.h>
 
@@ -96,11 +97,6 @@ extern "C" int plock(int);
 //
 // Global Data
 //
-#define DEFAULT_NUMBER_OF_THREADS         ink_number_of_processors()
-#define DEFAULT_NUMBER_OF_UDP_THREADS     1
-#define DEFAULT_NUMBER_OF_SSL_THREADS     0
-#define DEFAULT_NUM_ACCEPT_THREADS        0
-#define DEFAULT_NUM_TASK_THREADS          0
 #define DEFAULT_HTTP_ACCEPT_PORT_NUMBER   0
 #define DEFAULT_COMMAND_FLAG              0
 #define DEFAULT_LOCK_PROCESS              0
@@ -118,17 +114,20 @@ extern "C" int plock(int);
 #define DEFAULT_REMOTE_MANAGEMENT_FLAG    0
 
 static void * mgmt_restart_shutdown_callback(void *, char *, int data_len);
-static bool xmlBandwidthSchemaRead(XMLNode * node);
 
 static int version_flag = DEFAULT_VERSION_FLAG;
 
 static int const number_of_processors = ink_number_of_processors();
-static int num_of_net_threads = DEFAULT_NUMBER_OF_THREADS;
+static int num_of_net_threads = number_of_processors;
+static int num_of_udp_threads = 0;
+static int num_accept_threads  = 0;
+static int num_task_threads = 0;
+
 extern int num_of_cluster_threads;
-static int num_of_udp_threads = DEFAULT_NUMBER_OF_UDP_THREADS;
-static int num_accept_threads  = DEFAULT_NUM_ACCEPT_THREADS;
-static int num_task_threads = DEFAULT_NUM_TASK_THREADS;
+
+#if TS_HAS_TESTS
 static int run_test_hook = 0;
+#endif
 static char * http_accept_port_descriptor;
 int http_accept_file_descriptor = NO_FD;
 static char core_file[255] = "";
@@ -403,7 +402,7 @@ initialize_process_manager()
     ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
     if (access(management_directory, R_OK) == -1) {
       fprintf(stderr,"unable to access() management path '%s': %d, %s\n", management_directory, errno, strerror(errno));
-      fprintf(stderr,"please set management path via command line '-d <managment directory>'\n");
+      fprintf(stderr,"please set management path via command line '-d <management directory>'\n");
       _exit(1);
     }
   }
@@ -1103,40 +1102,6 @@ init_http_header()
   http_init();
 }
 
-// TODO: we should move this function out of the Main.cc
-static void
-init_http_aeua_filter(void)
-{
-  char buf[2048], _cname[1024], *cname;
-  int i, j;
-
-  cname = &_cname[0];
-  memset(buf, 0, sizeof(buf));
-  memset(_cname, 0, sizeof(_cname));
-
-  TS_ReadConfigString(_cname, "proxy.config.http.accept_encoding_filter.filename", (int) sizeof(_cname));
-
-  if (_cname[0] && (j = strlen(_cname)) > 0) {
-    while (j && (*cname == '/' || *cname == '\\')) {
-      ++cname;
-      --j;
-    }
-    ink_strlcpy(buf, system_config_directory, sizeof(buf));
-    if ((i = strlen(buf)) >= 0) {
-      if (!i || (buf[i - 1] != '/' && buf[i - 1] != '\\' && i < (int) sizeof(buf))) {
-        ink_strlcat(buf, "/", sizeof(buf));
-        ++i;
-      }
-    }
-    if ((i + j + 1) < (int) sizeof(buf))
-      ink_strlcat(buf, cname, sizeof(buf));
-  }
-
-  i = HttpConfig::init_aeua_filter(buf[0] ? buf : NULL);
-
-  Debug("http_aeua", "[init_http_aeua_filter] - Total loaded %d REGEXP for Accept-Enconding/User-Agent filtering", i);
-}
-
 struct AutoStopCont: public Continuation
 {
   int mainEvent(int event, Event * e)
@@ -1310,7 +1275,8 @@ change_uid_gid(const char *user)
 
   char *buf = (char *)ats_malloc(buflen);
 
-  if (0 != geteuid() && 0 == getuid()) seteuid(0); // revert euid if possible.
+  if (0 != geteuid() && 0 == getuid())
+    NOWARN_UNUSED_RETURN(seteuid(0)); // revert euid if possible.
   if (0 != geteuid()) {
     // Not root so can't change user ID. Logging isn't operational yet so
     // we have to write directly to stderr. Perhaps this should be fatal?
@@ -1552,30 +1518,10 @@ main(int argc, char **argv)
   TS_ReadConfigInteger(history_info_enabled, "proxy.config.history_info_enabled");
   TS_ReadConfigInteger(res_track_memory, "proxy.config.res_track_memory");
 
-  {
-    XMLDom schema;
-    //char *configPath = TS_ConfigReadString("proxy.config.config_dir");
-    char *filename = TS_ConfigReadString("proxy.config.bandwidth_mgmt.filename");
-    char bwFilename[PATH_NAME_MAX];
-
-    snprintf(bwFilename, sizeof(bwFilename), "%s/%s", system_config_directory, filename);
-    ats_free(filename);
-
-    Debug("bw-mgmt", "Looking to read: %s for bw-mgmt", bwFilename);
-    schema.LoadFile(bwFilename);
-    xmlBandwidthSchemaRead(&schema);
-  }
-
-
   init_http_header();
 
-  // Init HTTP Accept-Encoding/User-Agent filter
-  init_http_aeua_filter();
-
   // Sanity checks
-  //  if (!lock_process) check_for_root_uid();
   check_fd_limit();
-
   command_flag = command_flag || *command_string;
 
   // Set up store
@@ -1662,7 +1608,7 @@ main(int argc, char **argv)
     initCacheControl();
 #endif
     initCongestionControl();
-    IpAllow::InitInstance();
+    IpAllow::startup();
     ParentConfig::startup();
 #ifdef SPLIT_DNS
     SplitDNSConfig::startup();
@@ -1690,16 +1636,18 @@ main(int argc, char **argv)
     HttpProxyPort::loadDefaultIfEmpty();
 
     cacheProcessor.start();
-    udpNet.start(num_of_udp_threads);
+
+    // UDP net-threads are turned off by default.
+    if (!num_of_udp_threads)
+      TS_ReadConfigInteger(num_of_udp_threads, "proxy.config.udp.threads");
+    if (num_of_udp_threads)
+      udpNet.start(num_of_udp_threads);
+
     sslNetProcessor.start(getNumSSLThreads());
 
 #ifndef INK_NO_LOG
     // initialize logging (after event and net processor)
     Log::init(remote_management_flag ? 0 : Log::NO_REMOTE_MANAGEMENT);
-#endif
-
-#if !defined(TS_NO_API)
-    plugin_init(system_config_directory, true); // extensions.config
 #endif
 
     //acc.init();
@@ -1765,12 +1713,11 @@ main(int argc, char **argv)
     }
 
 #ifndef TS_NO_API
-    plugin_init(system_config_directory, false);        // plugin.config
+    plugin_init(system_config_directory);        // plugin.config
 #else
     api_init();                 // we still need to initialize some of the data structure other module needs.
-    extern void init_inkapi_stat_system();
-    init_inkapi_stat_system();
     // i.e. http_global_hooks
+    pmgmt->registerPluginCallbacks(global_config_cbs);
 #endif
 
     // "Task" processor, possibly with its own set of task threads
@@ -1820,79 +1767,6 @@ main(int argc, char **argv)
 # endif
 
   this_thread()->execute();
-}
-
-
-static bool
-xmlBandwidthSchemaRead(XMLNode * node)
-{
-  XMLNode *child, *c2;
-  int i, j, k;
-  unsigned char *p;
-  char *ip;
-
-  // file doesn't exist
-  if (node->getNodeName() == NULL) {
-    // alloc 1-elt array to store stuff for best-effort traffic
-    G_inkPipeInfo.perPipeInfo = NEW(new InkSinglePipeInfo[1]);
-    G_inkPipeInfo.perPipeInfo[0].wt = 1.0;
-    G_inkPipeInfo.numPipes = 0;
-    G_inkPipeInfo.interfaceMbps = 0.0;
-    return true;
-  }
-
-  if (strcmp(node->getNodeName(), "interface") != 0) {
-    Debug("bw-mgmt", "Root node should be an interface tag!\n");
-    return false;
-  }
-  // First entry G_inkPipeInfo.perPipeInfo[0] is the one for "best-effort" traffic.
-  G_inkPipeInfo.perPipeInfo = NEW(new InkSinglePipeInfo[node->getChildCount() + 1]);
-  G_inkPipeInfo.perPipeInfo[0].wt = 1.0;
-  G_inkPipeInfo.numPipes = 0;
-  G_inkPipeInfo.reliabilityMbps = 1.0;
-  G_inkPipeInfo.interfaceMbps = 30.0;
-  for (i = 0; i < node->getChildCount(); i++) {
-    if ((child = node->getChildNode(i))) {
-      if (strcmp(child->getNodeName(), "pipe") == 0) {
-        G_inkPipeInfo.numPipes++;
-        for (k = 0; k < child->getChildCount(); k++) {
-          c2 = child->getChildNode(k);
-          for (int l = 0; l < c2->m_nACount; l++) {
-            if (strcmp(c2->m_pAList[l].pAName, "weight") == 0) {
-              G_inkPipeInfo.perPipeInfo[G_inkPipeInfo.numPipes].wt = atof(c2->m_pAList[l].pAValue);
-              G_inkPipeInfo.perPipeInfo[0].wt -= G_inkPipeInfo.perPipeInfo[G_inkPipeInfo.numPipes].wt;
-            } else if (strcmp(c2->m_pAList[l].pAName, "dest_ip") == 0) {
-              p = (unsigned char *) &(G_inkPipeInfo.perPipeInfo[G_inkPipeInfo.numPipes].destIP);
-              ip = c2->m_pAList[l].pAValue;
-              for (j = 0; j < 4; j++) {
-                p[j] = atoi(ip);
-                while (ip && *ip && (*ip != '.'))
-                  ip++;
-                ip++;
-              }
-            }
-          }
-        }
-      } else if (strcmp(child->getNodeName(), "bandwidth") == 0) {
-        for (j = 0; j < child->m_nACount; j++) {
-          if (strcmp(child->m_pAList[j].pAName, "limit_mbps") == 0) {
-            G_inkPipeInfo.interfaceMbps = atof(child->m_pAList[j].pAValue);
-          } else if (strcmp(child->m_pAList[j].pAName, "reliability_mbps") == 0) {
-            G_inkPipeInfo.reliabilityMbps = atof(child->m_pAList[j].pAValue);
-          }
-        }
-      }
-    }
-  }
-  Debug("bw-mgmt", "Read in: limit_mbps = %lf\n", G_inkPipeInfo.interfaceMbps);
-  for (i = 0; i < G_inkPipeInfo.numPipes + 1; i++) {
-    G_inkPipeInfo.perPipeInfo[i].bwLimit =
-      (int64_t) (G_inkPipeInfo.perPipeInfo[i].wt * G_inkPipeInfo.interfaceMbps * 1024.0 * 1024.0);
-    p = (unsigned char *) &(G_inkPipeInfo.perPipeInfo[i].destIP);
-    Debug("bw-mgmt", "Pipe [%d]: wt = %lf, dest ip = %d.%d.%d.%d\n",
-          i, G_inkPipeInfo.perPipeInfo[i].wt, p[0], p[1], p[2], p[3]);
-  }
-  return true;
 }
 
 

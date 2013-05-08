@@ -87,6 +87,7 @@ CONFIG proxy.config.alarm.abs_path STRING NULL
    # tr-in - Transparent inbound.
    # tr-out - Transparent outbound.
    # tr-full - Fully transparent (inbound and outbound).
+   # tr-pass - Transprently Pass-through non-HTTP traffic (in conjuction with tr-in).
    # ssl - SSL terminated port.
    # blind - Blind tunnel port.
    # ip-in=[addr] - Bind inbound IP address (listen for client).
@@ -97,8 +98,12 @@ CONFIG proxy.config.alarm.abs_path STRING NULL
    # ip-out can be repeated as long as each address is a different family.
    # The '=' is optional.
    #
-   # Example: Port 8080 IPv6 inbound transparent, and port 80 IPv4
+   # Example 1: Port 8080 IPv6 inbound transparent, and port 80 IPv4
    # "8080:ipv6:tr-in 80"
+   #
+   # Example 2: Listen on standard http and https ports for IPv4 and IPv6:
+   # "80:ipv4 80:ipv6 443:ipv4:ssl 443:ipv6:ssl"
+   #
 CONFIG proxy.config.http.server_ports STRING 8080
    # Ports on the origin server to which a blind tunnel may connect.
 CONFIG proxy.config.http.connect_ports STRING 443 563
@@ -125,8 +130,9 @@ CONFIG proxy.config.http.chunking_enabled INT 1
    #   0 - Never
    #   1 - Always
    #   2 - if the server has returned http1.1 before
-   #   3 - if the client request is 1.1 & the server
-   #         has returned 1.1 before
+   #   3 - if the client request is 1.1 & the server has returned 1.1 before
+   # If use_client_addr is set to 1, options 2 and 3 cause the proxy to use
+   # the client HTTP version for upstream requests.
 CONFIG proxy.config.http.send_http11_requests INT 1
    # Share server connections
    #  0 - Never
@@ -212,6 +218,9 @@ CONFIG proxy.config.http.push_method_enabled INT 0
    # cache control #
    #################
 CONFIG proxy.config.http.cache.http INT 1
+   # Enabling this setting allows the proxy to cache empty documents. This currently
+   # requires that the response has a Content-Length: header, with a value of "0".
+CONFIG proxy.config.http.cache.allow_empty_doc INT 0
 CONFIG proxy.config.http.cache.ignore_client_no_cache INT 1
 CONFIG proxy.config.http.cache.ims_on_client_no_cache INT 1
 CONFIG proxy.config.http.cache.ignore_server_no_cache INT 0
@@ -230,7 +239,7 @@ CONFIG proxy.config.http.cache.ignore_authentication INT 0
 CONFIG proxy.config.http.cache.cache_urls_that_look_dynamic INT 1
 CONFIG proxy.config.http.cache.enable_default_vary_headers INT 0
    #  when_to_revalidate has 5 options:
-   #    0 - default. use use cache directives or heuristic
+   #    0 - default. use cache directives or heuristic
    #    1 - stale if heuristic
    #    2 - always stale (always revalidate)
    #    3 - never stale
@@ -278,7 +287,7 @@ CONFIG proxy.config.http.enable_http_stats INT 1
    # 0 - turn off customizable user response pages
    # 1 - enable customizable user response pages in only the "default" directory
    # 2 - enable language-targeted user response pages
-CONFIG proxy.config.body_factory.enable_customizations INT 0
+CONFIG proxy.config.body_factory.enable_customizations INT 1
 CONFIG proxy.config.body_factory.enable_logging INT 0
    # 0 - never suppress generated responses
    # 1 - always suppress generated responses
@@ -387,7 +396,7 @@ CONFIG proxy.config.dns.validate_query_name INT 0
    # note that in order to increase hostdb.size, hostdb.storage_size should
    # also be increase. These are best guesses, you will have to monitor this.
 CONFIG proxy.config.hostdb.size INT 120000
-CONFIG proxy.config.hostdb.storage_size INT 32M
+CONFIG proxy.config.hostdb.storage_size INT 200M
    # ttl modes:
    #   0 = obey
    #   1 = ignore
@@ -588,6 +597,32 @@ CONFIG proxy.config.diags.debug.tags STRING http.*|dns.*
   # Great for tracking down memory leaks, but you need to use the
   # ink allocators
 CONFIG proxy.config.dump_mem_info_frequency INT 0
+
+##############################################################################
+#
+# Configuration for Reclaimable InkFreeList memory pool
+#
+# NOTE: The following options are not meaningful unless compiles TrafficServer
+#	with '--enable-reclaimable-freelist' option. Looks like:
+#	$ ./configure --enable-reclaimable-freelist
+#
+##############################################################################
+  # Dump debug information according bit mask of debug_filter, if a bit is set
+  # in the mask, then debug information of the corresponding action are dumped:
+  #  bit 0: reclaim memory in ink_freelist_new
+  #  bit 1: allocate memory from partial-free Chunks(if exist) or OS
+CONFIG proxy.config.allocator.debug_filter INT 0
+  # The value of enable_reclaim should be 0 or 1. Default 0, reclaim disabled.
+CONFIG proxy.config.allocator.enable_reclaim INT 0
+  # The value of reclaim_factor should be in 0.0 ~ 1.0, allocator use it to
+  # calculate average value of idle memory in InkFreeList, which will determine
+  # when to reclaim memory. The larger the value, the faster the reclaiming.
+  # This value is effective only when enable_reclaim is 1.
+CONFIG proxy.config.allocator.reclaim_factor FLOAT 0.300000
+  # Allocator will reclaim memory only when it continuously satisfy the reclaim
+  # condition for max_overage times. This value is effective only when
+  # enable_reclaim is 1.
+CONFIG proxy.config.allocator.max_overage INT 3
 
 ##############################################################################
 #

@@ -38,13 +38,13 @@
 #include "ControlBase.h"
 #include "ControlMatcher.h"
 */
+#include "ProxyConfig.h"
 
 /* ---------------------------
    forward declarations ...
    --------------------------- */
 void ink_split_dns_init(ModuleVersion version);
 
-#define MAX_CONFIGS  100
 struct RequestData;
 typedef RequestData RD;
 
@@ -89,36 +89,10 @@ struct SplitDNSResult
 };
 
 
-struct SplitDNSConfigInfo
-{
-  volatile int m_refcount;
-
-  virtual ~SplitDNSConfigInfo()
-  { }
-};
-
-
-class SplitDNSConfigProcessor
-{
-public:
-  SplitDNSConfigProcessor();
-
-  unsigned int set(unsigned int id, SplitDNSConfigInfo * info);
-  SplitDNSConfigInfo *get(unsigned int id);
-  void release(unsigned int id, SplitDNSConfigInfo * data);
-
-public:
-  volatile SplitDNSConfigInfo *infos[MAX_CONFIGS];
-  volatile int ninfos;
-};
-
-
-extern SplitDNSConfigProcessor SplitDNSconfigProcessor;
-
 /* --------------------------------------------------------------
    **                struct SplitDNS
    -------------------------------------------------------------- */
-struct SplitDNS:public SplitDNSConfigInfo
+struct SplitDNS:public ConfigInfo
 {
   SplitDNS();
   ~SplitDNS();
@@ -291,44 +265,6 @@ TS_INLINE SplitDNSRecord::SplitDNSRecord()
 TS_INLINE SplitDNSRecord::~SplitDNSRecord()
 { }
 
-
-/* --------------------------------------------------------------
-   struct SDNS_UpdateContinuation
-   Used to handle parent.conf or default parent updates after the
-   manager signals a change
-   -------------------------------------------------------------- */
-struct SDNS_UpdateContinuation: public Continuation
-{
-  int handle_event(int event, void *data);
-  SDNS_UpdateContinuation(ProxyMutex * m);
-
-};
-
-
-/* --------------------------------------------------------------
-   SDNS_UpdateContinuation::SDNS_UpdateContinuation()
-   -------------------------------------------------------------- */
-TS_INLINE SDNS_UpdateContinuation::SDNS_UpdateContinuation(ProxyMutex * m)
-: Continuation(m)
-{
-  SET_HANDLER(&SDNS_UpdateContinuation::handle_event);
-}
-
-
-/* --------------------------------------------------------------
-   SDNS_UpdateContinuation::handle_event()
-   -------------------------------------------------------------- */
-TS_INLINE int
-SDNS_UpdateContinuation::handle_event(int event, void *data)
-{
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
-
-  SplitDNSConfig::reconfigure();
-  delete this;
-
-  return EVENT_DONE;
-}
 
 /* ------------------
    Helper Functions

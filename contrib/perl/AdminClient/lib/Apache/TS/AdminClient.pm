@@ -270,7 +270,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.admin.autoconf.pac_filename
  proxy.config.admin.autoconf_port
  proxy.config.admin.autoconf.doc_root
- proxy.config.admin.autoconf.wpad_filename
  proxy.config.admin.cli_path
  proxy.config.admin.number_config_bak
  proxy.config.admin.user_id
@@ -423,6 +422,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.cache.ignore_accept_mismatch
  proxy.config.http.cache.ignore_authentication
  proxy.config.http.cache.ignore_client_cc_max_age
+ proxy.config.http.cache.cluster_cache_local
  proxy.config.http.cache.ignore_client_no_cache
  proxy.config.http.cache.ignore_server_no_cache
  proxy.config.http.cache.ims_on_client_no_cache
@@ -479,7 +479,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.keep_alive_no_activity_timeout_in
  proxy.config.http.keep_alive_no_activity_timeout_out
  proxy.config.http.keep_alive_post_out
- proxy.config.http.log_spider_codes
  proxy.config.http.negative_caching_enabled
  proxy.config.http.negative_caching_lifetime
  proxy.config.http.negative_revalidating_enabled
@@ -531,7 +530,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http_ui_enabled
  proxy.config.http.uncacheable_requests_bypass_parent
  proxy.config.http.user_agent_pipeline
- proxy.config.http.wuts_enabled
  proxy.config.icp.default_reply_port
  proxy.config.icp.enabled
  proxy.config.icp.icp_configuration
@@ -620,7 +618,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.output.logfile
  proxy.config.ping.npacks_to_trans
  proxy.config.ping.timeout_sec
- proxy.config.plugin.extensions_dir
  proxy.config.plugin.plugin_dir
  proxy.config.plugin.plugin_mgmt_dir
  proxy.config.prefetch.child_port

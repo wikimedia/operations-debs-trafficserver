@@ -261,7 +261,7 @@ Store::read_config(int fd)
     //      initialize_store().
     //
     // ink_strlcpy(p, cache_system_config_directory, sizeof(p));
-    IOCORE_ReadConfigString(storage_file, "proxy.config.cache.storage_filename", PATH_NAME_MAX);
+    REC_ReadConfigString(storage_file, "proxy.config.cache.storage_filename", PATH_NAME_MAX);
     Layout::relative_to(storage_path, PATH_NAME_MAX, Layout::get()->sysconfdir, storage_file);
     Debug("cache_init", "Store::read_config, fd = -1, \"%s\"", storage_path);
 
@@ -312,7 +312,7 @@ Store::read_config(int fd)
     if ((err = ns->init(pp, size))) {
       char buf[4096];
       snprintf(buf, sizeof(buf), "could not initialize storage \"%s\" [%s]", pp, err);
-      IOCORE_SignalWarning(REC_SIGNAL_SYSTEM_ERROR, buf);
+      REC_SignalWarning(REC_SIGNAL_SYSTEM_ERROR, buf);
       Debug("cache_init", "Store::read_config - %s", buf);
       delete ns;
       ats_free(pp);
@@ -483,7 +483,9 @@ Span::init(char *an, int64_t size)
   disk_id = devnum;
 
   pathname = ats_strdup(an);
-  blocks = size / hw_sector_size;
+  // igalic: blocks = size / hw_sector_size; was wrong TS-1707
+  // This code needs refactoring to unify the code-paths which are equal across platforms.
+  blocks = size / STORE_BLOCK_SIZE;
   file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
 
   // This is so FreeBSD admins don't worry about our malicious code creating boot sector viruses:
@@ -583,6 +585,7 @@ Span::init(char *filename, int64_t size)
 
   pathname = ats_strdup(filename);
   // is this right Seems like this should be size / hw_sector_size
+  // igalic: No. See TS-1707
   blocks = size / STORE_BLOCK_SIZE;
   file_pathname = !((s.st_mode & S_IFMT) == S_IFDIR);
 
@@ -715,8 +718,9 @@ Span::init(char *filename, int64_t size)
     /* I don't know why I'm redefining blocks to be something that is quite
      * possibly something other than the actual number of blocks, but the
      * code for other arches seems to.  Revisit this, perhaps. */
+    // igalic: No. See TS-1707
     blocks = size / STORE_BLOCK_SIZE;
-    
+
     Debug("cache_init", "Span::init physical sectors %" PRId64 " total size %" PRId64 " geometry size %" PRId64 " store blocks %" PRId64 "",
           physsectors, hw_sector_size * physsectors, size, blocks);
 

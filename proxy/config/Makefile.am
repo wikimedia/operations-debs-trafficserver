@@ -27,7 +27,6 @@ nodist_sysconf_DATA = \
   storage.config.default
 
 dist_sysconf_DATA =	\
-  ae_ua.config.default \
   cache.config.default \
   cluster.config.default \
   congestion.config.default \
@@ -36,11 +35,11 @@ dist_sysconf_DATA =	\
   ip_allow.config.default \
   log_hosts.config.default \
   logs_xml.config.default \
-  mgr.cnf.default \
   parent.config.default \
   volume.config.default \
   plugin.config.default \
   plugin.db.default \
+  prefetch.config.default \
   remap.config.default \
   socks.config.default \
   splitdns.config.default \

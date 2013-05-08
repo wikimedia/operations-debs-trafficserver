@@ -36,7 +36,6 @@ ClusterAccept::ClusterAccept(int *port, int send_bufsize, int recv_bufsize)
     p_cluster_port(port),
     socket_send_bufsize(send_bufsize),
     socket_recv_bufsize(recv_bufsize),
-    socket_opt_flags(0),
     current_cluster_port(-1),
     accept_action(0),
     periodic_event(0)
@@ -223,7 +222,7 @@ void
 do_machine_config_change(void *d, const char *s)
 {
   char cluster_config_filename[PATH_NAME_MAX] = "";
-  IOCORE_ReadConfigString(cluster_config_filename, s, sizeof(cluster_config_filename) - 1);
+  REC_ReadConfigString(cluster_config_filename, s, sizeof(cluster_config_filename) - 1);
   RecData data;
   data.rec_string = cluster_config_filename;
   machine_config_change(s, RECD_STRING, data, d);
@@ -284,7 +283,7 @@ free_configuration(ClusterConfiguration * c, ClusterConfiguration * prev)
   // are used in different threads, so reference counts are
   // relatively difficult and expensive.  The solution I have
   // chosen is to simply delete the object after some (very long)
-  // time after it has ceased to be accessable.
+  // time after it has ceased to be accessible.
   //
   eventProcessor.schedule_in(NEW(new ConfigurationContinuation(c, prev)), CLUSTER_CONFIGURATION_TIMEOUT, ET_CALL);
 }

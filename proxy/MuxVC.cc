@@ -42,9 +42,6 @@
 const int MUX_LOCK_RETRY = HRTIME_MSECONDS(10);
 const int MUX_MAX_DATA_SIZE = USHRT_MAX - sizeof(MuxMessage);
 
-#define MIN(x,y) (x <= y) ? x : y;
-#define MAX(x,y) (x >= y) ? x : y;
-
 #define MUX_MAX_BYTES_SLOT 32768
 #define MUX_MAX_BYTES_BANK 32768
 #define MUX_SMALL_BLOCK_SIZE 256
@@ -1059,7 +1056,7 @@ MuxVC::do_connect(Continuation * c, unsigned int ip, int port)
 
   // Keep our own mutex ref as we can get deallocted on the
   //   on the callback
-  ProxyMutexPtr my_mutex_ref = mutex;
+  Ptr<ProxyMutex> my_mutex_ref = mutex;
 
   // Fix Me: need to respect interface binding
   MUTEX_TAKE_LOCK(my_mutex_ref, this_ethread());
@@ -2443,7 +2440,7 @@ MuxGetCont::init_for_new_mux(Continuation * c, unsigned int ip_arg, int port_arg
   mux_vc->init();
 
   // Using take lock since it's a brand new mutex
-  ProxyMutexPtr mref = mux_vc->mutex;
+  Ptr<ProxyMutex> mref = mux_vc->mutex;
   MUTEX_TAKE_LOCK(mref, c->mutex->thread_holding);
   Action *tmp = mux_vc->do_connect(this, ip_arg, port_arg);
   Mutex_unlock(mref, mref->thread_holding);

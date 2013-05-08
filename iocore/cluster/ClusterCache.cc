@@ -1339,12 +1339,11 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       ink_release_assert(c->read_cluster_vc != CLUSTER_DELAYED_OPEN);
 
       CacheHTTPInfo *ci = 0;
-      const char *p;
+      const char *p = (const char *) msg + flen;
       int res = 0;
       int moi_len = len - flen;
 
       if (moi_len && c->cfl_flags & CFL_LOPENWRITE_HAVE_OLDINFO) {
-        p = (const char *) msg + flen;
 
         // Unmarshal old CacheHTTPInfo
         res = HTTPInfo::unmarshal((char *) p, moi_len, NULL);
@@ -1352,8 +1351,6 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
         c->ic_old_info.get_handle((char *) p, moi_len);
         ink_assert(c->ic_old_info.valid());
         ci = &c->ic_old_info;
-      } else {
-        p = (const char *) 0;
       }
       if (c->cfl_flags & CFL_ALLOW_MULTIPLE_WRITES) {
         ink_assert(!ci);
@@ -1371,7 +1368,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
 
       Cache *call_cache = caches[c->frag_type];
       Action *a = call_cache->open_write(c, &key, ci, c->pin_in_cache,
-                                         NULL, c->frag_type, hostname, len);
+                                         NULL, c->frag_type, hostname, moi_len);
       if (a != ACTION_RESULT_DONE) {
         c->cache_action = a;
       }
@@ -1606,7 +1603,7 @@ CacheContinuation::setupReadWriteVC(int event, VConnection * vc)
 
         Cache *call_cache = caches[frag_type];
         Action *a = call_cache->open_write(this, &key, 0, pin_in_cache,
-                                           NULL, frag_type, ic_hostname->data(),
+                                           NULL, frag_type, ic_hostname ? ic_hostname->data() : NULL,
                                            ic_hostname_len);
         if (a != ACTION_RESULT_DONE) {
           cache_action = a;
@@ -1784,7 +1781,7 @@ CacheContinuation::replyOpEvent(int event, VConnection * cvc)
   if (vers == CacheOpReplyMsg::CACHE_OP_REPLY_MESSAGE_VERSION) {
     if (read_op) {
       // Transmit reply message and object data in same cluster message
-      Debug("cache_proto", "Sending reply/data seqno=%d buflen=%"PRId64,
+      Debug("cache_proto", "Sending reply/data seqno=%d buflen=%" PRId64,
             seq_number, readahead_data ? bytes_IOBufferBlockList(readahead_data, 1) : 0);
       clusterProcessor.invoke_remote_data(ch,
                                           CACHE_OP_RESULT_CLUSTER_FUNCTION,

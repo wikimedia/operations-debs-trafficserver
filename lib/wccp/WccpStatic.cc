@@ -22,10 +22,18 @@
 
 # include "WccpLocal.h"
 # include "WccpMeta.h"
+# include "ink_error.h"
+
+/* Solaris considers SIOCGIFCONF obsolete and only defines it if
+ * BSD compatibility activated. */
+# if defined(solaris)
+# define BSD_COMP
+# endif
 # include <sys/ioctl.h>
 # include <sys/socket.h>
 # include <net/if.h>
 # include <stdarg.h>
+# include <string.h>
 # include <errno.h>
 # include <stdio.h>
 
@@ -147,7 +155,8 @@ ts::Errata
 log_errno(ts::Errata::Code code, char const* text) {
   static size_t const SIZE = 1024;
   char buffer[SIZE];
-  return logf(code, "%s [%d] %s", text, errno, strerror_r(errno, buffer, SIZE));
+  NOWARN_UNUSED_RETURN(strerror_r(errno, buffer, SIZE));
+  return logf(code, "%s [%d] %s", text, errno, buffer);
 }
 
 ts::Errata
@@ -162,7 +171,7 @@ vlogf_errno(ts::Errata::Code code, char const* format, va_list& rest) {
   
   n = vsnprintf(t_buffer, T_SIZE, format, rest);
   if (0 <= n && n < T_SIZE) { // still have room.
-    strerror_r(e, e_buffer, E_SIZE);
+    NOWARN_UNUSED_RETURN(strerror_r(e, e_buffer, E_SIZE));
     n += snprintf(t_buffer + n, T_SIZE - n, "[%d] %s", e, e_buffer);
   }
   err.push(ts::Errata::Id(0), code, t_buffer);

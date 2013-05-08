@@ -37,12 +37,10 @@ bool alarmAlready = false;
  *   Begin class HostMatcher
  *************************************************************/
 
-CacheHostMatcher::CacheHostMatcher(const char *name, const char *filename, int typ):
+CacheHostMatcher::CacheHostMatcher(const char * name, CacheType typ):
 data_array(NULL),
 array_len(-1),
 num_el(-1),
-matcher_name(name),
-file_name(filename),
 type(typ)
 {
   host_lookup = NEW(new HostLookup(name));
@@ -192,7 +190,7 @@ CacheHostMatcher::NewEntry(matcher_line * line_info)
  *   End class HostMatcher
  *************************************************************/
 
-CacheHostTable::CacheHostTable(Cache * c, int typ)
+CacheHostTable::CacheHostTable(Cache * c, CacheType typ)
 {
 
 
@@ -204,7 +202,7 @@ CacheHostTable::CacheHostTable(Cache * c, int typ)
   matcher_name = "[CacheHosting]";;
   config_file_path[0] = '\0';
   char *config_file = NULL;
-  IOCORE_ReadConfigStringAlloc(config_file, "proxy.config.cache.hosting_filename");
+  REC_ReadConfigStringAlloc(config_file, "proxy.config.cache.hosting_filename");
   ink_release_assert(config_file != NULL);
   Layout::relative_to(config_file_path, sizeof(config_file_path),
                       cache_system_config_directory, config_file);
@@ -312,7 +310,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
       if (errPtr != NULL) {
         snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s",
                  matcher_name, config_file_path, line_num, errPtr);
-        IOCORE_SignalError(errBuf, alarmAlready);
+        REC_SignalError(errBuf, alarmAlready);
         ats_free(current);
       } else {
 
@@ -359,7 +357,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
   }
 
   if (hostDomain > 0) {
-    hostMatch = NEW(new CacheHostMatcher(matcher_name, config_file_path, type));
+    hostMatch = NEW(new CacheHostMatcher(matcher_name, type));
     hostMatch->AllocateSpace(hostDomain);
   }
   // Traverse the list and build the records table
@@ -395,7 +393,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
     } else {
       snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry with unknown type at line %d",
                matcher_name, config_file_path, current->line_num);
-      IOCORE_SignalError(errBuf, alarmAlready);
+      REC_SignalError(errBuf, alarmAlready);
     }
 
     // Deallocate the parsing structure
@@ -409,7 +407,7 @@ CacheHostTable::BuildTableFromString(char *file_buf)
     snprintf(errBuf, sizeof(errBuf),
              "No Volumes specified for Generic Hostnames for %s documents: %s cache will be disabled", cache_type,
              cache_type);
-    IOCORE_SignalError(errBuf, alarmAlready);
+    REC_SignalError(errBuf, alarmAlready);
   }
 
   ink_assert(second_pass == numEntries);
@@ -442,7 +440,7 @@ CacheHostTable::BuildTable()
 }
 
 int
-CacheHostRecord::Init(int typ)
+CacheHostRecord::Init(CacheType typ)
 {
 
   int i, j;
@@ -459,7 +457,7 @@ CacheHostRecord::Init(int typ)
   CacheVol *cachep = cp_list.head;
   for (; cachep; cachep = cachep->link.next) {
     if (cachep->scheme == type) {
-      Debug("cache_hosting", "Host Record: %p, Volume: %d, size: %u", this, cachep->vol_number, cachep->size);
+      Debug("cache_hosting", "Host Record: %p, Volume: %d, size: %" PRId64, this, cachep->vol_number, (int64_t)cachep->size);
       cp[num_cachevols] = cachep;
       num_cachevols++;
       num_vols += cachep->num_vols;
@@ -467,7 +465,7 @@ CacheHostRecord::Init(int typ)
   }
   if (!num_cachevols) {
     snprintf(err, 1024, "error: No volumes found for Cache Type %d\n", type);
-    IOCORE_SignalError(err, alarmAlready);
+    REC_SignalError(err, alarmAlready);
     return -1;
   }
   vols = (Vol **)ats_malloc(num_vols * sizeof(Vol *));
@@ -485,7 +483,7 @@ CacheHostRecord::Init(int typ)
 }
 
 int
-CacheHostRecord::Init(matcher_line * line_info, int typ)
+CacheHostRecord::Init(matcher_line * line_info, CacheType typ)
 {
   int i, j;
   extern Queue<CacheVol> cp_list;
@@ -494,7 +492,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
   int is_vol_present = 0;
   char config_file[PATH_NAME_MAX];
 
-  IOCORE_ReadConfigString(config_file, "proxy.config.cache.hosting_filename", PATH_NAME_MAX);
+  REC_ReadConfigString(config_file, "proxy.config.cache.hosting_filename", PATH_NAME_MAX);
   type = typ;
   for (i = 0; i < MATCHER_MAX_TOKENS; i++) {
     char *label = line_info->line[0][i];
@@ -520,7 +518,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
             snprintf(err, 1024,
                          "%s discarding %s entry at line %d :%s",
                          "[CacheHosting]", config_file, line_info->line_num, errptr);
-            IOCORE_SignalError(err, alarmAlready);
+            REC_SignalError(err, alarmAlready);
             if (val != NULL) {
               ats_free(val);
             }
@@ -531,7 +529,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
           snprintf(err, 1024,
                        "%s discarding %s entry at line %d : bad token [%c]",
                        "[CacheHosting]", config_file, line_info->line_num, *s);
-          IOCORE_SignalError(err, alarmAlready);
+          REC_SignalError(err, alarmAlready);
           if (val != NULL) {
             ats_free(val);
           }
@@ -569,7 +567,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
             snprintf(err, 1024,
                          "%s discarding %s entry at line %d : bad volume number [%d]",
                          "[CacheHosting]", config_file, line_info->line_num, volume_number);
-            IOCORE_SignalError(err, alarmAlready);
+            REC_SignalError(err, alarmAlready);
             if (val != NULL) {
               ats_free(val);
             }
@@ -590,7 +588,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
     snprintf(err, 1024,
                  "%s discarding %s entry at line %d : bad token [%s]",
                  "[CacheHosting]", config_file, line_info->line_num, label);
-    IOCORE_SignalError(err, alarmAlready);
+    REC_SignalError(err, alarmAlready);
     return -1;
   }
 
@@ -598,7 +596,7 @@ CacheHostRecord::Init(matcher_line * line_info, int typ)
     snprintf(err, 1024,
                  "%s discarding %s entry at line %d : No volumes specified",
                  "[CacheHosting]", config_file, line_info->line_num);
-    IOCORE_SignalError(err, alarmAlready);
+    REC_SignalError(err, alarmAlready);
     return -1;
   }
 
@@ -643,7 +641,7 @@ ConfigVolumes::read_config_file()
   char *config_file = NULL;
   config_file_path[0] = '\0';
 
-  IOCORE_ReadConfigStringAlloc(config_file, "proxy.config.cache.volume_filename");
+  REC_ReadConfigStringAlloc(config_file, "proxy.config.cache.volume_filename");
   ink_release_assert(config_file != NULL);
   Layout::relative_to(config_file_path, sizeof(config_file_path),
                       cache_system_config_directory, config_file);
@@ -686,7 +684,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
   int state = 0;                //changed by YTS Team, yamsat for bug id 59632
   int manager_alarmed = false;
   int volume_number = 0;
-  int scheme = CACHE_NONE_TYPE;
+  CacheType scheme = CACHE_NONE_TYPE;
   int size = 0;
   int in_percent = 0;
   const char *matcher_name = "[CacheVolition]";
@@ -745,7 +743,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
         if (!(*tmp)) {
           snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : Unexpected end of line",
                    matcher_name, config_file_path, line_num);
-          IOCORE_SignalError(errBuf, manager_alarmed);
+          REC_SignalError(errBuf, manager_alarmed);
 
           break;
         }
@@ -789,7 +787,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
 
           snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s [%d]",
                    matcher_name, config_file_path, line_num, err, volume_number);
-          IOCORE_SignalError(errBuf, manager_alarmed);
+          REC_SignalError(errBuf, manager_alarmed);
           state = INK_ERROR;
           break;
         }
@@ -841,7 +839,7 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
             if (state == INK_ERROR_VOLUME || *tmp) {
               snprintf(errBuf, sizeof(errBuf),
                        "Total volume size added upto more than 100 percent,No volumes created");
-              IOCORE_SignalError(errBuf, manager_alarmed);
+              REC_SignalError(errBuf, manager_alarmed);
               break;
             }
           }
@@ -858,14 +856,14 @@ ConfigVolumes::BuildListFromString(char *config_file_path, char *file_buf)
       if (state == INK_ERROR || *tmp) {
         snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : Invalid token [%s]",
                  matcher_name, config_file_path, line_num, tmp);
-        IOCORE_SignalError(errBuf, manager_alarmed);
+        REC_SignalError(errBuf, manager_alarmed);
 
         break;
       }
       //added by YTS Team, yamsat for bug id 59632
       if (state == INK_ERROR_VOLUME || *tmp) {
         snprintf(errBuf, sizeof(errBuf), "Total volume size added upto more than 100 percent,No volumes created");
-        IOCORE_SignalError(errBuf, manager_alarmed);
+        REC_SignalError(errBuf, manager_alarmed);
         break;
       }
       // ends here
@@ -1035,7 +1033,7 @@ create_config(RegressionTest * t, int num)
 
         off_t random_size = (gen->random() % modu) + 1;
         /* convert to 128 megs multiple */
-        int scheme = (random_size % 2) ? CACHE_HTTP_TYPE : CACHE_RTSP_TYPE;
+        CacheType scheme = (random_size % 2) ? CACHE_HTTP_TYPE : CACHE_RTSP_TYPE;
         random_size = ROUND_TO_VOL_SIZE(random_size);
         off_t blocks = random_size / STORE_BLOCK_SIZE;
         ink_assert(blocks <= (int) total_space);
@@ -1148,10 +1146,10 @@ execute_and_verify(RegressionTest * t)
             i, d->header->num_diskvol_blks, d->free_space);
       for (int j = 0; j < (int) d->header->num_volumes; j++) {
 
-        Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+        Debug("cache_hosting", "\tVol: %d Size: %" PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
       }
       for (int j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-        Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
+        Debug("cache_hosting", "\tBlock No: %d Size: %" PRIu64" Free: %u",
               d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
       }
     }

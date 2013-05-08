@@ -67,7 +67,7 @@ HttpServerSession::new_connection(NetVConnection *new_vc)
   mutex = new_vc->mutex;
 
   // Unique client session identifier.
-  con_id = ink_atomic_increment64((int64_t *) (&next_ss_id), 1);
+  con_id = ink_atomic_increment((int64_t *) (&next_ss_id), 1);
 
   magic = HTTP_SS_MAGIC_ALIVE;
   HTTP_SUM_GLOBAL_DYN_STAT(http_current_server_connections_stat, 1); // Update the true global stat
@@ -170,18 +170,5 @@ HttpServerSession::release()
     return;
   }
 
-  HSMresult_t r = httpSessionManager.release_session(this);
-  
-
-  if (r == HSM_RETRY) {
-    // Session could not be put in the session manager
-    //  due to lock contention
-    // FIX:  should retry instead of closing
-    this->do_io_close();
-  } else {
-    // The session was successfully put into the session
-    //    manager and it will manage it
-    // (Note: should never get HSM_NOT_FOUND here)
-    ink_assert(r == HSM_DONE);
-  }
+  httpSessionManager.release_session(this);
 }

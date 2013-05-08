@@ -99,8 +99,9 @@ SrcLoc::str(char *buf, int buflen)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-Diags::Diags(char *bdt, char *bat, FILE * _diags_log_fp):
-diags_log_fp(_diags_log_fp), show_location(0)
+Diags::Diags(const char *bdt, const char *bat, FILE * _diags_log_fp)
+  : diags_log_fp(_diags_log_fp), show_location(0),
+    base_debug_tags(NULL), base_action_tags(NULL)
 {
   int i;
 
@@ -112,8 +113,6 @@ diags_log_fp(_diags_log_fp), show_location(0)
   // initialize the default, base debugging/action tags //
   ////////////////////////////////////////////////////////
 
-  base_debug_tags = NULL;
-  base_action_tags = NULL;
   if (bdt && *bdt) {
     base_debug_tags = ats_strdup(bdt);
   }
@@ -126,9 +125,9 @@ diags_log_fp(_diags_log_fp), show_location(0)
   diags_on_for_plugins = config.enabled[DiagsTagType_Debug];
 
   for (i = 0; i < DiagsLevel_Count; i++) {
-    config.outputs[i].to_stdout = true;
+    config.outputs[i].to_stdout = false;
     config.outputs[i].to_stderr = false;
-    config.outputs[i].to_syslog = true;
+    config.outputs[i].to_syslog = false;
     config.outputs[i].to_diagslog = true;
   }
 
@@ -146,8 +145,8 @@ Diags::~Diags()
 {
   diags_log_fp = NULL;
 
-  ats_free(base_debug_tags);
-  ats_free(base_action_tags);
+  ats_free((void *)base_debug_tags);
+  ats_free((void *)base_action_tags);
 
   deactivate_all(DiagsTagType_Debug);
   deactivate_all(DiagsTagType_Action);
@@ -406,7 +405,7 @@ Diags::tag_activated(const char *tag, DiagsTagType mode)
 //////////////////////////////////////////////////////////////////////////////
 
 void
-Diags::activate_taglist(char *taglist, DiagsTagType mode)
+Diags::activate_taglist(const char *taglist, DiagsTagType mode)
 {
   if (taglist) {
     lock();

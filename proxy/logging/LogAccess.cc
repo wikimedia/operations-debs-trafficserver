@@ -378,16 +378,19 @@ int
 LogAccess::marshal_proxy_host_name(char *buf)
 {
   char *str = NULL;
+  int len = 0;
   Machine *machine = Machine::instance();
 
   if (machine) {
     str = machine->hostname;
+    len = LogAccess::strlen(str);
+
+    if (buf) {
+      marshal_str(buf, str, len);
+      return len;
+    }
   }
-  int len = LogAccess::strlen(str);
-  if (buf) {
-    marshal_str(buf, str, len);
-  }
-  return len;
+  return 0;
 }
 
 /*-------------------------------------------------------------------------
@@ -658,11 +661,6 @@ LogAccess::marshal_record(char *record, char *buf)
 #define LOG_FLOAT   RECD_FLOAT
 #define LOG_STRING  RECD_STRING
 
-  typedef RecInt LogInt;
-  typedef RecCounter LogCounter;
-  typedef RecFloat LogFloat;
-  typedef RecString LogString;
-
   RecDataT stype = RECD_NULL;
   bool found = false;
 
@@ -676,7 +674,7 @@ LogAccess::marshal_record(char *record, char *buf)
       // conversion below, if this ever changes we should modify
       // accordingly
       //
-      ink_debug_assert(sizeof(int64_t) >= sizeof(LogInt) && sizeof(int64_t) >= sizeof(LogCounter));
+      ink_debug_assert(sizeof(int64_t) >= sizeof(RecInt) && sizeof(int64_t) >= sizeof(RecCounter));
 
       // so that a 64 bit integer will fit (including sign and eos)
       //
@@ -697,9 +695,9 @@ LogAccess::marshal_record(char *record, char *buf)
       // (the conversion itself assumes a double because of the %e)
       // if this ever changes we should modify accordingly
       //
-      ink_debug_assert(sizeof(double) >= sizeof(LogFloat));
+      ink_debug_assert(sizeof(double) >= sizeof(RecFloat));
 
-      LogFloat val = REC_readFloat(record, &found);
+      RecFloat val = REC_readFloat(record, &found);
 
       if (found) {
         // snprintf does not support "%e" in the format

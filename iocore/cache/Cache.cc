@@ -79,6 +79,9 @@ int cache_config_alt_rewrite_max_size = 4096;
 int cache_config_read_while_writer = 0;
 char cache_system_config_directory[PATH_NAME_MAX + 1];
 int cache_config_mutex_retry_delay = 2;
+#ifdef HTTP_CACHE
+static int enable_cache_empty_http_doc = 0;
+#endif
 
 // Globals
 
@@ -146,6 +149,51 @@ struct VolInitInfo
   }
 };
 
+#if AIO_MODE == AIO_MODE_NATIVE
+struct VolInit : public Continuation
+{
+  Vol *vol;
+  char *path;
+  off_t blocks;
+  int64_t offset;
+  bool vol_clear;
+
+  int mainEvent(int event, Event *e) {
+    vol->init(path, blocks, offset, vol_clear);
+    mutex.clear();
+    delete this;
+    return EVENT_DONE;
+  }
+
+  VolInit(Vol *v, char *p, off_t b, int64_t o, bool c) : Continuation(v->mutex),
+    vol(v), path(p), blocks(b), offset(o), vol_clear(c) {
+    SET_HANDLER(&VolInit::mainEvent);
+  }
+};
+
+struct DiskInit : public Continuation
+{
+  CacheDisk *disk;
+  char *s;
+  off_t blocks;
+  off_t askip;
+  int ahw_sector_size;
+  int fildes;
+  bool clear;
+
+  int mainEvent(int event, Event *e) {
+    disk->open(s, blocks, askip, ahw_sector_size, fildes, clear);
+    mutex.clear();
+    delete this;
+    return EVENT_DONE;
+  }
+
+  DiskInit(CacheDisk *d, char *str, off_t b, off_t skip, int sector, int f, bool c) : Continuation(d->mutex),
+      disk(d), s(str), blocks(b), askip(skip), ahw_sector_size(sector), fildes(f), clear(c) {
+    SET_HANDLER(&DiskInit::mainEvent);
+  }
+};
+#endif
 void cplist_init();
 static void cplist_update();
 int cplist_reconfigure();
@@ -176,7 +224,7 @@ cache_bytes_used(int volume)
     start = volume - 1;
     end = volume;
   }
-  
+
   for (int i = start; i < end; i++) {
     if (!DISK_BAD(gvol[i]->disk)) {
       if (!gvol[i]->header->cycle)
@@ -214,7 +262,7 @@ validate_rww(int new_value)
   if (new_value) {
     float http_bg_fill;
 
-    IOCORE_ReadConfigFloat(http_bg_fill, "proxy.config.http.background_fill_completed_threshold");
+    REC_ReadConfigFloat(http_bg_fill, "proxy.config.http.background_fill_completed_threshold");
     if (http_bg_fill > 0.0) {
       Note("to enable reading while writing a document, %s should be 0.0: read while writing disabled",
            "proxy.config.http.background_fill_completed_threshold");
@@ -251,6 +299,13 @@ CacheVC::CacheVC():alternate_index(CACHE_ALT_INDEX_DEFAULT)
   //coverity[uninit_member]
 }
 
+HTTPInfo::FragOffset*
+CacheVC::get_frag_table()
+{
+  ink_debug_assert(alternate.valid());
+  return alternate.valid() ? alternate.get_frag_table() : 0;
+}
+
 VIO *
 CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
 {
@@ -260,7 +315,9 @@ CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
   vio.ndone = 0;
   vio.nbytes = nbytes;
   vio.vc_server = this;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -277,7 +334,9 @@ CacheVC::do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *abuf, int64_t o
   vio.nbytes = nbytes;
   vio.vc_server = this;
   seek_to = offset;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -293,7 +352,9 @@ CacheVC::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuf, bool
   vio.ndone = 0;
   vio.nbytes = nbytes;
   vio.vc_server = this;
+#ifdef DEBUG
   ink_assert(c->mutex->thread_holding);
+#endif
   if (!trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
@@ -315,7 +376,9 @@ CacheVC::reenable(VIO *avio)
 {
   DDebug("cache_reenable", "reenable %p", this);
   (void) avio;
+#ifdef DEBUG
   ink_assert(avio->mutex->thread_holding);
+#endif
   if (!trigger) {
 #ifndef USELESS_REENABLES
     if (vio.op == VIO::READ) {
@@ -333,7 +396,9 @@ CacheVC::reenable_re(VIO *avio)
 {
   DDebug("cache_reenable", "reenable_re %p", this);
   (void) avio;
+#ifdef DEBUG
   ink_assert(avio->mutex->thread_holding);
+#endif
   if (!trigger) {
     if (!is_io_in_progress() && !recursive) {
       handleEvent(EVENT_NONE, (void *) 0);
@@ -396,6 +461,14 @@ CacheVC::set_http_info(CacheHTTPInfo *ainfo)
     ainfo->object_key_set(earliest_key);
     // don't know the total len yet
   }
+  if (enable_cache_empty_http_doc) {
+    MIMEField *field = ainfo->m_alt->m_response_hdr.field_find(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
+    if (field && !field->value_get_int64()) 
+      f.allow_empty_doc = 1;
+    else
+      f.allow_empty_doc = 0;
+  } else 
+    f.allow_empty_doc = 0;
   alternate.copy_shallow(ainfo);
   ainfo->clear();
 }
@@ -513,6 +586,16 @@ CacheProcessor::start_internal(int flags)
   verify_cache_api();
 #endif
 
+#if AIO_MODE == AIO_MODE_NATIVE
+  int etype = ET_NET;
+  int n_netthreads = eventProcessor.n_threads_for_type[etype];
+  EThread **netthreads = eventProcessor.eventthread[etype];
+  for (int i = 0; i < n_netthreads; ++i) {
+    netthreads[i]->diskHandler = new DiskHandler();
+    netthreads[i]->schedule_imm(netthreads[i]->diskHandler);
+  }
+#endif
+
   start_internal_flags = flags;
   clear = !!(flags & PROCESSOR_RECONFIGURE) || auto_clear_flag;
   fix = !!(flags & PROCESSOR_FIX);
@@ -576,7 +659,11 @@ CacheProcessor::start_internal(int flags)
         }
         off_t skip = ROUND_TO_STORE_BLOCK((sd->offset < START_POS ? START_POS + sd->alignment : sd->offset));
         blocks = blocks - ROUND_TO_STORE_BLOCK(sd->offset + skip);
+#if AIO_MODE == AIO_MODE_NATIVE
+        eventProcessor.schedule_imm(NEW(new DiskInit(gdisks[gndisks], path, blocks, skip, sector_size, fd, clear)));
+#else
         gdisks[gndisks]->open(path, blocks, skip, sector_size, fd, clear);
+#endif
         gndisks++;
       }
     } else {
@@ -671,10 +758,10 @@ CacheProcessor::diskInitialized()
         Debug("cache_hosting", "Disk: %d: Vol Blocks: %u: Free space: %" PRIu64,
               i, d->header->num_diskvol_blks, d->free_space);
         for (j = 0; j < (int) d->header->num_volumes; j++) {
-          Debug("cache_hosting", "\tVol: %d Size: %"PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
+          Debug("cache_hosting", "\tVol: %d Size: %" PRIu64, d->disk_vols[j]->vol_number, d->disk_vols[j]->size);
         }
         for (j = 0; j < (int) d->header->num_diskvol_blks; j++) {
-          Debug("cache_hosting", "\tBlock No: %d Size: %"PRIu64" Free: %u",
+          Debug("cache_hosting", "\tBlock No: %d Size: %" PRIu64" Free: %u",
                 d->header->vol_info[j].number, d->header->vol_info[j].len, d->header->vol_info[j].free);
         }
       }
@@ -860,7 +947,7 @@ CacheProcessor::cacheInitialized()
       switch (cache_config_ram_cache_compress) {
         default:
           Fatal("unknown RAM cache compression type: %d", cache_config_ram_cache_compress);
-        case CACHE_COMPRESSION_NONE: 
+        case CACHE_COMPRESSION_NONE:
         case CACHE_COMPRESSION_FASTLZ:
           break;
         case CACHE_COMPRESSION_LIBZ:
@@ -1057,6 +1144,8 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
   evacuate = (DLL<EvacuationBlock> *)ats_malloc(evac_len);
   memset(evacuate, 0, evac_len);
 
+  Debug("cache_init", "allocating %zu directory bytes for a %lld byte volume (%lf%%)",
+    vol_dirlen(this), (long long)this->len, (double)vol_dirlen(this) / (double)this->len * 100.0);
   raw_dir = (char *)ats_memalign(sysconf(_SC_PAGESIZE), vol_dirlen(this));
   dir = (Dir *) (raw_dir + vol_headerlen(this));
   header = (VolHeaderFooter *) raw_dir;
@@ -1087,11 +1176,14 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
     aio->aiocb.aio_buf = &(init_info->vol_h_f[i * STORE_BLOCK_SIZE]);
     aio->aiocb.aio_nbytes = footerlen;
     aio->action = this;
-    aio->thread = this_ethread();
+    aio->thread = AIO_CALLBACK_THREAD_ANY;
     aio->then = (i < 3) ? &(init_info->vol_aio[i + 1]) : 0;
   }
-
-  eventProcessor.schedule_imm(this, ET_CALL);
+#if AIO_MODE == AIO_MODE_NATIVE
+  ink_assert(ink_aio_readv(init_info->vol_aio));
+#else
+  ink_assert(ink_aio_read(init_info->vol_aio));
+#endif
   return 0;
 }
 
@@ -1421,7 +1513,11 @@ Ldone:{
     init_info->vol_aio[2].aiocb.aio_offset = ss + dirlen - footerlen;
 
     SET_HANDLER(&Vol::handle_recover_write_dir);
+#if AIO_MODE == AIO_MODE_NATIVE
+    ink_assert(ink_aio_writev(init_info->vol_aio));
+#else
     ink_assert(ink_aio_write(init_info->vol_aio));
+#endif
     return EVENT_CONT;
   }
 
@@ -1455,11 +1551,6 @@ Vol::handle_header_read(int event, void *data)
   AIOCallback *op;
   VolHeaderFooter *hf[4];
   switch (event) {
-  case EVENT_IMMEDIATE:
-  case EVENT_INTERVAL:
-    ink_assert(ink_aio_read(init_info->vol_aio));
-    return EVENT_CONT;
-
   case AIO_EVENT_DONE:
     op = (AIOCallback *) data;
     for (int i = 0; i < 4; i++) {
@@ -1501,8 +1592,9 @@ Vol::handle_header_read(int event, void *data)
       delete init_info;
       init_info = 0;
     }
-
     return EVENT_DONE;
+  default:
+    ink_assert(!"not reach here");
   }
   return EVENT_DONE;
 }
@@ -1674,13 +1766,13 @@ AIO_Callback_handler::handle_disk_failure(int event, void *data) {
         char message[128];
         snprintf(message, sizeof(message), "Error accessing Disk %s", d->path);
         Warning("%s", message);
-        IOCORE_SignalManager(REC_SIGNAL_CACHE_WARNING, message);
+        REC_SignalManager(REC_SIGNAL_CACHE_WARNING, message);
       } else if (!DISK_BAD_SIGNALLED(d)) {
 
         char message[128];
         snprintf(message, sizeof(message), "too many errors accessing disk %s: declaring disk bad", d->path);
         Warning("%s", message);
-        IOCORE_SignalManager(REC_SIGNAL_CACHE_ERROR, message);
+        REC_SignalManager(REC_SIGNAL_CACHE_ERROR, message);
         /* subtract the disk space that was being used from  the cache size stat */
         // dir entries stat
         int p;
@@ -1775,7 +1867,7 @@ Cache::open(bool clear, bool fix) {
   total_nvol = 0;
   total_good_nvol = 0;
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_min_average_object_size, "proxy.config.cache.min_average_object_size");
+  REC_EstablishStaticConfigInt32(cache_config_min_average_object_size, "proxy.config.cache.min_average_object_size");
   Debug("cache_init", "Cache::open - proxy.config.cache.min_average_object_size = %d",
         (int)cache_config_min_average_object_size);
 
@@ -1797,7 +1889,11 @@ Cache::open(bool clear, bool fix) {
             blocks = q->b->len;
 
             bool vol_clear = clear || d->cleared || q->new_block;
+#if AIO_MODE == AIO_MODE_NATIVE
+            eventProcessor.schedule_imm(NEW(new VolInit(cp->vols[vol_no], d->path, blocks, q->b->offset, vol_clear)));
+#else
             cp->vols[vol_no]->init(d->path, blocks, q->b->offset, vol_clear);
+#endif
             vol_no++;
             cache_size += blocks;
           }
@@ -1823,6 +1919,12 @@ CacheVC::dead(int event, Event *e) {
   NOWARN_UNUSED(event);
   ink_assert(0);
   return EVENT_DONE;
+}
+
+bool
+CacheVC::is_pread_capable()
+{
+  return !f.read_from_writer_called;
 }
 
 #define STORE_COLLISION 1
@@ -1885,11 +1987,8 @@ CacheVC::handleReadDone(int event, Event *e) {
     if (is_debug_tag_set("cache_read")) {
       char xt[33];
       Debug("cache_read"
-            , "Read fragment %s Length %d/%d/%"PRId64"[pre=%d] vc=%s doc=%s %d frags"
+            , "Read complete on fragment %s. Length: data payload=%d this fragment=%d total doc=%" PRId64" prefix=%d"
             , doc->key.toHexStr(xt), doc->data_len(), doc->len, doc->total_len, doc->prefix_len()
-            , f.single_fragment ? "single" : "multi"
-            , doc->single_fragment() ? "single" : "multi"
-            , doc->nfrags()
         );
     }
 
@@ -1908,7 +2007,7 @@ CacheVC::handleReadDone(int event, Event *e) {
         if (checksum != doc->checksum) {
           Note("cache: checksum error for [%" PRIu64 " %" PRIu64 "] len %d, hlen %d, disk %s, offset %" PRIu64 " size %zu",
                doc->first_key.b[0], doc->first_key.b[1],
-               doc->len, doc->hlen, vol->path, io.aiocb.aio_offset, io.aiocb.aio_nbytes);
+               doc->len, doc->hlen, vol->path, io.aiocb.aio_offset, (size_t)io.aiocb.aio_nbytes);
           doc->magic = DOC_CORRUPT;
           okay = 0;
         }
@@ -1971,7 +2070,8 @@ CacheVC::handleRead(int event, Event *e)
 
   // check ram cache
   ink_debug_assert(vol->mutex->thread_holding == this_ethread());
-  if (vol->ram_cache->get(read_key, &buf, 0, dir_offset(&dir)))
+  int64_t o = dir_offset(&dir);
+  if (vol->ram_cache->get(read_key, &buf, (uint32_t)(o >> 32), (uint32_t)o))
     goto LramHit;
 
   // check if it was read in the last open_read call
@@ -2156,7 +2256,7 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type,
 
   ink_assert(this);
 
-  ProxyMutexPtr mutex = NULL;
+  Ptr<ProxyMutex> mutex = NULL;
   if (!cont)
     cont = new_CacheRemoveCont();
 
@@ -2241,7 +2341,7 @@ cplist_update()
     ConfigVol *config_vol = config_volumes.cp_queue.head;
     for (; config_vol; config_vol = config_vol->link.next) {
       if (config_vol->number == cp->vol_number) {
-        int size_in_blocks = config_vol->size << (20 - STORE_BLOCK_SHIFT);
+        off_t size_in_blocks = config_vol->size << (20 - STORE_BLOCK_SHIFT);
         if ((cp->size <= size_in_blocks) && (cp->scheme == config_vol->scheme)) {
           config_vol->cachep = cp;
         } else {
@@ -2357,11 +2457,11 @@ cplist_reconfigure()
         percent_remaining -= (config_vol->size < 128) ? 0 : config_vol->percent;
       }
       if (config_vol->size < 128) {
-        Warning("the size of volume %d (%"PRId64") is less than the minimum required volume size %d",
+        Warning("the size of volume %d (%" PRId64") is less than the minimum required volume size %d",
                 config_vol->number, (int64_t)config_vol->size, 128);
         Warning("volume %d is not created", config_vol->number);
       }
-      Debug("cache_hosting", "Volume: %d Size: %"PRId64, config_vol->number, (int64_t)config_vol->size);
+      Debug("cache_hosting", "Volume: %d Size: %" PRId64, config_vol->number, (int64_t)config_vol->size);
     }
     cplist_update();
     /* go through volume config and grow and create volumes */
@@ -2502,7 +2602,7 @@ create_volume(int volume_number, off_t size_in_blocks, int scheme, CacheVol *cp)
       full_disks += 1;
       if (full_disks == gndisks) {
         char config_file[PATH_NAME_MAX];
-        IOCORE_ReadConfigString(config_file, "proxy.config.cache.volume_filename", PATH_NAME_MAX);
+        REC_ReadConfigString(config_file, "proxy.config.cache.volume_filename", PATH_NAME_MAX);
         if (cp->size)
           Warning("not enough space to increase volume: [%d] to size: [%" PRId64 "]",
                   volume_number, (int64_t)((to_create + cp->size) >> (20 - STORE_BLOCK_SHIFT)));
@@ -2654,44 +2754,44 @@ ink_cache_init(ModuleVersion v)
 
   cache_rsb = RecAllocateRawStatBlock((int) cache_stat_count);
 
-  IOCORE_EstablishStaticConfigInteger(cache_config_ram_cache_size, "proxy.config.cache.ram_cache.size");
+  REC_EstablishStaticConfigInteger(cache_config_ram_cache_size, "proxy.config.cache.ram_cache.size");
   Debug("cache_init", "proxy.config.cache.ram_cache.size = %" PRId64 " = %" PRId64 "Mb",
         cache_config_ram_cache_size, cache_config_ram_cache_size / (1024 * 1024));
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_algorithm, "proxy.config.cache.ram_cache.algorithm");
-  IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_compress, "proxy.config.cache.ram_cache.compress");
-  IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_compress_percent, "proxy.config.cache.ram_cache.compress_percent");
-  IOCORE_EstablishStaticConfigInt32(cache_config_ram_cache_use_seen_filter, "proxy.config.cache.ram_cache.use_seen_filter");
+  REC_EstablishStaticConfigInt32(cache_config_ram_cache_algorithm, "proxy.config.cache.ram_cache.algorithm");
+  REC_EstablishStaticConfigInt32(cache_config_ram_cache_compress, "proxy.config.cache.ram_cache.compress");
+  REC_EstablishStaticConfigInt32(cache_config_ram_cache_compress_percent, "proxy.config.cache.ram_cache.compress_percent");
+  REC_EstablishStaticConfigInt32(cache_config_ram_cache_use_seen_filter, "proxy.config.cache.ram_cache.use_seen_filter");
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_http_max_alts, "proxy.config.cache.limits.http.max_alts");
+  REC_EstablishStaticConfigInt32(cache_config_http_max_alts, "proxy.config.cache.limits.http.max_alts");
   Debug("cache_init", "proxy.config.cache.limits.http.max_alts = %d", cache_config_http_max_alts);
 
-  IOCORE_EstablishStaticConfigInteger(cache_config_ram_cache_cutoff, "proxy.config.cache.ram_cache_cutoff");
+  REC_EstablishStaticConfigInteger(cache_config_ram_cache_cutoff, "proxy.config.cache.ram_cache_cutoff");
   Debug("cache_init", "cache_config_ram_cache_cutoff = %" PRId64 " = %" PRId64 "Mb",
         cache_config_ram_cache_cutoff, cache_config_ram_cache_cutoff / (1024 * 1024));
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_permit_pinning, "proxy.config.cache.permit.pinning");
+  REC_EstablishStaticConfigInt32(cache_config_permit_pinning, "proxy.config.cache.permit.pinning");
   Debug("cache_init", "proxy.config.cache.permit.pinning = %d", cache_config_permit_pinning);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_dir_sync_frequency, "proxy.config.cache.dir.sync_frequency");
+  REC_EstablishStaticConfigInt32(cache_config_dir_sync_frequency, "proxy.config.cache.dir.sync_frequency");
   Debug("cache_init", "proxy.config.cache.dir.sync_frequency = %d", cache_config_dir_sync_frequency);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_vary_on_user_agent, "proxy.config.cache.vary_on_user_agent");
+  REC_EstablishStaticConfigInt32(cache_config_vary_on_user_agent, "proxy.config.cache.vary_on_user_agent");
   Debug("cache_init", "proxy.config.cache.vary_on_user_agent = %d", cache_config_vary_on_user_agent);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_select_alternate, "proxy.config.cache.select_alternate");
+  REC_EstablishStaticConfigInt32(cache_config_select_alternate, "proxy.config.cache.select_alternate");
   Debug("cache_init", "proxy.config.cache.select_alternate = %d", cache_config_select_alternate);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_max_doc_size, "proxy.config.cache.max_doc_size");
+  REC_EstablishStaticConfigInt32(cache_config_max_doc_size, "proxy.config.cache.max_doc_size");
   Debug("cache_init", "proxy.config.cache.max_doc_size = %d = %dMb",
         cache_config_max_doc_size, cache_config_max_doc_size / (1024 * 1024));
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_mutex_retry_delay, "proxy.config.cache.mutex_retry_delay");
+  REC_EstablishStaticConfigInt32(cache_config_mutex_retry_delay, "proxy.config.cache.mutex_retry_delay");
   Debug("cache_init", "proxy.config.cache.mutex_retry_delay = %dms", cache_config_mutex_retry_delay);
 
   // This is just here to make sure IOCORE "standalone" works, it's usually configured in RecordsConfig.cc
-  IOCORE_RegisterConfigString(RECT_CONFIG, "proxy.config.config_dir", TS_BUILD_SYSCONFDIR, RECU_DYNAMIC, RECC_NULL, NULL);
-  IOCORE_ReadConfigString(cache_system_config_directory, "proxy.config.config_dir", PATH_NAME_MAX);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.config_dir", TS_BUILD_SYSCONFDIR, RECU_DYNAMIC, RECC_NULL, NULL);
+  REC_ReadConfigString(cache_system_config_directory, "proxy.config.config_dir", PATH_NAME_MAX);
   if (cache_system_config_directory[0] != '/') {
     // Not an absolute path so use system one
     Layout::get()->relative(cache_system_config_directory, sizeof(cache_system_config_directory), cache_system_config_directory);
@@ -2710,15 +2810,15 @@ ink_cache_init(ModuleVersion v)
   }
   // TODO: These are left here, since they are only registered if HIT_EVACUATE is enabled.
 #ifdef HIT_EVACUATE
-  IOCORE_EstablishStaticConfigInt32(cache_config_hit_evacuate_percent, "proxy.config.cache.hit_evacuate_percent");
+  REC_EstablishStaticConfigInt32(cache_config_hit_evacuate_percent, "proxy.config.cache.hit_evacuate_percent");
   Debug("cache_init", "proxy.config.cache.hit_evacuate_percent = %d", cache_config_hit_evacuate_percent);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_hit_evacuate_size_limit, "proxy.config.cache.hit_evacuate_size_limit");
+  REC_EstablishStaticConfigInt32(cache_config_hit_evacuate_size_limit, "proxy.config.cache.hit_evacuate_size_limit");
   Debug("cache_init", "proxy.config.cache.hit_evacuate_size_limit = %d", cache_config_hit_evacuate_size_limit);
 #endif
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_force_sector_size, "proxy.config.cache.force_sector_size");
-  IOCORE_EstablishStaticConfigInt32(cache_config_target_fragment_size, "proxy.config.cache.target_fragment_size");
+  REC_EstablishStaticConfigInt32(cache_config_force_sector_size, "proxy.config.cache.force_sector_size");
+  REC_EstablishStaticConfigInt32(cache_config_target_fragment_size, "proxy.config.cache.target_fragment_size");
 
   if (cache_config_target_fragment_size == 0)
     cache_config_target_fragment_size = DEFAULT_TARGET_FRAGMENT_SIZE;
@@ -2728,25 +2828,26 @@ ink_cache_init(ModuleVersion v)
 
   //  # 0 - MD5 hash
   //  # 1 - MMH hash
-  IOCORE_EstablishStaticConfigInt32(url_hash_method, "proxy.config.cache.url_hash_method");
+  REC_EstablishStaticConfigInt32(url_hash_method, "proxy.config.cache.url_hash_method");
   Debug("cache_init", "proxy.config.cache.url_hash_method = %d", url_hash_method);
+  REC_EstablishStaticConfigInt32(enable_cache_empty_http_doc, "proxy.config.http.cache.allow_empty_doc");
 #endif
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_max_disk_errors, "proxy.config.cache.max_disk_errors");
+  REC_EstablishStaticConfigInt32(cache_config_max_disk_errors, "proxy.config.cache.max_disk_errors");
   Debug("cache_init", "proxy.config.cache.max_disk_errors = %d", cache_config_max_disk_errors);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_agg_write_backlog, "proxy.config.cache.agg_write_backlog");
+  REC_EstablishStaticConfigInt32(cache_config_agg_write_backlog, "proxy.config.cache.agg_write_backlog");
   Debug("cache_init", "proxy.config.cache.agg_write_backlog = %d", cache_config_agg_write_backlog);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_enable_checksum, "proxy.config.cache.enable_checksum");
+  REC_EstablishStaticConfigInt32(cache_config_enable_checksum, "proxy.config.cache.enable_checksum");
   Debug("cache_init", "proxy.config.cache.enable_checksum = %d", cache_config_enable_checksum);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_alt_rewrite_max_size, "proxy.config.cache.alt_rewrite_max_size");
+  REC_EstablishStaticConfigInt32(cache_config_alt_rewrite_max_size, "proxy.config.cache.alt_rewrite_max_size");
   Debug("cache_init", "proxy.config.cache.alt_rewrite_max_size = %d", cache_config_alt_rewrite_max_size);
 
-  IOCORE_EstablishStaticConfigInt32(cache_config_read_while_writer, "proxy.config.cache.enable_read_while_writer");
+  REC_EstablishStaticConfigInt32(cache_config_read_while_writer, "proxy.config.cache.enable_read_while_writer");
   cache_config_read_while_writer = validate_rww(cache_config_read_while_writer);
-  IOCORE_RegisterConfigUpdateFunc("proxy.config.cache.enable_read_while_writer", update_cache_config, NULL);
+  REC_RegisterConfigUpdateFunc("proxy.config.cache.enable_read_while_writer", update_cache_config, NULL);
   Debug("cache_init", "proxy.config.cache.enable_read_while_writer = %d", cache_config_read_while_writer);
 
   register_cache_stats(cache_rsb, "proxy.process.cache");
@@ -2761,7 +2862,7 @@ ink_cache_init(ModuleVersion v)
   if (theCacheStore.n_disks == 0) {
     char p[PATH_NAME_MAX + 1];
     snprintf(p, sizeof(p), "%s/", cache_system_config_directory);
-    IOCORE_ReadConfigString(p + strlen(p), "proxy.config.cache.storage_filename", PATH_NAME_MAX - strlen(p) - 1);
+    REC_ReadConfigString(p + strlen(p), "proxy.config.cache.storage_filename", PATH_NAME_MAX - strlen(p) - 1);
     if (p[strlen(p) - 1] == '/' || p[strlen(p) - 1] == '\\') {
       ink_strlcat(p, "storage.config", sizeof(p));
     }
@@ -2773,11 +2874,11 @@ ink_cache_init(ModuleVersion v)
 #ifdef NON_MODULAR
 //----------------------------------------------------------------------------
 Action *
-CacheProcessor::open_read(Continuation *cont, URL *url, CacheHTTPHdr *request,
+CacheProcessor::open_read(Continuation *cont, URL *url, bool cluster_cache_local, CacheHTTPHdr *request,
                           CacheLookupHttpConfig *params, time_t pin_in_cache, CacheFragType type)
 {
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     return open_read_internal(CACHE_OPEN_READ_LONG, cont, (MIOBuffer *) 0,
                               url, request, params, (CacheKey *) 0, pin_in_cache, type, (char *) 0, 0);
   }
@@ -2788,11 +2889,11 @@ CacheProcessor::open_read(Continuation *cont, URL *url, CacheHTTPHdr *request,
 
 //----------------------------------------------------------------------------
 Action *
-CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url,
+CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url, bool cluster_cache_local,
                            CacheHTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache, CacheFragType type)
 {
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     INK_MD5 url_md5;
     Cache::generate_key(&url_md5, url, request);
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(url_md5));
@@ -2815,7 +2916,7 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url,
 // Note: this should not be called from from the cluster processor, or bad
 // recursion could occur. This is merely a convenience wrapper.
 Action *
-CacheProcessor::remove(Continuation *cont, URL *url, CacheFragType frag_type)
+CacheProcessor::remove(Continuation *cont, URL *url, bool cluster_cache_local, CacheFragType frag_type)
 {
   INK_MD5 md5;
   int len = 0;
@@ -2826,9 +2927,9 @@ CacheProcessor::remove(Continuation *cont, URL *url, CacheFragType frag_type)
 
   Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %s", url->string_get_ref());
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     // Remove from cluster
-    return remove(cont, &md5, frag_type, true, false, const_cast<char *>(hostname), len);
+    return remove(cont, &md5, cluster_cache_local, frag_type, true, false, const_cast<char *>(hostname), len);
   }
 #endif
 
