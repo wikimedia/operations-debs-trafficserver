@@ -1,4 +1,4 @@
-trafficserver (3.3.2-1) UNRELEASED; urgency=low
+trafficserver (3.3.2-1) experimental; urgency=low
 
   [ Arno Töll ]
   * Drop --with-arg-max from configure
@@ -6,6 +6,14 @@ trafficserver (3.3.2-1) UNRELEASED; urgency=low
 
   [ Aron Xu ]
   * Imported Upstream version 3.3.2
+  * Drop patch for enabling experimental plugins
+  * Add liblua5.1-dev and liboost1.53-dev to B-D
+  * Try on all archs for experimental builds
+  * Permit parallel building
+  * Fix typo in dep5 copyright file
+  * Do not install staticly linked library
+  * Enable Linux native AIO support for linux-any
+  * Enable reclaimable freelist
 
  -- Aron Xu <aron@debian.org>  Thu, 09 May 2013 01:00:04 +0800
 
