@@ -157,7 +157,7 @@ License:
  THE SOFTWARE.
 
 
-Filess: mgmt/cli/hashtable.*
+Files: mgmt/cli/hashtable.*
 Comment: Parts of mgmt/cli/hashtable.* only
 Copyright: Copyright (c) 1997-1998 Sun Microsystems, Inc.
 License:
