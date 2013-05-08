@@ -7,7 +7,6 @@
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 
-
 configure_flags = \
 	--enable-layout=Debian \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
@@ -20,7 +19,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@ --with autoreconf
+	dh $@ --parallel --with autoreconf
 
 override_dh_auto_configure:
 	# autoreconf -i
