@@ -14,7 +14,7 @@ Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
 
 Package: trafficserver
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~)
@@ -32,7 +32,7 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
      own cache algorithm.
 
 Package: trafficserver-dev
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
+Architecture: any
 Depends: ${misc:Depends}
 Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
