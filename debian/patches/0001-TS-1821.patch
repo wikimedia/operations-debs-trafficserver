@@ -1,6 +1,17 @@
+From: =?UTF-8?q?Arno=20T=C3=B6ll?= <arno@debian.org>
+Date: Thu, 9 May 2013 03:10:10 +0800
+Subject: TS-1821
+
+---
+ iocore/aio/AIO.cc      |    7 +++----
+ iocore/aio/test_AIO.cc |   12 +++++++++++-
+ 2 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/iocore/aio/AIO.cc b/iocore/aio/AIO.cc
+index 40bf1b1..f708341 100644
 --- a/iocore/aio/AIO.cc
 +++ b/iocore/aio/AIO.cc
-@@ -45,10 +45,10 @@
+@@ -45,10 +45,10 @@ volatile int num_filedes = 1;
  // Don't need to acquire this for searching the array
  static ink_mutex insert_mutex;
  
@@ -13,7 +24,7 @@
  
  RecRawStatBlock *aio_rsb = NULL;
  Continuation *aio_err_callbck = 0;
-@@ -163,9 +163,8 @@
+@@ -163,9 +163,8 @@ ink_aio_init(ModuleVersion v)
  #if AIO_MODE != AIO_MODE_NATIVE
    memset(&aio_reqs, 0, MAX_DISKS_POSSIBLE * sizeof(AIO_Reqs *));
    ink_mutex_init(&insert_mutex, NULL);
@@ -24,9 +35,11 @@
  }
  
  int
+diff --git a/iocore/aio/test_AIO.cc b/iocore/aio/test_AIO.cc
+index 21b2b69..4a5a49e 100644
 --- a/iocore/aio/test_AIO.cc
 +++ b/iocore/aio/test_AIO.cc
-@@ -482,10 +482,20 @@
+@@ -482,10 +482,20 @@ main(int argc, char *argv[])
    RecProcessInit(RECM_STAND_ALONE);
    ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
    eventProcessor.start(ink_number_of_processors());
