@@ -1,4 +1,29 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 3.2.5
+
+  *) [TS-1923] Fix memory issue caused by resolve_logfield_string()
+    Author: Yunkai Zhang <qiushu.zyk@taobao.com>
+
+  *) [TS-1918] SSL hangs after origin handshake.
+
+  *) [TS-1483] Manager uses hardcoded FD limit causing restarts
+   forever on traffic_server.
+
+  *) [TS-1784] Fix FreeBSD block calculation (both RAW and directory)
+
+  *) [TS-1905] TS hangs (dead lock) on HTTPS POST/PROPFIND requests.
+
+  *) [TS-1785, TS-1904] Fixes to make it build with gcc-4.8.x.
+
+  *) [TS-1903] Remove JEMALLOC_P use, it seems to have been deprecated.
+
+  *) [TS-1902] Remove iconv as dependency.
+
+  *) [TS-1900] Detect and link libhwloc on Ubuntu.
+
+  *) [TS-1470] Fix cache sizes > 16TB (part 2 - Don't reset the cache after restart)
+   Author: Jan Van Doorn <Jan_VanDoorn@cable.comcast.com>
+
 Changes with Apache Traffic Server 3.2.4
 
   *) [TS-1657] Traffic Cop doesn't wait() for its children

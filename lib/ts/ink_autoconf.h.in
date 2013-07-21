@@ -69,6 +69,9 @@
 /* Define to 1 if you have the <hwloc.h> header file. */
 #undef HAVE_HWLOC_H
 
+/* Whether HWLOC_OBJ_PU is available */
+#undef HAVE_HWLOC_OBJ_PU
+
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #undef HAVE_IFADDRS_H
 

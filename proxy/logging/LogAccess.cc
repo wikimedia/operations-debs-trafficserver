@@ -658,10 +658,7 @@ LogAccess::marshal_record(char *record, char *buf)
 #define LOG_FLOAT   RECD_FLOAT
 #define LOG_STRING  RECD_STRING
 
-  typedef RecInt LogInt;
-  typedef RecCounter LogCounter;
   typedef RecFloat LogFloat;
-  typedef RecString LogString;
 
   RecDataT stype = RECD_NULL;
   bool found = false;
@@ -676,7 +673,7 @@ LogAccess::marshal_record(char *record, char *buf)
       // conversion below, if this ever changes we should modify
       // accordingly
       //
-      ink_debug_assert(sizeof(int64_t) >= sizeof(LogInt) && sizeof(int64_t) >= sizeof(LogCounter));
+      ink_debug_assert(sizeof(int64_t) >= sizeof(RecInt) && sizeof(int64_t) >= sizeof(RecCounter));
 
       // so that a 64 bit integer will fit (including sign and eos)
       //
@@ -1421,7 +1418,12 @@ resolve_logfield_string(LogAccess *context, const char *format_str)
                                                             8191, LogUtils::timestamp(), 0,
                                                             LOG_SEGMENT_VERSION);
   ink_assert(bytes_resolved < 8192);
-  result[bytes_resolved] = 0; // NULL terminate
+
+  if (!bytes_resolved) {
+    ats_free(result);
+    result = NULL;
+  } else
+    result[bytes_resolved] = 0; // NULL terminate
 
   ats_free(printf_str);
   ats_free(fields_str);

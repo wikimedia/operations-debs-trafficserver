@@ -163,9 +163,10 @@ traffic_server_LDADD = \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(which_libts) \
+  @hwloc_LIBS@ \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBICONV@ @LIBCAP@ @LIBHWLOC@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBCAP@ \
   @LIBZ@ @LIBLZMA@ \
   @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
 
@@ -184,7 +185,7 @@ traffic_logcat_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
 
 traffic_logstats_SOURCES = logstats.cc
@@ -202,7 +203,7 @@ traffic_logstats_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBEXECINFO@
 
 traffic_sac_SOURCES = sac.cc
@@ -259,7 +260,7 @@ traffic_sac_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
   @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ @LIBICONV@ -lm @LIBPROFILER@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
   @LIBZ@ @LIBLZMA@ @LIBEXECINFO@
 
 if BUILD_TESTS

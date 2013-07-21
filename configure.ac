@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[3.2.4])
-m4_define([TS_VERSION_N],[3002004])
+m4_define([TS_VERSION_S],[3.2.5])
+m4_define([TS_VERSION_N],[3002005])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -831,8 +831,6 @@ AC_CHECK_LIB([resolv],[__putlong],[AC_SUBST([LIBRESOLV],["-lresolv"])])
 AC_CHECK_LIB([pthread],[pthread_exit],[AC_SUBST([LIBTHREAD],["-lpthread"])])
 AC_CHECK_LIB([rt],[clock_gettime],[AC_SUBST([LIBRT],["-lrt"])])
 AC_CHECK_LIB([posix4],[clock_gettime],[AC_SUBST([LIBRT],["-lposix4"])])
-AC_CHECK_LIB([iconv],[iconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
-AC_CHECK_LIB([iconv],[libiconv_open],[AC_SUBST([LIBICONV],["-liconv"])])
 
 #
 # Check for SSL presence and usability
@@ -1026,14 +1024,24 @@ AC_SUBST(use_posix_cap)
 # Check for hwloc library.
 # If we don't find it, disable checking for header.
 use_hwloc=0
-AS_IF([test "x$enable_hwloc" = "xyes"],
-  AC_CHECK_LIB([hwloc],[hwloc_topology_init],
-    [AC_SUBST([LIBHWLOC], ["-lhwloc"])
-     use_hwloc=1
-    ],
-    [enable_hwloc=no]
+
+AS_IF([test "x$enable_hwloc" = "xyes"], [
+  AC_CHECK_HEADERS([hwloc.h], [],
+    [AC_MSG_WARN([hwloc.h header not found, try --disable-hwloc])], []
   )
-)
+
+  # Old versions of libhwloc don't have HWLOC_OBJ_PU.
+  AC_CHECK_DECL(HWLOC_OBJ_PU,
+    [AC_DEFINE(HAVE_HWLOC_OBJ_PU, 1, [Whether HWLOC_OBJ_PU is available])], [],
+    [#include <hwloc.h>]
+  )
+
+  # Use pkg-config, because some distros (*cough* Ubuntu) put hwloc in unusual places.
+  PKG_CHECK_MODULES([hwloc], [hwloc], [use_hwloc=yes], [use_hwloc=no])
+  AC_SUBST([hwloc_CFLAGS])
+  AC_SUBST([hwloc_LIBS])
+])
+
 AC_SUBST(use_hwloc)
 
 #
@@ -1202,14 +1210,6 @@ if test "x${enable_posix_cap}" != "xno"; then
   AC_CHECK_HEADERS([sys/capability.h],
     [],
     [AC_MSG_FAILURE([Found POSIX capabilities library but not the header sys/capability.h. POSIX capabilities are not a required feature, you can disable then with --disable-posix-cap])],
-    []
-  )
-fi
-
-if test "x${enable_hwloc}" = "xyes"; then
-  AC_CHECK_HEADERS([hwloc.h],
-    [],
-    [AC_MSG_FAILURE([hwloc header not found. Try --disable-hwloc])],
     []
   )
 fi
