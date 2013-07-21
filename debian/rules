@@ -7,7 +7,6 @@
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 
-
 configure_flags = \
 	--enable-layout=Debian \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
@@ -19,7 +18,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@
+	dh $@ --parallel
 
 override_dh_auto_configure:
 	# autoreconf -i
@@ -32,6 +31,7 @@ override_dh_auto_install:
 	# Satisfy §10.2 (http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
 	rm -f debian/tmp/usr/lib/trafficserver/lib*.la
 	rm -f debian/tmp/usr/lib/trafficserver/modules/*.la
+	rm -f debian/tmp/usr/lib/trafficserver/lib*.a
 
 override_dh_install:
 	dh_install --list-missing
