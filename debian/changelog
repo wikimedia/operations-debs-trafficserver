@@ -3,9 +3,9 @@ trafficserver (3.2.5-1) unstable; urgency=low
   * New upstream release
     + Fix FTBFS on ARM (Closes: #691179)
     + Fix FTBS with gcc 4.8 (Closes: #701427)
-  * Promote trafficserver to depend for trafficserver-dev to fix a broken library
-    symlink. The library is not required for all users, but those who need it
-    don't need to install it manually anymore (Closes: #715134)
+  * Promote trafficserver to depend for trafficserver-dev to fix a broken
+    library symlink. The library is not required for all users, but those who
+    need it don't need to install it manually anymore (Closes: #715134)
 
  -- Arno Töll <arno@debian.org>  Sun, 21 Jul 2013 11:55:38 +0200
 
