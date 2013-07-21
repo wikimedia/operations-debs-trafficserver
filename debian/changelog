@@ -1,3 +1,11 @@
+trafficserver (3.2.5-1) unstable; urgency=low
+
+  * New upstream release
+    + Fix FTBFS on ARM (Closes: #691179)
+    + Fix FTBS with gcc 4.8 (Closes: #701427)
+
+ -- Arno Töll <arno@debian.org>  Sun, 21 Jul 2013 11:55:38 +0200
+
 trafficserver (3.2.4-1) unstable; urgency=low
 
   * New upstream release
