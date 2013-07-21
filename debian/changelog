@@ -1,0 +1,209 @@
+trafficserver (3.2.5-1) unstable; urgency=low
+
+  * New upstream release
+    + Fix FTBFS on ARM (Closes: #691179)
+    + Fix FTBS with gcc 4.8 (Closes: #701427)
+  * Promote trafficserver to depend for trafficserver-dev to fix a broken library
+    symlink. The library is not required for all users, but those who need it
+    don't need to install it manually anymore (Closes: #715134)
+
+ -- Arno Töll <arno@debian.org>  Sun, 21 Jul 2013 11:55:38 +0200
+
+trafficserver (3.2.4-1) unstable; urgency=low
+
+  * New upstream release
+    + Delete upstream's .gitignore file in our source tree
+  * Switch packaging repository to Git.
+    + Add gbp.conf file for those using git-buildpackage
+  * Fix "Upgrade fails if purging of cache fails" by not dying in a fire when
+    the postinst fails to purge the cache (Closes: #687698)
+  * Drop --with-arg-max from ./configure, it's not needed anymore.
+
+ -- Arno Töll <arno@debian.org>  Thu, 07 Feb 2013 23:37:35 +0100
+
+trafficserver (3.2.0-1) unstable; urgency=low
+
+  * New upstream release
+    + If you are using SSL or HTTP filtering, please update your configuration.
+      proxy.config.http.quick_filter.mask  and
+      proxy.config.ssl.server.cert.filename is not recognized anymore. Please
+      use ip_allow.config and ssl_multicert.config respectively instead.
+      There is no automated migration for this in Debian, as this affects your
+      site-specific configuration files.
+    + See https://cwiki.apache.org/confluence/display/TS/Upgrading+to+3.2 for
+      full upgrade instructions.
+  * Upstream decided to ship more plug-ins with the trafficserver core
+    distribution. These are all bundled into the main package now. Therefore,
+    the trafficserver-plugin-conf-remap package is not provided anymore.
+  * Update the default configuration file to ship with more moderate values
+    for the log configuration.
+  * Now do start ATS by default for fresh installations. The default
+    out-of-the box configuration is much more secure than past defaults.
+  * Purge the host and data cache on upgrades
+  * Let's welcome Aron Xu to the Uploaders of Trafficserver. Hi Aron! :)
+
+ -- Arno Töll <arno@debian.org>  Fri, 14 Sep 2012 22:56:29 +0200
+
+trafficserver (3.0.5-1) unstable; urgency=low
+
+  * New upstream release.
+  * No kudos for the previous hostile NMU, but include the changelog to denote
+    this upload does not introduce a regression.
+  * Update my maintainer address
+  * Make the init script look much better when using fancy outputs.
+  * Fix "status" output of the init script
+  * Remove "DM-Upload-Allowed". I don't need that flag anymore.
+
+
+ -- Arno Töll <arno@debian.org>  Sat, 09 Jun 2012 18:48:23 +0200
+
+trafficserver (3.0.4-1.1) unstable; urgency=low
+
+   * Non maintainer upload
+   * Fix build failure with GCC 4.7. Closes: #667396.
+
+ -- Matthias Klose <doko@debian.org>  Wed, 30 May 2012 04:40:28 +0000
+
+trafficserver (3.0.4-1) unstable; urgency=high
+
+  * New upstream release
+    + Fix CVE-2012-0256: A request with a very large Host header caused ATS to
+      crash.
+  * Setting urgency to high because of security updates
+  * Push standards to 3.9.3 - no further changes
+  * Stilistic adaptions in debian/copyright, but not content changes
+  * Remove cluster interface warning from README.Configuration. ATS now binds on
+    lo by default
+
+ -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 12:34:35 +0100
+
+trafficserver (3.0.2-1) unstable; urgency=low
+
+  * New upstream release
+    + Includes former Debian specific patch which makes sure the upstream
+      configure script does not override any -O flags passed by the user
+      anymore.
+  * Adapt to dpkg 1.16.1 API changes regarding build flags. This enables
+    hardening build flags. This means, trafficserver is now being built with
+    -fstack-protector and other security related build flags.
+  * Add dpkg-dev (>= 1.16.1~) to build-depends to make sure our buildflags are
+    properly supported. That's guaranteed for Testing, but might be helpful to
+    know for backporters.
+  * Fix several issues in the DEP-5 syntax. Unfortunately there is no way to
+    express that a file is subject to different license agreements so far.
+  * Do not install the upstream changelog twice anymore
+  * Finally run regression checks again, now as build failures are sorted out.
+
+ -- Arno Töll <debian@toell.net>  Sun, 11 Dec 2011 00:45:45 +0100
+
+trafficserver (3.0.1-2) unstable; urgency=low
+
+  * Fix "please add armhf to the arch list" - add armhf to the list of supported
+    architectures. Thanks Konstantinos Margaritis for the hint (Closes: #636338)
+  * Remove IA64 from the list of supported architectures. The upgrade to the gcc
+    4.6 toolchain disclosed portability issues with it, which caused the resul-
+    ting binary package to produce no-op code in some functions. 
+
+ -- Arno Töll <debian@toell.net>  Tue, 02 Aug 2011 22:58:37 +0200
+
+trafficserver (3.0.1-1) unstable; urgency=low
+
+  * New upstream release. Fixes several important issues which caused
+    `traffic_cop' and `traffic_server' to crash.
+  * Fix "FTBFS with ld --as-needed" re-order libraries upon linkage, patch
+    committed upstream. Thanks Ilya Barygin (Closes: #632546)
+  * Fix "trafficserver: Getting rid of unneeded *.la / emptying
+    dependency_libs", remove *.la files from the installation target completely
+    (Closes: #633192)
+  * Set "DM-Upload-Allowed: yes" in agreement with Asheesh Laroia
+    <paulproteus{at}debian.org>
+
+ -- Arno Töll <debian@toell.net>  Mon, 01 Aug 2011 19:29:58 +0200
+
+trafficserver (3.0.0-1) unstable; urgency=low
+
+  * New upstream release. Major changes (since 2.1.9):
+    + `traffic_server' won't crash anymore when using non-existent plugin in
+      remap rule
+    + Don't cache HTTP 401, 303 and 407 error responses anymore, when negative
+      caching is enabled.
+  * Re-enable kfreebsd support, it was accidentally not available in
+    2.1.9-unstable-1 because of non installable dependencies, as libcap-dev is
+    installable (and required) on Linux only
+  * debian/rules:
+    + Simplify dh_auto_configure flags (upstream incorporated our build layout)
+    + Enable WCCP (Web Cache Communication Protocol; Linux only)
+  * debian/control:
+    + Add flex and bison to build dependencies, both are required for WCCP
+      (Linux only)
+
+ -- Arno Töll <debian@toell.net>  Wed, 15 Jun 2011 15:56:29 +0200
+
+trafficserver (2.1.9-unstable-1) unstable; urgency=low
+
+  * New upstream release. Major features (since 2.1.8):
+    + Bring back support for $DESTDIR and "make check" which makes Debian
+      patches obsolete
+    + Allow larger working sets than 512G
+    + Disable cluster autodiscovery when cluster mode is disabled
+    + Cleanup `records.config'
+    + Disable SSLv2 by default
+  * debian/control: Add build dependency to libcap-dev, because when running
+    traffic_server standalone, it is unable to bind restricted ports otherwise
+    (Upstream: TS-804)
+  * debian/rules:
+    + Remove override for dh_clean, but put options to debian/source/options
+      instead
+    + Remove DH_OPTIONS (unused anyway)
+  * Source package: Minor change to improving package quality and usability
+    (i.e. grammar, verbosity of comments)
+  * Make the init script more robust
+  * Base the origin of the package source on the untouched upstream tarball,
+    instead of the versioned SVN branch.
+  * Bring back IA64 support, this time actually working (upstream merged my
+    patch TS-783)
+  * Remove patch `build-quirks.patch'. Changes have been committed upstream
+    by now.
+
+ -- Arno Töll <debian@toell.net>  Tue, 31 May 2011 21:56:12 +0200
+
+trafficserver (2.1.8-unstable-1) unstable; urgency=low
+
+  * New upstream release. Major features (since 2.1.5):
+    + Many bug fixes (none reported in Debian's BTS)
+    + Set source address for origin Servers
+    + Major API changes for the SDK
+    + Provide traffic_logstats
+    + traffic_shell does not hang anymore on any command
+  * Fix "FTBFS on architectures not supported upstream": (Closes: #622800)
+    + Don't execute regression checks for now (fixes x86)
+    + Upstream merges a Debian patch originally for 2.1.7 which enables
+      kFreeBSD support (originally provided by myself)
+    + Restrict Architectures (drop S390, IA64, MIPS[EL], PPC, SPARC)
+  * Remove ts-ui-disable-conf.patch (applied upstream)
+  * Update `build-quirks.patch' to make TS handle $DESTDIR correctly
+    (upstream: TS-759)
+  * Remove .deps from SDK binary package examples (they were incidentally
+    included before).
+  * Fix permissions for /var/cache/trafficserver in postinst
+  * Bump standards to 3.9.2, depend on debhelper 8.0, adapt VCS links
+  * Simplify debian/rules
+
+ -- Arno Töll <debian@toell.net>  Thu, 05 May 2011 21:49:52 +0200
+
+trafficserver (2.1.5-unstable-1) unstable; urgency=low
+
+  * Initial release (Closes: #609285)
+  * Added some configuration and informational hints
+  * New upstream release. Major features:
+    + Better AMD64 support
+    + Override configuration per transaction
+    + IPv6
+    + Support ARM architectures
+    + SDK-API changes
+  * Differences to upstream version:
+    + Ship some documentation. Well, really a few hints
+    + Split source into three packages (core, plug-in, SDK)
+    + Ship our own init script 
+
+ -- Arno Toell <debian@toell.net>  Tue, 13 Jan 2011 11:49:18 +0100

@@ -1,0 +1,64 @@
+## Defaults for trafficserver initscript
+## sourced by /etc/init.d/trafficserver
+## installed at /etc/default/trafficserver by the maintainer scripts
+
+##
+## This is a POSIX shell fragment
+##
+
+## Variable: RUNDIR
+## Default: /var/run/trafficserver
+## Description: Set this to the directory where runtime data is stored. The
+##              default value should work fine for almost all users.
+# RUNDIR=/var/run/trafficserver
+
+## Variable: TC_START
+## Default: no
+## Description: Set to "yes" if you want the init script to start the
+##              `traffic_cop' binary. Usually this is what most users want
+TC_START=yes
+
+## Variable: TC_DAEMON_ARGS
+## Default: (empty)
+## Description: Set here command line arguments the init script shall pass
+##              through `traffic_cop' upon startup.
+# TC_DAEMON_ARGS=""
+
+## Variable: TC_PIDFILE
+## Default: $RUNDIR/cop.lock
+## Description: Set this to a (writable) path where the PID file of the
+##              `traffic_cop' script should be stored. Most likely you don't
+##              need to change this value.
+# TC_PIDFILE=$RUNDIR/cop.lock
+
+
+##
+## NOTICE:
+##        Typically you do not want to configure anything below. Note, generally Traffic
+##        Server is started through `traffic_cop' which is a watchdog to control any local
+##        Traffic Server instances. It starts both, traffic_manager and traffic_server, as
+##        does it monitor these processes. While it is generally not advised, you can
+##        choose to manage both processes yourself. In such cases do not set TC_START to
+##        "yes" and enable any service you want below.
+##
+##        Choose either alternative, but do not mix up both.
+
+
+## Configuration for `traffic_manager'.
+## Meaning of variables is analogous to traffic_cop above, but for the
+## `traffic_manager' binary.
+
+# TM_START=no
+# TM_DAEMON_ARGS=""
+# TM_PIDFILE=$RUNDIR/manager.lock
+
+
+
+## Configuration for `traffic_server'.
+## Meaning of variables is analogous to traffic_cop above, but for the
+## `traffic_server' binary.
+
+# TS_START=no
+# TS_DAEMON_ARGS=""
+# TS_PIDFILE=$RUNDIR/server.lock
+

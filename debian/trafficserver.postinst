@@ -1,0 +1,132 @@
+#! /bin/sh
+# postinst script for trafficserver
+#
+# see: dh_installdeb(1)
+#
+#  Copyright 2011 Arno Toell <debian@toell.net>
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+
+set -e
+
+USER='trafficserver'
+GROUP='trafficserver'
+USER_HOME='/var/run/trafficserver'
+OWNER=$(env stat -c '%U' /etc/trafficserver)
+OWNER_CACHE_DIR=$(env stat -c '%U' /var/cache/trafficserver)
+
+# summary of how this script can be called:
+#        * <postinst> `configure' <most-recently-configured-version>
+#        * <old-postinst> `abort-upgrade' <new version>
+#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
+#          <new-version>
+#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
+#          <failed-install-package> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see /usr/share/doc/packaging-manual/
+#
+# quoting from the policy:
+#     Any necessary prompting should almost always be confined to the
+#     post-installation script, and should be protected with a conditional
+#     so that unnecessary prompting doesn't happen if a package's
+#     installation fails and the `postinst' is called with `abort-upgrade',
+#     `abort-remove' or `abort-deconfigure'.
+
+case "$1" in
+configure)
+
+	if ! getent passwd -- "$USER" >/dev/null 2>&1 ; then
+	adduser --home "$USER_HOME" \
+		--group \
+		--system \
+		--disabled-password \
+		--no-create-home \
+		--gecos "Debian Traffic Server user" \
+		$USER
+	fi
+
+	if [ -d /etc/trafficserver ] && [ "x$OWNER" = "xroot" ] ; then
+		# Ok, I admit I am lazy. I don't check every permission
+		# the user may have changed. If he didn't for /etc I can
+		# safely assume he neither has for other directories (I 
+		# hope, since /etc requires write permissions by ATS). 
+		echo 'Fixing permissions ...'
+
+		if ! dpkg-statoverride --list /etc/trafficserver >/dev/null 2>&1; then
+		    dpkg-statoverride --update --add "$USER" "$GROUP" 0755 /etc/trafficserver
+		fi
+
+		if ! dpkg-statoverride --list /var/log/trafficserver >/dev/null 2>&1; then
+			dpkg-statoverride --update --add "$USER" adm 0750 /var/log/trafficserver
+		fi
+
+
+		find /etc/trafficserver -not -user "$USER" -exec \
+			chown -h $USER:$GROUP {} \;
+
+
+		if [ -d /var/cache/trafficserver ] && [ "x$OWNER_CACHE_DIR" = "xroot" ] ; then
+			if ! dpkg-statoverride --list /var/cache/trafficserver  >/dev/null 2>&1; then
+				dpkg-statoverride --update --add "$USER" adm 0750 /var/cache/trafficserver
+			fi
+		fi
+	fi
+
+        if [ -n "$2" ] && dpkg --compare-versions "$2" 'le' '3.2~' ; then
+                RET=0
+                invoke-rc.d trafficserver status > /dev/null 2>&1 || RET=$?
+                # 0 => ATS is running
+                # 4 => Status is unknown
+                # 1,2,3 => ATS is not running
+
+                # using /bin/echo to make sure -e is supported
+                ECHO=`which echo`
+                if [ "$RET" -gt 0 ] && [ "$RET" -ne 4 ] && [ -f /var/cache/trafficserver/host.db ] ; then
+                        echo "Purging TrafficServer cache upon upgrade."
+                        RET=0
+                        traffic_server -Cclear > /dev/null 2>&1 || RET=$?
+                        if [ "$RET" -ne 0 ] ; then
+                                $ECHO "======================================================================="
+                                $ECHO -e "WARNING: Apache TrafficServer's cache couldn't be purged during the upgrade.\n" \
+                                        "Please inspect the situation manually and call 'traffic_server -Cclear'\n" \
+                                        "afterwards to purge the caches."
+                                $ECHO "======================================================================="
+                        fi
+                else
+                    $ECHO "======================================================================="
+                    $ECHO -e "WARNING: Apache TrafficServer is not running or its state couldn't be\n" \
+                        "determined. Please inspect the situation manually and call\n" \
+                        "'traffic_server -Cclear' afterwards to purge the caches.\n"
+                    $ECHO "======================================================================="
+
+               fi
+        fi
+;;
+
+abort-upgrade|abort-remove|abort-deconfigure)
+
+;;
+
+*)
+echo "postinst called with unknown argument \`$1'" >&2
+exit 0
+;;
+esac
+
+# dh_installdeb will replace this with shell code automatically
+# generated by other debhelper scripts.
+
+#DEBHELPER#
+
+exit 0
