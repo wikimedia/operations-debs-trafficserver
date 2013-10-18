@@ -1,0 +1,72 @@
+Traffic Server 3.2 STATUS:                                              -*-text-*-
+Last modified at [$Date$]
+
+The current version of this file can be found at:
+
+  * http://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=blob;f=STATUS;hb=master
+
+
+Release history:
+    [NOTE that x.{odd}.z versions are strictly Alpha/Beta releases,
+          while x.{even}.z versions are Stable/GA releases.]
+
+    3.2.5           : Released on XXX XX, 2013
+    3.2.4           : Released on January 25, 2013
+    3.2.0           : Released on June 19, 2012
+    3.0.5           : Released on June 6, 2012
+    3.0.4           : Released on March 21, 2012
+    3.0.3           : Released on Februrary 13, 201
+    3.0.2           : Released on December 07, 2011
+    3.0.1           : Released on July 19, 2011
+    3.0.0           : Released on June 14, 2011
+    2.0.1           : Released on August 31, 2010
+    2.0.0           : Released on April 28, 2010
+
+ 
+Contributors looking for a mission:
+
+  * Just do an egrep on "TODO" or "XXX" in the source.
+
+  * Review the bug database at: https://issues.apache.org/jira/browse/TS
+
+      - Download, test and review patches attached to open bugs
+
+  * Open bugs in the bug database.
+
+
+RELEASE SHOWSTOPPERS:
+
+A list of all bugs open for the next development release can be found at
+
+  http://s.apache.org/ts-3.2.5
+
+PATCHES ACCEPTED TO BACKPORT FROM TRUNK:
+
+PATCHES PROPOSED TO BACKPORT FROM TRUNK:
+  [ New proposals should be added at the end of the list ]
+
+  fix wccp's out of tree build
+  Jira: https://issues.apache.org/jira/browse/TS-1368
+  Patch: 682c4e3938b8aee288facdcfd0750571edcb20b0
+         72dcbdc58024abc6f67a592853e488d7f9eebd83
+  igalic says: This still needs some more patches I haven't identified.
+
+  Make it compile with certain versions of Clang. This also
+  backports some outright bugs that Clang finds.
+  Jira: https://issues.apache.org/jira/browse/TS-1910
+  Patches: see ticket for diff, selections from : b216afa3,
+           58205af1, dc3f8ffa, 81f9f418 and portions of a81681279.
+  igalic says: The order here will be important so we don't mess up.. otherwise, +1
+  +1: zwoop, igalic
+
+
+RELEASE PROCESS
+
+The Traffic Server release process is documented at
+
+    http://cwiki.apache.org/confluence/display/TS/ReleaseProcess
+
+The Traffic Server backport process is documented at
+
+    http://cwiki.apache.org/confluence/display/TS/Development+Process
+
