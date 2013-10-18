@@ -1,3 +1,9 @@
+trafficserver (3.2.5-2~bbc72+1) stable; urgency=low
+
+  * Backport for Wheezy
+
+ -- Jean Baptiste Favre <jbfavre@jbfavre.short>  Fri, 18 Oct 2013 15:51:15 +0200
+
 trafficserver (3.2.5-1) unstable; urgency=low
 
   * New upstream release
