@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-#include "ink_unused.h"        /* MAGIC_EDITING_TAG */
 #include "HttpDebugNames.h"
 #include "P_EventSystem.h"
 #include "StatPages.h"
@@ -487,6 +486,8 @@ HttpDebugNames::get_api_hook_name(TSHttpHookID t)
     return "TS_HTTP_PRE_REMAP_HOOK";
   case TS_HTTP_POST_REMAP_HOOK:
     return "TS_HTTP_POST_REMAP_HOOK";
+  case TS_HTTP_RESPONSE_CLIENT_HOOK:
+    return "TS_HTTP_RESPONSE_CLIENT_HOOK";
   case TS_HTTP_LAST_HOOK:
     return "TS_HTTP_LAST_HOOK";
   }

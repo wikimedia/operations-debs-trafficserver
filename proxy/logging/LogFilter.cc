@@ -227,10 +227,10 @@ bool LogFilterString::toss_this_entry(LogAccess * lad)
     // actual length, so we just use the fact that a MATCH is not possible
     // when marsh_len <= (length of the filter string)
     //
-    cond_satisfied = _checkCondition(&ink_string_fast_strcmp, buf, marsh_len, m_value, DATA_LENGTH_LARGER);
+    cond_satisfied = _checkCondition(&strcmp, buf, marsh_len, m_value, DATA_LENGTH_LARGER);
     break;
   case CASE_INSENSITIVE_MATCH:
-    cond_satisfied = _checkCondition(&ink_string_fast_strcasecmp, buf, marsh_len, m_value, DATA_LENGTH_LARGER);
+    cond_satisfied = _checkCondition(&strcasecmp, buf, marsh_len, m_value, DATA_LENGTH_LARGER);
     break;
   case CONTAIN:
     cond_satisfied = _checkCondition(&_isSubstring, buf, marsh_len, m_value, DATA_LENGTH_LARGER);
@@ -530,7 +530,7 @@ filters_are_equal(LogFilter * filt1, LogFilter * filt2)
     } else if (filt1->type() == LogFilter::STRING_FILTER) {
       ret = (*((LogFilterString *) filt1) == *((LogFilterString *) filt2));
     } else {
-      ink_debug_assert(!"invalid filter type");
+      ink_assert(!"invalid filter type");
     }
   } else {
     Debug("log-filter-compare", "type diff");

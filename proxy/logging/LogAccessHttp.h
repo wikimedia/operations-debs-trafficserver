@@ -26,7 +26,6 @@
 #ifndef LOG_ACCESS_HTTP_H
 #define LOG_ACCESS_HTTP_H
 
-#if !defined (INK_NO_LOG)
 #include "Arena.h"
 #include "HTTP.h"
 #include "LogAccess.h"
@@ -138,7 +137,7 @@ private:
   HttpSM * m_http_sm;
 
   Arena m_arena;
-  URL *m_url;
+  //  URL *m_url;
 
   HTTPHdr *m_client_request;
   HTTPHdr *m_proxy_response;
@@ -156,7 +155,7 @@ private:
   int m_client_req_unmapped_url_path_len;
   char *m_client_req_unmapped_url_host_str;
   int m_client_req_unmapped_url_host_len;
-  char *m_client_req_url_path_str;
+  char const*m_client_req_url_path_str;
   int m_client_req_url_path_len;
   char *m_proxy_resp_content_type_str;
   int m_proxy_resp_content_type_len;
@@ -170,4 +169,3 @@ private:
 };
 
 #endif
-#endif //INK_NO_LOG

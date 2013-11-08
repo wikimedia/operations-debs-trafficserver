@@ -33,7 +33,7 @@
 #define CACHE_ALT_INDEX_DEFAULT     -1
 #define CACHE_ALT_REMOVED           -2
 
-#define CACHE_DB_MAJOR_VERSION      21
+#define CACHE_DB_MAJOR_VERSION      23
 #define CACHE_DB_MINOR_VERSION      0
 
 #define CACHE_DIR_MAJOR_VERSION     18
@@ -56,9 +56,12 @@
 #define CACHE_DEREF			12
 #define CACHE_LOOKUP_OP			13
 
-#define CACHE_NONE_TYPE              0  // for empty disk fragments
-#define CACHE_HTTP_TYPE              1
-#define CACHE_RTSP_TYPE              2
+enum CacheType {
+  CACHE_NONE_TYPE = 0,  // for empty disk fragments
+  CACHE_HTTP_TYPE = 1,
+  CACHE_RTSP_TYPE = 2
+};
+
 // NOTE: All the failures are ODD, and one greater than the success
 //       Some of these must match those in <ts/ts.h> (tested in verify_cache_api())
 enum CacheEventType

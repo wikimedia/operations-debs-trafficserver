@@ -239,6 +239,7 @@ extern "C"
     TS_PD_HOST,                /* hostname */
     TS_PD_IP,                  /* ip address */
     TS_PD_URL_REGEX,           /* regular expression in url */
+    TS_PD_URL,           /* regular expression in url */
     TS_PD_UNDEFINED
   } TSPrimeDestT;
 
@@ -368,7 +369,7 @@ extern "C"
     TS_FNAME_IP_ALLOW,         /* ip_allow.config */
     TS_FNAME_LOGS_XML,         /* logs_xml.config */
     TS_FNAME_PARENT_PROXY,     /* parent.config */
-    TS_FNAME_VOLUME,        /* volume.config */
+    TS_FNAME_VOLUME,           /* volume.config */
     TS_FNAME_PLUGIN,           /* plugin.config */
     TS_FNAME_REMAP,            /* remap.config */
     TS_FNAME_SOCKS,            /* socks.config */
@@ -391,6 +392,7 @@ extern "C"
   {
     TS_CACHE_NEVER,            /* cache.config */
     TS_CACHE_IGNORE_NO_CACHE,
+    TS_CACHE_CLUSTER_CACHE_LOCAL,
     TS_CACHE_IGNORE_CLIENT_NO_CACHE,
     TS_CACHE_IGNORE_SERVER_NO_CACHE,
     TS_CACHE_PIN_IN_CACHE,
@@ -1046,15 +1048,6 @@ extern "C"
  */
   tsapi TSError TSEncryptPassword(char *passwd, char **e_passwd);
 
-/* TSEncryptToFile: Given the plain text password, this function will
- *                   encrypt the password and stores it to the specified file
- * Input: passwd - the plain text password
- *        filepath - the file location to store the encyrpted password
- * Output: TSError
- * Note: Uses certificate in ACL module for encryption.
- */
-  tsapi TSError TSEncryptToFile(const char *passwd, const char *filepath);
-
 /*--- direct file operations ----------------------------------------------*/
 /* TSConfigFileRead: reads a config file into a buffer
  * Input:  file - the config file to read
@@ -1144,7 +1137,8 @@ extern "C"
  * Input: cluster - Reset the stats clusterwide or not
  * Outpue: TSErrr
  */
-  tsapi TSError TSStatsReset(bool cluster);
+  tsapi TSError TSStatsReset(bool cluster, const char *name = NULL);
+
 
 /*--- variable operations -------------------------------------------------*/
 /* TSRecordGet: gets a record
@@ -1416,38 +1410,6 @@ extern "C"
  ********************************************************/
 
   tsapi TSError TSInvalidateFromCacheUrlRegex(TSString url_regex, TSString * list);
-
-/* These functions support the network configuration functionality
- * For each change of hostname, gateway, dns servers, and nick configurations
- * we should use these APIs to accomodate for it in TS, TM
- ******************************************************************/
-  /* rmserver.cfg */
-
-  tsapi TSError rm_change_ip(int, char **);
-
-  tsapi TSError rm_change_hostname(char *);
-
-  tsapi TSError rm_start_proxy();
-
-  tsapi TSError rm_remove_ip(int, char **);
-
-
-/* Net config functions */
-
-  tsapi TSError TSSetHostname(TSString hostname);
-
-  tsapi TSError TSSetGateway(TSString gateway_ip);
-
-  tsapi TSError TSSetDNSServers(TSString dns_ips);
-
-  tsapi TSError TSSetNICUp(TSString nic_name, bool static_ip, TSString ip, TSString old_ip, TSString netmask,
-                           bool onboot, TSString gateway_ip);
-
-  tsapi TSError TSSetProxyPort(TSString proxy_port);
-
-  tsapi TSError TSSetNICDown(TSString nic_name, TSString ip_addrr);
-
-  tsapi TSError TSSetSearchDomain(const char *search_name);
 
 #ifdef __cplusplus
 }

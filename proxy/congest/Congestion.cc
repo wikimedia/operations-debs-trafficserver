@@ -32,6 +32,7 @@
 #include "CongestionDB.h"
 #include "Congestion.h"
 #include "ControlMatcher.h"
+#include "ProxyConfig.h"
 
 RecRawStatBlock *congest_rsb;
 
@@ -44,11 +45,11 @@ static const matcher_tags congest_dest_tags = {
   "dest_domain",
   "dest_ip",
   NULL,
+  NULL,
   "host_regex",
   true
 };
 
-#define CONGESTION_CONTROL_CONFIG_TIMEOUT 120
 /* default congestion control values */
 
 char *DEFAULT_error_page = NULL;
@@ -72,8 +73,23 @@ int DEFAULT_congestion_scheme = PER_IP;
 #define CONG_RULE_ULIMITED_max_connection_failures -1
 #define CONG_RULE_ULIMITED_mac_connection -1
 
-static Ptr<ProxyMutex> reconfig_mutex;
-CongestionMatcherTable *CongestionMatcher = NULL;
+struct CongestionMatcherTable :
+  public ControlMatcher<CongestionControlRecord, CongestionControlRule>,
+  public ConfigInfo
+{
+  CongestionMatcherTable(const char * file_var, const char * name, const matcher_tags * tags)
+    : ControlMatcher<CongestionControlRecord, CongestionControlRule>(file_var, name, tags) {
+  }
+
+  static void reconfigure();
+
+  static int configid;
+};
+
+int CongestionMatcherTable::configid = 0;
+
+static CongestionMatcherTable *CongestionMatcher = NULL;
+static ConfigUpdateHandler<CongestionMatcherTable> * CongestionControlUpdate;
 int congestionControlEnabled = 0;
 int congestionControlLocalTime = 0;
 
@@ -249,7 +265,7 @@ CongestionControlRecord::Init(matcher_line * line_info)
 }
 
 void
-CongestionControlRecord::UpdateMatch(CongestionControlRule * pRule, RD * rdata)
+CongestionControlRecord::UpdateMatch(CongestionControlRule * pRule, RequestData * rdata)
 {
 /*
  * Select the first matching rule specified in congestion.config
@@ -305,32 +321,13 @@ CongestionControlRecord::Print()
 #undef PrintSTR
 }
 
-struct CongestionControl_UpdateContinuation: public Continuation
-{
-  int congestion_update_handler(int etype, void *data)
-  {
-    NOWARN_UNUSED(etype);
-    NOWARN_UNUSED(data);
-    reloadCongestionControl();
-    delete this;
-      return EVENT_DONE;
-  }
-  CongestionControl_UpdateContinuation(ProxyMutex * m):Continuation(m)
-  {
-    SET_HANDLER(&CongestionControl_UpdateContinuation::congestion_update_handler);
-  }
-};
-
 extern void initCongestionDB();
 
 // place holder for congestion control enable config
 static int
-CongestionControlEnabledChanged(const char *name, RecDataT data_type, RecData data, void *cookie)
+CongestionControlEnabledChanged(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                                RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   if (congestionControlEnabled == 1 || congestionControlEnabled == 2) {
     revalidateCongestionDB();
   }
@@ -338,23 +335,9 @@ CongestionControlEnabledChanged(const char *name, RecDataT data_type, RecData da
 }
 
 static int
-CongestionControlFile_CB(const char *name, RecDataT data_type, RecData data, void *cookie)
+CongestionControlDefaultSchemeChanged(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                                      RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
-  eventProcessor.schedule_imm(new CongestionControl_UpdateContinuation(reconfig_mutex), ET_NET);
-  return 0;
-}
-
-static int
-CongestionControlDefaultSchemeChanged(const char *name, RecDataT data_type, RecData data, void *cookie)
-{
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   if (strcasecmp(DEFAULT_congestion_scheme_str, "per_host") == 0) {
     DEFAULT_congestion_scheme = PER_HOST;
   } else {
@@ -369,9 +352,6 @@ CongestionControlDefaultSchemeChanged(const char *name, RecDataT data_type, RecD
 //-----------------------------------------------
 extern void init_CongestionRegressionTest();
 
-#define CC_EstablishStaticConfigInteger(v, n) REC_EstablishStaticConfigInt32(v, n)
-#define CC_EstablishStaticConfigStringAlloc(v, n) REC_EstablishStaticConfigStringAlloc(v, n)
-
 void
 initCongestionControl()
 {
@@ -382,65 +362,60 @@ initCongestionControl()
   ink_assert(CongestionMatcher == NULL);
 // register the stats variables
   register_congest_stats();
-// you must grab this mutex before reconfig the congestion control matcher table
-  reconfig_mutex = new_ProxyMutex();
+
+  CongestionControlUpdate = NEW(new ConfigUpdateHandler<CongestionMatcherTable>());
 
 // register config variables
-  CC_EstablishStaticConfigInteger(congestionControlEnabled, "proxy.config.http.congestion_control.enabled");
-  CC_EstablishStaticConfigInteger(DEFAULT_max_connection_failures, "proxy.config.http.congestion_control.default.max_connection_failures");
-  CC_EstablishStaticConfigInteger(DEFAULT_fail_window, "proxy.config.http.congestion_control.default.fail_window");
-  CC_EstablishStaticConfigInteger(DEFAULT_proxy_retry_interval, "proxy.config.http.congestion_control.default.proxy_retry_interval");
-  CC_EstablishStaticConfigInteger(DEFAULT_client_wait_interval, "proxy.config.http.congestion_control.default.client_wait_interval");
-  CC_EstablishStaticConfigInteger(DEFAULT_wait_interval_alpha, "proxy.config.http.congestion_control.default.wait_interval_alpha");
-  CC_EstablishStaticConfigInteger(DEFAULT_live_os_conn_timeout, "proxy.config.http.congestion_control.default.live_os_conn_timeout");
-  CC_EstablishStaticConfigInteger(DEFAULT_live_os_conn_retries, "proxy.config.http.congestion_control.default.live_os_conn_retries");
-  CC_EstablishStaticConfigInteger(DEFAULT_dead_os_conn_timeout, "proxy.config.http.congestion_control.default.dead_os_conn_timeout");
-  CC_EstablishStaticConfigInteger(DEFAULT_dead_os_conn_retries, "proxy.config.http.congestion_control.default.dead_os_conn_retries");
-  CC_EstablishStaticConfigInteger(DEFAULT_max_connection, "proxy.config.http.congestion_control.default.max_connection");
-  CC_EstablishStaticConfigStringAlloc(DEFAULT_congestion_scheme_str, "proxy.config.http.congestion_control.default.congestion_scheme");
-  CC_EstablishStaticConfigStringAlloc(DEFAULT_error_page, "proxy.config.http.congestion_control.default.error_page");
-  CC_EstablishStaticConfigInteger(congestionControlLocalTime, "proxy.config.http.congestion_control.localtime");
+  REC_EstablishStaticConfigInt32(congestionControlEnabled, "proxy.config.http.congestion_control.enabled");
+  REC_EstablishStaticConfigInt32(DEFAULT_max_connection_failures, "proxy.config.http.congestion_control.default.max_connection_failures");
+  REC_EstablishStaticConfigInt32(DEFAULT_fail_window, "proxy.config.http.congestion_control.default.fail_window");
+  REC_EstablishStaticConfigInt32(DEFAULT_proxy_retry_interval, "proxy.config.http.congestion_control.default.proxy_retry_interval");
+  REC_EstablishStaticConfigInt32(DEFAULT_client_wait_interval, "proxy.config.http.congestion_control.default.client_wait_interval");
+  REC_EstablishStaticConfigInt32(DEFAULT_wait_interval_alpha, "proxy.config.http.congestion_control.default.wait_interval_alpha");
+  REC_EstablishStaticConfigInt32(DEFAULT_live_os_conn_timeout, "proxy.config.http.congestion_control.default.live_os_conn_timeout");
+  REC_EstablishStaticConfigInt32(DEFAULT_live_os_conn_retries, "proxy.config.http.congestion_control.default.live_os_conn_retries");
+  REC_EstablishStaticConfigInt32(DEFAULT_dead_os_conn_timeout, "proxy.config.http.congestion_control.default.dead_os_conn_timeout");
+  REC_EstablishStaticConfigInt32(DEFAULT_dead_os_conn_retries, "proxy.config.http.congestion_control.default.dead_os_conn_retries");
+  REC_EstablishStaticConfigInt32(DEFAULT_max_connection, "proxy.config.http.congestion_control.default.max_connection");
+  REC_EstablishStaticConfigStringAlloc(DEFAULT_congestion_scheme_str, "proxy.config.http.congestion_control.default.congestion_scheme");
+  REC_EstablishStaticConfigStringAlloc(DEFAULT_error_page, "proxy.config.http.congestion_control.default.error_page");
+  REC_EstablishStaticConfigInt32(congestionControlLocalTime, "proxy.config.http.congestion_control.localtime");
   {
     RecData recdata;
     recdata.rec_int = 0;
     CongestionControlDefaultSchemeChanged(NULL, RECD_NULL, recdata, NULL);
   }
 
-  CongestionMatcher = NEW(new CongestionMatcherTable("proxy.config.http.congestion_control.filename", congestPrefix, &congest_dest_tags));
-#ifdef DEBUG_CONGESTION_MACTHER
-  CongestionMatcher->Print();
-#endif
-
   if (congestionControlEnabled) {
-    Debug("congestion_config", "congestion control enabled");
-    initCongestionDB();
+    CongestionMatcherTable::reconfigure();
   } else {
     Debug("congestion_config", "congestion control disabled");
   }
+
   RecRegisterConfigUpdateCb("proxy.config.http.congestion_control.default.congestion_scheme", &CongestionControlDefaultSchemeChanged, NULL);
   RecRegisterConfigUpdateCb("proxy.config.http.congestion_control.enabled", &CongestionControlEnabledChanged, NULL);
-  RecRegisterConfigUpdateCb("proxy.config.http.congestion_control.filename", &CongestionControlFile_CB, NULL);
+
+  CongestionControlUpdate->attach("proxy.config.http.congestion_control.filename");
 }
 
 void
-reloadCongestionControl()
+CongestionMatcherTable::reconfigure()
 {
-  CongestionMatcherTable *newTable;
-  Debug("congestion_config", "congestion control config changed, reloading");
-  ink_hrtime t = CONGESTION_CONTROL_CONFIG_TIMEOUT;
-  newTable = NEW(new CongestionMatcherTable("proxy.config.http.congestion_control.filename", congestPrefix, &congest_dest_tags));
-#ifdef DEBUG_CONGESTION_MACTHER
-  newTable->Print();
+  Note("congestion control config changed, reloading");
+  CongestionMatcher = NEW(new CongestionMatcherTable("proxy.config.http.congestion_control.filename", congestPrefix, &congest_dest_tags));
+
+#ifdef DEBUG_CONGESTION_MATCHER
+  CongestionMatcher->Print();
 #endif
-  new_Deleter(CongestionMatcher, t);
-  ink_atomic_swap_ptr(&CongestionMatcher, newTable);
+
+  configid = configProcessor.set(configid, CongestionMatcher);
   if (congestionControlEnabled) {
     revalidateCongestionDB();
   }
 }
 
 CongestionControlRecord *
-CongestionControlled(RD * rdata)
+CongestionControlled(RequestData * rdata)
 {
   if (congestionControlEnabled) {
     CongestionControlRule result;
@@ -468,23 +443,6 @@ uint64_t
 make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * record)
 {
   INK_MD5 md5;
-#ifdef USE_MMH
-  MMH_CTX ctx;
-  ink_code_incr_MMH_init(&ctx);
-  if (record->congestion_scheme == PER_HOST && len > 0)
-    ink_code_incr_MMH_update(&ctx, hostname, len);
-  else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
-  if (record->port != 0) {
-    unsigned short p = port;
-    p = htons(p);
-    ink_code_incr_MMH_update(&ctx, (char *) &p, 2);
-  }
-  if (record->prefix != NULL) {
-    ink_code_incr_MMH_update(&ctx, record->prefix, record->prefix_len);
-  }
-  ink_code_incr_MMH_final((char *) &md5, &ctx);
-#else
   INK_DIGEST_CTX ctx;
   ink_code_incr_md5_init(&ctx);
   if (record->congestion_scheme == PER_HOST && len > 0)
@@ -500,7 +458,7 @@ make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * 
     ink_code_incr_md5_update(&ctx, record->prefix, record->prefix_len);
   }
   ink_code_incr_md5_final((char *) &md5, &ctx);
-#endif
+
   return md5.fold();
 }
 
@@ -509,23 +467,6 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
 {
   /* if the hostname != NULL, use hostname, else, use ip */
   INK_MD5 md5;
-#ifdef USE_MMH
-  MMH_CTX ctx;
-  ink_code_incr_MMH_init(&ctx);
-  if (hostname && len > 0)
-    ink_code_incr_MMH_update(&ctx, hostname, len);
-  else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
-  if (port != 0) {
-    unsigned short p = port;
-    p = htons(p);
-    ink_code_incr_MMH_update(&ctx, (char *) &p, 2);
-  }
-  if (prefix != NULL) {
-    ink_code_incr_MMH_update(&ctx, prefix, prelen);
-  }
-  ink_code_incr_MMH_final((char *) &md5, &ctx);
-#else
   INK_DIGEST_CTX ctx;
   ink_code_incr_md5_init(&ctx);
   if (hostname && len > 0)
@@ -541,7 +482,7 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
     ink_code_incr_md5_update(&ctx, prefix, prelen);
   }
   ink_code_incr_md5_final((char *) &md5, &ctx);
-#endif
+
   return md5.fold();
 }
 

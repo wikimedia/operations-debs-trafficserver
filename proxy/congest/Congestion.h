@@ -43,7 +43,6 @@
 #define CONGESTION_EVENT_CONTROL_LOOKUP_DONE (CONGESTION_EVENT_EVENTS_START + 4)
 
 struct RequestData;
-typedef RequestData RD;
 
 extern InkRand CongestionRand;
 
@@ -66,7 +65,7 @@ public:
   CongestionControlRecord(const CongestionControlRecord & rec);
    ~CongestionControlRecord();
   char *Init(matcher_line * line_info);
-  void UpdateMatch(CongestionControlRule * pRule, RD * rdata);
+  void UpdateMatch(CongestionControlRule * pRule, RequestData * rdata);
   void Print();
 
   void cleanup();
@@ -211,7 +210,7 @@ struct CongestionEntry: public RequestData
 
   // State -- connection failures
   FailHistory m_history;
-  ProxyMutexPtr m_hist_lock;
+  Ptr<ProxyMutex> m_hist_lock;
   ink_hrtime m_last_congested;
   volatile int m_congested;     //0 | 1
   int m_stat_congested_conn_failures;
@@ -449,8 +448,7 @@ extern int congestionControlEnabled;
 extern int congestionControlLocalTime;
 
 void initCongestionControl();
-CongestionControlRecord *CongestionControlled(RD * rdata);
-void reloadCongestionControl();
+CongestionControlRecord *CongestionControlled(RequestData * rdata);
 
 uint64_t make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * record);
 uint64_t make_key(char *hostname, sockaddr const* ip, CongestionControlRecord * record);
@@ -464,20 +462,9 @@ uint64_t make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int
 //----------------------------------------------------
 extern Action *get_congest_entry(Continuation * cont, HttpRequestData * data, CongestionEntry ** ppEntry);
 extern Action *get_congest_list(Continuation * cont, MIOBuffer * buffer, int format);
+
 extern void remove_congested_entry(uint64_t key);
-
 extern void remove_all_congested_entry(void);
-
 extern void remove_congested_entry(char *buf, MIOBuffer * out_buffer);
-
-typedef ControlMatcher<CongestionControlRecord, CongestionControlRule> CongestionMatcherTable;
-extern CongestionMatcherTable *CongestionMatcher;
-
-inline bool
-host_rule_in_CongestMatcher()
-{
-  return (congestionControlEnabled && CongestionMatcher &&
-          (CongestionMatcher->hostMatch || CongestionMatcher->hrMatch));
-}
 
 #endif /* CONGESTTION_H_ */

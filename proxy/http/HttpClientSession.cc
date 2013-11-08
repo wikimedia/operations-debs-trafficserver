@@ -39,7 +39,7 @@
 
 #define DebugSsn(tag, ...) DebugSpecific(debug_on, tag, __VA_ARGS__)
 #define STATE_ENTER(state_name, event, vio) { \
-    /*ink_debug_assert (magic == HTTP_SM_MAGIC_ALIVE);  REMEMBER (event, NULL, reentrancy_count); */ \
+    /*ink_assert (magic == HTTP_SM_MAGIC_ALIVE);  REMEMBER (event, NULL, reentrancy_count); */ \
         DebugSsn("http_cs", "[%" PRId64 "] [%s, %s]", con_id, \
         #state_name, HttpDebugNames::get_event_name(event)); }
 
@@ -64,7 +64,10 @@ HttpClientSession::HttpClientSession()
     read_buffer(NULL), current_reader(NULL), read_state(HCS_INIT),
     ka_vio(NULL), slave_ka_vio(NULL),
     cur_hook_id(TS_HTTP_LAST_HOOK), cur_hook(NULL),
-    cur_hooks(0), proxy_allocated(false), backdoor_connect(false), hooks_set(0),
+    cur_hooks(0), proxy_allocated(false), backdoor_connect(false),
+    hooks_set(0),
+    outbound_port(0), f_outbound_transparent(false),
+    host_res_style(HOST_RES_IPV4), acl_method_mask(0),
     m_active(false), debug_on(false)
 {
   memset(user_args, 0, sizeof(user_args));
@@ -152,7 +155,7 @@ HttpClientSession::new_transaction()
   /////////////////////////
   // set up timeouts     //
   /////////////////////////
-  DebugSsn("http_cs", "[%" PRId64 "] using accept inactivity timeout [%"PRId64" seconds]",
+  DebugSsn("http_cs", "[%" PRId64 "] using accept inactivity timeout [%" PRId64" seconds]",
         con_id, HttpConfig::m_master.accept_no_activity_timeout);
   client_vc->set_inactivity_timeout(HRTIME_SECONDS(HttpConfig::m_master.accept_no_activity_timeout));
 
@@ -195,7 +198,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   this->backdoor_connect = backdoor;
 
   // Unique client session identifier.
-  con_id = ink_atomic_increment64((int64_t *) (&next_cs_id), 1);
+  con_id = ink_atomic_increment((int64_t *) (&next_cs_id), 1);
 
   HTTP_INCREMENT_DYN_STAT(http_current_client_connections_stat);
   conn_decrease = true;
@@ -222,7 +225,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   }
 
   // Record api hook set state
-  hooks_set = http_global_hooks->hooks_set;
+  hooks_set = http_global_hooks->has_hooks();
 
 #ifdef USE_HTTP_DEBUG_LISTS
   ink_mutex_acquire(&debug_cs_list_mutex);
@@ -239,7 +242,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   // when we return from do_api_callout, the ClientSession may
   // have already been deallocated.
   EThread *ethis = this_ethread();
-  ProxyMutexPtr lmutex = this->mutex;
+  Ptr<ProxyMutex> lmutex = this->mutex;
   MUTEX_TAKE_LOCK(lmutex, ethis);
   do_api_callout(TS_HTTP_SSN_START_HOOK);
   MUTEX_UNTAKE_LOCK(lmutex, ethis);
@@ -454,9 +457,8 @@ HttpClientSession::state_keep_alive(int event, void *data)
 }
 
 int
-HttpClientSession::state_api_callout(int event, void *data)
+HttpClientSession::state_api_callout(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   switch (event) {
   case EVENT_NONE:
   case EVENT_INTERVAL:
@@ -577,8 +579,7 @@ HttpClientSession::attach_server_session(HttpServerSession * ssession, bool tran
     if (transaction_done) {
       ssession->get_netvc()->
         set_inactivity_timeout(HRTIME_SECONDS(current_reader->t_state.txn_conf->keep_alive_no_activity_timeout_out));
-      ssession->get_netvc()->
-        set_active_timeout(HRTIME_SECONDS(current_reader->t_state.txn_conf->keep_alive_no_activity_timeout_out));
+      ssession->get_netvc()->cancel_active_timeout();
     } else {
       // we are serving from the cache - this could take a while.
       ssession->get_netvc()->cancel_inactivity_timeout();
@@ -630,7 +631,7 @@ HttpClientSession::release(IOBufferReader * r)
     ka_vio = this->do_io_read(this, INT64_MAX, read_buffer);
     ink_assert(slave_ka_vio != ka_vio);
     client_vc->set_inactivity_timeout(HRTIME_SECONDS(ka_in));
-    client_vc->set_active_timeout(HRTIME_SECONDS(ka_in));
+    client_vc->cancel_active_timeout();
   }
 }
 

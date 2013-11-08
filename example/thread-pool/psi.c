@@ -49,11 +49,10 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
-#include <ts/ts.h>
 
+#include "ts/ts.h"
 #include "thread.h"
-
-#define MIN(x,y) ((x < y) ? x :y)
+#include "ink_defs.h"
 
 #define DBG_TAG "xpsi"
 
@@ -479,7 +478,7 @@ _basename(const char *filename)
     1  if success
   -------------------------------------------------------------------------*/
 static int
-psi_include(TSCont contp, void *edata)
+psi_include(TSCont contp, void *edata ATS_UNUSED)
 {
 #define BUFFER_SIZE 1024
   ContData *data;
@@ -770,7 +769,7 @@ dump_psi(TSCont contp)
   Return Value:
   -------------------------------------------------------------------------*/
 static int
-transform_handler(TSCont contp, TSEvent event, void *edata)
+transform_handler(TSCont contp, TSEvent event, void *edata ATS_UNUSED)
 {
   TSVIO input_vio;
   ContData *data;
@@ -866,7 +865,7 @@ transform_handler(TSCont contp, TSEvent event, void *edata)
   Return Value:
   -------------------------------------------------------------------------*/
 static int
-trylock_handler(TSCont contp, TSEvent event, void *edata)
+trylock_handler(TSCont contp, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 {
   TryLockData *data = TSContDataGet(contp);
   transform_handler(data->contp, data->event, NULL);
@@ -966,7 +965,7 @@ transform_add(TSHttpTxn txnp)
   Return Value:
   -------------------------------------------------------------------------*/
 static int
-read_response_handler(TSCont contp, TSEvent event, void *edata)
+read_response_handler(TSCont contp ATS_UNUSED, TSEvent event, void *edata)
 {
   TSHttpTxn txnp = (TSHttpTxn) edata;
 
@@ -987,42 +986,6 @@ read_response_handler(TSCont contp, TSEvent event, void *edata)
 
 
 /*-------------------------------------------------------------------------
-  check_ts_version
-  Make sure TS version is at least 2.0
-
-  Input:
-  Output :
-  Return Value:
-    0  if error
-    1  if success
-  -------------------------------------------------------------------------*/
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-  }
-
-  return result;
-}
-
-
-/*-------------------------------------------------------------------------
   TSPluginInit
   Function called at plugin init time
 
@@ -1033,7 +996,7 @@ check_ts_version()
   Return Value:
   -------------------------------------------------------------------------*/
 void
-TSPluginInit(int argc, const char *argv[])
+TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
 {
   TSPluginRegistrationInfo info;
   int i;
@@ -1045,11 +1008,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
-  }
-
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 3.0 or later\n");
-    return;
   }
 
   /* Initialize the psi directory = <plugin_path>/include */

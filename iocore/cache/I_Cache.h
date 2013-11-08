@@ -24,10 +24,6 @@
 #ifndef _I_CACHE_H__
 #define _I_CACHE_H__
 
-#ifndef TS_INLINE
-#define TS_INLINE
-#endif
-
 #include "libts.h"
 #include "I_EventSystem.h"
 #include "I_AIO.h"
@@ -69,23 +65,28 @@ typedef HTTPInfo CacheHTTPInfo;
 
 struct CacheProcessor:public Processor
 {
-  virtual int start(int n_cache_threads = 0 /* cache uses event threads */ );
+  CacheProcessor()
+    : cb_after_init(0)
+  {}
+
+  virtual int start(int n_cache_threads = 0, size_t stacksize = DEFAULT_STACKSIZE);
   virtual int start_internal(int flags = 0);
   void stop();
 
   int dir_check(bool fix);
   int db_check(bool fix);
 
-  inkcoreapi Action *lookup(Continuation *cont, CacheKey *key,
+  inkcoreapi Action *lookup(Continuation *cont, CacheKey *key, bool cluster_cache_local,
                             bool local_only = false,
                             CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, char *hostname = 0, int host_len = 0);
-  inkcoreapi Action *open_read(Continuation *cont, CacheKey *key,
+  inkcoreapi Action *open_read(Continuation *cont, CacheKey *key, bool cluster_cache_local,
                                CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, char *hostname = 0, int host_len = 0);
   Action *open_read_buffer(Continuation *cont, MIOBuffer *buf, CacheKey *key,
                            CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, char *hostname = 0, int host_len = 0);
 
   inkcoreapi Action *open_write(Continuation *cont,
                                 CacheKey *key,
+                                bool cluster_cache_local,
                                 CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
                                 int expected_size = CACHE_EXPECTED_SIZE,
                                 int options = 0,
@@ -98,40 +99,56 @@ struct CacheProcessor:public Processor
                             time_t pin_in_cache = (time_t) 0,
                             char *hostname = 0, int host_len = 0);
   inkcoreapi Action *remove(Continuation *cont, CacheKey *key,
+                            bool cluster_cache_local,
                             CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
                             bool rm_user_agents = true, bool rm_link = false,
                             char *hostname = 0, int host_len = 0);
   Action *scan(Continuation *cont, char *hostname = 0, int host_len = 0, int KB_per_second = SCAN_KB_PER_SECOND);
 #ifdef HTTP_CACHE
-  Action *lookup(Continuation *cont, URL *url, bool local_only = false,
+  Action *lookup(Continuation *cont, URL *url, bool cluster_cache_local, bool local_only = false,
                  CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
   inkcoreapi Action *open_read(Continuation *cont, URL *url,
+                               bool cluster_cache_local,
                                CacheHTTPHdr *request,
                                CacheLookupHttpConfig *params,
                                time_t pin_in_cache = (time_t) 0, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
   Action *open_read_buffer(Continuation *cont, MIOBuffer *buf, URL *url,
                            CacheHTTPHdr *request,
                            CacheLookupHttpConfig *params, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  Action *open_write(Continuation *cont, int expected_size, URL *url,
+  Action *open_write(Continuation *cont, int expected_size, URL *url, bool cluster_cache_local,
                      CacheHTTPHdr *request, CacheHTTPInfo *old_info,
                      time_t pin_in_cache = (time_t) 0, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
   Action *open_write_buffer(Continuation *cont, MIOBuffer *buf, URL *url,
                             CacheHTTPHdr *request, CacheHTTPHdr *response,
                             CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  Action *remove(Continuation *cont, URL *url, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
+  Action *remove(Continuation *cont, URL *url, bool cluster_cache_local, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
 
   Action *open_read_internal(int, Continuation *, MIOBuffer *, CacheURL *,
                              CacheHTTPHdr *, CacheLookupHttpConfig *,
                              CacheKey *, time_t, CacheFragType type, char *hostname, int host_len);
 #endif
-  Action *link(Continuation *cont, CacheKey *from, CacheKey *to,
+  Action *link(Continuation *cont, CacheKey *from, CacheKey *to, bool cluster_cache_local,
                CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP, char *hostname = 0, int host_len = 0);
 
-  Action *deref(Continuation *cont, CacheKey *key,
+  Action *deref(Continuation *cont, CacheKey *key, bool cluster_cache_local,
                 CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP, char *hostname = 0, int host_len = 0);
   static int IsCacheEnabled();
 
   static unsigned int IsCacheReady(CacheFragType type);
+
+  /// Type for callback function.
+  typedef void (*CALLBACK_FUNC)();
+  /** Lifecycle callback.
+
+      The function @a cb is called after cache initialization has
+      finished and the cache is ready or has failed.
+
+      @internal If we need more lifecycle callbacks, this should be
+      generalized ala the standard hooks style, with a type enum used
+      to specific the callback type and passed to the callback
+      function.
+  */
+  void set_after_init_callback(CALLBACK_FUNC cb);
 
   // private members
   void diskInitialized();
@@ -145,7 +162,14 @@ struct CacheProcessor:public Processor
   static int fix;
   static int start_internal_flags;
   static int auto_clear_flag;
+  CALLBACK_FUNC cb_after_init;
 };
+
+inline void
+CacheProcessor::set_after_init_callback(CALLBACK_FUNC cb)
+{
+  cb_after_init = cb;
+}
 
 struct CacheVConnection:public VConnection
 {
@@ -170,7 +194,7 @@ struct CacheVConnection:public VConnection
   virtual void get_http_info(CacheHTTPInfo **info) = 0;
 #endif
 
-  virtual bool is_ram_cache_hit() = 0;
+  virtual bool is_ram_cache_hit() const = 0;
   virtual bool set_disk_io_priority(int priority) = 0;
   virtual int get_disk_io_priority() = 0;
   virtual bool set_pin_in_cache(time_t t) = 0;

@@ -1050,152 +1050,60 @@ url_unescapify(Arena * arena, const char *str, int length)
 }
 
 MIMEParseResult
-url_parse(HdrHeap * heap, URLImpl * url, const char **start, const char *end, bool copy_strings)
+url_parse_scheme(HdrHeap * heap, URLImpl * url, const char **start, const char *end, bool copy_strings_p)
 {
-  const char *cur;
+  const char *cur = *start;
   const char *scheme_wks;
   const char *scheme_start = NULL;
   const char *scheme_end = NULL;
   int scheme_wks_idx;
 
-  cur = *start;
-
-skip_ws:
-  if (ParseRules::is_ws(*cur)) {
-    GETNEXT(eof);
-    goto skip_ws;
-  }
-  /////////////////////////////////
-  // fast case starts with http: //
-  /////////////////////////////////
-
-  if ((end - cur >= 5) && (((cur[0] ^ 'h') | (cur[1] ^ 't') | (cur[2] ^ 't') | (cur[3] ^ 'p') | (cur[4] ^ ':')) == 0)) {
-    scheme_start = cur;
-    cur += 4;                   // point to colon
-    scheme_end = cur;
-    scheme_wks_idx = URL_WKSIDX_HTTP;
-    scheme_wks = URL_SCHEME_HTTP;
-  } else {
-    scheme_start = cur;
-
-  parse_scheme2:
-    if (*cur != ':') {
-      GETNEXT(done);
-      goto parse_scheme2;
+  while(' ' == *cur && ++cur < end)
+    ;
+  if (cur < end) {
+    scheme_start = scheme_end = cur;
+    // special case 'http:' for performance
+    if ((end - cur >= 5) && (((cur[0] ^ 'h') | (cur[1] ^ 't') | (cur[2] ^ 't') | (cur[3] ^ 'p') | (cur[4] ^ ':')) == 0)) {
+      scheme_end = cur + 4;                   // point to colon
+      url_scheme_set(heap, url, scheme_start, URL_WKSIDX_HTTP, 4, copy_strings_p);
+    } else if ('/' != *cur) {
+      // For forward transparent mode, the URL for the method can just be a path,
+      // so don't scan that for a scheme, as we could find a false positive if there
+      // is a URL in the parameters (which is legal).
+      while (':' != *cur && ++cur < end)
+        ;
+      if (cur < end) { // found a colon
+        scheme_wks_idx = hdrtoken_tokenize(scheme_start, cur - scheme_start, &scheme_wks);
+    
+        /*  Distinguish between a scheme only and a username by looking past the colon. If it is missing
+            or it's a slash, presume scheme. Otherwise it's a username with a password.
+        */
+        if ((scheme_wks_idx > 0 && hdrtoken_wks_to_token_type(scheme_wks) == HDRTOKEN_TYPE_SCHEME) || // known scheme
+           (cur >= end-1 || cur[1] == '/')) // no more data or slash past colon
+        {
+          scheme_end = cur;
+          url_scheme_set(heap, url, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings_p);
+        }
+      }
     }
-    scheme_end = cur;
-    scheme_wks_idx = hdrtoken_tokenize(scheme_start, scheme_end - scheme_start, &scheme_wks);
-
-    // FIX: need to improve parser to support unknown schemes --- this code is
-    //      a hack --- if no well-known scheme is found, the parser assumes
-    //      the scheme has been omitted, and the colon is really the colon
-    //      from "username:password" or "host:port", so it calls the scheme
-    //      "http" and continues parsing there.
-    //
-    //      If URLs can really arrive without a scheme:// prefix, then it's
-    //      difficult to disambiguate non-well-known schemes from missing
-    //      schemes.  I'm not sure how such malformed URLs could arrive at
-    //      the proxy --- perhaps (a) some web browsers request files with
-    //      no leading slash, or (b) some web browsers with explicit proxy
-    //      set may omit schemes if the user types in "www.apache.org", etc?
-
-    // if we parsed a scheme which is well known as a scheme, use it as the
-    // scheme, otherwise we'll assume the scheme is missing and treat as HTTP.
-
-    if ((scheme_wks_idx < 0) || (hdrtoken_wks_to_token_type(scheme_wks) != HDRTOKEN_TYPE_SCHEME))
-      goto done;
+    *start = scheme_end;
+    return PARSE_CONT;
   }
-
-  ///////////////////////////////////////////
-  // we get here if we have a legal scheme //
-  ///////////////////////////////////////////
-
-  url_scheme_set(heap, url, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings);
-
-  *start = scheme_end;
-  return url_parse_http(heap, url, start, end, copy_strings);
-
-done:
-  *start = scheme_start;
-  return url_parse_http(heap, url, start, end, copy_strings);
-
-eof:
-  return PARSE_ERROR;
+  return PARSE_ERROR; // no non-whitespace found
 }
 
 MIMEParseResult
-url_parse_no_path_component_breakdown(HdrHeap * heap,
-                                      URLImpl * url, const char **start, const char *end, bool copy_strings)
+url_parse(HdrHeap * heap, URLImpl * url, const char **start, const char *end, bool copy_strings_p)
 {
-  const char *cur;
-  const char *scheme_wks;
-  const char *scheme_start = NULL;
-  const char *scheme_end = NULL;
-  int scheme_wks_idx;
+  MIMEParseResult zret = url_parse_scheme(heap, url, start, end, copy_strings_p);
+  return PARSE_CONT == zret ? url_parse_http(heap, url, start, end, copy_strings_p) : zret;
+}
 
-  cur = *start;
-
-skip_ws:
-  if (ParseRules::is_ws(*cur)) {
-    GETNEXT(eof);
-    goto skip_ws;
-  }
-  /////////////////////////////////
-  // fast case starts with http: //
-  /////////////////////////////////
-
-  if ((end - cur >= 5) && (((cur[0] ^ 'h') | (cur[1] ^ 't') | (cur[2] ^ 't') | (cur[3] ^ 'p') | (cur[4] ^ ':')) == 0)) {
-    scheme_start = cur;
-    cur += 4;                   // point to colon
-    scheme_end = cur;
-    scheme_wks_idx = URL_WKSIDX_HTTP;
-    scheme_wks = URL_SCHEME_HTTP;
-  } else {
-    scheme_start = cur;
-
-  parse_scheme2:
-    if (*cur != ':') {
-      GETNEXT(done);
-      goto parse_scheme2;
-    }
-    scheme_end = cur;
-    scheme_wks_idx = hdrtoken_tokenize(scheme_start, scheme_end - scheme_start, &scheme_wks);
-
-    // FIX: need to improve parser to support unknown schemes --- this code is
-    //      a hack --- if no well-known scheme is found, the parser assumes
-    //      the scheme has been omitted, and the colon is really the colon
-    //      from "username:password" or "host:port", so it calls the scheme
-    //      "http" and continues parsing there.
-    //
-    //      If URLs can really arrive without a scheme:// prefix, then it's
-    //      difficult to disambiguate non-well-known schemes from missing
-    //      schemes.  I'm not sure how such malformed URLs could arrive at
-    //      the proxy --- perhaps (a) some web browsers request files with
-    //      no leading slash, or (b) some web browsers with explicit proxy
-    //      set may omit schemes if the user types in "www.apache.org", etc?
-
-    // if we parsed a scheme which is well known as a scheme, use it as the
-    // scheme, otherwise we'll assume the scheme is missing and treat as HTTP.
-
-    if ((scheme_wks_idx < 0) || (hdrtoken_wks_to_token_type(scheme_wks) != HDRTOKEN_TYPE_SCHEME))
-      goto done;
-  }
-
-  ///////////////////////////////////////////
-  // we get here if we have a legal scheme //
-  ///////////////////////////////////////////
-
-  url_scheme_set(heap, url, scheme_start, scheme_wks_idx, scheme_end - scheme_start, copy_strings);
-
-  *start = scheme_end;
-  return url_parse_http_no_path_component_breakdown(heap, url, start, end, copy_strings);
-
-done:
-  *start = scheme_start;
-  return url_parse_http_no_path_component_breakdown(heap, url, start, end, copy_strings);
-
-eof:
-  return PARSE_ERROR;
+MIMEParseResult
+url_parse_no_path_component_breakdown(HdrHeap * heap, URLImpl * url, const char **start, const char *end, bool copy_strings_p)
+{
+  MIMEParseResult zret = url_parse_scheme(heap, url, start, end, copy_strings_p);
+  return PARSE_CONT == zret ? url_parse_http_no_path_component_breakdown(heap, url, start, end, copy_strings_p) : zret;
 }
 
 /**
@@ -1322,7 +1230,7 @@ url_parse_internet(HdrHeap* heap, URLImpl* url,
     url_host_set(heap, url, host._ptr, host._size, copy_strings_p);
   
   if (last_colon) {
-    ink_debug_assert(n_colon);
+    ink_assert(n_colon);
     port.set(last_colon+1, cur);
     if (!port._size)
       return PARSE_ERROR; // colon w/o port value.
@@ -1377,7 +1285,7 @@ parse_path2:
       goto parse_fragment1;
     }
   } else {
-    ink_debug_assert((*cur != ';') && (*cur != '?') && (*cur != '#'));
+    ink_assert((*cur != ';') && (*cur != '?') && (*cur != '#'));
   }
   GETNEXT(done);
   goto parse_path2;
@@ -1516,11 +1424,12 @@ url_print(URLImpl * url, char *buf_start, int buf_length, int *buf_index_inout, 
   if (url->m_ptr_scheme) {
     TRY(mime_mem_print(url->m_ptr_scheme, url->m_len_scheme,
                        buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    if ((url->m_scheme_wks_idx >= 0) && (hdrtoken_index_to_wks(url->m_scheme_wks_idx) == URL_SCHEME_FILE)) {
-      TRY(mime_mem_print(":", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    } else {
+    // [amc] Why is "file:" special cased to be wrong?
+//    if ((url->m_scheme_wks_idx >= 0) && (hdrtoken_index_to_wks(url->m_scheme_wks_idx) == URL_SCHEME_FILE)) {
+//      TRY(mime_mem_print(":", 1, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
+//    } else {
       TRY(mime_mem_print("://", 3, buf_start, buf_length, buf_index_inout, buf_chars_to_skip_inout));
-    }
+//    }
   }
 
   if (url->m_ptr_user) {
@@ -1583,9 +1492,8 @@ url_print(URLImpl * url, char *buf_start, int buf_length, int *buf_index_inout, 
 }
 
 void
-url_describe(HdrHeapObjImpl * raw, bool recurse)
+url_describe(HdrHeapObjImpl * raw, bool /* recurse ATS_UNUSED */)
 {
-  NOWARN_UNUSED(recurse);
   URLImpl *obj = (URLImpl *) raw;
 
   Debug("http", "[URLTYPE: %d, SWKSIDX: %d,\n", obj->m_url_type, obj->m_scheme_wks_idx);
@@ -1632,22 +1540,17 @@ memcpy_tolower(char *d, const char *s, int n)
 
 #define BUFSIZE 512
 
-// fast path for MMH, HTTP, no user/password/params/query,
+// fast path for MD5, HTTP, no user/password/params/query,
 // no buffer overflow, no unescaping needed
 
 static inline void
-url_MMH_get_fast(URLImpl * url, INK_MD5 * md5)
+url_MD5_get_fast(URLImpl * url, INK_MD5 * md5)
 {
-  union
-  {
-    INK_DIGEST_CTX md5_ctx;
-    MMH_CTX mmh_ctx;
-  } context;
-
+  INK_DIGEST_CTX md5_ctx;
   char buffer[BUFSIZE];
   char *p;
 
-  ink_code_incr_MMH_init(&context.mmh_ctx);
+  ink_code_incr_md5_init(&md5_ctx);
 
   p = buffer;
   memcpy_tolower(p, url->m_ptr_scheme, url->m_len_scheme);
@@ -1669,24 +1572,20 @@ url_MMH_get_fast(URLImpl * url, INK_MD5 * md5)
   *p++ = '?';
   // no query
 
-  ink_debug_assert(sizeof(url->m_port) == 2);
+  ink_assert(sizeof(url->m_port) == 2);
   uint16_t port = (uint16_t) url_canonicalize_port(url->m_url_type, url->m_port);
   *p++ = ((char *) &port)[0];
   *p++ = ((char *) &port)[1];
 
-  ink_code_incr_MMH_update(&context.mmh_ctx, buffer, p - buffer);
-  ink_code_incr_MMH_final((char *) md5, &context.mmh_ctx);
+  ink_code_incr_md5_update(&md5_ctx, buffer, p - buffer);
+  ink_code_incr_md5_final((char *) md5, &md5_ctx);
 }
 
 
 static inline void
 url_MD5_get_general(URLImpl * url, INK_MD5 * md5)
 {
-  union
-  {
-    INK_DIGEST_CTX md5_ctx;
-    MMH_CTX mmh_ctx;
-  } context;
+  INK_DIGEST_CTX md5_ctx;
 
   char buffer[BUFSIZE];
   char *p, *e;
@@ -1727,11 +1626,7 @@ url_MD5_get_general(URLImpl * url, INK_MD5 * md5)
   p = buffer;
   e = buffer + BUFSIZE;
 
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_init(&context.md5_ctx);
-  } else {
-    ink_code_incr_MMH_init(&context.mmh_ctx);
-  }
+  ink_code_incr_md5_init(&md5_ctx);
 
   for (i = 0; i < 13; i++) {
     if (strs[i]) {
@@ -1746,11 +1641,7 @@ url_MD5_get_general(URLImpl * url, INK_MD5 * md5)
         }
 
         if (p == e) {
-          if (url_hash_method == 0) {
-            ink_code_incr_md5_update(&context.md5_ctx, buffer, BUFSIZE);
-          } else {
-            ink_code_incr_MMH_update(&context.mmh_ctx, buffer, BUFSIZE);
-          }
+	  ink_code_incr_md5_update(&md5_ctx, buffer, BUFSIZE);
           p = buffer;
         }
       }
@@ -1758,22 +1649,13 @@ url_MD5_get_general(URLImpl * url, INK_MD5 * md5)
   }
 
   if (p != buffer) {
-    if (url_hash_method == 0) {
-      ink_code_incr_md5_update(&context.md5_ctx, buffer, p - buffer);
-    } else {
-      ink_code_incr_MMH_update(&context.mmh_ctx, buffer, p - buffer);
-    }
+    ink_code_incr_md5_update(&md5_ctx, buffer, p - buffer);
   }
 
   port = url_canonicalize_port(url->m_url_type, url->m_port);
 
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_update(&context.md5_ctx, (char *) &port, sizeof(port));
-    ink_code_incr_md5_final((char *) md5, &context.md5_ctx);
-  } else {
-    ink_code_incr_MMH_update(&context.mmh_ctx, (char *) &port, sizeof(port));
-    ink_code_incr_MMH_final((char *) md5, &context.mmh_ctx);
-  }
+  ink_code_incr_md5_update(&md5_ctx, (char *) &port, sizeof(port));
+  ink_code_incr_md5_final((char *) md5, &md5_ctx);
 }
 
 
@@ -1791,7 +1673,7 @@ url_MD5_get(URLImpl * url, INK_MD5 * md5)
        url->m_len_path < BUFSIZE) &&
       (memchr(url->m_ptr_host, '%', url->m_len_host) == NULL) &&
       (memchr(url->m_ptr_path, '%', url->m_len_path) == NULL)) {
-    url_MMH_get_fast(url, md5);
+    url_MD5_get_fast(url, md5);
 
 #ifdef DEBUG
     INK_MD5 md5_general;
@@ -1811,53 +1693,23 @@ url_MD5_get(URLImpl * url, INK_MD5 * md5)
 void
 url_host_MD5_get(URLImpl * url, INK_MD5 * md5)
 {
-  union
-  {
-    INK_DIGEST_CTX md5_ctx;
-    MMH_CTX mmh_ctx;
-  } context;
+  INK_DIGEST_CTX md5_ctx;
 
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_init(&context.md5_ctx);
-  } else {
-    ink_code_incr_MMH_init(&context.mmh_ctx);
-  }
+  ink_code_incr_md5_init(&md5_ctx);
 
   if (url->m_ptr_scheme) {
-    if (url_hash_method == 0) {
-      ink_code_incr_md5_update(&context.md5_ctx, url->m_ptr_scheme, url->m_len_scheme);
-    } else {
-      ink_code_incr_MMH_update(&context.mmh_ctx, url->m_ptr_scheme, url->m_len_scheme);
-    }
+    ink_code_incr_md5_update(&md5_ctx, url->m_ptr_scheme, url->m_len_scheme);
   }
 
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_update(&context.md5_ctx, "://", 3);
-  } else {
-    ink_code_incr_MMH_update(&context.mmh_ctx, "://", 3);
-  }
+  ink_code_incr_md5_update(&md5_ctx, "://", 3);
 
   if (url->m_ptr_host) {
-    if (url_hash_method == 0) {
-      ink_code_incr_md5_update(&context.md5_ctx, url->m_ptr_host, url->m_len_host);
-    } else {
-      ink_code_incr_MMH_update(&context.mmh_ctx, url->m_ptr_host, url->m_len_host);
-    }
+    ink_code_incr_md5_update(&md5_ctx, url->m_ptr_host, url->m_len_host);
   }
 
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_update(&context.md5_ctx, ":", 1);
-  } else {
-    ink_code_incr_MMH_update(&context.mmh_ctx, ":", 1);
-  }
+  ink_code_incr_md5_update(&md5_ctx, ":", 1);
 
   int port = url_canonicalize_port(url->m_url_type, url->m_port);
-
-  if (url_hash_method == 0) {
-    ink_code_incr_md5_update(&context.md5_ctx, (char *) &port, sizeof(port));
-    ink_code_incr_md5_final((char *) md5, &context.md5_ctx);
-  } else {
-    ink_code_incr_MMH_update(&context.mmh_ctx, (char *) &port, sizeof(port));
-    ink_code_incr_MMH_final((char *) md5, &context.mmh_ctx);
-  }
+  ink_code_incr_md5_update(&md5_ctx, (char *) &port, sizeof(port));
+  ink_code_incr_md5_final((char *) md5, &md5_ctx);
 }

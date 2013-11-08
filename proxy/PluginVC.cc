@@ -77,11 +77,6 @@
 #include "Regression.h"
 
 #define PVC_LOCK_RETRY_TIME HRTIME_MSECONDS(10)
-#undef MIN
-#define MIN(x,y) (((x) <= (y)) ? (x) : (y))
-#undef MAX
-#define MAX(x,y) (((x) >= (y)) ? (x) : (y))
-
 #define PVC_DEFAULT_MAX_BYTES 32768
 #define MIN_BLOCK_TRANSFER_BYTES 128
 
@@ -97,7 +92,8 @@ magic(PLUGIN_VC_MAGIC_ALIVE), vc_type(PLUGIN_VC_UNKNOWN), core_obj(NULL),
 other_side(NULL), read_state(), write_state(),
 need_read_process(false), need_write_process(false),
 closed(false), sm_lock_retry_event(NULL), core_lock_retry_event(NULL),
-deletable(false), reentrancy_count(0), active_timeout(0), inactive_timeout(0), active_event(NULL), inactive_event(NULL)
+deletable(false), reentrancy_count(0), active_timeout(0), active_event(NULL),
+inactive_timeout(0), inactive_timeout_at(0), inactive_event(NULL)
 {
   SET_HANDLER(&PluginVC::main_handler);
 }
@@ -115,8 +111,8 @@ PluginVC::main_handler(int event, void *data)
 
   ink_release_assert(event == EVENT_INTERVAL || event == EVENT_IMMEDIATE);
   ink_release_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(!deletable);
-  ink_debug_assert(data != NULL);
+  ink_assert(!deletable);
+  ink_assert(data != NULL);
 
   Event *call_event = (Event *) data;
   EThread *my_ethread = mutex->thread_holding;
@@ -183,7 +179,10 @@ PluginVC::main_handler(int event, void *data)
   if (call_event == active_event) {
     process_timeout(call_event, VC_EVENT_ACTIVE_TIMEOUT, &active_event);
   } else if (call_event == inactive_event) {
-    process_timeout(call_event, VC_EVENT_INACTIVITY_TIMEOUT, &inactive_event);
+    if (inactive_timeout_at && inactive_timeout_at < ink_get_hrtime()) {
+      process_timeout(call_event, VC_EVENT_INACTIVITY_TIMEOUT, &inactive_event);
+      call_event->cancel();
+    }
   } else {
     if (call_event == sm_lock_retry_event) {
       sm_lock_retry_event = NULL;
@@ -240,7 +239,7 @@ PluginVC::do_io_read(Continuation * c, int64_t nbytes, MIOBuffer * buf)
   read_state.vio.vc_server = (VConnection *) this;
   read_state.vio.op = VIO::READ;
 
-  Debug("pvc", "[%u] %s: do_io_read for %"PRId64" bytes", PVC_ID, PVC_TYPE, nbytes);
+  Debug("pvc", "[%u] %s: do_io_read for %" PRId64" bytes", PVC_ID, PVC_TYPE, nbytes);
 
   // Since reentrant callbacks are not allowed on from do_io
   //   functions schedule ourselves get on a different stack
@@ -273,7 +272,7 @@ PluginVC::do_io_write(Continuation * c, int64_t nbytes, IOBufferReader * abuffer
   write_state.vio.vc_server = (VConnection *) this;
   write_state.vio.op = VIO::WRITE;
 
-  Debug("pvc", "[%u] %s: do_io_write for %"PRId64" bytes", PVC_ID, PVC_TYPE, nbytes);
+  Debug("pvc", "[%u] %s: do_io_write for %" PRId64" bytes", PVC_ID, PVC_TYPE, nbytes);
 
   // Since reentrant callbacks are not allowed on from do_io
   //   functions schedule ourselves get on a different stack
@@ -289,7 +288,7 @@ PluginVC::reenable(VIO * vio)
 
   ink_assert(!closed);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(vio->mutex->thread_holding == this_ethread());
+  ink_assert(vio->mutex->thread_holding == this_ethread());
 
   Debug("pvc", "[%u] %s: reenable %s", PVC_ID, PVC_TYPE, (vio->op == VIO::WRITE) ? "Write" : "Read");
 
@@ -310,7 +309,7 @@ PluginVC::reenable_re(VIO * vio)
 
   ink_assert(!closed);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(vio->mutex->thread_holding == this_ethread());
+  ink_assert(vio->mutex->thread_holding == this_ethread());
 
   Debug("pvc", "[%u] %s: reenable_re %s", PVC_ID, PVC_TYPE, (vio->op == VIO::WRITE) ? "Write" : "Read");
 
@@ -348,9 +347,8 @@ PluginVC::reenable_re(VIO * vio)
 }
 
 void
-PluginVC::do_io_close(int flag)
+PluginVC::do_io_close(int /* flag ATS_UNUSED */)
 {
-  NOWARN_UNUSED(flag);
   ink_assert(closed == false);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
 
@@ -421,7 +419,7 @@ PluginVC::transfer_bytes(MIOBuffer * transfer_to, IOBufferReader * transfer_from
 
   int64_t total_added = 0;
 
-  ink_debug_assert(act_on <= transfer_from->read_avail());
+  ink_assert(act_on <= transfer_from->read_avail());
 
   while (act_on > 0) {
     int64_t block_read_avail = transfer_from->block_read_avail();
@@ -504,7 +502,7 @@ PluginVC::process_write_side(bool other_side_call)
   int64_t bytes_avail = reader->read_avail();
   int64_t act_on = MIN(bytes_avail, ntodo);
 
-  Debug("pvc", "[%u] %s: process_write_side; act_on %"PRId64"", PVC_ID, PVC_TYPE, act_on);
+  Debug("pvc", "[%u] %s: process_write_side; act_on %" PRId64"", PVC_ID, PVC_TYPE, act_on);
 
   if (other_side->closed || other_side->read_state.shutdown) {
     write_state.vio._cont->handleEvent(VC_EVENT_ERROR, &write_state.vio);
@@ -540,7 +538,7 @@ PluginVC::process_write_side(bool other_side_call)
 
   write_state.vio.ndone += added;
 
-  Debug("pvc", "[%u] %s: process_write_side; added %"PRId64"", PVC_ID, PVC_TYPE, added);
+  Debug("pvc", "[%u] %s: process_write_side; added %" PRId64"", PVC_ID, PVC_TYPE, added);
 
   if (write_state.vio.ntodo() == 0) {
     write_state.vio._cont->handleEvent(VC_EVENT_WRITE_COMPLETE, &write_state.vio);
@@ -619,7 +617,7 @@ PluginVC::process_read_side(bool other_side_call)
   int64_t bytes_avail = core_reader->read_avail();
   int64_t act_on = MIN(bytes_avail, ntodo);
 
-  Debug("pvc", "[%u] %s: process_read_side; act_on %"PRId64"", PVC_ID, PVC_TYPE, act_on);
+  Debug("pvc", "[%u] %s: process_read_side; act_on %" PRId64"", PVC_ID, PVC_TYPE, act_on);
 
   if (act_on <= 0) {
     if (other_side->closed || other_side->write_state.shutdown) {
@@ -652,7 +650,7 @@ PluginVC::process_read_side(bool other_side_call)
 
   read_state.vio.ndone += added;
 
-  Debug("pvc", "[%u] %s: process_read_side; added %"PRId64"", PVC_ID, PVC_TYPE, added);
+  Debug("pvc", "[%u] %s: process_read_side; added %" PRId64"", PVC_ID, PVC_TYPE, added);
 
   if (read_state.vio.ntodo() == 0) {
     read_state.vio._cont->handleEvent(VC_EVENT_READ_COMPLETE, &read_state.vio);
@@ -710,6 +708,7 @@ PluginVC::process_close()
   if (inactive_event) {
     inactive_event->cancel();
     inactive_event = NULL;
+    inactive_timeout_at = 0;
   }
   // If the other side of the PluginVC is not closed
   //  we need to force it process both living sides
@@ -765,9 +764,10 @@ PluginVC::process_timeout(Event * e, int event_to_send, Event ** our_eptr)
 void
 PluginVC::update_inactive_time()
 {
-  if (inactive_event) {
-    inactive_event->cancel();
-    inactive_event = eventProcessor.schedule_in(this, inactive_timeout);
+  if (inactive_event && inactive_timeout) {
+    //inactive_event->cancel();
+    //inactive_event = eventProcessor.schedule_in(this, inactive_timeout);
+    inactive_timeout_at = ink_get_hrtime() + inactive_timeout;
   }
 }
 
@@ -831,17 +831,17 @@ void
 PluginVC::set_inactivity_timeout(ink_hrtime timeout_in)
 {
   inactive_timeout = timeout_in;
-
-  // FIX - Do we need to handle the case where the timeout is set
-  //   but no io has been done?
-  if (inactive_event) {
-    ink_assert(!inactive_event->cancelled);
-    inactive_event->cancel();
-    inactive_event = NULL;
-  }
-
-  if (inactive_timeout > 0) {
-    inactive_event = eventProcessor.schedule_in(this, inactive_timeout);
+  if (inactive_timeout != 0) {
+    inactive_timeout_at = ink_get_hrtime() + inactive_timeout;
+    if (inactive_event == NULL) {
+      inactive_event = eventProcessor.schedule_every(this, HRTIME_SECONDS(1));
+    }
+  } else {
+    inactive_timeout_at = 0;
+    if (inactive_event) {
+      inactive_event->cancel();
+      inactive_event = NULL;
+    }
   }
 }
 
@@ -898,7 +898,7 @@ PluginVC::set_remote_addr()
 }
 
 int
-PluginVC::set_tcp_init_cwnd(int init_cwnd)
+PluginVC::set_tcp_init_cwnd(int /* init_cwnd ATS_UNUSED */)
 {
   return -1;
 }
@@ -1084,10 +1084,8 @@ PluginVCCore::connect_re(Continuation * c)
 }
 
 int
-PluginVCCore::state_send_accept_failed(int event, void *data)
+PluginVCCore::state_send_accept_failed(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   MUTEX_TRY_LOCK(lock, connect_to->mutex, this_ethread());
 
   if (lock) {
@@ -1103,10 +1101,8 @@ PluginVCCore::state_send_accept_failed(int event, void *data)
 }
 
 int
-PluginVCCore::state_send_accept(int event, void *data)
+PluginVCCore::state_send_accept(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   MUTEX_TRY_LOCK(lock, connect_to->mutex, this_ethread());
 
   if (lock) {
@@ -1212,8 +1208,8 @@ public:
   int main_handler(int event, void *data);
 
 private:
-  int i;
-  int completions_received;
+  unsigned i;
+  unsigned completions_received;
 };
 
 PVCTestDriver::PVCTestDriver():
@@ -1244,8 +1240,8 @@ void
 PVCTestDriver::run_next_test()
 {
 
-  int a_index = i * 2;
-  int p_index = a_index + 1;
+  unsigned a_index = i * 2;
+  unsigned p_index = a_index + 1;
 
   if (p_index >= num_netvc_tests) {
     // We are done - // FIX - PASS or FAIL?
@@ -1274,10 +1270,8 @@ PVCTestDriver::run_next_test()
 }
 
 int
-PVCTestDriver::main_handler(int event, void *data)
+PVCTestDriver::main_handler(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   completions_received++;
 
   if (completions_received == 2) {
@@ -1287,9 +1281,8 @@ PVCTestDriver::main_handler(int event, void *data)
   return 0;
 }
 
-EXCLUSIVE_REGRESSION_TEST(PVC) (RegressionTest * t, int atype, int *pstatus)
+EXCLUSIVE_REGRESSION_TEST(PVC) (RegressionTest * t, int /* atype ATS_UNUSED */, int *pstatus)
 {
-  NOWARN_UNUSED(atype);
   PVCTestDriver *driver = NEW(new PVCTestDriver);
   driver->start_tests(t, pstatus);
 }

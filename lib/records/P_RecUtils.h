@@ -26,7 +26,6 @@
 
 #include "Diags.h"
 #include "ink_atomic.h"
-#include "ink_defs.h"
 
 #include "P_RecDefs.h"
 
@@ -44,18 +43,25 @@
   (((rec_type) == RECT_CONFIG) || \
    ((rec_type) == RECT_LOCAL))
 
-#define REC_NOWARN_UNUSED(a) NOWARN_UNUSED(a)
 
 //-------------------------------------------------------------------------
 // RecData Utils
 //-------------------------------------------------------------------------
 
 RecRecord *RecAlloc(RecT rec_type, const char *name, RecDataT data_type);
-void RecDataClear(RecDataT data_type, RecData * data);
+void RecDataClear(RecDataT type, RecData * data);
+void RecDataSetMax(RecDataT type, RecData * data);
+void RecDataSetMin(RecDataT type, RecData * data);
 bool RecDataSet(RecDataT data_type, RecData * data_dst, RecData * data_src);
 bool RecDataSetFromInk64(RecDataT data_type, RecData * data_dst, int64_t data_int64);
 bool RecDataSetFromFloat(RecDataT data_type, RecData * data_dst, float data_float);
-bool RecDataSetFromString(RecDataT data_type, RecData * data_dst, char *data_string);
+bool RecDataSetFromString(RecDataT data_type, RecData * data_dst, const char *data_string);
+int RecDataCmp(RecDataT type, RecData left, RecData right);
+RecData RecDataAdd(RecDataT type, RecData left, RecData right);
+RecData RecDataSub(RecDataT type, RecData left, RecData right);
+RecData RecDataMul(RecDataT type, RecData left, RecData right);
+RecData RecDataDiv(RecDataT type, RecData left, RecData right);
+
 
 //-------------------------------------------------------------------------
 // Logging

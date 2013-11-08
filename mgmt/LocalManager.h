@@ -67,7 +67,7 @@ public:
   };
 
   void initAlarm();
-  void initCCom(int port, char *addr, int sport);
+  void initCCom(int mcport, char *addr, int rsport);
   void initMgmtProcessServer();
   void pollMgmtProcessServer();
   void handleMgmtMsgFromProcesses(MgmtMessageHdr * mh);
@@ -87,12 +87,12 @@ public:
   void closeProxyPorts();
 
   void mgmtCleanup();
-  void mgmtShutdown(int status, bool mainThread = false);
+  void mgmtShutdown(bool mainThread = false);
   void processShutdown(bool mainThread = false);
   void processRestart();
   void processBounce();
   void rollLogFiles();
-  void clearStats();
+  void clearStats(const char *name = NULL);
 
   bool processRunning();
   bool clusterOk();

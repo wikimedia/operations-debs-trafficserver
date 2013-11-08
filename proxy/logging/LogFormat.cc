@@ -26,9 +26,7 @@
 
 
  ***************************************************************************/
-
 #include "ink_config.h"
-#include "ink_unused.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -52,27 +50,21 @@
 
 // class variables
 //
-bool
-  LogFormat::m_tagging_on = false;
+bool LogFormat::m_tagging_on = false;
 
 // predefined formats
 //
-const char *const
-  LogFormat::squid_format =
-  "%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> " "%<caun> %<phr>/%<pqsn> %<psct> %<xid>";
+const char *const LogFormat::squid_format =
+  "%<cqtq> %<ttms> %<chi> %<crc>/%<pssc> %<psql> %<cqhm> %<cquc> %<caun> %<phr>/%<pqsn> %<psct> %<xid>";
 
-const char *const
-  LogFormat::common_format = "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl>";
+const char *const LogFormat::common_format = "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl>";
 
-const char *const
-  LogFormat::extended_format =
+const char *const LogFormat::extended_format =
   "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl> "
-  "%<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> " "%<sshl> %<tts>";
+  "%<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts>";
 
-const char *const
-  LogFormat::extended2_format =
-  "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl> "
-  "%<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> " "%<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>";
+const char *const LogFormat::extended2_format = "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl> "
+  "%<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>";
 
 /*-------------------------------------------------------------------------
   LogFormat::setup
@@ -144,7 +136,6 @@ int32_t LogFormat::id_from_name(const char *name)
 void
 LogFormat::init_variables(const char *name, const char *fieldlist_str, const char *printf_str, unsigned interval_sec)
 {
-
   m_field_count = parse_symbol_string(fieldlist_str, &m_field_list, &m_aggregate);
 
   if (m_field_count == 0) {
@@ -334,7 +325,6 @@ LogFormat::~LogFormat()
   m_valid = false;
 }
 
-#ifndef TS_MICRO
 /*-------------------------------------------------------------------------
   LogFormat::format_from_specification
 
@@ -482,7 +472,6 @@ LogFormat::format_from_specification(char *spec, char **file_name, char **file_h
 
   return format;
 }
-#endif // TS_MICRO
 
 /*-------------------------------------------------------------------------
   LogFormat::parse_symbol_string
@@ -699,7 +688,8 @@ LogFormat::parse_format_string(const char *format_str, char **printf_str, char *
   (*fields_str)[fields_pos] = '\0';
   (*printf_str)[printf_pos] = '\0';
 
-  Debug("log-format", "LogFormat::parse_format_string: field_count=%d, \"%s\", \"%s\"", field_count, *fields_str, *printf_str);
+  Debug("log-format", "LogFormat::parse_format_string: field_count=%d, \"%s\", \"%s\"", field_count, *fields_str,
+        *printf_str);
   return field_count;
 }
 

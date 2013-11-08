@@ -27,7 +27,6 @@
  *
  *
  ****************************************************************************/
-
 #include "libts.h"
 #include "P_EventSystem.h"
 #include "P_Net.h"
@@ -35,7 +34,6 @@
 #include "CongestionDB.h"
 #include "Congestion.h"
 #include "ProcessManager.h"
-#include "ink_unused.h"
 
 #define SCHEDULE_CONGEST_CONT_INTERVAL HRTIME_MSECONDS(5)
 int CONGESTION_DB_SIZE = 1024;
@@ -318,10 +316,8 @@ CongestionDB::revalidateBucket(int buckId)
 //-----------------------------------------------------------------
 
 int
-CongestionDBCont::GC(int event, Event * e)
+CongestionDBCont::GC(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (congestionControlEnabled == 1 || congestionControlEnabled == 2) {
     if (theCongestionDB == NULL)
       goto Ldone;
@@ -355,11 +351,8 @@ Ldone:
 }
 
 int
-CongestionDBCont::get_congest_list(int event, Event * e)
+CongestionDBCont::get_congest_list(int /* event ATS_UNUSED */, Event * e)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
-
   if (m_action.cancelled) {
     Free_CongestionDBCont(this);
     return EVENT_DONE;
@@ -395,11 +388,9 @@ CongestionDBCont::get_congest_list(int event, Event * e)
 }
 
 int
-CongestionDBCont::get_congest_entry(int event, Event * e)
+CongestionDBCont::get_congest_entry(int /* event ATS_UNUSED */, Event * e)
 {
   Debug("congestion_control", "cont::get_congest_entry started");
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
 
   if (m_action.cancelled) {
     Debug("congestion_cont", "action cancelled for %p", this);

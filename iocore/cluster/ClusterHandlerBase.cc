@@ -33,6 +33,7 @@ extern int cluster_send_buffer_size;
 extern uint32_t cluster_sockopt_flags;
 extern uint32_t cluster_packet_mark;
 extern uint32_t cluster_packet_tos;
+extern int num_of_cluster_threads;
 
 
 ///////////////////////////////////////////////////////////////
@@ -55,10 +56,8 @@ ClusterCalloutContinuation::~ClusterCalloutContinuation()
 }
 
 int
-ClusterCalloutContinuation::CalloutHandler(int event, Event * e)
+ClusterCalloutContinuation::CalloutHandler(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   return _ch->process_incoming_callouts(this->mutex);
 }
 
@@ -256,7 +255,7 @@ n_byte_bank(0), byte_bank_size(0), missed(0), missed_msg(false), read_state_t(RE
   //////////////////////////////////////////////////
   // Place an invalid page in front of iovec data.
   //////////////////////////////////////////////////
-  size_t pagesize = (size_t) getpagesize();
+  size_t pagesize = ats_pagesize();
   size = ((MAX_TCOUNT + 1) * sizeof(IOVec)) + (2 * pagesize);
   iob_iov = new_IOBufferData(BUFFER_SIZE_FOR_XMALLOC(size));
   char *addr = (char *) align_pointer_forward(iob_iov->data(), pagesize);
@@ -292,7 +291,7 @@ ClusterState::~ClusterState()
 {
   mutex = 0;
 #if defined(__sparc)
-  int pagesize = getpagesize();
+  int pagesize = ats_pagesize();
 #endif
   if (iov) {
 #if defined(__sparc)
@@ -775,6 +774,7 @@ ClusterHandler::machine_down()
     ClusterConfiguration *cc = configuration_remove_machine(c, machine);
     CLUSTER_DECREMENT_DYN_STAT(CLUSTER_NODES_STAT);
     this_cluster()->configurations.push(cc);
+    machine->dead = true;
   }
   MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
   MachineList *cc = the_cluster_config();
@@ -786,9 +786,8 @@ ClusterHandler::machine_down()
 }
 
 int
-ClusterHandler::zombify(Event * e)
+ClusterHandler::zombify(Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
   //
   // Node associated with *this is declared down, setup the event to cleanup
   // and defer deletion of *this
@@ -849,12 +848,12 @@ ClusterHandler::connectClusterEvent(int event, Event * e)
     opt.addr_binding = NetVCOptions::INTF_ADDR;
     opt.local_ip = this_cluster_machine()->ip;
 
+    struct sockaddr_in addr;
+    ats_ip4_set(&addr, machine->ip,
+        htons(machine->cluster_port ? machine->cluster_port : cluster_port));
+
     // TODO: Should we check the Action* returned here?
-    netProcessor.connect_re(this, machine->ip,
-                            machine->cluster_port
-                            ? machine->cluster_port
-                            : cluster_port,
-                            &opt);
+    netProcessor.connect_re(this, ats_ip_sa_cast(&addr), &opt);
     return EVENT_DONE;
   } else {
     if (event == NET_EVENT_OPEN) {
@@ -984,7 +983,6 @@ ClusterHandler::startClusterEvent(int event, Event * e)
       {
         int proto_major = -1;
         int proto_minor = -1;
-        int failed = 0;
 
         clusteringVersion.AdjustByteOrder();
         /////////////////////////////////////////////////////////////////////////
@@ -1026,6 +1024,85 @@ ClusterHandler::startClusterEvent(int event, Event * e)
         if (!connector)
           id = clusteringVersion._id & 0xffff;
 
+        machine->msg_proto_major = proto_major;
+        machine->msg_proto_minor = proto_minor;
+
+        if (eventProcessor.n_threads_for_type[ET_CLUSTER] != num_of_cluster_threads) {
+          cluster_connect_state = ClusterHandler::CLCON_ABORT_CONNECT;
+          break;
+        }
+
+        thread = eventProcessor.eventthread[ET_CLUSTER][id % num_of_cluster_threads];
+        if (net_vc->thread == thread) {
+          cluster_connect_state = CLCON_CONN_BIND_OK;
+          break;
+        } else { 
+          cluster_connect_state = ClusterHandler::CLCON_CONN_BIND_CLEAR;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND_CLEAR:
+      {
+        UnixNetVConnection *vc = (UnixNetVConnection *)net_vc; 
+        MUTEX_TRY_LOCK(lock, vc->nh->mutex, e->ethread);
+        MUTEX_TRY_LOCK(lock1, vc->mutex, e->ethread);
+        if (lock && lock1) {
+          vc->ep.stop();
+          vc->nh->open_list.remove(vc);
+          vc->thread = NULL;
+          if (vc->nh->read_ready_list.in(vc))
+            vc->nh->read_ready_list.remove(vc);
+          if (vc->nh->write_ready_list.in(vc))
+            vc->nh->write_ready_list.remove(vc);
+          if (vc->read.in_enabled_list)
+            vc->nh->read_enable_list.remove(vc);
+          if (vc->write.in_enabled_list)
+            vc->nh->write_enable_list.remove(vc);
+
+          // CLCON_CONN_BIND handle in bind vc->thread (bind thread nh)
+          cluster_connect_state = ClusterHandler::CLCON_CONN_BIND;
+          thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        } else {
+          // CLCON_CONN_BIND_CLEAR handle in origin vc->thread (origin thread nh)
+          vc->thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND:
+      {
+        // 
+        NetHandler *nh = get_NetHandler(e->ethread);
+        UnixNetVConnection *vc = (UnixNetVConnection *)net_vc; 
+        MUTEX_TRY_LOCK(lock, nh->mutex, e->ethread);
+        MUTEX_TRY_LOCK(lock1, vc->mutex, e->ethread);
+        if (lock && lock1) {
+          if (vc->read.in_enabled_list)
+            nh->read_enable_list.push(vc);
+          if (vc->write.in_enabled_list)
+            nh->write_enable_list.push(vc);
+
+          vc->nh = nh;
+          vc->thread = e->ethread;
+          PollDescriptor *pd = get_PollDescriptor(e->ethread);
+          if (vc->ep.start(pd, vc, EVENTIO_READ|EVENTIO_WRITE) < 0) {
+            cluster_connect_state = ClusterHandler::CLCON_DELETE_CONNECT;
+            break;                // goto next state
+          }
+
+          nh->open_list.enqueue(vc);
+          cluster_connect_state = ClusterHandler::CLCON_CONN_BIND_OK;
+        } else {
+          thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND_OK:
+      {
+        int failed = 0;
+
         // include this node into the cluster configuration
         MUTEX_TAKE_LOCK(the_cluster_config_mutex, this_ethread());
         MachineList *cc = the_cluster_config();
@@ -1038,28 +1115,13 @@ ClusterHandler::startClusterEvent(int event, Event * e)
             CLUSTER_INCREMENT_DYN_STAT(CLUSTER_NODES_STAT);
             this_cluster()->configurations.push(cconf);
           } else {
-            if (m->num_connections > machine->num_connections) {
-              // close old needlessness connection if new num_connections < old num_connections
-              for (int i = machine->num_connections; i < m->num_connections; i++) {
-                if (m->clusterHandlers[i])
-                  m->clusterHandlers[i]->downing = true;
-              }
-              m->num_connections = machine->num_connections;
-              m->free_connections -= (m->num_connections - machine->num_connections);
-              // delete_this
+            // close new connection if old connections is exist
+            if (id >= m->num_connections || m->clusterHandlers[id]) {
               failed = -2;
               MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
               goto failed;
-            } else {
-              m->num_connections = machine->num_connections;
-              // close new connection if old connections is exist
-              if (id >= m->num_connections || m->clusterHandlers[id]) {
-                failed = -2;
-                MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
-                goto failed;
-              }
-              machine = m;
             }
+            machine = m;
           }
           machine->now_connections++;
           machine->clusterHandlers[id] = this;
@@ -1074,7 +1136,7 @@ failed:
         if (failed) {
           if (failed == -1) {
             if (++configLookupFails <= CONFIG_LOOKUP_RETRIES) {
-              eventProcessor.schedule_in(this, HRTIME_SECONDS(1), ET_CLUSTER);
+              thread->schedule_in(this, CLUSTER_PERIOD);
               return EVENT_DONE;
             }
           }
@@ -1083,8 +1145,6 @@ failed:
         }
 
         this->needByteSwap = !clusteringVersion.NativeByteOrder();
-        machine->msg_proto_major = proto_major;
-        machine->msg_proto_minor = proto_minor;
 #ifdef NON_MODULAR
         machine_online_APIcallout(ip);
 #endif
@@ -1098,7 +1158,7 @@ failed:
         Note("machine up %hhu.%hhu.%hhu.%hhu:%d, protocol version=%d.%d",
              DOT_SEPARATED(ip), id, clusteringVersion._major, clusteringVersion._minor);
 #endif
-        thread = e->ethread;
+
         read_vcs = NEW((new Queue<ClusterVConnectionBase, ClusterVConnectionBase::Link_read_link>[CLUSTER_BUCKETS]));
         write_vcs = NEW((new Queue<ClusterVConnectionBase, ClusterVConnectionBase::Link_write_link>[CLUSTER_BUCKETS]));
         SET_HANDLER((ClusterContHandler) & ClusterHandler::beginClusterEvent);
@@ -1107,12 +1167,7 @@ failed:
         read.do_iodone_event = true;
         write.do_iodone_event = true;
 
-#ifdef CLUSTER_IMMEDIATE_NETIO
-        e->schedule_every(-CLUSTER_PERIOD);     // Negative event
-#else
-        e->schedule_every(-CLUSTER_PERIOD);
-#endif
-        cluster_periodic_event = e;
+        cluster_periodic_event = thread->schedule_every(this, -CLUSTER_PERIOD);
 
         // Startup the periodic events to process entries in
         //  external_incoming_control.
@@ -1170,9 +1225,8 @@ failed:
 }
 
 int
-ClusterHandler::beginClusterEvent(int event, Event * e)
+ClusterHandler::beginClusterEvent(int /* event ATS_UNUSED */, Event * e)
 {
-  NOWARN_UNUSED(event);
   // Establish the main periodic Cluster event
 #ifdef CLUSTER_IMMEDIATE_NETIO
   build_poll(false);
@@ -1196,16 +1250,15 @@ ClusterHandler::zombieClusterEvent(int event, Event * e)
 }
 
 int
-ClusterHandler::protoZombieEvent(int event, Event * e)
+ClusterHandler::protoZombieEvent(int /* event ATS_UNUSED */, Event * e)
 {
-  NOWARN_UNUSED(event);
   //
   // Node associated with *this is declared down.
   // After cleanup is complete, setup handler to delete *this
   // after NO_RACE_DELAY
   //
   bool failed = false;
-  ink_hrtime delay = CLUSTER_RETRY;
+  ink_hrtime delay = CLUSTER_MEMBER_DELAY * 5;
   EThread *t = e ? e->ethread : this_ethread();
   head_p item;
 

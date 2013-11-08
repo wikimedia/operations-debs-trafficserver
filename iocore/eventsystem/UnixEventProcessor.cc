@@ -22,11 +22,76 @@
  */
 
 #include "P_EventSystem.h"      /* MAGIC_EDITING_TAG */
+#include <sched.h>
+#if TS_USE_HWLOC
+
+#if HAVE_HWLOC_H
+#include <hwloc.h>
+#endif
+
+#if HAVE_SCHED_H
+#include <sched.h>
+#if !defined(solaris) && !defined(freebsd)
+typedef cpu_set_t ink_cpuset_t;
+#define PTR_FMT PRIuPTR
+#endif
+#endif
+
+#if HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
+#if HAVE_SYS_CPUSET_H
+#include <sys/cpuset.h>
+typedef cpuset_t ink_cpuset_t;
+#define PTR_FMT "p"
+#endif
+
+#if HAVE_SYS_PSET_H
+#include <sys/pset.h>
+typedef psetid_t ink_cpuset_t;
+#define PTR_FMT "u"
+#endif
+
+#if HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+
+#endif
+#include "ink_defs.h"
+
+#if TS_USE_HWLOC
+static void
+set_cpu(ink_cpuset_t *cpuset, int cpu)
+{
+#if !defined(solaris)
+  CPU_ZERO(cpuset);
+  CPU_SET(cpu, cpuset);
+#else
+  pset_create(cpuset);
+  pset_assign(*cpuset, cpu, NULL);
+#endif
+}
 
 
+static bool
+bind_cpu(ink_cpuset_t *cpuset, ink_thread tid)
+{
+  if ( 0 != 
+#if !defined(solaris)
+    pthread_setaffinity_np(tid, sizeof(ink_cpuset_t), cpuset)
+#else
+    pset_bind(*cpuset, P_LWPID, P_MYID, NULL)
+#endif
+    ){
+    return false;
+  }
+  return true;
+}
+#endif
 
 EventType
-EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
+EventProcessor::spawn_event_threads(int n_threads, const char* et_name, size_t stacksize)
 {
   char thr_name[MAX_THREAD_NAME_LENGTH];
   EventType new_thread_group_id;
@@ -48,7 +113,7 @@ EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
   n_threads_for_type[new_thread_group_id] = n_threads;
   for (i = 0; i < n_threads; i++) {
     snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[%s %d]", et_name, i);
-    eventthread[new_thread_group_id][i]->start(thr_name);
+    eventthread[new_thread_group_id][i]->start(thr_name, stacksize);
   }
 
   n_thread_groups++;
@@ -59,12 +124,10 @@ EventProcessor::spawn_event_threads(int n_threads, const char* et_name)
 }
 
 
-#define INK_NO_CLUSTER
-
 class EventProcessor eventProcessor;
 
 int
-EventProcessor::start(int n_event_threads)
+EventProcessor::start(int n_event_threads, size_t stacksize)
 {
   char thr_name[MAX_THREAD_NAME_LENGTH];
   int i;
@@ -93,11 +156,57 @@ EventProcessor::start(int n_event_threads)
     t->set_event_type((EventType) ET_CALL);
   }
   n_threads_for_type[ET_CALL] = n_event_threads;
+
+#if TS_USE_HWLOC
+  int affinity = 0;
+  REC_ReadConfigInteger(affinity, "proxy.config.exec_thread.affinity");
+  ink_cpuset_t cpuset;
+  int socket = hwloc_get_nbobjs_by_type(ink_get_topology(), HWLOC_OBJ_SOCKET);
+  int cu = hwloc_get_nbobjs_by_type(ink_get_topology(), HWLOC_OBJ_CORE);
+  int pu = cu;
+
+  // Older versions of libhwloc (eg. Ubuntu 10.04) don't have pHWLOC_OBJ_PU.
+#if HAVE_HWLOC_OBJ_PU
+  pu = hwloc_get_nbobjs_by_type(ink_get_topology(), HWLOC_OBJ_PU);
+#endif
+
+  Debug("iocore_thread", "socket: %d core: %d logical processor: %d affinity: %d", socket, cu, pu, affinity);
+#endif
+
   for (i = first_thread; i < n_ethreads; i++) {
     snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ET_NET %d]", i);
-    all_ethreads[i]->start(thr_name);
-  }
+    ink_thread tid = all_ethreads[i]->start(thr_name, stacksize);
+    (void)tid;
 
+#if TS_USE_HWLOC
+    if (affinity != 0) {
+      int logical_ratio;
+      switch(affinity) {
+      case 3:           // assign threads to logical cores
+        logical_ratio = 1;
+        break;
+      case 2:           // assign threads to real cores
+        logical_ratio = pu / cu;
+        break;
+      case 1:           // assign threads to sockets
+      default:
+        logical_ratio = pu / socket;
+      }
+
+      char debug_message[256];
+      int len = snprintf(debug_message, sizeof(debug_message), "setaffinity tid: %" PTR_FMT ", net thread: %u cpu:", tid, i);
+      for (int cpu_count = 0; cpu_count < logical_ratio; cpu_count++) {
+        int cpu = ((i - 1) * logical_ratio + cpu_count) % pu;
+        set_cpu(&cpuset, cpu);
+        len += snprintf(debug_message + len, sizeof(debug_message) - len, " %d", cpu);
+      }
+      Debug("iocore_thread", "%s", debug_message);
+      if (!bind_cpu(&cpuset, tid)){
+        Error("%s, failed with errno: %d", debug_message, errno);
+      }
+    }
+#endif
+  }
   Debug("iocore_thread", "Created event thread group id %d with %d threads", ET_CALL, n_event_threads);
   return 0;
 }
@@ -108,7 +217,7 @@ EventProcessor::shutdown()
 }
 
 Event *
-EventProcessor::spawn_thread(Continuation *cont, const char* thr_name, ink_sem *sem)
+EventProcessor::spawn_thread(Continuation *cont, const char* thr_name, size_t stacksize, ink_sem *sem)
 {
   ink_release_assert(n_dthreads < MAX_EVENT_THREADS);
   Event *e = eventAllocator.alloc();
@@ -118,7 +227,7 @@ EventProcessor::spawn_thread(Continuation *cont, const char* thr_name, ink_sem *
   e->ethread = dthreads[n_dthreads];
   e->mutex = e->continuation->mutex = dthreads[n_dthreads]->mutex;
   n_dthreads++;
-  e->ethread->start(thr_name);
+  e->ethread->start(thr_name, stacksize);
 
   return e;
 }

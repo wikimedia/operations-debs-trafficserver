@@ -221,9 +221,7 @@ private:
 
   void generate_filenames(const char *log_dir, const char *basename, LogFileFormat file_format);
   void _setup_rolling(int rolling_enabled, int rolling_interval_sec, int rolling_offset_hr, int rolling_size_mb);
-#ifndef TS_MICRO
   int _roll_files(long interval_start, long interval_end);
-#endif
 
   LogBuffer *_checkout_write(size_t * write_offset, size_t write_size);
 
@@ -311,9 +309,7 @@ public:
 private:
 
   int _manage_object(LogObject * log_object, bool is_api_object, int maxConflicts);
-#ifndef TS_MICRO
-  static bool _has_internal_filename_conflict(char *filename, uint64_t signature, LogObject ** objects, int numObjects);
-#endif                          // TS_MICRO
+  static bool _has_internal_filename_conflict(char *filename, LogObject ** objects, int numObjects);
   int _solve_filename_conflicts(LogObject * log_obj, int maxConflicts);
   int _solve_internal_filename_conflicts(LogObject * log_obj, int maxConflicts, int fileNum = 0);
   void _add_object(LogObject * object);
@@ -383,6 +379,9 @@ inline int LogObjectManager::roll_files(long time_now)
     int num_rolled = 0;
     for (size_t i=0; i < _numObjects; i++) {
       num_rolled += _objects[i]->roll_files(time_now);
+    }
+    for (size_t i=0; i < _numAPIobjects; i++) {
+      num_rolled += _APIobjects[i]->roll_files(time_now);
     }
     return num_rolled;
 };

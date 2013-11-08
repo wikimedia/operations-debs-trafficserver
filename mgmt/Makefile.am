@@ -17,8 +17,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SUBDIRS = cluster preparse tools utils web2 stats api cli
-DIST_SUBDIRS = $(SUBDIRS)
+SUBDIRS = cluster preparse utils web2 stats api cli
 
 # This is for traffic_manager only (local manager)
 AM_CPPFLAGS = $(ink_with_modules_local) \
@@ -64,11 +63,14 @@ libmgmt_p_a_SOURCES = \
   MgmtDefs.h \
   ProcessManager.cc \
   ProcessManager.h \
+  ProxyConfig.cc \
+  ProxyConfig.h \
   RecordsConfig.cc \
   RecordsConfig.h
 
 traffic_manager_SOURCES = \
-  $(top_srcdir)/proxy/Error.cc \
+  ../proxy/Error.cc \
+  ../proxy/DiagsConfig.cc \
   AddConfigFilesHere.cc \
   Alarms.cc \
   Alarms.h \
@@ -97,12 +99,10 @@ traffic_manager_LDADD = \
   utils/libutils_lm.a \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/lib/records/libreclocal.a \
-  $(top_builddir)/mgmt/tools/libinksysapi.a \
-  $(top_builddir)/mgmt/tools/libinkconfigapi.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ \
-  -lm @LIBDL@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ \
-  @LIBTHREAD@ @LIBRT@ @LIBEXECINFO@ @LIBCAP@
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ \
+  -lm
 
 # Must do it this way or the dependencies aren't detected.
 if BUILD_WCCP

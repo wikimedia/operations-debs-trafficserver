@@ -27,7 +27,8 @@
 
 #include <unistd.h>
 
-#include <ts/ts.h>
+#include "ts/ts.h"
+#include "ink_defs.h"
 
 
 static char base64_codes[256];
@@ -73,10 +74,13 @@ authorized(char *user, char *password)
   /*
    * This routine checks the validity of the user name and
    * password. UNIX systems, enter your own authorization code
-   * here.
+   * here. ToDO: This doesn't do anything useful now.
    */
-
-  return 1;
+  if (user && password) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 static void
@@ -205,34 +209,8 @@ auth_plugin(TSCont contp, TSEvent event, void *edata)
   return 0;
 }
 
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-
-  }
-
-  return result;
-}
-
 void
-TSPluginInit(int argc, const char *argv[])
+TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
 {
   int i, cc;
   TSPluginRegistrationInfo info;
@@ -243,11 +221,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
-  }
-
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 3.0 or later\n");
-    return;
   }
 
   /* Build translation table */

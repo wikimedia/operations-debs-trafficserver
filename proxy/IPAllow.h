@@ -34,11 +34,11 @@
 #include "Main.h"
 #include "hdrs/HTTP.h"
 #include "ts/IpMap.h"
-#include "vector"
 #include "ts/Vec.h"
+#include "ProxyConfig.h"
 
 // forward declare in name only so it can be a friend.
-struct IPAllow_UpdateContinuation;
+struct IpAllowUpdate;
 
 //
 // Timeout the IpAllowTable * this amount of time after the
@@ -63,32 +63,40 @@ struct AclRecord {
 
 /** Singleton class for access controls.
  */
-class IpAllow {
+class IpAllow : public ConfigInfo
+{
   friend int main(int, char**);
-  friend struct IPAllow_UpdateContinuation;
+  friend struct IpAllowUpdate;
+
 public:
   typedef IpAllow self; ///< Self reference type.
 
   IpAllow(const char *config_var, const char *name, const char *action_val);
    ~IpAllow();
-  int BuildTable();
   void Print();
   uint32_t match(IpEndpoint const* ip) const;
   uint32_t match(sockaddr const* ip) const;
 
+  static void startup();
+  static void reconfigure();
   /// @return The global instance.
-  static self* instance();
+  static IpAllow * acquire();
+  static void release(IpAllow * params);
 
   static bool CheckMask(uint32_t, int);
   /// @return A mask that permits all methods.
   static uint32_t AllMethodMask() {
     return ALL_METHOD_MASK;
   }
-private:
 
-  static void InitInstance();
-  static void ReloadInstance();
+  typedef ConfigProcessor::scoped_config<IpAllow, IpAllow> scoped_config;
+
+private:
   static uint32_t MethodIdxToMask(int);
+  static uint32_t ALL_METHOD_MASK;
+  static int configid;
+
+  int BuildTable();
 
   const char *config_file_var;
   char config_file_path[PATH_NAME_MAX];
@@ -96,12 +104,7 @@ private:
   const char *action;
   IpMap _map;
   Vec<AclRecord> _acls;
-  static uint32_t ALL_METHOD_MASK;
-
-  static self* _instance;
 };
-
-inline IpAllow* IpAllow::instance() { return _instance; }
 
 inline uint32_t IpAllow::MethodIdxToMask(int idx) { return 1 << (idx - HTTP_WKSIDX_CONNECT); }
 

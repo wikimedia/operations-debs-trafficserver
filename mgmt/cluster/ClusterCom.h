@@ -94,7 +94,7 @@ class ClusterCom
 {
 public:
 
-  ClusterCom(unsigned long oip, char *hname, int port, char *group, int sport, char *p);
+  ClusterCom(unsigned long oip, char *hname, int mcport, char *group, int rsport, char *p);
    ~ClusterCom()
   {
   };
@@ -117,7 +117,7 @@ public:
   void constructSharedFilePacket(char *message, int max);
   static int constructSharedPacketHeader(char *message, char *ip, int max);
 
-  bool sendClusterMessage(int msg_type);
+  bool sendClusterMessage(int msg_type, const char *args = NULL);
   bool sendOutgoingMessage(char *buf, int len);
   bool sendReliableMessage(unsigned long addr, char *buf, int len);
 

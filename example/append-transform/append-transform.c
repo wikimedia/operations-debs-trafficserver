@@ -39,7 +39,9 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
+#include "ink_defs.h"
 
 #define ASSERT_SUCCESS(_x) TSAssert ((_x) == TS_SUCCESS)
 
@@ -196,7 +198,7 @@ handle_transform(TSCont contp)
 }
 
 static int
-append_transform(TSCont contp, TSEvent event, void *edata)
+append_transform(TSCont contp, TSEvent event, void *edata ATS_UNUSED)
 {
   /* Check to see if the transformation has been closed by a call to
      TSVConnClose. */
@@ -292,7 +294,7 @@ transform_add(TSHttpTxn txnp)
 }
 
 static int
-transform_plugin(TSCont contp, TSEvent event, void *edata)
+transform_plugin(TSCont contp ATS_UNUSED, TSEvent event, void *edata)
 {
   TSHttpTxn txnp = (TSHttpTxn) edata;
 
@@ -345,32 +347,6 @@ load(const char *filename)
   return 1;
 }
 
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-
-  }
-
-  return result;
-}
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -382,11 +358,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
-    goto Lerror;
-  }
-
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 3.0 or later\n");
     goto Lerror;
   }
 

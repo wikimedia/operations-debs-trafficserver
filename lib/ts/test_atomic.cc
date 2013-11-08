@@ -30,7 +30,6 @@
 #include "ink_atomic.h"
 #include "ink_queue.h"
 #include "ink_thread.h"
-#include "ink_unused.h" /* MAGIC_EDITING_TAG */
 
 
 #ifndef LONG_ATOMICLIST_TEST
@@ -139,7 +138,7 @@ cycle_data(void *d)
 #endif // LONG_ATOMICLIST_TEST
 
 int
-main(int argc, const char *argv[])
+main(int /* argc ATS_UNUSED */, const char */* argv ATS_UNUSED */[])
 {
 #ifndef LONG_ATOMICLIST_TEST
   int32_t m = 1, n = 100;
@@ -159,11 +158,11 @@ main(int argc, const char *argv[])
   printf("changed to: %d,  result=%s\n", m, n ? "true" : "false");
 
   printf("CAS pointer: '%s' == 'hello'  then  'new'\n", m2);
-  n = ink_atomic_cas_ptr((pvvoidp) &m2, (char *) "hello", (char *) "new");
+  n = ink_atomic_cas( &m2,  "hello",  "new");
   printf("changed to: %s, result=%s\n", m2, n ? (char *) "true" : (char *) "false");
 
   printf("CAS pointer: '%s' == 'hello'  then  'new2'\n", m2);
-  n = ink_atomic_cas_ptr((pvvoidp)&m2, (char*)m2, (char *) "new2");
+  n = ink_atomic_cas(&m2, m2,  "new2");
   printf("changed to: %s, result=%s\n", m2, n ? "true" : "false");
 
   n = 100;
@@ -173,7 +172,7 @@ main(int argc, const char *argv[])
 
 
   printf("Atomic Fetch-and-Add 2 to pointer to '%s'\n", m2);
-  n2 = (char *)ink_atomic_increment_ptr((pvvoidp)&m2, 2);
+  n2 = (char *)ink_atomic_increment((pvvoidp)&m2, (void *)2);
   printf("changed to: %s,  result=%s\n", m2, n2);
 
   printf("Testing atomic lists\n");

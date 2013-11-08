@@ -95,12 +95,7 @@ TSError SnapshotRestore(char *snapshot_name);
 TSError SnapshotRemove(char *snapshot_name);
 TSError SnapshotGetMlt(LLQ * snapshots);
 
-TSError StatsReset(bool cluster);
-
-/***************************************************************************
- * Miscellaneous Utility
- ***************************************************************************/
-TSError EncryptToFile(const char *passwd, const char *filepath);
+TSError StatsReset(bool cluster, const char* name = NULL);
 
 #ifdef __cplusplus
 }

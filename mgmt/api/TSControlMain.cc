@@ -381,22 +381,12 @@ ts_ctrl_main(void *arg)
               }
               break;
 
-            case STATS_RESET:
-              ret = handle_stats_reset(client_entry->sock_info, req);
+            case STATS_RESET_CLUSTER:
+            case STATS_RESET_NODE:
+              ret = handle_stats_reset(client_entry->sock_info, req, op_t);
               ats_free(req);
               if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
                 Debug("ts_main", "[ts_ctrl_main] ERROR: stats_reset\n");
-                remove_client(client_entry, accepted_con);
-                con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
-                continue;
-              }
-              break;
-
-            case ENCRYPT_TO_FILE:
-              ret = handle_encrypt_to_file(client_entry->sock_info, req);
-              ats_free(req);
-              if (ret == TS_ERR_NET_WRITE || ret == TS_ERR_NET_EOF) {
-                Debug("ts_main", "[ts_ctrl_main] ERROR: encrypt_to_file");
                 remove_client(client_entry, accepted_con);
                 con_entry = ink_hash_table_iterator_next(accepted_con, &con_state);
                 continue;
@@ -934,10 +924,8 @@ handle_snapshot_get_mlt(struct SocketInfo sock_info)
  * output: TS_ERR_xx
  *************************************************************************/
 void
-handle_diags(struct SocketInfo sock_info, char *req)
+handle_diags(struct SocketInfo /* sock_info ATS_UNUSED */, char *req)
 {
-  NOWARN_UNUSED(sock_info);
-  NOWARN_UNUSED(req);
   TSError ret;
   TSDiagsT mode;
   char *diag_msg = NULL;
@@ -1000,59 +988,16 @@ Lerror:
  * purpose: handles request to reset statistics to default values
  * input: struct SocketInfo sock_info - the socket to use to talk to client
  *        req - should be NULL
+ *        op - reset type (cluster or node)
  * output: TS_ERR_xx
  *************************************************************************/
 TSError
-handle_stats_reset(struct SocketInfo sock_info, char *req)
+handle_stats_reset(struct SocketInfo sock_info, char *req, OpType op)
 {
-  int16_t cluster;
   TSError ret;
 
-  if (!req) {
-    ret = send_reply(sock_info, TS_ERR_PARAMS);
-    return ret;                 // shouldn't get here
-  }
-
-  // the req should be a boolean value - typecase it
-  memcpy(&cluster, req, SIZE_BOOL);
-
-  // call CoreAPI call on Traffic Manager side
-  ret = StatsReset(0 != cluster);
+  ret = StatsReset(op == STATS_RESET_CLUSTER, req);
   ret = send_reply(sock_info, ret);
 
-  return ret;
-}
-
-/**************************************************************************
- * handle_encrypt_to_file
- *
- * purpose: handles request to encrypt password to file
- * input: struct SocketInfo sock_info - the socket to use to talk to client
- *        req - should be NULL
- * output: TS_ERR_xx
- *************************************************************************/
-TSError
-handle_encrypt_to_file(struct SocketInfo sock_info, char *req)
-{
-  char *pwd, *filepath;
-  TSError ret;
-
-  if (!req) {
-    ret = send_reply(sock_info, TS_ERR_PARAMS);
-    return ret;
-  }
-  // parse request msg
-  ret = parse_request_name_value(req, &pwd, &filepath);
-  if (ret != TS_ERR_OKAY) {
-    ret = send_reply(sock_info, ret);
-    ats_free(pwd);
-    ats_free(filepath);
-    return ret;
-  }
-
-  ret = EncryptToFile(pwd, filepath);
-  ret = send_reply(sock_info, ret);
-  ats_free(pwd);
-  ats_free(filepath);
   return ret;
 }

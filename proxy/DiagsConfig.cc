@@ -27,13 +27,11 @@
 #ifdef LOCAL_MANAGER
 
 #include "../mgmt/Main.h"
-#define MGMT_PTR       lmgmt
 #define DIAGS_LOG_FILE "manager.log"
 
 #else
 #include "Main.h"
 #include "ProxyConfig.h"
-#define MGMT_PTR       pmgmt
 #define DIAGS_LOG_FILE "diags.log"
 
 #endif
@@ -183,11 +181,9 @@ DiagsConfig::reconfigure_diags()
 //
 //////////////////////////////////////////////////////////////////////////////
 static int
-diags_config_callback(const char *name, RecDataT data_type, RecData data, void *opaque_token)
+diags_config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                      RecData /* data ATS_UNUSED */, void *opaque_token)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
   DiagsConfig *diagsConfig;
 
   diagsConfig = (DiagsConfig *) opaque_token;
@@ -277,15 +273,15 @@ DiagsConfig::RegisterDiagConfig()
   RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.action.enabled", 0, RECU_NULL, RECC_NULL, NULL);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.action.tags", "", RECU_NULL, RECC_NULL, NULL);
   RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.show_location", 0, RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "E", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "E", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.note", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.warning", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.error", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.fatal", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.alert", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SE", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.note", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.warning", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.error", "SL", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.fatal", "SL", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.alert", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SL", RECU_NULL, RECC_NULL, NULL);
 }
 
 
@@ -400,7 +396,7 @@ DiagsConfig::register_diags_callbacks()
     total_status = total_status && status;
   }
 
-  if (total_status == FALSE) {
+  if (total_status == false) {
     diags->print(NULL, DTA(DL_Error), "couldn't setup all diags callbacks, diagnostics may misbehave");
     callbacks_established = false;
   } else {

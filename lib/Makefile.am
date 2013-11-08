@@ -18,7 +18,15 @@
 
 SUBDIRS = ts records
 
+if BUILD_PERL_LIB
+SUBDIRS += perl
+endif
+
 # TsConfig is only built for WCCP until the bugs are worked out.
 if BUILD_WCCP
 SUBDIRS += tsconfig wccp
+endif
+
+if BUILD_CPP11API
+SUBDIRS += cpp11api
 endif

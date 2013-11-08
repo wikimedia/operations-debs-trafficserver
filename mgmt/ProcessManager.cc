@@ -38,8 +38,6 @@
  */
 inkcoreapi ProcessManager *pmgmt = NULL;
 
-void syslog_thr_init();
-
 /*
  * startProcessManager(...)
  *   The start function and thread loop for the process manager.
@@ -48,9 +46,6 @@ void *
 startProcessManager(void *arg)
 {
   void *ret = arg;
-
-
-  syslog_thr_init();
 
   while (!pmgmt) {              /* Avert race condition, thread spun during constructor */
     Debug("pmgmt", "[startProcessManager] Waiting for initialization of object...\n");
@@ -71,10 +66,9 @@ startProcessManager(void *arg)
   return ret;
 }                               /* End startProcessManager */
 
-ProcessManager::ProcessManager(bool rlm, char *mpath):
-BaseManager(), require_lm(rlm), mgmt_sync_key(0), local_manager_sockfd(0)
+ProcessManager::ProcessManager(bool rlm, char * /* mpath ATS_UNUSED */):
+BaseManager(), require_lm(rlm), mgmt_sync_key(0), local_manager_sockfd(0), cbtable(NULL)
 {
-  NOWARN_UNUSED(mpath);
   ink_strlcpy(pserver_path, Layout::get()->runtimedir, sizeof(pserver_path));
   mgmt_signal_queue = create_queue();
 
@@ -310,8 +304,8 @@ ProcessManager::handleMgmtMsgFromLM(MgmtMessageHdr * mh)
     signalMgmtEntity(MGMT_EVENT_ROLL_LOG_FILES);
     break;
   case MGMT_EVENT_PLUGIN_CONFIG_UPDATE:
-    if (data_raw != NULL && data_raw[0] != '\0') {
-      global_config_cbs->invoke(data_raw);
+    if (data_raw != NULL && data_raw[0] != '\0' && this->cbtable) {
+      this->cbtable->invoke(data_raw);
     }
     break;
   case MGMT_EVENT_HTTP_CLUSTER_DELTA:

@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-#include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 /****************************************************************************
 
   Regression.cc
@@ -71,7 +70,7 @@ RegressionTest::RegressionTest(const char *name_arg, TestFunction * function_arg
 static inline int
 start_test(RegressionTest * t)
 {
-  ink_debug_assert(t->status == REGRESSION_TEST_NOT_RUN);
+  ink_assert(t->status == REGRESSION_TEST_NOT_RUN);
   t->status = REGRESSION_TEST_INPROGRESS;
   fprintf(stderr, "REGRESSION TEST %s started\n", t->name);
   (*t->function) (t, regression_level, &t->status);
@@ -108,16 +107,19 @@ int
 RegressionTest::run_some()
 {
 
-  if (current->status == REGRESSION_TEST_INPROGRESS)
-    return REGRESSION_TEST_INPROGRESS;
-  else if (current->status != REGRESSION_TEST_NOT_RUN) {
-    if (!current->printed) {
-      current->printed = true;
-      fprintf(stderr, "    REGRESSION_RESULT %s:%*s %s\n", current->name,
-              40 - (int)strlen(current->name), " ", regression_status_string(current->status));
+  if (current) {
+    if (current->status == REGRESSION_TEST_INPROGRESS)
+      return REGRESSION_TEST_INPROGRESS;
+    else if (current->status != REGRESSION_TEST_NOT_RUN) {
+      if (!current->printed) {
+        current->printed = true;
+        fprintf(stderr, "    REGRESSION_RESULT %s:%*s %s\n", current->name,
+                40 - (int)strlen(current->name), " ", regression_status_string(current->status));
+      }
+      current = current->next;
     }
-    current = current->next;
   }
+
   for (; current; current = current->next) {
     if ((dfa.match(current->name) >= 0)) {
       int res = start_test(current);

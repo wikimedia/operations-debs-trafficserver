@@ -21,10 +21,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-
 #include "ink_config.h"
-#include "ink_unused.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -40,13 +37,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#if defined(solaris)
 #include <netdb.h>
-#else
-// XXX: This is just nonsense!!!
-#include "/usr/include/netdb.h" // need following instead of <netdb.h>
-#endif
-
 
 #include "P_RecProcess.h"
 #define LOG_SignalManager             REC_SignalManager
@@ -65,9 +56,8 @@
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-LogUtils::LogUtils(DoNotConstruct object)
+LogUtils::LogUtils(DoNotConstruct /* object ATS_UNUSED */)
 {
-  NOWARN_UNUSED(object);
   ink_release_assert(!"you can't construct a LogUtils object");
 }
 
@@ -335,7 +325,7 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
   char *in_url_end = url + len_in;
 
   while (p < in_url_end) {
-    register unsigned char c = *p;
+    unsigned char c = *p;
     if (map[c / 8] & (1 << (7 - c % 8))) {
       ++count;
     }
@@ -347,7 +337,7 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
     //
     *len_out = len_in;
     if (dst)
-      ink_strlcpy(dst, url, len_in);
+      ink_strlcpy(dst, url, dst_size);
     return url;
   }
 
@@ -380,7 +370,7 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
   char *to = new_url;
 
   while (from < in_url_end) {
-    register unsigned char c = *from;
+    unsigned char c = *from;
     if (map[c / 8] & (1 << (7 - c % 8))) {
       *to++ = '%';
       *to++ = hex_digit[c / 16];

@@ -36,50 +36,11 @@
 #include "Tokenizer.h"
 #include "P_SSLNextProtocolAccept.h"
 
-#ifdef DEBUG
-extern "C"
-{
-  void http_dump();
-}
-///////////////////////////////////////////////////////////
-//
-//  http_dump()
-//
-///////////////////////////////////////////////////////////
-void
-http_dump()
-{
-//    if (diags->on("http_dump"))
-  {
-//      httpNetProcessor.dump();
-//      HttpStateMachine::dump_state_machines();
-  }
-
-  return;
-}
-#endif
-struct DumpStats: public Continuation
-{
-  int mainEvent(int event, void *e)
-  {
-    (void) event;
-    (void) e;
-    /* http_dump() */
-//     dump_stats();
-    return EVENT_CONT;
-  }
-  DumpStats():Continuation(NULL)
-  {
-    SET_HANDLER(&DumpStats::mainEvent);
-  }
-};
-
 HttpAccept *plugin_http_accept = NULL;
 HttpAccept *plugin_http_transparent_accept = 0;
 
-#if !defined(TS_NO_API)
 static SLL<SSLNextProtocolAccept> ssl_plugin_acceptors;
-static ProcessMutex ssl_plugin_mutex;
+static ProcessMutex ssl_plugin_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 bool
 ssl_register_protocol(const char * protocol, Continuation * contp)
@@ -111,30 +72,124 @@ ssl_unregister_protocol(const char * protocol, Continuation * contp)
   return true;
 }
 
-#endif /* !defined(TS_NO_API) */
-
 /////////////////////////////////////////////////////////////////
 //
 //  main()
 //
 /////////////////////////////////////////////////////////////////
-void
-init_HttpProxyServer(void)
+
+/** Data about an acceptor.
+
+    This is used to separate setting up the proxy ports and
+    starting to accept on them.
+
+*/
+struct HttpProxyAcceptor {
+  /// Accept continuation.
+  Continuation* _accept;
+  /// Options for @c NetProcessor.
+  NetProcessor::AcceptOptions _net_opt;
+
+  /// Default constructor.
+  HttpProxyAcceptor()
+    : _accept(0)
+    {
+    }
+};
+
+/** Global acceptors.
+    
+    This is parallel to @c HttpProxyPort::global(), each generated
+    from the corresponding port descriptor.
+
+    @internal We use @c Continuation instead of @c HttpAccept because
+    @c SSLNextProtocolAccept is a subclass of @c Cont instead of @c
+    HttpAccept.
+*/
+Vec<HttpProxyAcceptor> HttpProxyAcceptors;
+
+// Called from InkAPI.cc
+NetProcessor::AcceptOptions
+make_net_accept_options(const HttpProxyPort& port, unsigned nthreads)
 {
-#ifndef INK_NO_REVERSE
+  NetProcessor::AcceptOptions net;
+
+  net.accept_threads = nthreads;
+
+  net.f_inbound_transparent = port.m_inbound_transparent_p;
+  net.ip_family = port.m_family;
+  net.local_port = port.m_port;
+
+  if (port.m_inbound_ip.isValid()) {
+    net.local_ip = port.m_inbound_ip;
+  } else if (AF_INET6 == port.m_family && HttpConfig::m_master.inbound_ip6.isIp6()) {
+    net.local_ip = HttpConfig::m_master.inbound_ip6;
+  } else if (AF_INET == port.m_family && HttpConfig::m_master.inbound_ip4.isIp4()) {
+    net.local_ip = HttpConfig::m_master.inbound_ip4;
+  }
+
+  return net;
+}
+
+static void
+MakeHttpProxyAcceptor(HttpProxyAcceptor& acceptor, HttpProxyPort& port, unsigned nthreads)
+{
+  NetProcessor::AcceptOptions& net_opt = acceptor._net_opt;
+  HttpAccept::Options         accept_opt;
+
+  net_opt = make_net_accept_options(port, nthreads);
+  REC_ReadConfigInteger(net_opt.recv_bufsize, "proxy.config.net.sock_recv_buffer_size_in");
+  REC_ReadConfigInteger(net_opt.send_bufsize, "proxy.config.net.sock_send_buffer_size_in");
+  REC_ReadConfigInteger(net_opt.packet_mark, "proxy.config.net.sock_packet_mark_in");
+  REC_ReadConfigInteger(net_opt.packet_tos, "proxy.config.net.sock_packet_tos_in");
+
+  accept_opt.f_outbound_transparent = port.m_outbound_transparent_p;
+  accept_opt.transport_type = port.m_type;
+  accept_opt.setHostResPreference(port.m_host_res_preference);
+  accept_opt.setTransparentPassthrough(port.m_transparent_passthrough);
+
+  if (port.m_outbound_ip4.isValid()) {
+    accept_opt.outbound_ip4 = port.m_outbound_ip4;
+  } else if (HttpConfig::m_master.outbound_ip4.isValid()) {
+    accept_opt.outbound_ip4 = HttpConfig::m_master.outbound_ip4;
+  }
+
+  if (port.m_outbound_ip6.isValid()) {
+    accept_opt.outbound_ip6 = port.m_outbound_ip6;
+  } else if (HttpConfig::m_master.outbound_ip6.isValid()) {
+    accept_opt.outbound_ip6 = HttpConfig::m_master.outbound_ip6;
+  }
+
+  if (port.isSSL()) {
+    HttpAccept * accept = NEW(new HttpAccept(accept_opt));
+    SSLNextProtocolAccept * ssl = NEW(new SSLNextProtocolAccept(accept));
+    ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_0, accept);
+    ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_1, accept);
+
+    ink_scoped_mutex lock(ssl_plugin_mutex);
+    ssl_plugin_acceptors.push(ssl);
+
+    acceptor._accept = ssl;
+  } else {
+    acceptor._accept = NEW(new HttpAccept(accept_opt));
+  }
+}
+
+/** Set up all the accepts and sockets.
+ */
+void
+init_HttpProxyServer(int n_accept_threads)
+{
+  HttpProxyPort::Group& proxy_ports = HttpProxyPort::global();
+
   init_reverse_proxy();
-#endif
-//  HttpConfig::startup();
   httpSessionManager.init();
   http_pages_init();
   ink_mutex_init(&debug_sm_list_mutex, "HttpSM Debug List");
   ink_mutex_init(&debug_cs_list_mutex, "HttpCS Debug List");
   // DI's request to disable/reenable ICP on the fly
   icp_dynamic_enabled = 1;
-  // INKqa11918
-  init_max_chunk_buf();
 
-#ifndef TS_NO_API
   // Used to give plugins the ability to create http requests
   //   The equivalent of the connecting to localhost on the  proxy
   //   port but without going through the operating system
@@ -151,91 +206,54 @@ init_HttpProxyServer(void)
     plugin_http_transparent_accept->mutex = new_ProxyMutex();
   }
   ink_mutex_init(&ssl_plugin_mutex, "SSL Acceptor List");
-#endif
+
+  // Do the configuration defined ports.
+  for ( int i = 0 , n = proxy_ports.length() ; i < n ; ++i ) {
+    MakeHttpProxyAcceptor(HttpProxyAcceptors.add(), proxy_ports[i], n_accept_threads);
+  }
+  
 }
 
-
 void
-start_HttpProxyServer(int accept_threads)
+start_HttpProxyServer()
 {
-  char *dump_every_str = 0;
   static bool called_once = false;
-  NetProcessor::AcceptOptions opt;
-
-  if ((dump_every_str = getenv("PROXY_DUMP_STATS")) != 0) {
-    int dump_every_sec = atoi(dump_every_str);
-    eventProcessor.schedule_every(NEW(new DumpStats), HRTIME_SECONDS(dump_every_sec), ET_CALL);
-  }
+  HttpProxyPort::Group& proxy_ports = HttpProxyPort::global();
 
   ///////////////////////////////////
   // start accepting connections   //
   ///////////////////////////////////
 
   ink_assert(!called_once);
+  ink_assert(proxy_ports.length() == HttpProxyAcceptors.length());
 
-  opt.accept_threads = accept_threads;
-  REC_ReadConfigInteger(opt.recv_bufsize, "proxy.config.net.sock_recv_buffer_size_in");
-  REC_ReadConfigInteger(opt.send_bufsize, "proxy.config.net.sock_send_buffer_size_in");
-  REC_ReadConfigInteger(opt.packet_mark, "proxy.config.net.sock_packet_mark_in");
-  REC_ReadConfigInteger(opt.packet_tos, "proxy.config.net.sock_packet_tos_in");
-  SslConfigParams *sslParam = sslTerminationConfig.acquire();
-  
-  for ( int i = 0 , n = HttpProxyPort::global().length() ; i < n ; ++i ) {
-    HttpProxyPort& p = HttpProxyPort::global()[i];
-    HttpAccept::Options ha_opt;
-
-    opt.f_inbound_transparent = p.m_inbound_transparent_p;
-    opt.ip_family = p.m_family;
-    opt.local_port = p.m_port;
-
-    ha_opt.f_outbound_transparent = p.m_outbound_transparent_p;
-    ha_opt.transport_type = p.m_type;
-
-    if (p.m_inbound_ip.isValid())
-      opt.local_ip = p.m_inbound_ip;
-    else if (AF_INET6 == p.m_family && HttpConfig::m_master.inbound_ip6.isIp6())
-      opt.local_ip = HttpConfig::m_master.inbound_ip6;
-    else if (AF_INET == p.m_family && HttpConfig::m_master.inbound_ip4.isIp4())
-      opt.local_ip = HttpConfig::m_master.inbound_ip4;
-
-    if (p.m_outbound_ip4.isValid())
-      ha_opt.outbound_ip4 = p.m_outbound_ip4;
-    else if (HttpConfig::m_master.outbound_ip4.isValid())
-      ha_opt.outbound_ip4 = HttpConfig::m_master.outbound_ip4;
-
-    if (p.m_outbound_ip6.isValid())
-      ha_opt.outbound_ip6 = p.m_outbound_ip6;
-    else if (HttpConfig::m_master.outbound_ip6.isValid())
-      ha_opt.outbound_ip6 = HttpConfig::m_master.outbound_ip6;
-
-    if (p.isSSL()) {
-      HttpAccept * http = NEW(new HttpAccept(ha_opt));
-      SSLNextProtocolAccept * ssl = NEW(new SSLNextProtocolAccept(http));
-      ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_0, http);
-      ssl->registerEndpoint(TS_NPN_PROTOCOL_HTTP_1_1, http);
-
-#ifndef TS_NO_API
-      ink_scoped_mutex lock(ssl_plugin_mutex);
-      ssl_plugin_acceptors.push(ssl);
-#endif
-      sslNetProcessor.main_accept(ssl, p.m_fd, opt);
+  for ( int i = 0 , n = proxy_ports.length() ; i < n ; ++i ) {
+    HttpProxyAcceptor& acceptor = HttpProxyAcceptors[i];
+    HttpProxyPort& port = proxy_ports[i];
+    if (port.isSSL()) {
+      if (NULL == sslNetProcessor.main_accept(acceptor._accept, port.m_fd, acceptor._net_opt))
+        return;
     } else {
-      netProcessor.main_accept(NEW(new HttpAccept(ha_opt)), p.m_fd, opt);
+      if (NULL == netProcessor.main_accept(acceptor._accept, port.m_fd, acceptor._net_opt))
+        return;
     }
+    // XXX although we make a good pretence here, I don't believe that NetProcessor::main_accept() ever actually returns
+    // NULL. It would be useful to be able to detect errors and spew them here though.
   }
 
-  sslTerminationConfig.release(sslParam);
-
-#ifdef DEBUG
-  if (diags->on("http_dump")) {
-//      HttpStateMachine::dump_state_machines();
-  }
-#endif
 #if TS_HAS_TESTS
   if (is_action_tag_set("http_update_test")) {
     init_http_update_test();
   }
 #endif
+
+  // Alert plugins that connections will be accepted.
+  APIHook* hook = lifecycle_hooks->get(TS_LIFECYCLE_PORTS_READY_HOOK);
+  while (hook) {
+    hook->invoke(TS_EVENT_LIFECYCLE_PORTS_READY, NULL);
+    hook = hook->next();
+  }
+
 }
 
 void
@@ -248,6 +266,7 @@ start_HttpProxyServerBackDoor(int port, int accept_threads)
   opt.accept_threads = accept_threads;
   opt.localhost_only = true;
   ha_opt.backdoor = true;
+  opt.backdoor = true;
   
   // The backdoor only binds the loopback interface
   netProcessor.main_accept(NEW(new HttpAccept(ha_opt)), NO_FD, opt);

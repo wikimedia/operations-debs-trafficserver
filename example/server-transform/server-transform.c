@@ -54,9 +54,10 @@
 #include <string.h>
 #include <stdio.h>
 
-#  include <netinet/in.h>
+#include <netinet/in.h>
 
-#include <ts/ts.h>
+#include "ts/ts.h"
+#include "ink_defs.h"
 
 #define STATE_BUFFER       1
 #define STATE_CONNECT      2
@@ -85,23 +86,9 @@ typedef struct
   int content_length;
 } TransformData;
 
-static TSCont transform_create(TSHttpTxn txnp);
-static void transform_destroy(TSCont contp);
-static int transform_connect(TSCont contp, TransformData * data);
-static int transform_write(TSCont contp, TransformData * data);
-static int transform_read_status(TSCont contp, TransformData * data);
-static int transform_read(TSCont contp, TransformData * data);
-static int transform_bypass(TSCont contp, TransformData * data);
-static int transform_buffer_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
-static int transform_connect_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
-static int transform_write_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
-static int transform_read_status_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
-static int transform_read_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
-static int transform_bypass_event(TSCont contp, TransformData * data, TSEvent event, void *edata);
 static int transform_handler(TSCont contp, TSEvent event, void *edata);
 
 static in_addr_t server_ip;
-
 static int server_port;
 
 static TSCont
@@ -184,8 +171,8 @@ transform_connect(TSCont contp, TransformData * data)
       temp = TSIOBufferCreate();
       tempReader = TSIOBufferReaderAlloc(temp);
 
-      TSIOBufferWrite(temp, (const char *) &data->content_length, sizeof(int));
-      TSIOBufferCopy(temp, data->input_reader, data->content_length, 0);
+      TSIOBufferWrite(temp, (const char *) &content_length, sizeof(int));
+      TSIOBufferCopy(temp, data->input_reader, content_length, 0);
 
       TSIOBufferReaderFree(data->input_reader);
       TSIOBufferDestroy(data->input_buf);
@@ -203,6 +190,7 @@ transform_connect(TSCont contp, TransformData * data)
   ip_addr.sin_family = AF_INET;
   ip_addr.sin_addr.s_addr = server_ip; /* Should be in network byte order */
   ip_addr.sin_port = server_port;
+  TSDebug("strans", "net connect..");
   action = TSNetConnect(contp, (struct sockaddr const*)&ip_addr);
 
   if (!TSActionDone(action)) {
@@ -299,7 +287,7 @@ transform_bypass(TSCont contp, TransformData * data)
 }
 
 static int
-transform_buffer_event(TSCont contp, TransformData * data, TSEvent event, void *edata)
+transform_buffer_event(TSCont contp, TransformData * data, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 {
   TSVIO write_vio;
   int towrite;
@@ -374,10 +362,13 @@ transform_connect_event(TSCont contp, TransformData * data, TSEvent event, void 
 {
   switch (event) {
   case TS_EVENT_NET_CONNECT:
+    TSDebug("strans", "connected");
+
     data->pending_action = NULL;
     data->server_vc = (TSVConn) edata;
     return transform_write(contp, data);
   case TS_EVENT_NET_CONNECT_FAILED:
+    TSDebug("strans", "connect failed");
     data->pending_action = NULL;
     return transform_bypass(contp, data);
   default:
@@ -388,7 +379,7 @@ transform_connect_event(TSCont contp, TransformData * data, TSEvent event, void 
 }
 
 static int
-transform_write_event(TSCont contp, TransformData * data, TSEvent event, void *edata)
+transform_write_event(TSCont contp, TransformData * data, TSEvent event, void *edata ATS_UNUSED)
 {
   switch (event) {
   case TS_EVENT_VCONN_WRITE_READY:
@@ -396,6 +387,11 @@ transform_write_event(TSCont contp, TransformData * data, TSEvent event, void *e
     break;
   case TS_EVENT_VCONN_WRITE_COMPLETE:
     return transform_read_status(contp, data);
+  case TS_EVENT_ERROR:
+    return transform_bypass(contp, data);
+  case TS_EVENT_IMMEDIATE:
+    TSVIOReenable(data->server_vio);
+    break;
   default:
     /* An error occurred while writing to the server. Close down
        the connection to the server and bypass. */
@@ -406,7 +402,7 @@ transform_write_event(TSCont contp, TransformData * data, TSEvent event, void *e
 }
 
 static int
-transform_read_status_event(TSCont contp, TransformData * data, TSEvent event, void *edata)
+transform_read_status_event(TSCont contp, TransformData * data, TSEvent event, void *edata ATS_UNUSED)
 {
   switch (event) {
   case TS_EVENT_ERROR:
@@ -434,7 +430,7 @@ transform_read_status_event(TSCont contp, TransformData * data, TSEvent event, v
           buf_ptr = (char *) buf_ptr + read_ndone;
         }
       }
-      data->content_length = ntohl(data->content_length);
+      //data->content_length = ntohl(data->content_length);
       return transform_read(contp, data);
     }
     return transform_bypass(contp, data);
@@ -446,7 +442,7 @@ transform_read_status_event(TSCont contp, TransformData * data, TSEvent event, v
 }
 
 static int
-transform_read_event(TSCont contp, TransformData * data, TSEvent event, void *edata)
+transform_read_event(TSCont contp ATS_UNUSED, TransformData * data, TSEvent event, void *edata ATS_UNUSED)
 {
   switch (event) {
   case TS_EVENT_ERROR:
@@ -491,7 +487,7 @@ transform_read_event(TSCont contp, TransformData * data, TSEvent event, void *ed
 }
 
 static int
-transform_bypass_event(TSCont contp, TransformData * data, TSEvent event, void *edata)
+transform_bypass_event(TSCont contp ATS_UNUSED, TransformData * data, TSEvent event, void *edata ATS_UNUSED)
 {
   switch (event) {
   case TS_EVENT_VCONN_WRITE_COMPLETE:
@@ -512,6 +508,7 @@ transform_handler(TSCont contp, TSEvent event, void *edata)
   /* Check to see if the transformation has been closed by a call to
      TSVConnClose. */
   if (TSVConnClosedGet(contp)) {
+    TSDebug("strans", "transformation closed");
     transform_destroy(contp);
     return 0;
   } else {
@@ -523,6 +520,9 @@ transform_handler(TSCont contp, TSEvent event, void *edata)
       TSError("Didn't get Continuation's Data. Ignoring Event..");
       return 0;
     }
+    TSDebug("strans", "transform handler event [%d], data->state = [%d]",
+	    event, data->state);
+
     do {
       switch (data->state) {
       case STATE_BUFFER:
@@ -551,7 +551,7 @@ transform_handler(TSCont contp, TSEvent event, void *edata)
 }
 
 static int
-request_ok(TSHttpTxn txnp)
+request_ok(TSHttpTxn txnp ATS_UNUSED)
 {
   /* Is the initial client request OK for transformation. This is a
      good place to check accept headers to see if the client can
@@ -560,7 +560,7 @@ request_ok(TSHttpTxn txnp)
 }
 
 static int
-cache_response_ok(TSHttpTxn txnp)
+cache_response_ok(TSHttpTxn txnp ATS_UNUSED)
 {
   /* Is the response we're reading from cache OK for
    * transformation. This is a good place to check the cached
@@ -635,34 +635,8 @@ transform_plugin(TSCont contp, TSEvent event, void *edata)
   return 0;
 }
 
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Since this is an TS-SDK 2.0 plugin, we need at
-       least Traffic Server 2.0 to run */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-  }
-
-  return result;
-}
-
 void
-TSPluginInit(int argc, const char *argv[])
+TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
 {
   TSPluginRegistrationInfo info;
   TSCont cont;
@@ -673,11 +647,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
-  }
-
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 3.0 or later\n");
-    return;
   }
 
   /* connect to the echo port on localhost */

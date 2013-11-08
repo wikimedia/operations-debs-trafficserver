@@ -85,7 +85,7 @@ SocksEntry::findServer()
 
 #ifdef SOCKS_WITH_TS
   if (nattempts == 1) {
-    ink_debug_assert(server_result.r == PARENT_UNDEFINED);
+    ink_assert(server_result.r == PARENT_UNDEFINED);
     server_params->findParent(&req_data, &server_result);
   } else {
 
@@ -114,7 +114,7 @@ SocksEntry::findServer()
     break;
 
   default:
-    ink_debug_assert(!"Unexpected event");
+    ink_assert(!"Unexpected event");
   case PARENT_DIRECT:
   case PARENT_FAIL:
     memset(&server_addr, 0, sizeof(server_addr));
@@ -139,7 +139,7 @@ SocksEntry::free()
   if (!lock) {
     // Socks continuation share the user's lock
     // so acquiring a lock shouldn't fail
-    ink_debug_assert(0);
+    ink_assert(0);
     return;
   }
 
@@ -243,7 +243,7 @@ SocksEntry::mainEvent(int event, void *data)
     buf->reset();
     unsigned short ts;
     p = (unsigned char *) buf->start();
-    ink_debug_assert(netVConnection);
+    ink_assert(netVConnection);
 
     if (auth_handler) {
       n_bytes = invokeSocksAuthHandler(auth_handler, SOCKS_AUTH_OPEN, p);
@@ -403,11 +403,11 @@ SocksEntry::mainEvent(int event, void *data)
       bool success;
       if (version == SOCKS5_VERSION) {
         success = (p[0] == SOCKS5_VERSION && p[1] == SOCKS5_REQ_GRANTED);
-        Debug("Socks", "received reply of length %"PRId64" addr type %d", ((VIO *) data)->ndone, (int) p[3]);
+        Debug("Socks", "received reply of length %" PRId64" addr type %d", ((VIO *) data)->ndone, (int) p[3]);
       } else
         success = (p[0] == 0 && p[1] == SOCKS4_REQ_GRANTED);
 
-      //ink_debug_assert(*(p) == 0);
+      //ink_assert(*(p) == 0);
       if (!success) {           // SOCKS request failed
         Debug("Socks", "Socks request denied %d", (int) *(p + 1));
         lerrno = ESOCK_DENIED;
@@ -449,7 +449,7 @@ SocksEntry::mainEvent(int event, void *data)
     break;
   default:
     // BUGBUG:: could be active/inactivity timeout ...
-    ink_debug_assert(!"bad case value");
+    ink_assert(!"bad case value");
     Debug("Socks", "Bad Case/Net Error Event");
     lerrno = ESOCK_NO_SOCK_SERVER_CONN;
     free();
@@ -465,18 +465,18 @@ loadSocksConfiguration(socks_conf_struct * socks_conf_stuff)
   int socks_config_fd = -1;
   char config_pathname[PATH_NAME_MAX + 1];
   char *socks_config_file = NULL;
-#ifdef SOCKS_WITH_TS 
+#ifdef SOCKS_WITH_TS
   char *tmp;
 #endif
 
   socks_conf_stuff->accept_enabled = 0; //initialize it INKqa08593
-  socks_conf_stuff->socks_needed = IOCORE_ConfigReadInteger("proxy.config.socks.socks_needed");
+  socks_conf_stuff->socks_needed = REC_ConfigReadInteger("proxy.config.socks.socks_needed");
   if (!socks_conf_stuff->socks_needed) {
     Debug("Socks", "Socks Turned Off");
     return;
   }
 
-  socks_conf_stuff->default_version = IOCORE_ConfigReadInteger("proxy.config.socks.socks_version");
+  socks_conf_stuff->default_version = REC_ConfigReadInteger("proxy.config.socks.socks_version");
   Debug("Socks", "Socks Version %d", socks_conf_stuff->default_version);
 
   if (socks_conf_stuff->default_version != 4 && socks_conf_stuff->default_version != 5) {
@@ -484,18 +484,18 @@ loadSocksConfiguration(socks_conf_struct * socks_conf_stuff)
     goto error;
   }
 
-  socks_conf_stuff->server_connect_timeout = IOCORE_ConfigReadInteger("proxy.config.socks.server_connect_timeout");
-  socks_conf_stuff->socks_timeout = IOCORE_ConfigReadInteger("proxy.config.socks.socks_timeout");
+  socks_conf_stuff->server_connect_timeout = REC_ConfigReadInteger("proxy.config.socks.server_connect_timeout");
+  socks_conf_stuff->socks_timeout = REC_ConfigReadInteger("proxy.config.socks.socks_timeout");
   Debug("Socks", "server connect timeout: %d socks respnonse timeout %d",
         socks_conf_stuff->server_connect_timeout, socks_conf_stuff->socks_timeout);
 
   socks_conf_stuff->per_server_connection_attempts =
-    IOCORE_ConfigReadInteger("proxy.config.socks.per_server_connection_attempts");
-  socks_conf_stuff->connection_attempts = IOCORE_ConfigReadInteger("proxy.config.socks.connection_attempts");
+    REC_ConfigReadInteger("proxy.config.socks.per_server_connection_attempts");
+  socks_conf_stuff->connection_attempts = REC_ConfigReadInteger("proxy.config.socks.connection_attempts");
 
-  socks_conf_stuff->accept_enabled = IOCORE_ConfigReadInteger("proxy.config.socks.accept_enabled");
-  socks_conf_stuff->accept_port = IOCORE_ConfigReadInteger("proxy.config.socks.accept_port");
-  socks_conf_stuff->http_port = IOCORE_ConfigReadInteger("proxy.config.socks.http_port");
+  socks_conf_stuff->accept_enabled = REC_ConfigReadInteger("proxy.config.socks.accept_enabled");
+  socks_conf_stuff->accept_port = REC_ConfigReadInteger("proxy.config.socks.accept_port");
+  socks_conf_stuff->http_port = REC_ConfigReadInteger("proxy.config.socks.http_port");
   Debug("SocksProxy", "Read SocksProxy info: accept_enabled = %d "
         "accept_port = %d http_port = %d", socks_conf_stuff->accept_enabled,
         socks_conf_stuff->accept_port, socks_conf_stuff->http_port);
@@ -504,7 +504,7 @@ loadSocksConfiguration(socks_conf_struct * socks_conf_stuff)
   SocksServerConfig::startup();
 #endif
 
-  socks_config_file = IOCORE_ConfigReadString("proxy.config.socks.socks_config_file");
+  socks_config_file = REC_ConfigReadString("proxy.config.socks.socks_config_file");
 
   if (!socks_config_file) {
     Error("SOCKS Config: could not read config file name. SOCKS Turned off");
@@ -666,7 +666,7 @@ socks5BasicAuthHandler(int event, unsigned char *p, void (**h_ptr) (void))
 
   default:
     //This should be inpossible
-    ink_debug_assert(!"bad case value");
+    ink_assert(!"bad case value");
     ret = -1;
     break;
   }
@@ -686,7 +686,7 @@ socks5PasswdAuthHandler(int event, unsigned char *p, void (**h_ptr) (void))
   case SOCKS_AUTH_OPEN:
     pass_phrase = netProcessor.socks_conf_stuff->user_name_n_passwd;
     pass_len = netProcessor.socks_conf_stuff->user_name_n_passwd_len;
-    ink_debug_assert(pass_phrase);
+    ink_assert(pass_phrase);
 
     p[0] = 1;                   //version
     memcpy(&p[1], pass_phrase, pass_len);
@@ -724,7 +724,7 @@ socks5PasswdAuthHandler(int event, unsigned char *p, void (**h_ptr) (void))
     break;
 
   default:
-    ink_debug_assert(!"bad case value");
+    ink_assert(!"bad case value");
     ret = -1;
     break;
   }

@@ -28,8 +28,6 @@
   This file an IPRange object that reads a range of IPS, and does
   matching of a given IP address against those ranges.
  ****************************************************************************/
-
-#include "ink_unused.h"    /* MAGIC_EDITING_TAG */
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -83,7 +81,6 @@ read_an_ip(char *line, unsigned int *ip, int *i, int n)
 char *
 IPRange::read_table_from_file(int fd, const char *identifier_str, bool localip)
 {
-  NOWARN_UNUSED(localip);
   int i, j, n, rc, s, line_no;
   char c, line[MAXLINESIZE];
   bool end_of_file;

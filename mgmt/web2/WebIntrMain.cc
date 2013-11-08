@@ -267,9 +267,8 @@ newTcpSocket(int port)
 static volatile int32_t numServiceThr = 0;
 
 void *
-serviceThrReaper(void *arg)
+serviceThrReaper(void * /* arg ATS_UNUSED */)
 {
-  NOWARN_UNUSED(arg);
   int numJoined;
 
   lmgmt->syslogThrInit();
@@ -321,7 +320,7 @@ serviceThrReaper(void *arg)
 }                               // END serviceThrReaper()
 
 void *
-webIntr_main(void *x)
+webIntr_main(void *)
 {
   fd socketFD = -1;             // FD for incoming HTTP connections
   fd autoconfFD = -1;           // FD for incoming autoconf connections
@@ -342,7 +341,7 @@ webIntr_main(void *x)
 #endif
   char pacFailMsg[] = "Auto-Configuration Service Failed to Initialize";
   //  char gphFailMsg[] = "Dynamic Graph Service Failed to Initialize";
-  char mgmtapiFailMsg[] = "Traffic server managment API service Interface Failed to Initialize.";
+  char mgmtapiFailMsg[] = "Traffic server management API service Interface Failed to Initialize.";
 
   RecInt tempInt;
   bool found;
@@ -350,8 +349,6 @@ webIntr_main(void *x)
 
   int addrLen;
   int i;
-  // No Warning
-  NOWARN_UNUSED(x);
 
 #if !defined(linux)
   // Start by blocking all signals
@@ -444,14 +441,14 @@ webIntr_main(void *x)
   // INKqa12562: MgmtAPI sockets should be created with 775 permission
   mode_t oldmask = umask(S_IWOTH);
   if ((mgmtapiFD = newUNIXsocket(api_sock_path)) < 0) {
-    mgmt_log(stderr, "[WebIntrMain] Unable to set up socket for handling managment API calls. API socket path = %s\n",
+    mgmt_log(stderr, "[WebIntrMain] Unable to set up socket for handling management API calls. API socket path = %s\n",
              api_sock_path);
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_WEB_ERROR, mgmtapiFailMsg);
   }
 
   if ((eventapiFD = newUNIXsocket(event_sock_path)) < 0) {
     mgmt_log(stderr,
-             "[WebIntrMain] Unable to set up so for handling managment API event calls. Event Socket path: %s\n",
+             "[WebIntrMain] Unable to set up so for handling management API event calls. Event Socket path: %s\n",
              event_sock_path);
   }
   umask(oldmask);

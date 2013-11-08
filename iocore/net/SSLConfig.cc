@@ -22,7 +22,7 @@
  */
 
 /*************************** -*- Mod: C++ -*- ******************************
-  SslConfig.cc
+  SSLConfig.cc
    Created On      : 07/20/2000
 
    Description:
@@ -34,25 +34,27 @@
 
 #include <string.h>
 #include "P_Net.h"
+#include "P_SSLConfig.h"
+#include "P_SSLUtils.h"
+#include "P_SSLCertLookup.h"
 #include <records/I_RecHttp.h>
-#include <openssl/ssl.h>
 
-int SslConfig::id = 0;
+int SSLConfig::configid = 0;
+int SSLCertificateConfig::configid = 0;
 
-SslConfig sslTerminationConfig;
+static ConfigUpdateHandler<SSLCertificateConfig> * sslCertUpdate;
 
-#ifndef USE_CONFIG_PROCESSOR
-SslConfigParams *SslConfig::ssl_config_params;
-#endif
-
-SslConfigParams::SslConfigParams()
+SSLConfigParams::SSLConfigParams()
 {
   serverCertPathOnly =
-    serverCertChainPath =
+    serverCertChainFilename =
     configFilePath =
-    CACertFilename = CACertPath =
-    clientCertPath = clientKeyPath =
-    clientCACertFilename = clientCACertPath =
+    serverCACertFilename =
+    serverCACertPath =
+    clientCertPath =
+    clientKeyPath =
+    clientCACertFilename =
+    clientCACertPath =
     cipherSuite =
     serverKeyPathOnly = NULL;
 
@@ -63,17 +65,17 @@ SslConfigParams::SslConfigParams()
   ssl_session_cache_size = 1024*20;
 }
 
-SslConfigParams::~SslConfigParams()
+SSLConfigParams::~SSLConfigParams()
 {
   cleanup();
 }
 
 void
-SslConfigParams::cleanup()
+SSLConfigParams::cleanup()
 {
-  ats_free_null(serverCertChainPath);
-  ats_free_null(CACertFilename);
-  ats_free_null(CACertPath);
+  ats_free_null(serverCertChainFilename);
+  ats_free_null(serverCACertFilename);
+  ats_free_null(serverCACertPath);
   ats_free_null(clientCertPath);
   ats_free_null(clientKeyPath);
   ats_free_null(clientCACertFilename);
@@ -97,7 +99,7 @@ SslConfigParams::cleanup()
 static void
 set_paths_helper(const char *path, const char *filename, char **final_path, char **final_filename)
 {
-  if (final_path != NULL) {
+  if (final_path) {
     if (path && path[0] != '/') {
       *final_path = Layout::get()->relative_to(Layout::get()->prefix, path);
     } else if (!path || path[0] == '\0'){
@@ -108,15 +110,15 @@ set_paths_helper(const char *path, const char *filename, char **final_path, char
   }
 
   if (final_filename) {
-    *final_filename = filename ? ats_strdup(Layout::get()->relative_to(path, filename)) : NULL;
+    *final_filename = filename ? Layout::get()->relative_to(path, filename) : NULL;
   }
 
 }
 
 void
-SslConfigParams::initialize()
+SSLConfigParams::initialize()
 {
-  char serverCertRelativePath[PATH_NAME_MAX] = "";
+  char *serverCertRelativePath = NULL;
   char *ssl_server_private_key_path = NULL;
   char *CACertRelativePath = NULL;
   char *ssl_client_cert_filename = NULL;
@@ -131,26 +133,26 @@ SslConfigParams::initialize()
   //+++++++++++++++++++++++++ Server part +++++++++++++++++++++++++++++++++
   verify_depth = 7;
 
-  IOCORE_ReadConfigInt32(clientCertLevel, "proxy.config.ssl.client.certification_level");
-  IOCORE_ReadConfigStringAlloc(cipherSuite, "proxy.config.ssl.server.cipher_suite");
+  REC_ReadConfigInt32(clientCertLevel, "proxy.config.ssl.client.certification_level");
+  REC_ReadConfigStringAlloc(cipherSuite, "proxy.config.ssl.server.cipher_suite");
 
   int options;
-  IOCORE_ReadConfigInteger(options, "proxy.config.ssl.SSLv2");
+  REC_ReadConfigInteger(options, "proxy.config.ssl.SSLv2");
   if (!options)
     ssl_ctx_options |= SSL_OP_NO_SSLv2;
-  IOCORE_ReadConfigInteger(options, "proxy.config.ssl.SSLv3");
+  REC_ReadConfigInteger(options, "proxy.config.ssl.SSLv3");
   if (!options)
     ssl_ctx_options |= SSL_OP_NO_SSLv3;
-  IOCORE_ReadConfigInteger(options, "proxy.config.ssl.TLSv1");
+  REC_ReadConfigInteger(options, "proxy.config.ssl.TLSv1");
   if (!options)
     ssl_ctx_options |= SSL_OP_NO_TLSv1;
 #ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-  IOCORE_ReadConfigInteger(options, "proxy.config.ssl.server.honor_cipher_order");
+  REC_ReadConfigInteger(options, "proxy.config.ssl.server.honor_cipher_order");
   if (!options)
     ssl_ctx_options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 #endif
 
-  IOCORE_ReadConfigInteger(options, "proxy.config.ssl.compression");
+  REC_ReadConfigInteger(options, "proxy.config.ssl.compression");
   if (!options) {
 #ifdef SSL_OP_NO_COMPRESSION
     /* OpenSSL >= 1.0 only */
@@ -160,93 +162,114 @@ SslConfigParams::initialize()
 #endif
   }
 
-  IOCORE_ReadConfigString(serverCertRelativePath, "proxy.config.ssl.server.cert.path", PATH_NAME_MAX);
+  REC_ReadConfigStringAlloc(serverCertChainFilename, "proxy.config.ssl.server.cert_chain.filename");
+  REC_ReadConfigStringAlloc(serverCertRelativePath, "proxy.config.ssl.server.cert.path");
   set_paths_helper(serverCertRelativePath, NULL, &serverCertPathOnly, NULL);
+  ats_free(serverCertRelativePath);
 
-  char *cert_chain = NULL;
-  IOCORE_ReadConfigStringAlloc(cert_chain, "proxy.config.ssl.server.cert_chain.filename");
-  set_paths_helper(serverCertRelativePath, cert_chain, &serverCertPathOnly, &serverCertChainPath);
-  ats_free(cert_chain);
-
-  IOCORE_ReadConfigStringAlloc(multicert_config_file, "proxy.config.ssl.server.multicert.filename");
+  REC_ReadConfigStringAlloc(multicert_config_file, "proxy.config.ssl.server.multicert.filename");
   set_paths_helper(Layout::get()->sysconfdir, multicert_config_file, NULL, &configFilePath);
   ats_free(multicert_config_file);
 
-  IOCORE_ReadConfigStringAlloc(ssl_server_private_key_path, "proxy.config.ssl.server.private_key.path");
+  REC_ReadConfigStringAlloc(ssl_server_private_key_path, "proxy.config.ssl.server.private_key.path");
   set_paths_helper(ssl_server_private_key_path, NULL, &serverKeyPathOnly, NULL);
   ats_free(ssl_server_private_key_path);
 
-  IOCORE_ReadConfigStringAlloc(CACertFilename, "proxy.config.ssl.CA.cert.filename");
-  IOCORE_ReadConfigStringAlloc(CACertRelativePath, "proxy.config.ssl.CA.cert.path");
-  set_paths_helper(CACertRelativePath, CACertFilename, &CACertPath, &CACertFilename);
+  REC_ReadConfigStringAlloc(serverCACertFilename, "proxy.config.ssl.CA.cert.filename");
+  REC_ReadConfigStringAlloc(CACertRelativePath, "proxy.config.ssl.CA.cert.path");
+  set_paths_helper(CACertRelativePath, serverCACertFilename, &serverCACertPath, &serverCACertFilename);
   ats_free(CACertRelativePath);
 
   // SSL session cache configurations
-  IOCORE_ReadConfigInteger(ssl_session_cache, "proxy.config.ssl.session_cache");
-  IOCORE_ReadConfigInteger(ssl_session_cache_size, "proxy.config.ssl.session_cache.size");
+  REC_ReadConfigInteger(ssl_session_cache, "proxy.config.ssl.session_cache");
+  REC_ReadConfigInteger(ssl_session_cache_size, "proxy.config.ssl.session_cache.size");
 
   // ++++++++++++++++++++++++ Client part ++++++++++++++++++++
   client_verify_depth = 7;
-  IOCORE_ReadConfigInt32(clientVerify, "proxy.config.ssl.client.verify.server");
+  REC_ReadConfigInt32(clientVerify, "proxy.config.ssl.client.verify.server");
 
   ssl_client_cert_filename = NULL;
   ssl_client_cert_path = NULL;
-  IOCORE_ReadConfigStringAlloc(ssl_client_cert_filename, "proxy.config.ssl.client.cert.filename");
-  IOCORE_ReadConfigStringAlloc(ssl_client_cert_path, "proxy.config.ssl.client.cert.path");
+  REC_ReadConfigStringAlloc(ssl_client_cert_filename, "proxy.config.ssl.client.cert.filename");
+  REC_ReadConfigStringAlloc(ssl_client_cert_path, "proxy.config.ssl.client.cert.path");
   set_paths_helper(ssl_client_cert_path, ssl_client_cert_filename, NULL, &clientCertPath);
   ats_free_null(ssl_client_cert_filename);
   ats_free_null(ssl_client_cert_path);
 
-  IOCORE_ReadConfigStringAlloc(ssl_client_private_key_filename, "proxy.config.ssl.client.private_key.filename");
-  IOCORE_ReadConfigStringAlloc(ssl_client_private_key_path, "proxy.config.ssl.client.private_key.path");
+  REC_ReadConfigStringAlloc(ssl_client_private_key_filename, "proxy.config.ssl.client.private_key.filename");
+  REC_ReadConfigStringAlloc(ssl_client_private_key_path, "proxy.config.ssl.client.private_key.path");
   set_paths_helper(ssl_client_private_key_path, ssl_client_private_key_filename, NULL, &clientKeyPath);
   ats_free_null(ssl_client_private_key_filename);
   ats_free_null(ssl_client_private_key_path);
 
 
-  IOCORE_ReadConfigStringAlloc(clientCACertFilename, "proxy.config.ssl.client.CA.cert.filename");
-  IOCORE_ReadConfigStringAlloc(clientCACertRelativePath, "proxy.config.ssl.client.CA.cert.path");
+  REC_ReadConfigStringAlloc(clientCACertFilename, "proxy.config.ssl.client.CA.cert.filename");
+  REC_ReadConfigStringAlloc(clientCACertRelativePath, "proxy.config.ssl.client.CA.cert.path");
   set_paths_helper(clientCACertRelativePath, clientCACertFilename, &clientCACertPath, &clientCACertFilename);
   ats_free(clientCACertRelativePath);
 }
 
-
 void
-SslConfig::startup()
+SSLConfig::startup()
 {
   reconfigure();
 }
 
-
 void
-SslConfig::reconfigure()
+SSLConfig::reconfigure()
 {
-  SslConfigParams *params;
-  params = NEW(new SslConfigParams);
+  SSLConfigParams *params;
+  params = NEW(new SSLConfigParams);
   params->initialize();         // re-read configuration
-#ifdef USE_CONFIG_PROCESSOR
-  id = configProcessor.set(id, params);
-#else
-  ssl_config_params = params;
-#endif
+  configid = configProcessor.set(configid, params);
 }
 
-SslConfigParams *
-SslConfig::acquire()
+SSLConfigParams *
+SSLConfig::acquire()
 {
-#ifndef USE_CONFIG_PROCESSOR
-  return ssl_config_params;
-#else
-  return ((SslConfigParams *) configProcessor.get(id));
-#endif
+  return ((SSLConfigParams *) configProcessor.get(configid));
 }
 
 void
-SslConfig::release(SslConfigParams * params)
+SSLConfig::release(SSLConfigParams * params)
 {
-  (void) params;
-#ifdef USE_CONFIG_PROCESSOR
-  configProcessor.release(id, params);
-#endif
+  configProcessor.release(configid, params);
+}
+
+void
+SSLCertificateConfig::startup()
+{
+  sslCertUpdate = NEW(new ConfigUpdateHandler<SSLCertificateConfig>());
+  sslCertUpdate->attach("proxy.config.ssl.server.multicert.filename");
+  sslCertUpdate->attach("proxy.config.ssl.server.cert.path");
+  sslCertUpdate->attach("proxy.config.ssl.server.private_key.path");
+  sslCertUpdate->attach("proxy.config.ssl.server.cert_chain.filename");
+
+  reconfigure();
+}
+
+void
+SSLCertificateConfig::reconfigure()
+{
+  SSLConfig::scoped_config params;
+  SSLCertLookup * lookup = NEW(new SSLCertLookup());
+
+  if (SSLParseCertificateConfiguration(params, lookup)) {
+    configid = configProcessor.set(configid, lookup);
+  } else {
+    delete lookup;
+  }
+}
+
+SSLCertLookup *
+SSLCertificateConfig::acquire()
+{
+  return (SSLCertLookup *)configProcessor.get(configid);
+}
+
+void
+SSLCertificateConfig::release(SSLCertLookup * lookup)
+{
+  configProcessor.release(configid, lookup);
 }
 

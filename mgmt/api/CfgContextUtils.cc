@@ -344,13 +344,15 @@ port_list_to_string(PortList * ports, const char *delimiter)
     if (port_ele->port_b != TS_INVALID_PORT) { //. is this a range
       // add in range delimiter & end of range
       if (pos < sizeof(buf) &&
-          (psize = snprintf(buf + pos, sizeof(buf) - pos, "%c%d", RANGE_DELIMITER, port_ele->port_b)) > 0)
+          (psize = snprintf(buf + pos, sizeof(buf) - pos, "%c%d", RANGE_DELIMITER, port_ele->port_b)) > 0) {
         pos += psize;
+      }
     }
 
     if (i != num_ports - 1) {
-      if (pos<sizeof(buf) && (psize = snprintf(buf + pos, sizeof(buf - pos), "%s", delimiter))> 0)
+      if (pos < sizeof(buf) && (psize = snprintf(buf + pos, sizeof(buf) - pos, "%s", delimiter))> 0) {
         pos += psize;
+      }
     }
 
     enqueue((LLQ *) ports, port_ele);   // return TSPortEle to list
@@ -758,7 +760,7 @@ string_to_domain(const char *str)
 
   // get hostname
   ink_strlcpy(buf, str, sizeof(buf));
-  token = ink_strtok_r(buf, ":", &token_pos);
+  token = strtok_r(buf, ":", &token_pos);
   remain = token_pos;
   if (token)
     dom->domain_val = ats_strdup(token);
@@ -820,6 +822,9 @@ pdest_sspec_to_string(TSPrimeDestT pd, char *pd_val, TSSspec * sspec)
       break;
     case TS_PD_URL_REGEX:
       psize = snprintf(buf, sizeof(buf), "url_regex=%s ", pd_val);
+      break;
+    case TS_PD_URL:
+      psize = snprintf(buf, sizeof(buf), "url=%s ", pd_val);
       break;
     default:
       psize = 0;
@@ -996,6 +1001,8 @@ string_to_pdss_format(const char *str, TSPdSsFormat * pdss)
     pdss->pd_type = TS_PD_IP;
   } else if (strcmp(tokens[1], "url_regex") == 0) {
     pdss->pd_type = TS_PD_URL_REGEX;
+  } else if (strcmp(tokens[1], "url") == 0) {
+    pdss->pd_type = TS_PD_URL;
   } else {
     goto Lerror;
   }
@@ -1411,57 +1418,25 @@ round_robin_type_to_string(TSRrT rr)
  *----------------------------------------------------------------------------
  * TSFileNameT ==> string
  */
-char *
+const char *
 filename_to_string(TSFileNameT file)
 {
   switch (file) {
-  case TS_FNAME_CACHE_OBJ:
-    return ats_strdup("cache.config");
-
-  case TS_FNAME_CONGESTION:
-    return ats_strdup("congestion.config");
-
-  case TS_FNAME_HOSTING:
-    return ats_strdup("hosting.config");
-
-  case TS_FNAME_ICP_PEER:
-    return ats_strdup("icp.config");
-
-  case TS_FNAME_IP_ALLOW:
-    return ats_strdup("ip_allow.config");
-
-
-  case TS_FNAME_LOGS_XML:
-    return ats_strdup("logs_xml.config");
-
-  case TS_FNAME_PARENT_PROXY:
-    return ats_strdup("parent.config");
-
-  case TS_FNAME_VOLUME:
-    return ats_strdup("volume.config");
-
-  case TS_FNAME_PLUGIN:
-    return ats_strdup("plugin.config");
-
-  case TS_FNAME_REMAP:
-    return ats_strdup("remap.config");
-
-  case TS_FNAME_SOCKS:
-    return ats_strdup("socks.config");
-
-  case TS_FNAME_SPLIT_DNS:
-    return ats_strdup("splitdns.config");
-
-  case TS_FNAME_STORAGE:
-    return ats_strdup("storage.config");
-
-  case TS_FNAME_UPDATE_URL:
-    return ats_strdup("update.config");
-
-  case TS_FNAME_VADDRS:
-    return ats_strdup("vaddrs.config");
-
-
+  case TS_FNAME_CACHE_OBJ:    return "cache.config";
+  case TS_FNAME_CONGESTION:   return "congestion.config";
+  case TS_FNAME_HOSTING:      return "hosting.config";
+  case TS_FNAME_ICP_PEER:     return "icp.config";
+  case TS_FNAME_IP_ALLOW:     return "ip_allow.config";
+  case TS_FNAME_LOGS_XML:     return "logs_xml.config";
+  case TS_FNAME_PARENT_PROXY: return "parent.config";
+  case TS_FNAME_VOLUME:       return "volume.config";
+  case TS_FNAME_PLUGIN:       return "plugin.config";
+  case TS_FNAME_REMAP:        return "remap.config";
+  case TS_FNAME_SOCKS:        return "socks.config";
+  case TS_FNAME_SPLIT_DNS:    return "splitdns.config";
+  case TS_FNAME_STORAGE:      return "storage.config";
+  case TS_FNAME_UPDATE_URL:   return "update.config";
+  case TS_FNAME_VADDRS:       return "vaddrs.config";
   default:                     /* no such config file */
     return NULL;
   }
@@ -1560,6 +1535,8 @@ tokens_to_pdss_format(TokenList * tokens, Token * first_tok, TSPdSsFormat * pdss
     pdss->pd_type = TS_PD_IP;
   } else if (strcmp(first_tok->name, "url_regex") == 0) {
     pdss->pd_type = TS_PD_URL_REGEX;
+  } else if (strcmp(first_tok->name, "url") == 0) {
+    pdss->pd_type = TS_PD_URL;
   } else {
     return NULL;                //INVALID primary destination specifier
   }
@@ -1919,6 +1896,7 @@ create_ele_obj_from_rule_node(Rule * rule)
   switch (rule_type) {
   case TS_CACHE_NEVER:        /* all cache rules use same constructor */
   case TS_CACHE_IGNORE_NO_CACHE:
+  case TS_CACHE_CLUSTER_CACHE_LOCAL:
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:
   case TS_CACHE_IGNORE_SERVER_NO_CACHE:
   case TS_CACHE_PIN_IN_CACHE:
@@ -2006,6 +1984,7 @@ create_ele_obj_from_ele(TSCfgEle * ele)
   switch (ele->type) {
   case TS_CACHE_NEVER:        /* cache.config */
   case TS_CACHE_IGNORE_NO_CACHE:      // fall-through
+  case TS_CACHE_CLUSTER_CACHE_LOCAL:
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:       // fall-through
   case TS_CACHE_IGNORE_SERVER_NO_CACHE:       // fall-through
   case TS_CACHE_PIN_IN_CACHE: // fall-through
@@ -2112,6 +2091,8 @@ get_rule_type(TokenList * token_list, TSFileNameT file)
           return TS_CACHE_NEVER;
         } else if (strcmp(tok->value, "ignore-no-cache") == 0) {
           return TS_CACHE_IGNORE_NO_CACHE;
+        } else if (strcmp(tok->value, "cluster-cache-local") == 0) {
+          return TS_CACHE_CLUSTER_CACHE_LOCAL;
         } else if (strcmp(tok->value, "ignore-client-no-cache") == 0) {
           return TS_CACHE_IGNORE_CLIENT_NO_CACHE;
         } else if (strcmp(tok->value, "ignore-server-no-cache") == 0) {

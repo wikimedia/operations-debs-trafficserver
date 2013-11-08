@@ -20,9 +20,8 @@
 if STANDALONE_IOCORE
 noinst_LIBRARIES = libTrafficServerStandalone.a
 bin_PROGRAMS =
-noinst_PROGRAMS =
 else
-SUBDIRS = congest http logging config stats
+SUBDIRS = congest http logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -30,6 +29,14 @@ bin_PROGRAMS = \
   traffic_logstats \
   traffic_sac
 endif
+
+noinst_PROGRAMS = \
+  test_xml_parser
+
+TESTS = \
+  tests/test_logstats_json \
+  tests/test_logstats_summary \
+  test_xml_parser
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
@@ -43,16 +50,13 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils \
   -I$(srcdir)/api/ts \
-  -I$(builddir) \
-  -I$(builddir)/api/ts \
+  -I. \
+  -I./api/ts \
   -I$(top_srcdir)/lib
 
 noinst_HEADERS = \
   ConfigParse.h \
   Show.h
-
-EXTRA_PROGRAMS = \
-  test_xml_parser
 
 EXTRA_LIBRARIES	= \
   libTrafficServerStandalone.a
@@ -63,7 +67,6 @@ else
    which_libts = $(top_builddir)/lib/ts/libtsutil.la
 endif
 
-
 EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
 
 traffic_server_SOURCES = \
@@ -71,8 +74,6 @@ traffic_server_SOURCES = \
   AbstractBuffer.h \
   CacheControl.cc \
   CacheControl.h \
-  ProxyConfig.cc \
-  ProxyConfig.h \
   ControlBase.cc \
   ControlBase.h \
   ControlMatcher.cc \
@@ -108,8 +109,6 @@ traffic_server_SOURCES = \
   ParentSelection.h \
   Plugin.cc \
   Plugin.h \
-  PluginDB.cc \
-  PluginDB.h \
   PluginVC.cc \
   PluginVC.h \
   Prefetch.cc \
@@ -134,8 +133,7 @@ traffic_server_SOURCES = \
 if BUILD_TESTS
   traffic_server_SOURCES +=  InkAPITest.cc  \
     RegressionSM.h \
-    RegressionSM.cc \
-    TestHook.cc
+    RegressionSM.cc
 endif
 
 traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
@@ -145,7 +143,6 @@ traffic_server_LDADD = \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
-  stats/libstats.a \
   hdrs/libhdrs.a  \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -164,85 +161,92 @@ traffic_server_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(which_libts) \
   @hwloc_LIBS@ \
-  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBCAP@ \
-  @LIBZ@ @LIBLZMA@ \
-  @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ @LIBEXECINFO@
+  @LIBPCRE@ \
+  @LIBSSL@ \
+  @LIBTCL@ \
+  @LIBEXPAT@ \
+  @LIBDEMANGLE@ \
+  @LIBCAP@ \
+  @LIBRESOLV@ \
+  @LIBZ@ \
+  @LIBLZMA@ \
+  @LIBPROFILER@ \
+  -lm
 
-traffic_logcat_SOURCES = logcat.cc
+if BUILD_LUA_SUPPORT
+traffic_server_LDFLAGS += @LUA_LUAJIT_LDFLAGS@
+endif
+
+traffic_logcat_SOURCES = \
+  logcat.cc \
+  signals.cc \
+  InkXml.cc \
+  DiagsConfig.cc \
+  UglyLogStubs.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
-  signals.o \
-  InkXml.o \
-  DiagsConfig.o \
-  UglyLogStubs.o \
   logging/liblogging.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
-  @LIBEXECINFO@
+  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
-traffic_logstats_SOURCES = logstats.cc
+traffic_logstats_SOURCES = \
+  logstats.cc \
+  signals.cc \
+  InkXml.cc \
+  DiagsConfig.cc \
+  UglyLogStubs.cc
 traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logstats_LDADD = \
-  signals.o \
-  InkXml.o \
-  DiagsConfig.o \
-  UglyLogStubs.o \
   logging/liblogging.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
-  @LIBEXECINFO@
+  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
-traffic_sac_SOURCES = sac.cc
+traffic_sac_SOURCES = \
+  sac.cc \
+  ICP.cc \
+  ICPConfig.cc \
+  ICPProcessor.cc \
+  ICPStats.cc \
+  IPAllow.cc \
+  ParentSelection.cc \
+  ControlBase.cc \
+  ControlMatcher.cc \
+  CacheControl.cc \
+  StatSystem.cc \
+  ReverseProxy.cc \
+  signals.cc \
+  Error.cc \
+  EventName.cc \
+  DiagsConfig.cc \
+  StatPages.cc \
+  PluginVC.cc \
+  AbstractBuffer.cc \
+  Transform.cc \
+  Prefetch.cc \
+  Update.cc \
+  Plugin.cc \
+  InkAPI.cc \
+  FetchSM.cc \
+  InkIOCoreAPI.cc \
+  InkXml.cc
+
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
-  ICP.o \
-  ICPConfig.o \
-  ICPProcessor.o \
-  ICPStats.o \
-  IPAllow.o \
-  ParentSelection.o \
-  ControlBase.o \
-  ControlMatcher.o \
-  CacheControl.o \
-  StatSystem.o \
-  ReverseProxy.o \
-  ProxyConfig.o \
-  signals.o \
-  Error.o \
-  EventName.o \
-  DiagsConfig.o \
-  StatPages.o \
-  PluginVC.o \
-  AbstractBuffer.o \
-  Transform.o \
-  Prefetch.o \
-  Update.o \
-  Plugin.o \
-  PluginDB.o \
-  InkAPI.o \
-  FetchSM.o \
-  InkIOCoreAPI.o \
-  InkXml.o \
   http/libhttp.a \
   http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
-  stats/libstats.a \
   hdrs/libhdrs.a \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
@@ -258,19 +262,16 @@ traffic_sac_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBTHREAD@ @LIBSOCKET@ @LIBNSL@ @LIBRESOLV@ @LIBRT@ \
-  @LIBPCRE@ @LIBSSL@ @LIBTCL@ @LIBDL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBMLD@ @LIBEXC@ -lm @LIBPROFILER@ \
-  @LIBZ@ @LIBLZMA@ @LIBEXECINFO@
+  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBZ@ @LIBLZMA@ @LIBPROFILER@ -lm
 
 if BUILD_TESTS
-  traffic_sac_LDADD += RegressionSM.o
+  traffic_sac_SOURCES += RegressionSM.cc
 endif
 
 libTrafficServerStandalone_a_SOURCES = \
   signals.cc \
   Error.cc \
-  ProxyConfig.cc \
   EventName.cc \
   DiagsConfig.cc \
   StatPages.cc \
@@ -278,20 +279,26 @@ libTrafficServerStandalone_a_SOURCES = \
   AbstractBuffer.cc \
   Initialize.cc
 
-
-test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc DiagsConfig.cc
+test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc
+test_xml_parser_LDADD = \
+  $(top_builddir)/lib/records/librecprocess.a \
+  $(top_builddir)/mgmt/libmgmt_p.a \
+  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/lib/ts/libtsutil.la \
+  @LIBTCL@
 
 versiondir = $(pkgsysconfdir)
 
 install-data-local:
 	if [ `id -un` != "root" ]; then \
 		$(INSTALL) -d $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) $(DESTDIR)$(pkgruntimedir) \
-				$(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgsysconfdir)/internal $(DESTDIR)$(pkgdatadir) \
-				$(DESTDIR)$(pkgcachedir); \
+				$(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgdatadir) $(DESTDIR)$(pkgcachedir); \
 	else \
-		 $(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglocalstatedir) $(DESTDIR)$(pkglogdir) \
+		 $(INSTALL) -d $(DESTDIR)$(pkglocalstatedir); \
+		 $(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglogdir) \
 				$(DESTDIR)$(pkgruntimedir) $(DESTDIR)$(pkgsysconfdir) \
-				$(DESTDIR)$(pkgsysconfdir)/internal $(DESTDIR)$(pkgdatadir) $(DESTDIR)$(pkgcachedir); \
+				$(DESTDIR)$(pkgdatadir) $(DESTDIR)$(pkgcachedir); \
 	fi
 
 install-data-hook:
@@ -299,15 +306,3 @@ install-data-hook:
 		chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkgsysconfdir) $(DESTDIR)$(pkgdatadir);\
 	fi
 	-echo "<TS_VERSION> $(PACKAGE_VERSION)" > $(DESTDIR)$(pkgsysconfdir)/trafficserver-release
-
-install-exec-local:
-	if [ `id -un` != "root" ]; then \
-		$(INSTALL) -d $(DESTDIR)$(pkglibexecdir); \
-	else \
-		$(INSTALL) -d -o $(pkgsysuser) -g $(pkgsysgroup) $(DESTDIR)$(pkglibexecdir); fi
-
-install-exec-hook:
-	if [ `id -un` == "root" ]; then \
-		chown -R $(pkgsysuser):$(pkgsysgroup) $(DESTDIR)$(pkglibexecdir); \
-	fi
-

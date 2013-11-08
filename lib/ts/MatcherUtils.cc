@@ -41,7 +41,7 @@
 //  CALLEE is responsibled for deallocating the buffer via free()
 //
 char *
-readIntoBuffer(char *file_path, const char *module_name, int *read_size_ptr)
+readIntoBuffer(const char *file_path, const char *module_name, int *read_size_ptr)
 {
 
   int fd;
@@ -232,16 +232,17 @@ ExtractIpRange(char *match_str, sockaddr* addr1, sockaddr* addr2)
   return NULL;
 }
 
-// char* tokLine(char* buf, char** last)
+// char* tokLine(char* buf, char** last, char cont)
 //
 //  Similar to strtok_r but only tokenizes on '\n'
 //   and will return tokens that are empty strings
 //
 char *
-tokLine(char *buf, char **last)
+tokLine(char *buf, char **last, char cont)
 {
   char *start;
   char *cur;
+  char *prev = NULL;
 
   if (buf != NULL) {
     start = cur = buf;
@@ -252,11 +253,17 @@ tokLine(char *buf, char **last)
 
   while (*cur != '\0') {
     if (*cur == '\n') {
-      *cur = '\0';
-      *last = cur;
-      return start;
+      if (cont != '\0' && prev != NULL && *prev == cont) {
+        *prev = ' ';
+        *cur = ' ';
+      }
+      else {
+        *cur = '\0';
+        *last = cur;
+        return start;
+      }
     }
-    cur++;
+    prev = cur++;
   }
 
   // Return the last line even if it does
@@ -275,6 +282,7 @@ const char *matcher_type_str[] = {
   "domain",
   "ip",
   "url_regex",
+  "url",
   "host_regex"
 };
 
@@ -381,15 +389,15 @@ processDurationString(char *str, int *seconds)
 }
 
 const matcher_tags http_dest_tags = {
-  "dest_host", "dest_domain", "dest_ip", "url_regex", "host_regex", true
+  "dest_host", "dest_domain", "dest_ip", "url_regex", "url", "host_regex", true
 };
 
 const matcher_tags ip_allow_tags = {
-  NULL, NULL, "src_ip", NULL, NULL, false
+  NULL, NULL, "src_ip", NULL, NULL, NULL, false
 };
 
 const matcher_tags socks_server_tags = {
-  NULL, NULL, "dest_ip", NULL, NULL, false
+  NULL, NULL, "dest_ip", NULL, NULL, NULL, false
 };
 
 // char* parseConfigLine(char* line, matcher_line* p_line,
@@ -552,6 +560,8 @@ parseConfigLine(char *line, matcher_line *p_line, const matcher_tags * tags)
         type = MATCH_DOMAIN;
       } else if (tags->match_regex && strcasecmp(tags->match_regex, label) == 0) {
         type = MATCH_REGEX;
+      } else if (tags->match_url && strcasecmp(tags->match_url, label) == 0) {
+        type = MATCH_URL;
       } else if (tags->match_host_regex && strcasecmp(tags->match_host_regex, label) == 0) {
         type = MATCH_HOST_REGEX;
       }

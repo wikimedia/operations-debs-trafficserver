@@ -25,7 +25,6 @@
 #define _WEB_MGMT_UTILS_
 
 #include "MgmtDefs.h"
-#include "ink_bool.h"
 
 /****************************************************************************
  *
@@ -37,7 +36,6 @@
 
 #include "ink_hash_table.h"
 #include "TextBuffer.h"
-#include "EnvBlock.h"
 #include "ExpandingArray.h"
 
 #include "P_RecCore.h"
@@ -77,6 +75,7 @@ bool varSetFromStr(const char *varName, const char *value);
 bool varIntFromName(const char *varName, RecInt * value);
 bool varFloatFromName(const char *varName, RecFloat * value);
 bool varCounterFromName(const char *varName, RecCounter * value);
+bool varDataFromName(RecDataT varType, const char *varName, RecData *value);
 
 // No conversion done.  varName must represnt a value of the appropriate
 //  type
@@ -84,6 +83,7 @@ bool varCounterFromName(const char *varName, RecCounter * value);
 bool varSetInt(const char *varName, RecInt value, bool convert = false);
 bool varSetCounter(const char *varName, RecCounter value, bool convert = false);
 bool varSetFloat(const char *varName, RecFloat value, bool convert = false);
+bool varSetData(RecDataT varType, const char *varName, RecData value);
 
 // Return the type of the variable named
 RecDataT varType(const char *varName);
@@ -100,9 +100,6 @@ InkHashTable *processFormSubmission_noSubstitute(char *submission);
 
 // Shutdown the proxy
 bool ProxyShutdown();
-int processSpawn(const char *args[], EnvBlock * env, textBuffer * input_buf, textBuffer * output_buf, bool nowait,
-                 bool runAsRoot, bool * truncated = NULL);
-
 int setHostnameVar();
 void appendDefaultDomain(char *hostname, int bufLength);
 

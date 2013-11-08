@@ -29,11 +29,10 @@
  ****************************************************************************/
 
 #include "ink_platform.h"
-#include "ink_port.h"
+#include "ink_defs.h"
 #include "ink_time.h"
 #include "ink_assert.h"
 #include "ink_string.h"
-#include "ink_unused.h"
 
 #include <locale.h>
 #include <sys/resource.h>
@@ -120,7 +119,7 @@ cftime_replacement(char *s, int maxsize, const char *format, const time_t * cloc
 {
   struct tm tm;
 
-  ink_assert(localtime_r(clock, &tm) != (int) NULL);    /* ADK_122100 */
+  ink_assert(ink_localtime_r(clock, &tm) != NULL);
 
   return strftime(s, maxsize, format, &tm);
 }

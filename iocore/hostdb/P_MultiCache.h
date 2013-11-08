@@ -268,7 +268,7 @@ struct MultiCacheBase: public MultiCacheHeader
   int initialize(Store * store, char *filename, int elements,
                  int buckets = 0, int levels = 2,
                  int level0_elements_per_bucket = 4,
-                 int level1_elements_per_bucket = 32, int level2_elements_per_bucket = 0);
+                 int level1_elements_per_bucket = 32, int level2_elements_per_bucket = 1);
   int mmap_data(bool private_flag = false, bool zero_fill = false);
   char *mmap_region(int blocks, int *fds, char *cur, bool private_flag, int zero_fill = 0);
   int blocks_in_level(int level);
@@ -447,9 +447,9 @@ template<class C> struct MultiCache: public MultiCacheBase
 };
 
 inline uint64_t
-fold_md5(INK_MD5 & md5)
+fold_md5(INK_MD5 const& md5)
 {
-  return (md5.fold());
+  return md5.fold();
 }
 
 template<class C> inline int MultiCache<C>::level_of_block(C * b)
