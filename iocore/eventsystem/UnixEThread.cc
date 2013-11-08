@@ -26,10 +26,9 @@
 // The EThread Class
 //
 /////////////////////////////////////////////////////////////////////
-#include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 #include "P_EventSystem.h"
 
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
 #include <sys/eventfd.h>
 #endif
 
@@ -67,7 +66,7 @@ EThread::EThread(ThreadType att, int anid)
   ethreads_to_be_signalled = (EThread **)ats_malloc(MAX_EVENT_THREADS * sizeof(EThread *));
   memset((char *) ethreads_to_be_signalled, 0, MAX_EVENT_THREADS * sizeof(EThread *));
   memset(thread_private, 0, PER_THREAD_DATA);
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   evfd = eventfd(0, O_NONBLOCK | FD_CLOEXEC);
   if (evfd < 0) {
     if (errno == EINVAL) { // flags invalid for kernel <= 2.6.26
@@ -186,7 +185,9 @@ EThread::execute() {
         // already been dequeued
         cur_time = ink_get_based_hrtime_internal();
         while ((e = EventQueueExternal.dequeue_local())) {
-          if (!e->timeout_at) { // IMMEDIATE
+          if (e->cancelled)
+             free_event(e);
+          else if (!e->timeout_at) { // IMMEDIATE
             ink_assert(e->period == 0);
             process_event(e, e->callback_event);
           } else if (e->timeout_at > 0) // INTERVAL

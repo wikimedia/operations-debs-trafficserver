@@ -51,6 +51,7 @@ struct Span
   int64_t offset;                 // used only if (file == true)
   int alignment;
   int disk_id;
+  int vol_num;
   LINK(Span, link);
 
 private:
@@ -132,22 +133,25 @@ struct Store
   void add(Store & s);
   void dup(Store & s);
   void sort();
-  void extend(int i)
+  void extend(unsigned i)
   {
     if (i > n_disks) {
       disk = (Span **)ats_realloc(disk, i * sizeof(Span *));
-      for (int j = n_disks; j < i; j++)
+      for (unsigned j = n_disks; j < i; j++) {
         disk[j] = NULL;
+      }
       n_disks = i;
     }
   }
 
   // Non Thread-safe operations
-  unsigned int total_blocks(int after = 0) {
+  unsigned int total_blocks(unsigned after = 0) {
     int64_t t = 0;
-    for (int i = after; i < n_disks; i++)
-      if (disk[i])
+    for (unsigned i = after; i < n_disks; i++) {
+      if (disk[i]) {
         t += disk[i]->total_blocks();
+      }
+    }
     return (unsigned int) t;
   }
   // 0 on success -1 on failure
@@ -162,9 +166,13 @@ struct Store
   Store();
   ~Store();
 
-  int n_disks;
+  unsigned n_disks;
   Span **disk;
-
+#if TS_USE_INTERIM_CACHE == 1
+  int n_interim_disks;
+  Span **interim_disk;
+  const char *read_interim_config();
+#endif
   //
   // returns NULL on success
   // if fd >= 0 then on failure it returns an error string
@@ -172,6 +180,9 @@ struct Store
   //
   const char *read_config(int fd = -1);
   int write_config_data(int fd);
+private:
+  char const * const vol_str;
+  int getVolume(char* line);
 };
 
 extern Store theStore;

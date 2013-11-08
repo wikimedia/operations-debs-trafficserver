@@ -122,7 +122,6 @@ int
 MyAccept::main_event(int event, void *data) {
   if (event == NET_EVENT_ACCEPT) {
     //NetVConnection *netvc = (NetVConnection*)data;
-    NOWARN_UNUSED(data);
     // allocate continuation to handle this connection/request
     //
     // ..handle request, etc
@@ -233,17 +232,7 @@ int main(int argc, char * argv[])
   // initialize logging (after event and net processor)
   //Log::init(system_remote_management_flag ? 0 : Log::NO_REMOTE_MANAGEMENT);
 
-#if !defined(TS_NO_API)
-  //plugin_init(system_config_directory, true); // extensions.config
-#endif
-
-#ifndef TS_NO_API
-  //plugin_init(system_config_directory, false); // plugin.config
-#else
-  //api_init();  // still need to initialize some of the data structure other module needs.
-  //extern void init_inkapi_stat_system();
-  //init_inkapi_stat_system();   // i.e. http_global_hooks
-#endif
+  //plugin_init(system_config_directory); // plugin.config
 
   // Create accept continuation
   MyAccept *a = new MyAccept;

@@ -27,6 +27,7 @@
 #include "api/ts/ts.h"
 #include "Show.h"
 #include "I_Tasks.h"
+#include "CacheControl.h"
 
 struct ShowCache: public ShowCont {
   enum scan_type {
@@ -317,13 +318,13 @@ ShowCache::handleCacheEvent(int event, Event *e) {
         // print the Doc
         CHECK_SHOW(show("<P><TABLE border=1 width=100%%>"));
         CHECK_SHOW(show("<TR><TH bgcolor=\"#FFF0E0\" colspan=2>Doc</TH></TR>\n"));
+        CHECK_SHOW(show("<TR><TD>Volume</td> <td>#%d - store='%s'</td></tr>\n", cache_vc->vol->cache_vol->vol_number, cache_vc->vol->path));
         CHECK_SHOW(show("<TR><TD>first key</td> <td>%s</td></tr>\n", d->first_key.string(tmpstr)));
         CHECK_SHOW(show("<TR><TD>key</td> <td>%s</td></tr>\n", d->key.string(tmpstr)));
         CHECK_SHOW(show("<tr><td>sync_serial</td><td>%lu</tr>\n", d->sync_serial));
         CHECK_SHOW(show("<tr><td>write_serial</td><td>%lu</tr>\n", d->write_serial));
         CHECK_SHOW(show("<tr><td>header length</td><td>%lu</tr>\n", d->hlen));
         CHECK_SHOW(show("<tr><td>fragment type</td><td>%lu</tr>\n", d->ftype));
-        CHECK_SHOW(show("<tr><td>fragment table length</td><td>%lu</tr>\n", d->flen));
         CHECK_SHOW(show("<tr><td>No of Alternates</td><td>%d</td></tr>\n", alt_count));
 
         CHECK_SHOW(show("<tr><td>Action</td>\n"
@@ -421,7 +422,7 @@ ShowCache::lookup_url(int event, Event *e) {
   url.MD5_get(&md5);
   const char *hostname = url.host_get(&len);
   SET_HANDLER(&ShowCache::handleCacheEvent);
-  Action *lookup_result = cacheProcessor.open_read(this, &md5, CACHE_FRAG_TYPE_HTTP, (char *) hostname, len);
+  Action *lookup_result = cacheProcessor.open_read(this, &md5, getClusterCacheLocal(&url, (char *)hostname), CACHE_FRAG_TYPE_HTTP, (char *) hostname, len);
   if (!lookup_result)
     lookup_result = ACTION_IO_ERROR;
   if (lookup_result == ACTION_RESULT_DONE)
@@ -459,7 +460,9 @@ ShowCache::delete_url(int event, Event *e)
   // increment the index so that the next time
   // delete_url is called you delete the next url
   urlstrs_index++;
-  cacheProcessor.remove(this, &url, CACHE_FRAG_TYPE_HTTP);
+  int len;
+  const char *hostname = url.host_get(&len);
+  cacheProcessor.remove(this, &url, getClusterCacheLocal(&url, (char *)hostname), CACHE_FRAG_TYPE_HTTP);
   return EVENT_DONE;
 }
 
@@ -560,7 +563,7 @@ ShowCache::handleCacheScanCallback(int event, Event *e)
       char xx[501], m[501];
       int ib = 0, xd = 0, ml = 0;
 
-      alt->request_get()->url_get()->print(xx, 500, &ib, &xd);
+      alt->request_get()->url_print(xx, 500, &ib, &xd);
       xx[ib] = '\0';
 
       const char *mm = alt->request_get()->method_get(&ml);

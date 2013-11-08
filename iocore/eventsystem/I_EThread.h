@@ -269,12 +269,15 @@ public:
   ProxyAllocator sslNetVCAllocator;
   ProxyAllocator httpClientSessionAllocator;
   ProxyAllocator httpServerSessionAllocator;
+  ProxyAllocator hdrHeapAllocator;
+  ProxyAllocator strHeapAllocator;
   ProxyAllocator cacheVConnectionAllocator;
   ProxyAllocator openDirEntryAllocator;
   ProxyAllocator ramCacheCLFUSEntryAllocator;
   ProxyAllocator ramCacheLRUEntryAllocator;
   ProxyAllocator evacuationBlockAllocator;
   ProxyAllocator ioDataAllocator;
+  ProxyAllocator ioAllocator;
   ProxyAllocator ioBlockAllocator;
   ProxyAllocator ioBufAllocator[DEFAULT_BUFFER_SIZES];
 
@@ -318,9 +321,7 @@ public:
   unsigned int event_types;
   bool is_event_type(EventType et);
   void set_event_type(EventType et);
-#if defined(USE_OLD_EVENTFD)
-  int getEventFd();
-#endif
+
   // Private Interface
 
   void execute();
@@ -328,7 +329,7 @@ public:
   void free_event(Event *e);
   void (*signal_hook)(EThread *);
 
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   int evfd;
 #else
   int evpipe[2];
@@ -358,5 +359,5 @@ new(size_t, ink_dummy_for_new *p)
 }
 #define ETHREAD_GET_PTR(thread, offset) ((void*)((char*)(thread)+(offset)))
 
-TS_INLINE EThread *this_ethread();
+extern EThread *this_ethread();
 #endif /*_EThread_h_*/

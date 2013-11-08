@@ -40,22 +40,26 @@ libreclocal_a_SOURCES = \
   I_RecLocal.h \
   I_RecMutex.h \
   I_RecSignals.h \
-  P_RecCompatibility.h \
+  P_RecFile.h \
   P_RecCore.h \
-  P_RecCore.i \
+  P_RecCore.cc \
   P_RecDefs.h \
   P_RecLocal.h \
   P_RecMessage.h \
   P_RecTree.h \
   P_RecUtils.h \
-  RecCompatibility.cc \
+  P_RecFile.h \
+  RecFile.cc \
   RecCore.cc \
   RecLocal.cc \
   RecMessage.cc \
   RecMutex.cc \
   RecTree.cc \
-  I_RecHttp.h RecHttp.cc \
-  RecUtils.cc
+  I_RecHttp.h \
+  RecHttp.cc \
+  RecUtils.cc \
+  RecDebug.cc \
+  RecConfigParse.cc
 
 librecprocess_a_CXXFLAGS = $(ink_with_modules_process)
 librecprocess_a_SOURCES = \
@@ -66,20 +70,24 @@ librecprocess_a_SOURCES = \
   I_RecMutex.h \
   I_RecProcess.h \
   I_RecSignals.h \
-  P_RecCompatibility.h \
+  P_RecFile.h \
   P_RecCore.h \
-  P_RecCore.i \
+  P_RecCore.cc \
   P_RecDefs.h \
   P_RecMessage.h \
   P_RecProcess.h \
   P_RecTree.h \
   P_RecUtils.h \
-  RecCompatibility.cc \
+  P_RecFile.h \
+  RecFile.cc \
   RecCore.cc \
   RecMessage.cc \
   RecMutex.cc \
   RecProcess.cc \
   RecTree.cc \
-  I_RecHttp.h RecHttp.cc \
-  RecUtils.cc
+  I_RecHttp.h \
+  RecHttp.cc \
+  RecUtils.cc \
+  RecDebug.cc \
+  RecConfigParse.cc
 

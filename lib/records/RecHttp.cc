@@ -59,30 +59,34 @@ void RecHttpLoadIp(char const* value_name, IpAddr& ip4, IpAddr& ip6)
 
 char const* const HttpProxyPort::DEFAULT_VALUE = "8080";
 
-char const* const HttpProxyPort::PORT_CONFIG_NAME = "proxy.config.http.server_port";
-char const* const HttpProxyPort::ATTR_CONFIG_NAME = "proxy.config.http.server_port_attr";
-char const* const HttpProxyPort::OTHER_PORTS_CONFIG_NAME = "proxy.config.http.server_other_ports";
 char const* const HttpProxyPort::PORTS_CONFIG_NAME = "proxy.config.http.server_ports";
-char const* const HttpProxyPort::SSL_ENABLED_CONFIG_NAME = "proxy.config.ssl.enabled";
-char const* const HttpProxyPort::SSL_PORT_CONFIG_NAME = "proxy.config.ssl.server_port";
+
+// "_PREFIX" means the option contains additional data.
+// Each has a corresponding _LEN value that is the length of the option text.
+// Options without _PREFIX are just flags with no additional data.
 
 char const* const HttpProxyPort::OPT_FD_PREFIX = "fd";
 char const* const HttpProxyPort::OPT_OUTBOUND_IP_PREFIX = "ip-out";
 char const* const HttpProxyPort::OPT_INBOUND_IP_PREFIX = "ip-in";
+char const* const HttpProxyPort::OPT_HOST_RES_PREFIX = "ip-resolve";
+
 char const* const HttpProxyPort::OPT_IPV6 = "ipv6";
 char const* const HttpProxyPort::OPT_IPV4 = "ipv4";
 char const* const HttpProxyPort::OPT_TRANSPARENT_INBOUND = "tr-in";
 char const* const HttpProxyPort::OPT_TRANSPARENT_OUTBOUND = "tr-out";
 char const* const HttpProxyPort::OPT_TRANSPARENT_FULL = "tr-full";
+char const* const HttpProxyPort::OPT_TRANSPARENT_PASSTHROUGH = "tr-pass";
 char const* const HttpProxyPort::OPT_SSL = "ssl";
 char const* const HttpProxyPort::OPT_BLIND_TUNNEL = "blind";
 char const* const HttpProxyPort::OPT_COMPRESSED = "compressed";
 
 // File local constants.
 namespace {
-size_t const OPT_FD_PREFIX_LEN = strlen(HttpProxyPort::OPT_FD_PREFIX);
-size_t const OPT_OUTBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_OUTBOUND_IP_PREFIX);
-size_t const OPT_INBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_INBOUND_IP_PREFIX);
+  // Length values for _PREFIX options.
+  size_t const OPT_FD_PREFIX_LEN = strlen(HttpProxyPort::OPT_FD_PREFIX);
+  size_t const OPT_OUTBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_OUTBOUND_IP_PREFIX);
+  size_t const OPT_INBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_INBOUND_IP_PREFIX);
+  size_t const OPT_HOST_RES_PREFIX_LEN = strlen(HttpProxyPort::OPT_HOST_RES_PREFIX);
 }
 
 namespace {
@@ -102,7 +106,9 @@ HttpProxyPort::HttpProxyPort()
   , m_family(AF_INET)
   , m_inbound_transparent_p(false)
   , m_outbound_transparent_p(false)
+  , m_transparent_passthrough(false)
 {
+  memcpy(m_host_res_preference, host_res_default_preference_order, sizeof(m_host_res_preference));
 }
 
 bool HttpProxyPort::hasSSL(Group const& ports) {
@@ -130,7 +136,6 @@ HttpProxyPort* HttpProxyPort::findHttp(Group const& ports, uint16_t family) {
 bool
 HttpProxyPort::loadConfig(Vec<self>& entries) {
   char* text;
-  char* attr;
   bool found_p;
 
   // Do current style port configuration first.
@@ -138,75 +143,14 @@ HttpProxyPort::loadConfig(Vec<self>& entries) {
   if (found_p) self::loadValue(entries, text);
   ats_free(text);
 
-  // Check old style single port.
-  // Yeah, it's ugly, but it should be purged on the next major release.
-  int sp = REC_ConfigReadInteger(PORT_CONFIG_NAME);
-  attr = REC_ConfigReadString(ATTR_CONFIG_NAME);
-  if (-1 == sp) {
-    // Default value, ignore.
-  } else if (0 < sp && sp < 65536) {
-    if (attr) {
-      char* buff = static_cast<char*>(alloca(6 + 1 + strlen(attr) + 1));
-      sprintf(buff, "%d:%s", sp, attr);
-      self::loadValue(entries, buff);
-    } else {
-      HttpProxyPort pd;
-      pd.m_port = sp;
-      entries.push_back(pd);
-    }
-  } else {
-    Warning("Invalid port value %d is not in the range 1..65535 for '%s'.", sp, PORT_CONFIG_NAME);
-  }
-  ats_free(attr);
-
-  // Do the "other" ports.
-  text = REC_ConfigReadString(OTHER_PORTS_CONFIG_NAME);
-  self::loadValue(entries, text);
-  ats_free(text);
-
-  // Check for old style SSL configuration. We only put this in iff
-  // SSL is explicitly enabled and has the server port set.
-  RecInt ssl_enabled;
-  RecInt ssl_port;
-  if (REC_ERR_OKAY == RecGetRecordInt(SSL_ENABLED_CONFIG_NAME, &ssl_enabled) && ssl_enabled) {
-    if (REC_ERR_OKAY == RecGetRecordInt(SSL_PORT_CONFIG_NAME, &ssl_port)) {
-      if (0 < ssl_port && ssl_port < 65536) {
-        HttpProxyPort port;
-        port.m_port = ssl_port;
-        port.m_type = TRANSPORT_SSL;
-        entries.push_back(port);
-      } else if (-1 != ssl_port) {
-	// -1 is used as the sentinel value in the config record for
-	// "not set by user".
-        Warning("SSL enabled but port value %"PRId64" is not in the range 1..65535.\n",
-                ssl_port);
-      }
-    }
-  }
-
   return 0 < entries.length();
 }
 
 bool
 HttpProxyPort::loadDefaultIfEmpty(Group& ports) {
-  RecInt ssl_enabled;
-
   if (0 == ports.length())
     self::loadValue(ports, DEFAULT_VALUE);
 
-  // Check to see if we need to force an SSL port.
-  if (REC_ERR_OKAY == RecGetRecordInt(SSL_ENABLED_CONFIG_NAME, &ssl_enabled) && ssl_enabled) {
-    // SSL is explicitly enabled, so force an SSL port if there isn't one.
-    if (!self::hasSSL(ports)) {
-      HttpProxyPort port;
-      RecInt ssl_port = -1;
-      RecGetRecordInt(SSL_PORT_CONFIG_NAME, &ssl_port);
-      if (ssl_port < 1 || 65535 < ssl_port) ssl_port = 443;
-      port.m_port = ssl_port;
-      port.m_type = TRANSPORT_SSL;
-      ports.push_back(port);
-    }
-  }
   return 0 < ports.length();
 }
 
@@ -232,6 +176,7 @@ bool
 HttpProxyPort::processOptions(char const* opts) {
   bool zret = false; // no port found yet.
   bool af_set_p = false; // AF explicitly specified.
+  bool host_res_set_p = false; // Host resolution order set explicitly.
   bool bracket_p = false; // inside brackets during parse.
   Vec<char*> values; // Pointers to single option values.
 
@@ -306,44 +251,50 @@ HttpProxyPort::processOptions(char const* opts) {
         Warning("Invalid IP address value '%s' in port descriptor '%s'",
           item, opts
         );
-    } else if (0 == strcasecmp("X", item)) {
-      // defaults
-    } else if (0 == strcasecmp("C", item) || 0 == strcasecmp(OPT_COMPRESSED, item)) {
+    } else if (0 == strcasecmp(OPT_COMPRESSED, item)) {
       m_type = TRANSPORT_COMPRESSED;
-    } else if (0 == strcasecmp("T", item) || 0 == strcasecmp(OPT_BLIND_TUNNEL, item)) {
+    } else if (0 == strcasecmp(OPT_BLIND_TUNNEL, item)) {
       m_type = TRANSPORT_BLIND_TUNNEL;
-    } else if (0 == strcasecmp("X6", item) || 0 == strcasecmp(OPT_IPV6, item)) {
+    } else if (0 == strcasecmp(OPT_IPV6, item)) {
       m_family = AF_INET6;
-      m_type = TRANSPORT_DEFAULT;
       af_set_p = true;
     } else if (0 == strcasecmp(OPT_IPV4, item)) {
       m_family = AF_INET;
       af_set_p = true;
-    } else if (0 == strcasecmp("S", item) || 0 == strcasecmp(OPT_SSL, item)) {
+    } else if (0 == strcasecmp(OPT_SSL, item)) {
       m_type = TRANSPORT_SSL;
       m_inbound_transparent_p = m_outbound_transparent_p = false;
-    } else if (0 == strcasecmp(OPT_TRANSPARENT_INBOUND, item) ||
-      0 == strcasecmp("<", item)) {
+    } else if (0 == strcasecmp(OPT_TRANSPARENT_INBOUND, item)) {
 # if TS_USE_TPROXY
       m_inbound_transparent_p = true;
 # else
       Warning("Transparency requested [%s] in port descriptor '%s' but TPROXY was not configured.", item, opts);
 # endif
-    } else if (0 == strcasecmp(OPT_TRANSPARENT_OUTBOUND, item) ||
-      0 == strcasecmp(">", item)) {
+    } else if (0 == strcasecmp(OPT_TRANSPARENT_OUTBOUND, item)) {
 # if TS_USE_TPROXY
       m_outbound_transparent_p = true;
 # else
       Warning("Transparency requested [%s] in port descriptor '%s' but TPROXY was not configured.", item, opts);
 # endif
-    } else if (0 == strcasecmp(OPT_TRANSPARENT_FULL, item)||
-      0 == strcasecmp("=", item)) {
+    } else if (0 == strcasecmp(OPT_TRANSPARENT_FULL, item)) {
 # if TS_USE_TPROXY
       m_inbound_transparent_p = true;
       m_outbound_transparent_p = true;
 # else
       Warning("Transparency requested [%s] in port descriptor '%s' but TPROXY was not configured.", item, opts);
 # endif
+    } else if (0 == strcasecmp(OPT_TRANSPARENT_PASSTHROUGH, item)) {
+# if TS_USE_TPROXY
+      m_transparent_passthrough = true;
+# else
+      Warning("Transparent pass-through requested [%s] in port descriptor '%s' but TPROXY was not configured.", item, opts);
+# endif
+    } else if (0 == strncasecmp(OPT_HOST_RES_PREFIX, item, OPT_HOST_RES_PREFIX_LEN)) {
+      item += OPT_HOST_RES_PREFIX_LEN; // skip prefix
+      if ('-' == *item || '=' == *item) // permit optional '-' or '='
+        ++item;
+      this->processFamilyPreferences(item);
+      host_res_set_p = true;
     } else {
       Warning("Invalid option '%s' in port configuration '%s'", item, opts);
     }
@@ -353,7 +304,7 @@ HttpProxyPort::processOptions(char const* opts) {
 
   if (af_set_p) {
     if (in_ip_set_p && m_family != m_inbound_ip.family()) {
-      Warning("Invalid port descriptor '%s' - the inbound adddress family [%s] is not the same type as the explict family value [%s]",
+      Warning("Invalid port descriptor '%s' - the inbound adddress family [%s] is not the same type as the explicit family value [%s]",
         opts, ats_ip_family_name(m_inbound_ip.family()), ats_ip_family_name(m_family));
       zret = false;
     }
@@ -361,7 +312,34 @@ HttpProxyPort::processOptions(char const* opts) {
     m_family = m_inbound_ip.family(); // set according to address.
   }
 
+  // If the port is outbound transparent only CLIENT host resolution is possible.
+  if (m_outbound_transparent_p) {
+    if (host_res_set_p &&
+        (m_host_res_preference[0] != HOST_RES_PREFER_CLIENT ||
+         m_host_res_preference[1] != HOST_RES_PREFER_NONE
+    )) {
+      Warning("Outbound transparent ports require the IP address resolution ordering '%s,%s'. "
+              "This is set automatically and does not need to be set explicitly."
+              , HOST_RES_PREFERENCE_STRING[HOST_RES_PREFER_CLIENT]
+              , HOST_RES_PREFERENCE_STRING[HOST_RES_PREFER_NONE]
+        );
+    }
+    m_host_res_preference[0] = HOST_RES_PREFER_CLIENT;
+    m_host_res_preference[1] = HOST_RES_PREFER_NONE;
+  }
+
+  // Transparent pass-through requires tr-in
+  if (m_transparent_passthrough && !m_inbound_transparent_p) {
+    Warning("Port descriptor '%s' has transparent pass-through enabled without inbound transparency, this will be ignored.", opts);
+    m_transparent_passthrough = false;
+  }
+
   return zret;
+}
+
+void
+HttpProxyPort::processFamilyPreferences(char const* value) {
+  parse_host_res_preferences(value, m_host_res_preference);
 }
 
 int
@@ -432,5 +410,33 @@ HttpProxyPort::print(char* out, size_t n) {
   else if (m_outbound_transparent_p)
     zret += snprintf(out+zret, n-zret, ":%s", OPT_TRANSPARENT_OUTBOUND);
 
+  if (m_transparent_passthrough)
+    zret += snprintf(out+zret, n-zret, ":%s", OPT_TRANSPARENT_PASSTHROUGH);
+
+  /* Don't print the IP resolution preferences if the port is outbound
+   * transparent (which means the preference order is forced) or if
+   * the order is the same as the default.
+   */
+  if (!m_outbound_transparent_p &&
+      0 != memcmp(m_host_res_preference, host_res_default_preference_order, sizeof(m_host_res_preference))) {
+    zret += snprintf(out+zret, n-zret, ":%s=", OPT_HOST_RES_PREFIX);
+    zret += ts_host_res_order_to_string(m_host_res_preference, out+zret, n-zret);
+  }
+
   return min(zret,n);
+}
+
+void
+ts_host_res_global_init()
+{
+  // Global configuration values.
+  memcpy(host_res_default_preference_order,
+         HOST_RES_DEFAULT_PREFERENCE_ORDER,
+         sizeof(host_res_default_preference_order));
+
+  char* ip_resolve = REC_ConfigReadString("proxy.config.hostdb.ip_resolve");
+  if (ip_resolve) {
+    parse_host_res_preferences(ip_resolve, host_res_default_preference_order);
+  }
+  ats_free(ip_resolve);
 }

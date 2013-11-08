@@ -23,13 +23,9 @@
 
 #ifndef _INK_MD5_h_
 #define	_INK_MD5_h_
-#include "MMH.h"
 
-#include "ink_bool.h"
 #include "ink_code.h"
-#include "ink_port.h"
-
-// #define USE_MMH_FOR_MD5
+#include "ink_defs.h"
 
 struct INK_MD5
 {
@@ -131,16 +127,16 @@ struct INK_MD5
     return buf;
   }
 
-  uint64_t fold()
+  uint64_t fold() const
   {
     return (b[0] ^ b[1]);
   }
 
-  uint64_t operator[] (int i)
+  uint64_t operator[] (int i) const
   {
     return b[i];
   }
-  bool operator==(INK_MD5 & md5)
+  bool operator==(INK_MD5 const& md5)
   {
     return b[0] == md5.b[0] && b[1] == md5.b[1];
   }
@@ -153,12 +149,5 @@ struct INK_MD5
     b[1] = a2;
   }
 };
-
-#ifdef USE_MMH_FOR_MD5
-#define INK_MD5 MMH
-#define ink_code_incr_MD5_init ink_code_incr_MMH_init
-#define ink_code_incr_MD5_update ink_code_incr_MMH_update
-#define ink_code_incr_MD5_final ink_code_incr_MMH_final
-#endif
 
 #endif

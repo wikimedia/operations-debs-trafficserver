@@ -61,8 +61,9 @@ namespace detail {
     IpAddr outbound_ip4;
     /// Local address to bind for outbound connections.
     IpAddr outbound_ip6;
-    /// Set the outbound IP address.
+    /// Set the outbound IP address to @a ip.
     self& setOutboundIp(IpAddr& ip);
+    /// Set the outbound IP address to @a ip.
     self& setOutboundIp(IpEndpoint* ip);
     /// Local port for outbound connection.
     uint16_t outbound_port;
@@ -72,18 +73,28 @@ namespace detail {
     bool f_outbound_transparent;
     /// Set outbound transparency.
     self& setOutboundTransparent(bool);
+    /// Transparent pass-through.
+    bool f_transparent_passthrough;
+    /// Set transparent passthrough.
+    self& setTransparentPassthrough(bool);
     /// Accepting backdoor connections.
     bool backdoor;
     /// Set backdoor accept.
     self& setBackdoor(bool);
+    /// Host address resolution preference order.
+    HostResPreferenceOrder host_res_preference;
+    /// Set the host query preference.
+    self& setHostResPreference(HostResPreferenceOrder const);
   };
 
   inline HttpAcceptOptions::HttpAcceptOptions()
     : transport_type(0)
     , outbound_port(0)
     , f_outbound_transparent(false)
+    , f_transparent_passthrough(false)
     , backdoor(false)
   {
+    memcpy(host_res_preference, host_res_default_preference_order, sizeof(host_res_preference));
   }
 
   inline HttpAcceptOptions&
@@ -119,8 +130,20 @@ namespace detail {
   }
 
   inline HttpAcceptOptions&
+  HttpAcceptOptions::setTransparentPassthrough(bool flag) {
+    f_transparent_passthrough = flag;
+    return *this;
+  }
+
+ inline HttpAcceptOptions&
   HttpAcceptOptions::setBackdoor(bool flag) {
     backdoor = flag;
+    return *this;
+  }
+
+  inline HttpAcceptOptions&
+  HttpAcceptOptions::setHostResPreference(HostResPreferenceOrder const order) {
+    memcpy(host_res_preference, order, sizeof(host_res_preference));
     return *this;
   }
 }
@@ -146,7 +169,13 @@ public:
   */
   typedef detail::HttpAcceptOptions Options;
 
-  HttpAccept(Options const& opt = DEFAULT_OPTIONS)
+  /** Default constructor.
+    
+      @internal We don't use a static default options object because of
+      initialization order issues. It is important to pick up data that is read
+      from the config file and a static is initialized long before that point.
+  */
+  HttpAccept(Options const& opt = Options())
     : Continuation(NULL)
     , detail::HttpAcceptOptions(opt) // copy these.
   {
@@ -160,9 +189,6 @@ public:
   }
 
   int mainEvent(int event, void *netvc);
-
-  /// Container for default options.
-  static Options const DEFAULT_OPTIONS;
 
 private:
     HttpAccept(const HttpAccept &);

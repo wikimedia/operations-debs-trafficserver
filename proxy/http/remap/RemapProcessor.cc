@@ -27,10 +27,10 @@ RemapProcessor remapProcessor;
 extern ClassAllocator<RemapPlugins> pluginAllocator;
 
 int
-RemapProcessor::start(int num_threads)
+RemapProcessor::start(int num_threads, size_t stacksize)
 {
   if (_use_separate_remap_thread)
-    ET_REMAP = eventProcessor.spawn_event_threads(num_threads, "ET_REMAP");  // ET_REMAP is a class member
+    ET_REMAP = eventProcessor.spawn_event_threads(num_threads, "ET_REMAP", stacksize);  // ET_REMAP is a class member
 
   return 0;
 }
@@ -90,8 +90,8 @@ RemapProcessor::setup_for_remap(HttpTransact::State *s)
 
   if (rewrite_table->num_rules_forward_with_recv_port) {
     Debug("url_rewrite", "[lookup] forward mappings with recv port found; Using recv port %d",
-          ats_ip_port_host_order(&s->client_info.addr));
-    if (rewrite_table->forwardMappingWithRecvPortLookup(request_url, ats_ip_port_host_order(&s->client_info.addr),
+          s->client_info.port);
+    if (rewrite_table->forwardMappingWithRecvPortLookup(request_url, s->client_info.port,
                                                          request_host, request_host_len, s->url_map)) {
       Debug("url_rewrite", "Found forward mapping with recv port");
       mapping_found = true;
@@ -300,7 +300,7 @@ RemapProcessor::perform_remap(Continuation *cont, HttpTransact::State *s)
   if (!map) {
     Error("Could not find corresponding url_mapping for this transaction %p", s);
     Debug("url_rewrite", "Could not find corresponding url_mapping for this transaction");
-    ink_debug_assert(!"this should never happen -- call setup_for_remap first");
+    ink_assert(!"this should never happen -- call setup_for_remap first");
     cont->handleEvent(EVENT_REMAP_ERROR, NULL);
     return ACTION_RESULT_DONE;
   }
@@ -314,7 +314,7 @@ RemapProcessor::perform_remap(Continuation *cont, HttpTransact::State *s)
     plugins->setHostHeaderInfo(hh_info);
 
     // Execute "inline" if not using separate remap threads.
-    ink_debug_assert(cont->mutex->thread_holding == this_ethread());
+    ink_assert(cont->mutex->thread_holding == this_ethread());
     plugins->mutex = cont->mutex;
     plugins->action = cont;
     SET_CONTINUATION_HANDLER(plugins, &RemapPlugins::run_remap);

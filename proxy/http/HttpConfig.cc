@@ -94,10 +94,8 @@ HttpConfigCont::HttpConfigCont()
 }
 
 int
-HttpConfigCont::handle_event(int event, void *edata)
+HttpConfigCont::handle_event(int /* event ATS_UNUSED */, void * /* edata ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(edata);
   if (ink_atomic_increment((int *) &http_config_changes, -1) == 1) {
     HttpConfig::reconfigure();
   }
@@ -106,12 +104,9 @@ HttpConfigCont::handle_event(int event, void *edata)
 
 
 static int
-http_config_cb(const char *name, RecDataT data_type, RecData data, void *cookie)
+http_config_cb(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+               RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   ink_atomic_increment((int *) &http_config_changes, 1);
 
   INK_MEMORY_BARRIER;
@@ -1139,6 +1134,13 @@ HttpConfig::startup()
   RecHttpLoadIp("proxy.local.incoming_ip_to_bind", c.inbound_ip4, c.inbound_ip6);
   RecHttpLoadIp("proxy.local.outgoing_ip_to_bind", c.outbound_ip4, c.outbound_ip6);
 
+#if TS_USE_RECLAIMABLE_FREELIST
+  HttpEstablishStaticConfigLongLong(cfg_debug_filter, "proxy.config.allocator.debug_filter");
+  HttpEstablishStaticConfigLongLong(cfg_enable_reclaim, "proxy.config.allocator.enable_reclaim");
+  HttpEstablishStaticConfigLongLong(cfg_max_overage, "proxy.config.allocator.max_overage");
+  HttpEstablishStaticConfigFloat(cfg_reclaim_factor, "proxy.config.allocator.reclaim_factor");
+#endif
+
   HttpEstablishStaticConfigLongLong(c.server_max_connections, "proxy.config.http.server_max_connections");
   HttpEstablishStaticConfigLongLong(c.oride.server_tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections, "proxy.config.http.origin_max_connections");
@@ -1167,17 +1169,14 @@ HttpConfig::startup()
   HttpEstablishStaticConfigStringAlloc(c.proxy_response_via_string, "proxy.config.http.response_via_str");
   c.proxy_response_via_string_len = -1;
 
-  HttpEstablishStaticConfigByte(c.wuts_enabled, "proxy.config.http.wuts_enabled");
-  HttpEstablishStaticConfigByte(c.log_spider_codes, "proxy.config.http.log_spider_codes");
-
   HttpEstablishStaticConfigStringAlloc(c.url_expansions_string, "proxy.config.dns.url_expansions");
-  HttpEstablishStaticConfigLongLong(c.proxy_server_port, "proxy.config.http.server_port");
-  HttpEstablishStaticConfigStringAlloc(c.proxy_server_other_ports, "proxy.config.http.server_other_ports");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_in, "proxy.config.http.keep_alive_enabled_in");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_out, "proxy.config.http.keep_alive_enabled_out");
   HttpEstablishStaticConfigByte(c.oride.chunking_enabled, "proxy.config.http.chunking_enabled");
-  HttpEstablishStaticConfigByte(c.session_auth_cache_keep_alive_enabled,
-                                "proxy.config.http.session_auth_cache_keep_alive_enabled");
+  HttpEstablishStaticConfigLongLong(c.oride.http_chunking_size, "proxy.config.http.chunking.size");
+  HttpEstablishStaticConfigByte(c.oride.flow_control_enabled, "proxy.config.http.flow_control.enabled");
+  HttpEstablishStaticConfigLongLong(c.oride.flow_high_water_mark, "proxy.config.http.flow_control.high_water");
+  HttpEstablishStaticConfigLongLong(c.oride.flow_low_water_mark, "proxy.config.http.flow_control.low_water");
   HttpEstablishStaticConfigLongLong(c.origin_server_pipeline, "proxy.config.http.origin_server_pipeline");
   HttpEstablishStaticConfigLongLong(c.user_agent_pipeline, "proxy.config.http.user_agent_pipeline");
   HttpEstablishStaticConfigByte(c.oride.share_server_sessions, "proxy.config.http.share_server_sessions");
@@ -1195,8 +1194,8 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.transaction_active_timeout_out, "proxy.config.http.transaction_active_timeout_out");
   HttpEstablishStaticConfigLongLong(c.accept_no_activity_timeout, "proxy.config.http.accept_no_activity_timeout");
 
-  HttpEstablishStaticConfigLongLong(c.background_fill_active_timeout, "proxy.config.http.background_fill_active_timeout");
-  HttpEstablishStaticConfigFloat(c.background_fill_threshold, "proxy.config.http.background_fill_completed_threshold");
+  HttpEstablishStaticConfigLongLong(c.oride.background_fill_active_timeout, "proxy.config.http.background_fill_active_timeout");
+  HttpEstablishStaticConfigFloat(c.oride.background_fill_threshold, "proxy.config.http.background_fill_completed_threshold");
 
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_max_retries, "proxy.config.http.connect_attempts_max_retries");
   HttpEstablishStaticConfigLongLong(c.oride.connect_attempts_max_retries_dead_server,
@@ -1236,13 +1235,9 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.insert_squid_x_forwarded_for, "proxy.config.http.insert_squid_x_forwarded_for");
 
 
-  HttpEstablishStaticConfigByte(c.insert_age_in_response, "proxy.config.http.insert_age_in_response");
-
-  HttpEstablishStaticConfigByte(c.avoid_content_spoofing, "proxy.config.http.avoid_content_spoofing");
-
+  HttpEstablishStaticConfigByte(c.oride.insert_age_in_response, "proxy.config.http.insert_age_in_response");
   HttpEstablishStaticConfigByte(c.enable_http_stats, "proxy.config.http.enable_http_stats");
-
-  HttpEstablishStaticConfigByte(c.normalize_ae_gzip, "proxy.config.http.normalize_ae_gzip");
+  HttpEstablishStaticConfigByte(c.oride.normalize_ae_gzip, "proxy.config.http.normalize_ae_gzip");
 
   HttpEstablishStaticConfigByte(c.icp_enabled, "proxy.config.icp.enabled");
   HttpEstablishStaticConfigByte(c.stale_icp_enabled, "proxy.config.icp.stale_icp_enabled");
@@ -1272,6 +1267,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.max_cache_open_write_retries, "proxy.config.http.cache.max_open_write_retries");
 
   HttpEstablishStaticConfigByte(c.oride.cache_http, "proxy.config.http.cache.http");
+  HttpEstablishStaticConfigByte(c.oride.cache_cluster_cache_local, "proxy.config.http.cache.cluster_cache_local");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_no_cache, "proxy.config.http.cache.ignore_client_no_cache");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_cc_max_age, "proxy.config.http.cache.ignore_client_cc_max_age");
   HttpEstablishStaticConfigByte(c.oride.cache_ims_on_client_no_cache, "proxy.config.http.cache.ims_on_client_no_cache");
@@ -1291,13 +1287,12 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.cache_when_to_add_no_cache_to_msie_requests,
                                     "proxy.config.http.cache.when_to_add_no_cache_to_msie_requests");
   HttpEstablishStaticConfigByte(c.oride.cache_required_headers, "proxy.config.http.cache.required_headers");
-  HttpEstablishStaticConfigByte(c.cache_range_lookup, "proxy.config.http.cache.range.lookup");
+  HttpEstablishStaticConfigByte(c.oride.cache_range_lookup, "proxy.config.http.cache.range.lookup");
 
   HttpEstablishStaticConfigStringAlloc(c.connect_ports_string, "proxy.config.http.connect_ports");
 
-  HttpEstablishStaticConfigLongLong(c.request_hdr_max_size, "proxy.config.http.request_header_max_size");
-
-  HttpEstablishStaticConfigLongLong(c.response_hdr_max_size, "proxy.config.http.response_header_max_size");
+  HttpEstablishStaticConfigLongLong(c.oride.request_hdr_max_size, "proxy.config.http.request_header_max_size");
+  HttpEstablishStaticConfigLongLong(c.oride.response_hdr_max_size, "proxy.config.http.response_header_max_size");
 
   HttpEstablishStaticConfigByte(c.push_method_enabled, "proxy.config.http.push_method_enabled");
 
@@ -1321,32 +1316,22 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.referer_filter_enabled, "proxy.config.http.referer_filter");
   HttpEstablishStaticConfigByte(c.referer_format_redirect, "proxy.config.http.referer_format_redirect");
 
-  // HTTP Accept_Encoding filtering (depends on User-Agent)
-  HttpEstablishStaticConfigByte(c.accept_encoding_filter_enabled, "proxy.config.http.accept_encoding_filter_enabled");
-
-  // Negative caching
   HttpEstablishStaticConfigLongLong(c.oride.down_server_timeout, "proxy.config.http.down_server.cache_time");
   HttpEstablishStaticConfigLongLong(c.oride.client_abort_threshold, "proxy.config.http.down_server.abort_threshold");
 
-  // Negative revalidating
-  HttpEstablishStaticConfigByte(c.negative_revalidating_enabled, "proxy.config.http.negative_revalidating_enabled");
-  HttpEstablishStaticConfigLongLong(c.negative_revalidating_lifetime, "proxy.config.http.negative_revalidating_lifetime");
-
-  // Negative response caching
+  // Negative caching and revalidation
   HttpEstablishStaticConfigByte(c.oride.negative_caching_enabled, "proxy.config.http.negative_caching_enabled");
   HttpEstablishStaticConfigLongLong(c.oride.negative_caching_lifetime, "proxy.config.http.negative_caching_lifetime");
+  HttpEstablishStaticConfigByte(c.oride.negative_revalidating_enabled, "proxy.config.http.negative_revalidating_enabled");
+  HttpEstablishStaticConfigLongLong(c.oride.negative_revalidating_lifetime,
+                                    "proxy.config.http.negative_revalidating_lifetime");
 
-  // Buffer size
-  HttpEstablishStaticConfigLongLong(c.default_buffer_size_index, "proxy.config.http.default_buffer_size");
-
-  // Buffer water mark
-  HttpEstablishStaticConfigLongLong(c.default_buffer_water_mark, "proxy.config.http.default_buffer_water_mark");
+  // Buffer size and watermark
+  HttpEstablishStaticConfigLongLong(c.oride.default_buffer_size_index, "proxy.config.http.default_buffer_size");
+  HttpEstablishStaticConfigLongLong(c.oride.default_buffer_water_mark, "proxy.config.http.default_buffer_water_mark");
 
   // Stat Page Info
   HttpEstablishStaticConfigByte(c.enable_http_info, "proxy.config.http.enable_http_info");
-
-  // Support SRV records
-  HttpEstablishStaticConfigLongLong(c.srv_enabled, "proxy.config.srv_enabled");
 
   //##############################################################################
   //#
@@ -1444,18 +1429,29 @@ HttpConfig::reconfigure()
   params->proxy_response_via_string = ats_strdup(m_master.proxy_response_via_string);
   params->proxy_response_via_string_len = (params->proxy_response_via_string) ? strlen(params->proxy_response_via_string) : 0;
 
-  params->wuts_enabled = INT_TO_BOOL(m_master.wuts_enabled);
-  params->log_spider_codes = INT_TO_BOOL(m_master.log_spider_codes);
-
   params->url_expansions_string = ats_strdup(m_master.url_expansions_string);
   params->url_expansions = parse_url_expansions(params->url_expansions_string, &params->num_url_expansions);
 
-  params->proxy_server_port = m_master.proxy_server_port;
-  params->proxy_server_other_ports = ats_strdup(m_master.proxy_server_other_ports);
   params->oride.keep_alive_enabled_in = INT_TO_BOOL(m_master.oride.keep_alive_enabled_in);
   params->oride.keep_alive_enabled_out = INT_TO_BOOL(m_master.oride.keep_alive_enabled_out);
   params->oride.chunking_enabled = INT_TO_BOOL(m_master.oride.chunking_enabled);
-  params->session_auth_cache_keep_alive_enabled = INT_TO_BOOL(m_master.session_auth_cache_keep_alive_enabled);
+  params->oride.http_chunking_size = m_master.oride.http_chunking_size;
+
+  params->oride.flow_control_enabled = INT_TO_BOOL(m_master.oride.flow_control_enabled);
+  params->oride.flow_high_water_mark = m_master.oride.flow_high_water_mark;
+  params->oride.flow_low_water_mark = m_master.oride.flow_low_water_mark;
+  // If not set (zero) then make values the same.
+  if (params->oride.flow_low_water_mark <= 0)
+    params->oride.flow_low_water_mark = params->oride.flow_high_water_mark;
+  if (params->oride.flow_high_water_mark <= 0)
+    params->oride.flow_high_water_mark = params->oride.flow_low_water_mark;
+  if (params->oride.flow_high_water_mark < params->oride.flow_low_water_mark) {
+    Warning("Flow control low water mark is greater than high water mark, flow control disabled");
+    params->oride.flow_control_enabled = 0;
+    // zero means "hardwired default" when actually used.
+    params->oride.flow_high_water_mark = params->oride.flow_low_water_mark = 0;
+  }
+
   params->origin_server_pipeline = m_master.origin_server_pipeline;
   params->user_agent_pipeline = m_master.user_agent_pipeline;
   params->oride.share_server_sessions = m_master.oride.share_server_sessions;
@@ -1468,8 +1464,8 @@ HttpConfig::reconfigure()
   params->transaction_active_timeout_in = m_master.transaction_active_timeout_in;
   params->oride.transaction_active_timeout_out = m_master.oride.transaction_active_timeout_out;
   params->accept_no_activity_timeout = m_master.accept_no_activity_timeout;
-  params->background_fill_active_timeout = m_master.background_fill_active_timeout;
-  params->background_fill_threshold = m_master.background_fill_threshold;
+  params->oride.background_fill_active_timeout = m_master.oride.background_fill_active_timeout;
+  params->oride.background_fill_threshold = m_master.oride.background_fill_threshold;
 
   params->oride.connect_attempts_max_retries = m_master.oride.connect_attempts_max_retries;
   params->oride.connect_attempts_max_retries_dead_server = m_master.oride.connect_attempts_max_retries_dead_server;
@@ -1507,10 +1503,9 @@ HttpConfig::reconfigure()
   params->oride.proxy_response_server_enabled = m_master.oride.proxy_response_server_enabled;
 
   params->oride.insert_squid_x_forwarded_for = INT_TO_BOOL(m_master.oride.insert_squid_x_forwarded_for);
-  params->insert_age_in_response = INT_TO_BOOL(m_master.insert_age_in_response);
-  params->avoid_content_spoofing = INT_TO_BOOL(m_master.avoid_content_spoofing);
+  params->oride.insert_age_in_response = INT_TO_BOOL(m_master.oride.insert_age_in_response);
   params->enable_http_stats = INT_TO_BOOL(m_master.enable_http_stats);
-  params->normalize_ae_gzip = INT_TO_BOOL(m_master.normalize_ae_gzip);
+  params->oride.normalize_ae_gzip = INT_TO_BOOL(m_master.oride.normalize_ae_gzip);
 
   params->icp_enabled = (m_master.icp_enabled == ICP_MODE_SEND_RECEIVE ? 1 : 0); // INT_TO_BOOL
   params->stale_icp_enabled = INT_TO_BOOL(m_master.stale_icp_enabled);
@@ -1539,6 +1534,7 @@ HttpConfig::reconfigure()
   params->max_cache_open_write_retries = m_master.max_cache_open_write_retries;
 
   params->oride.cache_http = INT_TO_BOOL(m_master.oride.cache_http);
+  params->oride.cache_cluster_cache_local = INT_TO_BOOL(m_master.oride.cache_cluster_cache_local);
   params->oride.cache_ignore_client_no_cache = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
   params->oride.cache_ignore_client_cc_max_age = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
   params->oride.cache_ims_on_client_no_cache = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
@@ -1557,14 +1553,15 @@ HttpConfig::reconfigure()
   params->cache_when_to_add_no_cache_to_msie_requests = m_master.cache_when_to_add_no_cache_to_msie_requests;
 
   params->oride.cache_required_headers = m_master.oride.cache_required_headers;
-  params->cache_range_lookup = INT_TO_BOOL(m_master.cache_range_lookup);
+  params->oride.cache_range_lookup = INT_TO_BOOL(m_master.oride.cache_range_lookup);
 
   params->connect_ports_string = ats_strdup(m_master.connect_ports_string);
   params->connect_ports = parse_ports_list(params->connect_ports_string);
 
-  params->request_hdr_max_size = m_master.request_hdr_max_size;
-  params->response_hdr_max_size = m_master.response_hdr_max_size;
-  params->push_method_enabled = INT_TO_BOOL(m_master.push_method_enabled);
+  params->oride.request_hdr_max_size = m_master.oride.request_hdr_max_size;
+  params->oride.response_hdr_max_size = m_master.oride.response_hdr_max_size;
+  
+params->push_method_enabled = INT_TO_BOOL(m_master.push_method_enabled);
 
   params->reverse_proxy_enabled = INT_TO_BOOL(m_master.reverse_proxy_enabled);
   params->url_remap_required = INT_TO_BOOL(m_master.url_remap_required);
@@ -1574,8 +1571,8 @@ HttpConfig::reconfigure()
   params->record_tcp_mem_hit = INT_TO_BOOL(m_master.record_tcp_mem_hit);
   params->oride.send_http11_requests = m_master.oride.send_http11_requests;
   params->oride.doc_in_cache_skip_dns = INT_TO_BOOL(m_master.oride.doc_in_cache_skip_dns);
-  params->default_buffer_size_index = m_master.default_buffer_size_index;
-  params->default_buffer_water_mark = m_master.default_buffer_water_mark;
+  params->oride.default_buffer_size_index = m_master.oride.default_buffer_size_index;
+  params->oride.default_buffer_water_mark = m_master.oride.default_buffer_water_mark;
   params->enable_http_info = INT_TO_BOOL(m_master.enable_http_info);
   params->reverse_proxy_no_host_redirect = ats_strdup(m_master.reverse_proxy_no_host_redirect);
   params->reverse_proxy_no_host_redirect_len =
@@ -1584,16 +1581,15 @@ HttpConfig::reconfigure()
   params->referer_filter_enabled = INT_TO_BOOL(m_master.referer_filter_enabled);
   params->referer_format_redirect = INT_TO_BOOL(m_master.referer_format_redirect);
 
-  params->accept_encoding_filter_enabled = INT_TO_BOOL(m_master.accept_encoding_filter_enabled);
+  params->oride.accept_encoding_filter_enabled = INT_TO_BOOL(m_master.oride.accept_encoding_filter_enabled);
 
   params->oride.down_server_timeout = m_master.oride.down_server_timeout;
   params->oride.client_abort_threshold = m_master.oride.client_abort_threshold;
 
-  params->negative_revalidating_enabled = INT_TO_BOOL(m_master.negative_revalidating_enabled);
-  params->negative_revalidating_lifetime = m_master.negative_revalidating_lifetime;
-
   params->oride.negative_caching_enabled = INT_TO_BOOL(m_master.oride.negative_caching_enabled);
   params->oride.negative_caching_lifetime = m_master.oride.negative_caching_lifetime;
+  params->oride.negative_revalidating_enabled = INT_TO_BOOL(m_master.oride.negative_revalidating_enabled);
+  params->oride.negative_revalidating_lifetime = m_master.oride.negative_revalidating_lifetime;
 
   //##############################################################################
   //#
@@ -1615,9 +1611,9 @@ HttpConfig::reconfigure()
 
 // Redirection debug statements
   Debug("http_init", "proxy.config.http.redirection_enabled = %d", params->redirection_enabled);
-  Debug("http_init", "proxy.config.http.number_of_redirections = %"PRId64"", params->number_of_redirections);
+  Debug("http_init", "proxy.config.http.number_of_redirections = %" PRId64"", params->number_of_redirections);
 
-  Debug("http_init", "proxy.config.http.post_copy_size = %"PRId64"", params->post_copy_size);
+  Debug("http_init", "proxy.config.http.post_copy_size = %" PRId64"", params->post_copy_size);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1644,219 +1640,6 @@ void
 HttpConfig::release(HttpConfigParams * params)
 {
   configProcessor.release(m_id, params);
-}
-
-/*
-  Static Accept-Encoding/User-Agent filtering table
-  The format of this table is compatible with ae_ua.config file
-  */
-
-static char *static_aeua_filter_array[] = {
-//    ".substring Mozilla/4.",
-  NULL
-};
-
-static int
-read_string(FILE * fp, char *buf, int size)
-{
-  int i, retsize = (-1);
-  if (fp && --size > 0 && buf) {
-    for (buf[(retsize = 0)] = 0; (i = fgetc(fp)) != EOF;) {
-      if (i == '\n' || i == '\r')
-        break;
-      if ((i == ' ' || i == '\t') && !retsize)
-        continue;
-      if (retsize < size)
-        buf[retsize++] = (char) i;
-    }
-    buf[retsize] = 0;
-    if (i == EOF && !retsize)
-      retsize = (-1);           /* i == EOF && retsize == 0 */
-  }
-  return retsize;
-}
-
-static bool
-store_error_message(char *err_msg_buf, int err_msg_buf_size, const char *fmt, ...)
-{
-  if (likely(err_msg_buf && err_msg_buf_size > 0)) {
-    char buf[2048];
-    va_list ap;
-    va_start(ap, fmt);
-    (void) vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
-    ink_strlcpy(err_msg_buf, buf, err_msg_buf_size);
-    va_end(ap);
-  }
-  return false;
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpConfig::init_aeua_filter()
-//
-// TODO: make aeua_filter more flex
-////////////////////////////////////////////////////////////////
-int
-HttpConfig::init_aeua_filter(char *config_fname)
-{
-  char errmsgbuf[1024], line[2048], *c;
-  HttpUserAgent_RegxEntry *ua, **uaa, *u;
-  FILE *fp;
-  int i, size;
-  int retcount = 0;
-
-  Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Config: \"%s\"", config_fname ? config_fname : "<NULL>");
-
-  for (uaa = &HttpConfig::user_agent_list, i = 0; static_aeua_filter_array[i]; i++) {
-    memset(errmsgbuf, 0, sizeof(errmsgbuf));
-    ua = NEW(new HttpUserAgent_RegxEntry);
-    if (!ua->create(static_aeua_filter_array[i], errmsgbuf, sizeof(errmsgbuf))) {
-      ink_error("[HttpConfig::init_aeua_filter] - internal list - %s - %s",
-                static_aeua_filter_array[i], errmsgbuf[0] ? errmsgbuf : "Unknown error");
-      delete ua;
-      ua = 0;
-    } else {
-      *uaa = ua;
-      uaa = &(ua->next);
-      retcount++;
-    }
-    Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Add \"%s\" filter - %s",
-          static_aeua_filter_array[i], ua ? "Success" : "Error");
-  }
-  if (config_fname && config_fname[0]) {
-    Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Opening config \"%s\"", config_fname);
-    if ((fp = fopen(config_fname, "r")) != NULL) {
-      while ((i = read_string(fp, line, (int) sizeof(line))) >= 0) {
-        if (!i)
-          continue;
-        for (c = line; *c == ' ' || *c == '\t'; c++);
-        if (*c == '#' || (size = strlen(c)) <= 0)
-          continue;
-        while (size > 0 && (c[size - 1] == ' ' || c[size - 1] == '\t' || c[size - 1] == '\n' || c[size - 1] == '\r'))
-          c[--size] = 0;
-        if (size <= 0)
-          continue;
-        Debug("http_aeua", "[HttpConfig::init_aeua_filter] - \"%s\"", c);
-        for (u = HttpConfig::user_agent_list; u; u = u->next) {
-          if (u->user_agent_str_size && u->user_agent_str && !strcmp(u->user_agent_str, c))
-            break;
-        }
-        if (!u) {
-          ua = NEW(new HttpUserAgent_RegxEntry);
-          if (!ua->create(c, errmsgbuf, sizeof(errmsgbuf))) {
-            ink_error("[HttpConfig::init_aeua_filter] - config list - %s - %s", c,
-                      errmsgbuf[0] ? errmsgbuf : "Unknown error");
-            delete ua;
-            ua = 0;
-          } else {
-            *uaa = ua;
-            uaa = &(ua->next);
-            retcount++;
-          }
-          Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Add \"%s\" filter - %s", c, ua ? "Success" : "Error");
-        } else {
-          Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Duplicate record \"%s\"", c);
-        }
-      }
-      fclose(fp);
-    } else {
-      ink_error("[HttpConfig::init_aeua_filter] - Can't open \"%s\"", config_fname);
-    }
-  }
-  Debug("http_aeua", "[HttpConfig::init_aeua_filter] - Added %d REGEXP filters", retcount);
-  return retcount;
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::HttpUserAgent_RegxEntry()
-//
-////////////////////////////////////////////////////////////////
-HttpUserAgent_RegxEntry::HttpUserAgent_RegxEntry()
-{
-  next = 0;
-  user_agent_str_size = 0;
-  user_agent_str = 0;
-  regx_valid = false;
-  stype = STRTYPE_UNKNOWN;
-  memset(&regx, 0, sizeof(regx));
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::~HttpUserAgent_RegxEntry()
-//
-////////////////////////////////////////////////////////////////
-HttpUserAgent_RegxEntry::~HttpUserAgent_RegxEntry()
-{
-  (void) create();              /* just for clean up */
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpUserAgent_RegxEntry::create()
-//
-////////////////////////////////////////////////////////////////
-bool
-HttpUserAgent_RegxEntry::create(char *_refexp_str, char *errmsgbuf, int errmsgbuf_size)
-{
-  char *c, *refexp_str, refexp_str_buf[2048];
-  bool retcode = false;
-
-  user_agent_str = (char *)ats_free_null(user_agent_str);
-  user_agent_str_size = 0;
-  stype = STRTYPE_UNKNOWN;
-  if (regx_valid) {
-    pcre_free(regx);
-    regx_valid = false;
-  }
-  if (errmsgbuf && errmsgbuf_size > 0)
-    errmsgbuf[0] = 0;
-
-
-  if (_refexp_str && *_refexp_str) {
-    ink_strlcpy(refexp_str_buf, _refexp_str, sizeof(refexp_str_buf));
-    refexp_str = refexp_str_buf;
-
-    Debug("http_aeua", "[HttpUserAgent_RegxEntry::create] - \"%s\"", refexp_str);
-    while (*refexp_str && (*refexp_str == ' ' || *refexp_str == '\t'))
-      refexp_str++;
-    if (*refexp_str == '.') {
-      for (c = refexp_str; *refexp_str && *refexp_str != ' ' && *refexp_str != '\t'; refexp_str++);
-      while (*refexp_str && (*refexp_str == ' ' || *refexp_str == '\t'))
-        *refexp_str++ = 0;
-      if (*refexp_str) {
-        if (!strcasecmp(c, ".substring") || !strcasecmp(c, ".string"))
-          stype = STRTYPE_SUBSTR_CASE;
-        else if (!strcasecmp(c, ".substring_ncase") || !strcasecmp(c, ".string_ncase"))
-          stype = STRTYPE_SUBSTR_NCASE;
-        else if (!strcasecmp(c, ".regexp") || !strcasecmp(c, ".regex"))
-          stype = STRTYPE_REGEXP;
-        else
-          return store_error_message(errmsgbuf, errmsgbuf_size, "Unknown string type \"%s\"", c);
-      } else
-        return store_error_message(errmsgbuf, errmsgbuf_size, "Empty string with \"%s\" string type", c);
-    } else
-      return store_error_message(errmsgbuf, errmsgbuf_size, "Incorrect string type - must start with '.'");
-
-    user_agent_str = ats_strdup(refexp_str);
-    retcode = true;
-    if (stype == STRTYPE_REGEXP) {
-      const char* error;
-      int erroffset;
-
-      regx = pcre_compile((const char *) user_agent_str, PCRE_CASELESS, &error, &erroffset, NULL);
-      if (regx == NULL) {
-        if (errmsgbuf && (errmsgbuf_size - 1) > 0)
-          ink_strlcpy(errmsgbuf, error, errmsgbuf_size);
-        user_agent_str = (char *)ats_free_null(user_agent_str);
-        retcode = false;
-      } else
-        regx_valid = true;
-    }
-    user_agent_str_size = user_agent_str ? strlen(user_agent_str) : 0;
-  }
-  return retcode;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -2000,10 +1783,8 @@ HttpConfig::parse_url_expansions(char *url_expansions_str, int *num_expansions)
 //
 ////////////////////////////////////////////////////////////////
 void *
-HttpConfig::cluster_delta_cb(void *opaque_token, char *data_raw, int data_len)
+HttpConfig::cluster_delta_cb(void * /* opaque_token ATS_UNUSED */, char *data_raw, int /* data_len ATS_UNUSED */)
 {
-  NOWARN_UNUSED(opaque_token);
-  NOWARN_UNUSED(data_len);
   int32_t delta32 = (int32_t) atoi(data_raw);
   int32_t old;
 

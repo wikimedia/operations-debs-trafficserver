@@ -34,7 +34,6 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "HttpMessageBody.h"
 #include "URL.h"
 #include <logging/Log.h>
 #include <logging/LogAccess.h>
@@ -60,11 +59,9 @@
 char *
 HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State * context,
                                         int64_t max_buffer_length, int64_t *resulting_buffer_length,
-                                        char* content_language_out_buf,
-                                        size_t content_language_buf_size,
-                                        char* content_type_out_buf,
-                                        size_t content_type_buf_size,
-                                        HTTPStatus status_code, const char *reason_or_null, const char *format, va_list ap)
+                                        char* content_language_out_buf, size_t content_language_buf_size,
+                                        char* content_type_out_buf, size_t content_type_buf_size,
+                                        const char *format, va_list ap)
 {
   char *buffer = NULL;
   const char *lang_ptr = NULL;
@@ -160,8 +157,8 @@ HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State * 
     buffer = (char *)ats_free_null(buffer);
   }
   /////////////////////////////////////////////////////////////////////
-  // handle return of instantiated template or internal default, and //
-  // generate the content language and content type return values    //
+  // handle return of instantiated template and generate the content //
+  // language and content type return values                         //
   /////////////////////////////////////////////////////////////////////
 
   if (buffer) {                  // got an instantiated template
@@ -180,17 +177,10 @@ HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State * 
                    set, type, set, "default", url, lang_ptr, charset_ptr);
       }
     }
-  } else {                       // no template, using old style body
-    buffer = HttpMessageBody::MakeErrorBodyVA(max_buffer_length, resulting_buffer_length,
-                                              context->http_config_param, status_code, reason_or_null, format, ap);
+  } else {                       // no template
     if (enable_logging) {
-      if (enable_customizations) {       // we wanted a template
-        Log::error(("BODY_FACTORY: customization enabled "
-                    "but can't find templates '%s' or '%s', using hardcoded default body for url '%s'"),
+        Log::error(("BODY_FACTORY: can't find templates '%s' or '%s' for url `%s'"),
                    type, "default", url);
-      } else {                   // we wanted an old-style body
-        Log::error(("BODY_FACTORY: using hardcoded default '%s' body for url '%s'"), type, url);
-      }
     }
   }
   unlock();
@@ -255,11 +245,9 @@ HttpBodyFactory::dump_template_tables(FILE * fp)
 ////////////////////////////////////////////////////////////////////////
 
 static int
-config_callback(const char *name, RecDataT data_type, RecData data, void *cookie)
+config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                RecData /* data ATS_UNUSED */, void *cookie)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
   HttpBodyFactory *body_factory = (HttpBodyFactory *) cookie;
   body_factory->reconfigure();
   return (0);
@@ -296,17 +284,17 @@ HttpBodyFactory::reconfigure()
   rec_err = RecGetRecordInt("proxy.config.body_factory.enable_customizations", &e);
   enable_customizations = ((rec_err == REC_ERR_OKAY) ? e : 0);
   all_found = all_found && (rec_err == REC_ERR_OKAY);
-  Debug("body_factory", "enable_customizations = %d (found = %"PRId64")", enable_customizations, e);
+  Debug("body_factory", "enable_customizations = %d (found = %" PRId64")", enable_customizations, e);
 
   rec_err = RecGetRecordInt("proxy.config.body_factory.enable_logging", &e);
   enable_logging = ((rec_err == REC_ERR_OKAY) ? (e ? true : false) : false);
   all_found = all_found && (rec_err == REC_ERR_OKAY);
-  Debug("body_factory", "enable_logging = %d (found = %"PRId64")", enable_logging, e);
+  Debug("body_factory", "enable_logging = %d (found = %" PRId64")", enable_logging, e);
 
   rec_err = RecGetRecordInt("proxy.config.body_factory.response_suppression_mode", &e);
   response_suppression_mode = ((rec_err == REC_ERR_OKAY) ? e : 0);
   all_found = all_found && (rec_err == REC_ERR_OKAY);
-  Debug("body_factory", "response_suppression_mode = %d (found = %"PRId64")", response_suppression_mode, e);
+  Debug("body_factory", "response_suppression_mode = %d (found = %" PRId64")", response_suppression_mode, e);
 
   rec_err = RecGetRecordString_Xmalloc("proxy.config.body_factory.template_sets_dir", &s);
   all_found = all_found && (rec_err == REC_ERR_OKAY);
@@ -324,7 +312,7 @@ HttpBodyFactory::reconfigure()
     }
   }
 
-  Debug("body_factory", "directory_of_template_sets = '%s' (found = %"PRId64")", directory_of_template_sets, e);
+  Debug("body_factory", "directory_of_template_sets = '%s' (found = %" PRId64")", directory_of_template_sets, e);
 
   if (!all_found) {
     Warning("config changed, but can't fetch all proxy.config.body_factory values");
@@ -504,7 +492,7 @@ HttpBodyFactory::find_template(const char *set, const char *type, HttpBodySet **
         return (NULL);
       *body_set_return = body_set;
 
-      Debug("body_factory", "find_template(%s,%s) -> (file %s, length %"PRId64", lang '%s', charset '%s')",
+      Debug("body_factory", "find_template(%s,%s) -> (file %s, length %" PRId64", lang '%s', charset '%s')",
             set, type, t->template_pathname, t->byte_count, body_set->content_language, body_set->content_charset);
 
       return (t);
@@ -720,8 +708,9 @@ HttpBodyFactory::load_body_set_from_directory(char *set_name, char *tmpl_dir)
     // all template files have name of the form <type>#<subtype> //
     ///////////////////////////////////////////////////////////////
 
-    if (strchr(entry_buffer->d_name, '#') == NULL)
+    if ((strchr(entry_buffer->d_name, '#') == NULL) && (strcmp(entry_buffer->d_name, "default") != 0))
       continue;
+
     snprintf(path, sizeof(path), "%s/%s", tmpl_dir, entry_buffer->d_name);
     status = stat(path, &stat_buf);
     if (status != 0)
@@ -879,7 +868,7 @@ HttpBodySet::init(char *set, char *dir)
       this->content_language = ats_strdup(set);
   }
   if (!this->content_charset)
-    this->content_charset = ats_strdup("iso-8859-1");
+    this->content_charset = ats_strdup("utf-8");
 
   close(fd);
   return (lines_added);
@@ -900,7 +889,7 @@ HttpBodySet::get_template_by_name(const char *name)
     HttpBodyTemplate *t = (HttpBodyTemplate *) v;
     if ((t == NULL) || (!t->is_sane()))
       return (NULL);
-    Debug("body_factory", "    get_template_by_name(%s) -> (file %s, length %"PRId64")",
+    Debug("body_factory", "    get_template_by_name(%s) -> (file %s, length %" PRId64")",
           name, t->template_pathname, t->byte_count);
     return (t);
   }
@@ -992,13 +981,13 @@ HttpBodyTemplate::load_from_file(char *dir, char *file)
   ///////////////////////////
 
   if (bytes_read != new_byte_count) {
-    Warning("reading template file '%s', got %"PRId64" bytes instead of %"PRId64" (%s)",
+    Warning("reading template file '%s', got %" PRId64" bytes instead of %" PRId64" (%s)",
             path, bytes_read, new_byte_count, (strerror(errno) ? strerror(errno) : "unknown error"));
     ats_free(new_template_buffer);
     return (0);
   }
 
-  Debug("body_factory", "    read %"PRId64" bytes from '%s'", new_byte_count, path);
+  Debug("body_factory", "    read %" PRId64" bytes from '%s'", new_byte_count, path);
 
   /////////////////////////////////
   // actually commit the changes //
@@ -1016,7 +1005,7 @@ char *
 HttpBodyTemplate::build_instantiated_buffer(HttpTransact::State * context, int64_t *buflen_return)
 {
   char *buffer = NULL;
-#ifndef INK_NO_LOG
+
   Debug("body_factory_instantiation", "    before instantiation: [%s]", template_buffer);
 
   LogAccessHttp la(context->state_machine);
@@ -1027,8 +1016,7 @@ HttpBodyTemplate::build_instantiated_buffer(HttpTransact::State * context, int64
 
   *buflen_return = ((buffer == NULL) ? 0 : strlen(buffer));
   Debug("body_factory_instantiation", "    after instantiation: [%s]", buffer);
+  Debug("body_factory", "  returning %" PRId64" byte instantiated buffer", *buflen_return);
 
-  Debug("body_factory", "  returning %"PRId64" byte instantiated buffer", *buflen_return);
-#endif
   return (buffer);
 }

@@ -25,11 +25,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ink_platform.h"
+#include "ink_defs.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include "XmlUtils.h"
-#include "ink_defs.h"
+#include "ink_error.h"
 
 /****************************************************************************
  *
@@ -296,7 +297,7 @@ AppendStr(char *p1, const char *p2)
 
   if (p1) {
     memcpy(p, p1, nLen1);
-    delete p1;
+    delete[] p1;
   }
   memcpy(p + nLen1, p2, nLen2);
   p[nLen1 + nLen2] = 0;
@@ -340,23 +341,21 @@ XMLNode::getXML()
   while (pChild) {
     char *pChildXML = pChild->getXML();
     if (!pChildXML) {
-      if (pBody)
-        delete[]pBody;
+      delete[] pBody;
       return NULL;
     }
 
     pBody = AppendStr(pBody, pChildXML);
-    delete pChildXML;
+    delete[] pChildXML;
 
     pChild = pChild->m_pNext;
   }
 
   char *pAttr = getAttributeString();
   char *pRet = ConstructXMLBlock(m_pNodeName, pBody, pAttr);
-  if (pBody)
-    delete[]pBody;
-  if (pAttr)
-    delete[]pAttr;
+
+  delete[] pBody;
+  delete[] pAttr;
 
   return pRet;
 }
@@ -417,9 +416,8 @@ elementStart(void *pObj, const char *el, const char **attr)
 }
 
 void /*XMLDom:: */
-elementEnd(void *pObj, const char *el)
+elementEnd(void *pObj, const char * /* el ATS_UNUSED */)
 {
-  NOWARN_UNUSED(el);
   /*ASSERT(strcmp(el, pCur->pNodeName) == 0); */
   XMLDom *pDom = (XMLDom *) pObj;
   pDom->m_pCur = pDom->m_pCur->m_pParentNode;

@@ -71,16 +71,15 @@ FileManager *configFiles;
 StatProcessor *statProcessor;   // Statistics Processors
 AppVersionInfo appVersionInfo;  // Build info for this application
 
-inkcoreapi Diags *diags;
-inkcoreapi DiagsConfig *diagsConfig;
-char debug_tags[1024] = "";
-char action_tags[1024] = "";
 int diags_init = 0;
-bool proxy_on = true;
-bool forceProcessRecordsSnap = false;
 
-bool schema_on = false;
-char *schema_path = NULL;
+static inkcoreapi DiagsConfig *diagsConfig;
+static char debug_tags[1024] = "";
+static char action_tags[1024] = "";
+static bool proxy_on = true;
+
+static bool schema_on = false;
+static char *schema_path = NULL;
 
 // TODO: Check if really need those
 char system_root_dir[PATH_NAME_MAX + 1];
@@ -91,27 +90,25 @@ char system_log_dir[PATH_NAME_MAX + 1];
 char mgmt_path[PATH_NAME_MAX + 1];
 
 // By default, set the current directory as base
-const char *ts_base_dir = ".";
-const char *recs_conf = "records.config";
+static const char *recs_conf = "records.config";
 
-int fds_limit;
+static int fds_limit;
 
-typedef void (*PFV) (int);
 // TODO: Use positive instead negative selection
 //       Thsis should just be #if defined(solaris)
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void SignalHandler(int sig, siginfo_t * t, void *f);
-void SignalAlrmHandler(int sig, siginfo_t * t, void *f);
+static void SignalHandler(int sig, siginfo_t * t, void *f);
+static void SignalAlrmHandler(int sig, siginfo_t * t, void *f);
 #else
-void SignalHandler(int sig);
-void SignalAlrmHandler(int sig);
+static void SignalHandler(int sig);
+static void SignalAlrmHandler(int sig);
 #endif
 
-volatile int sigHupNotifier = 0;
-volatile int sigUsr2Notifier = 0;
-void SigChldHandler(int sig);
+static volatile int sigHupNotifier = 0;
+static volatile int sigUsr2Notifier = 0;
+static void SigChldHandler(int sig);
 
-void
+static void
 check_lockfile()
 {
   char lockfile[PATH_NAME_MAX];
@@ -175,7 +172,7 @@ check_lockfile()
 }
 
 
-void
+static void
 initSignalHandlers()
 {
   struct sigaction sigHandler, sigChldHandler, sigAlrmHandler;
@@ -274,57 +271,38 @@ setup_coredump()
 }
 
 static void
-init_dirs(bool use_librecords = true)
+init_dirs()
 {
   char buf[PATH_NAME_MAX + 1];
 
-  ink_strlcpy(system_config_directory, Layout::get()->sysconfdir, sizeof(system_config_directory));
-  ink_strlcpy(system_runtime_dir, Layout::get()->runtimedir, sizeof(system_runtime_dir));
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
-
+  REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
   if (access(system_config_directory, R_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
-    }
-    if (access(system_config_directory, R_OK) == -1) {
-      mgmt_elog("unable to access() config dir '%s': %d, %s\n",
-              system_config_directory, errno, strerror(errno));
-      mgmt_elog("please set config path via 'proxy.config.config_dir' \n");
-      _exit(1);
-    }
+    mgmt_elog("unable to access() config dir '%s': %d, %s\n", system_config_directory, errno, strerror(errno));
+    mgmt_elog("please set config path via 'proxy.config.config_dir' \n");
+    _exit(1);
   }
+
   ink_strlcpy(mgmt_path, system_config_directory, sizeof(mgmt_path));
 
-  if (access(system_runtime_dir, W_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
-    }
-    if (access(system_runtime_dir, R_OK) == -1) {
-      mgmt_elog("unable to access() local state dir '%s': %d, %s\n",
-              system_runtime_dir, errno, strerror(errno));
-      mgmt_elog("please set 'proxy.config.local_state_dir'\n");
-      _exit(1);
-    }
+  REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
+  if (access(system_runtime_dir, R_OK) == -1) {
+    mgmt_elog("unable to access() local state dir '%s': %d, %s\n", system_runtime_dir, errno, strerror(errno));
+    mgmt_elog("please set 'proxy.config.local_state_dir'\n");
+    _exit(1);
   }
 
+  REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
   if (access(system_log_dir, W_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
-    }
-    if (access(system_log_dir, W_OK) == -1) {
-      mgmt_elog("unable to access() log dir'%s': %d, %s\n",
-              system_log_dir, errno, strerror(errno));
-      mgmt_elog("please set 'proxy.config.log.logfile_dir'\n");
-      _exit(1);
-    }
+    mgmt_elog("unable to access() log dir'%s': %d, %s\n", system_log_dir, errno, strerror(errno));
+    mgmt_elog("please set 'proxy.config.log.logfile_dir'\n");
+    _exit(1);
   }
-
 }
 
-void
+static void
 chdir_root()
 {
 
@@ -367,7 +345,7 @@ set_process_limits(int fds_throttle)
 }
 
 #if TS_HAS_WCCP
-void
+static void
 Errata_Logger(ts::Errata const& err) {
   size_t n;
   static size_t const SIZE = 4096;
@@ -385,7 +363,7 @@ Errata_Logger(ts::Errata const& err) {
   }
 }
 
-void
+static void
 Init_Errata_Logging() {
   ts::Errata::registerSink(&Errata_Logger);
 }
@@ -413,7 +391,7 @@ main(int argc, char **argv)
 
   bool found = false;
   int just_started = 0;
-  int cluster_port = -1, cluster_server_port = -1;
+  int cluster_mcport = -1, cluster_rsport = -1;
   // TODO: This seems completely incomplete, disabled for now
   //  int dump_config = 0, dump_process = 0, dump_node = 0, dump_cluster = 0, dump_local = 0;
   char* proxy_port = 0;
@@ -436,12 +414,12 @@ main(int argc, char **argv)
     aconf_port_arg = atoi(envVar);
   }
 
-  if ((envVar = getenv("MGMT_CLUSTER_PORT")) != NULL) {
-    cluster_port = atoi(envVar);
+  if ((envVar = getenv("MGMT_CLUSTER_MC_PORT")) != NULL) {
+    cluster_mcport = atoi(envVar);
   }
 
   if ((envVar = getenv("MGMT_CLUSTER_RS_PORT")) != NULL) {
-    cluster_server_port = atoi(envVar);
+    cluster_rsport = atoi(envVar);
   }
 
   if ((envVar = getenv("MGMT_GROUP_ADDR")) != NULL) {
@@ -465,15 +443,15 @@ main(int argc, char **argv)
           if (strcmp(argv[i], "-aconfPort") == 0) {
             ++i;
             aconf_port_arg = atoi(argv[i]);
-          } else if (strcmp(argv[i], "-clusterPort") == 0) {
+          } else if (strcmp(argv[i], "-clusterMCPort") == 0) {
             ++i;
-            cluster_port = atoi(argv[i]);
+            cluster_mcport = atoi(argv[i]);
           } else if (strcmp(argv[i], "-groupAddr") == 0) {
             ++i;
             group_addr = argv[i];
           } else if (strcmp(argv[i], "-clusterRSPort") == 0) {
             ++i;
-            cluster_server_port = atoi(argv[i]);
+            cluster_rsport = atoi(argv[i]);
 #if TS_USE_DIAGS
           } else if (strcmp(argv[i], "-debug") == 0) {
             ++i;
@@ -541,12 +519,6 @@ main(int argc, char **argv)
           } else if (strcmp(argv[i], "-proxyBackDoor") == 0) {
             ++i;
             proxy_backdoor = atoi(argv[i]);
-          } else if (strcmp(argv[i], "-vingid") == 0) {
-            // smanager/cnp integration, this argument is
-            // really just a dummy argument used so that
-            // smanager can find all instances of a
-            // particular TM process.
-            ++i;
           } else if (strcmp(argv[i], "-schema") == 0) {
             // hidden option
             ++i;
@@ -579,7 +551,11 @@ main(int argc, char **argv)
   diags = diagsConfig->diags;
   diags->prefix_str = "Manager ";
 
-  init_dirs(false);// setup directories
+  RecLocalInit();
+  LibRecordsConfigInit();
+  RecordsConfigOverrideFromEnvironment();
+
+  init_dirs();// setup critical directories, needs LibRecords
 
   // Get the config info we need while we are still root
   extractConfigInfo(mgmt_path, recs_conf, userToRunAs, &fds_throttle);
@@ -603,11 +579,10 @@ main(int argc, char **argv)
 
 #endif
 
-  RecLocalInit();
-  LibRecordsConfigInit();
 #if TS_HAS_WCCP
   Init_Errata_Logging();
 #endif
+  ts_host_res_global_init();
   lmgmt = new LocalManager(mgmt_path, proxy_on);
   RecLocalInitMessage();
   lmgmt->initAlarm();
@@ -673,11 +648,6 @@ main(int argc, char **argv)
   }
 #endif /* MGMT_USE_SYSLOG */
 
-    /****************************
-     * Register Alarm Callbacks *
-     ****************************/
-  lmgmt->alarm_keeper->registerCallback(overviewAlarmCallback);
-
   // Find out our hostname so we can use it as part of the initialization
   setHostnameVar();
 
@@ -711,13 +681,13 @@ main(int argc, char **argv)
     RecSetRecordInt("proxy.config.process_manager.mgmt_port", proxy_backdoor);
   }
 
-  if (cluster_server_port == -1) {
-    cluster_server_port = REC_readInteger("proxy.config.cluster.rsport", &found);
+  if (cluster_rsport == -1) {
+    cluster_rsport = REC_readInteger("proxy.config.cluster.rsport", &found);
     ink_assert(found);
   }
 
-  if (cluster_port == -1) {
-    cluster_port = REC_readInteger("proxy.config.cluster.mcport", &found);
+  if (cluster_mcport == -1) {
+    cluster_mcport = REC_readInteger("proxy.config.cluster.mcport", &found);
     ink_assert(found);
   }
 
@@ -744,7 +714,7 @@ main(int argc, char **argv)
   }
 
   /* TODO: Do we really need to init cluster communication? */
-  lmgmt->initCCom(cluster_port, group_addr, cluster_server_port);       /* Setup cluster communication */
+  lmgmt->initCCom(cluster_mcport, group_addr, cluster_rsport);       /* Setup cluster communication */
 
   lmgmt->initMgmtProcessServer();       /* Setup p-to-p process server */
 
@@ -755,24 +725,6 @@ main(int argc, char **argv)
   webThrId = ink_thread_create(webIntr_main, NULL);     /* Spin web agent thread */
   Debug("lm", "Created Web Agent thread (%"  PRId64 ")", (int64_t)webThrId);
   lmgmt->listenForProxy();
-
-  /* Check the permissions on vip_config */
-  if (lmgmt->virt_map->enabled) {
-    char absolute_vipconf_binary[1024];
-    struct stat buf;
-
-    snprintf(absolute_vipconf_binary, sizeof(absolute_vipconf_binary), "%s/vip_config", lmgmt->bin_path);
-    if (stat(absolute_vipconf_binary, &buf) < 0) {
-      mgmt_elog(stderr, "[main] Unable to stat vip_config for proper permissions\n");
-    } else if (!((buf.st_mode & S_ISUID) &&
-                 (buf.st_mode & S_IRWXU) &&
-                 (buf.st_mode & S_IRGRP) &&
-                 (buf.st_mode & S_IXGRP) && (buf.st_mode & S_IROTH) && (buf.st_mode & S_IXOTH))) {
-      lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
-                                       "Virtual IP Addressing enabled, but improper permissions on '/inktomi/bin/vip_config'"
-                                       "[requires: setuid root and at least a+rx]\n");
-    }
-  }
 
   ticker = time(NULL);
   mgmt_log("[TrafficManager] Setup complete\n");
@@ -793,7 +745,7 @@ main(int argc, char **argv)
     }
     // Check for SIGUSR2
     if (sigUsr2Notifier != 0) {
-      xdump();
+      ink_stack_trace_dump();
       sigUsr2Notifier = 0;
     }
 
@@ -820,7 +772,8 @@ main(int argc, char **argv)
     }
 
     if (lmgmt->mgmt_shutdown_outstanding == true) {
-      lmgmt->mgmtShutdown(0, true);
+      lmgmt->mgmtShutdown(true);
+      _exit(0);
     }
 
     if (lmgmt->run_proxy && !lmgmt->processRunning()) { /* Make sure we still have a proxy up */
@@ -866,14 +819,13 @@ main(int argc, char **argv)
 
 
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void
-SignalAlrmHandler(int sig, siginfo_t * t, void *c)
+static void
+SignalAlrmHandler(int /* sig ATS_UNUSED */, siginfo_t * t, void * /* c ATS_UNUSED */)
 #else
-void
-SignalAlrmHandler(int sig)
+static void
+SignalAlrmHandler(int /* sig ATS_UNUSED */)
 #endif
 {
-  NOWARN_UNUSED(sig);
   /*
      fprintf(stderr,"[TrafficManager] ==> SIGALRM received\n");
      mgmt_elog(stderr,"[TrafficManager] ==> SIGALRM received\n");
@@ -899,10 +851,10 @@ SignalAlrmHandler(int sig)
 
 
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void
+static void
 SignalHandler(int sig, siginfo_t * t, void *c)
 #else
-void
+static void
 SignalHandler(int sig)
 #endif
 {
@@ -983,23 +935,10 @@ SignalHandler(int sig)
 //    waitpid() blocks until all child are transformed into
 //    zombies which is bad for us
 //
-void
-SigChldHandler(int sig)
+static void
+SigChldHandler(int /* sig ATS_UNUSED */)
 {
-  NOWARN_UNUSED(sig);
 }
-
-// void SigHupHandler(int sig,...)
-//
-//  Records that a sigHup was sent so that we can reread our
-//    config files on the next run through the main loop
-void
-SigHupHandler(int sig, ...)
-{
-  ink_assert(sig == SIGHUP);
-  Debug("lm", "[SigHupHandler] hup caught\n");
-  sigHupNotifier = 1;
-}                               /* End SigHupHandler */
 
 void
 printUsage()
@@ -1037,7 +976,6 @@ printUsage()
   fprintf(stderr, "     -debug         <tags>  Enable the given debug tags\n");
   fprintf(stderr, "     -action        <tags>  Enable the given action tags.\n");
   fprintf(stderr, "     -version or -V         Print version id and exit.\n");
-  fprintf(stderr, "     -vingid        <id>    Vingid Flag\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "   [...] can be one+ of: [config process node cluster local all]\n");
   fprintf(stderr, "----------------------------------------------------------------------------\n");
@@ -1077,9 +1015,6 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "proxy.pac") == 0) {
     mgmt_log(stderr, "[fileUpdated] proxy.pac file has been modified\n");
 
-  } else if (strcmp(fname, "wpad.dat") == 0) {
-    mgmt_log(stderr, "[fileUpdated] wpad.dat file has been modified\n");
-
   } else if (strcmp(fname, "icp.config") == 0) {
     lmgmt->signalFileChange("proxy.config.icp.icp_configuration");
 
@@ -1092,9 +1027,6 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "hosting.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.hosting_filename");
 
-  } else if (strcmp(fname, "mgr.cnf") == 0) {
-    mgmt_log(stderr, "[fileUpdated] mgr.cnf file has been modified\n");
-
   } else if (strcmp(fname, "log_hosts.config") == 0) {
     lmgmt->signalFileChange("proxy.config.log.hosts_config_file");
 
@@ -1102,13 +1034,13 @@ fileUpdated(char *fname)
     lmgmt->signalFileChange("proxy.config.log.xml_config_file");
 
   } else if (strcmp(fname, "splitdns.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] splitdns.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
 
   } else if (strcmp(fname, "plugin.config") == 0) {
     mgmt_log(stderr, "[fileUpdated] plugin.config file has been modified\n");
 
   } else if (strcmp(fname, "ssl_multicert.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] ssl_multicert.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
 
   } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
     lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
@@ -1120,6 +1052,8 @@ fileUpdated(char *fname)
     mgmt_log(stderr, "[fileUpdated] stats.config.xml file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
+  } else if (strcmp(fname, "prefetch.config") == 0) {
+    lmgmt->signalFileChange("proxy.config.prefetch.config_file");
   } else {
     mgmt_elog(stderr, "[fileUpdated] Unknown config file updated '%s'\n", fname);
 

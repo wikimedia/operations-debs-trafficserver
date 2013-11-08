@@ -24,7 +24,6 @@
 
 #include "libts.h"
 #include "ink_platform.h"
-#include "ink_unused.h"       /* MAGIC_EDITING_TAG */
 #include "MgmtUtils.h"
 #include "I_Layout.h"
 #include "Compatability.h"
@@ -36,11 +35,8 @@
 #endif
 
 bool
-LocalManager::SetForDup(void *hIOCPort, long lTProcId, void *hTh)
+LocalManager::SetForDup(void * /* hIOCPort ATS_UNUSED */, long /* lTProcId ATS_UNUSED */, void * /* hTh ATS_UNUSED */)
 {
-  NOWARN_UNUSED(hIOCPort);
-  NOWARN_UNUSED(lTProcId);
-  NOWARN_UNUSED(hTh);
   return true;
 }
 
@@ -62,7 +58,7 @@ LocalManager::mgmtCleanup()
 
 
 void
-LocalManager::mgmtShutdown(int status, bool mainThread)
+LocalManager::mgmtShutdown(bool mainThread)
 {
   if (mainThread) {
     mgmt_log("[LocalManager::mgmtShutdown] Executing shutdown request.\n");
@@ -70,7 +66,7 @@ LocalManager::mgmtShutdown(int status, bool mainThread)
     // WCCP TBD: Send a shutdown message to routers.
 
     if (processRunning()) {
-      waitpid(watched_process_pid, &status, 0);
+      waitpid(watched_process_pid, NULL, 0);
 #if defined(linux)
       /* Avert race condition, wait for the thread to complete,
          before getting one more restart process */
@@ -78,9 +74,7 @@ LocalManager::mgmtShutdown(int status, bool mainThread)
       mgmt_sleep_msec(1);
 #endif
     }
-
     mgmtCleanup();
-    _exit(status);
   } else {
     mgmt_shutdown_outstanding = true;
   }
@@ -127,7 +121,7 @@ LocalManager::rollLogFiles()
 }
 
 void
-LocalManager::clearStats()
+LocalManager::clearStats(const char *name)
 {
   char *statsPath;
 
@@ -140,7 +134,11 @@ LocalManager::clearStats()
   //   stats getting cleared by progation of clearing the
   //   cluster stats
   //
-  RecResetStatRecord(RECT_NULL, true);
+  if (name) {
+      RecResetStatRecord(name);
+  } else {
+      RecResetStatRecord(RECT_NULL, true);
+  }
 
   // If the proxy is not running, sending the signal does
   //   not do anything.  Remove the stats file to make sure
@@ -201,10 +199,9 @@ LocalManager::processRunning()
   }
 }
 
-LocalManager::LocalManager(char *mpath, bool proxy_on)
+LocalManager::LocalManager(char * /* mpath ATS_UNUSED */, bool proxy_on)
   : BaseManager(), run_proxy(proxy_on)
 {
-  NOWARN_UNUSED(mpath);
   bool found;
 #ifdef MGMT_USE_SYSLOG
   syslog_facility = 0;
@@ -228,7 +225,7 @@ LocalManager::LocalManager(char *mpath, bool proxy_on)
   virt_map = NULL;
 
   RecInt http_enabled = REC_readInteger("proxy.config.http.enabled", &found);
-  ink_debug_assert(found);
+  ink_assert(found);
   if (http_enabled && found) {
     HttpProxyPort::loadConfig(m_proxy_ports);
   }
@@ -324,7 +321,7 @@ LocalManager::initAlarm()
  *   Function initializes cluster communication structure held by local manager.
  */
 void
-LocalManager::initCCom(int port, char *addr, int sport)
+LocalManager::initCCom(int mcport, char *addr, int rsport)
 {
   bool found;
   IpEndpoint cluster_ip;    // ip addr of the cluster interface
@@ -371,7 +368,7 @@ LocalManager::initCCom(int port, char *addr, int sport)
   ink_strlcat(envBuf, clusterAddrStr, envBuf_size);
   ink_release_assert(putenv(envBuf) == 0);
 
-  ccom = new ClusterCom(ats_ip4_addr_cast(&cluster_ip), hostname, port, addr, sport, pserver_path);
+  ccom = new ClusterCom(ats_ip4_addr_cast(&cluster_ip), hostname, mcport, addr, rsport, pserver_path);
   virt_map = new VMap(intrName, ats_ip4_addr_cast(&cluster_ip), &lmgmt->ccom->mutex);
   virt_map->downAddrs();        // Just to be safe
   ccom->establishChannels();
@@ -1033,7 +1030,7 @@ LocalManager::startProxy()
     }
 
     // NUL-terminate for the benefit of strtok and printf.
-    real_proxy_options.append('\0');
+    real_proxy_options.add(0);
 
     Debug("lm", "[LocalManager::startProxy] Launching %s with options '%s'\n",
           absolute_proxy_binary, &real_proxy_options[0]);
@@ -1041,9 +1038,9 @@ LocalManager::startProxy()
     ink_zero(options);
     options[0] = absolute_proxy_binary;
     i = 1;
-    tok = ink_strtok_r(&real_proxy_options[0], " ", &last);
+    tok = strtok_r(&real_proxy_options[0], " ", &last);
     options[i++] = tok;
-    while (i < 32 && (tok = ink_strtok_r(NULL, " ", &last))) {
+    while (i < 32 && (tok = strtok_r(NULL, " ", &last))) {
       Debug("lm", "opt %d = '%s'\n", i, tok);
       options[i++] = tok;
     }

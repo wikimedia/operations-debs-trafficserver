@@ -49,11 +49,9 @@
 //////////////////////
 
 int
-HdrTest::go(RegressionTest * t, int atype)
+HdrTest::go(RegressionTest * t, int /* atype ATS_UNUSED */)
 {
-  NOWARN_UNUSED(atype);
   HdrTest::rtest = t;
-
   int status = 1;
 
   hdrtoken_init();
@@ -419,7 +417,8 @@ HdrTest::test_url()
     "pnm://foo:bar@some.place:80/path;params?query#fragment",
     "rtsp://foo:bar@some.place:80/path;params?query#fragment",
     "rtspu://foo:bar@some.place:80/path;params?query#fragment",
-    "/finance/external/cbsm/*http://cbs.marketwatch.com/archive/19990713/news/current/net.htx?source=blq/yhoo&dist=yhoo"
+    "/finance/external/cbsm/*http://cbs.marketwatch.com/archive/19990713/news/current/net.htx?source=blq/yhoo&dist=yhoo",
+    "http://a.b.com/xx.jpg?newpath=http://bob.dave.com"
   };
   static int nstrs = sizeof(strs) / sizeof(strs[0]);
 

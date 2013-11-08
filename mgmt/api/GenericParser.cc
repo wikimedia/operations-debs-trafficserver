@@ -139,7 +139,7 @@ TokenList::Print()
 
 Rule::Rule()
   : tokenList(NULL),
-    m_filetype(TS_FNAME_UNDEFINED), m_filename(NULL), m_ruleStr(NULL), m_comment(NULL), m_errorHint(NULL), m_lineNum(0)
+    m_filetype(TS_FNAME_UNDEFINED), m_filename(NULL), m_ruleStr(NULL), m_comment(NULL), m_errorHint(NULL)
 {
 }
 
@@ -446,9 +446,8 @@ Rule::ip_allowParse(char *rule)
  * logsParse
  **/
 TokenList *
-Rule::logsParse(char *rule)
+Rule::logsParse(char * /* rule ATS_UNUSED */)
 {
-  NOWARN_UNUSED(rule);
   return NULL;
 }
 
@@ -476,9 +475,8 @@ Rule::log_hostsParse(char *rule)
  * logs_xmlParse
  **/
 TokenList *
-Rule::logs_xmlParse(char *rule)
+Rule::logs_xmlParse(char * /* rule ATS_UNUSED */)
 {
-  NOWARN_UNUSED(rule);
   return NULL;
 }
 

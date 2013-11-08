@@ -63,16 +63,16 @@ drainIncomingChannel(void *arg)
   struct sockaddr_in cli_addr;
 
   // Fix for INKqa07688: There was a problem at Genuity where if you
-  // pulled out the cable on the cluser interface (or just ifconfig'd
-  // down/up the cluster interface), the fd assocated with that
-  // inteface would somehow get into a bad state... and the multicast
+  // pulled out the cable on the cluster interface (or just ifconfig'd
+  // down/up the cluster interface), the fd associated with that
+  // interface would somehow get into a bad state... and the multicast
   // packets from other nodes wouldn't be received anymore.
   //
   // The fix for the problem was to close() and re-open the multicast
-  // socket if we detected that no activity has occured for 30
+  // socket if we detected that no activity has occurred for 30
   // seconds.  30 seconds was based on the default peer_timeout
   // (proxy.config.cluster.peer_timeout) value.  davey showed that
-  // this value worked out well experiementally (though more testing
+  // this value worked out well experimentally (though more testing
   // and experimentation would be beneficial).
   //
   // traffic_manager running w/ no cop: In this case, our select()
@@ -273,7 +273,7 @@ drainIncomingChannel(void *arg)
             delete buff;
         } else if (strstr(message, "cmd: shutdown_manager")) {
           mgmt_log("[ClusterCom::drainIncomingChannel] Received manager shutdown request\n");
-          lmgmt->mgmtShutdown(0);
+          lmgmt->mgmtShutdown();
         } else if (strstr(message, "cmd: shutdown_process")) {
           mgmt_log("[ClusterCom::drainIncomingChannel] Received process shutdown request\n");
           lmgmt->processShutdown();
@@ -284,8 +284,13 @@ drainIncomingChannel(void *arg)
           mgmt_log("[ClusterCom::drainIncomingChannel] Received bounce process request\n");
           lmgmt->processBounce();
         } else if (strstr(message, "cmd: clear_stats")) {
+          char sname[1024];
           mgmt_log("[ClusterCom::drainIncomingChannel] Received clear stats request\n");
-          lmgmt->clearStats();
+          if (sscanf(message, "cmd: clear_stats %1023s", sname) != 1) {
+              lmgmt->clearStats(sname);
+          } else {
+              lmgmt->clearStats();
+          }
         } else if (!checkBackDoor(req_fd, message)) { /* Heh... */
           mgmt_log("[ClusterCom::drainIncomingChannel] Unexpected message on cluster" " port.  Possibly an attack\n");
           Debug("ccom", "Unknown message to rsport received: %s", message);
@@ -309,11 +314,9 @@ drainIncomingChannel(void *arg)
  * the manager.
  */
 int
-cluster_com_port_watcher(const char *name, RecDataT data_type, RecData data, void *cookie)
+cluster_com_port_watcher(const char *name, RecDataT /* data_type ATS_UNUSED */, RecData data,
+                         void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(cookie);
-
   ink_assert(!name);
 
   ink_mutex_acquire(&(lmgmt->ccom->mutex));     /* Grab cluster lock */
@@ -324,7 +327,7 @@ cluster_com_port_watcher(const char *name, RecDataT data_type, RecData data, voi
 }                               /* End cluster_com_port_watcher */
 
 
-ClusterCom::ClusterCom(unsigned long oip, char *host, int port, char *group, int sport, char *p)
+ClusterCom::ClusterCom(unsigned long oip, char *host, int mcport, char *group, int rsport, char *p)
   : our_wall_clock(0), alive_peers_count(0), reliable_server_fd(0), broadcast_fd(0), receive_fd(0)
 {
   int rec_err;
@@ -403,8 +406,8 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int port, char *group, int
   }
 
   ink_strlcpy(mc_group, group, sizeof(mc_group));
-  mc_port = port;
-  reliable_server_port = sport;
+  mc_port = mcport;
+  reliable_server_port = rsport;
 
   mc_ttl = REC_readInteger("proxy.config.cluster.mc_ttl", &found);
   ink_assert(found);
@@ -687,7 +690,7 @@ ClusterCom::handleMultiCastMessage(char *message)
 
   /* Grab the ip address, we need to know this so that we only complain
      once about a cluster name or traffic server version mismatch */
-  if ((line = ink_strtok_r(message, "\n", &last)) == NULL)
+  if ((line = strtok_r(message, "\n", &last)) == NULL)
     goto Lbogus;                /* IP of sender */
 
   // coverity[secure_coding]
@@ -702,7 +705,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Make sure this is a message for the cluster we belong to */
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* ClusterName of sender */
 
   // coverity[secure_coding]
@@ -715,7 +718,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Make sure this a message from a Traffic Server of the same version */
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* TS version of sender */
 
   // coverity[secure_coding]
@@ -725,7 +728,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Figure out what type of message this is */
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;
   if (strcmp("type: files", line) == 0) {       /* Config Files report */
     handleMultiCastFilePacket(last, ip);
@@ -744,7 +747,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Check OS and version info */
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* OS of sender */
   if (!strstr(line, "os: ") || !strstr(line, sys_name)) {
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
@@ -754,7 +757,7 @@ ClusterCom::handleMultiCastMessage(char *message)
               "running different os/release '%s'(ours os: '%s' rel: '%s'\n", line, sys_name, sys_release);
   }
 
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* OS-Version of sender */
   if (!strstr(line, "rel: ") || !strstr(line, sys_release)) {
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
@@ -764,21 +767,21 @@ ClusterCom::handleMultiCastMessage(char *message)
               "running different os/release '%s'(ours os: '%s' rel: '%s'\n", line, sys_name, sys_release);
   }
 
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* Hostname of sender */
   if (strlen(line) >= sizeof(hostname) || sscanf(line, "hostname: %s", hostname) != 1) {
     mgmt_elog("[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
     return;
   }
 
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* mc_port of sender */
   if (sscanf(line, "port: %d", &peer_cluster_port) != 1) {
     mgmt_elog("[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
     return;
   }
 
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;                /* rs_port of sender */
   if (sscanf(line, "ccomport: %d", &ccom_port) != 1) {
     mgmt_elog("[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
@@ -786,7 +789,7 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Their wall clock time and last config change time */
-  if ((line = ink_strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
     goto Lbogus;
   int64_t tt;
   if (sscanf(line, "time: %" PRId64 "", &tt) != 1) {
@@ -811,6 +814,10 @@ ClusterCom::handleMultiCastMessage(char *message)
     for (int j = 0; j < g_num_records; j++) {
       RecRecord *rec = &(g_records[j]);
 
+      /*
+       * The following code make sence only when RECT_NODE records
+       * defined in mgmt/RecordsConfig.cc are placed continuously.
+       */
       if (rec->rec_type == RECT_NODE) {
         p->node_rec_data.recs[cnt].rec_type = rec->rec_type;
         p->node_rec_data.recs[cnt].name = rec->name;
@@ -877,7 +884,7 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
 
   /* Loop over records, updating peer copy(summed later) */
   rec_ptr = &(peer->node_rec_data);
-  for (int i = 0; (line = ink_strtok_r(NULL, "\n", &last)) && i < rec_ptr->num_recs; i++) {
+  for (int i = 0; (line = strtok_r(NULL, "\n", &last)) && i < rec_ptr->num_recs; i++) {
 
     tmp_id = -1;
     tmp_type = RECD_NULL;
@@ -889,10 +896,10 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
     case RECD_COUNTER:{
         RecInt tmp_msg_val = -1;
         tmp_id = ink_atoi(line);
-        char *v2 = ink_strchr(line, ':'), *v3 = NULL;
+        char *v2 = strchr(line, ':'), *v3 = NULL;
         if (v2) {
           tmp_type = (RecDataT) ink_atoi(v2 + 1);
-          v3 = ink_strchr(v2 + 1, ':');
+          v3 = strchr(v2 + 1, ':');
           if (v3)
             tmp_msg_val = ink_atoi64(v3 + 1);
         }
@@ -900,7 +907,7 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
           mgmt_elog("[ClusterCom::handleMultiCastStatPacket] Invalid message-line(%d) '%s'\n", __LINE__, line);
           return;
         }
-        ink_debug_assert(i == tmp_id && rec->data_type == tmp_type);
+        ink_assert(i == tmp_id && rec->data_type == tmp_type);
         ink_release_assert(i == tmp_id && rec->data_type == tmp_type);
         if (!(i == tmp_id && rec->data_type == tmp_type)) {
           return;
@@ -921,7 +928,7 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
           mgmt_elog("[ClusterCom::handleMultiCastStatPacket] Invalid message-line(%d) '%s'\n", __LINE__, line);
           return;
         }
-        ink_debug_assert(i == tmp_id && rec->data_type == tmp_type);
+        ink_assert(i == tmp_id && rec->data_type == tmp_type);
         ink_release_assert(i == tmp_id && rec->data_type == tmp_type);
         if (!(i == tmp_id && rec->data_type == tmp_type)) {
           return;
@@ -941,7 +948,7 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo * peer)
           return;
         }
         tmp_msg_val = &line[ccons];
-        ink_debug_assert(i == tmp_id && rec->data_type == tmp_type);
+        ink_assert(i == tmp_id && rec->data_type == tmp_type);
         ink_release_assert(i == tmp_id && rec->data_type == tmp_type);
         if (!(i == tmp_id && rec->data_type == tmp_type)) {
           return;
@@ -1097,7 +1104,7 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
   InkHashTableValue hash_value;
   bool file_update_failure;
 
-  while ((line = ink_strtok_r(NULL, "\n", &last))) {
+  while ((line = strtok_r(NULL, "\n", &last))) {
     Rollback *rb;
 
     file_update_failure = false;
@@ -1126,7 +1133,7 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
         snprintf(message, sizeof(message), "file: %s %d", file, ver);
 
         /* Send request, read response, write new file. */
-        if (!(sendReliableMessageReadTillClose(inet_addr(ip), message, strlen(message), reply))) {
+        if (!(sendReliableMessageReadTillClose(inet_addr(ip), message, strlen(message), reply)) || (reply->spaceUsed() <= 0)) {
           delete reply;
           return;
         }
@@ -1208,7 +1215,7 @@ ClusterCom::handleMultiCastAlarmPacket(char *last, char *ip)
 
   /* Allows us to expire stale alarms */
   lmgmt->alarm_keeper->resetSeenFlag(ip);
-  while ((line = ink_strtok_r(NULL, "\n", &last))) {
+  while ((line = strtok_r(NULL, "\n", &last))) {
     int ccons;
     alarm_t a;
     char *desc;
@@ -1236,7 +1243,7 @@ ClusterCom::handleMultiCastAlarmPacket(char *last, char *ip)
 
 /*
  * handleMultiCastVMapPacket(...)
- *   Handles incoming reports from peers about which virtua interfaces
+ *   Handles incoming reports from peers about which virtual interfaces
  * they are servicing. This then updates the VMap class to indicate who
  * is holding what.
  */
@@ -1250,7 +1257,7 @@ ClusterCom::handleMultiCastVMapPacket(char *last, char *ip)
   lmgmt->virt_map->rl_resetSeenFlag(ip);        /* Ala alarms */
   ink_mutex_release(&(mutex));
 
-  while ((line = ink_strtok_r(NULL, "\n", &last))) {
+  while ((line = strtok_r(NULL, "\n", &last))) {
     char vaddr[80];
 
     if (strcmp(line, "virt: none") == 0) {
@@ -1507,7 +1514,7 @@ ClusterCom::constructSharedFilePacket(char *message, int max)
 
   buff = configFiles->filesManaged();
   files = buff->bufPtr();
-  line = ink_strtok_r(files, "\n", &last);
+  line = strtok_r(files, "\n", &last);
   if (line == NULL) {
     delete buff;
     return;
@@ -1546,7 +1553,7 @@ ClusterCom::constructSharedFilePacket(char *message, int max)
     } else {
       mgmt_elog("[ClusterCom::constructSharedFilePacket] Invalid base name? '%s'\n", line);
     }
-  } while ((line = ink_strtok_r(NULL, "\n", &last)));
+  } while ((line = strtok_r(NULL, "\n", &last)));
 
   delete buff;
   return;
@@ -1732,28 +1739,32 @@ ClusterCom::sendOutgoingMessage(char *buf, int len)
 
 
 bool
-ClusterCom::sendClusterMessage(int msg_type)
+ClusterCom::sendClusterMessage(int msg_type, const char *args)
 {
   bool ret = true, tmp_ret;
-  const char *msg;
+  char msg[1124] = {0};
   InkHashTableEntry *entry;
   InkHashTableIteratorState iterator_state;
 
   switch (msg_type) {
   case CLUSTER_MSG_SHUTDOWN_MANAGER:
-    msg = "cmd: shutdown_manager";
+    ink_strlcpy(msg, "cmd: shutdown_manager", sizeof(msg));
     break;
   case CLUSTER_MSG_SHUTDOWN_PROCESS:
-    msg = "cmd: shutdown_process";
+    ink_strlcpy(msg, "cmd: shutdown_process", sizeof(msg));
     break;
   case CLUSTER_MSG_RESTART_PROCESS:
-    msg = "cmd: restart_process";
+    ink_strlcpy(msg, "cmd: restart_process", sizeof(msg));
     break;
   case CLUSTER_MSG_BOUNCE_PROCESS:
-    msg = "cmd: bounce_process";
+    ink_strlcpy(msg, "cmd: bounce_process", sizeof(msg));
     break;
   case CLUSTER_MSG_CLEAR_STATS:
-    msg = "cmd: clear_stats";
+    if (args) {
+      snprintf(msg, sizeof(msg), "cmd: clear_stats %1023s\n", args);
+    } else {
+      ink_strlcpy(msg, "cmd: clear_stats", sizeof(msg));
+    }
     break;
   default:
     mgmt_log(stderr, "[ClusterCom::sendClusterMessage] Invalid message type '%d'\n", msg_type);
@@ -1776,7 +1787,7 @@ ClusterCom::sendClusterMessage(int msg_type)
 
   switch (msg_type) {
   case CLUSTER_MSG_SHUTDOWN_MANAGER:
-    lmgmt->mgmtShutdown(0);
+    lmgmt->mgmtShutdown();
     break;
   case CLUSTER_MSG_SHUTDOWN_PROCESS:
     lmgmt->processShutdown();
@@ -1788,7 +1799,7 @@ ClusterCom::sendClusterMessage(int msg_type)
     lmgmt->processBounce();
     break;
   case CLUSTER_MSG_CLEAR_STATS:
-    lmgmt->clearStats();
+    lmgmt->clearStats(args);
     break;
   }
 
@@ -2380,6 +2391,7 @@ checkBackDoor(int req_fd, char *message)
     return true;
   } else if (strstr(message, "cluster: ")) {
     int msg_type;
+    char *args = NULL;
 
     if (strstr(message, "cluster: shutdown_manager")) {
       msg_type = CLUSTER_MSG_SHUTDOWN_MANAGER;
@@ -2390,11 +2402,14 @@ checkBackDoor(int req_fd, char *message)
     } else if (strstr(message, "cluster: bounce_process")) {
       msg_type = CLUSTER_MSG_BOUNCE_PROCESS;
     } else if (strstr(message, "cluster: clear_stats")) {
+      if (strlen(message) > sizeof("cluster: clear_stats") + 1) {
+        args =  message + sizeof("cluster: clear_stats") + 1;
+      }
       msg_type = CLUSTER_MSG_CLEAR_STATS;
     } else {
       return false;
     }
-    lmgmt->ccom->sendClusterMessage(msg_type);
+    lmgmt->ccom->sendClusterMessage(msg_type, args);
     return true;
   }
   return false;

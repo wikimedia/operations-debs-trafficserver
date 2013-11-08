@@ -31,9 +31,6 @@
   to provide support for marshalling and unmarshalling support for the other
   LogAccess derived classes.
  */
-
-#include "ink_unused.h"
-
 #include "libts.h"
 
 #include "Error.h"
@@ -378,15 +375,19 @@ int
 LogAccess::marshal_proxy_host_name(char *buf)
 {
   char *str = NULL;
+  int len = 0;
   Machine *machine = Machine::instance();
 
   if (machine) {
     str = machine->hostname;
   }
-  int len = LogAccess::strlen(str);
+
+  len = LogAccess::strlen(str);
+
   if (buf) {
     marshal_str(buf, str, len);
   }
+
   return len;
 }
 
@@ -543,11 +544,9 @@ LogAccess::marshal_file_size(char *buf)
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 int
-LogAccess::marshal_http_header_field(LogField::Container container, char *field, char *buf)
+LogAccess::marshal_http_header_field(LogField::Container /* container ATS_UNUSED */,
+                                     char * /* field ATS_UNUSED */, char *buf)
 {
-  NOWARN_UNUSED(container);
-  NOWARN_UNUSED(field);
-  NOWARN_UNUSED(buf);
   DEFAULT_STR_FIELD;
 }
 
@@ -556,11 +555,9 @@ LogAccess::marshal_http_header_field(LogField::Container container, char *field,
 
   -------------------------------------------------------------------------*/
 int
-LogAccess::marshal_http_header_field_escapify(LogField::Container container, char *field, char *buf)
+LogAccess::marshal_http_header_field_escapify(LogField::Container /* container ATS_UNUSED */,
+                                              char * /* field ATS_UNUSED */, char *buf)
 {
-  NOWARN_UNUSED(container);
-  NOWARN_UNUSED(field);
-  NOWARN_UNUSED(buf);
   DEFAULT_STR_FIELD;
 }
 
@@ -647,18 +644,16 @@ LogAccess::marshal_record(char *record, char *buf)
 
   const char *record_not_found_msg = "RECORD_NOT_FOUND";
   const unsigned int record_not_found_chars = 17;
-  ink_debug_assert(::strlen(record_not_found_msg) + 1 == record_not_found_chars);
+  ink_assert(::strlen(record_not_found_msg) + 1 == record_not_found_chars);
 
   char ascii_buf[max_chars];
-  register const char *out_buf;
-  register unsigned int num_chars;
+  const char *out_buf;
+  unsigned int num_chars;
 
 #define LOG_INTEGER RECD_INT
 #define LOG_COUNTER RECD_COUNTER
 #define LOG_FLOAT   RECD_FLOAT
 #define LOG_STRING  RECD_STRING
-
-  typedef RecFloat LogFloat;
 
   RecDataT stype = RECD_NULL;
   bool found = false;
@@ -666,25 +661,25 @@ LogAccess::marshal_record(char *record, char *buf)
   if (RecGetRecordDataType(record, &stype) != REC_ERR_OKAY) {
     out_buf = "INVALID_RECORD";
     num_chars = 15;
-    ink_debug_assert(::strlen(out_buf) + 1 == num_chars);
+    ink_assert(::strlen(out_buf) + 1 == num_chars);
   } else {
     if (LOG_INTEGER == stype || LOG_COUNTER == stype) {
       // we assume MgmtInt and MgmtIntCounter are int64_t for the
       // conversion below, if this ever changes we should modify
       // accordingly
       //
-      ink_debug_assert(sizeof(int64_t) >= sizeof(RecInt) && sizeof(int64_t) >= sizeof(RecCounter));
+      ink_assert(sizeof(int64_t) >= sizeof(RecInt) && sizeof(int64_t) >= sizeof(RecCounter));
 
       // so that a 64 bit integer will fit (including sign and eos)
       //
-      ink_debug_assert(max_chars > 21);
+      ink_assert(max_chars > 21);
 
       int64_t val = (int64_t) (LOG_INTEGER == stype ? REC_readInteger(record, &found) : REC_readCounter(record, &found));
 
       if (found) {
 
         out_buf = int64_to_str(ascii_buf, max_chars, val, &num_chars);
-        ink_debug_assert(out_buf);
+        ink_assert(out_buf);
       } else {
         out_buf = (char *) record_not_found_msg;
         num_chars = record_not_found_chars;
@@ -694,9 +689,9 @@ LogAccess::marshal_record(char *record, char *buf)
       // (the conversion itself assumes a double because of the %e)
       // if this ever changes we should modify accordingly
       //
-      ink_debug_assert(sizeof(double) >= sizeof(LogFloat));
+      ink_assert(sizeof(double) >= sizeof(RecFloat));
 
-      LogFloat val = REC_readFloat(record, &found);
+      RecFloat val = REC_readFloat(record, &found);
 
       if (found) {
         // snprintf does not support "%e" in the format
@@ -707,7 +702,7 @@ LogAccess::marshal_record(char *record, char *buf)
 
         // the "%e" field above should take 13 characters at most
         //
-        ink_debug_assert(num_chars <= max_chars);
+        ink_assert(num_chars <= max_chars);
 
         // the following should never be true
         //
@@ -715,7 +710,7 @@ LogAccess::marshal_record(char *record, char *buf)
           // data does not fit, output asterisks
           out_buf = "***";
           num_chars = 4;
-          ink_debug_assert(::strlen(out_buf) + 1 == num_chars);
+          ink_assert(::strlen(out_buf) + 1 == num_chars);
         } else {
           out_buf = ascii_buf;
         }
@@ -742,7 +737,7 @@ LogAccess::marshal_record(char *record, char *buf)
         } else {
           out_buf = "NULL";
           num_chars = 5;
-          ink_debug_assert(::strlen(out_buf) + 1 == num_chars);
+          ink_assert(::strlen(out_buf) + 1 == num_chars);
         }
       } else {
         out_buf = (char *) record_not_found_msg;
@@ -751,12 +746,12 @@ LogAccess::marshal_record(char *record, char *buf)
     } else {
       out_buf = "INVALID_MgmtType";
       num_chars = 17;
-      ink_debug_assert(!"invalid MgmtType for requested record");
-      ink_debug_assert(::strlen(out_buf) + 1 == num_chars);
+      ink_assert(!"invalid MgmtType for requested record");
+      ink_assert(::strlen(out_buf) + 1 == num_chars);
     }
   }
 
-  ink_debug_assert(num_chars <= max_chars);
+  ink_assert(num_chars <= max_chars);
   memcpy(buf, out_buf, num_chars);
 
 
@@ -807,11 +802,10 @@ LogAccess::marshal_str(char *dest, const char *source, int padded_len)
 void
 LogAccess::marshal_mem(char *dest, const char *source, int actual_len, int padded_len)
 {
-  NOWARN_UNUSED(padded_len);
   if (source == NULL || source[0] == 0 || actual_len == 0) {
     source = DEFAULT_STR;
     actual_len = DEFAULT_STR_LEN;
-    ink_debug_assert(actual_len < padded_len);
+    ink_assert(actual_len < padded_len);
   }
   memcpy(dest, source, actual_len);
   dest[actual_len] = 0;         // add terminating null

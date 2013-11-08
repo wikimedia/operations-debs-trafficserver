@@ -20,10 +20,6 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-
-#include "ink_unused.h"  /* MAGIC_EDITING_TAG */
-
 #include "libts.h"
 #include "P_EventSystem.h"
 #include "ParentSelection.h"
@@ -42,7 +38,7 @@ typedef ControlMatcher<ParentRecord, ParentResult> P_table;
 
 // Global Vars for Parent Selection
 static const char modulePrefix[] = "[ParentSelection]";
-static Ptr<ProxyMutex> reconfig_mutex = NULL;
+static ConfigUpdateHandler<ParentConfig> * parentConfigUpdate = NULL;
 
 // Config var names
 static const char *file_var = "proxy.config.http.parent_proxy.file";
@@ -104,26 +100,26 @@ int ParentConfig::m_id = 0;
 void
 ParentConfig::startup()
 {
-  reconfig_mutex = new_ProxyMutex();
+  parentConfigUpdate = NEW(new ConfigUpdateHandler<ParentConfig>());
 
   // Load the initial configuration
   reconfigure();
 
   // Setup the callbacks for reconfiuration
   //   parent table
-  PARENT_RegisterConfigUpdateFunc(file_var, parentSelection_CB, (void *) PARENT_FILE_CB);
+  parentConfigUpdate->attach(file_var);
   //   default parent
-  PARENT_RegisterConfigUpdateFunc(default_var, parentSelection_CB, (void *) PARENT_DEFAULT_CB);
+  parentConfigUpdate->attach(default_var);
   //   Retry time
-  PARENT_RegisterConfigUpdateFunc(retry_var, parentSelection_CB, (void *) PARENT_RETRY_CB);
+  parentConfigUpdate->attach(retry_var);
   //   Enable
-  PARENT_RegisterConfigUpdateFunc(enable_var, parentSelection_CB, (void *) PARENT_ENABLE_CB);
+  parentConfigUpdate->attach(enable_var);
 
   //   Fail Threshold
-  PARENT_RegisterConfigUpdateFunc(threshold_var, parentSelection_CB, (void *) PARENT_THRESHOLD_CB);
+  parentConfigUpdate->attach(threshold_var);
 
   //   DNS Parent Only
-  PARENT_RegisterConfigUpdateFunc(dns_parent_only_var, parentSelection_CB, (void *) PARENT_DNS_ONLY_CB);
+  parentConfigUpdate->attach(dns_parent_only_var);
 }
 
 void
@@ -340,7 +336,7 @@ ParentConfigParams::recordRetrySuccess(ParentResult * result)
   ink_assert((int) (result->last_parent) < result->rec->num_parents);
   pRec = result->rec->parents + result->last_parent;
 
-  ink_atomic_swap(&pRec->failedAt, 0);
+  ink_atomic_swap(&pRec->failedAt, (time_t)0);
   int old_count = ink_atomic_swap(&pRec->failCount, 0);
 
   if (old_count > 0) {
@@ -480,7 +476,7 @@ ParentConfigParams::nextParent(HttpRequestData * rdata, ParentResult * result)
 //
 
 void
-ParentRecord::FindParent(bool first_call, ParentResult * result, RD * rdata, ParentConfigParams * config)
+ParentRecord::FindParent(bool first_call, ParentResult * result, RequestData * rdata, ParentConfigParams * config)
 {
   Debug("cdn", "Entering FindParent (the inner loop)");
   int cur_index = 0;
@@ -551,12 +547,12 @@ ParentRecord::FindParent(bool first_call, ParentResult * result, RD * rdata, Par
     if ((parents[cur_index].failedAt == 0) || (parents[cur_index].failCount < config->FailThreshold)) {
       Debug("parent_select", "config->FailThreshold = %d", config->FailThreshold);
       Debug("parent_select", "Selecting a down parent due to little failCount"
-            "(faileAt: %u failCount: %d)", parents[cur_index].failedAt, parents[cur_index].failCount);
+            "(faileAt: %u failCount: %d)", (unsigned)parents[cur_index].failedAt, parents[cur_index].failCount);
       parentUp = true;
     } else {
       if ((result->wrap_around) || ((parents[cur_index].failedAt + config->ParentRetryTime) < request_info->xact_start)) {
         Debug("parent_select", "Parent[%d].failedAt = %u, retry = %u,xact_start = %" PRId64 " but wrap = %d", cur_index,
-              parents[cur_index].failedAt, config->ParentRetryTime, (int64_t)request_info->xact_start, result->wrap_around);
+              (unsigned)parents[cur_index].failedAt, config->ParentRetryTime, (int64_t)request_info->xact_start, result->wrap_around);
         // Reuse the parent
         parentUp = true;
         parentRetry = true;
@@ -819,13 +815,13 @@ ParentRecord::Init(matcher_line * line_info)
   return NULL;
 }
 
-// void ParentRecord::UpdateMatch(ParentResult* result, RD* rdata);
+// void ParentRecord::UpdateMatch(ParentResult* result, RequestData* rdata);
 //
 //    Updates the record ptr in result if the this element
 //     appears later in the file
 //
 void
-ParentRecord::UpdateMatch(ParentResult * result, RD * rdata)
+ParentRecord::UpdateMatch(ParentResult * result, RequestData * rdata)
 {
   if (this->CheckForMatch((HttpRequestData *) rdata, result->line_number) == true) {
     result->rec = this;
@@ -849,31 +845,6 @@ ParentRecord::Print()
   }
   printf(" rr=%s direct=%s\n", ParentRRStr[round_robin], (go_direct == true) ? "true" : "false");
 }
-
-
-// struct PA_UpdateContinuation
-//
-//   Used to handle parent.conf or default parent updates after the
-//      manager signals a change
-//
-struct PA_UpdateContinuation: public Continuation
-{
-  int handle_event(int event, void *data)
-  {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(data);
-    ParentConfig::reconfigure();
-    delete this;
-      return EVENT_DONE;
-
-  }
-
-  PA_UpdateContinuation(ProxyMutex * m):Continuation(m)
-  {
-    SET_HANDLER(&PA_UpdateContinuation::handle_event);
-  }
-};
-
 
 // ParentRecord* createDefaultParent(char* val)
 //
@@ -901,41 +872,12 @@ createDefaultParent(char *val)
   }
 }
 
-// parentSelection_CB(const char *name, RecDataT data_type,
-//               RecData data, void *cookie))
-//
-//   Called by manager to notify of config changes
-//
-int
-parentSelection_CB(const char *name, RecDataT data_type, RecData data, void *cookie)
-{
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  ParentCB_t type = (ParentCB_t) (long) cookie;
-
-  switch (type) {
-  case PARENT_FILE_CB:
-  case PARENT_DEFAULT_CB:
-  case PARENT_RETRY_CB:
-  case PARENT_ENABLE_CB:
-  case PARENT_THRESHOLD_CB:
-  case PARENT_DNS_ONLY_CB:
-    eventProcessor.schedule_imm(NEW(new PA_UpdateContinuation(reconfig_mutex)), ET_CACHE);
-    break;
-  default:
-    ink_assert(0);
-  }
-
-  return 0;
-}
-
 //
 //ParentConfig equivalent functions for SocksServerConfig
 //
 
 int SocksServerConfig::m_id = 0;
-static ProxyMutexPtr socks_server_reconfig_mutex = NULL;
+static Ptr<ProxyMutex> socks_server_reconfig_mutex;
 void
 SocksServerConfig::startup()
 {
@@ -1069,10 +1011,9 @@ static int passes;
 static int fails;
 
 // Parenting Tests
-EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION) (RegressionTest * t, int intensity_level, int *pstatus)
+EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION) (RegressionTest * /* t ATS_UNUSED */,
+                                            int /* intensity_level ATS_UNUSED */, int *pstatus)
 {
-  NOWARN_UNUSED(t);
-  NOWARN_UNUSED(intensity_level);
   // first, set everything up
   *pstatus = REGRESSION_TEST_INPROGRESS;
   ParentConfig config;
@@ -1084,7 +1025,7 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION) (RegressionTest * t, int intensity_le
   params->ParentEnable = true;
   char tbl[2048];
 #define T(x) ink_strlcat(tbl,x, sizeof(tbl));
-#define REBUILD params->ParentTable = new P_table("", "ParentSelection Unit Test Table", &http_dest_tags, ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_IP_TABLE | DONT_BUILD_TABLE); params->ParentTable->BuildTableFromString(tbl);
+#define REBUILD params->ParentTable = new P_table("", "ParentSelection Unit Test Table", &http_dest_tags, ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_URL_TABLE | ALLOW_IP_TABLE | DONT_BUILD_TABLE); params->ParentTable->BuildTableFromString(tbl);
   HttpRequestData *request = NULL;
   ParentResult *result = NULL;
 #define REINIT delete request; delete result; request = new HttpRequestData(); result = new ParentResult(); if (!result || !request) { (void)printf("Allocation failed\n"); return; }

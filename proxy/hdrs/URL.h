@@ -83,10 +83,6 @@ struct URLImpl:public HdrHeapObjImpl
 
   // Sanity Check Functions
   void check_strings(HeapCheck *heaps, int num_heaps);
-
-  // The original (unparsed) request
-  const char *the_request;
-  uint16_t the_request_len;
 };
 
 
@@ -146,10 +142,6 @@ extern int URL_LEN_RTSPU;
 extern int URL_LEN_MMS;
 extern int URL_LEN_MMSU;
 extern int URL_LEN_MMST;
-
-/* 0 = INK_MD5, 1 = MMH */
-extern int url_hash_method;
-
 
 /* Private */
 void url_adjust(MarshalXlate *str_xlate, int num_xlate);
@@ -342,7 +334,7 @@ URL::create(HdrHeap *heap)
 inline void
 URL::copy(const URL *url)
 {
-  ink_debug_assert(url->valid());
+  ink_assert(url->valid());
   url_copy_onto(url->m_url_impl, url->m_heap, m_url_impl, m_heap);
 }
 
@@ -352,7 +344,7 @@ URL::copy(const URL *url)
 inline void
 URL::copy_shallow(const URL *url)
 {
-  ink_debug_assert(url->valid());
+  ink_assert(url->valid());
   this->set(url);
   m_url_impl = url->m_url_impl;
 }
@@ -379,7 +371,7 @@ URL::reset()
 inline void
 URL::nuke_proxy_stuff()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_nuke_proxy_stuff(m_url_impl);
 }
 
@@ -389,7 +381,7 @@ URL::nuke_proxy_stuff()
 inline int
 URL::print(char *buf, int bufsize, int *bufindex, int *dumpoffset)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_print(m_url_impl, buf, bufsize, bufindex, dumpoffset);
 }
 
@@ -399,7 +391,7 @@ URL::print(char *buf, int bufsize, int *bufindex, int *dumpoffset)
 inline int
 URL::length_get()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_length_get(m_url_impl);
 }
 
@@ -409,21 +401,21 @@ URL::length_get()
 inline char *
 URL::string_get(Arena *arena_or_null_for_malloc, int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_string_get(m_url_impl, arena_or_null_for_malloc, length, m_heap);
 }
 
 inline char *
 URL::string_get_ref(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_string_get_ref(m_heap, m_url_impl, length);
 }
 
 inline void
 URL::clear_string_ref()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_clear_string_ref(m_url_impl);
   return;
 }
@@ -433,7 +425,7 @@ URL::clear_string_ref()
 inline char *
 URL::string_get_buf(char *dstbuf, int dsbuf_size, int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_string_get_buf(m_url_impl, dstbuf, dsbuf_size, length);
 }
 
@@ -443,7 +435,7 @@ URL::string_get_buf(char *dstbuf, int dsbuf_size, int *length)
 inline void
 URL::MD5_get(INK_MD5 *md5)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_MD5_get(m_url_impl, md5);
 }
 
@@ -453,7 +445,7 @@ URL::MD5_get(INK_MD5 *md5)
 inline void
 URL::host_MD5_get(INK_MD5 *md5)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_host_MD5_get(m_url_impl, md5);
 }
 
@@ -463,7 +455,7 @@ URL::host_MD5_get(INK_MD5 *md5)
 inline const char *
 URL::scheme_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return (url_scheme_get(m_url_impl, length));
 }
 
@@ -471,7 +463,7 @@ URL::scheme_get(int *length)
 inline int
 URL::scheme_get_wksidx()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return (m_url_impl->m_scheme_wks_idx);
 }
 
@@ -481,7 +473,7 @@ URL::scheme_get_wksidx()
 inline void
 URL::scheme_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   int scheme_wks_idx = (value ? hdrtoken_tokenize(value, length) : -1);
   url_scheme_set(m_heap, m_url_impl, value, scheme_wks_idx, length, true);
 }
@@ -492,7 +484,7 @@ URL::scheme_set(const char *value, int length)
 inline const char *
 URL::user_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_user;
   return m_url_impl->m_ptr_user;
 }
@@ -503,7 +495,7 @@ URL::user_get(int *length)
 inline void
 URL::user_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_user_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -513,7 +505,7 @@ URL::user_set(const char *value, int length)
 inline const char *
 URL::password_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_password;
   return m_url_impl->m_ptr_password;
 }
@@ -524,7 +516,7 @@ URL::password_get(int *length)
 inline void
 URL::password_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_password_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -534,7 +526,7 @@ URL::password_set(const char *value, int length)
 inline const char *
 URL::host_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_host;
   return m_url_impl->m_ptr_host;
 }
@@ -545,7 +537,7 @@ URL::host_get(int *length)
 inline void
 URL::host_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_host_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -555,7 +547,7 @@ URL::host_set(const char *value, int length)
 inline int
 URL::port_get()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_canonicalize_port(m_url_impl->m_url_type, m_url_impl->m_port);
 }
 
@@ -565,7 +557,7 @@ URL::port_get()
 inline int
 URL::port_get_raw()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return m_url_impl->m_port;
 }
 
@@ -575,7 +567,7 @@ URL::port_get_raw()
 inline void
 URL::port_set(int port)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_port_set(m_heap, m_url_impl, port);
 }
 
@@ -585,7 +577,7 @@ URL::port_set(int port)
 inline const char *
 URL::path_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_path;
   return m_url_impl->m_ptr_path;
 }
@@ -596,7 +588,7 @@ URL::path_get(int *length)
 inline void
 URL::path_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_path_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -606,7 +598,7 @@ URL::path_set(const char *value, int length)
 inline int
 URL::type_get()
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return m_url_impl->m_type_code;
 }
 
@@ -616,7 +608,7 @@ URL::type_get()
 inline void
 URL::type_set(int type)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_type_set(m_url_impl, type);
 }
 
@@ -626,7 +618,7 @@ URL::type_set(int type)
 inline const char *
 URL::params_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_params;
   return m_url_impl->m_ptr_params;
 }
@@ -637,7 +629,7 @@ URL::params_get(int *length)
 inline void
 URL::params_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_params_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -647,7 +639,7 @@ URL::params_set(const char *value, int length)
 inline const char *
 URL::query_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_query;
   return m_url_impl->m_ptr_query;
 }
@@ -658,7 +650,7 @@ URL::query_get(int *length)
 inline void
 URL::query_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_query_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -668,7 +660,7 @@ URL::query_set(const char *value, int length)
 inline const char *
 URL::fragment_get(int *length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   *length = m_url_impl->m_len_fragment;
   return m_url_impl->m_ptr_fragment;
 }
@@ -679,7 +671,7 @@ URL::fragment_get(int *length)
 inline void
 URL::fragment_set(const char *value, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   url_fragment_set(m_heap, m_url_impl, value, length, true);
 }
 
@@ -691,7 +683,7 @@ URL::fragment_set(const char *value, int length)
 inline MIMEParseResult
 URL::parse(const char **start, const char *end)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_parse(m_heap, m_url_impl, start, end, true);
 }
 
@@ -703,7 +695,7 @@ URL::parse(const char **start, const char *end)
 inline MIMEParseResult
 URL::parse(const char *str, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   if (length < 0)
     length = (int) strlen(str);
   return parse(&str, str + length);
@@ -717,10 +709,10 @@ URL::parse(const char *str, int length)
 inline MIMEParseResult
 URL::parse_no_path_component_breakdown(const char *str, int length)
 {
-  ink_debug_assert(valid());
+  ink_assert(valid());
   if (length < 0)
     length = (int) strlen(str);
-  ink_debug_assert(valid());
+  ink_assert(valid());
   return url_parse_no_path_component_breakdown(m_heap, m_url_impl, &str, str + length, true);
 }
 

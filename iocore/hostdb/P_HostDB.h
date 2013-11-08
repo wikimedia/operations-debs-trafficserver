@@ -31,11 +31,6 @@
 #ifndef _P_HostDB_h_
 #define _P_HostDB_h_
 
-#ifndef INLINE_CC
-#undef  TS_INLINE
-#define TS_INLINE inline
-#endif
-
 #include "libts.h"
 
 #ifdef SPLIT_DNS
@@ -58,9 +53,7 @@
                                     HOSTDB_MODULE_MAJOR_VERSION, \
                                     HOSTDB_MODULE_MINOR_VERSION, \
                                     PRIVATE_MODULE_HEADER)
-HostDBInfo *probe(ProxyMutex * mutex,
-                  INK_MD5 & md5, const char *hostname, int len,
-                  sockaddr const* addr, void *pDS, bool ignore_timeout = false, bool is_srv_lookup = false);
+HostDBInfo *probe(ProxyMutex * mutex, HostDBMD5 const& md5, bool ignore_timeout);
 
-void make_md5(INK_MD5 & md5, const char *hostname, int len, int port, char *pDNSServers = 0, int srv = 0);
+void make_md5(INK_MD5 & md5, const char *hostname, int len, int port, char const*pDNSServers, HostDBMark mark);
 #endif

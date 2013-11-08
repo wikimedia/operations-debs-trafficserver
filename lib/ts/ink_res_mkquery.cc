@@ -67,6 +67,7 @@
 
 
 #include "ink_config.h"
+#include "ink_defs.h"
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -80,7 +81,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "ink_defs.h"
+#include "ink_error.h"
 #include "ink_resolver.h"
 
 #define SPRINTF(x) (sprintf x)
@@ -96,16 +97,14 @@ ink_res_mkquery(ink_res_state statp,
 	     int _class, int type,	/*!< _class and type of query  */
 	     const u_char *data,	/*!< resource record data  */
 	     int datalen,		/*!< length of data  */
-	     const u_char *newrr_in,	/*!< new rr for modify or append  */
+             const u_char */* newrr_in  ATS_UNUSED */,	/*!< new rr for modify or append  */
 	     u_char *buf,		/*!< buffer to put query  */
 	     int buflen)		/*!< size of buffer  */
 {
-	register HEADER *hp;
-	register u_char *cp, *ep;
-	register int n;
+	HEADER *hp;
+	u_char *cp, *ep;
+	int n;
 	u_char *dnptrs[20], **dpp, **lastdnptr;
-
-	NOWARN_UNUSED(newrr_in);
 
 	/*
 	 * Initialize header fields.
@@ -500,4 +499,39 @@ ns_name_ntop(const u_char *src, char *dst, size_t dstsiz)
 	}
 	*dn++ = '\0';
 	return (dn - dst);
+}
+
+HostResStyle
+ats_host_res_from(int family, HostResPreferenceOrder order)
+{
+  bool v4 = false, v6 = false;
+  HostResPreference client = AF_INET6 == family ? HOST_RES_PREFER_IPV6 : HOST_RES_PREFER_IPV4;
+
+  for ( int i = 0 ; i < N_HOST_RES_PREFERENCE_ORDER ; ++i ) {
+    HostResPreference p = order[i];
+    if (HOST_RES_PREFER_CLIENT == p) p = client; // CLIENT -> actual value
+    if (HOST_RES_PREFER_IPV4 == p) {
+      if (v6) return HOST_RES_IPV6;
+      else v4 = true;
+    } else if (HOST_RES_PREFER_IPV6 == p) {
+      if (v4) return HOST_RES_IPV4;
+      else v6 = true;
+    } else {
+      break;
+    }
+  }
+  if (v4) return HOST_RES_IPV4_ONLY;
+  else if (v6) return HOST_RES_IPV6_ONLY;
+  return HOST_RES_NONE;
+}
+
+HostResStyle
+ats_host_res_match(sockaddr const* addr)
+{
+  HostResStyle zret = HOST_RES_NONE;
+  if (ats_is_ip6(addr))
+    zret = HOST_RES_IPV6_ONLY;
+  else if (ats_is_ip4(addr))
+    zret = HOST_RES_IPV4_ONLY;
+  return zret;
 }

@@ -152,6 +152,9 @@ CacheObj::formatEleToRule()
   case TS_CACHE_IGNORE_NO_CACHE:
     ink_strlcat(buf, "action=ignore-no-cache ", sizeof(buf));
     break;
+  case TS_CACHE_CLUSTER_CACHE_LOCAL:
+    ink_strlcat(buf, "action=cluster-cache-local ", sizeof(buf));
+    break;
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:
     ink_strlcat(buf, "action=ignore-client-no-cache ", sizeof(buf));
     break;
@@ -213,6 +216,7 @@ bool CacheObj::isValid()
   switch (m_ele->cfg_ele.type) {
   case TS_CACHE_NEVER:
   case TS_CACHE_IGNORE_NO_CACHE:
+  case TS_CACHE_CLUSTER_CACHE_LOCAL:
   case TS_CACHE_IGNORE_CLIENT_NO_CACHE:
   case TS_CACHE_IGNORE_SERVER_NO_CACHE:
   case TS_CACHE_AUTH_CONTENT:
@@ -2011,6 +2015,13 @@ SplitDnsObj::SplitDnsObj(TokenList * tokens)
       }
       m_ele->pd_type = TS_PD_URL_REGEX;
       m_ele->pd_val = ats_strdup(tok->value);
+    } else if (strcmp(tok->name, "url") == 0) {
+      if ((m_ele->pd_type != TS_PD_UNDEFINED) || (m_ele->pd_val != NULL) || (!tok->value)) {
+        // fields are already defined!!
+        goto FORMAT_ERR;
+      }
+      m_ele->pd_type = TS_PD_URL;
+      m_ele->pd_val = ats_strdup(tok->value);
     } else if (strcmp(tok->name, "named") == 0) {
       if ((m_ele->dns_servers_addrs != NULL) || (!tok->value)) {
         // fields are already defined!!
@@ -2069,6 +2080,9 @@ SplitDnsObj::formatEleToRule()
     break;
   case TS_PD_URL_REGEX:
     pd_name = ats_strdup("url_regex");
+    break;
+  case TS_PD_URL:
+    pd_name = ats_strdup("url");
     break;
   default:
     pd_name = ats_strdup("");      // lv: just to make this junk workable
@@ -2400,8 +2414,9 @@ bool UpdateObj::isValid()
   }
   // recursion depth can only be specified for http
   if (m_ele->recursion_depth > 0) {
-    if (!strstr(m_ele->url, "http"))
+    if (!m_ele->url || !strstr(m_ele->url, "http")) {
       m_valid = false;
+    }
   }
 
   if (!m_valid)

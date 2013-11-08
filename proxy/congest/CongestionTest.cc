@@ -41,8 +41,8 @@
  * table and can be easily retrived
  * also exercise the resizing of the table
  */
-EXCLUSIVE_REGRESSION_TEST(Congestion_HashTable) (RegressionTest * t, int atype, int *pstatus) {
-  NOWARN_UNUSED(atype);
+EXCLUSIVE_REGRESSION_TEST(Congestion_HashTable) (RegressionTest * t, int /* atype ATS_UNUSED */, int *pstatus)
+{
   MTHashTable<long, long>*htable = new MTHashTable<long, long>(4);
   // add elements to the table;
   long i, count = 1 * 1024 * 1024;
@@ -167,7 +167,7 @@ EXCLUSIVE_REGRESSION_TEST(Congestion_HashTable) (RegressionTest * t, int atype, 
 //-------------------------------------------------------------
 // Test the FailHistory implementation
 //-------------------------------------------------------------
-/* regesiter events into the FailHistory and the number of events
+/* register events into the FailHistory and the number of events
  * should be correct
  */
 struct CCFailHistoryTestCont: public Continuation
@@ -191,7 +191,7 @@ struct CCFailHistoryTestCont: public Continuation
   {
   }
 
-  CCFailHistoryTestCont(ProxyMutexPtr _mutex, RegressionTest * _test)
+  CCFailHistoryTestCont(Ptr<ProxyMutex> _mutex, RegressionTest * _test)
   : Continuation(_mutex),
     test_mode(SIMPLE_TEST),
     final_status(REGRESSION_TEST_PASSED), complete(false), test(_test), failEvents(NULL), pending_action(NULL)
@@ -280,10 +280,8 @@ CCFailHistoryTestCont::init_events()
 }
 
 int
-CCFailHistoryTestCont::schedule_event(int event, Event * e)
+CCFailHistoryTestCont::schedule_event(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (failEvents == NULL)
     return EVENT_DONE;
   CCFailHistoryTestCont::FailEvents * f = (CCFailHistoryTestCont::FailEvents *) ink_atomiclist_pop(failEvents);
@@ -320,10 +318,8 @@ CCFailHistoryTestCont::check_history(bool print)
 }
 
 int
-CCFailHistoryTestCont::mainEvent(int event, Event * e)
+CCFailHistoryTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   test_mode = CCFailHistoryTestCont::SIMPLE_TEST;
   init_events();
   entry->init(rule->pRecord);
@@ -356,9 +352,9 @@ Ldone:
   return EVENT_CONT;
 }
 
-EXCLUSIVE_REGRESSION_TEST(Congestion_FailHistory) (RegressionTest * t, int atype, int *pstatus) {
-  NOWARN_UNUSED(atype);
-  CCFailHistoryTestCont *test = new CCFailHistoryTestCont(new_ProxyMutex(), t);
+EXCLUSIVE_REGRESSION_TEST(Congestion_FailHistory) (RegressionTest * t, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  CCFailHistoryTestCont *test = new CCFailHistoryTestCont(make_ptr(new_ProxyMutex()), t);
   eventProcessor.schedule_in(test, HRTIME_SECONDS(1));
   *pstatus = REGRESSION_TEST_INPROGRESS;
 }
@@ -386,7 +382,7 @@ struct CCCongestionDBTestCont: public Continuation
   CongestionEntry *gen_CongestionEntry(sockaddr const* ip, int congested = 0);
 
 
-    CCCongestionDBTestCont(ProxyMutexPtr _mutex, RegressionTest * _test):Continuation(_mutex),
+    CCCongestionDBTestCont(Ptr<ProxyMutex> _mutex, RegressionTest * _test):Continuation(_mutex),
     final_status(REGRESSION_TEST_PASSED), complete(false), test(_test), rule(NULL), db(NULL), dbsize(1024)
   {
     SET_HANDLER(&CCCongestionDBTestCont::mainEvent);
@@ -460,10 +456,8 @@ CCCongestionDBTestCont::get_congest_list()
 }
 
 int
-CCCongestionDBTestCont::mainEvent(int event, Event * e)
+CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   int to_add = 1 * 1024 * 1024;
   int i;
   int items[10] = { 0 };
@@ -536,9 +530,9 @@ CCCongestionDBTestCont::mainEvent(int event, Event * e)
   return EVENT_CONT;
 }
 
-EXCLUSIVE_REGRESSION_TEST(Congestion_CongestionDB) (RegressionTest * t, int atype, int *pstatus) {
-  NOWARN_UNUSED(atype);
-  CCCongestionDBTestCont *test = new CCCongestionDBTestCont(new_ProxyMutex(), t);
+EXCLUSIVE_REGRESSION_TEST(Congestion_CongestionDB) (RegressionTest * t, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  CCCongestionDBTestCont *test = new CCCongestionDBTestCont(make_ptr(new_ProxyMutex()), t);
   eventProcessor.schedule_in(test, HRTIME_SECONDS(1));
   *pstatus = REGRESSION_TEST_INPROGRESS;
 }

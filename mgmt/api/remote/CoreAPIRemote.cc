@@ -37,6 +37,7 @@
  ***************************************************************************/
 
 #include "ink_config.h"
+#include "ink_defs.h"
 #include <strings.h>
 #include "ink_string.h"
 #include "I_Layout.h"
@@ -648,10 +649,8 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
  * LAN - need to implement
  */
 TSError
-EventSignal(char *event_name, va_list ap)
+EventSignal(char */* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event_name);
-  NOWARN_UNUSED(ap);
   return TS_ERR_FAIL;
 }
 
@@ -819,36 +818,17 @@ SnapshotGetMlt(LLQ * snapshots)
 }
 
 TSError
-StatsReset(bool cluster)
+StatsReset(bool cluster, const char* name)
 {
   TSError ret;
 
-  ret = send_request_bool(main_socket_fd, STATS_RESET, cluster);
+  if (cluster) {
+    ret = send_request_name(main_socket_fd, STATS_RESET_CLUSTER, name);
+  } else {
+    ret = send_request_name(main_socket_fd, STATS_RESET_NODE, name);
+  }
   if (ret != TS_ERR_OKAY)
     return ret;                 // networking error
 
   return parse_reply(main_socket_fd);
-}
-
-/*-------------------------------------------------------------------------
- * EncryptToFile
- *-------------------------------------------------------------------------
- * Encrypts the password and stores the encrypted password in the
- * location specified by "filepath"
- */
-TSError
-EncryptToFile(const char *passwd, const char *filepath)
-{
-  TSError err;
-
-  if (!passwd || !filepath)
-    return TS_ERR_PARAMS;
-
-  err = send_request_name_value(main_socket_fd, ENCRYPT_TO_FILE, passwd, filepath);
-  if (err != TS_ERR_OKAY)
-    return err;
-
-  err = parse_reply(main_socket_fd);
-
-  return err;
 }

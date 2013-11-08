@@ -32,18 +32,16 @@
 #ifndef _I_HostDB_h_
 #define _I_HostDB_h_
 
-#ifndef TS_INLINE
-#define TS_INLINE
-#endif
-
 #include "I_EventSystem.h"
 #include "I_Net.h"
 #include "I_Cache.h"
 
 #include "I_HostDBProcessor.h"
 
-#define HOSTDB_MODULE_MAJOR_VERSION 1
+// TS-1925: switch from MMH to MD5 hash; bumped to version 2
+#define HOSTDB_MODULE_MAJOR_VERSION 2
 #define HOSTDB_MODULE_MINOR_VERSION 0
+
 #define HOSTDB_MODULE_VERSION makeModuleVersion(                 \
                                     HOSTDB_MODULE_MAJOR_VERSION, \
                                     HOSTDB_MODULE_MINOR_VERSION, \

@@ -59,7 +59,7 @@ public:
 };
 
 
-class TransformVConnection:public VConnection
+class TransformVConnection:public TransformVCChain
 {
 public:
   TransformVConnection(Continuation * cont, APIHook * hooks);
@@ -73,6 +73,11 @@ public:
   void do_io_shutdown(ShutdownHowTo_t howto);
 
   void reenable(VIO * vio);
+
+  /** Compute the backlog.
+      @return The actual backlog, or a value at least @a limit.
+  */
+  virtual uint64_t backlog(uint64_t limit = INTU64_MAX);
 
 public:
   VConnection * m_transform;
@@ -115,7 +120,7 @@ public:
 class RangeTransform:public INKVConnInternal
 {
 public:
-  RangeTransform(ProxyMutex * mutex, RangeRecord * ranges, bool, int, HTTPHdr *transform_resp, const char * content_type, int content_type_len, int64_t content_length);
+  RangeTransform(ProxyMutex * mutex, RangeRecord * ranges, int num_fields, HTTPHdr *transform_resp, const char * content_type, int content_type_len, int64_t content_length);
   ~RangeTransform();
 
   // void parse_range_and_compare();
@@ -135,8 +140,6 @@ public:
   // MIMEField *m_range_field;
   HTTPHdr *m_transform_resp;
   VIO *m_output_vio;
-  bool m_unsatisfiable_range;
-  // bool m_not_handle_range;
   int64_t m_range_content_length;
   int m_num_chars_for_cl;
   int m_num_range_fields;

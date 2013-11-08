@@ -292,9 +292,8 @@ UpdateEntry::ValidURL(char *s, char *e)
 }
 
 int
-UpdateEntry::ValidHeaders(char *s, char *e)
+UpdateEntry::ValidHeaders(char *s)
 {
-  NOWARN_UNUSED(e);
   // Note: string 's' is null terminated.
 
   enum
@@ -470,9 +469,8 @@ UpdateEntry::ValidSeparatorChar(char c)
 }
 
 int
-UpdateEntry::ValidHour(char *s, char *e)
+UpdateEntry::ValidHour(char *s)
 {
-  NOWARN_UNUSED(e);
   // Note: string 's' is null terminated.
 
   _offset_hour = atoi(s);
@@ -484,9 +482,8 @@ UpdateEntry::ValidHour(char *s, char *e)
 }
 
 int
-UpdateEntry::ValidInterval(char *s, char *e)
+UpdateEntry::ValidInterval(char *s)
 {
-  NOWARN_UNUSED(e);
   // Note: string 's' is null terminated.
 
   _interval = atoi(s);
@@ -499,9 +496,8 @@ UpdateEntry::ValidInterval(char *s, char *e)
 }
 
 int
-UpdateEntry::ValidDepth(char *s, char *e)
+UpdateEntry::ValidDepth(char *s)
 {
-  NOWARN_UNUSED(e);
   // Note: string 's' is null terminated.
 
   _max_depth = atoi(s);
@@ -769,8 +765,8 @@ UpdateConfigManager::init()
   UPDATE_CLEAR_DYN_STAT(update_state_machines_stat);
 
   Debug("update",
-        "Update params: enable %"PRId64" force %"PRId64" rcnt %"PRId64" rint %"PRId64" updates %"PRId64" "
-        "max_sm %"PRId64" mem %"PRId64"",
+        "Update params: enable %" PRId64" force %" PRId64" rcnt %" PRId64" rint %" PRId64" updates %" PRId64" "
+        "max_sm %" PRId64" mem %" PRId64"",
         _CP_actual->_enabled, _CP_actual->_immediate_update,
         _CP_actual->_retry_count, _CP_actual->_retry_interval,
         _CP_actual->_concurrent_updates, _CP_actual->_max_update_state_machines, _CP_actual->_memory_use_in_mb);
@@ -820,10 +816,9 @@ UpdateConfigManager::GetConfigList(Ptr<UpdateConfigList> *L)
 }
 
 int
-UpdateConfigManager::URL_list_update_callout(const char *name, RecDataT data_type, RecData data, void *cookie)
+UpdateConfigManager::URL_list_update_callout(const char */* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                                             RecData data, void *cookie)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
   UpdateConfigManager *cm = (UpdateConfigManager *) cookie;
   cm->SetFileName((char *) data.rec_string);
 
@@ -862,7 +857,7 @@ UpdateConfigManager::ProcessUpdate(int event, Event * e)
 
     if (!(*_CP == *p)) {
       _CP = p;
-      Debug("update", "enable %"PRId64" force %"PRId64" rcnt %"PRId64" rint %"PRId64" updates %"PRId64" state machines %"PRId64" mem %"PRId64"",
+      Debug("update", "enable %" PRId64" force %" PRId64" rcnt %" PRId64" rint %" PRId64" updates %" PRId64" state machines %" PRId64" mem %" PRId64"",
             p->_enabled, p->_immediate_update, p->_retry_count,
             p->_retry_interval, p->_concurrent_updates, p->_max_update_state_machines, p->_memory_use_in_mb);
     } else {
@@ -1016,7 +1011,7 @@ UpdateConfigManager::ParseConfigFile(int f)
     ////////////////////////////////////
     // Validate headers
     ////////////////////////////////////
-    if (e->ValidHeaders(p_start[F_HEADERS], p_end[F_HEADERS])) {
+    if (e->ValidHeaders(p_start[F_HEADERS])) {
       Warning("read update.config, invalid headers field, line %d", ln);
       SignalWarning(MGMT_SIGNAL_CONFIG_ERROR, "read update.config, invalid headers field");
       goto abort_processing;
@@ -1032,7 +1027,7 @@ UpdateConfigManager::ParseConfigFile(int f)
     ////////////////////////////////////
     // Validate hour
     ////////////////////////////////////
-    if (e->ValidHour(p_start[F_HOUR], p_end[F_HOUR])) {
+    if (e->ValidHour(p_start[F_HOUR])) {
       Warning("read update.config, invalid hour field, line %d", ln);
       SignalWarning(MGMT_SIGNAL_CONFIG_ERROR, "read update.config, invalid hour field");
       goto abort_processing;
@@ -1040,7 +1035,7 @@ UpdateConfigManager::ParseConfigFile(int f)
     ////////////////////////////////////
     // Validate interval
     ////////////////////////////////////
-    if (e->ValidInterval(p_start[F_INTERVAL], p_end[F_INTERVAL])) {
+    if (e->ValidInterval(p_start[F_INTERVAL])) {
       Warning("read update.config, invalid interval field, line %d", ln);
       SignalWarning(MGMT_SIGNAL_CONFIG_ERROR, "read update.config, invalid interval field");
       goto abort_processing;
@@ -1048,7 +1043,7 @@ UpdateConfigManager::ParseConfigFile(int f)
     ////////////////////////////////////
     // Validate recursion depth
     ////////////////////////////////////
-    if (e->ValidDepth(p_start[F_DEPTH], p_end[F_DEPTH])) {
+    if (e->ValidDepth(p_start[F_DEPTH])) {
       Warning("read update.config, invalid depth field, line %d", ln);
       SignalWarning(MGMT_SIGNAL_CONFIG_ERROR, "read update.config, invalid depth field");
       goto abort_processing;
@@ -1318,9 +1313,8 @@ UpdateScheduler::ScheduleEvent(int event, void *e)
 }
 
 int
-UpdateScheduler::ChildExitEventHandler(int event, Event * e)
+UpdateScheduler::ChildExitEventHandler(int event, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
   switch (event) {
   case EVENT_IMMEDIATE:
   case EVENT_INTERVAL:
@@ -1416,9 +1410,8 @@ UpdateSM::Start()
 }
 
 int
-UpdateSM::HandleSMEvent(int event, Event * e)
+UpdateSM::HandleSMEvent(int event, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
   while (1) {
     switch (_state) {
     case USM_INIT:
@@ -1775,9 +1768,8 @@ RecursiveHttpGet::RecursiveHttpGetEvent(int event, Event * d)
 }
 
 int
-RecursiveHttpGet::ExitEventHandler(int event, Event * e)
+RecursiveHttpGet::ExitEventHandler(int event, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
   switch (event) {
   case EVENT_IMMEDIATE:
   case EVENT_INTERVAL:
@@ -2533,7 +2525,7 @@ ObjectReloadCont::Init(Continuation * cont, char *url, int url_len,
 
   } else {
     // Unhandled case... TODO: Do we need to actually handle this?
-    ink_debug_assert(false);
+    ink_assert(false);
   }
   handleEvent(EVENT_IMMEDIATE, (void *) NULL);
 }

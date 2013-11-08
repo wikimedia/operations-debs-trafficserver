@@ -17,8 +17,43 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# Local Macros
-# http://www.gnu.org/software/automake/manual/automake.html#Local-Macros
-ACLOCAL_AMFLAGS = -I build
+bin_SCRIPTS = tsxs tspush
+bin_PROGRAMS =
 
-bin_SCRIPTS = tsxs
+AM_CPPFLAGS = $(iocore_include_dirs) \
+  -I$(top_srcdir)/lib -I$(top_builddir)/lib \
+  -I$(top_srcdir)/lib/ts -I$(top_builddir)/lib/ts
+
+noinst_PROGRAMS = jtest/jtest
+
+jtest_jtest_SOURCES = jtest/jtest.cc
+jtest_jtest_LDADD = $(top_builddir)/lib/ts/libtsutil.la
+
+if BUILD_HTTP_LOAD
+noinst_PROGRAMS += http_load/http_load
+
+http_load_http_load_LDADD = @LIBSSL@
+http_load_http_load_SOURCES =  \
+  http_load/http_load.c \
+  http_load/timers.c \
+  http_load/port.h \
+  http_load/timers.h
+
+endif
+
+# We only build tstop if libcurses and libcurl are available.
+if BUILD_TSTOP
+
+bin_PROGRAMS += tstop/tstop
+
+tstop_tstop_CPPFLAGS = \
+  -I$(top_srcdir)/mgmt/api/include
+tstop_tstop_CXXFLAGS = \
+  @CURL_CFLAGS@
+
+tstop_tstop_SOURCES = tstop/tstop.cc
+tstop_tstop_LDADD = \
+  $(top_builddir)/mgmt/api/remote/libtsmgmt.la \
+  @CURL_LIBS@ @CURSES_LIB@
+
+endif

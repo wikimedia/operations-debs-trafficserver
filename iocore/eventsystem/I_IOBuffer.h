@@ -54,25 +54,29 @@ inkcoreapi extern int64_t max_iobuffer_size;
 extern int64_t default_small_iobuffer_size;
 extern int64_t default_large_iobuffer_size; // matched to size of OS buffers
 
-#define TRACK_BUFFER_USER
+#if !defined(TRACK_BUFFER_USER)
+#define TRACK_BUFFER_USER 1
+#endif
 
 enum AllocType
-{ NO_ALLOC, FAST_ALLOCATED, XMALLOCED, MEMALIGNED,
-  DEFAULT_ALLOC, CONSTANT
+{
+  NO_ALLOC,
+  FAST_ALLOCATED,
+  XMALLOCED,
+  MEMALIGNED,
+  DEFAULT_ALLOC,
+  CONSTANT
 };
-#ifndef TS_MICRO
+
+#if TS_USE_RECLAIMABLE_FREELIST
+#define DEFAULT_BUFFER_NUMBER        64
+#else
 #define DEFAULT_BUFFER_NUMBER        128
+#endif
 #define DEFAULT_HUGE_BUFFER_NUMBER   32
 #define MAX_MIOBUFFER_READERS        5
 #define DEFAULT_BUFFER_ALIGNMENT     8192       // should be disk/page size
 #define DEFAULT_BUFFER_BASE_SIZE     128
-#else
-#define DEFAULT_BUFFER_NUMBER        4
-#define DEFAULT_HUGE_BUFFER_NUMBER   32
-#define MAX_MIOBUFFER_READERS        3
-#define DEFAULT_BUFFER_BASE_SIZE     128
-#define DEFAULT_BUFFER_ALIGNMENT     8  // should be disk/page size
-#endif
 
 ////////////////////////////////////////////////
 // These are defines so that code that used 2 //
@@ -568,6 +572,12 @@ public:
   */
   int64_t read_avail();
 
+  /** Check if there is more than @a size bytes available to read.
+      @return @c true if more than @a size byte are available.
+  */
+  bool is_read_avail_more_than(int64_t size);
+
+
   /**
     Number of IOBufferBlocks with data in the block list. Returns the
     number of IOBufferBlocks on the block list with data remaining for
@@ -783,7 +793,7 @@ public:
   the center of all IOCore data transfer. MIOBuffers are the data
   buffers used to transfer data to and from VConnections. A MIOBuffer
   points to a list of IOBufferBlocks which in turn point to IOBufferData
-  stucutres that in turn point to the actual data. MIOBuffer allows one
+  structures that in turn point to the actual data. MIOBuffer allows one
   producer and multiple consumers. The buffer fills up according the
   amount of data outstanding for the slowest consumer. Thus, MIOBuffer
   implements automatic flow control between readers of different speeds.
@@ -1061,6 +1071,7 @@ public:
     return !_writer;
   }
   int64_t max_read_avail();
+
   int max_block_count();
   void check_add_block();
 
@@ -1145,21 +1156,19 @@ public:
 */
 struct MIOBufferAccessor
 {
-  IOBufferReader *reader()
-  {
+  IOBufferReader * reader() {
     return entry;
   }
-  MIOBuffer *writer()
-  {
+
+  MIOBuffer * writer() {
     return mbuf;
   }
 
-  int64_t block_size()
-  {
+  int64_t block_size() const {
     return mbuf->block_size();
   }
-  int64_t total_size()
-  {
+
+  int64_t total_size() const {
     return block_size();
   }
 
@@ -1167,36 +1176,35 @@ struct MIOBufferAccessor
   void reader_for(MIOBuffer * abuf);
   void writer_for(MIOBuffer * abuf);
 
-  void clear();
-  void reset()
-  {
+  void clear() {
     mbuf = NULL;
     entry = NULL;
   }
 
-// private:
-
-  MIOBuffer *mbuf;
-  IOBufferReader *entry;
-
-MIOBufferAccessor():mbuf(NULL), entry(NULL)
+  MIOBufferAccessor():
 #ifdef DEBUG
-    , name(NULL)
+    name(NULL),
 #endif
+    mbuf(NULL), entry(NULL)
   {
   }
+
   ~MIOBufferAccessor();
 
 #ifdef DEBUG
-  const char *name;
+  const char * name;
 #endif
 
 private:
   MIOBufferAccessor(const MIOBufferAccessor &);
   MIOBufferAccessor & operator =(const MIOBufferAccessor &);
+
+  MIOBuffer *mbuf;
+  IOBufferReader *entry;
+
 };
 
-TS_INLINE MIOBuffer * new_MIOBuffer_internal(
+extern MIOBuffer * new_MIOBuffer_internal(
 #ifdef TRACK_BUFFER_USER
                                           const char *loc,
 #endif
@@ -1218,11 +1226,11 @@ public:
 };
 #endif
 
-TS_INLINE MIOBuffer * new_empty_MIOBuffer_internal(
+extern MIOBuffer * new_empty_MIOBuffer_internal(
 #ifdef TRACK_BUFFER_USER
-                                                     const char *loc,
+  const char *loc,
 #endif
-                                                     int64_t size_index = default_large_iobuffer_size);
+  int64_t size_index = default_large_iobuffer_size);
 
 #ifdef TRACK_BUFFER_USER
 class Empty_MIOBuffer_tracker
@@ -1247,19 +1255,20 @@ public:
 #define new_MIOBuffer               new_MIOBuffer_internal
 #define new_empty_MIOBuffer         new_empty_MIOBuffer_internal
 #endif
-TS_INLINE void free_MIOBuffer(MIOBuffer * mio);
+extern void free_MIOBuffer(MIOBuffer * mio);
 //////////////////////////////////////////////////////////////////////
 
-TS_INLINE IOBufferBlock * new_IOBufferBlock_internal(
+extern IOBufferBlock * new_IOBufferBlock_internal(
 #ifdef TRACK_BUFFER_USER
-                                                       const char *loc
+  const char *loc
 #endif
-  );
-TS_INLINE IOBufferBlock * new_IOBufferBlock_internal(
+);
+
+extern IOBufferBlock * new_IOBufferBlock_internal(
 #ifdef TRACK_BUFFER_USER
-                                                       const char *loc,
+  const char *loc,
 #endif
-                                                       IOBufferData * d, int64_t len = 0, int64_t offset = 0);
+  IOBufferData * d, int64_t len = 0, int64_t offset = 0);
 
 #ifdef TRACK_BUFFER_USER
 class IOBufferBlock_tracker
@@ -1289,25 +1298,24 @@ public:
 #endif
 ////////////////////////////////////////////////////////////
 
-TS_INLINE IOBufferData *new_IOBufferData_internal(
+extern IOBufferData *new_IOBufferData_internal(
 #ifdef TRACK_BUFFER_USER
-                                                    const char *location,
+  const char *location,
 #endif
-                                                    int64_t size_index = default_large_iobuffer_size,
-                                                    AllocType type = DEFAULT_ALLOC);
+  int64_t size_index = default_large_iobuffer_size,
+  AllocType type = DEFAULT_ALLOC);
 
-TS_INLINE IOBufferData *new_xmalloc_IOBufferData_internal(
+extern IOBufferData *new_xmalloc_IOBufferData_internal(
 #ifdef TRACK_BUFFER_USER
-                                                            const char *location,
+  const char *location,
 #endif
-                                                            void *b, int64_t size);
+  void *b, int64_t size);
 
-TS_INLINE IOBufferData *new_constant_IOBufferData_internal(
+extern IOBufferData *new_constant_IOBufferData_internal(
 #ifdef TRACK_BUFFER_USER
-                                                             const char *loc,
+  const char *locaction,
 #endif
-                                                             void *b, int64_t size);
-
+  void *b, int64_t size);
 
 #ifdef TRACK_BUFFER_USER
 class IOBufferData_tracker
@@ -1315,7 +1323,7 @@ class IOBufferData_tracker
   const char *loc;
 
 public:
-    IOBufferData_tracker(const char *_loc):loc(_loc)
+  IOBufferData_tracker(const char *_loc):loc(_loc)
   {
   }
   IOBufferData *operator() (int64_t size_index = default_large_iobuffer_size, AllocType type = DEFAULT_ALLOC) {
@@ -1339,8 +1347,8 @@ new_constant_IOBufferData_internal(RES_PATH("memory/IOBuffer/"), \
 #define  new_constant_IOBufferData new_constant_IOBufferData_internal
 #endif
 
-TS_INLINE int64_t iobuffer_size_to_index(int64_t size, int64_t max = max_iobuffer_size);
-TS_INLINE int64_t index_to_buffer_size(int64_t idx);
+extern int64_t iobuffer_size_to_index(int64_t size, int64_t max = max_iobuffer_size);
+extern int64_t index_to_buffer_size(int64_t idx);
 /**
   Clone a IOBufferBlock chain. Used to snarf a IOBufferBlock chain
   w/o copy.
@@ -1351,7 +1359,7 @@ TS_INLINE int64_t index_to_buffer_size(int64_t idx);
   @return ptr to head of new IOBufferBlock chain.
 
 */
-TS_INLINE IOBufferBlock *iobufferblock_clone(IOBufferBlock * b, int64_t offset, int64_t len);
+extern IOBufferBlock *iobufferblock_clone(IOBufferBlock * b, int64_t offset, int64_t len);
 /**
   Skip over specified bytes in chain. Used for dropping references.
 
@@ -1363,5 +1371,5 @@ TS_INLINE IOBufferBlock *iobufferblock_clone(IOBufferBlock * b, int64_t offset, 
   @return ptr to head of new IOBufferBlock chain.
 
 */
-TS_INLINE IOBufferBlock *iobufferblock_skip(IOBufferBlock * b, int64_t *poffset, int64_t *plen, int64_t write);
+extern IOBufferBlock *iobufferblock_skip(IOBufferBlock * b, int64_t *poffset, int64_t *plen, int64_t write);
 #endif

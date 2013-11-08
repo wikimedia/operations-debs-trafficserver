@@ -20,9 +20,6 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
-#include "ink_unused.h"        /* MAGIC_EDITING_TAG */
-
 #include <limits.h>
 #include "Net.h"
 #include "Disk.h"
@@ -212,7 +209,7 @@ struct TestProxy:Continuation
     SET_HANDLER(cacheCheckEvent);
     url_struct = new URL((const char *) url_str, sizeof(url_str), true);
     hostdbinfo = info;
-    cacheProcessor.lookup(this, url_struct);
+    cacheProcessor.lookup(this, url_struct, false);
     // SET_HANDLER(connectEvent);
     // netProcessor.connect(this,info->ip,port,host);
     return EVENT_DONE;
@@ -225,12 +222,12 @@ struct TestProxy:Continuation
         cout << "Removing object from the cache\n";
         SET_HANDLER(NULL);
         amode = 0;
-        cacheProcessor.remove(&(((CacheObjInfoVector *) data)->data[0]));
+        cacheProcessor.remove(&(((CacheObjInfoVector *) data)->data[0]), false);
         return done();
       } else {
         cout << "Serving the object from cache\n";
         SET_HANDLER(cacheReadEvent);
-        cacheProcessor.open_read(this, &(((CacheObjInfoVector *) data)->data[0]));
+        cacheProcessor.open_read(this, &(((CacheObjInfoVector *) data)->data[0]), false);
         return EVENT_CONT;
       }
     } else if (event == CACHE_EVENT_LOOKUP_FAILED) {
@@ -240,7 +237,7 @@ struct TestProxy:Continuation
       request_header = new HttpHeader;
       request_header->m_url = *url_struct;
       objinfo->request = *request_header;
-      cacheProcessor.open_write(this, objinfo, CACHE_UNKNOWN_SIZE);
+      cacheProcessor.open_write(this, objinfo, false, CACHE_UNKNOWN_SIZE);
       return EVENT_DONE;
     } else {
       printf("TestProxy cacheCheckEvent error %d\n", event);
@@ -390,21 +387,6 @@ TestAccept():Continuation(new_ProxyMutex()) {
   }
 };
 
-struct DumpStats:Continuation
-{
-  int mainEvent(int event, Event * e)
-  {
-    (void) event;
-    (void) e;
-    dump_stats();
-    return EVENT_CONT;
-  }
-  DumpStats():Continuation(NULL)
-  {
-    SET_HANDLER(mainEvent);
-  }
-};
-
 void
 redirect_test(Machine * m, void *data, int len)
 {
@@ -422,6 +404,5 @@ test()
 {
   ptest_ClusterFunction = redirect_test;
   netProcessor.proxy_accept(new TestAccept);
-  // eventProcessor.schedule_every(new DumpStats,HRTIME_SECONDS(30));
 }
 #endif

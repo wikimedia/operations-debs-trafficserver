@@ -46,47 +46,47 @@ check_remap_option(char *argv[], int argc, unsigned long findmode = 0, int *_ret
     *argptr = NULL;
   if (argv && argc > 0) {
     for (int i = 0; i < argc; i++) {
-      if (!ink_string_fast_strcasecmp(argv[i], "map_with_referer")) {
+      if (!strcasecmp(argv[i], "map_with_referer")) {
         if ((findmode & REMAP_OPTFLG_MAP_WITH_REFERER) != 0)
           idx = i;
         ret_flags |= REMAP_OPTFLG_MAP_WITH_REFERER;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "plugin=", 7)) {
+      } else if (!strncasecmp(argv[i], "plugin=", 7)) {
         if ((findmode & REMAP_OPTFLG_PLUGIN) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_PLUGIN;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "pparam=", 7)) {
+      } else if (!strncasecmp(argv[i], "pparam=", 7)) {
         if ((findmode & REMAP_OPTFLG_PPARAM) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_PPARAM;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "method=", 7)) {
+      } else if (!strncasecmp(argv[i], "method=", 7)) {
         if ((findmode & REMAP_OPTFLG_METHOD) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_METHOD;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "src_ip=~", 8)) {
+      } else if (!strncasecmp(argv[i], "src_ip=~", 8)) {
         if ((findmode & REMAP_OPTFLG_SRC_IP) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][8];
         ret_flags |= (REMAP_OPTFLG_SRC_IP | REMAP_OPTFLG_INVERT);
-      } else if (!ink_string_fast_strncasecmp(argv[i], "src_ip=", 7)) {
+      } else if (!strncasecmp(argv[i], "src_ip=", 7)) {
         if ((findmode & REMAP_OPTFLG_SRC_IP) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_SRC_IP;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "action=", 7)) {
+      } else if (!strncasecmp(argv[i], "action=", 7)) {
         if ((findmode & REMAP_OPTFLG_ACTION) != 0)
           idx = i;
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_ACTION;
-      } else if (!ink_string_fast_strncasecmp(argv[i], "mapid=", 6)) {
+      } else if (!strncasecmp(argv[i], "mapid=", 6)) {
         if ((findmode & REMAP_OPTFLG_MAP_ID) != 0)
           idx = i;
         if (argptr)
@@ -117,7 +117,7 @@ check_remap_option(char *argv[], int argc, unsigned long findmode = 0, int *_ret
   real accessing a directory (albeit a virtual one).
 
 */
-void
+static void
 SetHomePageRedirectFlag(url_mapping *new_mapping, URL &new_to_url)
 {
   int fromLen, toLen;
@@ -239,27 +239,27 @@ validate_filter_args(acl_filter_rule ** rule_pp, char **argv, int argc, char *er
       }
       // Please remember that the order of hash idx creation is very important and it is defined
       // in HTTP.cc file
-      if (!ink_string_fast_strcasecmp(argptr, "CONNECT"))
+      if (!strcasecmp(argptr, "CONNECT"))
         m = HTTP_WKSIDX_CONNECT;
-      else if (!ink_string_fast_strcasecmp(argptr, "DELETE"))
+      else if (!strcasecmp(argptr, "DELETE"))
         m = HTTP_WKSIDX_DELETE;
-      else if (!ink_string_fast_strcasecmp(argptr, "GET"))
+      else if (!strcasecmp(argptr, "GET"))
         m = HTTP_WKSIDX_GET;
-      else if (!ink_string_fast_strcasecmp(argptr, "HEAD"))
+      else if (!strcasecmp(argptr, "HEAD"))
         m = HTTP_WKSIDX_HEAD;
-      else if (!ink_string_fast_strcasecmp(argptr, "ICP_QUERY"))
+      else if (!strcasecmp(argptr, "ICP_QUERY"))
         m = HTTP_WKSIDX_ICP_QUERY;
-      else if (!ink_string_fast_strcasecmp(argptr, "OPTIONS"))
+      else if (!strcasecmp(argptr, "OPTIONS"))
         m = HTTP_WKSIDX_OPTIONS;
-      else if (!ink_string_fast_strcasecmp(argptr, "POST"))
+      else if (!strcasecmp(argptr, "POST"))
         m = HTTP_WKSIDX_POST;
-      else if (!ink_string_fast_strcasecmp(argptr, "PURGE"))
+      else if (!strcasecmp(argptr, "PURGE"))
         m = HTTP_WKSIDX_PURGE;
-      else if (!ink_string_fast_strcasecmp(argptr, "PUT"))
+      else if (!strcasecmp(argptr, "PUT"))
         m = HTTP_WKSIDX_PUT;
-      else if (!ink_string_fast_strcasecmp(argptr, "TRACE"))
+      else if (!strcasecmp(argptr, "TRACE"))
         m = HTTP_WKSIDX_TRACE;
-      else if (!ink_string_fast_strcasecmp(argptr, "PUSH"))
+      else if (!strcasecmp(argptr, "PUSH"))
         m = HTTP_WKSIDX_PUSH;
       else {
         Debug("url_rewrite", "[validate_filter_args] Unknown method value %s", argptr);
@@ -488,7 +488,7 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   this->file_var = ats_strdup(file_var_in);
   config_file_path[0] = '\0';
 
-  REVERSE_ReadConfigStringAlloc(config_file, file_var_in);
+  REC_ReadConfigStringAlloc(config_file, file_var_in);
 
   if (config_file == NULL) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to find proxy.config.url_remap.filename");
@@ -497,7 +497,7 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   }
 
   this->ts_name = NULL;
-  REVERSE_ReadConfigStringAlloc(this->ts_name, "proxy.config.proxy_name");
+  REC_ReadConfigStringAlloc(this->ts_name, "proxy.config.proxy_name");
   if (this->ts_name == NULL) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to read proxy.config.proxy_name");
     Warning("%s Unable to determine proxy name.  Incorrect redirects could be generated", modulePrefix);
@@ -505,19 +505,19 @@ UrlRewrite::UrlRewrite(const char *file_var_in)
   }
 
   this->http_default_redirect_url = NULL;
-  REVERSE_ReadConfigStringAlloc(this->http_default_redirect_url, "proxy.config.http.referer_default_redirect");
+  REC_ReadConfigStringAlloc(this->http_default_redirect_url, "proxy.config.http.referer_default_redirect");
   if (this->http_default_redirect_url == NULL) {
     pmgmt->signalManager(MGMT_SIGNAL_CONFIG_ERROR, "Unable to read proxy.config.http.referer_default_redirect");
     Warning("%s Unable to determine default redirect url for \"referer\" filter.", modulePrefix);
     this->http_default_redirect_url = ats_strdup("http://www.apache.org");
   }
 
-  REVERSE_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
-  REVERSE_ReadConfigInteger(mgmt_autoconf_port, "proxy.config.admin.autoconf_port");
-  REVERSE_ReadConfigInteger(default_to_pac, "proxy.config.url_remap.default_to_server_pac");
-  REVERSE_ReadConfigInteger(default_to_pac_port, "proxy.config.url_remap.default_to_server_pac_port");
-  REVERSE_ReadConfigInteger(url_remap_mode, "proxy.config.url_remap.url_remap_mode");
-  REVERSE_ReadConfigInteger(backdoor_enabled, "proxy.config.url_remap.handle_backdoor_urls");
+  REC_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
+  REC_ReadConfigInteger(mgmt_autoconf_port, "proxy.config.admin.autoconf_port");
+  REC_ReadConfigInteger(default_to_pac, "proxy.config.url_remap.default_to_server_pac");
+  REC_ReadConfigInteger(default_to_pac_port, "proxy.config.url_remap.default_to_server_pac_port");
+  REC_ReadConfigInteger(url_remap_mode, "proxy.config.url_remap.url_remap_mode");
+  REC_ReadConfigInteger(backdoor_enabled, "proxy.config.url_remap.handle_backdoor_urls");
 
   ink_strlcpy(config_file_path, system_config_directory, sizeof(config_file_path));
   ink_strlcat(config_file_path, "/", sizeof(config_file_path));
@@ -708,20 +708,17 @@ UrlRewrite::_tableLookup(InkHashTable *h_table, URL *request_url,
   return um;
 }
 
-
 // This is only used for redirects and reverse rules, and the homepageredirect flag
 // can never be set. The end result is that request_url is modified per remap container.
 void
-UrlRewrite::_doRemap(UrlMappingContainer &mapping_container, URL *request_url)
+url_rewrite_remap_request(const UrlMappingContainer& mapping_container, URL *request_url)
 {
   const char *requestPath;
   int requestPathLen;
-
-  url_mapping *mapPtr = mapping_container.getMapping();
-  URL *map_from = &mapPtr->fromURL;
   int fromPathLen;
 
   URL *map_to = mapping_container.getToURL();
+  URL *map_from = mapping_container.getFromURL();
   const char *toHost;
   const char *toPath;
   const char *toScheme;
@@ -736,7 +733,7 @@ UrlRewrite::_doRemap(UrlMappingContainer &mapping_container, URL *request_url)
   toPath = map_to->path_get(&toPathLen);
   toScheme = map_to->scheme_get(&toSchemeLen);
 
-  Debug("url_rewrite", "_doRemap(): Remapping rule id: %d matched", mapPtr->map_id);
+  Debug("url_rewrite", "%s: Remapping rule id: %d matched", __func__, mapping_container.getMapping()->map_id);
 
   request_url->host_set(toHost, toHostLen);
   request_url->port_set(map_to->port_get_raw());
@@ -790,6 +787,7 @@ UrlRewrite::_doRemap(UrlMappingContainer &mapping_container, URL *request_url)
 
 
 /** Used to do the backwards lookups. */
+#define N_URL_HEADERS 4
 bool
 UrlRewrite::ReverseMap(HTTPHdr *response_header)
 {
@@ -801,34 +799,46 @@ UrlRewrite::ReverseMap(HTTPHdr *response_header)
   int host_len;
   char *new_loc_hdr;
   int new_loc_length;
+  int i;
+  const struct {
+    const char *const field;
+    const int len;
+  } url_headers[N_URL_HEADERS] = {
+    { MIME_FIELD_LOCATION, MIME_LEN_LOCATION } ,
+    { MIME_FIELD_CONTENT_LOCATION, MIME_LEN_CONTENT_LOCATION } ,
+    { "URI", 3 } ,
+    { "Destination", 11 }
+  };
 
   if (unlikely(num_rules_reverse == 0)) {
     ink_assert(reverse_mappings.empty());
     return false;
   }
 
-  location_hdr = response_header->value_get(MIME_FIELD_LOCATION, MIME_LEN_LOCATION, &loc_length);
+  for (i = 0; i < N_URL_HEADERS; ++i) {
+    location_hdr = response_header->value_get(url_headers[i].field, url_headers[i].len, &loc_length);
 
-  if (location_hdr == NULL) {
-    Debug("url_rewrite", "Reverse Remap called with empty location header");
-    return false;
+    if (location_hdr == NULL) {
+      continue;
+    }
+
+    location_url.create(NULL);
+    location_url.parse(location_hdr, loc_length);
+
+    host = location_url.host_get(&host_len);
+
+    UrlMappingContainer reverse_mapping(response_header->m_heap);
+
+    if (reverseMappingLookup(&location_url, location_url.port_get(), host, host_len, reverse_mapping)) {
+      if (i == 0)
+        remap_found = true;
+      url_rewrite_remap_request(reverse_mapping, &location_url);
+      new_loc_hdr = location_url.string_get_ref(&new_loc_length);
+      response_header->value_set(url_headers[i].field, url_headers[i].len, new_loc_hdr, new_loc_length);
+    }
+
+    location_url.destroy();
   }
-
-  location_url.create(NULL);
-  location_url.parse(location_hdr, loc_length);
-
-  host = location_url.host_get(&host_len);
-
-  UrlMappingContainer reverse_mapping(response_header->m_heap);
-
-  if (reverseMappingLookup(&location_url, location_url.port_get(), host, host_len, reverse_mapping)) {
-    remap_found = true;
-    _doRemap(reverse_mapping, &location_url);
-    new_loc_hdr = location_url.string_get_ref(&new_loc_length);
-    response_header->value_set(MIME_FIELD_LOCATION, MIME_LEN_LOCATION, new_loc_hdr, new_loc_length);
-  }
-
-  location_url.destroy();
   return remap_found;
 }
 
@@ -977,7 +987,7 @@ UrlRewrite::Remap_redirect(HTTPHdr *request_header, URL *redirect_url)
     redirect_url->copy(request_url);
 
     // Perform the actual URL rewrite
-    _doRemap(redirect_mapping, redirect_url);
+    url_rewrite_remap_request(redirect_mapping, redirect_url);
 
     return mappingType;
   }
@@ -1101,7 +1111,7 @@ UrlRewrite::BuildTable()
 
   Debug("url_rewrite", "[BuildTable] UrlRewrite::BuildTable()");
 
-  for (cur_line = tokLine(file_buf, &tok_state); cur_line != NULL;) {
+  for (cur_line = tokLine(file_buf, &tok_state, '\\'); cur_line != NULL;) {
     errStrBuf[0] = 0;
     clear_xstr_array(bti.paramv, sizeof(bti.paramv) / sizeof(char *));
     clear_xstr_array(bti.argv, sizeof(bti.argv) / sizeof(char *));
@@ -1112,7 +1122,7 @@ UrlRewrite::BuildTable()
       ++cur_line;
 
     if ((cur_line_size = strlen((char *) cur_line)) <= 0) {
-      cur_line = tokLine(NULL, &tok_state);
+      cur_line = tokLine(NULL, &tok_state, '\\');
       ++cln;
       continue;
     }
@@ -1125,7 +1135,7 @@ UrlRewrite::BuildTable()
     }
 
     if ((cur_line_size = strlen((char *) cur_line)) <= 0 || *cur_line == '#' || *cur_line == '\0') {
-      cur_line = tokLine(NULL, &tok_state);
+      cur_line = tokLine(NULL, &tok_state, '\\');
       ++cln;
       continue;
     }
@@ -1161,7 +1171,7 @@ UrlRewrite::BuildTable()
         goto MAP_ERROR;
       }
       // We skip the rest of the parsing here.
-      cur_line = tokLine(NULL, &tok_state);
+      cur_line = tokLine(NULL, &tok_state, '\\');
       ++cln;
       continue;
     }
@@ -1473,7 +1483,7 @@ UrlRewrite::BuildTable()
 
     fromHost_lower_ptr = (char *)ats_free_null(fromHost_lower_ptr);
 
-    cur_line = tokLine(NULL, &tok_state);
+    cur_line = tokLine(NULL, &tok_state, '\\');
     ++cln;
     continue;
 

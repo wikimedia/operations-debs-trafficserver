@@ -128,6 +128,261 @@ struct EvacuationBlock
   LINK(EvacuationBlock, link);
 };
 
+#if TS_USE_INTERIM_CACHE == 1
+#define MIGRATE_BUCKETS                 1021
+extern int migrate_threshold;
+extern int good_interim_disks;
+
+union AccessEntry {
+  uintptr_t v[2];
+  struct {
+    uint32_t  next;
+    uint32_t  prev;
+    uint32_t  index;
+    uint16_t  tag;
+    int16_t  count;
+  } item;
+};
+
+struct AccessHistory {
+  AccessEntry *base;
+  int size; // 1M
+
+  uint32_t *hash;
+  int hash_size; // 2097143
+
+  AccessEntry *freelist;
+
+  void freeEntry(AccessEntry *entry) {
+    entry->v[0] = (uintptr_t) freelist;
+    entry->v[1] = 0xABCD1234U;
+    freelist = entry;
+  }
+
+  void init(int size, int hash_size) {
+    this->size = size;
+    this->hash_size = hash_size;
+    freelist = NULL;
+
+    base = (AccessEntry *) malloc(sizeof(AccessEntry) * size);
+    hash = (uint32_t *) malloc (sizeof(uint32_t) * hash_size);
+
+    memset(hash, 0, sizeof(uint32_t) * hash_size);
+
+    base[0].item.next = base[0].item.prev = 0;
+    base[0].v[1] = 0xABCD1234UL;
+    for (int i = size; --i > 0;)
+     freeEntry(&base[i]);
+
+    return;
+  }
+
+  void remove(AccessEntry *entry) {
+    if (entry == &(base[base[0].item.prev])) { // head
+      base[0].item.prev = entry->item.next;
+    } else {
+      base[entry->item.prev].item.next = entry->item.next;
+    }
+    if (entry == &(base[base[0].item.next])) { // tail
+      base[0].item.next = entry->item.prev;
+    } else {
+      base[entry->item.next].item.prev = entry->item.prev;
+    }
+    uint32_t hash_index = (uint32_t) (entry->item.index % hash_size);
+    hash[hash_index] = 0;
+  }
+
+  void enqueue(AccessEntry *entry) {
+    uint32_t hash_index = (uint32_t) (entry->item.index % hash_size);
+    hash[hash_index] = entry - base;
+
+    entry->item.prev = 0;
+    entry->item.next = base[0].item.prev;
+    base[base[0].item.prev].item.prev = entry - base;
+    base[0].item.prev = entry - base;
+    if (base[0].item.next == 0)
+      base[0].item.next = entry - base;
+  }
+
+  AccessEntry* dequeue() {
+    AccessEntry *tail = &base[base[0].item.next];
+    if (tail != base)
+      remove(tail);
+
+    return tail;
+  }
+
+  void set_in_progress(INK_MD5 *key) {
+    uint32_t key_index = key->word(3);
+    uint16_t tag = (uint16_t) key->word(1);
+    unsigned int hash_index = (uint32_t) (key_index % hash_size);
+
+    uint32_t index = hash[hash_index];
+    AccessEntry *entry = &base[index];
+    if (index != 0 && entry->item.tag == tag && entry->item.index == key_index) {
+      entry->item.count |= 0x8000;
+    }
+  }
+
+  void set_not_in_progress(INK_MD5 *key) {
+    uint32_t key_index = key->word(3);
+    uint16_t tag = (uint16_t) key->word(1);
+    unsigned int hash_index = (uint32_t) (key_index % hash_size);
+
+    uint32_t index = hash[hash_index];
+    AccessEntry *entry = &base[index];
+    if (index != 0 && entry->item.tag == tag && entry->item.index == key_index) {
+      entry->item.count &= 0x7FFF;
+    }
+  }
+
+  void put_key(INK_MD5 *key) {
+    uint32_t key_index = key->word(3);
+    uint16_t tag = (uint16_t) key->word(1);
+    unsigned int hash_index = (uint32_t) (key_index % hash_size);
+
+    uint32_t index = hash[hash_index];
+    AccessEntry *entry = &base[index];
+    if (index != 0 && entry->item.tag == tag && entry->item.index == key_index) { // seen before
+      remove(entry);
+      enqueue(entry);
+      ++entry->item.count;
+    } else {
+      if (index == 0) { // not seen before
+        if (!freelist) {
+          entry = dequeue();
+          if (entry == base) {
+            return;
+          }
+        } else {
+          entry = freelist;
+          freelist = (AccessEntry *) entry->v[0];
+        }
+      } else { // collation
+        remove(entry);
+      }
+      entry->item.index = key_index;
+      entry->item.tag = tag;
+      entry->item.count = 1;
+      enqueue(entry);
+    }
+  }
+
+  bool remove_key(INK_MD5 *key) {
+    unsigned int hash_index = (uint32_t) (key->word(3) % hash_size);
+    uint32_t index = hash[hash_index];
+    AccessEntry *entry = &base[index];
+    if (index != 0 && entry->item.tag == (uint16_t)key->word(1) && entry->item.index == key->word(3)) {
+      remove(entry);
+      freeEntry(entry);
+      return true;
+    }
+    return false;
+  }
+
+  bool is_hot(INK_MD5 *key) {
+    uint32_t key_index = key->word(3);
+    uint16_t tag = (uint16_t) key->word(1);
+    unsigned int hash_index = (uint32_t) (key_index % hash_size);
+
+    uint32_t index = hash[hash_index];
+    AccessEntry *entry = &base[index];
+
+    return (index != 0 && entry->item.tag == tag && entry->item.index == key_index
+        && entry->item.count >= migrate_threshold);
+  }
+};
+
+struct InterimCacheVol;
+
+struct MigrateToInterimCache
+{
+  MigrateToInterimCache() { }
+  Ptr<IOBufferData> buf;
+  uint32_t agg_len;
+  CacheKey  key;
+  Dir dir;
+  InterimCacheVol *interim_vol;
+  CacheVC *vc;
+  bool notMigrate;
+  bool rewrite;
+  bool copy;
+  LINK(MigrateToInterimCache, link);
+  LINK(MigrateToInterimCache, hash_link);
+};
+
+struct InterimCacheVol: public Continuation
+{
+  VolHeaderFooter hh;
+  VolHeaderFooter *header;
+  off_t scan_pos;
+  off_t skip; // start of headers
+  off_t start; // start of data
+  off_t len;
+  off_t data_blocks;
+  char *agg_buffer;
+  int agg_todo_size;
+  int agg_buf_pos;
+  uint32_t sector_size;
+  int fd;
+  CacheDisk *disk;
+  Vol *vol; // backpointer to vol
+  AIOCallbackInternal io;
+  Queue<MigrateToInterimCache, MigrateToInterimCache::Link_link> agg;
+  int64_t transistor_range_threshold;
+  bool sync;
+  bool is_io_in_progress() {
+    return io.aiocb.aio_fildes != AIO_NOT_IN_PROGRESS;
+  }
+
+  void set_io_not_in_progress() {
+    io.aiocb.aio_fildes = AIO_NOT_IN_PROGRESS;
+  }
+
+  int aggWrite(int event, void *e);
+  int aggWriteDone(int event, void *e);
+  uint32_t round_to_approx_size (uint32_t l) {
+    uint32_t ll = round_to_approx_dir_size(l);
+    return INK_ALIGN(ll, disk->hw_sector_size);
+  }
+
+  void init(off_t s, off_t l, CacheDisk *interim, Vol *v) {
+    skip = start = s;
+    len = l;
+    disk = interim;
+    fd = disk->fd;
+    vol = v;
+    transistor_range_threshold = len / 5; // 20% storage size for transistor
+    sync = false;
+
+    header = &hh;
+    header->magic = VOL_MAGIC;
+    header->version.ink_major = CACHE_DB_MAJOR_VERSION;
+    header->version.ink_minor = CACHE_DB_MINOR_VERSION;
+    header->agg_pos = header->write_pos = start;
+    header->last_write_pos = header->write_pos;
+    header->phase = 0;
+    header->cycle = 0;
+    header->create_time = time(NULL);
+    header->dirty = 0;
+    sector_size = header->sector_size = disk->hw_sector_size;
+
+    agg_todo_size = 0;
+    agg_buf_pos = 0;
+
+    agg_buffer = (char *) ats_memalign(sysconf(_SC_PAGESIZE), AGG_SIZE);
+    memset(agg_buffer, 0, AGG_SIZE);
+    this->mutex = ((Continuation *)vol)->mutex;
+  }
+};
+
+
+void dir_clean_bucket(Dir *b, int s, InterimCacheVol *d);
+void dir_clean_segment(int s, InterimCacheVol *d);
+void clean_interimvol(InterimCacheVol *d);
+
+#endif
+
 struct Vol: public Continuation
 {
   char *path;
@@ -184,6 +439,42 @@ struct Vol: public Continuation
   int64_t first_fragment_offset;
   Ptr<IOBufferData> first_fragment_data;
 
+#if TS_USE_INTERIM_CACHE == 1
+  int num_interim_vols;
+  InterimCacheVol interim_vols[8];
+  AccessHistory history;
+  uint32_t interim_index;
+  Queue<MigrateToInterimCache, MigrateToInterimCache::Link_hash_link> mig_hash[MIGRATE_BUCKETS];
+
+
+  bool migrate_probe(CacheKey *key, MigrateToInterimCache **result) {
+    uint32_t indx = key->word(3) % MIGRATE_BUCKETS;
+    MigrateToInterimCache *m = mig_hash[indx].head;
+    while (m != NULL && !(m->key == *key)) {
+      m = mig_hash[indx].next(m);
+    }
+    if (result != NULL)
+      *result = m;
+    return m != NULL;
+  }
+
+  void set_migrate_in_progress(MigrateToInterimCache *m) {
+    uint32_t indx = m->key.word(3) % MIGRATE_BUCKETS;
+    mig_hash[indx].enqueue(m);
+  }
+
+  void set_migrate_failed(MigrateToInterimCache *m) {
+    uint32_t indx = m->key.word(3) % MIGRATE_BUCKETS;
+    mig_hash[indx].remove(m);
+  }
+
+  void set_migrate_done(MigrateToInterimCache *m) {
+    uint32_t indx = m->key.word(3) % MIGRATE_BUCKETS;
+    mig_hash[indx].remove(m);
+    history.remove_key(&m->key);
+  }
+#endif
+
   void cancel_trigger();
 
   int open_write(CacheVC *cont, int allow_if_writers, int max_writers);
@@ -221,7 +512,7 @@ struct Vol: public Continuation
   int increment_generation()
   {
     // this is stored in the offset field of the directory (!=0)
-    ink_debug_assert(mutex->thread_holding == this_ethread());
+    ink_assert(mutex->thread_holding == this_ethread());
     header->generation++;
     if (!header->generation)
       header->generation++;
@@ -256,7 +547,7 @@ struct Vol: public Continuation
       evacuate_size(0), disk(NULL), last_sync_serial(0), last_write_serial(0), recover_wrapped(false),
       dir_sync_waiting(0), dir_sync_in_progress(0), writing_end_marker(0) {
     open_dir.mutex = mutex;
-    agg_buffer = (char *)ats_memalign(sysconf(_SC_PAGESIZE), AGG_SIZE);
+    agg_buffer = (char *)ats_memalign(ats_pagesize(), AGG_SIZE);
     memset(agg_buffer, 0, AGG_SIZE);
     SET_HANDLER(&Vol::aggWrite);
   }
@@ -292,11 +583,6 @@ struct CacheVol
   { }
 };
 
-// element of the fragment table in the head of a multi-fragment document
-struct Frag {
-  uint64_t offset; // start offset of data stored in this fragment
-};
-
 // Note : hdr() needs to be 8 byte aligned.
 // If you change this, change sizeofDoc above
 struct Doc
@@ -308,7 +594,7 @@ struct Doc
   INK_MD5 key;
   uint32_t hlen;          // header length
   uint32_t ftype:8;       // fragment type CACHE_FRAG_TYPE_XX
-  uint32_t flen:24;       // fragment table length
+  uint32_t _flen:24;       // fragment table length [amc] NOT USED
   uint32_t sync_serial;
   uint32_t write_serial;
   uint32_t pinned;        // pinned until
@@ -318,9 +604,7 @@ struct Doc
   uint32_t prefix_len();
   int single_fragment();
   int no_data_in_fragment();
-  uint32_t nfrags();
   char *hdr();
-  Frag *frags();
   char *data();
 };
 
@@ -354,6 +638,43 @@ vol_direntries(Vol *d)
   return d->buckets * DIR_DEPTH * d->segments;
 }
 
+#if TS_USE_INTERIM_CACHE == 1
+#define vol_out_of_phase_valid(d, e)            \
+    (dir_offset(e) - 1 >= ((d->header->agg_pos - d->start) / CACHE_BLOCK_SIZE))
+
+#define vol_out_of_phase_agg_valid(d, e)        \
+    (dir_offset(e) - 1 >= ((d->header->agg_pos - d->start + AGG_SIZE) / CACHE_BLOCK_SIZE))
+
+#define vol_out_of_phase_write_valid(d, e)      \
+    (dir_offset(e) - 1 >= ((d->header->agg_pos - d->start + AGG_SIZE) / CACHE_BLOCK_SIZE))
+
+#define vol_in_phase_valid(d, e)                \
+    (dir_offset(e) - 1 < ((d->header->write_pos + d->agg_buf_pos - d->start) / CACHE_BLOCK_SIZE))
+
+#define vol_offset_to_offset(d, pos)            \
+    (d->start + pos * CACHE_BLOCK_SIZE - CACHE_BLOCK_SIZE)
+
+#define vol_dir_segment(d, s)                   \
+    (Dir *) (((char *) d->dir) + (s * d->buckets) * DIR_DEPTH * SIZEOF_DIR)
+
+#define offset_to_vol_offset(d, pos)            \
+    ((pos - d->start + CACHE_BLOCK_SIZE) / CACHE_BLOCK_SIZE)
+
+#define vol_offset(d, e)                        \
+    ((d)->start + (off_t) ((off_t)dir_offset(e) * CACHE_BLOCK_SIZE) - CACHE_BLOCK_SIZE)
+
+#define vol_in_phase_agg_buf_valid(d, e)        \
+    ((vol_offset(d, e) >= d->header->write_pos) && vol_offset(d, e) < (d->header->write_pos + d->agg_buf_pos))
+
+#define vol_transistor_range_valid(d, e)    \
+  ((d->header->agg_pos + d->transistor_range_threshold < d->start + d->len) ? \
+      (vol_out_of_phase_write_valid(d, e) && \
+      (dir_offset(e) <= ((d->header->agg_pos - d->start + d->transistor_range_threshold) / CACHE_BLOCK_SIZE))) : \
+      ((dir_offset(e) <= ((d->header->agg_pos - d->start + d->transistor_range_threshold - d->len) / CACHE_BLOCK_SIZE)) || \
+          (dir_offset(e) > ((d->header->agg_pos - d->start) / CACHE_BLOCK_SIZE))))
+
+
+#else
 TS_INLINE int
 vol_out_of_phase_valid(Vol *d, Dir *e)
 {
@@ -407,7 +728,7 @@ vol_in_phase_agg_buf_valid(Vol *d, Dir *e)
 {
   return (vol_offset(d, e) >= d->header->write_pos && vol_offset(d, e) < (d->header->write_pos + d->agg_buf_pos));
 }
-
+#endif
 // length of the partition not including the offset of location 0.
 TS_INLINE off_t
 vol_relative_length(Vol *v, off_t start_offset)
@@ -418,42 +739,31 @@ vol_relative_length(Vol *v, off_t start_offset)
 TS_INLINE uint32_t
 Doc::prefix_len()
 {
-  return sizeofDoc + hlen + flen;
+  return sizeofDoc + hlen + _flen;
 }
 
 TS_INLINE uint32_t
 Doc::data_len()
 {
-  return len - sizeofDoc - hlen - flen;
+  return len - sizeofDoc - hlen - _flen;
 }
 
 TS_INLINE int
 Doc::single_fragment()
 {
-  return (total_len && (data_len() == total_len));
-}
-
-TS_INLINE uint32_t
-Doc::nfrags() {
-  return flen / sizeof(Frag);
-}
-
-TS_INLINE Frag *
-Doc::frags()
-{
-  return (Frag*)(((char *) this) + sizeofDoc);
+  return (data_len() == total_len);
 }
 
 TS_INLINE char *
 Doc::hdr()
 {
-  return ((char *) this) + sizeofDoc + flen;
+  return ((char *) this) + sizeofDoc + _flen;
 }
 
 TS_INLINE char *
 Doc::data()
 {
-  return ((char *) this) + sizeofDoc + flen + hlen;
+  return ((char *) this) + sizeofDoc + _flen + hlen;
 }
 
 int vol_dir_clear(Vol *d);
@@ -527,4 +837,71 @@ Vol::round_to_approx_size(uint32_t l) {
   return ROUND_TO_SECTOR(this, ll);
 }
 
+#if TS_USE_INTERIM_CACHE == 1
+inline bool
+dir_valid(Vol *_d, Dir *_e) {
+  if (!dir_ininterim(_e))
+    return _d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) :
+        vol_out_of_phase_valid(_d, _e);
+  else {
+    int idx = dir_get_index(_e);
+    if (good_interim_disks <= 0 || idx >= _d->num_interim_vols) return false;
+    InterimCacheVol *sv = &(_d->interim_vols[idx]);
+    return !DISK_BAD(sv->disk) ? (sv->header->phase == dir_phase(_e) ? vol_in_phase_valid(sv, _e) :
+        vol_out_of_phase_valid(sv, _e)) : false;
+  }
+}
+
+inline bool
+dir_valid(InterimCacheVol *_d, Dir *_e) {
+  if (!dir_ininterim(_e))
+    return true;
+  InterimCacheVol *sv = &(_d->vol->interim_vols[dir_get_index(_e)]);
+  if (_d != sv)
+    return true;
+  return !DISK_BAD(sv->disk) ? (sv->header->phase == dir_phase(_e) ? vol_in_phase_valid(sv, _e) :
+      vol_out_of_phase_valid(sv, _e)) : false;
+
+}
+
+inline bool
+dir_agg_valid(Vol *_d, Dir *_e) {
+  if (!dir_ininterim(_e))
+    return _d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) :
+        vol_out_of_phase_agg_valid(_d, _e);
+  else {
+    int idx = dir_get_index(_e);
+    if(good_interim_disks <= 0 || idx >= _d->num_interim_vols) return false;
+    InterimCacheVol *sv = &(_d->interim_vols[idx]);
+    return sv->header->phase == dir_phase(_e) ? vol_in_phase_valid(sv, _e) :
+        vol_out_of_phase_agg_valid(sv, _e);
+  }
+}
+inline bool
+dir_write_valid(Vol *_d, Dir *_e) {
+  if (!dir_ininterim(_e))
+    return _d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) :
+        vol_out_of_phase_write_valid(_d, _e);
+  else {
+    InterimCacheVol *sv = &(_d->interim_vols[dir_get_index(_e)]);
+    return sv->header->phase == dir_phase(_e) ? vol_in_phase_valid(sv, _e) :
+        vol_out_of_phase_write_valid(sv, _e);
+  }
+}
+inline bool
+dir_agg_buf_valid(Vol *_d, Dir *_e) {
+  if (!dir_ininterim(_e))
+    return _d->header->phase == dir_phase(_e) && vol_in_phase_agg_buf_valid(_d, _e);
+  else {
+    InterimCacheVol *sv = &(_d->interim_vols[dir_get_index(_e)]);
+    return sv->header->phase == dir_phase(_e) && vol_in_phase_agg_buf_valid(sv, _e);
+  }
+}
+
+inline bool
+dir_agg_buf_valid(InterimCacheVol *_d, Dir *_e) {
+  return _d->header->phase == dir_phase(_e) && vol_in_phase_agg_buf_valid(_d, _e);
+}
+
+#endif // TS_USE_INTERIM_CACHE
 #endif /* _P_CACHE_VOL_H__ */

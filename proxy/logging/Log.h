@@ -264,7 +264,7 @@
   @verbatim
   int Log::access (LogAccess *entry);
 
-  The return value is Log::OK if all log objects succesfully logged the
+  The return value is Log::OK if all log objects successfully logged the
   entry. Otherwise, it has the following bits set to indicate what happened
 
   ret_val & Log::SKIP      - at least one object filtered the entry
@@ -353,7 +353,6 @@ public:
   // main interface
   static void init(int configFlags = 0);
   static void init_fields();
-#ifndef INK_NO_LOG
   inkcoreapi static bool transaction_logging_enabled()
   {
     return (logging_mode == FULL_LOGGING || logging_mode == LOG_TRANSACTIONS_ONLY);
@@ -366,12 +365,6 @@ public:
 
   inkcoreapi static int access(LogAccess * lad);
   inkcoreapi static int error(const char *format, ...);
-#else
-  static int error(char *format, ...)
-  {
-    return LOG_OK;
-  }
-#endif
   inkcoreapi static int va_error(char *format, va_list ap);
 
   // public data members

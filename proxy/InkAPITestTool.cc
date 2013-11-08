@@ -31,9 +31,6 @@
 #define SDBG_TAG "SockServer"
 #define CDBG_TAG "SockClient"
 
-#ifndef MIN
-#define MIN(_x, _y) ((_x < _y) ? _x : _y)
-#endif
 #define IP(a,b,c,d) htonl((a) << 24 | (b) << 16 | (c) << 8 | (d))
 
 #define SET_TEST_HANDLER(_d, _s) {_d = _s;}
@@ -540,7 +537,7 @@ synclient_txn_read_response(TSCont contp)
       memcpy((char *) (txn->response + txn->response_len), blockptr, blocklen);
       txn->response_len += blocklen;
     } else {
-      TSError("Error: Response length %"PRId64" > response buffer size %d", txn->response_len+blocklen, RESPONSE_MAX_SIZE);
+      TSError("Error: Response length %" PRId64" > response buffer size %d", txn->response_len+blocklen, RESPONSE_MAX_SIZE);
     }
 
     block = TSIOBufferBlockNext(block);
@@ -553,9 +550,8 @@ synclient_txn_read_response(TSCont contp)
 }
 
 static int
-synclient_txn_read_response_handler(TSCont contp, TSEvent event, void *data)
+synclient_txn_read_response_handler(TSCont contp, TSEvent event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ClientTxn *txn = (ClientTxn *) TSContDataGet(contp);
   TSAssert(txn->magic == MAGIC_ALIVE);
 
@@ -571,7 +567,7 @@ synclient_txn_read_response_handler(TSCont contp, TSEvent event, void *data)
     }
 
     avail = TSIOBufferReaderAvail(txn->resp_reader);
-    TSDebug(CDBG_TAG, "%"PRId64" bytes available in buffer", avail);
+    TSDebug(CDBG_TAG, "%" PRId64" bytes available in buffer", avail);
 
     if (avail > 0) {
       synclient_txn_read_response(contp);
@@ -627,16 +623,15 @@ synclient_txn_write_request(TSCont contp)
   }
 
   /* Start writing the response */
-  TSDebug(CDBG_TAG, "Writing |%s| (%"PRId64") bytes", txn->request, len);
+  TSDebug(CDBG_TAG, "Writing |%s| (%" PRId64") bytes", txn->request, len);
   txn->write_vio = TSVConnWrite(txn->vconn, contp, txn->req_reader, len);
 
   return 1;
 }
 
 static int
-synclient_txn_write_request_handler(TSCont contp, TSEvent event, void *data)
+synclient_txn_write_request_handler(TSCont contp, TSEvent event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ClientTxn *txn = (ClientTxn *) TSContDataGet(contp);
   TSAssert(txn->magic == MAGIC_ALIVE);
 
@@ -881,7 +876,7 @@ synserver_txn_write_response(TSCont contp)
   }
 
   /* Start writing the response */
-  TSDebug(SDBG_TAG, "Writing response: |%s| (%"PRId64") bytes)", response, len);
+  TSDebug(SDBG_TAG, "Writing response: |%s| (%" PRId64") bytes)", response, len);
   txn->write_vio = TSVConnWrite(txn->vconn, contp, txn->resp_reader, len);
 
   /* Now that response is in IOBuffer, free up response */
@@ -892,9 +887,8 @@ synserver_txn_write_response(TSCont contp)
 
 
 static int
-synserver_txn_write_response_handler(TSCont contp, TSEvent event, void *data)
+synserver_txn_write_response_handler(TSCont contp, TSEvent event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ServerTxn *txn = (ServerTxn *) TSContDataGet(contp);
   TSAssert(txn->magic == MAGIC_ALIVE);
 
@@ -945,7 +939,7 @@ synserver_txn_read_request(TSCont contp)
       memcpy((char *) (txn->request + txn->request_len), blockptr, blocklen);
       txn->request_len += blocklen;
     } else {
-      TSError("Error: Request length %"PRId64" > request buffer size %d", txn->request_len+blocklen, REQUEST_MAX_SIZE);
+      TSError("Error: Request length %" PRId64" > request buffer size %d", txn->request_len+blocklen, REQUEST_MAX_SIZE);
     }
 
     block = TSIOBufferBlockNext(block);
@@ -961,9 +955,8 @@ synserver_txn_read_request(TSCont contp)
 }
 
 static int
-synserver_txn_read_request_handler(TSCont contp, TSEvent event, void *data)
+synserver_txn_read_request_handler(TSCont contp, TSEvent event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ServerTxn *txn = (ServerTxn *) TSContDataGet(contp);
   TSAssert(txn->magic == MAGIC_ALIVE);
 
@@ -975,7 +968,7 @@ synserver_txn_read_request_handler(TSCont contp, TSEvent event, void *data)
   case TS_EVENT_VCONN_READ_COMPLETE:
     TSDebug(SDBG_TAG, (event == TS_EVENT_VCONN_READ_READY) ? "READ_READY" : "READ_COMPLETE");
     avail = TSIOBufferReaderAvail(txn->req_reader);
-    TSDebug(SDBG_TAG, "%"PRId64" bytes available in buffer", avail);
+    TSDebug(SDBG_TAG, "%" PRId64" bytes available in buffer", avail);
 
     if (avail > 0) {
       end_of_request = synserver_txn_read_request(contp);

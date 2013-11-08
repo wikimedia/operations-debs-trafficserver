@@ -28,12 +28,9 @@
  *
  *
  ****************************************************************************/
-
-
 #include "ink_platform.h"
-#include "ink_port.h"
+#include "ink_defs.h"
 #include "ink_time.h"
-#include "ink_unused.h"        /* MAGIC_EDITING_TAG */
 
 #include "Main.h"
 #include "URL.h"
@@ -335,6 +332,7 @@ SchemeMod::make(char * value, char const ** error) {
   }
   return zret;
 }
+
 // ----------
 // This is a base class for all of the mods that have a
 // text string.
@@ -346,14 +344,24 @@ struct TextMod : public ControlBase::Modifier {
 
   // Calls name() which the subclass must provide.
   virtual void print(FILE* f) const;
+
+  // Copy the given NUL-terminated string to the text buffer.
+  void set(const char * value);
+
 };
-void TextMod::print(FILE* f) const {
-  fprintf(f, "%s=%*s  ", this->name(), static_cast<int>(text.size()), text.data());
-}
 
 TextMod::TextMod() : text(0) {}
 TextMod::~TextMod() {
   free(text.data());
+}
+
+void TextMod::print(FILE* f) const {
+  fprintf(f, "%s=%*s  ", this->name(), static_cast<int>(text.size()), text.data());
+}
+
+void TextMod::set(const char * value) {
+  free(this->text.data());
+  this->text.set(ats_strdup(value), strlen(value));
 }
 
 // ----------
@@ -378,8 +386,8 @@ bool MethodMod::check(HttpRequestData* req) const {
 }
 MethodMod*
 MethodMod::make(char * value, char const **) {
-  MethodMod* mod = new MethodMod;
-  mod->text.set(ats_strdup(value), strlen(value));
+  MethodMod* mod = new MethodMod();
+  mod->set(value);
   return mod;
 }
 
@@ -411,14 +419,15 @@ bool PrefixMod::check(HttpRequestData* req) const {
   return zret;
 }
 PrefixMod*
-PrefixMod::make(char * value, char const ** error ) {
-  PrefixMod* mod = new PrefixMod;
+PrefixMod::make(char * value, char const ** /* error ATS_UNUSED */) {
+  PrefixMod* mod = new PrefixMod();
   // strip leading slashes because get_path which is used later
   // doesn't include them from the URL.
   while ('/' == *value) ++value;
-  mod->text.set(ats_strdup(value), strlen(value));
+  mod->set(value);
   return mod;
 }
+
 // ----------
 struct SuffixMod : public TextMod {
   static char const * const NAME;
@@ -439,9 +448,9 @@ bool SuffixMod::check(HttpRequestData* req) const {
     ;
 }
 SuffixMod*
-SuffixMod::make(char * value, char const ** error ) {
-  SuffixMod* mod = new SuffixMod;
-  mod->text.set(ats_strdup(value), strlen(value));
+SuffixMod::make(char * value, char const ** /* error ATS_UNUSED */) {
+  SuffixMod* mod = new SuffixMod();
+  mod->set(value);
   return mod;
 }
 
@@ -461,11 +470,12 @@ bool TagMod::check(HttpRequestData* req) const {
   return 0 == strcmp(req->tag, text.data());
 }
 TagMod*
-TagMod::make(char * value, char const ** error ) {
-  TagMod* mod = new TagMod;
-  mod->text.set(ats_strdup(value), strlen(value));
+TagMod::make(char * value, char const ** /* error ATS_UNUSED */) {
+  TagMod* mod = new TagMod();
+  mod->set(value);
   return mod;
 }
+
 // ----------
 } // anon name space
 // ------------------------------------------------

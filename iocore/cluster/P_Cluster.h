@@ -24,11 +24,6 @@
 #ifndef _P_CLUSTER_H__
 #define _P_CLUSTER_H__
 
-#ifndef INLINE_CC
-#undef  TS_INLINE
-#define TS_INLINE inline
-#endif
-
 #include "libts.h"
 #include "P_EventSystem.h"
 #include "I_RecProcess.h"
@@ -75,7 +70,8 @@ enum
   CLUSTER_READ_BYTES_STAT,
   CLUSTER_WRITE_BYTES_STAT,
   CLUSTER_OP_DELAYED_FOR_LOCK_STAT,
-  CLUSTER_CONNECTIONS_LOCKED_STAT,
+  CLUSTER_CONNECTIONS_READ_LOCKED_STAT,
+  CLUSTER_CONNECTIONS_WRITE_LOCKED_STAT,
   CLUSTER_CONNECTIONS_BUMPED_STAT,
   CLUSTER_NODES_STAT,
   CLUSTER_NET_BACKUP_STAT,
@@ -122,6 +118,8 @@ enum
   CLUSTER_REMOTE_CONNECTION_TIME_STAT,
   CLUSTER_SETDATA_NO_CLUSTERVC_STAT,
   CLUSTER_SETDATA_NO_CLUSTER_STAT,
+  CLUSTER_VC_READ_LIST_LEN_STAT,
+  CLUSTER_VC_WRITE_LIST_LEN_STAT,
   cluster_stat_count
 };
 
@@ -131,7 +129,7 @@ extern RecRawStatBlock *cluster_rsb;
 #define CLUSTER_DECREMENT_DYN_STAT(x) \
 	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, -1);
 #define CLUSTER_SUM_DYN_STAT(x, y) \
-	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, (int) y);
+	RecIncrRawStat(cluster_rsb, mutex->thread_holding, (int) x, y);
 #define CLUSTER_SUM_GLOBAL_DYN_STAT(x, y) \
 	RecIncrGlobalRawStatSum(cluster_rsb,x,y)
 #define CLUSTER_CLEAR_DYN_STAT(x) \

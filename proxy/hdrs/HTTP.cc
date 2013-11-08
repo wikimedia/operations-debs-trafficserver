@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include "ink_port.h"
+#include "ink_defs.h"
 #include "libts.h"
 #include <assert.h>
 #include <stdio.h>
@@ -144,6 +144,8 @@ int HTTP_LEN_PUBLIC;
 int HTTP_LEN_S_MAXAGE;
 int HTTP_LEN_NEED_REVALIDATE_ONCE;
 
+Arena* const HTTPHdr::USE_HDR_HEAP_MAGIC = reinterpret_cast<Arena*>(1);
+
 /***********************************************************************
  *                                                                     *
  *                 U T I L I T Y    R O U T I N E S                    *
@@ -163,12 +165,9 @@ is_digit(char c)
  ***********************************************************************/
 
 void
-http_hdr_adjust(HTTPHdrImpl *hdrp, int32_t offset, int32_t length, int32_t delta)
+http_hdr_adjust(HTTPHdrImpl */* hdrp ATS_UNUSED */, int32_t /* offset ATS_UNUSED */, int32_t /* length ATS_UNUSED */,
+                int32_t /* delta ATS_UNUSED */)
 {
-  NOWARN_UNUSED(hdrp);
-  NOWARN_UNUSED(offset);
-  NOWARN_UNUSED(length);
-  NOWARN_UNUSED(delta);
   ink_release_assert(!"http_hdr_adjust not implemented");
 }
 
@@ -383,8 +382,8 @@ http_hdr_clone(HTTPHdrImpl *s_hh, HdrHeap *s_heap, HdrHeap *d_heap)
 static inline char *
 http_hdr_version_to_string(int32_t version, char *buf9)
 {
-  ink_debug_assert(HTTP_MAJOR(version) < 10);
-  ink_debug_assert(HTTP_MINOR(version) < 10);
+  ink_assert(HTTP_MAJOR(version) < 10);
+  ink_assert(HTTP_MINOR(version) < 10);
 
   buf9[0] = 'H';
   buf9[1] = 'T';
@@ -427,7 +426,7 @@ http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hdr, char *buf, int bufsize, int *buf
   char tmpbuf[32];
   char *p;
 
-  ink_debug_assert((hdr->m_polarity == HTTP_TYPE_REQUEST) || (hdr->m_polarity == HTTP_TYPE_RESPONSE));
+  ink_assert((hdr->m_polarity == HTTP_TYPE_REQUEST) || (hdr->m_polarity == HTTP_TYPE_RESPONSE));
 
   if (hdr->m_polarity == HTTP_TYPE_REQUEST) {
 
@@ -445,6 +444,9 @@ http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hdr, char *buf, int bufsize, int *buf
       if (hdr->u.req.m_url_impl) {
         TRY(url_print(hdr->u.req.m_url_impl, buf, bufsize, bufindex, dumpoffset));
         if (bufsize - *bufindex >= 1) {
+          if (hdr->u.req.m_method_wks_idx == HTTP_WKSIDX_CONNECT) {
+              *bufindex -= 1; // remove trailing slash for CONNECT request
+          }
           p = buf + *bufindex;
           *p++ = ' ';
           *bufindex += 1;
@@ -507,7 +509,7 @@ http_hdr_print(HdrHeap *heap, HTTPHdrImpl *hdr, char *buf, int bufsize, int *buf
         tmplen = 3;
       } else {
         tmplen = mime_format_int(p, hdrstat, (bufsize - (p - buf)));
-        ink_debug_assert(tmplen <= 6);
+        ink_assert(tmplen <= 6);
         p += tmplen;
       }
       *p++ = ' ';
@@ -664,7 +666,7 @@ http_hdr_method_get(HTTPHdrImpl *hh, int *length)
 {
   const char *str;
 
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
+  ink_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
 
   if (hh->u.req.m_method_wks_idx >= 0) {
     str = hdrtoken_index_to_wks(hh->u.req.m_method_wks_idx);
@@ -684,7 +686,7 @@ void
 http_hdr_method_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *method, int16_t method_wks_idx, int method_length,
                     bool must_copy)
 {
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
+  ink_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
 
   hh->u.req.m_method_wks_idx = method_wks_idx;
   mime_str_u16_set(heap, method, method_length, &(hh->u.req.m_ptr_method), &(hh->u.req.m_len_method), must_copy);
@@ -696,7 +698,7 @@ http_hdr_method_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *method, int16_t 
 void
 http_hdr_url_set(HdrHeap *heap, HTTPHdrImpl *hh, URLImpl *url)
 {
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
+  ink_assert(hh->m_polarity == HTTP_TYPE_REQUEST);
   if (hh->u.req.m_url_impl != url) {
     if (hh->u.req.m_url_impl != NULL) {
       heap->deallocate_obj(hh->u.req.m_url_impl);
@@ -712,7 +714,7 @@ http_hdr_url_set(HdrHeap *heap, HTTPHdrImpl *hh, URLImpl *url)
 void
 http_hdr_status_set(HTTPHdrImpl *hh, HTTPStatus status)
 {
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
+  ink_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
   hh->u.resp.m_status = status;
 }
 
@@ -722,7 +724,7 @@ http_hdr_status_set(HTTPHdrImpl *hh, HTTPStatus status)
 const char *
 http_hdr_reason_get(HTTPHdrImpl *hh, int *length)
 {
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
+  ink_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
   *length = hh->u.resp.m_len_reason;
   return (hh->u.resp.m_ptr_reason);
 }
@@ -733,7 +735,7 @@ http_hdr_reason_get(HTTPHdrImpl *hh, int *length)
 void
 http_hdr_reason_set(HdrHeap *heap, HTTPHdrImpl *hh, const char *value, int length, bool must_copy)
 {
-  ink_debug_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
+  ink_assert(hh->m_polarity == HTTP_TYPE_RESPONSE);
   mime_str_u16_set(heap, value, length, &(hh->u.resp.m_ptr_reason), &(hh->u.resp.m_len_reason), must_copy);
 }
 
@@ -915,13 +917,6 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
 
     must_copy_strings = (must_copy_strings || (!line_is_real));
 
-#if ENABLE_SAVE_ORIGINAL_REQUEST
-    mime_str_u16_set(heap, line_start, strlen(line_start),
-                     &(hh->u.req.m_url_impl->the_request),
-                     &(hh->u.req.m_url_impl->the_request_len),
-                     must_copy_strings);
-#endif
-
 #if (ENABLE_PARSER_FAST_PATHS)
     // first try fast path
     if (end - cur >= 16) {
@@ -941,7 +936,7 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
       int32_t version = HTTP_VERSION(end[-5] - '0', end[-3] - '0');
 
       http_hdr_method_set(heap, hh, &(cur[0]), hdrtoken_wks_to_index(HTTP_METHOD_GET), 3, must_copy_strings);
-      ink_debug_assert(hh->u.req.m_url_impl != NULL);
+      ink_assert(hh->u.req.m_url_impl != NULL);
       url = hh->u.req.m_url_impl;
       url_start = &(cur[4]);
       err =::url_parse(heap, url, &url_start, &(end[-11]), must_copy_strings);
@@ -1066,7 +1061,7 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
     if (!url_start || !url_end)
       return PARSE_ERROR;
 
-    ink_debug_assert(hh->u.req.m_url_impl != NULL);
+    ink_assert(hh->u.req.m_url_impl != NULL);
 
     url = hh->u.req.m_url_impl;
     err =::url_parse(heap, url, &url_start, url_end, must_copy_strings);
@@ -1514,43 +1509,97 @@ HTTPHdr::set_url_target_from_host_field(URL* url) {
 // need to either keep two versions of the URL (pristine
 // and effective) or URl would have to provide access to
 // the URL printer.
+
+/// Hack the URL in the HTTP header to be 1.0 compliant, saving the
+/// original values so they can be restored.
+class UrlPrintHack {
+  friend class HTTPHdr;
+  UrlPrintHack(HTTPHdr* hdr) {
+    hdr->_test_and_fill_target_cache();
+    if (hdr->m_url_cached.valid()) {
+      URLImpl* ui = hdr->m_url_cached.m_url_impl;
+      char port_buff[10];
+
+      // Save values that can be modified.
+      m_hdr = hdr; // mark as having saved values.
+      m_len_host = ui->m_len_host;
+      m_ptr_host = ui->m_ptr_host;
+      m_len_port = ui->m_len_port;
+      m_ptr_port = ui->m_ptr_port;
+
+      /* Get dirty. We reach in to the URL implementation to
+         set the host and port if
+         1) They are not already set and
+         2) The values were in a HTTP header field.
+      */
+      if (!hdr->m_target_in_url && hdr->m_host_length && hdr->m_host_mime) {
+        assert(0 == ui->m_ptr_host); // shouldn't be non-zero if not in URL.
+        ui->m_ptr_host = hdr->m_host_mime->m_ptr_value;
+        ui->m_len_host = hdr->m_host_length;
+      }
+
+      if (0 == hdr->m_url_cached.port_get_raw() && hdr->m_port_in_header) {
+        assert(0 == ui->m_ptr_port); // shouldn't be set if not in URL.
+        ui->m_ptr_port = port_buff;
+        ui->m_len_port = sprintf(port_buff, "%.5d", hdr->m_port);
+      }
+    } else {
+      m_hdr = 0;
+    }
+  }
+
+  /// Destructor.
+  /// If we have a valid header, write the original URL values back.
+  ~UrlPrintHack() {
+    if (m_hdr) {
+      URLImpl* ui = m_hdr->m_url_cached.m_url_impl;
+      ui->m_len_port = m_len_port;
+      ui->m_len_host = m_len_host;
+      ui->m_ptr_port = m_ptr_port;
+      ui->m_ptr_host = m_ptr_host;
+    }
+  }
+
+  /// Check if the hack worked
+  bool is_valid() const {
+    return 0 != m_hdr;
+  }
+   
+  /// Saved values.
+  ///@{
+  char const* m_ptr_host;
+  char const* m_ptr_port;
+  int m_len_host;
+  int m_len_port;
+  HTTPHdr* m_hdr;
+  ///@}
+};
+
 char*
 HTTPHdr::url_string_get(Arena* arena, int* length) {
-  char *zret = 0;
+  char* zret = 0;
+  UrlPrintHack hack(this);
 
-  if (length) *length = 0;
-  this->_test_and_fill_target_cache();
-  if (m_url_cached.valid()) {
-    URLImpl* ui = m_url_cached.m_url_impl;
-    bool should_reset_host = false;
-    bool should_reset_port = false;
-    char port_buff[10];
+  if (hack.is_valid()) {
+    // The use of a magic value for Arena to indicate the internal heap is
+    // even uglier but it's less so than duplicating this entire method to
+    // change that one thing.
 
-    /* Get dirty. We reach in to the URL implementation to
-       set the host and port if
-       1) They are not already set and
-       2) The values were in a HTTP header field.
-    */
+    zret = (arena == USE_HDR_HEAP_MAGIC)
+      ? m_url_cached.string_get_ref(length)
+      : m_url_cached.string_get(arena, length)
+      ;
+  }
+  return zret;
+}
 
-    if (!m_target_in_url && m_host_length && m_host_mime) {
-      assert(0 == ui->m_ptr_host); // shouldn't be non-zero if not in URL.
-      ui->m_ptr_host = m_host_mime->m_ptr_value;
-      ui->m_len_host = m_host_length;
-      should_reset_host = true;
-    }
-
-    if (0 == m_url_cached.port_get_raw() && m_port_in_header) {
-      assert(0 == ui->m_ptr_port); // shouldn't be set if not in URL.
-      ui->m_ptr_port = port_buff;
-      ui->m_len_port = sprintf(port_buff, "%.5d", m_port);
-      should_reset_port = true;
-    }
-
-    zret = m_url_cached.string_get(arena, length);
-    if (should_reset_host) { ui->m_ptr_host = 0; ui->m_len_host = 0; }
-    if (should_reset_port) { ui->m_ptr_port = 0; ui->m_len_port = 0; }
- }
-
+int
+HTTPHdr::url_print(char* buff, int length, int* offset, int* skip) {
+  int zret = 0;
+  UrlPrintHack hack(this);
+  if (hack.is_valid()) {
+    zret = m_url_cached.print(buff, length, offset, skip);
+  }
   return zret;
 }
 
@@ -1645,7 +1694,9 @@ HTTPCacheAlt::HTTPCacheAlt():
 m_magic(CACHE_ALT_MAGIC_ALIVE), m_writeable(1),
 m_unmarshal_len(-1),
 m_id(-1), m_rid(-1), m_request_hdr(),
-m_response_hdr(), m_request_sent_time(0), m_response_received_time(0), m_ext_buffer(NULL)
+m_response_hdr(), m_request_sent_time(0), m_response_received_time(0),
+m_frag_offset_count(0), m_frag_offsets(0),
+m_ext_buffer(NULL)
 {
 
   m_object_key[0] = 0;
@@ -1665,6 +1716,11 @@ HTTPCacheAlt::destroy()
   m_writeable = 0;
   m_request_hdr.destroy();
   m_response_hdr.destroy();
+  m_frag_offset_count = 0;
+  if (m_frag_offsets && m_frag_offsets != m_integral_frag_offsets) {
+    ats_free(m_frag_offsets);
+    m_frag_offsets = 0;
+  }
   httpCacheAltAllocator.free(this);
 }
 
@@ -1694,6 +1750,28 @@ HTTPCacheAlt::copy(HTTPCacheAlt *to_copy)
 
   m_request_sent_time = to_copy->m_request_sent_time;
   m_response_received_time = to_copy->m_response_received_time;
+  this->copy_frag_offsets_from(to_copy);
+}
+
+void
+HTTPCacheAlt::copy_frag_offsets_from(HTTPCacheAlt *src)
+{
+  m_frag_offset_count = src->m_frag_offset_count;
+  if (m_frag_offset_count > 0) {
+    if (m_frag_offset_count > N_INTEGRAL_FRAG_OFFSETS) {
+      /* Mixed feelings about this - technically we don't need it to be a
+         power of two when copied because currently that means it is frozen.
+         But that could change later and it would be a nasty bug to find.
+         So we'll do it for now. The relative overhead is tiny.
+      */
+      int bcount = HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS * 2;
+      while (bcount < m_frag_offset_count) bcount *= 2;
+      m_frag_offsets = static_cast<FragOffset*>(ats_malloc(sizeof(FragOffset) * bcount));
+    } else {
+      m_frag_offsets = m_integral_frag_offsets;
+    }
+    memcpy(m_frag_offsets, src->m_frag_offsets, sizeof(FragOffset) * m_frag_offset_count);
+  }
 }
 
 const int HTTP_ALT_MARSHAL_SIZE = ROUND(sizeof(HTTPCacheAlt), HDR_PTR_SIZE);
@@ -1716,6 +1794,12 @@ HTTPInfo::copy(HTTPInfo *hi)
   m_alt->copy(hi->m_alt);
 }
 
+void
+HTTPInfo::copy_frag_offsets_from(HTTPInfo* src) {
+  if (m_alt && src->m_alt)
+    m_alt->copy_frag_offsets_from(src->m_alt);
+}
+
 
 int
 HTTPInfo::marshal_length()
@@ -1730,6 +1814,11 @@ HTTPInfo::marshal_length()
     len += m_alt->m_response_hdr.m_heap->marshal_length();
   }
 
+  if (m_alt->m_frag_offset_count > HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS) {
+    len -= sizeof(m_alt->m_integral_frag_offsets);
+    len += sizeof(FragOffset) * m_alt->m_frag_offset_count;
+  }
+
   return len;
 }
 
@@ -1739,12 +1828,23 @@ HTTPInfo::marshal(char *buf, int len)
   int tmp;
   int used = 0;
   HTTPCacheAlt *marshal_alt = (HTTPCacheAlt *) buf;
+  // non-zero only if the offsets are external. Otherwise they get
+  // marshalled along with the alt struct.
+  int frag_len = (0 == m_alt->m_frag_offset_count || m_alt->m_frag_offsets == m_alt->m_integral_frag_offsets) ? 0 : sizeof(HTTPCacheAlt::FragOffset) * m_alt->m_frag_offset_count;
 
-  ink_debug_assert(m_alt->m_magic == CACHE_ALT_MAGIC_ALIVE);
+  ink_assert(m_alt->m_magic == CACHE_ALT_MAGIC_ALIVE);
 
   // Make sure the buffer is aligned
-//    ink_debug_assert(((intptr_t)buf) & 0x3 == 0);
+//    ink_assert(((intptr_t)buf) & 0x3 == 0);
 
+  // If we have external fragment offsets, copy the initial ones
+  // into the integral data.
+  if (frag_len) {
+    memcpy(m_alt->m_integral_frag_offsets, m_alt->m_frag_offsets, sizeof(m_alt->m_integral_frag_offsets));
+    frag_len -= sizeof(m_alt->m_integral_frag_offsets);
+    // frag_len should never be non-zero at this point, as the offsets
+    // should be external only if too big for the internal table.
+  }
   // Memcpy the whole object so that we can use it
   //   live later.  This involves copying a few
   //   extra bytes now but will save copying any
@@ -1757,6 +1857,15 @@ HTTPInfo::marshal(char *buf, int len)
   buf += HTTP_ALT_MARSHAL_SIZE;
   used += HTTP_ALT_MARSHAL_SIZE;
 
+  if (frag_len) {
+    marshal_alt->m_frag_offsets = static_cast<FragOffset*>(reinterpret_cast<void*>(used));
+    memcpy(buf, m_alt->m_frag_offsets + HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS, frag_len);
+    buf += frag_len;
+    used += frag_len;
+  } else {
+    marshal_alt->m_frag_offsets = 0;
+  }
+
   // The m_{request,response}_hdr->m_heap pointers are converted
   //    to zero based offsets from the start of the buffer we're
   //    marshalling in to
@@ -1768,7 +1877,6 @@ HTTPInfo::marshal(char *buf, int len)
     used += tmp;
   } else {
     marshal_alt->m_request_hdr.m_heap = NULL;
-
   }
 
   if (m_alt->m_response_hdr.valid()) {
@@ -1810,6 +1918,27 @@ HTTPInfo::unmarshal(char *buf, int len, RefCountObj *block_ref)
   alt->m_magic = CACHE_ALT_MAGIC_ALIVE;
   ink_assert(alt->m_writeable == 0);
   len -= HTTP_ALT_MARSHAL_SIZE;
+
+  if (alt->m_frag_offset_count > HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS) {
+    // stuff that didn't fit in the integral slots.
+    int extra = sizeof(FragOffset) * alt->m_frag_offset_count - sizeof(alt->m_integral_frag_offsets);
+    char* extra_src = buf + reinterpret_cast<intptr_t>(alt->m_frag_offsets);
+    // Actual buffer size, which must be a power of two.
+    // Well, technically not, because we never modify an unmarshalled fragment
+    // offset table, but it would be a nasty bug should that be done in the
+    // future.
+    int bcount = HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS * 2;
+
+    while (bcount < alt->m_frag_offset_count) bcount *= 2;
+    alt->m_frag_offsets = static_cast<FragOffset*>(ats_malloc(bcount * sizeof(FragOffset))); // WRONG - must round up to next power of 2.
+    memcpy(alt->m_frag_offsets, alt->m_integral_frag_offsets, sizeof(alt->m_integral_frag_offsets));
+    memcpy(alt->m_frag_offsets + HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS, extra_src, extra);
+    len -= extra;
+  } else if (alt->m_frag_offset_count > 0) {
+    alt->m_frag_offsets = alt->m_integral_frag_offsets;
+  } else {
+    alt->m_frag_offsets = 0; // should really already be zero.
+  }
 
   HdrHeap *heap = (HdrHeap *) (alt->m_request_hdr.m_heap ? (buf + (intptr_t) alt->m_request_hdr.m_heap) : 0);
   HTTPHdrImpl *hh = NULL;
@@ -1948,4 +2077,22 @@ HTTPInfo::get_handle(char *buf, int len)
 
   clear();
   return -1;
+}
+
+void
+HTTPInfo::push_frag_offset(FragOffset offset) {
+  ink_assert(m_alt);
+  if (0 == m_alt->m_frag_offsets) {
+    m_alt->m_frag_offsets = m_alt->m_integral_frag_offsets;
+  } else if (m_alt->m_frag_offset_count >= HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS && 0 == (m_alt->m_frag_offset_count & (m_alt->m_frag_offset_count-1))) {
+    // need more space than in integral storage and we're at an upgrade
+    // size (power of 2).
+    FragOffset* nf = static_cast<FragOffset*>(ats_malloc(sizeof(FragOffset) * (m_alt->m_frag_offset_count * 2)));
+    memcpy(nf, m_alt->m_frag_offsets, sizeof(FragOffset) * m_alt->m_frag_offset_count);
+    if (m_alt->m_frag_offsets != m_alt->m_integral_frag_offsets)
+      ats_free(m_alt->m_frag_offsets);
+    m_alt->m_frag_offsets = nf;
+  }
+
+  m_alt->m_frag_offsets[m_alt->m_frag_offset_count++] = offset;
 }

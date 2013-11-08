@@ -51,7 +51,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
+#include "ink_defs.h"
 
 static int init_buffer_status;
 
@@ -66,7 +68,7 @@ static TSMLoc field_loc;
 static TSMLoc value_loc;
 
 static void
-modify_header(TSHttpTxn txnp, TSCont contp)
+modify_header(TSHttpTxn txnp)
 {
   TSMBuffer resp_bufp;
   TSMBuffer cached_bufp;
@@ -213,15 +215,14 @@ modify_header(TSHttpTxn txnp, TSCont contp)
 
 
 static int
-modify_response_header_plugin(TSCont contp, TSEvent event, void *edata)
+modify_response_header_plugin(TSCont contp ATS_UNUSED, TSEvent event, void *edata)
 {
-
   TSHttpTxn txnp = (TSHttpTxn) edata;
 
   switch (event) {
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
     TSDebug("resphdr", "Called back with TS_EVENT_HTTP_READ_RESPONSE_HDR");
-    modify_header(txnp, contp);
+    modify_header(txnp);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     /*  fall through  */
 
@@ -229,32 +230,6 @@ modify_response_header_plugin(TSCont contp, TSEvent event, void *edata)
     break;
   }
   return 0;
-}
-
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-
-  }
-
-  return result;
 }
 
 void
@@ -270,11 +245,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("Plugin registration failed.\n");
-  }
-
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 3.0 or later\n");
-    return;
   }
 
   init_buffer_status = 0;

@@ -167,12 +167,12 @@ static int
 persistent_stat(int i)
 {
 #ifndef DEFAULT_PERSISTENT
-  for (int j = 0; j < (int) SIZE(persistent_stats); j++)
+  for (unsigned j = 0; j < countof(persistent_stats); j++)
     if (persistent_stats[j] == i)
       return 1;
   return 0;
 #else
-  for (int j = 0; j < (int) SIZE(non_persistent_stats); j++)
+  for (unsigned j = 0; j < countof(non_persistent_stats); j++)
     if (non_persistent_stats[j] == i)
       return 0;
   return 1;
@@ -334,9 +334,8 @@ Lerror:
 
 struct SnapStatsContinuation: public Continuation
 {
-  int mainEvent(int event, Event * e)
+  int mainEvent(int /* event ATS_UNUSED */, Event *e ATS_UNUSED)
   {
-    NOWARN_UNUSED(event);
     write_stats_snap();
     e->schedule_every(HRTIME_SECONDS(snap_stats_every));
     return EVENT_CONT;
@@ -362,7 +361,7 @@ take_rusage_snap()
       rusage_snap_time = ink_get_hrtime();
     break;
   }
-  Debug("rusage", "took rusage snap %"PRId64"", rusage_snap_time);
+  Debug("rusage", "took rusage snap %" PRId64"", rusage_snap_time);
 }
 
 struct SnapCont;
@@ -370,9 +369,8 @@ typedef int (SnapCont::*SnapContHandler) (int, void *);
 
 struct SnapCont: public Continuation
 {
-  int mainEvent(int event, Event * e)
+  int mainEvent(int /* event ATS_UNUSED */, Event * e)
   {
-    NOWARN_UNUSED(event);
     take_rusage_snap();
     e->schedule_every(SNAP_USAGE_PERIOD);
     return EVENT_CONT;
@@ -522,7 +520,7 @@ initialize_all_global_stats()
 
   // TODO: HMMMM, wtf does this do? The following is that this 
   // function does:
-  // ink_atomic_swap_ptr(&this->f_update_lock, (void *) func)
+  // ink_atomic_swap(&this->f_update_lock, (void *) func)
   //
   // pmgmt->record_data->registerUpdateLockFunc(tmp_stats_lock_function);
 
@@ -575,9 +573,8 @@ dyn_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
-  //*(ink_statval_t *)res = count;
-  ink_atomic_swap64((ink_statval_t *) res, count);
+  (void)sum;
+  ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
 
@@ -586,9 +583,8 @@ dyn_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  //*(ink_statval_t *)res = sum;
-  ink_atomic_swap64((ink_statval_t *) res, sum);
+  (void)count;
+  ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
 
@@ -610,7 +606,7 @@ dyn_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
+  (void)count;
   *(float *) res = *(double *) &sum;
   return res;
 }
@@ -700,9 +696,8 @@ http_trans_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
-  //*(ink_statval_t *)res = count;
-  ink_atomic_swap64((ink_statval_t *) res, count);
+  (void)sum;
+  ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
 
@@ -711,9 +706,8 @@ http_trans_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  //*(ink_statval_t *)res = sum;
-  ink_atomic_swap64((ink_statval_t *) res, sum);
+  (void)count;
+  ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
 
@@ -735,7 +729,7 @@ http_trans_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
+  (void)count;
   *(float *) res = *(double *) &sum;
   return res;
 }
@@ -799,27 +793,4 @@ http_trans_stats_time_useconds_cb(void *data, void *res)
   }
   *(float *) res = r;
   return res;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-//  TransactionMilestones::TransactionMilestones()
-//
-//////////////////////////////////////////////////////////////////////////////
-TransactionMilestones::TransactionMilestones()
-:
-ua_begin(0), ua_read_header_done(0), ua_begin_write(0), ua_close(0), server_first_connect(0), server_connect(0),
-  // server_connect_end(0),
-  // server_begin_write(0),
-  server_first_read(0), server_read_header_done(0), server_close(0), cache_open_read_begin(0), cache_open_read_end(0),
-  // cache_read_begin(0),
-  // cache_read_end(0),
-  // cache_open_write_begin(0),
-  // cache_open_write_end(0),
-  // cache_write_begin(0),
-  // cache_write_end(0),
-  dns_lookup_begin(0), dns_lookup_end(0), sm_start(0),  // init
-  sm_finish(0)                  // kill_this
-{
-  return;
 }

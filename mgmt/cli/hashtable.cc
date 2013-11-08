@@ -63,6 +63,7 @@
 #include "definitions.h"
 #include "createArgument.h"
 #include "ink_string.h"
+#include "ink_defs.h"
 
 
 extern Tcl_Interp *interp;
@@ -169,11 +170,10 @@ cliGetCommandArgsfromHashtable(char *name)
 
 
 static void
-DestroyOptionHashTable(ClientData clientData, Tcl_Interp * interp)
+DestroyOptionHashTable(ClientData clientData, Tcl_Interp * /* interp ATS_UNUSED */)
     /* The hash table we are destroying */
     /* The interpreter we are destroying */
 {
-  NOWARN_UNUSED(interp);
   Tcl_HashTable *hashTablePtr = (Tcl_HashTable *) clientData;
   Tcl_HashSearch search;
   Tcl_HashEntry *hashEntryPtr;

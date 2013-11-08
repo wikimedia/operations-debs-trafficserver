@@ -171,6 +171,9 @@ dnl is false if the code doesn't compile cleanly.  For compilers
 dnl where it is not known how to activate a "fail-on-error" mode,
 dnl it is undefined which of the sets of actions will be run.
 dnl
+dnl We actually always try to link the resulting program, since gcc has
+dnl a nasty habit of compiling code that cannot subsequently be linked.
+dnl
 AC_DEFUN([TS_TRY_COMPILE_NO_WARNING],
 [ats_save_CFLAGS=$CFLAGS
  CFLAGS="$CFLAGS $CFLAGS_WARN"
@@ -178,14 +181,7 @@ AC_DEFUN([TS_TRY_COMPILE_NO_WARNING],
    CFLAGS="$CFLAGS -Werror"
  fi
  CFLAGS=$(echo $CFLAGS | sed -e 's/^-w$//' -e 's/^-w //' -e 's/ -w$//' -e 's/ -w / /')
- AC_COMPILE_IFELSE([AC_LANG_SOURCE([
-  [#include "confdefs.h"
-  ]
-  [[$1]]
-  [int main(int argc, const char *const *argv) {]
-  [[$2]]
-  [   return 0; }]])],
-  [$3], [$4])
+ AC_LINK_IFELSE([AC_LANG_PROGRAM([$1], [$2])], [$3], [$4])
  CFLAGS=$ats_save_CFLAGS
 ])
 
@@ -517,7 +513,7 @@ done
 
 ])dnl
 
-dnl TS_FLAG_HEADERS(HEADER-FILE ... )
+dnl TS_FLAG_HEADERS(header-file, [action-if-found], [action-if-not-found], [includes])
 dnl
 AC_DEFUN([TS_FLAG_HEADERS], [
 AC_CHECK_HEADERS([$1], [$2], [$3], [$4])
@@ -529,21 +525,6 @@ do
        eval "$tsc_2=1"
     else
        eval "$tsc_2=0"
-    fi
-done
-])
-
-dnl TS_FLAG_FUNCS(FUNC ... )
-dnl
-AC_DEFUN([TS_FLAG_FUNCS], [
-AC_CHECK_FUNCS($1)
-for tsc_j in $1
-do
-    tsc_3="has_$tsc_j"
-    if eval "test \"`echo '$ac_cv_func_'$tsc_j`\" = yes"; then
-       eval "$tsc_3=1"
-    else
-       eval "$tsc_3=0"
     fi
 done
 ])
@@ -579,3 +560,26 @@ AC_DEFUN([TS_ARG_ENABLE_VAR],[
   )
 ])
 
+dnl
+dnl TS_SEARCH_LIBRARY(function, search-libs, [action-if-found], [action-if-not-found])
+dnl This macro works like AC_SEARCH_LIBS, except that $LIBS is not modified. If the library
+dnl is found, it is cached in the ts_cv_lib_${function} variable.
+dnl
+AC_DEFUN([TS_SEARCH_LIBRARY], [
+  __saved_LIBS="$LIBS"
+
+  AC_SEARCH_LIBS($1, $2, [
+    dnl action-if-found
+    case $ac_cv_search_$1 in
+    "none required"|"no") ts_cv_search_$1="" ;;
+    *) ts_cv_search_$1=$ac_cv_search_$1 ;;
+    esac
+    m4_default([$3], [true])
+  ], [
+    dnl action-if-not-found
+    m4_default([$4], [true])
+  ])
+
+  LIBS="$__saved_LIBS"
+  unset __saved_LIBS
+])
