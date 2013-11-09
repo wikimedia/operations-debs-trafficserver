@@ -1,6 +1,8 @@
 debian/tmp/var/log/*
 debian/tmp/var/cache/*
 debian/tmp/usr/bin/traffic_*
+debian/tmp/usr/bin/tspush
+debian/tmp/usr/bin/tstop
 debian/tmp/etc/trafficserver/*
 debian/tmp/usr/lib/trafficserver/libts*.so.*
 debian/tmp/usr/lib/trafficserver/libats*.so.*
