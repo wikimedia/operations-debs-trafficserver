@@ -6,7 +6,7 @@ Uploaders: Aron Xu <aron@debian.org>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
 	libcap-dev [linux-any], bison [linux-any], flex [linux-any],
-	dpkg-dev (>= 1.16.1~), libboost1.49-dev, libaio-dev,
+	dpkg-dev (>= 1.16.1~), libboost1.49-dev, libaio-dev, libncurses5-dev,
 	libgeoip-dev, liblua5.1-0-dev, libreadline6-dev, libcurl4-gnutls-dev
 Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
@@ -34,7 +34,7 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
 Package: trafficserver-plugins
 Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Pre-Depends: trafficserver
+Pre-Depends: trafficserver (= ${binary:Version})
 Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well.
