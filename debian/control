@@ -51,3 +51,11 @@ Description: Apache Traffic Server Software Developers Kit (SDK)
  This is a collection of development header and bindings for the C programming
  language, the tsxs linking helper and examples to write your own plug-ins for
  the Apache Traffic Server.
+
+Package: trafficserver-dbg
+Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
+Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
+Description: Debug symbols for Apache Traffic Server
+ Apache Traffic Server is a fast, scalable and extensible HTTP/1.1 compliant
+ caching proxy server which may operate as forward proxy as well.
+ This package  contains the debugging symbols for trafficserver.
