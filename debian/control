@@ -53,7 +53,9 @@ Description: Apache Traffic Server Software Developers Kit (SDK)
  the Apache Traffic Server.
 
 Package: trafficserver-dbg
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
+Architecture: any
+Section: debug
+Priority: extra
 Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
 Description: Debug symbols for Apache Traffic Server
  Apache Traffic Server is a fast, scalable and extensible HTTP/1.1 compliant
