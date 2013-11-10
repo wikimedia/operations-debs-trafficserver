@@ -1,8 +1,26 @@
+trafficserver (4.0.2-2~bbc72+1) stable; urgency=low
+
+  * Backport of TrafficServer 4.0.2 for Wheezy by BlaBlaCar
+  * Fix build & binaries dependencies
+  * Add debug package trafficserver-dbg
+  * Enable hardening compilation options
+  * Include tspush and tstop utilities into trafficserver package
+  * Add trafficserver-plugins packages for experimental plugins
+  * Enable Linux native AIO support
+
+ -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Sun, 10 Nov 2013 14:38:42 +0100
+
+trafficserver (4.0.2-1) stable; urgency=low
+
+  * Imported Upstream version 4.0.2
+
+ -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Fri, 08 Nov 2013 15:21:32 +0100
+
 trafficserver (3.2.5-2~bbc72+1) stable; urgency=low
 
   * Backport for Wheezy
 
- -- Jean Baptiste Favre <jbfavre@jbfavre.short>  Fri, 18 Oct 2013 15:51:15 +0200
+ -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Fri, 18 Oct 2013 15:51:15 +0200
 
 trafficserver (3.2.5-1) unstable; urgency=low
 
