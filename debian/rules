@@ -18,7 +18,7 @@ configure_flags = \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-reclaimable-freelist \
-	--enable-interim-cache --enable-linux-native-aio \
+	--enable-interim-cache \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
