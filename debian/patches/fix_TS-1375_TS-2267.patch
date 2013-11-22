@@ -1,0 +1,30 @@
+Description: Fix net connection throttling
+ Fix for issues #2267 & #1375. Add default timeout to any connection lacking it.
+Author: Bryan Call
+Origin: other, https://issues.apache.org/jira/browse/TS-1375
+Bug: https://issues.apache.org/jira/browse/TS-1375
+Reviewed-by: Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>
+Last-Update: 2013-11-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/iocore/net/UnixNet.cc
++++ b/iocore/net/UnixNet.cc
+@@ -62,7 +62,17 @@ struct InactivityCop : public Continuati
+       if (vc->closed) {
+         close_UnixNetVConnection(vc, e->ethread);
+         continue;
+-      } 
++      }
++
++      // set a default inactivity timeout if one is not set
++      if (vc->next_inactivity_timeout_at == 0) {
++        Debug("inactivity_cop", "vc: %p inactivity timeout not set, setting a default of 5 minutes", vc);
++        vc->set_inactivity_timeout(HRTIME_SECONDS(300));
++      } else {
++        Debug("inactivity_cop_verbose", "vc: %p timeout at: %ld timeout in: %ld", vc, ink_hrtime_to_sec(vc->next_inactivity_timeout_at),
++              ink_hrtime_to_sec(vc->inactivity_timeout_in));
++      }
++
+       if (vc->next_inactivity_timeout_at && vc->next_inactivity_timeout_at < now)
+         vc->handleEvent(EVENT_IMMEDIATE, e);
+     }
