@@ -1,3 +1,9 @@
+trafficserver (4.0.2-3~bbc72+1) stable; urgency=low
+
+  * Add fix for #1375 & #2267
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Fri, 22 Nov 2013 11:05:43 +0100
+
 trafficserver (4.0.2-2~bbc72+1) stable; urgency=low
 
   * Backport of TrafficServer 4.0.2 for Wheezy by BlaBlaCar
