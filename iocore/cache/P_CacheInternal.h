@@ -366,7 +366,7 @@ struct CacheVC: public CacheVConnection
       @return The address of the start of the fragment table,
       or @c NULL if there is no fragment table.
   */
-  virtual Frag* get_frag_table();
+  virtual HTTPInfo::FragOffset* get_frag_table();
 
   // offsets from the base stat
 #define CACHE_STAT_ACTIVE  0
@@ -431,8 +431,6 @@ struct CacheVC: public CacheVConnection
   uint32_t write_len;     // for communicating with agg_copy
   uint32_t agg_len;       // for communicating with aggWrite
   uint32_t write_serial;  // serial of the final write for SYNC
-  Frag *frag;           // arraylist of fragment offset
-  Frag integral_frags[INTEGRAL_FRAGS];
   Vol *vol;
   Dir *last_collision;
   Event *trigger;
@@ -486,6 +484,9 @@ struct CacheVC: public CacheVConnection
       unsigned int doc_from_ram_cache:1;
 #ifdef HIT_EVACUATE
       unsigned int hit_evacuate:1;
+#endif
+#ifdef HTTP_CACHE
+      unsigned int allow_empty_doc:1; // used for cache empty http document
 #endif
     } f;
   };
@@ -600,8 +601,6 @@ free_CacheVC(CacheVC *cont)
   cont->blocks.clear();
   cont->writer_buf.clear();
   cont->alternate_index = CACHE_ALT_INDEX_DEFAULT;
-  if (cont->frag && cont->frag != cont->integral_frags)
-    ats_free(cont->frag);
   if (cont->scan_vol_map)
     ats_free(cont->scan_vol_map);
   memset((char *) &cont->vio, 0, cont->size_to_init);
@@ -747,30 +746,9 @@ CacheVC::writer_done()
   return false;
 }
 
-TS_INLINE Frag*
-CacheVC::get_frag_table() {
-  if (frag)
-    return frag;
-  else if (first_buf)
-    return reinterpret_cast<Doc*>(first_buf->data())->frags();
-  return 0;
-}
-
-TS_INLINE bool
-CacheVC::is_pread_capable() {
-/* "fix" for Range related crashers: */
-#if defined(RANGES_DONT_WORK_VERY_WELL_ON_3_2_X)
-  ink_debug_assert(od);
-  return od->vector.count() <= 1;
-#else
-  return false;
-#endif
-}
-
 TS_INLINE int
 Vol::close_write(CacheVC *cont)
 {
-
 #ifdef CACHE_STAT_PAGES
   ink_assert(stat_cache_vcs.head);
   stat_cache_vcs.remove(cont, cont->stat_link);
@@ -981,7 +959,7 @@ struct Cache
   int64_t cache_size;             //in store block size
   CacheHostTable *hosttable;
   volatile int total_initialized_vol;
-  int scheme;
+  CacheType scheme;
 
   int open(bool reconfigure, bool fix);
   int close();
@@ -1125,13 +1103,13 @@ cache_hash(INK_MD5 & md5)
 #endif
 
 TS_INLINE Action *
-CacheProcessor::lookup(Continuation *cont, CacheKey *key, bool local_only,
+CacheProcessor::lookup(Continuation *cont, CacheKey *key, bool cluster_cache_local, bool local_only,
                        CacheFragType frag_type, char *hostname, int host_len)
 {
   (void) local_only;
 #ifdef CLUSTER_CACHE
   // Try to send remote, if not possible, handle locally
-  if ((cache_clustering_enabled > 0) && !local_only) {
+  if ((cache_clustering_enabled > 0) && !cluster_cache_local && !local_only) {
     Action *a = Cluster_lookup(cont, key, frag_type, hostname, host_len);
     if (a) {
       return a;
@@ -1142,10 +1120,10 @@ CacheProcessor::lookup(Continuation *cont, CacheKey *key, bool local_only,
 }
 
 TS_INLINE inkcoreapi Action *
-CacheProcessor::open_read(Continuation *cont, CacheKey *key, CacheFragType frag_type, char *hostname, int host_len)
+CacheProcessor::open_read(Continuation *cont, CacheKey *key, bool cluster_cache_local, CacheFragType frag_type, char *hostname, int host_len)
 {
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     return open_read_internal(CACHE_OPEN_READ, cont, (MIOBuffer *) 0,
                               (CacheURL *) 0, (CacheHTTPHdr *) 0,
                               (CacheLookupHttpConfig *) 0, key, 0, frag_type, hostname, host_len);
@@ -1171,13 +1149,13 @@ CacheProcessor::open_read_buffer(Continuation *cont, MIOBuffer *buf, CacheKey *k
 
 
 TS_INLINE inkcoreapi Action *
-CacheProcessor::open_write(Continuation *cont, CacheKey *key, CacheFragType frag_type,
+CacheProcessor::open_write(Continuation *cont, CacheKey *key, bool cluster_cache_local, CacheFragType frag_type,
                            int expected_size, int options, time_t pin_in_cache,
                            char *hostname, int host_len)
 {
   (void) expected_size;
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
     if (m)
       return Cluster_write(cont, expected_size, (MIOBuffer *) 0, m,
@@ -1207,12 +1185,12 @@ CacheProcessor::open_write_buffer(Continuation *cont, MIOBuffer *buf, CacheKey *
 }
 
 TS_INLINE Action *
-CacheProcessor::remove(Continuation *cont, CacheKey *key, CacheFragType frag_type,
+CacheProcessor::remove(Continuation *cont, CacheKey *key, bool cluster_cache_local, CacheFragType frag_type,
                        bool rm_user_agents, bool rm_link, char *hostname, int host_len)
 {
   Debug("cache_remove", "[CacheProcessor::remove] Issuing cache delete for %u", cache_hash(*key));
 #ifdef CLUSTER_CACHE
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
 
     if (m) {
@@ -1231,7 +1209,7 @@ scan(Continuation *cont, char *hostname = 0, int host_len = 0, int KB_per_second
 
 #ifdef HTTP_CACHE
 TS_INLINE Action *
-CacheProcessor::lookup(Continuation *cont, URL *url, bool local_only, CacheFragType frag_type)
+CacheProcessor::lookup(Continuation *cont, URL *url, bool cluster_cache_local, bool local_only, CacheFragType frag_type)
 {
   (void) local_only;
   INK_MD5 md5;
@@ -1239,7 +1217,7 @@ CacheProcessor::lookup(Continuation *cont, URL *url, bool local_only, CacheFragT
   int host_len = 0;
   const char *hostname = url->host_get(&host_len);
 
-  return lookup(cont, &md5, local_only, frag_type, (char *) hostname, host_len);
+  return lookup(cont, &md5, cluster_cache_local, local_only, frag_type, (char *) hostname, host_len);
 }
 
 TS_INLINE Action *
@@ -1307,10 +1285,10 @@ CacheProcessor::open_read_internal(int opcode,
 
 #ifdef CLUSTER_CACHE
 TS_INLINE Action *
-CacheProcessor::link(Continuation *cont, CacheKey *from, CacheKey *to,
+CacheProcessor::link(Continuation *cont, CacheKey *from, CacheKey *to, bool cluster_cache_local,
                      CacheFragType type, char *hostname, int host_len)
 {
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     // Use INK_MD5 in "from" to determine target machine
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*from));
     if (m) {
@@ -1321,9 +1299,9 @@ CacheProcessor::link(Continuation *cont, CacheKey *from, CacheKey *to,
 }
 
 TS_INLINE Action *
-CacheProcessor::deref(Continuation *cont, CacheKey *key, CacheFragType type, char *hostname, int host_len)
+CacheProcessor::deref(Continuation *cont, CacheKey *key, bool cluster_cache_local, CacheFragType type, char *hostname, int host_len)
 {
-  if (cache_clustering_enabled > 0) {
+  if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
     if (m) {
       return Cluster_deref(m, cont, key, type, hostname, host_len);

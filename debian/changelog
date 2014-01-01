@@ -1,4 +1,38 @@
-trafficserver (3.2.5-1) unstable; urgency=low
+trafficserver (3.3.2-1) experimental; urgency=low
+
+  [ Arno Töll ]
+  * Drop --with-arg-max from configure
+  * Update changelog in view of the new upstream version
+
+  [ Aron Xu ]
+  * Imported Upstream version 3.3.2
+  * Drop patch for enabling experimental plugins
+  * Add liblua5.1-dev and liboost1.53-dev to B-D
+  * Try on all archs for experimental builds
+  * Permit parallel building
+  * Fix typo in dep5 copyright file
+  * Do not install staticly linked library
+  * Enable Linux native AIO support for linux-any
+  * Enable reclaimable freelist
+
+ -- Aron Xu <aron@debian.org>  Thu, 09 May 2013 01:00:04 +0800
+
+trafficserver (3.3.0+git20121208-0exp1) experimental; urgency=low
+
+  * Upstream git snapshot.
+  * Enable most of experimental plugins, install related libraries.
+  * Run dh_autoreconf.
+  * Make dh_auto_test errors non-fatal.
+
+ -- Aron Xu <aron@debian.org>  Thu, 06 Dec 2012 23:32:25 +0800
+
+trafficserver (3.3.0-1) experimental; urgency=low
+
+  * Upload upstream development release to experimental.
+
+ -- Aron Xu <aron@debian.org>  Thu, 29 Nov 2012 22:13:55 +0800
+
+trafficserver (3.2.0-2) UNRELEASED; urgency=low
 
   * New upstream release
     + Fix FTBFS on ARM (Closes: #691179)
@@ -19,7 +53,7 @@ trafficserver (3.2.4-1) unstable; urgency=low
     the postinst fails to purge the cache (Closes: #687698)
   * Drop --with-arg-max from ./configure, it's not needed anymore.
 
- -- Arno Töll <arno@debian.org>  Thu, 07 Feb 2013 23:37:35 +0100
+ -- Arno Töll <arno@debian.org>  Tue, 29 Jan 2013 23:54:44 +0100
 
 trafficserver (3.2.0-1) unstable; urgency=low
 

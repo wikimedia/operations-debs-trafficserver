@@ -84,12 +84,13 @@ stats_add_data_to_resp_buffer(const char *s, stats_state * my_state)
   return s_len;
 }
 
+static const char RESP_HEADER[] =
+  "HTTP/1.0 200 Ok\r\nContent-Type: text/javascript\r\nCache-Control: no-cache\r\n\r\n";
+
 static int
 stats_add_resp_header(stats_state * my_state)
 {
-  char resp[] = "HTTP/1.0 200 Ok\r\nContent-Type: text/javascript\r\nCache-Control: no-cache\r\n\r\n";
-
-  return stats_add_data_to_resp_buffer(resp, my_state);
+  return stats_add_data_to_resp_buffer(RESP_HEADER, my_state);
 }
 
 static void
@@ -136,7 +137,7 @@ json_out_stat(TSRecordType rec_type, void *edata, int registered,
   case TS_RECORDDATATYPE_STRING:
     APPEND_STAT(name, "%s", datum->rec_string); break;
   default:
-    TSDebug("istats", "unkown type for %s: %d", name, data_type);
+    TSDebug("istats", "unknown type for %s: %d", name, data_type);
     break;
   }
 }

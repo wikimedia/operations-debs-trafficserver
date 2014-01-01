@@ -256,7 +256,7 @@ Restart(bool cluster)
     // this will kill TM completely;traffic_cop will restart TM/TS
     lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_SHUTDOWN_MANAGER);
   } else {                      // just bounce local proxy
-    lmgmt->mgmtShutdown(0);
+    lmgmt->mgmtShutdown();
   }
 
   return TS_ERR_OKAY;
@@ -325,7 +325,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->counter_val = (TSCounter) counter_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
     break;
 
   case RECD_INT:
@@ -334,7 +334,7 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
       return TS_ERR_FAIL;
     rec_ele->int_val = (TSInt) int_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %"PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
     break;
 
   case RECD_FLOAT:
@@ -381,7 +381,7 @@ determine_action_need(const char *rec_name)
 {
   RecUpdateT update_t;
 
-  if (REC_ERR_OKAY == RecGetRecordUpdateType(rec_name, &update_t))
+  if (REC_ERR_OKAY != RecGetRecordUpdateType(rec_name, &update_t))
     return TS_ACTION_UNDEFINED;
 
   switch (update_t) {
@@ -394,7 +394,7 @@ determine_action_need(const char *rec_name)
   case RECU_RESTART_TS:          // requires TS restart
     return TS_ACTION_RESTART;
 
-  case RECU_RESTART_TM:          // requirs TM/TS restart
+  case RECU_RESTART_TM:          // requires TM/TS restart
     return TS_ACTION_RESTART;
 
   case RECU_RESTART_TC:          // requires TC/TM/TS restart
@@ -534,7 +534,7 @@ MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT 
 TSError
 ReadFile(TSFileNameT file, char **text, int *size, int *version)
 {
-  char *fname;
+  const char *fname;
   Rollback *file_rb;
   int ret, old_file_len;
   textBuffer *old_file_content;
@@ -551,10 +551,8 @@ ReadFile(TSFileNameT file, char **text, int *size, int *version)
   ret = configFiles->getRollbackObj(fname, &file_rb);
   if (ret != TRUE) {
     Debug("FileOp", "[get_lines_from_file] Can't get Rollback for file: %s\n", fname);
-    ats_free(fname);
     return TS_ERR_READ_FILE;
   }
-  ats_free(fname);
   ver = file_rb->getCurrentVersion();
   file_rb->getVersion(ver, &old_file_content);
   *version = ver;
@@ -586,7 +584,7 @@ ReadFile(TSFileNameT file, char **text, int *size, int *version)
 TSError
 WriteFile(TSFileNameT file, char *text, int size, int version)
 {
-  char *fname;
+  const char *fname;
   Rollback *file_rb;
   textBuffer *file_content;
   int ret;
@@ -603,7 +601,6 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
     mgmt_log(stderr, "[CfgFileIO::WriteFile] ERROR getting rollback object\n");
     //goto generate_error_msg;
   }
-  ats_free(fname);
 
   // if version < 0 then, just use next version in sequence;
   // otherwise check if trying to commit an old version
@@ -889,15 +886,15 @@ SnapshotGetMlt(LLQ * snapshots)
  * (type PROCESS, NODE, CLUSTER), sets them back to their default value
  * If one stat fails to be set correctly, then continues onto next one,
  * but will return TS_ERR_FAIL. Only returns TS_ERR_OKAY if all
- * stats are set back to defaults succesfully.
+ * stats are set back to defaults successfully.
  */
 TSError
-StatsReset(bool cluster)
+StatsReset(bool cluster, const char *name)
 {
   if (cluster)
-    lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_CLEAR_STATS);
+    lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_CLEAR_STATS, name);
   else
-    lmgmt->clearStats();
+    lmgmt->clearStats(name);
   return TS_ERR_OKAY;
 }
 

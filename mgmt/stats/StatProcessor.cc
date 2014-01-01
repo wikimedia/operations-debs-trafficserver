@@ -73,8 +73,10 @@ startElement(void *userData, const char *name, const char **atts)
 
       if (!strcmp(atts[i], "minimum")) {
         statObject->m_stats_min = (MgmtFloat) atof(atts[i + 1]);
+        statObject->m_has_min = true;
       } else if (!strcmp(atts[i], "maximum")) {
         statObject->m_stats_max = (MgmtFloat) atof(atts[i + 1]);
+        statObject->m_has_max = true;
       } else if (!strcmp(atts[i], "interval")) {
         statObject->m_update_interval = (ink_hrtime) atoi(atts[i + 1]);
       } else if (!strcmp(atts[i], "debug")) {
@@ -307,14 +309,15 @@ StatProcessor::processStat()
  * --------------
  *
  */
-MgmtFloat
+RecData
 ExpressionEval(char *exprString)
 {
+  RecDataT result_type;
   StatObject statObject;
 
   char content[BUFSIZ * 10];
   XML_extractContent(exprString, content, BUFSIZ * 10);
 
   statObject.assignExpr(content);
-  return statObject.NodeStatEval(false);
+  return statObject.NodeStatEval(&result_type, false);
 }

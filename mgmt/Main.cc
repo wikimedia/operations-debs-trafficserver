@@ -608,6 +608,7 @@ main(int argc, char **argv)
 #if TS_HAS_WCCP
   Init_Errata_Logging();
 #endif
+  ts_host_res_global_init();
   lmgmt = new LocalManager(mgmt_path, proxy_on);
   RecLocalInitMessage();
   lmgmt->initAlarm();
@@ -672,11 +673,6 @@ main(int argc, char **argv)
     lmgmt->syslog_facility = -1;
   }
 #endif /* MGMT_USE_SYSLOG */
-
-    /****************************
-     * Register Alarm Callbacks *
-     ****************************/
-  lmgmt->alarm_keeper->registerCallback(overviewAlarmCallback);
 
   // Find out our hostname so we can use it as part of the initialization
   setHostnameVar();
@@ -756,24 +752,6 @@ main(int argc, char **argv)
   Debug("lm", "Created Web Agent thread (%"  PRId64 ")", (int64_t)webThrId);
   lmgmt->listenForProxy();
 
-  /* Check the permissions on vip_config */
-  if (lmgmt->virt_map->enabled) {
-    char absolute_vipconf_binary[1024];
-    struct stat buf;
-
-    snprintf(absolute_vipconf_binary, sizeof(absolute_vipconf_binary), "%s/vip_config", lmgmt->bin_path);
-    if (stat(absolute_vipconf_binary, &buf) < 0) {
-      mgmt_elog(stderr, "[main] Unable to stat vip_config for proper permissions\n");
-    } else if (!((buf.st_mode & S_ISUID) &&
-                 (buf.st_mode & S_IRWXU) &&
-                 (buf.st_mode & S_IRGRP) &&
-                 (buf.st_mode & S_IXGRP) && (buf.st_mode & S_IROTH) && (buf.st_mode & S_IXOTH))) {
-      lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
-                                       "Virtual IP Addressing enabled, but improper permissions on '/inktomi/bin/vip_config'"
-                                       "[requires: setuid root and at least a+rx]\n");
-    }
-  }
-
   ticker = time(NULL);
   mgmt_log("[TrafficManager] Setup complete\n");
 
@@ -820,7 +798,8 @@ main(int argc, char **argv)
     }
 
     if (lmgmt->mgmt_shutdown_outstanding == true) {
-      lmgmt->mgmtShutdown(0, true);
+      lmgmt->mgmtShutdown(true);
+      _exit(0);
     }
 
     if (lmgmt->run_proxy && !lmgmt->processRunning()) { /* Make sure we still have a proxy up */
@@ -1077,9 +1056,6 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "proxy.pac") == 0) {
     mgmt_log(stderr, "[fileUpdated] proxy.pac file has been modified\n");
 
-  } else if (strcmp(fname, "wpad.dat") == 0) {
-    mgmt_log(stderr, "[fileUpdated] wpad.dat file has been modified\n");
-
   } else if (strcmp(fname, "icp.config") == 0) {
     lmgmt->signalFileChange("proxy.config.icp.icp_configuration");
 
@@ -1092,9 +1068,6 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "hosting.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.hosting_filename");
 
-  } else if (strcmp(fname, "mgr.cnf") == 0) {
-    mgmt_log(stderr, "[fileUpdated] mgr.cnf file has been modified\n");
-
   } else if (strcmp(fname, "log_hosts.config") == 0) {
     lmgmt->signalFileChange("proxy.config.log.hosts_config_file");
 
@@ -1102,13 +1075,13 @@ fileUpdated(char *fname)
     lmgmt->signalFileChange("proxy.config.log.xml_config_file");
 
   } else if (strcmp(fname, "splitdns.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] splitdns.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
 
   } else if (strcmp(fname, "plugin.config") == 0) {
     mgmt_log(stderr, "[fileUpdated] plugin.config file has been modified\n");
 
   } else if (strcmp(fname, "ssl_multicert.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] ssl_multicert.config file has been modified\n");
+    lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
 
   } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
     lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
@@ -1120,6 +1093,8 @@ fileUpdated(char *fname)
     mgmt_log(stderr, "[fileUpdated] stats.config.xml file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
+  } else if (strcmp(fname, "prefetch.config") == 0) {
+    lmgmt->signalFileChange("proxy.config.prefetch.config_file");
   } else {
     mgmt_elog(stderr, "[fileUpdated] Unknown config file updated '%s'\n", fname);
 

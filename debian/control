@@ -6,14 +6,15 @@ Uploaders: Aron Xu <aron@debian.org>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
 	libcap-dev [linux-any], bison [linux-any], flex [linux-any],
-	dpkg-dev (>= 1.16.1~)
+	dpkg-dev (>= 1.16.1~), dh-autoreconf, pkg-config,
+        libboost1.53-dev, libgeoip-dev, liblua5.1-0-dev, libmysqlclient-dev
 Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
 
 Package: trafficserver
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~)
@@ -31,8 +32,9 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
      own cache algorithm.
 
 Package: trafficserver-dev
-Architecture: kfreebsd-i386 kfreebsd-amd64 i386 armel amd64 armhf
-Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
+Architecture: any
+Depends: ${misc:Depends}
+Suggests: trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides the Apache Traffic Server Software  Developers Kit.
  This is a collection of development header and bindings for the C programming

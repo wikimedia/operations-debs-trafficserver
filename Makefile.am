@@ -27,9 +27,9 @@ ACLOCAL_AMFLAGS = -I build
 # proxy/api/ts has to be built first, since so much of libraries and "core
 # depends on the generates ts/ts.h include file.
 if STANDALONE_IOCORE
-SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop plugins tools
+SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop plugins tools example
 else
-SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop rc doc plugins tools
+SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs mgmt proxy cop rc doc plugins tools example
 endif
 
 DIST_BUILD_USER=`id -nu`
@@ -38,8 +38,14 @@ DISTCHECK_CONFIGURE_FLAGS=--with-user=${DIST_BUILD_USER} --with-group=${DIST_BUI
 
 EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
 
+# igalic can't remember if this is make check or make test and neither should you.
+test: check
+
 installcheck-local:
 	$(DESTDIR)$(bindir)/traffic_server -R 1
+
+distclean-local:
+	-rm -f config.nice
 
 doxygen:
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
@@ -70,17 +76,17 @@ install-data-hook:
 
 help:
 	@echo 'all              default target for building the package' && \
-   echo 'check            run the test suite, if any' && \
-   echo 'clean            remove whatever make created' && \
-   echo 'distclean        remove whatever configure created' && \
-   echo 'dist             DEPRECATED: recreate source package' && \
-   echo 'examples         make examples' && \
-   echo 'asf-dist         recreate source package' && \
-   echo 'asf-dist-sign    recreate source package, with checksums and signature' && \
-   echo 'distcheck        verify dist by performing VPATH build and then distclean' && \
-   echo 'doxygen          generate doxygen docs in doc/html dir' && \
-   echo 'help             display this list of make targets' && \
-   echo 'install          install by copying the built files to system-wide dirs' && \
-   echo 'install-strip    same as install but then strips debugging symbols' && \
-   echo 'install-examples install examples by copying the built files to system-wide dirs'
+	echo 'check            run the test suite, if any' && \
+	echo 'clean            remove whatever make created' && \
+	echo 'distclean        remove whatever configure created' && \
+	echo 'dist             DEPRECATED: recreate source package' && \
+	echo 'examples         make examples' && \
+	echo 'asf-dist         recreate source package' && \
+	echo 'asf-dist-sign    recreate source package, with checksums and signature' && \
+	echo 'distcheck        verify dist by performing VPATH build and then distclean' && \
+	echo 'doxygen          generate doxygen docs in doc/html dir' && \
+	echo 'help             display this list of make targets' && \
+	echo 'install          install by copying the built files to system-wide dirs' && \
+	echo 'install-strip    same as install but then strips debugging symbols' && \
+	echo 'install-examples install examples by copying the built files to system-wide dirs'
 

@@ -368,7 +368,7 @@ extern "C"
     TS_FNAME_IP_ALLOW,         /* ip_allow.config */
     TS_FNAME_LOGS_XML,         /* logs_xml.config */
     TS_FNAME_PARENT_PROXY,     /* parent.config */
-    TS_FNAME_VOLUME,        /* volume.config */
+    TS_FNAME_VOLUME,           /* volume.config */
     TS_FNAME_PLUGIN,           /* plugin.config */
     TS_FNAME_REMAP,            /* remap.config */
     TS_FNAME_SOCKS,            /* socks.config */
@@ -391,6 +391,7 @@ extern "C"
   {
     TS_CACHE_NEVER,            /* cache.config */
     TS_CACHE_IGNORE_NO_CACHE,
+    TS_CACHE_CLUSTER_CACHE_LOCAL,
     TS_CACHE_IGNORE_CLIENT_NO_CACHE,
     TS_CACHE_IGNORE_SERVER_NO_CACHE,
     TS_CACHE_PIN_IN_CACHE,
@@ -1144,7 +1145,8 @@ extern "C"
  * Input: cluster - Reset the stats clusterwide or not
  * Outpue: TSErrr
  */
-  tsapi TSError TSStatsReset(bool cluster);
+  tsapi TSError TSStatsReset(bool cluster, const char *name = NULL);
+
 
 /*--- variable operations -------------------------------------------------*/
 /* TSRecordGet: gets a record

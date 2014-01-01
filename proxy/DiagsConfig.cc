@@ -27,13 +27,11 @@
 #ifdef LOCAL_MANAGER
 
 #include "../mgmt/Main.h"
-#define MGMT_PTR       lmgmt
 #define DIAGS_LOG_FILE "manager.log"
 
 #else
 #include "Main.h"
 #include "ProxyConfig.h"
-#define MGMT_PTR       pmgmt
 #define DIAGS_LOG_FILE "diags.log"
 
 #endif
@@ -277,15 +275,15 @@ DiagsConfig::RegisterDiagConfig()
   RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.action.enabled", 0, RECU_NULL, RECC_NULL, NULL);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.action.tags", "", RECU_NULL, RECC_NULL, NULL);
   RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.show_location", 0, RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "E", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "E", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.note", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.warning", "S", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.error", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.fatal", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.alert", "SE", RECU_NULL, RECC_NULL, NULL);
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SE", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.note", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.warning", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.error", "SL", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.fatal", "SL", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.alert", "L", RECU_NULL, RECC_NULL, NULL);
+  RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SL", RECU_NULL, RECC_NULL, NULL);
 }
 
 

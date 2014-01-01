@@ -984,7 +984,6 @@ ClusterHandler::startClusterEvent(int event, Event * e)
       {
         int proto_major = -1;
         int proto_minor = -1;
-        int failed = 0;
 
         clusteringVersion.AdjustByteOrder();
         /////////////////////////////////////////////////////////////////////////
@@ -1026,6 +1025,64 @@ ClusterHandler::startClusterEvent(int event, Event * e)
         if (!connector)
           id = clusteringVersion._id & 0xffff;
 
+        machine->msg_proto_major = proto_major;
+        machine->msg_proto_minor = proto_minor;
+
+        thread = eventProcessor.eventthread[ET_CLUSTER][id % eventProcessor.n_threads_for_type[ET_CLUSTER]];
+        if (net_vc->thread == thread) {
+          cluster_connect_state = CLCON_CONN_BIND_OK;
+          break;
+        } else { 
+          cluster_connect_state = ClusterHandler::CLCON_CONN_BIND_CLEAR;
+          thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND_CLEAR:
+      {
+        //
+        UnixNetVConnection *vc = (UnixNetVConnection *)net_vc; 
+        MUTEX_TRY_LOCK(lock, vc->nh->mutex, e->ethread);
+        MUTEX_TRY_LOCK(lock1, vc->mutex, e->ethread);
+        if (lock && lock1) {
+          vc->ep.stop();
+          vc->nh->open_list.remove(vc);
+          vc->nh = NULL;
+          vc->thread = NULL;
+          cluster_connect_state = ClusterHandler::CLCON_CONN_BIND;
+        } else {
+          thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND:
+      {
+        // 
+        NetHandler *nh = get_NetHandler(e->ethread);
+        UnixNetVConnection *vc = (UnixNetVConnection *)net_vc; 
+        MUTEX_TRY_LOCK(lock, nh->mutex, e->ethread);
+        MUTEX_TRY_LOCK(lock1, vc->mutex, e->ethread);
+        if (lock && lock1) {
+          vc->nh = nh;
+          vc->nh->open_list.enqueue(vc);
+          vc->thread = e->ethread;
+          PollDescriptor *pd = get_PollDescriptor(e->ethread);
+          if (vc->ep.start(pd, vc, EVENTIO_READ|EVENTIO_WRITE) < 0) {
+            cluster_connect_state = ClusterHandler::CLCON_DELETE_CONNECT;
+            break;                // goto next state
+          }
+        } else {
+          thread->schedule_in(this, CLUSTER_PERIOD);
+          return EVENT_DONE;
+        }
+      }
+
+    case ClusterHandler::CLCON_CONN_BIND_OK:
+      {
+        int failed = 0;
+
         // include this node into the cluster configuration
         MUTEX_TAKE_LOCK(the_cluster_config_mutex, this_ethread());
         MachineList *cc = the_cluster_config();
@@ -1038,28 +1095,13 @@ ClusterHandler::startClusterEvent(int event, Event * e)
             CLUSTER_INCREMENT_DYN_STAT(CLUSTER_NODES_STAT);
             this_cluster()->configurations.push(cconf);
           } else {
-            if (m->num_connections > machine->num_connections) {
-              // close old needlessness connection if new num_connections < old num_connections
-              for (int i = machine->num_connections; i < m->num_connections; i++) {
-                if (m->clusterHandlers[i])
-                  m->clusterHandlers[i]->downing = true;
-              }
-              m->num_connections = machine->num_connections;
-              m->free_connections -= (m->num_connections - machine->num_connections);
-              // delete_this
+            // close new connection if old connections is exist
+            if (id >= m->num_connections || m->clusterHandlers[id]) {
               failed = -2;
               MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
               goto failed;
-            } else {
-              m->num_connections = machine->num_connections;
-              // close new connection if old connections is exist
-              if (id >= m->num_connections || m->clusterHandlers[id]) {
-                failed = -2;
-                MUTEX_UNTAKE_LOCK(the_cluster_config_mutex, this_ethread());
-                goto failed;
-              }
-              machine = m;
             }
+            machine = m;
           }
           machine->now_connections++;
           machine->clusterHandlers[id] = this;
@@ -1083,8 +1125,6 @@ failed:
         }
 
         this->needByteSwap = !clusteringVersion.NativeByteOrder();
-        machine->msg_proto_major = proto_major;
-        machine->msg_proto_minor = proto_minor;
 #ifdef NON_MODULAR
         machine_online_APIcallout(ip);
 #endif
@@ -1098,7 +1138,7 @@ failed:
         Note("machine up %hhu.%hhu.%hhu.%hhu:%d, protocol version=%d.%d",
              DOT_SEPARATED(ip), id, clusteringVersion._major, clusteringVersion._minor);
 #endif
-        thread = e->ethread;
+
         read_vcs = NEW((new Queue<ClusterVConnectionBase, ClusterVConnectionBase::Link_read_link>[CLUSTER_BUCKETS]));
         write_vcs = NEW((new Queue<ClusterVConnectionBase, ClusterVConnectionBase::Link_write_link>[CLUSTER_BUCKETS]));
         SET_HANDLER((ClusterContHandler) & ClusterHandler::beginClusterEvent);
@@ -1107,12 +1147,7 @@ failed:
         read.do_iodone_event = true;
         write.do_iodone_event = true;
 
-#ifdef CLUSTER_IMMEDIATE_NETIO
-        e->schedule_every(-CLUSTER_PERIOD);     // Negative event
-#else
-        e->schedule_every(-CLUSTER_PERIOD);
-#endif
-        cluster_periodic_event = e;
+        cluster_periodic_event = thread->schedule_every(this, -CLUSTER_PERIOD);
 
         // Startup the periodic events to process entries in
         //  external_incoming_control.
@@ -1205,7 +1240,7 @@ ClusterHandler::protoZombieEvent(int event, Event * e)
   // after NO_RACE_DELAY
   //
   bool failed = false;
-  ink_hrtime delay = CLUSTER_RETRY;
+  ink_hrtime delay = CLUSTER_MEMBER_DELAY * 5;
   EThread *t = e ? e->ethread : this_ethread();
   head_p item;
 

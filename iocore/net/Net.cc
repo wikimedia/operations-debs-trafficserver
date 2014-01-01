@@ -37,9 +37,9 @@ int net_config_poll_timeout = DEFAULT_POLL_TIMEOUT;
 static inline void
 configure_net(void)
 {
-  IOCORE_RegisterConfigUpdateFunc("proxy.config.net.connections_throttle", change_net_connections_throttle, NULL);
-  IOCORE_ReadConfigInteger(fds_throttle, "proxy.config.net.connections_throttle");
-  IOCORE_ReadConfigInteger(throttle_enabled,"proxy.config.net.throttle_enabled");
+  REC_RegisterConfigUpdateFunc("proxy.config.net.connections_throttle", change_net_connections_throttle, NULL);
+  REC_ReadConfigInteger(fds_throttle, "proxy.config.net.connections_throttle");
+  REC_ReadConfigInteger(throttle_enabled,"proxy.config.net.throttle_enabled");
 }
 
 
@@ -124,6 +124,11 @@ register_net_stats()
                      RECD_INT, RECP_NON_PERSISTENT, (int) socks_connections_currently_open_stat, RecRawStatSyncSum);
   NET_CLEAR_DYN_STAT(socks_connections_currently_open_stat);
 #endif
+
+  RecRegisterRawStat(net_rsb, RECT_PROCESS,
+                     "proxy.process.net.inactivity_cop_lock_acquire_failure",
+                     RECD_INT, RECP_NULL, (int) inactivity_cop_lock_acquire_failure_stat,
+                     RecRawStatSyncSum);
 
 }
 

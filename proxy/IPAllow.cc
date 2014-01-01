@@ -39,111 +39,60 @@
 
 #include <sstream>
 
-#define IPAllowRegisterConfigUpdateFunc REC_RegisterConfigUpdateFunc
-#define IPAllowReadConfigStringAlloc REC_ReadConfigStringAlloc
-
 enum AclOp {
   ACL_OP_ALLOW, ///< Allow access.
   ACL_OP_DENY, ///< Deny access.
 };
-
-IpAllow* IpAllow::_instance = NULL;
 
 // Mask for all methods.
 // This can't be computed properly at process start, so it's delayed
 // until the instance is initialized.
 uint32_t IpAllow::ALL_METHOD_MASK;
 
-static Ptr<ProxyMutex> ip_reconfig_mutex;
+int IpAllow::configid = 0;
 
-//
-// struct IPAllow_FreerContinuation
-// Continuation to free old cache control lists after
-//  a timeout
-//
-struct IPAllow_FreerContinuation;
-typedef int (IPAllow_FreerContinuation::*IPAllow_FrContHandler) (int, void *);
-struct IPAllow_FreerContinuation: public Continuation
-{
-  IpAllow *p;
-  int freeEvent(int event, Event * e)
-  {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(e);
-    Debug("ip-allow", "Deleting old table");
-    delete p;
-    delete this;
-    return EVENT_DONE;
-  }
-  IPAllow_FreerContinuation(IpAllow * ap):Continuation(NULL), p(ap)
-  {
-    SET_HANDLER((IPAllow_FrContHandler) & IPAllow_FreerContinuation::freeEvent);
-  }
-};
-
-// struct IPAllow_UpdateContinuation
-//
-//   Used to read the ip_allow.conf file after the manager signals
-//      a change
-//
-struct IPAllow_UpdateContinuation: public Continuation
-{
-  int file_update_handler(int etype, void *data)
-  {
-    NOWARN_UNUSED(etype);
-    NOWARN_UNUSED(data);
-    IpAllow::ReloadInstance();
-    delete this;
-      return EVENT_DONE;
-  }
-  IPAllow_UpdateContinuation(ProxyMutex * m):Continuation(m)
-  {
-    SET_HANDLER(&IPAllow_UpdateContinuation::file_update_handler);
-  }
-};
-
-int
-ipAllowFile_CB(const char *name, RecDataT data_type, RecData data, void *cookie)
-{
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
-  eventProcessor.schedule_imm(NEW(new IPAllow_UpdateContinuation(ip_reconfig_mutex)), ET_CACHE);
-  return 0;
-}
+static ConfigUpdateHandler<IpAllow> * ipAllowUpdate;
 
 //
 //   Begin API functions
 //
 void
-IpAllow::InitInstance() {
+IpAllow::startup()
+{
   // Should not have been initialized before
-  ink_assert(_instance == NULL);
+  ink_assert(IpAllow::configid == 0);
 
   ALL_METHOD_MASK = ~0;
 
-  ip_reconfig_mutex = new_ProxyMutex();
+  ipAllowUpdate = NEW(new ConfigUpdateHandler<IpAllow>());
+  ipAllowUpdate->attach("proxy.config.cache.ip_allow.filename");
 
-  _instance = NEW(new self("proxy.config.cache.ip_allow.filename", "IpAllow", "ip_allow"));
-  _instance->BuildTable();
-
-  IPAllowRegisterConfigUpdateFunc("proxy.config.cache.ip_allow.filename", ipAllowFile_CB, NULL);
+  reconfigure();
 }
 
 void
-IpAllow::ReloadInstance() {
+IpAllow::reconfigure()
+{
   self *new_table;
 
-  Debug("ip_allow", "ip_allow.config updated, reloading");
-
-  // Schedule the current table for deallocation in the future
-  eventProcessor.schedule_in(NEW(new IPAllow_FreerContinuation(_instance)), IP_ALLOW_TIMEOUT, ET_CACHE);
+  Note("ip_allow.config updated, reloading");
 
   new_table = NEW(new self("proxy.config.cache.ip_allow.filename", "IpAllow", "ip_allow"));
   new_table->BuildTable();
 
-  ink_atomic_swap_ptr(_instance, new_table);
+  configid = configProcessor.set(configid, new_table);
+}
+
+IpAllow *
+IpAllow::acquire()
+{
+  return (IpAllow *)configProcessor.get(configid);
+}
+
+void
+IpAllow::release(IpAllow * lookup)
+{
+  configProcessor.release(configid, lookup);
 }
 
 //
@@ -165,7 +114,7 @@ IpAllow::IpAllow(
   config_file_var = ats_strdup(config_var);
   config_file_path[0] = '\0';
 
-  IPAllowReadConfigStringAlloc(config_file, (char *) config_file_var);
+  REC_ReadConfigStringAlloc(config_file, (char *) config_file_var);
   ink_release_assert(config_file != NULL);
   ink_filepath_make(config_file_path, sizeof(config_file_path), system_config_directory, config_file);
   ats_free(config_file);
