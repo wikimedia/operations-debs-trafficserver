@@ -25,10 +25,7 @@
   recording log entries. See the header file LogBuffer.h for more
   information on the structure of a LogBuffer.
  */
-
-
 #include "libts.h"
-#include "ink_unused.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +43,6 @@
 #include "LogAccess.h"
 #include "LogConfig.h"
 #include "LogBuffer.h"
-#include "LogFormatType.h"
 #include "Log.h"
 
 
@@ -131,7 +127,7 @@ LogBufferHeader::log_filename()
 LogBuffer::LogBuffer(LogObject * owner, size_t size, size_t buf_align, size_t write_align):
   m_size(size),
   m_buf_align(buf_align),
-  m_write_align(write_align), m_max_entries(Log::config->max_entries_per_buffer), m_owner(owner),
+  m_write_align(write_align), m_owner(owner),
   m_references(0)
 {
   size_t hdr_size;
@@ -146,7 +142,6 @@ LogBuffer::LogBuffer(LogObject * owner, size_t size, size_t buf_align, size_t wr
 
   // initialize buffer state
   m_state.s.offset = hdr_size;
-  m_state.s.byte_count = hdr_size;
 
   // update the buffer id (m_id gets the old value)
   m_id = (uint32_t) ink_atomic_increment((pvint32) & M_ID, 1);
@@ -162,7 +157,7 @@ LogBuffer::LogBuffer(LogObject * owner, LogBufferHeader * header):
   m_buffer((char *) header),
   m_size(0),
   m_buf_align(LB_DEFAULT_ALIGN),
-  m_write_align(INK_MIN_ALIGN), m_max_entries(0), m_expiration_time(0), m_owner(owner), m_header(header),
+  m_write_align(INK_MIN_ALIGN), m_expiration_time(0), m_owner(owner), m_header(header),
   m_references(0)
 {
   // This constructor does not allocate a buffer because it gets it as
@@ -204,7 +199,7 @@ LogBuffer::LB_ResultCode LogBuffer::checkout_write(size_t * write_offset, size_t
   // LogBuffer::LogBuffer(LogObject *owner, LogBufferHeader *header)
   // was used to construct the object
   //
-  ink_debug_assert(m_unaligned_buffer);
+  ink_assert(m_unaligned_buffer);
 
   LB_ResultCode ret_val = LB_BUSY;
   LB_State old_s, new_s;
@@ -225,7 +220,7 @@ LogBuffer::LB_ResultCode LogBuffer::checkout_write(size_t * write_offset, size_t
       // before we do
 
       if (write_offset) {
-        if (old_s.s.num_entries < m_max_entries && old_s.s.offset + actual_write_size <= m_size) {
+        if (old_s.s.offset + actual_write_size <= m_size) {
           // there is room for this entry, update the state
 
           offset = old_s.s.offset;
@@ -233,7 +228,6 @@ LogBuffer::LB_ResultCode LogBuffer::checkout_write(size_t * write_offset, size_t
           ++new_s.s.num_writers;
           new_s.s.offset += actual_write_size;
           ++new_s.s.num_entries;
-          new_s.s.byte_count += actual_write_size;
 
           ret_val = LB_OK;
         } else {
@@ -310,7 +304,7 @@ LogBuffer::LB_ResultCode LogBuffer::checkin_write(size_t write_offset)
   // LogBuffer::LogBuffer(LogObject *owner, LogBufferHeader *header)
   // was used to construct the object
   //
-  ink_debug_assert(m_unaligned_buffer);
+  ink_assert(m_unaligned_buffer);
 
   LB_ResultCode ret_val = LB_OK;
   LB_State old_s, new_s;
@@ -336,7 +330,7 @@ LogBuffer::LB_ResultCode LogBuffer::checkin_write(size_t write_offset)
 
 
 unsigned
-LogBuffer::add_header_str(char *str, char *buf_ptr, unsigned buf_len)
+LogBuffer::add_header_str(const char *str, char *buf_ptr, unsigned buf_len)
 {
   unsigned len = 0;
   // This was ambiguous - should it be the real strlen or the 
@@ -427,7 +421,7 @@ LogBuffer::update_header_data()
 
   if (m_unaligned_buffer) {
     m_header->entry_count = m_state.s.num_entries;
-    m_header->byte_count = m_state.s.byte_count;
+    m_header->byte_count = m_state.s.offset;
     m_header->high_timestamp = LogUtils::timestamp();
   }
 }
@@ -631,11 +625,11 @@ LogBuffer::resolve_custom_entry(LogFieldList * fieldlist,
   -------------------------------------------------------------------------*/
 int
 LogBuffer::to_ascii(LogEntryHeader * entry, LogFormatType type,
-                    char *buf, int buf_len, char *symbol_str, char *printf_str,
-                    unsigned buffer_version, char *alt_format)
+                    char *buf, int buf_len, const char *symbol_str, char *printf_str,
+                    unsigned buffer_version, const char *alt_format)
 {
   ink_assert(entry != NULL);
-  ink_assert(type >= 0 && type < N_LOG_TYPES);
+  ink_assert(type == LOG_FORMAT_CUSTOM || type == LOG_FORMAT_TEXT);
   ink_assert(buf != NULL);
 
   char *read_from;              // keeps track of where we're reading from entry
@@ -644,13 +638,12 @@ LogBuffer::to_ascii(LogEntryHeader * entry, LogFormatType type,
   read_from = (char *) entry + sizeof(LogEntryHeader);
   write_to = buf;
 
-  if (type == TEXT_LOG) {
+  if (type == LOG_FORMAT_TEXT) {
     //
     // text log entries are just strings, so simply move it into the
     // format buffer.
     //
-    ink_string_copy(write_to, read_from, buf_len);
-    return (int)::strlen(write_to);     // OPTIMIZE, should not need strlen
+    return ink_strlcpy(write_to, read_from, buf_len);
   }
   //
   // We no longer make the distinction between custom vs pre-defined
@@ -816,8 +809,7 @@ LogBufferIterator::next()
   LogEntryHeader *entry = (LogEntryHeader *) m_next;
 
   if (entry) {
-    if (m_iter_entry_count < m_buffer_entry_count &&
-        m_iter_entry_count < (unsigned) Log::config->max_entries_per_buffer) {
+    if (m_iter_entry_count < m_buffer_entry_count) {
       m_next += entry->entry_len;
       ++m_iter_entry_count;
       ret_val = entry;

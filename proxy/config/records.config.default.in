@@ -23,7 +23,6 @@ CONFIG proxy.config.proxy_name STRING @build_machine@
 CONFIG proxy.config.config_dir STRING @rel_sysconfdir@
 CONFIG proxy.config.proxy_binary_opts STRING -M
 CONFIG proxy.config.env_prep STRING example_prep.sh
-CONFIG proxy.config.temp_dir STRING /tmp
 CONFIG proxy.config.alarm_email STRING @pkgsysuser@
 CONFIG proxy.config.syslog_facility STRING LOG_DAEMON
 CONFIG proxy.config.output.logfile STRING traffic.out
@@ -81,28 +80,35 @@ CONFIG proxy.config.alarm.abs_path STRING NULL
    ##########
    # The server ports are listed here. These are separated by spaces or commas.
    # Each port is a colon separated list of values, which must include a
-   # port number. Other options are
+   # port number. The order is irrelevant. Other options are
    # ipv4 - Use IPv4 (default)
    # ipv6 - Use IPv6
    # tr-in - Transparent inbound.
    # tr-out - Transparent outbound.
    # tr-full - Fully transparent (inbound and outbound).
-   # tr-pass - Transprently Pass-through non-HTTP traffic (in conjuction with tr-in).
+   # tr-pass - Transparently Pass-through non-HTTP traffic (in conjuction with tr-in).
    # ssl - SSL terminated port.
-   # blind - Blind tunnel port.
+   # blind - Blind tunnel port (CONNECT only)
    # ip-in=[addr] - Bind inbound IP address (listen for client).
    # ip-out=[addr] - Bind outbound IP address (connect to origin server).
+   # ip-resolve=[style] - Set the IP resolution style.
    #
-   # note - address types must agree with each other and the ipv4/ipv6
+   # Note - address types must agree with each other and the ipv4/ipv6
    # option if specified. IPv6 addresses must be enclosed in brackets.
-   # ip-out can be repeated as long as each address is a different family.
-   # The '=' is optional.
+   # ip-out can be repeated as long as each address is a different
+   # family. If ip-in is specified as an IPv6 address, the port is
+   # forced to IPv6. Transparent ports cannot be bound to an IP
+   # address on the transparent side.
+   #
+   # The '=' is optional for any option with a value.
    #
    # Example 1: Port 8080 IPv6 inbound transparent, and port 80 IPv4
    # "8080:ipv6:tr-in 80"
    #
-   # Example 2: Listen on standard http and https ports for IPv4 and IPv6:
-   # "80:ipv4 80:ipv6 443:ipv4:ssl 443:ipv6:ssl"
+   # Example 2: Listen on standard http and https ports for IPv4 and IPv6,
+   # fully transparent on the http ports. Also provide an non-transparent
+   # port at address 192.168.1.56 on port 8080.
+   # "80:ipv4:tr-full tr-full:80:ipv6 443:ipv4:ssl 443:ssl:ipv6 ip-in=192.168.1.56:8080"
    #
 CONFIG proxy.config.http.server_ports STRING 8080
    # Ports on the origin server to which a blind tunnel may connect.
@@ -323,8 +329,8 @@ CONFIG proxy.config.cluster.ethernet_interface STRING @default_loopback_iface@
 ##############################################################################
 CONFIG proxy.config.cache.permit.pinning INT 0
    # default the ram cache size to AUTO_SIZE (-1) based on cache size
-   #   (approximately 1 MB of RAM cache per GB of disk cache)
-   # alternatively, set to a fixed value such as 20971520 (20MB)
+   #   (approximately 10 MB of RAM cache per GB of disk cache)
+   # alternatively, set to a fixed value such as 21474836480 (20GB)
 CONFIG proxy.config.cache.ram_cache.size INT -1
 CONFIG proxy.config.cache.ram_cache_cutoff INT 4194304
    # Replacement algorithm
@@ -370,6 +376,10 @@ CONFIG proxy.config.cache.threads_per_disk INT 8
    # this low can reduce latencies in some cases, but can consume more CPU.
    # If you experience CPU spinning, try increasing this setting.
 CONFIG proxy.config.cache.mutex_retry_delay INT 2
+   # The interim storage disks. Must use raw disks.
+   # Only support at most 8 interim disks now. e.g.
+   # proxy.config.cache.interim.storage STRING /dev/sda /dev/sdb/
+LOCAL proxy.config.cache.interim.storage STRING NULL
 ##############################################################################
 #
 # DNS
@@ -396,7 +406,7 @@ CONFIG proxy.config.dns.validate_query_name INT 0
    # note that in order to increase hostdb.size, hostdb.storage_size should
    # also be increase. These are best guesses, you will have to monitor this.
 CONFIG proxy.config.hostdb.size INT 120000
-CONFIG proxy.config.hostdb.storage_size INT 200M
+CONFIG proxy.config.hostdb.storage_size INT 32M
    # ttl modes:
    #   0 = obey
    #   1 = ignore
@@ -482,12 +492,6 @@ CONFIG proxy.config.url_remap.pristine_host_hdr INT 1
 # SSL Termination
 #
 ##############################################################################
-   # proxy.config.ssl.enabled should be:
-   #   0 - none
-   #   1 - SSL enabled
-   # Deprecated. SSL is enabled automatically if an SSL port is configured
-   # in config.proxy.http.server_ports.
-#CONFIG proxy.config.ssl.enabled INT 0
    # The number of SSL threads is a multiplier of number of CPUs and
    # proxy.config.exec_thread.autoconfig.scale by default. You can
    # override that here (set it to a non-zero value).
@@ -506,16 +510,14 @@ CONFIG proxy.config.ssl.server.cipher_suite STRING RC4-SHA:AES128-SHA:DES-CBC3-S
 CONFIG proxy.config.ssl.server.honor_cipher_order INT 0
    # Control if SSL should perform content compression or not
 CONFIG proxy.config.ssl.compression INT 0
-   # Deprecated.
-   # SSL ports should now be configured via proxy.config.http.server_ports
-#CONFIG proxy.config.ssl.server_port INT 443
    # Client certification level should be:
    # 0 no client certificates
    # 1 client certificates optional
    # 2 client certificates required
 CONFIG proxy.config.ssl.client.certification_level INT 0
-   # Server cert chain filename is the name of the cert chain file
-   # for a single cert system.
+   # Server cert chain filename is the name of the global cert chain file
+   # that is added to every cert in ssl_multicert.config. This file is only
+   # loaded if there are configurations in ssl_multicert.config.
 CONFIG proxy.config.ssl.server.cert_chain.filename STRING NULL
    # This is the path that SSL certificates files are relative to. Certificate
    # names specified in ssl_multicert.config will be located relative to this path.
@@ -598,31 +600,30 @@ CONFIG proxy.config.diags.debug.tags STRING http.*|dns.*
   # ink allocators
 CONFIG proxy.config.dump_mem_info_frequency INT 0
 
+  # Log the source code location of diagnostic messages.
+CONFIG proxy.config.diags.show_location INT 0
 ##############################################################################
 #
 # Configuration for Reclaimable InkFreeList memory pool
 #
-# NOTE: The following options are not meaningful unless compiles TrafficServer
-#	with '--enable-reclaimable-freelist' option. Looks like:
-#	$ ./configure --enable-reclaimable-freelist
+# NOTE: The following options are meaningfull only when Traffic Server is
+#       compiled with the following option to configure:
+#
+#	    --enable-reclaimable-freelist
 #
 ##############################################################################
-  # Dump debug information according bit mask of debug_filter, if a bit is set
-  # in the mask, then debug information of the corresponding action are dumped:
-  #  bit 0: reclaim memory in ink_freelist_new
-  #  bit 1: allocate memory from partial-free Chunks(if exist) or OS
-CONFIG proxy.config.allocator.debug_filter INT 0
-  # The value of enable_reclaim should be 0 or 1. Default 0, reclaim disabled.
-CONFIG proxy.config.allocator.enable_reclaim INT 0
-  # The value of reclaim_factor should be in 0.0 ~ 1.0, allocator use it to
-  # calculate average value of idle memory in InkFreeList, which will determine
-  # when to reclaim memory. The larger the value, the faster the reclaiming.
-  # This value is effective only when enable_reclaim is 1.
+CONFIG proxy.config.allocator.enable_reclaim INT 1
+  # The value of reclaim_factor should be in the 0.0 to 1.0 range. Allocators
+  # use it to calculate size of unused memory, which is used to determine when
+  # to reclaim memory. The larger the value, the more aggressive reclaims.
 CONFIG proxy.config.allocator.reclaim_factor FLOAT 0.300000
   # Allocator will reclaim memory only when it continuously satisfy the reclaim
-  # condition for max_overage times. This value is effective only when
-  # enable_reclaim is 1.
+  # condition for max_overage continuous checks.
 CONFIG proxy.config.allocator.max_overage INT 3
+  #  For debugging, enable debug_filter, which is a bit-map with these fields:
+  #     bit 0: reclaim memory in ink_freelist_new
+  #     bit 1: allocate memory from partial-free Chunks(if exist) or OS
+CONFIG proxy.config.allocator.debug_filter INT 0
 
 ##############################################################################
 #

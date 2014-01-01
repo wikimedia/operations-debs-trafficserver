@@ -31,7 +31,6 @@
 
 #include "libts.h"
 #include "ink_platform.h"
-#include "ink_unused.h" /* MAGIC_EDITING_TAG */
 
 #include "SimpleTokenizer.h"
 
@@ -47,11 +46,7 @@
 #include "LocalManager.h"
 #include "WebMgmtUtils.h"
 #include "MgmtUtils.h"
-#include "EnvBlock.h"
 #include "CfgContextUtils.h"
-
-#include "ConfigAPI.h"
-#include "SysAPI.h"
 
 // Ugly hack - define HEAP_H and STACK_H to prevent stuff from the
 // template library from being included which SUNPRO CC does not not
@@ -108,9 +103,8 @@ static InkHashTable *g_file_bindings_ht = 0;
 //-------------------------------------------------------------------------
 
 static int
-handle_synthetic(WebHttpContext * whc, const char *file)
+handle_synthetic(WebHttpContext * whc, const char * /* file ATS_UNUSED */)
 {
-  NOWARN_UNUSED(file);
   char buffer[28];
   char cur = 'a';
   whc->response_hdr->setContentType(TEXT_PLAIN);
@@ -428,11 +422,10 @@ process_post(WebHttpContext * whc)
 //-------------------------------------------------------------------------
 
 void
-signal_handler_do_nothing(int x)
+signal_handler_do_nothing(int /* x ATS_UNUSED */)
 {
   //  A small function thats whole purpose is to give the signal
   //  handler for breaking out of a network read, somethng to call
-  NOWARN_UNUSED(x);
 }
 
 int
@@ -531,7 +524,7 @@ WebHttpHandleConnection(WebHttpConInfo * whci)
     // on the autoconf port.  can't have users downloading arbitrary
     // files under the config directory!
     if (!ink_hash_table_isbound(g_autoconf_allow_ht, file)) {
-      mgmt_elog(stderr,"[WebHttpHandleConnection] %s not valid autoconf file",file);
+      mgmt_elog(stderr, 0, "[WebHttpHandleConnection] %s not valid autoconf file", file);
       whc->response_hdr->setStatus(STATUS_NOT_FOUND);
       WebHttpSetErrorResponse(whc, STATUS_NOT_FOUND);
       goto Ltransaction_send;

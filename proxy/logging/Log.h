@@ -116,7 +116,7 @@
         be needed will be taken.  The data is then marshalled into the
         buffer previously allocated.
 
-      -	The LogBuffer is composed of two parts: a fixed-size part that
+      - The LogBuffer is composed of two parts: a fixed-size part that
         contains all of the statically-sized fields, and a variable-sized
         buffer that follows, containing all of the space for strings.
         Variable-size fields in the LogBuffer are actually just
@@ -143,14 +143,14 @@
         +-+---------------+
         |h|bbb|b|bbbb|bbb |
         +-+---------------+
-		 |
-	         |     **********      +---------------+
-	         +-?-> * format * ---> |abcdefghijklmno| ---> DISK
-	         |     **********      +---------------+
-	         |
-		 +-?-> DISK
-		 |
-		 +-?-> NETWORK
+           |
+           |     **********      +---------------+
+           +-?-> * format * ---> |abcdefghijklmno| ---> DISK
+           |     **********      +---------------+
+           |
+           +-?-> DISK
+           |
+           +-?-> NETWORK
 
       - The logging thread wakes up whenever there is a LogBufferSegment
         ready to be flushed.  This occurs when it is on the full_segment
@@ -296,6 +296,8 @@
 #include <stdarg.h>
 #include "libts.h"
 #include "P_RecProcess.h"
+#include "LogFile.h"
+#include "LogBuffer.h"
 
 class LogAccess;
 class LogFieldList;
@@ -303,11 +305,44 @@ class LogFilterList;
 class LogFormatList;
 //class LogBufferList; vl: we don't need it here
 struct LogBufferHeader;
+class LogFile;
 class LogBuffer;
 class LogFormat;
 class LogObject;
 class LogConfig;
 class TextLogObject;
+
+class LogFlushData
+{
+public:
+  LINK(LogFlushData, link);
+  LogFile *m_logfile;
+  LogBuffer *logbuffer;
+  void *m_data;
+  int m_len;
+
+  LogFlushData(LogFile *logfile, void *data, int len = -1):
+    m_logfile(logfile), m_data(data), m_len(len)
+  {
+  }
+
+  ~LogFlushData()
+  {
+    switch (m_logfile->m_file_format) {
+    case LOG_FILE_BINARY:
+      logbuffer = (LogBuffer *)m_data;
+      LogBuffer::destroy(logbuffer);
+      break;
+    case LOG_FILE_ASCII:
+    case LOG_FILE_PIPE:
+      free(m_data);
+      break;
+    case N_LOGFILE_TYPES:
+    default:
+      ink_release_assert(!"Unknown file format type!");
+    }
+  }
+};
 
 /**
    This object exists to provide a namespace for the logging system.
@@ -321,18 +356,19 @@ public:
 
   enum ReturnCodeFlags
   {
-    LOG_OK = 0,
-    SKIP = 1,
-    FAIL = 2,
-    FULL = 4
+    LOG_OK = 1,
+    SKIP = 2,
+    AGGR = 4,
+    FAIL = 8,
+    FULL = 16
   };
 
   enum LoggingMode
   {
-    LOG_NOTHING = 0,
-    LOG_ERRORS_ONLY,
-    LOG_TRANSACTIONS_ONLY,
-    FULL_LOGGING
+    LOG_MODE_NONE = 0,
+    LOG_MODE_ERRORS,        // log *only* errors
+    LOG_MODE_TRANSACTIONS,  // log *only* transactions
+    LOG_MODE_FULL
   };
 
   enum InitFlags
@@ -353,29 +389,22 @@ public:
   // main interface
   static void init(int configFlags = 0);
   static void init_fields();
-#ifndef INK_NO_LOG
   inkcoreapi static bool transaction_logging_enabled()
   {
-    return (logging_mode == FULL_LOGGING || logging_mode == LOG_TRANSACTIONS_ONLY);
+    return (logging_mode == LOG_MODE_FULL || logging_mode == LOG_MODE_TRANSACTIONS);
   }
 
   inkcoreapi static bool error_logging_enabled()
   {
-    return (logging_mode == FULL_LOGGING || logging_mode == LOG_ERRORS_ONLY);
+    return (logging_mode == LOG_MODE_FULL || logging_mode == LOG_MODE_ERRORS);
   }
 
   inkcoreapi static int access(LogAccess * lad);
-  inkcoreapi static int error(const char *format, ...);
-#else
-  static int error(char *format, ...)
-  {
-    return LOG_OK;
-  }
-#endif
-  inkcoreapi static int va_error(char *format, va_list ap);
+  inkcoreapi static int va_error(const char *format, va_list ap);
+  inkcoreapi static int error(const char *format, ...) TS_PRINTFLIKE(1, 2);
 
   // public data members
-  inkcoreapi static TextLogObject *error_log;
+  inkcoreapi static LogObject *error_log;
   static LogConfig *config;
   static LogFieldList global_field_list;
 //    static LogBufferList global_buffer_full_list; vl: not used
@@ -385,23 +414,17 @@ public:
   static LogObject *global_scrap_object;
   static LoggingMode logging_mode;
 
-  // keep track of inactive objects
-  static LogObject **inactive_objects;
-  static size_t numInactiveObjects;
-  static size_t maxInactiveObjects;
-  static void add_to_inactive(LogObject * obj);
-
   // logging thread stuff
-  static volatile unsigned long flush_counter;
-  static ink_mutex flush_mutex;
-  static ink_cond flush_cond;
-  static ink_thread flush_thread;
+  static EventNotify *preproc_notify;
+  static void *preproc_thread_main(void *args);
+  static EventNotify *flush_notify;
+  static InkAtomicList *flush_data_list;
   static void *flush_thread_main(void *args);
 
   // collation thread stuff
-  static ink_mutex collate_mutex;
-  static ink_cond collate_cond;
+  static EventNotify collate_notify;
   static ink_thread collate_thread;
+  static int collation_preproc_threads;
   static int collation_accept_file_descriptor;
   static int collation_port;
   static void *collate_thread_main(void *args);
@@ -413,6 +436,7 @@ public:
 
   Log();                        // shut up stupid DEC C++ compiler
 
+  friend void RegressionTest_LogObjectManager_Transfer(RegressionTest *, int, int *);
 private:
 
   static void periodic_tasks(long time_now);

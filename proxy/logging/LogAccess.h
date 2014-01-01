@@ -26,7 +26,6 @@
 
 
  ***************************************************************************/
-#if !defined (INK_NO_LOG)
 #ifndef LOG_ACCESS_H
 #define LOG_ACCESS_H
 #include "libts.h"
@@ -88,8 +87,6 @@
       }
 
   -------------------------------------------------------------------------*/
-
-#include "ink_bool.h"
 
 // DEFAULT_STR_LEN MUST be less than INK_MIN_ALIGN
 #define DEFAULT_STR	"-"
@@ -187,7 +184,6 @@ public:
   inkcoreapi virtual int marshal_client_req_header_len(char *); // INT
   inkcoreapi virtual int marshal_client_req_body_len(char *);   // INT
   inkcoreapi virtual int marshal_client_finish_status_code(char *);     // INT
-  inkcoreapi virtual int marshal_client_gid(char *);    // INT
   inkcoreapi virtual int marshal_client_accelerator_id(char *); // INT
 
   //
@@ -198,8 +194,6 @@ public:
   inkcoreapi virtual int marshal_proxy_resp_content_len(char *);        // INT
   inkcoreapi virtual int marshal_proxy_resp_status_code(char *);        // INT
   inkcoreapi virtual int marshal_proxy_resp_header_len(char *); // INT
-  inkcoreapi virtual int marshal_proxy_resp_origin_bytes(char *);       // INT
-  inkcoreapi virtual int marshal_proxy_resp_cache_bytes(char *);        // INT
   inkcoreapi virtual int marshal_proxy_finish_status_code(char *);      // INT
   inkcoreapi virtual int marshal_cache_result_code(char *);     // INT
 
@@ -362,4 +356,3 @@ LogAccess::marshal_int(char *dest, int64_t source)
 char *resolve_logfield_string(LogAccess * context, const char *format_str);
 
 #endif
-#endif // INK_NO_LOG

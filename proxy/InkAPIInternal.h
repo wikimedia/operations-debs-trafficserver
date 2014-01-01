@@ -124,6 +124,7 @@ struct HttpAltInfo
   float m_qvalue;
 };
 
+/// A single API hook that can be invoked.
 class APIHook
 {
 public:
@@ -133,36 +134,154 @@ public:
   LINK(APIHook, m_link);
 };
 
-
+/// A collection of API hooks.
 class APIHooks
 {
 public:
   void prepend(INKContInternal * cont);
   void append(INKContInternal * cont);
   APIHook *get();
+  void clear();
+  bool is_empty() const;
+  void invoke(int event, void* data);
 
 private:
   Que(APIHook, m_link) m_hooks;
 };
 
+inline bool
+APIHooks::is_empty() const
+{
+  return NULL == m_hooks.head;
+}
 
-class HttpAPIHooks
+inline void
+APIHooks::invoke(int event, void* data) {
+  for ( APIHook* hook = m_hooks.head ; NULL != hook ; hook = hook->next())
+    hook->invoke(event, data);
+}
+
+/** Container for API hooks for a specific feature.
+
+    This is an array of hook lists, each identified by a numeric identifier (id). Each array element is a list of all
+    hooks for that ID. Adding a hook means adding to the list in the corresponding array element. There is no provision
+    for removing a hook.
+
+    @note The minimum value for a hook ID is zero. Therefore the template parameter @a N_ID should be one more than the
+    maximum hook ID so the valid ids are 0..(N-1) in the standard C array style.
+ */
+template <
+  typename ID, ///< Type of hook ID
+  ID N ///< Number of hooks
+>
+class FeatureAPIHooks
 {
 public:
-  HttpAPIHooks();
-  ~HttpAPIHooks();
+  FeatureAPIHooks(); ///< Constructor (empty container).
+  ~FeatureAPIHooks(); ///< Destructor.
 
+  /// Remove all hooks.
   void clear();
-  void prepend(TSHttpHookID id, INKContInternal * cont);
-  void append(TSHttpHookID id, INKContInternal * cont);
-  APIHook *get(TSHttpHookID id);
+  /// Add the hook @a cont to the front of the hooks for @a id.
+  void prepend(ID id, INKContInternal * cont);
+  /// Add the hook @a cont to the end of the hooks for @a id.
+  void append(ID id, INKContInternal * cont);
+  /// Get the list of hooks for @a id.
+  APIHook *get(ID id);
+  /// @return @c true if @a id is a valid id, @c false otherwise.
+  static bool is_valid(ID id);
 
-  // A boolean value to quickly see if
-  //   any hooks are set
-  int hooks_set;
+  /// Invoke the callbacks for the hook @a id.
+  void invoke(ID id, int event, void* data);
+
+  /// Fast check for any hooks in this container.
+  ///
+  /// @return @c true if any list has at least one hook, @c false if
+  /// all lists have no hooks.
+  bool has_hooks() const;
+
+  /// Check for existence of hooks of a specific @a id.
+  /// @return @c true if any hooks of type @a id are present.
+  bool has_hooks_for(ID id) const;
 
 private:
-  APIHooks m_hooks[TS_HTTP_LAST_HOOK];
+  bool hooks_p; ///< Flag for (not) empty container.
+  /// The array of hooks lists.
+  APIHooks m_hooks[N];
+};
+
+template < typename ID, ID N >
+FeatureAPIHooks<ID,N>::FeatureAPIHooks():
+hooks_p(false)
+{
+}
+
+template < typename ID, ID N >
+FeatureAPIHooks<ID,N>::~FeatureAPIHooks()
+{
+  this->clear();
+}
+
+template < typename ID, ID N >
+void
+FeatureAPIHooks<ID,N>::clear()
+{
+  for (int i = 0; i < N; ++i) {
+    m_hooks[i].clear();
+  }
+  hooks_p = false;
+}
+
+template < typename ID, ID N >
+void
+FeatureAPIHooks<ID,N>::prepend(ID id, INKContInternal *cont)
+{
+  hooks_p = true;
+  m_hooks[id].prepend(cont);
+}
+
+template < typename ID, ID N >
+void
+FeatureAPIHooks<ID,N>::append(ID id, INKContInternal *cont)
+{
+  hooks_p = true;
+  m_hooks[id].append(cont);
+}
+
+template < typename ID, ID N >
+APIHook *
+FeatureAPIHooks<ID,N>::get(ID id)
+{
+  return m_hooks[id].get();
+}
+
+template < typename ID, ID N >
+void
+FeatureAPIHooks<ID,N>::invoke(ID id, int event, void* data)
+{
+  m_hooks[id].invoke(event, data);
+}
+
+template < typename ID, ID N >
+bool
+FeatureAPIHooks<ID,N>::has_hooks() const
+{
+  return hooks_p;
+}
+
+template < typename ID, ID N >
+bool
+FeatureAPIHooks<ID,N>::is_valid(ID id)
+{
+  return 0 <= id && id < N;
+}
+
+class HttpAPIHooks : public FeatureAPIHooks<TSHttpHookID, TS_HTTP_LAST_HOOK>
+{
+};
+
+class LifecycleAPIHooks : public FeatureAPIHooks<TSLifecycleHookID, TS_LIFECYCLE_LAST_HOOK>
+{
 };
 
 
@@ -214,6 +333,7 @@ private:
 void api_init();
 
 extern HttpAPIHooks *http_global_hooks;
+extern LifecycleAPIHooks* lifecycle_hooks;
 extern ConfigUpdateCbTable *global_config_cbs;
 
 #endif /* __INK_API_INTERNAL_H__ */

@@ -55,7 +55,7 @@ CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fil
   start = skip + header_len;
   num_usable_blocks = (off_t(len * STORE_BLOCK_SIZE) - (start - askip)) >> STORE_BLOCK_SHIFT;
 
-  header = (DiskHeader *)ats_memalign(sysconf(_SC_PAGESIZE), header_len);
+  header = (DiskHeader *)ats_memalign(ats_pagesize(), header_len);
   memset(header, 0, header_len);
   if (clear) {
     SET_HANDLER(&CacheDisk::clearDone);
@@ -107,9 +107,8 @@ CacheDisk::clearDisk()
 }
 
 int
-CacheDisk::clearDone(int event, void *data)
+CacheDisk::clearDone(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ink_assert(event == AIO_EVENT_DONE);
 
   if ((size_t) io.aiocb.aio_nbytes != (size_t) io.aio_result) {
@@ -123,9 +122,8 @@ CacheDisk::clearDone(int event, void *data)
 }
 
 int
-CacheDisk::openStart(int event, void *data)
+CacheDisk::openStart(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   ink_assert(event == AIO_EVENT_DONE);
 
   if ((size_t) io.aiocb.aio_nbytes != (size_t) io.aio_result) {
@@ -151,10 +149,8 @@ CacheDisk::openStart(int event, void *data)
 }
 
 int
-CacheDisk::openDone(int event, void *data)
+CacheDisk::openDone(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(event);
   if (cacheProcessor.start_done) {
     SET_HANDLER(&CacheDisk::syncDone);
     cacheProcessor.diskInitialized();
@@ -177,10 +173,8 @@ CacheDisk::sync()
 }
 
 int
-CacheDisk::syncDone(int event, void *data)
+CacheDisk::syncDone(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
-
   ink_assert(event == AIO_EVENT_DONE);
 
   if ((size_t) io.aiocb.aio_nbytes != (size_t) io.aio_result) {

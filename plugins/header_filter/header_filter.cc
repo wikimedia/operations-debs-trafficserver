@@ -43,7 +43,7 @@ int arg_idx;
 // Continuation
 //
 static int
-cont_header_filter(TSCont contp, TSEvent event, void *edata)
+cont_header_filter(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edata)
 {
   TSHttpTxn txnp = (TSHttpTxn) edata;
   TSHttpHookID hook = TS_HTTP_LAST_HOOK;
@@ -101,8 +101,8 @@ TSPluginInit(int argc, const char *argv[])
   TSPluginRegistrationInfo info;
 
   info.plugin_name = const_cast<char*>(PLUGIN_NAME);
-  info.vendor_name = const_cast<char*>("Apache");
-  info.support_email = const_cast<char*>("users@trafficserver.apache.org");
+  info.vendor_name = const_cast<char*>("Apache Software Foundation");
+  info.support_email = const_cast<char*>("dev@trafficserver.apache.org");
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0 , &info) != TS_SUCCESS) {
     TSError("header_filter: plugin registration failed.\n"); 
@@ -156,7 +156,7 @@ TSRemapInit(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
 
 
 TSReturnCode
-TSRemapNewInstance(int argc, char* argv[], void** ih, char* errbuf, int errbuf_size)
+TSRemapNewInstance(int argc, char* argv[], void** ih, char* /* errbuf ATS_UNUSED */, int /* errbuf_size */)
 {
   if (argc < 3) {
     TSError("Unable to create remap instance, need rules file");

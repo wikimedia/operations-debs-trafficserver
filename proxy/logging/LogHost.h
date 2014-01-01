@@ -33,15 +33,13 @@ class LogCollationClientSM;
   LogHost
   This object corresponds to a named log collation host.
   -------------------------------------------------------------------------*/
-class LogHost: public LogBufferSink
+class LogHost
 {
 
-//#if defined(IOCORE_LOG_COLLATION)
   friend class LogCollationClientSM;
-//#endif
 
 public:
-  LogHost(char *object_filename, uint64_t object_signature);
+  LogHost(const char *object_filename, uint64_t object_signature);
   LogHost(const LogHost &);
   ~LogHost();
 
@@ -52,7 +50,11 @@ public:
   bool connected(bool ping);
   bool connect();
   void disconnect();
-  int write(LogBuffer * lb);
+  //
+  // preprocess the given buffer data before sent to target host
+  // and try to delete it when its reference become zero.
+  //
+  int preproc_and_try_delete(LogBuffer * lb);
 
   char const* name() const { return m_name ? m_name : "UNKNOWN"; }
   IpAddr const& ip_addr() const { return m_ip; }
@@ -68,8 +70,11 @@ public:
 private:
   void clear();
   bool authenticated();
-  int orphan_write(LogBuffer * lb);
-  int orphan_write_and_delete(LogBuffer * lb);
+  //
+  // write the given buffer data to orhpan file and
+  // try to delete it when its reference become zero.
+  //
+  void orphan_write_and_try_delete(LogBuffer * lb);
   void create_orphan_LogFile_object();
 
 private:
@@ -83,12 +88,11 @@ private:
   int m_sock_fd;
   bool m_connected;
   LogFile *m_orphan_file;
-#if defined(IOCORE_LOG_COLLATION)
   LogCollationClientSM *m_log_collation_client_sm;
-#endif
 
 public:
   LINK(LogHost, link);
+  SLINK(LogHost, failover_link);
 
 private:
   // -- member functions not allowed --
@@ -108,7 +112,7 @@ public:
   void add(LogHost * host, bool copy = true);
   unsigned count();
   void clear();
-  int write(LogBuffer * lb);
+  int preproc_and_try_delete(LogBuffer * lb);
 
   LogHost *first() { return m_host_list.head; }
   LogHost *next(LogHost * here) { return (here->link).next; }

@@ -23,6 +23,9 @@
 
 #include "libts.h"
 
+#if HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 
 int
 ink_fputln(FILE * stream, const char *s)
@@ -331,4 +334,34 @@ ink_filepath_make(char *path, int pathsz, const char *rootpath, const char *addp
   }
   ink_strlcpy(path, addpath, pathsz);
   return 0;
+}
+
+int
+ink_file_fd_zerofill(int fd, off_t size)
+{
+  // Clear the file by truncating it to zero and then to the desired size.
+  if (ftruncate(fd, 0) < 0) {
+    return errno;
+  }
+
+#if HAVE_POSIX_FALLOCATE
+  return posix_fallocate(fd, 0, size);
+#else
+  if (ftruncate(fd, size) < 0) {
+    return errno;
+  }
+  return 0;
+#endif
+}
+
+bool
+ink_file_is_directory(const char * path)
+{
+  struct stat sbuf;
+
+  if (stat(path, &sbuf) == -1) {
+    return false;
+  }
+
+  return S_ISDIR(sbuf.st_mode);
 }

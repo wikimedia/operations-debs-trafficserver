@@ -43,6 +43,8 @@ extern int g_num_update[];
 extern RecModeT g_mode_type;
 extern RecTree *g_records_tree;
 
+extern Diags *g_diags;
+
 // records.config items
 extern const char *g_rec_config_fpath;
 extern LLQ *g_rec_config_contents_llq;
@@ -76,7 +78,7 @@ RecRecord *RecForceInsert(RecRecord * record);
 //-------------------------------------------------------------------------
 
 int RecSetRecord(RecT rec_type, const char *name, RecDataT data_type,
-                 RecData *data, RecRawStat *raw_stat, bool lock = true);
+                 RecData *data, RecRawStat *raw_stat, bool lock = true, bool inc_version = true);
 
 int RecGetRecord_Xmalloc(const char *name, RecDataT data_type, RecData * data, bool lock = true);
 
@@ -86,8 +88,8 @@ int RecGetRecord_Xmalloc(const char *name, RecDataT data_type, RecData * data, b
 
 int RecReadStatsFile();
 int RecSyncStatsFile();
-int RecReadConfigFile();
-int RecSyncConfigToTB(textBuffer * tb);
+int RecReadConfigFile(bool inc_version);
+int RecSyncConfigToTB(textBuffer * tb, bool *inc_version = NULL);
 
 //-------------------------------------------------------------------------
 // Misc

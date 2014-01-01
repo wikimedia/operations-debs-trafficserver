@@ -24,15 +24,18 @@
 #include "libts.h"
 #include "I_Layout.h"
 #include "I_Version.h"
+#include "I_RecCore.h"
 #include "mgmtapi.h"
 #include "ClusterCom.h"
+
+#include <string>
+#include <map>
 
 #if defined(linux) || defined (solaris)
 #include "sys/utsname.h"
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
-#include <grp.h>
 
 union semun
 {
@@ -42,9 +45,10 @@ union semun
   struct seminfo *__buf;        /* buffer for IPC_INFO */
 };
 #endif  // linux check
+#include <grp.h>
 
-// For debugging, turn this on.
-// #define TRACE_LOG_COP 1
+static const long MAX_LOGIN =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
+static const char COP_TRACE_FILE[] = "/tmp/traffic_cop.trace";
 
 #define OPTIONS_MAX     32
 #define OPTIONS_LEN_MAX 1024
@@ -56,6 +60,8 @@ union semun
 #define COP_FATAL    LOG_ALERT
 #define COP_WARNING  LOG_ERR
 #define COP_DEBUG    LOG_DEBUG
+
+Diags * g_diags; // link time dependency
 
 static const char *root_dir;
 static const char *runtime_dir;
@@ -75,7 +81,7 @@ static char syslog_fac_str[PATH_NAME_MAX] = "LOG_DAEMON";
 static int killsig = SIGKILL;
 static int coresig = 0;
 
-static char admin_user[256];
+static char* admin_user;
 static uid_t admin_uid;
 static gid_t admin_gid;
 static bool admin_user_p = false;
@@ -99,7 +105,6 @@ static int source_port = 0;
 static int manager_failures = 0;
 static int server_failures = 0;
 static int server_not_found = 0;
-
 
 static const int sleep_time = 10;       // 10 sec
 static const int manager_timeout = 3 * 60;      //  3 min
@@ -127,12 +132,27 @@ static int child_status = 0;
 static int sem_id = 11452;
 
 AppVersionInfo appVersionInfo;
-static InkHashTable *configTable = NULL;
 
 static char const localhost[] = "127.0.0.1";
 
 static void cop_log(int priority, const char *format, ...) TS_PRINTFLIKE(2, 3);
 inline static void dummy_cop_log_trace(const char *format, ...) TS_PRINTFLIKE(1, 2);
+
+static void get_admin_user(void);
+
+struct ConfigValue
+{
+  ConfigValue(RecT _t, RecDataT _d, const std::string& _v)
+    : config_type(_t), data_type(_d), data_value(_v) {
+    }
+
+  RecT        config_type;
+  RecDataT    data_type;
+  std::string data_value;
+};
+
+typedef std::map<std::string, ConfigValue> ConfigValueTable;
+static ConfigValueTable configTable;
 
 inline static void
 dummy_cop_log_trace(const char *format, ...)
@@ -140,7 +160,7 @@ dummy_cop_log_trace(const char *format, ...)
   (void)format;
 }
 
-#ifdef TRACE_LOG_COP
+#if TS_USE_COP_DEBUG
 #define cop_log_trace(...)              cop_log(COP_DEBUG, __VA_ARGS__)
 #else
 #define cop_log_trace(...)      if (0) dummy_cop_log_trace(__VA_ARGS__)
@@ -152,7 +172,7 @@ cop_log(int priority, const char *format, ...)
 {
   va_list args;
   char buffer[8192];
-#ifdef TRACE_LOG_COP
+#if TS_USE_COP_DEBUG
   static FILE *trace_file = NULL;
   struct timeval now;
   double now_f;
@@ -160,9 +180,11 @@ cop_log(int priority, const char *format, ...)
 
   va_start(args, format);
 
-#ifdef TRACE_LOG_COP
-  if (!trace_file)
-    trace_file = fopen("/tmp/traffic_cop.trace", "w");
+#if TS_USE_COP_DEBUG
+  if (!trace_file) {
+    if (!unlink(COP_TRACE_FILE))
+      trace_file = fopen(COP_TRACE_FILE, "w");
+  }
   if (trace_file) {
     gettimeofday(&now, NULL);
     now_f = now.tv_sec + now.tv_usec / 1000000.0f;
@@ -202,12 +224,8 @@ void
 chown_file_to_admin_user(const char *file) {
   if (admin_user_p) {
     if (chown(file, admin_uid, admin_gid) < 0) {
-      cop_log(
-        COP_FATAL,
-        "cop couldn't chown the file: '%s' for '%s' (%d/%d) : [%d] %s\n",
-        file, admin_user, admin_uid, admin_gid,
-        errno, strerror(errno)
-      );
+      cop_log(COP_FATAL, "cop couldn't chown the file: '%s' for '%s' (%d/%d) : [%d] %s\n",
+              file, admin_user, admin_uid, admin_gid, errno, strerror(errno));
     }
   }
 }
@@ -215,7 +233,6 @@ chown_file_to_admin_user(const char *file) {
 static void
 sig_child(int signum)
 {
-  NOWARN_UNUSED(signum);
   pid_t pid = 0;
   int status = 0;
 
@@ -306,7 +323,6 @@ sig_alarm_warn(int signum, siginfo_t * t, void *c)
 sig_alarm_warn(int signum)
 #endif
 {
-  NOWARN_UNUSED(signum);
   cop_log_trace("Entering sig_alarm_warn(%d)\n", signum);
   cop_log(COP_WARNING, "unable to kill traffic_server for the last" " %d seconds\n", kill_timeout);
 
@@ -318,7 +334,6 @@ sig_alarm_warn(int signum)
 static void
 sig_ignore(int signum)
 {
-  NOWARN_UNUSED(signum);
   cop_log_trace("Entering sig_ignore(%d)\n", signum);
   // No code here yet...
   cop_log_trace("Leaving sig_ignore(%d)\n", signum);
@@ -472,141 +487,157 @@ transient_error(int error, int wait_ms)
 }
 
 static void
-build_config_table(FILE * fp)
+config_register_variable(RecT rec_type, RecDataT data_type, const char * name, const char * value, bool /* inc_version */)
 {
-  int i;
-  char *p;
-  char buffer[4096], varname[1024];
-
-  cop_log_trace("Entering build_config_table(%p)\n", fp);
-  if (configTable != NULL) {
-    ink_hash_table_destroy_and_free_values(configTable);
-  }
-  configTable = ink_hash_table_create(InkHashTableKeyType_String);
-
-  while (!feof(fp)) {
-
-    if (!fgets(buffer, 4096, fp)) {
-      break;
-    }
-    // replace newline with null termination
-    p = strchr(buffer, '\n');
-    if (p) {
-      *p = '\0';
-    }
-    // skip beginning line spaces
-    p = buffer;
-    while (*p != '\0' && isspace(*p)) {
-      p++;
-    }
-
-    // skip blank or comment lines
-    if (*p == '#' || *p == '\0') {
-      continue;
-    }
-    // skip the first word
-    while (*p != '\0' && !isspace(*p)) {
-      p++;
-    }
-
-    while (*p != '\0' && isspace(*p)) {
-      p++;
-    }
-
-    for (i = 0; *p != '\0' && !isspace(*p); i++, p++) {
-      varname[i] = *p;
-    }
-    varname[i] = '\0';
-
-    ink_hash_table_insert(configTable, varname, ats_strdup(buffer));
-  }
-  cop_log_trace("Leaving build_config_table(%p)\n", fp);
+  configTable.insert(std::make_pair(std::string(name), ConfigValue(rec_type, data_type, value)));
 }
 
 static void
-read_config_string(const char *str, char *val, size_t val_len, bool miss_ok = false)
+config_read_string(const char *name, char *val, size_t val_len, bool miss_ok = false)
 {
-  InkHashTableValue hval;
-  char *p, *buf;
+  ConfigValueTable::const_iterator config;
 
-  if (!ink_hash_table_lookup(configTable, str, &hval)) {
+  config = configTable.find(name);
+  if (config == configTable.end()) {
     if (miss_ok)
       return;
     else
       goto ConfigStrFatalError;
   }
-  buf = (char *) hval;
 
-  p = strstr(buf, str);
-  if (!p) {
+  if (config->second.data_type != RECD_STRING) {
     goto ConfigStrFatalError;
   }
 
-  p += strlen(str);
-  p = strstr(p, "STRING");
-  if (!p) {
-    goto ConfigStrFatalError;
-  }
-
-  p += sizeof("STRING") - 1;
-  while (*p && isspace(*p)) {
-    p += 1;
-  }
-
-  ink_strlcpy(val, p, val_len);
+  ink_strlcpy(val, RecConfigOverrideFromEnvironment(name, config->second.data_value.c_str()), val_len);
   return;
 
 ConfigStrFatalError:
-  cop_log(COP_FATAL, "could not find variable string %s in records.config\n", str);
+  cop_log(COP_FATAL, "could not find string variable %s in records.config\n", name);
   exit(1);
 }
 
 static void
-read_config_int(const char *str, int *val, bool miss_ok = false)
+config_read_int(const char *name, int *val, bool miss_ok = false)
 {
-  InkHashTableValue hval;
-  char *p, *buf;
+  ConfigValueTable::const_iterator config;
 
-  if (!ink_hash_table_lookup(configTable, str, &hval)) {
+  config = configTable.find(name);
+  if (config == configTable.end()) {
     if (miss_ok)
       return;
     else
       goto ConfigIntFatalError;
   }
-  buf = (char *) hval;
 
-  p = strstr(buf, str);
-  if (!p) {
+  if (config->second.data_type != RECD_INT) {
     goto ConfigIntFatalError;
   }
 
-  p += strlen(str);
-  p = strstr(p, "INT");
-  if (!p) {
-    goto ConfigIntFatalError;
-  }
-
-  p += sizeof("INT") - 1;
-  while (*p && isspace(*p)) {
-    p += 1;
-  }
-
-  *val = atoi(p);
+  *val = atoi(RecConfigOverrideFromEnvironment(name, config->second.data_value.c_str()));
   return;
 
 ConfigIntFatalError:
-  cop_log(COP_FATAL, "could not find variable integer %s in records.config\n", str);
+  cop_log(COP_FATAL, "could not find integer variable %s in records.config\n", name);
   exit(1);
 }
 
+static void
+config_reload_records()
+{
+  struct stat stat_buf;
+  static time_t last_mod = 0;
+  char log_dir[PATH_NAME_MAX];
+  char log_filename[PATH_NAME_MAX];
+  int tmp_int;
 
-bool
-get_admin_user() {
+  cop_log_trace("Entering %s()\n", __func__);
+  // coverity[fs_check_call]
+  if (stat(config_file, &stat_buf) == -1) {
+    cop_log(COP_FATAL, "could not stat \"%s\"\n", config_file);
+    exit(1);
+  }
+
+  if (stat_buf.st_mtime <= last_mod) {  // no change, no need to re-read
+    return;
+  } else {
+    last_mod = stat_buf.st_mtime;
+  }
+
+  configTable.clear();
+
+  if (RecConfigFileParse(config_file, config_register_variable, false) != REC_ERR_OKAY) {
+    cop_log(COP_FATAL, "could not parse \"%s\"\n", config_file);
+    exit(1);
+  }
+
+  config_read_string("proxy.config.manager_binary", manager_binary, sizeof(manager_binary), true);
+  config_read_string("proxy.config.proxy_binary", server_binary, sizeof(server_binary), true);
+  get_admin_user();
+
+  config_read_string("proxy.config.bin_path", bin_path, sizeof(bin_path), true);
+  Layout::get()->relative(bin_path, sizeof(bin_path), bin_path);
+  if (access(bin_path, R_OK) == -1) {
+    ink_strlcpy(bin_path, Layout::get()->bindir, sizeof(bin_path));
+    if (access(bin_path, R_OK) == -1) {
+      cop_log(COP_FATAL, "could not access() \"%s\"\n", bin_path);
+      cop_log(COP_FATAL, "please set 'proxy.config.bin_path' \n");
+      exit(1);
+    }
+  }
+  config_read_string("proxy.config.log.logfile_dir", log_dir, sizeof(log_dir));
+  Layout::get()->relative(log_dir, sizeof(log_dir), log_dir);
+  if (access(log_dir, W_OK) == -1) {
+    ink_strlcpy(log_dir, Layout::get()->logdir, sizeof(log_dir));
+    if (access(log_dir, W_OK) == -1) {
+      cop_log(COP_FATAL, "could not access() \"%s\"\n", log_dir);
+      cop_log(COP_FATAL, "please set 'proxy.config.log.logfile_dir' \n");
+      exit(1);
+    }
+  }
+  config_read_string("proxy.config.output.logfile", log_filename, sizeof(log_filename));
+  Layout::relative_to(log_file, sizeof(log_file), log_dir, log_filename);
+  config_read_int("proxy.config.process_manager.mgmt_port", &http_backdoor_port, true);
+  config_read_int("proxy.config.admin.autoconf_port", &autoconf_port, true);
+  config_read_int("proxy.config.cluster.rsport", &rs_port, true);
+  config_read_int("proxy.config.lm.sem_id", &sem_id, true);
+
+#if defined(linux)
+  // TS-1075 : auto-port ::connect DoS on high traffic linux systems
+  config_read_int("proxy.config.cop.source_port", &source_port, true);
+#endif
+
+  config_read_int("proxy.local.cluster.type", &tmp_int);
+  cluster_type = static_cast<MgmtClusterType>(tmp_int);
+
+  config_read_string("proxy.config.syslog_facility", syslog_fac_str, sizeof(syslog_fac_str), true);
+  process_syslog_config();
+  config_read_int("proxy.config.cop.core_signal", &coresig, true);
+
+  config_read_int("proxy.config.cop.linux_min_swapfree_kb", &check_memory_min_swapfree_kb, true);
+  config_read_int("proxy.config.cop.linux_min_memfree_kb", &check_memory_min_memfree_kb, true);
+
+  cop_log_trace("Leaving %s()\n", __func__);
+}
+
+static void
+get_admin_user()
+{
   struct passwd *pwd = NULL;
 
-  read_config_string("proxy.config.admin.user_id", admin_user, sizeof(admin_user));
+  if (!admin_user)
+    admin_user = (char *)ats_malloc(MAX_LOGIN);
+
+  config_read_string("proxy.config.admin.user_id", admin_user, MAX_LOGIN);
 
   if (*admin_user) {
+    char *end = admin_user + strlen(admin_user) - 1;
+
+    // Trim trailing spaces.
+    while (end >= admin_user && isspace(*end))
+      end--;
+    *(end + 1) = '\0';
+
     if (*admin_user == '#') {
       int uid = atoi(admin_user + 1);
       if (uid == -1) {
@@ -627,90 +658,6 @@ get_admin_user() {
       exit(1);
     }
   }
-  return admin_user_p;
-}
-
-static void
-read_config()
-{
-  FILE *fp;
-  struct stat stat_buf;
-  static time_t last_mod = 0;
-  char log_dir[PATH_NAME_MAX];
-  char log_filename[PATH_NAME_MAX];
-  int tmp_int;
-
-  cop_log_trace("Entering read_config()\n");
-  // coverity[fs_check_call]
-  if (stat(config_file, &stat_buf) == -1) {
-    cop_log(COP_FATAL, "could not stat \"%s\"\n", config_file);
-    exit(1);
-  }
-
-  if (stat_buf.st_mtime <= last_mod) {  // no change, no need to re-read
-    return;
-  } else {
-    last_mod = stat_buf.st_mtime;
-  }
-
-  // we stat the file to get the mtime and only open a read if it has changed, so disable the toctou coverity check
-  // coverity[toctou]
-  fp = fopen(config_file, "r");
-  if (!fp) {
-    cop_log(COP_FATAL, "could not open \"%s\"\n", config_file);
-    exit(1);
-  }
-
-  build_config_table(fp);
-  fclose(fp);
-
-  read_config_string("proxy.config.manager_binary", manager_binary, sizeof(manager_binary), true);
-  read_config_string("proxy.config.proxy_binary", server_binary, sizeof(server_binary), true);
-  get_admin_user();
-
-  read_config_string("proxy.config.bin_path", bin_path, sizeof(bin_path), true);
-  Layout::get()->relative(bin_path, sizeof(bin_path), bin_path);
-  if (access(bin_path, R_OK) == -1) {
-    ink_strlcpy(bin_path, Layout::get()->bindir, sizeof(bin_path));
-    if (access(bin_path, R_OK) == -1) {
-      cop_log(COP_FATAL, "could not access() \"%s\"\n", bin_path);
-      cop_log(COP_FATAL, "please set 'proxy.config.bin_path' \n");
-      exit(1);
-    }
-  }
-  read_config_string("proxy.config.log.logfile_dir", log_dir, sizeof(log_dir));
-  Layout::get()->relative(log_dir, sizeof(log_dir), log_dir);
-  if (access(log_dir, W_OK) == -1) {
-    ink_strlcpy(log_dir, Layout::get()->logdir, sizeof(log_dir));
-    if (access(log_dir, W_OK) == -1) {
-      cop_log(COP_FATAL, "could not access() \"%s\"\n", log_dir);
-      cop_log(COP_FATAL, "please set 'proxy.config.log.logfile_dir' \n");
-      exit(1);
-    }
-  }
-  read_config_string("proxy.config.output.logfile", log_filename, sizeof(log_filename));
-  Layout::relative_to(log_file, sizeof(log_file), log_dir, log_filename);
-  read_config_int("proxy.config.process_manager.mgmt_port", &http_backdoor_port, true);
-  read_config_int("proxy.config.admin.autoconf_port", &autoconf_port, true);
-  read_config_int("proxy.config.cluster.rsport", &rs_port, true);
-  read_config_int("proxy.config.lm.sem_id", &sem_id, true);
-
-#if defined(linux)
-  // TS-1075 : auto-port ::connect DoS on high traffic linux systems
-  read_config_int("proxy.config.cop.source_port", &source_port, true);
-#endif
-
-  read_config_int("proxy.local.cluster.type", &tmp_int);
-  cluster_type = static_cast<MgmtClusterType>(tmp_int);
-
-  read_config_string("proxy.config.syslog_facility", syslog_fac_str, sizeof(syslog_fac_str), true);
-  process_syslog_config();
-  read_config_int("proxy.config.cop.core_signal", &coresig, true);
-
-  read_config_int("proxy.config.cop.linux_min_swapfree_kb", &check_memory_min_swapfree_kb, true);
-  read_config_int("proxy.config.cop.linux_min_memfree_kb", &check_memory_min_memfree_kb, true);
-
-  cop_log_trace("Leaving read_config()\n");
 }
 
 static void
@@ -761,10 +708,10 @@ spawn_manager()
   }
   options[0] = prog;
   i = 1;
-  tok = ink_strtok_r(manager_options, " ", &last);
+  tok = strtok_r(manager_options, " ", &last);
   options[i++] = tok;
   if (tok != NULL) {
-    while (i < OPTIONS_MAX && (tok = ink_strtok_r(NULL, " ", &last))) {
+    while (i < OPTIONS_MAX && (tok = strtok_r(NULL, " ", &last))) {
       options[i++] = tok;
     }
   }
@@ -1096,7 +1043,7 @@ read_manager_string(const char *variable, char *value, size_t val_len)
     return -1;
   }
 
-  ink_strlcpy(value, p, e - p + 1);
+  ink_strlcpy(value, p, MIN((size_t)(e - p + 1), val_len));
 
   return 0;
 }
@@ -1190,7 +1137,7 @@ test_rs_port()
 static int
 test_mgmt_cli_port()
 {
-  TSString val;
+  TSString val = NULL;
   int ret = 0;
 
   if (TSRecordGetString("proxy.config.manager_binary", &val) !=  TS_ERR_OKAY) {
@@ -1574,7 +1521,7 @@ check_no_run()
   int err;
 
   cop_log_trace("Entering check_no_run()\n");
-  snprintf(path, sizeof(path), "%s/internal/no_cop", config_dir);
+  snprintf(path, sizeof(path), "%s/no_cop", runtime_dir);
 
   do {
     err = stat(path, &info);
@@ -1631,7 +1578,7 @@ check(void *arg)
     }
 
     // Re-read the config file information
-    read_config();
+    config_reload_records();
 
     // Check to make sure the programs are running
     check_programs();
@@ -1646,7 +1593,7 @@ check(void *arg)
 
     // We do this after the first round of checks, since the first "check" will spawn traffic_manager
     if (!mgmt_init) {
-      TSInit(Layout::get()->runtimedir, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS));
+      TSInit(Layout::get()->runtimedir, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS));
       mgmt_init = true;
     }
   }
@@ -1815,6 +1762,8 @@ static void
 init()
 {
   cop_log_trace("Entering init()\n");
+
+  RecConfigFileInit();
 
   init_signals();
   init_syslog();

@@ -26,7 +26,6 @@
 #ifndef LOG_ACCESS_HTTP_H
 #define LOG_ACCESS_HTTP_H
 
-#if !defined (INK_NO_LOG)
 #include "Arena.h"
 #include "HTTP.h"
 #include "LogAccess.h"
@@ -127,6 +126,7 @@ public:
   //
   virtual int marshal_transfer_time_ms(char *); // INT
   virtual int marshal_transfer_time_s(char *);  // INT
+  virtual int marshal_file_size(char *); // INT
 
   //
   // named fields from within a http header
@@ -170,4 +170,3 @@ private:
 };
 
 #endif
-#endif //INK_NO_LOG

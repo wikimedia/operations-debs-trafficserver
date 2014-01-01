@@ -148,10 +148,10 @@ iobuffer_mem_inc(const char *_loc, int64_t _size_index)
   if (!_loc)
     _loc = "memory/IOBuffer/UNKNOWN-LOCATION";
   Resource *res = res_lookup(_loc);
-  ink_debug_assert(strcmp(_loc, res->path) == 0);
+  ink_assert(strcmp(_loc, res->path) == 0);
 #ifdef DEBUG  
   int64_t r = ink_atomic_increment(&res->value, index_to_buffer_size(_size_index));
-  ink_debug_assert(r >= 0);
+  ink_assert(r >= 0);
 #else
   ink_atomic_increment(&res->value, index_to_buffer_size(_size_index));
 #endif
@@ -168,10 +168,10 @@ iobuffer_mem_dec(const char *_loc, int64_t _size_index)
   if (!_loc)
     _loc = "memory/IOBuffer/UNKNOWN-LOCATION";
   Resource *res = res_lookup(_loc);
-  ink_debug_assert(strcmp(_loc, res->path) == 0);
+  ink_assert(strcmp(_loc, res->path) == 0);
 #ifdef DEBUG  
   int64_t r = ink_atomic_increment(&res->value, -index_to_buffer_size(_size_index));
-  ink_debug_assert(r >= index_to_buffer_size(_size_index));
+  ink_assert(r >= index_to_buffer_size(_size_index));
 #else
   ink_atomic_increment(&res->value, -index_to_buffer_size(_size_index));
 #endif
@@ -203,7 +203,7 @@ new_IOBufferData_internal(
                            void *b, int64_t size, int64_t asize_index)
 {
   (void) size;
-  IOBufferData *d = ioDataAllocator.alloc();
+  IOBufferData *d = THREAD_ALLOC(ioDataAllocator, this_ethread());
   d->_size_index = asize_index;
   ink_assert(BUFFER_SIZE_INDEX_IS_CONSTANT(asize_index)
              || size <= d->block_size());
@@ -263,7 +263,7 @@ new_IOBufferData_internal(
 #endif
                            int64_t size_index, AllocType type)
 {
-  IOBufferData *d = ioDataAllocator.alloc();
+  IOBufferData *d = THREAD_ALLOC(ioDataAllocator, this_ethread());
 #ifdef TRACK_BUFFER_USER
   d->_location = loc;
 #endif
@@ -291,7 +291,7 @@ IOBufferData::alloc(int64_t size_index, AllocType type)
       _data = (char *) ioBufAllocator[size_index].alloc_void();
     // coverity[dead_error_condition]
     else if (BUFFER_SIZE_INDEX_IS_XMALLOCED(size_index))
-      _data = (char *)ats_memalign(sysconf(_SC_PAGESIZE), index_to_buffer_size(size_index));
+      _data = (char *)ats_memalign(ats_pagesize(), index_to_buffer_size(size_index));
     break;
   default:
   case DEFAULT_ALLOC:
@@ -336,7 +336,7 @@ TS_INLINE void
 IOBufferData::free()
 {
   dealloc();
-  ioDataAllocator.free(this);
+  THREAD_FREE(this, ioDataAllocator, this_ethread());
 }
 
 //////////////////////////////////////////////////////////////////
@@ -352,7 +352,7 @@ new_IOBufferBlock_internal(
 #endif
   )
 {
-  IOBufferBlock *b = ioBlockAllocator.alloc();
+  IOBufferBlock *b = THREAD_ALLOC(ioBlockAllocator, this_ethread());
 #ifdef TRACK_BUFFER_USER
   b->_location = location;
 #endif
@@ -366,7 +366,7 @@ new_IOBufferBlock_internal(
 #endif
                             IOBufferData * d, int64_t len, int64_t offset)
 {
-  IOBufferBlock *b = ioBlockAllocator.alloc();
+  IOBufferBlock *b = THREAD_ALLOC(ioBlockAllocator, this_ethread());
 #ifdef TRACK_BUFFER_USER
   b->_location = location;
 #endif
@@ -411,7 +411,7 @@ IOBufferBlock::reset()
 TS_INLINE void
 IOBufferBlock::alloc(int64_t i)
 {
-  ink_debug_assert(BUFFER_SIZE_ALLOCATED(i));
+  ink_assert(BUFFER_SIZE_ALLOCATED(i));
 #ifdef TRACK_BUFFER_USER
   data = new_IOBufferData_internal(_location, i);
 #else
@@ -468,7 +468,7 @@ TS_INLINE void
 IOBufferBlock::free()
 {
   dealloc();
-  ioBlockAllocator.free(this);
+  THREAD_FREE(this, ioBlockAllocator, this_ethread());
 }
 
 TS_INLINE void
@@ -633,6 +633,21 @@ IOBufferReader::read_avail()
   return t;
 }
 
+inline bool
+IOBufferReader::is_read_avail_more_than(int64_t size)
+{
+  int64_t t = -start_offset;
+  IOBufferBlock* b = block;
+  while (b) {
+    t += b->read_avail();
+    if (t > size) {
+      return true;
+    }
+    b = b->next;
+  }
+  return false;
+}
+
 TS_INLINE void
 IOBufferReader::consume(int64_t n)
 {
@@ -650,7 +665,7 @@ IOBufferReader::consume(int64_t n)
     block = block->next;
     r = block->read_avail();
   }
-  ink_debug_assert(read_avail() >= 0);
+  ink_assert(read_avail() >= 0);
 }
 
 TS_INLINE char &
@@ -762,7 +777,7 @@ TS_INLINE MIOBuffer * new_MIOBuffer_internal(
 #endif
                                                int64_t size_index)
 {
-  MIOBuffer *b = ioAllocator.alloc();
+  MIOBuffer *b = THREAD_ALLOC(ioAllocator, this_ethread());
 #ifdef TRACK_BUFFER_USER
   b->_location = location;
 #endif
@@ -775,7 +790,7 @@ free_MIOBuffer(MIOBuffer * mio)
 {
   mio->_writer = NULL;
   mio->dealloc_all_readers();
-  ioAllocator.free(mio);
+  THREAD_FREE(mio, ioAllocator, this_ethread());
 }
 
 TS_INLINE MIOBuffer * new_empty_MIOBuffer_internal(
@@ -784,7 +799,7 @@ TS_INLINE MIOBuffer * new_empty_MIOBuffer_internal(
 #endif
                                                      int64_t size_index)
 {
-  MIOBuffer *b = ioAllocator.alloc();
+  MIOBuffer *b = THREAD_ALLOC(ioAllocator, this_ethread());
   b->size_index = size_index;
 #ifdef TRACK_BUFFER_USER
   b->_location = location;
@@ -795,7 +810,7 @@ TS_INLINE MIOBuffer * new_empty_MIOBuffer_internal(
 TS_INLINE void
 free_empty_MIOBuffer(MIOBuffer * mio)
 {
-  ioAllocator.free(mio);
+  THREAD_FREE(mio, ioAllocator, this_ethread());
 }
 
 TS_INLINE IOBufferReader *
@@ -926,7 +941,7 @@ MIOBuffer::append_block(IOBufferBlock * b)
 TS_INLINE void
 MIOBuffer::append_block(int64_t asize_index)
 {
-  ink_debug_assert(BUFFER_SIZE_ALLOCATED(asize_index));
+  ink_assert(BUFFER_SIZE_ALLOCATED(asize_index));
 #ifdef TRACK_BUFFER_USER
   IOBufferBlock *b = new_IOBufferBlock_internal(_location);
 #else
@@ -1114,9 +1129,9 @@ TS_INLINE void
 MIOBuffer::dealloc_reader(IOBufferReader * e)
 {
   if (e->accessor) {
-    ink_assert(e->accessor->mbuf == this);
-    ink_assert(e->accessor->entry == e);
-    e->accessor->reset();
+    ink_assert(e->accessor->writer() == this);
+    ink_assert(e->accessor->reader() == e);
+    e->accessor->clear();
   }
   e->clear();
 }
@@ -1172,13 +1187,6 @@ MIOBufferAccessor::writer_for(MIOBuffer * abuf)
 {
   mbuf = abuf;
   entry = NULL;
-}
-
-TS_INLINE void
-MIOBufferAccessor::clear()
-{
-  entry = NULL;
-  mbuf = NULL;
 }
 
 TS_INLINE

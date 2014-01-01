@@ -27,7 +27,7 @@ Action *
 Cache::link(Continuation * cont, CacheKey * from, CacheKey * to, CacheFragType type, char *hostname, int host_len)
 {
 
-  if (!CACHE_READY(type)) {
+  if (!CacheProcessor::IsCacheReady(type)) {
     cont->handleEvent(CACHE_EVENT_LINK_FAILED, 0);
     return ACTION_RESULT_DONE;
   }
@@ -56,10 +56,8 @@ Cache::link(Continuation * cont, CacheKey * from, CacheKey * to, CacheFragType t
 }
 
 int
-CacheVC::linkWrite(int event, Event * e)
+CacheVC::linkWrite(int event, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
   ink_assert(event == AIO_EVENT_DONE);
   set_io_not_in_progress();
   dir_insert(&first_key, vol, &dir);
@@ -77,7 +75,7 @@ Action *
 Cache::deref(Continuation * cont, CacheKey * key, CacheFragType type, char *hostname, int host_len)
 {
 
-  if (!CACHE_READY(type)) {
+  if (!CacheProcessor::IsCacheReady(type)) {
     cont->handleEvent(CACHE_EVENT_DEREF_FAILED, 0);
     return ACTION_RESULT_DONE;
   }
@@ -122,10 +120,8 @@ Lcallreturn:
 }
 
 int
-CacheVC::derefRead(int event, Event * e)
+CacheVC::derefRead(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
   Doc *doc = NULL;
 
   cancel_trigger();
@@ -144,7 +140,7 @@ CacheVC::derefRead(int event, Event * e)
   if (!(doc->first_key == key))
     goto Lcollision;
 #ifdef DEBUG
-  ink_debug_assert(!memcmp(doc->data(), &doc->key, sizeof(doc->key)));
+  ink_assert(!memcmp(doc->data(), &doc->key, sizeof(doc->key)));
 #endif
   _action.continuation->handleEvent(CACHE_EVENT_DEREF, (void *) &doc->key);
   return free_CacheVC(this);

@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-#include "ink_unused.h"        /* MAGIC_EDITING_TAG */
 #include "HttpDebugNames.h"
 #include "P_EventSystem.h"
 #include "StatPages.h"
@@ -357,10 +356,10 @@ HttpDebugNames::get_action_name(HttpTransact::StateMachineAction_t e)
   case HttpTransact::HTTP_API_CACHE_LOOKUP_COMPLETE:
     return ("API_CACHE_LOOKUP_COMPLETE");
 
-  case HttpTransact::HTTP_API_READ_REPONSE_HDR:
+  case HttpTransact::HTTP_API_READ_RESPONSE_HDR:
     return ("API_READ_RESPONSE_HDR");
 
-  case HttpTransact::HTTP_API_SEND_REPONSE_HDR:
+  case HttpTransact::HTTP_API_SEND_RESPONSE_HDR:
     return ("API_SEND_RESPONSE_HDR");
 
   case HttpTransact::PROXY_INTERNAL_100_RESPONSE:
@@ -487,6 +486,8 @@ HttpDebugNames::get_api_hook_name(TSHttpHookID t)
     return "TS_HTTP_PRE_REMAP_HOOK";
   case TS_HTTP_POST_REMAP_HOOK:
     return "TS_HTTP_POST_REMAP_HOOK";
+  case TS_HTTP_RESPONSE_CLIENT_HOOK:
+    return "TS_HTTP_RESPONSE_CLIENT_HOOK";
   case TS_HTTP_LAST_HOOK:
     return "TS_HTTP_LAST_HOOK";
   }

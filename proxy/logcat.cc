@@ -20,16 +20,13 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-
 #include "ink_config.h"
 #include "ink_file.h"
-#include "ink_unused.h"
 #include "I_Layout.h"
 #include "I_Version.h"
 
 #define PROGRAM_NAME        "traffic_logcat"
 #define MAX_LOGBUFFER_SIZE  65536
-#undef IOCORE_LOG_COLLATION
 
 #include <poll.h>
 
@@ -46,6 +43,7 @@
 #include "LogBuffer.h"
 #include "LogUtils.h"
 #include "LogSock.h"
+#include "LogPredefined.h"
 #include "Log.h"
 
 // logcat-specific command-line flags
@@ -62,7 +60,7 @@ static char output_file[1024];
 extern int CacheClusteringEnabled;
 int auto_clear_cache_flag = 0;
 
-ArgumentDescription argument_descriptions[] = {
+static const ArgumentDescription argument_descriptions[] = {
 
   {"output_file", 'o', "Specify output file", "S1023", &output_file, NULL, NULL},
   {"auto_filenames", 'a', "Automatically generate output names",
@@ -79,7 +77,6 @@ ArgumentDescription argument_descriptions[] = {
   {"elf2", '2', "Convert to Extended2 Logging Format", "T", &elf2_flag, NULL,
    NULL}
 };
-int n_argument_descriptions = SIZE(argument_descriptions);
 
 static const char *USAGE_LINE = "Usage: " PROGRAM_NAME " [-o output-file | -a] [-CEhS"
 #ifdef DEBUG
@@ -89,7 +86,7 @@ static const char *USAGE_LINE = "Usage: " PROGRAM_NAME " [-o output-file | -a] [
 
 
 
-int
+static int
 process_file(int in_fd, int out_fd)
 {
   char buffer[MAX_LOGBUFFER_SIZE];
@@ -167,15 +164,15 @@ process_file(int in_fd, int out_fd)
     // see if there is an alternate format request from the command
     // line
     //
-    char *alt_format = NULL;
+    const char * alt_format = NULL;
     if (squid_flag)
-      alt_format = (char *) LogFormat::squid_format;
+      alt_format = PreDefinedFormatInfo::squid;
     if (clf_flag)
-      alt_format = (char *) LogFormat::common_format;
+      alt_format = PreDefinedFormatInfo::common;
     if (elf_flag)
-      alt_format = (char *) LogFormat::extended_format;
+      alt_format = PreDefinedFormatInfo::extended;
     if (elf2_flag)
-      alt_format = (char *) LogFormat::extended2_format;
+      alt_format = PreDefinedFormatInfo::extended2;
 
     // convert the buffer to ascii entries and place onto stdout
     //
@@ -187,7 +184,7 @@ process_file(int in_fd, int out_fd)
   }
 }
 
-int
+static int
 open_output_file(char *output_file)
 {
   int file_desc = 0;
@@ -224,7 +221,7 @@ open_output_file(char *output_file)
   -------------------------------------------------------------------------*/
 
 int
-main(int argc, char *argv[])
+main(int /* argc ATS_UNUSED */, char *argv[])
 {
   enum
   {
@@ -243,7 +240,7 @@ main(int argc, char *argv[])
   // process command-line arguments
   //
   output_file[0] = 0;
-  process_args(argument_descriptions, n_argument_descriptions, argv, USAGE_LINE);
+  process_args(argument_descriptions, countof(argument_descriptions), argv, USAGE_LINE);
 
   // check for the version number request
   //
@@ -254,7 +251,7 @@ main(int argc, char *argv[])
   // check for help request
   //
   if (help) {
-    usage(argument_descriptions, n_argument_descriptions, USAGE_LINE);
+    usage(argument_descriptions, countof(argument_descriptions), USAGE_LINE);
     _exit(NO_ERROR);
   }
   // check that only one of the -o and -a options was specified
@@ -286,8 +283,8 @@ main(int argc, char *argv[])
   int error = NO_ERROR;
 
   if (n_file_arguments) {
-    int bin_ext_len = strlen(BINARY_LOG_OBJECT_FILENAME_EXTENSION);
-    int ascii_ext_len = strlen(ASCII_LOG_OBJECT_FILENAME_EXTENSION);
+    int bin_ext_len = strlen(LOG_FILE_BINARY_OBJECT_FILENAME_EXTENSION);
+    int ascii_ext_len = strlen(LOG_FILE_ASCII_OBJECT_FILENAME_EXTENSION);
 
     for (unsigned i = 0; i < n_file_arguments; ++i) {
       int in_fd = open(file_arguments[i], O_RDONLY);
@@ -296,7 +293,7 @@ main(int argc, char *argv[])
         perror(0);
         error = DATA_PROCESSING_ERROR;
       } else {
-#if TS_HAS_POSIX_FADVISE
+#if HAVE_POSIX_FADVISE
         posix_fadvise(in_fd, 0, 0, POSIX_FADV_DONTNEED);
 #endif
         if (auto_filenames) {
@@ -304,13 +301,13 @@ main(int argc, char *argv[])
           //
           int n = strlen(file_arguments[i]);
           int copy_len = (n >= bin_ext_len ? (strcmp(&file_arguments[i][n - bin_ext_len],
-                                                     BINARY_LOG_OBJECT_FILENAME_EXTENSION) ==
+                                                     LOG_FILE_BINARY_OBJECT_FILENAME_EXTENSION) ==
                                               0 ? n - bin_ext_len : n) : n);
 
           char *out_filename = (char *)ats_malloc(copy_len + ascii_ext_len + 1);
 
           memcpy(out_filename, file_arguments[i], copy_len);
-          memcpy(&out_filename[copy_len], ASCII_LOG_OBJECT_FILENAME_EXTENSION, ascii_ext_len);
+          memcpy(&out_filename[copy_len], LOG_FILE_ASCII_OBJECT_FILENAME_EXTENSION, ascii_ext_len);
           out_filename[copy_len + ascii_ext_len] = 0;
 
           out_fd = open_output_file(out_filename);

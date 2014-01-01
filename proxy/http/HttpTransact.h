@@ -504,8 +504,8 @@ public:
     HTTP_API_SEND_REQUEST_HDR,
     HTTP_API_READ_CACHE_HDR,
     HTTP_API_CACHE_LOOKUP_COMPLETE,
-    HTTP_API_READ_REPONSE_HDR,
-    HTTP_API_SEND_REPONSE_HDR,
+    HTTP_API_READ_RESPONSE_HDR,
+    HTTP_API_SEND_RESPONSE_HDR,
     REDIRECT_READ,
     HTTP_API_SM_SHUTDOWN
   };
@@ -632,7 +632,6 @@ public:
     URL *lookup_url;
     URL lookup_url_storage;
     URL original_url;
-    URL store_url;
     HTTPInfo *object_read;
     HTTPInfo *second_object_read;
     HTTPInfo object_store;
@@ -653,7 +652,6 @@ public:
         lookup_url(NULL),
         lookup_url_storage(),
         original_url(),
-        store_url(),
         object_read(NULL),
         second_object_read(NULL),
         object_store(),
@@ -661,7 +659,10 @@ public:
         config(),
         directives(),
         open_read_retries(0),
-        open_write_retries(0), write_lock_state(CACHE_WL_INIT), lookup_count(0), is_ram_cache_hit(false)
+        open_write_retries(0),
+      write_lock_state(CACHE_WL_INIT),
+      lookup_count(0),
+      is_ram_cache_hit(false)
     { }
   } CacheLookupInfo;
 
@@ -676,7 +677,7 @@ public:
     { }
   } RedirectInfo;
 
-  typedef struct _ConnectionAttributes
+  struct ConnectionAttributes
   {
     HTTPVersion http_version;
     HTTPKeepAlive keep_alive;
@@ -686,9 +687,11 @@ public:
     bool receive_chunked_response;
     bool pipeline_possible;
     bool proxy_connect_hdr;
+    /// @c errno from the most recent attempt to connect.
+    /// zero means no failure (not attempted, succeeded).
+    int connect_result;
     char *name;
     bool dns_round_robin;
-    bool connect_failure;
     TransferEncoding_t transfer_encoding;
 
     IpEndpoint addr;    // replaces 'ip' field
@@ -708,15 +711,19 @@ public:
     /// @c true if the connection is transparent.
     bool is_transparent;
 
-    _ConnectionAttributes()
+    bool had_connect_fail() const { return 0 != connect_result; }
+    void clear_connect_fail() { connect_result = 0; }
+    void set_connect_fail(int e) { connect_result = e; }
+
+    ConnectionAttributes()
       : http_version(),
         keep_alive(HTTP_KEEPALIVE_UNDEFINED),
         receive_chunked_response(false),
         pipeline_possible(false),
         proxy_connect_hdr(false),
+        connect_result(0),
         name(NULL),
         dns_round_robin(false),
-        connect_failure(false),
         transfer_encoding(NO_TRANSFER_ENCODING),
         port(0),
         state(STATE_UNDEFINED),
@@ -726,7 +733,8 @@ public:
     {
       memset(&addr, 0, sizeof(addr));
     }
-  } ConnectionAttributes;
+
+  };
 
   typedef struct _CurrentInfo
   {
@@ -769,14 +777,13 @@ public:
     char *lookup_name;
     char srv_hostname[MAXDNAME];
     LookingUp_t looking_up;
-    bool round_robin;
     bool srv_lookup_success;
     short srv_port;
     HostDBApplicationInfo srv_app;
 
     _DNSLookupInfo()
     : attempts(0), os_addr_style(OS_ADDR_TRY_DEFAULT),
-        lookup_success(false), lookup_name(NULL), looking_up(UNDEFINED_LOOKUP), round_robin(false),
+        lookup_success(false), lookup_name(NULL), looking_up(UNDEFINED_LOOKUP),
         srv_lookup_success(false), srv_port(0)
     {
       srv_hostname[0] = '\0';
@@ -950,7 +957,6 @@ public:
     HdrHeapSDKHandle *cache_resp_hdr_heap_handle;
     bool api_release_server_session;
     bool api_cleanup_cache_read;
-    bool api_skip_cache_lookup;
     bool api_server_response_no_store;
     bool api_server_response_ignore;
     bool api_http_sm_shutdown;
@@ -1035,7 +1041,6 @@ public:
         next_hop_scheme(scheme),
         orig_scheme(scheme),
         method(0),
-        host_db_info(),
         cause_of_death_errno(-UNKNOWN_INTERNAL_ERROR),
         client_request_time(UNDEFINED_TIME),
         request_sent_time(UNDEFINED_TIME),
@@ -1062,7 +1067,6 @@ public:
         cache_resp_hdr_heap_handle(NULL),
         api_release_server_session(false),
         api_cleanup_cache_read(false),
-        api_skip_cache_lookup(false),
         api_server_response_no_store(false),
         api_server_response_ignore(false),
         api_http_sm_shutdown(false),
@@ -1116,6 +1120,7 @@ public:
 
       memset(return_xbuf, 0, sizeof(return_xbuf));
       memset(user_args, 0, sizeof(user_args));
+      memset(&host_db_info, 0, sizeof(host_db_info));
     }
 
     void
@@ -1161,7 +1166,6 @@ public:
       hdr_info.cache_response.destroy();
       cache_info.lookup_url_storage.destroy();
       cache_info.original_url.destroy();
-      cache_info.store_url.destroy();
       cache_info.object_store.destroy();
       cache_info.transform_store.destroy();
       redirect_info.original_url.destroy();
@@ -1291,7 +1295,7 @@ public:
   static bool is_stale_cache_response_returnable(State* s);
   static bool need_to_revalidate(State* s);
   static bool url_looks_dynamic(URL* url);
-  static bool is_request_cache_lookupable(State* s, HTTPHdr* incoming);
+  static bool is_request_cache_lookupable(State* s);
   static bool is_request_valid(State* s, HTTPHdr* incoming_request);
   static bool is_request_retryable(State* s);
   static bool is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* response);
@@ -1321,8 +1325,7 @@ public:
   static void handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
   static int calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic);
   static int calculate_freshness_fuzz(State *s, int fresh_limit);
-  static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_request,
-                                                HTTPHdr *cached_obj_response);
+  static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_response);
   static Authentication_t AuthenticationNeeded(const OverridableHttpConfigParams *p, HTTPHdr *client_request, HTTPHdr *obj_response);
   static void handle_parent_died(State* s);
   static void handle_server_died(State* s);
@@ -1334,18 +1337,17 @@ public:
   // the stat functions
   static void update_stat(State* s, int stat, ink_statval_t increment);
   static void update_size_and_time_stats(State* s, ink_hrtime total_time, ink_hrtime user_agent_write_time,
-                                         ink_hrtime origin_server_read_time, ink_hrtime cache_lookup_time,
-                                         int user_agent_request_header_size, int64_t user_agent_request_body_size,
-                                         int user_agent_response_header_size, int64_t user_agent_response_body_size,
-                                         int origin_server_request_header_size, int64_t origin_server_request_body_size,
-                                         int origin_server_response_header_size, int64_t origin_server_response_body_size,
-                                         int pushed_response_header_size, int64_t pushed_response_body_size, CacheAction_t cache_action);
+                                         ink_hrtime origin_server_read_time, int user_agent_request_header_size,
+                                         int64_t user_agent_request_body_size, int user_agent_response_header_size,
+                                         int64_t user_agent_response_body_size, int origin_server_request_header_size,
+                                         int64_t origin_server_request_body_size, int origin_server_response_header_size,
+                                         int64_t origin_server_response_body_size, int pushed_response_header_size,
+                                         int64_t pushed_response_body_size);
   static void histogram_request_document_size(State* s, int64_t size);
   static void histogram_response_document_size(State* s, int64_t size);
   static void user_agent_connection_speed(State* s, ink_hrtime transfer_time, int64_t nbytes);
   static void origin_server_connection_speed(State* s, ink_hrtime transfer_time, int64_t nbytes);
   static void client_result_stat(State* s, ink_hrtime total_time, ink_hrtime request_process_time);
-  static void initialize_bypass_variables(State* s);
   static void add_new_stat_block(State* s);
   static void delete_warning_value(HTTPHdr* to_warn, HTTPWarningCode warning_code);
   static bool is_connection_collapse_checks_success(State* s); //YTS Team, yamsat
@@ -1356,7 +1358,7 @@ typedef void (*TransactEntryFunc_t) (HttpTransact::State* s);
 inline void
 HttpTransact::free_internal_msg_buffer(char *buffer, int64_t size)
 {
-  ink_debug_assert(buffer);
+  ink_assert(buffer);
   if (size >= 0) {
     ioBufAllocator[size].free_void(buffer);
   } else {

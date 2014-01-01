@@ -87,9 +87,8 @@ SocketManager::open(const char *path, int oflag, mode_t mode)
 }
 
 TS_INLINE int64_t
-SocketManager::read(int fd, void *buf, int size, void *pOLP)
+SocketManager::read(int fd, void *buf, int size, void * /* pOLP ATS_UNUSED */)
 {
-  NOWARN_UNUSED(pOLP);
   int64_t r;
   do {
     r =::read(fd, buf, size);
@@ -101,9 +100,8 @@ SocketManager::read(int fd, void *buf, int size, void *pOLP)
 }
 
 TS_INLINE int64_t
-SocketManager::pread(int fd, void *buf, int size, off_t offset, char *tag)
+SocketManager::pread(int fd, void *buf, int size, off_t offset, char * /* tag ATS_UNUSED */)
 {
-  NOWARN_UNUSED(tag);
   int64_t r;
   do {
     r =::pread(fd, buf, size, offset);
@@ -127,9 +125,8 @@ SocketManager::readv(int fd, struct iovec *vector, size_t count)
 }
 
 TS_INLINE int64_t
-SocketManager::vector_io(int fd, struct iovec *vector, size_t count, int read_request, void *pOLP)
+SocketManager::vector_io(int fd, struct iovec *vector, size_t count, int read_request, void * /* pOLP ATS_UNUSED */)
 {
-  NOWARN_UNUSED(pOLP);
   const int max_iovecs_per_request = 16;
   int n;
   int64_t r = 0;
@@ -199,9 +196,8 @@ SocketManager::recvfrom(int fd, void *buf, int size, int flags, struct sockaddr 
 }
 
 TS_INLINE int64_t
-SocketManager::write(int fd, void *buf, int size, void *pOLP)
+SocketManager::write(int fd, void *buf, int size, void * /* pOLP ATS_UNUSED */)
 {
-  NOWARN_UNUSED(pOLP);
   int64_t r;
   do {
     if (likely((r =::write(fd, buf, size)) >= 0))
@@ -212,9 +208,8 @@ SocketManager::write(int fd, void *buf, int size, void *pOLP)
 }
 
 TS_INLINE int64_t
-SocketManager::pwrite(int fd, void *buf, int size, off_t offset, char *tag)
+SocketManager::pwrite(int fd, void *buf, int size, off_t offset, char * /* tag ATS_UNUSED */)
 {
-  NOWARN_UNUSED(tag);
   int64_t r;
   do {
     if (unlikely((r =::pwrite(fd, buf, size, offset)) < 0))
@@ -265,9 +260,8 @@ SocketManager::sendto(int fd, void *buf, int len, int flags, struct sockaddr con
 }
 
 TS_INLINE int
-SocketManager::sendmsg(int fd, struct msghdr *m, int flags, void *pOLP)
+SocketManager::sendmsg(int fd, struct msghdr *m, int flags, void * /* pOLP ATS_UNUSED */)
 {
-  NOWARN_UNUSED(pOLP);
   int r;
   do {
     if (unlikely((r =::sendmsg(fd, m, flags)) < 0))
@@ -508,9 +502,8 @@ SocketManager::getsockname(int s, struct sockaddr *sa, socklen_t *sz)
 }
 
 TS_INLINE int
-SocketManager::socket(int domain, int type, int protocol, bool bNonBlocking)
+SocketManager::socket(int domain, int type, int protocol, bool /* bNonBlocking ATS_UNUSED */)
 {
-  NOWARN_UNUSED(bNonBlocking);
   return::socket(domain, type, protocol);
 }
 
@@ -553,30 +546,5 @@ SocketManager::dup(int s)
   } while (res == -EINTR);
   return res;
 }
-
-int safe_msync(caddr_t addr, size_t len, caddr_t end, int flags);
-
-#ifndef MADV_NORMAL
-#define MADV_NORMAL 0
-#endif
-
-#ifndef MADV_RANDOM
-#define MADV_RANDOM 1
-#endif
-
-#ifndef MADV_SEQUENTIAL
-#define MADV_SEQUENTIAL 2
-#endif
-
-#ifndef MADV_WILLNEED
-#define MADV_WILLNEED 3
-#endif
-
-#ifndef MADV_DONTNEED
-#define MADV_DONTNEED 4
-#endif
-
-int safe_madvise(caddr_t addr, size_t len, caddr_t end, int flags);
-int safe_mlock(caddr_t addr, size_t len, caddr_t end);
 
 #endif /*P_UnixSocketManager_h_ */

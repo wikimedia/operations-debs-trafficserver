@@ -138,7 +138,7 @@ read_signal_and_update(int event, UnixNetVConnection *vc)
   vc->read.vio._cont->handleEvent(event, &vc->read.vio);
   if (!--vc->recursion && vc->closed) {
     /* BZ  31932 */
-    ink_debug_assert(vc->thread == this_ethread());
+    ink_assert(vc->thread == this_ethread());
     close_UnixNetVConnection(vc, vc->thread);
     return EVENT_DONE;
   } else {
@@ -153,7 +153,7 @@ write_signal_and_update(int event, UnixNetVConnection *vc)
   vc->write.vio._cont->handleEvent(event, &vc->write.vio);
   if (!--vc->recursion && vc->closed) {
     /* BZ  31932 */
-    ink_debug_assert(vc->thread == this_ethread());
+    ink_assert(vc->thread == this_ethread());
     close_UnixNetVConnection(vc, vc->thread);
     return EVENT_DONE;
   } else {
@@ -223,7 +223,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     return;
   }
 
-  ink_debug_assert(buf.writer());
+  ink_assert(buf.writer());
 
   // if there is nothing to do, disable connection
   int64_t ntodo = s->vio.ntodo();
@@ -240,7 +240,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   int niov = 0;
   IOVec tiovec[NET_MAX_IOV];
   if (toread) {
-    IOBufferBlock *b = buf.mbuf->_writer;
+    IOBufferBlock *b = buf.writer()->first_write_block();
     do {
       niov = 0;
       rattempted = 0;
@@ -341,9 +341,8 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 // Rescheduling the UnixNetVConnection when necessary.
 //
 void
-write_to_net(NetHandler *nh, UnixNetVConnection *vc, PollDescriptor *pd, EThread *thread)
+write_to_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 {
-  NOWARN_UNUSED(pd);
   ProxyMutex *mutex = thread->mutex;
 
   NET_DEBUG_COUNT_DYN_STAT(net_calls_to_writetonet_stat, 1);
@@ -385,7 +384,10 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
       nh->read_ready_list.remove(vc);
       vc->write.triggered = 0;
       nh->write_ready_list.remove(vc);
-      write_reschedule(nh, vc);
+      if (ret == SSL_HANDSHAKE_WANT_READ || ret == SSL_HANDSHAKE_WANT_ACCEPT)
+        read_reschedule(nh, vc);
+      else
+        write_reschedule(nh, vc);
     } else if (ret == EVENT_DONE) {
       vc->write.triggered = 1;
       if (vc->write.enabled)
@@ -407,7 +409,7 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   }
 
   MIOBufferAccessor & buf = s->vio.buffer;
-  ink_debug_assert(buf.writer());
+  ink_assert(buf.writer());
 
   // Calculate amount to write
   int64_t towrite = buf.reader()->read_avail();
@@ -439,7 +441,8 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   }
 
   int64_t total_wrote = 0, wattempted = 0;
-  int64_t r = vc->load_buffer_and_write(towrite, wattempted, total_wrote, buf);
+  int needs = 0;
+  int64_t r = vc->load_buffer_and_write(towrite, wattempted, total_wrote, buf, needs);
 
   // if we have already moved some bytes successfully, summarize in r
   if (total_wrote != wattempted) {
@@ -452,8 +455,16 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   if (r <= 0) {                 // if the socket was not ready,add to WaitList
     if (r == -EAGAIN || r == -ENOTCONN) {
       NET_DEBUG_COUNT_DYN_STAT(net_calls_to_write_nodata_stat, 1);
-      vc->write.triggered = 0;
-      nh->write_ready_list.remove(vc);
+      if((needs & EVENTIO_WRITE) == EVENTIO_WRITE) {
+        vc->write.triggered = 0;
+        nh->write_ready_list.remove(vc);
+        write_reschedule(nh, vc);
+      }
+      if((needs & EVENTIO_READ) == EVENTIO_READ) {
+        vc->read.triggered = 0;
+        nh->read_ready_list.remove(vc);
+        read_reschedule(nh, vc);
+      }
       return;
     }
     if (!r || r == -ECONNRESET) {
@@ -468,9 +479,9 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     NET_SUM_DYN_STAT(net_write_bytes_stat, r);
 
     // Remove data from the buffer and signal continuation.
-    ink_debug_assert(buf.reader()->read_avail() >= r);
+    ink_assert(buf.reader()->read_avail() >= r);
     buf.reader()->consume(r);
-    ink_debug_assert(buf.reader()->read_avail() >= 0);
+    ink_assert(buf.reader()->read_avail() >= 0);
     s->vio.ndone += r;
 
     net_activity(vc, thread);
@@ -488,13 +499,18 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
         write_reschedule(nh, vc);
         return;
       }
-      if (s->vio.ntodo() <= 0 || !buf.reader()->read_avail()) {
-        write_disable(nh, vc);
-        return;
-      }
+    }
+    if (!buf.reader()->read_avail()) {
+      write_disable(nh, vc);
+      return;
     }
 
-    write_reschedule(nh, vc);
+    if((needs & EVENTIO_WRITE) == EVENTIO_WRITE) {
+      write_reschedule(nh, vc);
+    }
+    if((needs & EVENTIO_READ) == EVENTIO_READ) {
+      read_reschedule(nh, vc);
+    }
     return;
   }
 }
@@ -624,11 +640,9 @@ UnixNetVConnection::do_io_shutdown(ShutdownHowTo_t howto)
 }
 
 int
-OOB_callback::retry_OOB_send(int event, Event *e)
+OOB_callback::retry_OOB_send(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  (void) event;
-  (void) e;
-  ink_debug_assert(mutex->thread_holding == this_ethread());
+  ink_assert(mutex->thread_holding == this_ethread());
   // the NetVC and the OOB_callback share a mutex
   server_vc->oob_ptr = NULL;
   server_vc->send_OOB(server_cont, data, length);
@@ -654,11 +668,11 @@ Action *
 UnixNetVConnection::send_OOB(Continuation *cont, char *buf, int len)
 {
   UnixNetVConnection *u = (UnixNetVConnection *) this;
-  ink_debug_assert(len > 0);
-  ink_debug_assert(buf);
-  ink_debug_assert(!u->oob_ptr);
+  ink_assert(len > 0);
+  ink_assert(buf);
+  ink_assert(!u->oob_ptr);
   int written;
-  ink_debug_assert(cont->mutex->thread_holding == this_ethread());
+  ink_assert(cont->mutex->thread_holding == this_ethread());
   written = socketManager.send(u->con.fd, buf, len, MSG_OOB);
   if (written == len) {
     cont->handleEvent(VC_EVENT_OOB_COMPLETE, NULL);
@@ -695,8 +709,8 @@ UnixNetVConnection::reenable(VIO *vio)
   if (!thread)
     return;
   EThread *t = vio->mutex->thread_holding;
-  ink_debug_assert(t == this_ethread());
-  ink_debug_assert(!closed);
+  ink_assert(t == this_ethread());
+  ink_assert(!closed);
   if (nh->mutex->thread_holding == t) {
     if (vio == &read.vio) {
       ep.modify(EVENTIO_READ);
@@ -755,7 +769,7 @@ UnixNetVConnection::reenable_re(VIO *vio)
   if (!thread)
     return;
   EThread *t = vio->mutex->thread_holding;
-  ink_debug_assert(t == this_ethread());
+  ink_assert(t == this_ethread());
   if (nh->mutex->thread_holding == t) {
     set_enabled(vio);
     if (vio == &read.vio) {
@@ -769,7 +783,7 @@ UnixNetVConnection::reenable_re(VIO *vio)
       ep.modify(EVENTIO_WRITE);
       ep.refresh(EVENTIO_WRITE);
       if (write.triggered)
-        write_to_net(nh, this, NULL, t);
+        write_to_net(nh, this, t);
       else
         nh->write_ready_list.remove(this);
     }
@@ -799,7 +813,7 @@ UnixNetVConnection::UnixNetVConnection()
 void
 UnixNetVConnection::set_enabled(VIO *vio)
 {
-  ink_debug_assert(vio->mutex->thread_holding == this_ethread() && thread);
+  ink_assert(vio->mutex->thread_holding == this_ethread() && thread);
   ink_assert(!closed);
   STATE_FROM_VIO(vio)->enabled = 1;
 #ifdef INACTIVITY_TIMEOUT
@@ -826,11 +840,14 @@ UnixNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
 // (SSL read does not support overlapped i/o)
 // without duplicating all the code in write_to_net.
 int64_t
-UnixNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf)
+UnixNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf, int &needs)
 {
   int64_t r = 0;
-  int64_t offset = buf.entry->start_offset;
-  IOBufferBlock *b = buf.entry->block;
+
+  // XXX Rather than dealing with the block directly, we should use the IOBufferReader API.
+  int64_t offset = buf.reader()->start_offset;
+  IOBufferBlock *b = buf.reader()->block;
+
   do {
     IOVec tiovec[NET_MAX_IOV];
     int niov = 0;
@@ -867,6 +884,8 @@ UnixNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, 
     ProxyMutex *mutex = thread->mutex;
     NET_DEBUG_COUNT_DYN_STAT(net_calls_to_write_stat, 1);
   } while (r == wattempted && total_wrote < towrite);
+
+  needs |= EVENTIO_WRITE;
 
   return (r);
 }
@@ -918,10 +937,8 @@ UnixNetVConnection::netActivity(EThread *lthread)
 }
 
 int
-UnixNetVConnection::startEvent(int event, Event *e)
+UnixNetVConnection::startEvent(int /* event ATS_UNUSED */, Event *e)
 {
-  (void) event;
-
   MUTEX_TRY_LOCK(lock, get_NetHandler(e->ethread)->mutex, e->ethread);
   if (!lock) {
     e->schedule_in(NET_RETRY_DELAY);
@@ -937,7 +954,6 @@ UnixNetVConnection::startEvent(int event, Event *e)
 int
 UnixNetVConnection::acceptEvent(int event, Event *e)
 {
-  (void) event;
   thread = e->ethread;
 
   MUTEX_TRY_LOCK(lock, get_NetHandler(thread)->mutex, e->ethread);
@@ -984,8 +1000,8 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
 int
 UnixNetVConnection::mainEvent(int event, Event *e)
 {
-  ink_debug_assert(event == EVENT_IMMEDIATE || event == EVENT_INTERVAL);
-  ink_debug_assert(thread == this_ethread());
+  ink_assert(event == EVENT_IMMEDIATE || event == EVENT_INTERVAL);
+  ink_assert(thread == this_ethread());
 
   MUTEX_TRY_LOCK(hlock, get_NetHandler(thread)->mutex, e->ethread);
   MUTEX_TRY_LOCK(rlock, read.vio.mutex ? (ProxyMutex *) read.vio.mutex : (ProxyMutex *) e->ethread->mutex, e->ethread);
@@ -1020,8 +1036,8 @@ UnixNetVConnection::mainEvent(int event, Event *e)
 #else
   if (event == EVENT_IMMEDIATE) {
     /* BZ 49408 */
-    //ink_debug_assert(inactivity_timeout_in);
-    //ink_debug_assert(next_inactivity_timeout_at < ink_get_hrtime());
+    //ink_assert(inactivity_timeout_in);
+    //ink_assert(next_inactivity_timeout_at < ink_get_hrtime());
     if (!inactivity_timeout_in || next_inactivity_timeout_at > ink_get_hrtime())
       return EVENT_CONT;
     signal_event = VC_EVENT_INACTIVITY_TIMEOUT;
@@ -1029,7 +1045,7 @@ UnixNetVConnection::mainEvent(int event, Event *e)
   }
 #endif
   else {
-    ink_debug_assert(e == active_timeout);
+    ink_assert(e == active_timeout);
     signal_event = VC_EVENT_ACTIVE_TIMEOUT;
     signal_timeout = &active_timeout;
   }
@@ -1145,14 +1161,14 @@ UnixNetVConnection::free(EThread *t)
   write.triggered = 0;
   options.reset();
   closed = 0;
-  ink_debug_assert(!read.ready_link.prev && !read.ready_link.next);
-  ink_debug_assert(!read.enable_link.next);
-  ink_debug_assert(!write.ready_link.prev && !write.ready_link.next);
-  ink_debug_assert(!write.enable_link.next);
-  ink_debug_assert(!link.next && !link.prev);
-  ink_debug_assert(!active_timeout);
-  ink_debug_assert(con.fd == NO_FD);
-  ink_debug_assert(t == this_ethread());
+  ink_assert(!read.ready_link.prev && !read.ready_link.next);
+  ink_assert(!read.enable_link.next);
+  ink_assert(!write.ready_link.prev && !write.ready_link.next);
+  ink_assert(!write.enable_link.next);
+  ink_assert(!link.next && !link.prev);
+  ink_assert(!active_timeout);
+  ink_assert(con.fd == NO_FD);
+  ink_assert(t == this_ethread());
 
   if (from_accept_thread) {
     netVCAllocator.free(this);  

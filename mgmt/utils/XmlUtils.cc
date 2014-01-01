@@ -21,10 +21,20 @@
   limitations under the License.
  */
 
+#include "ink_autoconf.h"
+#if HAVE_LIBEXPAT
 #include "expat.h"
+typedef XML_Char xmlchar;
+#elif HAVE_LIBXML2
+#include <libxml/parser.h>
+typedef xmlChar xmlchar;
+#else
+# error "No XML parser.  Please configure expat or libxml2"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include "ink_platform.h"
+#include "ink_defs.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -296,7 +306,7 @@ AppendStr(char *p1, const char *p2)
 
   if (p1) {
     memcpy(p, p1, nLen1);
-    delete p1;
+    delete[] p1;
   }
   memcpy(p + nLen1, p2, nLen2);
   p[nLen1 + nLen2] = 0;
@@ -340,23 +350,21 @@ XMLNode::getXML()
   while (pChild) {
     char *pChildXML = pChild->getXML();
     if (!pChildXML) {
-      if (pBody)
-        delete[]pBody;
+      delete[] pBody;
       return NULL;
     }
 
     pBody = AppendStr(pBody, pChildXML);
-    delete pChildXML;
+    delete[] pChildXML;
 
     pChild = pChild->m_pNext;
   }
 
   char *pAttr = getAttributeString();
   char *pRet = ConstructXMLBlock(m_pNodeName, pBody, pAttr);
-  if (pBody)
-    delete[]pBody;
-  if (pAttr)
-    delete[]pAttr;
+
+  delete[] pBody;
+  delete[] pAttr;
 
   return pRet;
 }
@@ -378,8 +386,8 @@ XMLNode::getAttributeValueByName(const char *pAName)
   return p;
 }
 
-void /*XMLDom:: */
-elementStart(void *pObj, const char *el, const char **attr)
+static void /*XMLDom:: */
+elementStart(void *pObj, const xmlchar *el, const xmlchar **attr)
 {
   XMLDom *pDom = (XMLDom *) pObj;
   int nTagLen;
@@ -393,11 +401,14 @@ elementStart(void *pObj, const char *el, const char **attr)
     pDom->m_pCur = p;
   }
 
-  nTagLen = strlen(el);
+  nTagLen = strlen((const char*)el);
   pTag = new char[nTagLen + 1];
   pDom->m_pCur->m_pNodeName = pTag;
   memcpy(pTag, el, nTagLen);
   pTag[nTagLen] = 0;
+
+  if (!attr)
+    return;
 
   int i;
   int nCount = 0;
@@ -411,22 +422,21 @@ elementStart(void *pObj, const char *el, const char **attr)
   pDom->m_pCur->m_pAList = new Attribute[nCount];
   for (i = 0; i < nCount; i++) {
     /* Attribute Name: attr[2*i], Value: attr[2*i+1]; */
-    alloc_and_copy(&pDom->m_pCur->m_pAList[i].pAName, attr[2 * i]);
-    alloc_and_copy(&pDom->m_pCur->m_pAList[i].pAValue, attr[2 * i + 1]);
+    alloc_and_copy(&pDom->m_pCur->m_pAList[i].pAName, (const char*)attr[2 * i]);
+    alloc_and_copy(&pDom->m_pCur->m_pAList[i].pAValue, (const char*)attr[2 * i + 1]);
   }
 }
 
-void /*XMLDom:: */
-elementEnd(void *pObj, const char *el)
+static void /*XMLDom:: */
+elementEnd(void *pObj, const xmlchar * /* el ATS_UNUSED */)
 {
-  NOWARN_UNUSED(el);
   /*ASSERT(strcmp(el, pCur->pNodeName) == 0); */
   XMLDom *pDom = (XMLDom *) pObj;
   pDom->m_pCur = pDom->m_pCur->m_pParentNode;
 }
 
-void /*XMLDom:: */
-charHandler(void *pObj, const char *s, int len)
+static void /*XMLDom:: */
+charHandler(void *pObj, const xmlchar *s, int len)
 {
   XMLNode *pNode = ((XMLDom *) pObj)->m_pCur;
   int oldlen;
@@ -452,6 +462,9 @@ charHandler(void *pObj, const char *s, int len)
 int
 XMLDom::LoadXML(const char *pXml)
 {
+  int rv = 0;
+#if HAVE_LIBEXPAT
+  /* Old (expat) xml parsing */
   XML_Parser p = XML_ParserCreate(NULL);
   if (!p)                       /* no Memory. */
     return 1;
@@ -468,11 +481,39 @@ XMLDom::LoadXML(const char *pXml)
                               /*(void (*)(void *, const char *, int)) */ charHandler
     );
 
-  if (!XML_Parse(p, pXml, strlen(pXml), 0)) {
-    /*return 2;     Parse Error: bad xml format. */
+  if (!XML_Parse(p, pXml, strlen(pXml), 1)) {
+    rv = 2; /*return 2;     Parse Error: bad xml format. */
   }
+  XML_ParserFree(p);
 
-  return 0;
+#else
+  /* Alternative (libxml2) xml parsing */
+  xmlParserCtxtPtr p;
+  xmlSAXHandler sax;
+  memset(&sax, 0, sizeof(xmlSAXHandler));
+  sax.startElement = elementStart;
+  sax.endElement = elementEnd;
+  sax.characters = charHandler;
+  sax.initialized = 1;
+  p = xmlCreatePushParserCtxt(&sax, this, NULL, 0, NULL);
+  if (!p)                       /* no Memory. */
+    return 1;
+
+  /* Looks as if this is actually the whole xml and expat version's
+   * use of 0 for is_final is a bug.  We'll use 1.
+   */
+  if (xmlParseChunk(p, pXml, strlen(pXml), 1) != 0) {
+    rv = 2; /* expat version ignores error, so we'll do likewise */
+  }
+  xmlFreeParserCtxt(p);
+#endif
+
+  /* I don't know why the "return 2" in the old (expat) version was
+   * commented out.  Possibly because the call to XML_Parse incorrectly
+   * used 0 for is_final last arg, in which case we should restore it.
+   * If it's a bug in the caller then we'll just have to return 0 always.
+   */
+  return rv;
 }
 
 int

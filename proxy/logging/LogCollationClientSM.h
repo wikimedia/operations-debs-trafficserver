@@ -27,9 +27,7 @@
 //-------------------------------------------------------------------------
 // includes
 //-------------------------------------------------------------------------
-#ifndef INK_NO_HOSTDB
 #include "P_HostDB.h"
-#endif
 #include "P_Net.h"
 #include "LogCollationBase.h"
 
@@ -81,9 +79,7 @@ private:
 
   // client states
   int client_auth(int event, VIO * vio);
-#ifndef INK_NO_HOSTDB
   int client_dns(int event, HostDBInfo * hostdb_info);
-#endif
   int client_done(int event, void *data);
   int client_fail(int event, void *data);
   int client_idle(int event, void *data);
@@ -108,6 +104,7 @@ private:
   // to detect server closes (there's got to be a better way to do this)
   VIO *m_abort_vio;
   MIOBuffer *m_abort_buffer;
+  bool m_host_is_up;
 
   // send stuff
   LogBufferList *m_buffer_send_list;

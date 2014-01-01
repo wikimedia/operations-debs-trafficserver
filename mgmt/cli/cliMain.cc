@@ -64,11 +64,8 @@ main(int argc, char *argv[])
     {"version", 'V', "Print Version Id", "T", &version_flag, NULL, NULL}
   };
 
-  int n_argument_descriptions = SIZE(argument_descriptions);
-  NOWARN_UNUSED(argc);
-
   // Process command line arguments and dump into variables
-  process_args(argument_descriptions, n_argument_descriptions, argv);
+  process_args(argument_descriptions, countof(argument_descriptions), argv);
 
   // check for the version number request
   if (version_flag) {
@@ -98,11 +95,8 @@ main(int argc, char *argv[])
 }
 
 void
-eventCallbackFn(char *name, char *msg, int pri, void *data)
+eventCallbackFn(char *name, char * /* msg ATS_UNUSED */, int /* pri ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(msg);
-  NOWARN_UNUSED(pri);
-  NOWARN_UNUSED(data);
   if (AlarmCallbackPrint == 1) {
     printf("\n**********\n" "ALARM SIGNALLED: %s\n" "**********\n", name);
   }

@@ -94,7 +94,8 @@ public:
     TRANSPORT_DEFAULT = 0, ///< Default (normal HTTP).
     TRANSPORT_COMPRESSED, ///< Compressed HTTP.
     TRANSPORT_BLIND_TUNNEL, ///< Blind tunnel (no processing).
-    TRANSPORT_SSL ///< SSL connection.
+    TRANSPORT_SSL, ///< SSL connection.
+    TRANSPORT_PLUGIN /// < Protocol plugin connection
   };
 
   int m_fd; ///< Pre-opened file descriptor if present.
@@ -133,6 +134,9 @@ public:
 
   /// Check for SSL port.
   bool isSSL() const;
+
+  /// Check for SSL port.
+  bool isPlugin() const;
 
   /// Process options text.
   /// @a opts should not contain any whitespace, only the option string.
@@ -243,11 +247,6 @@ public:
   );
 
   static char const* const PORTS_CONFIG_NAME; ///< New unified port descriptor.
-  static char const* const PORT_CONFIG_NAME; ///< Old port only entry.
-  static char const* const ATTR_CONFIG_NAME; ///< Old attribute only entry.
-  static char const* const OTHER_PORTS_CONFIG_NAME; ///< Old "other" ports.
-  static char const* const SSL_ENABLED_CONFIG_NAME; ///< SSL enable flag.
-  static char const* const SSL_PORT_CONFIG_NAME; ///< Old style SSL port.
 
   /// Default value if no other values can be found.
   static char const* const DEFAULT_VALUE;
@@ -263,9 +262,10 @@ public:
   static char const* const OPT_TRANSPARENT_FULL; ///< Full transparency.
   static char const* const OPT_TRANSPARENT_PASSTHROUGH; ///< Pass-through non-HTTP.
   static char const* const OPT_SSL; ///< SSL (experimental)
+  static char const* const OPT_PLUGIN; ///< Protocol Plugin handle (experimental)
   static char const* const OPT_BLIND_TUNNEL; ///< Blind tunnel.
   static char const* const OPT_COMPRESSED; ///< Compressed.
-  static char const* const OPT_HOST_RES; ///< Set DNS family preference.
+  static char const* const OPT_HOST_RES_PREFIX; ///< Set DNS family preference.
 
   static Vec<self>& m_global; ///< Global ("default") data.
 
@@ -275,6 +275,7 @@ protected:
 };
 
 inline bool HttpProxyPort::isSSL() const { return TRANSPORT_SSL == m_type; }
+inline bool HttpProxyPort::isPlugin() const { return TRANSPORT_PLUGIN == m_type; }
 
 inline IpAddr&
 HttpProxyPort::outboundIp(uint16_t family) {

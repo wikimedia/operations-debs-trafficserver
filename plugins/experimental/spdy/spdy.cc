@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-#include <ts/ts.h>
+#include "ts/ts.h"
+#include "ink_defs.h"
+
 #include <spdy/spdy.h>
 #include <base/logging.h>
 
@@ -35,7 +37,7 @@ static void
 recv_rst_stream(
         const spdy::message_header& header,
         spdy_io_control *           io,
-        const uint8_t __restrict *  ptr)
+        const uint8_t *  ptr)
 {
     spdy::rst_stream_message rst;
 
@@ -53,7 +55,7 @@ static void
 recv_syn_stream(
         const spdy::message_header& header,
         spdy_io_control *           io,
-        const uint8_t __restrict *  ptr)
+        const uint8_t *  ptr)
 {
     spdy::syn_stream_message    syn;
     spdy_io_stream *            stream;
@@ -125,7 +127,7 @@ static void
 recv_ping(
         const spdy::message_header& header,
         spdy_io_control *           io,
-        const uint8_t __restrict *  ptr)
+        const uint8_t *  ptr)
 {
     spdy::ping_message ping;
 
@@ -146,7 +148,7 @@ static void
 dispatch_spdy_control_frame(
         const spdy::message_header& header,
         spdy_io_control *           io,
-        const uint8_t __restrict *  ptr)
+        const uint8_t *  ptr)
 {
     switch (header.control.type) {
     case spdy::CONTROL_SYN_STREAM:
@@ -337,6 +339,23 @@ spdy_accept_io(TSCont contp, TSEvent ev, void * edata)
     return TS_EVENT_NONE;
 }
 
+static int
+spdy_setup_protocol(TSCont /* contp ATS_UNUSED */, TSEvent ev, void * /* edata ATS_UNUSED */)
+{
+  switch (ev) {
+  case TS_EVENT_LIFECYCLE_PORTS_INITIALIZED:
+    TSReleaseAssert(TSNetAcceptNamedProtocol(TSContCreate(spdy_accept_io, TSMutexCreate()),
+                                             TS_NPN_PROTOCOL_SPDY_2) == TS_SUCCESS);
+    debug_plugin("registered named protocol endpoint for %s", TS_NPN_PROTOCOL_SPDY_2);
+    break;
+  default:
+    TSError("[spdy] Protocol registration failed");
+    break;
+  }
+
+  return TS_EVENT_NONE;
+}
+
 extern "C" void
 TSPluginInit(int argc, const char * argv[])
 {
@@ -348,8 +367,8 @@ TSPluginInit(int argc, const char * argv[])
     TSPluginRegistrationInfo info;
 
     info.plugin_name = (char *)"spdy";
-    info.vendor_name = (char *)"James Peach";
-    info.support_email = (char *)"jamespeach@me.com";
+    info.vendor_name = (char *)"Apache Software Foundation";
+    info.support_email = (char *)"dev@trafficserver.apache.org";
 
     if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
         TSError("[spdy] Plugin registration failed");
@@ -370,12 +389,7 @@ TSPluginInit(int argc, const char * argv[])
     }
 
 init:
-    TSReleaseAssert(
-        TSNetAcceptNamedProtocol(TSContCreate(spdy_accept_io, TSMutexCreate()),
-        TS_NPN_PROTOCOL_SPDY_2) == TS_SUCCESS);
-
-    debug_plugin("registered named protocol endpoint for %s",
-            TS_NPN_PROTOCOL_SPDY_2);
+    TSLifecycleHookAdd(TS_LIFECYCLE_PORTS_INITIALIZED_HOOK, TSContCreate(spdy_setup_protocol, NULL));
 }
 
 /* vim: set sw=4 tw=79 ts=4 et ai : */

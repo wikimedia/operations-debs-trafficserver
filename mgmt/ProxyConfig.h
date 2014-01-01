@@ -54,20 +54,18 @@ pmgmt->registerMgmtCallback(_signal,_fn,_data)
 
 #define MAX_CONFIGS  100
 
-struct ConfigInfo
-{
-  volatile int m_refcount;
-
-  virtual ~ ConfigInfo()
-  {
-  }
-};
-
+typedef RefCountObj ConfigInfo;
 
 class ConfigProcessor
 {
 public:
   ConfigProcessor();
+
+  enum {
+    // The number of seconds to wait before garbage collecting stale ConfigInfo objects. There's
+    // no good reason to tune this, outside of regression tests, so don't.
+    CONFIG_PROCESSOR_RELEASE_SECS = 60
+  };
 
   template <typename ClassType, typename ConfigType>
   struct scoped_config {
@@ -82,7 +80,7 @@ public:
     ConfigType * ptr;
   };
 
-  unsigned int set(unsigned int id, ConfigInfo * info);
+  unsigned int set(unsigned int id, ConfigInfo * info, unsigned timeout_secs = CONFIG_PROCESSOR_RELEASE_SECS);
   ConfigInfo *get(unsigned int id);
   void release(unsigned int id, ConfigInfo * data);
 
@@ -129,9 +127,10 @@ struct ConfigUpdateHandler
   }
 
 private:
-
-  static int update(const char * name, RecDataT data_type, RecData data, void * cookie) {
+  static int update(const char * name, RecDataT /* data_type ATS_UNUSED */, RecData /* data ATS_UNUSED */,
+                    void * cookie) {
     ConfigUpdateHandler * self = static_cast<ConfigUpdateHandler *>(cookie);
+
     Debug("config", "%s(%s)", __PRETTY_FUNCTION__, name);
     return ConfigScheduleUpdate<UpdateClass>(self->mutex);
   }

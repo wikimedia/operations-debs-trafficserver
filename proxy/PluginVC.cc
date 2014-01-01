@@ -111,8 +111,8 @@ PluginVC::main_handler(int event, void *data)
 
   ink_release_assert(event == EVENT_INTERVAL || event == EVENT_IMMEDIATE);
   ink_release_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(!deletable);
-  ink_debug_assert(data != NULL);
+  ink_assert(!deletable);
+  ink_assert(data != NULL);
 
   Event *call_event = (Event *) data;
   EThread *my_ethread = mutex->thread_holding;
@@ -168,6 +168,15 @@ PluginVC::main_handler(int event, void *data)
 
   if (closed) {
     process_close();
+
+    if (read_mutex_held) {
+      Mutex_unlock(read_side_mutex, my_ethread);
+    }
+
+    if (write_mutex_held) {
+      Mutex_unlock(write_side_mutex, my_ethread);
+    }
+
     return 0;
   }
   // We can get closed while we're calling back the
@@ -288,7 +297,7 @@ PluginVC::reenable(VIO * vio)
 
   ink_assert(!closed);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(vio->mutex->thread_holding == this_ethread());
+  ink_assert(vio->mutex->thread_holding == this_ethread());
 
   Debug("pvc", "[%u] %s: reenable %s", PVC_ID, PVC_TYPE, (vio->op == VIO::WRITE) ? "Write" : "Read");
 
@@ -309,7 +318,7 @@ PluginVC::reenable_re(VIO * vio)
 
   ink_assert(!closed);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
-  ink_debug_assert(vio->mutex->thread_holding == this_ethread());
+  ink_assert(vio->mutex->thread_holding == this_ethread());
 
   Debug("pvc", "[%u] %s: reenable_re %s", PVC_ID, PVC_TYPE, (vio->op == VIO::WRITE) ? "Write" : "Read");
 
@@ -347,9 +356,8 @@ PluginVC::reenable_re(VIO * vio)
 }
 
 void
-PluginVC::do_io_close(int flag)
+PluginVC::do_io_close(int /* flag ATS_UNUSED */)
 {
-  NOWARN_UNUSED(flag);
   ink_assert(closed == false);
   ink_assert(magic == PLUGIN_VC_MAGIC_ALIVE);
 
@@ -420,7 +428,7 @@ PluginVC::transfer_bytes(MIOBuffer * transfer_to, IOBufferReader * transfer_from
 
   int64_t total_added = 0;
 
-  ink_debug_assert(act_on <= transfer_from->read_avail());
+  ink_assert(act_on <= transfer_from->read_avail());
 
   while (act_on > 0) {
     int64_t block_read_avail = transfer_from->block_read_avail();
@@ -899,7 +907,7 @@ PluginVC::set_remote_addr()
 }
 
 int
-PluginVC::set_tcp_init_cwnd(int init_cwnd)
+PluginVC::set_tcp_init_cwnd(int /* init_cwnd ATS_UNUSED */)
 {
   return -1;
 }
@@ -1085,10 +1093,8 @@ PluginVCCore::connect_re(Continuation * c)
 }
 
 int
-PluginVCCore::state_send_accept_failed(int event, void *data)
+PluginVCCore::state_send_accept_failed(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   MUTEX_TRY_LOCK(lock, connect_to->mutex, this_ethread());
 
   if (lock) {
@@ -1104,10 +1110,8 @@ PluginVCCore::state_send_accept_failed(int event, void *data)
 }
 
 int
-PluginVCCore::state_send_accept(int event, void *data)
+PluginVCCore::state_send_accept(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   MUTEX_TRY_LOCK(lock, connect_to->mutex, this_ethread());
 
   if (lock) {
@@ -1213,8 +1217,8 @@ public:
   int main_handler(int event, void *data);
 
 private:
-  int i;
-  int completions_received;
+  unsigned i;
+  unsigned completions_received;
 };
 
 PVCTestDriver::PVCTestDriver():
@@ -1245,8 +1249,8 @@ void
 PVCTestDriver::run_next_test()
 {
 
-  int a_index = i * 2;
-  int p_index = a_index + 1;
+  unsigned a_index = i * 2;
+  unsigned p_index = a_index + 1;
 
   if (p_index >= num_netvc_tests) {
     // We are done - // FIX - PASS or FAIL?
@@ -1275,10 +1279,8 @@ PVCTestDriver::run_next_test()
 }
 
 int
-PVCTestDriver::main_handler(int event, void *data)
+PVCTestDriver::main_handler(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   completions_received++;
 
   if (completions_received == 2) {
@@ -1288,9 +1290,8 @@ PVCTestDriver::main_handler(int event, void *data)
   return 0;
 }
 
-EXCLUSIVE_REGRESSION_TEST(PVC) (RegressionTest * t, int atype, int *pstatus)
+EXCLUSIVE_REGRESSION_TEST(PVC) (RegressionTest * t, int /* atype ATS_UNUSED */, int *pstatus)
 {
-  NOWARN_UNUSED(atype);
   PVCTestDriver *driver = NEW(new PVCTestDriver);
   driver->start_tests(t, pstatus);
 }

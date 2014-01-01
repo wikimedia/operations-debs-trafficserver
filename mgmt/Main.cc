@@ -71,16 +71,15 @@ FileManager *configFiles;
 StatProcessor *statProcessor;   // Statistics Processors
 AppVersionInfo appVersionInfo;  // Build info for this application
 
-inkcoreapi Diags *diags;
-inkcoreapi DiagsConfig *diagsConfig;
-char debug_tags[1024] = "";
-char action_tags[1024] = "";
 int diags_init = 0;
-bool proxy_on = true;
-bool forceProcessRecordsSnap = false;
 
-bool schema_on = false;
-char *schema_path = NULL;
+static inkcoreapi DiagsConfig *diagsConfig;
+static char debug_tags[1024] = "";
+static char action_tags[1024] = "";
+static bool proxy_on = true;
+
+static bool schema_on = false;
+static char *schema_path = NULL;
 
 // TODO: Check if really need those
 char system_root_dir[PATH_NAME_MAX + 1];
@@ -91,27 +90,25 @@ char system_log_dir[PATH_NAME_MAX + 1];
 char mgmt_path[PATH_NAME_MAX + 1];
 
 // By default, set the current directory as base
-const char *ts_base_dir = ".";
-const char *recs_conf = "records.config";
+static const char *recs_conf = "records.config";
 
-int fds_limit;
+static int fds_limit;
 
-typedef void (*PFV) (int);
 // TODO: Use positive instead negative selection
 //       Thsis should just be #if defined(solaris)
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void SignalHandler(int sig, siginfo_t * t, void *f);
-void SignalAlrmHandler(int sig, siginfo_t * t, void *f);
+static void SignalHandler(int sig, siginfo_t * t, void *f);
+static void SignalAlrmHandler(int sig, siginfo_t * t, void *f);
 #else
-void SignalHandler(int sig);
-void SignalAlrmHandler(int sig);
+static void SignalHandler(int sig);
+static void SignalAlrmHandler(int sig);
 #endif
 
-volatile int sigHupNotifier = 0;
-volatile int sigUsr2Notifier = 0;
-void SigChldHandler(int sig);
+static volatile int sigHupNotifier = 0;
+static volatile int sigUsr2Notifier = 0;
+static void SigChldHandler(int sig);
 
-void
+static void
 check_lockfile()
 {
   char lockfile[PATH_NAME_MAX];
@@ -135,10 +132,10 @@ check_lockfile()
 #else
       fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
 #endif
-      mgmt_elog(stderr, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
+      mgmt_elog(stderr, 0, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
     } else {
       fprintf(stderr, "FATAL: Can't open server lockfile '%s' (%s)\n", lockfile, (reason ? reason : "Unknown Reason"));
-      mgmt_elog(stderr, "FATAL: Can't open server lockfile '%s' (%s)\n",
+      mgmt_elog(stderr, 0, "FATAL: Can't open server lockfile '%s' (%s)\n",
                 lockfile, (reason ? reason : "Unknown Reason"));
     }
     exit(1);
@@ -153,17 +150,17 @@ check_lockfile()
   if (err != 1) {
     char *reason = strerror(-err);
     fprintf(stderr, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
-    mgmt_elog(stderr, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
+    mgmt_elog(stderr, 0, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
     if (err == 0) {
 #if defined(solaris)
       fprintf(stderr, " (Lock file held by process ID %d)\n", (int)holding_pid);
 #else
       fprintf(stderr, " (Lock file held by process ID %d)\n", holding_pid);
 #endif
-      mgmt_elog(stderr, " (Lock file held by process ID %d)\n", holding_pid);
+      mgmt_elog(stderr, 0, " (Lock file held by process ID %d)\n", holding_pid);
     } else if (reason) {
       fprintf(stderr, " (%s)\n", reason);
-      mgmt_elog(stderr, " (%s)\n", reason);
+      mgmt_elog(stderr, 0, " (%s)\n", reason);
     } else {
       fprintf(stderr, "\n");
     }
@@ -175,7 +172,7 @@ check_lockfile()
 }
 
 
-void
+static void
 initSignalHandlers()
 {
   struct sigaction sigHandler, sigChldHandler, sigAlrmHandler;
@@ -274,63 +271,44 @@ setup_coredump()
 }
 
 static void
-init_dirs(bool use_librecords = true)
+init_dirs()
 {
   char buf[PATH_NAME_MAX + 1];
 
-  ink_strlcpy(system_config_directory, Layout::get()->sysconfdir, sizeof(system_config_directory));
-  ink_strlcpy(system_runtime_dir, Layout::get()->runtimedir, sizeof(system_runtime_dir));
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
-
+  REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
   if (access(system_config_directory, R_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
-    }
-    if (access(system_config_directory, R_OK) == -1) {
-      mgmt_elog("unable to access() config dir '%s': %d, %s\n",
-              system_config_directory, errno, strerror(errno));
-      mgmt_elog("please set config path via 'proxy.config.config_dir' \n");
-      _exit(1);
-    }
+    mgmt_elog(0, "unable to access() config dir '%s': %d, %s\n", system_config_directory, errno, strerror(errno));
+    mgmt_elog(0, "please set config path via 'proxy.config.config_dir' \n");
+    _exit(1);
   }
+
   ink_strlcpy(mgmt_path, system_config_directory, sizeof(mgmt_path));
 
-  if (access(system_runtime_dir, W_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
-    }
-    if (access(system_runtime_dir, R_OK) == -1) {
-      mgmt_elog("unable to access() local state dir '%s': %d, %s\n",
-              system_runtime_dir, errno, strerror(errno));
-      mgmt_elog("please set 'proxy.config.local_state_dir'\n");
-      _exit(1);
-    }
+  REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
+  if (access(system_runtime_dir, R_OK) == -1) {
+    mgmt_elog(0, "unable to access() local state dir '%s': %d, %s\n", system_runtime_dir, errno, strerror(errno));
+    mgmt_elog(0, "please set 'proxy.config.local_state_dir'\n");
+    _exit(1);
   }
 
+  REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
+  Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
   if (access(system_log_dir, W_OK) == -1) {
-    if (use_librecords) {
-      REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
-      Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
-    }
-    if (access(system_log_dir, W_OK) == -1) {
-      mgmt_elog("unable to access() log dir'%s': %d, %s\n",
-              system_log_dir, errno, strerror(errno));
-      mgmt_elog("please set 'proxy.config.log.logfile_dir'\n");
-      _exit(1);
-    }
+    mgmt_elog(0, "unable to access() log dir'%s': %d, %s\n", system_log_dir, errno, strerror(errno));
+    mgmt_elog(0, "please set 'proxy.config.log.logfile_dir'\n");
+    _exit(1);
   }
-
 }
 
-void
+static void
 chdir_root()
 {
 
   if (system_root_dir[0] && (chdir(system_root_dir) < 0)) {
-    mgmt_elog("unable to change to root directory \"%s\" [%d '%s']\n", system_root_dir, errno, strerror(errno));
-    mgmt_elog(" please set correct path in env variable TS_ROOT \n");
+    mgmt_elog(0, "unable to change to root directory \"%s\" [%d '%s']\n", system_root_dir, errno, strerror(errno));
+    mgmt_elog(0, " please set correct path in env variable TS_ROOT \n");
     exit(1);
   } else {
     mgmt_log("[TrafficManager] using root directory '%s'\n",system_root_dir);
@@ -367,7 +345,7 @@ set_process_limits(int fds_throttle)
 }
 
 #if TS_HAS_WCCP
-void
+static void
 Errata_Logger(ts::Errata const& err) {
   size_t n;
   static size_t const SIZE = 4096;
@@ -379,13 +357,13 @@ Errata_Logger(ts::Errata const& err) {
     while (n && (buff[n-1] == '\n' || buff[n-1] == '\r'))
       buff[--n] = 0;
     // log it.
-    if (code > 1) mgmt_elog("[WCCP]%s", buff);
+    if (code > 1) mgmt_elog(0, "[WCCP]%s", buff);
     else if (code > 0) mgmt_log("[WCCP]%s", buff);
     else Debug("WCCP", "%s", buff);
   }
 }
 
-void
+static void
 Init_Errata_Logging() {
   ts::Errata::registerSink(&Errata_Logger);
 }
@@ -413,7 +391,7 @@ main(int argc, char **argv)
 
   bool found = false;
   int just_started = 0;
-  int cluster_port = -1, cluster_server_port = -1;
+  int cluster_mcport = -1, cluster_rsport = -1;
   // TODO: This seems completely incomplete, disabled for now
   //  int dump_config = 0, dump_process = 0, dump_node = 0, dump_cluster = 0, dump_local = 0;
   char* proxy_port = 0;
@@ -436,12 +414,12 @@ main(int argc, char **argv)
     aconf_port_arg = atoi(envVar);
   }
 
-  if ((envVar = getenv("MGMT_CLUSTER_PORT")) != NULL) {
-    cluster_port = atoi(envVar);
+  if ((envVar = getenv("MGMT_CLUSTER_MC_PORT")) != NULL) {
+    cluster_mcport = atoi(envVar);
   }
 
   if ((envVar = getenv("MGMT_CLUSTER_RS_PORT")) != NULL) {
-    cluster_server_port = atoi(envVar);
+    cluster_rsport = atoi(envVar);
   }
 
   if ((envVar = getenv("MGMT_GROUP_ADDR")) != NULL) {
@@ -465,15 +443,15 @@ main(int argc, char **argv)
           if (strcmp(argv[i], "-aconfPort") == 0) {
             ++i;
             aconf_port_arg = atoi(argv[i]);
-          } else if (strcmp(argv[i], "-clusterPort") == 0) {
+          } else if (strcmp(argv[i], "-clusterMCPort") == 0) {
             ++i;
-            cluster_port = atoi(argv[i]);
+            cluster_mcport = atoi(argv[i]);
           } else if (strcmp(argv[i], "-groupAddr") == 0) {
             ++i;
             group_addr = argv[i];
           } else if (strcmp(argv[i], "-clusterRSPort") == 0) {
             ++i;
-            cluster_server_port = atoi(argv[i]);
+            cluster_rsport = atoi(argv[i]);
 #if TS_USE_DIAGS
           } else if (strcmp(argv[i], "-debug") == 0) {
             ++i;
@@ -541,12 +519,6 @@ main(int argc, char **argv)
           } else if (strcmp(argv[i], "-proxyBackDoor") == 0) {
             ++i;
             proxy_backdoor = atoi(argv[i]);
-          } else if (strcmp(argv[i], "-vingid") == 0) {
-            // smanager/cnp integration, this argument is
-            // really just a dummy argument used so that
-            // smanager can find all instances of a
-            // particular TM process.
-            ++i;
           } else if (strcmp(argv[i], "-schema") == 0) {
             // hidden option
             ++i;
@@ -579,7 +551,11 @@ main(int argc, char **argv)
   diags = diagsConfig->diags;
   diags->prefix_str = "Manager ";
 
-  init_dirs(false);// setup directories
+  RecLocalInit();
+  LibRecordsConfigInit();
+  RecordsConfigOverrideFromEnvironment();
+
+  init_dirs();// setup critical directories, needs LibRecords
 
   // Get the config info we need while we are still root
   extractConfigInfo(mgmt_path, recs_conf, userToRunAs, &fds_throttle);
@@ -603,8 +579,6 @@ main(int argc, char **argv)
 
 #endif
 
-  RecLocalInit();
-  LibRecordsConfigInit();
 #if TS_HAS_WCCP
   Init_Errata_Logging();
 #endif
@@ -653,13 +627,13 @@ main(int argc, char **argv)
     ink_assert(found);
 
     if (!found) {
-      mgmt_elog("Could not read %s.  Defaulting to DAEMON\n", sys_var);
+      mgmt_elog(0, "Could not read %s.  Defaulting to DAEMON\n", sys_var);
       facility_int = LOG_DAEMON;
     } else {
       facility_int = facility_string_to_int(facility_str);
       ats_free(facility_str);
       if (facility_int < 0) {
-        mgmt_elog("Bad syslog facility specified.  Defaulting to DAEMON\n");
+        mgmt_elog(0, "Bad syslog facility specified.  Defaulting to DAEMON\n");
         facility_int = LOG_DAEMON;
       }
     }
@@ -707,13 +681,13 @@ main(int argc, char **argv)
     RecSetRecordInt("proxy.config.process_manager.mgmt_port", proxy_backdoor);
   }
 
-  if (cluster_server_port == -1) {
-    cluster_server_port = REC_readInteger("proxy.config.cluster.rsport", &found);
+  if (cluster_rsport == -1) {
+    cluster_rsport = REC_readInteger("proxy.config.cluster.rsport", &found);
     ink_assert(found);
   }
 
-  if (cluster_port == -1) {
-    cluster_port = REC_readInteger("proxy.config.cluster.mcport", &found);
+  if (cluster_mcport == -1) {
+    cluster_mcport = REC_readInteger("proxy.config.cluster.mcport", &found);
     ink_assert(found);
   }
 
@@ -735,12 +709,12 @@ main(int argc, char **argv)
   in_addr_t group_addr_ip = inet_network(group_addr);
 
   if (!(min_ip < group_addr_ip && group_addr_ip < max_ip)) {
-    mgmt_fatal("[TrafficManager] Multi-Cast group addr '%s' is not in the permitted range of %s\n",
+    mgmt_fatal(0, "[TrafficManager] Multi-Cast group addr '%s' is not in the permitted range of %s\n",
                group_addr, "224.0.1.0 - 239.255.255.255");
   }
 
   /* TODO: Do we really need to init cluster communication? */
-  lmgmt->initCCom(cluster_port, group_addr, cluster_server_port);       /* Setup cluster communication */
+  lmgmt->initCCom(cluster_mcport, group_addr, cluster_rsport);       /* Setup cluster communication */
 
   lmgmt->initMgmtProcessServer();       /* Setup p-to-p process server */
 
@@ -748,9 +722,17 @@ main(int argc, char **argv)
   // Now that we know our cluster ip address, add the
   //   UI record for this machine
   overviewGenerator->addSelfRecord();
+
+  lmgmt->listenForProxy();
+
+  //
+  // As listenForProxy() may change/restore euid, we should put
+  // the creation of webIntr_main thread after it. So that we
+  // can keep a consistent euid when create mgmtapi/eventapi unix
+  // sockets in webIntr_main thread.
+  //
   webThrId = ink_thread_create(webIntr_main, NULL);     /* Spin web agent thread */
   Debug("lm", "Created Web Agent thread (%"  PRId64 ")", (int64_t)webThrId);
-  lmgmt->listenForProxy();
 
   ticker = time(NULL);
   mgmt_log("[TrafficManager] Setup complete\n");
@@ -771,7 +753,7 @@ main(int argc, char **argv)
     }
     // Check for SIGUSR2
     if (sigUsr2Notifier != 0) {
-      xdump();
+      ink_stack_trace_dump();
       sigUsr2Notifier = 0;
     }
 
@@ -845,17 +827,16 @@ main(int argc, char **argv)
 
 
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void
-SignalAlrmHandler(int sig, siginfo_t * t, void *c)
+static void
+SignalAlrmHandler(int /* sig ATS_UNUSED */, siginfo_t * t, void * /* c ATS_UNUSED */)
 #else
-void
-SignalAlrmHandler(int sig)
+static void
+SignalAlrmHandler(int /* sig ATS_UNUSED */)
 #endif
 {
-  NOWARN_UNUSED(sig);
   /*
-     fprintf(stderr,"[TrafficManager] ==> SIGALRM received\n");
-     mgmt_elog(stderr,"[TrafficManager] ==> SIGALRM received\n");
+     fprintf(stderr, "[TrafficManager] ==> SIGALRM received\n");
+     mgmt_elog(stderr, 0, "[TrafficManager] ==> SIGALRM received\n");
    */
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
   if (t) {
@@ -865,10 +846,10 @@ SignalAlrmHandler(int sig)
 #else
       fprintf(stderr, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
 #endif
-      mgmt_elog(stderr, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
+      mgmt_elog(stderr, 0, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
     } else {
       fprintf(stderr, "[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
-      mgmt_elog(stderr, "[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
+      mgmt_elog(stderr, 0, "[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
     }
   }
 #endif
@@ -878,10 +859,10 @@ SignalAlrmHandler(int sig)
 
 
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-void
+static void
 SignalHandler(int sig, siginfo_t * t, void *c)
 #else
-void
+static void
 SignalHandler(int sig)
 #endif
 {
@@ -896,10 +877,10 @@ SignalHandler(int sig)
 #else
       fprintf(stderr, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, t->si_pid, t->si_uid);
 #endif
-      mgmt_elog(stderr, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, t->si_pid, t->si_uid);
+      mgmt_elog(stderr, 0, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, t->si_pid, t->si_uid);
     } else {
       fprintf(stderr, "[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
-      mgmt_elog(stderr, "[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
+      mgmt_elog(stderr, 0, "[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
     }
   }
 #endif
@@ -915,7 +896,7 @@ SignalHandler(int sig)
     return;
   }
   fprintf(stderr, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
-  mgmt_elog(stderr, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
+  mgmt_elog(stderr, 0, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
 
   if (lmgmt && !clean) {
     clean = 1;
@@ -945,11 +926,11 @@ SignalHandler(int sig)
     abort();
   default:
     fprintf(stderr, "[TrafficManager] ==> signal #%d\n", sig);
-    mgmt_elog(stderr, "[TrafficManager] ==> signal #%d\n", sig);
+    mgmt_elog(stderr, 0, "[TrafficManager] ==> signal #%d\n", sig);
     _exit(sig);
   }
   fprintf(stderr, "[TrafficManager] ==> signal2 #%d\n", sig);
-  mgmt_elog(stderr, "[TrafficManager] ==> signal2 #%d\n", sig);
+  mgmt_elog(stderr, 0, "[TrafficManager] ==> signal2 #%d\n", sig);
   _exit(sig);
 }                               /* End SignalHandler */
 
@@ -962,23 +943,10 @@ SignalHandler(int sig)
 //    waitpid() blocks until all child are transformed into
 //    zombies which is bad for us
 //
-void
-SigChldHandler(int sig)
+static void
+SigChldHandler(int /* sig ATS_UNUSED */)
 {
-  NOWARN_UNUSED(sig);
 }
-
-// void SigHupHandler(int sig,...)
-//
-//  Records that a sigHup was sent so that we can reread our
-//    config files on the next run through the main loop
-void
-SigHupHandler(int sig, ...)
-{
-  ink_assert(sig == SIGHUP);
-  Debug("lm", "[SigHupHandler] hup caught\n");
-  sigHupNotifier = 1;
-}                               /* End SigHupHandler */
 
 void
 printUsage()
@@ -1016,7 +984,6 @@ printUsage()
   fprintf(stderr, "     -debug         <tags>  Enable the given debug tags\n");
   fprintf(stderr, "     -action        <tags>  Enable the given action tags.\n");
   fprintf(stderr, "     -version or -V         Print version id and exit.\n");
-  fprintf(stderr, "     -vingid        <id>    Vingid Flag\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "   [...] can be one+ of: [config process node cluster local all]\n");
   fprintf(stderr, "----------------------------------------------------------------------------\n");
@@ -1024,7 +991,7 @@ printUsage()
 }                               /* End printUsage */
 
 void
-fileUpdated(char *fname)
+fileUpdated(char *fname, bool incVersion)
 {
   if (strcmp(fname, "cluster.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cluster.cluster_configuration");
@@ -1036,7 +1003,7 @@ fileUpdated(char *fname)
     lmgmt->signalFileChange("proxy.config.socks.socks_config_file");
 
   } else if (strcmp(fname, "records.config") == 0) {
-    lmgmt->signalFileChange("records.config");
+    lmgmt->signalFileChange("records.config", incVersion);
 
   } else if (strcmp(fname, "cache.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.control.filename");
@@ -1096,7 +1063,7 @@ fileUpdated(char *fname)
   } else if (strcmp(fname, "prefetch.config") == 0) {
     lmgmt->signalFileChange("proxy.config.prefetch.config_file");
   } else {
-    mgmt_elog(stderr, "[fileUpdated] Unknown config file updated '%s'\n", fname);
+    mgmt_elog(stderr, 0, "[fileUpdated] Unknown config file updated '%s'\n", fname);
 
   }
   return;
@@ -1166,7 +1133,7 @@ runAsUser(char *userName)
 
 
     if (userName == NULL || userName[0] == '\0') {
-      mgmt_elog(stderr, "[runAsUser] Fatal Error: proxy.config.admin.user_id is not set\n", userName, strerror(errno));
+      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: proxy.config.admin.user_id is not set\n");
       _exit(1);
     }
 
@@ -1192,12 +1159,12 @@ runAsUser(char *userName)
     }
 
     if (result == NULL) {
-      mgmt_elog(stderr, "[runAsUser] Fatal Error: Unable to get info about user %s : %s\n", userName, strerror(errno));
+      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Unable to get info about user %s : %s\n", userName, strerror(errno));
       _exit(1);
     }
 
     if (setegid(result->pw_gid) != 0 || seteuid(result->pw_uid) != 0) {
-      mgmt_elog(stderr, "[runAsUser] Fatal Error: Unable to switch to user %s : %s\n", userName, strerror(errno));
+      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Unable to switch to user %s : %s\n", userName, strerror(errno));
       _exit(1);
     }
 
@@ -1208,7 +1175,7 @@ runAsUser(char *userName)
     Debug("lm", "[runAsUser] Running with uid: '%d' euid: '%d'\n", uid, euid);
 
     if (uid != result->pw_uid && euid != result->pw_uid) {
-      mgmt_elog(stderr, "[runAsUser] Fatal Error: Failed to switch to user %s\n", userName);
+      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Failed to switch to user %s\n", userName);
       _exit(1);
     }
 
@@ -1219,7 +1186,7 @@ runAsUser(char *userName)
 
 #if TS_USE_POSIX_CAP
     if (0 != restoreCapabilities()) {
-      mgmt_elog(stderr, "[runAsUser] Error: Failed to restore capabilities after switch to user %s.\n", userName);
+      mgmt_elog(stderr, 0, "[runAsUser] Error: Failed to restore capabilities after switch to user %s.\n", userName);
     }
 #endif
 
@@ -1250,7 +1217,7 @@ extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *f
     if (!(fin = fopen(file, "r"))) {
       ink_filepath_make(file, sizeof(file), mgmt_path, recs_conf);
       if (!(fin = fopen(file, "r"))) {
-        mgmt_elog(stderr, "[extractConfigInfo] Unable to open config file(%s)\n", file);
+        mgmt_elog(stderr, errno, "[extractConfigInfo] Unable to open config file(%s)\n", file);
         _exit(1);
       }
     }
@@ -1271,12 +1238,12 @@ extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *f
     }
     fclose(fin);
   } else {
-    mgmt_elog(stderr, "[extractConfigInfo] Fatal Error: unable to access records file\n");
+    mgmt_elog(stderr, 0, "[extractConfigInfo] Fatal Error: unable to access records file\n");
     _exit(1);
   }
 
   if (useridFound == false) {
-    mgmt_elog(stderr, "[extractConfigInfo] Fatal Error: proxy.config.admin.user_id is not set\n");
+    mgmt_elog(stderr, 0, "[extractConfigInfo] Fatal Error: proxy.config.admin.user_id is not set\n");
     _exit(1);
   }
 

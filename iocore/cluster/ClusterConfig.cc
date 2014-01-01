@@ -101,15 +101,16 @@ ClusterAccept::ClusterAcceptEvent(int event, void *data)
           accept_action->cancel();
           accept_action = 0;
         }
-	NetProcessor::AcceptOptions opt;
-	opt.recv_bufsize = socket_recv_bufsize;
-	opt.send_bufsize = socket_send_bufsize;
-	opt.etype = ET_CLUSTER;
-	opt.local_port = cluster_port;
-	opt.ip_family = AF_INET;
-        accept_action = netProcessor.main_accept(this, NO_FD,
-                                                 NULL, NULL,
-                                                 false, false, opt);
+
+        NetProcessor::AcceptOptions opt;
+        opt.recv_bufsize = socket_recv_bufsize;
+        opt.send_bufsize = socket_send_bufsize;
+        opt.etype = ET_CLUSTER;
+        opt.local_port = cluster_port;
+        opt.ip_family = AF_INET;
+        opt.localhost_only = false;
+
+        accept_action = netProcessor.main_accept(this, NO_FD, opt);
         if (!accept_action) {
           Warning("Unable to accept cluster connections on port: %d", cluster_port);
         } else {
@@ -154,9 +155,8 @@ ClusterAccept::ClusterAcceptMachine(NetVConnection * NetVC)
 }
 
 static void
-make_cluster_connections(MachineList * l, MachineList * old)
+make_cluster_connections(MachineList * l)
 {
-  NOWARN_UNUSED(old);
   //
   // Connect to all new machines.
   //
@@ -179,11 +179,9 @@ make_cluster_connections(MachineList * l, MachineList * old)
 }
 
 int
-machine_config_change(const char *name, RecDataT data_type, RecData data, void *cookie)
+machine_config_change(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */, RecData data,
+                      void *cookie)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(data_type);
   // Handle changes to the cluster.config or machines.config
   // file.  cluster.config is the list of machines in the
   // cluster proper ( in the cluster hash table ).  machines.config
@@ -203,7 +201,7 @@ machine_config_change(const char *name, RecDataT data_type, RecData data, void *
   case CLUSTER_CONFIG:
     old = cluster_config;
     cluster_config = l;
-    make_cluster_connections(l, old);
+    make_cluster_connections(l);
     break;
   }
 #else
@@ -211,7 +209,7 @@ machine_config_change(const char *name, RecDataT data_type, RecData data, void *
   old = cluster_config;
   machines_config = l;
   cluster_config = l;
-  make_cluster_connections(l, old);
+  make_cluster_connections(l);
 #endif
   if (old)
     free_MachineList(old);
@@ -248,9 +246,8 @@ struct ConfigurationContinuation: public Continuation
   ClusterConfiguration *prev;
 
   int
-  zombieEvent(int event, Event * e)
+  zombieEvent(int /* event ATS_UNUSED */, Event * e)
   {
-    NOWARN_UNUSED(event);
     prev->link.next = NULL;     // remove that next pointer
     SET_HANDLER((CfgContHandler) & ConfigurationContinuation::dieEvent);
     e->schedule_in(CLUSTER_CONFIGURATION_ZOMBIE);
@@ -357,42 +354,6 @@ configuration_remove_machine(ClusterConfiguration * c, ClusterMachine * m)
 
   free_configuration(c, cc);
   return cc;
-}
-
-/*************************************************************************/
-// Exported functions
-/*************************************************************************/
-
-//
-// cluster_machine_depth_list()
-//   Return a machine list based on the given hash which is ordered from
-//   now to the past.  Returned list contains no duplicates and depth_list[0]
-//   entry (current configuration) is always valid.  Entries following
-//   depth_list[0] are considered online.
-//   Returns 0 on Success else non-zero on error.
-//
-int
-cluster_machine_depth_list(unsigned int hash, ClusterMachine ** depth_list, int depth_list_size)
-{
-  NOWARN_UNUSED(depth_list_size);
-  int n = 0;
-  ClusterConfiguration *cc = this_cluster()->current_configuration();
-  ClusterMachine *m = cc->machine_hash(hash);
-
-  depth_list[n++] = m;
-  cc = cc->link.next;
-
-  while (!cc && n < (CONFIGURATION_HISTORY_PROBE_DEPTH + 1)) {
-    m = cc->machine_hash(hash);
-
-    if (m->dead || machine_in_vector(m, depth_list, n)) {
-      depth_list[n++] = (ClusterMachine *) 0;   // duplicate or offline
-    } else {
-      depth_list[n++] = m;      // unique valid online entry
-    }
-    cc = cc->link.next;
-  }
-  return 0;                     // Success
 }
 
 //

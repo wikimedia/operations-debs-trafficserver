@@ -34,18 +34,21 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include "ink_thread.h"
 #include "ink_atomic.h"
 #include "ink_queue.h"
 #include "ink_memory.h"
 #include "ink_error.h"
 #include "ink_assert.h"
 #include "ink_resource.h"
+#include "ink_stack_trace.h"
 #include "ink_queue_ext.h"
 
 #if TS_USE_RECLAIMABLE_FREELIST
 
 #define CEIL(x,y)   (((x) + (y) - 1L) / (y))
 #define ROUND(x,l)  (((x) + ((l) - 1L)) & ~((l) - 1L))
+#define ITEM_MAGIC 0xFF
 
 #define MAX_NUM_FREELIST  1024
 
@@ -63,36 +66,19 @@ int64_t cfg_enable_reclaim = 0;
  */
 int64_t cfg_debug_filter;
 
-static uint32_t page_size;
 static uint32_t nr_freelist;
 static uint64_t total_mem_in_byte;
 static __thread InkThreadCache *ThreadCaches[MAX_NUM_FREELIST];
 
-static inline pthread_t thread_id(void)
-{
-  static __thread pthread_t tid;
-
-  return tid?tid:(tid = pthread_self());
-}
-#define THREAD_ID thread_id()
-#define MAX_CHUNK_BYTE_SIZE (page_size << 8)
+#define MAX_CHUNK_BYTE_SIZE (ats_pagesize() << 8)
 
 /*
  * For debug
  */
-#if 1
 #define show_info(tag, f, pCache) \
   __show_info(stdout, __FILE__, __LINE__, tag, f, pCache)
-#else
-#define show_info(tag, f, pCache) \
-  __silent(__FILE__, __LINE__, tag, f, pCache)
-#endif
 #define error_info(tag, f, pCache) \
   __show_info(stderr, __FILE__, __LINE__, tag, f, pCache)
-
-static inline void
-__silent(const char *file, int line,
-         const char *tag, InkFreeList *f, InkThreadCache *pCache) {}
 
 static inline void
 __show_info(FILE *fp, const char *file, int line,
@@ -101,7 +87,7 @@ __show_info(FILE *fp, const char *file, int line,
 
   fprintf(fp, "[%lx:%02u][%s:%05d][%s] %6.2fM t:%-8uf:%-4u m:%-4u avg:%-6.1f"
           " M:%-4u csbase:%-4u csize:%-4u tsize:%-6u cbsize:%u\n",
-         (long)THREAD_ID, f->thread_cache_idx, file, line, tag,
+         (long)ink_thread_self(), f->thread_cache_idx, file, line, tag,
          ((double)total_mem_in_byte/1024/1024),
          pCache->nr_total,
          pCache->nr_free,
@@ -118,11 +104,19 @@ static inline void
 memory_alignment_init(InkFreeList *f, uint32_t type_size, uint32_t chunk_size,
                       uint32_t alignment)
 {
-  uint32_t chunk_byte_size, user_alignment;
+  uint32_t chunk_byte_size, user_alignment, user_type_size;
 
   f->chunk_size_base = chunk_size;
   user_alignment = alignment;
+  user_type_size = type_size;
   chunk_size = 1;
+
+#ifdef DEBUG
+  /*
+   * enlarge type_size to hold a item_magic
+   */
+  type_size += sizeof(unsigned char);
+#endif
 
   /*
    * limit the size of each chunk and resize alignment.
@@ -132,17 +126,17 @@ memory_alignment_init(InkFreeList *f, uint32_t type_size, uint32_t chunk_size,
    *    alignment = (2^N * page_size),
    *    alignment should not larger than MAX_CHUNK_BYTE_SIZE
    */
-  alignment = page_size;
-  chunk_byte_size = ROUND(type_size + sizeof(InkChunkInfo), page_size);
+  alignment = ats_pagesize();
+  chunk_byte_size = ROUND(type_size + sizeof(InkChunkInfo), ats_pagesize());
   if (chunk_byte_size <= MAX_CHUNK_BYTE_SIZE) {
 
     chunk_byte_size = ROUND(type_size * f->chunk_size_base
-                            + sizeof(InkChunkInfo), page_size);
+                            + sizeof(InkChunkInfo), ats_pagesize());
 
     if (chunk_byte_size > MAX_CHUNK_BYTE_SIZE) {
       chunk_size = (MAX_CHUNK_BYTE_SIZE - sizeof(InkChunkInfo)) / type_size;
       chunk_byte_size = ROUND(type_size * chunk_size + sizeof(InkChunkInfo),
-                              page_size);
+                              ats_pagesize());
     } else
       chunk_size = (chunk_byte_size - sizeof(InkChunkInfo)) / type_size;
 
@@ -155,14 +149,14 @@ memory_alignment_init(InkFreeList *f, uint32_t type_size, uint32_t chunk_size,
   }
 
   if (user_alignment > alignment) {
-    alignment = page_size;
+    alignment = ats_pagesize();
     while (alignment < user_alignment)
       alignment <<= 1;
   }
   ink_release_assert(alignment <= MAX_CHUNK_BYTE_SIZE);
 
   f->alignment = alignment;
-  f->type_size = type_size;
+  f->type_size = user_type_size;
   f->chunk_size = chunk_size;
   f->chunk_addr_mask = ~((uintptr_t)(alignment - 1));
   f->chunk_byte_size = chunk_byte_size;
@@ -181,19 +175,23 @@ mmap_align(size_t size, size_t alignment) {
   uintptr_t ptr;
   size_t adjust, extra = 0;
 
-  ink_assert(size % page_size == 0);
+  ink_assert(size % ats_pagesize() == 0);
 
   /* ask for extra memory if alignment > page_size */
-  if (alignment > page_size) {
-    extra = alignment - page_size;
+  if (alignment > ats_pagesize()) {
+    extra = alignment - ats_pagesize();
   }
   void* result = mmap(NULL, size + extra,
                       PROT_READ|PROT_WRITE,
-                      MAP_PRIVATE|MAP_ANONYMOUS,
+                      MAP_PRIVATE|MAP_ANON,
                       -1, 0);
   if (result == MAP_FAILED) {
-      xdump();
-      ink_fatal(1, "Failed to mmap %zu bytes, %s", size, strerror(errno));
+    ink_stack_trace_dump();
+    const char *err_str = "Out of memory, or the process's maximum number of "
+                          "mappings would have been exceeded(if so, you can "
+                          "enlarge 'vm.max_map_count' by sysctl in linux).";
+    ink_fatal(1, "Failed to mmap %zu bytes, %s", size,
+              (errno == ENOMEM) ? err_str : strerror(errno));
   }
 
   /* adjust the return memory so it is aligned */
@@ -215,6 +213,62 @@ mmap_align(size_t size, size_t alignment) {
   ink_assert((ptr & (alignment -1)) == 0);
   return (void*)ptr;
 }
+
+#ifdef DEBUG
+static inline uint32_t
+get_chunk_item_magic_idx(InkFreeList *f, void *item, InkChunkInfo **ppChunk,
+                          bool do_check = false)
+{
+  uint32_t idx;
+  uintptr_t chunk_addr;
+
+  if (f->chunk_size > 1)
+    chunk_addr = (uintptr_t)item & f->chunk_addr_mask;
+  else
+    chunk_addr = (uintptr_t)item;
+
+  if (*ppChunk == NULL)
+    *ppChunk = (InkChunkInfo *)(chunk_addr + f->type_size * f->chunk_size);
+
+  idx = ((uintptr_t)item - chunk_addr) / f->type_size;
+
+  if (do_check && (idx >= f->chunk_size
+                   || ((uintptr_t)item - chunk_addr) % f->type_size)) {
+    ink_stack_trace_dump();
+    ink_fatal(1, "Invalid address:%p, chunk_addr:%p, type_size:%d, chunk_size:%u, idx:%u",
+              item, (void *)chunk_addr, f->type_size, f->chunk_size, idx);
+  }
+
+  return idx;
+}
+
+static inline void
+set_chunk_item_magic(InkFreeList *f, InkChunkInfo *pChunk, void *item)
+{
+  uint32_t idx;
+
+  idx = get_chunk_item_magic_idx(f, item, &pChunk);
+
+  ink_release_assert(pChunk->item_magic[idx] == 0);
+
+  pChunk->item_magic[idx] = ITEM_MAGIC;
+}
+
+static inline void
+clear_chunk_item_magic(InkFreeList *f, InkChunkInfo *pChunk, void *item)
+{
+  uint32_t idx;
+
+  idx = get_chunk_item_magic_idx(f, item, &pChunk, true);
+
+  ink_release_assert(pChunk->item_magic[idx] == ITEM_MAGIC);
+
+  pChunk->item_magic[idx] = 0;
+}
+#else
+#define set_chunk_item_magic(a, b, c)
+#define clear_chunk_item_magic(a, b, c)
+#endif
 
 static inline InkChunkInfo *
 get_chunk_info_addr(InkFreeList *f, void *item)
@@ -243,7 +297,7 @@ ink_chunk_create(InkFreeList *f, InkThreadCache *pCache)
   type_size = f->type_size;
   chunk_size = f->chunk_size;
 
-  pChunk->tid = THREAD_ID;
+  pChunk->tid = ink_thread_self();
   pChunk->head = chunk_addr;
   pChunk->type_size = type_size;
   pChunk->chunk_size = chunk_size;
@@ -251,6 +305,17 @@ ink_chunk_create(InkFreeList *f, InkThreadCache *pCache)
   pChunk->allocated = 0;
   pChunk->pThreadCache = pCache;
   pChunk->link = Link<InkChunkInfo>();
+
+#ifdef DEBUG
+  /*
+   * The content will be initialized to zero when
+   * calls mmap() with MAP_ANONYMOUS flag on linux
+   * platform.
+   */
+#if !defined(linux)
+  memset(pChunk->item_magic, 0, chunk_size * sizeof(unsigned char));
+#endif
+#endif
 
   curr = pChunk->head;
   pChunk->inner_free_list = curr;
@@ -261,7 +326,7 @@ ink_chunk_create(InkFreeList *f, InkThreadCache *pCache)
   }
   *(void **)curr = NULL;
 
-  ink_atomic_increment(&f->count, chunk_size);
+  ink_atomic_increment(&f->allocated, chunk_size);
   ink_atomic_increment(&total_mem_in_byte, f->chunk_byte_size);
 
   pCache->free_chunk_list.push(pChunk);
@@ -280,12 +345,11 @@ ink_chunk_delete(InkFreeList *f, InkThreadCache *pCache, InkChunkInfo *pChunk)
   pCache->nr_free_chunks--;
 
   if (unlikely(munmap(chunk_addr, f->chunk_byte_size))) {
-      xdump();
-      ink_fatal(1, "Failed to munmap %u bytes, %s", f->chunk_byte_size,
-                strerror(errno));
+    ink_stack_trace_dump();
+    ink_fatal(1, "Failed to munmap %u bytes, %s", f->chunk_byte_size, strerror(errno));
   }
 
-  ink_atomic_increment((int *)&f->count, -f->chunk_size);
+  ink_atomic_increment((int *)&f->allocated, -f->chunk_size);
 
   /*
    * TODO: I had used ink_atomic_increment() here, but it would
@@ -321,8 +385,6 @@ malloc_whole_chunk(InkFreeList *f, InkThreadCache *pCache, InkChunkInfo *pChunk)
   pChunk->inner_free_list = NULL;
   pCache->nr_total += chunk_size;
 
-  ink_atomic_increment(&f->allocated, chunk_size);
-
   return item;
 }
 
@@ -335,7 +397,6 @@ malloc_from_chunk(InkFreeList *f, InkThreadCache *pCache, InkChunkInfo *pChunk)
     pChunk->inner_free_list  = *(void **)item;
     pChunk->allocated++;
     pCache->nr_total++;
-    ink_atomic_increment(&f->allocated, 1);
   }
 
   return item;
@@ -348,7 +409,6 @@ free_to_chunk(InkFreeList *f, InkThreadCache *pCache, void *item)
 
   pChunk = get_chunk_info_addr(f, item);
   pChunk->allocated--;
-  ink_atomic_increment((int *)&f->allocated, -1);
   pCache->nr_total--;
 
   *(void **)item = pChunk->inner_free_list;
@@ -424,7 +484,7 @@ refresh_average_info(InkThreadCache *pCache)
 }
 
 static inline bool
-need_to_reclaim(InkFreeList *f, InkThreadCache *pCache, pthread_t tid)
+need_to_reclaim(InkFreeList *f, InkThreadCache *pCache)
 {
   if (!cfg_enable_reclaim)
     return false;
@@ -453,14 +513,11 @@ reclaimable_freelist_init(InkFreeList **fl, const char *name,
   /* quick test for power of 2 */
   ink_assert(!(alignment & (alignment - 1)));
 
-  if (!page_size)
-    page_size = sysconf(_SC_PAGESIZE);
-
   /* NOTE: it's safe to operate on this global list because
    * ink_freelist_init() is only called from single-threaded
    * initialization code. */
   while (fll) {
-    /* Reuse InkFreeList if it has the same aligned type_size. */
+    /* Reuse InkFreeList if it has the same type_size. */
     if (fll->fl->type_size == type_size) {
       fll->fl->refcnt++;
       *fl = fll->fl;
@@ -476,10 +533,10 @@ reclaimable_freelist_init(InkFreeList **fl, const char *name,
   freelists = fll;
 
   f->name = name;
-  f->count = 0;
+  f->used = 0;
   f->allocated = 0;
   f->allocated_base = 0;
-  f->count_base = 0;
+  f->used_base = 0;
 
   memory_alignment_init(f, type_size, chunk_size, alignment);
 
@@ -502,6 +559,8 @@ reclaimable_freelist_new(InkFreeList *f)
   uint32_t num_to_move;
   InkChunkInfo *pChunk = NULL;
   InkThreadCache *pCache, *pNextCache;
+
+  ink_atomic_increment(&f->used, 1);
 
   /* no thread cache, create it */
   if (unlikely((pCache = ThreadCaches[f->thread_cache_idx]) == NULL)) {
@@ -542,6 +601,7 @@ reclaimable_freelist_new(InkFreeList *f)
     ink_mutex_release(&f->lock);
 
     ptr = malloc_whole_chunk(f, pCache, pChunk);
+    set_chunk_item_magic(f, pChunk, ptr);
     return ptr;
   }
 
@@ -552,6 +612,7 @@ reclaimable_freelist_new(InkFreeList *f)
     old_value = ink_atomic_increment((int *)&pCache->nr_free, -1);
     ink_release_assert(old_value > 0);
     ink_atomic_increment(&pCache->nr_malloc, 1);
+    set_chunk_item_magic(f, NULL, ptr);
     return ptr;
   }
 
@@ -559,10 +620,11 @@ reclaimable_freelist_new(InkFreeList *f)
   pNextCache = pCache->next;
   while (pNextCache != pCache) {
     if ((ptr = ink_atomiclist_pop(&pNextCache->outer_free_list))) {
-          old_value = ink_atomic_increment((int *)&pNextCache->nr_free, -1);
-          ink_release_assert(old_value > 0);
-          ink_atomic_increment(&pNextCache->nr_malloc, 1);
-          return ptr;
+      old_value = ink_atomic_increment((int *)&pNextCache->nr_free, -1);
+      ink_release_assert(old_value > 0);
+      ink_atomic_increment(&pNextCache->nr_malloc, 1);
+      set_chunk_item_magic(f, NULL, ptr);
+      return ptr;
     }
     pNextCache = pNextCache->next;
   }
@@ -572,7 +634,7 @@ reclaimable_freelist_new(InkFreeList *f)
     if ((pNextCache = ThreadCaches[i]) == NULL)
       continue;
 
-    if (need_to_reclaim(pNextCache->f, pNextCache, THREAD_ID)) {
+    if (need_to_reclaim(pNextCache->f, pNextCache)) {
       if (cfg_debug_filter & 0x1)
         show_info("F", pNextCache->f, pNextCache);
 
@@ -596,6 +658,7 @@ reclaimable_freelist_new(InkFreeList *f)
 
   refresh_average_info(pCache);
   ink_atomic_increment(&pCache->nr_malloc, 1);
+  set_chunk_item_magic(f, NULL, ptr);
   return ptr;
 }
 
@@ -609,6 +672,7 @@ reclaimable_freelist_free(InkFreeList *f, void *item)
     return;
 
   pChunk = get_chunk_info_addr(f, item);
+  clear_chunk_item_magic(f, pChunk, item);
   pCache = pChunk->pThreadCache;
 
   ink_atomic_increment((int *)&pCache->nr_malloc, -1);
@@ -617,5 +681,6 @@ reclaimable_freelist_free(InkFreeList *f, void *item)
 
   ink_atomic_increment(&pCache->nr_free, 1);
   ink_atomiclist_push(&pCache->outer_free_list, item);
+  ink_atomic_increment(&f->used, -1);
 }
 #endif

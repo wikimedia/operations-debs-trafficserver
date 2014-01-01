@@ -21,8 +21,6 @@
   limitations under the License.
  */
 
-#include "ink_unused.h"
-
 #include "P_EventSystem.h"
 #include "Error.h"
 
@@ -555,7 +553,7 @@ LogSock::read_alloc(int cid, int *size)
   ink_assert(data != NULL);
 
   if ((*size = read_body(ct[cid].sd, data, header.msg_bytes)) < 0) {
-    delete data;
+    delete[] data;
     data = NULL;
   }
 
@@ -564,7 +562,7 @@ LogSock::read_alloc(int cid, int *size)
 
 /**
 */
-bool LogSock::is_connected(int cid, bool ping)
+bool LogSock::is_connected(int cid, bool ping) const
 {
   int
     i,

@@ -28,15 +28,14 @@
 #include "P_RecProcess.h"
 #include "P_RecMessage.h"
 #include "P_RecUtils.h"
-#include "P_RecCompatibility.h"
+#include "P_RecFile.h"
 
 #include "mgmtapi.h"
 
 static bool g_initialized = false;
 static bool g_message_initialized = false;
 static bool g_started = false;
-static ink_cond g_force_req_cond;
-static ink_mutex g_force_req_mutex;
+static EventNotify g_force_req_notify;
 static int g_rec_raw_stat_sync_interval_ms = REC_RAW_STAT_SYNC_INTERVAL_MS;
 static int g_rec_config_update_interval_ms = REC_CONFIG_UPDATE_INTERVAL_MS;
 static int g_rec_remote_sync_interval_ms = REC_REMOTE_SYNC_INTERVAL_MS;
@@ -58,7 +57,7 @@ i_am_the_record_owner(RecT rec_type)
     case RECT_LOCAL:
       return false;
     default:
-      ink_debug_assert(!"Unexpected RecT type");
+      ink_assert(!"Unexpected RecT type");
       return false;
     }
   } else if (g_mode_type == RECM_STAND_ALONE) {
@@ -71,7 +70,7 @@ i_am_the_record_owner(RecT rec_type)
     case RECT_PLUGIN:
       return true;
     default:
-      ink_debug_assert(!"Unexpected RecT type");
+      ink_assert(!"Unexpected RecT type");
       return false;
     }
   }
@@ -118,6 +117,13 @@ raw_stat_get_total(RecRawStatBlock *rsb, int id, RecRawStat *total)
     total->sum += tlp->sum;
     total->count += tlp->count;
   }
+
+  for (i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    total->sum += tlp->sum;
+    total->count += tlp->count;
+  }
+
   if (total->sum < 0) { // Assure that we stay positive
     total->sum = 0;
   }
@@ -145,6 +151,13 @@ raw_stat_sync_to_global(RecRawStatBlock *rsb, int id)
     total.sum += tlp->sum;
     total.count += tlp->count;
   }
+
+  for (i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    total.sum += tlp->sum;
+    total.count += tlp->count;
+  }
+
   if (total.sum < 0) { // Assure that we stay positive
     total.sum = 0;
   }
@@ -199,6 +212,13 @@ raw_stat_clear(RecRawStatBlock *rsb, int id)
     ink_atomic_swap(&(tlp->sum), (int64_t)0);
     ink_atomic_swap(&(tlp->count), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->sum), (int64_t)0);
+    ink_atomic_swap(&(tlp->count), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -224,6 +244,12 @@ raw_stat_clear_sum(RecRawStatBlock *rsb, int id)
     tlp = ((RecRawStat *) ((char *) (eventProcessor.all_ethreads[i]) + rsb->ethr_stat_offset)) + id;
     ink_atomic_swap(&(tlp->sum), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->sum), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -249,6 +275,12 @@ raw_stat_clear_count(RecRawStatBlock *rsb, int id)
     tlp = ((RecRawStat *) ((char *) (eventProcessor.all_ethreads[i]) + rsb->ethr_stat_offset)) + id;
     ink_atomic_swap(&(tlp->count), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->count), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -263,9 +295,9 @@ recv_message_cb__process(RecMessage *msg, RecMessageT msg_type, void *cookie)
 
   if ((err = recv_message_cb(msg, msg_type, cookie)) == REC_ERR_OKAY) {
     if (msg_type == RECG_PULL_ACK) {
-      ink_mutex_acquire(&g_force_req_mutex);
-      ink_cond_signal(&g_force_req_cond);
-      ink_mutex_release(&g_force_req_mutex);
+      g_force_req_notify.lock();
+      g_force_req_notify.signal();
+      g_force_req_notify.unlock();
     }
   }
   return err;
@@ -285,8 +317,6 @@ struct raw_stat_sync_cont: public Continuation
 
   int exec_callbacks(int event, Event *e)
   {
-    REC_NOWARN_UNUSED(event);
-    REC_NOWARN_UNUSED(e);
     while (true) {
       RecExecRawStatSyncCbs();
       Debug("statsproc", "raw_stat_sync_cont() processed");
@@ -310,8 +340,6 @@ struct config_update_cont: public Continuation
 
   int exec_callbacks(int event, Event *e)
   {
-    REC_NOWARN_UNUSED(event);
-    REC_NOWARN_UNUSED(e);
     while (true) {
       RecExecConfigUpdateCbs(REC_PROCESS_UPDATE_REQUIRED);
       Debug("statsproc", "config_update_cont() processed");
@@ -346,8 +374,6 @@ struct sync_cont: public Continuation
 
   int sync(int event, Event *e)
   {
-    REC_NOWARN_UNUSED(event);
-    REC_NOWARN_UNUSED(e);
     while (true) {
       send_push_message();
       RecSyncStatsFile();
@@ -425,13 +451,11 @@ RecProcessInitMessage(RecModeT mode_type)
     return REC_ERR_FAIL;
   }
 
-  ink_cond_init(&g_force_req_cond);
-  ink_mutex_init(&g_force_req_mutex, NULL);
   if (mode_type == RECM_CLIENT) {
     send_pull_message(RECG_PULL_REQ);
-    ink_mutex_acquire(&g_force_req_mutex);
-    ink_cond_wait(&g_force_req_cond, &g_force_req_mutex);
-    ink_mutex_release(&g_force_req_mutex);
+    g_force_req_notify.lock();
+    g_force_req_notify.wait();
+    g_force_req_notify.unlock();
   }
 
   g_message_initialized = true;
@@ -444,7 +468,7 @@ RecProcessInitMessage(RecModeT mode_type)
 // RecProcessStart
 //-------------------------------------------------------------------------
 int
-RecProcessStart()
+RecProcessStart(size_t stacksize)
 {
   if (g_started) {
     return REC_ERR_OKAY;
@@ -453,15 +477,15 @@ RecProcessStart()
   Debug("statsproc", "Starting sync processors:");
   raw_stat_sync_cont *rssc = NEW(new raw_stat_sync_cont(new_ProxyMutex()));
   Debug("statsproc", "\traw-stat syncer");
-  eventProcessor.spawn_thread(rssc, "[STAT_SYNC]");
+  eventProcessor.spawn_thread(rssc, "[STAT_SYNC]", stacksize);
 
   config_update_cont *cuc = NEW(new config_update_cont(new_ProxyMutex()));
   Debug("statsproc", "\tconfig syncer");
-  eventProcessor.spawn_thread(cuc, "[CONF_SYNC]");
+  eventProcessor.spawn_thread(cuc, "[CONF_SYNC]", stacksize);
 
   sync_cont *sc = NEW(new sync_cont(new_ProxyMutex()));
   Debug("statsproc", "\tremote syncer");
-  eventProcessor.spawn_thread(sc, "[REM_SYNC]");
+  eventProcessor.spawn_thread(sc, "[REM_SYNC]", stacksize);
 
   g_started = true;
 
@@ -505,7 +529,7 @@ RecRegisterRawStat(RecRawStatBlock *rsb, RecT rec_type, const char *name, RecDat
   Debug("stats", "RecRawStatSyncCb(%s): rsb pointer:%p id:%d\n", name, rsb, id);
 
   // check to see if we're good to proceed
-  ink_debug_assert(id < rsb->max_stats);
+  ink_assert(id < rsb->max_stats);
 
   int err = REC_ERR_OKAY;
 
@@ -547,7 +571,6 @@ Ldone:
 int
 RecRawStatSyncSum(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
 
   Debug("stats", "raw sync:sum for %s", name);
@@ -562,7 +585,6 @@ RecRawStatSyncSum(const char *name, RecDataT data_type, RecData *data, RecRawSta
 int
 RecRawStatSyncCount(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
 
   Debug("stats", "raw sync:count for %s", name);
@@ -577,7 +599,6 @@ RecRawStatSyncCount(const char *name, RecDataT data_type, RecData *data, RecRawS
 int
 RecRawStatSyncAvg(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
   RecFloat avg = 0.0f;
 
@@ -594,7 +615,6 @@ RecRawStatSyncAvg(const char *name, RecDataT data_type, RecData *data, RecRawSta
 int
 RecRawStatSyncHrTimeAvg(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
   RecFloat r;
 
@@ -615,7 +635,6 @@ RecRawStatSyncHrTimeAvg(const char *name, RecDataT data_type, RecData *data, Rec
 int
 RecRawStatSyncIntMsecsToFloatSeconds(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
   RecFloat r;
 
@@ -635,7 +654,6 @@ RecRawStatSyncIntMsecsToFloatSeconds(const char *name, RecDataT data_type, RecDa
 int
 RecRawStatSyncMHrTimeAvg(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id)
 {
-  REC_NOWARN_UNUSED(name);
   RecRawStat total;
   RecFloat r;
 
@@ -658,11 +676,9 @@ RecRawStatSyncMHrTimeAvg(const char *name, RecDataT data_type, RecData *data, Re
 // RecIncrRawStatXXX
 //-------------------------------------------------------------------------
 int
-RecIncrRawStatBlock(RecRawStatBlock *rsb, EThread *ethread, RecRawStat *stat_array)
+RecIncrRawStatBlock(RecRawStatBlock */* rsb ATS_UNUSED */, EThread */* ethread ATS_UNUSED */,
+                    RecRawStat */* stat_array ATS_UNUSED */)
 {
-  REC_NOWARN_UNUSED(rsb);
-  REC_NOWARN_UNUSED(ethread);
-  REC_NOWARN_UNUSED(stat_array);
   return REC_ERR_FAIL;
 }
 
@@ -687,10 +703,8 @@ RecSetRawStatCount(RecRawStatBlock *rsb, int id, int64_t data)
 }
 
 int
-RecSetRawStatBlock(RecRawStatBlock *rsb, RecRawStat *stat_array)
+RecSetRawStatBlock(RecRawStatBlock */* rsb ATS_UNUSED */, RecRawStat */* stat_array ATS_UNUSED */)
 {
-  REC_NOWARN_UNUSED(rsb);
-  REC_NOWARN_UNUSED(stat_array);
   return REC_ERR_FAIL;
 }
 

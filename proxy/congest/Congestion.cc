@@ -45,6 +45,7 @@ static const matcher_tags congest_dest_tags = {
   "dest_domain",
   "dest_ip",
   NULL,
+  NULL,
   "host_regex",
   true
 };
@@ -264,7 +265,7 @@ CongestionControlRecord::Init(matcher_line * line_info)
 }
 
 void
-CongestionControlRecord::UpdateMatch(CongestionControlRule * pRule, RD * rdata)
+CongestionControlRecord::UpdateMatch(CongestionControlRule * pRule, RequestData * rdata)
 {
 /*
  * Select the first matching rule specified in congestion.config
@@ -324,12 +325,9 @@ extern void initCongestionDB();
 
 // place holder for congestion control enable config
 static int
-CongestionControlEnabledChanged(const char *name, RecDataT data_type, RecData data, void *cookie)
+CongestionControlEnabledChanged(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                                RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   if (congestionControlEnabled == 1 || congestionControlEnabled == 2) {
     revalidateCongestionDB();
   }
@@ -337,12 +335,9 @@ CongestionControlEnabledChanged(const char *name, RecDataT data_type, RecData da
 }
 
 static int
-CongestionControlDefaultSchemeChanged(const char *name, RecDataT data_type, RecData data, void *cookie)
+CongestionControlDefaultSchemeChanged(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                                      RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   if (strcasecmp(DEFAULT_congestion_scheme_str, "per_host") == 0) {
     DEFAULT_congestion_scheme = PER_HOST;
   } else {
@@ -420,7 +415,7 @@ CongestionMatcherTable::reconfigure()
 }
 
 CongestionControlRecord *
-CongestionControlled(RD * rdata)
+CongestionControlled(RequestData * rdata)
 {
   if (congestionControlEnabled) {
     CongestionControlRule result;
@@ -448,23 +443,6 @@ uint64_t
 make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * record)
 {
   INK_MD5 md5;
-#ifdef USE_MMH
-  MMH_CTX ctx;
-  ink_code_incr_MMH_init(&ctx);
-  if (record->congestion_scheme == PER_HOST && len > 0)
-    ink_code_incr_MMH_update(&ctx, hostname, len);
-  else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
-  if (record->port != 0) {
-    unsigned short p = port;
-    p = htons(p);
-    ink_code_incr_MMH_update(&ctx, (char *) &p, 2);
-  }
-  if (record->prefix != NULL) {
-    ink_code_incr_MMH_update(&ctx, record->prefix, record->prefix_len);
-  }
-  ink_code_incr_MMH_final((char *) &md5, &ctx);
-#else
   INK_DIGEST_CTX ctx;
   ink_code_incr_md5_init(&ctx);
   if (record->congestion_scheme == PER_HOST && len > 0)
@@ -480,7 +458,7 @@ make_key(char *hostname, int len, sockaddr const* ip, CongestionControlRecord * 
     ink_code_incr_md5_update(&ctx, record->prefix, record->prefix_len);
   }
   ink_code_incr_md5_final((char *) &md5, &ctx);
-#endif
+
   return md5.fold();
 }
 
@@ -489,23 +467,6 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
 {
   /* if the hostname != NULL, use hostname, else, use ip */
   INK_MD5 md5;
-#ifdef USE_MMH
-  MMH_CTX ctx;
-  ink_code_incr_MMH_init(&ctx);
-  if (hostname && len > 0)
-    ink_code_incr_MMH_update(&ctx, hostname, len);
-  else
-    ink_code_incr_MMH_update(&ctx, reinterpret_cast<char const*>(ats_ip_addr8_cast(ip)), ats_ip_addr_size(ip));
-  if (port != 0) {
-    unsigned short p = port;
-    p = htons(p);
-    ink_code_incr_MMH_update(&ctx, (char *) &p, 2);
-  }
-  if (prefix != NULL) {
-    ink_code_incr_MMH_update(&ctx, prefix, prelen);
-  }
-  ink_code_incr_MMH_final((char *) &md5, &ctx);
-#else
   INK_DIGEST_CTX ctx;
   ink_code_incr_md5_init(&ctx);
   if (hostname && len > 0)
@@ -521,7 +482,7 @@ make_key(char *hostname, int len, sockaddr const* ip, char *prefix, int prelen, 
     ink_code_incr_md5_update(&ctx, prefix, prelen);
   }
   ink_code_incr_md5_final((char *) &md5, &ctx);
-#endif
+
   return md5.fold();
 }
 

@@ -23,6 +23,48 @@ $network = {
   "centos63"  => "192.168.100.15",
   "freebsd"   => "192.168.100.16",
   "omnios"    => "192.168.100.17",
+
+  "raring32"  => "192.168.200.11",
+  "quantal32" => "192.168.200.12",
+  "precise32" => "192.168.200.13",
+  "lucid32"   => "192.168.200.14",
+
+  "fedora18"  => "192.168.200.15",
+  "centos59"  => "192.168.200.16",
+  "centos64"  => "192.168.200.17",
+  "debian7"   => "192.168.200.18",
+  "sles11"    => "192.168.200.19",
+  "oel63"     => "192.168.200.20",
+
+  "saucy64"   => "192.168.100.21",
+  "saucy32"   => "192.168.100.22",
+}
+
+$vmspec = {
+  "lucid64" => [ # Ubuntu 10.04 LTS (Lucid Lynx)
+    "http://files.vagrantup.com/lucid64.box", "debian.pp"
+  ],
+  "fedora18" => [
+    "http://puppet-vagrant-boxes.puppetlabs.com/fedora-18-x64-vbox4210.box", "redhat.pp"
+  ],
+  "centos63" => [
+    "https://dl.dropbox.com/u/7225008/Vagrant/CentOS-6.3-x86_64-minimal.box", "redhat.pp"
+  ],
+  "centos59" => [
+    "http://puppet-vagrant-boxes.puppetlabs.com/centos-59-x64-vbox4210.box", "redhat.pp",
+  ],
+  "centos64" => [
+    "http://puppet-vagrant-boxes.puppetlabs.com/centos-64-x64-vbox4210.box", "redhat.pp",
+  ],
+  "debian7" => [
+    "http://puppet-vagrant-boxes.puppetlabs.com/debian-70rc1-x64-vbox4210.box", "debian.pp",
+  ],
+  "sles11" => [
+    "http://puppet-vagrant-boxes.puppetlabs.com/sles-11sp1-x64-vbox4210.box", "redhat.pp",
+  ],
+  "oel63" => [
+    "http://ats.boot.org/vagrant/vagrant-oel63-x64.box", "redhat.pp",
+  ],
 }
 
 Vagrant.configure("2") do |config|
@@ -36,27 +78,26 @@ Vagrant.configure("2") do |config|
   # because it's faster and vboxfs doesn't support links.
   config.vm.synced_folder ".", "/opt/src/trafficserver.git", :nfs => true
 
+  # Always forward SSH keys to VMs.
+  config.ssh.forward_agent = true
+
   # Ubuntu 13.04 (Raring Ringtail)
   # Ubuntu 12.10 (Quantal Quetzal)
   # Ubuntu 12.04 LTS (Precise Pangolin)
-  ['raring', 'quantal', 'precise'].each { |release|
-    config.vm.define "#{release}64" do | config |
-      config.vm.box = "#{release}64"
-      config.vm.box_url = "http://cloud-images.ubuntu.com/vagrant/#{release}/current/#{release}-server-cloudimg-amd64-vagrant-disk1.box"
-      config.vm.network :private_network, ip: $network["#{release}64"]
-      config.vm.provision :puppet do |puppet|
-        puppet.manifests_path = "contrib/manifests"
-        puppet.manifest_file = "debian.pp"
+  ["i386", "amd64"].each { |arch|
+    ['saucy', 'raring', 'quantal', 'precise'].each { |release|
+      n = { "i386" => "32", "amd64" => "64" }[arch]
+      config.vm.define "#{release}#{n}" do | config |
+        config.vm.box = "#{release}#{n}"
+        config.vm.box_url = "http://cloud-images.ubuntu.com/vagrant/#{release}/current/#{release}-server-cloudimg-#{arch}-vagrant-disk1.box"
+        config.vm.network :private_network, ip: $network["#{release}#{n}"]
+        config.vm.provision :puppet do |puppet|
+          puppet.manifests_path = "contrib/manifests"
+          puppet.manifest_file = "debian.pp"
+        end
       end
-    end
+    }
   }
-
-  # Ubuntu 10.04 LTS (Lucid Lynx)
-  config.vm.define :lucid64 do | config |
-    config.vm.box = "lucid64"
-    config.vm.network :private_network, ip: $network["lucid64"]
-    config.vm.box_url = "http://files.vagrantup.com/lucid64.box"
-  end
 
   config.vm.define :freebsd do | config |
     config.vm.box = "freebsd"
@@ -70,16 +111,6 @@ Vagrant.configure("2") do |config|
     config.vm.box_url = "https://github.com/downloads/xironix/freebsd-vagrant/freebsd_amd64_zfs.box"
   end
 
-  config.vm.define :centos63 do |config|
-    config.vm.box = "centos63"
-    config.vm.network :private_network, ip: $network["centos63"]
-    config.vm.box_url = "https://dl.dropbox.com/u/7225008/Vagrant/CentOS-6.3-x86_64-minimal.box"
-    config.vm.provision :puppet do |puppet|
-      puppet.manifests_path = "contrib/manifests"
-      puppet.manifest_file = "redhat.pp"
-    end
-  end
-
   # Current OmniOS release, see http://omnios.omniti.com/wiki.php/Installation
   config.vm.define :omnios do | config |
     config.vm.box = "omnios"
@@ -88,6 +119,18 @@ Vagrant.configure("2") do |config|
     config.vm.synced_folder ".", "/opt/src/trafficserver.git", :nfs => false
     config.vm.box_url = "http://omnios.omniti.com/media/omnios-latest.box"
     config.vm.provision :shell, :path => "contrib/manifests/omnios.sh"
+  end
+
+  $vmspec.each do | name, spec |
+    config.vm.define name do | config |
+      config.vm.box = name
+      config.vm.box_url = spec[0]
+      config.vm.network :private_network, ip: $network[name]
+      config.vm.provision :puppet do |puppet|
+        puppet.manifests_path = "contrib/manifests"
+        puppet.manifest_file = spec[1]
+      end
+    end
   end
 
 end

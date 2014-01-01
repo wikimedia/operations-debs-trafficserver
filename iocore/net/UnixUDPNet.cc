@@ -86,12 +86,12 @@ initialize_thread_for_udp_net(EThread * thread)
 }
 
 int
-UDPNetProcessorInternal::start(int n_upd_threads)
+UDPNetProcessorInternal::start(int n_upd_threads, size_t stacksize)
 {
   if (n_upd_threads < 1)
     return -1;
 
-  ET_UDP = eventProcessor.spawn_event_threads(n_upd_threads, "ET_UDP");
+  ET_UDP = eventProcessor.spawn_event_threads(n_upd_threads, "ET_UDP", stacksize);
   if (ET_UDP < 0)               // Probably can't happen, maybe at some point EventType should be unsigned ?
     return -1;
 
@@ -105,11 +105,8 @@ UDPNetProcessorInternal::start(int n_upd_threads)
 }
 
 void
-UDPNetProcessorInternal::udp_read_from_net(UDPNetHandler * nh,
-                                           UDPConnection * xuc, PollDescriptor * pd, EThread * thread)
+UDPNetProcessorInternal::udp_read_from_net(UDPNetHandler * nh, UDPConnection * xuc)
 {
-  NOWARN_UNUSED(pd);
-  (void) thread;
   UnixUDPConnection *uc = (UnixUDPConnection *) xuc;
 
   // receive packet and queue onto UDPConnection.
@@ -340,7 +337,7 @@ UDPReadContinuation::readPollEvent(int event_, Event * e)
   }
   //ink_assert(ifd < 0 || event_ == EVENT_INTERVAL || (event_ == EVENT_POLL && pc->pollDescriptor->nfds > ifd && pc->pollDescriptor->pfd[ifd].fd == fd));
   //if (ifd < 0 || event_ == EVENT_INTERVAL || (pc->pollDescriptor->pfd[ifd].revents & POLLIN)) {
-  ink_debug_assert(!"incomplete");
+  ink_assert(!"incomplete");
   c = completionUtil::getContinuation(event);
   // do read
   socklen_t tmp_fromlen = *fromaddrlen;
@@ -741,7 +738,7 @@ sendPackets:
 }
 
 void
-UDPQueue::SendUDPPacket(UDPPacketInternal * p, int32_t pktLen)
+UDPQueue::SendUDPPacket(UDPPacketInternal *p, int32_t /* pktLen ATS_UNUSED */)
 {
   IOBufferBlock *b;
   struct msghdr msg;
@@ -847,7 +844,7 @@ UDPNetHandler::mainNetEvent(int event, Event * e)
         // udp_polling->remove(uc,uc->polling_link);
         uc->Release();
       } else {
-        udpNetInternal.udp_read_from_net(this, uc, pc->pollDescriptor, trigger_event->ethread);
+        udpNetInternal.udp_read_from_net(this, uc);
         nread++;
       }
     }                           //if EPOLLIN

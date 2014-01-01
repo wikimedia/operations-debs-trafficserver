@@ -29,12 +29,6 @@ Diags *diags = NULL;
 
 void RecDumpRecordsHt(RecT rec_type);
 
-void
-syslog_thr_init()
-{
-  openlog("test_I_RecProcess", LOG_PID | LOG_NDELAY | LOG_NOWAIT, LOG_USER);
-}
-
 //-------------------------------------------------------------------------
 // Test01: Parse Tests
 //
@@ -121,7 +115,6 @@ RecCounter g_link_test_3 = 0;
 int
 cb_test_1(const char *name, RecDataT data_type, RecData data, void *cookie)
 {
-  NOWARN_UNUSED(data_type);
   if ((cookie == (void *) 0x12345678) && (strcmp(data.rec_string, "cb_test_1__changed") == 0)) {
     printf("    - cb_test_1 (name: %s, data: %s, cookie: 0x%x\n", name, data.rec_string, cookie);
     g_config_update_result = true;
@@ -132,12 +125,9 @@ cb_test_1(const char *name, RecDataT data_type, RecData data, void *cookie)
 }
 
 int
-cb_test_2(const char *name, RecDataT data_type, RecData data, void *cookie)
+cb_test_2(const char */* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+          RecData /* data ATS_UNUSED */, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
-  NOWARN_UNUSED(cookie);
   g_config_update_result = false;
   return REC_ERR_FAIL;
 }
@@ -303,9 +293,6 @@ static int g_time = 0;
 int
 raw_stat_sync_ticks_per_sec(const char *name, RecDataT data_type, RecData * data, RecRawStatBlock * rsb, int id)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-
   ink64 ticks_old, time_old;
   ink64 ticks_new, time_new;
 
@@ -348,8 +335,6 @@ struct RawStatCont:public Continuation
   }
   int dummy_function(int event, Event * e)
   {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(e);
     printf("------------Raw Stat dump-------------\n");
     ink64 hr_start, hr_finish;
     // comments out here. Why stat_a is int?
@@ -564,10 +549,8 @@ struct DumpRecordsHtCont:public Continuation
   {
     SET_HANDLER(&DumpRecordsHtCont::dummy_function);
   }
-  int dummy_function(int event, Event * e)
+  int dummy_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(e);
     RecDumpRecordsHt(RECT_NULL);
     return 0;
   }
@@ -585,7 +568,7 @@ TreeTest01()
   int buf_len = 0;
   RecGetRecordList("proxy.config", &var_buf, &buf_len);
   for (int i = 0; i < buf_len; i++) {
-    ink_debug_assert(var_buf[i]);
+    ink_assert(var_buf[i]);
     diags->print(NULL, DL_Note, NULL, NULL, "\tRecTree node: (proxy.config.*) %s", var_buf[i]);
   }
   delete[]var_buf;
@@ -614,7 +597,7 @@ TreeTest02()
   int buf_len = 0;
   RecGetRecordList("proxy.process", &var_buf, &buf_len);
   for (int i = 0; i < buf_len; i++) {
-    ink_debug_assert(var_buf[i]);
+    ink_assert(var_buf[i]);
     diags->print(NULL, DL_Note, NULL, NULL, "\tRecTree (proxy.process.*) node: %s", var_buf[i]);
   }
   delete[]var_buf;

@@ -28,7 +28,6 @@ ink_hrtime last_shedding_warning;
 ink_hrtime emergency_throttle_time;
 int net_connections_throttle;
 int fds_throttle;
-bool throttle_enabled;
 int fds_limit = 8000;
 ink_hrtime last_transient_accept_error;
 
@@ -48,8 +47,10 @@ struct InactivityCop : public Continuation {
     ink_hrtime now = ink_get_hrtime();
     NetHandler *nh = get_NetHandler(this_ethread());
     // Copy the list and use pop() to catch any closes caused by callbacks.
-    forl_LL(UnixNetVConnection, vc, nh->open_list)
-      nh->cop_list.push(vc);
+    forl_LL(UnixNetVConnection, vc, nh->open_list) {
+      if (vc->thread == this_ethread())
+        nh->cop_list.push(vc);
+    }
     while (UnixNetVConnection *vc = nh->cop_list.pop()) {
       // If we cannot ge tthe lock don't stop just keep cleaning
       MUTEX_TRY_LOCK(lock, vc->mutex, this_ethread());
@@ -163,31 +164,34 @@ PollCont::pollEvent(int event, Event *e) {
 
 static void
 net_signal_hook_callback(EThread *thread) {
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   uint64_t counter;
-  NOWARN_UNUSED_RETURN(read(thread->evfd, &counter, sizeof(uint64_t)));
+  ATS_UNUSED_RETURN(read(thread->evfd, &counter, sizeof(uint64_t)));
+#elif TS_USE_PORT
+  /* Nothing to drain or do */
 #else
   char dummy[1024];
-  NOWARN_UNUSED_RETURN(read(thread->evpipe[0], &dummy[0], 1024));
+  ATS_UNUSED_RETURN(read(thread->evpipe[0], &dummy[0], 1024));
 #endif
 }
 
 static void
 net_signal_hook_function(EThread *thread) {
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   uint64_t counter = 1;
-  NOWARN_UNUSED_RETURN(write(thread->evfd, &counter, sizeof(uint64_t)));
+  ATS_UNUSED_RETURN(write(thread->evfd, &counter, sizeof(uint64_t)));
+#elif TS_USE_PORT
+  PollDescriptor *pd = get_PollDescriptor(thread);
+  ATS_UNUSED_RETURN(port_send(pd->port_fd, 0, thread->ep));
 #else
   char dummy = 1;
-  NOWARN_UNUSED_RETURN(write(thread->evpipe[1], &dummy, 1));
+  ATS_UNUSED_RETURN(write(thread->evpipe[1], &dummy, 1));
 #endif
 }
 
 void
-initialize_thread_for_net(EThread *thread, int thread_index)
+initialize_thread_for_net(EThread *thread)
 {
-  NOWARN_UNUSED(thread_index);
-
   new((ink_dummy_for_new *) get_NetHandler(thread)) NetHandler();
   new((ink_dummy_for_new *) get_PollCont(thread)) PollCont(thread->mutex, get_NetHandler(thread));
   get_NetHandler(thread)->mutex = new_ProxyMutex();
@@ -204,7 +208,7 @@ initialize_thread_for_net(EThread *thread, int thread_index)
   thread->signal_hook = net_signal_hook_function;
   thread->ep = (EventIO*)ats_malloc(sizeof(EventIO));
   thread->ep->type = EVENTIO_ASYNC_SIGNAL;
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   thread->ep->start(pd, thread->evfd, 0, EVENTIO_READ);
 #else
   thread->ep->start(pd, thread->evpipe[0], 0, EVENTIO_READ);
@@ -236,9 +240,8 @@ NetHandler::startNetEvent(int event, Event *e)
 // Move VC's enabled on a different thread to the ready list
 //
 void
-NetHandler::process_enabled_list(NetHandler *nh, EThread *t)
+NetHandler::process_enabled_list(NetHandler *nh)
 {
-  NOWARN_UNUSED(t);
   UnixNetVConnection *vc = NULL;
 
   SListM(UnixNetVConnection, NetState, read, enable_link) rq(nh->read_enable_list.popall());
@@ -277,7 +280,7 @@ NetHandler::mainNetEvent(int event, Event *e)
 
   NET_INCREMENT_DYN_STAT(net_handler_run_stat);
 
-  process_enabled_list(this, e->ethread);
+  process_enabled_list(this);
   if (likely(!read_ready_list.empty() || !write_ready_list.empty() || !read_enable_list.empty() || !write_enable_list.empty()))
     poll_timeout = 0; // poll immediately returns -- we have triggered stuff to process right now
   else
@@ -391,7 +394,7 @@ NetHandler::mainNetEvent(int event, Event *e)
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->write.enabled && vc->write.triggered)
-      write_to_net(this, vc, pd, trigger_event->ethread);
+      write_to_net(this, vc, trigger_event->ethread);
     else if (!vc->write.enabled) {
       write_ready_list.remove(vc);
 #if defined(solaris)
@@ -416,7 +419,7 @@ NetHandler::mainNetEvent(int event, Event *e)
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->write.enabled && vc->write.triggered)
-      write_to_net(this, vc, pd, trigger_event->ethread);
+      write_to_net(this, vc, trigger_event->ethread);
     else if (!vc->write.enabled)
       vc->ep.modify(-EVENTIO_WRITE);
   }

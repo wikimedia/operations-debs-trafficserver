@@ -157,8 +157,7 @@ Example2: do not log requests for domain unwanted.com
       binary: write log in a binary format that can later be read using 
       the logcat utility.
       ascii_pipe: do not write log to a regular file, but to a named UNIX
-      pipe (this option is not currently available in platforms other than
-      Solaris).
+      pipe (this option is only available on Linux and Solaris).
 
   <Filters = "list of valid filter names"/>
       A comma separated list of valid filter names to apply to this
@@ -186,6 +185,14 @@ Example2: do not log requests for domain unwanted.com
       Specify the hosts using the format host:port, where host can be
       either a name or an ip. For example:
       <CollationHosts = "host1.company.com:5000, 209.131.52.129:6000"/>
+
+      Also, we can introduce failover hosts for each collation host by
+      using '|' delimiter, For example:
+      <CollationHosts = "host1:5000|host2:5000|host3:6000, 209.131.52.129:6000"/>
+
+      In the example above, host2/host3 are failover hosts for host1. When host1
+      disconnected, log entries will be sent to host2, and then if host2 failed
+      again, log entries will be sent to host3 until host1 or host2 comes back.
 
   <Header = "header"/>
       This tag specifies a string to be written at the beginning of

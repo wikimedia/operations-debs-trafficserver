@@ -60,6 +60,14 @@ extern "C"
     struct _InkThreadCache *pThreadCache;
 
     LINK(_InkChunkInfo, link);
+
+#ifdef DEBUG
+    /*
+     * magic code for each item,
+     * it's used to check double-free issue.
+     */
+    unsigned char item_magic[0];
+#endif
   } InkChunkInfo;
 
   typedef struct _InkThreadCache
@@ -110,10 +118,10 @@ extern "C"
     /* chunk_addr = (uintptr_t)ptr & chunk_addr_mask */
     uintptr_t chunk_addr_mask;
 
-    uint32_t count;
+    uint32_t used;
     uint32_t allocated;
     uint32_t allocated_base;
-    uint32_t count_base;
+    uint32_t used_base;
     uint32_t chunk_size_base;
 
     uint32_t nr_thread_cache;

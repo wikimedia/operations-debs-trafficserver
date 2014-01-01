@@ -37,6 +37,7 @@
  ***************************************************************************/
 
 #include "ink_config.h"
+#include "ink_defs.h"
 #include <strings.h>
 #include "ink_string.h"
 #include "I_Layout.h"
@@ -310,6 +311,15 @@ Terminate()
   if (ts_event_thread)
     ink_thread_cancel(ts_event_thread);
 
+  // Before clear, we should confirm these
+  // two threads have finished. Or the clear
+  // operation may lead them crash.
+  if (ts_test_thread)
+    ink_thread_join(ts_test_thread);
+  if (ts_event_thread)
+    ink_thread_join(ts_event_thread);
+
+  // Clear operation
   ts_test_thread = static_cast<ink_thread>(NULL);
   ts_event_thread = static_cast<ink_thread>(NULL);
   set_socket_paths(NULL);       // clear the socket_path
@@ -648,10 +658,8 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
  * LAN - need to implement
  */
 TSError
-EventSignal(char *event_name, va_list ap)
+EventSignal(char */* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event_name);
-  NOWARN_UNUSED(ap);
   return TS_ERR_FAIL;
 }
 
@@ -832,27 +840,4 @@ StatsReset(bool cluster, const char* name)
     return ret;                 // networking error
 
   return parse_reply(main_socket_fd);
-}
-
-/*-------------------------------------------------------------------------
- * EncryptToFile
- *-------------------------------------------------------------------------
- * Encrypts the password and stores the encrypted password in the
- * location specified by "filepath"
- */
-TSError
-EncryptToFile(const char *passwd, const char *filepath)
-{
-  TSError err;
-
-  if (!passwd || !filepath)
-    return TS_ERR_PARAMS;
-
-  err = send_request_name_value(main_socket_fd, ENCRYPT_TO_FILE, passwd, filepath);
-  if (err != TS_ERR_OKAY)
-    return err;
-
-  err = parse_reply(main_socket_fd);
-
-  return err;
 }
