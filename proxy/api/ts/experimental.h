@@ -37,6 +37,10 @@ extern "C"
 {
 #endif                          /* __cplusplus */
 
+  // Forward declaration of in_addr, any user of these APIs should probably 
+  // include net/netinet.h or whatever is appropriate on the platform.
+  struct in_addr;
+
   /* Cache APIs that are not yet fully supported and/or frozen nor complete. */
   tsapi TSReturnCode TSCacheBufferInfoGet(TSCacheTxn txnp, uint64_t *length, uint64_t *offset);
 
@@ -106,20 +110,20 @@ extern "C"
   tsapi void TSHttpTxnServerRequestBodySet(TSHttpTxn txnp, char *buf, int64_t buflength);
 
   /* ===== High Resolution Time ===== */
-#define TS_HRTIME_FOREVER  HRTIME_FOREVER
-#define TS_HRTIME_DECADE   HRTIME_DECADE
-#define TS_HRTIME_YEAR     HRTIME_YEAR
-#define TS_HRTIME_WEEK     HRTIME_WEEK
-#define TS_HRTIME_DAY      HRTIME_DAY
-#define TS_HRTIME_HOUR     HRTIME_HOUR
-#define TS_HRTIME_MINUTE   HRTIME_MINUTE
-#define TS_HRTIME_SECOND   HRTIME_SECOND
-#define TS_HRTIME_MSECOND  HRTIME_MSECOND
-#define TS_HRTIME_USECOND  HRTIME_USECOND
-#define TS_HRTIME_NSECOND  HRTIME_NSECOND
+#define TS_HRTIME_FOREVER  (10*TS_HRTIME_DECADE)
+#define TS_HRTIME_DECADE   (10*TS_HRTIME_YEAR)
+#define TS_HRTIME_YEAR     (365*TS_HRTIME_DAY+TS_HRTIME_DAY/4)
+#define TS_HRTIME_WEEK     (7*TS_HRTIME_DAY)
+#define TS_HRTIME_DAY      (24*TS_HRTIME_HOUR)
+#define TS_HRTIME_HOUR     (60*TS_HRTIME_MINUTE)
+#define TS_HRTIME_MINUTE   (60*TS_HRTIME_SECOND)
+#define TS_HRTIME_SECOND   (1000*TS_HRTIME_MSECOND)
+#define TS_HRTIME_MSECOND  (1000*TS_HRTIME_USECOND)
+#define TS_HRTIME_USECOND  (1000*TS_HRTIME_NSECOND)
+#define TS_HRTIME_NSECOND  (1LL)
 
-#define TS_HRTIME_APPROX_SECONDS(_x) HRTIME_APPROX_SECONDS(_x)
-#define TS_HRTIME_APPROX_FACTOR      HRTIME_APPROX_FACTOR
+#define TS_HRTIME_APPROX_SECONDS(_x) ((_x)>>30)    // off by 7.3%
+#define TS_HRTIME_APPROX_FACTOR      (((float)(1<<30))/(((float)HRTIME_SECOND)))
 
   /*
 ////////////////////////////////////////////////////////////////////
@@ -128,15 +132,15 @@ extern "C"
 //
 ////////////////////////////////////////////////////////////////////
 */
-#define TS_HRTIME_YEARS(_x)    HRTIME_YEARS(_x)
-#define TS_HRTIME_WEEKS(_x)    HRTIME_WEEKS(_x)
-#define TS_HRTIME_DAYS(_x)     HRTIME_DAYS(_x)
-#define TS_HRTIME_HOURS(_x)    HRTIME_HOURS(_x)
-#define TS_HRTIME_MINUTES(_x)  HRTIME_MINUTES(_x)
-#define TS_HRTIME_SECONDS(_x)  HRTIME_SECONDS(_x)
-#define TS_HRTIME_MSECONDS(_x) HRTIME_MSECONDS(_x)
-#define TS_HRTIME_USECONDS(_x) HRTIME_USECONDS(_x)
-#define TS_HRTIME_NSECONDS(_x) HRTIME_NSECONDS(_x)
+#define TS_HRTIME_YEARS(_x)    ((_x)*TS_HRTIME_YEAR)
+#define TS_HRTIME_WEEKS(_x)    ((_x)*TS_HRTIME_WEEK)
+#define TS_HRTIME_DAYS(_x)     ((_x)*TS_HRTIME_DAY)
+#define TS_HRTIME_HOURS(_x)    ((_x)*TS_HRTIME_HOUR)
+#define TS_HRTIME_MINUTES(_x)  ((_x)*TS_HRTIME_MINUTE)
+#define TS_HRTIME_SECONDS(_x)  ((_x)*TS_HRTIME_SECOND)
+#define TS_HRTIME_MSECONDS(_x) ((_x)*TS_HRTIME_MSECOND)
+#define TS_HRTIME_USECONDS(_x) ((_x)*TS_HRTIME_USECOND)
+#define TS_HRTIME_NSECONDS(_x) ((_x)*TS_HRTIME_NSECOND)
 
   tsapi TSReturnCode TSHttpTxnCachedRespTimeGet(TSHttpTxn txnp, time_t *resp_time);
 
@@ -178,13 +182,18 @@ extern "C"
    *  Return: TS_SUCESS/TS_ERROR
    ****************************************************************************/
   tsapi TSReturnCode TSHttpTxnCacheLookupCountGet(TSHttpTxn txnp, int *lookup_count);
-  tsapi TSReturnCode TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc);
-  tsapi TSReturnCode TSHttpTxnSecondUrlTryLock(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc);
-  tsapi TSReturnCode TSHttpTxnCacheLookupSkip(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnServerRespIgnore(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnShutDown(TSHttpTxn txnp, TSEvent event);
   tsapi TSReturnCode TSHttpTxnCloseAfterResponse(TSHttpTxn txnp, int should_close);
+
+  // TS-2195: TSHttpTxnCacheLookupSkip() is deprecated, because TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_CACHE_HTTP, 0)
+  // does the same thing, but better. TSHttpTxnCacheLookupSkip will be removed in TrafficServer 5.0.
+  tsapi TS_DEPRECATED TSReturnCode TSHttpTxnCacheLookupSkip(TSHttpTxn txnp);
+
+  // TS-1996: These API swill be removed after v3.4.0 is cut. Do not use them!
+  tsapi TSReturnCode TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc);
+  tsapi TSReturnCode TSHttpTxnSecondUrlTryLock(TSHttpTxn txnp);
 
   /****************************************************************************
    *  ??
@@ -209,6 +218,50 @@ extern "C"
    *  TODO: This returns a LookingUp_t value, we need to SDK'ify it.
    ****************************************************************************/
   tsapi int TSHttpTxnLookingUpTypeGet(TSHttpTxn txnp);
+
+  /**
+     Attempt to attach the contp continuation to sockets that have already been
+     opened by the traffic manager and defined as belonging to plugins (based on
+     records.config configuration). If a connection is successfully accepted,
+     the TS_EVENT_NET_ACCEPT is delivered to the continuation. The event
+     data will be a valid TSVConn bound to the accepted connection.
+     In order to configure such a socket, add the "plugin" keyword to a port
+     in proxy.config.http.server_ports like "8082:plugin"
+     Transparency/IP settings can also be defined, but a port cannot have
+     both the "ssl" or "plugin" keywords configured.
+
+     Need to update records.config comments on proxy.config.http.server_ports
+     when this option is promoted from experimental.
+   */
+  tsapi TSReturnCode TSPluginDescriptorAccept(TSCont contp);
+
+
+  /**
+      Opens a network connection to the host specified by the 'to' sockaddr
+      spoofing the client addr to equal the 'from' sockaddr.
+      If the connection is successfully opened, contp
+      is called back with the event TS_EVENT_NET_CONNECT and the new
+      network vconnection will be passed in the event data parameter.
+      If the connection is not successful, contp is called back with
+      the event TS_EVENT_NET_CONNECT_FAILED.
+
+      Note: It is possible to receive TS_EVENT_NET_CONNECT
+      even if the connection failed, because of the implementation of
+      network sockets in the underlying operating system. There is an
+      exception: if a plugin tries to open a connection to a port on
+      its own host machine, then TS_EVENT_NET_CONNECT is sent only
+      if the connection is successfully opened. In general, however,
+      your plugin needs to look for an TS_EVENT_VCONN_WRITE_READY to
+      be sure that the connection is successfully opened.
+
+      @return TSAction which allows you to check if the connection is complete,
+        or cancel the attempt to connect.
+
+   */
+  tsapi TSAction TSNetConnectTransparent(TSCont contp, /**< continuation that is called back when the attempted net connection either succeeds or fails. */
+                                         struct sockaddr const* from, /**< Address to spoof as connection origin */
+                                         struct sockaddr const* to /**< Address to which to connect. */
+  );
 
 
   /* =====  Matcher Utils =====  */
@@ -277,23 +330,8 @@ extern "C"
 #define TS_NET_EVENT_DATAGRAM_WRITE_COMPLETE TS_EVENT_INTERNAL_208
 #define TS_NET_EVENT_DATAGRAM_WRITE_ERROR    TS_EVENT_INTERNAL_209
 #define TS_NET_EVENT_DATAGRAM_READ_READY     TS_EVENT_INTERNAL_210
-#define TS_NET_EVENT_DATAGRAM_OPEN	      TS_EVENT_INTERNAL_211
+#define TS_NET_EVENT_DATAGRAM_OPEN           TS_EVENT_INTERNAL_211
 #define TS_NET_EVENT_DATAGRAM_ERROR          TS_EVENT_INTERNAL_212
-
-  typedef enum
-    {
-      TS_SIGNAL_WDA_BILLING_CONNECTION_DIED = 100,
-      TS_SIGNAL_WDA_BILLING_CORRUPTED_DATA = 101,
-      TS_SIGNAL_WDA_XF_ENGINE_DOWN = 102,
-      TS_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS = 103
-    } TSAlarmType;
-
-  /* ===== Alarm ===== */
-  /****************************************************************************
-   *  ??
-   *  contact: OXYGEN
-   ****************************************************************************/
-  tsapi void TSSignalWarning(TSAlarmType code, char *msg);
 
   /*****************************************************************************
    * 			Cluster RPC API support 			     *

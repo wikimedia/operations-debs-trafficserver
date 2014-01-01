@@ -23,9 +23,10 @@
 
 #include "TextBuffer.h"
 #include "Tokenizer.h"
+#include "ink_defs.h"
 #include "ink_string.h"
 
-#include "P_RecCompatibility.h"
+#include "P_RecFile.h"
 #include "P_RecUtils.h"
 #include "P_RecMessage.h"
 #include "P_RecCore.h"
@@ -182,10 +183,8 @@ send_pull_message(RecMessageT msg_type)
 // recv_message_cb
 //-------------------------------------------------------------------------
 int
-recv_message_cb(RecMessage * msg, RecMessageT msg_type, void *cookie)
+recv_message_cb(RecMessage * msg, RecMessageT msg_type, void */* cookie */)
 {
-  REC_NOWARN_UNUSED(cookie);
-
   RecRecord *r;
   RecMessageItr itr;
 
@@ -258,7 +257,7 @@ recv_message_cb(RecMessage * msg, RecMessageT msg_type, void *cookie)
     break;
 
   default:
-    ink_debug_assert(!"Unexpected RecG type");
+    ink_assert(!"Unexpected RecG type");
     return REC_ERR_FAIL;
 
   }
@@ -271,7 +270,7 @@ recv_message_cb(RecMessage * msg, RecMessageT msg_type, void *cookie)
 // RecRegisterStatXXX
 //-------------------------------------------------------------------------
 #define REC_REGISTER_STAT_XXX(A, B) \
-  ink_debug_assert((rec_type == RECT_NODE)    || \
+  ink_assert((rec_type == RECT_NODE)    || \
                    (rec_type == RECT_CLUSTER) || \
                    (rec_type == RECT_PROCESS) || \
                    (rec_type == RECT_LOCAL)   || \
@@ -341,7 +340,7 @@ RecRegisterConfigInt(RecT rec_type, const char *name,
                      RecInt data_default, RecUpdateT update_type,
                      RecCheckT check_type, const char *check_regex, RecAccessT access_type)
 {
-  ink_debug_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
+  ink_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
   REC_REGISTER_CONFIG_XXX(rec_int, RECD_INT);
 }
 
@@ -350,7 +349,7 @@ RecRegisterConfigFloat(RecT rec_type, const char *name,
                        RecFloat data_default, RecUpdateT update_type,
                        RecCheckT check_type, const char *check_regex, RecAccessT access_type)
 {
-  ink_debug_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
+  ink_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
   REC_REGISTER_CONFIG_XXX(rec_float, RECD_FLOAT);
 }
 
@@ -361,7 +360,7 @@ RecRegisterConfigString(RecT rec_type, const char *name,
                         RecCheckT check_type, const char *check_regex, RecAccessT access_type)
 {
   RecString data_default = (RecString)data_default_tmp;
-  ink_debug_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
+  ink_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
   REC_REGISTER_CONFIG_XXX(rec_string, RECD_STRING);
 }
 
@@ -370,7 +369,7 @@ RecRegisterConfigCounter(RecT rec_type, const char *name,
                          RecCounter data_default, RecUpdateT update_type,
                          RecCheckT check_type, const char *check_regex, RecAccessT access_type)
 {
-  ink_debug_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
+  ink_assert((rec_type == RECT_CONFIG) || (rec_type == RECT_LOCAL));
   REC_REGISTER_CONFIG_XXX(rec_counter, RECD_COUNTER);
 }
 
@@ -379,7 +378,7 @@ RecRegisterConfigCounter(RecT rec_type, const char *name,
 // RecSetRecordXXX
 //-------------------------------------------------------------------------
 int
-RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data, RecRawStat *data_raw, bool lock)
+RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data, RecRawStat *data_raw, bool lock, bool inc_version)
 {
   int err = REC_ERR_OKAY;
   RecRecord *r1;
@@ -424,6 +423,9 @@ RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data,
 
         if (RecDataSet(data_type, &(r1->data), data)) {
           r1->sync_required = REC_SYNC_REQUIRED;
+          if (inc_version) {
+            r1->sync_required |= REC_INC_CONFIG_VERSION;
+          }
           if (REC_TYPE_IS_CONFIG(r1->rec_type)) {
             r1->config_meta.update_required = REC_UPDATE_REQUIRED;
           }
@@ -480,43 +482,43 @@ Ldone:
 }
 
 int
-RecSetRecordConvert(const char *name, const RecString rec_string, bool lock)
+RecSetRecordConvert(const char *name, const RecString rec_string, bool lock, bool inc_version)
 {
   RecData data;
   data.rec_string = rec_string;
-  return RecSetRecord(RECT_NULL, name, RECD_NULL, &data, NULL, lock);
+  return RecSetRecord(RECT_NULL, name, RECD_NULL, &data, NULL, lock, inc_version);
 }
 
 int
-RecSetRecordInt(const char *name, RecInt rec_int, bool lock)
+RecSetRecordInt(const char *name, RecInt rec_int, bool lock, bool inc_version)
 {
   RecData data;
   data.rec_int = rec_int;
-  return RecSetRecord(RECT_NULL, name, RECD_INT, &data, NULL, lock);
+  return RecSetRecord(RECT_NULL, name, RECD_INT, &data, NULL, lock, inc_version);
 }
 
 int
-RecSetRecordFloat(const char *name, RecFloat rec_float, bool lock)
+RecSetRecordFloat(const char *name, RecFloat rec_float, bool lock, bool inc_version)
 {
   RecData data;
   data.rec_float = rec_float;
-  return RecSetRecord(RECT_NULL, name, RECD_FLOAT, &data, NULL, lock);
+  return RecSetRecord(RECT_NULL, name, RECD_FLOAT, &data, NULL, lock, inc_version);
 }
 
 int
-RecSetRecordString(const char *name, const RecString rec_string, bool lock)
+RecSetRecordString(const char *name, const RecString rec_string, bool lock, bool inc_version)
 {
   RecData data;
   data.rec_string = rec_string;
-  return RecSetRecord(RECT_NULL, name, RECD_STRING, &data, NULL, lock);
+  return RecSetRecord(RECT_NULL, name, RECD_STRING, &data, NULL, lock, inc_version);
 }
 
 int
-RecSetRecordCounter(const char *name, RecCounter rec_counter, bool lock)
+RecSetRecordCounter(const char *name, RecCounter rec_counter, bool lock, bool inc_version)
 {
   RecData data;
   data.rec_counter = rec_counter;
-  return RecSetRecord(RECT_NULL, name, RECD_COUNTER, &data, NULL, lock);
+  return RecSetRecord(RECT_NULL, name, RECD_COUNTER, &data, NULL, lock, inc_version);
 }
 
 
@@ -592,166 +594,34 @@ RecSyncStatsFile()
   return REC_ERR_OKAY;
 }
 
+// Consume a parsed record, pushing it into the records hash table.
+static void
+RecConsumeConfigEntry(RecT rec_type, RecDataT data_type, const char * name, const char * value, bool inc_version)
+{
+    RecData data;
+
+    memset(&data, 0, sizeof(RecData));
+    RecDataSetFromString(data_type, &data, value);
+    RecSetRecord(rec_type, name, data_type, &data, NULL, false, inc_version);
+    RecDataClear(data_type, &data);
+}
 
 //-------------------------------------------------------------------------
 // RecReadConfigFile
 //-------------------------------------------------------------------------
 int
-RecReadConfigFile()
+RecReadConfigFile(bool inc_version)
 {
-  char *fbuf;
-  int fsize;
-
-  const char *line;
-  int line_num;
-
-  char *rec_type_str, *name_str, *data_type_str, *data_str;
-  RecT rec_type;
-  RecDataT data_type;
-  RecData data;
-
-  Tokenizer line_tok("\r\n");
-  tok_iter_state line_tok_state;
-
-  RecConfigFileEntry *cfe;
-
   RecDebug(DL_Note, "Reading '%s'", g_rec_config_fpath);
-
-  // watch out, we're altering our g_rec_config_xxx structures
-  ink_mutex_acquire(&g_rec_config_lock);
-
-  if (RecFileImport_Xmalloc(g_rec_config_fpath, &fbuf, &fsize) == REC_ERR_FAIL) {
-    RecLog(DL_Warning, "Could not import '%s'", g_rec_config_fpath);
-    ink_mutex_release(&g_rec_config_lock);
-    return REC_ERR_FAIL;
-  }
-  // clear our g_rec_config_contents_xxx structures
-  while (!queue_is_empty(g_rec_config_contents_llq)) {
-    cfe = (RecConfigFileEntry *) dequeue(g_rec_config_contents_llq);
-    ats_free(cfe->entry);
-    ats_free(cfe);
-  }
-  ink_hash_table_destroy(g_rec_config_contents_ht);
-  g_rec_config_contents_ht = ink_hash_table_create(InkHashTableKeyType_String);
 
   // lock our hash table
   ink_rwlock_wrlock(&g_records_rwlock);
 
-  memset(&data, 0, sizeof(RecData));
-  line_tok.Initialize(fbuf, SHARE_TOKS);
-  line = line_tok.iterFirst(&line_tok_state);
-  line_num = 1;
-  while (line) {
-    char *lc = ats_strdup(line);
-    char *lt = lc;
-    char *ln;
-
-    while (isspace(*lt))
-      lt++;
-    rec_type_str = ink_strtok_r(lt, " \t", &ln);
-
-    // check for blank lines and comments
-    if ((!rec_type_str) || (rec_type_str && (*rec_type_str == '#'))) {
-      goto L_next_line;
-    }
-
-    name_str = ink_strtok_r(NULL, " \t", &ln);
-    data_type_str = ink_strtok_r(NULL, " \t", &ln);
-
-    // extract the string data (a little bit tricker since it can have spaces)
-    if (ln) {
-      // 'ln' will point to either the next token or a bunch of spaces
-      // if the user didn't supply a value (e.g. 'STRING   ').  First
-      // scan past all of the spaces.  If we hit a '\0', then we we
-      // know we didn't have a valid value.  If not, set 'data_str' to
-      // the start of the token and scan until we find the end.  Once
-      // the end is found, back-peddle to remove any trailing spaces.
-      while (isspace(*ln))
-        ln++;
-      if (*ln == '\0') {
-        data_str = NULL;
-      } else {
-        data_str = ln;
-        while (*ln != '\0')
-          ln++;
-        ln--;
-        while (isspace(*ln) && (ln > data_str))
-          ln--;
-        ln++;
-        *ln = '\0';
-      }
-    } else {
-      data_str = NULL;
-    }
-
-    // check for errors
-    if (!(rec_type_str && name_str && data_type_str && data_str)) {
-      RecLog(DL_Warning, "Could not parse line at '%s:%d' -- skipping line: '%s'", g_rec_config_fpath, line_num, line);
-      goto L_next_line;
-    }
-    // record type
-    rec_type = RECT_NULL;
-    if (strcmp(rec_type_str, "CONFIG") == 0) {
-      rec_type = RECT_CONFIG;
-    } else if (strcmp(rec_type_str, "PROCESS") == 0) {
-      rec_type = RECT_PROCESS;
-    } else if (strcmp(rec_type_str, "NODE") == 0) {
-      rec_type = RECT_NODE;
-    } else if (strcmp(rec_type_str, "CLUSTER") == 0) {
-      rec_type = RECT_CLUSTER;
-    } else if (strcmp(rec_type_str, "LOCAL") == 0) {
-      rec_type = RECT_LOCAL;
-    } else {
-      RecLog(DL_Warning, "Unknown record type '%s' at '%s:%d' -- skipping line", rec_type_str, g_rec_config_fpath, line_num);
-      goto L_next_line;
-    }
-
-    // data_type
-    data_type = RECD_NULL;
-    if (strcmp(data_type_str, "INT") == 0) {
-      data_type = RECD_INT;
-    } else if (strcmp(data_type_str, "FLOAT") == 0) {
-      data_type = RECD_FLOAT;
-    } else if (strcmp(data_type_str, "STRING") == 0) {
-      data_type = RECD_STRING;
-    } else if (strcmp(data_type_str, "COUNTER") == 0) {
-      data_type = RECD_COUNTER;
-    } else {
-      RecLog(DL_Warning, "Unknown data type '%s' at '%s:%d' -- skipping line", data_type_str, g_rec_config_fpath, line_num);
-      goto L_next_line;
-    }
-
-    // set the record
-    RecDataSetFromString(data_type, &data, data_str);
-    RecSetRecord(rec_type, name_str, data_type, &data, NULL, false);
-    RecDataClear(data_type, &data);
-
-    // update our g_rec_config_contents_xxx
-    cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));
-    cfe->entry_type = RECE_RECORD;
-    cfe->entry = ats_strdup(name_str);
-    enqueue(g_rec_config_contents_llq, (void *) cfe);
-    ink_hash_table_insert(g_rec_config_contents_ht, name_str, NULL);
-    goto L_done;
-
-  L_next_line:
-    // store this line into g_rec_config_contents_llq so that we can
-    // write it out later
-    cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));
-    cfe->entry_type = RECE_COMMENT;
-    cfe->entry = ats_strdup(line);
-    enqueue(g_rec_config_contents_llq, (void *) cfe);
-
-  L_done:
-    line = line_tok.iterNext(&line_tok_state);
-    line_num++;
-    ats_free(lc);
-  }
+  // Parse the actual fileand hash the values.
+  RecConfigFileParse(g_rec_config_fpath, RecConsumeConfigEntry, inc_version);
 
   // release our hash table
   ink_rwlock_unlock(&g_records_rwlock);
-  ink_mutex_release(&g_rec_config_lock);
-  ats_free(fbuf);
 
   return REC_ERR_OKAY;
 }
@@ -761,10 +631,13 @@ RecReadConfigFile()
 // RecSyncConfigFile
 //-------------------------------------------------------------------------
 int
-RecSyncConfigToTB(textBuffer * tb)
+RecSyncConfigToTB(textBuffer * tb, bool *inc_version)
 {
   int err = REC_ERR_FAIL;
 
+  if (inc_version != NULL) {
+    *inc_version = false;
+  }
   /*
    * g_mode_type should be initialized by
    * RecLocalInit() or RecProcessInit() earlier.
@@ -795,6 +668,12 @@ RecSyncConfigToTB(textBuffer * tb)
           }
           r->sync_required = r->sync_required & ~REC_DISK_SYNC_REQUIRED;
           sync_to_disk = true;
+          if (r->sync_required & REC_INC_CONFIG_VERSION) {
+            r->sync_required = r->sync_required & ~REC_INC_CONFIG_VERSION;
+            if (inc_version != NULL) {
+              *inc_version = true;
+            }
+          }
         }
       }
       rec_mutex_release(&(r->lock));
@@ -836,7 +715,7 @@ RecSyncConfigToTB(textBuffer * tb)
               tb->copyFrom("LOCAL ", 6);
               break;
             default:
-              ink_debug_assert(!"Unexpected RecT type");
+              ink_assert(!"Unexpected RecT type");
               break;
             }
             // name
@@ -868,7 +747,7 @@ RecSyncConfigToTB(textBuffer * tb)
               tb->copyFrom(b, strlen(b));
               break;
             default:
-              ink_debug_assert(!"Unexpected RecD type");
+              ink_assert(!"Unexpected RecD type");
               break;
             }
             tb->copyFrom("\n", 1);

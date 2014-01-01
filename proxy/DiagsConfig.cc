@@ -181,11 +181,9 @@ DiagsConfig::reconfigure_diags()
 //
 //////////////////////////////////////////////////////////////////////////////
 static int
-diags_config_callback(const char *name, RecDataT data_type, RecData data, void *opaque_token)
+diags_config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNUSED */,
+                      RecData /* data ATS_UNUSED */, void *opaque_token)
 {
-  NOWARN_UNUSED(name);
-  NOWARN_UNUSED(data_type);
-  NOWARN_UNUSED(data);
   DiagsConfig *diagsConfig;
 
   diagsConfig = (DiagsConfig *) opaque_token;
@@ -398,7 +396,7 @@ DiagsConfig::register_diags_callbacks()
     total_status = total_status && status;
   }
 
-  if (total_status == FALSE) {
+  if (total_status == false) {
     diags->print(NULL, DTA(DL_Error), "couldn't setup all diags callbacks, diagnostics may misbehave");
     callbacks_established = false;
   } else {

@@ -43,8 +43,8 @@ private:
 #endif
 };
 
-UpTest::UpTest(FILE * f, ProxyMutex * amutex):
-Continuation(amutex), active_req(0)
+UpTest::UpTest(FILE * /* f ATS_UNUSED */, ProxyMutex * amutex)
+  : Continuation(amutex), active_req(0)
 #ifdef GO_AWAY
   , total_req(0), file(f)
 #endif
@@ -96,9 +96,8 @@ UpTest::make_requests()
 }
 
 int
-UpTest::main_handler(int event, void *data)
+UpTest::main_handler(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   Debug("http_sch", "Received Event %s", HttpDebugNames::get_event_name(event));
 
   if (event != EVENT_NONE && event != VC_EVENT_IMMEDIATE) {

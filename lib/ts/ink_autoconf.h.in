@@ -8,9 +8,6 @@
 /* Define if gethostbyname_r has the glibc style */
 #undef GETHOSTBYNAME_R_GLIBC2
 
-/* Define if gethostbyname_r has the hostent_data for the third argument */
-#undef GETHOSTBYNAME_R_HOSTENT_DATA
-
 /* Define to 1 if you have the <alloca.h> header file. */
 #undef HAVE_ALLOCA_H
 
@@ -34,6 +31,21 @@
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
+
+/* Define to 1 if a SysV or X/Open compatible Curses library is present */
+#undef HAVE_CURSES
+
+/* Define to 1 if library supports color (enhanced functions) */
+#undef HAVE_CURSES_COLOR
+
+/* Define to 1 if library supports X/Open Enhanced functions */
+#undef HAVE_CURSES_ENHANCED
+
+/* Define to 1 if <curses.h> is present */
+#undef HAVE_CURSES_H
+
+/* Define to 1 if library supports certain obsolete features */
+#undef HAVE_CURSES_OBSOLETE
 
 /* Whether the compiler support C++11 */
 #undef HAVE_CXX_11
@@ -66,11 +78,26 @@
 /* Define to 1 if you have the <float.h> header file. */
 #undef HAVE_FLOAT_H
 
+/* Define to 1 if you have the <GeoIP.h> header file. */
+#undef HAVE_GEOIP_H
+
+/* Define to 1 if you have the `getpagesize' function. */
+#undef HAVE_GETPAGESIZE
+
+/* whether __gnu_cxx::hash_map is available */
+#undef HAVE_GNU_CXX_HASH_MAP
+
 /* Define to 1 if you have the <google/profiler.h> header file. */
 #undef HAVE_GOOGLE_PROFILER_H
 
+/* Define to 1 if you have the `hcreate_r' function. */
+#undef HAVE_HCREATE_R
+
 /* Define to 1 if you have the <history.h> header file. */
 #undef HAVE_HISTORY_H
+
+/* Define to 1 if you have the `hsearch_r' function. */
+#undef HAVE_HSEARCH_R
 
 /* Define to 1 if you have the <hwloc.h> header file. */
 #undef HAVE_HWLOC_H
@@ -81,6 +108,9 @@
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #undef HAVE_IFADDRS_H
 
+/* Define to 1 if you have the `inotify_init' function. */
+#undef HAVE_INOTIFY_INIT
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -89,6 +119,9 @@
 
 /* Define to 1 if you have the `kqueue' function. */
 #undef HAVE_KQUEUE
+
+/* Define to 1 if you have the <libaio.h> header file. */
+#undef HAVE_LIBAIO_H
 
 /* Define to 1 if you have Expat library */
 #undef HAVE_LIBEXPAT
@@ -101,6 +134,9 @@
 
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
+
+/* Using libxml2 */
+#undef HAVE_LIBXML2
 
 /* Define to 1 if you have the `lrand48_r' function. */
 #undef HAVE_LRAND48_R
@@ -117,8 +153,32 @@
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
 
+/* Define to 1 if you have the <mcheck.h> header file. */
+#undef HAVE_MCHECK_H
+
+/* Define to 1 if you have the `mcheck_pedantic' function. */
+#undef HAVE_MCHECK_PEDANTIC
+
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
+
+/* Define to 1 if the Ncurses library is present */
+#undef HAVE_NCURSES
+
+/* Define to 1 if the NcursesW library is present */
+#undef HAVE_NCURSESW
+
+/* Define to 1 if <ncursesw/curses.h> is present */
+#undef HAVE_NCURSESW_CURSES_H
+
+/* Define to 1 if <ncursesw.h> is present */
+#undef HAVE_NCURSESW_H
+
+/* Define to 1 if <ncurses/curses.h> is present */
+#undef HAVE_NCURSES_CURSES_H
+
+/* Define to 1 if <ncurses.h> is present */
+#undef HAVE_NCURSES_H
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #undef HAVE_NETDB_H
@@ -165,11 +225,29 @@
 /* Define to 1 if you have the `posix_fadvise' function. */
 #undef HAVE_POSIX_FADVISE
 
+/* Define to 1 if you have the `posix_fallocate' function. */
+#undef HAVE_POSIX_FALLOCATE
+
+/* Define to 1 if you have the `posix_madvise' function. */
+#undef HAVE_POSIX_MADVISE
+
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN
 
+/* Define to 1 if you have the <pthread.h> header file. */
+#undef HAVE_PTHREAD_H
+
 /* Define to 1 if you have the <pthread_np.h> header file. */
 #undef HAVE_PTHREAD_NP_H
+
+/* Whether the 1 parameter version of pthread_setname_np() is available */
+#undef HAVE_PTHREAD_SETNAME_NP_1
+
+/* Whether the 2 parameter version of pthread_setname_np() is available */
+#undef HAVE_PTHREAD_SETNAME_NP_2
+
+/* Whether the 2 parameter version of pthread_set_name_np() is available */
+#undef HAVE_PTHREAD_SET_NAME_NP_2
 
 /* Define to 1 if you have the <readline.h> header file. */
 #undef HAVE_READLINE_H
@@ -185,6 +263,9 @@
 
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
+
+/* Define to 1 if you have the <search.h> header file. */
+#undef HAVE_SEARCH_H
 
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
@@ -247,6 +328,9 @@
 /* Define to 1 if `st_mtim.tv_nsec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
 
+/* Define to 1 if you have the `sysconf' function. */
+#undef HAVE_SYSCONF
+
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 #undef HAVE_SYS_BYTEORDER_H
 
@@ -255,6 +339,12 @@
 
 /* Define to 1 if you have the <sys/cpuset.h> header file. */
 #undef HAVE_SYS_CPUSET_H
+
+/* Define to 1 if you have the <sys/disklabel.h> header file. */
+#undef HAVE_SYS_DISKLABEL_H
+
+/* Define to 1 if you have the <sys/disk.h> header file. */
+#undef HAVE_SYS_DISK_H
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
@@ -267,6 +357,9 @@
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
+
+/* Define to 1 if you have the <sys/mman.h> header file. */
+#undef HAVE_SYS_MMAN_H
 
 /* Define to 1 if you have the <sys/mount.h> header file. */
 #undef HAVE_SYS_MOUNT_H
@@ -282,6 +375,12 @@
 
 /* Define to 1 if you have the <sys/sockio.h> header file. */
 #undef HAVE_SYS_SOCKIO_H
+
+/* Define to 1 if you have the <sys/statfs.h> header file. */
+#undef HAVE_SYS_STATFS_H
+
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#undef HAVE_SYS_STATVFS_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
@@ -304,6 +403,12 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have the <unordered_map> header file. */
+#undef HAVE_UNORDERED_MAP
+
+/* Define to 1 if you have the <unordered_set> header file. */
+#undef HAVE_UNORDERED_SET
+
 /* Define to 1 if you have the <values.h> header file. */
 #undef HAVE_VALUES_H
 
@@ -316,6 +421,9 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE

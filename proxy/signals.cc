@@ -65,10 +65,8 @@ public:
     SET_HANDLER(&SignalContinuation::periodic);
   }
 
-  int periodic(int event, Event * e)
+  int periodic(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(e);
     if (sigusr1_received) {
       sigusr1_received = 0;
       // TODO: TS-567 Integrate with debugging allocators "dump" features?
@@ -118,10 +116,8 @@ public:
     baseline_taken = 0;
   }
 
-  int periodic(int event, Event * e)
+  int periodic(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   {
-    NOWARN_UNUSED(event);
-    NOWARN_UNUSED(e);
     if (use_baseline) {
       // TODO: TS-567 Integrate with debugging allocators "dump" features?
       ink_freelists_dump_baselinerel(stderr);
@@ -194,7 +190,7 @@ signal_handler(int sig, siginfo_t * t, void *c)
   }
 #else
   snprintf(sig_msg, sizeof(sig_msg), "NOTE: Traffic Server received Sig %d: %s\n", sig, strsignal(sig));
-  NOWARN_UNUSED_RETURN(write(2, sig_msg, strlen(sig_msg)));
+  ATS_UNUSED_RETURN(write(2, sig_msg, strlen(sig_msg)));
   //syslog(LOG_ERR, sig_msg);
 #endif
 
@@ -218,11 +214,11 @@ signal_handler(int sig, siginfo_t * t, void *c)
   case SIGXCPU:
   case SIGXFSZ:
   case SIGSEGV:
-    ink_stack_trace_dump(2);
+    ink_stack_trace_dump();
     signal(sig, SIG_DFL);
     return;
   case SIGUSR2:
-    ink_stack_trace_dump(2);
+    ink_stack_trace_dump();
     return;
   case SIGABRT:
   case SIGUSR1:
@@ -374,12 +370,11 @@ init_signals(bool do_stackdump)
 
 
 int
-init_tracker(const char *config_var, RecDataT type, RecData data, void *cookie)
+init_tracker(const char *config_var, RecDataT /* type ATS_UNUSED */, RecData data, void * /* cookie ATS_UNUSED */)
 {
-  NOWARN_UNUSED(type);
-  NOWARN_UNUSED(cookie);
   static Event *tracker_event = NULL;
   int dump_mem_info_frequency = 0;
+
   if (config_var)
     dump_mem_info_frequency = data.rec_int;
   else

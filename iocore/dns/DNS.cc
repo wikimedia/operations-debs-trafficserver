@@ -164,7 +164,7 @@ make_ipv6_ptr(in6_addr const* addr, char *buffer)
 //  See documentation is header files and Memos
 //
 int
-DNSProcessor::start(int) {
+DNSProcessor::start(int, size_t stacksize) {
   //
   // Read configuration
   //
@@ -183,8 +183,9 @@ DNSProcessor::start(int) {
   REC_EstablishStaticConfigInt32(dns_thread, "proxy.config.dns.dedicated_thread");
 
   if (dns_thread > 0) {
-    ET_DNS = eventProcessor.spawn_event_threads(1, "ET_DNS"); // TODO: Hmmm, should we just get a single thread some other way?
-    initialize_thread_for_net(eventProcessor.eventthread[ET_DNS][0], 0);
+    // TODO: Hmmm, should we just get a single thread some other way?
+    ET_DNS = eventProcessor.spawn_event_threads(1, "ET_DNS", stacksize);
+    initialize_thread_for_net(eventProcessor.eventthread[ET_DNS][0]);
   } else {
     // Initialize the first event thread for DNS.
     ET_DNS = ET_CALL;
@@ -246,7 +247,7 @@ DNSProcessor::dns_init()
     int i;
     char *last;
     char *ns_list = ats_strdup(dns_ns_list);
-    char *ns = (char *) ink_strtok_r(ns_list, " ,;\t\r", &last);
+    char *ns = (char *) strtok_r(ns_list, " ,;\t\r", &last);
 
     for (i = 0, nserv = 0 ; (i < MAX_NAMED) && ns ; ++i) {
       Debug("dns", "Nameserver list - parsing \"%s\"\n", ns);
@@ -291,7 +292,7 @@ DNSProcessor::dns_init()
         ++nserv;
       }
 
-      ns = (char *) ink_strtok_r(NULL, " ,;\t\r", &last);
+      ns = (char *) strtok_r(NULL, " ,;\t\r", &last);
     }
     ats_free(ns_list);
   }
@@ -472,9 +473,8 @@ DNSHandler::validate_ip() {
 
 */
 int
-DNSHandler::startEvent(int event, Event *e)
+DNSHandler::startEvent(int /* event ATS_UNUSED */, Event *e)
 {
-  NOWARN_UNUSED(event);
   //
   // If this is for the default server, get it
   Debug("dns", "DNSHandler::startEvent: on thread %d\n", e->ethread->id);
@@ -524,9 +524,8 @@ DNSHandler::startEvent(int event, Event *e)
   hander to a new nameserver.
 */
 int
-DNSHandler::startEvent_sdns(int event, Event *e)
+DNSHandler::startEvent_sdns(int /* event ATS_UNUSED */, Event *e)
 {
-  NOWARN_UNUSED(event);
   Debug("dns", "DNSHandler::startEvent_sdns: on thread %d\n", e->ethread->id);
   this->validate_ip();
 
@@ -569,7 +568,7 @@ DNSHandler::retry_named(int ndx, ink_hrtime t, bool reopen)
   char buffer[MAX_DNS_PACKET_LEN];
   Debug("dns", "trying to resolve '%s' from DNS connection, ndx %d", try_server_names[try_servers], ndx);
   int r = _ink_res_mkquery(m_res, try_server_names[try_servers], T_A, buffer);
-  try_servers = (try_servers + 1) % SIZE(try_server_names);
+  try_servers = (try_servers + 1) % countof(try_server_names);
   ink_assert(r >= 0);
   if (r >= 0) {                 // looking for a bounce
     int res = socketManager.send(con[ndx].fd, buffer, r, 0);
@@ -597,7 +596,7 @@ DNSHandler::try_primary_named(bool reopen)
     if (local_num_entries < DEFAULT_NUM_TRY_SERVER)
       try_servers = (try_servers + 1) % local_num_entries;
     else
-      try_servers = (try_servers + 1) % SIZE(try_server_names);
+      try_servers = (try_servers + 1) % countof(try_server_names);
     ink_assert(r >= 0);
     if (r >= 0) {               // looking for a bounce
       int res = socketManager.send(con[0].fd, buffer, r, 0);
@@ -727,10 +726,8 @@ good_rcode(char *buff) {
 
 
 void
-DNSHandler::recv_dns(int event, Event *e)
+DNSHandler::recv_dns(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   DNSConnection *dnsc = NULL;
   ip_text_buffer ipbuff1, ipbuff2;
 
@@ -789,7 +786,7 @@ DNSHandler::recv_dns(int event, Event *e)
           }
         }
       }
-      Ptr<HostEnt> protect_hostent = buf;
+      Ptr<HostEnt> protect_hostent = make_ptr(buf);
       if (dns_process(this, buf, res)) {
         if (dnsc->num == name_server)
           received_one(name_server);
@@ -1274,10 +1271,8 @@ DNSEntry::post(DNSHandler *h, HostEnt *ent)
 }
 
 int
-DNSEntry::postEvent(int event, Event *e)
+DNSEntry::postEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (!action.cancelled) {
     Debug("dns", "called back continuation for %s", qname);
     action.continuation->handleEvent(DNS_EVENT_LOOKUP, result_ent);
@@ -1357,10 +1352,10 @@ dns_process(DNSHandler *handler, HostEnt *buf, int len)
     u_char *cp = ((u_char *) h) + HFIXEDSZ;
     u_char *eom = (u_char *) h + len;
     int n;
-    ink_debug_assert(buf->srv_hosts.srv_host_count == 0 && buf->srv_hosts.srv_hosts_length == 0);
+    ink_assert(buf->srv_hosts.srv_host_count == 0 && buf->srv_hosts.srv_hosts_length == 0);
     buf->srv_hosts.srv_host_count = 0;
     buf->srv_hosts.srv_hosts_length = 0;
-    int &num_srv = buf->srv_hosts.srv_host_count;
+    unsigned& num_srv = buf->srv_hosts.srv_host_count;
     int rname_len = -1;
 
     //
@@ -1421,7 +1416,7 @@ dns_process(DNSHandler *handler, HostEnt *buf, int len)
     // e->qname_len, no ?
     if (local_num_entries >= DEFAULT_NUM_TRY_SERVER) {
       if ((attempt_num_entries % 50) == 0) {
-        try_servers = (try_servers + 1) % SIZE(try_server_names);
+        try_servers = (try_servers + 1) % countof(try_server_names);
         ink_strlcpy(try_server_names[try_servers], e->qname, MAXDNAME);
         memset(&try_server_names[try_servers][strlen(e->qname)], 0, 1);
         attempt_num_entries = 0;

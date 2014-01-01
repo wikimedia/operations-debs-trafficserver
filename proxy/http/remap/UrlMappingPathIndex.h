@@ -66,12 +66,21 @@ private:
 
   // make copy-constructor and assignment operator private
   // till we properly implement them
-  UrlMappingPathIndex(const UrlMappingPathIndex &rhs) { NOWARN_UNUSED(rhs); };
-  UrlMappingPathIndex &operator =(const UrlMappingPathIndex &rhs) { NOWARN_UNUSED(rhs); return *this; }
+  UrlMappingPathIndex(const UrlMappingPathIndex & /* rhs ATS_UNUSED */) { };
+  UrlMappingPathIndex &operator =(const UrlMappingPathIndex & /* rhs ATS_UNUSED */) { return *this; }
 
   inline UrlMappingTrie *
   _GetTrie(URL *url, int &idx, int port, bool search = true) const {
     idx = url->scheme_get_wksidx();
+    // If the scheme is empty (e.g. because of a CONNECT method), guess it
+    // based on port
+    if (idx == -1) {
+        if (port == 80) {
+            idx = URL_WKSIDX_HTTP;
+        } else {
+            idx = URL_WKSIDX_HTTPS;
+        }
+    }
     UrlMappingGroup::const_iterator group_iter;
     if (search) { // normal search
       group_iter = m_tries.find(UrlMappingTrieKey(idx, port));

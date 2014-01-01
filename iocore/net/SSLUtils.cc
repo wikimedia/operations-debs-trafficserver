@@ -49,6 +49,28 @@ typedef SSL_METHOD * ink_ssl_method_t;
 static ProxyMutex ** sslMutexArray;
 static bool open_ssl_initialized = false;
 
+struct ats_file_bio
+{
+    ats_file_bio(const char * path, const char * mode)
+      : bio(BIO_new_file(path, mode)) {
+    }
+
+    ~ats_file_bio() {
+        (void)BIO_set_close(bio, BIO_CLOSE);
+        BIO_free(bio);
+    }
+
+    operator bool() const {
+        return bio != NULL;
+    }
+
+    BIO * bio;
+
+private:
+    ats_file_bio(const ats_file_bio&);
+    ats_file_bio& operator=(const ats_file_bio&);
+};
+
 static unsigned long
 SSL_pthreads_thread_id()
 {
@@ -57,12 +79,9 @@ SSL_pthreads_thread_id()
 }
 
 static void
-SSL_locking_callback(int mode, int type, const char * file, int line)
+SSL_locking_callback(int mode, int type, const char * /* file ATS_UNUSED */, int /* line ATS_UNUSED */)
 {
-  NOWARN_UNUSED(file);
-  NOWARN_UNUSED(line);
-
-  ink_debug_assert(type < CRYPTO_num_locks());
+  ink_assert(type < CRYPTO_num_locks());
 
   if (mode & CRYPTO_LOCK) {
     MUTEX_TAKE_LOCK(sslMutexArray[type], this_ethread());
@@ -70,49 +89,36 @@ SSL_locking_callback(int mode, int type, const char * file, int line)
     MUTEX_UNTAKE_LOCK(sslMutexArray[type], this_ethread());
   } else {
     Debug("ssl", "invalid SSL locking mode 0x%x", mode);
-    ink_debug_assert(0);
+    ink_assert(0);
   }
 }
 
-static int
-SSL_CTX_add_extra_chain_cert_file(SSL_CTX * ctx, const char *file)
+static bool
+SSL_CTX_add_extra_chain_cert_file(SSL_CTX * ctx, const char * chainfile)
 {
-  BIO *in;
-  int ret = 0;
-  X509 *x = NULL;
+  X509 *cert;
+  ats_file_bio bio(chainfile, "r");
 
-  in = BIO_new(BIO_s_file_internal());
-  if (in == NULL) {
-    SSLerr(SSL_F_SSL_USE_CERTIFICATE_FILE, ERR_R_BUF_LIB);
-    goto end;
+  if (!bio) {
+    return false;
   }
 
-  if (BIO_read_filename(in, file) <= 0) {
-    SSLerr(SSL_F_SSL_USE_CERTIFICATE_FILE, ERR_R_SYS_LIB);
-    goto end;
-  }
+  for (;;) {
+    cert = PEM_read_bio_X509_AUX(bio.bio, NULL, NULL, NULL);
 
-  // j = ERR_R_PEM_LIB;
-  while ((x = PEM_read_bio_X509(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata)) != NULL) {
-    ret = SSL_CTX_add_extra_chain_cert(ctx, x);
-    if (!ret) {
-        X509_free(x);
-        BIO_free(in);
-	return -1;
-     }
+    if (!cert) {
+      // No more the certificates in this file.
+      break;
     }
-/*  x = PEM_read_bio_X509(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
-  if (x == NULL) {
-    SSLerr(SSL_F_SSL_USE_CERTIFICATE_FILE, j);
-    goto end;
+
+    // This transfers ownership of the cert (X509) to the SSL context, if successful.
+    if (!SSL_CTX_add_extra_chain_cert(ctx, cert)) {
+      X509_free(cert);
+      return false;
+    }
   }
 
-  ret = SSL_CTX_add_extra_chain_cert(ctx, x);*/
-end:
-  //  if (x != NULL) X509_free(x);
-  if (in != NULL)
-    BIO_free(in);
-  return (ret);
+  return true;
 }
 
 #if TS_USE_TLS_SNI
@@ -166,14 +172,14 @@ static SSL_CTX *
 ssl_context_enable_sni(SSL_CTX * ctx, SSLCertLookup * lookup)
 {
 #if TS_USE_TLS_SNI
-  Debug("ssl", "setting SNI callbacks with for ctx %p", ctx);
   if (ctx) {
+    Debug("ssl", "setting SNI callbacks with for ctx %p", ctx);
     SSL_CTX_set_tlsext_servername_callback(ctx, ssl_servername_callback);
     SSL_CTX_set_tlsext_servername_arg(ctx, lookup);
   }
 #else
-  NOWARN_UNUSED(ctx);
-  NOWARN_UNUSED(lookup);
+  (void)ctx;
+  (void)lookup;
 #endif /* TS_USE_TLS_SNI */
 
   return ctx;
@@ -202,7 +208,7 @@ SSLInitializeLibrary()
 }
 
 void
-SSLError(const char *errStr, bool critical)
+SSLDiagnostic(const SrcLoc& loc, bool debug, const char * fmt, ...)
 {
   unsigned long l;
   char buf[256];
@@ -210,29 +216,53 @@ SSLError(const char *errStr, bool critical)
   int line, flags;
   unsigned long es;
 
-  if (!critical) {
-    if (errStr) {
-      Debug("ssl_error", "SSL ERROR: %s", errStr);
-    } else {
-      Debug("ssl_error", "SSL ERROR");
-    }
-  } else {
-    if (errStr) {
-      Error("SSL ERROR: %s", errStr);
-    } else {
-      Error("SSL ERROR");
-    }
-  }
+  va_list ap;
 
   es = CRYPTO_thread_id();
   while ((l = ERR_get_error_line_data(&file, &line, &data, &flags)) != 0) {
-    if (!critical) {
-      Debug("ssl_error", "SSL::%lu:%s:%s:%d:%s", es,
-            ERR_error_string(l, buf), file, line, (flags & ERR_TXT_STRING) ? data : "");
+    if (debug) {
+      if (unlikely(diags->on())) {
+        diags->log("ssl", DL_Debug, loc.file, loc.func, loc.line,
+            "SSL::%lu:%s:%s:%d%s%s", es, ERR_error_string(l, buf), file, line,
+          (flags & ERR_TXT_STRING) ? ":" : "", (flags & ERR_TXT_STRING) ? data : "");
+      }
     } else {
-      Error("SSL::%lu:%s:%s:%d:%s", es, ERR_error_string(l, buf), file, line, (flags & ERR_TXT_STRING) ? data : "");
+      diags->error(DL_Error, loc.file, loc.func, loc.line,
+          "SSL::%lu:%s:%s:%d%s%s", es, ERR_error_string(l, buf), file, line,
+          (flags & ERR_TXT_STRING) ? ":" : "", (flags & ERR_TXT_STRING) ? data : "");
     }
   }
+
+  va_start(ap, fmt);
+  if (debug) {
+    diags->log_va("ssl", DL_Debug, &loc, fmt, ap);
+  } else {
+    diags->error_va(DL_Error, loc.file, loc.func, loc.line, fmt, ap);
+  }
+  va_end(ap);
+
+}
+
+const char *
+SSLErrorName(int ssl_error)
+{
+  static const char * names[] =  {
+    "SSL_ERROR_NONE",
+    "SSL_ERROR_SSL",
+    "SSL_ERROR_WANT_READ",
+    "SSL_ERROR_WANT_WRITE",
+    "SSL_ERROR_WANT_X509_LOOKUP",
+    "SSL_ERROR_SYSCALL",
+    "SSL_ERROR_ZERO_RETURN",
+    "SSL_ERROR_WANT_CONNECT",
+    "SSL_ERROR_WANT_ACCEPT"
+  };
+
+  if (ssl_error < 0 || ssl_error >= (int)countof(names)) {
+    return "unknown SSL error";
+  }
+
+  return names[ssl_error];
 }
 
 void
@@ -285,50 +315,51 @@ SSLInitServerContext(
 
   SSL_CTX_set_quiet_shutdown(ctx, 1);
 
+  // XXX OpenSSL recommends that we should use SSL_CTX_use_certificate_chain_file() here. That API
+  // also loads only the first certificate, but it allows the intermediate CA certificate chain to
+  // be in the same file. SSL_CTX_use_certificate_chain_file() was added in OpenSSL 0.9.3.
   completeServerCertPath = Layout::relative_to(params->serverCertPathOnly, serverCertPtr);
-
-  if (SSL_CTX_use_certificate_file(ctx, completeServerCertPath, SSL_FILETYPE_PEM) <= 0) {
-    Error ("SSL ERROR: Cannot use server certificate file: %s", (const char *)completeServerCertPath);
+  if (!SSL_CTX_use_certificate_file(ctx, completeServerCertPath, SSL_FILETYPE_PEM)) {
+    SSLError("failed to load certificate from %s", (const char *)completeServerCertPath);
     goto fail;
   }
 
+  // First, load any CA chains from the global chain file.
+  if (params->serverCertChainFilename) {
+    xptr<char> completeServerCertChainPath(Layout::relative_to(params->serverCertPathOnly, params->serverCertChainFilename));
+    if (!SSL_CTX_add_extra_chain_cert_file(ctx, completeServerCertChainPath)) {
+      SSLError("failed to load global certificate chain from %s", (const char *)completeServerCertChainPath);
+      goto fail;
+    }
+  }
+
+  // Now, load any additional certificate chains specified in this entry.
   if (serverCaCertPtr) {
-    xptr<char> completeServerCaCertPath(Layout::relative_to(params->serverCACertPath, serverCaCertPtr));
-    if (SSL_CTX_add_extra_chain_cert_file(ctx, completeServerCaCertPath) <= 0) {
-      Error ("SSL ERROR: Cannot use server certificate chain file: %s", (const char *)completeServerCaCertPath);
+    xptr<char> completeServerCertChainPath(Layout::relative_to(params->serverCertPathOnly, serverCaCertPtr));
+    if (!SSL_CTX_add_extra_chain_cert_file(ctx, completeServerCertChainPath)) {
+      SSLError("failed to load certificate chain from %s", (const char *)completeServerCertChainPath);
       goto fail;
     }
   }
 
   if (serverKeyPtr == NULL) {
     // assume private key is contained in cert obtained from multicert file.
-    if (SSL_CTX_use_PrivateKey_file(ctx, completeServerCertPath, SSL_FILETYPE_PEM) <= 0) {
-      Error("SSL ERROR: Cannot use server private key file: %s", (const char *)completeServerCertPath);
+    if (!SSL_CTX_use_PrivateKey_file(ctx, completeServerCertPath, SSL_FILETYPE_PEM)) {
+      SSLError("failed to load server private key from %s", (const char *)completeServerCertPath);
+      goto fail;
+    }
+  } else if (params->serverKeyPathOnly != NULL) {
+    xptr<char> completeServerKeyPath(Layout::get()->relative_to(params->serverKeyPathOnly, serverKeyPtr));
+    if (!SSL_CTX_use_PrivateKey_file(ctx, completeServerKeyPath, SSL_FILETYPE_PEM)) {
+      SSLError("failed to load server private key from %s", (const char *)completeServerKeyPath);
       goto fail;
     }
   } else {
-    if (params->serverKeyPathOnly != NULL) {
-      xptr<char> completeServerKeyPath(Layout::get()->relative_to(params->serverKeyPathOnly, serverKeyPtr));
-      if (SSL_CTX_use_PrivateKey_file(ctx, completeServerKeyPath, SSL_FILETYPE_PEM) <= 0) {
-        Error("SSL ERROR: Cannot use server private key file: %s", (const char *)completeServerKeyPath);
-        goto fail;
-      }
-    } else {
-      SSLError("Empty ssl private key path in records.config.");
-    }
-
-  }
-
-  if (params->serverCertChainPath) {
-    xptr<char> completeServerCaCertPath(Layout::relative_to(params->serverCACertPath, params->serverCertChainPath));
-    if (SSL_CTX_add_extra_chain_cert_file(ctx, params->serverCertChainPath) <= 0) {
-      Error ("SSL ERROR: Cannot use server certificate chain file: %s", (const char *)completeServerCaCertPath);
-      goto fail;
-    }
+    SSLError("empty SSL private key path in records.config");
   }
 
   if (!SSL_CTX_check_private_key(ctx)) {
-    SSLError("Server private key does not match the certificate public key");
+    SSLError("server private key does not match the certificate public key");
     goto fail;
   }
 
@@ -349,21 +380,23 @@ SSLInitServerContext(
     } else {
       // disable client cert support
       server_verify_client = SSL_VERIFY_NONE;
-      Error("Illegal Client Certification Level in records.config");
+      Error("illegal client certification level %d in records.config", server_verify_client);
     }
 
+    // XXX I really don't think that this is a good idea. We should be setting this a some finer granularity,
+    // possibly per SSL CTX. httpd uses md5(host:port), which seems reasonable.
     session_id_context = 1;
+    SSL_CTX_set_session_id_context(ctx, (const unsigned char *) &session_id_context, sizeof(session_id_context));
 
     SSL_CTX_set_verify(ctx, server_verify_client, NULL);
     SSL_CTX_set_verify_depth(ctx, params->verify_depth); // might want to make configurable at some point.
-    SSL_CTX_set_session_id_context(ctx, (const unsigned char *) &session_id_context, sizeof session_id_context);
 
     SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(params->serverCACertFilename));
   }
 
   if (params->cipherSuite != NULL) {
     if (!SSL_CTX_set_cipher_list(ctx, params->cipherSuite)) {
-      SSLError("Invalid Cipher Suite in records.config");
+      SSLError("invalid cipher suite in records.config");
       goto fail;
     }
   }
@@ -392,7 +425,7 @@ SSLInitClientContext(const SSLConfigParams * params)
   // disable selected protocols
   SSL_CTX_set_options(client_ctx, params->ssl_ctx_options);
   if (!client_ctx) {
-    SSLError("Cannot create new client context");
+    SSLError("cannot create new client context");
     return NULL;
   }
 
@@ -404,22 +437,20 @@ SSLInitClientContext(const SSLConfigParams * params)
   }
 
   if (params->clientCertPath != 0) {
-    if (SSL_CTX_use_certificate_file(client_ctx, params->clientCertPath, SSL_FILETYPE_PEM) <= 0) {
-      Error ("SSL Error: Cannot use client certificate file: %s", params->clientCertPath);
-      SSL_CTX_free(client_ctx);
-      return NULL;
+    if (!SSL_CTX_use_certificate_file(client_ctx, params->clientCertPath, SSL_FILETYPE_PEM)) {
+      SSLError("failed to load client certificate from %s", params->clientCertPath);
+      goto fail;
     }
 
-    if (SSL_CTX_use_PrivateKey_file(client_ctx, clientKeyPtr, SSL_FILETYPE_PEM) <= 0) {
-      Error ("SSL ERROR: Cannot use client private key file: %s", clientKeyPtr);
-      SSL_CTX_free(client_ctx);
-      return NULL;
+    if (!SSL_CTX_use_PrivateKey_file(client_ctx, clientKeyPtr, SSL_FILETYPE_PEM)) {
+      SSLError("failed to load client private key file from %s", clientKeyPtr);
+      goto fail;
     }
 
     if (!SSL_CTX_check_private_key(client_ctx)) {
-      Error("SSL ERROR: Client private key (%s) does not match the certificate public key (%s)", clientKeyPtr, params->clientCertPath);
-      SSL_CTX_free(client_ctx);
-      return NULL;
+      SSLError("client private key (%s) does not match the certificate public key (%s)",
+          clientKeyPtr, params->clientCertPath);
+      goto fail;
     }
   }
 
@@ -431,56 +462,21 @@ SSLInitClientContext(const SSLConfigParams * params)
     SSL_CTX_set_verify_depth(client_ctx, params->client_verify_depth);
 
     if (params->clientCACertFilename != NULL && params->clientCACertPath != NULL) {
-      if ((!SSL_CTX_load_verify_locations(client_ctx, params->clientCACertFilename,
-                                          params->clientCACertPath)) ||
+      if ((!SSL_CTX_load_verify_locations(client_ctx, params->clientCACertFilename, params->clientCACertPath)) ||
           (!SSL_CTX_set_default_verify_paths(client_ctx))) {
-        Error("SSL ERROR: Client CA Certificate file (%s) or CA Certificate path (%s) invalid", params->clientCACertFilename, params->clientCACertPath);
-        SSL_CTX_free(client_ctx);
-        return NULL;
+        SSLError("invalid client CA Certificate file (%s) or CA Certificate path (%s)",
+            params->clientCACertFilename, params->clientCACertPath);
+        goto fail;
       }
     }
   }
 
   return client_ctx;
+
+fail:
+  SSL_CTX_free(client_ctx);
+  return NULL;
 }
-
-struct ats_x509_certificate
-{
-  explicit ats_x509_certificate(X509 * x) : x509(x) {}
-  ~ats_x509_certificate() { if (x509) X509_free(x509); }
-
-  operator bool() const {
-      return x509 != NULL;
-  }
-
-  X509 * x509;
-
-private:
-  ats_x509_certificate(const ats_x509_certificate&);
-  ats_x509_certificate& operator=(const ats_x509_certificate&);
-};
-
-struct ats_file_bio
-{
-    ats_file_bio(const char * path, const char * mode)
-      : bio(BIO_new_file(path, mode)) {
-    }
-
-    ~ats_file_bio() {
-        (void)BIO_set_close(bio, BIO_CLOSE);
-        BIO_free(bio);
-    }
-
-    operator bool() const {
-        return bio != NULL;
-    }
-
-    BIO * bio;
-
-private:
-    ats_file_bio(const ats_file_bio&);
-    ats_file_bio& operator=(const ats_file_bio&);
-};
 
 static char *
 asn1_strdup(ASN1_STRING * s)
@@ -502,10 +498,10 @@ ssl_index_certificate(SSLCertLookup * lookup, SSL_CTX * ctx, const char * certfi
   X509_NAME * subject = NULL;
 
   ats_file_bio bio(certfile, "r");
-  ats_x509_certificate certificate(PEM_read_bio_X509_AUX(bio.bio, NULL, NULL, NULL));
+  X509* cert = PEM_read_bio_X509_AUX(bio.bio, NULL, NULL, NULL);
 
   // Insert a key for the subject CN.
-  subject = X509_get_subject_name(certificate.x509);
+  subject = X509_get_subject_name(cert);
   if (subject) {
     int pos = -1;
     for (;;) {
@@ -525,7 +521,7 @@ ssl_index_certificate(SSLCertLookup * lookup, SSL_CTX * ctx, const char * certfi
 
 #if HAVE_OPENSSL_TS_H
   // Traverse the subjectAltNames (if any) and insert additional keys for the SSL context.
-  GENERAL_NAMES * names = (GENERAL_NAMES *)X509_get_ext_d2i(certificate.x509, NID_subject_alt_name, NULL, NULL);
+  GENERAL_NAMES * names = (GENERAL_NAMES *)X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
   if (names) {
     unsigned count = sk_GENERAL_NAME_num(names);
     for (unsigned i = 0; i < count; ++i) {
@@ -542,10 +538,10 @@ ssl_index_certificate(SSLCertLookup * lookup, SSL_CTX * ctx, const char * certfi
     GENERAL_NAMES_free(names);
   }
 #endif // HAVE_OPENSSL_TS_H
-
+  X509_free(cert);
 }
 
-static void
+static bool
 ssl_store_ssl_context(
     const SSLConfigParams * params,
     SSLCertLookup *         lookup,
@@ -559,9 +555,12 @@ ssl_store_ssl_context(
 
   ctx = ssl_context_enable_sni(SSLInitServerContext(params, cert, ca, key), lookup);
   if (!ctx) {
-    SSLError("failed to create new SSL server context");
-    return;
+    return false;
   }
+
+#if TS_USE_TLS_NPN
+  SSL_CTX_set_next_protos_advertised_cb(ctx, SSLNetVConnection::advertise_next_protocol, NULL);
+#endif /* TS_USE_TLS_NPN */
 
   certpath = Layout::relative_to(params->serverCertPathOnly, cert);
 
@@ -586,6 +585,7 @@ ssl_store_ssl_context(
   // this code is updated to reconfigure the SSL certificates, it will need some sort of
   // refcounting or alternate way of avoiding double frees.
   ssl_index_certificate(lookup, ctx, certpath);
+  return true;
 }
 
 static bool
@@ -647,7 +647,7 @@ SSLParseCertificateConfiguration(
   char errBuf[1024];
 
   const matcher_tags sslCertTags = {
-    NULL, NULL, NULL, NULL, NULL, false
+    NULL, NULL, NULL, NULL, NULL, NULL, false
   };
 
   Note("loading SSL certificate configuration from %s", params->configFilePath);
@@ -657,7 +657,7 @@ SSLParseCertificateConfiguration(
   }
 
   if (!file_buf) {
-    Error("%s: failed to read SSL certificate configuration from %s", __func__, params->configFilePath);
+    Error("failed to read SSL certificate configuration from %s", params->configFilePath);
     return false;
   }
 
@@ -686,7 +686,10 @@ SSLParseCertificateConfiguration(
         REC_SignalError(errBuf, alarmAlready);
       } else {
         if (ssl_extract_certificate(&line_info, addr, cert, ca, key)) {
-          ssl_store_ssl_context(params, lookup, addr, cert, ca, key);
+          if (!ssl_store_ssl_context(params, lookup, addr, cert, ca, key)) {
+            Error("failed to load SSL certificate specification from %s line %u",
+                params->configFilePath, line_num);
+          }
         } else {
           snprintf(errBuf, sizeof(errBuf), "%s: discarding invalid %s entry at line %u",
                        __func__, params->configFilePath, line_num);
@@ -709,4 +712,3 @@ SSLParseCertificateConfiguration(
 
   return true;
 }
-

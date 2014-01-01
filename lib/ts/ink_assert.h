@@ -29,6 +29,7 @@ Assertions
 #define _INK_ASSERT_H
 
 #include "ink_apidefs.h"
+#include "ink_error.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -45,16 +46,12 @@ extern "C"
 
   inkcoreapi void _ink_assert(const char *a, const char *f, int l) TS_NORETURN;
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(__clang_analyzer__)
 #define ink_assert(EX) ( \
-            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__)) \
-)
-#define ink_debug_assert(EX) ( \
-            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__)) \
+            (void)(likely(EX) ? (void)0 : _ink_assert(#EX, __FILE__, __LINE__))\
 )
 #else
 #define ink_assert(EX) (void)(EX)
-#define ink_debug_assert(EX)
 #endif
 
 #define ink_release_assert(EX) ( \

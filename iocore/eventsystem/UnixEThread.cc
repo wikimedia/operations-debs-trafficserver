@@ -26,10 +26,9 @@
 // The EThread Class
 //
 /////////////////////////////////////////////////////////////////////
-#include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 #include "P_EventSystem.h"
 
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
 #include <sys/eventfd.h>
 #endif
 
@@ -67,7 +66,7 @@ EThread::EThread(ThreadType att, int anid)
   ethreads_to_be_signalled = (EThread **)ats_malloc(MAX_EVENT_THREADS * sizeof(EThread *));
   memset((char *) ethreads_to_be_signalled, 0, MAX_EVENT_THREADS * sizeof(EThread *));
   memset(thread_private, 0, PER_THREAD_DATA);
-#if TS_HAS_EVENTFD
+#if HAVE_EVENTFD
   evfd = eventfd(0, O_NONBLOCK | FD_CLOEXEC);
   if (evfd < 0) {
     if (errno == EINVAL) { // flags invalid for kernel <= 2.6.26
@@ -79,6 +78,10 @@ EThread::EThread(ThreadType att, int anid)
   }
   fcntl(evfd, F_SETFD, FD_CLOEXEC);
   fcntl(evfd, F_SETFL, O_NONBLOCK);
+#elif TS_USE_PORT
+  /* Solaris ports requires no crutches to do cross thread signaling.
+   * We'll just port_send the event straight over the port.
+   */
 #else
   ink_release_assert(pipe(evpipe) >= 0);
   fcntl(evpipe[0], F_SETFD, FD_CLOEXEC);

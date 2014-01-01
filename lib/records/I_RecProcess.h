@@ -33,7 +33,7 @@
 //-------------------------------------------------------------------------
 int RecProcessInit(RecModeT mode_type, Diags * diags = NULL);
 int RecProcessInitMessage(RecModeT mode_type);
-int RecProcessStart();
+int RecProcessStart(size_t stacksize=DEFAULT_STACKSIZE);
 
 //-------------------------------------------------------------------------
 // Setters for manipulating internal sleep intervals
@@ -118,7 +118,7 @@ int64_t *RecGetGlobalRawStatCountPtr(RecRawStatBlock * rsb, int id);
 inline RecRawStat *
 raw_stat_get_tlp(RecRawStatBlock * rsb, int id, EThread * ethread)
 {
-  ink_debug_assert((id >= 0) && (id < rsb->max_stats));
+  ink_assert((id >= 0) && (id < rsb->max_stats));
   if (ethread == NULL) {
     ethread = this_ethread();
   }

@@ -39,7 +39,7 @@
 
 #define DebugSsn(tag, ...) DebugSpecific(debug_on, tag, __VA_ARGS__)
 #define STATE_ENTER(state_name, event, vio) { \
-    /*ink_debug_assert (magic == HTTP_SM_MAGIC_ALIVE);  REMEMBER (event, NULL, reentrancy_count); */ \
+    /*ink_assert (magic == HTTP_SM_MAGIC_ALIVE);  REMEMBER (event, NULL, reentrancy_count); */ \
         DebugSsn("http_cs", "[%" PRId64 "] [%s, %s]", con_id, \
         #state_name, HttpDebugNames::get_event_name(event)); }
 
@@ -151,16 +151,6 @@ HttpClientSession::new_transaction()
   read_state = HCS_ACTIVE_READER;
   current_reader = HttpSM::allocate();
   current_reader->init();
-
-  /////////////////////////
-  // set up timeouts     //
-  /////////////////////////
-  DebugSsn("http_cs", "[%" PRId64 "] using accept inactivity timeout [%" PRId64" seconds]",
-        con_id, HttpConfig::m_master.accept_no_activity_timeout);
-  client_vc->set_inactivity_timeout(HRTIME_SECONDS(HttpConfig::m_master.accept_no_activity_timeout));
-
-  client_vc->set_active_timeout(HRTIME_SECONDS(HttpConfig::m_master.transaction_active_timeout_in));
-
   transact_count++;
   DebugSsn("http_cs", "[%" PRId64 "] Starting transaction %d using sm [%" PRId64 "]", con_id, transact_count, current_reader->sm_id);
 
@@ -225,7 +215,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   }
 
   // Record api hook set state
-  hooks_set = http_global_hooks->hooks_set;
+  hooks_set = http_global_hooks->has_hooks();
 
 #ifdef USE_HTTP_DEBUG_LISTS
   ink_mutex_acquire(&debug_cs_list_mutex);
@@ -457,9 +447,8 @@ HttpClientSession::state_keep_alive(int event, void *data)
 }
 
 int
-HttpClientSession::state_api_callout(int event, void *data)
+HttpClientSession::state_api_callout(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   switch (event) {
   case EVENT_NONE:
   case EVENT_INTERVAL:

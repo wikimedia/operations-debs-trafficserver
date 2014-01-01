@@ -7,29 +7,47 @@ plugins to build large scale web applications.
 1. DIRECTORY STRUCTURE
 
   traffic/ ............... top src dir
-  |-- cop ................ traffic_cop application
-  |-- doc/ ............... generated documentation
+  |-- ci/ ................ quality assurance and other CI tools and configs
+  |-- contrib ............ various contributed auxiliary pieces
+  |-- cop/ ............... traffic_cop application
+  |-- doc/ ...............
+      |-- admin/ ......... Admin guide documentations
+      |-- dot/ ........... Graphviz source files for docs pictures
+      |-- man/ ........... Unix style man-pages
+      |-- plugins ........ Documentation for our core plugins
+      |-- sdk/ ........... Plugin developer guide
   |-- example/ ........... example plugins
   |-- install/ ........... installation programs and scripts
-  |-- iocore/ ............ IO core
+  |-- iocore/ ............
+      |-- aio/ ........... Asynchronous I/O core
+      |-- cache/ ......... Disk and RAM cache
+      |-- cluster/ ....... Cache and configuration clustering
+      |-- dns/ ........... DNS (asynchronous)
+      |-- hostdb/ ........ Internal DNS cache
+      |-- net/ ........... Network
   |-- lib/ ...............
+      |-- cpp11api ....... C++ '11 wrapper for plugin developers
+      |-- records/ ....... library for config files
+      |-- perl/ .......... Perl libraries for e.g. mgmt access and configurations
       |-- ts/ ............ Base / core library
       |-- tsconfig/....... New config parser and library (experimental)
-      |-- records/ ....... library for config files
+      |-- wccp/ .......... WCCP implementation
   |-- m4/ ................ custom macros for configure.ac
   |-- mgmt/ .............. Management server and tools (including traffic_manager)
       |-- cli ............ Command line utilities and API
+  |-- plugins/ ........... Core plugins (stable and experiemental)
   |-- proxy/ ............. HTTP proxy logic
-  |-- test/ .............. functional tests
-  |-- .indent.pro ........ indent profile for coding style
-  |-- emacs-style ........ emacs style definition
+      |-- api/ ........... Plugin API includes
+      |-- config/ ........ Configurations
+      |-- congest/ ....... Congestion control
+      |-- hdrs/ .......... Headers parsing and management
+      |-- http/ .......... The actual HTTP protocol implementation
+      |-0 logging/ ....... Flexible logging
   |-- README ............. intro, links, build info
   |-- README-EC2 ......... info on EC2 support
   |-- REVIEWERS .......... (incomplete) list of areas with committer interest
   |-- LICENSE ............ full license text
-  |-- NOTICE ............. copyright notices
-  |-- configure.ac ....... autoconf configuration
-  `-- Makefile.am ........ top level automake configuration
+  `-- NOTICE ............. copyright notices
 
 2. REQUIREMENTS
 
@@ -39,11 +57,12 @@ plugins to build large scale web applications.
 
   <https://cwiki.apache.org/confluence/display/TS/Building>.
 
-  Fedora 11,12, 13, 14, 15:
+  Fedora 12-19 / CentOS / RHEL:
     autoconf
     automake
     pkgconfig
     libtool
+    perl-ExtUtils-MakeMaker
     gcc-c++
     glibc-devel
     openssl-devel
@@ -51,9 +70,9 @@ plugins to build large scale web applications.
     expat-devel
     pcre
     pcre-devel
-    libcap-devel
-	flex (optional)
-    hwloc-devel (optional)
+    libcap-devel (optional, highly recommended)
+    flex (optional, needed for e.g. WCCP)
+    hwloc-devel (optional, highly recommended)
     lua-devel (optional)
 
   Fedora 8 EC2 (Kernel: 2.6.21.7-2.ec2.v1.2.fc8xen):
@@ -65,11 +84,11 @@ plugins to build large scale web applications.
           with ATS installed. Both of which are HIGHLY RECOMMENDED.
           See 'README-EC2' for further details.
 
-    Install these packages:
     autoconf
     automake
     pkgconfig
     libtool
+    perl-ExtUtils-MakeMaker
     gcc-c++
     glibc-devel
     openssl-devel
@@ -77,21 +96,24 @@ plugins to build large scale web applications.
     expat-devel
     pcre
 
-  Ubuntu 8.* ,9.*, 10.*, 11.*:
+  Ubuntu 8.* - 13.*:
     autoconf
     automake
     pkg-config
     libtool
+    libmodule-install-perl
     g++
     libssl-dev
     tcl-dev
     expat
     libexpat-dev
     libpcre3-dev
-    libcap-dev
-	flex (optional)
-    libhwloc-dev (optional)
+    libcap-dev (optional, highly recommended)
+    flex (optional, required for e.g. WCCP)
+    libhwloc-dev (optional, highly recommended)
     liblua5.1-dev or libluajit-5.1-dev (optional)
+    libncurses5-dev (optional, required for e.g.: tstop)
+    libcurl4-openssl-dev (optional, required for e.g.: tstop)
 
   Ubuntu EC2 9.10:
     NOTE: Alternately you may use the install scripts in 'contrib' which
@@ -104,15 +126,18 @@ plugins to build large scale web applications.
     automake
     pkg-config
     libtool
+    libmodule-install-perl
     g++
     libssl-dev
     tcl-dev
     expat
     libexpat-dev
     libpcre3-dev
-	flex (optional)
-    libhwloc-dev (optional)
+    flex (optional)
+    libhwloc-dev (optional, highly recommended)
     liblua-dev (optional)
+    libncurses5-dev (optional, required for e.g.: tstop)
+    libcurl3-openssl-dev (optional, required for e.g.: tstop)
 
   FreeBSD 7.2,8.0,9.0,9.1
     GCC 4.2.1 compiler suite or clang. You can install the following
@@ -127,19 +152,19 @@ plugins to build large scale web applications.
     security/openssl
     devel/pcre
     textproc/flex (optional, install newer version from ports, fix PATH)
-    devel/hwloc (optional)
+    devel/hwloc (optional, highly recommended)
     lang/lua (optional, on x64 don't use LuaJIT!)
 
-  OpenSolaris osol0906:
-    GCC 4.3.2 compiler suite (dev collection)
-    autoconf
-    automake
-    pkgconfig
-    libtool
-    tcl
-    expat
-    openssl
-    pcre
+  OmniOS:
+    developer/gcc46
+    developer/build/gnu-make
+    developer/build/autoconf
+    developer/build/automake-111
+    developer/build/libtool
+    omniti/runtime/tcl-8
+    library/expat
+    library/security/openssl
+    library/pcre
 
   OSX 10.5:
     GCC 4.2.4 compiler suite (ports collection)
@@ -178,7 +203,7 @@ the installation with
   cd ~/dev               # enter your development dir
   git clone ...          # get the source code from ASF Git repo
   cd trafficserver       # enter the checkout dir
-  autoreconf -i          # generate the configure script and Makefile.in files
+  autoreconf -if         # generate the configure script and Makefile.in files
   ./configure            # configure the build environment to create Makefiles
   make                   # execute the compile
 

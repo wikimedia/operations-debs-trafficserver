@@ -17,15 +17,16 @@
 if BUILD_EXPERIMENTAL_PLUGINS
 SUBDIRS = \
  lua \
+ buffer_upload \
  esi \
  rfc5861 \
  tcp_info \
  custom_redirect \
- header_rewrite \
  metalink \
- gzip \
  spdy \
  channel_stats \
  authproxy \
- cacheurl
+ geoip_acl \
+ healthchecks \
+ remap_stats
 endif

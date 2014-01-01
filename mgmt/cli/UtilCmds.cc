@@ -33,6 +33,7 @@
 #include "CliMgmtUtils.h"
 #include "CliDisplay.h"
 #include "ink_error.h"
+#include "ink_defs.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -147,9 +148,8 @@ DebugOff()
 //    argv -- the command arguments
 //
 int
-Cmd_ConfigRoot(ClientData clientData, Tcl_Interp * interp, int argc, const char *argv[])
+Cmd_ConfigRoot(ClientData /* clientData ATS_UNUSED */, Tcl_Interp * interp, int argc, const char *argv[])
 {
-  NOWARN_UNUSED(clientData);
   /* call to processArgForCommand must appear at the beginning
    * of each command's callback function
    */

@@ -318,6 +318,7 @@ ShowCache::handleCacheEvent(int event, Event *e) {
         // print the Doc
         CHECK_SHOW(show("<P><TABLE border=1 width=100%%>"));
         CHECK_SHOW(show("<TR><TH bgcolor=\"#FFF0E0\" colspan=2>Doc</TH></TR>\n"));
+        CHECK_SHOW(show("<TR><TD>Volume</td> <td>#%d - store='%s'</td></tr>\n", cache_vc->vol->cache_vol->vol_number, cache_vc->vol->path));
         CHECK_SHOW(show("<TR><TD>first key</td> <td>%s</td></tr>\n", d->first_key.string(tmpstr)));
         CHECK_SHOW(show("<TR><TD>key</td> <td>%s</td></tr>\n", d->key.string(tmpstr)));
         CHECK_SHOW(show("<tr><td>sync_serial</td><td>%lu</tr>\n", d->sync_serial));
@@ -562,7 +563,7 @@ ShowCache::handleCacheScanCallback(int event, Event *e)
       char xx[501], m[501];
       int ib = 0, xd = 0, ml = 0;
 
-      alt->request_get()->url_get()->print(xx, 500, &ib, &xd);
+      alt->request_get()->url_print(xx, 500, &ib, &xd);
       xx[ib] = '\0';
 
       const char *mm = alt->request_get()->method_get(&ml);

@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include "ink_apidefs.h"
-#include "ink_port.h"
+#include "ink_defs.h"
 #include "ink_memory.h"
 
 extern volatile int res_track_memory;   /* set this to zero to disable resource tracking */
@@ -54,7 +54,6 @@ struct Resource
 #define RES_TRACK_MEMORY_DEFAULT 0      /* default value for res_track_memory variable */
 
 char *_xstrdup(const char *str, int length, const char *path);
-void xdump(void);
 
 #if defined(__cplusplus)
 /** Locally scoped holder for a chunk of memory allocated via these functions.
@@ -82,7 +81,7 @@ public:
 
   /// Construct and initialized with memory for @a n instances of @a T.
   explicit xptr(size_t n)
-    : m_ptr(ats_malloc(sizeof(T) * n))
+    : m_ptr((T *)ats_malloc(sizeof(T) * n))
   { }
 
   /// Destructor - free memory held by this instance.

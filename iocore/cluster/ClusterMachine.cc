@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include "P_Cluster.h"
 extern char cache_system_config_directory[PATH_NAME_MAX + 1];
+extern int num_of_cluster_threads;
 
 MachineList *machines_config = NULL;
 MachineList *cluster_config = NULL;
@@ -63,24 +64,22 @@ create_this_cluster_machine()
   cluster_machine = NEW(new ClusterMachine);
 }
 
-ClusterMachine::ClusterMachine(char *ahostname, unsigned int aip, int aport):
-dead(false),
-hostname(ahostname),
-ip(aip),
-cluster_port(aport),
-num_connections(0),
-now_connections(0),
-free_connections(0),
-rr_count(0),
-msg_proto_major(0),
-msg_proto_minor(0),
-clusterHandlers(0)
+ClusterMachine::ClusterMachine(char *ahostname, unsigned int aip, int aport)
+  : dead(false),
+    hostname(ahostname),
+    ip(aip),
+    cluster_port(aport),
+    num_connections(0),
+    now_connections(0),
+    free_connections(0),
+    rr_count(0),
+    msg_proto_major(0),
+    msg_proto_minor(0),
+    clusterHandlers(0)
 {
   EThread *thread = this_ethread();
   ProxyMutex *mutex = thread->mutex;
-#ifndef INK_NO_CLUSTER
   CLUSTER_INCREMENT_DYN_STAT(CLUSTER_MACHINES_ALLOCATED_STAT);
-#endif
   if (!aip) {
     char localhost[1024];
     if (!ahostname) {
@@ -130,14 +129,12 @@ clusterHandlers(0)
     ip = aip;
 
     ink_gethostbyaddr_r_data data;
-    struct hostent *r = ink_gethostbyaddr_r((char *) &ip, sizeof(int),
-                                            AF_INET, &data);
+    struct hostent *r = ink_gethostbyaddr_r((char *) &ip, sizeof(int), AF_INET, &data);
 
     if (r == NULL) {
-      unsigned char x[4];
-      memset(x, 0, sizeof(x));
-      *(uint32_t *) & x = (uint32_t) ip;
-      Debug("machine_debug", "unable to reverse DNS %u.%u.%u.%u: %d", x[0], x[1], x[2], x[3], data.herrno);
+      Alias32 x;
+      memcpy(&x.u32, &ip, sizeof(x.u32));
+      Debug("machine_debug", "unable to reverse DNS %u.%u.%u.%u: %d", x.byte[0], x.byte[1], x.byte[2], x.byte[3], data.herrno);
     } else
       hostname = ats_strdup(r->h_name);
   }
@@ -146,7 +143,7 @@ clusterHandlers(0)
   else
     hostname_len = 0;
 
-  num_connections = eventProcessor.n_threads_for_type[ET_CLUSTER];
+  num_connections = num_of_cluster_threads;
   clusterHandlers = (ClusterHandler **)ats_calloc(num_connections, sizeof(ClusterHandler *));
 }
 
@@ -172,7 +169,6 @@ ClusterMachine::~ClusterMachine()
   ats_free(clusterHandlers);
 }
 
-#ifndef INK_NO_CLUSTER
 struct MachineTimeoutContinuation;
 typedef int (MachineTimeoutContinuation::*McTimeoutContHandler) (int, void *);
 struct MachineTimeoutContinuation: public Continuation
@@ -184,9 +180,11 @@ struct MachineTimeoutContinuation: public Continuation
     (void) e;
     delete m;
     delete this;
-      return EVENT_DONE;
+    return EVENT_DONE;
   }
-  MachineTimeoutContinuation(ClusterMachine * am):Continuation(NULL), m(am)
+
+  MachineTimeoutContinuation(ClusterMachine * am)
+    : Continuation(NULL), m(am)
   {
     SET_HANDLER((McTimeoutContHandler) & MachineTimeoutContinuation::dieEvent);
   }
@@ -288,4 +286,3 @@ read_MachineList(char *filename, int afd)
   }
   return (afd != -1) ? (MachineList *) NULL : l;
 }
-#endif // INK_NO_CLUSTER

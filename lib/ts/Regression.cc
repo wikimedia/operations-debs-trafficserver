@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-#include "ink_unused.h"      /* MAGIC_EDITING_TAG */
 /****************************************************************************
 
   Regression.cc
@@ -71,7 +70,7 @@ RegressionTest::RegressionTest(const char *name_arg, TestFunction * function_arg
 static inline int
 start_test(RegressionTest * t)
 {
-  ink_debug_assert(t->status == REGRESSION_TEST_NOT_RUN);
+  ink_assert(t->status == REGRESSION_TEST_NOT_RUN);
   t->status = REGRESSION_TEST_INPROGRESS;
   fprintf(stderr, "REGRESSION TEST %s started\n", t->name);
   (*t->function) (t, regression_level, &t->status);
@@ -180,12 +179,15 @@ rprintf(RegressionTest *t, const char *format, ...)
 {
   int l;
   char buffer[8192];
-  char format2[8192];
-  snprintf(format2, sizeof(format2), "RPRINT %s: %s", t->name, format);
+
+  snprintf(buffer, sizeof(buffer), "RPRINT %s: ", t->name);
+  fputs(buffer, stderr);
+
   va_list ap;
   va_start(ap, format);
-  l = ink_bvsprintf(buffer, format2, ap);
+  l = vsnprintf(buffer, sizeof(buffer), format, ap);
   va_end(ap);
+
   fputs(buffer, stderr);
   return (l);
 }

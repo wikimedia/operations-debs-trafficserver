@@ -35,7 +35,6 @@
 #include "LogBuffer.h"
 #include "LogAccess.h"
 #include "LogFilter.h"
-#include "SimpleTokenizer.h"
 
 /*-------------------------------------------------------------------------
   LogObject
@@ -49,9 +48,9 @@
   consist of a list of LogObjects.
   -------------------------------------------------------------------------*/
 
-#define ASCII_LOG_OBJECT_FILENAME_EXTENSION ".log"
-#define BINARY_LOG_OBJECT_FILENAME_EXTENSION ".blog"
-#define ASCII_PIPE_OBJECT_FILENAME_EXTENSION ".pipe"
+#define LOG_FILE_ASCII_OBJECT_FILENAME_EXTENSION ".log"
+#define LOG_FILE_BINARY_OBJECT_FILENAME_EXTENSION ".blog"
+#define LOG_FILE_PIPE_OBJECT_FILENAME_EXTENSION ".pipe"
 
 #define FLUSH_ARRAY_SIZE (512*4)
 
@@ -75,11 +74,11 @@ class LogBufferManager
     LogBufferManager() : _num_flush_buffers(0) { }
 
     void add_to_flush_queue(LogBuffer *buffer) {
-    write_list.push(buffer);
-    ink_atomic_increment(&_num_flush_buffers, 1);
+      write_list.push(buffer);
+      ink_atomic_increment(&_num_flush_buffers, 1);
     }
 
-    size_t flush_buffers(LogBufferSink *sink);
+    size_t preproc_buffers(LogBufferSink *sink);
 };
 
 class LogObject
@@ -89,7 +88,8 @@ public:
   {
     BINARY = 1,
     REMOTE_DATA = 2,
-    WRITES_TO_PIPE = 4
+    WRITES_TO_PIPE = 4,
+    LOG_OBJECT_FMT_TIMESTAMP = 8, // always format a timestamp into each log line (for raw text logs)
   };
 
   // BINARY: log is written in binary format (rather than ascii)
@@ -97,10 +97,12 @@ public:
   //              it should not be destroyed during a reconfiguration
   // WRITES_TO_PIPE: object writes to a named pipe rather than to a file
 
-  LogObject(LogFormat *format, const char *log_dir, const char *basename,
+  LogObject(const LogFormat *format, const char *log_dir, const char *basename,
                  LogFileFormat file_format, const char *header,
-                 int rolling_enabled, int rolling_interval_sec = 0,
-                 int rolling_offset_hr = 0, int rolling_size_mb = 0);
+                 int rolling_enabled, int flush_threads,
+                 int rolling_interval_sec = 0, int rolling_offset_hr = 0,
+                 int rolling_size_mb = 0, bool auto_created = false)
+    TS_NONNULL(2 /* format is required */);
   LogObject(LogObject &);
   virtual ~LogObject();
 
@@ -109,21 +111,33 @@ public:
   void add_loghost(LogHost * host, bool copy = true);
 
   void set_remote_flag() { m_flags |= REMOTE_DATA; };
+  void set_fmt_timestamps() { m_flags |= LOG_OBJECT_FMT_TIMESTAMP; }
 
-  int log(LogAccess * lad, char *text_entry = NULL);
+  int log(LogAccess * lad, const char *text_entry = NULL);
+  int va_log(LogAccess * lad, const char * fmt, va_list ap);
 
   int roll_files(long time_now = 0);
 
-  void add_to_flush_queue(LogBuffer * buffer) { m_buffer_manager.add_to_flush_queue(buffer); }
+  int add_to_flush_queue(LogBuffer * buffer)
+  {
+    int idx = m_buffer_manager_idx++ % m_flush_threads;
 
-  size_t flush_buffers()
+    m_buffer_manager[idx].add_to_flush_queue(buffer);
+
+    return idx;
+  }
+
+  size_t preproc_buffers(int idx = -1)
   {
     size_t nfb;
 
+    if (idx == -1)
+      idx = m_buffer_manager_idx++ % m_flush_threads;
+
     if (m_logFile) {
-      nfb = m_buffer_manager.flush_buffers(m_logFile);
+      nfb = m_buffer_manager[idx].preproc_buffers(m_logFile);
     } else {
-      nfb = m_buffer_manager.flush_buffers(&m_host_list);
+      nfb = m_buffer_manager[idx].preproc_buffers(&m_host_list);
     }
     return nfb;
   }
@@ -134,9 +148,9 @@ public:
   void displayAsXML(FILE * fd = stdout, bool extended = false);
   static uint64_t compute_signature(LogFormat * format, char *filename, unsigned int flags);
 
-  char *get_original_filename() const { return m_filename; }
-  char *get_full_filename() const { return (m_alt_filename ? m_alt_filename : m_filename); }
-  char *get_base_filename() const { return m_basename; }
+  const char *get_original_filename() const { return m_filename; }
+  const char *get_full_filename() const { return (m_alt_filename ? m_alt_filename : m_filename); }
+  const char *get_base_filename() const { return m_basename; }
 
   off_t get_file_size_bytes();
 
@@ -187,6 +201,7 @@ public:
   int do_filesystem_checks();
 
 public:
+  bool m_auto_created;
   LogFormat * m_format;
   LogFile *m_logFile;
   LogFilterList m_filter_list;
@@ -204,9 +219,10 @@ private:
   // name conflicts
 
   unsigned int m_flags;         // diverse object flags (see above)
-  uint64_t m_signature;           // INK_MD5 signature for object
+  uint64_t m_signature;         // INK_MD5 signature for object
 
   int m_rolling_enabled;
+  int m_flush_threads;          // number of flush threads
   int m_rolling_interval_sec;   // time interval between rolls
   // 0 means no rolling
   int m_rolling_offset_hr;      //
@@ -217,13 +233,12 @@ private:
   int m_ref_count;
 
   volatile head_p m_log_buffer;     // current work buffer
-  LogBufferManager m_buffer_manager;
+  unsigned m_buffer_manager_idx;
+  LogBufferManager *m_buffer_manager;
 
   void generate_filenames(const char *log_dir, const char *basename, LogFileFormat file_format);
   void _setup_rolling(int rolling_enabled, int rolling_interval_sec, int rolling_offset_hr, int rolling_size_mb);
-#ifndef TS_MICRO
   int _roll_files(long interval_start, long interval_end);
-#endif
 
   LogBuffer *_checkout_write(size_t * write_offset, size_t write_size);
 
@@ -242,14 +257,13 @@ class TextLogObject:public LogObject
 public:
   inkcoreapi TextLogObject(const char *name, const char *log_dir,
                            bool timestamps, const char *header,
-                           int rolling_enabled, int rolling_interval_sec = 0,
-                           int rolling_offset_hr = 0, int rolling_size_mb = 0);
+                           int rolling_enabled, int flush_threads,
+                           int rolling_interval_sec,
+                           int rolling_offset_hr,
+                           int rolling_size_mb);
 
-  inkcoreapi int write(const char *format, ...);
+  inkcoreapi int write(const char *format, ...) TS_PRINTFLIKE(2, 3);
   inkcoreapi int va_write(const char *format, va_list ap);
-
-private:
-    bool m_timestamps;
 };
 
 /*-------------------------------------------------------------------------
@@ -311,9 +325,7 @@ public:
 private:
 
   int _manage_object(LogObject * log_object, bool is_api_object, int maxConflicts);
-#ifndef TS_MICRO
-  static bool _has_internal_filename_conflict(char *filename, uint64_t signature, LogObject ** objects, int numObjects);
-#endif                          // TS_MICRO
+  static bool _has_internal_filename_conflict(const char *filename, LogObject ** objects, int numObjects);
   int _solve_filename_conflicts(LogObject * log_obj, int maxConflicts);
   int _solve_internal_filename_conflicts(LogObject * log_obj, int maxConflicts, int fileNum = 0);
   void _add_object(LogObject * object);
@@ -321,28 +333,8 @@ private:
   int _roll_files(long time_now, bool roll_only_if_needed);
 
 public:
- LogObjectManager()
-   : _numObjects(0), _maxObjects(LOG_OBJECT_ARRAY_DELTA), _numAPIobjects(0), _maxAPIobjects(LOG_OBJECT_ARRAY_DELTA)
-  {
-    _objects = new LogObject *[_maxObjects];
-    _APIobjects = new LogObject *[_maxAPIobjects];
-    _APImutex = NEW(new ink_mutex);
-    ink_mutex_init(_APImutex, "_APImutex");
-  }
-
-  ~LogObjectManager() {
-    for (unsigned int i = 0; i < _maxObjects; i++) {
-      delete _objects[i];
-    }
-    delete[] _objects;
-
-    for (unsigned int i = 0; i < _maxAPIobjects; i++) {
-      delete _APIobjects[i];
-    }
-    delete[] _APIobjects;
-
-    delete _APImutex;
-  }
+  LogObjectManager();
+  ~LogObjectManager();
 
   // we don't define a destructor because the objects that the
   // LogObjectManager manages are either passed along to another
@@ -359,6 +351,9 @@ public:
   // return success
   bool unmanage_api_object(LogObject * logObject);
 
+  // Flush the buffers on all the managed log objects.
+  void flush_all_objects();
+
   LogObject *get_object_with_signature(uint64_t signature);
   void check_buffer_expiration(long time_now);
   size_t get_num_objects() const { return _numObjects; }
@@ -368,68 +363,15 @@ public:
   int log(LogAccess * lad);
   void display(FILE * str = stdout);
   void add_filter_to_all(LogFilter * filter);
-  LogObject *find_by_format_name(const char *name);
-  size_t flush_buffers();
+  LogObject *find_by_format_name(const char *name) const ;
+  size_t preproc_buffers(int idx);
   void open_local_pipes();
   void transfer_objects(LogObjectManager & mgr);
 
   bool has_api_objects() const  { return (_numAPIobjects > 0); }
 
-  size_t get_num_collation_clients();
+  size_t get_num_collation_clients() const;
 };
-
-inline int LogObjectManager::roll_files(long time_now)
-{
-    int num_rolled = 0;
-    for (size_t i=0; i < _numObjects; i++) {
-      num_rolled += _objects[i]->roll_files(time_now);
-    }
-    for (size_t i=0; i < _numAPIobjects; i++) {
-      num_rolled += _APIobjects[i]->roll_files(time_now);
-    }
-    return num_rolled;
-};
-
-inline int
-LogObjectManager::log(LogAccess * lad)
-{
-  int ret = 0;
-  for (size_t i = 0; i < _numObjects; i++) {
-    ret |= _objects[i]->log(lad);
-  }
-  return ret;
-}
-
-inline void
-LogObjectManager::display(FILE * str)
-{
-  for (size_t i = 0; i < _numObjects; i++) {
-    _objects[i]->display(str);
-  }
-}
-
-inline LogObject *
-LogObjectManager::find_by_format_name(const char *name)
-{
-  for (size_t i = 0; i < _numObjects; i++) {
-    if (_objects[i]->m_format->name_id() == LogFormat::id_from_name(name)) {
-      return _objects[i];
-    }
-  }
-  return NULL;
-}
-
-inline size_t
-LogObjectManager::get_num_collation_clients()
-{
-  size_t coll_clients = 0;
-  for (size_t i = 0; i < _numObjects; i++) {
-    if (_objects[i]->is_collation_client()) {
-      ++coll_clients;
-    }
-  }
-  return coll_clients;
-}
 
 inline bool
 LogObject::operator==(LogObject & old)

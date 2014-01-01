@@ -23,7 +23,6 @@
 
 #include "ink_config.h"
 #include "ink_file.h"
-#include "ink_unused.h"
 #include "I_Layout.h"
 #include "I_Version.h"
 #include "P_Net.h"
@@ -71,15 +70,13 @@ ArgumentDescription argument_descriptions[] = {
 #endif
   {"help", 'h', "HELP!", NULL, NULL, NULL, usage},
 };
-int n_argument_descriptions = SIZE(argument_descriptions);
-
 
 /*-------------------------------------------------------------------------
   main
   -------------------------------------------------------------------------*/
 
 int
-main(int argc, char *argv[])
+main(int /* argc ATS_UNUSED */, char *argv[])
 {
   // build the application information structure
   //
@@ -91,7 +88,7 @@ main(int argc, char *argv[])
   // take care of command-line arguments
   //
   snprintf(configDirectoryType, sizeof(configDirectoryType), "S%d", PATH_NAME_MAX - 1);
-  process_args(argument_descriptions, n_argument_descriptions, argv);
+  process_args(argument_descriptions, countof(argument_descriptions), argv);
 
   // Get log directory
   ink_strlcpy(system_log_dir, Layout::get()->logdir, sizeof(system_log_dir));
@@ -131,9 +128,12 @@ main(int argc, char *argv[])
 
   // initialize the event and net processor
   //
-  eventProcessor.start(ink_number_of_processors());
+  size_t stacksize;
+
+  REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
+  eventProcessor.start(ink_number_of_processors(), stacksize);
   ink_net_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
-  netProcessor.start();
+  netProcessor.start(0, stacksize);
   Machine::init();
 
   Log::init(Log::NO_REMOTE_MANAGEMENT | Log::STANDALONE_COLLATOR);

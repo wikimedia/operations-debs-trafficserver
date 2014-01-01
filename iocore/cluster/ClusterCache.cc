@@ -310,9 +310,8 @@ ClusterVConnectionCache::lookup(INK_MD5 * key)
 }
 
 int
-ClusterVConnectionCacheEvent::eventHandler(int event, Event * e)
+ClusterVConnectionCacheEvent::eventHandler(int /* event ATS_UNUSED */, Event * e)
 {
-  NOWARN_UNUSED(event);
   CLUSTER_INCREMENT_DYN_STAT(CLUSTER_VC_CACHE_SCANS_STAT);
   MUTEX_TRY_LOCK(lock, cache->hash_lock[hash_index], this_ethread());
   if (!lock) {
@@ -794,9 +793,8 @@ CacheContinuation::lookupOpenWriteVCEvent(int event, Event * e)
 }
 
 int
-CacheContinuation::remove_and_delete(int event, Event * e)
+CacheContinuation::remove_and_delete(int /* event ATS_UNUSED */, Event * e)
 {
-  NOWARN_UNUSED(event);
   unsigned int hash = FOLDHASH(target_ip, seq_number);
   MUTEX_TRY_LOCK(queuelock, remoteCacheContQueueMutex[hash], this_ethread());
   if (queuelock) {
@@ -1148,7 +1146,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       char *hostname = NULL;
       int host_len = len - op_to_sizeof_fixedlen_msg(opcode);
       if (host_len) {
-        hostname = (char *) msg->moi;
+        hostname = (char *) msg->moi.byte;
       }
       Cache *call_cache = caches[c->frag_type];
       c->cache_action = call_cache->open_read(c, &key, c->frag_type, hostname, host_len);
@@ -1288,7 +1286,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       char *hostname = NULL;
       int host_len = len - op_to_sizeof_fixedlen_msg(opcode);
       if (host_len) {
-        hostname = (char *) msg->moi;
+        hostname = (char *) msg->moi.byte;
       }
 
       Cache *call_cache = caches[c->frag_type];
@@ -1388,7 +1386,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       char *hostname = NULL;
       int host_len = len - op_to_sizeof_fixedlen_msg(opcode);
       if (host_len) {
-        hostname = (char *) msg->moi;
+        hostname = (char *) msg->moi.byte;
       }
 
       Cache *call_cache = caches[c->frag_type];
@@ -1417,7 +1415,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       char *hostname = NULL;
       int host_len = len - op_to_sizeof_fixedlen_msg(opcode);
       if (host_len) {
-        hostname = (char *) msg->moi;
+        hostname = (char *) msg->moi.byte;
       }
 
       Cache *call_cache = caches[c->frag_type];
@@ -1443,7 +1441,7 @@ cache_op_ClusterFunction(ClusterHandler * ch, void *data, int len)
       char *hostname = NULL;
       int host_len = len - op_to_sizeof_fixedlen_msg(opcode);
       if (host_len) {
-        hostname = (char *) msg->moi;
+        hostname = (char *) msg->moi.byte;
       }
 
       Cache *call_cache = caches[c->frag_type];
@@ -1702,7 +1700,7 @@ CacheContinuation::replyOpEvent(int event, VConnection * cvc)
 
       if (have_all_data) {
         msg->token.clear();     // Tell sender no conn established
-
+        write_cluster_vc->type = VC_CLUSTER_WRITE;
       } else {
         msg->token = token;     // Tell sender conn established
         setupReadBufTunnel(cache_vc, write_cluster_vc);
@@ -1721,6 +1719,8 @@ CacheContinuation::replyOpEvent(int event, VConnection * cvc)
     // For cache reads, marshal the associated CacheHTTPInfo in the reply
     if (cache_read) {
       int res;
+
+      msg->is_ram_cache_hit = ((CacheVC *)cache_vc)->is_ram_cache_hit();
 
       if (!cache_vc_info.valid()) {
         (void) getObjectSize(cache_vc, request_opcode, &cache_vc_info);
@@ -1764,7 +1764,7 @@ CacheContinuation::replyOpEvent(int event, VConnection * cvc)
         write_cluster_vc->remote_closed = 1;    // avoid remote close msg
         write_cluster_vc->do_io(VIO::CLOSE);
       }
-      *((int32_t *) reply->moi) = (int32_t) ((uintptr_t) cvc & 0xffffffff);    // code describing failure
+      reply->moi.u32 = (int32_t) ((uintptr_t) cvc & 0xffffffff);    // code describing failure
     }
     // Make reply message the current message
     msg = reply;
@@ -1851,9 +1851,8 @@ CacheContinuation::setupReadBufTunnel(VConnection * cache_read_vc, VConnection *
 // Tunnnel exited event handler, used for readahead on open read.
 ///////////////////////////////////////////////////////////////////////
 int
-CacheContinuation::tunnelClosedEvent(int event, void *c)
+CacheContinuation::tunnelClosedEvent(int /* event ATS_UNUSED */, void *c)
 {
-  NOWARN_UNUSED(event);
   ink_assert(magicno == (int) MagicNo);
   // Note: We are called with the tunnel_mutex held.
   CacheContinuation *tc = (CacheContinuation *) c;
@@ -1937,9 +1936,8 @@ CacheContinuation::disposeOfDataBuffer(void *d)
 }
 
 int
-CacheContinuation::handleDisposeEvent(int event, CacheContinuation * cc)
+CacheContinuation::handleDisposeEvent(int /* event ATS_UNUSED */, CacheContinuation * cc)
 {
-  NOWARN_UNUSED(event);
   ink_assert(cc->magicno == (int) MagicNo);
   MUTEX_TRY_LOCK(lock, cc->tunnel_mutex, this_ethread());
   if (lock) {
@@ -1950,10 +1948,15 @@ CacheContinuation::handleDisposeEvent(int event, CacheContinuation * cc)
 
       cc->tunnel->vioSource->nbytes = getObjectSize(cc->tunnel->vioSource->vc_server, cc->request_opcode, 0);
       cc->tunnel->vioSource->reenable_re();
-      cc->tunnel->vioTarget->reenable();
 
-      // Tell tunnel event we are gone
-      cc->tunnel_cont->action.continuation = 0;
+      // Tunnel may be closed by vioSource->reenable_re(),
+      // we should check it again here:
+      if (!cc->tunnel_closed) {
+        cc->tunnel->vioTarget->reenable();
+
+        // Tell tunnel event we are gone
+        cc->tunnel_cont->action.continuation = 0;
+      }
     }
     cacheContAllocator_free(cc);
     return EVENT_DONE;
@@ -1977,7 +1980,7 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
   ////////////////////////////////////////////////////////
 
   // Copy reply message data
-  Ptr<IOBufferData> iob = new_IOBufferData(iobuffer_size_to_index(l));
+  Ptr<IOBufferData> iob = make_ptr(new_IOBufferData(iobuffer_size_to_index(l)));
   memcpy(iob->data(), (char *) d, l);
   char *data = iob->data();
   int flen, len = l;
@@ -2024,7 +2027,7 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
       {
         // Unmarshal the error code
         ink_assert(((len - flen) == sizeof(int32_t)));
-        op_result_error = *(int32_t *) msg->moi;
+        op_result_error = msg->moi.u32;
         if (mh->NeedByteSwap())
           ats_swap32((uint32_t *) & op_result_error);
         op_result_error = -op_result_error;
@@ -2057,6 +2060,11 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
         ci.destroy();
       return;
     }
+
+    // Update remote ram cache hit flag
+    if (msg->result == CACHE_EVENT_OPEN_READ)
+      c->read_cluster_vc->set_ram_cache_hit(msg->is_ram_cache_hit);
+
     // Try to send the message
 
     MUTEX_TRY_LOCK(lock, c->mutex, thread);
@@ -2469,9 +2477,8 @@ retry:
 //////////////////////////////////////////////////////////////////////////
 
 int
-CacheContinuation::probeLookupEvent(int event, void *d)
+CacheContinuation::probeLookupEvent(int event, void * /* d ATS_UNUSED */)
 {
-  NOWARN_UNUSED(d);
   ink_assert(magicno == (int) MagicNo);
   callback_user(event, 0);
   return EVENT_DONE;
@@ -2482,10 +2489,8 @@ CacheContinuation::probeLookupEvent(int event, void *d)
 //   Result of a local lookup for PROBE_LOCAL_CACHE_FIRST
 ///////////////////////////////////////////////////////////
 int
-CacheContinuation::lookupEvent(int event, void *d)
+CacheContinuation::lookupEvent(int /* event ATS_UNUSED */, void * /* d ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(d);
   ink_release_assert(!"Invalid call CacheContinuation::lookupEvent");
   return EVENT_DONE;
 
@@ -2594,7 +2599,7 @@ CacheContinuation::do_remote_lookup(Continuation * cont, CacheKey * key,
     data = (char *) msg;
     len = mlen;
     if (hostname && hostname_len) {
-      memcpy(msg->moi, hostname, hostname_len);
+      memcpy(msg->moi.byte, hostname, hostname_len);
     }
   } else {
     //////////////////////////////////////////////////////////////
@@ -2662,7 +2667,7 @@ cache_lookup_ClusterFunction(ClusterHandler *ch, void *data, int len)
 
   char *hostname;
   int hostname_len = len - op_to_sizeof_fixedlen_msg(CACHE_LOOKUP_OP);
-  hostname = (hostname_len ? (char *) msg->moi : 0);
+  hostname = (hostname_len ? (char *) msg->moi.byte : 0);
 
   // Note: Hostname data invalid after return from lookup
   Cache *call_cache = caches[msg->frag_type];
@@ -2675,9 +2680,8 @@ cache_lookup_ClusterFunction(ClusterHandler *ch, void *data, int len)
 //   It packages up the result and sends it back to the calling machine.
 /////////////////////////////////////////////////////////////////////////
 int
-CacheContinuation::replyLookupEvent(int event, void *d)
+CacheContinuation::replyLookupEvent(int event, void * /* d ATS_UNUSED */)
 {
-  NOWARN_UNUSED(d);
   ink_hrtime now;
   now = ink_get_hrtime();
   CLUSTER_SUM_DYN_STAT(CLUSTER_CACHE_CALLBACK_TIME_STAT, now - start_time);
@@ -2773,10 +2777,8 @@ CacheContinuation::insert_cache_callback_user(ClusterVConnection * vc, int res, 
 }
 
 int
-CacheContinuation::insertCallbackEvent(int event, Event * e)
+CacheContinuation::insertCallbackEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (GlobalOpenWriteVCcache->insert(&url_md5, (ClusterVConnection *)
                                      callback_data_2)) {
     // Inserted
@@ -2827,10 +2829,8 @@ CacheContinuation::defer_callback_result(int r, void *e)
 }
 
 int
-CacheContinuation::callbackResultEvent(int event, Event * e)
+CacheContinuation::callbackResultEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (!action.cancelled)
     action.continuation->handleEvent(result, callback_data);
   cacheContAllocator_free(this);
@@ -2905,10 +2905,8 @@ CacheContinuation::callback_failure(Action * a, int result, int err, CacheContin
 //  Invoke callback and deallocate continuation.
 ///////////////////////////////////////////////////////////////////////
 int
-CacheContinuation::callbackEvent(int event, Event * e)
+CacheContinuation::callbackEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(e);
   if (!action.cancelled)
     action.continuation->handleEvent(result, (void *)(intptr_t)result_error);
   cacheContAllocator_free(this);
@@ -3111,7 +3109,7 @@ CacheContinuation::tunnelEvent(int event, VConnection * vc)
       *reply = *msg;
 
       // Marshal response data into reply message
-      res = ci->marshal((char *) reply->moi, len);
+      res = ci->marshal((char *) reply->moi.byte, len);
       ink_assert(res > 0);
 
       // Make reply message the current message

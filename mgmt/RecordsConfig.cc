@@ -42,12 +42,6 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.product_name", RECD_STRING, "Traffic Server", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.cop_name", RECD_STRING, "Traffic Cop", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.manager_name", RECD_STRING, "Traffic Manager", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.server_name", RECD_STRING, "Traffic Server", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.proxy_name", RECD_STRING, "<proxy_name>", RECU_DYNAMIC, RR_REQUIRED, RECC_STR, ".+", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.bin_path", RECD_STRING, "bin", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
@@ -55,14 +49,8 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.proxy_binary", RECD_STRING, "traffic_server", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.manager_binary", RECD_STRING, "traffic_manager", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
-  ,                             // required for traffic_cop
-  {RECT_CONFIG, "proxy.config.cli_binary", RECD_STRING, "traffic_line", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
-  ,                             // required for mrtg
-  {RECT_CONFIG, "proxy.config.watch_script", RECD_STRING, "traffic_cop", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
-  ,                             // required for mrtg
-  {RECT_CONFIG, "proxy.config.proxy_binary_opts", RECD_STRING, "-M", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.start_script", RECD_STRING, "start", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.proxy_binary_opts", RECD_STRING, "-M", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.env_prep", RECD_STRING, "example_prep.sh", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -70,8 +58,6 @@ RecordElement RecordsConfig[] = {
   ,
   // Jira TS-21
   {RECT_CONFIG, "proxy.config.local_state_dir", RECD_STRING, TS_BUILD_RUNTIMEDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.temp_dir", RECD_STRING, "/tmp", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.alarm_email", RECD_STRING, TS_PKGSYSUSER, RECU_DYNAMIC, RR_NULL, RECC_STR, ".*", RECA_NULL}
   ,
@@ -98,12 +84,6 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.http_ui_enabled", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.cache.max_disk_errors", RECD_INT, "5", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# 0 = disable
-  {RECT_CONFIG, "proxy.config.history_info_enabled", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# 0 = disable
-  {RECT_CONFIG, "proxy.config.process_state_dump_mode", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.output.logfile", RECD_STRING, "traffic.out", RECU_RESTART_TC, RR_REQUIRED, RECC_NULL, NULL,
    RECA_NULL}
@@ -146,7 +126,7 @@ RecordElement RecordsConfig[] = {
   //# Support for SRV records
   //#
   //##############################################################################
-  {RECT_CONFIG, "proxy.config.srv_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.srv_enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
 
   //##############################################################################
@@ -154,13 +134,13 @@ RecordElement RecordsConfig[] = {
   //# Support for disabling check for Accept-* / Content-* header mismatch
   //#
   //##############################################################################
-  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_language_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_language_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_encoding_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_encoding_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_charset_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.ignore_accept_charset_mismatch", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
 
   //##############################################################################
@@ -234,6 +214,10 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.cluster.delta_thresh", RECD_INT, "30", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.cluster.peer_timeout", RECD_INT, "30", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.cluster.mc_send_interval", RECD_INT, "2", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.cluster.mc_poll_timeout", RECD_INT, "5", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.cluster.startup_timeout", RECD_INT, "10", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -367,22 +351,6 @@ RecordElement RecordsConfig[] = {
 
   //##############################################################################
   //#
-  //# userName Cache
-  //#
-  //##############################################################################
-  {RECT_CONFIG, "proxy.config.username.cache.enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.username.cache.filename", RECD_STRING, "username.db", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.username.cache.size", RECD_INT, "5000", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.username.cache.storage_path", RECD_STRING, TS_BUILD_CACHEDIR, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.username.cache.storage_size", RECD_INT, "15728640", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //##############################################################################
-  //#
   //# HTTP Engine
   //#
   //##############################################################################
@@ -393,9 +361,6 @@ RecordElement RecordsConfig[] = {
   //       # The main server_port is listed here, other server ports is a
   //       # string of ports, separated by whitespace.
   //       #
-  //       # The port attributes should be set to X(default behavior). For
-  //       # example ...server_other_ports STRING 1234:X 12345:X
-  //       #
   {RECT_CONFIG, "proxy.config.http.enabled", RECD_INT, "1", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.server_ports", RECD_STRING, NULL, RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -404,7 +369,7 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.http.server_port_attr", RECD_STRING, "X", RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.server_other_ports", RECD_STRING, NULL, RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.wait_for_cache", RECD_INT, "0", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.insert_request_via_str", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -445,7 +410,11 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.http.chunking.size", RECD_INT, "4096", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.session_auth_cache_keep_alive_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.flow_control.enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http.flow_control.high_water", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http.flow_control.low_water", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //       # Send http11 requests
   //       #
@@ -601,8 +570,6 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.http.insert_age_in_response", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.avoid_content_spoofing", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.http.enable_http_stats", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.normalize_ae_gzip", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
@@ -739,10 +706,10 @@ RecordElement RecordsConfig[] = {
   //# Customizable User Response Pages
   //#
   //##############################################################################
-  //# 0 - turn off customizable user response pages
   //# 1 - enable customizable user response pages in only the "default" directory
   //# 2 - enable language-targeted user response pages
-  {RECT_CONFIG, "proxy.config.body_factory.enable_customizations", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.body_factory.enable_customizations", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT,
+    "[1-2]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.body_factory.enable_logging", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
@@ -803,11 +770,7 @@ RecordElement RecordsConfig[] = {
   //##############################################################################
   {RECT_CONFIG, "proxy.config.net.connections_throttle", RECD_INT, "30000", RECU_RESTART_TS, RR_REQUIRED, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.net.throttle_enabled", RECD_INT, "1", RECU_NULL, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.net.listen_backlog", RECD_INT, "1024", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.net.accept_throttle", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   // This option takes different defaults depending on features / platform. TODO: This should use the
   // autoconf stuff probably ?
@@ -899,7 +862,7 @@ RecordElement RecordsConfig[] = {
   ,
   //##############################################################################
   //#
-  //# HIT_EVACUATE
+  //# Hit Evacuation
   //#
   //##############################################################################
   {RECT_CONFIG, "proxy.config.cache.hit_evacuate_percent", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -924,10 +887,6 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.cache.permit.pinning", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.cache.vary_on_user_agent", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //  # 0 - MD5 hash
-  //  # 1 - MMH hash
-  {RECT_CONFIG, "proxy.config.cache.url_hash_method", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //  # default the ram cache size to AUTO_SIZE (-1)
   //  # alternatively: 20971520 (20MB)
@@ -958,6 +917,12 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.cache.target_fragment_size", RECD_INT, "1048576", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  // # only be used when compiled with --enable-interim-cache
+  {RECT_LOCAL, "proxy.config.cache.interim.storage", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  // # only be used when compiled with --enable-interim-cache
+  {RECT_CONFIG, "proxy.config.cache.interim.migrate_threshold", RECD_INT, "2", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
   //  # The maximum size of a document that will be stored in the cache.
   //  # (0 disables the maximum document size check)
   {RECT_CONFIG, "proxy.config.cache.max_doc_size", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
@@ -976,17 +941,6 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.cache.mutex_retry_delay", RECD_INT, "2", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-
-  //##############################################################################
-  //  #
-  //  # UNIMPLEMENTED cache config
-  //  #
-  //
-  //# 0 - MD5 fingerprinting
-  //# 1 - MMH fingerprinting
-  //# 2 - No fingerprinting
-  //# UNIMPLEMENTED CONFIG proxy.config.cache.fingerprint_method INT 2
-  //# UNIMPLEMENTED: CONFIG proxy.config.cache.limits.http.quota FLOAT 1.0
 
   //##############################################################################
   //#
@@ -1077,7 +1031,7 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.hostdb.timed_round_robin", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //       # how often should the hostdb be synced (seconds)
-  {RECT_CONFIG, "proxy.config.cache.hostdb.sync_frequency", RECD_INT, "60", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.cache.hostdb.sync_frequency", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##########################################################################
@@ -1128,8 +1082,6 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.log.logging_enabled", RECD_INT, "3", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-4]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.log_buffer_size", RECD_INT, "9216", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.log.max_entries_per_buffer", RECD_INT, "200", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.max_secs_per_buffer", RECD_INT, "5", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1199,6 +1151,8 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.log.collation_max_send_buffers", RECD_INT, "16", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.log.collation_preproc_threads", RECD_INT, "1", RECU_DYNAMIC, RR_REQUIRED, RECC_INT, "[1-128]", RECA_NULL}
+  ,
   {RECT_CONFIG, "proxy.config.log.rolling_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-4]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.rolling_interval_sec", RECD_INT, "86400", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
@@ -1218,8 +1172,6 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, "proxy.config.log.ascii_buffer_size", RECD_INT, "36864", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.max_line_size", RECD_INT, "9216", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.log.overspill_report_count", RECD_INT, "500", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.xuid_logging_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1355,7 +1307,7 @@ RecordElement RecordsConfig[] = {
   //# WCCP
   //#
   //############################################################################
-  {RECT_CONFIG, "proxy.config.wccp.addr", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_LOCAL, "proxy.config.wccp.addr", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_STR, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.wccp.services", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_STR, NULL, RECA_NULL }
   ,
@@ -1388,6 +1340,9 @@ RecordElement RecordsConfig[] = {
   ,
   {RECT_CONFIG, "proxy.config.plugin.plugin_mgmt_dir", RECD_STRING, TS_BUILD_SYSCONFDIR "/plugins_mgmt", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.plugin.load_elevated", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
+  ,
+
 
   //##############################################################################
   //#
@@ -1721,6 +1676,61 @@ RecordElement RecordsConfig[] = {
   {RECT_NODE, "proxy.node.user_agents_total_documents_served", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
+  //
+  //#
+  //# Logging stats on NODE
+  //#
+  {RECT_NODE, "proxy.node.log.event_log_error_ok", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_error_skip", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_error_aggr", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_error_full", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_error_fail", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_access_ok", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_access_skip", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_access_aggr", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_access_full", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.event_log_access_fail", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.num_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.num_lost_before_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.num_received_from_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.num_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.num_lost_before_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_lost_before_preproc", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_lost_before_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_sent_to_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_received_from_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_received_from_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_lost_before_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_written_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_NODE, "proxy.node.log.bytes_lost_before_written_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+
   //#
   //# Add CLUSTER    Records Here
   //#
@@ -1831,6 +1841,61 @@ RecordElement RecordsConfig[] = {
   {RECT_CLUSTER, "proxy.cluster.current_server_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
+  //
+  //#
+  //# Logging stats on CLUSTER
+  //#
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_ok", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_skip", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_aggr", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_full", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_fail", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_ok", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_skip", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_aggr", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_full", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_fail", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.num_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.num_lost_before_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.num_received_from_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.num_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.num_lost_before_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_preproc", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_sent_to_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_sent_to_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_received_from_network", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_received_from_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_flush_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_written_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_written_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+
   //#
   //# SSL parent proxying info
   //#
@@ -1885,13 +1950,21 @@ RecordElement RecordsConfig[] = {
   //# Using for Reclaimable InkFreeList memory pool
   //#
   //############
-  {RECT_CONFIG, "proxy.config.allocator.debug_filter", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.allocator.max_overage", RECD_INT, "10", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.allocator.enable_reclaim", RECD_INT, "1", RECU_NULL, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.allocator.max_overage", RECD_INT, "3", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
   {RECT_CONFIG, "proxy.config.allocator.reclaim_factor", RECD_FLOAT, "0.3", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.allocator.debug_filter", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, "[0-3]", RECA_NULL}
+  ,
+
+  //############
+  //#
+  //# Per-thread freelist / allocator controls
+  //#
+  //############
+  {RECT_CONFIG, "proxy.config.allocator.thread_freelist_size", RECD_INT, "512", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //############
@@ -1899,9 +1972,7 @@ RecordElement RecordsConfig[] = {
   //# Eric's super cool remap processor
   //#
   //############
-  {RECT_CONFIG, "proxy.config.remap.use_remap_processor", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.remap.num_remap_threads", RECD_INT, "1", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.remap.num_remap_threads", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##############################################################################
@@ -1912,8 +1983,37 @@ RecordElement RecordsConfig[] = {
   {RECT_CONFIG, NULL, RECD_NULL, NULL, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
 };
 
+//-------------------------------------------------------------------------
+// RecordsConfigOverrideFromEnvironment
+//-------------------------------------------------------------------------
 
-#ifndef FOR_INSTALL
+// We process environment variable overrides when we parse the records.config configuration file, but the
+// operator might choose to override a variable that is not present in records.config so we have to post-
+// process the full set of configuration valriables as well.
+void
+RecordsConfigOverrideFromEnvironment()
+{
+  ink_mutex_acquire(&g_rec_config_lock);
+
+  for (const RecordElement * record = RecordsConfig; record->value_type != RECD_NULL; ++record) {
+    const char * value;
+    RecData data = {0};
+
+    if (record->type != RECT_CONFIG && record->type != RECT_LOCAL) {
+      continue;
+    }
+
+    if ((value = RecConfigOverrideFromEnvironment(record->name, NULL))) {
+      if (RecDataSetFromString(record->value_type, &data, value)) {
+          RecSetRecord(record->type, record->name, record->value_type, &data, NULL, false);
+          RecDataClear(record->value_type, &data);
+      }
+    }
+  }
+
+  ink_mutex_release(&g_rec_config_lock);
+}
+
 
 //-------------------------------------------------------------------------
 // LibRecordsConfigInit
@@ -1962,7 +2062,7 @@ LibRecordsConfigInit()
         break;
 
       default:
-        ink_debug_assert(true);
+        ink_assert(true);
         break;
 
       }                         // switch
@@ -1989,7 +2089,7 @@ LibRecordsConfigInit()
         break;
 
       default:
-        ink_debug_assert(true);
+        ink_assert(true);
         break;
       }                         // switch
     }
@@ -2007,4 +2107,3 @@ test_librecords()
   RecRegisterStatCounter(RECT_LOCAL, "proxy.local.librecords.testing.counter", (RecCounter) 99, RECP_NON_PERSISTENT);
 }
 
-#endif

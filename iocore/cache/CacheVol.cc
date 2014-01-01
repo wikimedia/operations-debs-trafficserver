@@ -32,7 +32,7 @@ Action *
 Cache::scan(Continuation * cont, char *hostname, int host_len, int KB_per_second)
 {
   Debug("cache_scan_truss", "inside scan");
-  if (!CACHE_READY(CACHE_FRAG_TYPE_HTTP)) {
+  if (!CacheProcessor::IsCacheReady(CACHE_FRAG_TYPE_HTTP)) {
     cont->handleEvent(CACHE_EVENT_SCAN_FAILED, 0);
     return ACTION_RESULT_DONE;
   }
@@ -53,11 +53,8 @@ Cache::scan(Continuation * cont, char *hostname, int host_len, int KB_per_second
 }
 
 int
-CacheVC::scanVol(int event, Event * e)
+CacheVC::scanVol(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
-
   Debug("cache_scan_truss", "inside %p:scanVol", this);
   if (_action.cancelled)
     return free_CacheVC(this);
@@ -151,11 +148,8 @@ static char *make_vol_map(Vol *d)
 }
 
 int
-CacheVC::scanObject(int event, Event * e)
+CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
-
   Debug("cache_scan_truss", "inside %p:scanObject", this);
 
   Doc *doc = NULL;
@@ -260,7 +254,7 @@ CacheVC::scanObject(int event, Event * e)
       if (!vector.get(i)->valid())
         goto Lskip;
       if (!hostinfo_copied) {
-        memccpy(hname, vector.get(i)->request_get()->url_get()->host_get(&hlen), 0, 500);
+        memccpy(hname, vector.get(i)->request_get()->host_get(&hlen), 0, 500);
         hname[hlen] = 0;
         Debug("cache_scan", "hostname = '%s', hostlen = %d", hname, hlen);
         hostinfo_copied = 1;
@@ -289,7 +283,7 @@ CacheVC::scanObject(int event, Event * e)
         i = 0;
         break;
       case CACHE_SCAN_RESULT_UPDATE:
-        ink_debug_assert(alternate_index >= 0);
+        ink_assert(alternate_index >= 0);
         vector.insert(&alternate, alternate_index);
         if (!vector.get(alternate_index)->valid())
           continue;
@@ -304,7 +298,7 @@ CacheVC::scanObject(int event, Event * e)
     }
     if (changed) {
       if (!vector.count()) {
-        ink_debug_assert(hostinfo_copied);
+        ink_assert(hostinfo_copied);
         SET_HANDLER(&CacheVC::scanRemoveDone);
         // force remove even if there is a writer
         cacheProcessor.remove(this, &doc->first_key, true, CACHE_FRAG_TYPE_HTTP, true, false, (char *) hname, hlen);
@@ -378,11 +372,8 @@ Lcancel:
 }
 
 int
-CacheVC::scanRemoveDone(int event, Event * e)
+CacheVC::scanRemoveDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
-
   Debug("cache_scan_truss", "inside %p:scanRemoveDone", this);
   Debug("cache_scan", "remove done.");
 #ifdef HTTP_CACHE
@@ -393,10 +384,8 @@ CacheVC::scanRemoveDone(int event, Event * e)
 }
 
 int
-CacheVC::scanOpenWrite(int event, Event * e)
+CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
   Debug("cache_scan_truss", "inside %p:scanOpenWrite", this);
   cancel_trigger();
   // get volume lock
@@ -428,7 +417,7 @@ CacheVC::scanOpenWrite(int event, Event * e)
       return EVENT_CONT;
     }
 
-    ink_debug_assert(this->od);
+    ink_assert(this->od);
     // put all the alternates in the open directory vector
     int alt_count = vector.count();
     for (int i = 0; i < alt_count; i++) {
@@ -482,10 +471,8 @@ CacheVC::scanOpenWrite(int event, Event * e)
 }
 
 int
-CacheVC::scanUpdateDone(int event, Event * e)
+CacheVC::scanUpdateDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
-  NOWARN_UNUSED(e);
-  NOWARN_UNUSED(event);
   Debug("cache_scan_truss", "inside %p:scanUpdateDone", this);
   cancel_trigger();
   // get volume lock
@@ -496,8 +483,8 @@ CacheVC::scanUpdateDone(int event, Event * e)
     if (od->move_resident_alt) {
       dir_insert(&od->single_doc_key, vol, &od->single_doc_dir);
     }
-    ink_debug_assert(vol->open_read(&first_key));
-    ink_debug_assert(this->od);
+    ink_assert(vol->open_read(&first_key));
+    ink_assert(this->od);
     vol->close_write(this);
     SET_HANDLER(&CacheVC::scanObject);
     return handleEvent(EVENT_IMMEDIATE, 0);

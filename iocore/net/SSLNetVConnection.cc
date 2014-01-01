@@ -75,13 +75,12 @@ do_SSL_write(SSL * ssl, void *buf, int size)
 
 
 static int
-ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, int64_t &ret)
+ssl_read_from_net(UnixNetVConnection * vc, EThread * lthread, int64_t &ret)
 {
-  NOWARN_UNUSED(nh);
   NetState *s = &vc->read;
   SSLNetVConnection *sslvc = (SSLNetVConnection *) vc;
   MIOBufferAccessor & buf = s->vio.buffer;
-  IOBufferBlock *b = buf.mbuf->_writer;
+  IOBufferBlock *b = buf.writer()->first_write_block();
   int event = SSL_READ_ERROR_NONE;
   int64_t bytes_read;
   int64_t block_write_avail;
@@ -107,12 +106,12 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
         SSLDebugBufferPrint("ssl_buff", b->end() + offset, rres, "SSL Read");
 #endif
 
-        ink_debug_assert(rres);
+        ink_assert(rres);
 
         bytes_read += rres;
         offset += rres;
         block_write_avail -= rres;
-        ink_debug_assert(block_write_avail >= 0);
+        ink_assert(block_write_avail >= 0);
 
         continue;
 
@@ -133,7 +132,7 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
           // not EOF
           event = SSL_READ_ERROR;
           ret = errno;
-          Error("[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_SYSCALL, underlying IO error: %s", strerror(errno));
+          SSLError("[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_SYSCALL, underlying IO error: %s", strerror(errno));
         } else {
           // then EOF observed, treat it as EOS
           event = SSL_READ_EOS;
@@ -145,14 +144,11 @@ ssl_read_from_net(NetHandler * nh, UnixNetVConnection * vc, EThread * lthread, i
         Debug("ssl", "[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_ZERO_RETURN");
         break;
       case SSL_ERROR_SSL:
-      default: {
-        char err_string[4096];
-        ERR_error_string(ERR_get_error(), err_string);
+      default:
         event = SSL_READ_ERROR;
         ret = errno;
-        Error("[SSL_NetVConnection::ssl_read_from_net] SSL_ERROR_SSL %s", err_string);
+        SSLError("[SSL_NetVConnection::ssl_read_from_net]");
         break;
-      }
       }                         // switch
       break;
     }                           // while( block_write_avail > 0 )
@@ -193,6 +189,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
   int64_t bytes = 0;
   NetState *s = &this->read;
   MIOBufferAccessor &buf = s->vio.buffer;
+  int64_t ntodo = s->vio.ntodo();
 
   MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, lthread, s->vio._cont);
   if (!lock) {
@@ -207,7 +204,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     return;
   }
 
-  ink_debug_assert(buf.writer());
+  ink_assert(buf.writer());
 
   // This function will always return true unless
   // vc is an SSLNetVConnection.
@@ -232,21 +229,24 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
       nh->write_ready_list.remove(this);
       writeReschedule(nh);
     } else if (ret == EVENT_DONE) {
-      read.triggered = 1;
-      if (read.enabled)
-        nh->read_ready_list.in_or_enqueue(this);
+      // If this was driven by a zero length read, signal complete when
+      // the handshake is complete. Otherwise set up for continuing read
+      // operations.
+      if (ntodo <= 0) {
+        readSignalDone(VC_EVENT_READ_COMPLETE, nh);
+      } else {
+        read.triggered = 1;
+        if (read.enabled)
+          nh->read_ready_list.in_or_enqueue(this);
+      }
     } else
       readReschedule(nh);
     return;
   }
 
   // If there is nothing to do, disable connection
-  int64_t ntodo = s->vio.ntodo();
   if (ntodo <= 0) {
     read_disable(nh, this);
-    // Don't return early even if there's nothing. We still need
-    // to propagate events for zero-length reads.
-    readSignalDone(VC_EVENT_READ_COMPLETE, nh);
     return;
   }
 
@@ -254,11 +254,11 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     if (!buf.writer()->write_avail()) {
       buf.writer()->add_block();
     }
-    ret = ssl_read_from_net(nh, this, lthread, r);
+    ret = ssl_read_from_net(this, lthread, r);
     if (ret == SSL_READ_READY || ret == SSL_READ_ERROR_NONE) {
       bytes += r;
     }
-    ink_debug_assert(bytes >= 0);
+    ink_assert(bytes >= 0);
   } while ((ret == SSL_READ_READY && bytes == 0) || ret == SSL_READ_ERROR_NONE);
 
   if (bytes > 0) {
@@ -286,7 +286,7 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
         writeReschedule(nh);
       return;
     }
-    // reset the tigger and remove from the ready queue
+    // reset the trigger and remove from the ready queue
     // we will need to be retriggered to read from this socket again
     read.triggered = 0;
     nh->read_ready_list.remove(this);
@@ -326,13 +326,15 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
 
 
 int64_t
-SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf)
+SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf, int &needs)
 {
   ProxyMutex *mutex = this_ethread()->mutex;
   int64_t r = 0;
   int64_t l = 0;
-  int64_t offset = buf.entry->start_offset;
-  IOBufferBlock *b = buf.entry->block;
+
+  // XXX Rather than dealing with the block directly, we should use the IOBufferReader API.
+  int64_t offset = buf.reader()->start_offset;
+  IOBufferBlock *b = buf.reader()->block;
 
   do {
     // check if we have done this block
@@ -367,6 +369,8 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
   if (r > 0) {
     if (total_wrote != wattempted) {
       Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, wrote some bytes, but not all requested.");
+      // I'm not sure how this could happen. We should have tried and hit an EAGAIN.
+      needs |= EVENTIO_WRITE;
       return (r);
     } else {
       Debug("ssl", "SSLNetVConnection::loadBufferAndCallWrite, write successful.");
@@ -379,9 +383,14 @@ SSLNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, i
     case SSL_ERROR_NONE:
       Debug("ssl", "SSL_write-SSL_ERROR_NONE");
       break;
-    case SSL_ERROR_WANT_WRITE:
     case SSL_ERROR_WANT_READ:
+      needs |= EVENTIO_READ;
+      r = -EAGAIN;
+      Debug("ssl", "SSL_write-SSL_ERROR_WANT_READ");
+      break;
+    case SSL_ERROR_WANT_WRITE:
     case SSL_ERROR_WANT_X509_LOOKUP:
+      needs |= EVENTIO_WRITE;
       r = -EAGAIN;
       Debug("ssl", "SSL_write-SSL_ERROR_WANT_WRITE");
       break;
@@ -481,14 +490,22 @@ int
 SSLNetVConnection::sslServerHandShakeEvent(int &err)
 {
   int ret;
+  int ssl_error;
 
   ret = SSL_accept(ssl);
-  switch (SSL_get_error(ssl, ret)) {
+
+  ssl_error = SSL_get_error(ssl, ret);
+  if (ssl_error != SSL_ERROR_NONE) {
+    err = errno;
+    SSLDebug("SSL handshake error: %s (%d), errno=%d", SSLErrorName(ssl_error), ssl_error, err);
+  }
+
+  switch (ssl_error) {
   case SSL_ERROR_NONE:
-    Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, handshake completed successfully");
+    Debug("ssl", "handshake completed successfully");
     client_cert = SSL_get_peer_certificate(ssl);
     if (client_cert != NULL) {
-/*		str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
+/*	str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
 		Free (str);
 
 		str = X509_NAME_oneline (X509_get_issuer_name  (client_cert), 0, 0);
@@ -522,9 +539,6 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
 
     return EVENT_DONE;
 
-  case SSL_ERROR_WANT_ACCEPT:
-    break;
-
   case SSL_ERROR_WANT_CONNECT:
     return SSL_HANDSHAKE_WANT_CONNECT;
 
@@ -533,30 +547,18 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
 
   case SSL_ERROR_WANT_READ:
     return SSL_HANDSHAKE_WANT_READ;
+
+  case SSL_ERROR_WANT_ACCEPT:
   case SSL_ERROR_WANT_X509_LOOKUP:
-    Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, would block on read or write");
-    break;
+    return EVENT_CONT;
 
   case SSL_ERROR_ZERO_RETURN:
-    Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, EOS");
-    return EVENT_ERROR;
-    break;
-
   case SSL_ERROR_SYSCALL:
-    err = errno;
-    Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, syscall");
-    return EVENT_ERROR;
-    break;
-
   case SSL_ERROR_SSL:
   default:
-    err = errno;
-    Debug("ssl", "SSLNetVConnection::sslServerHandShakeEvent, error");
-    SSLError("SSL_ServerHandShake");
     return EVENT_ERROR;
-    break;
   }
-  return EVENT_CONT;
+
 }
 
 
@@ -634,8 +636,8 @@ SSLNetVConnection::registerNextProtocolSet(const SSLNextProtocolSet * s)
 }
 
 int
-SSLNetVConnection::advertise_next_protocol(
-    SSL *ssl, const unsigned char **out, unsigned int *outlen, void *arg)
+SSLNetVConnection::advertise_next_protocol(SSL *ssl, const unsigned char **out, unsigned int *outlen,
+                                           void * /*arg ATS_UNUSED */)
 {
   SSLNetVConnection * netvc = (SSLNetVConnection *)SSL_get_app_data(ssl);
 

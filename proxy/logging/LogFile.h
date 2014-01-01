@@ -30,7 +30,6 @@
 #include <stdio.h>
 
 #include "libts.h"
-#include "LogFormatType.h"
 #include "LogBufferSink.h"
 
 class LogSock;
@@ -76,21 +75,22 @@ private:
   void _build_name(const char *filename);
 
 public:
-    MetaInfo(char *filename):_flags(0)
+ MetaInfo(const char *filename)
+   : _flags(0)
   {
     _build_name(filename);
     _read_from_file();
   }
 
-  MetaInfo(char *filename, time_t creation, uint64_t signature):_creation_time(creation),
-    _log_object_signature(signature), _flags(VALID_CREATION_TIME | VALID_SIGNATURE)
+  MetaInfo(char *filename, time_t creation, uint64_t signature)
+    : _creation_time(creation), _log_object_signature(signature), _flags(VALID_CREATION_TIME | VALID_SIGNATURE)
   {
-
     _build_name(filename);
     _write_to_file();
   }
 
-  ~MetaInfo() {
+  ~MetaInfo()
+  {
     ats_free(_filename);
   }
 
@@ -126,12 +126,7 @@ class LogFile:public LogBufferSink
 {
 public:
   LogFile(const char *name, const char *header, LogFileFormat format, uint64_t signature,
-#ifndef TS_MICRO
-          size_t ascii_buffer_size = 4 * 9216, size_t max_line_size = 9216,
-#else
-          size_t ascii_buffer_size = 1024, size_t max_line_size = 1024,
-#endif
-          size_t overspill_report_count = 1000);
+          size_t ascii_buffer_size = 4 * 9216, size_t max_line_size = 9216);
   LogFile(const LogFile &);
   ~LogFile();
 
@@ -145,67 +140,55 @@ public:
     LOG_FILE_FILESYSTEM_CHECKS_FAILED
   };
 
-  int write(LogBuffer * lb);
+  int preproc_and_try_delete(LogBuffer * lb);
+
   int roll(long interval_start, long interval_end);
 
-  char *get_name() const { return m_name; }
+  const char *get_name() const { return m_name; }
 
   void change_header(const char *header);
-  void change_name(char *new_name);
+  void change_name(const char *new_name);
 
   LogFileFormat get_format() const { return m_file_format; }
   const char *get_format_name() const {
-    return (m_file_format == BINARY_LOG ? "binary" : (m_file_format == ASCII_PIPE ? "ascii_pipe" : "ascii"));
+    return (m_file_format == LOG_FILE_BINARY ? "binary" : (m_file_format == LOG_FILE_PIPE ? "ascii_pipe" : "ascii"));
   }
 
-  static int write_ascii_logbuffer(LogBufferHeader * buffer_header, int fd, const char *path, char *alt_format = NULL);
-  int write_ascii_logbuffer3(LogBufferHeader * buffer_header, char *alt_format = NULL);
+  static int write_ascii_logbuffer(LogBufferHeader * buffer_header, int fd, const char *path, const char *alt_format = NULL);
+  int write_ascii_logbuffer3(LogBufferHeader * buffer_header, const char *alt_format = NULL);
   static bool rolled_logfile(char *file);
   static bool exists(const char *pathname);
 
   void display(FILE * fd = stdout);
   int open_file();
 
-  off_t get_size_bytes() const { return m_file_format != ASCII_PIPE? m_bytes_written : 0; };
+  off_t get_size_bytes() const { return m_file_format != LOG_FILE_PIPE? m_bytes_written : 0; };
   int do_filesystem_checks() { return 0; }; // TODO: this need to be tidy up when to redo the file checking
 
-private:
-  bool is_open()
-  {
-    return (m_fd >= 0);
-  };
+public:
+  bool is_open() { return (m_fd >= 0); }
   void close_file();
 
   void check_fd();
   static int writeln(char *data, int len, int fd, const char *path);
   void read_metadata();
 
-private:
+public:
   LogFileFormat m_file_format;
+private:
   char *m_name;
+public:
   char *m_header;
   uint64_t m_signature;           // signature of log object stored
   MetaInfo *m_meta_info;
 
-  char *m_ascii_buffer;         // buffer for ascii output
   size_t m_ascii_buffer_size;   // size of ascii buffer
   size_t m_max_line_size;       // size of longest log line (record)
-  // (including newline)
-  char *m_overspill_buffer;     // buffer for data that did not fit
-  // the pipe buffer
-  size_t m_overspill_bytes;     // bytes in the overspill buffer
-  size_t m_overspill_written;   // bytes in overspill that have been
-  // transferred to pipe buffer
-  size_t m_attempts_to_write_overspill; // times transfer from overspill to
-  // pipe buffer has been attempted
-  size_t m_overspill_report_count;      // number of attempts at which
-  // overspill report is written to
-  // diags log
 
   int m_fd;
   long m_start_time;
   long m_end_time;
-  uint64_t m_bytes_written;
+  volatile uint64_t m_bytes_written;
   off_t m_size_bytes;           // current size of file in bytes
 
 public:

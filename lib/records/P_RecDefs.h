@@ -24,8 +24,6 @@
 #ifndef _P_REC_DEFS_H_
 #define _P_REC_DEFS_H_
 
-#include "ink_bool.h"
-
 #include "I_RecDefs.h"
 
 #define REC_CONFIG_FILE                "records.config"
@@ -56,6 +54,7 @@
 
 #define REC_DISK_SYNC_REQUIRED          1
 #define REC_PEER_SYNC_REQUIRED          (REC_DISK_SYNC_REQUIRED << 1)
+#define REC_INC_CONFIG_VERSION          (REC_PEER_SYNC_REQUIRED << 1)
 #define REC_SYNC_REQUIRED               (REC_DISK_SYNC_REQUIRED | REC_PEER_SYNC_REQUIRED)
 
 enum RecEntryT

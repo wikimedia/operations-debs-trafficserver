@@ -27,11 +27,11 @@
 
 #include "lulu.h"
 
-#if MAXMIND_GEOIP
+#if HAVE_GEOIP_H
 #include <GeoIP.h>
-extern GeoIP* gGI;
 #endif
 
+extern GeoIP* gGI;
 
 // See http://www.iso.org/iso/english_country_names_and_code_elements
 // Maxmind allocates 253 country codes,even though there are only 248 according to the above
@@ -53,7 +53,7 @@ public:
   virtual void read_regex(const char* fn) = 0;
   virtual void process_args(int argc, char* argv[]) = 0;
   virtual bool eval(TSRemapRequestInfo *rri, TSHttpTxn txnp) const = 0;
-  virtual void add_token(const std::string& str) { ++_added_tokens; }
+  virtual void add_token(const std::string& /* str */) { ++_added_tokens; }
 
   void set_allow(bool allow) { _allow = allow; }
   const char* get_html() const { return _html.c_str(); }

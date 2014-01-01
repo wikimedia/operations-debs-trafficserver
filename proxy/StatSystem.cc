@@ -167,12 +167,12 @@ static int
 persistent_stat(int i)
 {
 #ifndef DEFAULT_PERSISTENT
-  for (int j = 0; j < (int) SIZE(persistent_stats); j++)
+  for (unsigned j = 0; j < countof(persistent_stats); j++)
     if (persistent_stats[j] == i)
       return 1;
   return 0;
 #else
-  for (int j = 0; j < (int) SIZE(non_persistent_stats); j++)
+  for (unsigned j = 0; j < countof(non_persistent_stats); j++)
     if (non_persistent_stats[j] == i)
       return 0;
   return 1;
@@ -334,9 +334,8 @@ Lerror:
 
 struct SnapStatsContinuation: public Continuation
 {
-  int mainEvent(int event, Event * e)
+  int mainEvent(int /* event ATS_UNUSED */, Event *e ATS_UNUSED)
   {
-    NOWARN_UNUSED(event);
     write_stats_snap();
     e->schedule_every(HRTIME_SECONDS(snap_stats_every));
     return EVENT_CONT;
@@ -370,9 +369,8 @@ typedef int (SnapCont::*SnapContHandler) (int, void *);
 
 struct SnapCont: public Continuation
 {
-  int mainEvent(int event, Event * e)
+  int mainEvent(int /* event ATS_UNUSED */, Event * e)
   {
-    NOWARN_UNUSED(event);
     take_rusage_snap();
     e->schedule_every(SNAP_USAGE_PERIOD);
     return EVENT_CONT;
@@ -575,8 +573,7 @@ dyn_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
-  //*(ink_statval_t *)res = count;
+  (void)sum;
   ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
@@ -586,8 +583,7 @@ dyn_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  //*(ink_statval_t *)res = sum;
+  (void)count;
   ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
@@ -610,8 +606,8 @@ dyn_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_DYN_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  *(float *) res = *(double *) &sum;
+  (void)count;
+  *(float *) res = (double) sum;
   return res;
 }
 
@@ -623,7 +619,7 @@ dyn_stats_favg_cb(void *data, void *res)
   if (count == 0) {
     *(float *) res = 0.0;
   } else {
-    *(float *) res = *(double *) &sum / *(double *) &count;
+    *(float *) res = (double) sum / (double) count;
   }
   return res;
 }
@@ -700,8 +696,7 @@ http_trans_stats_count_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(sum);
-  //*(ink_statval_t *)res = count;
+  (void)sum;
   ink_atomic_swap((ink_statval_t *) res, count);
   return res;
 }
@@ -711,8 +706,7 @@ http_trans_stats_sum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  //*(ink_statval_t *)res = sum;
+  (void)count;
   ink_atomic_swap((ink_statval_t *) res, sum);
   return res;
 }
@@ -735,8 +729,8 @@ http_trans_stats_fsum_cb(void *data, void *res)
 {
   ink_statval_t count, sum;
   READ_HTTP_TRANS_STAT((long) data, count, sum);
-  NOWARN_UNUSED(count);
-  *(float *) res = *(double *) &sum;
+  (void)count;
+  *(float *) res = (double) sum;
   return res;
 }
 
@@ -748,7 +742,7 @@ http_trans_stats_favg_cb(void *data, void *res)
   if (count == 0) {
     *(float *) res = 0.0;
   } else {
-    *(float *) res = *(double *) &sum / *(double *) &count;
+    *(float *) res = (double) sum / (double) count;
   }
   return res;
 }

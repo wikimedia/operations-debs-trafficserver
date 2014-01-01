@@ -33,6 +33,12 @@
 
 #include <inttypes.h>
 
+#include "ink_defs.h"
+
+/* global holding the path used for access to this JSON data */
+static const char* url_path = "_stats";
+static int url_path_len;
+
 typedef struct stats_state_t
 {
   TSVConn net_vc;
@@ -122,7 +128,7 @@ stats_process_read(TSCont contp, TSEvent event, stats_state * my_state)
 } while(0)
 
 static void
-json_out_stat(TSRecordType rec_type, void *edata, int registered,
+json_out_stat(TSRecordType rec_type ATS_UNUSED, void *edata, int registered ATS_UNUSED,
               const char *name, TSRecordDataType data_type,
               TSRecordData *datum) {
   stats_state *my_state = edata;
@@ -193,7 +199,7 @@ stats_dostuff(TSCont contp, TSEvent event, void *edata)
 }
 
 static int
-stats_origin(TSCont contp, TSEvent event, void *edata)
+stats_origin(TSCont contp ATS_UNUSED, TSEvent event ATS_UNUSED, void *edata)
 {
   TSCont icontp;
   stats_state *my_state;
@@ -214,7 +220,7 @@ stats_origin(TSCont contp, TSEvent event, void *edata)
   const char* path = TSUrlPathGet(reqp,url_loc,&path_len);
   TSDebug("istats","Path: %.*s",path_len,path);
   
-  if (! (path_len != 0 && path_len == 6 && !memcmp(path,"_stats",6)) ) {
+  if (! (path_len != 0 && path_len == url_path_len  && !memcmp(path,url_path,url_path_len)) ) {
     goto notforme;
   }
   
@@ -243,31 +249,6 @@ stats_origin(TSCont contp, TSEvent event, void *edata)
   return 0;
 }
 
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-  }
-
-  return result;
-}
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -275,15 +256,15 @@ TSPluginInit(int argc, const char *argv[])
 
   info.plugin_name = "stats";
   info.vendor_name = "Apache Software Foundation";
-  info.support_email = "jesus@omniti.com";
+  info.support_email = "dev@trafficserver.apache.org";
 
   if (TSPluginRegister(TS_SDK_VERSION_2_0, &info) != TS_SUCCESS)
     TSError("Plugin registration failed. \n");
 
-  if (!check_ts_version()) {
-    TSError("Plugin requires Traffic Server 2.0 or later\n");
-    return;
+  if (argc > 1) {
+    url_path = TSstrdup(argv[1] + ('/' == argv[1][0] ? 1 : 0)); /* Skip leading / */
   }
+  url_path_len = strlen(url_path);
 
   /* Create a continuation with a mutex as there is a shared global structure
      containing the headers to add */

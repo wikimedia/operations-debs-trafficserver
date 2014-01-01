@@ -49,12 +49,10 @@ extern int http_accept_file_descriptor;
 extern int command_flag;
 extern int auto_clear_hostdb_flag;
 extern int auto_clear_cache_flag;
-extern int lock_process;
 extern int fds_limit;
 extern int debug_level;
 extern char cluster_host[MAXDNAME + 1];
 extern int cluster_port_number;
-extern char proxy_name[MAXDNAME + 1];
 
 extern int remote_management_flag;
 extern char management_directory[PATH_NAME_MAX + 1];
@@ -82,8 +80,6 @@ maintainance_mode()
 {
   return (command_flag ? true : false);
 }
-
-void syslog_thr_init();
 
 extern const Version version;
 extern AppVersionInfo appVersionInfo;

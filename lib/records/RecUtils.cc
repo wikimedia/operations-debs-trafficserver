@@ -26,9 +26,6 @@
 #include "P_RecCore.h"
 #include "P_RecTree.h"
 
-// diags defined in RecCore.cc
-extern Diags *g_diags;
-
 //-------------------------------------------------------------------------
 // RecAlloc
 //-------------------------------------------------------------------------
@@ -76,7 +73,7 @@ RecDataSetMax(RecDataT type, RecData * data)
 #endif
   case RECD_INT:
   case RECD_COUNTER:
-    data->rec_int = 0x7fffffffffffffff;
+    data->rec_int = INT64_MAX; // Assumes rec_int is int64_t, which it currently is
     break;
 #if defined(STAT_PROCESSOR)
   case RECD_CONST:
@@ -98,7 +95,7 @@ RecDataSetMin(RecDataT type, RecData * data)
 #endif
   case RECD_INT:
   case RECD_COUNTER:
-    data->rec_int = 0x8000000000000000;
+    data->rec_int = INT64_MIN; // Assumes rec_int is int64_t, which it currently is
     break;
 #if defined(STAT_PROCESSOR)
   case RECD_CONST:
@@ -129,9 +126,17 @@ RecDataSet(RecDataT data_type, RecData * data_dst, RecData * data_src)
       }
     } else if (((data_dst->rec_string) && (strcmp(data_dst->rec_string, data_src->rec_string) != 0)) ||
                ((data_dst->rec_string == NULL) && (data_src->rec_string != NULL))) {
-      if (data_dst->rec_string) ats_free(data_dst->rec_string);
+      if (data_dst->rec_string)
+        ats_free(data_dst->rec_string);
+
       data_dst->rec_string = ats_strdup(data_src->rec_string);
       rec_set = true;
+      // Chop trailing spaces
+      char *end = data_dst->rec_string + strlen(data_dst->rec_string) - 1;
+
+      while (end >= data_dst->rec_string && isspace(*end))
+        end--;
+      *(end + 1) = '\0';
     }
     break;
   case RECD_INT:
@@ -330,7 +335,7 @@ RecDataSetFromInk64(RecDataT data_type, RecData * data_dst, int64_t data_int64)
     data_dst->rec_counter = data_int64;
     break;
   default:
-    ink_debug_assert(!"Unexpected RecD type");
+    ink_assert(!"Unexpected RecD type");
     return false;
   }
 
@@ -370,7 +375,7 @@ RecDataSetFromFloat(RecDataT data_type, RecData * data_dst, float data_float)
     data_dst->rec_counter = (RecCounter) data_float;
     break;
   default:
-    ink_debug_assert(!"Unexpected RecD type");
+    ink_assert(!"Unexpected RecD type");
     return false;
   }
 
@@ -382,7 +387,7 @@ RecDataSetFromFloat(RecDataT data_type, RecData * data_dst, float data_float)
 // RecDataSetFromString
 //-------------------------------------------------------------------------
 bool
-RecDataSetFromString(RecDataT data_type, RecData * data_dst, char *data_string)
+RecDataSetFromString(RecDataT data_type, RecData * data_dst, const char *data_string)
 {
   bool rec_set;
   RecData data_src;
@@ -401,16 +406,18 @@ RecDataSetFromString(RecDataT data_type, RecData * data_dst, char *data_string)
     data_src.rec_float = atof(data_string);
     break;
   case RECD_STRING:
-    if (strcmp((data_string), "NULL") == 0)
+    if (strcmp((data_string), "NULL") == 0) {
       data_src.rec_string = NULL;
-    else
-      data_src.rec_string = data_string;
+    } else {
+      // It's OK to cast away the const here, because RecDataSet will copy the string.
+      data_src.rec_string = (char *)data_string;
+    }
     break;
   case RECD_COUNTER:
     data_src.rec_counter = ink_atoi64(data_string);
     break;
   default:
-    ink_debug_assert(!"Unexpected RecD type");
+    ink_assert(!"Unexpected RecD type");
     return false;
   }
   rec_set = RecDataSet(data_type, data_dst, &data_src);
@@ -418,44 +425,3 @@ RecDataSetFromString(RecDataT data_type, RecData * data_dst, char *data_string)
   return rec_set;
 }
 
-
-//-------------------------------------------------------------------------
-// RecLog
-//-------------------------------------------------------------------------
-void
-RecLog(DiagsLevel dl, const char *format_string, ...)
-{
-  va_list ap;
-
-  va_start(ap, format_string);
-  if (g_diags) {
-    g_diags->log_va(NULL, dl, NULL, format_string, ap);
-  }
-  va_end(ap);
-}
-
-
-//-------------------------------------------------------------------------
-// RecDebug
-//-------------------------------------------------------------------------
-void
-RecDebug(DiagsLevel dl, const char *format_string, ...)
-{
-  va_list ap;
-
-  va_start(ap, format_string);
-  if (g_diags) {
-    g_diags->log_va("rec", dl, NULL, format_string, ap);
-  }
-  va_end(ap);
-}
-
-
-//-------------------------------------------------------------------------
-// RecDebugOff
-//-------------------------------------------------------------------------
-void
-RecDebugOff()
-{
-  g_diags = NULL;
-}

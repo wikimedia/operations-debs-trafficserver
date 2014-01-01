@@ -22,12 +22,10 @@
  */
 
 #include "ink_platform.h"
-#include "ink_unused.h"
 #include "Main.h"
 #include "MgmtUtils.h"
 #include "ConfigParse.h"
 #include "Diags.h"
-static char INK_UNUSED rcsId__AddConfigFilesHere_cc[] = "@(#)  built on " __DATE__ " " __TIME__;       /* MAGIC_EDITING_TAG */
 
 /****************************************************************************
  *
@@ -37,7 +35,7 @@ static char INK_UNUSED rcsId__AddConfigFilesHere_cc[] = "@(#)  built on " __DATE
  ****************************************************************************/
 
 void
-testcall(char *foo)
+testcall(char *foo, bool /* incVersion */)
 {
   Debug("lm", "Received Callback that %s has changed\n", foo);
 }

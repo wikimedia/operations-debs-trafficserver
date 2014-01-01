@@ -35,7 +35,7 @@
 #define DEFAULT_LOG_DIRECTORY             "var/log/trafficserver"
 
 void MgmtShutdown(int status);
-void fileUpdated(char *fname);
+void fileUpdated(char *fname, bool incVersion);
 void runAsUser(char *userName);
 void extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *fds_throttle);
 void printUsage(void);
@@ -46,11 +46,6 @@ extern AppVersionInfo appVersionInfo;
 
 // Global strings
 extern char mgmt_path[];
-extern const char *recs_conf;
-//extern char *lm_conf;
-
-// Root of Traffic Server
-extern const char *ts_base_dir;
 
 // Global variable to replace ifdef MGMT_LAUNCH_PROXY so that
 // we can turn on/off proxy launch at runtime to facilitate

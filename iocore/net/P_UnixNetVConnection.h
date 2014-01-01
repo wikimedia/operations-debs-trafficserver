@@ -108,9 +108,9 @@ public:
   virtual Action *send_OOB(Continuation *cont, char *buf, int len);
   virtual void cancel_OOB();
 
-  virtual void setSSLHandshakeWantsRead(bool flag) { NOWARN_UNUSED(flag); return; }
+  virtual void setSSLHandshakeWantsRead(bool /* flag */) { return; }
   virtual bool getSSLHandshakeWantsRead() { return false; }
-  virtual void setSSLHandshakeWantsWrite(bool flag) { NOWARN_UNUSED(flag); return; }
+  virtual void setSSLHandshakeWantsWrite(bool /* flag */) { return; }
 
   virtual bool getSSLHandshakeWantsWrite() { return false; }
 
@@ -182,7 +182,7 @@ public:
     (void) state;
   }
   virtual void net_read_io(NetHandler *nh, EThread *lthread);
-  virtual int64_t load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf);
+  virtual int64_t load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_wrote, MIOBufferAccessor & buf, int &needs);
   void readDisable(NetHandler *nh);
   void readSignalError(NetHandler *nh, int err);
   int readSignalDone(int event, NetHandler *nh);
@@ -291,13 +291,13 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
     inactivity_timeout->cancel_action(this);
   if (inactivity_timeout_in) {
     if (read.enabled) {
-      ink_debug_assert(read.vio.mutex->thread_holding == this_ethread() && thread);
+      ink_assert(read.vio.mutex->thread_holding == this_ethread() && thread);
       if (read.vio.mutex->thread_holding == thread)
         inactivity_timeout = thread->schedule_in_local(this, inactivity_timeout_in);
       else
         inactivity_timeout = thread->schedule_in(this, inactivity_timeout_in);
     } else if (write.enabled) {
-      ink_debug_assert(write.vio.mutex->thread_holding == this_ethread() && thread);
+      ink_assert(write.vio.mutex->thread_holding == this_ethread() && thread);
       if (write.vio.mutex->thread_holding == thread)
         inactivity_timeout = thread->schedule_in_local(this, inactivity_timeout_in);
       else
@@ -318,14 +318,14 @@ UnixNetVConnection::set_active_timeout(ink_hrtime timeout)
     active_timeout->cancel_action(this);
   if (active_timeout_in) {
     if (read.enabled) {
-      ink_debug_assert(read.vio.mutex->thread_holding == this_ethread() && thread);
+      ink_assert(read.vio.mutex->thread_holding == this_ethread() && thread);
       if (read.vio.mutex->thread_holding == thread)
         active_timeout = thread->schedule_in_local(this, active_timeout_in);
       else
         active_timeout = thread->schedule_in(this, active_timeout_in);
     } else if (write.enabled) {
-      ink_debug_assert(write.vio.mutex->thread_holding == this_ethread() && thread);
-      if (read.vio.mutex->thread_holding == thread)
+      ink_assert(write.vio.mutex->thread_holding == this_ethread() && thread);
+      if (write.vio.mutex->thread_holding == thread)
         active_timeout = thread->schedule_in_local(this, active_timeout_in);
       else
         active_timeout = thread->schedule_in(this, active_timeout_in);
@@ -387,7 +387,7 @@ UnixNetVConnection::get_socket() {
 // declarations for local use (within the net module)
 
 void close_UnixNetVConnection(UnixNetVConnection * vc, EThread * t);
-void write_to_net(NetHandler * nh, UnixNetVConnection * vc, PollDescriptor * pd, EThread * thread);
+void write_to_net(NetHandler * nh, UnixNetVConnection * vc, EThread * thread);
 void write_to_net_io(NetHandler * nh, UnixNetVConnection * vc, EThread * thread);
 
 #endif

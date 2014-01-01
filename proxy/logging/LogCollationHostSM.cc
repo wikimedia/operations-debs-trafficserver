@@ -153,9 +153,8 @@ LogCollationHostSM::read_handler(int event, void *data)
 //-------------------------------------------------------------------------
 
 int
-LogCollationHostSM::host_auth(int event, void *data)
+LogCollationHostSM::host_auth(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   Debug("log-coll", "[%d]host::host_auth", m_id);
 
   switch (event) {
@@ -206,10 +205,8 @@ LogCollationHostSM::host_auth(int event, void *data)
 //-------------------------------------------------------------------------
 
 int
-LogCollationHostSM::host_done(int event, void *data)
+LogCollationHostSM::host_done(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(event);
-  NOWARN_UNUSED(data);
   Debug("log-coll", "[%d]host::host_done", m_id);
 
   // close connections
@@ -241,9 +238,8 @@ LogCollationHostSM::host_done(int event, void *data)
 //-------------------------------------------------------------------------
 
 int
-LogCollationHostSM::host_init(int event, void *data)
+LogCollationHostSM::host_init(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   Debug("log-coll", "[%d]host::host_init", m_id);
 
   switch (event) {
@@ -275,9 +271,8 @@ LogCollationHostSM::host_init(int event, void *data)
 //-------------------------------------------------------------------------
 
 int
-LogCollationHostSM::host_recv(int event, void *data)
+LogCollationHostSM::host_recv(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   Debug("log-coll", "[%d]host::host_recv", m_id);
 
   switch (event) {
@@ -325,8 +320,15 @@ LogCollationHostSM::host_recv(int event, void *data)
         // object's flush queue
         //
         log_buffer = NEW(new LogBuffer(log_object, log_buffer_header));
-        log_object->add_to_flush_queue(log_buffer);
-        ink_cond_signal(&Log::flush_cond);
+
+	RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_num_received_from_network_stat,
+                       log_buffer_header->entry_count);
+
+	RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_bytes_received_from_network_stat,
+                       log_buffer_header->byte_count);
+
+        int idx = log_object->add_to_flush_queue(log_buffer);
+        Log::preproc_notify[idx].signal();
       }
 
 #if defined(LOG_BUFFER_TRACKING)
@@ -495,9 +497,8 @@ LogCollationHostSM::read_body(int event, VIO * vio)
 //-------------------------------------------------------------------------
 
 int
-LogCollationHostSM::read_done(int event, void *data)
+LogCollationHostSM::read_done(int event, void * /* data ATS_UNUSED */)
 {
-  NOWARN_UNUSED(data);
   SET_HANDLER((LogCollationHostSMHandler) & LogCollationHostSM::host_handler);
   return host_handler(event, NULL);
 
@@ -523,8 +524,4 @@ LogCollationHostSM::read_partial(VIO * vio)
   int64_t bytes_received_now = m_client_reader->read(p, bytes_wanted_now);
 
   m_read_bytes_received += bytes_received_now;
-
-  // stats
-  LOG_SUM_DYN_STAT(log_stat_bytes_received_from_network_stat, bytes_received_now);
-
 }

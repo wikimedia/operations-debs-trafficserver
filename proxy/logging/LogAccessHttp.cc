@@ -30,8 +30,6 @@
 
 
  ***************************************************************************/
-#include "ink_unused.h"
-
 #include "libts.h"
 #include "Error.h"
 #include "LogAccessHttp.h"
@@ -51,11 +49,13 @@
   -------------------------------------------------------------------------*/
 
 LogAccessHttp::LogAccessHttp(HttpSM * sm)
-:m_http_sm(sm), m_arena(), m_client_request(NULL), m_proxy_response(NULL), m_proxy_request(NULL), m_server_response(NULL), m_cache_response(NULL), m_client_req_url_str(NULL), m_client_req_url_len(0), m_client_req_url_canon_str(NULL), m_client_req_url_canon_len(0), m_client_req_unmapped_url_canon_str(NULL), m_client_req_unmapped_url_canon_len(-1),      // undetermined
-  m_client_req_unmapped_url_path_str(NULL), m_client_req_unmapped_url_path_len(-1),     // undetermined
-  m_client_req_unmapped_url_host_str(NULL), m_client_req_unmapped_url_host_len(-1),
-  m_client_req_url_path_str(NULL),
-m_client_req_url_path_len(0), m_proxy_resp_content_type_str(NULL), m_proxy_resp_content_type_len(0)
+  : m_http_sm(sm), m_arena(), m_client_request(NULL), m_proxy_response(NULL), m_proxy_request(NULL),
+    m_server_response(NULL), m_cache_response(NULL), m_client_req_url_str(NULL), m_client_req_url_len(0),
+    m_client_req_url_canon_str(NULL), m_client_req_url_canon_len(0), m_client_req_unmapped_url_canon_str(NULL),
+    m_client_req_unmapped_url_canon_len(-1), m_client_req_unmapped_url_path_str(NULL),
+    m_client_req_unmapped_url_path_len(-1), m_client_req_unmapped_url_host_str(NULL),
+    m_client_req_unmapped_url_host_len(-1), m_client_req_url_path_str(NULL), m_client_req_url_path_len(0),
+    m_proxy_resp_content_type_str(NULL), m_proxy_resp_content_type_len(0)
 {
   ink_assert(m_http_sm != NULL);
 }
@@ -92,8 +92,7 @@ LogAccessHttp::init()
   if (hdr->client_request.valid()) {
     m_client_request = &(hdr->client_request);
     m_client_req_url_str = m_client_request->url_string_get_ref(&m_client_req_url_len);
-    m_client_req_url_canon_str = LogUtils::escapify_url(&m_arena,
-                                                        m_client_req_url_str, m_client_req_url_len,
+    m_client_req_url_canon_str = LogUtils::escapify_url(&m_arena, m_client_req_url_str, m_client_req_url_len,
                                                         &m_client_req_url_canon_len);
     m_client_req_url_path_str = m_client_request->path_get(&m_client_req_url_path_len);
   }
@@ -314,14 +313,21 @@ LogAccessHttp::marshal_client_req_url_canon(char *buf)
 int
 LogAccessHttp::marshal_client_req_unmapped_url_canon(char *buf)
 {
+  int len = INK_MIN_ALIGN;
 
   validate_unmapped_url();
-
-  int len = round_strlen(m_client_req_unmapped_url_canon_len + 1);      // +1 for eos
-
-  if (buf) {
-    marshal_mem(buf, m_client_req_unmapped_url_canon_str, m_client_req_unmapped_url_canon_len, len);
+  if (0 == m_client_req_unmapped_url_canon_len) {
+    // If the unmapped URL isn't populated, we'll fall back to the original
+    // client URL. This helps for example server intercepts to continue to
+    // log the requests, even when there is no remap rule for it.
+    len = marshal_client_req_url_canon(buf);
+  } else {
+    len = round_strlen(m_client_req_unmapped_url_canon_len + 1);      // +1 for eos
+    if (buf) {
+      marshal_mem(buf, m_client_req_unmapped_url_canon_str, m_client_req_unmapped_url_canon_len, len);
+    }
   }
+
   return len;
 }
 
@@ -331,15 +337,18 @@ LogAccessHttp::marshal_client_req_unmapped_url_canon(char *buf)
 int
 LogAccessHttp::marshal_client_req_unmapped_url_path(char *buf)
 {
-  int len;
+  int len = INK_MIN_ALIGN;
 
   validate_unmapped_url();
-
   validate_unmapped_url_path();
 
-  len = round_strlen(m_client_req_unmapped_url_path_len + 1);   // +1 for eos
-  if (buf) {
-    marshal_mem(buf, m_client_req_unmapped_url_path_str, m_client_req_unmapped_url_path_len, len);
+  if (0 == m_client_req_unmapped_url_path_len) {
+    len = marshal_client_req_url_path(buf);
+  } else {
+    len = round_strlen(m_client_req_unmapped_url_path_len + 1);   // +1 for eos
+    if (buf) {
+      marshal_mem(buf, m_client_req_unmapped_url_path_str, m_client_req_unmapped_url_path_len, len);
+    }
   }
   return len;
 }
@@ -350,13 +359,12 @@ LogAccessHttp::marshal_client_req_unmapped_url_path(char *buf)
 int
 LogAccessHttp::marshal_client_req_unmapped_url_host(char *buf)
 {
+  int len = INK_MIN_ALIGN;
 
   validate_unmapped_url();
-
   validate_unmapped_url_path();
 
-  int len = round_strlen(m_client_req_unmapped_url_host_len + 1);      // +1 for eos
-
+  len = round_strlen(m_client_req_unmapped_url_host_len + 1);      // +1 for eos
   if (buf) {
     marshal_mem(buf, m_client_req_unmapped_url_host_str, m_client_req_unmapped_url_host_len, len);
   }
@@ -654,12 +662,7 @@ LogAccessHttp::marshal_proxy_req_server_name(char *buf)
 int
 LogAccessHttp::marshal_proxy_req_server_ip(char *buf)
 {
-  return marshal_ip(
-    buf,
-    m_http_sm->t_state.current.server != NULL
-      ? &m_http_sm->t_state.current.server->addr.sa
-      : 0
-  );
+  return marshal_ip(buf, m_http_sm->t_state.current.server != NULL ? &m_http_sm->t_state.current.server->addr.sa : 0);
 }
 
 /*-------------------------------------------------------------------------
@@ -730,10 +733,8 @@ LogAccessHttp::marshal_client_accelerator_id(char *buf)
   int actual_len = 0;
 
   if (Log::config->xuid_logging_enabled) {
-
     if (m_client_request) {
-      MIMEField *field = m_client_request->field_find(MIME_FIELD_X_ID,
-                                                      MIME_LEN_X_ID);
+      MIMEField *field = m_client_request->field_find(MIME_FIELD_X_ID, MIME_LEN_X_ID);
 
       if (field) {
         str = (char *) field->value_get(&actual_len);
@@ -939,7 +940,6 @@ LogAccessHttp::marshal_cache_write_code(char *buf)
 
   if (buf) {
     int code = convert_cache_write_code(m_http_sm->t_state.cache_info.write_status);
-
     marshal_int(buf, code);
   }
 
@@ -952,7 +952,6 @@ LogAccessHttp::marshal_cache_write_transform_code(char *buf)
 
   if (buf) {
     int code = convert_cache_write_code(m_http_sm->t_state.cache_info.transform_write_status);
-
     marshal_int(buf, code);
   }
 
@@ -984,6 +983,39 @@ LogAccessHttp::marshal_transfer_time_s(char *buf)
     int64_t val = (int64_t) elapsed;
     marshal_int(buf, val);
   }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  Figure out the size of the object *on origin*. This is somewhat tricky
+  since there are many variations on how this can be calculated.
+  -------------------------------------------------------------------------*/
+int
+LogAccessHttp::marshal_file_size(char *buf)
+{
+  if (buf) {
+    MIMEField *fld;
+    HTTPHdr *hdr = m_server_response ? m_server_response : m_cache_response;
+
+    if (hdr && (fld = hdr->field_find(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE))) {
+      int len;
+      char *str = (char*)fld->value_get(&len);
+      char *pos = (char*)memchr(str, '/', len); // Find the /
+
+      // If the size is not /* (which means unknown) use it as the file_size.
+      if (pos && !memchr(pos+1, '*', len - (pos + 1 - str))) {
+        marshal_int(buf, ink_atoi64(pos+1, len - (pos + 1 - str)));
+      }
+    } else {
+      // This is semi-broken when we serveq zero length objects. See TS-2213
+      if (m_http_sm->server_response_body_bytes > 0)
+        marshal_int(buf, m_http_sm->server_response_body_bytes);
+      else if (m_http_sm->cache_response_body_bytes > 0)
+        marshal_int(buf, m_http_sm->cache_response_body_bytes);
+    }
+  }
+  // Else, we don't set the value at all (so, -)
+
   return INK_MIN_ALIGN;
 }
 

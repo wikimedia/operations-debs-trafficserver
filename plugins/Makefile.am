@@ -14,4 +14,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SUBDIRS = conf_remap regex_remap header_filter stats_over_http experimental
+# Add new plugins in alphabetic order, but keep experimental always at the bottom.
+
+SUBDIRS = \
+  cacheurl \
+  conf_remap \
+  gzip \
+  header_filter \
+  header_rewrite \
+  libloader \
+  regex_remap \
+  stats_over_http \
+  experimental

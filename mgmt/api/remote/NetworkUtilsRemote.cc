@@ -33,6 +33,7 @@
  ***************************************************************************/
 
 #include "ink_config.h"
+#include "ink_defs.h"
 #include "ink_sock.h"
 #include "ink_string.h"
 #include "I_Layout.h"
@@ -454,12 +455,11 @@ socket_write_conn(int fd, const char *msg_buf, int bytes)
  *         will try to reconnect to TM if it is not already connected
  **********************************************************************/
 void *
-socket_test_thread(void *arg)
+socket_test_thread(void *)
 {
-  NOWARN_UNUSED(arg);
   // loop until client process dies
   while (1) {
-    if (socket_test(main_socket_fd) <= 0) {
+    if (main_socket_fd == -1 || socket_test(main_socket_fd) <= 0) {
       // ASSUMES that in between the time the socket_test is made
       // and this reconnect call is made, the main_socket_fd remains
       // the same (eg. no one else called reconnect to TM successfully!!

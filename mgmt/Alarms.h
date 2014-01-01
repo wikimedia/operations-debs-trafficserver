@@ -38,10 +38,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "ink_bool.h"
 #include "ink_hash_table.h"
 #include "ink_mutex.h"
-/*#include "libts.h"*/
+
 
 /***********************************************************************
  *
@@ -76,17 +75,7 @@
 #define MGMT_ALARM_PROXY_HTTP_ALLEVIATED_SERVER  21     /* Congestion control -- alleviated server */
 #define MGMT_ALARM_PROXY_FTP_ERROR	         22
 
-// Wireless (WDA) alarms
-#define MGMT_ALARM_WDA_BILLING_CONNECTION_DIED   100
-#define MGMT_ALARM_WDA_BILLING_CORRUPTED_DATA    101
-#define MGMT_ALARM_WDA_XF_ENGINE_DOWN            102
-
 #define MGMT_ALARM_SAC_SERVER_DOWN		400
-
-// ACC alarms -- 200-300 -- I tried using just one, but a bunch of 'ACL was dropped'
-// warnings didn't get to the manager UI, that's badness.
-#define MGMT_ALARM_ACC_ALARMS_START              200
-#define MGMT_ALARM_ACC_ALARMS_END                299
 
 extern const char *alarmText[];
 extern const int alarmTextNum;
@@ -99,7 +88,7 @@ const int minOEMkey = 1000;     // used as offset
 const int maxOEMkey = 6000;
 
 typedef int alarm_t;
-typedef void (*AlarmCallbackFunc) (alarm_t, char *, char *);
+typedef void (*AlarmCallbackFunc) (alarm_t, const char *, const char *);
 
 typedef struct _alarm
 {

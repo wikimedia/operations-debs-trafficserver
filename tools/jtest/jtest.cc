@@ -45,16 +45,22 @@
 #include <limits.h>
 #include <sys/mman.h>
 
-#define __STDC_FORMAT_MACROS
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+
 #include <inttypes.h>
 
 #include <time.h>
 #include <sys/time.h>
 #include <stdlib.h>
 
-typedef int64_t ink_hrtime;
-
-#define SIZE(x) (sizeof(x)/sizeof((x)[0]))
+#include "ink_defs.h"
+#include "ink_assert.h"
+#include "INK_MD5.h"
+#include "ParseRules.h"
+#include "ink_time.h"
+#include "ink_args.h"
 
 /*
  FTP - Traffic Server Template
@@ -84,14 +90,13 @@ typedef int64_t ink_hrtime;
 #define CLIENT_BUFSIZE             2048
 #define MAX_BUFSIZE                (65536 + 4096)
 
-
 //#define RETRY_CLIENT_WRITE_ERRORS
 #define VERSION_NUM "$Revision: 1.94 $"
 #if defined(BUILD_PERSON) && defined(BUILD_MACHINE)
-#define VERSION ("JTest Version %s - " __DATE__ " " __TIME__ \
+#define JTEST_VERSION ("JTest Version %s - " __DATE__ " " __TIME__ \
                  " (" BUILD_PERSON "@" BUILD_MACHINE ")\n" )
 #else
-#define VERSION ("JTest Version %s - " __DATE__ " " __TIME__ "\n")
+#define JTEST_VERSION ("JTest Version %s - " __DATE__ " " __TIME__ "\n")
 #endif
 // #define PRINT_LOCAL_PORT
 
@@ -120,13 +125,9 @@ enum FTP_MODE {
 
 typedef int (*accept_fn_t)(int);
 typedef int (*poll_cb)(int);
-struct ArgumentDescription;
-typedef void ArgumentFunction(
-  ArgumentDescription * argument_descriptions, int n_argument_descriptions,
-  const char * arg);
 
-static void jtest_usage(ArgumentDescription * argument_descriptions, 
-                 int n_argument_descriptions, const char * arg);
+static void jtest_usage(const ArgumentDescription * argument_descriptions,
+                        unsigned n_argument_descriptions, const char * arg);
 
 static int read_request(int sock);
 static int write_request(int sock);
@@ -142,121 +143,111 @@ static int is_done();
 static int open_server(unsigned short int port, accept_fn_t accept_fn);
 static int accept_ftp_data (int sock);
 
-char ** defered_urls = NULL; 
-int n_defered_urls = 0;
-int server_fd = 0;
-int server_port = 0;
-int proxy_port = 8080;
-unsigned int proxy_addr = 0;
-unsigned int local_addr = 0;
-char proxy_host[81] = "localhost";
-char local_host[81];
-int verbose = 0;
-int verbose_errors = 1;
-int debug = 0;
-int nclients = 100;
-int current_clients = 0;
-int client_speed = 0;
-int check_content = 0;
-int nocheck_length = 0;
-int obey_redirects = 1;
-int only_clients = 0;
-int only_server = 0;
-int drop_after_CL = 0;
-int server_speed = 0;
-int server_delay = 0;
-int interval = 1;
-int sbuffersize = SERVER_BUFSIZE;
-int cbuffersize = CLIENT_BUFSIZE;
-int test_time = 0;
-int last_fd = -1;
-char * response_buffer = NULL;
-int errors = 0;
-int clients = 0, running_clients = 0, new_clients = 0, total_clients = 0;
-int servers = 0, running_servers = 0, new_servers = 0, total_servers = 0;
-float running_ops = 0;
-int ops = 0, new_ops = 0;
-float total_ops = 0;
-int running_sops = 0, new_sops = 0, total_sops = 0;
-int running_latency = 0, latency = 0;
-int lat_ops = 0, b1_ops = 0, running_b1latency = 0, b1latency = 0;
-uint64_t running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
-uint64_t running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
-int average_over = 5;
-double hitrate = 0.4;
-int hotset = 1000;
-int keepalive = 4;
-int keepalive_cons = 4;
-int follow_arg = 0;
-int follow = 0;
-int follow_same_arg = 0;
-int follow_same = 0;
-char current_host[512];
-int fullpage = 0;
-int show_before = 0;
-int show_headers = 0;
-int server_keepalive = 4;
-int version = 0;
-int urls_mode = 0;
-int pipeline = 1;
-int hostrequest = 0;
-int ftp = 0;
-double ftp_mdtm_err_rate = 0.0;
-int ftp_mdtm_rate = 0;
-time_t ftp_mdtm_last_update = 0;
-char ftp_mdtm_str[64];
-int embed_url = 1;
-double ims_rate = 0.5;
-double client_abort_rate = 0.0;
-double server_abort_rate = 0.0;
-int compd_port = 0;
-int compd_suite = 0;
-int ka_cache_head[500];
-int ka_cache_tail[500];
-int n_ka_cache = 0;
-char urls_file[256] = "";
-FILE * urls_fp = NULL;
-char urlsdump_file[256] = "";
-FILE * urlsdump_fp = NULL;
-int drand_seed = 0;
-int docsize = -1;
-int url_hash_entries = 1000000;
-char url_hash_filename[256] = "";
-int bandwidth_test = 0;
-int bandwidth_test_to_go = 0;
-uint64_t total_client_request_bytes = 0;
-uint64_t total_proxy_request_bytes = 0;
-uint64_t total_server_response_body_bytes = 0;
-uint64_t total_server_response_header_bytes = 0;
-uint64_t total_proxy_response_body_bytes = 0;
-uint64_t total_proxy_response_header_bytes = 0;
-ink_hrtime now = 0, start_time = 0;
-int extra_headers = 0;
-int alternates = 0;
-int abort_retry_speed = 0;
-int abort_retry_bytes = 0;
-int abort_retry_secs = 5;
-int client_rate = 0;
-double reload_rate = 0;
-int vary_user_agent = 0;
-int server_content_type = 0;
-int request_extension = 0;
-int no_cache = 0;
-double evo_rate = 0.0;
-double zipf = 0.0;
-int zipf_bucket_size = 1;
+static char ** defered_urls = NULL;
+static int n_defered_urls = 0;
+static int server_fd = 0;
+static int server_port = 0;
+static int proxy_port = 8080;
+static unsigned int proxy_addr = 0;
+static unsigned int local_addr = 0;
+static char proxy_host[81] = "localhost";
+static char local_host[81];
+static int verbose = 0;
+static int verbose_errors = 1;
+static int debug = 0;
+static int nclients = 100;
+static int current_clients = 0;
+static int client_speed = 0;
+static int check_content = 0;
+static int nocheck_length = 0;
+static int obey_redirects = 1;
+static int only_clients = 0;
+static int only_server = 0;
+static int drop_after_CL = 0;
+static int server_speed = 0;
+static int server_delay = 0;
+static int interval = 1;
+static int sbuffersize = SERVER_BUFSIZE;
+static int cbuffersize = CLIENT_BUFSIZE;
+static int test_time = 0;
+static int last_fd = -1;
+static char * response_buffer = NULL;
+static int errors = 0;
+static int clients = 0, running_clients = 0, new_clients = 0, total_clients = 0;
+static int servers = 0, running_servers = 0, new_servers = 0, total_servers = 0;
+static float running_ops = 0;
+static int new_ops = 0;
+static float total_ops = 0;
+static int running_sops = 0, new_sops = 0, total_sops = 0;
+static int running_latency = 0, latency = 0;
+static int lat_ops = 0, b1_ops = 0, running_b1latency = 0, b1latency = 0;
+static uint64_t running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
+static uint64_t running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
+static int average_over = 5;
+static double hitrate = 0.4;
+static int hotset = 1000;
+static int keepalive = 4;
+static int keepalive_cons = 4;
+static int follow_arg = 0;
+static int follow = 0;
+static int follow_same_arg = 0;
+static int follow_same = 0;
+static char current_host[512];
+static int fullpage = 0;
+static int show_before = 0;
+static int show_headers = 0;
+static int server_keepalive = 4;
+static int version = 0;
+static int urls_mode = 0;
+static int pipeline = 1;
+static int hostrequest = 0;
+static int ftp = 0;
+static double ftp_mdtm_err_rate = 0.0;
+static int ftp_mdtm_rate = 0;
+static time_t ftp_mdtm_last_update = 0;
+static char ftp_mdtm_str[64];
+static int embed_url = 1;
+static double ims_rate = 0.5;
+static double client_abort_rate = 0.0;
+static double server_abort_rate = 0.0;
+static int compd_port = 0;
+static int compd_suite = 0;
+static int ka_cache_head[500];
+static int ka_cache_tail[500];
+static int n_ka_cache = 0;
+static char urls_file[256] = "";
+static FILE * urls_fp = NULL;
+static char urlsdump_file[256] = "";
+static FILE * urlsdump_fp = NULL;
+static int drand_seed = 0;
+static int docsize = -1;
+static int url_hash_entries = 1000000;
+static char url_hash_filename[256] = "";
+static int bandwidth_test = 0;
+static int bandwidth_test_to_go = 0;
+static uint64_t total_client_request_bytes = 0;
+static uint64_t total_proxy_request_bytes = 0;
+static uint64_t total_server_response_body_bytes = 0;
+static uint64_t total_server_response_header_bytes = 0;
+static uint64_t total_proxy_response_body_bytes = 0;
+static uint64_t total_proxy_response_header_bytes = 0;
+static ink_hrtime now = 0, start_time = 0;
+static int extra_headers = 0;
+static int alternates = 0;
+static int abort_retry_speed = 0;
+static int abort_retry_bytes = 0;
+static int abort_retry_secs = 5;
+static int client_rate = 0;
+static double reload_rate = 0;
+static int vary_user_agent = 0;
+static int server_content_type = 0;
+static int request_extension = 0;
+static int no_cache = 0;
+static double evo_rate = 0.0;
+static double zipf = 0.0;
+static int zipf_bucket_size = 1;
 
-struct ArgumentDescription {
-  const char * name;
-  char   key;
-  const char * description;
-  const char * type;
-  const void * location;
-  const char * env;
-  ArgumentFunction * pfn;       
-};
-
-ArgumentDescription argument_descriptions[] = {
+static const ArgumentDescription argument_descriptions[] = {
   {"proxy_port",'p',"Proxy Port","I",&proxy_port,"JTEST_PROXY_PORT",NULL},
   {"proxy_host",'P',"Proxy Host","S80",&proxy_host,"JTEST_PROXY_HOST",NULL},
   {"server_port",'s',"Server Port (0:auto select)","I",&server_port,
@@ -284,49 +275,49 @@ ArgumentDescription argument_descriptions[] = {
    "JTEST_KEEPALIVE",NULL},
   {"keepalive_cons",'K',"# Keep-Alive Connections (0:unlimit)","I",
    &keepalive_cons, "JTEST_KEEPALIVE_CONNECTIONS",NULL },
-  {"docsize", 'L', "Document Size (-1:varied)","I", &docsize, 
+  {"docsize", 'L', "Document Size (-1:varied)","I", &docsize,
    "JTEST_DOCSIZE",NULL},
   {"skeepalive",'j',"Server Keep-Alive (0:unlimit)","I",&server_keepalive,
    "JTEST_SERVER_KEEPALIVE",NULL},
-  {"show_urls", 'x', "Show URLs before they are accessed","F", &show_before, 
+  {"show_urls", 'x', "Show URLs before they are accessed","F", &show_before,
    "JTEST_SHOW_URLS",NULL},
-  {"show_headers", 'X', "Show Headers","F", &show_headers,      
+  {"show_headers", 'X', "Show Headers","F", &show_headers,
    "JTEST_SHOW_HEADERS",NULL},
   {"ftp",'f',"FTP Requests","F",&ftp, "JTEST_FTP",NULL},
   {"ftp_mdtm_err_rate", ' ', "FTP MDTM 550 Error Rate", "D",
    &ftp_mdtm_err_rate, "JTEST_FTP_MDTM_ERR_RATE", NULL},
   {"ftp_mdtm_rate", ' ', "FTP MDTM Update Rate (sec, 0:never)", "I",
    &ftp_mdtm_rate, "JTEST_FTP_MDTM_RATE", NULL},
-  {"fullpage",'l',"Full Page (Images)","F",&fullpage, 
+  {"fullpage",'l',"Full Page (Images)","F",&fullpage,
    "JTEST_FULLPAGE",NULL},
   {"follow",'F',"Follow Links","F",&follow_arg, "JTEST_FOLLOW",NULL},
-  {"same_host",'J',"Only follow URLs on same host","F",&follow_same_arg, 
+  {"same_host",'J',"Only follow URLs on same host","F",&follow_same_arg,
    "JTEST_FOLLOW_SAME",NULL},
-  {"test_time",'t',"run for N seconds (0:unlimited)","I", &test_time, 
+  {"test_time",'t',"run for N seconds (0:unlimited)","I", &test_time,
    "TEST_TIME",NULL},
   {"urls",'u',"URLs from File","S256", urls_file, "JTEST_URLS",NULL},
-  {"urlsdump", 'U', "URLs to File", "S256", urlsdump_file, 
+  {"urlsdump", 'U', "URLs to File", "S256", urlsdump_file,
    "JTEST_URLS_DUMP", NULL},
   {"hostrequest",'H',"Host Request(1=yes,2=transparent)","I", &hostrequest, "JTEST_HOST_REQUEST",
    NULL},
-  {"check_content",'C',"Check returned content", "F", 
+  {"check_content",'C',"Check returned content", "F",
    &check_content, "JTEST_CHECK_CONTENT", NULL},
-  {"nocheck_length",' ',"Don't check returned length", "F", 
+  {"nocheck_length",' ',"Don't check returned length", "F",
    &nocheck_length, "JTEST_NOCHECK_LENGTH", NULL},
-  {"obey_redirects",'m',"Obey Redirects", "f", &obey_redirects, 
+  {"obey_redirects",'m',"Obey Redirects", "f", &obey_redirects,
    "JTEST_OBEY_REDIRECTS", NULL},
-  {"embed URL",'M',"Embed URL in synth docs", "f", 
+  {"embed URL",'M',"Embed URL in synth docs", "f",
    &embed_url, "JTEST_EMBED_URL", NULL},
-  {"url_hash_entries",'q',"URL Hash Table Size (-1:use file size)", 
+  {"url_hash_entries",'q',"URL Hash Table Size (-1:use file size)",
    "I", &url_hash_entries, "JTEST_URL_HASH_ENTRIES", NULL},
-  {"url_hash_filename",'Q',"URL Hash Table Filename", "S256", 
+  {"url_hash_filename",'Q',"URL Hash Table Filename", "S256",
    url_hash_filename, "JTEST_URL_HASH_FILENAME", NULL},
   {"only_clients",'y',"Only Clients","F",&only_clients,
    "JTEST_ONLY_CLIENTS",NULL},
   {"only_server",'Y',"Only Server","F",&only_server,"JTEST_ONLY_SERVER",NULL},
   {"bandwidth_test",'A',"Bandwidth Test","I",&bandwidth_test,
    "JTEST_BANDWIDTH_TEST",NULL},
-  {"drop_after_CL",'T',"Drop after Content-Length","F", 
+  {"drop_after_CL",'T',"Drop after Content-Length","F",
    &drop_after_CL, "JTEST_DROP",NULL},
   {"version",'V',"Version","F",&version,"JTEST_VERSION",NULL},
   {"verbose",'v',"Verbose Flag","F",&verbose,"JTEST_VERBOSE",NULL},
@@ -334,9 +325,9 @@ ArgumentDescription argument_descriptions[] = {
    "JTEST_VERBOSE_ERRORS",NULL},
   {"drand",'D',"Random Number Seed","I",&drand_seed,"JTEST_DRAND",NULL},
   {"ims_rate",'I',"IMS Not-Changed Rate","D",&ims_rate, "JTEST_IMS_RATE",NULL},
-  {"client_abort_rate",'g',"Client Abort Rate","D",&client_abort_rate, 
+  {"client_abort_rate",'g',"Client Abort Rate","D",&client_abort_rate,
    "JTEST_CLIENT_ABORT_RATE",NULL},
-  {"server_abort_rate",'G',"Server Abort Rate","D",&server_abort_rate, 
+  {"server_abort_rate",'G',"Server Abort Rate","D",&server_abort_rate,
    "JTEST_SERVER_ABORT_RATE",NULL},
   {"extra_headers",'n',"Number of Extra Headers","I",&extra_headers,
    "JTEST_EXTRA_HEADERS",NULL},
@@ -344,11 +335,11 @@ ArgumentDescription argument_descriptions[] = {
    "JTEST_ALTERNATES",NULL},
   {"client_rate", 'e', "Clients Per Sec", "I", &client_rate,
    "JTEST_CLIENT_RATE",NULL},
-  {"abort_retry_speed", 'o', "Abort/Retry Speed", "I", 
+  {"abort_retry_speed", 'o', "Abort/Retry Speed", "I",
    &abort_retry_speed, "JTEST_ABORT_RETRY_SPEED",NULL},
-  {"abort_retry_bytes", ' ', "Abort/Retry Threshhold (bytes)", "I", 
+  {"abort_retry_bytes", ' ', "Abort/Retry Threshhold (bytes)", "I",
    &abort_retry_bytes, "JTEST_ABORT_RETRY_THRESHHOLD_BYTES",NULL},
-  {"abort_retry_secs", ' ', "Abort/Retry Threshhold (secs)", "I", 
+  {"abort_retry_secs", ' ', "Abort/Retry Threshhold (secs)", "I",
    &abort_retry_secs, "JTEST_ABORT_RETRY_THRESHHOLD_SECS",NULL},
   {"reload_rate", 'W', "Reload Rate", "D",
    &reload_rate, "JTEST_RELOAD_RATE",NULL},
@@ -370,7 +361,7 @@ ArgumentDescription argument_descriptions[] = {
   {"debug",'d',"Debug Flag","F",&debug,"JTEST_DEBUG",NULL},
   {"help",'h',"Help",NULL,NULL,NULL,jtest_usage}
 };
-int n_argument_descriptions = SIZE(argument_descriptions);
+int n_argument_descriptions = countof(argument_descriptions);
 
 struct FD {
   int fd;
@@ -437,19 +428,19 @@ struct FD {
     ftp_peer_addr = 0;
     ftp_peer_port = 0;
   }
-  
+
   void close();
-  FD() { 
-    req_header = 0; base_url = 0; keepalive = 0; 
-    response_header = 0; ftp_data_fd = 0; 
-    reset(); 
+  FD() {
+    req_header = 0; base_url = 0; keepalive = 0;
+    response_header = 0; ftp_data_fd = 0;
+    reset();
   }
 };
 
 FD *fd = NULL;
 
 void FD::close() {
-  if (verbose) 
+  if (verbose)
     printf("close: %d\n", fd);
   ::close(fd);
   if (is_done())
@@ -464,1124 +455,7 @@ void FD::close() {
   ftp_data_fd = 0;
 }
 
-// Library functions from libts
-
-const char * SPACES = "                                                                               ";
-int ink_code_md5(unsigned char *input, int input_length,
-                 unsigned char *sixteen_byte_hash_pointer);
-
-class           ParseRules
-{
-        public:
-        ParseRules();
-        enum {
-                CHAR_SP = 32,
-                CHAR_HT = 9,
-                CHAR_LF = 10,
-                CHAR_VT = 11,
-                CHAR_NP = 12,
-                CHAR_CR = 13
-        };
-        static int      is_char(char c);
-        static int      is_upalpha(char c);
-        static int      is_loalpha(char c);
-        static int      is_alpha(char c);
-        static int      is_digit(char c);
-        static int      is_ctl(char c);
-        static int      is_hex(char c);
-        static int      is_ws(char c);
-        static int      is_cr(char c);
-        static int      is_lf(char c);
-        static int      is_spcr(char c);
-        static int      is_splf(char c);
-        static int      is_wslfcr(char c);
-        static int      is_tspecials(char c);
-        static int      is_token(char c);
-        static int      is_extra(char c);
-        static int      is_safe(char c);
-        static int      is_unsafe(char c);
-        static int      is_national(char c);
-        static int      is_reserved(char c);
-        static int      is_unreserved(char c);
-        static int      is_punct(char c);
-        static int      is_end_of_url(char c);
-        static int      is_eow(char c);
-        static int      is_wildmat(char c);
-        static int      is_sep(char c);
-        static int      is_empty(char c);
-        static int      is_alnum(char c);
-        static int      is_space(char c);
-        static int      is_control(char c);
-        static int      is_mime_sep(char c);
-        static int      is_http_field_name(char c);
-        static int      is_http_field_value(char c);
-        static int      is_escape(const char *seq);
-        static int      is_uchar(const char *seq);
-        static int      is_pchar(const char *seq);
-        static int      strncasecmp_eow(const char *s1, const char *s2, int n);
-        static const char *strcasestr(const char *s1, const char *s2);
-        static int      strlen_eow(const char *s);
-        static const char *strstr_eow(const char *s1, const char *s2);
-        static char     ink_toupper(char c);
-        static char     ink_tolower(char c);
-        static const char *memchr(const char *s, char c, int max_length);
-        static const char *strchr(const char *s, char c);
-                        private:
-                        ParseRules(const ParseRules &);
-                        ParseRules & operator = (const ParseRules &);
-};
-
-static const unsigned int parseRulesCType[256] = {
-        0xD1210821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xBB130861,
-        0x5B390821,
-        0xD8010821,
-        0xD8010821,
-        0x5B350821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xAB1F0841,
-        0xC140C301,
-        0x20028801,
-        0xC2408801,
-        0xC0404501,
-        0xC0408801,
-        0xC040A101,
-        0xC040C301,
-        0xA002C301,
-        0xA002C301,
-        0xC0C0C301,
-        0xC040C501,
-        0x2102C301,
-        0xC040C501,
-        0xC040C501,
-        0xA002A001,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0x8102A101,
-        0xA002A001,
-        0xA0028801,
-        0xC002A101,
-        0xA0028801,
-        0xA082A001,
-        0xE002A101,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xA082D101,
-        0xA082D101,
-        0xA002D101,
-        0xC040D101,
-        0xC040C501,
-        0xC040D101,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xA002D101,
-        0xC040D101,
-        0xA002D101,
-        0xC040D101,
-        0xD0010821,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000
-};
-
-static const char      parseRulesCTypeToUpper[256] = {
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        62,
-        63,
-        64,
-        65,
-        66,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        77,
-        78,
-        79,
-        80,
-        81,
-        82,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        91,
-        92,
-        93,
-        94,
-        95,
-        96,
-        65,
-        66,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        77,
-        78,
-        79,
-        80,
-        81,
-        82,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        123,
-        124,
-        125,
-        126,
-        127,
-        -128,
-        -127,
-        -126,
-        -125,
-        -124,
-        -123,
-        -122,
-        -121,
-        -120,
-        -119,
-        -118,
-        -117,
-        -116,
-        -115,
-        -114,
-        -113,
-        -112,
-        -111,
-        -110,
-        -109,
-        -108,
-        -107,
-        -106,
-        -105,
-        -104,
-        -103,
-        -102,
-        -101,
-        -100,
-        -99,
-        -98,
-        -97,
-        -96,
-        -95,
-        -94,
-        -93,
-        -92,
-        -91,
-        -90,
-        -89,
-        -88,
-        -87,
-        -86,
-        -85,
-        -84,
-        -83,
-        -82,
-        -81,
-        -80,
-        -79,
-        -78,
-        -77,
-        -76,
-        -75,
-        -74,
-        -73,
-        -72,
-        -71,
-        -70,
-        -69,
-        -68,
-        -67,
-        -66,
-        -65,
-        -64,
-        -63,
-        -62,
-        -61,
-        -60,
-        -59,
-        -58,
-        -57,
-        -56,
-        -55,
-        -54,
-        -53,
-        -52,
-        -51,
-        -50,
-        -49,
-        -48,
-        -47,
-        -46,
-        -45,
-        -44,
-        -43,
-        -42,
-        -41,
-        -40,
-        -39,
-        -38,
-        -37,
-        -36,
-        -35,
-        -34,
-        -33,
-        -32,
-        -31,
-        -30,
-        -29,
-        -28,
-        -27,
-        -26,
-        -25,
-        -24,
-        -23,
-        -22,
-        -21,
-        -20,
-        -19,
-        -18,
-        -17,
-        -16,
-        -15,
-        -14,
-        -13,
-        -12,
-        -11,
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        -4,
-        -3,
-        -2,
-        -1
-};
-
-static const char      parseRulesCTypeToLower[256] = {
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        62,
-        63,
-        64,
-        97,
-        98,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        107,
-        108,
-        109,
-        110,
-        111,
-        112,
-        113,
-        114,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        91,
-        92,
-        93,
-        94,
-        95,
-        96,
-        97,
-        98,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        107,
-        108,
-        109,
-        110,
-        111,
-        112,
-        113,
-        114,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        123,
-        124,
-        125,
-        126,
-        127,
-        -128,
-        -127,
-        -126,
-        -125,
-        -124,
-        -123,
-        -122,
-        -121,
-        -120,
-        -119,
-        -118,
-        -117,
-        -116,
-        -115,
-        -114,
-        -113,
-        -112,
-        -111,
-        -110,
-        -109,
-        -108,
-        -107,
-        -106,
-        -105,
-        -104,
-        -103,
-        -102,
-        -101,
-        -100,
-        -99,
-        -98,
-        -97,
-        -96,
-        -95,
-        -94,
-        -93,
-        -92,
-        -91,
-        -90,
-        -89,
-        -88,
-        -87,
-        -86,
-        -85,
-        -84,
-        -83,
-        -82,
-        -81,
-        -80,
-        -79,
-        -78,
-        -77,
-        -76,
-        -75,
-        -74,
-        -73,
-        -72,
-        -71,
-        -70,
-        -69,
-        -68,
-        -67,
-        -66,
-        -65,
-        -64,
-        -63,
-        -62,
-        -61,
-        -60,
-        -59,
-        -58,
-        -57,
-        -56,
-        -55,
-        -54,
-        -53,
-        -52,
-        -51,
-        -50,
-        -49,
-        -48,
-        -47,
-        -46,
-        -45,
-        -44,
-        -43,
-        -42,
-        -41,
-        -40,
-        -39,
-        -38,
-        -37,
-        -36,
-        -35,
-        -34,
-        -33,
-        -32,
-        -31,
-        -30,
-        -29,
-        -28,
-        -27,
-        -26,
-        -25,
-        -24,
-        -23,
-        -22,
-        -21,
-        -20,
-        -19,
-        -18,
-        -17,
-        -16,
-        -15,
-        -14,
-        -13,
-        -12,
-        -11,
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        -4,
-        -3,
-        -2,
-        -1
-};
-
-inline int ParseRules::is_char(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 0)) ? (1) : (0));
-}
-inline int ParseRules::is_upalpha(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 1)) ? (1) : (0));
-}
-inline int ParseRules::is_loalpha(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 2)) ? (1) : (0));
-}
-inline int ParseRules::is_alpha(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 3)) ? (1) : (0));
-}
-inline int ParseRules::is_digit(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 4)) ? (1) : (0));
-}
-inline int ParseRules::is_alnum(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 26)) ? (1) : (0));
-}
-inline int ParseRules::is_ctl(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 5)) ? (1) : (0));
-}
-inline int ParseRules::is_ws(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 6)) ? (1) : (0));
-}
-inline int ParseRules::is_hex(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 7)) ? (1) : (0));
-}
-inline int ParseRules::is_cr(char c) {
-  return (c == CHAR_CR);
-}
-inline int ParseRules::is_lf(char c) {
-  return (c == CHAR_LF);
-}
-inline int ParseRules::is_splf(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 19)) ? (1) : (0));
-}
-inline int ParseRules::is_spcr(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 18)) ? (1) : (0));
-}
-inline int ParseRules::is_wslfcr(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 20)) ? (1) : (0));
-}
-inline int ParseRules::is_extra(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 9)) ? (1) : (0));
-}
-inline int ParseRules::is_safe(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 10)) ? (1) : (0));
-}
-inline int ParseRules::is_unsafe(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 11)) ? (1) : (0));
-}
-inline int ParseRules::is_reserved(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 13)) ? (1) : (0));
-}
-inline int ParseRules::is_national(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 12)) ? (1) : (0));
-}
-inline int ParseRules::is_unreserved(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 14)) ? (1) : (0));
-}
-inline int ParseRules::is_punct(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 15)) ? (1) : (0));
-}
-inline int ParseRules::is_end_of_url(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 16)) ? (1) : (0));
-}
-inline int ParseRules::is_escape(const char *seq) {
-  return (seq[0] == '%' && is_hex(seq[1]) && is_hex(seq[2]));
-}
-inline int ParseRules::is_uchar(const char *seq) {
-  return (is_unreserved(seq[0]) || is_escape(seq));
-}
-inline int ParseRules::is_pchar(const char *seq) {
-  if (*seq != '%')
-    return ((parseRulesCType[(unsigned char)*seq] & (1 << 8)) ? (1) : (0));
-  else
-    return is_hex(seq[1]) && is_hex(seq[2]);
-}
-inline int ParseRules::is_tspecials(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 17)) ? (1) : (0));
-}
-inline int ParseRules::is_token(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 22)) ? (1) : (0));
-}
-inline char ParseRules::ink_toupper(char c) {
-  return parseRulesCTypeToUpper[(unsigned char) c];
-}
-inline char ParseRules::ink_tolower(char c) {
-  return parseRulesCTypeToLower[(unsigned char) c];
-}
-inline int ParseRules::is_eow(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 21)) ? (1) : (0));
-}
-inline int ParseRules::is_wildmat(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 23)) ? (1) : (0));
-}
-inline int ParseRules::is_sep(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 24)) ? (1) : (0));
-}
-inline int ParseRules::is_empty(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 25)) ? (1) : (0));
-}
-inline int ParseRules::is_space(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 27)) ? (1) : (0));
-}
-inline int ParseRules::is_control(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 28)) ? (1) : (0));
-}
-inline int ParseRules::is_mime_sep(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 29)) ? (1) : (0));
-}
-inline int ParseRules::is_http_field_name(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (1 << 30)) ? (1) : (0));
-}
-inline int ParseRules::is_http_field_value(char c) {
-  return ((parseRulesCType[(unsigned char) c] & (((unsigned int)1) << 31)) ? (1) : (0));
-}
-inline int ParseRules::strncasecmp_eow(
-  const char *s1, const char *s2, int count)
-{
-  for (int i = 0; i < count; i++) {
-    const char &a = s1[i];
-    const char &b = s2[i];
-    if (ink_tolower(a) != ink_tolower(b))
-      return (is_eow(a) && is_eow(b));
-  }
-  return (1);
-}
-inline int ParseRules::strlen_eow(const char *s){
-  for (int i = 0; 1; i++) {
-    if (is_eow(s[i]))
-      return (i);
-  }
-}
-inline const char *ParseRules::strstr_eow(const char *s1, const char *s2) {
-  int i1;
-  int s2_len = strlen_eow(s2);
-  for (i1 = 0; !is_eow(s1[i1]); i1++)
-    if (ink_tolower(s1[i1]) == ink_tolower(s2[0]))
-      if (strncasecmp_eow(&s1[i1], &s2[0], s2_len))
-        return (&s1[i1]);
-  return (0);
-}
-inline const char *ParseRules::
-strcasestr(const char *s1, const char *s2) {
-  int i1;
-  int s2_len = strlen(s2);
-  for (i1 = 0; s1[i1] != '\0'; i1++)
-    if (ink_tolower(s1[i1]) == ink_tolower(s2[0]))
-      if (strncasecmp_eow(&s1[i1], &s2[0], s2_len))
-        return (&s1[i1]);
-  return (0);
-}
-inline const char *ParseRules::memchr(const char *s, char c, int max_length) {
-  for (int i = 0; i < max_length; i++)
-    if (s[i] == c)
-      return (&s[i]);
-  return (0);
-}
-inline const char *ParseRules::strchr(const char *s, char c) {
-  for (int i = 0; s[i] != '\0'; i++)
-    if (s[i] == c)
-      return (&s[i]);
-  return (0);
-}
-inline int
-ink_atoi(const char *str) {
-  int num = 0;
-  int negative = 0;
-  while (*str && ParseRules::is_wslfcr(*str))
-    str += 1;
-  if (*str == '-') {
-    negative = 1;
-    str += 1;
-  }
-  while (*str && ParseRules::is_digit(*str))
-    num = (num * 10) - (*str++ - '0');
-  if (!negative)
-    num = -num;
-  return num;
-}
-inline unsigned int
-ink_atoui(const char *str) {
-  unsigned int num = 0;
-  while (*str && ParseRules::is_wslfcr(*str))
-    str += 1;
-  while (*str && ParseRules::is_digit(*str))
-    num = (num * 10) + (*str++ - '0');
-  return num;
-}
-inline int64_t
-ink_atoll(const char *str) {
-  int64_t num = 0;
-  int negative = 0;
-  while (*str && ParseRules::is_wslfcr(*str))
-    str += 1;
-  if (*str == '-') {
-    negative = 1;
-    str += 1;
-  }
-  while (*str && ParseRules::is_digit(*str))
-    num = (num * 10) - (*str++ - '0');
-  if (!negative)
-    num = -num;
-  return num;
-}
-
-#define HRTIME_FOREVER  (10*HRTIME_DECADE)
-#define HRTIME_DECADE   (10*HRTIME_YEAR)
-#define HRTIME_YEAR     (365*HRTIME_DAY+HRTIME_DAY/4)
-#define HRTIME_WEEK     (7*HRTIME_DAY)
-#define HRTIME_DAY      (24*HRTIME_HOUR)
-#define HRTIME_HOUR     (60*HRTIME_MINUTE)
-#define HRTIME_MINUTE   (60*HRTIME_SECOND)
-#define HRTIME_SECOND   (1000*HRTIME_MSECOND)
-#define HRTIME_MSECOND  (1000*HRTIME_USECOND)
-#define HRTIME_USECOND  (1000*HRTIME_NSECOND)
-#define HRTIME_NSECOND  (1LL)
 #define MAX_FILE_ARGUMENTS 100
-
-static const char * file_arguments[MAX_FILE_ARGUMENTS] = { 0 };
-static const char * program_name = "jtest";
-static int n_file_arguments = 0;
-
-static const char * argument_types_keys = "ISDfFTL";
-static const char * argument_types_descriptions[] = {
-  "int  ",
-  "str  ",
-  "dbl  ",
-  "off  ",
-  "on   ",
-  "tog  ",
-  "i64  ",
-  "     "
-};
-
-static void usage(ArgumentDescription * argument_descriptions,
-           int n_argument_descriptions,
-           const char * arg_unused);
-
-static void process_args(ArgumentDescription * argument_descriptions,
-                  int n_argument_descriptions,
-                  char **argv);
-
-#ifdef RELEASE
-#define ink_assert(EX) (void)(EX)
-#define ink_debug_assert(EX)
-#else
-#define ink_assert(EX) (\
-            void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
-#define ink_debug_assert(EX) \
-            (void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
-#endif
-
-#define ink_release_assert(EX) \
-            (void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
-
-static int _ink_assert(const char * a, const char * f, int l);
-static void ink_fatal(int return_code, const char *message_format, ...);
-static void ink_warning(const char *message_format, ...);
-#define min(_a,_b) ((_a)<(_b)?(_a):(_b))
-
-static inline ink_hrtime ink_get_hrtime()
-{
-#    if defined(FreeBSD)
-      timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      return (ts.tv_sec * HRTIME_SECOND + ts.tv_nsec * HRTIME_NSECOND);
-#    else
-      timeval tv;
-      gettimeofday(&tv,NULL);
-      return (tv.tv_sec * HRTIME_SECOND + tv.tv_usec * HRTIME_USECOND);
-#    endif
-}
 
 typedef struct {
   char sche[MAX_URL_LEN + 1];
@@ -1618,19 +492,19 @@ static void ink_web_decompose_url(
   char *sche, char *host, char *port, char *path,
   char *frag, char *quer, char *para,
   int *real_sche_exists, int *real_host_exists,
-  int *real_port_exists, int *real_path_exists, 
+  int *real_port_exists, int *real_path_exists,
   int *real_frag_exists, int *real_quer_exists,
   int *real_para_exists,
   int *real_relative_url, int *real_leading_slash);
 
-static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
+static void ink_web_canonicalize_url(const char *base_url, const char *emb_url,
                                      char *dest_url, int max_dest_url_len);
 
-static void ink_web_decompose_url_into_structure(const char *url, 
+static void ink_web_decompose_url_into_structure(const char *url,
                                                  InkWebURLComponents *c);
 
 static void remove_last_seg(char *src, char *dest)
-{ 
+{
   char *ptr;
   for (ptr = src + strlen(src) - 1; ptr >= src; ptr--)
     if (*ptr == '/') break;
@@ -1639,9 +513,9 @@ static void remove_last_seg(char *src, char *dest)
 }
 
 static inline void remove_multiple_slash(char *src, char *dest)
-{ 
+{
   char *ptr=NULL;
-  
+
   for (ptr = src; *ptr;) {
       *(dest++) = *ptr;
       if (*ptr == '/')  {
@@ -1655,7 +529,7 @@ static inline void remove_multiple_slash(char *src, char *dest)
   *dest = '\0';
 }
 
-static inline void append_string(char *dest, const char *src, int *offset_ptr, 
+static inline void append_string(char *dest, const char *src, int *offset_ptr,
                                  int max_len)
 {
   int num = strlen(src);
@@ -1672,11 +546,11 @@ static void show_version() {
   char * v = strchr(b,':');
   v += 2;
   *strchr(v,'$') = 0;
-  printf(VERSION, v);
+  printf(JTEST_VERSION, v);
 }
 
-static void jtest_usage(ArgumentDescription * argument_descriptions, 
-                 int n_argument_descriptions, const char * arg) 
+static void jtest_usage(const ArgumentDescription * argument_descriptions,
+                 unsigned n_argument_descriptions, const char * arg)
 {
   show_version();
   usage(argument_descriptions, n_argument_descriptions, arg);
@@ -1697,7 +571,7 @@ static int max_limit_fd() {
   if (getrlimit(RLIMIT_NOFILE,&rl) >= 0) {
 #ifdef OPEN_MAX
     // Darwin
-    rl.rlim_cur = min(OPEN_MAX, rl.rlim_max);
+    rl.rlim_cur = MIN(OPEN_MAX, rl.rlim_max);
 #else
     rl.rlim_cur = rl.rlim_max;
 #endif
@@ -1722,14 +596,14 @@ static int read_ready(int fd) {
   return 0;
 }
 
-static void poll_init(int sock) { 
-  if (!fd[sock].req_header) 
+static void poll_init(int sock) {
+  if (!fd[sock].req_header)
     fd[sock].req_header = (char*)malloc(HEADER_SIZE * pipeline);
   if (!fd[sock].response_header)
     fd[sock].response_header = (char*)malloc(HEADER_SIZE);
   if (!fd[sock].base_url)
     fd[sock].base_url = (char*)malloc(HEADER_SIZE);
-  fd[sock].reset(); 
+  fd[sock].reset();
 }
 
 static void poll_set(int sock, poll_cb read_cb, poll_cb write_cb = NULL) {
@@ -1785,7 +659,7 @@ static void get_path_from_req(char * buf,char ** purl_start, char ** purl_end)
       url_start += sizeof("http://")-1;
       url_start = (char*)memchr(url_start,'/',70);
     }
-  *purl_start = url_start;  
+  *purl_start = url_start;
   *purl_end = url_end;
 }
 
@@ -1839,8 +713,8 @@ static int send_response (int sock)
           no_cache?"Pragma: no-cache\r\nCache-Control: no-cache\r\n":"",
           url_start ? url_start : "");
     } else
-      url_len = print_len = 
-        sprintf(header, "ftp://%s:%d/%12.10f/%d", 
+      url_len = print_len =
+        sprintf(header, "ftp://%s:%d/%12.10f/%d",
                 local_host, server_port,
                 fd[sock].doc, fd[sock].length);
     if (show_headers) printf("Response to Proxy: {\n%s}\n", header);
@@ -1873,7 +747,7 @@ static int send_response (int sock)
   if (fd[sock].length < towrite)
     towrite = fd[sock].length;
   if (towrite > 0) {
-    if (fast(sock,server_speed,fd[sock].bytes)) 
+    if (fast(sock,server_speed,fd[sock].bytes))
       return 0;
     do {
       err = write (sock, fd[sock].response, towrite);
@@ -1892,11 +766,11 @@ static int send_response (int sock)
     fd[sock].length -= err;
     fd[sock].bytes += err;
   }
-  
-  if (fast(sock,server_speed,fd[sock].bytes)) 
+
+  if (fast(sock,server_speed,fd[sock].bytes))
     return 0;
   if (fd[sock].length <= 0 || !err) {
-    if (fd[sock].response) 
+    if (fd[sock].response)
       new_sops++;
     if (verbose) printf("write %d done\n", sock);
     if (fd[sock].keepalive > 0 && !ftp) {
@@ -1907,7 +781,7 @@ static int send_response (int sock)
     }
     return 1;
   }
-    
+
   return 0;
 }
 
@@ -1916,7 +790,7 @@ static char * strncasestr (char *s, const char * find, int len) {
   char * e = s + len;
   while (1) {
     char * x = (char*)memchr(s,*find,e - s);
-    if (!x) { 
+    if (!x) {
       if (ParseRules::is_upalpha(*find))
         x = (char*)memchr(s,ParseRules::ink_tolower(*find),e - s);
       else
@@ -1935,7 +809,7 @@ static char * check_keepalive(char * r, int length) {
     int l = length - (ka - r);
     char * e = (char*)memchr(ka,'\n',l);
     if (!e) e = (char*)memchr(ka,'\r',l);
-    if (strncasestr(ka,"close",e-ka)) 
+    if (strncasestr(ka,"close",e-ka))
       return NULL;
   }
   return ka;
@@ -1952,7 +826,7 @@ static int check_alt(char * r, int length) {
     int l = length - (s - r);
     char * e = (char*)memchr(s, '\n', l);
     if (!e) e = (char*)memchr(s, '\r', l);
-    if (!(s = strncasestr(s, "jtest", e - s))) 
+    if (!(s = strncasestr(s, "jtest", e - s)))
       return 0;
     s = (char*)memchr(s, '-', l);
     if (!s)
@@ -1992,7 +866,7 @@ static int send_ftp_data_when_ready(int sock) {
   return 0;
 }
 
-static int send_ftp_data(int sock, char * start, char * end) {
+static int send_ftp_data(int sock, char * start /*, char * end */) {
   int data_fd = fd[sock].ftp_data_fd;
   if (sscanf(start,"%d",&fd[data_fd].doc_length) != 1)
     return -1;
@@ -2009,10 +883,10 @@ static int read_request(int sock) {
   int maxleft = HEADER_SIZE - fd[sock].req_pos - 1;
 
   do {
-    err = read (sock, &fd[sock].req_header[fd[sock].req_pos], 
+    err = read (sock, &fd[sock].req_header[fd[sock].req_pos],
                 maxleft);
   } while ((err < 0) && (errno == EINTR));
-  
+
   if (err < 0) {
     if (errno == EAGAIN || errno == ENOTCONN) return 0;
     if (fd[sock].req_pos || errno != ECONNRESET)
@@ -2028,8 +902,8 @@ static int read_request(int sock) {
     fd[sock].req_pos += err;
     fd[sock].req_header[fd[sock].req_pos] = 0;
     char *buffer = fd[sock].req_header;
-    for (i = fd[sock].req_pos - err; 
-         i < fd[sock].req_pos; i++) 
+    for (i = fd[sock].req_pos - err;
+         i < fd[sock].req_pos; i++)
     {
       switch (fd[sock].state) {
         case 0:
@@ -2069,14 +943,14 @@ static int read_request(int sock) {
               fd[sock].close();
               return 0;
             }
-            if (verbose) 
+            if (verbose)
               printf("read_request %d got request %d\n", sock, length);
             char * ims = strncasestr(buffer,"If-Modified-Since:", i);
             if (drand48() > ims_rate) ims = NULL;
             fd[sock].ims = ims?1:0;
             if (!ims) {
               fd[sock].response_length = fd[sock].length = length;
-              fd[sock].nalternate = check_alt(fd[sock].req_header, 
+              fd[sock].nalternate = check_alt(fd[sock].req_header,
                                               strlen(fd[sock].req_header));
               fd[sock].response = response_buffer + length % 256 +
                 fd[sock].nalternate;
@@ -2088,10 +962,10 @@ static int read_request(int sock) {
               fd[sock].response_length = fd[sock].length = 0;
             }
             fd[sock].req_pos = 0;
-            if (!check_keepalive(fd[sock].req_header, 
+            if (!check_keepalive(fd[sock].req_header,
                                  strlen(fd[sock].req_header)))
               fd[sock].keepalive = 0;
-            else 
+            else
               fd[sock].keepalive--;
             if (fd[sock].length && drand48() < server_abort_rate) {
               fd[sock].length = (int)(drand48() * (fd[sock].length -1));
@@ -2119,7 +993,7 @@ static int send_compd_response(int sock) {
     compd_header.code = 0;
     compd_header.len = htonl((fd[sock].length * 2) / 3);
     do {
-      err = write(sock, (char*)&compd_header + fd[sock].req_pos, 
+      err = write(sock, (char*)&compd_header + fd[sock].req_pos,
                   sizeof(compd_header) - fd[sock].req_pos);
     } while ((err == -1) && (errno == EINTR));
     if (err <= 0) {
@@ -2138,7 +1012,7 @@ static int send_compd_response(int sock) {
     fd[sock].bytes += err;
     fd[sock].response = response_buffer + (((fd[sock].length * 2) / 3) % 256);
   }
- 
+
   if (fd[sock].req_pos < ((fd[sock].length * 2) / 3) + (int)sizeof(compd_header)) {
     int towrite = cbuffersize;
     int desired = ((fd[sock].length * 2) / 3) + sizeof (compd_header) - fd[sock].req_pos;
@@ -2163,9 +1037,9 @@ static int send_compd_response(int sock) {
     fd[sock].bytes += err;
   }
 
-  if (fd[sock].req_pos >= ((fd[sock].length * 2) / 3) + 4) 
+  if (fd[sock].req_pos >= ((fd[sock].length * 2) / 3) + 4)
     return -1;
-  
+
   return 0;
 Lerror:
   errors++;
@@ -2179,10 +1053,10 @@ static int read_compd_request(int sock) {
   if (fd[sock].req_pos < 4) {
     int maxleft = HEADER_SIZE - fd[sock].req_pos - 1;
     do {
-      err = read (sock, &fd[sock].req_header[fd[sock].req_pos], 
+      err = read (sock, &fd[sock].req_header[fd[sock].req_pos],
                   maxleft);
     } while ((err < 0) && (errno == EINTR));
-  
+
     if (err < 0) {
       if (errno == EAGAIN || errno == ENOTCONN) return 0;
       perror ("read");
@@ -2201,9 +1075,9 @@ static int read_compd_request(int sock) {
     }
   }
 
-  if (fd[sock].req_pos >= fd[sock].length + 4) 
+  if (fd[sock].req_pos >= fd[sock].length + 4)
     goto Lcont;
-  
+
   {
     char buf[MAX_BUFSIZE];
     int toread = cbuffersize;
@@ -2231,10 +1105,10 @@ static int read_compd_request(int sock) {
     new_tbytes += err;
     fd[sock].req_pos += err;
   }
-    
-  if (fd[sock].req_pos >= fd[sock].length + 4) 
+
+  if (fd[sock].req_pos >= fd[sock].length + 4)
     goto Lcont;
-    
+
   return 0;
 
 Lcont:
@@ -2252,10 +1126,10 @@ static int read_ftp_request(int sock) {
   int maxleft = HEADER_SIZE - fd[sock].req_pos - 1;
 
   do {
-    err = read (sock, &fd[sock].req_header[fd[sock].req_pos], 
+    err = read (sock, &fd[sock].req_header[fd[sock].req_pos],
                 maxleft);
   } while ((err < 0) && (errno == EINTR));
-  
+
   if (err < 0) {
     if (errno == EAGAIN || errno == ENOTCONN) return 0;
     perror ("read");
@@ -2290,7 +1164,7 @@ static int read_ftp_request(int sock) {
         make_response(sock,res);
         return 0;
     } else if (STREQ(buffer,"SIZE")) {
-        fd[sock].length = 
+        fd[sock].length =
           sprintf(fd[sock].req_header, "213 %d\r\n", atoi(buffer + 5));
         make_long_response(sock);
         return 0;
@@ -2333,7 +1207,7 @@ static int read_ftp_request(int sock) {
         fd[fd[sock].ftp_data_fd].ftp_data_fd = sock;
         if (verbose) printf("ftp PASV %d <-> %d\n", sock,fd[sock].ftp_data_fd);
         unsigned short p = fd[fd[sock].ftp_data_fd].name.sin_port;
-        fd[sock].length = 
+        fd[sock].length =
           sprintf(fd[sock].req_header, "227 (%u,%u,%u,%u,%u,%u)\r\n",
                   ((unsigned char*)&local_addr)[0],
                   ((unsigned char*)&local_addr)[1],
@@ -2360,7 +1234,7 @@ static int read_ftp_request(int sock) {
         start = ++stop;
         ((unsigned char*)&(fd[sock].ftp_peer_port))[1] =
           strtol(start, NULL, 10);
-        fd[sock].length = 
+        fd[sock].length =
           sprintf(fd[sock].req_header, "200 Okay\r\n");
         if (verbose) puts(fd[sock].req_header);
         make_long_response(sock);
@@ -2396,7 +1270,7 @@ static int read_ftp_request(int sock) {
         }
         n = (char*)memchr(buffer,'\n',fd[sock].req_pos);
         if (!n) return 0;
-        if (send_ftp_data(sock, buffer+5, n)<0) {
+        if (send_ftp_data(sock, buffer+5 /*, n */)<0) {
           errors++;
           *n = 0;
           if (verbose)
@@ -2404,7 +1278,7 @@ static int read_ftp_request(int sock) {
           return 1;
         }
         fd[sock].response = fd[sock].req_header;
-        fd[sock].length = sprintf( fd[sock].req_header, "150 %d bytes\r\n", 
+        fd[sock].length = sprintf( fd[sock].req_header, "150 %d bytes\r\n",
                                    fd[fd[sock].ftp_data_fd].length);
         fd[sock].req_pos = 0;
         fd[sock].response_length = strlen(fd[sock].req_header);
@@ -2514,7 +1388,7 @@ static int accept_ftp_data (int sock) {
   fd[new_fd].state = STATE_FTP_DATA_READY;
   fd[new_fd].doc = fd[sock].doc;
   fd[new_fd].doc_length = fd[sock].doc_length;
-  if (verbose) 
+  if (verbose)
     printf("accept_ftp_data %d for %d\n", new_fd, sock);
   send_ftp_data_when_ready(new_fd);
   return 1;
@@ -2551,7 +1425,7 @@ static int open_server(unsigned short int port, accept_fn_t accept_fn) {
   }
 
   int addrlen = sizeof(name);
-  if ((err = getsockname(sock, (struct sockaddr *) &name, 
+  if ((err = getsockname(sock, (struct sockaddr *) &name,
 #if 0
                          &addrlen
 #else
@@ -2566,7 +1440,7 @@ static int open_server(unsigned short int port, accept_fn_t accept_fn) {
   /* Tell the socket not to linger on exit */
   lngr.l_onoff = 0;
   lngr.l_linger = 0;
-  if (setsockopt (sock, SOL_SOCKET, SO_LINGER, (char*) &lngr, 
+  if (setsockopt (sock, SOL_SOCKET, SO_LINGER, (char*) &lngr,
                   sizeof (struct linger)) < 0) {
     perror ("setsockopt");
     exit (EXIT_FAILURE);
@@ -2583,7 +1457,7 @@ static int open_server(unsigned short int port, accept_fn_t accept_fn) {
     exit (EXIT_FAILURE);
   }
 
-  if (verbose) 
+  if (verbose)
     printf("opening server on %d port %d\n", sock, name.sin_port);
 
   poll_init_set(sock, accept_fn);
@@ -2591,7 +1465,7 @@ static int open_server(unsigned short int port, accept_fn_t accept_fn) {
   return sock;
 }
 
-//   perform poll and invoke callbacks on active descriptors 
+//   perform poll and invoke callbacks on active descriptors
 static int poll_loop() {
   if (server_fd > 0) {
     while (read_ready(server_fd) > 0)
@@ -2599,7 +1473,7 @@ static int poll_loop() {
   }
   pollfd pfd[POLL_GROUP_SIZE];
   int ip = 0;
-  now = ink_get_hrtime();
+  now = ink_get_hrtime_internal();
   for (int i = 0 ; i <= last_fd ; i++) {
     if (fd[i].fd > 0 && (!fd[i].ready || now >= fd[i].ready)) {
       pfd[ip].fd = i;
@@ -2665,7 +1539,7 @@ static int gen_bfc_dist(double f = 10.0) {
     class_no = 3;
     if (f_given) rand2 = (f * 113.0) - floor(f * 113.0);
   }
-  
+
   if(rand2 < 0.018){
     file_no=0;
   }else if(rand2 < 0.091){
@@ -2709,11 +1583,11 @@ static void build_response() {
 
 static void put_ka(int sock) {
   int i = 0;
-  for (; i < n_ka_cache; i++ ) 
-    if (!ka_cache_head[i] || fd[ka_cache_head[i]].ip == fd[sock].ip) 
+  for (; i < n_ka_cache; i++ )
+    if (!ka_cache_head[i] || fd[ka_cache_head[i]].ip == fd[sock].ip)
       goto Lpush;
   i = n_ka_cache++;
-Lpush:  
+Lpush:
   if (ka_cache_tail[i])
     fd[ka_cache_tail[i]].next = sock;
   else
@@ -2722,7 +1596,7 @@ Lpush:
 }
 
 static int get_ka(unsigned int ip) {
-  for (int i = 0; i < n_ka_cache; i++ ) 
+  for (int i = 0; i < n_ka_cache; i++ )
     if (fd[ka_cache_head[i]].ip == ip) {
       int res = ka_cache_head[i];
       ka_cache_head[i] = fd[ka_cache_head[i]].next;
@@ -2751,8 +1625,8 @@ static void done() {
   exit(0);
 }
 
-static int is_done() { 
-  return 
+static int is_done() {
+  return
     (urls_mode && !current_clients && !n_defered_urls) ||
     (bandwidth_test && bandwidth_test_to_go <= 0 && !current_clients);
 }
@@ -2763,7 +1637,7 @@ static void undefer_url(bool unthrottled) {
     char * url =  defered_urls[n_defered_urls];
     make_url_client(url,0,true,unthrottled);
     free(url);
-    if (verbose) 
+    if (verbose)
       printf("undefer_url: made client %d clients\n", current_clients);
   } else
     if (verbose) printf("undefer_url: throttle\n");
@@ -2802,7 +1676,7 @@ static char * find_href_end (char *start, int len)
 
   while (*end && len > 0) {
       if (*end == '\"') break;  /* " */
-      if (*end == '\'') break;                 
+      if (*end == '\'') break;
       if (*end == '>')  break;
       if (*end == ' ')  break;
       if (*end == '\t') break;
@@ -2813,7 +1687,7 @@ static char * find_href_end (char *start, int len)
       end++;
     }
 
-  if (*end == 0 || len == 0) 
+  if (*end == 0 || len == 0)
     return NULL;
   else
     return end;
@@ -2886,14 +1760,14 @@ static int compose_url(char * new_url, char * base, char *input) {
   return 0;
 } // compose_urls
 
-static void compose_all_urls( const char * tag, char * buf, char * start, char * end, 
+static void compose_all_urls( const char * tag, char * buf, char * start, char * end,
                        int buflen, char * base_url)
 {
   char old;
   while ((start = find_href_start(tag, end, buflen - (end - buf)))) {
     char newurl[512];
-    end = (char *) find_href_end(start, min(buflen - (start-buf), 512 - 10)); 
-    if (!end) { 
+    end = (char *) find_href_end(start, MIN(buflen - (start-buf), 512 - 10));
+    if (!end) {
       end = start + strlen(tag);
       continue;
     }
@@ -2922,19 +1796,19 @@ static void extract_urls(char * buf, int buflen, char * base_url) {
       char * rover = strncasestr(start, "href", end - start);
       if (rover) {
         rover += 4;
-        while (rover < end && 
-               (ParseRules::is_ws(*rover) || *rover == '=' || *rover == '\'' 
+        while (rover < end &&
+               (ParseRules::is_ws(*rover) || *rover == '=' || *rover == '\''
                 || *rover == '\"'))    /* " */
           rover++;
         start = rover;
-        while (rover < end && 
-               !(ParseRules::is_ws(*rover) || *rover == '\'' 
+        while (rover < end &&
+               !(ParseRules::is_ws(*rover) || *rover == '\''
                  || *rover == '\"'))
           rover++;
         *rover = 0;
         compose_url(base_url,old_base,start);
         // fixup unqualified hostnames (e.g. http://internal/foo)
-        char * he = strchr(base_url + 8, '/'); 
+        char * he = strchr(base_url + 8, '/');
         if (!memchr(base_url,'.',he-base_url)) {
           char t[512]; strcpy(t,base_url);
           char * old_he = strchr(old_base + 8, '.');
@@ -2953,8 +1827,8 @@ static void extract_urls(char * buf, int buflen, char * base_url) {
   if (follow)
     compose_all_urls("href", buf, start, end, buflen, base_url);
   if (fullpage) {
-    const char *tags[] = { "src", "image", "object", "archive", "background", 
-                     // "location", "code" 
+    const char *tags[] = { "src", "image", "object", "archive", "background",
+                     // "location", "code"
     };
     for (unsigned i = 0 ; i < sizeof(tags)/sizeof(tags[0]) ; i++) {
       compose_all_urls(tags[i], buf, start, end, buflen, base_url);
@@ -2997,7 +1871,7 @@ static int verify_content(int sock, char * buf, int done) {
         char *url_end = NULL, *url_start = NULL;
         get_path_from_req(fd[sock].base_url,&url_start,&url_end);
         if (url_end - url_start < done) {
-          if (memcmp(url_start,buf,url_end - url_start)) 
+          if (memcmp(url_start,buf,url_end - url_start))
             return 0;
         }
       }
@@ -3047,7 +1921,7 @@ static int get_zipf(double v) {
   if (zipf_bucket_size == 1)
     return m;
   double x = zipf_table[m], y = zipf_table[m+1];
-  m += (v - x) / (y - x);
+  m += static_cast<int> ((v - x) / (y - x));
   return m;
 }
 
@@ -3063,30 +1937,30 @@ static int read_response(int sock) {
   int err = 0;
 
   if (fd[sock].req_pos >= 0) {
-    if (!fd[sock].req_pos) 
+    if (!fd[sock].req_pos)
       memset(fd[sock].req_header,0,HEADER_SIZE);
     do {
       int l = HEADER_SIZE - fd[sock].req_pos - 1;
-      if (l <= 0) { 
-        if (verbose || verbose_errors) 
+      if (l <= 0) {
+        if (verbose || verbose_errors)
           printf("header too long '%s'", fd[sock].req_header);
         return read_response_error(sock);
       }
-      err = read(sock, fd[sock].req_header + fd[sock].req_pos, 
+      err = read(sock, fd[sock].req_header + fd[sock].req_pos,
                  HEADER_SIZE - fd[sock].req_pos - 1);
     } while ((err == -1) && (errno == EINTR));
     if (err <= 0) {
       if (!err) {
-        if (verbose_errors) 
+        if (verbose_errors)
           printf("read_response %d closed during header for '%s' after %d%s\n",
                  sock, fd[sock].base_url, fd[sock].req_pos,
-                 (keepalive && (fd[sock].keepalive != keepalive) 
+                 (keepalive && (fd[sock].keepalive != keepalive)
                   && !fd[sock].req_pos) ? " -- keepalive timeout" : "");
         return read_response_error(sock);
       }
       if (errno == EAGAIN || errno == ENOTCONN) return 0;
       if (errno == ECONNRESET) {
-        if (!fd[sock].req_pos && keepalive > 0 && 
+        if (!fd[sock].req_pos && keepalive > 0 &&
             fd[sock].keepalive != keepalive) {
           fd[sock].close();
           if (!urls_mode)
@@ -3099,19 +1973,19 @@ static int read_response(int sock) {
       }
       panic_perror("read");
     }
-    if (verbose) 
-      printf("read %d header %d [%s]\n", 
+    if (verbose)
+      printf("read %d header %d [%s]\n",
              sock, err, fd[sock].req_header);
     b1_ops++;
 
     strcpy(fd[sock].response_header, fd[sock].req_header);
 
-    b1latency += ((ink_get_hrtime() - fd[sock].start) / HRTIME_MSECOND);
+    b1latency += ((ink_get_hrtime_internal() - fd[sock].start) / HRTIME_MSECOND);
     new_cbytes += err;
     new_tbytes += err;
     fd[sock].req_pos += err;
     fd[sock].bytes += err;
-    fd[sock].active = ink_get_hrtime();
+    fd[sock].active = ink_get_hrtime_internal();
     int total_read = fd[sock].req_pos;
     char * p = fd[sock].req_header;
     char * cl = NULL;
@@ -3124,7 +1998,7 @@ static int read_response(int sock) {
         strncpy(fd[sock].response_header, fd[sock].req_header, p - fd[sock].req_header);
         fd[sock].response_header[p - fd[sock].req_header] = '\0';
         int lbody =  fd[sock].req_pos - (p - fd[sock].req_header);
-        cl = strncasestr(fd[sock].req_header,"Content-Length:", 
+        cl = strncasestr(fd[sock].req_header,"Content-Length:",
                          p - fd[sock].req_header);
         if (cl) {
           cli = atoi(cl + 16);
@@ -3134,9 +2008,9 @@ static int read_response(int sock) {
                 fd[sock].jg_compressed = 1;
                 expected_length = (fd[sock].response_length * 2) / 3;
               }
-            } 
+            }
             if (fd[sock].response_length && verbose_errors &&
-                expected_length != cli && !nocheck_length) 
+                expected_length != cli && !nocheck_length)
               fprintf(stderr, "bad Content-Length expected %d got %d orig %d",
                       expected_length, cli, fd[sock].response_length);
             fd[sock].response_length = fd[sock].length = cli;
@@ -3154,7 +2028,7 @@ static int read_response(int sock) {
         fd[sock].req_pos = -1;
         if (fd[sock].length && drand48() < client_abort_rate) {
           fd[sock].client_abort = 1;
-          fd[sock].length = (int)(drand48() * (fd[sock].length -1)); 
+          fd[sock].length = (int)(drand48() * (fd[sock].length -1));
           fd[sock].keepalive = 0;
           fd[sock].drop_after_CL = 1;
         }
@@ -3171,10 +2045,10 @@ static int read_response(int sock) {
         putc(*c,stdout);
       printf("}\n");
     }
-    if (obey_redirects && urls_mode && 
+    if (obey_redirects && urls_mode &&
         fd[sock].req_header[9] == '3' &&
         fd[sock].req_header[10] == '0' &&
-        (fd[sock].req_header[11] == '1' || fd[sock].req_header[11] == '2')) 
+        (fd[sock].req_header[11] == '1' || fd[sock].req_header[11] == '2'))
     {
       char * redirect = strstr(fd[sock].req_header,"http://");
       char * e = redirect?(char*)memchr(redirect,'\n',hlen):0;
@@ -3197,7 +2071,7 @@ static int read_response(int sock) {
           if (e) *e = 0;
           else *p = 0;
         }
-        printf("error response %d: '%s':'%s'\n", sock, 
+        printf("error response %d: '%s':'%s'\n", sock,
                fd[sock].base_url, fd[sock].req_header);
       }
       return read_response_error(sock);
@@ -3207,7 +2081,7 @@ static int read_response(int sock) {
     char * ka = check_keepalive(r, length);
     if (urls_mode) {
       fd[sock].response_remaining = total_read - length;
-      if (fd[sock].response_remaining) 
+      if (fd[sock].response_remaining)
         memcpy(fd[sock].response,p,fd[sock].response_remaining);
       if (check_content && !cl) {
         if (verbose || verbose_errors)
@@ -3215,14 +2089,14 @@ static int read_response(int sock) {
         return read_response_error(sock);
       }
     } else
-      fd[sock].response = 0;      
+      fd[sock].response = 0;
     if (!cl || !ka)
       fd[sock].keepalive = -1;
     if (!cl)
       fd[sock].length = INT_MAX;
   }
-  
-  if (fd[sock].length <= 0 && 
+
+  if (fd[sock].length <= 0 &&
       (fd[sock].keepalive > 0 || fd[sock].drop_after_CL))
     goto Ldone;
 
@@ -3247,9 +2121,9 @@ static int read_response(int sock) {
     } else
       r = buf;
     if (fast(sock,client_speed,fd[sock].bytes)) return 0;
-    if (fd[sock].bytes > abort_retry_bytes && 
-        (((now - fd[sock].start + 1)/HRTIME_SECOND) > abort_retry_secs) && 
-        !faster_than(sock,abort_retry_speed,fd[sock].bytes)) 
+    if (fd[sock].bytes > abort_retry_bytes &&
+        (((now - fd[sock].start + 1)/HRTIME_SECOND) > abort_retry_secs) &&
+        !faster_than(sock,abort_retry_speed,fd[sock].bytes))
     {
       fd[sock].client_abort = 1;
       fd[sock].keepalive = 0;
@@ -3284,34 +2158,34 @@ static int read_response(int sock) {
     follow_links(sock);
     if (fd[sock].length != INT_MAX)
       fd[sock].length -= err;
-    fd[sock].active = ink_get_hrtime();
-    if (verbose) 
+    fd[sock].active = ink_get_hrtime_internal();
+    if (verbose)
       printf("read %d got %d togo %d %d %d\n", sock, err, fd[sock].length,
              fd[sock].keepalive, fd[sock].drop_after_CL);
   }
-  
-  if (fd[sock].length <= 0 && 
+
+  if (fd[sock].length <= 0 &&
       (fd[sock].keepalive > 0 || fd[sock].drop_after_CL))
     goto Ldone;
 
   return 0;
-  
+
 Ldone:
-  if (!fd[sock].client_abort && 
+  if (!fd[sock].client_abort &&
       !(server_abort_rate > 0) &&
-      fd[sock].length && fd[sock].length != INT_MAX) 
+      fd[sock].length && fd[sock].length != INT_MAX)
   {
-    if (verbose || verbose_errors) 
-      printf("bad length %d wanted %d after %d ms: '%s'\n", 
+    if (verbose || verbose_errors)
+      printf("bad length %d wanted %d after %d ms: '%s'\n",
              fd[sock].response_length - fd[sock].length,
              fd[sock].response_length,
-             (int)((ink_get_hrtime() - fd[sock].active)/HRTIME_MSECOND),
+             (int)((ink_get_hrtime_internal() - fd[sock].active)/HRTIME_MSECOND),
              fd[sock].base_url);
     return read_response_error(sock);
   }
   if (verbose) printf("read %d done\n", sock);
   new_ops++;
-  double thislatency =((ink_get_hrtime() - fd[sock].start) / HRTIME_MSECOND);
+  double thislatency =((ink_get_hrtime_internal() - fd[sock].start) / HRTIME_MSECOND);
   latency += (int)thislatency;
   lat_ops++;
   if (fd[sock].keepalive > 0) {
@@ -3328,12 +2202,12 @@ Ldone:
     make_bfc_client(proxy_addr, proxy_port);
   return 0;
 }
-  
+
 static int write_request(int sock) {
   int err = 0;
-  
+
   do {
-    err = write(sock, fd[sock].req_header + fd[sock].req_pos, 
+    err = write(sock, fd[sock].req_header + fd[sock].req_pos,
                 fd[sock].length - fd[sock].req_pos);
   } while ((err == -1) && (errno == EINTR));
   if (err <= 0) {
@@ -3350,8 +2224,8 @@ static int write_request(int sock) {
   new_tbytes += err;
   total_client_request_bytes += err;
   fd[sock].req_pos += err;
-  fd[sock].active = ink_get_hrtime();
-  
+  fd[sock].active = ink_get_hrtime_internal();
+
   if (fd[sock].req_pos >= fd[sock].length) {
     if (verbose) printf("write complete %d %d\n", sock, fd[sock].length);
     fd[sock].req_pos = 0;
@@ -3375,12 +2249,12 @@ Lerror:
 
 static int write_ftp_response(int sock) {
   int err = 0;
-  
+
   do {
-    err = write(sock, fd[sock].req_header + fd[sock].req_pos, 
+    err = write(sock, fd[sock].req_header + fd[sock].req_pos,
                 fd[sock].length - fd[sock].req_pos);
   } while ((err == -1) && (errno == EINTR));
-  
+
   if (err <= 0) {
     if (!err) {
       if (verbose_errors) printf("write %d closed early\n", sock);
@@ -3394,7 +2268,7 @@ static int write_ftp_response(int sock) {
 
   new_tbytes += err;
   fd[sock].req_pos += err;
-  
+
   if (fd[sock].req_pos >= fd[sock].length) {
     if (verbose) printf("write complete %d %d\n", sock, fd[sock].length);
     fd[sock].req_pos = 0;
@@ -3437,7 +2311,7 @@ static int make_client (unsigned int addr, int port) {
   lngr.l_onoff = 1;
   lngr.l_linger = 0;
   if (!ftp) {  // this causes problems for PORT ftp -- ewong
-    if (setsockopt (sock, SOL_SOCKET, SO_LINGER, (char*) &lngr, 
+    if (setsockopt (sock, SOL_SOCKET, SO_LINGER, (char*) &lngr,
                     sizeof (struct linger)) < 0) {
       perror ("setsockopt");
       exit (EXIT_FAILURE);
@@ -3449,12 +2323,12 @@ static int make_client (unsigned int addr, int port) {
   name.sin_family = AF_INET;
   name.sin_port = htons(port);
   name.sin_addr.s_addr = addr;
-  
+
   if (verbose) printf("connecting to %u.%u.%u.%u:%d\n",
-                      ((unsigned char*)&addr)[0], ((unsigned char*)&addr)[1], 
+                      ((unsigned char*)&addr)[0], ((unsigned char*)&addr)[1],
                       ((unsigned char*)&addr)[2], ((unsigned char*)&addr)[3],
                       port);
-  
+
   while (connect (sock, (struct sockaddr *) &name, sizeof (name)) < 0) {
     if (errno == EINTR) continue;
     if (errno == EINPROGRESS)
@@ -3476,7 +2350,7 @@ static void make_bfc_client (unsigned int addr, int port) {
   int sock = -1;
   if (bandwidth_test && bandwidth_test_to_go-- <= 0)
     return;
-  if (keepalive) 
+  if (keepalive)
     sock = get_ka(addr);
   if (sock < 0) {
     sock = make_client(addr,port);
@@ -3486,7 +2360,7 @@ static void make_bfc_client (unsigned int addr, int port) {
     current_clients++;
     fd[sock].keepalive--;
   }
-  if (sock<0) 
+  if (sock<0)
     panic("unable to open client connection\n");
   double h = drand48();
   double dr = drand48();
@@ -3547,14 +2421,14 @@ static void make_bfc_client (unsigned int addr, int port) {
     sprintf(evo_str, ".%u", ((unsigned int)evo_index));
   }
   if (0 == hostrequest) {
-    sprintf(fd[sock].req_header, 
-            ftp ? 
+    sprintf(fd[sock].req_header,
+            ftp ?
             "GET ftp://%s:%d/%12.10f/%d%s%s HTTP/1.0\r\n"
             "%s"
             "%s"
             "%s"
             "%s"
-            "\r\n" 
+            "\r\n"
             :
             "GET http://%s:%d/%12.10f/%d%s%s HTTP/1.0\r\n"
             "%s"
@@ -3570,7 +2444,7 @@ static void make_bfc_client (unsigned int addr, int port) {
             eheaders, cookie
       );
   } else if (1 == hostrequest) {
-    sprintf(fd[sock].req_header, 
+    sprintf(fd[sock].req_header,
             "GET /%12.10f/%d%s%s HTTP/1.0\r\n"
             "Host: %s:%d\r\n"
             "%s"
@@ -3585,7 +2459,7 @@ static void make_bfc_client (unsigned int addr, int port) {
             eheaders, cookie);
   } else if (2 == hostrequest) {
     /* Send a non-proxy client request i.e. for Transparency testing */
-    sprintf(fd[sock].req_header, 
+    sprintf(fd[sock].req_header,
             "GET /%12.10f/%d%s%s HTTP/1.0\r\n"
             "%s"
             "%s"
@@ -3595,11 +2469,11 @@ static void make_bfc_client (unsigned int addr, int port) {
             dr, fd[sock].response_length, evo_str, extension,
             fd[sock].keepalive?"Connection: Keep-Alive\r\n":"",
             reload_rate > drand48() ? "Pragma: no-cache\r\n":"",
-            eheaders, 
+            eheaders,
             cookie);
   }
   if (verbose) printf("request %d [%s]\n", sock, fd[sock].req_header);
-  fd[sock].length = strlen(fd[sock].req_header); 
+  fd[sock].length = strlen(fd[sock].req_header);
   {
     char * s = fd[sock].req_header;
     char * e = (char*)memchr(s, '\r', 512);
@@ -3622,7 +2496,7 @@ static void make_bfc_client (unsigned int addr, int port) {
 
 void interval_report() {
   static int here = 0;
-  now = ink_get_hrtime();
+  now = ink_get_hrtime_internal();
   if (!(here++ % 20))
     printf(
  " con  new     ops   1B  lat      bytes/per     svrs  new  ops      total   time  err\n");
@@ -3641,9 +2515,9 @@ void interval_report() {
          running_clients,
          running_ops, running_b1latency, running_latency,
          running_cbytes, per,
-         running_servers, 
          running_servers,
-         running_sops, running_tbytes, 
+         running_servers,
+         running_sops, running_tbytes,
          t/((float)HRTIME_SECOND),
          errors);
   if (is_done()) {
@@ -3709,7 +2583,7 @@ struct UrlHashTable {
   unsigned int    numbytes;
   unsigned char * bytes;
   int fd;
-  
+
   void zero() { memset(bytes, 0, numbytes); }
 
   void alloc(unsigned int want);
@@ -3744,7 +2618,7 @@ struct UrlHashTable {
       }
     } END_HASH_LOOP;
 
-    fprintf(stderr, "url hash table entry to clear not found: %X, %X\n", 
+    fprintf(stderr, "url hash table entry to clear not found: %X, %X\n",
             (int)(base-bytes), tag);
   }
 
@@ -3762,16 +2636,15 @@ struct UrlHashTable {
     }
     return 0;
   }
-  
+
   UrlHashTable();
 
   ~UrlHashTable();
 };
 UrlHashTable * uniq_urls = NULL;
 
-
 UrlHashTable::UrlHashTable() {
-  unsigned long len = 0;
+  off_t len = 0;
 
   if (!url_hash_entries)
     return;
@@ -3783,24 +2656,24 @@ UrlHashTable::UrlHashTable() {
 
   if (url_hash_entries > 0) {
     // if they specify the number of entries round it up
-    url_hash_entries = 
+    url_hash_entries =
       (url_hash_entries + ENTRIES_PER_BUCKET - 1) & ~(ENTRIES_PER_BUCKET - 1);
     numbytes = URL_HASH_BYTES;
 
     // ensure it is either a new file or the correct size
-    if (len != 0 && len != numbytes) 
+    if (len != 0 && len != numbytes)
       panic("specified size != file size\n");
 
   } else {
 
     // otherwise make sure the file is non-zero and then use its
     // size as the size
-    if (!len) 
+    if (!len)
       panic("zero size URL Hash Table\n");
-    if (len != (unsigned long)URL_HASH_BYTES) {
-      fprintf(stderr, 
-              "FATAL: hash file length (%lu) != URL_HASH_BYTES (%lu)\n",
-              len, (unsigned long)URL_HASH_BYTES);
+    if (len != URL_HASH_BYTES) {
+      fprintf(stderr,
+              "FATAL: hash file length (%jd) != URL_HASH_BYTES (%jd)\n",
+              (intmax_t)len, (intmax_t)URL_HASH_BYTES);
       exit(1);
     }
     numbytes = len;
@@ -3821,13 +2694,11 @@ UrlHashTable::UrlHashTable() {
   }
 } // UrlHashTable::UrlHashTable
 
-
 UrlHashTable::~UrlHashTable()
 {
   ink_assert(!munmap((char*)bytes, numbytes));
   ink_assert(!close(fd));
 } // UrlHashTable::~UrlHashTable
-
 
 static int seen_it(char * url) {
   if (!url_hash_entries)
@@ -3838,7 +2709,7 @@ static int seen_it(char * url) {
   } u;
   int l = 0;
   char * para = strrchr(url, '#');
-  if (para) 
+  if (para)
     l = para - url;
   else
     l = strlen(url);
@@ -3854,7 +2725,7 @@ static int seen_it(char * url) {
 }
 
 static int make_url_client(const char * url,const char * base_url, bool seen,
-                           bool unthrottled) 
+                           bool unthrottled)
 {
   int iport = 80;
   unsigned int ip = 0;
@@ -3891,19 +2762,19 @@ static int make_url_client(const char * url,const char * base_url, bool seen,
     ip = proxy_addr;
   } else {
     if (xport) iport = atoi(port);
-    if (!xhost) { 
-      if (verbose) fprintf(stderr, "bad url '%s'\n", curl); 
+    if (!xhost) {
+      if (verbose) fprintf(stderr, "bad url '%s'\n", curl);
       return -1;
     }
     ip = get_addr(host);
-    if ((int)ip == -1) { 
+    if ((int)ip == -1) {
       if (verbose || verbose_errors)
-        fprintf(stderr, "bad host '%s'\n", host); 
+        fprintf(stderr, "bad host '%s'\n", host);
       return -1;
     }
   }
   int sock = -1;
-  if (keepalive) 
+  if (keepalive)
     sock = get_ka(ip);
   if (sock < 0) {
     sock = make_client(ip, iport);
@@ -3937,18 +2808,18 @@ static int make_url_client(const char * url,const char * base_url, bool seen,
             "%s"
             "Accept: */*\r\n"
             "%s"
-            "\r\n", 
+            "\r\n",
             curl,
             reload_rate > drand48() ? "Pragma: no-cache\r\n":"",
             fd[sock].keepalive?"Proxy-Connection: Keep-Alive\r\n":"",eheaders);
-  else 
+  else
     sprintf(fd[sock].req_header, "GET /%s%s%s%s%s HTTP/1.0\r\n"
             "Host: %s\r\n"
             "%s"
             "%s"
             "Accept: */*\r\n"
             "%s"
-            "\r\n", 
+            "\r\n",
             path,xquer?"?":"",quer,xpar?";":"",para,host,
             reload_rate > drand48() ? "Pragma: no-cache\r\n":"",
             fd[sock].keepalive?"Connection: Keep-Alive\r\n":"",eheaders);
@@ -3987,7 +2858,7 @@ static FILE * get_defered_urls(FILE * fp) {
   return fp;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc __attribute__((unused)), char *argv[]) {
   /* for QA -- we want to be able to tail an output file
    * during execution "nohup jtest -P pxy -p prt &"
    */
@@ -4000,7 +2871,7 @@ int main(int argc, char *argv[]) {
     show_version();
     exit(0);
   }
-  if (!drand_seed) 
+  if (!drand_seed)
     srand48((long)time(NULL));
   else
     srand48((long)drand_seed);
@@ -4008,9 +2879,9 @@ int main(int argc, char *argv[]) {
     build_zipf();
   int max_fds = max_limit_fd();
   if (verbose) printf ("maximum of %d connections\n",max_fds);
-  signal(SIGPIPE,SIG_IGN);      
-  start_time = now = ink_get_hrtime();
-  
+  signal(SIGPIPE,SIG_IGN);
+  start_time = now = ink_get_hrtime_internal();
+
   urls_mode = n_file_arguments || *urls_file;
   nclients = client_rate? 0 : nclients;
 
@@ -4035,8 +2906,7 @@ int main(int argc, char *argv[]) {
         for (int retry = 0 ; retry < 20 ; retry++) {
           server_fd = open_server(server_port + retry, accept_read);
           if (server_fd < 0) {
-            if (server_fd == -EADDRINUSE) { 
-              printf("here\n");
+            if (server_fd == -EADDRINUSE) {
               continue;
             }
             panic_perror("open_server");
@@ -4074,8 +2944,7 @@ int main(int argc, char *argv[]) {
       else
         urls_fp = fp;
     }
-    int i;
-    for (i = 0; i < n_file_arguments; i++) {
+    for (unsigned i = 0; i < n_file_arguments; i++) {
       char sche[8],host[512],port[10],path[512],frag[512],quer[512],para[512];
       int xsche,xhost,xport,xpath,xfrag,xquer,xpar,rel,slash;
       ink_web_decompose_url(file_arguments[i],sche,host,port,
@@ -4086,8 +2955,9 @@ int main(int argc, char *argv[]) {
         strcpy(current_host,host);
       }
     }
-    for (i = 0; i < n_file_arguments ; i++)
+    for (unsigned i = 0; i < n_file_arguments ; i++) {
       make_url_client(file_arguments[i]);
+    }
   }
 
   int t = now / HRTIME_SECOND;
@@ -4124,37 +2994,36 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_decompose_url(...)
-  
+
   This function takes an input URL in src_url and splits it into its
   component parts, including a scheme, host, port, path, fragment,
   query, and parameters. you must pass in buffers for each of these.
   If you pass in a NULL pointer for any of these, it will not be
   returned.
-  
+
   The flags "sche_exists", etc. tell you if that part of the URL was
   found. Each unfound part (with a non-NULL buffer) will also contain
   the empty string '\0'.
-  
+
   The flag "relative_url" indicates that the src_url did not start
   with a scheme. (This is kind of redundant with sche_exists but is
   the general way to do it.)
-  
+
   The flag "leading_slash" indicates that the path began with a
   leading slash.
-  
+
   mep - 4/15/96
-  
+
   *---------------------------------------------------------------------------*/
 
 static void ink_web_decompose_url(const char *src_url,
                            char *sche, char *host, char *port, char *path,
                            char *frag, char *quer, char *para,
                            int *real_sche_exists, int *real_host_exists,
-                           int *real_port_exists, int *real_path_exists, 
+                           int *real_port_exists, int *real_path_exists,
                            int *real_frag_exists, int *real_quer_exists,
                            int *real_para_exists,
                            int *real_relative_url, int *real_leading_slash)
@@ -4164,7 +3033,7 @@ static void ink_web_decompose_url(const char *src_url,
       *
       * You may pass in NULL pointers for any of: sche, host, port, path,
       * frag, quer, or para, and they will not be returned.
-      * 
+      *
       *
       * According to the HTML Sourcebook, a URL consists:
       *
@@ -4203,16 +3072,16 @@ static void ink_web_decompose_url(const char *src_url,
   const char *para1, *para2;
   bool fail = false;
   int num;
-  int sche_exists, host_exists, port_exists, path_exists, frag_exists, 
+  int sche_exists, host_exists, port_exists, path_exists, frag_exists,
     quer_exists, para_exists;
   int leading_slash;
-  
+
   sche_exists = host_exists = port_exists = path_exists = 0;
   frag_exists = quer_exists = para_exists = 0;
   sche1 = sche2 = host1 = host2 = port1 = port2 = NULL;
   path1 = path2 = frag1 = frag2 = quer1 = quer2 = para1 = para2 = NULL;
   leading_slash = 0;
-  
+
   temp2 = ptr;
   /* strip fragments "#" off the end */
   while (ptr < end) {
@@ -4248,7 +3117,7 @@ static void ink_web_decompose_url(const char *src_url,
   }
   if (sche_exists == 0)
     ptr = temp2;
-  
+
   /* find start of host */
   fail = false;
   temp2 = ptr;
@@ -4268,7 +3137,7 @@ static void ink_web_decompose_url(const char *src_url,
       ptr++;
     }
   }
-  
+
   /* find end of host */
   if (host_exists == 1) {
     while ((ptr < end) && (host2 == NULL)) {
@@ -4281,7 +3150,7 @@ static void ink_web_decompose_url(const char *src_url,
     }
     if (host2 == NULL)
       host2 = end;
-    
+
     if (host_exists == 1) {
       temp = host2-1;
       /* remove trailing dots from host */
@@ -4289,7 +3158,7 @@ static void ink_web_decompose_url(const char *src_url,
         temp--;
         host2--;
       }
-      
+
       /* find start & end of port */
       ptr2 = host1;
       temp = host2;
@@ -4306,7 +3175,7 @@ static void ink_web_decompose_url(const char *src_url,
   }
   if (host_exists == 0)
     ptr = temp2;
-  
+
   temp2 = ptr;
   /* strip query "?" off the end */
   while (ptr < end) {
@@ -4319,7 +3188,7 @@ static void ink_web_decompose_url(const char *src_url,
     ptr++;
   }
   ptr = temp2;
-  
+
   temp2 = ptr;
   /* strip parameters ";" off the end */
   while (ptr < end) {
@@ -4351,22 +3220,22 @@ static void ink_web_decompose_url(const char *src_url,
     path1 = end;
     path2 = end;
     path_exists = 0;
-  } 
-  
-  if (sche_exists != 1) 
-    *real_relative_url = 1; 
+  }
+
+  if (sche_exists != 1)
+    *real_relative_url = 1;
   else
     *real_relative_url = 0;
-  
+
   /* extract strings for scheme, host, port, path, etc */
-  
+
   if (sche != NULL) {
     if (sche_exists) {
       num = sche2-sche1;
       if (num > MAX_URL_LEN-1) num = MAX_URL_LEN-1;
       strncpy(sche,sche1,num+1);
       *(sche+num) = '\0';
-      
+
       /* make scheme lowercase */
       char * p = sche;
       while (*p) {
@@ -4377,14 +3246,14 @@ static void ink_web_decompose_url(const char *src_url,
       *sche = 0;
     }
   }
-  
+
   if (host != NULL) {
     if (host_exists) {
       num = host2-host1;
       if (num > MAX_URL_LEN-1) num = MAX_URL_LEN-1;
       strncpy(host,host1,num+1);
       *(host+num) = '\0';
-      
+
       /* make hostname lowercase */
       char * p = host;
       while (*p) {
@@ -4395,7 +3264,7 @@ static void ink_web_decompose_url(const char *src_url,
       *host = 0;
     }
   }
-  
+
   if (port != NULL) {
     if (port_exists) {
       num = port2-port1;
@@ -4406,7 +3275,7 @@ static void ink_web_decompose_url(const char *src_url,
       *port = 0;
     }
   }
-  
+
   if (path != NULL) {
     if (path_exists) {
       num = path2-path1;
@@ -4417,7 +3286,7 @@ static void ink_web_decompose_url(const char *src_url,
       *path = 0;
     }
   }
-  
+
   if (frag != NULL) {
     if (frag_exists) {
       num = frag2-frag1;
@@ -4428,7 +3297,7 @@ static void ink_web_decompose_url(const char *src_url,
       *frag = 0;
     }
   }
-  
+
   if (quer != NULL) {
     if (quer_exists) {
       num = quer2-quer1;
@@ -4439,7 +3308,7 @@ static void ink_web_decompose_url(const char *src_url,
       *quer = 0;
     }
   }
-  
+
   if (para != NULL) {
     if (para_exists) {
       num = para2-para1;
@@ -4457,18 +3326,17 @@ static void ink_web_decompose_url(const char *src_url,
   *real_frag_exists = frag_exists;
   *real_quer_exists = quer_exists;
   *real_para_exists = para_exists;
-  *real_leading_slash = leading_slash; 
+  *real_leading_slash = leading_slash;
 } /* End ink_web_decompose_url */
-
 
 #if 0 /* debugging */
 /*---------------------------------------------------------------------------*
-  
+
   void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
-  
+
   This routine writes a readable representation of the URL components
   pointed to by <c> on the file pointer <fp>.
-  
+
   *---------------------------------------------------------------------------*/
 
 static void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
@@ -4480,46 +3348,45 @@ static void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
   fprintf(fp,"quer:'%s', exists %d\n",c->quer,c->quer_exists);
   fprintf(fp,"frag:'%s', exists %d\n",c->frag,c->frag_exists);
   fprintf(fp,"para:'%s', exists %d\n",c->para,c->para_exists);
-  
+
   fprintf(fp,"rel_url:%d\n",c->rel_url);
   fprintf(fp,"leading_slash:%d\n",c->leading_slash);
-  
+
   fprintf(fp,"\n");
 } /* End ink_web_dump_url_components */
 
 #endif
 
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_canonicalize_url(...)
-  
+
   Inputs: base_url, emb_url, max_dest_url_len.
   Output: dest_url.
-  
+
   This function takes a base url and an embedded url, and produces an
   absolute url as specified in RFC 1808, "Relative Uniform Resource
   Locators".
-  
+
   A base url is often the url of a document and an embedded url is an
   incomplete reference to a secondary document, often in the same
   directory. Together they completely specify an absolute reference to
   the secondary document.
-  
-  For instance, 
+
+  For instance,
      base_url "http://inktomi.com/~mep"
      emb_url: "path1/path2/foo.html"
-  
+
   becomes
-  
+
      dest_url: "http://inktomi.com/~mep/path1/path2/foo.html"
-  
+
   This function also applies "ink_web_escapify()" to the dest_url.
-  
+
   You must supply the buffer dest_url and its size, max_dest_url_len.
-  
-  
+
   mep - 4/15/96
-  
+
   *---------------------------------------------------------------------------*/
 
 static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, char *dest_url,
@@ -4531,37 +3398,37 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
   int leading_slash,use_base_sche,use_base_host,
     use_base_path,use_base_quer,use_base_para,use_base_frag;
   int host_last = 0;
-  
+
   doff = 0;
-  
+
   /* Initialize Component Values */
-  
+
   leading_slash = 0;
-  
+
   /* Decompose The Base And Embedded URLs */
-  
+
   ink_web_decompose_url_into_structure(base_url,&base);
   ink_web_decompose_url_into_structure(emb_url,&emb);
-  
+
   /* Print Out Components */
-  
+
   /* Select Which Components To Use From Base & Embedded URL */
-  
+
   dest_url[0] = '\0';
-  
+
   use_base_sche = 1;
   use_base_host = 1;
   use_base_path = 0;
   use_base_quer = 0;
   use_base_para = 0;
   use_base_frag = 0;
-  
-  if (!emb.sche_exists && !emb.path_exists && 
-      !emb.host_exists && !emb.quer_exists && 
+
+  if (!emb.sche_exists && !emb.path_exists &&
+      !emb.host_exists && !emb.quer_exists &&
       !emb.frag_exists && !emb.para_exists)
   {
     /* 2a: if the embedded URL is empty, take everything from the base */
-      
+
     use_base_sche = 1;
     use_base_host = 1;
     use_base_path = 1;
@@ -4583,10 +3450,10 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
   }
   else if (emb.sche_exists &&
            !(((strcasecmp(emb.sche,"http") == 0) && !emb.host_exists)))
-    
+
   {
     /* 2b: not good enough, because things like 'http:overview.html' */
-      
+
     use_base_sche = 0;
     use_base_host = 0;
     use_base_path = 0;
@@ -4597,9 +3464,9 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
   else
   {
     use_base_sche = 1;
-      
+
     /* step 3 - if emb_host non-empty, skip to 7 */
-      
+
     if (emb.host_exists)
     {
       use_base_host = 0;
@@ -4607,39 +3474,39 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
     else
     {
       use_base_host = 1;
-          
+
       /* step 4 - if emb_path preceeded by slash, skip to 7 */
-          
+
       if (emb.leading_slash != 1)
       {
         /* step 5 */
-              
+
         if (!emb.path_exists)
         {
           use_base_path = 1;
-                  
+
           if (emb.para_exists)
           {
             /* 5a - if emb_para non-empty, skip to 7 */
-                      
+
             use_base_para = 0;
           }
           else
           {
             /* otherwise use base_para */
-                      
+
             use_base_para = 1;
-                      
+
             if (emb.quer_exists)
             {
               /* 5b - if emb_quer non-empty, skip to 7 */
-                          
+
               use_base_quer = 0;
             }
             else
             {
               /* otherwise use base query */
-                          
+
               use_base_quer = 1;
             }
           }
@@ -4647,20 +3514,20 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
         else
         {
           use_base_path = 0;
-                  
+
           /* step 6 */
           /* create combined path */
           /* remove last segment of base_path */
-                  
+
           remove_last_seg(base.path, temp);
           remove_multiple_slash(temp, temp2);
-                  
+
           /* append emb_path */
-                  
+
           sprintf(temp2,"%s%s",temp2,emb.path);
 
           /* remove "." and ".." */
-                  
+
           ink_web_remove_dots(temp2,emb.path,
                               &leading_slash,MAX_URL_LEN);
           emb.path_exists = 1;
@@ -4669,9 +3536,9 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       } /* 4 */
     } /* 3 */
   }
-  
+
   /* step 7 - combine parts */
-  
+
   if (use_base_sche)
   {
     if (base.sche_exists)
@@ -4690,7 +3557,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 0;
     }
   }
-  
+
   if (use_base_host)
   {
     if (base.host_exists)
@@ -4719,7 +3586,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 1;
     }
   }
-  
+
   if (use_base_path)
   {
     if (base.path_exists)
@@ -4745,7 +3612,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 0;
     }
   }
-  
+
   if (use_base_para)
   {
     if (base.para_exists)       {
@@ -4755,7 +3622,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
     }
   }
   else
-  { 
+  {
     if (emb.para_exists)
     {
       append_string(dest_url, ";", &doff, MAX_URL_LEN);
@@ -4763,7 +3630,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 0;
     }
   }
-  
+
   if (use_base_quer)
   {
     if (base.quer_exists)
@@ -4782,7 +3649,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 0;
     }
   }
-  
+
   if (use_base_frag)
   {
     if (base.frag_exists)
@@ -4791,7 +3658,7 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       append_string(dest_url, base.frag, &doff, MAX_URL_LEN);
       host_last = 0;
     }
-  } 
+  }
   else {
     if (emb.frag_exists)
     {
@@ -4800,19 +3667,19 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
       host_last = 0;
     }
   }
-  
+
   if (host_last) append_string(dest_url, "/", &doff, MAX_URL_LEN);
 }
 
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_decompose_url_into_structure(char *url, InkWebURLComponents *c)
-  
+
   This routine takes a URL and violently tears apart its molecular structure,
   placing the URL components in the InkWebURLComponents structure pointed to
   by <c>.  Flags in the structure indicate whether individual fields are
   valid or not.
-  
+
   *---------------------------------------------------------------------------*/
 
 static void ink_web_decompose_url_into_structure(const char *url, InkWebURLComponents *c)
@@ -4837,21 +3704,21 @@ static void ink_web_decompose_url_into_structure(const char *url, InkWebURLCompo
 } /* End ink_web_decompose_url_into_structure */
 
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
                           int max_dest_len)
-  
+
   This routine takes a path and interprets "." and ".." segments, returning
   an appropriately parsed path. It is a warning to pass a path that resolves
   to a leading "..". Inputs are the src path and the length of the dest
-  buffer. Return values are a string written into the dest buffer and 
+  buffer. Return values are a string written into the dest buffer and
   the leadingslash flag, which indicates if the src (and the dest) have a
   leading slash, and are therefore not relative paths.
-  
+
   Basically, these sequences: "<a><path-segment>..<b>" and "<a>.<b>" both
   turn into "<a><b>" where <a> is beginning-or-string or a complete segment,
   and <b> is end-of-string or a complete segment.
-  
+
   e.g.
   path1/../path2  -> path2
   /path1/../path2 -> /path2
@@ -4861,12 +3728,12 @@ static void ink_web_decompose_url_into_structure(const char *url, InkWebURLCompo
   ./path1/path2   -> path1/path2
   ./path1         -> path1
   /./path1        -> /path1
-  
+
   It is also a warning to pass a path whose returned value needs to be
   truncated to fit into max_dest_len characters.
-  
+
   mep - 4/15/96
-  
+
   *---------------------------------------------------------------------------*/
 
 /* types of path segment */
@@ -4888,15 +3755,15 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
   int scount, segstart, zapflag, doff, num;
   int temp, i;
   int error = 0;
-  
+
   /* offsets to each path segment */
   char **seg, *segstatic[STATIC_PATH_LEVELS];
-  
+
   /* type of each segment is a ".." */
   int *type, typestatic[STATIC_PATH_LEVELS];
-  
+
   *leadingslash = 0;
-  
+
   /* first quickly count the "/"s to get lower bound on # of path levels */
   ptr = src;
   end = src + strlen(src);
@@ -4905,7 +3772,7 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
     if (*ptr++ == '/') scount++;
   }
   scount++; /* adding one to this makes it a lower bound for any case */
-  
+
   if (scount <= STATIC_PATH_LEVELS) {
     /* we can use the statically allocated ones */
     seg = segstatic;
@@ -4916,7 +3783,7 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
     type = (int*)malloc(scount*sizeof(int));
     free_flag = 1;
   }
-  
+
   /* Determine starts of each path segment.
    * A segment is defined as:
    * "foo/" in the string "<a>foo/<b>", where:
@@ -4928,7 +3795,7 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
    */
   ptr = src; scount = 0;
   /* a segstart starts with start-of-string or a '/' */
-  segstart = 1; 
+  segstart = 1;
   while (ptr < end) {
     if (*ptr == '/') {
       /* include leading '/' in first segment */
@@ -4945,7 +3812,7 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
   }
   /* Now scount is an accurate count of the segments we have found, */
   /* not just that lower bound we quickly got before */
-  
+
   /* now figure out if segments are "..", ".", or normal */
   /* ZAP the "."s in place */
   for(i=0;i<scount;i++) {
@@ -4990,7 +3857,7 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
       }
     }
   }
-  
+
   /* now write out the fixed path */
   doff = 0;
   *dest = 0;
@@ -5005,41 +3872,41 @@ static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
       } else {
         num = (int)(seg[i+1]-seg[i]);
       }
-      
+
       /* truncate if nec. */
       if (doff+num > max_dest_len) {
         num = max_dest_len-doff;
       }
-      
+
       strncpy(dest+doff,seg[i],num+1);
       doff += num;
     } else if (type[i] == DOT) {
       /* if you get here, it indicates an algorithmic error in this routine */
-      panic("ink_web_remove_dots - single dot remaining in string"); 
+      panic("ink_web_remove_dots - single dot remaining in string");
     } else if (type[i] == DOTDOT) {
       /* if you get here, it indicates an algorithmic error in this routine */
-      panic("ink_web_remove_dots - double dot remaining in string"); 
+      panic("ink_web_remove_dots - double dot remaining in string");
     }
   }
-  
+
   if (free_flag) {
     free(seg);
     free(type);
   }
-  
+
   return(error);
 }
 
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_unescapify_string(...)
-  
+
   Takes a string that has has special characters turned to %AB format
   and converts them back to single special characters. See
   ink_web_escapify_string() above.
-  
+
   mep - 4/15/96
-  
+
   *---------------------------------------------------------------------------*/
 
 static int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_len)
@@ -5053,7 +3920,7 @@ static int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_l
   int num = 0;
   int dig1 = 0;
   int dig2 = 0;
-  
+
   while ((*src != 0) && !quit) {
     if (*src == '%') {
       /* found start of an escape sequence, unescape it */
@@ -5129,30 +3996,30 @@ static int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_l
     *dest = 0;
   else
     *(dest_in+max_dest_len) = 0;
-  
+
   return(quit);
 }
 
 /*---------------------------------------------------------------------------*
-  
+
   int ink_web_escapify_string(...)
-  
+
   This functions takes an input src_in and converts all special
-  characters to %<hexdigit><hexdigit> form. 
-  
+  characters to %<hexdigit><hexdigit> form.
+
   Special characters are everything that is not:
   #$-_.+!*'(),;/?:@=&   or
   <alpha-char>  or
   <digit-char>
-  
+
   e.g. "abcd fghi[klmn^" -> "abcd%20fghi%5Bklmn%5E"
-  
+
   You must supply the buffer dest_in, with a size of max_dest_len. If
   the unescapified string grows larger than this, it will be truncated
   and you will get a warning.
-  
+
   mep - 4/15/96
-  
+
   *---------------------------------------------------------------------------*/
 
 static int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len) {
@@ -5178,7 +4045,7 @@ static int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len
       d1 = *src/16;
       d2 = *src%16;
       if (dcount+3 < max_dest_len) {
-        *dest++ = '%'; 
+        *dest++ = '%';
         *dest++ = hexdigits[d1];
         *dest++ = hexdigits[d2];
         /*      fprintf(stderr,"%d %d  %c %c\n",d1,d2,hexdigits[d1],hexdigits[d2]);*/
@@ -5195,572 +4062,6 @@ static int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len
     *dest = 0;
   else
     *(dest_in+max_dest_len-1) = 0;
-  
+
   return(quit);
 }
-
-//////////////////////////////////////////////////////////////////////////
-// imported from libts
-//////////////////////////////////////////////////////////////////////////
-
-static void ink_die_die_die(int retval)
-{
-    abort();
-    _exit(retval);
-    exit(retval);
-}
-    
-/*---------------------------------------------------------------------------*
-
-  void ink_fatal(int return_code, char *message_format, ...)
-
-  This routine prints/logs an error message given the printf
-  format string in <message_format>, and the optional arguments.
-  The program is then terminated with return code <return_code>.
-
- *---------------------------------------------------------------------------*/
-
-static void ink_fatal_va(int return_code, const char *message_format, va_list ap)
-{
-    char extended_format[4096],message[4096];
-
-    sprintf(extended_format,"FATAL: %s",message_format);
-    vsprintf(message,extended_format,ap);
-    fprintf(stderr,"%s\n",message);
-    ink_die_die_die(return_code);
-} /* End ink_fatal_va */
-
-
-static void ink_fatal(int return_code, const char *message_format, ...)
-{
-    va_list ap;
-    va_start(ap,message_format);
-    ink_fatal_va(return_code,message_format,ap);
-    va_end(ap);
-} /* End ink_fatal */
-
-static void ink_warning(const char *message_format, ...)
-{
-    va_list ap;
-    char extended_format[4096],message[4096];
-
-    va_start(ap,message_format);
-    sprintf(extended_format,"WARNING: %s",message_format);
-    vsprintf(message,extended_format,ap);
-    fprintf(stderr,"%s\n",message);
-    va_end(ap);
-} /* End ink_warning */
-
-static int _ink_assert(const char * a, const char * f, int l) {
-  char buf1[81];
-  char buf2[256];
-
-#ifndef NO_ASSERTS
-  strncpy( buf1, f,80);
-  sprintf(buf2,"%s:%d: failed assert `",buf1,l);
-  strncat(buf2,a,100);
-  strcat(buf2,"`");
-  ink_fatal(1,buf2);
-#endif /* NO_ASSERTS */
-
-  return (0);
-}
-
-
-static void process_arg(ArgumentDescription * argument_descriptions,
-                        int n_argument_descriptions,
-                        int i, 
-                        char ***argv)
-{
-  char * arg = NULL;
-  if (argument_descriptions[i].type) {
-    char type = argument_descriptions[i].type[0];
-    if (type=='F'||type=='f') 
-      *(int *)argument_descriptions[i].location = type=='F'?1:0;
-    else if (type=='T')
-      *(int *)argument_descriptions[i].location = 
-        !*(int *)argument_descriptions[i].location;
-    else {
-      arg = *++(**argv) ? **argv : *++(*argv);
-      if (!arg) usage(argument_descriptions, n_argument_descriptions, NULL);
-      switch (type) {
-        case 'I': 
-          *(int *)argument_descriptions[i].location = atoi(arg);
-          break;
-        case 'D': 
-          *(double *)argument_descriptions[i].location = atof(arg);
-          break;
-        case 'L':
-          *(int64_t *)argument_descriptions[i].location = ink_atoll(arg);
-          break;
-        case 'S': strncpy((char *)argument_descriptions[i].location,arg,
-                          atoi(argument_descriptions[i].type+1));
-          break;
-        default:
-          ink_fatal(1,(char *)"bad argument description");
-          break;
-      }
-      **argv += strlen(**argv)-1;
-    }
-  }
-  if (argument_descriptions[i].pfn) 
-    argument_descriptions[i].pfn(argument_descriptions, 
-                                 n_argument_descriptions,
-                                 arg);
-}
-
-
-#if 0
-// XXX this is not used; maybe it's just debugging? -- jpeach
-static void show_argument_configuration(ArgumentDescription * argument_descriptions,
-                                 int n_argument_descriptions) 
-{
-  int i = 0;
-  printf("Argument Configuration\n"); 
-  for (i=0;i<n_argument_descriptions;i++) {
-    if (argument_descriptions[i].type) {
-      printf("  %s%s",argument_descriptions[i].description,
-             &SPACES[strlen(argument_descriptions[i].description)+45]);
-      switch (argument_descriptions[i].type[0]) {
-      case 'F':
-      case 'f':
-      case 'T':
-        printf(*(int*)argument_descriptions[i].location?"TRUE":"FALSE");
-        break;
-      case 'I':
-        printf("%d",*(int*)argument_descriptions[i].location);
-        break;
-      case 'D':
-        printf("%f",*(double*)argument_descriptions[i].location);
-        break;
-      case 'L':
-#if defined(FreeBSD)
-        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
-#else
-        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
-#endif
-        break;
-      case 'S':
-        printf("%s",(char*)argument_descriptions[i].location);
-          break;
-      default: ink_fatal(1,(char *)"bad argument description"); break;
-      }
-      printf("\n");
-    }
-  }
-}
-#endif
-
-static void process_args(ArgumentDescription * argument_descriptions,
-                  int n_argument_descriptions,
-                  char **argv) 
-{
-  int i = 0;
-  //
-  // Grab Environment Variables
-  //
-  for (i=0;i<n_argument_descriptions;i++)
-    if (argument_descriptions[i].env) {
-      char type = argument_descriptions[i].type[0];
-      char * env = getenv(argument_descriptions[i].env);
-      if (!env) continue;
-      switch (type) {
-      case 'f':
-      case 'F':
-      case 'I':
-        *(int *)argument_descriptions[i].location = atoi(env);
-        break;
-      case 'D':
-        *(double *)argument_descriptions[i].location = atof(env);
-        break;
-      case 'L':
-        *(int64_t *)argument_descriptions[i].location = ink_atoll(env);
-        break;
-      case 'S':
-        strncpy((char *)argument_descriptions[i].location,env,
-                atoi(argument_descriptions[i].type+1));
-        break;
-      }
-    }
-
-  //
-  // Grab Command Line Arguments
-  //
-  program_name = argv[0];
-  while ( *++argv ) {
-    if ( **argv == '-' ) {
-      if ((*argv)[1] == '-') {
-        for (i=0;i<n_argument_descriptions;i++)
-          if (!strcmp(argument_descriptions[i].name,(*argv)+2)) {
-            *argv += strlen(*argv)-1;
-            process_arg(argument_descriptions,n_argument_descriptions,i,&argv);
-            break;
-          }
-          if (i>=n_argument_descriptions) 
-            usage(argument_descriptions,n_argument_descriptions,NULL);
-      } else {
-        while ( *++(*argv) ) 
-          for (i=0;i<n_argument_descriptions;i++) 
-            if (argument_descriptions[i].key==**argv) { 
-              process_arg(argument_descriptions,n_argument_descriptions,
-                          i,&argv);
-              break;
-            }
-            if (i>=n_argument_descriptions) 
-              usage(argument_descriptions,n_argument_descriptions,NULL);
-      }
-    } else {
-      if (n_file_arguments>MAX_FILE_ARGUMENTS) ink_fatal(1,(char *)"too many files");
-      file_arguments[n_file_arguments++] = *argv;
-      file_arguments[n_file_arguments] = NULL;
-    }
-  }
-}
-
-static void usage(ArgumentDescription * argument_descriptions,
-           int n_argument_descriptions,
-           const char * dummy) 
-{
-  (void)argument_descriptions; (void)n_argument_descriptions; (void)dummy;
-  fprintf(stderr,"Usage: %s [--SWITCH [ARG]]\n",program_name);
-  fprintf(stderr,"  switch__________________type__default___description\n");
-  for (int i=0;i<n_argument_descriptions;i++) {
-    fprintf(stderr,"  -%c, --%s%s%s",
-            argument_descriptions[i].key,
-            argument_descriptions[i].name,
-            (strlen(argument_descriptions[i].name) + 61 < 81) ?
-             &SPACES[strlen(argument_descriptions[i].name)+61] : "",
-            argument_types_descriptions[
-              argument_descriptions[i].type ?
-                strchr(argument_types_keys,
-                       argument_descriptions[i].type[0]) -
-                argument_types_keys :
-                strlen(argument_types_keys)
-            ]);
-    switch(argument_descriptions[i].type?argument_descriptions[i].type[0]:0) {
-      case 0: fprintf(stderr, "          "); break;
-      case 'L':
-        fprintf(stderr, 
-#if defined(FreeBSD)
-                " %-9" PRId64"",
-#else
-                " %-9" PRId64"",
-#endif
-                *(int64_t*)argument_descriptions[i].location);
-        break;
-      case 'S':
-        if (*(char*)argument_descriptions[i].location) {
-          if (strlen((char*)argument_descriptions[i].location) < 10)
-            fprintf(stderr, " %-9s", 
-                    (char*)argument_descriptions[i].location);
-          else {
-            ((char*)argument_descriptions[i].location)[7] = 0;
-            fprintf(stderr, " %-7s..", 
-                    (char*)argument_descriptions[i].location);
-          }
-        } else
-          fprintf(stderr, " (null)   ");
-        break;
-      case 'D':
-        fprintf(stderr, " %-9.3f",
-                *(double*)argument_descriptions[i].location);
-        break;
-      case 'I':
-        fprintf(stderr, " %-9d", *(int *)argument_descriptions[i].location);
-        break;
-      case 'T': case 'f': case 'F': 
-        fprintf(stderr, " %-9s",
-                *(int *)argument_descriptions[i].location?"true ":"false");
-        break;
-    }
-    fprintf(stderr," %s\n",argument_descriptions[i].description);
-  }
-  _exit(1);
-}
-
-#define UINT4 unsigned int
-
-typedef struct {
-  UINT4 state[4];                                   /* state (ABCD) */
-  UINT4 count[2];        /* number of bits, modulo 2^64 (lsb first) */
-  unsigned char buffer[64];                         /* input buffer */
-} MD5_CTX;
-
-static void MD5Init (MD5_CTX *);
-static void MD5Update (MD5_CTX *, unsigned char *, unsigned int);
-static void MD5Final (unsigned char [16], MD5_CTX *);
-
-#define S11 7
-#define S12 12
-#define S13 17
-#define S14 22
-#define S21 5
-#define S22 9
-#define S23 14
-#define S24 20
-#define S31 4
-#define S32 11
-#define S33 16
-#define S34 23
-#define S41 6
-#define S42 10
-#define S43 15
-#define S44 21
-
-static void MD5Transform (UINT4 [4], unsigned char [64]);
-static void Encode (unsigned char *, UINT4 *, unsigned int);
-
-#define MD5_memcpy memcpy
-#define MD5_memset memset
-
-static unsigned char PADDING[64] = {
-  0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-/* F, G, H and I are basic MD5 functions.
- */
-#define F(x, y, z) (((x) & (y)) | ((~x) & (z)))
-#define G(x, y, z) (((x) & (z)) | ((y) & (~z)))
-#define H(x, y, z) ((x) ^ (y) ^ (z))
-#define I(x, y, z) ((y) ^ ((x) | (~z)))
-
-/* ROTATE_LEFT rotates x left n bits.
- */
-#define ROTATE_LEFT(x, n) (((x) << (n)) | ((x) >> (32-(n))))
-
-/* FF, GG, HH, and II transformations for rounds 1, 2, 3, and 4.
-   Rotation is separate from addition to prevent recomputation.
- */
-#define FF(a, b, c, d, x, s, ac) { \
-    (a) += F ((b), (c), (d)) + (x) + (UINT4)(ac); \
-    (a) = ROTATE_LEFT ((a), (s)); \
-    (a) += (b); \
-  }
-#define GG(a, b, c, d, x, s, ac) { \
-    (a) += G ((b), (c), (d)) + (x) + (UINT4)(ac); \
-    (a) = ROTATE_LEFT ((a), (s)); \
-    (a) += (b); \
-  }
-#define HH(a, b, c, d, x, s, ac) { \
-    (a) += H ((b), (c), (d)) + (x) + (UINT4)(ac); \
-    (a) = ROTATE_LEFT ((a), (s)); \
-    (a) += (b); \
-  }
-#define II(a, b, c, d, x, s, ac) { \
-    (a) += I ((b), (c), (d)) + (x) + (UINT4)(ac); \
-    (a) = ROTATE_LEFT ((a), (s)); \
-    (a) += (b); \
-  }
-
-/* MD5 initialization. Begins an MD5 operation, writing a new context.
- */
-
-static void MD5Init (MD5_CTX *context) {
-  context->count[0] = context->count[1] = 0;
-
-  /* Load magic initialization constants.
-   */
-  context->state[0] = 0x67452301;
-  context->state[1] = 0xefcdab89;
-  context->state[2] = 0x98badcfe;
-  context->state[3] = 0x10325476;
-}
-
-/* POINTER defines a generic pointer type */
-typedef unsigned char *POINTER;
-
-/* MD5 block update operation. Continues an MD5 message-digest
-     operation, processing another message block, and updating the
-     context.
- */
-static void MD5Update (MD5_CTX *context, unsigned char * input, unsigned int inputLen) {
-  unsigned int i, index, partLen;
-
-  /* Compute number of bytes mod 64 */
-  index = (unsigned int)((context->count[0] >> 3) & 0x3F);
-
-  /* Update number of bits */
-  if ((context->count[0] += ((UINT4)inputLen << 3))
-      < ((UINT4)inputLen << 3))
-    context->count[1]++;
-  context->count[1] += ((UINT4)inputLen >> 29);
-
-  partLen = 64 - index;
-
-  /* Transform as many times as possible.
-   */
-  if (inputLen >= partLen) {
-    MD5_memcpy
-      ((POINTER)&context->buffer[index], (POINTER)input, partLen);
-    MD5Transform (context->state, context->buffer);
-
-    for (i = partLen; i + 63 < inputLen; i += 64)
-      MD5Transform (context->state, &input[i]);
-
-    index = 0;
-  }
-  else
-    i = 0;
-
-  /* Buffer remaining input */
-  MD5_memcpy
-    ((POINTER)&context->buffer[index], (POINTER)&input[i],
-     inputLen-i);
-}
-
-/* MD5 finalization. Ends an MD5 message-digest operation, writing the
-     the message digest and zeroizing the context.
- */
-static void MD5Final (unsigned char digest[16], MD5_CTX *context) {
-  unsigned char bits[8];
-  unsigned int index, padLen;
-
-  /* Save number of bits */
-  Encode (bits, context->count, 8);
-
-  /* Pad out to 56 mod 64.
-   */
-  index = (unsigned int)((context->count[0] >> 3) & 0x3f);
-  padLen = (index < 56) ? (56 - index) : (120 - index);
-  MD5Update (context, PADDING, padLen);
-
-  /* Append length (before padding) */
-  MD5Update (context, bits, 8);
-
-  /* Store state in digest */
-  Encode (digest, context->state, 16);
-
-  /* Zeroize sensitive information.
-   */
-  MD5_memset ((POINTER)context, 0, sizeof (*context));
-}
-
-/* MD5 basic transformation. Transforms state based on block.
- */
-static void MD5Transform (UINT4 state[4], unsigned char block[64]) {
-  UINT4 a, b, c, d, x[16];
-  unsigned int i, j;
-
-  /* Decode (x, block, 64); */
-  for (i = 0, j = 0; j < 64; i++, j += 4)
-    x[i] = (((UINT4) block[j]) |
-            (((UINT4) block[j+1]) << 8) |
-            (((UINT4) block[j+2]) << 16) |
-            (((UINT4) block[j+3]) << 24));
-  
-  a = state[0];
-  b = state[1];
-  c = state[2];
-  d = state[3];
-  
-  /* Round 1 */
-  FF (a, b, c, d, x[ 0], S11, 0xd76aa478); /* 1 */
-  FF (d, a, b, c, x[ 1], S12, 0xe8c7b756); /* 2 */
-  FF (c, d, a, b, x[ 2], S13, 0x242070db); /* 3 */
-  FF (b, c, d, a, x[ 3], S14, 0xc1bdceee); /* 4 */
-  FF (a, b, c, d, x[ 4], S11, 0xf57c0faf); /* 5 */
-  FF (d, a, b, c, x[ 5], S12, 0x4787c62a); /* 6 */
-  FF (c, d, a, b, x[ 6], S13, 0xa8304613); /* 7 */
-  FF (b, c, d, a, x[ 7], S14, 0xfd469501); /* 8 */
-  FF (a, b, c, d, x[ 8], S11, 0x698098d8); /* 9 */
-  FF (d, a, b, c, x[ 9], S12, 0x8b44f7af); /* 10 */
-  FF (c, d, a, b, x[10], S13, 0xffff5bb1); /* 11 */
-  FF (b, c, d, a, x[11], S14, 0x895cd7be); /* 12 */
-  FF (a, b, c, d, x[12], S11, 0x6b901122); /* 13 */
-  FF (d, a, b, c, x[13], S12, 0xfd987193); /* 14 */
-  FF (c, d, a, b, x[14], S13, 0xa679438e); /* 15 */
-  FF (b, c, d, a, x[15], S14, 0x49b40821); /* 16 */
-
-  /* Round 2 */
-  GG (a, b, c, d, x[ 1], S21, 0xf61e2562); /* 17 */
-  GG (d, a, b, c, x[ 6], S22, 0xc040b340); /* 18 */
-  GG (c, d, a, b, x[11], S23, 0x265e5a51); /* 19 */
-  GG (b, c, d, a, x[ 0], S24, 0xe9b6c7aa); /* 20 */
-  GG (a, b, c, d, x[ 5], S21, 0xd62f105d); /* 21 */
-  GG (d, a, b, c, x[10], S22,  0x2441453); /* 22 */
-  GG (c, d, a, b, x[15], S23, 0xd8a1e681); /* 23 */
-  GG (b, c, d, a, x[ 4], S24, 0xe7d3fbc8); /* 24 */
-  GG (a, b, c, d, x[ 9], S21, 0x21e1cde6); /* 25 */
-  GG (d, a, b, c, x[14], S22, 0xc33707d6); /* 26 */
-  GG (c, d, a, b, x[ 3], S23, 0xf4d50d87); /* 27 */
-  GG (b, c, d, a, x[ 8], S24, 0x455a14ed); /* 28 */
-  GG (a, b, c, d, x[13], S21, 0xa9e3e905); /* 29 */
-  GG (d, a, b, c, x[ 2], S22, 0xfcefa3f8); /* 30 */
-  GG (c, d, a, b, x[ 7], S23, 0x676f02d9); /* 31 */
-  GG (b, c, d, a, x[12], S24, 0x8d2a4c8a); /* 32 */
-
-  /* Round 3 */
-  HH (a, b, c, d, x[ 5], S31, 0xfffa3942); /* 33 */
-  HH (d, a, b, c, x[ 8], S32, 0x8771f681); /* 34 */
-  HH (c, d, a, b, x[11], S33, 0x6d9d6122); /* 35 */
-  HH (b, c, d, a, x[14], S34, 0xfde5380c); /* 36 */
-  HH (a, b, c, d, x[ 1], S31, 0xa4beea44); /* 37 */
-  HH (d, a, b, c, x[ 4], S32, 0x4bdecfa9); /* 38 */
-  HH (c, d, a, b, x[ 7], S33, 0xf6bb4b60); /* 39 */
-  HH (b, c, d, a, x[10], S34, 0xbebfbc70); /* 40 */
-  HH (a, b, c, d, x[13], S31, 0x289b7ec6); /* 41 */
-  HH (d, a, b, c, x[ 0], S32, 0xeaa127fa); /* 42 */
-  HH (c, d, a, b, x[ 3], S33, 0xd4ef3085); /* 43 */
-  HH (b, c, d, a, x[ 6], S34,  0x4881d05); /* 44 */
-  HH (a, b, c, d, x[ 9], S31, 0xd9d4d039); /* 45 */
-  HH (d, a, b, c, x[12], S32, 0xe6db99e5); /* 46 */
-  HH (c, d, a, b, x[15], S33, 0x1fa27cf8); /* 47 */
-  HH (b, c, d, a, x[ 2], S34, 0xc4ac5665); /* 48 */
-
-  /* Round 4 */
-  II (a, b, c, d, x[ 0], S41, 0xf4292244); /* 49 */
-  II (d, a, b, c, x[ 7], S42, 0x432aff97); /* 50 */
-  II (c, d, a, b, x[14], S43, 0xab9423a7); /* 51 */
-  II (b, c, d, a, x[ 5], S44, 0xfc93a039); /* 52 */
-  II (a, b, c, d, x[12], S41, 0x655b59c3); /* 53 */
-  II (d, a, b, c, x[ 3], S42, 0x8f0ccc92); /* 54 */
-  II (c, d, a, b, x[10], S43, 0xffeff47d); /* 55 */
-  II (b, c, d, a, x[ 1], S44, 0x85845dd1); /* 56 */
-  II (a, b, c, d, x[ 8], S41, 0x6fa87e4f); /* 57 */
-  II (d, a, b, c, x[15], S42, 0xfe2ce6e0); /* 58 */
-  II (c, d, a, b, x[ 6], S43, 0xa3014314); /* 59 */
-  II (b, c, d, a, x[13], S44, 0x4e0811a1); /* 60 */
-  II (a, b, c, d, x[ 4], S41, 0xf7537e82); /* 61 */
-  II (d, a, b, c, x[11], S42, 0xbd3af235); /* 62 */
-  II (c, d, a, b, x[ 2], S43, 0x2ad7d2bb); /* 63 */
-  II (b, c, d, a, x[ 9], S44, 0xeb86d391); /* 64 */
-
-  state[0] += a;
-  state[1] += b;
-  state[2] += c;
-  state[3] += d;
-
-  /* Zeroize sensitive information.
-   */
-  /* No need to zeroize "sensitive" information. This is just zeroing
-     out data on the stack. Totally unnecessary in traffic server. */
-  /* MD5_memset ((POINTER)x, 0, sizeof (x)); */
-}
-
-/* Encodes input (UINT4) into output (unsigned char). Assumes len is
-     a multiple of 4.
- */
-static void Encode (unsigned char *output, UINT4*input, unsigned int len) {
-  unsigned int i, j;
-
-  for (i = 0, j = 0; j < len; i++, j += 4) {
-    output[j] = (unsigned char)(input[i] & 0xff);
-    output[j+1] = (unsigned char)((input[i] >> 8) & 0xff);
-    output[j+2] = (unsigned char)((input[i] >> 16) & 0xff);
-    output[j+3] = (unsigned char)((input[i] >> 24) & 0xff);
-  }
-}
-
-int ink_code_md5(unsigned char *input,
-                 int input_length,
-                 unsigned char *sixteen_byte_hash_pointer) {
-  MD5_CTX context;
-
-  MD5Init(&context);
-  MD5Update(&context, input, input_length);
-  MD5Final(sixteen_byte_hash_pointer, &context);
-
-  return(0);
-} /* End ink_code_md5 */

@@ -6,6 +6,7 @@ This product includes software developed at
   - Yahoo! Inc
   - Network Geographics (http://network-geographics.com)
   - OmniTI
+  - Comcast
 
 ~~~
 
@@ -33,3 +34,18 @@ Copyright (C) 2011 Google Inc.
 
 rfc5861 Plugin developed by OmniTI on behalf of Oregon Health & Science University
 Copyright (C) 2012 Oregon Health & Science University
+
+~~~
+
+healthcheck Plugin developed by GoDaddy.
+Copyright (C) 2012 GoDaddy.
+
+~~~
+
+lib/atscppapi developed by LinkedIn
+Copyright (c) 2013 LinkedIn
+
+~~~
+
+remap_stats plugin developed by Comcast.
+Copyright (C) 2013 Comcast

@@ -23,6 +23,7 @@
 
 #include "Protocol.h"
 #include "TxnSM.h"
+#include "ink_defs.h"
 #include <math.h>
 
 /* global variable */
@@ -73,7 +74,7 @@ accept_handler(TSCont contp, TSEvent event, void *edata)
 }
 
 static void
-protocol_init(int accept_port, int server_port)
+protocol_init(int accept_port, int server_port ATS_UNUSED)
 {
   TSCont contp;
   int ret_val;
@@ -99,32 +100,6 @@ protocol_init(int accept_port, int server_port)
   pending_action = TSNetAccept(contp, accept_port, -1, 1);
 }
 
-int
-check_ts_version()
-{
-
-  const char *ts_version = TSTrafficServerVersionGet();
-  int result = 0;
-
-  if (ts_version) {
-    int major_ts_version = 0;
-    int minor_ts_version = 0;
-    int patch_ts_version = 0;
-
-    if (sscanf(ts_version, "%d.%d.%d", &major_ts_version, &minor_ts_version, &patch_ts_version) != 3) {
-      return 0;
-    }
-
-    /* Need at least TS 2.0 */
-    if (major_ts_version >= 2) {
-      result = 1;
-    }
-  }
-
-  return result;
-}
-
-
 void
 TSPluginInit(int argc, const char *argv[])
 {
@@ -136,11 +111,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
     TSError("[PluginInit] Plugin registration failed.\n");
-    goto error;
-  }
-
-  if (!check_ts_version()) {
-    TSError("[PluginInit] Plugin requires Traffic Server 3.0 or later\n");
     goto error;
   }
 

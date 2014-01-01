@@ -23,7 +23,7 @@
 
 #include "libts.h"
 
-#include "P_RecCompatibility.h"
+#include "P_RecFile.h"
 #include "P_RecMessage.h"
 #include "P_RecUtils.h"
 #include "I_Layout.h"
@@ -97,7 +97,6 @@ recv_thr(void *data)
 static void *
 accept_thr(void *data)
 {
-  REC_NOWARN_UNUSED(data);
   RecHandle h_pipe;
   h_pipe = RecPipeCreate(Layout::get()->runtimedir, REC_PIPE_NAME);
   ink_thread_create(send_thr, (void *) h_pipe);
@@ -112,7 +111,6 @@ accept_thr(void *data)
 static void *
 recv_cb_thr(void *data)
 {
-  REC_NOWARN_UNUSED(data);
   RecMessage *msg;
   while (true) {
     if (g_recv_cb) {
@@ -162,7 +160,7 @@ RecMessageInit()
   case RECM_NULL:
   case RECM_STAND_ALONE:
   default:
-    ink_debug_assert(!"Unexpected RecModeT type");
+    ink_assert(!"Unexpected RecModeT type");
     break;
   }
 
@@ -435,7 +433,7 @@ RecMessageUnmarshalNext(RecMessage * msg, RecMessageItr * itr, RecRecord ** reco
     eh = itr->ele_hdr;
   }
 
-  ink_debug_assert(eh->magic == REC_MESSAGE_ELE_MAGIC);
+  ink_assert(eh->magic == REC_MESSAGE_ELE_MAGIC);
 
   // If the file is corrupt, ignore the the rest of the file.
   if (eh->magic != REC_MESSAGE_ELE_MAGIC) {
@@ -488,8 +486,6 @@ RecMessageRegisterRecvCb(RecMessageRecvCb recv_cb, void *cookie)
 void *
 RecMessageRecvThis(void *cookie, char *data_raw, int data_len)
 {
-  REC_NOWARN_UNUSED(cookie);
-  REC_NOWARN_UNUSED(data_len);
   RecMessage *msg = (RecMessage *) data_raw;
   g_recv_cb(msg, msg->msg_type, g_recv_cookie);
   return NULL;
@@ -557,26 +553,6 @@ RecMessageWriteToDisk(RecMessage *msg, const char *fpath)
     }
     RecFileClose(h_file);
   }
-
-  return REC_ERR_OKAY;
-}
-
-//
-// [hack for tsunami, bevans] -- I need this exported to the ACC module somehow,
-// the acc module can't include stuff out put proxy/ or mgmt/
-//
-int
-RecAlarmSignal(int code, const char *msg, int msg_size)
-{
-#if defined (LOCAL_MANAGER)
-  lmgmt->signalEvent(code, (char *) msg, msg_size);
-#elif defined(PROCESS_MANAGER)
-  pmgmt->signalManager(code, (char *) msg, msg_size);
-#else
-  REC_NOWARN_UNUSED(code);
-  REC_NOWARN_UNUSED(msg);
-  REC_NOWARN_UNUSED(msg_size);
-#endif
 
   return REC_ERR_OKAY;
 }
