@@ -32,7 +32,7 @@ trafficserver (3.3.0-1) experimental; urgency=low
 
  -- Aron Xu <aron@debian.org>  Thu, 29 Nov 2012 22:13:55 +0800
 
-trafficserver (3.2.0-2) UNRELEASED; urgency=low
+trafficserver (3.2.5-1) unstable; urgency=low
 
   * New upstream release
     + Fix FTBFS on ARM (Closes: #691179)
