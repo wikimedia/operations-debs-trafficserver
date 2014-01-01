@@ -262,6 +262,7 @@ public:
 
   void add_history_entry(const char *fileline, int event, int reentrant);
   void add_cache_sm();
+  bool is_private();
   bool decide_cached_url(URL * s_url);
 
   int64_t sm_id;
@@ -311,6 +312,7 @@ public:
 
 protected:
   IOBufferReader * ua_buffer_reader;
+  IOBufferReader * ua_raw_buffer_reader;
 
   HttpVCTableEntry *server_entry;
   HttpServerSession *server_session;
@@ -514,6 +516,7 @@ protected:
   void kill_this();
   void update_stats();
   void transform_cleanup(TSHttpHookID hook, HttpTransformInfo * info);
+  bool is_transparent_passthrough_allowed();
 
 public:
   LINK(HttpSM, debug_link);
@@ -619,6 +622,14 @@ HttpSM::add_cache_sm()
       t_state.cache_info.object_read = NULL;
     }
   }
+}
+
+inline bool
+HttpSM::is_transparent_passthrough_allowed()
+{
+  return (t_state.client_info.is_transparent &&
+          ua_session->f_transparent_passthrough &&
+          ua_session->get_transact_count() == 1);
 }
 
 #endif

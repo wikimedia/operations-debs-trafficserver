@@ -52,14 +52,11 @@ RecTree *g_records_tree = NULL;
 // register_record
 //-------------------------------------------------------------------------
 static RecRecord *
-register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default, bool release_record_lock)
+register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default)
 {
   RecRecord *r = NULL;
 
   if (ink_hash_table_lookup(g_records_ht, name, (void **) &r)) {
-    if (release_record_lock) {
-      rec_mutex_acquire(&(r->lock));
-    }
     ink_release_assert(r->rec_type == rec_type);
     ink_release_assert(r->data_type == data_type);
     // Note: do not set r->data as we want to keep the previous value
@@ -67,9 +64,6 @@ register_record(RecT rec_type, const char *name, RecDataT data_type, RecData dat
   } else {
     if ((r = RecAlloc(rec_type, name, data_type)) == NULL) {
       return NULL;
-    }
-    if (release_record_lock) {
-      rec_mutex_acquire(&(r->lock));
     }
     // Set the r->data to its default value as this is a new record
     RecDataSet(r->data_type, &(r->data), &(data_default));
@@ -79,10 +73,7 @@ register_record(RecT rec_type, const char *name, RecDataT data_type, RecData dat
 
   // we're now registered
   r->registered = true;
-
-  if (release_record_lock) {
-    rec_mutex_release(&(r->lock));
-  }
+  r->version = 0;
 
   return r;
 }
@@ -97,7 +88,7 @@ link_int(const char *name, RecDataT data_type, RecData data, void *cookie)
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
   RecInt *rec_int = (RecInt *) cookie;
-  ink_atomic_swap64(rec_int, data.rec_int);
+  ink_atomic_swap(rec_int, data.rec_int);
   return REC_ERR_OKAY;
 }
 
@@ -134,7 +125,7 @@ link_counter(const char *name, RecDataT data_type, RecData data, void *cookie)
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
   RecCounter *rec_counter = (RecCounter *) cookie;
-  ink_atomic_swap64(rec_counter, data.rec_counter);
+  ink_atomic_swap(rec_counter, data.rec_counter);
   return REC_ERR_OKAY;
 }
 
@@ -148,34 +139,34 @@ link_byte(const char *name, RecDataT data_type, RecData data, void *cookie)
   RecByte *rec_byte = (RecByte *) cookie;
   RecByte byte = static_cast<RecByte>(data.rec_int);
 
-  ink_atomic_swap8(rec_byte, byte);
+  ink_atomic_swap(rec_byte, byte);
   return REC_ERR_OKAY;
 }
 
 // mimic Config.cc::config_string_alloc_cb
+// cookie e.g. is the DEFAULT_xxx_str value which this functiion keeps up to date with
+// the latest default applied during a config update from records.config
 static int
 link_string_alloc(const char *name, RecDataT data_type, RecData data, void *cookie)
 {
   REC_NOWARN_UNUSED(name);
   REC_NOWARN_UNUSED(data_type);
 
-  RecString _ss = (RecString) cookie;
-  RecString _new_value = 0;
+  RecString _ss = data.rec_string;
+  RecString _new_value = NULL;
 
-  int len = -1;
   if (_ss) {
-    len = strlen(_ss);
-    _new_value = (RecString)ats_malloc(len + 1);
-    memcpy(_new_value, _ss, len + 1);
+    _new_value = ats_strdup(_ss);
   }
 
-  RecString _temp2 = data.rec_string;
-  data.rec_string = _new_value;
+  // set new string for DEFAULT_xxx_str tp point to
+  RecString _temp2 = *((RecString *)cookie);
+  *((RecString *)cookie) = _new_value;
+  // free previous string DEFAULT_xxx_str points to
   ats_free(_temp2);
 
   return REC_ERR_OKAY;
 }
-
 
 //-------------------------------------------------------------------------
 // RecCoreInit
@@ -188,7 +179,7 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   }
 
   // set our diags
-  ink_atomic_swap_ptr(&g_diags, _diags);
+  ink_atomic_swap(&g_diags, _diags);
 
   g_records_tree = new RecTree(NULL);
   g_num_records = 0;
@@ -251,7 +242,7 @@ RecSetDiags(Diags * _diags)
 {
   // Warning! It's very dangerous to change diags on the fly!  This
   // function only exists so that we can boot-strap TM on startup.
-  ink_atomic_swap_ptr(&g_diags, _diags);
+  ink_atomic_swap(&g_diags, _diags);
   return REC_ERR_OKAY;
 }
 
@@ -733,9 +724,8 @@ RecRegisterStat(RecT rec_type, const char *name, RecDataT data_type, RecData dat
   RecRecord *r = NULL;
 
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default, false)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
     r->stat_meta.persist_type = persist_type;
-    rec_mutex_release(&(r->lock));
   } else {
     ink_debug_assert(!"Can't register record!");
   }
@@ -755,7 +745,7 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
 {
   RecRecord *r;
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default, false)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
     // Note: do not modify 'record->config_meta.update_required'
     r->config_meta.update_type = update_type;
     r->config_meta.check_type = check_type;
@@ -765,7 +755,6 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
     r->config_meta.check_expr = ats_strdup(check_expr);
     r->config_meta.update_cb_list = NULL;
     r->config_meta.access_type = access_type;
-    rec_mutex_release(&(r->lock));
   }
   ink_rwlock_unlock(&g_records_rwlock);
 
@@ -939,7 +928,7 @@ int
 RecGetRecordPrefix_Xmalloc(char *prefix, char **buf, int *buf_len)
 {
   int num_records = g_num_records;
-  int result_size = num_records * 128;  /* estimate buffer size */
+  int result_size = num_records * 256;  /* estimate buffer size */
   int num_matched = 0;
   char *result = NULL;
 
@@ -947,32 +936,46 @@ RecGetRecordPrefix_Xmalloc(char *prefix, char **buf, int *buf_len)
   memset(result, 0, result_size * sizeof(char));
 
   int i;
-  for (i = 0; i < num_records; i++) {
+  int total_bytes_written = 0;
+  int error = 0;
+  for (i = 0; !error && i < num_records; i++) {
+    int bytes_written = 0;
+    int bytes_avail = result_size - total_bytes_written;
     RecRecord *r = &(g_records[i]);
     if (strncmp(prefix, r->name, strlen(prefix)) == 0) {
       rec_mutex_acquire(&(r->lock));
       switch (r->data_type) {
       case RECD_INT:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
         break;
       case RECD_FLOAT:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%f\r\n", r->name, r->data.rec_float);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%f\r\n", r->name, r->data.rec_float);
         break;
       case RECD_STRING:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%s\r\n", r->name, r->data.rec_string ? r->data.rec_string : "NULL");
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%s\r\n", r->name, r->data.rec_string ? r->data.rec_string : "NULL");
         break;
       case RECD_COUNTER:
         num_matched++;
-        sprintf(&result[strlen(result)], "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
+        bytes_written = snprintf(result + total_bytes_written, bytes_avail, "%s=%" PRId64 "\r\n", r->name, r->data.rec_int);
         break;
       default:
         break;
       }
+
+      if(bytes_written <= 0 || bytes_written > bytes_avail) {
+        error = 1;
+      } else
+        total_bytes_written += bytes_written;
+
       rec_mutex_release(&(r->lock));
     }
+  }
+
+  if(error || total_bytes_written == result_size) {
+    RecLog(DL_Error, "Stat system was unable to fully generate stat list, size exceeded limit of %d", result_size);
   }
 
   *buf = result;

@@ -307,7 +307,7 @@ CacheVC::scanObject(int event, Event * e)
         ink_debug_assert(hostinfo_copied);
         SET_HANDLER(&CacheVC::scanRemoveDone);
         // force remove even if there is a writer
-        cacheProcessor.remove(this, &doc->first_key, CACHE_FRAG_TYPE_HTTP, true, false, (char *) hname, hlen);
+        cacheProcessor.remove(this, &doc->first_key, true, CACHE_FRAG_TYPE_HTTP, true, false, (char *) hname, hlen);
         return EVENT_CONT;
       } else {
         offset = (char *) doc - buf->data();
@@ -365,7 +365,7 @@ Lread:
   offset = 0;
   ink_assert(ink_aio_read(&io) >= 0);
   Debug("cache_scan_truss", "read %p:scanObject %" PRId64 " %zu", this,
-        (int64_t)io.aiocb.aio_offset, io.aiocb.aio_nbytes);
+        (int64_t)io.aiocb.aio_offset, (size_t)io.aiocb.aio_nbytes);
   return EVENT_CONT;
 
 Ldone:

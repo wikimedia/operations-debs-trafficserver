@@ -37,7 +37,7 @@ namespace wccp {
 namespace detail {
   class Assignment;
   namespace cache {
-    class RouterData;
+    struct RouterData;
   }
 }
 
@@ -109,8 +109,6 @@ public:
     void* ptr, ///< Pointer to buffer.
     size_t n ///< Size of buffer.
   );
-  /// Extract memory chunk
-  operator super const& () const;
 
   /// Get the buffer size.
   size_t getSize() const;
@@ -3252,10 +3250,6 @@ inline MsgBuffer& MsgBuffer::set(void *ptr, size_t n) {
   _ptr = static_cast<char*>(ptr);
   _size = n;
   _count = 0;
-  return *this;
-}
-
-inline MsgBuffer::operator MsgBuffer::super const& () const {
   return *this;
 }
 

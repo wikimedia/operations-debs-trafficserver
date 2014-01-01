@@ -44,9 +44,6 @@ class FakeUDPNetProcessor : public UDPNetProcessor {
     ink_release_assert(false);
     return 0;
   };
-  virtual void UDPNetProcessor_is_abstract() {
-    ink_release_assert(false);
-  };
 } fakeUDPNet;
 
 UDPNetProcessor& udpNet = fakeUDPNet;
@@ -221,7 +218,7 @@ SplitDNSConfig::reconfigure()
 
 ClassAllocator<CacheRemoveCont> cacheRemoveContAllocator("cacheRemoveCont");
 
-CacheHostTable::CacheHostTable(Cache *c, int typ)
+CacheHostTable::CacheHostTable(Cache *c, CacheType typ)
 {
   NOWARN_UNUSED(c);
   NOWARN_UNUSED(typ);

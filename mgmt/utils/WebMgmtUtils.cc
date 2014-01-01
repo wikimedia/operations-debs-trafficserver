@@ -248,6 +248,49 @@ varSetInt(const char *varName, RecInt value, bool convert)
   return found;
 }
 
+// bool varSetData(RecDataT varType, const char *varName, RecData value)
+//
+//  Sets the variable specifed by varName to value. value and varName
+//   must be varType variables.
+//
+bool
+varSetData(RecDataT varType, const char *varName, RecData value)
+{
+  int err = REC_ERR_FAIL;
+
+  switch (varType) {
+  case RECD_INT:
+    err = RecSetRecordInt((char *)varName, value.rec_int);
+    break;
+  case RECD_COUNTER:
+    err = RecSetRecordCounter((char *)varName, value.rec_counter);
+    break;
+  case RECD_FLOAT:
+    err = RecSetRecordFloat((char *)varName, value.rec_float);
+    break;
+  default:
+    Fatal("unsupport type:%d\n", varType);
+  }
+  return (err == REC_ERR_OKAY);
+}
+
+// bool varDataFromName(RecDataT varType, const char *varName, RecData *value)
+//
+//   Sets the *value to value of the varName according varType.
+//
+//  return true if bufVal was succefully set
+//    and false otherwise
+//
+bool
+varDataFromName(RecDataT varType, const char *varName, RecData *value)
+{
+  int err;
+
+  err = RecGetRecord_Xmalloc(varName, varType, value, true);
+
+  return (err == REC_ERR_OKAY);
+}
+
 
 // bool varCounterFromName (const char*, RecFloat* )
 //
@@ -311,8 +354,13 @@ varFloatFromName(const char *varName, RecFloat * value)
   RecDataT varDataType = RECD_NULL;
   bool found = true;
 
-  // TODO: should we check for return code / error here?
-  RecGetRecordDataType((char *) varName, &varDataType);
+  int err = REC_ERR_FAIL;
+
+  err = RecGetRecordDataType((char *) varName, &varDataType);
+
+  if (err == REC_ERR_FAIL) {
+    return false;
+  }
 
   switch (varDataType) {
   case RECD_INT:{
@@ -324,7 +372,7 @@ varFloatFromName(const char *varName, RecFloat * value)
   case RECD_COUNTER:{
       RecCounter tempCounter = 0;
       RecGetRecordCounter((char *) varName, &tempCounter);
-      *value = (RecCounter) tempCounter;
+      *value = (RecFloat) tempCounter;
       break;
     }
   case RECD_FLOAT:{
@@ -1175,7 +1223,7 @@ recordIPCheck(const char *pattern, const char *value)
   //  int result;
   bool check;
   const char *range_pattern =
-    "\\[[0-9]+\\-[0-9]+\\]\\.\\[[0-9]+\\-[0-9]+\\]\\.\\[[0-9]+\\-[0-9]+\\]\\.\\[[0-9]+\\-[0-9]+\\]";
+    "\\[[0-9]+\\-[0-9]+\\]\\\\\\.\\[[0-9]+\\-[0-9]+\\]\\\\\\.\\[[0-9]+\\-[0-9]+\\]\\\\\\.\\[[0-9]+\\-[0-9]+\\]";
   const char *ip_pattern = "[0-9]*[0-9]*[0-9].[0-9]*[0-9]*[0-9].[0-9]*[0-9]*[0-9].[0-9]*[0-9]*[0-9]";
 
   Tokenizer dotTok1(".");

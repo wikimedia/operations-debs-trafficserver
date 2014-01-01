@@ -129,14 +129,14 @@ private:
   Thread & operator =(const Thread &);
 
 public:
-  void start(const char* name, ThreadFunction f = NULL, void *a = NULL, size_t stacksize = 0);
+  ink_thread start(const char* name, ThreadFunction f = NULL, void *a = NULL, size_t stacksize = 0);
 
   virtual void execute()
   {  }
 };
 
-TS_INLINE ink_hrtime ink_get_hrtime();
-TS_INLINE ink_hrtime ink_get_based_hrtime();
-TS_INLINE Thread *this_thread();
+extern ink_hrtime ink_get_hrtime();
+extern ink_hrtime ink_get_based_hrtime();
+extern Thread *this_thread();
 
 #endif /*_I_Thread_h*/

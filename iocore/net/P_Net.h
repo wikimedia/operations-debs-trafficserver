@@ -30,11 +30,6 @@
 #ifndef __P_NET_H__
 #define __P_NET_H__
 
-#ifndef INLINE_CC
-#undef  TS_INLINE
-#define TS_INLINE inline
-#endif
-
 // Net Stats
 
 enum Net_Stats
@@ -55,6 +50,7 @@ enum Net_Stats
   socks_connections_successful_stat,
   socks_connections_unsuccessful_stat,
   socks_connections_currently_open_stat,
+  inactivity_cop_lock_acquire_failure_stat,
   Net_Stat_Count
 };
 
@@ -108,7 +104,6 @@ do { \
 #include "P_NetVCTest.h"
 #include "P_LibBulkIO.h"
 
-#include "P_SSLConfig.h"
 #include "P_SSLNetVConnection.h"
 #include "P_SSLNetProcessor.h"
 #include "P_SSLNetAccept.h"

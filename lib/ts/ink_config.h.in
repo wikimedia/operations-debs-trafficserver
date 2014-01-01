@@ -50,6 +50,11 @@
 #define TS_HAVE_NETINET_IN_H           @netinet_inh@
 #define TS_HAVE_NETINET_IN_SYSTM_H     @netinet_in_systmh@
 #define TS_HAVE_NETINET_TCP_H          @netinet_tcph@
+#define TS_HAVE_PTHREAD_NP_H           @pthread_nph@
+#define TS_HAVE_SYS_PARAM_H            @sys_paramh@
+#define TS_HAVE_SYS_CPUSET_H           @sys_cpuseth@
+#define TS_HAVE_SYS_PSET_H             @sys_pseth@
+#define TS_HAVE_SCHED_H                @schedh@
 #define TS_HAVE_SYS_IOCTL_H            @sys_ioctlh@
 #define TS_HAVE_SYS_BYTEORDER_H        @sys_byteorderh@
 #define TS_HAVE_SYS_SOCKIO_H           @sys_sockioh@
@@ -114,8 +119,10 @@
 #define TS_HAS_IP_TOS                  @has_ip_tos@
 #define TS_USE_HWLOC                   @use_hwloc@
 #define TS_USE_FREELIST                @use_freelist@
+#define TS_USE_RECLAIMABLE_FREELIST    @use_reclaimable_freelist@
 #define TS_USE_TLS_NPN                 @use_tls_npn@
 #define TS_USE_TLS_SNI                 @use_tls_sni@
+#define TS_USE_LINUX_NATIVE_AIO        @use_linux_native_aio@
 
 /* OS API definitions */
 #define GETHOSTBYNAME_R_HOSTENT_DATA   @gethostbyname_r_hostent_data@
@@ -123,6 +130,7 @@
 #define NEED_UNION_SEMUN               @need_union_semun@
 #define SIZEOF_VOID_POINTER            @ac_cv_sizeof_voidp@
 #define TS_IP_TRANSPARENT              @ip_transparent@
+#define TS_HAS_128BIT_CAS              @has_128bit_cas@
 
 /* API */
 #define TS_IS_MICRO_BUILD              @is_micro_build@

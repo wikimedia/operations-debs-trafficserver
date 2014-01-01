@@ -285,7 +285,7 @@ reconnect()
  * purpose: attempts to reconnect to TM (eg. when TM restarts) for the
  *          specified number of times
  * input:  num_attempts - number of reconnection attempts to try before quit
- * output: TS_ERR_OKAY - if succesfully reconnected within num_attempts
+ * output: TS_ERR_OKAY - if successfully reconnected within num_attempts
  *         TS_ERR_xx - the reason the reconnection failed
  * notes:
  ***************************************************************************/
@@ -525,7 +525,7 @@ send_request(int fd, OpType op)
  * note: format: <OpType> <str_len> <string>
  **********************************************************************/
 TSError
-send_request_name(int fd, OpType op, char *name)
+send_request_name(int fd, OpType op, const char *name)
 {
   char *msg_buf;
   int16_t op_t;
@@ -1631,7 +1631,7 @@ parse_event_notification(int fd, TSEvent * event)
   OpType msg_type;
   int16_t type_op;
   int32_t msg_len;
-  char *event_name = NUL, *desc = NULL;
+  char *event_name = NULL, *desc = NULL;
 
   if (!event)
     return TS_ERR_PARAMS;

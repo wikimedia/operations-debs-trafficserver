@@ -39,45 +39,21 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <poll.h>
-#if !defined(IRIX) && !defined(_WIN32)
 #include <netinet/tcp.h>
-#endif
 #include <sys/resource.h>
-#if defined(__alpha)
-#include <sys/sysinfo.h>
-#include <machine/hal_sysinfo.h>
-#include <timers.h>
-#endif
 #include <math.h>
 #include <limits.h>
 #include <sys/mman.h>
 
-#ifdef __alpha
-#define ink64 long
-#define inku64 unsigned long
-#else
-#define ink64 long long
-#define inku64 unsigned long long
-#endif
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 
-#if !defined (sparc) && !defined (_WIN32)
-#  include <time.h>
-#  include <sys/time.h>
-#  include <stdlib.h>
-   typedef ink64 ink_hrtime;
-#else /* !defined (NEED_HRTIME) || defined (_WIN32) */
-#  if !defined (_WIN32)
-#      include <sys/time.h>
-       typedef hrtime_t ink_hrtime;
-#  else
-#      include <time.h>
-      typedef ink64 ink_hrtime;
-#  endif
-#endif
+#include <time.h>
+#include <sys/time.h>
+#include <stdlib.h>
 
-#define bool int
-#define false 0
-#define true 1
+typedef int64_t ink_hrtime;
+
 #define SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
 /*
@@ -99,10 +75,6 @@
 */
 
 #define MAX_URL_LEN 1024
-
-#if defined(freebsd)
-extern "C" int gethostname(char *name, int namelen);
-#endif
 
 //
 // Compilation Options
@@ -136,6 +108,10 @@ extern "C" int gethostname(char *name, int namelen);
 #define MAX_DEFERED_URLS      10000
 #define DEFERED_URLS_BLOCK    2000
 
+static const char * hexdigits = "0123456789ABCDEFabcdef";
+static const char * dontunescapify = "#;/?+=&:@%";
+static const char * dontescapify = "#;/?+=&:@~.-_%";
+
 enum FTP_MODE {
   FTP_NULL,
   FTP_PORT,
@@ -147,13 +123,16 @@ typedef int (*poll_cb)(int);
 struct ArgumentDescription;
 typedef void ArgumentFunction(
   ArgumentDescription * argument_descriptions, int n_argument_descriptions,
-  char * arg);
+  const char * arg);
+
+static void jtest_usage(ArgumentDescription * argument_descriptions, 
+                 int n_argument_descriptions, const char * arg);
 
 static int read_request(int sock);
 static int write_request(int sock);
 static int make_client (unsigned int addr, int port);
 static void make_bfc_client (unsigned int addr, int port);
-static int make_url_client(char * url,char * base_url = 0, bool seen = false,
+static int make_url_client(const char * url,const char * base_url = 0, bool seen = false,
                            bool unthrottled = false);
 static int write_ftp_response(int sock);
 static void interval_report();
@@ -201,8 +180,8 @@ float total_ops = 0;
 int running_sops = 0, new_sops = 0, total_sops = 0;
 int running_latency = 0, latency = 0;
 int lat_ops = 0, b1_ops = 0, running_b1latency = 0, b1latency = 0;
-int running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
-int running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
+uint64_t running_cbytes = 0, new_cbytes = 0, total_cbytes = 0;
+uint64_t running_tbytes = 0, new_tbytes = 0, total_tbytes = 0;
 int average_over = 5;
 double hitrate = 0.4;
 int hotset = 1000;
@@ -241,18 +220,17 @@ char urlsdump_file[256] = "";
 FILE * urlsdump_fp = NULL;
 int drand_seed = 0;
 int docsize = -1;
-int url_hash_entries = 100000;
+int url_hash_entries = 1000000;
 char url_hash_filename[256] = "";
 int bandwidth_test = 0;
 int bandwidth_test_to_go = 0;
-int total_client_request_bytes = 0;
-int total_proxy_request_bytes = 0;
-int total_server_response_body_bytes = 0;
-int total_server_response_header_bytes = 0;
-int total_proxy_response_body_bytes = 0;
-int total_proxy_response_header_bytes = 0;
+uint64_t total_client_request_bytes = 0;
+uint64_t total_proxy_request_bytes = 0;
+uint64_t total_server_response_body_bytes = 0;
+uint64_t total_server_response_header_bytes = 0;
+uint64_t total_proxy_response_body_bytes = 0;
+uint64_t total_proxy_response_header_bytes = 0;
 ink_hrtime now = 0, start_time = 0;
-ArgumentFunction jtest_usage;
 int extra_headers = 0;
 int alternates = 0;
 int abort_retry_speed = 0;
@@ -269,12 +247,12 @@ double zipf = 0.0;
 int zipf_bucket_size = 1;
 
 struct ArgumentDescription {
-  char * name;
+  const char * name;
   char   key;
-  char * description;
-  char * type;
-  void * location;
-  char * env;
+  const char * description;
+  const char * type;
+  const void * location;
+  const char * env;
   ArgumentFunction * pfn;       
 };
 
@@ -553,9 +531,782 @@ class           ParseRules
                         ParseRules & operator = (const ParseRules &);
 };
 
-extern const unsigned int parseRulesCType[];
-extern const char parseRulesCTypeToUpper[];
-extern const char parseRulesCTypeToLower[];
+static const unsigned int parseRulesCType[256] = {
+        0xD1210821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xBB130861,
+        0x5B390821,
+        0xD8010821,
+        0xD8010821,
+        0x5B350821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xD0010821,
+        0xAB1F0841,
+        0xC140C301,
+        0x20028801,
+        0xC2408801,
+        0xC0404501,
+        0xC0408801,
+        0xC040A101,
+        0xC040C301,
+        0xA002C301,
+        0xA002C301,
+        0xC0C0C301,
+        0xC040C501,
+        0x2102C301,
+        0xC040C501,
+        0xC040C501,
+        0xA002A001,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0xC4404191,
+        0x8102A101,
+        0xA002A001,
+        0xA0028801,
+        0xC002A101,
+        0xA0028801,
+        0xA082A001,
+        0xE002A101,
+        0xC440418B,
+        0xC440418B,
+        0xC440418B,
+        0xC440418B,
+        0xC440418B,
+        0xC440418B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xC440410B,
+        0xA082D101,
+        0xA082D101,
+        0xA002D101,
+        0xC040D101,
+        0xC040C501,
+        0xC040D101,
+        0xC440418D,
+        0xC440418D,
+        0xC440418D,
+        0xC440418D,
+        0xC440418D,
+        0xC440418D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xC440410D,
+        0xA002D101,
+        0xC040D101,
+        0xA002D101,
+        0xC040D101,
+        0xD0010821,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000,
+        0xC0000000
+};
+
+static const char      parseRulesCTypeToUpper[256] = {
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        123,
+        124,
+        125,
+        126,
+        127,
+        -128,
+        -127,
+        -126,
+        -125,
+        -124,
+        -123,
+        -122,
+        -121,
+        -120,
+        -119,
+        -118,
+        -117,
+        -116,
+        -115,
+        -114,
+        -113,
+        -112,
+        -111,
+        -110,
+        -109,
+        -108,
+        -107,
+        -106,
+        -105,
+        -104,
+        -103,
+        -102,
+        -101,
+        -100,
+        -99,
+        -98,
+        -97,
+        -96,
+        -95,
+        -94,
+        -93,
+        -92,
+        -91,
+        -90,
+        -89,
+        -88,
+        -87,
+        -86,
+        -85,
+        -84,
+        -83,
+        -82,
+        -81,
+        -80,
+        -79,
+        -78,
+        -77,
+        -76,
+        -75,
+        -74,
+        -73,
+        -72,
+        -71,
+        -70,
+        -69,
+        -68,
+        -67,
+        -66,
+        -65,
+        -64,
+        -63,
+        -62,
+        -61,
+        -60,
+        -59,
+        -58,
+        -57,
+        -56,
+        -55,
+        -54,
+        -53,
+        -52,
+        -51,
+        -50,
+        -49,
+        -48,
+        -47,
+        -46,
+        -45,
+        -44,
+        -43,
+        -42,
+        -41,
+        -40,
+        -39,
+        -38,
+        -37,
+        -36,
+        -35,
+        -34,
+        -33,
+        -32,
+        -31,
+        -30,
+        -29,
+        -28,
+        -27,
+        -26,
+        -25,
+        -24,
+        -23,
+        -22,
+        -21,
+        -20,
+        -19,
+        -18,
+        -17,
+        -16,
+        -15,
+        -14,
+        -13,
+        -12,
+        -11,
+        -10,
+        -9,
+        -8,
+        -7,
+        -6,
+        -5,
+        -4,
+        -3,
+        -2,
+        -1
+};
+
+static const char      parseRulesCTypeToLower[256] = {
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        -128,
+        -127,
+        -126,
+        -125,
+        -124,
+        -123,
+        -122,
+        -121,
+        -120,
+        -119,
+        -118,
+        -117,
+        -116,
+        -115,
+        -114,
+        -113,
+        -112,
+        -111,
+        -110,
+        -109,
+        -108,
+        -107,
+        -106,
+        -105,
+        -104,
+        -103,
+        -102,
+        -101,
+        -100,
+        -99,
+        -98,
+        -97,
+        -96,
+        -95,
+        -94,
+        -93,
+        -92,
+        -91,
+        -90,
+        -89,
+        -88,
+        -87,
+        -86,
+        -85,
+        -84,
+        -83,
+        -82,
+        -81,
+        -80,
+        -79,
+        -78,
+        -77,
+        -76,
+        -75,
+        -74,
+        -73,
+        -72,
+        -71,
+        -70,
+        -69,
+        -68,
+        -67,
+        -66,
+        -65,
+        -64,
+        -63,
+        -62,
+        -61,
+        -60,
+        -59,
+        -58,
+        -57,
+        -56,
+        -55,
+        -54,
+        -53,
+        -52,
+        -51,
+        -50,
+        -49,
+        -48,
+        -47,
+        -46,
+        -45,
+        -44,
+        -43,
+        -42,
+        -41,
+        -40,
+        -39,
+        -38,
+        -37,
+        -36,
+        -35,
+        -34,
+        -33,
+        -32,
+        -31,
+        -30,
+        -29,
+        -28,
+        -27,
+        -26,
+        -25,
+        -24,
+        -23,
+        -22,
+        -21,
+        -20,
+        -19,
+        -18,
+        -17,
+        -16,
+        -15,
+        -14,
+        -13,
+        -12,
+        -11,
+        -10,
+        -9,
+        -8,
+        -7,
+        -6,
+        -5,
+        -4,
+        -3,
+        -2,
+        -1
+};
 
 inline int ParseRules::is_char(char c) {
   return ((parseRulesCType[(unsigned char) c] & (1 << 0)) ? (1) : (0));
@@ -631,7 +1382,7 @@ inline int ParseRules::is_uchar(const char *seq) {
 }
 inline int ParseRules::is_pchar(const char *seq) {
   if (*seq != '%')
-    return ((parseRulesCType[*seq] & (1 << 8)) ? (1) : (0));
+    return ((parseRulesCType[(unsigned char)*seq] & (1 << 8)) ? (1) : (0));
   else
     return is_hex(seq[1]) && is_hex(seq[2]);
 }
@@ -747,9 +1498,9 @@ ink_atoui(const char *str) {
     num = (num * 10) + (*str++ - '0');
   return num;
 }
-inline ink64 
+inline int64_t
 ink_atoll(const char *str) {
-  ink64 num = 0;
+  int64_t num = 0;
   int negative = 0;
   while (*str && ParseRules::is_wslfcr(*str))
     str += 1;
@@ -774,38 +1525,30 @@ ink_atoll(const char *str) {
 #define HRTIME_SECOND   (1000*HRTIME_MSECOND)
 #define HRTIME_MSECOND  (1000*HRTIME_USECOND)
 #define HRTIME_USECOND  (1000*HRTIME_NSECOND)
-#if !defined (_WIN32)
 #define HRTIME_NSECOND  (1LL)
-#else
-#define HRTIME_NSECOND  (1i64)
-#endif
-
 #define MAX_FILE_ARGUMENTS 100
 
-char * file_arguments[MAX_FILE_ARGUMENTS] = { 0 };
-char * program_name = (char *)"inktomi";
-int n_file_arguments = 0;
+static const char * file_arguments[MAX_FILE_ARGUMENTS] = { 0 };
+static const char * program_name = "jtest";
+static int n_file_arguments = 0;
 
-static char * argument_types_keys = (char *)"ISDfFTL";
-static char * argument_types_descriptions[] = {
-  (char *)"int  ",
-  (char *)"str  ",
-  (char *)"dbl  ",
-  (char *)"off  ",
-  (char *)"on   ",
-  (char *)"tog  ",
-  (char *)"i64  ",
-  (char *)"     "
+static const char * argument_types_keys = "ISDfFTL";
+static const char * argument_types_descriptions[] = {
+  "int  ",
+  "str  ",
+  "dbl  ",
+  "off  ",
+  "on   ",
+  "tog  ",
+  "i64  ",
+  "     "
 };
 
-void show_argument_configuration(ArgumentDescription * argument_descriptions,
-                                 int n_argument_descriptions);
-
-void usage(ArgumentDescription * argument_descriptions,
+static void usage(ArgumentDescription * argument_descriptions,
            int n_argument_descriptions,
-           char * arg_unused);
+           const char * arg_unused);
 
-void process_args(ArgumentDescription * argument_descriptions,
+static void process_args(ArgumentDescription * argument_descriptions,
                   int n_argument_descriptions,
                   char **argv);
 
@@ -822,34 +1565,22 @@ void process_args(ArgumentDescription * argument_descriptions,
 #define ink_release_assert(EX) \
             (void)((EX) || (_ink_assert(#EX, __FILE__, __LINE__)))
 
-int _ink_assert(const char * a, const char * f, int l);
-void ink_fatal(int return_code, const char *message_format, ...);
-void ink_warning(const char *message_format, ...);
+static int _ink_assert(const char * a, const char * f, int l);
+static void ink_fatal(int return_code, const char *message_format, ...);
+static void ink_warning(const char *message_format, ...);
 #define min(_a,_b) ((_a)<(_b)?(_a):(_b))
 
-inline ink_hrtime ink_get_hrtime()
+static inline ink_hrtime ink_get_hrtime()
 {
-#if !defined (_WIN32)
-#  if !defined (sparc)
-#    if defined (irix)
-      timespec ts;
-      clock_gettime(CLOCK_SGI_CYCLE, &ts);
-      return (ts.tv_sec * HRTIME_SECOND + ts.tv_nsec * HRTIME_NSECOND);
-#    elif defined(FreeBSD)
+#    if defined(FreeBSD)
       timespec ts;
       clock_gettime(CLOCK_REALTIME, &ts);
       return (ts.tv_sec * HRTIME_SECOND + ts.tv_nsec * HRTIME_NSECOND);
-#    else /* !defined (__alpha) && !defined(IRIX) */
+#    else
       timeval tv;
       gettimeofday(&tv,NULL);
       return (tv.tv_sec * HRTIME_SECOND + tv.tv_usec * HRTIME_USECOND);
 #    endif
-#  else /* !defined (NEED_HRTIME) */
-      return gethrtime();
-#  endif
-#else /* WIN32 */
-    return ink_getHiResTime();
-#endif
 }
 
 typedef struct {
@@ -880,10 +1611,10 @@ static  int ink_web_remove_dots(
 static int ink_web_unescapify_string(
   char *dest_in, char *src_in, int max_dest_len);
 
-int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len);
+static int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len);
 
 static void ink_web_decompose_url(
-  char *src_url,
+  const char *src_url,
   char *sche, char *host, char *port, char *path,
   char *frag, char *quer, char *para,
   int *real_sche_exists, int *real_host_exists,
@@ -892,10 +1623,10 @@ static void ink_web_decompose_url(
   int *real_para_exists,
   int *real_relative_url, int *real_leading_slash);
 
-static void ink_web_canonicalize_url(char *base_url, char *emb_url, 
+static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
                                      char *dest_url, int max_dest_url_len);
 
-static void ink_web_decompose_url_into_structure(char *url, 
+static void ink_web_decompose_url_into_structure(const char *url, 
                                                  InkWebURLComponents *c);
 
 static void remove_last_seg(char *src, char *dest)
@@ -924,7 +1655,7 @@ static inline void remove_multiple_slash(char *src, char *dest)
   *dest = '\0';
 }
 
-static inline void append_string(char *dest, char *src, int *offset_ptr, 
+static inline void append_string(char *dest, const char *src, int *offset_ptr, 
                                  int max_len)
 {
   int num = strlen(src);
@@ -936,7 +1667,7 @@ static inline void append_string(char *dest, char *src, int *offset_ptr,
 
 // End Library functions
 
-void show_version() {
+static void show_version() {
   char b[] = VERSION_NUM;
   char * v = strchr(b,':');
   v += 2;
@@ -944,30 +1675,24 @@ void show_version() {
   printf(VERSION, v);
 }
 
-void jtest_usage(ArgumentDescription * argument_descriptions, 
-                 int n_argument_descriptions, char * arg) 
+static void jtest_usage(ArgumentDescription * argument_descriptions, 
+                 int n_argument_descriptions, const char * arg) 
 {
   show_version();
   usage(argument_descriptions, n_argument_descriptions, arg);
 }
 
-static void panic(char * s) {
+static void panic(const char * s) {
   fputs(s, stderr);
   exit(1);
 }
 
-static void panic_perror(char * s) {
+static void panic_perror(const char * s) {
   perror(s);
   exit(1);
 }
 
-int max_limit_fd() {
-#ifdef __alpha
-#ifdef GSI_FD_NEWMAX
-  assert(!setsysinfo(SSI_FD_NEWMAX,0,0,0,1));
-#endif
-#endif
-
+static int max_limit_fd() {
   struct rlimit rl;
   if (getrlimit(RLIMIT_NOFILE,&rl) >= 0) {
 #ifdef OPEN_MAX
@@ -986,8 +1711,7 @@ int max_limit_fd() {
   return -1;
 }
 
-int read_ready(int fd) {
-#if !defined (_WIN32)
+static int read_ready(int fd) {
   struct pollfd p;
   p.events = POLLIN;
   p.fd = fd;
@@ -995,9 +1719,6 @@ int read_ready(int fd) {
   if (r<=0) return r;
   if (p.revents & (POLLERR|POLLNVAL)) return -1;
   if (p.revents & (POLLIN|POLLHUP)) return 1;
-#else /* WIN32 */
-  return 1;
-#endif
   return 0;
 }
 
@@ -1027,7 +1748,7 @@ static void poll_init_set(int sock, poll_cb read_cb, poll_cb write_cb = NULL) {
 
 static int fast(int sock, int speed, int d) {
   if (!speed) return 0;
-  ink64 t = now - fd[sock].start + 1;
+  int64_t t = now - fd[sock].start + 1;
   int target = (int)(((t / HRTIME_MSECOND) * speed) / 1000);
   int delta = d - target;
   if (delta > 0) {
@@ -1041,7 +1762,7 @@ static int fast(int sock, int speed, int d) {
 
 static int faster_than(int sock, int speed, int d) {
   if (!speed) return 1;
-  ink64 t = now - fd[sock].start + 1;
+  int64_t t = now - fd[sock].start + 1;
   int target = (int)(((t / HRTIME_MSECOND) * speed) / 1000);
   int delta = d - target;
   if (delta > 0)
@@ -1068,21 +1789,22 @@ static void get_path_from_req(char * buf,char ** purl_start, char ** purl_end)
   *purl_end = url_end;
 }
 
-static int send_response (int sock) {
-  int err, towrite;
+static int send_response (int sock)
+{
+  int err = 0, towrite;
 
   if (fd[sock].req_pos >= 0) {
     char header[1024], *url_end = NULL, *url_start = NULL;
     int url_len = 0;
-    char* content_type;
+    const char * content_type;
     switch (server_content_type) {
     case 1: content_type = "text/html"; break;
     case 2: content_type = "image/jpeg"; break;
     default:
-      content_type = 
-        (char*)((compd_suite || alternates) ? "image/jpeg" : "text/html");
-      if (only_server && strstr(fd[sock].req_header, "Cookie:"))
+      content_type = ((compd_suite || alternates) ? "image/jpeg" : "text/html");
+      if (only_server && strstr(fd[sock].req_header, "Cookie:")) {
         content_type = "image/jpeg";
+      }
     }
     if (!ftp && embed_url && fd[sock].response_length > 16) {
       get_path_from_req(fd[sock].req_header, &url_start, &url_end);
@@ -1189,7 +1911,7 @@ static int send_response (int sock) {
   return 0;
 }
 
-char * strncasestr (char *s, char * find, int len) {
+static char * strncasestr (char *s, const char * find, int len) {
   int findlen = strlen(find);
   char * e = s + len;
   while (1) {
@@ -1393,7 +2115,7 @@ static int send_compd_response(int sock) {
     unsigned int code;
     unsigned int len;
   } compd_header;
-  if (fd[sock].req_pos < sizeof(compd_header)) {
+  if (fd[sock].req_pos < (int)sizeof(compd_header)) {
     compd_header.code = 0;
     compd_header.len = htonl((fd[sock].length * 2) / 3);
     do {
@@ -1417,7 +2139,7 @@ static int send_compd_response(int sock) {
     fd[sock].response = response_buffer + (((fd[sock].length * 2) / 3) % 256);
   }
  
-  if (fd[sock].req_pos < ((fd[sock].length * 2) / 3) + sizeof(compd_header)) {
+  if (fd[sock].req_pos < ((fd[sock].length * 2) / 3) + (int)sizeof(compd_header)) {
     int towrite = cbuffersize;
     int desired = ((fd[sock].length * 2) / 3) + sizeof (compd_header) - fd[sock].req_pos;
     if (towrite > desired) {
@@ -1453,7 +2175,6 @@ Lerror:
 static int read_compd_request(int sock) {
   if (verbose) printf("read_compd_request %d\n", sock);
   int err = 0;
-  int i;
 
   if (fd[sock].req_pos < 4) {
     int maxleft = HEADER_SIZE - fd[sock].req_pos - 1;
@@ -1871,14 +2592,13 @@ static int open_server(unsigned short int port, accept_fn_t accept_fn) {
 }
 
 //   perform poll and invoke callbacks on active descriptors 
-int poll_loop() {
+static int poll_loop() {
   if (server_fd > 0) {
     while (read_ready(server_fd) > 0)
       accept_read(server_fd);
   }
   pollfd pfd[POLL_GROUP_SIZE];
   int ip = 0;
-  int last_fd_in_block = 0;
   now = ink_get_hrtime();
   for (int i = 0 ; i <= last_fd ; i++) {
     if (fd[i].fd > 0 && (!fd[i].ready || now >= fd[i].ready)) {
@@ -1917,7 +2637,7 @@ int poll_loop() {
   return 0;
 }
 
-int gen_bfc_dist(double f = 10.0) {
+static int gen_bfc_dist(double f = 10.0) {
 
   if (docsize >= 0) return docsize;
 
@@ -1933,7 +2653,7 @@ int gen_bfc_dist(double f = 10.0) {
   }
 
   int class_no;
-  int file_no;
+  int file_no = 0;
 
   if(rand < 0.35){
     class_no = 0;
@@ -1980,7 +2700,7 @@ int gen_bfc_dist(double f = 10.0) {
   return size;
 }
 
-void build_response() {
+static void build_response() {
   int maxsize = docsize > MAX_RESPONSE_LENGTH ? docsize : MAX_RESPONSE_LENGTH;
   response_buffer = (char*) malloc (maxsize + HEADER_SIZE);
   for (int i = 0 ; i < maxsize + HEADER_SIZE; i++)
@@ -2075,7 +2795,7 @@ static unsigned int get_addr(char * host) {
   return addr;
 }
 
-char * find_href_end (char *start, int len)
+static char * find_href_end (char *start, int len)
 {
   char *end = start;
   if (!start) return NULL;
@@ -2099,7 +2819,7 @@ char * find_href_end (char *start, int len)
     return end;
 } // find_href_end
 
-char * find_href_start(char * tag, char *base, int len)
+static char * find_href_start(const char * tag, char *base, int len)
 {
   int taglen = strlen(tag);
   if (base == NULL) return NULL;
@@ -2146,7 +2866,7 @@ char * find_href_start(char * tag, char *base, int len)
   return start;
 } // find_href_start
 
-int compose_url(char * new_url, char * base, char *input) {
+static int compose_url(char * new_url, char * base, char *input) {
   char sche[8],host[512],port[10],path[512],frag[512],quer[512],para[512];
   char curl[512];
   int xsche,xhost,xport,xpath,xfrag,xquer,xpar,rel,slash;
@@ -2166,7 +2886,7 @@ int compose_url(char * new_url, char * base, char *input) {
   return 0;
 } // compose_urls
 
-void compose_all_urls( char * tag, char * buf, char * start, char * end, 
+static void compose_all_urls( const char * tag, char * buf, char * start, char * end, 
                        int buflen, char * base_url)
 {
   char old;
@@ -2188,9 +2908,8 @@ void compose_all_urls( char * tag, char * buf, char * start, char * end,
 // Input is a NULL-terminated string (buf of buflen)
 //       also, a read-write base_url
 //
-void extract_urls(char * buf, int buflen, char * base_url) {
+static void extract_urls(char * buf, int buflen, char * base_url) {
   //if (verbose) printf("EXTRACT<<%s\n>>", buf);
-  char old;
   char *start = NULL;
   char *end = NULL;
   char old_base[512];
@@ -2212,7 +2931,6 @@ void extract_urls(char * buf, int buflen, char * base_url) {
                !(ParseRules::is_ws(*rover) || *rover == '\'' 
                  || *rover == '\"'))
           rover++;
-        old = *rover;
         *rover = 0;
         compose_url(base_url,old_base,start);
         // fixup unqualified hostnames (e.g. http://internal/foo)
@@ -2235,15 +2953,16 @@ void extract_urls(char * buf, int buflen, char * base_url) {
   if (follow)
     compose_all_urls("href", buf, start, end, buflen, base_url);
   if (fullpage) {
-    char *tags[] = { "src", "image", "object", "archive", "background", 
+    const char *tags[] = { "src", "image", "object", "archive", "background", 
                      // "location", "code" 
     };
-    for (int i = 0 ; i < sizeof(tags)/sizeof(tags[0]) ; i++)
+    for (unsigned i = 0 ; i < sizeof(tags)/sizeof(tags[0]) ; i++) {
       compose_all_urls(tags[i], buf, start, end, buflen, base_url);
+    }
   }
 } // extract_urls
 
-void follow_links(int sock) {
+static void follow_links(int sock) {
   if (urls_mode) {
     if (fd[sock].binary) return;
     int l = fd[sock].response_remaining;
@@ -2305,7 +3024,7 @@ static int verify_content(int sock, char * buf, int done) {
 
 #define ZIPF_SIZE (1<<20)
 static double *zipf_table = NULL;
-void build_zipf() {
+static void build_zipf() {
   zipf_table = (double*)malloc(ZIPF_SIZE * sizeof(double));
   for (int i = 0; i < ZIPF_SIZE; i++)
     zipf_table[i] = 1.0 / pow(i+2, zipf);
@@ -2316,7 +3035,7 @@ void build_zipf() {
     zipf_table[i] = zipf_table[i] / x;
 }
 
-int get_zipf(double v) {
+static int get_zipf(double v) {
   int l = 0, r = ZIPF_SIZE-1, m;
   do {
     m = (r + l) / 2;
@@ -2337,14 +3056,6 @@ static int read_response_error(int sock) {
   fd[sock].close();
   if (!urls_mode)
     make_bfc_client(proxy_addr, proxy_port);
-  return 0;
-}
-
-static int read_for_error(int sock) {
-  char b[8192];
-  int err = read(sock, &b, 8192);
-  if (err < 0)
-    return read_response_error(sock);
   return 0;
 }
 
@@ -2586,7 +3297,6 @@ static int read_response(int sock) {
   return 0;
   
 Ldone:
-  int ok = false;
   if (!fd[sock].client_abort && 
       !(server_abort_rate > 0) &&
       fd[sock].length && fd[sock].length != INT_MAX) 
@@ -2815,18 +3525,20 @@ static void make_bfc_client (unsigned int addr, int port) {
   char cookie[256];
   *cookie = 0;
   fd[sock].nalternate = (int)(alternates * drand48());
-  if (alternates)
-    if (!vary_user_agent)
+  if (alternates) {
+    if (!vary_user_agent) {
       sprintf(cookie, "Cookie: jtest-cookie-%d\r\n", fd[sock].nalternate);
-    else
+    } else {
       sprintf(cookie, "User-Agent: jtest-browser-%d\r\n", fd[sock].nalternate);
-  char* extension;
+    }
+  }
+  const char * extension;
   switch (request_extension) {
-    case 1: extension = (char*)".html"; break;
-    case 2: extension = (char*)".jpeg"; break;
-    case 3: extension = (char*)"/"; break;
+    case 1: extension = ".html"; break;
+    case 2: extension = ".jpeg"; break;
+    case 3: extension = "/"; break;
     default:
-      extension = (char*)(compd_suite ? ".jpeg" : "");
+      extension = (compd_suite ? ".jpeg" : "");
   }
   char evo_str[20];
   evo_str[0] = '\0';
@@ -2913,7 +3625,7 @@ void interval_report() {
   now = ink_get_hrtime();
   if (!(here++ % 20))
     printf(
- " con  new    ops 1byte   lat   bytes/per     svrs  new  ops    total   time  err\n");
+ " con  new     ops   1B  lat      bytes/per     svrs  new  ops      total   time  err\n");
   RUNNING(clients);
   RUNNING_AVG(running_latency,latency,lat_ops); lat_ops = 0;
   RUNNING_AVG(running_b1latency,b1latency,b1_ops); b1_ops = 0;
@@ -2923,8 +3635,8 @@ void interval_report() {
   RUNNING(sops);
   RUNNING(tbytes);
   float t = (float)(now - start_time);
-  int per = current_clients ? running_cbytes / current_clients : 0;
-  printf("%4d %4d %6.1f %5d %5d %7d/%-6d  %4d %4d %4d  %7d %6.1f %4d\n", 
+  uint64_t per = current_clients ? running_cbytes / current_clients : 0;
+  printf("%4d %4d %7.1f %4d %4d %10" PRIu64"/%-6" PRIu64"  %4d %4d %4d  %9" PRIu64" %6.1f %4d\n",
          current_clients, // clients, n_ka_cache,
          running_clients,
          running_ops, running_b1latency, running_latency,
@@ -2935,15 +3647,15 @@ void interval_report() {
          t/((float)HRTIME_SECOND),
          errors);
   if (is_done()) {
-    printf("Total Client Request Bytes:\t\t%d\n", total_client_request_bytes);
-    printf("Total Server Response Header Bytes:\t%d\n", 
+    printf("Total Client Request Bytes:\t\t%" PRIu64"\n", total_client_request_bytes);
+    printf("Total Server Response Header Bytes:\t%" PRIu64"\n",
            total_server_response_header_bytes);
-    printf("Total Server Response Body Bytes:\t%d\n", 
+    printf("Total Server Response Body Bytes:\t%" PRIu64"\n",
            total_server_response_body_bytes);
-    printf("Total Proxy Request Bytes:\t\t%d\n", total_proxy_request_bytes);
-    printf("Total Proxy Response Header Bytes:\t%d\n", 
+    printf("Total Proxy Request Bytes:\t\t%" PRIu64"\n", total_proxy_request_bytes);
+    printf("Total Proxy Response Header Bytes:\t%" PRIu64"\n",
            total_proxy_response_header_bytes);
-    printf("Total Proxy Response Body Bytes:\t%d\n", 
+    printf("Total Proxy Response Body Bytes:\t%" PRIu64"\n",
            total_proxy_response_body_bytes);
   }
 }
@@ -2971,7 +3683,7 @@ void interval_report() {
   _x[1] = (_t >> 8) & 0xFF;  \
   _x[2] = _t & 0xFF;
 
-#define MASK_TAG(_x)  (_x & ((1U << (BYTES_PER_ENTRY * 8)))-1)
+#define MASK_TAG(_x)  (_x & ((1U << (BYTES_PER_ENTRY * 8)) - 1))
 
 #define BEGIN_HASH_LOOP                                            \
     unsigned int bucket = (i % BUCKETS);                           \
@@ -3002,7 +3714,7 @@ struct UrlHashTable {
 
   void alloc(unsigned int want);
 
-  void set(inku64 i) {
+  void set(uint64_t i) {
     BEGIN_HASH_LOOP {
       if (!ENTRY_TAG(e)) {
         SET_ENTRY_TAG(e,tag);
@@ -3022,7 +3734,7 @@ struct UrlHashTable {
     ink_fatal(1, "overview entries overflow");
   }
 
-  void clear(inku64 i) {
+  void clear(uint64_t i) {
     BEGIN_HASH_LOOP {
       if (ENTRY_TAG(e) == tag) {
         if (e != last)
@@ -3036,7 +3748,7 @@ struct UrlHashTable {
             (int)(base-bytes), tag);
   }
 
-  int is_set(inku64 i) {
+  int is_set(uint64_t i) {
     BEGIN_HASH_LOOP {
       if (ENTRY_TAG(e) == tag)
         return 1;
@@ -3085,7 +3797,7 @@ UrlHashTable::UrlHashTable() {
     // size as the size
     if (!len) 
       panic("zero size URL Hash Table\n");
-    if (len != URL_HASH_BYTES) {
+    if (len != (unsigned long)URL_HASH_BYTES) {
       fprintf(stderr, 
               "FATAL: hash file length (%lu) != URL_HASH_BYTES (%lu)\n",
               len, (unsigned long)URL_HASH_BYTES);
@@ -3098,11 +3810,7 @@ UrlHashTable::UrlHashTable() {
     ink_assert( !ftruncate(fd,numbytes) );
     bytes = (unsigned char *)
       mmap(NULL,numbytes,PROT_READ|PROT_WRITE,
-#if defined(__alpha) || defined(mips)
-           MAP_SHARED,
-#else
            MAP_SHARED|MAP_NORESERVE,
-#endif
            fd, 0);
     if (bytes == (unsigned char*)MAP_FAILED || !bytes)
       panic("unable to map URL Hash file\n");
@@ -3121,12 +3829,12 @@ UrlHashTable::~UrlHashTable()
 } // UrlHashTable::~UrlHashTable
 
 
-int seen_it(char * url) {
+static int seen_it(char * url) {
   if (!url_hash_entries)
     return 0;
   union {
     unsigned char md5[16];
-    inku64 i[2];
+    uint64_t i[2];
   } u;
   int l = 0;
   char * para = strrchr(url, '#');
@@ -3135,7 +3843,7 @@ int seen_it(char * url) {
   else
     l = strlen(url);
   ink_code_md5((unsigned char*)url,l,u.md5);
-  inku64 x = u.i[0] + u.i[1];
+  uint64_t x = u.i[0] + u.i[1];
   if (uniq_urls->is_set(x)) {
     if (verbose) printf("YES: seen it '%s'\n", url);
     return 1;
@@ -3145,12 +3853,12 @@ int seen_it(char * url) {
   return 0;
 }
 
-static int make_url_client(char * url,char * base_url, bool seen,
+static int make_url_client(const char * url,const char * base_url, bool seen,
                            bool unthrottled) 
 {
   int iport = 80;
   unsigned int ip = 0;
-  char hostname[80],curl[512];
+  char curl[512];
   char sche[8],host[512],port[10],path[512],frag[512],quer[512],para[512];
   int xsche,xhost,xport,xpath,xfrag,xquer,xpar,rel,slash;
 
@@ -3249,9 +3957,16 @@ static int make_url_client(char * url,char * base_url, bool seen,
   if (show_before) printf("%s\n", curl);
   if (urlsdump_fp) fprintf(urlsdump_fp, "%s\n", curl);
   if (show_headers) printf("Request to Proxy: {\n%s}\n",fd[sock].req_header);
-  char * epath = path + strlen(path);
-  fd[sock].binary = 
-    !strncasecmp(path - 3, "gif", 3) || !strncasecmp(path - 3, "jpg", 3);
+
+  {
+    const char * ext = strrchr(path, '.');
+
+    fd[sock].binary = 0;
+    if (ext) {
+      fd[sock].binary = !strncasecmp(ext, ".gif", 4) || !strncasecmp(ext, ".jpg", 4);
+    }
+  }
+
   fd[sock].response_length = 0;
   fd[sock].length = strlen(fd[sock].req_header);
   if (!fd[sock].response)
@@ -3435,7 +4150,7 @@ int main(int argc, char *argv[]) {
   
   *---------------------------------------------------------------------------*/
 
-void ink_web_decompose_url(char *src_url,
+static void ink_web_decompose_url(const char *src_url,
                            char *sche, char *host, char *port, char *path,
                            char *frag, char *quer, char *para,
                            int *real_sche_exists, int *real_host_exists,
@@ -3474,19 +4189,19 @@ void ink_web_decompose_url(char *src_url,
       *
       */
 {
-  char *start = src_url;
+  const char *start = src_url;
   int len = strlen(src_url);
-  char *end = start + len;
-  char *ptr = start;
-  char *ptr2, *temp, *temp2;
-  char *sche1, *sche2;
-  char *host1, *host2;
-  char *port1, *port2;
-  char *path1, *path2;
-  char *frag1, *frag2;
-  char *quer1, *quer2;
-  char *para1, *para2;
-  int fail = 0;
+  const char *end = start + len;
+  const char *ptr = start;
+  const char *ptr2, *temp, *temp2;
+  const char *sche1, *sche2;
+  const char *host1, *host2;
+  const char *port1, *port2;
+  const char *path1, *path2;
+  const char *frag1, *frag2;
+  const char *quer1, *quer2;
+  const char *para1, *para2;
+  bool fail = false;
   int num;
   int sche_exists, host_exists, port_exists, path_exists, frag_exists, 
     quer_exists, para_exists;
@@ -3494,8 +4209,8 @@ void ink_web_decompose_url(char *src_url,
   
   sche_exists = host_exists = port_exists = path_exists = 0;
   frag_exists = quer_exists = para_exists = 0;
-  sche1 = sche2 = host1 = host2 = port1 = port2 = path1 = path2 = NULL;
-  frag1 = frag2 = quer1 = quer2 = para1 = para2 = NULL;
+  sche1 = sche2 = host1 = host2 = port1 = port2 = NULL;
+  path1 = path2 = frag1 = frag2 = quer1 = quer2 = para1 = para2 = NULL;
   leading_slash = 0;
   
   temp2 = ptr;
@@ -3513,7 +4228,7 @@ void ink_web_decompose_url(char *src_url,
 
   /* decide if there is a sche, i.e. if it's an absolute url */
   /* find end of sche */
-  fail = 0;
+  fail = false;
   temp2 = ptr;
   while ((ptr < end) && !fail) {
     if (*ptr == ':') {
@@ -3521,12 +4236,12 @@ void ink_web_decompose_url(char *src_url,
       sche2 = ptr;
       ptr++; /* to continue to parse, skip the : */
       sche_exists = 1;
-      fail = 1;
+      fail = true;
     } else if ((!ParseRules::is_alpha(*ptr) &&
                 (*ptr != '+') && (*ptr != '.') && (*ptr != '-')) ||
                (ptr == end)) {
       sche_exists = 0;
-      fail = 1;
+      fail = true;
     } else {
       ptr++;
     }
@@ -3535,7 +4250,7 @@ void ink_web_decompose_url(char *src_url,
     ptr = temp2;
   
   /* find start of host */
-  fail = 0;
+  fail = false;
   temp2 = ptr;
   while ((ptr < end-1) && !fail) {
     if (*(ptr+0) == '/') {
@@ -3543,11 +4258,11 @@ void ink_web_decompose_url(char *src_url,
         host1 = ptr+2;
         ptr += 2; /* skip "//" */
         host_exists = 1;
-        fail = 1;
+        fail = true;
       } else {
         /* this is the start of a path, not a host */
         host_exists = 0;
-        fail = 1;
+        fail = true;
       }
     } else {
       ptr++;
@@ -3746,6 +4461,7 @@ void ink_web_decompose_url(char *src_url,
 } /* End ink_web_decompose_url */
 
 
+#if 0 /* debugging */
 /*---------------------------------------------------------------------------*
   
   void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
@@ -3755,7 +4471,7 @@ void ink_web_decompose_url(char *src_url,
   
   *---------------------------------------------------------------------------*/
 
-void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
+static void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
 {
   fprintf(fp,"sche:'%s', exists %d\n",c->sche,c->sche_exists);
   fprintf(fp,"host:'%s', exists %d\n",c->host,c->host_exists);
@@ -3771,6 +4487,7 @@ void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
   fprintf(fp,"\n");
 } /* End ink_web_dump_url_components */
 
+#endif
 
 /*---------------------------------------------------------------------------*
   
@@ -3805,7 +4522,7 @@ void ink_web_dump_url_components(FILE *fp, InkWebURLComponents *c)
   
   *---------------------------------------------------------------------------*/
 
-void ink_web_canonicalize_url(char *base_url, char *emb_url, char *dest_url,
+static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, char *dest_url,
                               int max_dest_url_len)
 {
   int doff;
@@ -3857,9 +4574,11 @@ void ink_web_canonicalize_url(char *base_url, char *emb_url, char *dest_url,
             (strcasecmp(emb.sche,"mailto") == 0) ||
             (strcasecmp(emb.sche,"news") == 0)))
   {
-    char * p = emb_url, * q = dest_url;
-    while (*p)
+    const char * p = emb_url;
+    char * q = dest_url;
+    while (*p) {
       *q++ = ParseRules::ink_tolower(*p++);
+    }
     return;
   }
   else if (emb.sche_exists &&
@@ -4096,7 +4815,7 @@ void ink_web_canonicalize_url(char *base_url, char *emb_url, char *dest_url,
   
   *---------------------------------------------------------------------------*/
 
-void ink_web_decompose_url_into_structure(char *url, InkWebURLComponents *c)
+static void ink_web_decompose_url_into_structure(const char *url, InkWebURLComponents *c)
 {
   ink_web_decompose_url(url,
                         c->sche, c->host, c->port,
@@ -4161,7 +4880,7 @@ void ink_web_decompose_url_into_structure(char *url, InkWebURLComponents *c)
 /* allocate them. */
 #define STATIC_PATH_LEVELS 256
 
-int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
+static int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
                         int max_dest_len)
 {
   char *ptr, *end;
@@ -4323,13 +5042,12 @@ int ink_web_remove_dots(char *src, char *dest, int *leadingslash,
   
   *---------------------------------------------------------------------------*/
 
-int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_len)
+static int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_len)
 {
   char *src = src_in;
   char *dest = dest_in;
-  char *hexdigits="0123456789ABCDEFabcdef";
-  char *dontunescapify="#;/?+=&:@%";
-  char *c1, *c2;
+  const char *c1;
+  const char *c2;
   int quit = 0;
   int dcount = 0;
   int num = 0;
@@ -4437,10 +5155,8 @@ int ink_web_unescapify_string(char *dest_in, char *src_in, int max_dest_len)
   
   *---------------------------------------------------------------------------*/
 
-int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len) {
+static int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len) {
   int d1,d2;
-  char *hexdigits="0123456789ABCDEF";
-  char *dontescapify="#;/?+=&:@~.-_%";
   char *src = src_in;
   char *dest = dest_in;
   int dcount = 0;
@@ -4487,7 +5203,7 @@ int ink_web_escapify_string(char *dest_in, char *src_in, int max_dest_len) {
 // imported from libts
 //////////////////////////////////////////////////////////////////////////
 
-void ink_die_die_die(int retval)
+static void ink_die_die_die(int retval)
 {
     abort();
     _exit(retval);
@@ -4504,7 +5220,7 @@ void ink_die_die_die(int retval)
 
  *---------------------------------------------------------------------------*/
 
-void ink_fatal_va(int return_code, const char *message_format, va_list ap)
+static void ink_fatal_va(int return_code, const char *message_format, va_list ap)
 {
     char extended_format[4096],message[4096];
 
@@ -4515,7 +5231,7 @@ void ink_fatal_va(int return_code, const char *message_format, va_list ap)
 } /* End ink_fatal_va */
 
 
-void ink_fatal(int return_code, const char *message_format, ...)
+static void ink_fatal(int return_code, const char *message_format, ...)
 {
     va_list ap;
     va_start(ap,message_format);
@@ -4523,7 +5239,7 @@ void ink_fatal(int return_code, const char *message_format, ...)
     va_end(ap);
 } /* End ink_fatal */
 
-void ink_warning(const char *message_format, ...)
+static void ink_warning(const char *message_format, ...)
 {
     va_list ap;
     char extended_format[4096],message[4096];
@@ -4535,7 +5251,7 @@ void ink_warning(const char *message_format, ...)
     va_end(ap);
 } /* End ink_warning */
 
-int _ink_assert(const char * a, const char * f, int l) {
+static int _ink_assert(const char * a, const char * f, int l) {
   char buf1[81];
   char buf2[256];
 
@@ -4575,7 +5291,7 @@ static void process_arg(ArgumentDescription * argument_descriptions,
           *(double *)argument_descriptions[i].location = atof(arg);
           break;
         case 'L':
-          *(ink64 *)argument_descriptions[i].location = ink_atoll(arg);
+          *(int64_t *)argument_descriptions[i].location = ink_atoll(arg);
           break;
         case 'S': strncpy((char *)argument_descriptions[i].location,arg,
                           atoi(argument_descriptions[i].type+1));
@@ -4594,7 +5310,9 @@ static void process_arg(ArgumentDescription * argument_descriptions,
 }
 
 
-void show_argument_configuration(ArgumentDescription * argument_descriptions,
+#if 0
+// XXX this is not used; maybe it's just debugging? -- jpeach
+static void show_argument_configuration(ArgumentDescription * argument_descriptions,
                                  int n_argument_descriptions) 
 {
   int i = 0;
@@ -4616,12 +5334,10 @@ void show_argument_configuration(ArgumentDescription * argument_descriptions,
         printf("%f",*(double*)argument_descriptions[i].location);
         break;
       case 'L':
-#if defined(__alpha)
-        printf("%ld",*(ink64*)argument_descriptions[i].location);
-#elif defined(FreeBSD)
-        printf("%qd",*(ink64*)argument_descriptions[i].location);
+#if defined(FreeBSD)
+        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
 #else
-        printf("%lld",*(ink64*)argument_descriptions[i].location);
+        printf("%" PRId64"",*(int64_t*)argument_descriptions[i].location);
 #endif
         break;
       case 'S':
@@ -4633,8 +5349,9 @@ void show_argument_configuration(ArgumentDescription * argument_descriptions,
     }
   }
 }
+#endif
 
-void process_args(ArgumentDescription * argument_descriptions,
+static void process_args(ArgumentDescription * argument_descriptions,
                   int n_argument_descriptions,
                   char **argv) 
 {
@@ -4657,7 +5374,7 @@ void process_args(ArgumentDescription * argument_descriptions,
         *(double *)argument_descriptions[i].location = atof(env);
         break;
       case 'L':
-        *(ink64 *)argument_descriptions[i].location = ink_atoll(env);
+        *(int64_t *)argument_descriptions[i].location = ink_atoll(env);
         break;
       case 'S':
         strncpy((char *)argument_descriptions[i].location,env,
@@ -4700,9 +5417,9 @@ void process_args(ArgumentDescription * argument_descriptions,
   }
 }
 
-void usage(ArgumentDescription * argument_descriptions,
+static void usage(ArgumentDescription * argument_descriptions,
            int n_argument_descriptions,
-           char * dummy) 
+           const char * dummy) 
 {
   (void)argument_descriptions; (void)n_argument_descriptions; (void)dummy;
   fprintf(stderr,"Usage: %s [--SWITCH [ARG]]\n",program_name);
@@ -4724,14 +5441,12 @@ void usage(ArgumentDescription * argument_descriptions,
       case 0: fprintf(stderr, "          "); break;
       case 'L':
         fprintf(stderr, 
-#ifdef __alpha
-                " %-9ld", 
-#elif defined(FreeBSD)
-                " %-9qd", 
+#if defined(FreeBSD)
+                " %-9" PRId64"",
 #else
-                " %-9lld",
+                " %-9" PRId64"",
 #endif
-                *(ink64*)argument_descriptions[i].location);
+                *(int64_t*)argument_descriptions[i].location);
         break;
       case 'S':
         if (*(char*)argument_descriptions[i].location) {
@@ -4762,781 +5477,6 @@ void usage(ArgumentDescription * argument_descriptions,
   }
   _exit(1);
 }
-
-const unsigned int parseRulesCType[256] = {
-        0xD1210821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xBB130861,
-        0x5B390821,
-        0xD8010821,
-        0xD8010821,
-        0x5B350821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xD0010821,
-        0xAB1F0841,
-        0xC140C301,
-        0x20028801,
-        0xC2408801,
-        0xC0404501,
-        0xC0408801,
-        0xC040A101,
-        0xC040C301,
-        0xA002C301,
-        0xA002C301,
-        0xC0C0C301,
-        0xC040C501,
-        0x2102C301,
-        0xC040C501,
-        0xC040C501,
-        0xA002A001,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0xC4404191,
-        0x8102A101,
-        0xA002A001,
-        0xA0028801,
-        0xC002A101,
-        0xA0028801,
-        0xA082A001,
-        0xE002A101,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440418B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xC440410B,
-        0xA082D101,
-        0xA082D101,
-        0xA002D101,
-        0xC040D101,
-        0xC040C501,
-        0xC040D101,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440418D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xC440410D,
-        0xA002D101,
-        0xC040D101,
-        0xA002D101,
-        0xC040D101,
-        0xD0010821,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000,
-        0xC0000000
-};
-const char      parseRulesCTypeToUpper[256] = {
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        62,
-        63,
-        64,
-        65,
-        66,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        77,
-        78,
-        79,
-        80,
-        81,
-        82,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        91,
-        92,
-        93,
-        94,
-        95,
-        96,
-        65,
-        66,
-        67,
-        68,
-        69,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        77,
-        78,
-        79,
-        80,
-        81,
-        82,
-        83,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-        123,
-        124,
-        125,
-        126,
-        127,
-        -128,
-        -127,
-        -126,
-        -125,
-        -124,
-        -123,
-        -122,
-        -121,
-        -120,
-        -119,
-        -118,
-        -117,
-        -116,
-        -115,
-        -114,
-        -113,
-        -112,
-        -111,
-        -110,
-        -109,
-        -108,
-        -107,
-        -106,
-        -105,
-        -104,
-        -103,
-        -102,
-        -101,
-        -100,
-        -99,
-        -98,
-        -97,
-        -96,
-        -95,
-        -94,
-        -93,
-        -92,
-        -91,
-        -90,
-        -89,
-        -88,
-        -87,
-        -86,
-        -85,
-        -84,
-        -83,
-        -82,
-        -81,
-        -80,
-        -79,
-        -78,
-        -77,
-        -76,
-        -75,
-        -74,
-        -73,
-        -72,
-        -71,
-        -70,
-        -69,
-        -68,
-        -67,
-        -66,
-        -65,
-        -64,
-        -63,
-        -62,
-        -61,
-        -60,
-        -59,
-        -58,
-        -57,
-        -56,
-        -55,
-        -54,
-        -53,
-        -52,
-        -51,
-        -50,
-        -49,
-        -48,
-        -47,
-        -46,
-        -45,
-        -44,
-        -43,
-        -42,
-        -41,
-        -40,
-        -39,
-        -38,
-        -37,
-        -36,
-        -35,
-        -34,
-        -33,
-        -32,
-        -31,
-        -30,
-        -29,
-        -28,
-        -27,
-        -26,
-        -25,
-        -24,
-        -23,
-        -22,
-        -21,
-        -20,
-        -19,
-        -18,
-        -17,
-        -16,
-        -15,
-        -14,
-        -13,
-        -12,
-        -11,
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        -4,
-        -3,
-        -2,
-        -1
-};
-const char      parseRulesCTypeToLower[256] = {
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        62,
-        63,
-        64,
-        97,
-        98,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        107,
-        108,
-        109,
-        110,
-        111,
-        112,
-        113,
-        114,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        91,
-        92,
-        93,
-        94,
-        95,
-        96,
-        97,
-        98,
-        99,
-        100,
-        101,
-        102,
-        103,
-        104,
-        105,
-        106,
-        107,
-        108,
-        109,
-        110,
-        111,
-        112,
-        113,
-        114,
-        115,
-        116,
-        117,
-        118,
-        119,
-        120,
-        121,
-        122,
-        123,
-        124,
-        125,
-        126,
-        127,
-        -128,
-        -127,
-        -126,
-        -125,
-        -124,
-        -123,
-        -122,
-        -121,
-        -120,
-        -119,
-        -118,
-        -117,
-        -116,
-        -115,
-        -114,
-        -113,
-        -112,
-        -111,
-        -110,
-        -109,
-        -108,
-        -107,
-        -106,
-        -105,
-        -104,
-        -103,
-        -102,
-        -101,
-        -100,
-        -99,
-        -98,
-        -97,
-        -96,
-        -95,
-        -94,
-        -93,
-        -92,
-        -91,
-        -90,
-        -89,
-        -88,
-        -87,
-        -86,
-        -85,
-        -84,
-        -83,
-        -82,
-        -81,
-        -80,
-        -79,
-        -78,
-        -77,
-        -76,
-        -75,
-        -74,
-        -73,
-        -72,
-        -71,
-        -70,
-        -69,
-        -68,
-        -67,
-        -66,
-        -65,
-        -64,
-        -63,
-        -62,
-        -61,
-        -60,
-        -59,
-        -58,
-        -57,
-        -56,
-        -55,
-        -54,
-        -53,
-        -52,
-        -51,
-        -50,
-        -49,
-        -48,
-        -47,
-        -46,
-        -45,
-        -44,
-        -43,
-        -42,
-        -41,
-        -40,
-        -39,
-        -38,
-        -37,
-        -36,
-        -35,
-        -34,
-        -33,
-        -32,
-        -31,
-        -30,
-        -29,
-        -28,
-        -27,
-        -26,
-        -25,
-        -24,
-        -23,
-        -22,
-        -21,
-        -20,
-        -19,
-        -18,
-        -17,
-        -16,
-        -15,
-        -14,
-        -13,
-        -12,
-        -11,
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        -4,
-        -3,
-        -2,
-        -1
-};
 
 #define UINT4 unsigned int
 

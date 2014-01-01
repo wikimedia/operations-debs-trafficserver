@@ -254,10 +254,10 @@ REGRESSION_TEST(SDK_API_TSConfig) (RegressionTest * test, int atype, int *pstatu
 //                    TSNetAccept
 //                    TSNetConnect
 //////////////////////////////////////////////
-#define IP(a,b,c,d) htonl((a) << 24 | (b) << 16 | (c) << 8 | (d))
-const unsigned short server_port = 12345;
-RegressionTest *SDK_NetVConn_test;
-int *SDK_NetVConn_pstatus;
+
+static unsigned short   SDK_NetVConn_port;
+static RegressionTest * SDK_NetVConn_test;
+static int *            SDK_NetVConn_pstatus;
 
 int
 server_handler(TSCont contp, TSEvent event, void *data)
@@ -305,8 +305,8 @@ client_handler(TSCont contp, TSEvent event, void *data)
     } else
       SDK_RPRINT(SDK_NetVConn_test, "TSNetVConnRemoteIPGet", "TestCase1", TC_PASS, "ok");
 
-    if (input_server_port != server_port) {
-      SDK_RPRINT(SDK_NetVConn_test, "TSNetVConnRemotePortGet", "TestCase1", TC_FAIL, "server port [%d] is incorrect -- expected [%d]", input_server_port, server_port);
+    if (input_server_port != SDK_NetVConn_port) {
+      SDK_RPRINT(SDK_NetVConn_test, "TSNetVConnRemotePortGet", "TestCase1", TC_FAIL, "server port [%d] is incorrect -- expected [%d]", input_server_port, SDK_NetVConn_port);
 
       TSContDestroy(contp);
       // Fix me: how to deal with server side cont?
@@ -328,8 +328,10 @@ REGRESSION_TEST(SDK_API_TSNetVConn) (RegressionTest * test, int atype, int *psta
 {
   NOWARN_UNUSED(atype);
   *pstatus = REGRESSION_TEST_INPROGRESS;
+
   SDK_NetVConn_test = test;
   SDK_NetVConn_pstatus = pstatus;
+  SDK_NetVConn_port = 12345;
 
   TSMutex server_mutex = TSMutexCreate();
   TSMutex client_mutex = TSMutexCreate();
@@ -337,10 +339,50 @@ REGRESSION_TEST(SDK_API_TSNetVConn) (RegressionTest * test, int atype, int *psta
   TSCont server_cont = TSContCreate(server_handler, server_mutex);
   TSCont client_cont = TSContCreate(client_handler, client_mutex);
 
-  TSNetAccept(server_cont, server_port, -1, 0);
+  TSNetAccept(server_cont, SDK_NetVConn_port, -1, 0);
 
   IpEndpoint addr;
-  ats_ip4_set(&addr, htonl(INADDR_LOOPBACK), htons(server_port));
+  ats_ip4_set(&addr, htonl(INADDR_LOOPBACK), htons(SDK_NetVConn_port));
+  TSNetConnect(client_cont, &addr.sa);
+}
+
+REGRESSION_TEST(SDK_API_TSPortDescriptor) (RegressionTest * test, int atype, int *pstatus)
+{
+  NOWARN_UNUSED(atype);
+  TSPortDescriptor port;
+  char desc[64];
+
+  *pstatus = REGRESSION_TEST_INPROGRESS;
+  SDK_NetVConn_test = test;
+  SDK_NetVConn_pstatus = pstatus;
+  SDK_NetVConn_port = 54321;
+
+  TSMutex server_mutex = TSMutexCreate();
+  TSMutex client_mutex = TSMutexCreate();
+
+  TSCont server_cont = TSContCreate(server_handler, server_mutex);
+  TSCont client_cont = TSContCreate(client_handler, client_mutex);
+
+  port = TSPortDescriptorParse(NULL);
+  if (port) {
+    SDK_RPRINT(test, "TSPortDescriptorParse", "NULL port descriptor", TC_FAIL,
+        "TSPortDescriptorParse(NULL) returned %s", port);
+    *pstatus = REGRESSION_TEST_FAILED;
+    return;
+  }
+
+  snprintf(desc, sizeof(desc), "%u", SDK_NetVConn_port);
+  port = TSPortDescriptorParse(desc);
+
+  if (TSPortDescriptorAccept(port, server_cont) == TS_ERROR) {
+    SDK_RPRINT(test, "TSPortDescriptorParse", "Basic port descriptor", TC_FAIL,
+        "TSPortDescriptorParse(%s) returned TS_ERROR", desc);
+    *pstatus = REGRESSION_TEST_FAILED;
+    return;
+  }
+
+  IpEndpoint addr;
+  ats_ip4_set(&addr, htonl(INADDR_LOOPBACK), htons(SDK_NetVConn_port));
   TSNetConnect(client_cont, &addr.sa);
 }
 
@@ -473,7 +515,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
 
     cache_vconn->read_vconnp = (TSVConn) data;
     content_length = TSVConnCacheObjectSizeGet(cache_vconn->read_vconnp);
-    Debug(UTDBG_TAG "_cache_read", "In cache open read [Content-Length: %"PRId64"]", content_length);
+    Debug(UTDBG_TAG "_cache_read", "In cache open read [Content-Length: %" PRId64"]", content_length);
     if (content_length != OBJECT_SIZE) {
       SDK_RPRINT(SDK_Cache_test, "TSVConnCacheObjectSizeGet", "TestCase1", TC_FAIL, "cached data size is incorrect");
 
@@ -524,7 +566,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->write_vio);
     ndone = TSVIONDoneGet(cache_vconn->write_vio);
     ntodo = TSVIONTodoGet(cache_vconn->write_vio);
-    Debug(UTDBG_TAG "_cache_write", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_write", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (ndone == (OBJECT_SIZE / 2)) {
       TSVIONBytesSet(cache_vconn->write_vio, (OBJECT_SIZE - 100));
@@ -627,7 +669,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->write_vio);
     ndone = TSVIONDoneGet(cache_vconn->write_vio);
     ntodo = TSVIONTodoGet(cache_vconn->write_vio);
-    Debug(UTDBG_TAG "_cache_write", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_write", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     TSVIOReenable(cache_vconn->write_vio);
     return 1;
@@ -645,7 +687,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->read_vio);
     ntodo = TSVIONTodoGet(cache_vconn->read_vio);
     ndone = TSVIONDoneGet(cache_vconn->read_vio);
-    Debug(UTDBG_TAG "_cache_read", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_read", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (nbytes != (ndone + ntodo)) {
       SDK_RPRINT(SDK_Cache_test, "TSVIONBytesGet", "TestCase1", TC_FAIL, "read_vio corrupted");
@@ -692,7 +734,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     nbytes = TSVIONBytesGet(cache_vconn->read_vio);
     ntodo = TSVIONTodoGet(cache_vconn->read_vio);
     ndone = TSVIONDoneGet(cache_vconn->read_vio);
-    Debug(UTDBG_TAG "_cache_read", "Nbytes=%"PRId64" Ndone=%"PRId64" Ntodo=%"PRId64"", nbytes, ndone, ntodo);
+    Debug(UTDBG_TAG "_cache_read", "Nbytes=%" PRId64" Ndone=%" PRId64" Ntodo=%" PRId64"", nbytes, ndone, ntodo);
 
     if (nbytes != (ndone + ntodo)) {
       SDK_RPRINT(SDK_Cache_test, "TSVIONBytesGet", "TestCase1", TC_FAIL, "read_vio corrupted");
@@ -711,7 +753,7 @@ cache_handler(TSCont contp, TSEvent event, void *data)
     // Fix for bug INKqa12276: Must consume data from iobuffer
     nbytes = TSIOBufferReaderAvail(cache_vconn->out_readerp);
     TSIOBufferReaderConsume(cache_vconn->out_readerp, nbytes);
-    TSDebug(UTDBG_TAG "_cache_read", "Consuming %"PRId64" bytes from cache read VC", nbytes);
+    TSDebug(UTDBG_TAG "_cache_read", "Consuming %" PRId64" bytes from cache read VC", nbytes);
 
     TSVIOReenable(cache_vconn->read_vio);
     Debug(UTDBG_TAG "_cache_read", "finishing up [j]");
@@ -1320,7 +1362,7 @@ REGRESSION_TEST(SDK_API_TSContCreate) (RegressionTest * test, int atype, int *ps
   TSMutex mutexp = TSMutexCreate();
   TSCont contp = TSContCreate(cont_handler, mutexp);
 
-  if (TS_SUCCESS == TSMutexLockTry(mutexp)) { // Mutex is grabbed succesfully
+  if (TS_SUCCESS == TSMutexLockTry(mutexp)) { // Mutex is grabbed successfully
     TSContCall(contp, (TSEvent) 0, NULL);
     TSMutexUnlock(mutexp);
   } else {                       //mutex has problems
@@ -1841,269 +1883,6 @@ REGRESSION_TEST(SDK_API_TSIOBufferBlockNext) (RegressionTest * test, int atype, 
 
   return;
 }
-
-
-
-/* Stats */
-/* Kinda hacky, but these are deprecated, and will die soon'ish */
-/* ToDo: This should be removed when we release ATS v4.x. */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 3)
-//////////////////////////////////////////////
-//       SDK_API_INKStat
-//
-// Unit Test for API: INKStatCreate
-//                    INKStatIntSet
-//////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatIntSet) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  bool test_passed = false;
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  INKStat stat = INKStatCreate("stat_is", INKSTAT_TYPE_INT64);
-
-  INKStatIntSet(stat, 100);
-  int64_t stat_val;
-
-  stat_val = INKStatIntGet(stat);
-
-  if (stat_val == 100) {
-    SDK_RPRINT(test, "INKStatIntSet", "TestCase1", TC_PASS, "ok");
-    test_passed = true;
-  } else {
-    SDK_RPRINT(test, "INKStatIntSet", "TestCase1", TC_FAIL, "can't set to correct integer value");
-  }
-
-  // Status of the whole test
-  *pstatus = ((test_passed == true) ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED);
-
-}
-
-//////////////////////////////////////////////
-//       SDK_API_INKStat
-//
-// Unit Test for API: INKStatIntAddTo
-//////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatIntAddTo) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  bool test_passed = false;
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  INKStat stat = INKStatCreate("stat_ia", INKSTAT_TYPE_INT64);
-
-  INKStatIntAddTo(stat, 100);
-  int64_t stat_val;
-
-  stat_val = INKStatIntGet(stat);
-
-  if (stat_val == 100) {
-    SDK_RPRINT(test, "INKStatIntAddTo", "TestCase1", TC_PASS, "ok");
-    test_passed = true;
-  } else {
-    SDK_RPRINT(test, "INKStatIntAddTo", "TestCase1", TC_FAIL, "can't add to correct integer value");
-  }
-
-  // Status of the whole test
-  *pstatus = ((test_passed == true) ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED);
-
-}
-
-//////////////////////////////////////////////
-//       SDK_API_INKStat
-//
-// Unit Test for API: INKStatFloatAddTo
-//                    INKStatFloatGet
-//////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatFloatAddTo) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  bool test_passed = false;
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  INKStat stat = INKStatCreate("stat_fa", INKSTAT_TYPE_FLOAT);
-
-  INKStatFloatAddTo(stat, 100.0);
-  float stat_val = INKStatFloatGet(stat);
-
-  if (stat_val == 100.0) {
-    SDK_RPRINT(test, "INKStatFloatAddTo", "TestCase1", TC_PASS, "ok");
-    test_passed = true;
-  } else {
-    SDK_RPRINT(test, "INKStatFloatAddTo", "TestCase1", TC_FAIL, "can't add to correct float value");
-  }
-
-  // Status of the whole test
-  *pstatus = ((test_passed == true) ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED);
-
-}
-
-//////////////////////////////////////////////
-//       SDK_API_INKStat
-//
-// Unit Test for API: INKStatFloatSet
-//////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatFloatSet) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  bool test_passed = false;
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  INKStat stat = INKStatCreate("stat_fs", INKSTAT_TYPE_FLOAT);
-
-  INKStatFloatSet(stat, 100.0);
-  float stat_val = INKStatFloatGet(stat);
-
-  if (stat_val == 100.0) {
-    SDK_RPRINT(test, "INKStatFloatSet", "TestCase1", TC_PASS, "ok");
-    test_passed = true;
-  } else {
-    SDK_RPRINT(test, "INKStatFloatSet", "TestCase1", TC_FAIL, "can't set to correct float value");
-  }
-
-  // Status of the whole test
-  *pstatus = ((test_passed == true) ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED);
-
-}
-
-//////////////////////////////////////////////
-//       SDK_API_INKStat
-//
-// Unit Test for API: INKStatIncrement
-//                    INKStatDecrement
-//////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatIncrement) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  bool test_passed_int_increase = false;
-  bool test_passed_int_decrease = false;
-  bool test_passed_float_increase = false;
-  bool test_passed_float_decrease = false;
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  INKStat stat_1 = INKStatCreate("stat_1", INKSTAT_TYPE_INT64);
-  INKStat stat_2 = INKStatCreate("stat_2", INKSTAT_TYPE_FLOAT);
-
-  INKStatIncrement(stat_1);
-  int64_t stat1_val =  INKStatIntGet(stat_1);
-
-  if (stat1_val == 1) {
-    SDK_RPRINT(test, "INKStatIncrement", "TestCase1", TC_PASS, "ok for int stat");
-    test_passed_int_increase = true;
-  } else {
-    SDK_RPRINT(test, "INKStatIncrement", "TestCase1", TC_FAIL, "can't increase to correct integer value");
-  }
-
-  INKStatDecrement(stat_1);
-  stat1_val = INKStatIntGet(stat_1);
-
-  if (stat1_val == 0) {
-    SDK_RPRINT(test, "INKStatDecrement", "TestCase1", TC_PASS, "ok for int stat");
-    test_passed_int_decrease = true;
-  } else {
-    SDK_RPRINT(test, "INKStatDecrement", "TestCase1", TC_FAIL, "can't decrease to correct integer value");
-  }
-
-  INKStatIncrement(stat_2);
-  float stat2_val = INKStatFloatGet(stat_2);
-
-  if (stat2_val == 1.0) {
-    SDK_RPRINT(test, "INKStatIncrement", "TestCase2", TC_PASS, "ok for float stat");
-    test_passed_float_increase = true;
-  } else {
-    char message[80];
-    snprintf(message, sizeof(message), "can't increase to correct float value (1.0 != %.3f)", stat2_val);
-    SDK_RPRINT(test, "INKStatIncrement", "TestCase2", TC_FAIL, &message[0]);
-  }
-
-  INKStatDecrement(stat_2);
-  stat2_val = INKStatFloatGet(stat_2);
-
-  if (stat2_val == 0.0) {
-    SDK_RPRINT(test, "INKStatDecrement", "TestCase2", TC_PASS, "ok for float stat");
-    test_passed_float_decrease = true;
-  } else {
-    SDK_RPRINT(test, "INKStatDecrement", "TestCase2", TC_FAIL, "can't decrease to correct float value");
-  }
-
-  // Status of the whole test
-  if (test_passed_int_increase && test_passed_int_decrease && test_passed_float_increase && test_passed_float_decrease)
-    *pstatus = REGRESSION_TEST_PASSED;
-  else
-    *pstatus = REGRESSION_TEST_FAILED;
-
-}
-
-////////////////////////////////////////////////////
-//       SDK_API_INKCoupledStat
-//
-// Unit Test for API: INKStatCoupledGlobalCategoryCreate
-//                    INKStatCoupledLoacalCopyCreate
-//                    INKStatCoupledLoacalCopyDestroy
-//                    INKStatCoupledGlobalAdd
-//                    INKStatCoupledLocalAdd
-//                    INKStatsCoupledUpdate
-////////////////////////////////////////////////////
-
-REGRESSION_TEST(SDK_API_INKStatCoupled) (RegressionTest * test, int atype, int *pstatus)
-{
-  NOWARN_UNUSED(atype);
-  *pstatus = REGRESSION_TEST_INPROGRESS;
-
-  /* Create global category and its stats */
-  INKCoupledStat stat_global_category = INKStatCoupledGlobalCategoryCreate("global.category");
-  INKStat global_stat_sum = INKStatCoupledGlobalAdd(stat_global_category, "global.statsum", INKSTAT_TYPE_FLOAT);
-  INKStat global_stat_1 = INKStatCoupledGlobalAdd(stat_global_category, "global.stat1", INKSTAT_TYPE_INT64);
-  INKStat global_stat_2 = INKStatCoupledGlobalAdd(stat_global_category, "global.stat2", INKSTAT_TYPE_INT64);
-
-  /* Create local category and its stats */
-  INKCoupledStat stat_local_copy = INKStatCoupledLocalCopyCreate("local.copy", stat_global_category);
-  INKStat local_stat_sum = INKStatCoupledLocalAdd(stat_local_copy, "local.statsum", INKSTAT_TYPE_FLOAT);
-  INKStat local_stat_1 = INKStatCoupledLocalAdd(stat_local_copy, "local.stat1", INKSTAT_TYPE_INT64);
-  INKStat local_stat_2 = INKStatCoupledLocalAdd(stat_local_copy, "local.stat2", INKSTAT_TYPE_INT64);
-
-  /* stat operation */
-  INKStatIntSet(local_stat_1, 100);
-  INKStatIntSet(local_stat_2, 100);
-  float local_val_1 = INKStatFloatGet(local_stat_1);
-  float local_val_2 = INKStatFloatGet(local_stat_2);
-
-  INKStatFloatAddTo(local_stat_sum, local_val_1);
-  INKStatFloatAddTo(local_stat_sum, local_val_2);
-  float local_val_sum = INKStatFloatGet(local_stat_sum);
-
-  INKStatsCoupledUpdate(stat_local_copy);
-  INKStatCoupledLocalCopyDestroy(stat_local_copy);
-
-  float global_val_sum = INKStatFloatGet(global_stat_sum);
-  int64_t global_val_1 = INKStatIntGet(global_stat_1);
-  int64_t global_val_2 = INKStatIntGet(global_stat_2);
-
-  if (local_val_1 == global_val_1 && local_val_2 == global_val_2 && local_val_sum == global_val_sum) {
-    SDK_RPRINT(test, "INKStatCoupledGlobalCategoryCreate", "TestCase1", TC_PASS, "ok");
-    SDK_RPRINT(test, "INKStatCoupledGlobalAdd", "TestCase1", TC_PASS, "ok");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyCreate", "TestCase1", TC_PASS, "ok");
-    SDK_RPRINT(test, "INKStatCoupledLocalAdd", "TestCase1", TC_PASS, "ok");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyDestroy", "TestCase1", TC_PASS, "ok");
-    SDK_RPRINT(test, "INKStatCoupledUpdate", "TestCase1", TC_PASS, "ok");
-    *pstatus = REGRESSION_TEST_PASSED;
-  } else {
-    SDK_RPRINT(test, "INKStatCoupledGlobalCategoryCreate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledGlobalAdd", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyCreate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledLocalAdd", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledLocalCopyDestroy", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-    SDK_RPRINT(test, "INKStatCoupledUpdate", "TestCase1", TC_FAIL, "global stats' value is not equal to local one");
-
-    *pstatus = REGRESSION_TEST_FAILED;
-  }
-}
-#endif /* gcc >= 4.3 */
 
 
 REGRESSION_TEST(SDK_API_TSContSchedule) (RegressionTest * test, int atype, int *pstatus)
@@ -5340,7 +5119,27 @@ REGRESSION_TEST(SDK_API_TSMimeHdrParse) (RegressionTest * test, int atype, int *
 REGRESSION_TEST(SDK_API_TSUrlParse) (RegressionTest * test, int atype, int *pstatus)
 {
   NOWARN_UNUSED(atype);
-  const char *url = "http://abc:def@www.example.com:3426/homepage.cgi;ab?abc=def#abc";
+  static char const * const urls[] = {
+      "file:///test.dat;ab?abc=def#abc",
+      "http://www.example.com",
+      "http://abc:def@www.example.com",
+      "http://www.example.com:3426",
+      "http://abc:def@www.example.com:3426",
+      "http://www.example.com/homepage.cgi",
+      "http://www.example.com/homepage.cgi;ab?abc=def#abc",
+      "http://abc:def@www.example.com:3426/homepage.cgi;ab?abc=def#abc",
+      "https://abc:def@www.example.com:3426/homepage.cgi;ab?abc=def#abc",
+      "ftp://abc:def@www.example.com:3426/homepage.cgi;ab?abc=def#abc",
+      "file:///c:/test.dat;ab?abc=def#abc", // Note: file://c: is malformed URL because no host is present.
+      "file:///test.dat;ab?abc=def#abc",
+      "foo://bar.com/baz/",
+      "http://a.b.com/xx.jpg?newpath=http://b.c.com" // https://issues.apache.org/jira/browse/TS-1635
+  };
+
+  static int const num_urls = sizeof(urls) / sizeof(urls[0]);
+  bool test_passed[num_urls] = {false};
+
+
   const char *start;
   const char *end;
   char *temp;
@@ -5349,47 +5148,57 @@ REGRESSION_TEST(SDK_API_TSUrlParse) (RegressionTest * test, int atype, int *psta
 
   TSMBuffer bufp;
   TSMLoc url_loc = (TSMLoc)NULL;
-  bool test_passed_parse_url = false;
   int length;
 
   *pstatus = REGRESSION_TEST_INPROGRESS;
 
 
-  bufp = TSMBufferCreate();
-  if (TSUrlCreate(bufp, &url_loc) != TS_SUCCESS) {
-    SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Cannot create Url for parsing the url");
-    if (TSMBufferDestroy(bufp) == TS_ERROR) {
-      SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Error in Destroying MBuffer");
-    }
-  } else {
-    start = url;
-    end = url + strlen(url) + 1;
-    if ((retval = TSUrlParse(bufp, url_loc, &start, end)) == TS_PARSE_ERROR) {
-      SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "TSUrlParse returns TS_PARSE_ERROR");
-    } else {
-      if (retval == TS_PARSE_DONE) {
-        temp = TSUrlStringGet(bufp, url_loc, &length);
-        if (strncmp(url, temp, length) == 0) {
-          SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_PASS, "ok");
-          test_passed_parse_url = true;
-        } else {
-          SDK_RPRINT(test, "TSUrlParse", "TestCase1", TC_FAIL, "Value's Mismatch");
-        }
-        TSfree(temp);
-      } else {
-        SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL, "Parsing Error");
+  int idx;
+  for (idx = 0; idx < num_urls; idx++) {
+    char const *url = urls[idx];
+
+    bufp = TSMBufferCreate();
+    if (TSUrlCreate(bufp, &url_loc) != TS_SUCCESS) {
+      SDK_RPRINT(test, "TSUrlParse", url, TC_FAIL, "Cannot create Url for parsing the url");
+      if (TSMBufferDestroy(bufp) == TS_ERROR) {
+        SDK_RPRINT(test, "TSUrlParse", url, TC_FAIL, "Error in Destroying MBuffer");
       }
+    } else {
+      start = url;
+      end = url + strlen(url) + 1;
+      if ((retval = TSUrlParse(bufp, url_loc, &start, end)) == TS_PARSE_ERROR) {
+        SDK_RPRINT(test, "TSUrlParse", url, TC_FAIL, "TSUrlParse returns TS_PARSE_ERROR");
+      } else {
+        if (retval == TS_PARSE_DONE) {
+          temp = TSUrlStringGet(bufp, url_loc, &length);
+          if (strncmp(url, temp, length) == 0) {
+            SDK_RPRINT(test, "TSUrlParse", url, TC_PASS, "ok");
+            test_passed[idx] = true;
+          } else {
+            SDK_RPRINT(test, "TSUrlParse", url, TC_FAIL, "Value's Mismatch");
+          }
+          TSfree(temp);
+        } else {
+          SDK_RPRINT(test, "TSUrlParse", url, TC_FAIL, "Parsing Error");
+        }
+      }
+    }
+
+    TSHandleMLocRelease(bufp, TS_NULL_MLOC, url_loc);
+    TSMBufferDestroy(bufp);
+  }
+
+  for (idx = 0; idx < num_urls; idx++) {
+    if (test_passed[idx] != true) {
+      *pstatus = REGRESSION_TEST_FAILED;
+      break;
     }
   }
 
-  if (test_passed_parse_url != true) {
-    *pstatus = REGRESSION_TEST_FAILED;
-  } else {
+  if (idx >= num_urls) {
     *pstatus = REGRESSION_TEST_PASSED;
   }
 
-  TSHandleMLocRelease(bufp, TS_NULL_MLOC, url_loc);
-  TSMBufferDestroy(bufp);
 
   return;
 }
@@ -5822,13 +5631,6 @@ typedef enum
 
 typedef enum
 {
-  ORIG_TS_DATA_ALLOCATE,
-  ORIG_TS_DATA_MALLOCED,
-  ORIG_TS_DATA_CONSTANT
-} ORIG_TSIOBufferDataFlags;
-
-typedef enum
-{
   ORIG_TS_VC_CLOSE_ABORT = -1,
   ORIG_TS_VC_CLOSE_NORMAL = 1
 } ORIG_TSVConnCloseFlags;
@@ -5980,10 +5782,6 @@ REGRESSION_TEST(SDK_API_TSConstant) (RegressionTest * test, int atype, int *psta
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_DELETE_ALL_ALTERNATES);
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_UPDATE);
   PRINT_DIFF(TS_CACHE_SCAN_RESULT_RETRY);
-
-  PRINT_DIFF(TS_DATA_ALLOCATE);
-  PRINT_DIFF(TS_DATA_MALLOCED);
-  PRINT_DIFF(TS_DATA_CONSTANT);
 
   PRINT_DIFF(TS_VC_CLOSE_ABORT);
   PRINT_DIFF(TS_VC_CLOSE_NORMAL);
@@ -7529,7 +7327,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_TSHttpConnectServerIntercept) (RegressionTest 
 ////////////////////////////////////////////////
 
 // The order of these should be the same as TSOverridableConfigKey
-const char *SDK_Overridable_Configs[] = {
+const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {
   "proxy.config.url_remap.pristine_host_hdr",
   "proxy.config.http.chunking_enabled",
   "proxy.config.http.negative_caching_enabled",
@@ -7554,6 +7352,7 @@ const char *SDK_Overridable_Configs[] = {
   "proxy.config.http.server_tcp_init_cwnd",
   "proxy.config.http.send_http11_requests",
   "proxy.config.http.cache.http",
+  "proxy.config.http.cache.cluster_cache_local",
   "proxy.config.http.cache.ignore_client_no_cache",
   "proxy.config.http.cache.ignore_client_cc_max_age",
   "proxy.config.http.cache.ims_on_client_no_cache",
@@ -7585,13 +7384,14 @@ const char *SDK_Overridable_Configs[] = {
   "proxy.config.http.cache.fuzz.time",
   "proxy.config.http.cache.fuzz.min_time",
   "proxy.config.http.doc_in_cache_skip_dns",
+  "proxy.config.http.background_fill_active_timeout",
   "proxy.config.http.response_server_str",
   "proxy.config.http.cache.heuristic_lm_factor",
   "proxy.config.http.cache.fuzz.probability",
+  "proxy.config.http.background_fill_completed_threshold",
   "proxy.config.net.sock_packet_mark_out",
   "proxy.config.net.sock_packet_tos_out",
-
-  NULL
+  "proxy.config.http.insert_age_in_response",
 };
 
 REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int atype, int *pstatus)
@@ -7614,6 +7414,7 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int atype, 
   *pstatus = REGRESSION_TEST_INPROGRESS;
   for (int i=TS_CONFIG_NULL + 1; i < TS_CONFIG_LAST_ENTRY; ++i) {
     conf = SDK_Overridable_Configs[i];
+
     if (TS_SUCCESS == TSHttpTxnConfigFind(conf, -1, &key, &type)) {
       if (key != i) {
         SDK_RPRINT(test, "TSHttpTxnConfigFind", "TestCase1", TC_FAIL, "Failed on %s, expected %d, got %d", conf, i, key);
@@ -7621,7 +7422,7 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int atype, 
         continue;
       }
     } else {
-      SDK_RPRINT(test, "TSHttpTxnConfigFind", "TestCase1", TC_FAIL, "Call returned unexpected TS_ERROR");
+      SDK_RPRINT(test, "TSHttpTxnConfigFind", "TestCase1", TC_FAIL, "Call returned unexpected TS_ERROR for %s",conf);
       success = false;
       continue;
     }
@@ -7690,6 +7491,7 @@ REGRESSION_TEST(SDK_API_ENCODING) (RegressionTest * test, int atype, int *pstatu
   const char *url_encoded =
     "http://www.example.com/foo?fie=%20%22%23%25%3C%3E%5B%5D%5C%5E%60%7B%7D%7E&bar=%7Btest%7D&fum=Apache%20Traffic%20Server";
   const char *url_base64 = "aHR0cDovL3d3dy5leGFtcGxlLmNvbS9mb28/ZmllPSAiIyU8PltdXF5ge31+JmJhcj17dGVzdH0mZnVtPUFwYWNoZSBUcmFmZmljIFNlcnZlcg==";
+  const char *url2 = "http://www.example.com/"; // No Percent encoding necessary
   char buf[1024];
   size_t length;
   bool success = true;
@@ -7706,12 +7508,36 @@ REGRESSION_TEST(SDK_API_ENCODING) (RegressionTest * test, int atype, int *pstatu
     }
   }
 
+  if (TS_SUCCESS != TSStringPercentEncode(url2, strlen(url2), buf, sizeof(buf), &length, NULL)) {
+    SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_FAIL, "Failed on %s", url2);
+    success = false;
+  } else {
+    if (strcmp(buf, url2)) {
+      SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_FAIL, "Failed on %s != %s", buf, url2);
+      success = false;
+    } else {
+      SDK_RPRINT(test, "TSStringPercentEncode", "TestCase2", TC_PASS, "ok");
+    }
+  }
+
   if (TS_SUCCESS != TSStringPercentDecode(url_encoded, strlen(url_encoded), buf, sizeof(buf), &length)) {
     SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s", url_encoded);
     success = false;
   } else {
     if (length != strlen(url) || strcmp(buf, url)) {
       SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s != %s", buf, url);
+      success = false;
+    } else {
+      SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_PASS, "ok");
+    }
+  }
+
+  if (TS_SUCCESS != TSStringPercentDecode(url2, strlen(url2), buf, sizeof(buf), &length)) {
+    SDK_RPRINT(test, "TSStringPercentDecode", "TestCase2", TC_FAIL, "Failed on %s", url2);
+    success = false;
+  } else {
+    if (length != strlen(url2) || strcmp(buf, url2)) {
+      SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_FAIL, "Failed on %s != %s", buf, url2);
       success = false;
     } else {
       SDK_RPRINT(test, "TSStringPercentDecode", "TestCase1", TC_PASS, "ok");

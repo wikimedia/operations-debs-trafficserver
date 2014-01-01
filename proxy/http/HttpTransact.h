@@ -46,7 +46,6 @@
 #include "congest/Congestion.h"
 
 #define MAX_DNS_LOOKUPS 2
-#define WUTS_PROXY_ID 0
 #define NUM_SECONDS_IN_ONE_YEAR (31536000)      // (365L * 24L * 3600L)
 
 #define HTTP_RELEASE_ASSERT(X) ink_release_assert(X)
@@ -105,94 +104,6 @@ class HttpSM;
 
 #include "InkErrno.h"
 #define UNKNOWN_INTERNAL_ERROR           (INK_START_ERRNO - 1)
-
-
-/* WUTS proxy-status codes */
-enum WUTSProxyStatusCode
-{
-  WUTS_PROXY_STATUS_UNKNOWN = 0,
-  WUTS_PROXY_STATUS_UNSPECIFIED = 0,
-  WUTS_PROXY_STATUS_CONTINUE = 100,
-  WUTS_PROXY_STATUS_SWITCHING_PROTOCOL = 101,
-  WUTS_PROXY_STATUS_OK = 200,
-  WUTS_PROXY_STATUS_CREATED = 201,
-  WUTS_PROXY_STATUS_ACCEPTED = 202,
-  WUTS_PROXY_STATUS_NON_AUTHORITATIVE_INFORMATION = 203,
-  WUTS_PROXY_STATUS_NO_CONTENT = 204,
-  WUTS_PROXY_STATUS_RESET_CONTENT = 205,
-  WUTS_PROXY_STATUS_PARTIAL_CONTENT = 206,
-  WUTS_PROXY_STATUS_MULTIPLE_CHOICES = 300,
-  WUTS_PROXY_STATUS_MOVED_PERMANENTLY = 301,
-  WUTS_PROXY_STATUS_MOVED_TEMPORARILY = 302,
-  WUTS_PROXY_STATUS_SEE_OTHER = 303,
-  WUTS_PROXY_STATUS_NOT_MODIFIED = 304,
-  WUTS_PROXY_STATUS_USE_PROXY = 305,
-  WUTS_PROXY_STATUS_BAD_REQUEST = 400,
-  WUTS_PROXY_STATUS_UNAUTHORIZED = 401,
-  WUTS_PROXY_STATUS_PAYMENT_REQUIRED = 402,
-  WUTS_PROXY_STATUS_FORBIDDEN = 403,
-  WUTS_PROXY_STATUS_NOT_FOUND = 404,
-  WUTS_PROXY_STATUS_METHOD_NOT_ALLOWED = 405,
-  WUTS_PROXY_STATUS_NOT_ACCEPTABLE = 406,
-  WUTS_PROXY_STATUS_PROXY_AUTHENTICATION_REQUIRED = 407,
-  WUTS_PROXY_STATUS_REQUEST_TIMEOUT = 408,
-  WUTS_PROXY_STATUS_CONFLICT = 409,
-  WUTS_PROXY_STATUS_GONE = 410,
-  WUTS_PROXY_STATUS_LENGTH_REQUIRED = 411,
-  WUTS_PROXY_STATUS_PRECONDITION_FAILED = 412,
-  WUTS_PROXY_STATUS_REQUEST_ENTITY_TOO_LARGE = 413,
-  WUTS_PROXY_STATUS_REQUEST_URI_TOO_LONG = 414,
-  WUTS_PROXY_STATUS_UNSUPPORTED_MEDIA_TYPE = 415,
-  WUTS_PROXY_STATUS_INTERNAL_SERVER_ERROR = 500,
-  WUTS_PROXY_STATUS_NOT_IMPLEMENTED = 501,
-  WUTS_PROXY_STATUS_BAD_GATEWAY = 502,
-  WUTS_PROXY_STATUS_SERVICE_UNAVAILABLE = 503,
-  WUTS_PROXY_STATUS_GATEWAY_TIMEOUT = 504,
-  WUTS_PROXY_STATUS_HTTPVER_NOT_SUPPORTED = 505,
-  WUTS_PROXY_STATUS_NO_HTTP_CODE_IN_RESPONSE_LINE = 600,
-  WUTS_PROXY_STATUS_READ_TIMEOUT = 800,
-  WUTS_PROXY_STATUS_LIFETIME_EXPIRED = 801,
-  WUTS_PROXY_STATUS_NO_CLIENT_BIG_OBJECT = 802,
-  WUTS_PROXY_STATUS_SOCKET_READ_ERROR = 803,
-  WUTS_PROXY_STATUS_CLIENT_ABORT = 804,
-  WUTS_PROXY_STATUS_CONNECT_FAILED = 805,
-  WUTS_PROXY_STATUS_INVALID_REQUEST = 806,
-  WUTS_PROXY_STATUS_UNSUPPORTED_REQUEST = 807,
-  WUTS_PROXY_STATUS_INVALID_URL = 808,
-  WUTS_PROXY_STATUS_NO_FILE_DESCRIPTORS = 809,
-  WUTS_PROXY_STATUS_DNS_LOOKUP_FAILURE = 810,
-  WUTS_PROXY_STATUS_PROTOCOL_OR_METHOD_NOT_SUPPORTED = 811,
-  WUTS_PROXY_STATUS_UNABLE_TO_FETCH = 812,
-  WUTS_PROXY_STATUS_NO_RELAY = 813,
-  WUTS_PROXY_STATUS_DISK_IO_ERROR = 814,
-  WUTS_PROXY_STATUS_ZERO_SIZE_OBJECT = 815,
-  WUTS_PROXY_STATUS_PROXY_AUTHORIZATION_FAILURE = 817,
-  WUTS_PROXY_STATUS_WEBFETCH_DETECTED_ERROR = 818,
-  WUTS_PROXY_STATUS_PERSISTENT_READ_ERROR = 819,
-  WUTS_PROXY_STATUS_SPIDER_MEMBER_ABORTED = 820,
-  WUTS_PROXY_STATUS_SPIDER_PARENT_CONTROL_RESTRICTION = 821,
-  WUTS_PROXY_STATUS_SPIDER_UNSUPPORTED_HTTP_VERSION = 822,
-  WUTS_PROXY_STATUS_SPIDER_USER_IDENTIFICATION_FAILURE = 823,
-  WUTS_PROXY_STATUS_SPIDER_RESERVED_FOR_FUTURE_USE_1 = 824,
-  WUTS_PROXY_STATUS_SPIDER_TIMEOUT_WHILE_PASSING = 825,
-  WUTS_PROXY_STATUS_SPIDER_TIMEOUT_WHILE_DRAINING = 826,
-  WUTS_PROXY_STATUS_SPIDER_GENERAL_TIMEOUT = 827,
-  WUTS_PROXY_STATUS_SPIDER_CONNECTION_FAILED = 828,
-  WUTS_PROXY_STATUS_SPIDER_RESERVED_FOR_FUTURE_USE_2 = 829,
-  WUTS_PROXY_STATUS_SPIDER_NO_RESOURCES = 830,
-  WUTS_PROXY_STATUS_SPIDER_INTERNAL_ERROR = 831,
-  WUTS_PROXY_STATUS_SPIDER_INTERNAL_IO_ERROR = 832,
-  WUTS_PROXY_STATUS_SPIDER_DNS_TEMP_ERROR = 833,
-  WUTS_PROXY_STATUS_SPIDER_DNS_HOST_NOT_FOUND = 834,
-  WUTS_PROXY_STATUS_SPIDER_DNS_NO_ADDRESS = 835,
-  WUTS_PROXY_STATUS_SPIDER_RESERVED_FOR_FUTURE_USE_3 = 836,
-  WUTS_PROXY_STATUS_IMS_RECEIVED_CACHE_HIT = 998,
-  WUTS_PROXY_STATUS_GET_RECEIVED_CACHE_HIT = 999,
-  WUTS_PROXY_STATUS_INVALID_ASSIGNED_CODE = 9
-};
-
-/* WUTS proxy-id */
-typedef int WUTSProxyId;
 
 enum ViaStringIndex_t
 {
@@ -655,6 +566,7 @@ public:
     RANGE_REQUESTED,
     RANGE_NOT_SATISFIABLE,
     RANGE_NOT_HANDLED,
+    RANGE_NOT_TRANSFORM_REQUESTED
   };
   
   enum CacheAuth_t
@@ -834,17 +746,42 @@ public:
   typedef struct _DNSLookupInfo
   {
     int attempts;
+    /** Origin server address source selection.
+
+	If config says to use CTA (client target addr) state is
+	OS_ADDR_TRY_CLIENT, otherwise it remains the default. If the
+	connect fails then we switch to a USE. We go to USE_HOSTDB if
+	(1) the HostDB lookup is successful and (2) some address other
+	than the CTA is available to try. Otherwise we keep retrying
+	on the CTA (USE_CLIENT) up to the max retry value.  In essence
+	we try to treat the CTA as if it were another RR value in the
+	HostDB record.
+     */ 
+    enum {
+      OS_ADDR_TRY_DEFAULT, ///< Initial state, use what config says.
+      OS_ADDR_TRY_HOSTDB, ///< Try HostDB data.
+      OS_ADDR_TRY_CLIENT, ///< Try client target addr.
+      OS_ADDR_USE_HOSTDB, ///< Force use of HostDB target address.
+      OS_ADDR_USE_CLIENT ///< Use client target addr, no fallback.
+    } os_addr_style;
+
     bool lookup_success;
     char *lookup_name;
     char srv_hostname[MAXDNAME];
     LookingUp_t looking_up;
     bool round_robin;
+    bool srv_lookup_success;
+    short srv_port;
+    HostDBApplicationInfo srv_app;
 
     _DNSLookupInfo()
-      : attempts(0),
-        lookup_success(false), lookup_name(NULL), looking_up(UNDEFINED_LOOKUP), round_robin(false)
+    : attempts(0), os_addr_style(OS_ADDR_TRY_DEFAULT),
+        lookup_success(false), lookup_name(NULL), looking_up(UNDEFINED_LOOKUP), round_robin(false),
+        srv_lookup_success(false), srv_port(0)
     {
-      memset(&srv_hostname, 0, sizeof(srv_hostname));
+      srv_hostname[0] = '\0';
+      srv_app.allotment.application1 = 0;
+      srv_app.allotment.application2 = 0;
     }
   } DNSLookupInfo;
 
@@ -888,11 +825,10 @@ public:
     SquidLogCode log_code;
     SquidHierarchyCode hier_code;
     SquidHitMissCode hit_miss_code;
-    WUTSProxyStatusCode wuts_proxy_status_code;
 
     _SquidLogInfo()
-      : log_code(SQUID_LOG_ERR_UNKNOWN),
-      hier_code(SQUID_HIER_EMPTY), hit_miss_code(SQUID_MISS_NONE), wuts_proxy_status_code(WUTS_PROXY_STATUS_UNKNOWN)
+      : log_code(SQUID_LOG_ERR_UNKNOWN), hier_code(SQUID_HIER_EMPTY),
+        hit_miss_code(SQUID_MISS_NONE)
     { }
   } SquidLogInfo;
 
@@ -983,7 +919,8 @@ public:
 
     // for negative caching
     bool negative_caching;
-
+    // for srv_lookup
+    bool srv_lookup;
     // for authenticated content caching
     CacheAuth_t www_auth_content;
 
@@ -1051,15 +988,14 @@ public:
     
     // Http Range: related variables
     RangeSetup_t range_setup;
-    bool unsatisfiable_range;
-    bool not_handle_range;
     int64_t num_range_fields;
     int64_t range_output_cl;
-    int64_t current_range;
     RangeRecord *ranges;
     
     OverridableHttpConfigParams *txn_conf;
     OverridableHttpConfigParams my_txn_conf; // Storage for plugins, to avoid malloc
+
+    bool transparent_passthrough;
     
     // Methods
     void
@@ -1109,6 +1045,7 @@ public:
         first_stats(),
         current_stats(NULL),
         negative_caching(false),
+        srv_lookup(false),
         www_auth_content(CACHE_AUTH_NONE),
         client_connection_enabled(true),
         acl_filtering_performed(false),
@@ -1149,13 +1086,11 @@ public:
         pristine_url(),
         api_skip_all_remapping(false),
         range_setup(RANGE_NONE),
-        unsatisfiable_range(false),
-        not_handle_range(false),
         num_range_fields(0),
         range_output_cl(0),
-        current_range(-1),
         ranges(NULL),
-        txn_conf(NULL)
+        txn_conf(NULL),
+        transparent_passthrough(false)
     {
       int i;
       char *via_ptr = via_string;
@@ -1244,9 +1179,9 @@ public:
       arena.reset();
       pristine_url.clear();
 
-      delete[] ranges; ranges = NULL;
+      delete[] ranges;
+      ranges = NULL;
       range_setup = RANGE_NONE;
-      unsatisfiable_range = true;
       return;
     }
 
@@ -1308,7 +1243,6 @@ public:
   static void handle_response_from_parent(State* s);
   static void handle_response_from_server(State* s);
   static void delete_server_rr_entry(State* s, int max_retries);
-  static void delete_srv_entry(State* s, int max_retries);
   static void retry_server_connection_not_open(State* s, ServerState_t conn_state, int max_retries);
   static void handle_server_connection_not_open(State* s);
   static void handle_forward_server_connection_open(State* s);

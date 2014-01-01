@@ -191,7 +191,7 @@ TSRemapInit(TSRemapInterface* api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
-  TSDebug(PLUGIN_NAME, "remap plugin is succesfully initialized");
+  TSDebug(PLUGIN_NAME, "remap plugin is successfully initialized");
   return TS_SUCCESS;                     /* success */
 }
 
@@ -244,7 +244,7 @@ TSRemapDoRemap(void* ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
       switch (conf->_items[ix]._type) {
       case TS_RECORDDATATYPE_INT:
         TSHttpTxnConfigIntSet(txnp, conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
-        TSDebug(PLUGIN_NAME, "Setting config id %d to %"PRId64"", conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
+        TSDebug(PLUGIN_NAME, "Setting config id %d to %" PRId64"", conf->_items[ix]._name, conf->_items[ix]._data.rec_int);
         break;
       case TS_RECORDDATATYPE_STRING:
         TSHttpTxnConfigStringSet(txnp, conf->_items[ix]._name, conf->_items[ix]._data.rec_string, conf->_items[ix]._data_len);
