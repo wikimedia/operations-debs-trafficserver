@@ -2,6 +2,8 @@ trafficserver (4.1.2-1) UNRELEASED; urgency=medium
 
   * New upstram release
     + Refresh 0001-TS-1821.patch until it is fixed upstream
+    + Don't run autoreconf anymore, we do not need it anymore
+    + build depend on libaio-dev to support AIO on Linux systems
 
  -- Arno Töll <arno@debian.org>  Wed, 01 Jan 2014 04:27:30 -1100
 

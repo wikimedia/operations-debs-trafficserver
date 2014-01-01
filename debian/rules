@@ -19,7 +19,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@ --parallel --with autoreconf
+	dh $@ --parallel
 
 override_dh_auto_configure:
 	# autoreconf -i
