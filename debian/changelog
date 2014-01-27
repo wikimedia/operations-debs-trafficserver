@@ -1,6 +1,6 @@
-trafficserver (4.1.2-1) UNRELEASED; urgency=medium
+trafficserver (4.1.2-1) unstable; urgency=medium
 
-  * New upstram release
+  * New upstram release (Closes: #711530, #733377)
     + Refresh 0001-TS-1821.patch until it is fixed upstream
     + Don't run autoreconf anymore, we do not need it anymore
     + build depend on libaio-dev to support AIO on Linux systems
