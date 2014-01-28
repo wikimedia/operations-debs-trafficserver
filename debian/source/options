@@ -1,1 +1,1 @@
---extend-diff-ignore='examples/'
+--extend-diff-ignore='examples/|diags.log'
