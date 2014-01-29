@@ -6,5 +6,5 @@ etc/trafficserver/*
 usr/lib/trafficserver/lib*.so.*
 usr/lib/trafficserver/modules/*
 usr/share/doc/trafficserver/trafficshell/*
-usr/man/man3/*
-usr/share/perl/*
+usr/share/man/*
+usr/share/perl5/*

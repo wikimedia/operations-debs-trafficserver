@@ -27,7 +27,7 @@ override_dh_auto_configure:
 	./configure $(configure_flags)
 
 override_dh_auto_install:
-	dh_auto_install
+	dh_auto_install -- INSTALLDIRS=vendor
 	rm -f debian/tmp/usr/bin/trafficserver # We install our own
 	# Satisfy §10.2 (http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
 	rm -f debian/tmp/usr/lib/trafficserver/lib*.la
@@ -44,7 +44,7 @@ override_dh_fixperms:
 		-X var/run/trafficserver
 
 override_dh_installexamples:
-	dh_installexamples -X Makefile -X.deps
+	dh_installexamples -X Makefile -X.deps -X.la -X.lo
 
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/trafficserver

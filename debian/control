@@ -8,14 +8,15 @@ Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
   libcap-dev [linux-any], bison [linux-any], flex [linux-any],
   dpkg-dev (>= 1.16.1~), pkg-config, libboost1.53-dev, libgeoip-dev,
   liblua5.1-0-dev, libmysqlclient-dev
-Standards-Version: 3.9.3
+Standards-Version: 3.9.5
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
 
 Package: trafficserver
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser
+Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
+  ${perl:Depends}
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~)
 Breaks: trafficserver-plugin-conf-remap (<< 3.2~)

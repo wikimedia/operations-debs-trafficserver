@@ -1,11 +1,13 @@
 trafficserver (4.1.2-1) unstable; urgency=medium
 
+  * Merge the experimental branch of trafficserver to unstable
   * New upstram release (Closes: #711530, #733377)
     + Refresh 0001-TS-1821.patch until it is fixed upstream
     + Don't run autoreconf anymore, we do not need it anymore
     + build depend on libaio-dev to support AIO on Linux systems
+  * Push standards version
 
- -- Arno Töll <arno@debian.org>  Wed, 01 Jan 2014 04:27:30 -1100
+ -- Arno Töll <arno@debian.org>  Wed, 29 Jan 2014 03:01:12 -1100
 
 trafficserver (3.3.2-1) experimental; urgency=low
 
