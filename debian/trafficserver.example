@@ -1,0 +1,2 @@
+plugins/experimental/cacheurl/*.example
+plugins/experimental/mysql_remap/sample.ini

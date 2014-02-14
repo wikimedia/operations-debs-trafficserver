@@ -22,11 +22,11 @@ configure_flags = \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	configure_flags += --enable-wccp
+	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
 %:
-	dh $@
+	dh $@ --parallel
 
 override_dh_auto_configure:
 	autoreconf -if
@@ -34,11 +34,12 @@ override_dh_auto_configure:
 	./configure $(configure_flags)
 
 override_dh_auto_install:
-	dh_auto_install
+	dh_auto_install -- INSTALLDIRS=vendor
 	rm -f debian/tmp/usr/bin/trafficserver # We install our own
 	# Satisfy §10.2 (http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
 	rm -f debian/tmp/usr/lib/trafficserver/lib*.la
 	rm -f debian/tmp/usr/lib/trafficserver/modules/*.la
+	rm -f debian/tmp/usr/lib/trafficserver/lib*.a
 
 override_dh_install:
 	dh_install --list-missing
@@ -50,10 +51,13 @@ override_dh_fixperms:
 		-X var/run/trafficserver
 
 override_dh_installexamples:
-	dh_installexamples -X Makefile -X.deps
+	dh_installexamples -X Makefile -X.deps -X.la -X.lo
 
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/trafficserver
+
+override_dh_auto_test:
+	-dh_auto_test
 
 .PHONY: override_dh_strip
 override_dh_strip:
