@@ -71,6 +71,7 @@ LogCollationClientSM::LogCollationClientSM(LogHost * log_host)
     m_pending_event(NULL),
     m_abort_vio(NULL),
     m_abort_buffer(NULL),
+    m_host_is_up(false),
     m_buffer_send_list(NULL),
     m_buffer_in_iocore(NULL),
     m_flow(LOG_COLL_FLOW_ALLOW),
@@ -262,6 +263,7 @@ LogCollationClientSM::client_auth(int event, VIO * /* vio ATS_UNUSED */)
     Debug("log-coll", "[%d]client::client_auth - WRITE_COMPLETE", m_id);
 
     Note("[log-coll] host up [%s:%u]", m_log_host->ip_addr().toString(ipb, sizeof(ipb)), m_log_host->port());
+    m_host_is_up = true;
 
     return client_send(LOG_COLL_EVENT_SWITCH, NULL);
 
@@ -403,13 +405,15 @@ LogCollationClientSM::client_fail(int event, void * /* data ATS_UNUSED */)
     Debug("log-coll", "[%d]client::client_fail - SWITCH", m_id);
     m_client_state = LOG_COLL_CLIENT_FAIL;
 
-    Note("[log-coll] host down [%s:%u]", m_log_host->ip_addr().toString(ipb, sizeof ipb), m_log_host->m_port);
-    {
+    // avoid flooding log when host is down
+    if (m_host_is_up) {
+      Note("[log-coll] host down [%s:%u]", m_log_host->ip_addr().toString(ipb, sizeof ipb), m_log_host->m_port);
       char msg_buf[128];
       snprintf(msg_buf, sizeof(msg_buf), "Collation host %s:%u down",
                m_log_host->ip_addr().toString(ipb, sizeof ipb), m_log_host->m_port
       );
       REC_SignalManager(400, msg_buf);
+      m_host_is_up = false;
     }
 
     // close our NetVConnection (do I need to delete this)
@@ -635,6 +639,12 @@ LogCollationClientSM::client_send(int event, VIO * /* vio ATS_UNUSED */)
       // TODO: We currently don't try to make the log buffers handle little vs big endian. TS-1156.
       //m_buffer_in_iocore->convert_to_network_order();
 
+      RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_num_sent_to_network_stat,
+                     log_buffer_header->entry_count);
+
+      RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_bytes_sent_to_network_stat,
+                     log_buffer_header->byte_count);
+
       // copy into m_send_buffer
       ink_assert(m_send_buffer != NULL);
       m_send_buffer->write((char *) &nmh, sizeof(NetMsgHeader));
@@ -663,7 +673,7 @@ LogCollationClientSM::client_send(int event, VIO * /* vio ATS_UNUSED */)
 
     // done with the buffer, delete it
     Debug("log-coll", "[%d]client::client_send - m_buffer_in_iocore[%p] to delete_list", m_id, m_buffer_in_iocore);
-    delete m_buffer_in_iocore;
+    LogBuffer::destroy(m_buffer_in_iocore);
     m_buffer_in_iocore = NULL;
 
     // switch back to client_send
@@ -711,7 +721,7 @@ LogCollationClientSM::flush_to_orphan()
     Debug("log-coll", "[%d]client::flush_to_orphan - m_buffer_in_iocore to oprhan", m_id);
     // TODO: We currently don't try to make the log buffers handle little vs big endian. TS-1156.
     // m_buffer_in_iocore->convert_to_host_order();
-    m_log_host->orphan_write_and_delete(m_buffer_in_iocore);
+    m_log_host->orphan_write_and_try_delete(m_buffer_in_iocore);
     m_buffer_in_iocore = NULL;
   }
   // flush buffers in send_list to orphan
@@ -719,7 +729,7 @@ LogCollationClientSM::flush_to_orphan()
   ink_assert(m_buffer_send_list != NULL);
   while ((log_buffer = m_buffer_send_list->get()) != NULL) {
     Debug("log-coll", "[%d]client::flush_to_orphan - send_list to orphan", m_id);
-    m_log_host->orphan_write_and_delete(log_buffer);
+    m_log_host->orphan_write_and_try_delete(log_buffer);
   }
 
   // Now send_list is empty, let's update m_flow to ALLOW status

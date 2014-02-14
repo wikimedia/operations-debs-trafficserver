@@ -28,6 +28,9 @@ Makefile-pl: Makefile.PL
 	-[ "$(srcdir)" != "$(top_builddir)/$(subdir)" ] && cp -rf "$(srcdir)/." "$(top_builddir)/$(subdir)"
 	$(PERL) Makefile.PL INSTALLDIRS=$(INSTALLDIRS) PREFIX=$(prefix)
 
+distclean-local:
+	-rm -f Makefile-pl
+
 #test: check
 
 #check-local: Makefile-pl

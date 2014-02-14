@@ -1,29 +1,29 @@
+.. _http-proxy-caching:
+
 HTTP Proxy Caching
 ******************
 
 .. Licensed to the Apache Software Foundation (ASF) under one
    or more contributor license agreements.  See the NOTICE file
-  distributed with this work for additional information
-  regarding copyright ownership.  The ASF licenses this file
-  to you under the Apache License, Version 2.0 (the
-  "License"); you may not use this file except in compliance
-  with the License.  You may obtain a copy of the License at
- 
+   distributed with this work for additional information
+   regarding copyright ownership.  The ASF licenses this file
+   to you under the Apache License, Version 2.0 (the
+   "License"); you may not use this file except in compliance
+   with the License.  You may obtain a copy of the License at
+
    http://www.apache.org/licenses/LICENSE-2.0
- 
-  Unless required by applicable law or agreed to in writing,
-  software distributed under the License is distributed on an
-  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-  KIND, either express or implied.  See the License for the
-  specific language governing permissions and limitations
-  under the License.
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License.
 
 Web proxy caching enables you to store copies of frequently-accessed web
 objects (such as documents, images, and articles) and then serve this
 information to users on demand. It improves performance and frees up
 Internet bandwidth for other tasks.
-
-This chapter discusses the following topics:
 
 .. toctree::
    :maxdepth: 2
@@ -56,9 +56,10 @@ overview illustrates how Traffic Server serves a request.
       :alt: A cache hit
 
       A cache hit
+
 4. If the data in the cache is stale, then Traffic Server connects to
    the origin server and checks if the object is still fresh (a
-   **revalidation**). If it is, then Traffic Server immediately sends
+   :term:`revalidation`). If it is, then Traffic Server immediately sends
    the cached copy to the client.
 
 5. If the object is not in the cache (a **cache miss**) or if the server
@@ -99,46 +100,44 @@ HTTP Object Freshness
 Traffic Server determines whether an HTTP object in the cache is fresh
 by:
 
--  **Checking the ``Expires`` or ``max-age`` header**
+-  **Checking the** ``Expires`` **or** ``max-age`` **header**
 
    Some HTTP objects contain ``Expires`` headers or ``max-age`` headers
    that explicitly define how long the object can be cached. Traffic
    Server compares the current time with the expiration time to
    determine if the object is still fresh.
 
--  **Checking the ``Last-Modified`` / ``Date`` header**
+-  **Checking the** ``Last-Modified`` **/** ``Date`` **header**
 
    If an HTTP object has no ``Expires`` header or ``max-age`` header,
    then Traffic Server can calculate a freshness limit using the
-   following formula:
+   following formula::
 
-   ::
-       freshness_limit = ( date - last_modified ) * 0.10   
+      freshness_limit = ( date - last_modified ) * 0.10
 
    where *date* is the date in the object's server response header
    and *last_modified* is the date in the ``Last-Modified`` header.
    If there is no ``Last-Modified`` header, then Traffic Server uses the
    date the object was written to cache. The value ``0.10`` (10 percent)
    can be increased or reduced to better suit your needs (refer to
-   `Modifying the Aging Factor for Freshness
-   Computations <#ModifyingAgingFactorFreshnessComputations>`_).
+   `Modifying Aging Factor for Freshness Computations`_).
 
    The computed freshness limit is bound by a minimum and maximum value
-   - refer to `Setting an Absolute Freshness Limit`_ for more information.
+   - refer to `Setting Absolute Freshness Limits`_ for more information.
 
 -  **Checking the absolute freshness limit**
 
    For HTTP objects that do not have ``Expires`` headers or do not have
    both ``Last-Modified`` and ``Date`` headers, Traffic Server uses a
-   maximum and minimum freshness limit (refer to `Setting an Absolute Freshness Limit`_).
+   maximum and minimum freshness limit (refer to `Setting Absolute Freshness Limits`_).
 
--  **Checking revalidate rules in the `cache.config`_ file**
+-  **Checking revalidate rules in the** :file:`cache.config` **file**
 
    Revalidate rules apply freshness limits to specific HTTP objects. You
    can set freshness limits for objects originating from particular
    domains or IP addresses, objects with URLs that contain specified
    regular expressions, objects requested by particular clients, and so
-   on (refer to `cache.config`_).
+   on (refer to :file:`cache.config`).
 
 Modifying Aging Factor for Freshness Computations
 -------------------------------------------------
@@ -151,11 +150,9 @@ the percentage according to your needs.
 
 To modify the aging factor for freshness computations
 
-1. Edit the following variables in `records.config`_
+1. Change the value for :ts:cv:`proxy.config.http.cache.heuristic_lm_factor`.
 
-   -  `proxy.config.http.cache.heuristic_lm_factor`_
-
-2. Run the ``traffic_line -x`` command to apply the configuration
+2. Run the :option:`traffic_line -x` command to apply the configuration
    changes.
 
 Setting absolute Freshness Limits
@@ -168,12 +165,12 @@ freshness limit**.
 
 To specify an absolute freshness limit
 
-1. Edit the following variables in `records.config`_ 
+1. Edit the variables
 
-   -  `proxy.config.http.cache.heuristic_min_lifetime`_
-   -  `proxy.config.http.cache.heuristic_max_lifetime`_
+   -  :ts:cv:`proxy.config.http.cache.heuristic_min_lifetime`
+   -  :ts:cv:`proxy.config.http.cache.heuristic_max_lifetime`
 
-2. Run the ``traffic_line -x`` command to apply the configuration
+2. Run the :option:`traffic_line -x` command to apply the configuration
    changes.
 
 Specifying Header Requirements
@@ -190,12 +187,12 @@ information).
 
 To configure Traffic Server to cache objects with specific headers
 
-1. Edit the following variable in `records.config`_
+1. Change the value for :ts:cv:`proxy.config.http.cache.required_headers`.
 
-   -  `proxy.config.http.cache.required_headers`_
-
-2. Run the ``traffic_line -x`` command to apply the configuration
+2. Run the :option:`traffic_line -x` command to apply the configuration
    changes.
+
+.. _cache-control-headers:
 
 Cache-Control Headers
 ---------------------
@@ -210,7 +207,7 @@ requests and server responses. The following ``Cache-Control`` headers
 affect whether objects are served from cache:
 
 -  The ``no-cache`` header, sent by clients, tells Traffic Server that
-   it should not to serve any objects directly from the cache;
+   it should not serve any objects directly from the cache;
    therefore, Traffic Server will always obtain the object from the
    origin server. You can configure Traffic Server to ignore client
    ``no-cache`` headers - refer to `Configuring Traffic Server to Ignore Client no-cache Headers`_
@@ -261,8 +258,8 @@ revalidation is one of the following:
 By default, Traffic Server revalidates a requested HTTP object in the
 cache if it considers the object to be stale. Traffic Server evaluates
 object freshness as described in `HTTP Object Freshness`_.
-You can reconfigure how Traffic
-Server evaluates freshness by selecting one of the following options:
+You can reconfigure how Traffic Server evaluates freshness by selecting
+one of the following options:
 
 -  Traffic Server considers all HTTP objects in the cache to be stale:
    always revalidate HTTP objects in the cache with the origin server.
@@ -273,15 +270,15 @@ Server evaluates freshness by selecting one of the following options:
    without ``Expires`` or ``Cache-Control`` headers.
 
 To configure how Traffic Server revalidates objects in the cache, you
-can set specific revalidation rules in `cache.config`_.
+can set specific revalidation rules in :file:`cache.config`.
 
 To configure revalidation options
 
-1. Edit the following variable in `records.config`_
+1. Edit the following variable in :file:`records.config`
 
-   -  `proxy.config.http.cache.when_to_revalidate`_
+   -  :ts:cv:`proxy.config.http.cache.when_to_revalidate`
 
-2. Run the ``traffic_line -x`` command to apply the configuration
+2. Run the :option:`traffic_line -x` command to apply the configuration
    changes.
 
 Scheduling Updates to Local Cache Content
@@ -323,43 +320,42 @@ Configuring the Scheduled Update Option
 
 To configure the scheduled update option
 
-1. Edit `update.config`_ to
+1. Edit :file:`update.config` to
    enter a line in the file for each URL you want to update.
-2. Edit the following variables in `records.config`_
+2. Edit the following variables
 
-   -  `proxy.config.update.enabled`_
-   -  `proxy.config.update.retry_count`_
-   -  `proxy.config.update.retry_interval`_
-   -  `proxy.config.update.concurrent_updates`_
+   -  :ts:cv:`proxy.config.update.enabled`
+   -  :ts:cv:`proxy.config.update.retry_count`
+   -  :ts:cv:`proxy.config.update.retry_interval`
+   -  :ts:cv:`proxy.config.update.concurrent_updates`
 
-3. Run the ``traffic_line -x`` command to apply the configuration
+3. Run the :option:`traffic_line -x` command to apply the configuration
    changes.
 
 Forcing an Immediate Update
 ---------------------------
 
 Traffic Server provides a **Force Immediate Update** option that enables
-you to immediately verify the URLs listed in the `update.config`_ file.
+you to immediately verify the URLs listed in :file:`update.config`.
 The Force Immediate Update option disregards the offset hour and
-interval set in the `update.config`_ file and immediately updates the
+interval set in :file:`update.config` and immediately updates the
 URLs listed.
 
 To configure the Force Immediate Update option
 
-1. Edit the following variables in `records.config`_
+1. Edit the following variables
 
-   -  `proxy.config.update.force`_
-   -  Make sure the variable
-      `proxy.config.update.enabled`_ is set to 1.
+   -  :ts:cv:`proxy.config.update.force`
+   -  Make sure :ts:cv:`proxy.config.update.enabled` is set to 1.
 
-2. Run the ``command traffic_line -x`` to apply the configuration
+2. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
-**IMPORTANT:** When you enable the Force Immediate Update option,
-Traffic Server continually updates the URLs specified in the
-`update.config`_ file until you disable the option. To disable the
-Force Immediate Update option, set the variable
-`proxy.config.update.force`_ to ``0`` (zero).
+.. important::
+
+   When you enable the Force Immediate Update option, Traffic Server continually updates the URLs specified in
+   :file:`update.config` until you disable the option. To disable the Force Immediate Update option, set
+   :ts:cv:`proxy.config.update.force` to ``0`` (zero).
 
 Pushing Content into the Cache
 ==============================
@@ -376,16 +372,14 @@ must configure Traffic Server to accept ``PUSH`` requests.
 
 To configure Traffic Server to accept ``PUSH`` requests
 
-1. Edit `records.config`_, modify the super mask to allow ``PUSH`` request.
+1. Edit :file:`ip_allow.config` to allow ``PUSH``.
 
-   -  `proxy.config.http.quick_filter.mask`_
-
-2. Edit the following variable in `records.config`_, enable
+2. Edit the following variable in :file:`records.config`, enable
    the push_method.
 
-   -  `proxy.config.http.push_method_enabled`_
+   -  :ts:cv:`proxy.config.http.push_method_enabled`
 
-3. Run the command ``traffic_line -x`` to apply the configuration
+3. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Understanding HTTP PUSH
@@ -393,30 +387,30 @@ Understanding HTTP PUSH
 
 ``PUSH`` uses the HTTP 1.1 message format. The body of a ``PUSH``
 request contains the response header and response body that you want to
-place in the cache. The following is an example of a ``PUSH`` request:
+place in the cache. The following is an example of a ``PUSH`` request::
 
-::
+   PUSH http://www.company.com HTTP/1.0
+   Content-length: 84
 
-    PUSH http://www.company.com HTTP/1.0
-    Content-length: 84
+   HTTP/1.0 200 OK
+   Content-type: text/html
+   Content-length: 17
 
-    HTTP/1.0 200 OK
-    Content-type: text/html
-    Content-length: 17
+   <HTML>
+   a
+   </HTML>
 
-    <HTML>
-    a
-    </HTML>
+.. important::
 
-**IMPORTANT:** Your header must include ``Content-length`` -
-``Content-length`` must include both ``header`` and ``body byte count``.
+   Your header must include ``Content-length`` - ``Content-length`` must include both ``header`` and ``body byte
+   count``.
 
 Tools that will help manage pushing
 -----------------------------------
 
-There is a perl script for pushing, `tools/push.pl`_,
-which can help you understanding how to write some script for pushing
-content.
+There is a perl script for pushing, :program:`tspush`,
+which can help you understanding how to write scripts for pushing
+content yourself.
 
 Pinning Content in the Cache
 ============================
@@ -430,19 +424,16 @@ if it is indeed cacheable.
 
 To set cache pinning rules
 
-3. Make sure the following variable in `records.config`_ is set
+3. Make sure the following variable in :file:`records.config` is set
 
-   -  `proxy.config.cache.permit.pinning`_
+   -  :ts:cv:`proxy.config.cache.permit.pinning`
 
-4. Add a rule in `cache.config`_ for each
-   URL you want Traffic Server to pin in the cache. For example:
+4. Add a rule in :file:`cache.config` for each
+   URL you want Traffic Server to pin in the cache. For example::
 
-   ::
+      url_regex=^https?://(www.)?apache.org/dev/ pin-in-cache=12h
 
-       :::text
-       url_regex=^https?://(www.)?apache.org/dev/ pin-in-cache=12h
-
-5. Run the command ``traffic_line -x`` to apply the configuration
+5. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 To Cache or Not to Cache?
@@ -496,18 +487,18 @@ from its cache.
 
 To configure Traffic Server to ignore client ``no-cache`` headers
 
-3. Edit the following variable in `records.config`_
+3. Edit the following variable in :file:`records.config`
 
-   -  `proxy.config.cache.ignore_client_no_cache`
+   -  :ts:cv:`proxy.config.http.cache.ignore_client_no_cache`
 
-4. Run the command ``traffic_line -x`` to apply the configuration
+4. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Origin Server Directives
 ------------------------
 
 By default, Traffic Server does *not* cache objects with the following
-**response** **headers**:
+**response headers**:
 
 -  ``Cache-Control: no-store`` header
 -  ``Cache-Control: private`` header
@@ -531,17 +522,15 @@ By default, Traffic Server strictly observes ``Cache-Control: no-cache``
 directives. A response from an origin server with a ``no-cache`` header
 is not stored in the cache and any previous copy of the object in the
 cache is removed. If you configure Traffic Server to ignore ``no-cache``
-headers, then Traffic Server also ignores ``no-``\ **``store``**
-headers. The default behavior of observing ``no-cache`` directives is
-appropriate in most cases.
+headers, then Traffic Server also ignores ``no-store`` headers. The
+default behavior of observing ``no-cache`` directives is appropriate
+in most cases.
 
 To configure Traffic Server to ignore server ``no-cache`` headers
 
-3. Edit the following variable in `records.config`_
+#. Edit the variable :ts:cv:`proxy.config.http.cache.ignore_server_no_cache`
 
-   -  `proxy.config.cache.ignore_server_no_cache`_
-
-4. Run the command ``traffic_line -x`` to apply the configuration
+#. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Configuring Traffic Server to Ignore WWW-Authenticate Headers
@@ -563,11 +552,9 @@ about HTTP 1.1.
 To configure Traffic Server to ignore server ``WWW-Authenticate``
 headers
 
-3. Edit the following variable in `records.config`_
+#. Edit the variable :ts:cv:`proxy.config.http.cache.ignore_authentication`
 
-   -  `proxy.config.cache.ignore_authentication`_
-
-4. Run the command ``traffic_line -x`` to apply the configuration
+#. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Configuration Directives
@@ -581,36 +568,33 @@ You can configure Traffic Server to do the following:
 
 -  *Not* cache any HTTP objects (refer to `Disabling HTTP Object Caching`_).
 -  Cache **dynamic content** - that is, objects with URLs that end in
-   **``.asp``** or contain a question mark (**``?``**), semicolon
+   ``.asp`` or contain a question mark (``?``), semicolon
    (**``;``**), or **``cgi``**. For more information, refer to `Caching Dynamic Content`_.
 -  Cache objects served in response to the ``Cookie:`` header (refer to
    `Caching Cookied Objects`_.
--  Observe ``never-cache`` rules in the `cache.config`_ file.
+-  Observe ``never-cache`` rules in the :file:`cache.config` file.
 
 Disabling HTTP Object Caching
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 By default, Traffic Server caches all HTTP objects except those for
-which you have set
-```never-cache`` <configuration-files/cache.config#action>`_ rules in
-the ```cache.config`` <../configuration-files/cache.config>`_ file. You
-can disable HTTP object caching so that all HTTP objects are served
-directly from the origin server and never cached, as detailed below.
+which you have set ``never-cache`` as :ref:`action rules <cache-config-format-action>`
+in the :file:`cache.config` file. You can disable HTTP object
+caching so that all HTTP objects are served directly from the origin
+server and never cached, as detailed below.
 
 To disable HTTP object caching manually
 
-3. Edit the following variable in `records.config`_
+3. Set the variable :ts:cv:`proxy.config.http.enabled` to ``0``.
 
-   -  `proxy.config.cache.http`_
-
-4. Run the command ``traffic_line -x`` to apply the configuration
+4. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Caching Dynamic Content
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 A URL is considered **dynamic** if it ends in **``.asp``** or contains a
-question mark (**``?``**), a semicolon (**``;``**), or **``cgi``**. By
+question mark (``?``), a semicolon (``;``), or ``cgi``. By
 default, Traffic Server caches dynamic content. You can configure the
 system to ignore dyanamic looking content, although this is recommended
 only if the content is *truely* dyanamic, but fails to advertise so with
@@ -619,11 +603,11 @@ appropriate ``Cache-Control`` headers.
 To configure Traffic Server's cache behaviour in regard to dynamic
 content
 
-3. Edit the following variable in `records.config`_
+3. Edit the following variable in :file:`records.config`
 
-   -  `proxy.config.http.cache.cache_urls_that_look_dynamic`
+   -  :ts:cv:`proxy.config.http.cache.cache_urls_that_look_dynamic`
 
-4. Run the command ``traffic_line -x`` to apply the configuration
+4. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Caching Cookied Objects
@@ -646,11 +630,9 @@ You can reconfigure Traffic Server to:
 
 To configure how Traffic Server caches cookied content
 
-3. Edit the following variable in `records.config`_
+3. Edit the variable :ts:cv:`proxy.config.http.cache.cache_responses_to_cookies`
 
-   -  `proxy.config.cache_responses_to_cookies`_
-
-4. Run the command ``traffic_line -x`` to apply the configuration
+4. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Forcing Object Caching
@@ -663,12 +645,11 @@ headers.
 To force document caching
 
 1. Add a rule for each URL you want Traffic Server to pin to the cache
-   `cache.config`_:
+   :file:`cache.config`::
 
-   ::
        url_regex=^https?://(www.)?apache.org/dev/ ttl-in-cache=6h
 
-2. Run the command ``traffic_line -x`` to apply the configuration
+2. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Caching HTTP Alternates
@@ -681,7 +662,7 @@ different browsers with different presentation styles, or provides
 different document formats (HTML, XML). Different versions of the same
 object are termed **alternates** and are cached by Traffic Server based
 on ``Vary`` response headers. You can specify additional request and
-response headers for specific ``Content-Type``\ s that Traffic Server
+response headers for specific ``Content-Type``\s that Traffic Server
 will identify as alternates for caching. You can also limit the number
 of alternate versions of an object allowed in the cache.
 
@@ -691,20 +672,22 @@ Configuring How Traffic Server Caches Alternates
 To configure how Traffic Server caches alternates, follow the steps
 below
 
-3. Edit the following variables in `ecords.config`_
+3. Edit the following variables
 
-   -  `proxy.config.http.cache.enable_default_vary_headers`_
-   -  `proxy.config.http.cache.vary_default_text`_
-   -  `proxy.config.http.cache.vary_default_images`_
-   -  `proxy.config.http.cache.vary_default_other`_
+   -  :ts:cv:`proxy.config.http.cache.enable_default_vary_headers`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_text`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_images`
+   -  :ts:cv:`proxy.config.http.cache.vary_default_other`
 
-4. Run the command ``traffic_line -x`` to apply the configuration
+4. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
-**Note:** If you specify ``Cookie`` as the header field on which to vary
-in the above variables, make sure that the variable
-`proxy.config.cache.cache_responses_to_cookies`
-is set appropriately.
+.. note::
+
+   If you specify ``Cookie`` as the header field on which to vary
+   in the above variables, make sure that the variable
+   :ts:cv:`proxy.config.http.cache.cache_responses_to_cookies`
+   is set appropriately.
 
 Limiting the Number of Alternates for an Object
 -----------------------------------------------
@@ -712,19 +695,20 @@ Limiting the Number of Alternates for an Object
 You can limit the number of alternates Traffic Server can cache per
 object (the default is 3).
 
-**IMPORTANT:** Large numbers of alternates can affect Traffic Server
-cache performance because all alternates have the same URL. Although
-Traffic Server can look up the URL in the index very quickly, it must
-scan sequentially through available alternates in the object store.
+.. important::
 
-To limit the number of alternates
+   Large numbers of alternates can affect Traffic Server
+   cache performance because all alternates have the same URL. Although
+   Traffic Server can look up the URL in the index very quickly, it must
+   scan sequentially through available alternates in the object store.
 
-3. Edit the following variable in `records.config`_ 
+   To limit the number of alternates
 
-   -  `proxy.config.cache.limits.http.max_alts`_
+   #. Edit the variable :ts:cv:`proxy.config.cache.limits.http.max_alts`
+   #. Run the command :option:`traffic_line -x` to apply the configuration changes.
 
-4. Run the command ``traffic_line -x`` to apply the configuration
-   changes.
+
+.. _using-congestion-control:
 
 Using Congestion Control
 ========================
@@ -737,49 +721,126 @@ retry the congested origin server later.
 To use the **Congestion Control** option, you must perform the following
 tasks:
 
-3. Set the following variable in `records.config`_
+#. Set the variable :ts:cv:`proxy.config.http.congestion_control.enabled` to ``1``
 
-   -  `proxy.config.http.congestion_control.enabled`_ to ``1``
+   -  Create rules in the :file:`congestion.config` file to specify:
+   -  which origin servers Traffic Server tracks for congestion
+   -  the timeouts Traffic Server uses, depending on whether a server is
+      congested
+   -  the page Traffic Server sends to the client when a server becomes
+      congested
+   -  if Traffic Server tracks the origin servers per IP address or per
+      hostname
 
--  Create rules in the `congestion.config`_ file to specify:
--  which origin servers Traffic Server tracks for congestion
--  the timeouts Traffic Server uses, depending on whether a server is
-   congested
--  the page Traffic Server sends to the client when a server becomes
-   congested
--  if Traffic Server tracks the origin servers per IP address or per
-   hostname
-
-9. Run the command ``traffic_line -x`` to apply the configuration
+#. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
+.. _transaction-buffering-control:
 
-.. List of links
-.. _records.config: configuration-files/records.config
-.. _cache.config: configuration-files/cache.config
-.. _congestion.config: configuration-files/congestion.config
-.. _proxy.config.http.congestion_control.enabled: configuration-files/records.config#proxy.config.http.congestion_control.enabled
-.. _proxy.config.cache.limits.http.max_alts: configuration-files/records.config#proxy.config.cache.limits.http.max_alts
-.. _proxy.config.http.cache.heuristic_lm_factor: configuration-files/records.config#proxy.config.http.cache.heuristic_lm_factor
-.. _proxy.config.http.cache.heuristic_min_lifetime: configuration-files/records.config#proxy.config.http.cache.heuristic_min_lifetime
-.. _proxy.config.http.cache.heuristic_max_lifetime: configuration-files/records.config#proxy.config.http.cache.heuristic_max_lifetime
-.. _proxy.config.http.cache.when_to_revalidate: configuration-files/records.config#proxy.config.http.cache.when_to_revalidate
-.. _proxy.config.update.enabled: configuration-files/records.config#proxy.config.update.enabled
-.. _proxy.config.update.retry_count: configuration-files/records.config#proxy.config.update.retry_count
-.. _proxy.config.update.concurrent_updates: configuration-files/records.config#proxy.config.update.concurrent_updates
-.. _proxy.config.update.force: configuration-files/records.config#proxy.config.update.force
-.. _proxy.config.http.quick_filter.mask: configuration-files/records.config#proxy.config.http.quick_filter.mask
-.. _proxy.config.http.push_method_enabled: configuration-files/records.config#proxy.config.http.push_method_enabled
-.. _proxy.config.cache.permit.pinning: configuration-files/records.config#proxy.config.cache.permit.pinning
-.. _proxy.config.cache.ignore_server_no_cache: configuration-files/records.config#proxy.config.cache.ignore_server_no_cache
-.. _proxy.config.cache.ignore_authentication: configuration-files/records.config#proxy.config.cache.ignore_authentication
-.. _proxy.config.cache.http: configuration-files/records.config#proxy.config.cache.http
-.. _proxy.config.http.cache.cache_urls_that_look_dynamic: configuration-files/records.config#proxy.config.http.cache.cache_urls_that_look_dynamic
-.. _proxy.config.cache_responses_to_cookies: configuration-files/records.config#proxy.config.cache_responses_to_cookies
-.. _proxy.config.http.cache.enable_default_vary_headers: configuration-files/records.config#proxy.config.http.cache.enable_default_vary_headers
-.. _proxy.config.http.cache.vary_default_text: configuration-files/records.config#proxy.config.http.cache.vary_default_text
-.. _proxy.config.http.cache.vary_default_images: configuration-files/records.config#proxy.config.http.cache.vary_default_images
-.. _proxy.config.http.cache.vary_default_other: configuration-files/records.config#proxy.config.http.cache.vary_default_other
-.. _proxy.config.cache.cache_responses_to_cookies: configuration-files/records.config#proxy.config.cache.cache_responses_to_cookies
+Using Transaction Buffering Control
+===================================
 
-.. _tools/push.pl: http://git-wip-us.apache.org/repos/asf?p=trafficserver.git;a=blob;f=tools/push.pl
+By default I/O operations are run at full speed, as fast as either Traffic Server, the network, or the cache can go.
+This can be problematic for large objects if the client side connection is significantly slower. In such cases the
+content will be buffered in ram while waiting to be sent to the client. This could potentially also happen for ``POST``
+requests if the client connection is fast and the origin server connection slow. If very large objects are being used
+this can cause the memory usage of Traffic Server to become `very large
+<https://issues.apache.org/jira/browse/TS-1496>`_.
+
+This problem can be ameloriated by controlling the amount of buffer space used by a transaction. A high water and low
+water mark are set in terms of bytes used by the transaction. If the buffer space in use exceeds the high water mark,
+the connection is throttled to prevent additional external data from arriving. Internal operations continue to proceed
+at full speed until the buffer space in use drops below the low water mark and external data I/O is re-enabled.
+
+Although this is intended primarily to limit the memory usage of Traffic Server it can also serve as a crude rate
+limiter by setting a buffer limit and then throttling the client side connection either externally or via a transform.
+This will cause the connection to the origin server to be limited to roughly the client side connection speed.
+
+Traffic Server does network I/O in large chunks (32K or so) and therefore the granularity of transaction buffering
+control is limited to a similar precision.
+
+The buffer size calculations include all elements in the transaction, including any buffers associated with :ref:`transform plugins <transform-plugin>`.
+
+Transaction buffering control can be enabled globally by using configuration variables or by :c:func:`TSHttpTxnConfigIntSet` in a plugin.
+
+================= ================================================== ========================================
+Value             Variable                                           `TSHttpTxnConfigIntSet` key
+================= ================================================== ========================================
+Enable buffering  :ts:cv:`proxy.config.http.flow_control.enabled`    `TS_CONFIG_HTTP_FLOW_CONTROL_ENABLED`
+Set high water    :ts:cv:`proxy.config.http.flow_control.high_water` `TS_CONFIG_HTTP_FLOW_CONTROL_HIGH_WATER`
+Set low water     :ts:cv:`proxy.config.http.flow_control.low_water`  `TS_CONFIG_HTTP_FLOW_CONTROL_LOW_WATER`
+================= ================================================== ========================================
+
+Be careful to always have the low water mark equal or less than the high water mark. If you set only one, the other will
+be set to the same value.
+
+If using c:func:`TSHttpTxnConfigIntSet`, it must be called no later than `TS_HTTP_READ_RESPONSE_HDR_HOOK`.
+
+.. _reducing-origin-server-requests-avoiding-the-thundering-herd:
+
+Reducing Origin Server Requests (Avoiding the Thundering Herd)
+==============================================================
+
+When an object can not be served from cache, the request will be proxied to the origin server. For a popular object,
+this can result in many near simultaneous requests to the origin server, potentially overwhelming it or associated
+resources. There are several features in Traffic Server that can be used to avoid this scenario.
+
+Read While Writer
+-----------------
+When Traffic Server goes to fetch something from origin, and upon receiving the response, any number of clients can be allowed to start serving the partially filled cache object once background_fill_completed_threshold % of the object has been received. The difference is that Squid allows this as soon as it goes to origin, whereas ATS can not do it until we get the complete response header. The reason for this is that we make no distinction between cache refresh, and cold cache, so we have no way to know if a response is going to be cacheable, and therefore allow read-while-writer functionality.
+
+The configurations necessary to enable this in ATS are:
+
+|   CONFIG :ts:cv:`proxy.config.cache.enable_read_while_writer` ``INT 1``
+|   CONFIG :ts:cv:`proxy.config.http.background_fill_active_timeout` ``INT 0``
+|   CONFIG :ts:cv:`proxy.config.http.background_fill_completed_threshold` ``FLOAT 0.000000``
+|   CONFIG :ts:cv:`proxy.config.cache.max_doc_size` ``INT 0`` 
+
+All four configurations are required, for the following reasons:
+
+-  enable_read_while_writer turns the feature on. It's off (0) by default
+-  The background fill feature should be allowed to kick in for every possible request. This is necessary, in case the writer ("first client session") goes away, someone needs to take over the session. Hence, you should set the background fill timeouts and threshold to zero; this assures they never times out and always is allowed to kick in. 
+-  The proxy.config.cache.max_doc_size should be unlimited (set to 0), since the object size may be unknown, and going over this limit would cause a disconnect on the objects being served.
+
+Once all this enabled, you have something that is very close, but not quite the same, as Squid's Collapsed Forwarding.
+
+
+
+.. _fuzzy-revalidation:
+
+Fuzzy Revalidation
+------------------
+Traffic Server can be set to attempt to revalidate an object before it becomes stale in cache. :file:`records.config` contains the settings:
+
+|   CONFIG :ts:cv:`proxy.config.http.cache.fuzz.time` ``INT 240``
+|   CONFIG :ts:cv:`proxy.config.http.cache.fuzz.min_time` ``INT 0``
+|   CONFIG :ts:cv:`proxy.config.http.cache.fuzz.probability` ``FLOAT 0.005``
+
+For every request for an object that occurs "fuzz.time" before (in the example above, 240 seconds) the object is set to become stale, there is a small
+chance (fuzz.probability == 0.5%) that the request will trigger a revalidation request to the origin. For objects getting a few requests per second, this would likely not trigger, but then this feature is not necessary anyways since odds are only 1 or a small number of connections would hit origin upon objects going stale. The defaults are a good compromise, for objects getting roughly 4 requests / second or more, it's virtually guaranteed to trigger a revalidate event within the 240s. These configs are also overridable per remap rule or via a plugin, so can be adjusted per request if necessary.  
+
+Note that if the revalidation occurs, the requested object is no longer available to be served from cache.  Subsequent
+requests for that object will be proxied to the origin. 
+
+Finally, the fuzz.min_time is there to be able to handle requests with a TTL less than fuzz.time – it allows for different times to evaluate the probability of revalidation for small TTLs and big TTLs. Objects with small TTLs will start "rolling the revalidation dice" near the fuzz.min_time, while objects with large TTLs would start at fuzz.time. A logarithmic like function between determines the revalidation evaluation start time (which will be between fuzz.min_time and fuzz.time). As the object gets closer to expiring, the window start becomes more likely. By default this setting is not enabled, but should be enabled anytime you have objects with small TTLs. Note that this option predates overridable configurations, so you can achieve something similar with a plugin or remap.config conf_remap.so configs.
+
+These configurations are similar to Squid's refresh_stale_hit configuration option.
+
+
+Open Read Retry Timeout
+-----------------------
+
+The open read retry configurations attempt to reduce the number of concurrent requests to the origin for a given object. While an object is being fetched from the origin server, subsequent requests would wait open_read_retry_time milliseconds before checking if the object can be served from cache. If the object is still being fetched, the subsequent requests will retry max_open_read_retries times. Thus, subsequent requests may wait a total of (max_open_read_retries x open_read_retry_time) milliseconds before establishing an origin connection of its own. For instance, if they are set to 5 and 10 respectively, connections will wait up to 50ms for a response to come back from origin from a previous request, until this request is allowed through.
+
+These settings are inappropriate when objects are uncacheable. In those cases, requests for an object effectively become serialized. The subsequent requests would await at least open_read_retry_time milliseconds before being proxies to the origin.
+
+Similarly, this setting should be used in conjunction with Read While Writer for big (those that take longer than (max_open_read_retries x open_read_retry_time) milliseconds to transfer) cacheable objects. Without the read-while-writer settings enabled, while the initial fetch is ongoing, not only would subsequent requests be delayed by the maximum time, but also, those requests would result in another request to the origin server.
+
+Since ATS now supports setting these settings per-request or remap rule, you can configure this to be suitable for your setup much more easily.
+
+The configurations are (with defaults):
+
+|   CONFIG :ts:cv:`proxy.config.http.cache.max_open_read_retries` ``INT -1``
+|   CONFIG :ts:cv:`proxy.config.http.cache.open_read_retry_time` ``INT 10``
+
+The default means that the feature is disabled, and every connection is allowed to go to origin instantly. When enabled, you will try max_open_read_retries times, each with a open_read_retry_time timeout.

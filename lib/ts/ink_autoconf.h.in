@@ -90,8 +90,14 @@
 /* Define to 1 if you have the <google/profiler.h> header file. */
 #undef HAVE_GOOGLE_PROFILER_H
 
+/* Define to 1 if you have the `hcreate_r' function. */
+#undef HAVE_HCREATE_R
+
 /* Define to 1 if you have the <history.h> header file. */
 #undef HAVE_HISTORY_H
+
+/* Define to 1 if you have the `hsearch_r' function. */
+#undef HAVE_HSEARCH_R
 
 /* Define to 1 if you have the <hwloc.h> header file. */
 #undef HAVE_HWLOC_H
@@ -128,6 +134,9 @@
 
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
+
+/* Using libxml2 */
+#undef HAVE_LIBXML2
 
 /* Define to 1 if you have the `lrand48_r' function. */
 #undef HAVE_LRAND48_R
@@ -255,6 +264,9 @@
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
 
+/* Define to 1 if you have the <search.h> header file. */
+#undef HAVE_SEARCH_H
+
 /* Define to 1 if you have the <siginfo.h> header file. */
 #undef HAVE_SIGINFO_H
 
@@ -328,6 +340,12 @@
 /* Define to 1 if you have the <sys/cpuset.h> header file. */
 #undef HAVE_SYS_CPUSET_H
 
+/* Define to 1 if you have the <sys/disklabel.h> header file. */
+#undef HAVE_SYS_DISKLABEL_H
+
+/* Define to 1 if you have the <sys/disk.h> header file. */
+#undef HAVE_SYS_DISK_H
+
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
 
@@ -357,6 +375,12 @@
 
 /* Define to 1 if you have the <sys/sockio.h> header file. */
 #undef HAVE_SYS_SOCKIO_H
+
+/* Define to 1 if you have the <sys/statfs.h> header file. */
+#undef HAVE_SYS_STATFS_H
+
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#undef HAVE_SYS_STATVFS_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
@@ -397,6 +421,9 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE

@@ -63,6 +63,7 @@
 #define MGMT_EVENT_HTTP_CLUSTER_DELTA    10007
 #define MGMT_EVENT_ROLL_LOG_FILES        10008
 #define MGMT_EVENT_LIBRECORDS            10009
+#define MGMT_EVENT_CONFIG_FILE_UPDATE_NO_INC_VERSION   10010
 
 /***********************************************************************
  *
@@ -92,17 +93,6 @@
 #define MGMT_SIGNAL_LIBRECORDS            16
 #define MGMT_SIGNAL_HTTP_CONGESTED_SERVER   20  /* Congestion control -- congested server */
 #define MGMT_SIGNAL_HTTP_ALLEVIATED_SERVER  21  /* Congestion control -- alleviated server */
-
-// Wireless (WDA) plugin signal
-// Warning: 1. Don't change the # mapping 'cuase 3rd party software depends on them.
-//          2. Ensure 1:1 maps with alarms in Alarm.h
-#define INK_MGMT_SIGNAL_WDA_BILLING_CONNECTION_DIED  100
-#define INK_MGMT_SIGNAL_WDA_BILLING_CORRUPTED_DATA   101
-#define INK_MGMT_SIGNAL_WDA_XF_ENGINE_DOWN           102
-#define INK_MGMT_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS 103
-
-#define INK_MGMT_SIGNAL_ACC_ALARMS_START  200
-#define INK_MGMT_SIGNAL_ACC_ALARMS_END    299
 
 #define INK_MGMT_SIGNAL_SAC_SERVER_DOWN			400
 

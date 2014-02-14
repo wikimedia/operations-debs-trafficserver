@@ -5031,15 +5031,11 @@ TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout)
 }
 
 
+// TS-2196: TSHttpTxnCacheLookupSkip will be removed in the 5.x release.
 TSReturnCode
 TSHttpTxnCacheLookupSkip(TSHttpTxn txnp)
 {
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-
-  HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
-  s->api_skip_cache_lookup = true;
-
-  return TS_SUCCESS;
+  return TSHttpTxnConfigIntSet(txnp, TS_CONFIG_HTTP_CACHE_HTTP, 0);
 }
 
 TSReturnCode
@@ -5209,7 +5205,8 @@ TSHttpTxnClientAddrGet(TSHttpTxn txnp)
 }
 
 sockaddr const*
-TSHttpSsnIncomingAddrGet(TSHttpSsn ssnp) {
+TSHttpSsnIncomingAddrGet(TSHttpSsn ssnp)
+{
   HttpClientSession *cs = reinterpret_cast<HttpClientSession *>(ssnp);
 
   if (cs == NULL) return 0;
@@ -5220,7 +5217,8 @@ TSHttpSsnIncomingAddrGet(TSHttpSsn ssnp) {
   return vc->get_local_addr();
 }
 sockaddr const*
-TSHttpTxnIncomingAddrGet(TSHttpTxn txnp) {
+TSHttpTxnIncomingAddrGet(TSHttpTxn txnp)
+{
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
  
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
@@ -6760,6 +6758,7 @@ TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_objec
                                               (bool) mode & TS_LOG_MODE_ADD_TIMESTAMP,
                                               NULL,
                                               Log::config->rolling_enabled,
+                                              Log::config->collation_preproc_threads,
                                               Log::config->rolling_interval_sec,
                                               Log::config->rolling_offset_hr,
                                               Log::config->rolling_size_mb));
@@ -6794,6 +6793,7 @@ TSTextLogObjectWrite(TSTextLogObject the_object, const char *format, ...)
   switch (((TextLogObject *) the_object)->va_write(format, ap)) {
   case (Log::LOG_OK):
   case (Log::SKIP):
+  case (Log::AGGR):
     break;
   case (Log::FULL):
     retVal = TS_ERROR;
@@ -6973,18 +6973,6 @@ TSMgmtConfigIntSet(const char *var_name, TSMgmtInt value)
   RecSignalManager(MGMT_SIGNAL_PLUGIN_SET_CONFIG, buffer);
 
   return TS_SUCCESS;
-}
-
-
-/* Alarm */
-/* return type is "int" currently, it should be TSReturnCode */
-void
-TSSignalWarning(TSAlarmType code, char *msg)
-{
-  sdk_assert(code >= TS_SIGNAL_WDA_BILLING_CONNECTION_DIED && code <= TS_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)msg) == TS_SUCCESS);
-
-  REC_SignalWarning(code, msg);
 }
 
 void
@@ -8217,7 +8205,7 @@ TSPortDescriptorParse(const char * descriptor)
 TSReturnCode
 TSPortDescriptorAccept(TSPortDescriptor descp, TSCont contp)
 {
-  Action * action;
+  Action * action = NULL;
   HttpProxyPort * port = (HttpProxyPort *)descp;
   NetProcessor::AcceptOptions net(make_net_accept_options(*port, 0 /* nthreads */));
 
@@ -8229,6 +8217,23 @@ TSPortDescriptorAccept(TSPortDescriptor descp, TSCont contp)
 
   return action ? TS_SUCCESS : TS_ERROR;
 }
+
+TSReturnCode
+TSPluginDescriptorAccept(TSCont contp)
+{
+  Action * action = NULL;
+
+  HttpProxyPort::Group& proxy_ports = HttpProxyPort::global();
+  for ( int i = 0 , n = proxy_ports.length() ; i < n ; ++i ) {
+    HttpProxyPort& port = proxy_ports[i];
+    if (port.isPlugin()) {
+      NetProcessor::AcceptOptions net(make_net_accept_options(port, 0 /* nthreads */));
+      action = netProcessor.main_accept((INKContInternal *)contp, port.m_fd, net);
+    }
+  }
+  return action ? TS_SUCCESS : TS_ERROR;
+}
+
 
 int
 TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp)

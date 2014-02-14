@@ -1,3 +1,5 @@
+.. _balancer-plugin:
+
 Balancer Plugin
 ***************
 

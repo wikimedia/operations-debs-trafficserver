@@ -1,29 +1,28 @@
+.. _security-options:
+
 Security Options
 ****************
 
 .. Licensed to the Apache Software Foundation (ASF) under one
    or more contributor license agreements.  See the NOTICE file
-  distributed with this work for additional information
-  regarding copyright ownership.  The ASF licenses this file
-  to you under the Apache License, Version 2.0 (the
-  "License"); you may not use this file except in compliance
-  with the License.  You may obtain a copy of the License at
- 
-   http://www.apache.org/licenses/LICENSE-2.0
- 
-  Unless required by applicable law or agreed to in writing,
-  software distributed under the License is distributed on an
-  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-  KIND, either express or implied.  See the License for the
-  specific language governing permissions and limitations
-  under the License.
+   distributed with this work for additional information
+   regarding copyright ownership.  The ASF licenses this file
+   to you under the Apache License, Version 2.0 (the
+   "License"); you may not use this file except in compliance
+   with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License.
 
 Traffic Server provides a number of security features.
 
-This chapter discusses the following topics:
-
-.. toctree::
-   :maxdepth: 2
+.. _controlling-client-access-to-cache:
 
 Controlling Client Access to the Proxy Cache
 ============================================
@@ -31,11 +30,12 @@ Controlling Client Access to the Proxy Cache
 You can configure Traffic Server to allow only certain clients to use
 the proxy cache by editing a configuration file.
 
-2. Add a line in the file ``ip_allow.config`` for each IP address or
-   range of IP addresses allowed to access Traffic Server (refer to
-   `ip_allow.config <configuration-files/ip_allow.config>`_).
-3. Run the command ``traffic_line -x`` to apply the configuration
+#. Add a line in :file:`ip_allow.config` for each IP address or
+   range of IP addresses allowed to access Traffic Server.
+#. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
+
+.. _configuring-dns-server-selection-split-dns:
 
 Configuring DNS Server Selection (Split DNS)
 ============================================
@@ -57,13 +57,13 @@ To configure Split DNS, you must do the following:
 
 To do this, we
 
-2. Add rules to the ``splitdns.config`` file. (Refer to
-   ```splitdns.config`` <../configuration-files/splitdns.config>`_.
-3. In the file :file:`records.config` the variable
-   `*``proxy.process.dns.splitDNS.enabled``* <configuration-files/records.config#proxy.process.dns.splitDNS.enabled>`_
-   to ``1`` to enable split DNS.
-4. Run the command ``traffic_line -x`` to apply the configuration
+#. Add rules to :file:`splitdns.config`.
+#. In :file:`records.config` set the variable
+   :ts:cv:`proxy.config.dns.splitDNS.enabled` to ``1`` to enable split DNS.
+#. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
+
+.. _configuring-ssl-termination:
 
 Using SSL Termination
 =====================
@@ -76,24 +76,22 @@ The following sections describe how to enable and configure the SSL
 termination option.
 
 -  Enable and configure SSL termination for client/Traffic Server
-   connections: `Client and Traffic Server
-   Connections <#ClientTSConnections>`_.
+   connections: :ref:`client-and-traffic-server-connections`
 -  Enable and configure SSL termination for Traffic Server/origin server
-   connections: `Traffic Server and Origin Server
-   Connections <#TSOriginServerConnections>`_.
+   connections: :ref:`traffic-server-and-origin-server-connections`
 -  Enable and configure SSL termination for both client/Traffic Server
-   and Traffic Server/origin server connections: `Client and Traffic
-   Server Connections <#ClientTSConnections>`_ and `Traffic Server and
-   Origin Server Connections <#TSOriginServerConnections>`_,
-   respectively.
+   and Traffic Server/origin server connections:  :ref:`client-and-traffic-server-connections`
+   :ref:`traffic-server-and-origin-server-connections`, respectively.
+
+.. _client-and-traffic-server-connections:
 
 Client and Traffic Server Connections
 -------------------------------------
 
 The figure below illustrates communication between a client and Traffic
 Server (and between Traffic Server and an origin server) when the SSL
-termination option is enabled & configured for\ *\* client/Traffic
-Server connections only*\ \*.
+termination option is enabled & configured for **client/Traffic
+Server connections only**.
 
 .. figure:: ../static/images/admin/ssl_c.jpg
    :align: center
@@ -103,24 +101,11 @@ Server connections only*\ \*.
 
 The figure above depicts the following:
 
-**Step 1:** The client sends an HTTPS request for content. Traffic
-Server receives the request and performs the SSL 'handshake' to
-authenticate the client (depending on the authentication options
-configured) and determine the encryption method that will be used. If
-the client is allowed access, then Traffic Server checks its cache for
-the requested content.
+#. The client sends an HTTPS request for content. Traffic Server receives the request and performs the SSL 'handshake' to authenticate the client (depending on the authentication options configured) and determine the encryption method that will be used. If the client is allowed access, then Traffic Server checks its cache for the requested content.  
 
-**Step 2:** If the request is a cache hit and the content is fresh, then
-Traffic Server encrypts the content and sends it to the client. The
-client decrypts the content (using the method determined during the
-handshake) and displays it.
+#. If the request is a cache hit and the content is fresh, then Traffic Server encrypts the content and sends it to the client. The client decrypts the content (using the method determined during the handshake) and displays it.
 
-**Step 3:** If the request is a cache miss or cached content is stale,
-then Traffic Server communicates with the origin server via HTTP and
-obtains a plain text version of the content. Traffic Server saves the
-plain text version of the content in its cache, encrypts the content,
-and sends it to the client. The client decrypts and displays the
-content.
+#. If the request is a cache miss or cached content is stale, then Traffic Server communicates with the origin server via HTTP and obtains a plain text version of the content. Traffic Server saves the plain text version of the content in its cache, encrypts the content, and sends it to the client. The client decrypts and displays the content.
 
 To configure Traffic Server to use the SSL termination option for
 client/Traffic Server connections, you must do the following:
@@ -130,10 +115,10 @@ client/Traffic Server connections, you must do the following:
    information that enables the client to authenticate Traffic Server
    and exchange encryption keys.
 -  Configure SSL termination options:
--  Enable the **SSL termination** option.
 
-   -  Set the port number used for SSL communication.
-   -  Specify the filename and location of the server certificate.
+   -  Set the port number used for SSL communication using :ts:cv:`proxy.config.http.server_ports`.
+   -  Edit :file:`ssl_multicert.config` to specify the filename and location of the
+      SSL certificates and provate keys.
    -  (Optional) Configure the use of client certificates: Client
       certificates are located on the client. If you configure Traffic
       Server to require client certificates, then Traffic Server
@@ -141,35 +126,30 @@ client/Traffic Server connections, you must do the following:
       authenticates the client. If you configure Traffic Server to *not*
       require client certificates, then access to Traffic Server is
       managed through other Traffic Server options that have been set
-      (such as rules in the
-      ```ip_allow.config`` <configuration-files/ip_allow.config>`_
-      file).
-   -  Specify the filename and location of the Traffic Server private
-      key (if the private key is not located in the server certificate
-      file). Traffic Server uses its private key during the SSL
-      handshake to decrypt the session encryption keys. The private key
-      must be stored and protected against theft.
+      (such as rules in :file:`ip_allow.config`).
    -  (Optional) Configure the use of Certification Authorities (CAs).
       CAs add security by verifying the identity of the person
       requesting a certificate.
 
 In order to accomplish this, we
 
-2. Edit the following variables in the ``SSL Termination`` section of
-   the :file:`records.config` file:
+#. Edit the following variables in the :ref:`records-config-ssl-termination` section of
+   :file:`records.config`
 
-   -  `*``proxy.config.ssl.enabled``* <configuration-files/records.config#proxy.config.ssl.enabled>`_
-   -  `*``proxy.config.ssl.server_port``* <configuration-files/records.config#proxy.config.ssl.server_port>`_
-   -  `*``proxy.config.ssl.client.certification_level``* <configuration-files/records.config#proxy.config.ssl.client.certification_level>`_
-   -  `*``proxy.config.ssl.server.cert.path``* <configuration-files/records.config#proxy.config.ssl.server.cert.path>`_
-   -  `*``proxy.config.ssl.server.private_key.filename``* <configuration-files/records.config#proxy.config.ssl.server.private_key.filename>`_
-   -  `*``proxy.config.ssl.server.private_key.path``* <configuration-files/records.config#proxy.config.ssl.server.private_key.path>`_
-   -  `*``proxy.config.ssl.CA.cert.filename``* <configuration-files/records.config#proxy.config.ssl.CA.cert.filename>`_
-   -  `*``proxy.config.ssl.CA.cert.path``* <configuration-files/records.config#proxy.config.ssl.CA.cert.path>`_
+   -  :ts:cv:`proxy.config.http.server_ports`
+   -  :ts:cv:`proxy.config.ssl.client.certification_level`
+   -  :ts:cv:`proxy.config.ssl.server.cert.path`
+   -  :ts:cv:`proxy.config.ssl.server.private_key.path`
+   -  :ts:cv:`proxy.config.ssl.CA.cert.path`
 
-3. Run the command ``traffic_line -L`` to restart Traffic Server on the
-   local node or ``traffic_line -M`` to restart Traffic Server on all
+#. Run the command :option:`traffic_line -L` to restart Traffic Server on the
+   local node or :option:`traffic_line -M` to restart Traffic Server on all
    the nodes in a cluster.
+
+
+.. This numbering is ridiculous.
+
+.. _traffic-server-and-origin-server-connections:
 
 Traffic Server and Origin Server Connections
 --------------------------------------------
@@ -228,20 +208,22 @@ Traffic Server and origin server connections, you must do the following:
 
 In order to accomplish this, we:
 
-2. Edit the following variables in the ``SSL Termination`` section of
-   the :file:`records.config` file:
+.. This numbering is ridiculous. I need to re-read this doc with a fresh mind and re(number|order) it.
 
-   -  `*``proxy.config.ssl.auth.enabled``* <configuration-files/records.config#proxy.config.ssl.auth.enabled>`_
-   -  ```proxy.config.ssl.server_port`` <configuration-files/records.config#proxy.config.ssl.server_port>`_
-   -  ```proxy.config.ssl.client.verify.server`` <configuration-files/records.config#proxy.config.ssl.client.verify.server>`_
-   -  ```proxy.config.ssl.client.cert.filename`` <configuration-files/records.config#proxy.config.ssl.client.cert.filename>`_
-   -  ```proxy.config.ssl.client.cert.path`` <configuration-files/records.config#proxy.config.ssl.client.cert.path>`_
-   -  ```proxy.config.ssl.client.private_key.filename`` <configuration-files/records.config#proxy.config.ssl.client.private_key.filename>`_
-   -  ```proxy.config.ssl.client.private_key.path`` <configuration-files/records.config#proxy.config.ssl.client.private_key.path>`_
-   -  ```proxy.config.ssl.client.CA.cert.filename`` <configuration-files/records.config#proxy.config.ssl.client.CA.cert.filename>`_
-   -  ```proxy.config.ssl.client.CA.cert.path`` <configuration-files/records.config#proxy.config.ssl.client.CA.cert.path>`_
+2. Edit the following variables in the :ref:`records-config-ssl-termination` section of
+   :file:`records.config`:
 
-3. Run the command ``traffic_line -L`` to restart Traffic Server on the
-   local node or ``traffic_line -M`` to restart Traffic Server on all
+   -  :ts:cv:`proxy.config.ssl.auth.enabled`
+   -  :ts:cv:`proxy.config.http.server_ports`
+   -  :ts:cv:`proxy.config.ssl.client.verify.server`
+   -  :ts:cv:`proxy.config.ssl.client.cert.filename`
+   -  :ts:cv:`proxy.config.ssl.client.cert.path`
+   -  :ts:cv:`proxy.config.ssl.client.private_key.filename`
+   -  :ts:cv:`proxy.config.ssl.client.private_key.path`
+   -  :ts:cv:`proxy.config.ssl.client.CA.cert.filename`
+   -  :ts:cv:`proxy.config.ssl.client.CA.cert.path`
+
+3. Run the command :option:`traffic_line -L` to restart Traffic Server on the
+   local node or :option:`traffic_line -M` to restart Traffic Server on all
    the nodes in a cluster.
 

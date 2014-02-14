@@ -110,20 +110,20 @@ extern "C"
   tsapi void TSHttpTxnServerRequestBodySet(TSHttpTxn txnp, char *buf, int64_t buflength);
 
   /* ===== High Resolution Time ===== */
-#define TS_HRTIME_FOREVER  HRTIME_FOREVER
-#define TS_HRTIME_DECADE   HRTIME_DECADE
-#define TS_HRTIME_YEAR     HRTIME_YEAR
-#define TS_HRTIME_WEEK     HRTIME_WEEK
-#define TS_HRTIME_DAY      HRTIME_DAY
-#define TS_HRTIME_HOUR     HRTIME_HOUR
-#define TS_HRTIME_MINUTE   HRTIME_MINUTE
-#define TS_HRTIME_SECOND   HRTIME_SECOND
-#define TS_HRTIME_MSECOND  HRTIME_MSECOND
-#define TS_HRTIME_USECOND  HRTIME_USECOND
-#define TS_HRTIME_NSECOND  HRTIME_NSECOND
+#define TS_HRTIME_FOREVER  (10*TS_HRTIME_DECADE)
+#define TS_HRTIME_DECADE   (10*TS_HRTIME_YEAR)
+#define TS_HRTIME_YEAR     (365*TS_HRTIME_DAY+TS_HRTIME_DAY/4)
+#define TS_HRTIME_WEEK     (7*TS_HRTIME_DAY)
+#define TS_HRTIME_DAY      (24*TS_HRTIME_HOUR)
+#define TS_HRTIME_HOUR     (60*TS_HRTIME_MINUTE)
+#define TS_HRTIME_MINUTE   (60*TS_HRTIME_SECOND)
+#define TS_HRTIME_SECOND   (1000*TS_HRTIME_MSECOND)
+#define TS_HRTIME_MSECOND  (1000*TS_HRTIME_USECOND)
+#define TS_HRTIME_USECOND  (1000*TS_HRTIME_NSECOND)
+#define TS_HRTIME_NSECOND  (1LL)
 
-#define TS_HRTIME_APPROX_SECONDS(_x) HRTIME_APPROX_SECONDS(_x)
-#define TS_HRTIME_APPROX_FACTOR      HRTIME_APPROX_FACTOR
+#define TS_HRTIME_APPROX_SECONDS(_x) ((_x)>>30)    // off by 7.3%
+#define TS_HRTIME_APPROX_FACTOR      (((float)(1<<30))/(((float)HRTIME_SECOND)))
 
   /*
 ////////////////////////////////////////////////////////////////////
@@ -132,15 +132,15 @@ extern "C"
 //
 ////////////////////////////////////////////////////////////////////
 */
-#define TS_HRTIME_YEARS(_x)    HRTIME_YEARS(_x)
-#define TS_HRTIME_WEEKS(_x)    HRTIME_WEEKS(_x)
-#define TS_HRTIME_DAYS(_x)     HRTIME_DAYS(_x)
-#define TS_HRTIME_HOURS(_x)    HRTIME_HOURS(_x)
-#define TS_HRTIME_MINUTES(_x)  HRTIME_MINUTES(_x)
-#define TS_HRTIME_SECONDS(_x)  HRTIME_SECONDS(_x)
-#define TS_HRTIME_MSECONDS(_x) HRTIME_MSECONDS(_x)
-#define TS_HRTIME_USECONDS(_x) HRTIME_USECONDS(_x)
-#define TS_HRTIME_NSECONDS(_x) HRTIME_NSECONDS(_x)
+#define TS_HRTIME_YEARS(_x)    ((_x)*TS_HRTIME_YEAR)
+#define TS_HRTIME_WEEKS(_x)    ((_x)*TS_HRTIME_WEEK)
+#define TS_HRTIME_DAYS(_x)     ((_x)*TS_HRTIME_DAY)
+#define TS_HRTIME_HOURS(_x)    ((_x)*TS_HRTIME_HOUR)
+#define TS_HRTIME_MINUTES(_x)  ((_x)*TS_HRTIME_MINUTE)
+#define TS_HRTIME_SECONDS(_x)  ((_x)*TS_HRTIME_SECOND)
+#define TS_HRTIME_MSECONDS(_x) ((_x)*TS_HRTIME_MSECOND)
+#define TS_HRTIME_USECONDS(_x) ((_x)*TS_HRTIME_USECOND)
+#define TS_HRTIME_NSECONDS(_x) ((_x)*TS_HRTIME_NSECOND)
 
   tsapi TSReturnCode TSHttpTxnCachedRespTimeGet(TSHttpTxn txnp, time_t *resp_time);
 
@@ -183,10 +183,13 @@ extern "C"
    ****************************************************************************/
   tsapi TSReturnCode TSHttpTxnCacheLookupCountGet(TSHttpTxn txnp, int *lookup_count);
   tsapi TSReturnCode TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc);
-  tsapi TSReturnCode TSHttpTxnCacheLookupSkip(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnServerRespIgnore(TSHttpTxn txnp);
   tsapi TSReturnCode TSHttpTxnShutDown(TSHttpTxn txnp, TSEvent event);
   tsapi TSReturnCode TSHttpTxnCloseAfterResponse(TSHttpTxn txnp, int should_close);
+
+  // TS-2195: TSHttpTxnCacheLookupSkip() is deprecated, because TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_CACHE_HTTP, 0)
+  // does the same thing, but better. TSHttpTxnCacheLookupSkip will be removed in TrafficServer 5.0.
+  tsapi TS_DEPRECATED TSReturnCode TSHttpTxnCacheLookupSkip(TSHttpTxn txnp);
 
   // TS-1996: These API swill be removed after v3.4.0 is cut. Do not use them!
   tsapi TSReturnCode TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc);
@@ -215,6 +218,22 @@ extern "C"
    *  TODO: This returns a LookingUp_t value, we need to SDK'ify it.
    ****************************************************************************/
   tsapi int TSHttpTxnLookingUpTypeGet(TSHttpTxn txnp);
+
+  /**
+     Attempt to attach the contp continuation to sockets that have already been
+     opened by the traffic manager and defined as belonging to plugins (based on
+     records.config configuration). If a connection is successfully accepted,
+     the TS_EVENT_NET_ACCEPT is delivered to the continuation. The event
+     data will be a valid TSVConn bound to the accepted connection.
+     In order to configure such a socket, add the "plugin" keyword to a port
+     in proxy.config.http.server_ports like "8082:plugin"
+     Transparency/IP settings can also be defined, but a port cannot have
+     both the "ssl" or "plugin" keywords configured.
+
+     Need to update records.config comments on proxy.config.http.server_ports
+     when this option is promoted from experimental.
+   */
+  tsapi TSReturnCode TSPluginDescriptorAccept(TSCont contp);
 
 
   /**
@@ -311,23 +330,8 @@ extern "C"
 #define TS_NET_EVENT_DATAGRAM_WRITE_COMPLETE TS_EVENT_INTERNAL_208
 #define TS_NET_EVENT_DATAGRAM_WRITE_ERROR    TS_EVENT_INTERNAL_209
 #define TS_NET_EVENT_DATAGRAM_READ_READY     TS_EVENT_INTERNAL_210
-#define TS_NET_EVENT_DATAGRAM_OPEN	      TS_EVENT_INTERNAL_211
+#define TS_NET_EVENT_DATAGRAM_OPEN           TS_EVENT_INTERNAL_211
 #define TS_NET_EVENT_DATAGRAM_ERROR          TS_EVENT_INTERNAL_212
-
-  typedef enum
-    {
-      TS_SIGNAL_WDA_BILLING_CONNECTION_DIED = 100,
-      TS_SIGNAL_WDA_BILLING_CORRUPTED_DATA = 101,
-      TS_SIGNAL_WDA_XF_ENGINE_DOWN = 102,
-      TS_SIGNAL_WDA_RADIUS_CORRUPTED_PACKETS = 103
-    } TSAlarmType;
-
-  /* ===== Alarm ===== */
-  /****************************************************************************
-   *  ??
-   *  contact: OXYGEN
-   ****************************************************************************/
-  tsapi void TSSignalWarning(TSAlarmType code, char *msg);
 
   /*****************************************************************************
    * 			Cluster RPC API support 			     *

@@ -42,9 +42,7 @@
 #include "LogConfig.h"
 #include "Log.h"
 
-#if defined(IOCORE_LOG_COLLATION)
 #include "LogCollationClientSM.h"
-#endif
 
 #define PING 	true
 #define NOPING 	false
@@ -53,7 +51,7 @@
   LogHost
   -------------------------------------------------------------------------*/
 
-LogHost::LogHost(char *object_filename, uint64_t object_signature)
+LogHost::LogHost(const char *object_filename, uint64_t object_signature)
   : m_object_filename(ats_strdup(object_filename)),
     m_object_signature(object_signature),
     m_port(0),
@@ -62,9 +60,7 @@ LogHost::LogHost(char *object_filename, uint64_t object_signature)
     m_sock_fd(-1),
     m_connected(false),
     m_orphan_file(NULL)
-#if defined (IOCORE_LOG_COLLATION)
   , m_log_collation_client_sm(NULL)
-#endif
 {
   ink_zero(m_ip);
   ink_zero(m_ipstr);
@@ -80,9 +76,7 @@ LogHost::LogHost(const LogHost & rhs)
     m_sock_fd(-1),
     m_connected(false),
     m_orphan_file(NULL)
-#if defined (IOCORE_LOG_COLLATION)
   , m_log_collation_client_sm(NULL)
-#endif
 {
   memcpy(m_ipstr, rhs.m_ipstr, sizeof(m_ipstr));
   create_orphan_LogFile_object();
@@ -111,13 +105,6 @@ LogHost::set_name_port(char *hostname, unsigned int pt)
 
   clear();                      // remove all previous state for this LogHost
 
-#if !defined(IOCORE_LOG_COLLATION)
-  IpEndpoint ip4, ip6;
-  m_ip.invalidate();
-  if (0 == ats_ip_getbestaddrinfo(hostname, &ip4, &ip6))
-    m_ip.assign(ip4.isIp4() ? &ip4 : &ip6)
-  m_ip.toString(m_ipstr, sizeof m_ipstr);
-#endif
   m_name = ats_strdup(hostname);
   m_port = pt;
 
@@ -254,14 +241,21 @@ LogHost::create_orphan_LogFile_object()
 
   // should check for conflicts with orphan filename
   //
-  m_orphan_file = NEW(new LogFile(name_buf, NULL, ASCII_LOG, m_object_signature));
+  m_orphan_file = NEW(new LogFile(name_buf, NULL, LOG_FILE_ASCII, m_object_signature));
   ink_assert(m_orphan_file != NULL);
   ats_free(name_buf);
 }
 
+//
+// preprocess the given buffer data before sent to target host
+// and try to delete it when its reference become zero.
+//
 int
-LogHost::write (LogBuffer *lb)
+LogHost::preproc_and_try_delete (LogBuffer *lb)
 {
+  int ret = -1;
+  int bytes;
+
   if (lb == NULL) {
     Note("Cannot write LogBuffer to LogHost %s; LogBuffer is NULL", name());
     return -1;
@@ -270,56 +264,12 @@ LogHost::write (LogBuffer *lb)
   if (buffer_header == NULL) {
     Note("Cannot write LogBuffer to LogHost %s; LogBufferHeader is NULL",
         name());
-    return -1;
+    goto done;
   }
   if (buffer_header->entry_count == 0) {
     // no bytes to write
-    return 0;
+    goto done;
   }
-
-#if !defined(IOCORE_LOG_COLLATION)
-
-  // make sure we're connected & authenticated
-
-  if (!connected(NOPING)) {
-    if (!connect ()) {
-      Note("Cannot write LogBuffer to LogHost %s; not connected",
-          name());
-      return orphan_write (lb);
-    }
-  }
-
-  // try sending the logbuffer
-
-  int bytes_to_send, bytes_sent;
-  bytes_to_send = buffer_header->byte_count;
-  // lb->convert_to_network_order();
-  bytes_sent = m_sock->write (m_sock_fd, buffer_header, bytes_to_send);
-  if (bytes_to_send != bytes_sent) {
-    Note("Bad write to LogHost %s; bad send count %d/%d",
-        name(), bytes_sent, bytes_to_send);
-    disconnect();
-    // TODO: We currently don't try to make the log buffers handle little vs big endian. TS-1156.
-    // lb->convert_to_host_order ();
-    return orphan_write (lb);
-  }
-
-  Debug("log-host","%d bytes sent to LogHost %s:%u", bytes_sent,
-      name(), port());
-  SUM_DYN_STAT (log_stat_bytes_sent_to_network_stat, bytes_sent);
-  return bytes_sent;
-
-#else // !defined(IOCORE_LOG_COLLATION)
-  // make a copy of our log_buffer
-  int buffer_header_size = buffer_header->byte_count;
-  LogBufferHeader *buffer_header_copy =
-      (LogBufferHeader*) NEW(new char[buffer_header_size]);
-  ink_assert(buffer_header_copy != NULL);
-
-  memcpy(buffer_header_copy, buffer_header, buffer_header_size);
-  LogBuffer *lb_copy = NEW(new LogBuffer(lb->get_owner(),
-          buffer_header_copy));
-  ink_assert(lb_copy != NULL);
 
   // create a new collation client if necessary
   if (m_log_collation_client_sm == NULL) {
@@ -328,39 +278,46 @@ LogHost::write (LogBuffer *lb)
   }
 
   // send log_buffer; orphan if necessary
-  int bytes_sent = m_log_collation_client_sm->send(lb_copy);
-  if (bytes_sent <= 0) {
-    orphan_write_and_delete(lb_copy);
+  bytes = m_log_collation_client_sm->send(lb);
+  if (bytes <= 0) {
+    orphan_write_and_try_delete(lb);
 #if defined(LOG_BUFFER_TRACKING)
-    Debug("log-buftrak", "[%d]LogHost::write - orphan write complete",
-        lb_copy->header()->id);
+    Debug("log-buftrak", "[%d]LogHost::preproc_and_try_delete - orphan write complete",
+        lb->header()->id);
 #endif // defined(LOG_BUFFER_TRACKING)
+    return -1;
   }
 
-  return bytes_sent;
+  return 0;
 
-#endif // !defined(IOCORE_LOG_COLLATION)
+done:
+  LogBuffer::destroy(lb);
+  return ret;
 }
 
-int
-LogHost::orphan_write(LogBuffer * lb)
+//
+// write the given buffer data to orhpan file and
+// try to delete it when its reference become zero.
+//
+void
+LogHost::orphan_write_and_try_delete(LogBuffer * lb)
 {
+  RecIncrRawStat(log_rsb, this_thread()->mutex->thread_holding,
+                 log_stat_num_lost_before_sent_to_network_stat,
+                 lb->header()->entry_count);
+
+  RecIncrRawStat(log_rsb, this_thread()->mutex->thread_holding,
+                 log_stat_bytes_lost_before_sent_to_network_stat,
+                 lb->header()->byte_count);
+
   if (!Log::config->logging_space_exhausted) {
     Debug("log-host", "Sending LogBuffer to orphan file %s", m_orphan_file->get_name());
-    return m_orphan_file->write(lb);
+    m_orphan_file->preproc_and_try_delete(lb);
   } else {
-    return 0;                   // nothing written
+    Debug("log-host", "logging space exhausted, failed to write orphan file, drop(%" PRIu32 ") bytes",
+         lb->header()->byte_count);
+    LogBuffer::destroy(lb);
   }
-}
-
-int
-LogHost::orphan_write_and_delete(LogBuffer * lb)
-{
-  int bytes = orphan_write(lb);
-  // done with the buffer, delete it
-  delete lb;
-  lb = 0;
-  return bytes;
 }
 
 void
@@ -457,15 +414,32 @@ LogHostList::clear()
 }
 
 int
-LogHostList::write(LogBuffer * lb)
+LogHostList::preproc_and_try_delete(LogBuffer * lb)
 {
-  int total_bytes = 0;
-  for (LogHost * host = first(); host; host = next(host)) {
-    int bytes = host->write(lb);
-    if (bytes > 0)
-      total_bytes += bytes;
+  int ret;
+  unsigned nr_host, nr;
+
+  ink_release_assert(lb->m_references == 0);
+
+  nr_host = nr = count();
+  ink_atomic_increment(&lb->m_references, nr_host);
+
+  for (LogHost * host = first(); host && nr; host = next(host)) {
+    LogHost *lh = host;
+
+    do {
+      ink_atomic_increment(&lb->m_references, 1);
+      ret = lh->preproc_and_try_delete(lb);
+    } while (ret < 0 && (lh = lh->failover_link.next));
+
+    LogBuffer::destroy(lb);
+    nr--;
   }
-  return total_bytes;
+
+  if (nr_host == 0)
+    delete lb;
+
+  return 0;
 }
 
 void

@@ -26,6 +26,7 @@
 #include "lib/gzip.h"
 
 #include <arpa/inet.h>
+#include <stdlib.h>
 
 using std::string;
 using namespace EsiLib;
@@ -180,11 +181,11 @@ HttpDataFetcherImpl::handleFetchEvent(TSEvent event, void *edata)
           for (BufferList::iterator iter = buf_list.begin(); iter != buf_list.end(); ++iter) {
             req_data.raw_response.append(iter->data(),iter->size());
           }
-          req_data.body_len = req_data.raw_response.size();
-          req_data.body = req_data.raw_response.data();
         } else {
           TSError("[%s] Error while gunzipping data", __FUNCTION__);
         }
+        req_data.body_len = req_data.raw_response.size();
+        req_data.body = req_data.raw_response.data();
       }
 
       for (CallbackObjectList::iterator list_iter = req_data.callback_objects.begin();
@@ -195,6 +196,12 @@ HttpDataFetcherImpl::handleFetchEvent(TSEvent event, void *edata)
     } else {
       TSDebug(_debug_tag, "[%s] Received non-OK status %d for request [%s]",
                __FUNCTION__, req_data.resp_status, req_str.data());
+
+      string empty_response = "";
+      for (CallbackObjectList::iterator list_iter = req_data.callback_objects.begin();
+           list_iter != req_data.callback_objects.end(); ++list_iter) {
+         (*list_iter)->processData(req_str.data(), req_str.size(), empty_response.data(), empty_response.size());
+      }
     }
   } else {
     TSDebug(_debug_tag, "[%s] Could not parse response for request [%s]",

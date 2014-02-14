@@ -1346,27 +1346,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.number_of_redirections, "proxy.config.http.number_of_redirections");
   HttpEstablishStaticConfigLongLong(c.post_copy_size, "proxy.config.http.post_copy_size");
 
-  // Transparency flag.
-  char buffer[10];
-  if (REC_ERR_OKAY ==  RecGetRecordString("proxy.config.http.transparent",
-					  buffer, sizeof(buffer))) {
-    if (0 == strcasecmp("both", buffer) ||
-	0 == strcasecmp("on", buffer) ||
-	0 == strcasecmp("enable", buffer)) {
-      c.client_transparency_enabled = true;
-      c.server_transparency_enabled = true;
-    } else if (0 == strcasecmp("server", buffer)) {
-      c.server_transparency_enabled = true;
-      c.client_transparency_enabled = false;
-    } else if (0 == strcasecmp("client", buffer)) {
-      c.server_transparency_enabled = false;
-      c.client_transparency_enabled = true;
-    } else {
-      c.server_transparency_enabled = false;
-      c.client_transparency_enabled = false;
-    }
-  }
-
   // Cluster time delta gets it own callback since it needs
   //  to use ink_atomic_swap
   c.cluster_time_delta = 0;
@@ -1544,10 +1523,10 @@ HttpConfig::reconfigure()
   params->oride.cache_urls_that_look_dynamic = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
   params->cache_enable_default_vary_headers = INT_TO_BOOL(m_master.cache_enable_default_vary_headers);
 
-  params->ignore_accept_mismatch = INT_TO_BOOL(m_master.ignore_accept_mismatch);
-  params->ignore_accept_language_mismatch = INT_TO_BOOL(m_master.ignore_accept_language_mismatch);
-  params->ignore_accept_encoding_mismatch = INT_TO_BOOL(m_master.ignore_accept_encoding_mismatch);
-  params->ignore_accept_charset_mismatch = INT_TO_BOOL(m_master.ignore_accept_charset_mismatch);
+  params->ignore_accept_mismatch = m_master.ignore_accept_mismatch;
+  params->ignore_accept_language_mismatch = m_master.ignore_accept_language_mismatch;
+  params->ignore_accept_encoding_mismatch = m_master.ignore_accept_encoding_mismatch;
+  params->ignore_accept_charset_mismatch = m_master.ignore_accept_charset_mismatch;
 
   params->oride.cache_when_to_revalidate = m_master.oride.cache_when_to_revalidate;
   params->cache_when_to_add_no_cache_to_msie_requests = m_master.cache_when_to_add_no_cache_to_msie_requests;
