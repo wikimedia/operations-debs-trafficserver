@@ -1335,7 +1335,7 @@ HttpTransact::HandleApiErrorJump(State* s)
     s->next_hop_scheme = URL_WKSIDX_HTTP;
   }
   // The client response may not be empty in the
-  // case the txn was reenabled in error by a plugin from hook SEND_REPONSE_HDR.
+  // case the txn was reenabled in error by a plugin from hook SEND_RESPONSE_HDR.
   // build_response doesn't clean the header. So clean it up before.
   // Do fields_clear() instead of clear() to prevent memory leak
   // and set the source to internal so chunking is handled correctly
@@ -1408,7 +1408,7 @@ HttpTransact::PPDNSLookup(State* s)
     // lookup succeeded, open connection to p.p.
     ats_ip_copy(&s->parent_info.addr, s->host_db_info.ip());
     get_ka_info_from_host_db(s, &s->parent_info, &s->client_info, &s->host_db_info);
-    s->parent_info.dns_round_robin = s->dns_info.round_robin;
+    s->parent_info.dns_round_robin = s->host_db_info.round_robin;
 
     char addrbuf[INET6_ADDRSTRLEN];
     DebugTxn("http_trans", "[PPDNSLookup] DNS lookup for sm_id[%" PRId64"] successful IP: %s",
@@ -1452,19 +1452,19 @@ void
 HttpTransact::ReDNSRoundRobin(State* s)
 {
   ink_assert(s->current.server == &s->server_info);
-  ink_assert(s->current.server->connect_failure);
+  ink_assert(s->current.server->had_connect_fail());
 
   if (s->dns_info.lookup_success) {
     // We using a new server now so clear the connection
     //  failure mark
-    s->current.server->connect_failure = 0;
+    s->current.server->clear_connect_fail();
 
     // Our ReDNS of the server succeeeded so update the necessary
     //  information and try again
     ats_ip_copy(&s->server_info.addr, s->host_db_info.ip());
     ats_ip_copy(&s->request_data.dest_ip, &s->server_info.addr);
     get_ka_info_from_host_db(s, &s->server_info, &s->client_info, &s->host_db_info);
-    s->server_info.dns_round_robin = s->dns_info.round_robin;
+    s->server_info.dns_round_robin = s->host_db_info.round_robin;
 
     char addrbuf[INET6_ADDRSTRLEN];
     DebugTxn("http_trans", "[ReDNSRoundRobin] DNS lookup for O.S. successful IP: %s",
@@ -1612,7 +1612,7 @@ HttpTransact::OSDNSLookup(State* s)
     // We've backed off from a client supplied address and found some
     // HostDB addresses. We use those if they're different from the CTA.
     // In all cases we now commit to client or HostDB for our source.
-    if (s->dns_info.round_robin) {
+    if (s->host_db_info.round_robin) {
       HostDBInfo* cta = s->host_db_info.rr()->select_next(&s->current.server->addr.sa);
       if (cta) {
         // found another addr, lock in host DB.
@@ -1635,7 +1635,7 @@ HttpTransact::OSDNSLookup(State* s)
   ats_ip_copy(&s->server_info.addr, s->host_db_info.ip());
   ats_ip_copy(&s->request_data.dest_ip, &s->server_info.addr);
   get_ka_info_from_host_db(s, &s->server_info, &s->client_info, &s->host_db_info);
-  s->server_info.dns_round_robin = s->dns_info.round_robin;
+  s->server_info.dns_round_robin = s->host_db_info.round_robin;
 
   char addrbuf[INET6_ADDRSTRLEN];
   DebugTxn("http_trans", "[OSDNSLookup] DNS lookup for O.S. successful "
@@ -2853,12 +2853,19 @@ HttpTransact::handle_cache_write_lock(State* s)
   //  we're tunneling response anyway
   if (remove_ims) {
     s->hdr_info.server_request.field_delete(MIME_FIELD_IF_MODIFIED_SINCE, MIME_LEN_IF_MODIFIED_SINCE);
+    s->hdr_info.server_request.field_delete(MIME_FIELD_IF_NONE_MATCH, MIME_LEN_IF_NONE_MATCH);
     MIMEField *c_ims = s->hdr_info.client_request.field_find(MIME_FIELD_IF_MODIFIED_SINCE, MIME_LEN_IF_MODIFIED_SINCE);
+    MIMEField *c_inm = s->hdr_info.client_request.field_find(MIME_FIELD_IF_NONE_MATCH, MIME_LEN_IF_NONE_MATCH);
 
     if (c_ims) {
       int len;
       const char *value = c_ims->value_get(&len);
       s->hdr_info.server_request.value_set(MIME_FIELD_IF_MODIFIED_SINCE, MIME_LEN_IF_MODIFIED_SINCE, value, len);
+    }
+    if (c_inm) {
+      int len;
+      const char *value = c_inm->value_get(&len);
+      s->hdr_info.server_request.value_set(MIME_FIELD_IF_NONE_MATCH, MIME_LEN_IF_NONE_MATCH, value, len);
     }
   }
 
@@ -3356,7 +3363,7 @@ HttpTransact::handle_response_from_parent(State* s)
   switch (s->current.state) {
   case CONNECTION_ALIVE:
     DebugTxn("http_trans", "[hrfp] connection alive");
-    s->current.server->connect_failure = 0;
+    s->current.server->connect_result = 0;
     SET_VIA_STRING(VIA_DETAIL_PP_CONNECT, VIA_DETAIL_PP_SUCCESS);
     if (s->parent_result.retry) {
       s->parent_params->recordRetrySuccess(&s->parent_result);
@@ -3371,7 +3378,7 @@ HttpTransact::handle_response_from_parent(State* s)
 
       ink_assert(s->hdr_info.server_request.valid());
 
-      s->current.server->connect_failure = 1;
+      s->current.server->connect_result = ENOTCONN;
 
       char addrbuf[INET6_ADDRSTRLEN];
       DebugTxn("http_trans", "[%d] failed to connect to parent %s", s->current.attempts,
@@ -3481,14 +3488,14 @@ HttpTransact::handle_response_from_server(State* s)
   case CONNECTION_ALIVE:
     DebugTxn("http_trans", "[hrfs] connection alive");
     SET_VIA_STRING(VIA_DETAIL_SERVER_CONNECT, VIA_DETAIL_SERVER_SUCCESS);
-    s->current.server->connect_failure = 0;
+    s->current.server->clear_connect_fail();
     handle_forward_server_connection_open(s);
     break;
   case CONGEST_CONTROL_CONGESTED_ON_F:
   case CONGEST_CONTROL_CONGESTED_ON_M:
     DebugTxn("http_trans", "[handle_response_from_server] Error. congestion control -- congested.");
     SET_VIA_STRING(VIA_DETAIL_SERVER_CONNECT, VIA_DETAIL_SERVER_FAILURE);
-    s->current.server->connect_failure = 1;
+    s->current.server->set_connect_fail(EUSERS); // too many users
     handle_server_connection_not_open(s);
     break;
   case OPEN_RAW_ERROR:
@@ -3504,7 +3511,10 @@ HttpTransact::handle_response_from_server(State* s)
   case CONNECTION_CLOSED:
     /* fall through */
   case BAD_INCOMING_RESPONSE:
-    s->current.server->connect_failure = 1;
+    // Set to generic I/O error if not already set specifically.
+    if (!s->current.server->had_connect_fail())
+      s->current.server->set_connect_fail(EIO);
+
     if (is_server_negative_cached(s)) {
       max_connect_retries = s->txn_conf->connect_attempts_max_retries_dead_server;
     } else {
@@ -3549,7 +3559,7 @@ HttpTransact::handle_response_from_server(State* s)
   case ACTIVE_TIMEOUT:
     DebugTxn("http_trans", "[hrfs] connection not alive");
     SET_VIA_STRING(VIA_DETAIL_SERVER_CONNECT, VIA_DETAIL_SERVER_FAILURE);
-    s->current.server->connect_failure = 1;
+    s->current.server->set_connect_fail(ETIMEDOUT);
     handle_server_connection_not_open(s);
     break;
   default:
@@ -3582,7 +3592,7 @@ HttpTransact::delete_server_rr_entry(State* s, int max_retries)
   DebugTxn("http_trans", "[%d] failed to connect to %s", s->current.attempts,
         ats_ip_ntop(&s->current.server->addr.sa, addrbuf, sizeof(addrbuf)));
   DebugTxn("http_trans", "[delete_server_rr_entry] marking rr entry " "down and finding next one");
-  ink_assert(s->current.server->connect_failure);
+  ink_assert(s->current.server->had_connect_fail());
   ink_assert(s->current.request_to == ORIGIN_SERVER);
   ink_assert(s->current.server == &s->server_info);
   update_dns_info(&s->dns_info, &s->current, 0, &s->arena);
@@ -3609,7 +3619,7 @@ HttpTransact::retry_server_connection_not_open(State* s, ServerState_t conn_stat
   ink_assert(s->current.state != CONNECTION_ALIVE);
   ink_assert(s->current.state != ACTIVE_TIMEOUT);
   ink_assert(s->current.attempts <= max_retries);
-  ink_assert(s->current.server->connect_failure != 0);
+  ink_assert(s->current.server->had_connect_fail());
   char addrbuf[INET6_ADDRSTRLEN];
 
   char *url_string = s->hdr_info.client_request.url_string_get(&s->arena);
@@ -3660,7 +3670,7 @@ HttpTransact::handle_server_connection_not_open(State* s)
   DebugTxn("http_trans", "[handle_server_connection_not_open] (hscno)");
   DebugTxn("http_seq", "[HttpTransact::handle_server_connection_not_open] ");
   ink_assert(s->current.state != CONNECTION_ALIVE);
-  ink_assert(s->current.server->connect_failure != 0);
+  ink_assert(s->current.server->had_connect_fail());
 
   SET_VIA_STRING(VIA_SERVER_RESULT, VIA_SERVER_ERROR);
   HTTP_INCREMENT_TRANS_STAT(http_broken_server_connections_stat);
@@ -4160,7 +4170,6 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State* s)
     // precondition: s->cache_info.action is one of the following
     // CACHE_DO_UPDATE, CACHE_DO_WRITE, or CACHE_DO_DELETE
     if (s->api_server_response_no_store) {
-      s->api_server_response_no_store = false;
       s->cache_info.action = CACHE_DO_NO_ACTION;
     } else if (s->api_server_response_ignore &&
                server_response_code == HTTP_STATUS_OK &&
@@ -5434,29 +5443,22 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
   //  when they are configured to use a proxy.  Proxy-Connection
   //  is not in the spec but was added to prevent problems
   //  with a dumb proxy forwarding all headers (including "Connection")
-  //  to the origin server and confusing it.  However, the
-  //  "Proxy-Connection" solution breaks down with transparent
-  //  backbone caches since the request could be from dumb
-  //  downstream caches that are forwarding the "Proxy-Connection"
-  //  header.  Therefore, we disable keep-alive if we are transparent
-  //  and see "Proxy-Connection" header
-  //
+  //  to the origin server and confusing it.  In cases of transparent
+  //  deployments we use the Proxy-Connect hdr (to be as transparent
+  //  as possible).
   MIMEField *pc = incoming_request->field_find(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
 
-  if (!s->txn_conf->keep_alive_enabled_in || (s->http_config_param->server_transparency_enabled && pc != NULL)) {
-    s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
+  // If we need to send a close header later check to see if it should be "Proxy-Connection"
+  if (pc != NULL) {
+    s->client_info.proxy_connect_hdr = true;
+  }
 
-    // If we need to send a close header later,
-    //   check to see if it should be "Proxy-Connection"
-    if (pc != NULL) {
-      s->client_info.proxy_connect_hdr = true;
-    }
+  if (!s->txn_conf->keep_alive_enabled_in) {
+    s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
   } else {
-    // If there is a Proxy-Connection header use that,
-    //   otherwise use the Connection header
+    // If there is a Proxy-Connection header use that, otherwise use the Connection header
     if (pc != NULL) {
       s->client_info.keep_alive = is_header_keep_alive(s->client_info.http_version, s->client_info.http_version, pc);
-      s->client_info.proxy_connect_hdr = true;
     } else {
       MIMEField *c = incoming_request->field_find(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
 
@@ -5578,7 +5580,14 @@ HttpTransact::initialize_state_variables_from_response(State* s, HTTPHdr* incomi
   if (s->current.server->keep_alive == HTTP_KEEPALIVE) {
     if (!s->cop_test_page)
       DebugTxn("http_hdrs", "[initialize_state_variables_from_response]" "Server is keep-alive.");
+  } else if (s->state_machine->ua_session && s->state_machine->ua_session->f_outbound_transparent && s->state_machine->t_state.http_config_param->use_client_source_port) {
+    /* If we are reusing the client<->ATS 4-tuple for ATS<->server then if the server side is closed, we can't
+       re-open it because the 4-tuple may still be in the processing of shutting down. So if the server isn't
+       keep alive we must turn that off for the client as well.
+    */
+    s->state_machine->t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
   }
+
 
   HTTPStatus status_code = incoming_response->status_get();
   if (is_response_body_precluded(status_code, s->method)) {
@@ -5876,10 +5885,6 @@ HttpTransact::is_request_cache_lookupable(State* s)
     return false;
   }
 
-  if (s->api_skip_cache_lookup) {
-    s->api_skip_cache_lookup = false;
-    return false;
-  }
   // Even with "no-cache" directive, we want to do a cache lookup
   // because we need to update our cached copy.
   // Client request "no-cache" directive is handle elsewhere:
@@ -6101,7 +6106,6 @@ HttpTransact::is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* respons
   }
   // the plugin may decide we don't want to cache the response
   if (s->api_server_response_no_store) {
-    s->api_server_response_no_store = false;
     return (false);
   }
   // default cacheability
@@ -6198,27 +6202,15 @@ HttpTransact::is_request_valid(State* s, HTTPHdr* incoming_request)
 
     DebugTxn("http_trans", "[is_request_valid] missing host field");
     SET_VIA_STRING(VIA_DETAIL_TUNNEL, VIA_DETAIL_TUNNEL_NO_FORWARD);
-    // Transparent client side, but client did not provide any HOST information
-    // (neither in the URL nor a HOST header).
-    if (s->http_config_param->client_transparency_enabled) {
-      build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Host Header Required",
-                           "interception#no_host", 
-                           "An attempt was made to transparently proxy your request, "
-                           "but this attempt failed because your browser did not "
-                           "send an HTTP 'Host' header.<p>Please manually configure "
-                           "your browser to use 'http://%s' as an HTTP proxy. "
-                           "Please refer to your browser's documentation for details. ",
-                           s->http_config_param->proxy_hostname);
-    } else if (s->http_config_param->reverse_proxy_enabled) {   // host header missing, and transparency off but reverse
-      // proxy on
+    if (s->http_config_param->reverse_proxy_enabled) {   // host header missing and reverse proxy on
       build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Host Header Required", "request#no_host",
-                           // This too is all one long string
+                           // This is all one long string
                            "Your browser did not send \"Host:\" HTTP header field, "
                            "and therefore the virtual host being requested could "
                            "not be determined.  To access this site you will need "
                            "to upgrade to a browser that supports the HTTP " "\"Host:\" header field.");
     } else {
-      // host header missing, and transparency & reverse proxy off
+      // host header missing and reverse proxy off
       build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Host Required In Request", "request#no_host",
                            // This too is all one long string
                            "Your browser did not send a hostname as part of "
@@ -6540,12 +6532,11 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
         //   response content length in init_state_vars_from_response()
         if (s->range_setup != HttpTransact::RANGE_NOT_TRANSFORM_REQUESTED)
           break;
-      case SOURCE_CACHE:
 
+      case SOURCE_CACHE:
         // if we are doing a single Range: request, calculate the new
         // C-L: header
         if (s->range_setup == HttpTransact::RANGE_NOT_TRANSFORM_REQUESTED) {
-          Debug("http_trans", "Partial content requested, re-calculating content-length");
           change_response_header_because_of_range_request(s,header);
           s->hdr_info.trust_response_cl = true;
         }
@@ -6562,13 +6553,18 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
           s->hdr_info.trust_response_cl = false;
         }
         break;
+
       case SOURCE_TRANSFORM:
-        if (s->hdr_info.transform_response_cl == HTTP_UNDEFINED_CL) {
+        if (s->range_setup == HttpTransact::RANGE_REQUESTED) {
+          change_response_header_because_of_range_request(s, header);
+          s->hdr_info.trust_response_cl = true;
+        } else if (s->hdr_info.transform_response_cl == HTTP_UNDEFINED_CL) {
           s->hdr_info.trust_response_cl = false;
         } else {
           s->hdr_info.trust_response_cl = true;
         }
         break;
+
       default:
         ink_release_assert(0);
         break;
@@ -6596,7 +6592,6 @@ HttpTransact::handle_content_length_header(State* s, HTTPHdr* header, HTTPHdr* b
       else if (s->range_setup == RANGE_NOT_TRANSFORM_REQUESTED) {
         // if we are doing a single Range: request, calculate the new
         // C-L: header
-        Debug("http_trans", "Partial content requested, re-calculating content-length");
         change_response_header_because_of_range_request(s,header);
         s->hdr_info.trust_response_cl = true;
       }
@@ -6776,21 +6771,21 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
     if (s->client_info.http_version == HTTPVersion(1, 1) && s->txn_conf->chunking_enabled == 1 &&
         // if we're not sending a body, don't set a chunked header regardless of server response
         !is_response_body_precluded(s->hdr_info.client_response.status_get(), s->method) &&
-         // we do not need chunked encoding for internal error messages
-         // that are sent to the client if the server response is not valid.
-         (( (s->source == SOURCE_HTTP_ORIGIN_SERVER || s->source == SOURCE_TRANSFORM) &&
-         s->hdr_info.server_response.valid() &&
-         // if we receive a 304, we will serve the client from the
-         // cache and thus do not need chunked encoding.
-         s->hdr_info.server_response.status_get() != HTTP_STATUS_NOT_MODIFIED &&
-         (s->current.server->transfer_encoding == HttpTransact::CHUNKED_ENCODING ||
-          // we can use chunked encoding if we cannot trust the content
-          // length (e.g. no Content-Length and Connection:close in HTTP/1.1 responses)
-          s->hdr_info.trust_response_cl == false)) ||
+        // we do not need chunked encoding for internal error messages
+        // that are sent to the client if the server response is not valid.
+        (((s->source == SOURCE_HTTP_ORIGIN_SERVER || s->source == SOURCE_TRANSFORM) &&
+          s->hdr_info.server_response.valid() &&
+          // if we receive a 304, we will serve the client from the
+          // cache and thus do not need chunked encoding.
+          s->hdr_info.server_response.status_get() != HTTP_STATUS_NOT_MODIFIED &&
+          (s->current.server->transfer_encoding == HttpTransact::CHUNKED_ENCODING ||
+           // we can use chunked encoding if we cannot trust the content
+           // length (e.g. no Content-Length and Connection:close in HTTP/1.1 responses)
+           s->hdr_info.trust_response_cl == false)) ||
          // handle serve from cache (read-while-write) case
          (s->source == SOURCE_CACHE && s->hdr_info.trust_response_cl == false) ||
-	  //any transform will potentially alter the content length. try chunking if possible
-	  (s->source == SOURCE_TRANSFORM && s->hdr_info.trust_response_cl == false ))) {
+         //any transform will potentially alter the content length. try chunking if possible
+         (s->source == SOURCE_TRANSFORM && s->hdr_info.trust_response_cl == false ))) {
       s->client_info.receive_chunked_response = true;
       heads->value_append(MIME_FIELD_TRANSFER_ENCODING, MIME_LEN_TRANSFER_ENCODING, HTTP_VALUE_CHUNKED, HTTP_LEN_CHUNKED, true);
     } else {
@@ -7820,7 +7815,6 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
 {
   va_list ap;
   const char *reason_phrase;
-  URL *url;
   char *url_string;
   char body_language[256], body_type[256];
 
@@ -7832,8 +7826,7 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   // get the url --- remember this is dynamically allocated //
   ////////////////////////////////////////////////////////////
   if (s->hdr_info.client_request.valid()) {
-    url = s->hdr_info.client_request.url_get();
-    url_string = url ? url->string_get(&s->arena) : NULL;
+    url_string = s->hdr_info.client_request.url_string_get(&s->arena);
   } else {
     url_string = NULL;
   }
@@ -8674,6 +8667,8 @@ HttpTransact::change_response_header_because_of_range_request(State *s, HTTPHdr 
   MIMEField *field;
   char *reason_phrase;
 
+  Debug("http_trans", "Partial content requested, re-calculating content-length");
+
   header->status_set(HTTP_STATUS_PARTIAL_CONTENT);
   reason_phrase = (char *) (http_hdr_reason_lookup(HTTP_STATUS_PARTIAL_CONTENT));
   header->reason_set(reason_phrase, strlen(reason_phrase));
@@ -8689,14 +8684,24 @@ HttpTransact::change_response_header_because_of_range_request(State *s, HTTPHdr 
     field->value_append(header->m_heap, header->m_mime, range_type, sizeof(range_type) - 1);
 
     header->field_attach(field);
+    // TODO: There's a known bug here where the Content-Length is not correct for multi-part
+    // Range: requests.
     header->set_content_length(s->range_output_cl);
   } else {
-    char numbers[RANGE_NUMBERS_LENGTH];
-    header->field_delete(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
-    field = header->field_create(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
-    snprintf(numbers, sizeof(numbers), "bytes %" PRId64"-%" PRId64"/%" PRId64, s->ranges[0]._start, s->ranges[0]._end, s->cache_info.object_read->object_size_get());
-    field->value_set(header->m_heap, header->m_mime, numbers, strlen(numbers));
-    header->field_attach(field);
+    if (s->cache_info.object_read && s->cache_info.object_read->valid()) {
+      // TODO: It's unclear under which conditions we need to update the Content-Range: header,
+      // many times it's already set correctly before calling this. For now, always try do it
+      // when we have the information for it available.
+      // TODO: Also, it's unclear as to why object_read->valid() is not always true here.
+      char numbers[RANGE_NUMBERS_LENGTH];
+      header->field_delete(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
+      field = header->field_create(MIME_FIELD_CONTENT_RANGE, MIME_LEN_CONTENT_RANGE);
+      snprintf(numbers, sizeof(numbers), "bytes %" PRId64"-%" PRId64"/%" PRId64, s->ranges[0]._start, s->ranges[0]._end,
+               s->cache_info.object_read->object_size_get());
+      field->value_set(header->m_heap, header->m_mime, numbers, strlen(numbers));
+      header->field_attach(field);
+    }
+    // Always update the Content-Length: header.
     header->set_content_length(s->range_output_cl);
   }
 }

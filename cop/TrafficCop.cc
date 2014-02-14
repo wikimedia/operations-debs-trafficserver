@@ -487,7 +487,7 @@ transient_error(int error, int wait_ms)
 }
 
 static void
-config_register_variable(RecT rec_type, RecDataT data_type, const char * name, const char * value)
+config_register_variable(RecT rec_type, RecDataT data_type, const char * name, const char * value, bool /* inc_version */)
 {
   configTable.insert(std::make_pair(std::string(name), ConfigValue(rec_type, data_type, value)));
 }
@@ -566,7 +566,7 @@ config_reload_records()
 
   configTable.clear();
 
-  if (RecConfigFileParse(config_file, config_register_variable) != REC_ERR_OKAY) {
+  if (RecConfigFileParse(config_file, config_register_variable, false) != REC_ERR_OKAY) {
     cop_log(COP_FATAL, "could not parse \"%s\"\n", config_file);
     exit(1);
   }
@@ -1593,7 +1593,7 @@ check(void *arg)
 
     // We do this after the first round of checks, since the first "check" will spawn traffic_manager
     if (!mgmt_init) {
-      TSInit(Layout::get()->runtimedir, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS));
+      TSInit(Layout::get()->runtimedir, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS));
       mgmt_init = true;
     }
   }

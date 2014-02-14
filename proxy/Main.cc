@@ -120,8 +120,7 @@ static void * mgmt_restart_shutdown_callback(void *, char *, int data_len);
 
 static int version_flag = DEFAULT_VERSION_FLAG;
 
-static int const number_of_processors = ink_number_of_processors();
-static int num_of_net_threads = number_of_processors;
+static int num_of_net_threads = ink_number_of_processors();
 static int num_of_udp_threads = 0;
 static int num_accept_threads  = 0;
 static int num_task_threads = 0;
@@ -143,7 +142,6 @@ extern int cache_clustering_enabled;
 char cluster_host[MAXDNAME + 1] = DEFAULT_CLUSTER_HOST;
 
 //         = DEFAULT_CLUSTER_PORT_NUMBER;
-char proxy_name[MAXDNAME + 1] = "unknown";
 static char command_string[512] = "";
 int remote_management_flag = DEFAULT_REMOTE_MANAGEMENT_FLAG;
 
@@ -345,7 +343,7 @@ initialize_process_manager()
 {
   mgmt_use_syslog();
 
-  // Temporary Hack to Enable Communuication with LocalManager
+  // Temporary Hack to Enable Communication with LocalManager
   if (getenv("PROXY_REMOTE_MGMT")) {
     remote_management_flag = true;
   }
@@ -1143,9 +1141,8 @@ getNumSSLThreads(void)
     } else {
       float autoconfig_scale = 1.5;
 
-      ink_assert(number_of_processors);
       TS_ReadConfigFloat(autoconfig_scale, "proxy.config.exec_thread.autoconfig.scale");
-      num_of_ssl_threads = (int)((float)number_of_processors * autoconfig_scale);
+      num_of_ssl_threads = (int)((float)ink_number_of_processors() * autoconfig_scale);
 
       // Last resort
       if (num_of_ssl_threads <= 0)
@@ -1156,48 +1153,49 @@ getNumSSLThreads(void)
   return num_of_ssl_threads;
 }
 
-static void
-adjust_num_of_net_threads(void)
+static int
+adjust_num_of_net_threads(int nthreads)
 {
   float autoconfig_scale = 1.0;
   int nth_auto_config = 1;
   int num_of_threads_tmp = 1;
 
   TS_ReadConfigInteger(nth_auto_config, "proxy.config.exec_thread.autoconfig");
+
+  Debug("threads", "initial number of net threads is %d", nthreads);
+  Debug("threads", "net threads auto-configuration %s", nth_auto_config ? "enabled" : "disabled");
+
   if (!nth_auto_config) {
     TS_ReadConfigInteger(num_of_threads_tmp, "proxy.config.exec_thread.limit");
-    if (num_of_threads_tmp <= 0)
+
+    if (num_of_threads_tmp <= 0) {
       num_of_threads_tmp = 1;
-    else if (num_of_threads_tmp > MAX_EVENT_THREADS)
+    } else if (num_of_threads_tmp > MAX_EVENT_THREADS) {
       num_of_threads_tmp = MAX_EVENT_THREADS;
-    num_of_net_threads = num_of_threads_tmp;
-    if (is_debug_tag_set("threads")) {
-      fprintf(stderr, "# net threads Auto config - disabled - use config file settings\n");
     }
+
+    nthreads = num_of_threads_tmp;
   } else {                      /* autoconfig is enabled */
-    num_of_threads_tmp = num_of_net_threads;
+    num_of_threads_tmp = nthreads;
     TS_ReadConfigFloat(autoconfig_scale, "proxy.config.exec_thread.autoconfig.scale");
     num_of_threads_tmp = (int) ((float) num_of_threads_tmp * autoconfig_scale);
+
     if (num_of_threads_tmp) {
-      num_of_net_threads = num_of_threads_tmp;
+      nthreads = num_of_threads_tmp;
     }
+
     if (unlikely(num_of_threads_tmp > MAX_EVENT_THREADS)) {
       num_of_threads_tmp = MAX_EVENT_THREADS;
     }
-    if (is_debug_tag_set("threads")) {
-      fprintf(stderr, "# net threads Auto config - enabled\n");
-      fprintf(stderr, "# autoconfig scale: %f\n", autoconfig_scale);
-      fprintf(stderr, "# scaled number of net threads: %d\n", num_of_threads_tmp);
-    }
   }
 
-  if (is_debug_tag_set("threads")) {
-    fprintf(stderr, "# number of net threads: %d\n", num_of_net_threads);
+  if (unlikely(nthreads <= 0)) {      /* impossible case -just for protection */
+    Warning("number of net threads must be greater than 0, resetting to 1");
+    nthreads = 1;
   }
-  if (unlikely(num_of_net_threads <= 0)) {      /* impossible case -just for protection */
-    Warning("Number of Net Threads should be greater than 0");
-    num_of_net_threads = 1;
-  }
+
+  Debug("threads", "adjusted number of net threads is %d", nthreads);
+  return nthreads;
 }
 
 /**
@@ -1226,7 +1224,7 @@ change_uid_gid(const char *user)
     // Not root so can't change user ID. Logging isn't operational yet so
     // we have to write directly to stderr. Perhaps this should be fatal?
     fprintf(stderr,
-          "Can't change user to '%s' because running with effective uid=%d",
+          "Can't change user to '%s' because running with effective uid=%d\n",
           user, geteuid());
   }
   else {
@@ -1293,6 +1291,9 @@ main(int /* argc ATS_UNUSED */, char **argv)
 #if defined(DEBUG) && defined(HAVE_MCHECK_PEDANTIC)
   mcheck_pedantic(NULL);
 #endif
+
+  pcre_malloc = ats_malloc;
+  pcre_free = ats_free;
 
   // Verify system dependent 'constants'
   check_system_constants();
@@ -1362,7 +1363,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
   if (!num_task_threads)
     TS_ReadConfigInteger(num_task_threads, "proxy.config.task_threads");
 
-  char *user = (char *)ats_malloc(MAX_LOGIN);
+  xptr<char> user(MAX_LOGIN + 1);
 
   *user = '\0';
   admin_user_p = ((REC_ERR_OKAY == TS_ReadConfigString(user, "proxy.config.admin.user_id", MAX_LOGIN)) &&
@@ -1379,7 +1380,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
     PreserveCapabilities();
     change_uid_gid(user);
     RestrictCapabilities();
-    ats_free(user);
   }
 # endif
 
@@ -1462,9 +1462,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
   if (!command_flag && initialize_store())
     ProcessFatal("unable to initialize storage, (Re)Configuration required\n");
 
-  // Read proxy name
-  TS_ReadConfigString(proxy_name, "proxy.config.proxy_name", 255);
-
   // Alter the frequecies at which the update threads will trigger
 #define SET_INTERVAL(scope, name, var) do { \
   RecInt tmpint; \
@@ -1498,7 +1495,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
   // Initialize New Stat system
   initialize_all_global_stats();
 
-  adjust_num_of_net_threads();
+  num_of_net_threads = adjust_num_of_net_threads(num_of_net_threads);
 
   size_t stacksize;
   REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
@@ -1681,7 +1678,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
   if (admin_user_p) {
     change_uid_gid(user);
     DebugCapabilities("server");
-    ats_free(user);
   }
 # endif
 

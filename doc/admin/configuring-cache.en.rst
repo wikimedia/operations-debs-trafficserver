@@ -1,22 +1,24 @@
+.. _configuring-the-cache:
+
 Configuring the Cache
 *********************
 
 .. Licensed to the Apache Software Foundation (ASF) under one
    or more contributor license agreements.  See the NOTICE file
-  distributed with this work for additional information
-  regarding copyright ownership.  The ASF licenses this file
-  to you under the Apache License, Version 2.0 (the
-  "License"); you may not use this file except in compliance
-  with the License.  You may obtain a copy of the License at
- 
+   distributed with this work for additional information
+   regarding copyright ownership.  The ASF licenses this file
+   to you under the Apache License, Version 2.0 (the
+   "License"); you may not use this file except in compliance
+     with the License.  You may obtain a copy of the License at
+
    http://www.apache.org/licenses/LICENSE-2.0
- 
-  Unless required by applicable law or agreed to in writing,
-  software distributed under the License is distributed on an
-  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-  KIND, either express or implied.  See the License for the
-  specific language governing permissions and limitations
-  under the License.
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License.
 
 The Traffic Server cache consists of a high-speed object database called
 the **object store** that indexes objects according to URLs and their
@@ -49,12 +51,10 @@ fail, then Traffic Server goes into proxy-only mode.
 You can perform the following cache configuration tasks:
 
 -  Change the total amount of disk space allocated to the cache: refer
-   to `Changing Cache Capacity <#ChangingCacheCapacity>`_.
+   to `Changing Cache Capacity`_.
 -  Partition the cache by reserving cache disk space for specific
-   protocols and origin servers/domains: refer to `Partitioning the
-   Cache <#PartitioningCache>`_.
--  Delete all data in the cache: refer to `Clearing the
-   Cache <#ClearingCache>`_.
+   protocols and origin servers/domains: refer to `Partitioning the Cache`_.
+-  Delete all data in the cache: refer to `Clearing the Cache`_.
 
 The RAM Cache
 =============
@@ -63,7 +63,31 @@ Traffic Server maintains a small RAM cache of extremely popular objects.
 This RAM cache serves the most popular objects as quickly as possible
 and reduces load on disks, especially during temporary traffic peaks.
 You can configure the RAM cache size to suit your needs, as described in
-`Changing the Size of the RAM Cache <#ChangingSizeRAMCache>`_ below.
+:ref:`changing-the-size-of-the-ram-cache` below.
+
+The RAM cache supports two cache eviction algorithms, a regular **LRU**
+(*Least Recently Used*) and the more advanced **CLFUS** (*Clocked Least
+Frequently Used by Size*). The default is to use **CLFUS**, and this is
+controlled via :ts:cv:`proxy.config.cache.ram_cache.algorithm`.
+
+Both the **LRU** and **CLFUS** RAM caches support a configuration to increase
+scan resistance. In a typical **LRU**, if you request all possible objects in
+sequence, you will effectively churn the cache on every request. The option
+:ts:cv:`proxy.config.cache.ram_cache.use_seen_filter` can be set to add some
+resistance against this problem.
+
+In addition, **CLFUS** also supports compressing in the RAM cache itself.
+This can be useful for content which is not compressed by itself (e.g.
+images). This should not be confused with *Content-Encoding: gzip*, this
+feature is only thereto save space internally in the RAM cache itself. As
+such, it is completely transparent to the User-Agent. The RAM cache
+compression is enabled with the option
+:ts:cv:`proxy.config.cache.ram_cache.compress`. The default is 0, which means
+no compression. Other possible values are 1 for **fastlz**, 2 for **libz** and
+3 for **liblzma**.
+
+
+.. _changing-the-size-of-the-ram-cache:
 
 Changing the Size of the RAM Cache
 ==================================
@@ -85,15 +109,13 @@ its previous value.
 To change the RAM cache size:
 
 1. Stop Traffic Server.
-2. Set the variable
-   `*``proxy.config.cache.ram_cache.size``* <../configuration-files/records.config#proxy.config.cache.ram_cache.size>`_
+2. Set the variable :ts:cv:`proxy.config.cache.ram_cache.size`
    to specify the size of the RAM cache. The default value of -1 means
    that the RAM cache is automatically sized at approximately 1MB per
    gigabyte of disk.
-3. Restart Traffic Server. If you increase the RAM cache to a size or
-   1GB or more, then restart with the ``start_traffic_server`` command
-   (refer to `Starting Traffic
-   Server <../getting-started#StartingTS>`_).
+3. Restart Traffic Server. If you increase the RAM cache to a size of
+   1GB or more, then restart with the :program:`trafficserver` command
+   (refer to :ref:`start-traffic-server`).
 
  
 
@@ -102,8 +124,7 @@ Changing Cache Capacity
 
 You can increase or reduce the total amount of disk space allocated to
 the cache without clearing the content. To check the size of the cache
-(in bytes), enter the command
-``traffic_line -r proxy.process.cache.bytes_total``.
+(in bytes), enter the command :option:`traffic_line -r` ``proxy.process.cache.bytes_total``.
 
 Increasing Cache Capacity
 -------------------------
@@ -114,10 +135,8 @@ steps below:
 
 1. Stop Traffic Server.
 2. Add hardware, if necessary.
-3. Edit the Traffic Server
-   ```storage.config`` <../configuration-files/storage.config>`_ file:
-   increase the amount of disk space allocated to the cache on existing
-   disks or describe the new hardware you are adding.
+3. Edit :file:`storage.config` to increase the amount of disk space allocated
+   to the cache on existing disks or describe the new hardware you are adding.
 4. Restart Traffic Server.
 
 Reducing Cache Capacity
@@ -129,14 +148,13 @@ steps below:
 
 1. Stop Traffic Server.
 2. Remove hardware, if necessary.
-3. Edit the Traffic Server
-   ```storage.config`` <../configuration-files/storage.config>`_ file:
-   reduce the amount of disk space allocated to the cache on existing
-   disks or delete the reference to the hardware you're removing.
+3. Edit :file:`storage.config` to reduce the amount of disk space allocated
+   to the cache on existing disks or delete the reference to the hardware you're removing.
 4. Restart Traffic Server.
 
-**IMPORTANT:** In the ``storage.config`` file, a formatted or raw disk
-must be at least 128 MB.
+.. important:: In :file:`storage.config`, a formatted or raw disk must be at least 128 MB.
+
+.. _partitioning-the-cache:
 
 Partitioning the Cache
 ======================
@@ -145,7 +163,7 @@ You can manage your cache space more efficiently and restrict disk usage
 by creating cache volumes with different sizes for specific protocols.
 You can further configure these volumes to store data from specific
 origin servers and/or domains. The volume configuration must be the same
-on all nodes in a cluster.
+on all nodes in a :ref:`cluster <traffic-server-cluster>`.
 
 Creating Cache Partitions for Specific Protocols
 ------------------------------------------------
@@ -155,10 +173,11 @@ store content according to protocol. This ensures that a certain amount
 of disk space is always available for a particular protocol. Traffic
 Server currently supports the **http** partition type for HTTP objects.
 
+.. XXX: but not https?
+
 To partition the cache according to protocol:
 
-1. Enter a line in the
-   ```volume.config`` <../configuration-files/volume.config>`_ file for
+1. Enter a line in the :file:`volume.config` file for
    each volume you want to create
 2. Restart Traffic Server.
 
@@ -180,8 +199,7 @@ note the following:
    specified in percentages will increase proportionately.
 -  A lot of changes to volume sizes might result in disk fragmentation,
    which affects performance and hit rate. You should clear the cache
-   before making many changes to cache volume sizes (refer to `Clearing
-   the Cache <#ClearingCache>`_).
+   before making many changes to cache volume sizes (refer to `Clearing the Cache`_).
 
 Partitioning the Cache According to Origin Server or Domain
 -----------------------------------------------------------
@@ -199,31 +217,30 @@ generic volume is also used if the partitions for a particular origin
 server or domain become corrupt. If you do not assign a generic volume,
 then Traffic Server will run in proxy-only mode.
 
-**Note:** You do *not* need to stop Traffic Server before you assign
-volumes to particular hosts or domains. However, this type of
-configuration is time-consuming and can cause a spike in memory usage.
-Therefore, it's best to configure partition assignment during periods of
-low traffic.
+.. note::
+
+    You do *not* need to stop Traffic Server before you assign
+    volumes to particular hosts or domains. However, this type of
+    configuration is time-consuming and can cause a spike in memory usage.
+    Therefore, it's best to configure partition assignment during periods of
+    low traffic.
 
 To partition the cache according to hostname and domain:
 
 1. Configure the cache volumes according to size and protocol, as
-   described in `Creating Cache Partitions for Specific
-   Protocols <#CreatingCachePartitionsSpecificProtocols>`_.
+   described in `Creating Cache Partitions for Specific Protocols`_.
 2. Create a separate volume based on protocol for each host and domain,
    as well as an additional generic partition to use for content that
    does not belong to these origin servers or domains. The volumes do
    not need to be the same size.
-3. Enter a line in the
-   ```hosting.config`` <../configuration-files/hosting.config>`_ file to
+3. Enter a line in the :file:`hosting.config` file to
    allocate the volume(s) used for each origin server and/or domain
 4. Assign a generic volume to use for content that does not belong to
    any of the origin servers or domains listed in the file. If all
    volumes for a particular origin server become corrupt, then Traffic
    Server will also use the generic volume to store content for that
-   origin server as per
-   `hosting.config <../configuration-files/hosting.config>`_.
-5. Run the command ``traffic_line -x`` to apply the configuration
+   origin server as per :file:`hosting.config`.
+5. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
 
 Configuring the Cache Object Size Limit
@@ -233,12 +250,13 @@ By default, Traffic Server allows objects of any size to be cached. You
 can change the default behavior and specify a size limit for objects in
 the cache via the steps below:
 
-1. Set
-   `*``proxy.config.cache.max_doc_size``* <../configuration-files/records.config#proxy.config.cache.max_doc_size>`_
+1. Set :ts:cv:`proxy.config.cache.max_doc_size`
    to specify the maximum size allowed for objects in the cache in
    bytes. ``0`` (zero) if you do not want a size limit.
-2. Run the command ``traffic_line -x`` to apply the configuration
+2. Run the command :option:`traffic_line -x` to apply the configuration
    changes.
+
+.. _clearing-the-cache:
 
 Clearing the Cache
 ==================
@@ -250,11 +268,8 @@ cannot clear the cache when Traffic Server is running.
 
 To clear the cache:
 
-1. Stop Traffic Server (refer to `Stopping Traffic
-   Server <../getting-started#StoppingTS>`_).
-2. Enter the following command to clear the cache:
-
-   ::
+1. Stop Traffic Server (refer to :ref:`Stopping Traffic Server <stop-traffic-server>`)
+2. Enter the following command to clear the cache: ::
 
         traffic_server -Cclear
 
@@ -262,8 +277,7 @@ To clear the cache:
    host database. Traffic Server does not prompt you to confirm the
    deletion.
 
-3. Restart Traffic Server (refer to `Starting Traffic
-   Server <../getting-started#StoppingTS>`_).
+3. Restart Traffic Server (refer to :ref:`Starting Traffic Server <start-traffic-server>`).
 
 Removing an Object From the Cache
 =================================
@@ -275,25 +289,23 @@ cache and is successfully removed, then Traffic Server responds with a
 returned.
 
 In the following example, Traffic Server is running on the domain
-*``example.com``* and you want to remove the image ``remove_me.jpg``
+``example.com`` and you want to remove the image ``remove_me.jpg``
 from cache. Because by default we do not permit ``PURGE`` requests from
-any other IP, we connect to the daemon via localhost:
-
-::
+any other IP, we connect to the daemon via localhost: ::
 
       $ curl -X PURGE -H 'Host: example.com' -v "http://localhost/remove_me.jpg"
-     * About to connect() to localhost port 80 (#0)
-     * Trying 127.0.0.1... connected
-     * Connected to localhost (127.0.0.1) port 80 (#0)
+      * About to connect() to localhost port 80 (#0)
+      * Trying 127.0.0.1... connected
+      * Connected to localhost (127.0.0.1) port 80 (#0)
 
-     > PURGE /remove_me.jpg HTTP/1.1
-     > User-Agent: curl/7.19.7
-     > Host: example.com
-     > Accept: */*
-     >
-     < HTTP/1.1 200 Ok
-     < Date: Thu, 08 Jan 2010 20:32:07 GMT
-     < Connection: keep-alive
+      > PURGE /remove_me.jpg HTTP/1.1
+      > User-Agent: curl/7.19.7
+      > Host: example.com
+      > Accept: */*
+      >
+      < HTTP/1.1 200 Ok
+      < Date: Thu, 08 Jan 2010 20:32:07 GMT
+      < Connection: keep-alive
 
 The next time Traffic Server receives a request for the removed object,
 it will contact the origin server to retrieve it (i.e., it has been
@@ -303,6 +315,8 @@ Note: The procedure above only removes an object from a *specific*
 Traffic Server cache. Users may still see the old (removed) content if
 it was cached by intermediary caches or by the end-users' web browser.
 
+.. _inspecting-the-cache:
+
 Inspecting the Cache
 ====================
 
@@ -310,27 +324,29 @@ Traffic Server provides a Cache Inspector utility that enables you to
 view, delete, and invalidate URLs in the cache (HTTP only). The Cache
 Inspector utility is a powerful tool that's capable of deleting *all*
 the objects in your cache; therefore, make sure that only authorized
-administrators are allowed to access this utility, see `Controlling Host
-Access to Traffic
-Manager <../security-options#ControllingHostAccessTrafficManager>`_.
+administrators are allowed to access this utility, see :ref:`controlling-client-access-to-cache` and the ``@scr_ip`` option in :file:`remap.config`.
 
 Accessing the Cache Inspector Utility
 -------------------------------------
 
 To access the Cache Inspector utility, follow the steps below:
 
-1. In the `:file:`records.config` <../configuration-files/records.config>`_
-   file add the following variable:
-2. `*``CONFIG proxy.config.http_ui_enabled INT 1``* <../configuration-files/records.config#proxy.config.http_ui_enabled>`_
-3. To access the cache inspector in reverse proxy mode, you must add a
-   remap rule to ``remap.config`` to expose the URL For example:
-   ``map http://yourhost.com/myCI http://{cache} @action=allow @src_ip=corp_internal_address``
-4. From the Traffic Server ``bin`` directory, enter the following
+#. Set :ts:cv:`proxy.config.http_ui_enabled` to ``1``.
+#. To access the cache inspector in reverse proxy mode, you must add a
+   remap rule to :file:`remap.config` to expose the URL. This should be
+   restricted to a limited set of hosts using the ``@src_ip`` option.
+   To restrict access to the network 172.28.56.0/24, use ::
+
+      map http://yourhost.com/myCI http://{cache} @action=allow @src_ip=172.28.56.1-172.28.56.254
+
+#. From the Traffic Server ``bin`` directory, enter the following
    command to re-read the configuration file: ``traffic_line -x``
-5. Open your web browser and configure it to use your Traffic Server as
-   a proxy server. Type the following URL: ``http://yourhost/myCI``
-6. The Cache page opens (see `Using the Cache Page <#UsingCachePage>`_
-   below).
+#. Open your web browser and configure it to use your Traffic Server as
+   a proxy server. Type the following URL::
+
+      http://yourhost/myCI
+
+#. The Cache page opens.
 
 Using the Cache Page
 --------------------
@@ -348,7 +364,7 @@ delete the contents of your cache:
 -  Click **Regex lookup** to search for URLs that match one or more
    regular expressions. From the display page, you can delete the URLs
    listed. For example, enter the following to search for all URLs that
-   end in html and are prefixed with http://www.dianes.com:
+   end in html and are prefixed with ``http://www.dianes.com``:
    ``http://www.dianes.com/.*\.html$``
 -  Click **Regex delete** to delete all URLs that match a specified
    regular expression. For example, enter the following to delete all
@@ -359,7 +375,9 @@ delete the contents of your cache:
    Server then contacts the origin server to check if the object is
    still fresh (revalidates) before serving it from the cache.
 
-**Note:** Only one administrator should delete and invalidate cache
-entries from the Cache page at any point in time. Changes made by
-multiple administrators at the same time can lead to unpredictable
-results.
+.. note::
+
+    Only one administrator should delete and invalidate cache
+    entries from the Cache page at any point in time. Changes made by
+    multiple administrators at the same time can lead to unpredictable
+    results.

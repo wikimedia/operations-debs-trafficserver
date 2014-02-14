@@ -35,8 +35,7 @@
 static bool g_initialized = false;
 static bool g_message_initialized = false;
 static bool g_started = false;
-static ink_cond g_force_req_cond;
-static ink_mutex g_force_req_mutex;
+static EventNotify g_force_req_notify;
 static int g_rec_raw_stat_sync_interval_ms = REC_RAW_STAT_SYNC_INTERVAL_MS;
 static int g_rec_config_update_interval_ms = REC_CONFIG_UPDATE_INTERVAL_MS;
 static int g_rec_remote_sync_interval_ms = REC_REMOTE_SYNC_INTERVAL_MS;
@@ -118,6 +117,13 @@ raw_stat_get_total(RecRawStatBlock *rsb, int id, RecRawStat *total)
     total->sum += tlp->sum;
     total->count += tlp->count;
   }
+
+  for (i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    total->sum += tlp->sum;
+    total->count += tlp->count;
+  }
+
   if (total->sum < 0) { // Assure that we stay positive
     total->sum = 0;
   }
@@ -145,6 +151,13 @@ raw_stat_sync_to_global(RecRawStatBlock *rsb, int id)
     total.sum += tlp->sum;
     total.count += tlp->count;
   }
+
+  for (i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    total.sum += tlp->sum;
+    total.count += tlp->count;
+  }
+
   if (total.sum < 0) { // Assure that we stay positive
     total.sum = 0;
   }
@@ -199,6 +212,13 @@ raw_stat_clear(RecRawStatBlock *rsb, int id)
     ink_atomic_swap(&(tlp->sum), (int64_t)0);
     ink_atomic_swap(&(tlp->count), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->sum), (int64_t)0);
+    ink_atomic_swap(&(tlp->count), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -224,6 +244,12 @@ raw_stat_clear_sum(RecRawStatBlock *rsb, int id)
     tlp = ((RecRawStat *) ((char *) (eventProcessor.all_ethreads[i]) + rsb->ethr_stat_offset)) + id;
     ink_atomic_swap(&(tlp->sum), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->sum), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -249,6 +275,12 @@ raw_stat_clear_count(RecRawStatBlock *rsb, int id)
     tlp = ((RecRawStat *) ((char *) (eventProcessor.all_ethreads[i]) + rsb->ethr_stat_offset)) + id;
     ink_atomic_swap(&(tlp->count), (int64_t)0);
   }
+
+  for (int i = 0; i < eventProcessor.n_dthreads; i++) {
+    tlp = ((RecRawStat *) ((char *) (eventProcessor.all_dthreads[i]) + rsb->ethr_stat_offset)) + id;
+    ink_atomic_swap(&(tlp->count), (int64_t)0);
+  }
+
   return REC_ERR_OKAY;
 }
 
@@ -263,9 +295,9 @@ recv_message_cb__process(RecMessage *msg, RecMessageT msg_type, void *cookie)
 
   if ((err = recv_message_cb(msg, msg_type, cookie)) == REC_ERR_OKAY) {
     if (msg_type == RECG_PULL_ACK) {
-      ink_mutex_acquire(&g_force_req_mutex);
-      ink_cond_signal(&g_force_req_cond);
-      ink_mutex_release(&g_force_req_mutex);
+      g_force_req_notify.lock();
+      g_force_req_notify.signal();
+      g_force_req_notify.unlock();
     }
   }
   return err;
@@ -419,13 +451,11 @@ RecProcessInitMessage(RecModeT mode_type)
     return REC_ERR_FAIL;
   }
 
-  ink_cond_init(&g_force_req_cond);
-  ink_mutex_init(&g_force_req_mutex, NULL);
   if (mode_type == RECM_CLIENT) {
     send_pull_message(RECG_PULL_REQ);
-    ink_mutex_acquire(&g_force_req_mutex);
-    ink_cond_wait(&g_force_req_cond, &g_force_req_mutex);
-    ink_mutex_release(&g_force_req_mutex);
+    g_force_req_notify.lock();
+    g_force_req_notify.wait();
+    g_force_req_notify.unlock();
   }
 
   g_message_initialized = true;

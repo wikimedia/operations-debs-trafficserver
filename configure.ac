@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[4.0.2])
-m4_define([TS_VERSION_N],[4000002])
+m4_define([TS_VERSION_S],[4.1.2])
+m4_define([TS_VERSION_N],[4001002])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -480,6 +480,19 @@ AC_ARG_ENABLE([experimental-plugins],
 AC_MSG_RESULT([$enable_experimental_plugins])
 AM_CONDITIONAL([BUILD_EXPERIMENTAL_PLUGINS], [ test "x${enable_experimental_plugins}" = "xyes" ])
 
+
+#
+# build c++ api
+#
+AC_MSG_CHECKING([whether to build c++ api])
+AC_ARG_ENABLE([cppapi],
+  [AS_HELP_STRING([--enable-cppapi],[Build the c++ api])],
+  [],
+  [enable_cppapi="no"]
+)
+AC_MSG_RESULT([$enable_cppapi])
+AM_CONDITIONAL([ENABLE_CPPAPI], [ test "x${enable_cppapi}" = "xyes" ])
+
 #
 # Installation directories
 # For each var the following is evaluated
@@ -540,6 +553,7 @@ _ts_saved_CXXFLAGS="${CXXFLAGS}"
 AC_PROG_CC([cc gcc clang icc])
 AC_PROG_CXX([c++ g++ clang++ icpc])
 
+AM_PROG_CC_C_O
 AC_PROG_CPP
 AC_PROG_CXXCPP
 AM_PROG_AS
@@ -663,7 +677,7 @@ BISON_POINT=1
 AC_CHECK_PROG([YACC],[bison],[bison])
 AS_IF([test -n "$YACC"],
       [ bison_version_check=`$YACC --version 2>&1 | \
-        $SED -n '/bison/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\)[[^0-9]]*$/\1/p' | \
+        $SED -n '/bison/s/^[[^0-9]]*\([[0-9]][[0-9.]]*\).*$/\1/p' | \
         $AWK "{ if (\\$1 > $BISON_MAJOR || (\\$1 == $BISON_MAJOR && (\\$2 > $BISON_MINOR || (\\$2 == $BISON_MINOR && (NR == 2 || \\$3 >= $BISON_POINT))))) print \"yes\"; else printf(\"version %d.%d.%d\",\\$1,\\$2,\\$3); }" FS=. \
         `
         AS_IF([test "x$bison_version_check" != "xyes"],
@@ -765,7 +779,7 @@ case $host_os_def in
       # 1720 is "operator new" has no corresponding member operator delete"
       # 2256 is "non-pointer conversion from "int" to "unsigned char" "
       # 2259 is "non-pointer conversion from "int" to "unsigned char" "
-      # 
+      #
       # TODO: We should try to eliminate more of these -wd exclusions.
       common_opt="-pipe -Wall -wd111 -wd279 -wd383 -wd522 -wd444 -wd873 -wd981 -wd1418 -wd1419 -wd1572 -wd1720 -wd2256 -wd2259"
       debug_opt="-ggdb3 $common_opt"
@@ -995,15 +1009,17 @@ AC_MSG_NOTICE([Build for host OS: $host_os, arch: $host_cpu, optimization: $host
 
 #
 # CPP 11 API
+# TODO: briang, this needs to be translated to a define
+# that can be used in the c++ api to enable c++11 api features.
 #
-AC_MSG_CHECKING([whether to enable c++11 api])
-AC_ARG_WITH([cpp11api],
-  [AS_HELP_STRING([--with-cpp11api],[enable support for cpp11api [default=auto]])],
-  [cpp11api=$withval],
-  [cpp11api=$enable_cxx_11_support]
-)
-AC_MSG_RESULT([$cpp11api])
-AM_CONDITIONAL([BUILD_CPP11API], [test "$cpp11api" = yes])
+#AC_MSG_CHECKING([whether to enable c++11 api])
+#AC_ARG_WITH([cpp11api],
+#  [AS_HELP_STRING([--with-cpp11api],[enable support for cpp11api [default=auto]])],
+#  [cpp11api=$withval],
+#  [cpp11api=$enable_cxx_11_support]
+#)
+#AC_MSG_RESULT([$cpp11api])
+#AM_CONDITIONAL([BUILD_CPP11API], [test "$cpp11api" = yes])
 
 # Check for ccache (if explicitly enabled)
 if test "x$enable_ccache" = "xyes"; then
@@ -1403,7 +1419,7 @@ AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
 
-AC_CHECK_HEADERS([sys/types.h sys/mman.h])
+TS_FLAG_HEADERS([sys/types.h sys/mman.h])
 TS_FLAG_HEADERS([sys/epoll.h \
                   sys/event.h \
                   sys/param.h \
@@ -1487,6 +1503,8 @@ AC_SUBST(mathh)
 AC_SUBST(net_ppp_defsh)
 AC_SUBST(ifaddrsh)
 AC_SUBST(readline_readlineh)
+
+TS_FLAG_HEADERS([sys/statfs.h sys/statvfs.h sys/disk.h sys/disklabel.h])
 
 TS_FLAG_HEADERS([sys/sysctl.h], [], [],
                  [[#ifdef HAVE_SYS_PARAM_H
@@ -1770,6 +1788,19 @@ AC_CHECK_TYPE([struct tcp_info],
 )
 AM_CONDITIONAL([BUILD_TCPINFO_PLUGIN], [ test "x${enable_tcpinfo_plugin}" != "xno" ])
 
+# See if we can build the remap_stats plugin
+AS_IF([test "x$enable_experimental_plugins" = xyes],
+  [
+    AC_CHECK_HEADERS([search.h])
+    AS_IF([test "x$ac_cv_header_search_h" = "xyes"],
+      [
+        AC_CHECK_TYPE([struct hsearch_data],[],[],[[#include <search.h>]])
+        AC_CHECK_FUNCS([hcreate_r hsearch_r])
+      ])
+  ])
+AM_CONDITIONAL([BUILD_REMAP_STATS_PLUGIN],
+  [ test "x$enable_experimental_plugins" = "xyes" -a "x$ac_cv_header_search_h" = "xyes" -a "x$ac_cv_type_struct_hsearch_data" = "xyes" -a "x$ac_cv_func_hcreate_r" = "xyes" -a "x$ac_cv_func_hsearch_r" = "xyes" ])
+
 #
 # use modular IOCORE
 #
@@ -1824,11 +1855,32 @@ AC_CONFIG_FILES([
   iocore/net/Makefile
   iocore/utils/Makefile
   lib/Makefile
-  lib/cpp11api/Makefile
   lib/records/Makefile
   lib/ts/Makefile
   lib/ts/ink_config.h
   lib/tsconfig/Makefile
+  lib/atscppapi/Makefile
+  lib/atscppapi/src/Makefile
+  lib/atscppapi/examples/Makefile
+  lib/atscppapi/examples/helloworld/Makefile
+  lib/atscppapi/examples/globalhook/Makefile
+  lib/atscppapi/examples/transactionhook/Makefile
+  lib/atscppapi/examples/multiple_transaction_hooks/Makefile
+  lib/atscppapi/examples/clientrequest/Makefile
+  lib/atscppapi/examples/data_caching/Makefile
+  lib/atscppapi/examples/serverresponse/Makefile
+  lib/atscppapi/examples/clientredirect/Makefile
+  lib/atscppapi/examples/customresponse/Makefile
+  lib/atscppapi/examples/null_transformation_plugin/Makefile
+  lib/atscppapi/examples/post_buffer/Makefile
+  lib/atscppapi/examples/logger_example/Makefile
+  lib/atscppapi/examples/stat_example/Makefile
+  lib/atscppapi/examples/async_http_fetch/Makefile
+  lib/atscppapi/examples/remap_plugin/Makefile
+  lib/atscppapi/examples/gzip_transformation/Makefile
+  lib/atscppapi/examples/timeout_example/Makefile
+  lib/atscppapi/examples/internal_transaction_handling/Makefile
+  lib/atscppapi/examples/async_timer/Makefile
   lib/wccp/Makefile
   lib/perl/Makefile
   mgmt/Makefile
@@ -1846,6 +1898,7 @@ AC_CONFIG_FILES([
   plugins/conf_remap/Makefile
   plugins/experimental/Makefile
   plugins/experimental/authproxy/Makefile
+  plugins/experimental/buffer_upload/Makefile
   plugins/experimental/channel_stats/Makefile
   plugins/experimental/custom_redirect/Makefile
   plugins/experimental/esi/Makefile
@@ -1856,6 +1909,7 @@ AC_CONFIG_FILES([
   plugins/experimental/spdy/Makefile
   plugins/experimental/tcp_info/Makefile
   plugins/experimental/healthchecks/Makefile
+  plugins/experimental/remap_stats/Makefile
   plugins/gzip/Makefile
   plugins/libloader/Makefile
   plugins/header_filter/Makefile

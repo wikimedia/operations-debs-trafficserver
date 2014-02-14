@@ -7,16 +7,35 @@ this rolling asap.
 Note that currently only static string "values" are supported. We'll add
 advanced features to allow for expansions in a future release.
 
+Using the plugin
+----------------
 
-Operations
-----------
+This plugin can be used as both a global plugin, enabled in plugin.config:
 
-  rm-header header-name			[flags]
-  add-header header "string"		[flags]
-  set-status status-code		[flags]
-  set-status-reason reason-string	[flags]
-  no-op		    			[flags]
+  header_rewrite.so config_file_1.conf config_file_2.conf ...
 
+These are global rules, which would apply to all requests. Another option is
+to use per remap rules in remap.config
+
+  map http://a http://b @plugin=header_rewrite.so @pparam=rules1.conf ...
+
+
+In the second example, hooks which are not to be executed during the remap
+phase (the default) causes a transaction hook to be instantiated and used
+at a later time. This allows you to setup e.g. a rule that gets executed
+during the origin response header parsing, using READ_RESPONSE_HDR_HOOK.
+
+
+Operators
+---------
+The following operators are available: 
+
+  rm-header header-name                 [flags]
+  add-header header <value>             [flags]
+  set-status <status-code>              [flags]
+  set-status-reason <value>             [flags]
+  set-config config <value>             [flags]
+  no-op                                 [flags]
 
 The following operator(s) currently only works when instantiating the
 plugin as a remap plugin:
@@ -36,43 +55,91 @@ For example (as a remap rule):
   set-destination HOST foo.mobile.bar.com [L]
 
 
-
-Operation flags
----------------
-  [L]	Last rule, do not continue
+Operator flags
+--------------
+  [L]   Last rule, do not continue
 
 
 Conditions
 ----------
+The conditions are used as qualifiers: The operators specified will
+only be evaluated if the condition(s) are met.
 
-  cond %{STATUS} operand	[flags]
-  cond %{RANDOM:nn} operand	[flags]
-  cond %{ACCESS:file}		[flags]
-  cond %{TRUE}			[flags]
-  cond %{FALSE}			[flags]
-  cond %{HEADER:header-name}	[flags]
+  cond %{STATUS} operand                        [flags]
+  cond %{RANDOM:nn} operand                     [flags]
+  cond %{ACCESS:file}                           [flags]
+  cond %{TRUE}                                  [flags]
+  cond %{FALSE}                                 [flags]
+  cond %{HEADER:header-name} operand            [flags]
+  cond %{CLIENT-HEADER:header-name} operand     [flags]
+  cond %{METHOD} operand                        [flags]
+  cond %{PROTOCOL} operand                      [flags]
+  cond %{PORT} operand                          [flags]
+  cond %{HOST} operand                          [flags]
+  cond %{TOHOST} operand                        [false]
+  cond %{FROMHOST} operand                      [false]
+  cond %{PATH} operand                          [false]
+  cond %{PARAMS} operand                        [false]
+  cond %{QUERY} operand                         [false]
 
 
-These conditions have to be first in a ruleset, and you can only have one:
+The difference between HEADER and CLIENT-HEADER is that HEADER adapts to the
+hook it's running in, whereas CLIENT-HEADER always applies to the client
+request header. The %{TRUE} condition is also the default condition if no
+other conditions are specified.
+
+These conditions have to be first in a ruleset, and you can only have one in
+each rule. This implies that a new hook condition starts a new rule as well.
 
   cond %{READ_RESPONSE_HDR_HOOK}   (this is the default hook)
   cond %{READ_REQUEST_HDR_HOOK}
   cond %{SEND_REQUEST_HDR_HOOK}
   cond %{SEND_RESPONSE_HDR_HOOK}
 
+For remap.config plugin instanations, the default hook is named
+REMAP_PSEUDO_HOOK. This can be useful if you are mixing other hooks in a
+configuration, but being the default it is also optional.
+
 
 Condition flags
 ---------------
-  [AND]	AND with next condition (default)
-  [OR]	OR with next condition
-  [NOT]	Invert this condition
+  [NC]  Not ase sensitive condition (when applicable)
+  [AND] AND with next condition (default)
+  [OR]  OR with next condition
+  [NOT] Invert this condition
 
 
 Operands to conditions
 ----------------------
-  =val	Lexically equal
-  <val	Lexically less then
-  >val	Lexically greater then   
+  /string/  # regular expression
+  <string   # lexically lower
+  >string   # lexically greater
+  =string   # lexically equal
+
+The absense of a "matcher" means value exists).
+
+
+Values
+------
+Setting e.g. a header with a value can take the following formats:
+
+  - Any of the cond definitions, that extracts a value from the request
+  - $N 0 <= N <= 9, as grouped in a regular expression
+  - string (which can contain the above)
+  - null
+
+
+Examples
+--------
+
+cond %{HEADER:X-Y-Foobar}
+cond %{METHOD} =GET [OR]
+cond %{METHOD} =POST
+add-header X-Y-Fiefum %{HEADER:X-Y-Foobar}
+rm-header X-Y-Foobar
+rm-header Set-Cookie
+
+cond %{HEADER:X-Y-Foobar} "Some string" [AND,NC]
 
 
 

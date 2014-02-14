@@ -112,7 +112,7 @@ public:
     @return event object representing the start of the thread.
 
   */
-  Event *spawn_thread(Continuation * cont, const char *thr_name, size_t stacksize, ink_sem * sem = NULL);
+  Event *spawn_thread(Continuation * cont, const char *thr_name, size_t stacksize = 0, ink_sem * sem = NULL);
 
   /**
     Spawns a group of threads for an event type. Spawns the number of
@@ -314,7 +314,7 @@ public:
   Event * schedule(Event * e, EventType etype, bool fast_signal = false);
   EThread *assign_thread(EventType etype);
 
-  EThread *dthreads[MAX_EVENT_THREADS];
+  EThread *all_dthreads[MAX_EVENT_THREADS];
   int n_dthreads;               // No. of dedicated threads
   volatile int thread_data_used;
 };

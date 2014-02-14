@@ -17,6 +17,7 @@
 if BUILD_EXPERIMENTAL_PLUGINS
 SUBDIRS = \
  lua \
+ buffer_upload \
  esi \
  rfc5861 \
  tcp_info \
@@ -26,5 +27,6 @@ SUBDIRS = \
  channel_stats \
  authproxy \
  geoip_acl \
- healthchecks
+ healthchecks \
+ remap_stats
 endif

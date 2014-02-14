@@ -1,18 +1,19 @@
 .. Licensed to the Apache Software Foundation (ASF) under one
    or more contributor license agreements.  See the NOTICE file
-   distributed with this work for additional information regarding
-   copyright ownership.  The ASF licenses this file to you under
-   the Apache License, Version 2.0 (the "License"); you may not use
-   this file except in compliance with the License.  You may obtain
-   a copy of the License at
-
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+ 
    http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing,
-   software distributed under the License is distributed on an "AS
-   IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-   express or implied.  See the License for the specific language
-   governing permissions and limitations under the License.
+ 
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
 
 Metalink plugin
 ===============
@@ -26,7 +27,7 @@ Take standard headers and knowledge about objects in the cache and
 potentially rewrite those headers so that a client will use a URL
 that is already cached instead of one that isn't.
 
-The `metalink` headers are specified in :rfc:`6429` and :rfc:`3230` 
+The `metalink` headers are specified in :rfc:`6429` and :rfc:`3230`
 and are sent by various download redirectors or content distribution
 networks.
 
@@ -59,7 +60,7 @@ Installation
 ------------
 
 `metalink` is a global plugin. It is enabled by adding it to your
-:file:`plugins.config` file. There are no options.
+:file:`plugin.config` file. There are no options.
 
 Implementation Status
 ---------------------

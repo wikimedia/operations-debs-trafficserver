@@ -27,65 +27,57 @@
 #define LOG_CONFIG_H
 
 #include "libts.h"
-
 #include "P_RecProcess.h"
+#include "ProxyConfig.h"
 
 /* Instead of enumerating the stats in DynamicStats.h, each module needs
    to enumerate its stats separately and register them with librecords
    */
 enum
 {
-  log_stat_bytes_buffered_stat,
-  log_stat_bytes_written_to_disk_stat,
+  // Logging Events
+  log_stat_event_log_error_ok_stat,
+  log_stat_event_log_error_skip_stat,
+  log_stat_event_log_error_aggr_stat,
+  log_stat_event_log_error_full_stat,
+  log_stat_event_log_error_fail_stat,
+
+  log_stat_event_log_access_ok_stat,
+  log_stat_event_log_access_skip_stat,
+  log_stat_event_log_access_aggr_stat,
+  log_stat_event_log_access_full_stat,
+  log_stat_event_log_access_fail_stat,
+
+  // Logging Data
+  log_stat_num_sent_to_network_stat,
+  log_stat_num_lost_before_sent_to_network_stat,
+  log_stat_num_received_from_network_stat,
+  log_stat_num_flush_to_disk_stat,
+  log_stat_num_lost_before_flush_to_disk_stat,
+
+  log_stat_bytes_lost_before_preproc_stat,
   log_stat_bytes_sent_to_network_stat,
+  log_stat_bytes_lost_before_sent_to_network_stat,
   log_stat_bytes_received_from_network_stat,
+
+  log_stat_bytes_flush_to_disk_stat,
+  log_stat_bytes_lost_before_flush_to_disk_stat,
+  log_stat_bytes_written_to_disk_stat,
+  log_stat_bytes_lost_before_written_to_disk_stat,
+
   // Logging I/O
   log_stat_log_files_open_stat,
   log_stat_log_files_space_used_stat,
-  // Logging Events
-  log_stat_event_log_error_stat,
-  log_stat_event_log_access_stat,
-  log_stat_event_log_access_fail_stat,
-  log_stat_event_log_access_skip_stat,
+
   log_stat_count
 };
 
 extern RecRawStatBlock *log_rsb;
 
-/* Stats should only be accessed using these macros */
-
-#define LOG_SET_DYN_STAT(x,C, S) \
-do { \
-	RecSetRawStatSum(log_rsb, x, S); \
-        RecSetRawStatCount(log_rsb, x, C); \
-} while (0);
-#define LOG_INCREMENT_DYN_STAT(x) \
-	RecIncrRawStat(log_rsb, mutex->thread_holding, (int) x, 1);
-#define LOG_DECREMENT_DYN_STAT(x) \
-	RecIncrRawStat(log_rsb, mutex->thread_holding, (int) x, -1);
-#define LOG_SUM_DYN_STAT(x, y) \
-	RecIncrRawStat(log_rsb, mutex->thread_holding, (int) x, y);
-#define LOG_SUM_GLOBAL_DYN_STAT(x, y) \
-	RecIncrGlobalRawStatSum(log_rsb,x,y)
-#define LOG_CLEAR_DYN_STAT(x) \
-do { \
-	RecSetRawStatSum(log_rsb, x, 0); \
-	RecSetRawStatCount(log_rsb, x, 0); \
-} while (0);
-
-#define LOG_ConfigReadInteger         REC_ConfigReadInteger
-#define LOG_LocalReadInteger          REC_ConfigReadInteger
-#define LOG_ConfigReadString          REC_ConfigReadString
-#define LOG_RegisterConfigUpdateFunc  REC_RegisterConfigUpdateFunc
-#define LOG_RegisterLocalUpdateFunc   REC_RegisterConfigUpdateFunc
-#define LOG_RegisterMgmtCallback      RecRegisterManagerCb
-
-
 struct dirent;
-
-#if defined(IOCORE_LOG_COLLATION)
 struct LogCollationAccept;
-#endif
+struct PreDefinedFormatList;
+struct PreDefinedFormatInfo;
 
 /*-------------------------------------------------------------------------
   LogConfig
@@ -113,7 +105,7 @@ struct LogCollationAccept;
         for this new variable if it is exposed in the GUI
   -------------------------------------------------------------------------*/
 
-class LogConfig
+class LogConfig : public ConfigInfo
 {
 
 public:
@@ -197,7 +189,6 @@ public:
   LogFormatList global_format_list;
 
   int log_buffer_size;
-  int max_entries_per_buffer;
   int max_secs_per_buffer;
   int max_space_mb_for_logs;
   int max_space_mb_for_orphan_logs;
@@ -217,6 +208,7 @@ public:
   int collation_mode;
   int collation_port;
   bool collation_host_tagged;
+  int collation_preproc_threads;
   int collation_retry_sec;
   int collation_max_send_buffers;
   int rolling_enabled;
@@ -242,7 +234,6 @@ public:
 
   int ascii_buffer_size;
   int max_line_size;
-  int overspill_report_count;
 
   char *hostname;
   char *logfile_dir;
@@ -261,34 +252,17 @@ public:
 
 private:
 
-  // this struct collects all the necesary info to build a pre-defined object
-  //
-  struct PreDefinedFormatInfo
-  {
-    LogFormat *format;
-    char *filename;
-    int is_ascii;
-    char *header;
-    LINK(PreDefinedFormatInfo, link);
-
-    PreDefinedFormatInfo(LogFormat * fmt, char *fname, int ascii,
-                         char *hdr):format(fmt), filename(fname), is_ascii(ascii), header(hdr)
-    { }
-  };
-
-
-  typedef Queue<PreDefinedFormatInfo> PreDefinedFormatInfoList;
-
   void read_xml_log_config(int from_memory);
   char **read_log_hosts_file(size_t * nhosts);
 
   void setup_default_values();
   void setup_collation(LogConfig * prev_config);
-  void setup_pre_defined_info(PreDefinedFormatInfoList * pre_def_info_list);
-  LogFilter *split_by_protocol(const PreDefinedFormatInfoList & pre_def_info_list);
-  size_t split_by_hostname(const PreDefinedFormatInfoList & pre_def_info_list, LogFilter * reject_protocol);
-  void create_pre_defined_objects_with_filter(const PreDefinedFormatInfoList &pre_def_info_list, size_t num_filt,
-                                              LogFilter ** filter, const char *filt_name = 0, bool force_extension = false);
+  LogFilter *split_by_protocol(const PreDefinedFormatList & pre_def_info_list);
+  size_t split_by_hostname(const PreDefinedFormatList & pre_def_info_list, LogFilter * reject_protocol);
+  LogObject * create_predefined_object(const PreDefinedFormatInfo * pdi, size_t nfilters,
+        LogFilter ** filters, const char *filt_name = 0, bool force_extension = false);
+  void create_predefined_objects_with_filter(const PreDefinedFormatList &pre_def_info_list, size_t nfilters,
+        LogFilter ** filters, const char *filt_name = 0, bool force_extension = false);
 
   void add_filters_to_search_log_object(const char *format_name);
 
@@ -298,9 +272,7 @@ private:
   //
   bool use_orphan_log_space_value;
 
-#if defined(IOCORE_LOG_COLLATION)
   LogCollationAccept *m_log_collation_accept;
-#endif
 
   struct dirent *m_dir_entry;
   char *m_pDir;

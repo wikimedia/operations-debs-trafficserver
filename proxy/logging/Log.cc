@@ -24,14 +24,12 @@
 /***************************************************************************
  Log.cc
 
-
  This file defines the implementation of the static Log class, which is
  primarily used as a namespace.  That is, there are no Log objects, but the
  class scope and static members provide a protected namespace for all of
  the logging routines and enumerated types.  When C++ namespaces are more
  widely-implemented, Log could be implemented as a namespace rather than a
  class.
-
 
  ***************************************************************************/
 #include "libts.h"
@@ -64,29 +62,22 @@
 #define PERIODIC_TASKS_INTERVAL 5 // TODO: Maybe this should be done as a config option
 
 // Log global objects
-inkcoreapi TextLogObject *Log::error_log = NULL;
-LogConfig *Log::config = NULL;
+inkcoreapi LogObject *Log::error_log = NULL;
 LogFieldList Log::global_field_list;
 LogFormat *Log::global_scrap_format = NULL;
 LogObject *Log::global_scrap_object = NULL;
-Log::LoggingMode Log::logging_mode = LOG_NOTHING;
-
-// Inactive objects
-LogObject **Log::inactive_objects;
-size_t Log::numInactiveObjects;
-size_t Log::maxInactiveObjects;
+Log::LoggingMode Log::logging_mode = LOG_MODE_NONE;
 
 // Flush thread stuff
-volatile unsigned long Log::flush_counter = 0;
-ink_mutex Log::flush_mutex;
-ink_cond Log::flush_cond;
-ink_thread Log::flush_thread;
+EventNotify *Log::preproc_notify;
+EventNotify *Log::flush_notify;
+InkAtomicList *Log::flush_data_list;
 
 // Collate thread stuff
-ink_mutex Log::collate_mutex;
-ink_cond Log::collate_cond;
+EventNotify Log::collate_notify;
 ink_thread Log::collate_thread;
 int Log::collation_accept_file_descriptor;
+int Log::collation_preproc_threads;
 int Log::collation_port;
 
 // Log private objects
@@ -105,54 +96,52 @@ RecRawStatBlock *log_rsb;
   This routine is invoked when the current LogConfig object says it needs
   to be changed (as the result of a manager callback).
   -------------------------------------------------------------------------*/
+
+LogConfig *Log::config = NULL;
+static unsigned log_configid = 0;
+
 void
 Log::change_configuration()
 {
+  LogConfig * prev = Log::config;
+  LogConfig * new_config = NULL;
+
   Debug("log-config", "Changing configuration ...");
 
-  LogConfig *new_config = NEW(new LogConfig);
+  new_config = NEW(new LogConfig);
   ink_assert(new_config != NULL);
   new_config->read_configuration_variables();
 
   // grab the _APImutex so we can transfer the api objects to
   // the new config
   //
-  ink_mutex_acquire(Log::config->log_object_manager._APImutex);
+  ink_mutex_acquire(prev->log_object_manager._APImutex);
   Debug("log-api-mutex", "Log::change_configuration acquired api mutex");
 
   new_config->init(Log::config);
 
-  // Swap in the new config object
-  //
+  // Make the new LogConfig active.
   ink_atomic_swap(&Log::config, new_config);
 
-  // Force new buffers for inactive objects
-  //
-  for (size_t i = 0; i < numInactiveObjects; i++) {
-    inactive_objects[i]->force_new_buffer();
-  }
+  // XXX There is a race condition with API objects. If TSTextLogObjectCreate()
+  // is called before the Log::config swap, then it will be blocked on the lock
+  // on the *old* LogConfig and register it's LogObject with that manager. If
+  // this happens, then the new TextLogObject will be immediately lost. Traffic
+  // Server would crash the next time the plugin referenced the freed object.
 
-  ink_mutex_release(Log::config->log_object_manager._APImutex);
+  ink_mutex_release(prev->log_object_manager._APImutex);
   Debug("log-api-mutex", "Log::change_configuration released api mutex");
 
+  // Register the new config in the config processor; the old one will now be scheduled for a
+  // future deletion. We don't need to do anything magical with refcounts, since the
+  // configProcessor will keep a reference count, and drop it when the deletion is scheduled.
+  configProcessor.set(log_configid, new_config);
+
+  // If we replaced the logging configuration, flush any log
+  // objects that weren't transferred to the new config ...
+  prev->log_object_manager.flush_all_objects();
+
   Debug("log-config", "... new configuration in place");
-}
-
-void
-Log::add_to_inactive(LogObject * object)
-{
-  if (Log::numInactiveObjects == Log::maxInactiveObjects) {
-    Log::maxInactiveObjects += LOG_OBJECT_ARRAY_DELTA;
-    LogObject **new_objects = new LogObject *[Log::maxInactiveObjects];
-
-    for (size_t i = 0; i < Log::numInactiveObjects; i++) {
-      new_objects[i] = Log::inactive_objects[i];
-    }
-    delete[]Log::inactive_objects;
-    Log::inactive_objects = new_objects;
-  }
-
-  Log::inactive_objects[Log::numInactiveObjects++] = object;
 }
 
 /*-------------------------------------------------------------------------
@@ -179,19 +168,30 @@ Log::add_to_inactive(LogObject * object)
 
 struct PeriodicWakeup;
 typedef int (PeriodicWakeup::*PeriodicWakeupHandler)(int, void *);
-struct PeriodicWakeup : Continuation {
+struct PeriodicWakeup : Continuation
+{
+  int m_preproc_threads;
+  int m_flush_threads;
+
   int wakeup (int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   {
-    ink_cond_signal (&Log::flush_cond);
-    return EVENT_CONT;
+      for (int i = 0; i < m_preproc_threads; i++) {
+        Log::preproc_notify[i].signal();
+      }
+      for (int i = 0; i < m_flush_threads; i++) {
+        Log::flush_notify[i].signal();
+      }
+      return EVENT_CONT;
   }
 
-  PeriodicWakeup () : Continuation (new_ProxyMutex())
+  PeriodicWakeup (int preproc_threads, int flush_threads) :
+    Continuation (new_ProxyMutex()),
+    m_preproc_threads(preproc_threads),
+    m_flush_threads(flush_threads)
   {
-    SET_HANDLER ((PeriodicWakeupHandler)&PeriodicWakeup::wakeup);
+      SET_HANDLER ((PeriodicWakeupHandler)&PeriodicWakeup::wakeup);
   }
 };
-
 
 /*-------------------------------------------------------------------------
   Log::periodic_tasks
@@ -203,34 +203,16 @@ struct PeriodicWakeup : Continuation {
 void
 Log::periodic_tasks(long time_now)
 {
-  // delete inactive objects
-  //
-  // we don't care if we miss an object that may be added to the set of
-  // inactive objects just after we have read numInactiveObjects and found
-  // it to be zero; we will get a chance to delete it next time
-  //
-
   Debug("log-api-mutex", "entering Log::periodic_tasks");
-  if (numInactiveObjects) {
-    ink_mutex_acquire(Log::config->log_object_manager._APImutex);
-    Debug("log-api-mutex", "Log::periodic_tasks acquired api mutex");
-    Debug("log-periodic", "Deleting inactive_objects");
-    for (size_t i = 0; i < numInactiveObjects; i++) {
-      delete inactive_objects[i];
-    }
-    numInactiveObjects = 0;
-    ink_mutex_release(Log::config->log_object_manager._APImutex);
-    Debug("log-api-mutex", "Log::periodic_tasks released api mutex");
-  }
 
   if (logging_mode_changed || Log::config->reconfiguration_needed) {
     Debug("log-config", "Performing reconfiguration, init status = %d", init_status);
 
     if (logging_mode_changed) {
-      int val = (int) LOG_ConfigReadInteger("proxy.config.log.logging_enabled");
+      int val = (int) REC_ConfigReadInteger("proxy.config.log.logging_enabled");
 
-      if (val<LOG_NOTHING || val> FULL_LOGGING) {
-        logging_mode = FULL_LOGGING;
+      if (val<LOG_MODE_NONE || val> LOG_MODE_FULL) {
+        logging_mode = LOG_MODE_FULL;
         Warning("proxy.config.log.logging_enabled has an invalid " "value setting it to %d", logging_mode);
       } else {
         logging_mode = (LoggingMode) val;
@@ -241,7 +223,7 @@ Log::periodic_tasks(long time_now)
     // so that log objects are flushed
     //
     change_configuration();
-  } else if (logging_mode > LOG_NOTHING || config->collation_mode == LogConfig::COLLATION_HOST ||
+  } else if (logging_mode > LOG_MODE_NONE || config->collation_mode == LogConfig::COLLATION_HOST ||
              config->has_api_objects()) {
     Debug("log-periodic", "Performing periodic tasks");
 
@@ -250,12 +232,11 @@ Log::periodic_tasks(long time_now)
     if (config->space_is_short() || time_now % config->space_used_frequency == 0) {
       Log::config->update_space_used();
     }
+
     // See if there are any buffers that have expired
     //
     Log::config->log_object_manager.check_buffer_expiration(time_now);
-    if (error_log) {
-      error_log->check_buffer_expiration(time_now);
-    }
+
     // Check if we received a request to roll, and roll if so, otherwise
     // give objects a chance to roll if they need to
     //
@@ -286,15 +267,33 @@ Log::periodic_tasks(long time_now)
 /*-------------------------------------------------------------------------
   MAIN INTERFACE
   -------------------------------------------------------------------------*/
-struct LoggingFlushContinuation: public Continuation
+struct LoggingPreprocContinuation: public Continuation
 {
+  int m_idx;
+
   int mainEvent(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
   {
-    Log::flush_thread_main(NULL);
+    Log::preproc_thread_main((void *)&m_idx);
     return 0;
   }
 
-  LoggingFlushContinuation():Continuation(NULL)
+  LoggingPreprocContinuation(int idx):Continuation(NULL), m_idx(idx)
+  {
+    SET_HANDLER(&LoggingPreprocContinuation::mainEvent);
+  }
+};
+
+struct LoggingFlushContinuation: public Continuation
+{
+  int m_idx;
+
+  int mainEvent(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
+  {
+    Log::flush_thread_main((void *)&m_idx);
+    return 0;
+  }
+
+  LoggingFlushContinuation(int idx):Continuation(NULL), m_idx(idx)
   {
     SET_HANDLER(&LoggingFlushContinuation::mainEvent);
   }
@@ -501,13 +500,6 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cfsc", field);
 
-  field = NEW(new LogField("client_gid", "cgid",
-                           LogField::STRING,
-                           &LogAccess::marshal_client_gid,
-                           &LogAccess::unmarshal_str));
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "cgid", field);
-
   // proxy -> client fields
   field = NEW(new LogField("proxy_resp_content_type", "psct",
                            LogField::STRING,
@@ -618,20 +610,6 @@ Log::init_fields()
                            (Ptr<LogFieldAliasMap>) cache_code_map));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "crc", field);
-
-  field = NEW(new LogField("proxy_resp_origin_bytes", "prob",
-                           LogField::sINT,
-                           &LogAccess::marshal_proxy_resp_origin_bytes,
-                           &LogAccess::unmarshal_int_to_str));
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "prob", field);
-
-  field = NEW(new LogField("proxy_resp_cache_bytes", "prcb",
-                           LogField::sINT,
-                           &LogAccess::marshal_proxy_resp_cache_bytes,
-                           &LogAccess::unmarshal_int_to_str));
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "prcb", field);
 
   // proxy -> server fields
   field = NEW(new LogField("proxy_req_header_len", "pqhl",
@@ -888,7 +866,6 @@ Log::init_fields()
   init_status |= FIELDS_INITIALIZED;
 }
 
-
 /*-------------------------------------------------------------------------
 
   Initialization functions
@@ -906,10 +883,7 @@ Log::handle_logging_mode_change(const char */* name ATS_UNUSED */, RecDataT /* d
 void
 Log::init(int flags)
 {
-  maxInactiveObjects = LOG_OBJECT_ARRAY_DELTA;
-  numInactiveObjects = 0;
-  inactive_objects = new LogObject*[maxInactiveObjects];
-
+  collation_preproc_threads = 1;
   collation_accept_file_descriptor = NO_FD;
 
   // store the configuration flags
@@ -917,27 +891,29 @@ Log::init(int flags)
   config_flags = flags;
 
   // create the configuration object
-  //
-  config = NEW (new LogConfig);
+  config = NEW(new LogConfig());
   ink_assert (config != NULL);
+
+  log_configid = configProcessor.set(log_configid, config);
 
   // set the logging_mode and read config variables if needed
   //
   if (config_flags & LOGCAT) {
-    logging_mode = LOG_NOTHING;
+    logging_mode = LOG_MODE_NONE;
   } else {
     log_rsb = RecAllocateRawStatBlock((int) log_stat_count);
     LogConfig::register_stat_callbacks();
 
     config->read_configuration_variables();
     collation_port = config->collation_port;
+    collation_preproc_threads = config->collation_preproc_threads;
 
     if (config_flags & STANDALONE_COLLATOR) {
-      logging_mode = LOG_TRANSACTIONS_ONLY;
+      logging_mode = LOG_MODE_TRANSACTIONS;
     } else {
-      int val = (int) LOG_ConfigReadInteger("proxy.config.log.logging_enabled");
-      if (val < LOG_NOTHING || val > FULL_LOGGING) {
-        logging_mode = FULL_LOGGING;
+      int val = (int) REC_ConfigReadInteger("proxy.config.log.logging_enabled");
+      if (val < LOG_MODE_NONE || val > LOG_MODE_FULL) {
+        logging_mode = LOG_MODE_FULL;
         Warning("proxy.config.log.logging_enabled has an invalid "
           "value, setting it to %d", logging_mode);
       } else {
@@ -950,8 +926,12 @@ Log::init(int flags)
   // be able to handle a logging mode change
   //
   if (!(config_flags & NO_REMOTE_MANAGEMENT)) {
-    LOG_RegisterConfigUpdateFunc("proxy.config.log.logging_enabled", &Log::handle_logging_mode_change, NULL);
-    LOG_RegisterLocalUpdateFunc("proxy.local.log.collation_mode", &Log::handle_logging_mode_change, NULL);
+
+    REC_RegisterConfigUpdateFunc("proxy.config.log.logging_enabled",
+                                 &Log::handle_logging_mode_change, NULL);
+
+    REC_RegisterConfigUpdateFunc("proxy.local.log.collation_mode",
+                                 &Log::handle_logging_mode_change, NULL);
 
     // we must create the flush thread since it takes care of the
     // periodic events (should this behavior be reversed ?)
@@ -959,14 +939,15 @@ Log::init(int flags)
     create_threads();
 
 #ifndef INK_SINGLE_THREADED
-    eventProcessor.schedule_every(NEW (new PeriodicWakeup()), HRTIME_SECOND,
-        ET_CALL);
+    eventProcessor.schedule_every(NEW (new PeriodicWakeup(collation_preproc_threads, 1)),
+                                  HRTIME_SECOND, ET_CALL);
 #endif
     init_status |= PERIODIC_WAKEUP_SCHEDULED;
 
     // Clear any stat values that need to be reset on startup
     //
-    LOG_CLEAR_DYN_STAT( log_stat_log_files_open_stat);
+    RecSetRawStatSum(log_rsb, log_stat_log_files_open_stat, 0);
+    RecSetRawStatCount(log_rsb, log_stat_log_files_open_stat, 0);
   }
 
   if (config_flags & LOGCAT) {
@@ -1000,10 +981,17 @@ Log::init_when_enabled()
     }
     // setup global scrap object
     //
-    global_scrap_format = NEW(new LogFormat(TEXT_LOG));
-    global_scrap_object = NEW(new LogObject(global_scrap_format, Log::config->logfile_dir, "scrapfile.log", BINARY_LOG,
-                                            NULL, Log::config->rolling_enabled, Log::config->rolling_interval_sec,
-                                            Log::config->rolling_offset_hr, Log::config->rolling_size_mb));
+    global_scrap_format = MakeTextLogFormat();
+    global_scrap_object =
+      NEW(new LogObject(global_scrap_format,
+                        Log::config->logfile_dir,
+                        "scrapfile.log",
+                        LOG_FILE_BINARY, NULL,
+                        Log::config->rolling_enabled,
+                        Log::config->collation_preproc_threads,
+                        Log::config->rolling_interval_sec,
+                        Log::config->rolling_offset_hr,
+                        Log::config->rolling_size_mb));
 
     // create the flush thread and the collation thread
     //
@@ -1026,38 +1014,37 @@ Log::init_when_enabled()
 void
 Log::create_threads()
 {
-  size_t stacksize;
-
-  REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
   if (!(init_status & THREADS_CREATED)) {
-    // start the flush thread
+
+    char desc[64];
+    preproc_notify = new EventNotify[collation_preproc_threads];
+
+    size_t stacksize;
+    REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
+
+    // start the preproc threads
     //
     // no need for the conditional var since it will be relying on
     // on the event system.
-    ink_mutex_init(&flush_mutex, "Flush thread mutex");
-    ink_cond_init(&flush_cond);
-    Continuation *flush_continuation = NEW(new LoggingFlushContinuation);
-    Event *flush_event = eventProcessor.spawn_thread(flush_continuation, "[LOGGING]", stacksize);
-    flush_thread = flush_event->ethread->tid;
+    for (int i = 0; i < collation_preproc_threads; i++) {
+      Continuation *preproc_cont = NEW(new LoggingPreprocContinuation(i));
+      sprintf(desc, "[LOG_PREPROC %d]", i);
+      eventProcessor.spawn_thread(preproc_cont, desc, stacksize);
+    }
 
-#if !defined(IOCORE_LOG_COLLATION)
-    // start the collation thread if we are not using iocore log collation
+    // Now, only one flush thread is supported.
+    // TODO: Enable multiple flush threads, such as
+    //       one flush thread per file.
     //
-    // for the collation thread, we start one on each machine (done here)
-    // and then block it on a mutex variable that is only released (from
-    // LogConfig) on the machine configured to be the collation server.
-    // When it is no longer needed (say after a reconfiguration), it will
-    // be blocked again on it's condition variable.  This makes it easy to
-    // start and stop the collation thread, and assumes that there is not
-    // much overhead associated with keeping an ink_thread blocked on a
-    // condition variable.
-    //
-    ink_mutex_init(&collate_mutex, "Collate thread mutex");
-    ink_cond_init(&collate_cond);
-    Continuation *collate_continuation = NEW(new LoggingCollateContinuation);
-    Event *collate_event = eventProcessor.spawn_thread(collate_continuation);
-    collate_thread = collate_event->ethread->tid;
-#endif
+    flush_notify = new EventNotify;
+    flush_data_list = new InkAtomicList;
+
+    sprintf(desc, "Logging flush buffer list");
+    ink_atomiclist_init(flush_data_list, desc, 0);
+    Continuation *flush_cont = NEW(new LoggingFlushContinuation(0));
+    sprintf(desc, "[LOG_FLUSH]");
+    eventProcessor.spawn_thread(flush_cont, desc, stacksize);
+
     init_status |= THREADS_CREATED;
   }
 }
@@ -1084,6 +1071,7 @@ Log::access(LogAccess * lad)
   int ret;
   static long sample = 1;
   long this_sample;
+  ProxyMutex *mutex = this_ethread()->mutex;
 
   // See if we're sampling and it is not time for another sample
   //
@@ -1091,6 +1079,7 @@ Log::access(LogAccess * lad)
     this_sample = sample++;
     if (this_sample && this_sample % Log::config->sampling_frequency) {
       Debug("log", "sampling, skipping this entry ...");
+      RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_event_log_access_skip_stat, 1);
       ret = Log::SKIP;
       goto done;
     } else {
@@ -1101,6 +1090,7 @@ Log::access(LogAccess * lad)
 
   if (Log::config->log_object_manager.get_num_objects() == 0) {
     Debug("log", "no log objects, skipping this entry ...");
+    RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_event_log_access_skip_stat, 1);
     ret = Log::SKIP;
     goto done;
   }
@@ -1129,87 +1119,224 @@ done:
 int
 Log::error(const char *format, ...)
 {
-  int ret_val = Log::SKIP;
+  va_list ap;
+  int ret;
 
-  if (error_log) {
-    ink_assert(format != NULL);
-    va_list ap;
-    va_start(ap, format);
-    ret_val = error_log->va_write(format, ap);
-    va_end(ap);
+  va_start(ap, format);
+  ret = Log::va_error(format, ap);
+  va_end(ap);
 
-    if (ret_val == Log::LOG_OK) {
-      ProxyMutex *mutex = this_ethread()->mutex;
-      LOG_INCREMENT_DYN_STAT(log_stat_event_log_error_stat);
-    }
-  }
-  return ret_val;
+  return ret;
 }
 
 int
-Log::va_error(char *format, va_list ap)
+Log::va_error(const char *format, va_list ap)
 {
   int ret_val = Log::SKIP;
+  ProxyMutex *mutex = this_ethread()->mutex;
 
   if (error_log) {
     ink_assert(format != NULL);
-    ret_val = error_log->va_write(format, ap);
+    ret_val = error_log->va_log(NULL, format, ap);
 
-    if (ret_val == Log::LOG_OK) {
-      ProxyMutex *mutex = this_ethread()->mutex;
-      LOG_INCREMENT_DYN_STAT(log_stat_event_log_error_stat);
+    switch (ret_val) {
+    case Log::LOG_OK:
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_event_log_error_ok_stat, 1);
+      break;
+    case Log::SKIP:
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_event_log_error_skip_stat, 1);
+      break;
+    case Log::AGGR:
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_event_log_error_aggr_stat, 1);
+      break;
+    case Log::FULL:
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_event_log_error_full_stat, 1);
+      break;
+    case Log::FAIL:
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_event_log_error_fail_stat, 1);
+      break;
+    default:
+      ink_release_assert(!"Unexpected result");
     }
+
+    return ret_val;
   }
+
+  RecIncrRawStat(log_rsb, mutex->thread_holding,
+                 log_stat_event_log_error_skip_stat, 1);
+
   return ret_val;
 }
 
 /*-------------------------------------------------------------------------
-  Log::flush_thread_main
+  Log::preproc_thread_main
 
-  This function defines the functionality of the logging flush thread,
-  whose purpose is to consume LogBuffer objects from the
-  global_buffer_full_list, process them, and destroy them.
+  This function defines the functionality of the logging flush prepare
+  thread, whose purpose is to consume LogBuffer objects from the
+  global_buffer_full_list, do some prepare work(such as convert to ascii),
+  and then forward to flush thread.
   -------------------------------------------------------------------------*/
 
 void *
-Log::flush_thread_main(void * /* args ATS_UNUSED */)
+Log::preproc_thread_main(void *args)
 {
-  time_t now, last_time = 0;
-  size_t buffers_flushed;
+  int idx = *(int *)args;
 
-  Debug("log-flush", "Log flush thread is alive ...");
+  Debug("log-preproc", "log preproc thread is alive ...");
+
+  Log::preproc_notify[idx].lock();
 
   while (true) {
-    buffers_flushed = 0;
+    size_t buffers_preproced = 0;
+    LogConfig * current = (LogConfig *)configProcessor.get(log_configid);
 
-    buffers_flushed = config->log_object_manager.flush_buffers();
-
-    if (error_log)
-      buffers_flushed += error_log->flush_buffers();
+    if (current) {
+      buffers_preproced = current->log_object_manager.preproc_buffers(idx);
+    }
 
     // config->increment_space_used(bytes_to_disk);
     // TODO: the bytes_to_disk should be set to Log
 
-    Debug("log-flush","%zu buffers flushed this round", buffers_flushed);
+    Debug("log-preproc","%zu buffers preprocessed from LogConfig %p (refcount=%d) this round",
+          buffers_preproced, current, current->m_refcount);
 
-    // Time to work on periodic events??
-    //
-    now = time(NULL);
-    if (now > last_time) {
-      if ((now % PERIODIC_TASKS_INTERVAL) == 0) {
-        Debug("log-flush", "periodic tasks for %" PRId64, (int64_t)now);
-        periodic_tasks(now);
-      }
-      last_time = (now = time(NULL));
-    }
+    configProcessor.release(log_configid, current);
+
     // wait for more work; a spurious wake-up is ok since we'll just
     // check the queue and find there is nothing to do, then wait
     // again.
     //
-    ink_mutex_try_acquire(&flush_mutex); // acquire if not already acquired, so ink_cond_wait doesn't fail us
-    ink_cond_wait (&flush_cond, &flush_mutex);
+    Log::preproc_notify[idx].wait();
   }
+
   /* NOTREACHED */
+  Log::preproc_notify[idx].unlock();
+  return NULL;
+}
+
+void *
+Log::flush_thread_main(void * /* args ATS_UNUSED */)
+{
+  char *buf;
+  LogFile *logfile;
+  LogBuffer *logbuffer;
+  LogFlushData *fdata;
+  ink_hrtime now, last_time = 0;
+  int len, bytes_written, total_bytes;
+  SLL<LogFlushData, LogFlushData::Link_link> link, invert_link;
+  ProxyMutex *mutex = this_thread()->mutex;
+
+  Log::flush_notify->lock();
+
+  while (true) {
+    fdata = (LogFlushData *) ink_atomiclist_popall(flush_data_list);
+
+    // invert the list
+    //
+    link.head = fdata;
+    while ((fdata = link.pop()))
+      invert_link.push(fdata);
+
+    // process each flush data
+    //
+    while ((fdata = invert_link.pop())) {
+      buf = NULL;
+      total_bytes = 0;
+      bytes_written = 0;
+      logfile = fdata->m_logfile;
+
+      if (logfile->m_file_format == LOG_FILE_BINARY) {
+
+        logbuffer = (LogBuffer *)fdata->m_data;
+        LogBufferHeader *buffer_header = logbuffer->header();
+
+        buf = (char *)buffer_header;
+        total_bytes = buffer_header->byte_count;
+
+      } else if (logfile->m_file_format == LOG_FILE_ASCII
+                 || logfile->m_file_format == LOG_FILE_PIPE){
+
+        buf = (char *)fdata->m_data;
+        total_bytes = fdata->m_len;
+
+      } else {
+        ink_release_assert(!"Unknown file format type!");
+      }
+
+      // make sure we're open & ready to write
+      logfile->check_fd();
+      if (!logfile->is_open()) {
+        Warning("File:%s was closed, have dropped (%d) bytes.",
+                logfile->get_name(), total_bytes);
+
+        RecIncrRawStat(log_rsb, mutex->thread_holding,
+                       log_stat_bytes_lost_before_written_to_disk_stat,
+                       total_bytes);
+        delete fdata;
+        continue;
+      }
+
+      // write *all* data to target file as much as possible
+      //
+      while (total_bytes - bytes_written) {
+        if (Log::config->logging_space_exhausted) {
+          Debug("log", "logging space exhausted, failed to write file:%s, have dropped (%d) bytes.",
+                  logfile->get_name(), (total_bytes - bytes_written));
+
+          RecIncrRawStat(log_rsb, mutex->thread_holding,
+                         log_stat_bytes_lost_before_written_to_disk_stat,
+                         total_bytes - bytes_written);
+          break;
+        }
+
+        len = ::write(logfile->m_fd, &buf[bytes_written],
+                      total_bytes - bytes_written);
+        if (len < 0) {
+          Error("Failed to write log to %s: [tried %d, wrote %d, %s]",
+                logfile->get_name(), total_bytes - bytes_written,
+                bytes_written, strerror(errno));
+
+          RecIncrRawStat(log_rsb, mutex->thread_holding,
+                         log_stat_bytes_lost_before_written_to_disk_stat,
+                         total_bytes - bytes_written);
+          break;
+        }
+        bytes_written += len;
+      }
+
+      RecIncrRawStat(log_rsb, mutex->thread_holding,
+                     log_stat_bytes_written_to_disk_stat, bytes_written);
+
+      ink_atomic_increment(&logfile->m_bytes_written, bytes_written);
+
+      delete fdata;
+    }
+
+    // Time to work on periodic events??
+    //
+    now = ink_get_hrtime() / HRTIME_SECOND;
+    if (now > last_time) {
+      if ((now % (PERIODIC_TASKS_INTERVAL)) == 0) {
+        Debug("log-preproc", "periodic tasks for %" PRId64, (int64_t)now);
+        periodic_tasks(now);
+      }
+      last_time = (now = ink_get_hrtime() / HRTIME_SECOND);
+    }
+
+    // wait for more work; a spurious wake-up is ok since we'll just
+    // check the queue and find there is nothing to do, then wait
+    // again.
+    //
+    Log::flush_notify->wait();
+  }
+
+  /* NOTREACHED */
+  Log::flush_notify->unlock();
   return NULL;
 }
 
@@ -1231,8 +1358,9 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
   int sock_id;
   int new_client;
 
-
   Debug("log-thread", "Log collation thread is alive ...");
+
+  Log::collate_notify.lock();
 
   while (true) {
     ink_assert(Log::config != NULL);
@@ -1242,7 +1370,7 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
     // wake-ups.
     //
     while (!Log::config->am_collation_host()) {
-      ink_cond_wait(&collate_cond, &collate_mutex);
+      Log::collate_notify.wait();
     }
 
     // Ok, at this point we know we're a log collation host, so get to
@@ -1261,7 +1389,7 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
       //
       // go to sleep ...
       //
-      ink_cond_wait(&collate_cond, &collate_mutex);
+      Log::collate_notify.wait();
       continue;
     }
 
@@ -1304,7 +1432,6 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
       }
 
       Debug("log-sock", "message accepted, size = %d", bytes_read);
-      LOG_SUM_GLOBAL_DYN_STAT(log_stat_bytes_received_from_network_stat, bytes_read);
 
       obj = match_logobject(header);
       if (!obj) {
@@ -1321,7 +1448,9 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
     Debug("log", "no longer collation host, deleting LogSock");
     delete sock;
   }
+
   /* NOTREACHED */
+  Log::collate_notify.unlock();
   return NULL;
 }
 
@@ -1349,14 +1478,16 @@ Log::match_logobject(LogBufferHeader * header)
     LogFormat *fmt = NEW(new LogFormat("__collation_format__", header->fmt_fieldlist(), header->fmt_printf()));
 
     if (fmt->valid()) {
-      LogFileFormat file_format = header->log_object_flags & LogObject::BINARY ? BINARY_LOG :
-        (header->log_object_flags & LogObject::WRITES_TO_PIPE ? ASCII_PIPE : ASCII_LOG);
+      LogFileFormat file_format = header->log_object_flags & LogObject::BINARY ? LOG_FILE_BINARY :
+        (header->log_object_flags & LogObject::WRITES_TO_PIPE ? LOG_FILE_PIPE : LOG_FILE_ASCII);
 
       obj = NEW(new LogObject(fmt, Log::config->logfile_dir,
                               header->log_filename(), file_format, NULL,
                               Log::config->rolling_enabled,
+                              Log::config->collation_preproc_threads,
                               Log::config->rolling_interval_sec,
-                              Log::config->rolling_offset_hr, Log::config->rolling_size_mb));
+                              Log::config->rolling_offset_hr,
+                              Log::config->rolling_size_mb, true));
 
       obj->set_remote_flag();
 

@@ -1,3 +1,5 @@
+.. _admin-guide:
+
 Administrators' Guide
 **********************
 
@@ -22,7 +24,7 @@ Administrators' Guide
 Apache Traffic Server™ speeds Internet access, enhances website
 performance, and delivers unprecedented web hosting capabilities.
 
-This chapter discusses the following topics:
+This chapter discusses how:
 
 Contents:
 
@@ -43,7 +45,6 @@ Contents:
    security-options.en
    working-log-files.en
    event-logging-formats.en
-   traffic-line-commands.en
    traffic-server-error-messages.en
    faqs.en
 
@@ -94,8 +95,9 @@ satisfy future requests.
 
 Traffic Server provides explicit proxy caching, in which the user’s
 client software must be configured to send requests directly to Traffic
-Server. Explicit proxy caching is described in the `Explicit Proxy
-Caching <explicit-proxy-caching>`_ chapter.
+Server. Explicit proxy caching is described in the :ref:`explicit-proxy-caching`
+chapter.
+
 
 Traffic Server as a Reverse Proxy
 ---------------------------------
@@ -104,8 +106,7 @@ As a reverse proxy, Traffic Server is configured to be the origin server
 to which the user is trying to connect (typically, the origin server’s
 advertised hostname resolves to Traffic Server, which acts as the real
 origin server). The reverse proxy feature is also called server
-acceleration. Reverse proxy is described in more detail in `Reverse
-Proxy and HTTP Redirects <reverse-proxy-http-redirects>`_.
+acceleration. Reverse proxy is described in more detail in :ref:`reverse-proxy-and-http-redirects`.
 
 Traffic Server in a Cache Hierarchy
 -----------------------------------
@@ -118,8 +119,16 @@ as a parent or a child cache to other Traffic Server systems or to
 similar caching products.
 
 Traffic Server supports ICP (Internet Cache Protocol) peering.
-Hierarchical caching is described in more detail in `Hierarchical
-Caching <hierachical-caching>`_.
+Hierarchical caching is described in more detail in :ref:`hierarchical-caching`.
+
+Deployment Limitations
+----------------------
+
+There's a number of deployment options that Traffic Server does not support right out
+of the box. Such funcionality may be implemented in a plugin, but in some cases
+Traffic Server's internal APIs or architectural restrictions won't make it easy:
+
+* Load Balancing - note that there is an experimental plugin for this: :ref:`balancer-plugin`.
 
 Traffic Server Components
 =========================
@@ -146,8 +155,7 @@ entire disk as corrupt and continues to use remaining disks. If all of
 the cache disks fail, then Traffic Server switches to proxy-only mode.
 You can partition the cache to reserve a certain amount of disk space
 for storing data for specific protocols and origin servers. For more
-information about the cache, see `Configuring the
-Cache <configuring-cache>`_.
+information about the cache, see :ref:`configuring-the-cache`.
 
 The RAM Cache
 -------------
@@ -156,8 +164,7 @@ Traffic Server maintains a small RAM cache that contains extremely
 popular objects. This RAM cache serves the most popular objects as fast
 as possible and reduces load on disks, especially during temporary
 traffic peaks. You can configure the RAM cache size to suit your needs;
-for detailed information, refer to `Changing the Size of the RAM
-Cache <configuring-cache#ChangingSizeofRAMCache>`_.
+for detailed information, refer to :ref:`changing-the-size-of-the-ram-cache`.
 
 The Host Database
 -----------------
@@ -191,19 +198,19 @@ Traffic Server contains three processes that work together to serve
 requests and manage/control/monitor the health of the system. The three
 processes are described below:
 
--  The ``traffic_server`` process is the transaction processing engine
+-  The :program:`traffic_server` process is the transaction processing engine
    of Traffic Server. It is responsible for accepting connections,
    processing protocol requests, and serving documents from the cache or
    origin server.
 
--  The ``traffic_manager`` process is the command and control facility
+-  The :program:`traffic_manager` process is the command and control facility
    of the Traffic Server, responsible for launching, monitoring, and
-   reconfiguring the ``traffic_server`` process. The ``traffic_manager``
+   reconfiguring the :program:`traffic_server` process. The :program:`traffic_manager`
    process is also responsible for the proxy autoconfiguration port, the
    statistics interface, cluster administration, and virtual IP
    failover.
 
-   If the ``traffic_manager`` process detects a ``traffic_server``
+   If the :program:`traffic_manager` process detects a :program:`traffic_server`
    process failure, it instantly restarts the process but also maintains
    a connection queue of all incoming requests. All incoming connections
    that arrive in the several seconds before full server restart are
@@ -211,14 +218,14 @@ processes are described below:
    first-served order. This connection queueing shields users from any
    server restart downtime.
 
--  The ``traffic_cop`` process monitors the health of both the
-   ``traffic_server`` and ``traffic_manager`` processes. The
-   ``traffic_cop`` process periodically (several times each minute)
-   queries the ``traffic_server`` and ``traffic_manager`` process by
+-  The :program:`traffic_cop` process monitors the health of both the
+   :program:`traffic_server` and :program:`traffic_manager` processes. The
+   :program:`traffic_cop` process periodically (several times each minute)
+   queries the :program:`traffic_server` and :program:`traffic_manager` process by
    issuing heartbeat requests to fetch synthetic web pages. In the event
    of failure (if no response is received within a timeout interval or
-   if an incorrect response is received), ``traffic_cop`` restarts the
-   ``traffic_manager`` and ``traffic_server`` processes.
+   if an incorrect response is received), :program:`traffic_cop` restarts the
+   :program:`traffic_manager` and :program:`traffic_server` processes.
 
 The figure below illustrates the three Traffic Server processes.
 
@@ -273,11 +280,9 @@ monitoring:
    help with log file analysis, you can separate log files so that they
    contain information specific to protocol or hosts.
 
-Traffic analysis options are described in more detail in `Monitoring
-Traffic <monitoring-traffic>`_.
+Traffic analysis options are described in more detail in :ref:`monitoring-traffic`.
 
-Traffic Server logging options are described in `Working with Log
-Files <working-log-files>`_.
+Traffic Server logging options are described in :ref:`working-with-log-files`.
 
 Traffic Server Security Options
 ===============================
@@ -302,4 +307,4 @@ following:
 -  Control access via SSL (Secure Sockets Layer).
 
 Traffic Server security options are described in more detail in
-`Security Options <security-options>`_.
+:ref:`security-options`.

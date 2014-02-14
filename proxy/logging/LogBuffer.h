@@ -26,7 +26,7 @@
 #define LOG_BUFFER_H
 
 #include "libts.h"
-#include "LogFormatType.h"
+#include "LogFormat.h"
 #include "LogLimits.h"
 #include "LogAccess.h"
 
@@ -118,9 +118,8 @@ union LB_State
   int64_t ival;
   struct
   {
-    uint16_t offset;              // buffer should be <= 64KB
+    uint32_t offset;              // buffer offset(bytes in buffer)
     uint16_t num_entries;         // number of entries in buffer
-    uint16_t byte_count;          // bytes in buffer
     uint16_t full:1;              // not accepting more checkouts
     uint16_t num_writers:15;      // number of writers
   } s;
@@ -182,13 +181,28 @@ public:
   // static functions
   static size_t max_entry_bytes();
   static int to_ascii(LogEntryHeader * entry, LogFormatType type,
-                      char *buf, int max_len, char *symbol_str, char *printf_str,
-                      unsigned buffer_version, char *alt_format = NULL);
+                      char *buf, int max_len, const char *symbol_str, char *printf_str,
+                      unsigned buffer_version, const char *alt_format = NULL);
   static int resolve_custom_entry(LogFieldList * fieldlist,
                                   char *printf_str, char *read_from, char *write_to,
                                   int write_to_len, long timestamp, long timestamp_us,
                                   unsigned buffer_version, LogFieldList * alt_fieldlist = NULL,
                                   char *alt_printf_str = NULL);
+  static void destroy(LogBuffer *lb)
+  {
+    int result, old_ref, new_ref;
+
+    do {
+      old_ref = lb->m_references;
+      new_ref = old_ref - 1;
+      result = ink_atomic_cas(&lb->m_references, old_ref, new_ref);
+    } while(!result);
+
+    ink_release_assert(new_ref >= 0);
+
+    if (new_ref == 0)
+      delete lb;
+  }
 
 private:
   char *m_unaligned_buffer;     // the unaligned buffer
@@ -197,7 +211,6 @@ private:
   size_t m_buf_align;           // the buffer alignment
   size_t m_write_align;         // the write alignment mask
 
-  int m_max_entries;            // max number of entries allowed
   long m_expiration_time;       // buffer expiration time
 
   LogObject *m_owner;           // the LogObject that owns this buf.
@@ -211,7 +224,7 @@ private:
 
   // private functions
   size_t _add_buffer_header();
-  unsigned add_header_str(char *str, char *buf_ptr, unsigned buf_len);
+  unsigned add_header_str(const char *str, char *buf_ptr, unsigned buf_len);
 
   // -- member functions that are not allowed --
   LogBuffer();
