@@ -1,3 +1,12 @@
+trafficserver (4.2.0-1~bbc74+1) stable; urgency=medium
+
+  * Imported Upstream version 4.2.0
+  * Patches refresh for ATS 4.2
+  * Update list of plugins to be installed
+  * Fix build dependencies list to reflect changes for traffic_shell #TS-2469
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Thu, 20 Mar 2014 15:48:59 +0100
+
 trafficserver (4.1.2-1~bbc72+1) stable; urgency=medium
 
   * Imported Upstream version 4.1.2
