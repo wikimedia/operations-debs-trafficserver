@@ -13,6 +13,13 @@ usr/lib/trafficserver/modules/header_rewrite.so
 usr/lib/trafficserver/modules/libloader.so
 usr/lib/trafficserver/modules/regex_remap.so
 usr/lib/trafficserver/modules/stats_over_http.so
+usr/lib/trafficserver/modules/balancer.so
+usr/lib/trafficserver/modules/xdebug.so
+usr/lib/trafficserver/modules/tslua.so
+usr/lib/trafficserver/modules/remap_stats.so
+usr/lib/trafficserver/modules/escalate.so
+usr/lib/trafficserver/modules/buffer_upload.so
+usr/lib/trafficserver/modules/hipes.so
 usr/share/doc/trafficserver/trafficshell/*
 usr/share/man/*
 usr/share/perl5/*
