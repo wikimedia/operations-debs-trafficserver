@@ -52,8 +52,6 @@ Description
 
 .. option:: -M, --remote_management
 
-.. option:: -d DIR, --management_dir DIR
-
 .. option:: -C CMD, --command CMD
 
 .. option:: -k, --clear_hostdb
@@ -64,7 +62,7 @@ Description
 
 .. option:: --accept_mss MSS
 
-.. option:: -t SECS, --poll_timeout SECS
+.. option:: -t MSECS, --poll_timeout MSECS
 
 .. option:: -h, --help
 

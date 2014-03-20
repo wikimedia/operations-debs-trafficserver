@@ -57,8 +57,6 @@
 
 #include "ink_apidefs.h"
 
-#define FLUSH_THREAD_SLEEP_TIMEOUT (1)
-#define FLUSH_THREAD_MIN_FLUSH_COUNTER (FLUSH_ARRAY_SIZE/4)
 #define PERIODIC_TASKS_INTERVAL 5 // TODO: Maybe this should be done as a config option
 
 // Log global objects
@@ -346,6 +344,13 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "chi", field);
 
+  field = NEW(new LogField("client_host_port", "chp",
+                           LogField::sINT,
+                           &LogAccess::marshal_client_host_port,
+                           &LogAccess::unmarshal_int_to_str));
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "chp", field);
+
   field = NEW(new LogField("client_host_ip_hex", "chih",
                            LogField::IP,
                            &LogAccess::marshal_client_host_ip,
@@ -356,7 +361,7 @@ Log::init_fields()
   field = NEW (new LogField ("client_auth_user_name", "caun",
                              LogField::STRING,
                              &LogAccess::marshal_client_auth_user_name,
-                             &LogAccess::unmarshal_str));
+                             (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add (field, false);
   ink_hash_table_insert (field_symbol_hash, "caun", field);
 
@@ -405,63 +410,63 @@ Log::init_fields()
   field = NEW(new LogField("client_req_text", "cqtx",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_text,
-                           &LogAccess::unmarshal_http_text));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_http_text));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqtx", field);
 
   field = NEW(new LogField("client_req_http_method", "cqhm",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_http_method,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqhm", field);
 
   field = NEW(new LogField("client_req_url", "cqu",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_url,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqu", field);
 
   field = NEW(new LogField("client_req_url_canonical", "cquc",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_url_canon,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cquc", field);
 
   field = NEW(new LogField("client_req_unmapped_url_canonical", "cquuc",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_unmapped_url_canon,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cquuc", field);
 
   field = NEW(new LogField("client_req_unmapped_url_path", "cquup",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_unmapped_url_path,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cquup", field);
 
   field = NEW(new LogField("client_req_unmapped_url_host", "cquuh",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_unmapped_url_host,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cquuh", field);
 
   field = NEW(new LogField("client_req_url_scheme", "cqus",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_url_scheme,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqus", field);
 
   field = NEW(new LogField("client_req_url_path", "cqup",
                            LogField::STRING,
                            &LogAccess::marshal_client_req_url_path,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqup", field);
 
@@ -504,7 +509,7 @@ Log::init_fields()
   field = NEW(new LogField("proxy_resp_content_type", "psct",
                            LogField::STRING,
                            &LogAccess::marshal_proxy_resp_content_type,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "psct", field);
 
@@ -629,7 +634,7 @@ Log::init_fields()
   field = NEW(new LogField("proxy_req_server_name", "pqsn",
                            LogField::STRING,
                            &LogAccess::marshal_proxy_req_server_name,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "pqsn", field);
 
@@ -690,7 +695,7 @@ Log::init_fields()
   field = NEW(new LogField("proxy_host_name", "phn",
                            LogField::STRING,
                            &LogAccess::marshal_proxy_host_name,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "phn", field);
 
@@ -705,7 +710,7 @@ Log::init_fields()
   field = NEW(new LogField("accelerator_id", "xid",
                            LogField::STRING,
                            &LogAccess::marshal_client_accelerator_id,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "xid", field);
   // X-WAID
@@ -723,7 +728,7 @@ Log::init_fields()
   field = NEW(new LogField("server_host_name", "shn",
                            LogField::STRING,
                            &LogAccess::marshal_server_host_name,
-                           &LogAccess::unmarshal_str));
+                           (LogField::UnmarshalFunc)&LogAccess::unmarshal_str));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "shn", field);
 
@@ -933,17 +938,6 @@ Log::init(int flags)
     REC_RegisterConfigUpdateFunc("proxy.local.log.collation_mode",
                                  &Log::handle_logging_mode_change, NULL);
 
-    // we must create the flush thread since it takes care of the
-    // periodic events (should this behavior be reversed ?)
-    //
-    create_threads();
-
-#ifndef INK_SINGLE_THREADED
-    eventProcessor.schedule_every(NEW (new PeriodicWakeup(collation_preproc_threads, 1)),
-                                  HRTIME_SECOND, ET_CALL);
-#endif
-    init_status |= PERIODIC_WAKEUP_SCHEDULED;
-
     // Clear any stat values that need to be reset on startup
     //
     RecSetRawStatSum(log_rsb, log_stat_log_files_open_stat, 0);
@@ -994,13 +988,9 @@ Log::init_when_enabled()
                         Log::config->rolling_size_mb));
 
     // create the flush thread and the collation thread
-    //
     create_threads();
-
-    // schedule periodic wakeup
-    // ToDo: Why was this removed??
-    //
-    //      eventProcessor.schedule_every (NEW (new PeriodicWakeup()), HRTIME_SECOND, ET_CALL);
+    eventProcessor.schedule_every(NEW (new PeriodicWakeup(collation_preproc_threads, 1)),
+                                  HRTIME_SECOND, ET_CALL);
 
     init_status |= FULLY_INITIALIZED;
   }
@@ -1014,39 +1004,35 @@ Log::init_when_enabled()
 void
 Log::create_threads()
 {
-  if (!(init_status & THREADS_CREATED)) {
+  char desc[64];
+  preproc_notify = new EventNotify[collation_preproc_threads];
 
-    char desc[64];
-    preproc_notify = new EventNotify[collation_preproc_threads];
+  size_t stacksize;
+  REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
 
-    size_t stacksize;
-    REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
-
-    // start the preproc threads
-    //
-    // no need for the conditional var since it will be relying on
-    // on the event system.
-    for (int i = 0; i < collation_preproc_threads; i++) {
-      Continuation *preproc_cont = NEW(new LoggingPreprocContinuation(i));
-      sprintf(desc, "[LOG_PREPROC %d]", i);
-      eventProcessor.spawn_thread(preproc_cont, desc, stacksize);
-    }
-
-    // Now, only one flush thread is supported.
-    // TODO: Enable multiple flush threads, such as
-    //       one flush thread per file.
-    //
-    flush_notify = new EventNotify;
-    flush_data_list = new InkAtomicList;
-
-    sprintf(desc, "Logging flush buffer list");
-    ink_atomiclist_init(flush_data_list, desc, 0);
-    Continuation *flush_cont = NEW(new LoggingFlushContinuation(0));
-    sprintf(desc, "[LOG_FLUSH]");
-    eventProcessor.spawn_thread(flush_cont, desc, stacksize);
-
-    init_status |= THREADS_CREATED;
+  // start the preproc threads
+  //
+  // no need for the conditional var since it will be relying on
+  // on the event system.
+  for (int i = 0; i < collation_preproc_threads; i++) {
+    Continuation *preproc_cont = NEW(new LoggingPreprocContinuation(i));
+    sprintf(desc, "[LOG_PREPROC %d]", i);
+    eventProcessor.spawn_thread(preproc_cont, desc, stacksize);
   }
+
+  // Now, only one flush thread is supported.
+  // TODO: Enable multiple flush threads, such as
+  //       one flush thread per file.
+  //
+  flush_notify = new EventNotify;
+  flush_data_list = new InkAtomicList;
+
+  sprintf(desc, "Logging flush buffer list");
+  ink_atomiclist_init(flush_data_list, desc, 0);
+  Continuation *flush_cont = NEW(new LoggingFlushContinuation(0));
+  sprintf(desc, "[LOG_FLUSH]");
+  eventProcessor.spawn_thread(flush_cont, desc, stacksize);
+
 }
 
 /*-------------------------------------------------------------------------
@@ -1320,12 +1306,10 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
     // Time to work on periodic events??
     //
     now = ink_get_hrtime() / HRTIME_SECOND;
-    if (now > last_time) {
-      if ((now % (PERIODIC_TASKS_INTERVAL)) == 0) {
-        Debug("log-preproc", "periodic tasks for %" PRId64, (int64_t)now);
-        periodic_tasks(now);
-      }
-      last_time = (now = ink_get_hrtime() / HRTIME_SECOND);
+    if (now >= last_time + PERIODIC_TASKS_INTERVAL) {
+      Debug("log-preproc", "periodic tasks for %" PRId64, (int64_t)now);
+      periodic_tasks(now);
+      last_time = ink_get_hrtime() / HRTIME_SECOND;
     }
 
     // wait for more work; a spurious wake-up is ok since we'll just

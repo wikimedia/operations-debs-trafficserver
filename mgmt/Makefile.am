@@ -17,7 +17,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SUBDIRS = cluster preparse utils web2 stats api cli
+SUBDIRS = cluster preparse utils web2 stats api
 
 # This is for traffic_manager only (local manager)
 AM_CPPFLAGS = $(ink_with_modules_local) \
@@ -26,6 +26,7 @@ AM_CPPFLAGS = $(ink_with_modules_local) \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
+  -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/cluster \
@@ -57,6 +58,7 @@ libmgmt_p_a_CPPFLAGS = \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/lib
+
 libmgmt_p_a_SOURCES = \
   BaseManager.cc \
   BaseManager.h \
@@ -69,8 +71,6 @@ libmgmt_p_a_SOURCES = \
   RecordsConfig.h
 
 traffic_manager_SOURCES = \
-  ../proxy/Error.cc \
-  ../proxy/DiagsConfig.cc \
   AddConfigFilesHere.cc \
   Alarms.cc \
   Alarms.h \
@@ -96,11 +96,14 @@ traffic_manager_LDADD = \
   stats/libstats.a \
   web2/libweb.a \
   api/libmgmtapilocal.a \
+  api/libtsmgmtshare.la \
   utils/libutils_lm.a \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/lib/records/libreclocal.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/proxy/shared/liberror.a \
+  $(top_builddir)/proxy/shared/libdiagsconfig.a \
   @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ \
   -lm
 
@@ -111,5 +114,5 @@ traffic_manager_LDADD += \
   $(top_builddir)/lib/tsconfig/libtsconfig.la
 endif
 
-traffic_manager_LDADD += @LIBSSL@
+traffic_manager_LDADD += @OPENSSL_LIBS@
 

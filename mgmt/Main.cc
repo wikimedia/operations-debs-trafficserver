@@ -27,7 +27,6 @@
 
 #include "Main.h"
 #include "MgmtUtils.h"
-#include "MgmtSchema.h"
 #include "WebMgmtUtils.h"
 #include "WebIntrMain.h"
 #include "WebOverview.h"
@@ -60,10 +59,13 @@
 #include <grp.h>
 
 #define FD_THROTTLE_HEADROOM (128 + 64) // TODO: consolidate with THROTTLE_FD_HEADROOM
+#define DIAGS_LOG_FILENAME "manager.log"
 
 #if defined(freebsd)
 extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer, size_t buflen, struct passwd **resptr);
 #endif
+
+static void extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *fds_throttle);
 
 LocalManager *lmgmt = NULL;
 FileManager *configFiles;
@@ -77,15 +79,6 @@ static inkcoreapi DiagsConfig *diagsConfig;
 static char debug_tags[1024] = "";
 static char action_tags[1024] = "";
 static bool proxy_on = true;
-
-static bool schema_on = false;
-static char *schema_path = NULL;
-
-// TODO: Check if really need those
-char system_root_dir[PATH_NAME_MAX + 1];
-char system_runtime_dir[PATH_NAME_MAX + 1];
-char system_config_directory[PATH_NAME_MAX + 1];
-char system_log_dir[PATH_NAME_MAX + 1];
 
 char mgmt_path[PATH_NAME_MAX + 1];
 
@@ -111,6 +104,7 @@ static void SigChldHandler(int sig);
 static void
 check_lockfile()
 {
+  xptr<char> rundir(RecConfigReadRuntimeDir());
   char lockfile[PATH_NAME_MAX];
   int err;
   pid_t holding_pid;
@@ -118,7 +112,7 @@ check_lockfile()
   //////////////////////////////////////
   // test for presence of server lock //
   //////////////////////////////////////
-  Layout::relative_to(lockfile, PATH_NAME_MAX, Layout::get()->runtimedir, SERVER_LOCK);
+  Layout::relative_to(lockfile, sizeof(lockfile), rundir, SERVER_LOCK);
   Lockfile server_lockfile(lockfile);
   err = server_lockfile.Open(&holding_pid);
   if (err == 1) {
@@ -144,7 +138,7 @@ check_lockfile()
   ///////////////////////////////////////////
   // try to get the exclusive manager lock //
   ///////////////////////////////////////////
-  Layout::relative_to(lockfile, PATH_NAME_MAX, Layout::get()->runtimedir, MANAGER_LOCK);
+  Layout::relative_to(lockfile, sizeof(lockfile), rundir, MANAGER_LOCK);
   Lockfile manager_lockfile(lockfile);
   err = manager_lockfile.Get(&holding_pid);
   if (err != 1) {
@@ -273,31 +267,17 @@ setup_coredump()
 static void
 init_dirs()
 {
-  char buf[PATH_NAME_MAX + 1];
+  xptr<char> rundir(RecConfigReadRuntimeDir());
 
-  REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
-  Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
-  if (access(system_config_directory, R_OK) == -1) {
-    mgmt_elog(0, "unable to access() config dir '%s': %d, %s\n", system_config_directory, errno, strerror(errno));
-    mgmt_elog(0, "please set config path via 'proxy.config.config_dir' \n");
+  if (access(Layout::get()->sysconfdir, R_OK) == -1) {
+    mgmt_elog(0, "unable to access() config dir '%s': %d, %s\n", Layout::get()->sysconfdir, errno, strerror(errno));
+    mgmt_elog(0, "please set the 'TS_ROOT' environment variable\n");
     _exit(1);
   }
 
-  ink_strlcpy(mgmt_path, system_config_directory, sizeof(mgmt_path));
-
-  REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
-  Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
-  if (access(system_runtime_dir, R_OK) == -1) {
-    mgmt_elog(0, "unable to access() local state dir '%s': %d, %s\n", system_runtime_dir, errno, strerror(errno));
+  if (access(rundir, R_OK) == -1) {
+    mgmt_elog(0, "unable to access() local state dir '%s': %d, %s\n", (const char *)rundir, errno, strerror(errno));
     mgmt_elog(0, "please set 'proxy.config.local_state_dir'\n");
-    _exit(1);
-  }
-
-  REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
-  Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
-  if (access(system_log_dir, W_OK) == -1) {
-    mgmt_elog(0, "unable to access() log dir'%s': %d, %s\n", system_log_dir, errno, strerror(errno));
-    mgmt_elog(0, "please set 'proxy.config.log.logfile_dir'\n");
     _exit(1);
   }
 }
@@ -305,13 +285,14 @@ init_dirs()
 static void
 chdir_root()
 {
+  const char * prefix = Layout::get()->prefix;
 
-  if (system_root_dir[0] && (chdir(system_root_dir) < 0)) {
-    mgmt_elog(0, "unable to change to root directory \"%s\" [%d '%s']\n", system_root_dir, errno, strerror(errno));
+  if (chdir(prefix) < 0) {
+    mgmt_elog(0, "unable to change to root directory \"%s\" [%d '%s']\n", prefix, errno, strerror(errno));
     mgmt_elog(0, " please set correct path in env variable TS_ROOT \n");
     exit(1);
   } else {
-    mgmt_log("[TrafficManager] using root directory '%s'\n",system_root_dir);
+    mgmt_log("[TrafficManager] using root directory '%s'\n", prefix);
   }
 }
 
@@ -374,7 +355,6 @@ main(int argc, char **argv)
 {
   // Before accessing file system initialize Layout engine
   Layout::create();
-  ink_strlcpy(system_root_dir, Layout::get()->prefix, sizeof(system_root_dir));
   ink_strlcpy(mgmt_path, Layout::get()->sysconfdir, sizeof(mgmt_path));
 
   // change the directory to the "root" directory
@@ -519,11 +499,6 @@ main(int argc, char **argv)
           } else if (strcmp(argv[i], "-proxyBackDoor") == 0) {
             ++i;
             proxy_backdoor = atoi(argv[i]);
-          } else if (strcmp(argv[i], "-schema") == 0) {
-            // hidden option
-            ++i;
-            schema_path = argv[i];
-            schema_on = true;
           } else {
             printUsage();
           }
@@ -547,7 +522,7 @@ main(int argc, char **argv)
 
   // Bootstrap the Diags facility so that we can use it while starting
   //  up the manager
-  diagsConfig = NEW(new DiagsConfig(debug_tags, action_tags, false));
+  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, false));
   diags = diagsConfig->diags;
   diags->prefix_str = "Manager ";
 
@@ -583,7 +558,7 @@ main(int argc, char **argv)
   Init_Errata_Logging();
 #endif
   ts_host_res_global_init();
-  lmgmt = new LocalManager(mgmt_path, proxy_on);
+  lmgmt = new LocalManager(proxy_on);
   RecLocalInitMessage();
   lmgmt->initAlarm();
 
@@ -597,7 +572,7 @@ main(int argc, char **argv)
   }
   // INKqa11968: need to set up callbacks and diags data structures
   // using configuration in records.config
-  diagsConfig = NEW(new DiagsConfig(debug_tags, action_tags, true));
+  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, true));
   diags = diagsConfig->diags;
   RecSetDiags(diags);
   diags->prefix_str = "Manager ";
@@ -695,14 +670,6 @@ main(int argc, char **argv)
     group_addr = REC_readString("proxy.config.cluster.mc_group_addr", &found);
     ink_assert(found);
   }
-
-  if (schema_on) {
-    XMLDom schema;
-    schema.LoadFile(schema_path);
-    bool validate = validateRecordsConfig(&schema);
-    ink_release_assert(validate);
-  }
-
 
   in_addr_t min_ip = inet_network("224.0.0.255");
   in_addr_t max_ip = inet_network("239.255.255.255");

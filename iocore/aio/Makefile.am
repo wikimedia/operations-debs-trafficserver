@@ -22,16 +22,19 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts
 
-DEFS += @IOCORE_MODULARIZED_DEFS@
 TESTS = test_AIO.sample
 
 noinst_LIBRARIES = libinkaio.a
 check_PROGRAMS = test_AIO
 
-libinkaio_a_SOURCES = AIO.cc I_AIO.h P_AIO.h Inline.cc
+libinkaio_a_SOURCES = \
+  AIO.cc \
+  I_AIO.h \
+  Inline.cc \
+  P_AIO.h
+
 test_AIO_SOURCES = \
-  test_AIO.cc \
-  ../../proxy/UglyLogStubs.cc
+  test_AIO.cc
 
 test_AIO_CXXFLAGS = \
   $(iocore_include_dirs) \
@@ -52,5 +55,6 @@ test_AIO_LDADD = \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
+  $(top_builddir)/proxy/shared/libUglyLogStubs.a \
   @LIBTCL@
 

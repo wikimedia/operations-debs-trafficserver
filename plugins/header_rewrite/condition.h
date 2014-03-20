@@ -16,7 +16,7 @@
   limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Implement the classes for the various types of hash keys we support.
 //
 #ifndef __CONDITION_H__
@@ -37,9 +37,9 @@ enum CondModifiers {
   COND_OR = 1,
   COND_AND = 2,
   COND_NOT = 4,
-  COND_NOCASE = 8,
+  COND_NOCASE = 8, // Not implemented
   COND_LAST = 16,
-  COND_CHAIN = 32
+  COND_CHAIN = 32  // Not implemented
 };
 
 

@@ -32,15 +32,15 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[4.1.2])
-m4_define([TS_VERSION_N],[4001002])
+m4_define([TS_VERSION_S],[4.2.0])
+m4_define([TS_VERSION_N],[4002000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
 AC_CONFIG_AUX_DIR([build/aux])
 AC_CONFIG_SRCDIR([proxy/Main.cc])
 AC_CONFIG_MACRO_DIR([build])
-AM_INIT_AUTOMAKE([-Wall -Werror tar-ustar foreign no-installinfo no-installman 1.9.2])
+AM_INIT_AUTOMAKE([-Wall -Werror tar-ustar foreign no-installinfo no-installman subdir-objects 1.9.2])
 AC_CONFIG_HEADERS([lib/ts/ink_autoconf.h])
 
 # Configure with --disable-silent-rules to get verbose output. For more info, see
@@ -228,30 +228,9 @@ AC_MSG_RESULT([$enable_micro])
 AS_IF([test "x$enable_micro" = "xyes"], [is_micro_build=1], [is_micro_build=0])
 AC_SUBST(is_micro_build)
 
-#
-# Standalone iocore
-#
-AC_MSG_CHECKING([whether to build a standalone iocore])
-AC_ARG_ENABLE([standalone-iocore],
-  [AS_HELP_STRING([--enable-standalone-iocore],[build just standalone iocore])],
-  [],
-  [enable_standalone_iocore=no]
-)
-AC_MSG_RESULT([$enable_standalone_iocore])
-TS_ARG_ENABLE_VAR([has],[standalone-iocore])
-AC_SUBST(has_standalone_iocore)
-AS_IF([test 0 -ne $has_standalone_iocore],
-  [AC_SUBST([IOCORE_MODULARIZED_DEFS],[""])
-   AC_SUBST([ink_with_modules_def],["-DREC_BUILD_STAND_ALONE"])
-   AC_SUBST([ink_with_modules_local],[""])
-   AC_SUBST([ink_with_modules_process],[""])
-  ],
-  [AC_SUBST([ink_with_modules_def],["-DREC_BUILD_MGMT"])
-   AC_SUBST([ink_with_modules_local],["-DLOCAL_MANAGER"])
-   AC_SUBST([ink_with_modules_process],["-DPROCESS_MANAGER"])
-  ]
-)
-AM_CONDITIONAL([STANDALONE_IOCORE], [test 0 -ne $has_standalone_iocore])
+AC_SUBST([ink_with_modules_def],["-DREC_BUILD_MGMT"])
+AC_SUBST([ink_with_modules_local],["-DLOCAL_MANAGER"])
+AC_SUBST([ink_with_modules_process],["-DPROCESS_MANAGER"])
 
 #
 # Force some static linkage (for testing / development only)
@@ -422,7 +401,7 @@ if test "x${enable_freelist}" = "xyes"; then
 		[AS_HELP_STRING([--enable-reclaimable-freelist],
 				[enable reclaimable freelist support (effective only when freelist is enabled)])],
 		[],
-		[enable_recalimable_freelist="yes"])
+		[enable_reclaimable_freelist="no"])
   AC_MSG_RESULT([$enable_reclaimable_freelist])
 else
   enable_reclaimable_freelist="no"
@@ -479,6 +458,20 @@ AC_ARG_ENABLE([experimental-plugins],
 )
 AC_MSG_RESULT([$enable_experimental_plugins])
 AM_CONDITIONAL([BUILD_EXPERIMENTAL_PLUGINS], [ test "x${enable_experimental_plugins}" = "xyes" ])
+
+#
+# Example plugins. The example plugins are always built, but not always installed. Installing
+# them is useful for QA, but not useful for most users, so we default this to disabled.
+#
+
+AC_MSG_CHECKING([whether to install example plugins])
+AC_ARG_ENABLE([example-plugins],
+  [AS_HELP_STRING([--enable-example-plugins],[install example plugins])],
+  [],
+  [enable_example_plugins=no]
+)
+AC_MSG_RESULT([$enable_example_plugins])
+AM_CONDITIONAL([BUILD_EXAMPLE_PLUGINS], [ test "x${enable_example_plugins}" = "xyes" ])
 
 
 #
@@ -595,6 +588,24 @@ if test "x${have_gnu_cxx_hash_map}" = "xyes" ; then
   AC_DEFINE(HAVE_GNU_CXX_HASH_MAP, 1, [whether __gnu_cxx::hash_map is available])
 fi
 
+# And check for std::shared_ptr vs std::tr1::shared_ptr
+TS_FLAG_HEADERS([unordered_map unordered_set])
+AC_MSG_CHECKING([for std::shared_ptr])
+AC_COMPILE_IFELSE([
+  AC_LANG_PROGRAM([
+    #include <memory>
+    using std::shared_ptr;
+    ], [
+  ])],
+  [ have_std_shared_ptr=yes ],
+  [ have_std_shared_ptr=no ]
+)
+
+AC_MSG_RESULT([$have_std_shared_ptr])
+if test "x${have_std_shared_ptr}" = "xyes" ; then
+  AC_DEFINE(HAVE_STD_SHARED_PTR, 1, [whether std::shared_ptr is available])
+fi
+
 AC_LANG_POP()
 
 dnl AC_PROG_SED is only available from version 2.6 (released in 2003). CentosOS
@@ -668,6 +679,41 @@ AC_CHECK_PROG(RM, rm, rm)
 AC_CHECK_PROG(ASCPP, cpp, cpp)
 AC_CHECK_TOOL(AR, ar, ar)
 AC_ISC_POSIX
+
+AM_PATH_PYTHON([2.4], [
+  dnl action-if-found
+  TS_MAN1_MANPAGES=`$PYTHON $srcdir/doc/conf.py --man-pages --section=1 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
+  TS_MAN3_MANPAGES=`$PYTHON $srcdir/doc/conf.py --man-pages --section=3 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
+  TS_MAN5_MANPAGES=`$PYTHON $srcdir/doc/conf.py --man-pages --section=5 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
+  TS_MAN8_MANPAGES=`$PYTHON $srcdir/doc/conf.py --man-pages --section=8 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
+
+  # If we have python, check if the Sphinx version looks OK.
+  AS_IF(["$PYTHON" "$srcdir/doc/conf.py" --check-version], [
+    sphinx_version_check=yes
+  ])
+
+], [
+  dnl action-if-not-found
+  :
+])
+
+AC_ARG_VAR(SPHINXBUILD, [the sphinx-build documentation generator])
+AC_ARG_VAR(SPHINXOPTS, [additional sphinx-build options])
+AC_CHECK_PROG([SPHINXBUILD], [sphinx-build], [sphinx-build], [false])
+
+AC_SUBST(TS_MAN1_MANPAGES)
+AC_SUBST(TS_MAN3_MANPAGES)
+AC_SUBST(TS_MAN5_MANPAGES)
+AC_SUBST(TS_MAN8_MANPAGES)
+
+AC_MSG_CHECKING([whether to build man pages])
+AS_IF([test "x$sphinx_version_check" = "xyes" -a "x$SPHINXBUILD" != "xfalse"], [
+  AM_CONDITIONAL([BUILD_MANPAGES], [true])
+  AC_MSG_RESULT([yes])
+], [
+  AM_CONDITIONAL([BUILD_MANPAGES], [false])
+  AC_MSG_RESULT([no])
+])
 
 # Do bison check by hand because we must do a version check.
 # Use YACC because it makes autotools shut up.
@@ -1079,13 +1125,14 @@ AX_BOOST_BASE([1.33],
 #
 # Check for SSL presence and usability
 TS_CHECK_CRYPTO
-if test "x${enable_crypto}" != "xyes"; then
-  AC_MSG_ERROR([Need at least one SSL library, --with-openssl is supported])
-fi
 
 #
 # Check for NextProtocolNegotiation TLS extension support.
 TS_CHECK_CRYPTO_NEXTPROTONEG
+
+#
+# Check for EC key support.
+TS_CHECK_CRYPTO_EC_KEYS
 
 #
 # Check for ServerNameIndication TLS extension support.
@@ -1307,20 +1354,36 @@ AC_SUBST(use_linux_native_aio)
 # If we don't find it, disable checking for header.
 use_hwloc=0
 AS_IF([test "x$enable_hwloc" = "xyes"], [
-  AC_CHECK_HEADERS([hwloc.h], [],
-    [AC_MSG_WARN([hwloc.h header not found, try --disable-hwloc])], []
-  )
-
-  # Old versions of libhwloc don't have HWLOC_OBJ_PU.
-  AC_CHECK_DECL(HWLOC_OBJ_PU,
-    [AC_DEFINE(HAVE_HWLOC_OBJ_PU, 1, [Whether HWLOC_OBJ_PU is available])], [],
-    [#include <hwloc.h>]
-  )
-
   # Use pkg-config, because some distros (*cough* Ubuntu) put hwloc in unusual places.
-  PKG_CHECK_MODULES([hwloc], [hwloc], [use_hwloc=yes], [use_hwloc=no])
-  AC_SUBST([hwloc_CFLAGS])
-  AC_SUBST([hwloc_LIBS])
+  PKG_CHECK_MODULES([hwloc], [hwloc], [
+    SAVE_LIBS="$LIBS"
+    LIBS="-lhwloc"
+    AC_LANG_PUSH([C++])
+    AC_MSG_CHECKING([for hwloc C++ linking])
+    AC_LINK_IFELSE([
+      AC_LANG_PROGRAM([#include <hwloc.h>],[hwloc_topology_t t; hwloc_topology_init(&t); hwloc_get_type_depth(t, HWLOC_OBJ_SOCKET);])],[
+      use_hwloc=1
+      AC_SUBST([hwloc_CFLAGS])
+      AC_SUBST([hwloc_LIBS])
+      AC_MSG_RESULT([yes])
+      # Old versions of libhwloc don't have HWLOC_OBJ_PU.
+      AC_CHECK_DECL(HWLOC_OBJ_PU,
+        [AC_DEFINE(HAVE_HWLOC_OBJ_PU, 1, [Whether HWLOC_OBJ_PU is available])], [],
+        [#include <hwloc.h>]
+      )
+    ], [
+      AC_MSG_RESULT([no])
+      AC_MSG_WARN([hwloc not linkable, try --disable-hwloc])
+      AC_SUBST([hwloc_CFLAGS],[""])
+      AC_SUBST([hwloc_LIBS],[""])
+    ])
+    AC_LANG_POP()
+    LIBS="$SAVE_LIBS"
+  ], [
+    AC_MSG_WARN([hwloc not found, try --disable-hwloc])
+    AC_SUBST([hwloc_CFLAGS],[""])
+    AC_SUBST([hwloc_LIBS],[""])
+  ])
 ])
 
 AC_SUBST(use_hwloc)
@@ -1631,17 +1694,17 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len], [], [], [#include <netinet/in.h>])
 AC_CHECK_MEMBER([struct sockaddr_in.sin_len], [], [], [#include <netinet/in.h>])
 AC_CHECK_MEMBER([struct sockaddr_in6.sin6_len], [], [], [#include <netinet/in.h>])
 
-if test "x${ac_cv_member_sockaddr_sa_len}" = xyes; then
+if test "x${ac_cv_member_struct_sockaddr_sa_len}" = xyes; then
     AC_DEFINE(HAVE_STRUCT_SOCKADDR_SA_LEN, 1,
 	    [Whether struct sockaddr_in has the sa_len member])
 fi
 
-if test "x${ac_cv_member_sockaddr_in_sin_len}" = xyes ; then
+if test "x${ac_cv_member_struct_sockaddr_in_sin_len}" = xyes ; then
 AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN_SIN_LEN, 1,
 	    [Whether struct sockaddr_in has the sin_len member])
 fi
 
-if test "x${ac_cv_member_sockaddr_in6_sin6_len}" = xyes; then
+if test "x${ac_cv_member_struct_sockaddr_in6_sin6_len}" = xyes; then
     AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN, 1,
 	    [Whether struct sockaddr_in6 has the sin6_len member])
 fi
@@ -1841,7 +1904,11 @@ AC_SUBST([TFW_PACKAGE_SUFFIX])
 
 AC_CONFIG_FILES([
   Makefile
-  cop/Makefile
+  cmd/Makefile
+  cmd/traffic_cop/Makefile
+  cmd/traffic_line/Makefile
+  cmd/traffic_shell/Makefile
+  cmd/traffic_top/Makefile
   doc/Doxyfile
   doc/Makefile
   example/Makefile
@@ -1883,11 +1950,10 @@ AC_CONFIG_FILES([
   lib/atscppapi/examples/async_timer/Makefile
   lib/wccp/Makefile
   lib/perl/Makefile
+  lib/perl/lib/Apache/TS.pm
   mgmt/Makefile
   mgmt/api/Makefile
   mgmt/api/include/Makefile
-  mgmt/api/remote/Makefile
-  mgmt/cli/Makefile
   mgmt/cluster/Makefile
   mgmt/preparse/Makefile
   mgmt/stats/Makefile
@@ -1898,18 +1964,23 @@ AC_CONFIG_FILES([
   plugins/conf_remap/Makefile
   plugins/experimental/Makefile
   plugins/experimental/authproxy/Makefile
+  plugins/experimental/balancer/Makefile
   plugins/experimental/buffer_upload/Makefile
   plugins/experimental/channel_stats/Makefile
   plugins/experimental/custom_redirect/Makefile
+  plugins/experimental/escalate/Makefile
   plugins/experimental/esi/Makefile
   plugins/experimental/geoip_acl/Makefile
   plugins/experimental/lua/Makefile
+  plugins/experimental/hipes/Makefile
+  plugins/experimental/ts_lua/Makefile
   plugins/experimental/metalink/Makefile
   plugins/experimental/rfc5861/Makefile
   plugins/experimental/spdy/Makefile
   plugins/experimental/tcp_info/Makefile
   plugins/experimental/healthchecks/Makefile
   plugins/experimental/remap_stats/Makefile
+  plugins/experimental/xdebug/Makefile
   plugins/gzip/Makefile
   plugins/libloader/Makefile
   plugins/header_filter/Makefile
@@ -1926,6 +1997,7 @@ AC_CONFIG_FILES([
   proxy/config/storage.config.default
   proxy/congest/Makefile
   proxy/hdrs/Makefile
+  proxy/shared/Makefile
   proxy/http/Makefile
   proxy/http/remap/Makefile
   proxy/logging/Makefile

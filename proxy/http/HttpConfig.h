@@ -66,6 +66,7 @@ enum
   http_background_fill_current_count_stat,
   http_current_client_connections_stat,
   http_current_active_client_connections_stat,
+  http_websocket_current_active_client_connections_stat,
   http_current_client_transactions_stat,
   http_total_incoming_connections_stat,
   http_current_parent_proxy_transactions_stat,
@@ -406,7 +407,8 @@ struct OverridableHttpConfigParams {
       share_server_sessions(2), fwd_proxy_auth_to_parent(0), insert_age_in_response(1),
       anonymize_remove_from(0), anonymize_remove_referer(0), anonymize_remove_user_agent(0),
       anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
-      proxy_response_server_enabled(1), insert_squid_x_forwarded_for(1), send_http11_requests(1),
+      proxy_response_server_enabled(1), proxy_response_hsts_max_age(-1), proxy_response_hsts_include_subdomains(0),
+      insert_squid_x_forwarded_for(1), send_http11_requests(1),
       cache_http(1), cache_cluster_cache_local(0), cache_ignore_client_no_cache(1), cache_ignore_client_cc_max_age(0),
       cache_ims_on_client_no_cache(1), cache_ignore_server_no_cache(0), cache_responses_to_cookies(1),
       cache_ignore_auth(0), cache_urls_that_look_dynamic(1), cache_required_headers(2), cache_range_lookup(1),
@@ -471,6 +473,8 @@ struct OverridableHttpConfigParams {
   MgmtByte anonymize_insert_client_ip;
 
   MgmtByte proxy_response_server_enabled;
+  MgmtInt proxy_response_hsts_max_age;
+  MgmtByte proxy_response_hsts_include_subdomains;
 
   /////////////////////
   // X-Forwarded-For //
@@ -640,6 +644,7 @@ public:
 
   MgmtInt server_max_connections;
   MgmtInt origin_min_keep_alive_connections; // TODO: This one really ought to be overridable, but difficult right now.
+  MgmtInt attach_server_session_to_client;
 
   MgmtByte parent_proxy_routing_enable;
   MgmtByte disable_ssl_parenting;
@@ -667,8 +672,6 @@ public:
   // connection variables. timeouts are in seconds //
   ///////////////////////////////////////////////////
   MgmtByte session_auth_cache_keep_alive_enabled;
-  MgmtInt origin_server_pipeline;
-  MgmtInt user_agent_pipeline;
   MgmtInt transaction_active_timeout_in;
   MgmtInt accept_no_activity_timeout;
 
@@ -892,8 +895,6 @@ HttpConfigParams::HttpConfigParams()
     url_expansions(NULL),
     num_url_expansions(0),
     session_auth_cache_keep_alive_enabled(1),
-    origin_server_pipeline(1),
-    user_agent_pipeline(8),
     transaction_active_timeout_in(900),
     accept_no_activity_timeout(120),
     parent_connect_attempts(4),

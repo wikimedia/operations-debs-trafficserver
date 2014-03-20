@@ -39,6 +39,8 @@ static void *g_recv_cookie = NULL;
 //-------------------------------------------------------------------------
 #if defined (REC_BUILD_STAND_ALONE)
 
+extern RecModeT g_mode_type;
+
 static LLQ *g_send_llq = NULL;
 static LLQ *g_recv_llq = NULL;
 
@@ -71,7 +73,7 @@ send_thr(void *data)
 static void *
 recv_thr(void *data)
 {
-  int msg_size;
+  int msg_size = 0;
   RecMessageHdr msg_hdr;
   RecMessage *msg;
   RecHandle h_pipe = (RecHandle)(intptr_t)data;
@@ -97,8 +99,9 @@ recv_thr(void *data)
 static void *
 accept_thr(void *data)
 {
+  xptr<char> rundir(RecConfigReadRuntimeDir());
   RecHandle h_pipe;
-  h_pipe = RecPipeCreate(Layout::get()->runtimedir, REC_PIPE_NAME);
+  h_pipe = RecPipeCreate(rundir, REC_PIPE_NAME);
   ink_thread_create(send_thr, (void *) h_pipe);
   ink_thread_create(recv_thr, (void *) h_pipe);
   return NULL;
@@ -145,7 +148,7 @@ RecMessageInit()
   g_send_llq = create_queue();
   g_recv_llq = create_queue();
 
-  switch (mode_type) {
+  switch (g_mode_type) {
   case RECM_CLIENT:
     h_pipe = RecPipeConnect(Layout::get()->runtimedir, REC_PIPE_NAME);
     if (h_pipe == REC_HANDLE_INVALID) {
@@ -549,6 +552,7 @@ RecMessageWriteToDisk(RecMessage *msg, const char *fpath)
   msg_size = sizeof(RecMessageHdr) + (msg->o_write - msg->o_start);
   if ((h_file = RecFileOpenW(fpath)) != REC_HANDLE_INVALID) {
     if (RecFileWrite(h_file, (char *) msg, msg_size, &bytes_written) == REC_ERR_FAIL) {
+      RecFileClose(h_file);
       return REC_ERR_FAIL;
     }
     RecFileClose(h_file);
