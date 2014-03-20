@@ -33,6 +33,8 @@ const char *URL_SCHEME_FTP;
 const char *URL_SCHEME_GOPHER;
 const char *URL_SCHEME_HTTP;
 const char *URL_SCHEME_HTTPS;
+const char *URL_SCHEME_WSS;
+const char *URL_SCHEME_WS;
 const char *URL_SCHEME_MAILTO;
 const char *URL_SCHEME_NEWS;
 const char *URL_SCHEME_NNTP;
@@ -52,6 +54,8 @@ int URL_WKSIDX_FTP;
 int URL_WKSIDX_GOPHER;
 int URL_WKSIDX_HTTP;
 int URL_WKSIDX_HTTPS;
+int URL_WKSIDX_WS;
+int URL_WKSIDX_WSS;
 int URL_WKSIDX_MAILTO;
 int URL_WKSIDX_NEWS;
 int URL_WKSIDX_NNTP;
@@ -71,6 +75,8 @@ int URL_LEN_FTP;
 int URL_LEN_GOPHER;
 int URL_LEN_HTTP;
 int URL_LEN_HTTPS;
+int URL_LEN_WS;
+int URL_LEN_WSS;
 int URL_LEN_MAILTO;
 int URL_LEN_NEWS;
 int URL_LEN_NNTP;
@@ -106,6 +112,8 @@ url_init()
     URL_SCHEME_GOPHER = hdrtoken_string_to_wks("gopher");
     URL_SCHEME_HTTP = hdrtoken_string_to_wks("http");
     URL_SCHEME_HTTPS = hdrtoken_string_to_wks("https");
+    URL_SCHEME_WSS = hdrtoken_string_to_wks("wss");
+    URL_SCHEME_WS = hdrtoken_string_to_wks("ws");
     URL_SCHEME_MAILTO = hdrtoken_string_to_wks("mailto");
     URL_SCHEME_NEWS = hdrtoken_string_to_wks("news");
     URL_SCHEME_NNTP = hdrtoken_string_to_wks("nntp");
@@ -125,6 +133,8 @@ url_init()
       URL_SCHEME_GOPHER && 
       URL_SCHEME_HTTP && 
       URL_SCHEME_HTTPS && 
+      URL_SCHEME_WS &&
+      URL_SCHEME_WSS &&
       URL_SCHEME_MAILTO && 
       URL_SCHEME_NEWS && 
       URL_SCHEME_NNTP && 
@@ -145,6 +155,8 @@ url_init()
     URL_WKSIDX_GOPHER = hdrtoken_wks_to_index(URL_SCHEME_GOPHER);
     URL_WKSIDX_HTTP = hdrtoken_wks_to_index(URL_SCHEME_HTTP);
     URL_WKSIDX_HTTPS = hdrtoken_wks_to_index(URL_SCHEME_HTTPS);
+    URL_WKSIDX_WS = hdrtoken_wks_to_index(URL_SCHEME_WS);
+    URL_WKSIDX_WSS = hdrtoken_wks_to_index(URL_SCHEME_WSS);
     URL_WKSIDX_MAILTO = hdrtoken_wks_to_index(URL_SCHEME_MAILTO);
     URL_WKSIDX_NEWS = hdrtoken_wks_to_index(URL_SCHEME_NEWS);
     URL_WKSIDX_NNTP = hdrtoken_wks_to_index(URL_SCHEME_NNTP);
@@ -164,6 +176,8 @@ url_init()
     URL_LEN_GOPHER = hdrtoken_wks_to_length(URL_SCHEME_GOPHER);
     URL_LEN_HTTP = hdrtoken_wks_to_length(URL_SCHEME_HTTP);
     URL_LEN_HTTPS = hdrtoken_wks_to_length(URL_SCHEME_HTTPS);
+    URL_LEN_WS = hdrtoken_wks_to_length(URL_SCHEME_WS);
+    URL_LEN_WSS = hdrtoken_wks_to_length(URL_SCHEME_WSS);
     URL_LEN_MAILTO = hdrtoken_wks_to_length(URL_SCHEME_MAILTO);
     URL_LEN_NEWS = hdrtoken_wks_to_length(URL_SCHEME_NEWS);
     URL_LEN_NNTP = hdrtoken_wks_to_length(URL_SCHEME_NNTP);
@@ -776,19 +790,24 @@ url_length_get(URLImpl * url)
       length += url->m_len_port + 1;    // +1 for ":"
   }
 
-  if (url->m_ptr_path)
+  if (url->m_ptr_path) {
     length += url->m_len_path + 1;      // +1 for /
-  else
+  }
+  else {
     length += 1;                // +1 for /
+  }
 
-  if (url->m_ptr_params)
+  if (url->m_ptr_params && url->m_len_params > 0) {
     length += url->m_len_params + 1;  // +1 for ";"
+  }
 
-  if (url->m_ptr_query)
+  if (url->m_ptr_query && url->m_len_query > 0) {
     length += url->m_len_query + 1;   // +1 for "?"
+  }
 
-  if (url->m_ptr_fragment)
-    length += url->m_len_fragment + 1;        // +1 for "/"
+  if (url->m_ptr_fragment && url->m_len_fragment > 0) {
+    length += url->m_len_fragment + 1;        // +1 for "#"
+  }
 
   return length;
 }
@@ -851,19 +870,19 @@ url_to_string(URLImpl * url, Arena * arena, int *length)
   memcpy(&str[idx], url->m_ptr_path, url->m_len_path);
   idx += url->m_len_path;
 
-  if (url->m_ptr_params) {
+  if (url->m_ptr_params && url->m_len_params > 0) {
     str[idx++] = ';';
     memcpy(&str[idx], url->m_ptr_params, url->m_len_params);
     idx += url->m_len_params;
   }
 
-  if (url->m_ptr_query) {
+  if (url->m_ptr_query && url->m_len_query > 0) {
     str[idx++] = '?';
     memcpy(&str[idx], url->m_ptr_query, url->m_len_query);
     idx += url->m_len_query;
   }
 
-  if (url->m_ptr_fragment) {
+  if (url->m_ptr_fragment && url->m_len_fragment > 0) {
     str[idx++] = '#';
     memcpy(&str[idx], url->m_ptr_fragment, url->m_len_fragment);
     idx += url->m_len_fragment;

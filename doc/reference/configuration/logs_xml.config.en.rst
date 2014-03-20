@@ -165,7 +165,7 @@ The following list shows the ``LogObject`` specifications.
     If the name does not contain an extension (for example, ``squid``),
     then the extension ``.log`` is automatically appended to it for
     ASCII logs and ``.blog`` for binary logs (refer to :ref:`Mode =
-    "valid_logging_mode" <LogObject-Mode>`_).
+    "valid_logging_mode" <LogObject-Mode>`).
 
     If you do not want an extension to be added, then end the filename
     with a single (.) dot (for example: ``squid.`` ).
@@ -217,12 +217,18 @@ The following list shows the ``LogObject`` specifications.
 
 .. _logs-xml-logobject-collationhost:
 
-``<CollationHosts = "list_of_valid_hostnames"/>``
+``<CollationHosts = "list_of_valid_hostnames:port|failover hosts"/>``
     Optional
-    A comma-separated list of collation servers to which all log entries
-    (for this object) are forwarded. Collation servers can be specified
-    by name or IP address. Specify the collation port with a colon after
-    the name; for example, ``host:port`` .
+    A comma-separated list of collation servers (with pipe delimited 
+    failover servers) to which all log entries (for this object) are 
+    forwarded. Collation servers can be specified by name or IP address. 
+    Specify the collation port with a colon after the name. For example, 
+    in ``host1:5000|failhostA:5000|failhostB:6000, host2:6000`` logs 
+    would be sent to host1 and host2, with failhostA and failhostB 
+    acting as failover hosts for host1. When host1 disconnects, 
+    logs would be sent to failhostA. If failhostA disconnects, log 
+    entries would be sent to failhostB until host1 or failhostA comes 
+    back. Logs would also be sent to host2.
 
 ``<Header = "header"/>``
     Optional

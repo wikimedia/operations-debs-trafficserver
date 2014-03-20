@@ -30,6 +30,7 @@
 #include "ExpandingArray.h"
 #include "MgmtSocket.h"
 #include "ink_cap.h"
+#include "I_Layout.h"
 
 #define MAX_VERSION_DIGITS 11
 #define DEFAULT_BACKUPS 2
@@ -45,14 +46,11 @@ const char *RollbackStrings[] = { "Rollback Ok",
 Rollback::Rollback(const char *baseFileName, bool root_access_needed_)
   : root_access_needed(root_access_needed_)
 {
-  char configTmp[PATH_NAME_MAX + 1];
   version_t highestSeen;        // the highest backup version
   ExpandingArray existVer(25, true);    // Exsisting versions
   struct stat fileInfo;
   MgmtInt numBak;
   char *alarmMsg;
-  struct stat s;
-  int err;
 
   // To Test, Read/Write access to the file
   int testFD;                   // For open test
@@ -70,20 +68,13 @@ Rollback::Rollback(const char *baseFileName, bool root_access_needed_)
   fileName = new char[fileNameLen + 1];
   ink_strlcpy(fileName, baseFileName, fileNameLen + 1);
 
-
-  // Get the configuration directory - SHOULD BE CENTRALIZED SOMEWHERE
   // TODO: Use the runtime directory for storing mutable data
   // XXX: Sysconfdir should be imutable!!!
-  //
-  if (varStrFromName("proxy.config.config_dir", configTmp, PATH_NAME_MAX) == false) {
-    mgmt_log(stderr, "[Rollback::Rollback] Unable to find configuration directory from proxy.config.config_dir\n");
-    ink_assert(0);
-  }
 
-  if ((err = stat(system_config_directory, &s)) < 0) {
-    mgmt_elog(0, "[Rollback::Rollback] unable to stat() directory '%s': %d %d, %s\n",
-              system_config_directory, err, errno, strerror(errno));
-    mgmt_elog(0, "[Rollback::Rollback] please set config path via command line '-path <path>' or 'proxy.config.config_dir' \n");
+  if (access(Layout::get()->sysconfdir, F_OK) < 0) {
+    mgmt_elog(0, "[Rollback::Rollback] unable to access() directory '%s': %d, %s\n",
+              Layout::get()->sysconfdir, errno, strerror(errno));
+    mgmt_elog(0, "[Rollback::Rollback] please set the 'TS_ROOT' environment variable\n");
     _exit(1);
   }
 
@@ -96,12 +87,6 @@ Rollback::Rollback(const char *baseFileName, bool root_access_needed_)
   } else {
     numberBackups = DEFAULT_BACKUPS;
   }
-  // TODO: Use strdup/free instead C++ new
-  //
-  int configDirLen = strlen(system_config_directory) + 1;
-  configDir = new char[configDirLen];
-  ink_strlcpy(configDir, system_config_directory, configDirLen);
-
 
   ink_mutex_init(&fileAccessLock, "RollBack Mutex");
 
@@ -155,7 +140,7 @@ Rollback::Rollback(const char *baseFileName, bool root_access_needed_)
           mgmt_log(stderr, "[RollBack::Rollback] %s\n", alarmMsg);
           lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_CONFIG_UPDATE_FAILED, alarmMsg);
           ats_free(alarmMsg);
-          closeFile(fd);
+          closeFile(fd, true);
         } else {
           mgmt_fatal(stderr, 0,
                      "[RollBack::Rollback] Unable to find configuration file %s.\n\tCreation of a placeholder failed : %s\n",
@@ -216,18 +201,17 @@ Rollback::Rollback(const char *baseFileName, bool root_access_needed_)
       snprintf(alarmMsg, 2048, "Config file is read-only");
       mgmt_log(stderr, "[Rollback::Rollback] %s : %s\n", alarmMsg, fileName);
       lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_CONFIG_UPDATE_FAILED, alarmMsg);
-      closeFile(testFD);
+      closeFile(testFD, false);
     }
     ats_free(alarmMsg);
   } else {
-    closeFile(testFD);
+    closeFile(testFD, true);
   }
 }
 
 Rollback::~Rollback()
 {
   delete[]fileName;
-  delete[]configDir;
 }
 
 
@@ -240,11 +224,11 @@ Rollback::createPathStr(version_t version)
 {
 
   char *buffer;
-  int bufSize = strlen(configDir) + fileNameLen + MAX_VERSION_DIGITS + 1;
+  int bufSize = strlen(Layout::get()->sysconfdir) + fileNameLen + MAX_VERSION_DIGITS + 1;
 
   buffer = new char[bufSize];
 
-  ink_filepath_make(buffer, bufSize, configDir, fileName);
+  Layout::get()->relative_to(buffer, bufSize, Layout::get()->sysconfdir, fileName);
 
   if (version != ACTIVE_VERSION) {
     size_t pos = strlen(buffer);
@@ -354,8 +338,9 @@ Rollback::openFile(version_t version, int oflags, int *errnoPtr)
     }
     mgmt_log(stderr, "[Rollback::openFile] Open of %s failed: %s\n", fileName, strerror(errno));
   }
-
-  fcntl(fd, F_SETFD, 1);
+  else {
+    fcntl(fd, F_SETFD, 1);
+  }
 
   delete[]filePath;
 
@@ -363,18 +348,21 @@ Rollback::openFile(version_t version, int oflags, int *errnoPtr)
 }
 
 int
-Rollback::closeFile(int fd)
+Rollback::closeFile(int fd, bool callSync)
 {
-  if (fsync(fd) == -1) {
-    // INKqa11574: SGI fsync will return EBADF error if the file was
-    // open w/o write access (e.g. read-only).  Do not print an error
-    // if we get this errno back -- just in case this fd was open
-    // O_RDONLY.
-    if (errno != EBADF) {
-      mgmt_log(stderr, "[Rollback::closeFile] fsync failed for file '%s' (%d: %s)\n", fileName, errno, strerror(errno));
-    }
+  int result = 0;
+  if (callSync && fsync(fd) < 0) {
+    result = -1;
+    mgmt_log(stderr, "[Rollback::closeFile] fsync failed for file '%s' (%d: %s)\n", fileName, errno, strerror(errno));
   }
-  return (close(fd));
+
+  if (result == 0) {
+    result = close(fd);
+  }
+  else {
+    close(fd);
+  }
+  return result;
 }
 
 
@@ -438,6 +426,7 @@ Rollback::internalUpdate(textBuffer * buf, version_t newVersion, bool notifyChan
   char *nextVersion;
   int writeBytes;
   int diskFD;
+  int ret;
   versionInfo *toRemove;
   versionInfo *newBak;
   bool failedLink = false;
@@ -481,9 +470,9 @@ Rollback::internalUpdate(textBuffer * buf, version_t newVersion, bool notifyChan
   }
   // Write the buffer into the new configuration file
   writeBytes = write(diskFD, buf->bufPtr(), buf->spaceUsed());
-  closeFile(diskFD);
-  if (writeBytes != buf->spaceUsed()) {
-    mgmt_log(stderr, "[Rollback::intrernalUpdate] Unable to write new version of %s : %s\n", fileName, strerror(errno));
+  ret = closeFile(diskFD, true);
+  if ((ret < 0) || (writeBytes != buf->spaceUsed())) {
+    mgmt_log(stderr, "[Rollback::internalUpdate] Unable to write new version of %s : %s\n", fileName, strerror(errno));
     returnCode = SYS_CALL_ERROR_ROLLBACK;
     goto UPDATE_CLEANUP;
   }
@@ -648,7 +637,7 @@ Rollback::getVersion_ml(version_t version, textBuffer ** buffer)
 GET_CLEANUP:
 
   if (diskFD >= 0) {
-    closeFile(diskFD);
+    closeFile(diskFD, false);
   }
 
   return returnCode;
@@ -727,11 +716,11 @@ Rollback::findVersions_ml(ExpandingArray * listNames)
   struct dirent *dirEntrySpace;
   struct dirent *entryPtr;
 
-  dir = opendir(configDir);
+  dir = opendir(Layout::get()->sysconfdir);
 
   if (dir == NULL) {
     mgmt_log(stderr, "[Rollback::findVersions] Unable to open configuration directory: %s: %s\n",
-             configDir, strerror(errno));
+             Layout::get()->sysconfdir, strerror(errno));
     return INVALID_VERSION;
   }
   // The fun of Solaris - readdir_r requires a buffer passed into it

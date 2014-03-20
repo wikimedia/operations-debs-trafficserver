@@ -31,14 +31,11 @@
 
 static bool g_initialized = false;
 
-Diags *g_diags = NULL;
-
 RecRecord *g_records = NULL;
 InkHashTable *g_records_ht = NULL;
 ink_rwlock g_records_rwlock;
 int g_num_records = 0;
 
-const char *g_stats_snap_fpath = NULL;
 int g_num_update[RECT_MAX];
 
 RecTree *g_records_tree = NULL;
@@ -47,7 +44,7 @@ RecTree *g_records_tree = NULL;
 // register_record
 //-------------------------------------------------------------------------
 static RecRecord *
-register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default)
+register_record(RecT rec_type, const char *name, RecDataT data_type, RecData data_default, RecPersistT persist_type)
 {
   RecRecord *r = NULL;
 
@@ -64,6 +61,10 @@ register_record(RecT rec_type, const char *name, RecDataT data_type, RecData dat
     RecDataSet(r->data_type, &(r->data), &(data_default));
     RecDataSet(r->data_type, &(r->data_default), &(data_default));
     ink_hash_table_insert(g_records_ht, name, (void *) r);
+
+    if (REC_TYPE_IS_STAT(r->rec_type)) {
+      r->stat_meta.persist_type = persist_type;
+    }
   }
 
   // we're now registered
@@ -169,7 +170,6 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
 
   // initialize record array for our internal stats (this can be reallocated later)
   g_records = (RecRecord *)ats_malloc(REC_MAX_RECORDS * sizeof(RecRecord));
-  memset(g_records, 0, REC_MAX_RECORDS * sizeof(RecRecord));
 
   // initialize record hash index
   g_records_ht = ink_hash_table_create(InkHashTableKeyType_String);
@@ -179,14 +179,11 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   }
   // read stats
   if ((mode_type == RECM_SERVER) || (mode_type == RECM_STAND_ALONE)) {
-    g_stats_snap_fpath = Layout::relative_to(Layout::get()->runtimedir, REC_RAW_STATS_FILE);
     RecReadStatsFile();
   }
   // read configs
   if ((mode_type == RECM_SERVER) || (mode_type == RECM_STAND_ALONE)) {
     ink_mutex_init(&g_rec_config_lock, NULL);
-    g_rec_config_contents_llq = create_queue();
-    g_rec_config_contents_ht = ink_hash_table_create(InkHashTableKeyType_String);
     // Import the file into memory; try the following in this order:
     // ./etc/trafficserver/records.config.shadow
     // ./records.config.shadow
@@ -216,20 +213,6 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   return REC_ERR_OKAY;
 }
 
-
-//-------------------------------------------------------------------------
-// RecSetDiags
-//-------------------------------------------------------------------------
-int
-RecSetDiags(Diags * _diags)
-{
-  // Warning! It's very dangerous to change diags on the fly!  This
-  // function only exists so that we can boot-strap TM on startup.
-  ink_atomic_swap(&g_diags, _diags);
-  return REC_ERR_OKAY;
-}
-
-
 //-------------------------------------------------------------------------
 // RecLinkCnfigXXX
 //-------------------------------------------------------------------------
@@ -243,13 +226,13 @@ RecLinkConfigInt(const char *name, RecInt * rec_int)
 }
 
 int
-RecLinkConfigInk32(const char *name, int32_t * p_int32)
+RecLinkConfigInt32(const char *name, int32_t * p_int32)
 {
   return RecRegisterConfigUpdateCb(name, link_int32, (void *) p_int32);
 }
 
 int
-RecLinkConfigInkU32(const char *name, uint32_t * p_uint32)
+RecLinkConfigUInt32(const char *name, uint32_t * p_uint32)
 {
   return RecRegisterConfigUpdateCb(name, link_uint32, (void *) p_uint32);
 }
@@ -472,6 +455,34 @@ RecGetRecordDataType(const char *name, RecDataT * data_type, bool lock)
       err = REC_ERR_FAIL;
     } else {
       *data_type = r->data_type;
+      err = REC_ERR_OKAY;
+    }
+    rec_mutex_release(&(r->lock));
+  }
+
+  if (lock) {
+    ink_rwlock_unlock(&g_records_rwlock);
+  }
+
+  return err;
+}
+
+int
+RecGetRecordPersistenceType(const char *name, RecPersistT * persist_type, bool lock)
+{
+  int err = REC_ERR_FAIL;
+  RecRecord *r = NULL;
+
+  if (lock) {
+    ink_rwlock_rdlock(&g_records_rwlock);
+  }
+
+  *persist_type = RECP_NULL;
+
+  if (ink_hash_table_lookup(g_records_ht, name, (void **) &r)) {
+    rec_mutex_acquire(&(r->lock));
+    if (REC_TYPE_IS_STAT(r->rec_type)) {
+      *persist_type = r->stat_meta.persist_type;
       err = REC_ERR_OKAY;
     }
     rec_mutex_release(&(r->lock));
@@ -708,10 +719,21 @@ RecRegisterStat(RecT rec_type, const char *name, RecDataT data_type, RecData dat
   RecRecord *r = NULL;
 
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default, persist_type)) != NULL) {
+    // If the persistence type we found in the records hash is not the same as the persistence
+    // type we are registering, then that means that it changed between the previous software
+    // version and the current version. If the metric changed to non-persistent, reset to the
+    // new default value.
+    if ((r->stat_meta.persist_type == RECP_NULL ||r->stat_meta.persist_type == RECP_PERSISTENT) &&
+        persist_type == RECP_NON_PERSISTENT) {
+      RecDebug(DL_Debug, "resetting default value for formerly persisted stat '%s'", r->name);
+      RecDataSet(r->data_type, &(r->data), &(data_default));
+    }
+
     r->stat_meta.persist_type = persist_type;
   } else {
     ink_assert(!"Can't register record!");
+    RecDebug(DL_Warning, "failed to register '%s' record", name);
   }
   ink_rwlock_unlock(&g_records_rwlock);
 
@@ -729,7 +751,7 @@ RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type,
 {
   RecRecord *r;
   ink_rwlock_wrlock(&g_records_rwlock);
-  if ((r = register_record(rec_type, name, data_type, data_default)) != NULL) {
+  if ((r = register_record(rec_type, name, data_type, data_default, RECP_NULL)) != NULL) {
     // Note: do not modify 'record->config_meta.update_required'
     r->config_meta.update_type = update_type;
     r->config_meta.check_type = check_type;
@@ -1053,6 +1075,87 @@ REC_readString(const char *name, bool * found, bool lock)
   return _tmp;
 }
 
+//-------------------------------------------------------------------------
+// RecConfigReadRuntimeDir
+//-------------------------------------------------------------------------
+char *
+RecConfigReadRuntimeDir()
+{
+  char buf[PATH_NAME_MAX + 1];
+
+  buf[0] = '\0';
+  RecGetRecordString("proxy.config.local_state_dir", buf, PATH_NAME_MAX);
+  if (strlen(buf) > 0) {
+    return Layout::get()->relative(buf);
+  } else {
+    return ats_strdup(Layout::get()->runtimedir);
+  }
+}
+
+//-------------------------------------------------------------------------
+// RecConfigReadLogDir
+//-------------------------------------------------------------------------
+char *
+RecConfigReadLogDir()
+{
+  char buf[PATH_NAME_MAX + 1];
+
+  buf[0] = '\0';
+  RecGetRecordString("proxy.config.log.logfile_dir", buf, PATH_NAME_MAX);
+  if (strlen(buf) > 0) {
+    return Layout::get()->relative(buf);
+  } else {
+    return ats_strdup(Layout::get()->logdir);
+  }
+}
+
+//-------------------------------------------------------------------------
+// RecConfigReadSnapshotDir.
+//-------------------------------------------------------------------------
+char *
+RecConfigReadSnapshotDir()
+{
+  char buf[PATH_NAME_MAX + 1];
+
+  buf[0] = '\0';
+  RecGetRecordString("proxy.config.snapshot_dir", buf, PATH_NAME_MAX);
+  if (strlen(buf) > 0) {
+    return Layout::get()->relative_to(Layout::get()->sysconfdir, buf);
+  } else {
+    return Layout::get()->relative_to(Layout::get()->sysconfdir, "snapshots");
+  }
+}
+
+//-------------------------------------------------------------------------
+// RecConfigReadConfigPath
+//-------------------------------------------------------------------------
+char *
+RecConfigReadConfigPath(const char * file_variable, const char * default_value)
+{
+  char buf[PATH_NAME_MAX + 1];
+
+  buf[0] = '\0';
+  RecGetRecordString(file_variable, buf, PATH_NAME_MAX);
+  if (strlen(buf) > 0) {
+    return Layout::get()->relative_to(Layout::get()->sysconfdir, buf);
+  }
+
+  if (default_value) {
+    return Layout::get()->relative_to(Layout::get()->sysconfdir, default_value);
+  }
+
+  return NULL;
+}
+
+//-------------------------------------------------------------------------
+// RecConfigReadPersistentStatsPath
+//-------------------------------------------------------------------------
+char *
+RecConfigReadPersistentStatsPath()
+{
+  xptr<char> rundir(RecConfigReadRuntimeDir());
+  return Layout::relative_to(rundir, REC_RAW_STATS_FILE);
+}
 
 //-------------------------------------------------------------------------
 // REC_SignalManager (TS)

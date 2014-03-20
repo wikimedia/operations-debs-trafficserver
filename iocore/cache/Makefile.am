@@ -16,14 +16,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-if STANDALONE_IOCORE
-AM_CPPFLAGS = \
-  $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts
-
-ADD_SRC =
-else
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib \
@@ -34,6 +26,7 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/proxy/http \
+  -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/proxy/http/remap \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/preparse \
@@ -43,10 +36,6 @@ ADD_SRC =
 if BUILD_TESTS
   ADD_SRC += CacheTest.cc P_CacheTest.h 
 endif
-
-endif
-
-DEFS += @IOCORE_MODULARIZED_DEFS@
 
 noinst_LIBRARIES = libinkcache.a
 
@@ -59,12 +48,13 @@ libinkcache_a_SOURCES = \
   CacheLink.cc \
   CachePages.cc \
   CachePagesInternal.cc \
-  CacheVol.cc \
   CacheRead.cc \
+  CacheVol.cc \
   CacheWrite.cc \
   I_Cache.h \
   I_CacheDefs.h \
   I_Store.h \
+  Inline.cc \
   P_Cache.h \
   P_CacheArray.h \
   P_CacheDir.h \
@@ -74,7 +64,7 @@ libinkcache_a_SOURCES = \
   P_CacheInternal.h \
   P_CacheVol.h \
   P_RamCache.h \
-  RamCacheLRU.cc \
   RamCacheCLFUS.cc \
+  RamCacheLRU.cc \
   Store.cc \
-  Inline.cc $(ADD_SRC)
+  $(ADD_SRC)

@@ -22,8 +22,6 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/iocore/eventsystem
 
-DEFS += @IOCORE_MODULARIZED_DEFS@
-
 noinst_LIBRARIES = libinkutils.a
 
 libinkutils_a_SOURCES = \
@@ -33,4 +31,3 @@ libinkutils_a_SOURCES = \
   Machine.cc \
   OneWayMultiTunnel.cc \
   OneWayTunnel.cc
-

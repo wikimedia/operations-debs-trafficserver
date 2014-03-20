@@ -617,7 +617,7 @@ HttpTransact::HandleBlindTunnel(State* s)
   s->hdr_info.client_request.url_get()->host_set(new_host, strlen(new_host));
   s->hdr_info.client_request.url_get()->port_set(s->state_machine->ua_session->get_netvc()->get_local_port());
 
-  // Intialize the state vars necessary to sending error responses
+  // Initialize the state vars necessary to sending error responses
   bootstrap_state_variables_from_request(s, &s->hdr_info.client_request);
 
   if (is_debug_tag_set("http_trans")) {
@@ -757,6 +757,11 @@ HttpTransact::StartRemapRequest(State* s)
   
   if (s->api_skip_all_remapping) {
     Debug ("http_trans", "API request to skip remapping");
+
+    if (s->is_upgrade_request && s->post_remap_upgrade_return_point) {
+      TRANSACT_RETURN(HTTP_POST_REMAP_SKIP, s->post_remap_upgrade_return_point);
+    }
+
     TRANSACT_RETURN(HTTP_POST_REMAP_SKIP, HttpTransact::HandleRequest);
   }
   
@@ -965,11 +970,149 @@ done:
   } else {
     s->hdr_info.client_response.clear(); //anything previously set is invalid from this point forward
     DebugTxn("http_trans", "END HttpTransact::EndRemapRequest");
+
+    if (s->is_upgrade_request && s->post_remap_upgrade_return_point) {
+      TRANSACT_RETURN(HTTP_API_POST_REMAP, s->post_remap_upgrade_return_point);
+    }
+
     TRANSACT_RETURN(HTTP_API_POST_REMAP, HttpTransact::HandleRequest);
   }
 
   ink_assert(!"not reached");
 }
+
+bool HttpTransact::handle_upgrade_request(State *s) {
+  // Quickest way to determine that this is defintely not an upgrade.
+  /* RFC 6455 The method of the request MUST be GET, and the HTTP version MUST
+        be at least 1.1. */
+  if (!s->hdr_info.client_request.presence(MIME_PRESENCE_UPGRADE) ||
+      !s->hdr_info.client_request.presence(MIME_PRESENCE_CONNECTION) ||
+      s->method != HTTP_WKSIDX_GET ||
+      s->hdr_info.client_request.version_get() < HTTPVersion(1, 1)) {
+    return false;
+  }
+
+  MIMEField *upgrade_hdr = s->hdr_info.client_request.field_find(MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE);
+  MIMEField *connection_hdr = s->hdr_info.client_request.field_find(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
+
+  StrList connection_hdr_vals;
+  const char *upgrade_hdr_val = NULL;
+  int upgrade_hdr_val_len = 0;
+
+  if ( !upgrade_hdr ||
+       !connection_hdr ||
+       connection_hdr->value_get_comma_list(&connection_hdr_vals) == 0 ||
+       (upgrade_hdr_val = upgrade_hdr->value_get(&upgrade_hdr_val_len)) == NULL) {
+      DebugTxn("http_trans_upgrade", "Transaction wasn't a valid upgrade request, proceeding as a normal HTTP request.");
+      return false;
+  }
+
+  /*
+   * In order for this request to be treated as a normal upgrade request we must have a Connection: Upgrade header
+   * and a Upgrade: header, with a non-empty value, otherwise we just assume it's not an Upgrade Request, after
+   * we've verified that, we will try to match this upgrade to a known upgrade type such as Websockets.
+   */
+  bool connection_contains_upgrade = false;
+  // Next, let's validate that the Connection header contains an Upgrade key
+  for(int i = 0; i < connection_hdr_vals.count; ++i) {
+    Str *val = connection_hdr_vals.get_idx(i);
+    if (ptr_len_casecmp(val->str, val->len, MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE) == 0) {
+      connection_contains_upgrade = true;
+      break;
+    }
+  }
+
+  if (!connection_contains_upgrade) {
+    DebugTxn("http_trans_upgrade", "Transaction wasn't a valid upgrade request, proceeding as a normal HTTP request, missing Connection upgrade header.");
+    return false;
+  }
+
+
+  // Mark this request as an upgrade request.
+  s->is_upgrade_request = true;
+
+  /*
+     RFC 6455
+     The request MUST contain an |Upgrade| header field whose value
+        MUST include the "websocket" keyword.
+     The request MUST contain a |Connection| header field whose value
+        MUST include the "Upgrade" token. // Checked Above
+     The request MUST include a header field with the name
+        |Sec-WebSocket-Key|.
+     The request MUST include a header field with the name
+        |Sec-WebSocket-Version|.  The value of this header field MUST be
+        13.
+   */
+  if (hdrtoken_tokenize(upgrade_hdr_val, upgrade_hdr_val_len, &s->upgrade_token_wks) >= 0) {
+    if (s->upgrade_token_wks == MIME_VALUE_WEBSOCKET) {
+      MIMEField *sec_websocket_key = s->hdr_info.client_request.field_find(MIME_FIELD_SEC_WEBSOCKET_KEY, MIME_LEN_SEC_WEBSOCKET_KEY);
+      MIMEField *sec_websocket_ver = s->hdr_info.client_request.field_find(MIME_FIELD_SEC_WEBSOCKET_VERSION, MIME_LEN_SEC_WEBSOCKET_VERSION);
+
+      if (sec_websocket_key &&
+          sec_websocket_ver &&
+          sec_websocket_ver->value_get_int() == 13) {
+        DebugTxn("http_trans_upgrade", "Transaction wants upgrade to websockets");
+        handle_websocket_upgrade_pre_remap(s);
+        return true;
+      } else {
+        DebugTxn("http_trans_upgrade", "Unable to upgrade connection to websockets, invalid headers (RFC 6455).");
+      }
+    }
+  } else {
+    DebugTxn("http_trans_upgrade", "Transaction requested upgrade for unknown protocol: %s", upgrade_hdr_val);
+  }
+
+  build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Invalid Upgrade Request", "request#syntax_error",
+                       "Invalid Upgrade Request");
+
+  // we want our modify_request method to just return while we fail out from here.
+  // this seems like the preferred option because the user wanted to do an upgrade but sent a bad protocol.
+  TRANSACT_RETURN_VAL(PROXY_SEND_ERROR_CACHE_NOOP, NULL, true);
+}
+
+void
+HttpTransact::handle_websocket_upgrade_pre_remap(State *s) {
+  DebugTxn("http_trans_websocket_upgrade_pre_remap", "Prepping transaction before remap.");
+
+  /*
+   * We will use this opportunity to set everything up so that during the remap stage we can deal with
+   * ws:// and wss:// remap rules, and then we will take over again post remap.
+   */
+  s->is_websocket = true;
+  s->post_remap_upgrade_return_point = HttpTransact::handle_websocket_upgrade_post_remap;
+
+  /* let's modify the url scheme to be wss or ws, so remapping will happen as expected */
+  URL *url = s->hdr_info.client_request.url_get();
+  if (url->scheme_get_wksidx() == URL_WKSIDX_HTTP) {
+    DebugTxn("http_trans_websocket_upgrade_pre_remap", "Changing scheme to WS for remapping.");
+    url->scheme_set(URL_SCHEME_WS, URL_LEN_WS);
+  } else if (url->scheme_get_wksidx() == URL_WKSIDX_HTTPS) {
+    DebugTxn("http_trans_websocket_upgrade_pre_remap", "Changing scheme to WSS for remapping.");
+    url->scheme_set(URL_SCHEME_WSS, URL_LEN_WSS);
+  } else {
+    DebugTxn("http_trans_websocket_upgrade_pre_remap", "Invalid scheme for websocket upgrade");
+    build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Invalid Upgrade Request", "request#syntax_error",
+                          "Invalid Upgrade Request");
+    TRANSACT_RETURN(PROXY_SEND_ERROR_CACHE_NOOP, NULL);
+  }
+
+  TRANSACT_RETURN(HTTP_API_READ_REQUEST_HDR, HttpTransact::StartRemapRequest);
+}
+
+void
+HttpTransact::handle_websocket_upgrade_post_remap(State *s) {
+  DebugTxn("http_trans_websocket_upgrade_post_remap", "Remap is complete, start websocket upgrade");
+
+  TRANSACT_RETURN(HTTP_API_POST_REMAP, HttpTransact::handle_websocket_connection);
+}
+
+void
+HttpTransact::handle_websocket_connection(State *s) {
+  DebugTxn("http_trans_websocket", "START handle_websocket_connection");
+
+  HandleRequest(s);
+}
+
 
 void
 HttpTransact::ModifyRequest(State* s)
@@ -1078,6 +1221,13 @@ HttpTransact::ModifyRequest(State* s)
 
   DebugTxn("http_trans", "END HttpTransact::ModifyRequest");
 
+  DebugTxn("http_trans", "Checking if transaction wants to upgrade");
+  if(handle_upgrade_request(s)) {
+    // everything should be handled by the upgrade handler.
+    DebugTxn("http_trans", "Transaction will be upgraded by the appropriate upgrade handler.");
+    return;
+  }
+
   TRANSACT_RETURN(HTTP_API_READ_REQUEST_HDR, HttpTransact::StartRemapRequest);
 }
 
@@ -1129,7 +1279,6 @@ HttpTransact::handleIfRedirect(State *s)
   return false;
 }
 
-
 void
 HttpTransact::HandleRequest(State* s)
 {
@@ -1158,6 +1307,7 @@ HttpTransact::HandleRequest(State* s)
   if (is_debug_tag_set("http_chdr_describe")) {
     obj_describe(s->hdr_info.client_request.m_http, 1);
   }
+
   // at this point we are guaranteed that the request is good and acceptable.
   // initialize some state variables from the request (client version,
   // client keep-alive, cache action, etc.
@@ -1165,7 +1315,7 @@ HttpTransact::HandleRequest(State* s)
 
   // Cache lookup or not will be decided later at DecideCacheLookup().
   // Before it's decided to do a cache lookup,
-  // assume no cache lookup and using proxy (not tunnelling)
+  // assume no cache lookup and using proxy (not tunneling)
   s->cache_info.action = CACHE_DO_NO_ACTION;
   s->current.mode = GENERIC_PROXY;
 
@@ -1251,6 +1401,7 @@ HttpTransact::HandleRequest(State* s)
       TRANSACT_RETURN(HttpTransact::PROXY_SEND_ERROR_CACHE_NOOP, NULL);
     }
   }
+
   // Added to skip the dns if the document is in the cache.
   // DNS is requested before cache lookup only if there are rules in cache.config , parent.config or
   // if the newly added varible doc_in_cache_skip_dns is not enabled
@@ -1415,12 +1566,12 @@ HttpTransact::PPDNSLookup(State* s)
           s->state_machine->sm_id, ats_ip_ntop(&s->parent_info.addr.sa, addrbuf, sizeof(addrbuf)));
   }
 
-  // Since this function can be called serveral times while retrying
+  // Since this function can be called several times while retrying
   //  parents, check to see if we've already built our request
   if (!s->hdr_info.server_request.valid()) {
     build_request(s, &s->hdr_info.client_request, &s->hdr_info.server_request, s->current.server->http_version);
 
-    // Take care of defered (issue revalidate) work in building
+    // Take care of deferred (issue revalidate) work in building
     //   the request
     if (s->pending_work != NULL) {
       ink_assert(s->pending_work == issue_revalidate);
@@ -1459,7 +1610,7 @@ HttpTransact::ReDNSRoundRobin(State* s)
     //  failure mark
     s->current.server->clear_connect_fail();
 
-    // Our ReDNS of the server succeeeded so update the necessary
+    // Our ReDNS of the server succeeded so update the necessary
     //  information and try again
     ats_ip_copy(&s->server_info.addr, s->host_db_info.ip());
     ats_ip_copy(&s->request_data.dest_ip, &s->server_info.addr);
@@ -1660,8 +1811,8 @@ HttpTransact::OSDNSLookup(State* s)
     TRANSACT_RETURN(PROXY_INTERNAL_CACHE_NOOP, NULL);
   }
   // everything succeeded with the DNS lookup so do an API callout
-  //   that allows for filtering.  We'll do traffic_server interal
-  //   filtering after API filitering
+  //   that allows for filtering.  We'll do traffic_server internal
+  //   filtering after API filtering
 
 
   // After DNS_LOOKUP, goto the saved action/state ORIGIN_SERVER_(RAW_)OPEN.
@@ -2104,7 +2255,7 @@ HttpTransact::HandleCacheOpenRead(State* s)
     if (s->force_dns) {
       HandleCacheOpenReadMiss(s);
     } else {
-      //Cache Lookup Unsuccesfull ..calling dns lookup
+      //Cache Lookup Unsuccessful ..calling dns lookup
       TRANSACT_RETURN(DNS_LOOKUP, OSDNSLookup);
     }
   }
@@ -2120,7 +2271,7 @@ HttpTransact::HandleCacheOpenRead(State* s)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Name       : issue_revalidate
-// Description:   Sets cache action and does various bookeeping
+// Description:   Sets cache action and does various bookkeeping
 //
 // Details    :
 //
@@ -2128,7 +2279,7 @@ HttpTransact::HandleCacheOpenRead(State* s)
 //   calling build_request, we need setup up the cache action,
 //   set the via code, and possibly conditionalize the request
 // The paths that we take to get this code are:
-//   Dircectly from HandleOpenReadHit if we are going to the origin server
+//   Directly from HandleOpenReadHit if we are going to the origin server
 //   After PPDNS if we are going to a parent proxy
 //
 //
@@ -2437,7 +2588,7 @@ HttpTransact::need_to_revalidate(State* s)
 // - result of how_to_open_connection()
 //
 //
-// For Range requests, we will decide to do simple tunnelling if one of the
+// For Range requests, we will decide to do simple tunneling if one of the
 // following conditions hold:
 // - document stale
 // - cached response doesn't have Accept-Ranges and Content-Length
@@ -2545,7 +2696,7 @@ HttpTransact::HandleCacheOpenReadHit(State* s)
       // we haven't done the ICP lookup yet. The following is to
       // fake an icp_info to cater for build_request's needs
       s->icp_info.http_version.set(1, 0);
-      if (!s->txn_conf->keep_alive_enabled_out || s->http_config_param->origin_server_pipeline == 0) {
+      if (!s->txn_conf->keep_alive_enabled_out) {
         s->icp_info.keep_alive = HTTP_NO_KEEPALIVE;
       } else {
         s->icp_info.keep_alive = HTTP_KEEPALIVE;
@@ -3025,7 +3176,7 @@ HttpTransact::HandleICPLookup(State* s)
     //   values are not initialized.
     // Force them to be initialized
     s->icp_info.http_version.set(1, 0);
-    if (!s->txn_conf->keep_alive_enabled_out || s->http_config_param->origin_server_pipeline == 0) {
+    if (!s->txn_conf->keep_alive_enabled_out) {
       s->icp_info.keep_alive = HTTP_NO_KEEPALIVE;
     } else {
       s->icp_info.keep_alive = HTTP_KEEPALIVE;
@@ -3067,12 +3218,12 @@ HttpTransact::HandleICPLookup(State* s)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Name       : OriginServerRawOpen
-// Description: called for ssl tunnelling
+// Description: called for ssl tunneling
 //
 // Details    :
 //
 // when the method is CONNECT, we open a raw connection to the origin
-// server. if the open succeeds, then do ssl tunnelling from the client
+// server. if the open succeeds, then do ssl tunneling from the client
 // to the host.
 //
 //
@@ -4063,26 +4214,26 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State* s)
     break;
 
   case HTTP_STATUS_HTTPVER_NOT_SUPPORTED:      // 505
+    {
+      bool keep_alive = (s->current.server->keep_alive == HTTP_KEEPALIVE);
 
-    bool keep_alive;
-    keep_alive = ((s->current.server->keep_alive == HTTP_KEEPALIVE) ||
-                  (s->current.server->keep_alive == HTTP_PIPELINE));
-
-    s->next_action = how_to_open_connection(s);
-
-    /* Downgrade the request level and retry */
-    if (!HttpTransactHeaders::downgrade_request(&keep_alive, &s->hdr_info.server_request)) {
-      build_error_response(s, HTTP_STATUS_HTTPVER_NOT_SUPPORTED, "HTTP Version Not Supported", "response#bad_version", "");
-      s->next_action = PROXY_SEND_ERROR_CACHE_NOOP;
-      s->already_downgraded = true;
-    } else {
-      if (!keep_alive) {
-        /* START Hack */
-        (s->hdr_info.server_request).field_delete(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
-        /* END   Hack */
-      }
-      s->already_downgraded = true;
       s->next_action = how_to_open_connection(s);
+
+      /* Downgrade the request level and retry */
+      if (!HttpTransactHeaders::downgrade_request(&keep_alive, &s->hdr_info.server_request)) {
+        build_error_response(s, HTTP_STATUS_HTTPVER_NOT_SUPPORTED, "HTTP Version Not Supported",
+                             "response#bad_version", "");
+        s->next_action = PROXY_SEND_ERROR_CACHE_NOOP;
+        s->already_downgraded = true;
+      } else {
+        if (!keep_alive) {
+          /* START Hack */
+          (s->hdr_info.server_request).field_delete(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
+          /* END   Hack */
+        }
+        s->already_downgraded = true;
+        s->next_action = how_to_open_connection(s);
+      }
     }
     return;
 
@@ -4391,8 +4542,7 @@ HttpTransact::handle_no_cache_operation_on_forward_server_response(State* s)
   DebugTxn("http_trans", "[handle_no_cache_operation_on_forward_server_response] (hncoofsr)");
   DebugTxn("http_seq", "[handle_no_cache_operation_on_forward_server_response]");
 
-  bool keep_alive = true;
-  keep_alive = ((s->current.server->keep_alive == HTTP_KEEPALIVE) || (s->current.server->keep_alive == HTTP_PIPELINE));
+  bool keep_alive = s->current.server->keep_alive == HTTP_KEEPALIVE;
   const char *warn_text = NULL;
 
   switch (s->hdr_info.server_response.status_get()) {
@@ -4902,7 +5052,7 @@ HttpTransact::get_ka_info_from_host_db(State *s, ConnectionAttributes *server_in
       (http11_if_hostdb == true &&
        host_db_info->app.http_data.http_version == HostDBApplicationInfo::HTTP_VERSION_11)) {
     server_info->http_version.set(1, 1);
-    server_info->keep_alive = HTTP_PIPELINE;
+    server_info->keep_alive = HTTP_KEEPALIVE;
   } else if (host_db_info->app.http_data.http_version == HostDBApplicationInfo::HTTP_VERSION_10) {
     server_info->http_version.set(1, 0);
     server_info->keep_alive = HTTP_KEEPALIVE;
@@ -4921,14 +5071,8 @@ HttpTransact::get_ka_info_from_host_db(State *s, ConnectionAttributes *server_in
   /////////////////////////////
   // origin server keep_alive //
   /////////////////////////////
-  if ((!s->txn_conf->keep_alive_enabled_out) || (s->http_config_param->origin_server_pipeline == 0)) {
+  if (!s->txn_conf->keep_alive_enabled_out) {
     server_info->keep_alive = HTTP_NO_KEEPALIVE;
-  }
-  ///////////////////////////////
-  // keep_alive w/o pipelining  //
-  ///////////////////////////////
-  if ((server_info->keep_alive == HTTP_PIPELINE) && (s->http_config_param->origin_server_pipeline <= 1)) {
-    server_info->keep_alive = HTTP_KEEPALIVE;
   }
 
   return;
@@ -5149,7 +5293,8 @@ HttpTransact::RequestError_t HttpTransact::check_request_validity(State* s, HTTP
 
   if (!((scheme == URL_WKSIDX_HTTP) && (method == HTTP_WKSIDX_GET))) {
     if (scheme != URL_WKSIDX_HTTP && scheme != URL_WKSIDX_HTTPS &&
-        method != HTTP_WKSIDX_CONNECT) {
+        method != HTTP_WKSIDX_CONNECT &&
+        ((scheme == URL_WKSIDX_WS || scheme == URL_WKSIDX_WSS) && !s->is_websocket)) {
       if (scheme < 0) {
         return NO_REQUEST_SCHEME;
       } else {
@@ -5478,6 +5623,31 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
   }
 
   s->next_hop_scheme = s->scheme = incoming_request->url_get()->scheme_get_wksidx();
+
+  // With websockets we need to make an outgoing request
+  // as http or https.
+  // We switch back to HTTP or HTTPS for the next hop
+  // I think this is required to properly establish outbound WSS connections,
+  // you'll need to force the next hop to be https.
+  if (s->is_websocket) {
+    if (s->next_hop_scheme == URL_WKSIDX_WS) {
+      DebugTxn("http_trans", "Switching WS next hop scheme to http.");
+      s->next_hop_scheme = URL_WKSIDX_HTTP;
+      s->scheme = URL_WKSIDX_HTTP;
+      //s->request_data.hdr->url_get()->scheme_set(URL_SCHEME_HTTP, URL_LEN_HTTP);
+    } else if (s->next_hop_scheme == URL_WKSIDX_WSS) {
+      DebugTxn("http_trans", "Switching WSS next hop scheme to https.");
+      s->next_hop_scheme = URL_WKSIDX_HTTPS;
+      s->scheme = URL_WKSIDX_HTTPS;
+      //s->request_data.hdr->url_get()->scheme_set(URL_SCHEME_HTTPS, URL_LEN_HTTPS);
+    } else {
+      Error("Scheme doesn't match websocket...!");
+    }
+
+    s->current.mode = GENERIC_PROXY;
+    s->cache_info.action = CACHE_DO_NO_ACTION;
+  }
+
   s->method = incoming_request->method_get_wksidx();
 
   if (s->method == HTTP_WKSIDX_GET) {
@@ -5527,6 +5697,7 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
     s->hdr_info.request_content_length = HTTP_UNDEFINED_CL;
   }
   s->request_data.hdr = &s->hdr_info.client_request;
+
   s->request_data.hostname_str = s->arena.str_store(host_name, host_len);
   ats_ip_copy(&s->request_data.src_ip, &s->client_info.addr);
   memset(&s->request_data.dest_ip, 0, sizeof(s->request_data.dest_ip));
@@ -5576,6 +5747,11 @@ HttpTransact::initialize_state_variables_from_response(State* s, HTTPHdr* incomi
 
   s->current.server->keep_alive = is_header_keep_alive(s->hdr_info.server_response.version_get(),
                                                        s->hdr_info.server_request.version_get(), c_hdr);
+
+  // Don't allow an upgrade request to Keep Alive
+  if (s->is_upgrade_request) {
+    s->current.server->keep_alive = HTTP_NO_KEEPALIVE;
+  }
 
   if (s->current.server->keep_alive == HTTP_KEEPALIVE) {
     if (!s->cop_test_page)
@@ -5738,7 +5914,7 @@ HttpTransact::is_stale_cache_response_returnable(State* s)
     return false;
   }
   // See how old the document really is.  We don't want create a
-  //   stale content museum of doucments that are no longer available
+  //   stale content museum of documents that are no longer available
   time_t current_age = HttpTransactHeaders::calculate_document_age(s->cache_info.object_read->request_sent_time_get(),
                                                                    s->cache_info.object_read->response_received_time_get(),
                                                                    cached_response,
@@ -6634,12 +6810,15 @@ void
 HttpTransact::handle_request_keep_alive_headers(State* s, HTTPVersion ver, HTTPHdr* heads)
 {
   enum KA_Action_t
-  { KA_UNKNOWN, KA_DISABLED, KA_CLOSE, KA_CONNECTION };
+  {
+    KA_UNKNOWN,
+    KA_DISABLED,
+    KA_CLOSE,
+    KA_CONNECTION
+  };
 
   KA_Action_t ka_action = KA_UNKNOWN;
-
-  bool upstream_ka = ((s->current.server->keep_alive == HTTP_KEEPALIVE) ||
-                      (s->current.server->keep_alive == HTTP_PIPELINE));
+  bool upstream_ka = (s->current.server->keep_alive == HTTP_KEEPALIVE);
 
   ink_assert(heads->type_get() == HTTP_TYPE_REQUEST);
 
@@ -6672,44 +6851,53 @@ HttpTransact::handle_request_keep_alive_headers(State* s, HTTPVersion ver, HTTPH
 
   // Since connection headers are hop-to-hop, strip the
   //  the ones we received from the user-agent
-  heads->field_delete(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
   heads->field_delete(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
+  heads->field_delete(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
 
+  if (!s->is_upgrade_request) {
+    // Insert K-A headers as necessary
+    switch (ka_action) {
+    case KA_CONNECTION:
+      ink_assert(s->current.server->keep_alive != HTTP_NO_KEEPALIVE);
+      if (ver == HTTPVersion(1, 0)) {
+        if (s->current.request_to == PARENT_PROXY ||
+            s->current.request_to == ICP_SUGGESTED_HOST) {
+          heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "keep-alive", 10);
+        } else {
+          heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "keep-alive", 10);
+        }
+      }
+      // NOTE: if the version is 1.1 we don't need to do
+      //  anything since keep-alive is assumed
+      break;
+    case KA_DISABLED:
+    case KA_CLOSE:
+      if (s->current.server->keep_alive != HTTP_NO_KEEPALIVE || (ver == HTTPVersion(1, 1))) {
+        /* Had keep-alive */
+        s->current.server->keep_alive = HTTP_NO_KEEPALIVE;
+        if (s->current.request_to == PARENT_PROXY ||
+            s->current.request_to == ICP_SUGGESTED_HOST) {
+          heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "close", 5);
+        } else {
+          heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "close", 5);
+        }
+      }
+      // Note: if we are 1.1, we always need to send the close
+      //  header since persistant connnections are the default
+      break;
+    case KA_UNKNOWN:
+    default:
+      ink_assert(0);
+      break;
+    }
+  } else { /* websocket connection */
+    s->current.server->keep_alive = HTTP_NO_KEEPALIVE;
+    s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
+    heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE);
 
-  // Insert K-A headers as necessary
-  switch (ka_action) {
-  case KA_CONNECTION:
-    ink_assert(s->current.server->keep_alive != HTTP_NO_KEEPALIVE);
-    if (ver == HTTPVersion(1, 0)) {
-      if (s->current.request_to == PARENT_PROXY ||
-          s->current.request_to == ICP_SUGGESTED_HOST) {
-        heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "keep-alive", 10);
-      } else {
-        heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "keep-alive", 10);
-      }
+    if (s->is_websocket) {
+      heads->value_set(MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE, "websocket", 9);
     }
-    // NOTE: if the version is 1.1 we don't need to do
-    //  anything since keep-alive is assumed
-    break;
-  case KA_DISABLED:
-  case KA_CLOSE:
-    if (s->current.server->keep_alive != HTTP_NO_KEEPALIVE || (ver == HTTPVersion(1, 1))) {
-      /* Had keep-alive */
-      s->current.server->keep_alive = HTTP_NO_KEEPALIVE;
-      if (s->current.request_to == PARENT_PROXY ||
-          s->current.request_to == ICP_SUGGESTED_HOST) {
-        heads->value_set(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, "close", 5);
-      } else {
-        heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, "close", 5);
-      }
-    }
-    // Note: if we are 1.1, we always need to send the close
-    //  header since persistant connnections are the default
-    break;
-  case KA_UNKNOWN:
-  default:
-    ink_assert(0);
-    break;
   }
 }                               /* End HttpTransact::handle_request_keep_alive_headers */
 
@@ -6740,6 +6928,24 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
   heads->field_delete(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
   heads->field_delete(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION);
 
+  // Handle the upgrade cases
+  if (s->is_upgrade_request  &&
+      heads->status_get() == HTTP_STATUS_SWITCHING_PROTOCOL &&
+      s->source == SOURCE_HTTP_ORIGIN_SERVER) {
+    s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
+    if (s->is_websocket) {
+      DebugTxn("http_trans", "transaction successfully upgraded to websockets.");
+      //s->transparent_passthrough = true;
+      heads->value_set(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE);
+      heads->value_set(MIME_FIELD_UPGRADE, MIME_LEN_UPGRADE, "websocket", 9);
+    }
+
+    // We set this state so that we can jump to our blind forwarding state once
+    // the response is sent to the client.
+    s->did_upgrade_succeed = true;
+    return;
+  }
+
   int c_hdr_field_len;
   const char *c_hdr_field_str;
   if (s->client_info.proxy_connect_hdr) {
@@ -6751,14 +6957,16 @@ HttpTransact::handle_response_keep_alive_headers(State* s, HTTPVersion ver, HTTP
   }
 
   // Check pre-conditions for keep-alive
-  if (s->client_info.keep_alive != HTTP_KEEPALIVE && s->client_info.keep_alive != HTTP_PIPELINE) {
+  if (s->client_info.keep_alive != HTTP_KEEPALIVE) {
     ka_action = KA_DISABLED;
   } else if (HTTP_MAJOR(ver.m_version) == 0) {  /* No K-A for 0.9 apps */
     ka_action = KA_DISABLED;
   }
-  // some systems hang until the connection closes when receiving a 204
-  //   regardless of the K-A headers
-  else if (heads->status_get() == HTTP_STATUS_NO_CONTENT) {
+  else if (heads->status_get() == HTTP_STATUS_NO_CONTENT &&
+      ((s->source == SOURCE_HTTP_ORIGIN_SERVER && s->current.server->transfer_encoding != NO_TRANSFER_ENCODING)
+       || heads->get_content_length() != 0)) {
+    // some systems hang until the connection closes when receiving a 204 regardless of the K-A headers
+    // close if there is any body response from the origin
     ka_action = KA_CLOSE;
   } else {
     // Determine if we are going to send either a server-generated or
@@ -7544,7 +7752,6 @@ HttpTransact::build_request(State* s, HTTPHdr* base_request, HTTPHdr* outgoing_r
 
   HttpTransactHeaders::copy_header_fields(base_request, outgoing_request, s->txn_conf->fwd_proxy_auth_to_parent);
   add_client_ip_to_outgoing_request(s, outgoing_request);
-  HttpTransactHeaders::process_connection_headers(base_request, outgoing_request);
   HttpTransactHeaders::remove_privacy_headers_from_request(s->http_config_param, s->txn_conf, outgoing_request);
   HttpTransactHeaders::add_global_user_agent_header_to_request(s->http_config_param, outgoing_request);
   handle_request_keep_alive_headers(s, outgoing_version, outgoing_request);
@@ -7588,7 +7795,9 @@ HttpTransact::build_request(State* s, HTTPHdr* base_request, HTTPHdr* outgoing_r
   }
 
   if (s->current.server == &s->server_info &&
-      (s->next_hop_scheme == URL_WKSIDX_HTTP || s->next_hop_scheme == URL_WKSIDX_HTTPS)) {
+      (s->next_hop_scheme == URL_WKSIDX_HTTP || s->next_hop_scheme == URL_WKSIDX_HTTPS ||
+       s->next_hop_scheme == URL_WKSIDX_WS || s->next_hop_scheme == URL_WKSIDX_WSS)) {
+    DebugTxn("http_trans", "[build_request] removing host name from url");
     HttpTransactHeaders::remove_host_name_from_url(outgoing_request);
   }
 
@@ -7667,7 +7876,6 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
   } else {
     if ((status_code == HTTP_STATUS_NONE) || (status_code == base_response->status_get())) {
       HttpTransactHeaders::copy_header_fields(base_response, outgoing_response, s->txn_conf->fwd_proxy_auth_to_parent);
-      HttpTransactHeaders::process_connection_headers(base_response, outgoing_response);
 
       if (s->txn_conf->insert_age_in_response)
         HttpTransactHeaders::insert_time_and_age_headers_in_response(s->request_sent_time, s->response_received_time,
@@ -7749,6 +7957,12 @@ HttpTransact::build_response(State* s, HTTPHdr* base_response, HTTPHdr* outgoing
 
   if (s->next_hop_scheme < 0)
     s->next_hop_scheme = URL_WKSIDX_HTTP;
+
+  // Add HSTS header (Strict-Transport-Security) if max-age is set and the request was https
+  if (s->orig_scheme == URL_WKSIDX_HTTPS && s->txn_conf->proxy_response_hsts_max_age >= 0) {
+    Debug("http_hdrs", "hsts max-age=%" PRId64, s->txn_conf->proxy_response_hsts_max_age);
+    HttpTransactHeaders::insert_hsts_header_in_response(s, outgoing_response);
+  }
 
   if (s->txn_conf->insert_response_via_string)
     HttpTransactHeaders::insert_via_header_in_response(s, outgoing_response);

@@ -94,11 +94,11 @@ Line Variables <traffic-line-performance-statistics>`.
 For example, the following command displays the document hit rate for
 the Traffic Server node:::
 
-     traffic_line -r proxy.node.http.cache_hit_ratio
+     traffic_line -r proxy.node.cache_hit_ratio
 
 If the Traffic Server ``bin`` directory is not in your path, then
 prepend the Traffic Line command with ``./`` (for example:
 :option:`traffic_line -r` ``variable``).
 
 
-.. XXX: We're missing docs on how to use tstop here.
+.. XXX: We're missing docs on how to use traffic_top here.

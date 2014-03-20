@@ -1,3 +1,5 @@
+.. _header-filter-plugin:
+
 Header Filter Plugin
 ********************
 
@@ -18,10 +20,14 @@ Header Filter Plugin
   specific language governing permissions and limitations
   under the License.
 
+
+.. deprecated:: 4.2.0
+    Use :ref:`header-rewrite-plugin` instead, it provides the same, and more, functionality.
+
+
 The ``header_filter`` is a simple plugin for filtering out headers from
 requests (or responses). Typical configuration is done either with a
-global configuration, in
-```plugin.config`` <../../configuration-files/plugin.config>`_::
+global configuration, in :file:`plugin.config`::
 
     header_filter.so /usr/local/etc/hdr_filters.conf
 

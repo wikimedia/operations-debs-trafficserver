@@ -17,10 +17,6 @@
 #  limitations under the License.
 
 # Note that hdrs is targeted from ../Makefile.am
-if STANDALONE_IOCORE
-noinst_LIBRARIES = libTrafficServerStandalone.a
-bin_PROGRAMS =
-else
 SUBDIRS = congest http logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
@@ -28,7 +24,6 @@ bin_PROGRAMS = \
   traffic_logcat \
   traffic_logstats \
   traffic_sac
-endif
 
 noinst_PROGRAMS = \
   test_xml_parser
@@ -46,20 +41,17 @@ AM_CPPFLAGS = \
   -I$(srcdir)/logging \
   -I$(srcdir)/http/remap  \
   -I$(srcdir)/hdrs \
+  -I$(srcdir)/shared \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils \
-  -I$(srcdir)/api/ts \
-  -I. \
-  -I./api/ts \
+  -I$(top_builddir)/proxy/api/ts \
   -I$(top_srcdir)/lib
 
 noinst_HEADERS = \
   ConfigParse.h \
   Show.h
 
-EXTRA_LIBRARIES	= \
-  libTrafficServerStandalone.a
 
 if STATIC_LIBTS
    which_libts = $(top_builddir)/lib/ts/.libs/libtsutil.a
@@ -80,11 +72,7 @@ traffic_server_SOURCES = \
   ControlMatcher.h \
   CoreUtils.cc \
   CoreUtils.h \
-  DiagsConfig.cc \
-  DiagsConfig.h \
   DynamicStats.h \
-  Error.cc \
-  Error.h \
   EventName.cc \
   HttpTransStats.h \
   ICP.cc \
@@ -99,8 +87,6 @@ traffic_server_SOURCES = \
   FetchSM.cc \
   InkAPIInternal.h \
   InkIOCoreAPI.cc \
-  InkXml.cc \
-  InkXml.h \
   IPAllow.cc \
   IPAllow.h \
   Main.cc \
@@ -113,12 +99,8 @@ traffic_server_SOURCES = \
   PluginVC.h \
   Prefetch.cc \
   Prefetch.h \
-  Raf.h \
   ReverseProxy.cc \
   ReverseProxy.h \
-  RniTransStats.h \
-  signals.cc \
-  signals.h \
   SocksProxy.cc \
   StatPages.cc \
   StatPages.h \
@@ -144,6 +126,10 @@ traffic_server_LDADD = \
   logging/liblogging.a \
   logging/liblogcollation.a \
   hdrs/libhdrs.a  \
+  shared/liberror.a  \
+  shared/libdiagsconfig.a  \
+  shared/libsignals.a \
+  shared/libxml.a \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
@@ -162,7 +148,7 @@ traffic_server_LDADD = \
   $(which_libts) \
   @hwloc_LIBS@ \
   @LIBPCRE@ \
-  @LIBSSL@ \
+  @OPENSSL_LIBS@ \
   @LIBTCL@ \
   @LIBEXPAT@ \
   @LIBDEMANGLE@ \
@@ -177,38 +163,36 @@ if BUILD_LUA_SUPPORT
 traffic_server_LDFLAGS += @LUA_LUAJIT_LDFLAGS@
 endif
 
-traffic_logcat_SOURCES = \
-  logcat.cc \
-  signals.cc \
-  InkXml.cc \
-  DiagsConfig.cc \
-  UglyLogStubs.cc
+traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
   logging/liblogging.a \
+  shared/libdiagsconfig.a \
+  shared/libUglyLogStubs.a \
+  shared/libsignals.a \
+  shared/libxml.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
-traffic_logstats_SOURCES = \
-  logstats.cc \
-  signals.cc \
-  InkXml.cc \
-  DiagsConfig.cc \
-  UglyLogStubs.cc
+traffic_logstats_SOURCES = logstats.cc
 traffic_logstats_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logstats_LDADD = \
   logging/liblogging.a \
+  shared/libdiagsconfig.a \
+  shared/libUglyLogStubs.a \
+  shared/libsignals.a \
+  shared/libxml.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
 traffic_sac_SOURCES = \
@@ -224,10 +208,7 @@ traffic_sac_SOURCES = \
   CacheControl.cc \
   StatSystem.cc \
   ReverseProxy.cc \
-  signals.cc \
-  Error.cc \
   EventName.cc \
-  DiagsConfig.cc \
   StatPages.cc \
   PluginVC.cc \
   AbstractBuffer.cc \
@@ -237,17 +218,20 @@ traffic_sac_SOURCES = \
   Plugin.cc \
   InkAPI.cc \
   FetchSM.cc \
-  InkIOCoreAPI.cc \
-  InkXml.cc
+  InkIOCoreAPI.cc
 
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
   http/libhttp.a \
+  shared/libdiagsconfig.a \
   http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
   logging/liblogging.a \
   logging/liblogcollation.a \
   hdrs/libhdrs.a \
+  shared/liberror.a \
+  shared/libsignals.a \
+  shared/libxml.a \
   $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
@@ -262,30 +246,23 @@ traffic_sac_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @LIBSSL@ @LIBTCL@ \
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBZ@ @LIBLZMA@ @LIBPROFILER@ -lm
 
 if BUILD_TESTS
   traffic_sac_SOURCES += RegressionSM.cc
 endif
 
-libTrafficServerStandalone_a_SOURCES = \
-  signals.cc \
-  Error.cc \
-  EventName.cc \
-  DiagsConfig.cc \
-  StatPages.cc \
-  StatSystem.cc \
-  AbstractBuffer.cc \
-  Initialize.cc
 
-test_xml_parser_SOURCES = test_xml_parser.cc InkXml.cc
+test_xml_parser_SOURCES = test_xml_parser.cc
 test_xml_parser_LDADD = \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
+  shared/libsignals.a \
+  shared/libxml.a \
   @LIBTCL@
 
 versiondir = $(pkgsysconfdir)

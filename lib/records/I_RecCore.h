@@ -45,6 +45,27 @@ typedef void (*RecConfigEntryCallback)(RecT rec_type, RecDataT data_type, const 
 void RecConfigFileInit(void);
 int RecConfigFileParse(const char * path, RecConfigEntryCallback handler, bool inc_version);
 
+// Return a copy of the system's local state directory, taking proxy.config.local_state_dir into account. The
+// caller MUST release the result with ats_free().
+char * RecConfigReadRuntimeDir();
+
+// Return a copy of the system's snapshot directory, taking proxy.config.snapshot_dir into account. The caller
+// MUST release the result with ats_free().
+char * RecConfigReadSnapshotDir();
+
+// Return a copy of the system's log directory, taking proxy.config.log.logfile_dir into account. The caller
+// MUST release the result with ats_free().
+char * RecConfigReadLogDir();
+
+// Return a copy of a configuration file that is relative to sysconfdir. The relative path to the configuration
+// file is specified in the configuration variable named by "file_variable". If the configuration variable has no
+// value, NULL is returned. The caller MUST release the result with ats_free().
+char * RecConfigReadConfigPath(const char * file_variable, const char * default_value = NULL);
+
+// Return a copy of the persistent stats file. This is $RUNTIMEDIR/records.snap.
+// The caller MUST release the result with ats_free().
+char * RecConfigReadPersistentStatsPath();
+
 // Test whether the named configuration value is overridden by an environment variable. Return either
 // the overridden value, or the original value. Caller MUST NOT free the result.
 const char * RecConfigOverrideFromEnvironment(const char * name, const char * value);
@@ -52,11 +73,17 @@ const char * RecConfigOverrideFromEnvironment(const char * name, const char * va
 //-------------------------------------------------------------------------
 // Stat Registration
 //-------------------------------------------------------------------------
-int RecRegisterStatInt(RecT rec_type, const char *name, RecInt data_default, RecPersistT persist_type);
-int RecRegisterStatFloat(RecT rec_type, const char *name, RecFloat data_default, RecPersistT persist_type);
-int RecRegisterStatString(RecT rec_type, const char *name, RecString data_default, RecPersistT persist_type);
-int RecRegisterStatCounter(RecT rec_type, const char *name, RecCounter data_default, RecPersistT persist_type);
+int _RecRegisterStatInt(RecT rec_type, const char *name, RecInt data_default, RecPersistT persist_type);
+#define RecRegisterStatInt(rec_type, name, data_default, persist_type) _RecRegisterStatInt((rec_type), (name), (data_default), REC_PERSISTENCE_TYPE(persist_type))
 
+int _RecRegisterStatFloat(RecT rec_type, const char *name, RecFloat data_default, RecPersistT persist_type);
+#define RecRegisterStatFloat(rec_type, name, data_default, persist_type) _RecRegisterStatFloat((rec_type), (name), (data_default), REC_PERSISTENCE_TYPE(persist_type))
+
+int _RecRegisterStatString(RecT rec_type, const char *name, RecString data_default, RecPersistT persist_type);
+#define RecRegisterStatString(rec_type, name, data_default, persist_type) _RecRegisterStatString((rec_type), (name), (data_default), REC_PERSISTENCE_TYPE(persist_type))
+
+int _RecRegisterStatCounter(RecT rec_type, const char *name, RecCounter data_default, RecPersistT persist_type);
+#define RecRegisterStatCounter(rec_type, name, data_default, persist_type) _RecRegisterStatCounter((rec_type), (name), (data_default), REC_PERSISTENCE_TYPE(persist_type))
 
 //-------------------------------------------------------------------------
 // Config Registration
@@ -83,8 +110,8 @@ int RecRegisterConfigCounter(RecT rec_type, const char *name,
 //-------------------------------------------------------------------------
 
 int RecLinkConfigInt(const char *name, RecInt * rec_int);
-int RecLinkConfigInk32(const char *name, int32_t * p_int32);
-int RecLinkConfigInkU32(const char *name, uint32_t * p_uint32);
+int RecLinkConfigInt32(const char *name, int32_t * p_int32);
+int RecLinkConfigUInt32(const char *name, uint32_t * p_uint32);
 int RecLinkConfigFloat(const char *name, RecFloat * rec_float);
 int RecLinkConfigCounter(const char *name, RecCounter * rec_counter);
 int RecLinkConfigString(const char *name, RecString * rec_string);
@@ -124,6 +151,7 @@ int RecGetRecordByte(const char *name, RecByte * rec_byte, bool lock = true);
 //------------------------------------------------------------------------
 int RecGetRecordType(const char *name, RecT * rec_type, bool lock = true);
 int RecGetRecordDataType(const char *name, RecDataT * data_type, bool lock = true);
+int RecGetRecordPersistenceType(const char *name, RecPersistT * persist_type, bool lock = true);
 int RecGetRecordUpdateCount(RecT data_type);
 int RecGetRecordOrderAndId(const char *name, int *order, int *id, bool lock = true);
 
@@ -182,12 +210,12 @@ void RecSignalManager(int, const char *);
 } while (0)
 
 #define REC_EstablishStaticConfigInt32(_var, _config_var_name) do { \
-  RecLinkConfigInk32(_config_var_name, &_var); \
+  RecLinkConfigInt32(_config_var_name, &_var); \
   _var = (int32_t)REC_ConfigReadInteger(_config_var_name); \
 } while (0)
 
 #define REC_EstablishStaticConfigInt32U(_var, _config_var_name) do { \
-  RecLinkConfigInkU32(_config_var_name, &_var); \
+  RecLinkConfigUInt32(_config_var_name, &_var); \
   _var = (int32_t)REC_ConfigReadInteger(_config_var_name); \
 } while (0)
 

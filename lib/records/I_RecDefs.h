@@ -88,6 +88,31 @@ enum RecPersistT
   RECP_NON_PERSISTENT
 };
 
+// RECP_NULL should never be used by callers of RecRegisterStat*(). You have to decide
+// whether to persist stats or not. The template goop below make sure that passing RECP_NULL
+// is a very ugle compile-time error.
+
+namespace rec {
+namespace detail {
+template <RecPersistT>
+struct is_valid_persistence;
+
+template<>
+struct is_valid_persistence<RECP_PERSISTENT>
+{
+  static const RecPersistT value = RECP_PERSISTENT;
+};
+
+template<>
+struct is_valid_persistence<RECP_NON_PERSISTENT>
+{
+  static const RecPersistT value = RECP_NON_PERSISTENT;
+};
+
+}}
+
+#define REC_PERSISTENCE_TYPE(P) rec::detail::is_valid_persistence<P>::value
+
 enum RecUpdateT
 {
   RECU_NULL,                    // default: don't know the behavior
@@ -174,12 +199,5 @@ typedef int (*RecRawStatSyncCb) (const char *name, RecDataT data_type, RecData *
 //-------------------------------------------------------------------------
 #define REC_VAR_NAME_DELIMITOR '.'
 #define REC_VAR_NAME_WILDCARD  '*'
-
-
-// System Defaults
-extern char system_root_dir[PATH_NAME_MAX + 1];
-extern char system_runtime_dir[PATH_NAME_MAX + 1];
-extern char system_config_directory[PATH_NAME_MAX + 1];
-extern char system_log_dir[PATH_NAME_MAX + 1];
 
 #endif

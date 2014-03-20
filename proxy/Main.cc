@@ -86,7 +86,6 @@ extern "C" int plock(int);
 #include "Update.h"
 #include "congest/Congestion.h"
 #include "RemapProcessor.h"
-#include "XmlUtils.h"
 #include "I_Tasks.h"
 #include "InkAPIInternal.h"
 
@@ -113,10 +112,12 @@ extern "C" int plock(int);
 #endif
 
 #define DEFAULT_REMOTE_MANAGEMENT_FLAG    0
+#define DIAGS_LOG_FILENAME                "diags.log"
 
 static const long MAX_LOGIN =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_NAME_MAX :  sysconf(_SC_LOGIN_NAME_MAX);
 
 static void * mgmt_restart_shutdown_callback(void *, char *, int data_len);
+static void*  mgmt_storage_device_cmd_callback(void* x, char* data, int len);
 
 static int version_flag = DEFAULT_VERSION_FLAG;
 
@@ -145,12 +146,6 @@ char cluster_host[MAXDNAME + 1] = DEFAULT_CLUSTER_HOST;
 static char command_string[512] = "";
 int remote_management_flag = DEFAULT_REMOTE_MANAGEMENT_FLAG;
 
-char management_directory[PATH_NAME_MAX+1];      // Layout->sysconfdir
-char system_root_dir[PATH_NAME_MAX + 1];         // Layout->prefix
-char system_runtime_dir[PATH_NAME_MAX + 1];  // Layout->runtimedir
-char system_config_directory[PATH_NAME_MAX + 1]; // Layout->sysconfdir
-char system_log_dir[PATH_NAME_MAX + 1];          // Layout->logdir
-
 static char error_tags[1024] = "";
 static char action_tags[1024] = "";
 static int show_statistics = 0;
@@ -159,6 +154,7 @@ HttpBodyFactory *body_factory = NULL;
 
 static int accept_mss = 0;
 static int cmd_line_dprintf_level = 0;  // default debug output level from ink_dprintf function
+static int poll_timeout = -1; // No value set.
 
 // 1: delay listen, wait for cache.
 // 0: Do not delay, start listen ASAP.
@@ -211,7 +207,6 @@ static const ArgumentDescription argument_descriptions[] = {
 
   {"interval", 'i', "Statistics Interval", "I", &show_statistics, "PROXY_STATS_INTERVAL", NULL},
   {"remote_management", 'M', "Remote Management", "T", &remote_management_flag, "PROXY_REMOTE_MANAGEMENT", NULL},
-  {"management_dir", 'd', "Management Directory", "S255", &management_directory, "PROXY_MANAGEMENT_DIRECTORY", NULL},
   {"command", 'C', "Maintenance Command to Execute", "S511", &command_string, "PROXY_COMMAND_STRING", NULL},
   {"clear_hostdb", 'k', "Clear HostDB on Startup", "F", &auto_clear_hostdb_flag, "PROXY_CLEAR_HOSTDB", NULL},
   {"clear_cache", 'K', "Clear Cache on Startup", "F", &cacheProcessor.auto_clear_flag, "PROXY_CLEAR_CACHE", NULL},
@@ -220,14 +215,14 @@ static const ArgumentDescription argument_descriptions[] = {
 #endif
 
   {"accept_mss", ' ', "MSS for client connections", "I", &accept_mss, NULL, NULL},
-  {"poll_timeout", 't', "poll timeout in milliseconds", "I", &net_config_poll_timeout, NULL, NULL},
+  {"poll_timeout", 't', "poll timeout in milliseconds", "I", &poll_timeout, NULL, NULL},
   {"help", 'h', "HELP!", NULL, NULL, NULL, usage},
 };
 
 //
 // Initialize operating system related information/services
 //
-void
+static void
 init_system()
 {
   RecInt stackDump;
@@ -240,8 +235,8 @@ init_system()
 
   init_signals(stackDump == 1);
 
-  syslog(LOG_NOTICE, "NOTE: --- Server Starting ---");
-  syslog(LOG_NOTICE, "NOTE: Server Version: %s", appVersionInfo.FullVersionInfoStr);
+  syslog(LOG_NOTICE, "NOTE: --- %s Starting ---", appVersionInfo.AppStr);
+  syslog(LOG_NOTICE, "NOTE: %s Version: %s", appVersionInfo.AppStr, appVersionInfo.FullVersionInfoStr);
 
   //
   // Delimit file Descriptors
@@ -252,24 +247,19 @@ init_system()
 static void
 check_lockfile()
 {
-  char *lockfile = NULL;
+  xptr<char> rundir(RecConfigReadRuntimeDir());
+  xptr<char> lockfile;
   pid_t holding_pid;
   int err;
 
-  if (access(Layout::get()->runtimedir, R_OK | W_OK) == -1) {
-    fprintf(stderr,"unable to access() dir'%s': %d, %s\n",
-            Layout::get()->runtimedir, errno, strerror(errno));
-    fprintf(stderr," please set correct path in env variable TS_ROOT \n");
-    _exit(1);
-  }
-  lockfile = Layout::relative_to(Layout::get()->runtimedir, SERVER_LOCK);
+  lockfile = Layout::relative_to(rundir, SERVER_LOCK);
 
   Lockfile server_lockfile(lockfile);
   err = server_lockfile.Get(&holding_pid);
 
   if (err != 1) {
     char *reason = strerror(-err);
-    fprintf(stderr, "WARNING: Can't acquire lockfile '%s'", lockfile);
+    fprintf(stderr, "WARNING: Can't acquire lockfile '%s'", (const char *)lockfile);
 
     if ((err == 0) && (holding_pid != -1)) {
       fprintf(stderr, " (Lock file held by process ID %ld)\n", (long)holding_pid);
@@ -282,55 +272,25 @@ check_lockfile()
     }
     _exit(1);
   }
-  ats_free(lockfile);
 }
 
 static void
-init_dirs(void)
+check_config_directories(void)
 {
-  char buf[PATH_NAME_MAX + 1];
+  xptr<char> rundir(RecConfigReadRuntimeDir());
 
-  ink_strlcpy(system_config_directory, Layout::get()->sysconfdir, PATH_NAME_MAX);
-  ink_strlcpy(system_runtime_dir, Layout::get()->runtimedir, PATH_NAME_MAX);
-  ink_strlcpy(system_log_dir, Layout::get()->logdir, PATH_NAME_MAX);
-
-  /*
-   * XXX: There is not much sense in the following code
-   * The purpose of proxy.config.foo_dir should
-   * be checked BEFORE checking default foo directory.
-   * Otherwise one cannot change the config dir to something else
-   */
-  if (access(system_config_directory, R_OK) == -1) {
-    REC_ReadConfigString(buf, "proxy.config.config_dir", PATH_NAME_MAX);
-    Layout::get()->relative(system_config_directory, PATH_NAME_MAX, buf);
-    if (access(system_config_directory, R_OK) == -1) {
-      fprintf(stderr,"unable to access() config dir '%s': %d, %s\n",
-              system_config_directory, errno, strerror(errno));
-      fprintf(stderr, "please set config path via 'proxy.config.config_dir' \n");
-      _exit(1);
-    }
+  if (access(Layout::get()->sysconfdir, R_OK) == -1) {
+    fprintf(stderr,"unable to access() config dir '%s': %d, %s\n",
+            Layout::get()->sysconfdir, errno, strerror(errno));
+    fprintf(stderr, "please set the 'TS_ROOT' environment variable\n");
+    _exit(1);
   }
 
-  if (access(system_runtime_dir, R_OK | W_OK) == -1) {
-    REC_ReadConfigString(buf, "proxy.config.local_state_dir", PATH_NAME_MAX);
-    Layout::get()->relative(system_runtime_dir, PATH_NAME_MAX, buf);
-    if (access(system_runtime_dir, R_OK | W_OK) == -1) {
-      fprintf(stderr,"unable to access() local state dir '%s': %d, %s\n",
-              system_runtime_dir, errno, strerror(errno));
-      fprintf(stderr,"please set 'proxy.config.local_state_dir'\n");
-      _exit(1);
-    }
-  }
-
-  if (access(system_log_dir, W_OK) == -1) {
-    REC_ReadConfigString(buf, "proxy.config.log.logfile_dir", PATH_NAME_MAX);
-    Layout::get()->relative(system_log_dir, PATH_NAME_MAX, buf);
-    if (access(system_log_dir, W_OK) == -1) {
-      fprintf(stderr,"unable to access() log dir'%s':%d, %s\n",
-              system_log_dir, errno, strerror(errno));
-      fprintf(stderr,"please set 'proxy.config.log.logfile_dir'\n");
-      _exit(1);
-    }
+  if (access(rundir, R_OK | W_OK) == -1) {
+    fprintf(stderr,"unable to access() local state dir '%s': %d, %s\n",
+            (const char *)rundir, errno, strerror(errno));
+    fprintf(stderr,"please set 'proxy.config.local_state_dir'\n");
+    _exit(1);
   }
 
 }
@@ -348,41 +308,31 @@ initialize_process_manager()
     remote_management_flag = true;
   }
 
-  if (access(management_directory, R_OK) == -1) {
-    ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
-    if (access(management_directory, R_OK) == -1) {
-      fprintf(stderr,"unable to access() management path '%s': %d, %s\n", management_directory, errno, strerror(errno));
-      fprintf(stderr,"please set management path via command line '-d <management directory>'\n");
-      _exit(1);
-    }
-  }
-
   RecProcessInit(remote_management_flag ? RECM_CLIENT : RECM_STAND_ALONE, diags);
 
   if (!remote_management_flag) {
     LibRecordsConfigInit();
     RecordsConfigOverrideFromEnvironment();
   }
-  //
+
   // Start up manager
-  //
-  pmgmt = NEW(new ProcessManager(remote_management_flag, management_directory));
+  pmgmt = NEW(new ProcessManager(remote_management_flag));
 
   pmgmt->start();
   RecProcessInitMessage(remote_management_flag ? RECM_CLIENT : RECM_STAND_ALONE);
   pmgmt->reconfigure();
-  init_dirs();// setup directories
+  check_config_directories();
 
   //
   // Define version info records
   //
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.short", appVersionInfo.VersionStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.long", appVersionInfo.FullVersionInfoStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_number", appVersionInfo.BldNumStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_time", appVersionInfo.BldTimeStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_date", appVersionInfo.BldDateStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_machine", appVersionInfo.BldMachineStr, RECP_NULL);
-  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_person", appVersionInfo.BldPersonStr, RECP_NULL);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.short", appVersionInfo.VersionStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.long", appVersionInfo.FullVersionInfoStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_number", appVersionInfo.BldNumStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_time", appVersionInfo.BldTimeStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_date", appVersionInfo.BldDateStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_machine", appVersionInfo.BldMachineStr, RECP_NON_PERSISTENT);
+  RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_person", appVersionInfo.BldPersonStr, RECP_NON_PERSISTENT);
 }
 
 //
@@ -449,6 +399,10 @@ CB_After_Cache_Init()
     Debug("http_listen", "Delayed listen enable, cache initialization finished");
     start_HttpProxyServer();
   }
+
+  time_t cache_ready_at = time(NULL);
+  RecSetRecordInt("proxy.node.restarts.proxy.cache_ready_time", cache_ready_at);
+
   // Alert the plugins the cache is initialized.
   hook = lifecycle_hooks->get(TS_LIFECYCLE_CACHE_READY_HOOK);
   while (hook) {
@@ -579,12 +533,13 @@ cmd_clear(char *cmd)
   //bool c_adb = !strcmp(cmd, "clear_authdb");
   bool c_cache = !strcmp(cmd, "clear_cache");
 
-  char p[PATH_NAME_MAX];
   if (c_all || c_hdb) {
-    Note("Clearing Configuration");
-    Layout::relative_to(p, sizeof(p), system_runtime_dir, "hostdb.config");
-    if (unlink(p) < 0)
-      Note("unable to unlink %s", p);
+    xptr<char> rundir(RecConfigReadRuntimeDir());
+    xptr<char> config(Layout::relative_to(rundir, "hostdb.config"));
+
+    Note("Clearing HostDB Configuration");
+    if (unlink(config) < 0)
+      Note("unable to unlink %s", (const char *)config);
   }
 
   if (c_all || c_cache) {
@@ -595,6 +550,7 @@ cmd_clear(char *cmd)
       return CMD_FAILED;
     }
   }
+
   if (c_hdb || c_all) {
     Note("Clearing Host Database");
     if (hostDBProcessor.cache()->start(PROCESSOR_RECONFIGURE) < 0) {
@@ -1111,13 +1067,15 @@ run_RegressionTest()
 static void
 chdir_root()
 {
-  if (system_root_dir[0] && (chdir(system_root_dir) < 0)) {
+  const char * prefix = Layout::get()->prefix;
+
+  if (chdir(prefix) < 0) {
     fprintf(stderr,"unable to change to root directory \"%s\" [%d '%s']\n",
-            system_root_dir, errno, strerror(errno));
+            prefix, errno, strerror(errno));
     fprintf(stderr," please set correct path in env variable TS_ROOT \n");
     _exit(1);
   } else {
-    printf("[TrafficServer] using root directory '%s'\n", system_root_dir);
+    printf("[TrafficServer] using root directory '%s'\n", prefix);
   }
 }
 
@@ -1303,8 +1261,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
 
   // Before accessing file system initialize Layout engine
   Layout::create();
-  ink_strlcpy(system_root_dir, Layout::get()->prefix, sizeof(system_root_dir));
-  ink_strlcpy(management_directory, Layout::get()->sysconfdir, sizeof(management_directory));
   chdir_root(); // change directory to the install root of traffic server.
 
   process_args(argument_descriptions, countof(argument_descriptions), argv);
@@ -1314,8 +1270,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
     fprintf(stderr, "%s\n", appVersionInfo.FullVersionInfoStr);
     _exit(0);
   }
-  // Ensure only one copy of traffic server is running
-  check_lockfile();
 
   // Set stdout/stdin to be unbuffered
   setbuf(stdout, NULL);
@@ -1338,7 +1292,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
   // re-start Diag completely) because at initialize, TM only has 1 thread.
   // In TS, some threads have already created, so if we delete Diag and
   // re-start it again, TS will crash.
-  diagsConfig = NEW(new DiagsConfig(error_tags, action_tags, false));
+  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, error_tags, action_tags, false));
   diags = diagsConfig->diags;
   diags->prefix_str = "Server ";
   if (is_debug_tag_set("diags"))
@@ -1346,6 +1300,9 @@ main(int /* argc ATS_UNUSED */, char **argv)
 
   // Local process manager
   initialize_process_manager();
+
+  // Ensure only one copy of traffic server is running
+  check_lockfile();
 
   // Set the core limit for the process
   init_core_size();
@@ -1397,7 +1354,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
     RecDebugOff();
     delete(diagsConfig);
   }
-  diagsConfig = NEW(new DiagsConfig(error_tags, action_tags, true));
+  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, error_tags, action_tags, true));
   diags = diagsConfig->diags;
   RecSetDiags(diags);
   diags->prefix_str = "Server ";
@@ -1500,6 +1457,19 @@ main(int /* argc ATS_UNUSED */, char **argv)
   size_t stacksize;
   REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
 
+  // This has some special semantics, in that providing this configuration on
+  // command line has higher priority than what is set in records.config.
+  if (-1 != poll_timeout) {
+    net_config_poll_timeout = poll_timeout;
+  } else {
+    REC_ReadConfigInteger(net_config_poll_timeout, "proxy.config.net.poll_timeout");
+  }
+
+  // This shouldn't happen, but lets make sure we run somewhat reasonable.
+  if (net_config_poll_timeout < 0) {
+    net_config_poll_timeout = 10; // Default value for all platform.
+  }
+
   ink_event_system_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
   ink_net_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
   ink_aio_init(makeModuleVersion(1, 0, PRIVATE_MODULE_HEADER));
@@ -1533,7 +1503,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
     }
   } else {
     remapProcessor.start(num_remap_threads, stacksize);
-    RecProcessStart(stacksize);
+    RecProcessStart();
     initCacheControl();
     initCongestionControl();
     IpAllow::startup();
@@ -1564,7 +1534,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
     Log::init(remote_management_flag ? 0 : Log::NO_REMOTE_MANAGEMENT);
 
     // Init plugins as soon as logging is ready.
-    plugin_init(system_config_directory);        // plugin.config
+    plugin_init();        // plugin.config
     pmgmt->registerPluginCallbacks(global_config_cbs);
 
     cacheProcessor.set_after_init_callback(&CB_After_Cache_Init);
@@ -1659,6 +1629,11 @@ main(int /* argc ATS_UNUSED */, char **argv)
     pmgmt->registerMgmtCallback(MGMT_EVENT_SHUTDOWN, mgmt_restart_shutdown_callback, NULL);
     pmgmt->registerMgmtCallback(MGMT_EVENT_RESTART, mgmt_restart_shutdown_callback, NULL);
 
+    // Callback for various storage commands. These all go to the same function so we
+    // pass the event code along so it can do the right thing. We cast that to <int> first
+    // just to be safe because the value is a #define, not a typed value.
+    pmgmt->registerMgmtCallback(MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE, mgmt_storage_device_cmd_callback, reinterpret_cast<void*>(static_cast<int>(MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE)));
+
     // The main thread also becomes a net thread.
     ink_set_thread_name("[ET_NET 0]");
 
@@ -1703,5 +1678,24 @@ static void *
 mgmt_restart_shutdown_callback(void *, char *, int /* data_len ATS_UNUSED */)
 {
   sync_cache_dir_on_shutdown();
+  return NULL;
+}
+
+static void*
+mgmt_storage_device_cmd_callback(void* data, char* arg, int len)
+{
+  // data is the device name to control
+  CacheDisk* d = cacheProcessor.find_by_path(arg, len);
+  // Actual command is in @a data.
+  intptr_t cmd = reinterpret_cast<intptr_t>(data);
+
+  if (d) {
+    switch (cmd) {
+    case MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE:
+      Debug("server", "Marking %.*s offline", len, arg);
+      cacheProcessor.mark_storage_offline(d);
+      break;
+    }
+  }
   return NULL;
 }
