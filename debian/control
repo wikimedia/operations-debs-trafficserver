@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
 	libpcre3-dev, libsqlite3-dev, autoconf, automake, libtool,
 	libaio-dev [linux-any], libcap-dev [linux-any], bison [linux-any],
 	flex [linux-any], dpkg-dev (>= 1.16.1~), libboost1.49-dev,
-	libncurses5-dev, libgeoip-dev, liblua5.1-0-dev, libreadline6-dev,
+	libncurses5-dev, libgeoip-dev, liblua5.1-0-dev, libeditline-dev,
 	libcurl4-gnutls-dev
 Standards-Version: 3.9.3
 Homepage: http://trafficserver.apache.org/
