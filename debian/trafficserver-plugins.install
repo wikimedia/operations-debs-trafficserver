@@ -10,12 +10,10 @@ usr/lib/trafficserver/modules/geoip_acl.so
 usr/lib/trafficserver/modules/healthchecks.so
 usr/lib/trafficserver/modules/hipes.so
 usr/lib/trafficserver/modules/lua.so
-usr/lib/trafficserver/modules/memcached_remap.so
 usr/lib/trafficserver/modules/metalink.so
 usr/lib/trafficserver/modules/remap_stats.so
 usr/lib/trafficserver/modules/rfc5861.so
 usr/lib/trafficserver/modules/spdy.so
-usr/lib/trafficserver/modules/stale_while_revalidate.so
 usr/lib/trafficserver/modules/tcp_info.so
 usr/lib/trafficserver/modules/tslua.so
 usr/lib/trafficserver/modules/xdebug.so
