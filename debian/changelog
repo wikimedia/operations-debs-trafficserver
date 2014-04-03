@@ -1,3 +1,22 @@
+trafficserver (4.1.2-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix undefined reference to `__sync_fetch_and_sub_8' on ARM 32bit
+    Add 0001-TS-2454-Fix-undefined-reference-to-__sync_fetch_and_.patch
+    from https://issues.apache.org/jira/browse/TS-2454
+    Patch by Yunkai Zhang
+  * Add support for MIPS
+    Add add-mips-support.patch
+    Submitted: https://issues.apache.org/jira/browse/TS-2687
+    Merged: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;h=2f81790
+    Patch by Dejan Latinovic
+    Closes: 743395
+  * Build-depend on libboost-dev
+    Patch by Dejan Latinovic
+    Closes: #737510
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Thu, 03 Apr 2014 04:18:23 +0100
+
 trafficserver (4.1.2-1) unstable; urgency=medium
 
   * Merge the experimental branch of trafficserver to unstable

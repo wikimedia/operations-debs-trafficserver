@@ -1,0 +1,117 @@
+From: Dejan Latinovic <Dejan.Latinovic@imgtec.com>
+Subject: trafficserver: support for mips
+Date: Wed, 2 Apr 2014 10:30:15 +0000
+
+https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=743395
+
+While trying to build trafficserver on mips architecture,
+build fails with an error:
+
+  In file included from ../../lib/ts/libts.h:64:0,
+                   from P_EventSystem.h:34,
+                   from EventSystem.cc:31:
+  ../../lib/ts/ink_queue.h:144:2: error: #error "unsupported processor"
+   #error "unsupported processor"
+
+After some extensions,
+I was able to build trafficserver successfully.
+Also, all tests passed.
+Mips related changes are included in add-mips-support.patch.
+
+This patch was submitted upstream:
+
+https://issues.apache.org/jira/browse/TS-2687
+
+And it was merged:
+
+Commit 2f8179056402694ac7df828a264b4aa92ec964ea in trafficserver's
+branch refs/heads/master from Dejan Latinovic
+[ https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;h=2f81790 ]
+
+diff -uNr trafficserver-4.1.2/lib/ts/ink_atomic.h trafficserver-4.1.2.mips/lib/ts/ink_atomic.h
+--- trafficserver-4.1.2.orig/lib/ts/ink_atomic.h	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/lib/ts/ink_atomic.h	2014-02-12 16:10:38.000000000 +0000
+@@ -168,7 +170,7 @@
+ }
+ 
+ // Special hacks for ARM 32-bit
+-#if defined(__arm__) && (SIZEOF_VOIDP == 4)
++#if (defined(__arm__)|| defined(__mips__))  && (SIZEOF_VOIDP == 4)
+ extern ProcessMutex __global_death;
+ 
+ template<>
+diff -uNr trafficserver-4.1.2/lib/ts/ink_queue.h trafficserver-4.1.2.mips/lib/ts/ink_queue.h
+--- trafficserver-4.1.2.orig/lib/ts/ink_queue.h	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/lib/ts/ink_queue.h	2014-02-12 14:09:35.000000000 +0000
+@@ -85,7 +85,7 @@
+   // lock, use INK_QUEUE_LD to read safely.
+   typedef union
+   {
+-#if (defined(__i386__) || defined(__arm__)) && (SIZEOF_VOIDP == 4)
++#if (defined(__i386__) || defined(__arm__) || defined(__mips__)) && (SIZEOF_VOIDP == 4)
+     struct
+     {
+       void *pointer;
+@@ -124,7 +124,7 @@
+ #define TO_PTR(_x) ((void*)(_x))
+ #endif
+ 
+-#if (defined(__i386__) || defined(__arm__)) && (SIZEOF_VOIDP == 4)
++#if (defined(__i386__) || defined(__arm__) || defined(__mips__)) && (SIZEOF_VOIDP == 4)
+ #define FREELIST_POINTER(_x) (_x).s.pointer
+ #define FREELIST_VERSION(_x) (_x).s.version
+ #define SET_FREELIST_POINTER_VERSION(_x,_p,_v) \
+diff -uNr trafficserver-4.1.2/lib/ts/ink_queue_utils.cc trafficserver-4.1.2.mips/lib/ts/ink_queue_utils.cc
+--- trafficserver-4.1.2.orig/lib/ts/ink_queue_utils.cc	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/lib/ts/ink_queue_utils.cc	2014-02-28 15:11:43.000000000 +0000
+@@ -68,7 +68,7 @@
+ void
+ ink_queue_load_64(void *dst, void *src)
+ {
+-#if (defined(__i386__) || defined(__arm__)) && (SIZEOF_VOIDP == 4)
++#if (defined(__i386__) || defined(__arm__) || defined(__mips__)) && (SIZEOF_VOIDP == 4)
+   volatile int32_t src_version = (*(head_p *) src).s.version;
+   void *src_pointer = (*(head_p *) src).s.pointer;
+ 
+diff -uNr trafficserver-4.1.2/plugins/experimental/geoip_acl/lulu.h trafficserver-4.1.2.mips/plugins/experimental/geoip_acl/lulu.h
+--- trafficserver-4.1.2.orig/plugins/experimental/geoip_acl/lulu.h	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/plugins/experimental/geoip_acl/lulu.h	2014-02-12 16:35:36.000000000 +0000
+@@ -42,6 +42,10 @@
+ #define mb()  __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define rmb() __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define wmb() __asm__ __volatile__ ( "" : : : "memory")
++#elif defined(__mips__)
++#define mb()  __asm__ __volatile__ ( "sync" : : : "memory")
++#define rmb() __asm__ __volatile__ ( "sync" : : : "memory")
++#define wmb() __asm__ __volatile__ ( "" : : : "memory")
+ #else
+ #error "Define barriers"
+ #endif
+diff -uNr trafficserver-4.1.2/plugins/header_filter/lulu.h trafficserver-4.1.2.mips/plugins/header_filter/lulu.h
+--- trafficserver-4.1.2.orig/plugins/header_filter/lulu.h	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/plugins/header_filter/lulu.h	2014-02-12 16:30:46.000000000 +0000
+@@ -41,6 +41,10 @@
+ #define mb()  __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define rmb() __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define wmb() __asm__ __volatile__ ( "" : : : "memory")
++#elif defined(__mips__)
++#define mb()  __asm__ __volatile__ ( "sync" : : : "memory")
++#define rmb() __asm__ __volatile__ ( "sync" : : : "memory")
++#define wmb() __asm__ __volatile__ ( "" : : : "memory")
+ #elif defined(__arm__)
+ #else
+ #error "Define barriers"
+diff -uNr trafficserver-4.1.2/plugins/header_rewrite/lulu.h trafficserver-4.1.2.mips/plugins/header_rewrite/lulu.h
+--- trafficserver-4.1.2.orig/plugins/header_rewrite/lulu.h	2013-12-05 22:07:48.000000000 +0000
++++ trafficserver-4.1.2/plugins/header_rewrite/lulu.h	2014-02-12 16:31:46.000000000 +0000
+@@ -39,6 +39,10 @@
+ #define mb()  __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define rmb() __asm__ __volatile__ ( "dmb" : : : "memory")
+ #define wmb() __asm__ __volatile__ ( "" : : : "memory")
++#elif defined(__mips__)
++#define mb()  __asm__ __volatile__ ( "sync" : : : "memory")
++#define rmb() __asm__ __volatile__ ( "sync" : : : "memory")
++#define wmb() __asm__ __volatile__ ( "" : : : "memory")
+ #else
+ #error "Define barriers"
+ #endif

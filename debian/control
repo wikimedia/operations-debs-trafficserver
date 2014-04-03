@@ -6,7 +6,7 @@ Uploaders: Aron Xu <aron@debian.org>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libsqlite3-dev, libtool, libaio-dev [linux-any],
   libcap-dev [linux-any], bison [linux-any], flex [linux-any],
-  dpkg-dev (>= 1.16.1~), pkg-config, libboost1.53-dev, libgeoip-dev,
+  dpkg-dev (>= 1.16.1~), pkg-config, libboost-dev, libgeoip-dev,
   liblua5.1-0-dev, libmysqlclient-dev
 Standards-Version: 3.9.5
 Homepage: http://trafficserver.apache.org/
