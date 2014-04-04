@@ -1,3 +1,13 @@
+trafficserver (4.1.2-1.2) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Add missing prototype for pthread_setname_np()
+    Add pthread_setname_np.patch
+    Patch by Petr Salinger
+    Closes: #743584
+
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Fri, 04 Apr 2014 08:59:48 +0100
+
 trafficserver (4.1.2-1.1) unstable; urgency=medium
 
   * Non-maintainer upload.

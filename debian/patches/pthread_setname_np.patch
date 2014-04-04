@@ -1,0 +1,29 @@
+Date: Fri, 4 Apr 2014 09:19:33 +0200 (CEST)
+From: Petr Salinger <Petr.Salinger@seznam.cz>
+Subject: Re: Bug#743584: trafficserver 4.1.2-1.1 FTBFS on kfreebsd-*
+
+https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=743584
+
+The primary reason is missing prototype in pthread.h, the library call
+pthread_setname_np (with 2 parametres) have been added for kfreebsd
+recently, but the header have not been updated.
+
+I will prepare fix in svn for next eglibc upload.
+
+Workaround for trafficserver:
+
+--- a/lib/ts/ink_thread.h	2013-12-05 22:07:48.000000000 +0000
++++ b/lib/ts/ink_thread.h	2014-04-04 08:48:05.647933842 +0100
+@@ -310,6 +310,12 @@ ink_thread_exit(void *status)
+ // This define is from Linux's <sys/prctl.h> and is most likely very
+ // Linux specific... Feel free to add support for other platforms
+ // that has a feature to give a thread specific name / tag.
++
++#if defined(__FreeBSD_kernel__) && defined(HAVE_PTHREAD_SETNAME_NP_1)
++#undef HAVE_PTHREAD_SETNAME_NP_1
++extern "C" int pthread_setname_np (pthread_t __target_thread, __const char *__name);
++#endif
++
+ static inline void
+ ink_set_thread_name(const char* name ATS_UNUSED)
+ {
