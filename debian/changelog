@@ -1,3 +1,9 @@
+trafficserver (4.2.0-3~bbc74+1) stable; urgency=medium
+
+  * Remove Linux native-AIO support which could make traffic_server segfault
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 09 Apr 2014 16:24:58 +0200
+
 trafficserver (4.2.0-2~bbc74+1) stable; urgency=medium
 
   * Move all experimental plugins into trafficserver-plugins package
