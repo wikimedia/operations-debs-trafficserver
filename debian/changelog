@@ -1,3 +1,9 @@
+trafficserver (4.2.1-1~bbc75+1) stable; urgency=medium
+
+  * Imported Upstream version 4.2.1
+
+ --  Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 04 Jun 2014 10:17:46 +0200
+
 trafficserver (4.2.0-3~bbc74+1) stable; urgency=medium
 
   * Remove Linux native-AIO support which could make traffic_server segfault
