@@ -1,3 +1,9 @@
+trafficserver (4.2.1-2~bbc75+1) stable; urgency=medium
+
+  * Fix libhwloc support
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Tue, 17 Jun 2014 16:54:29 +0200
+
 trafficserver (4.2.1-1~bbc75+1) stable; urgency=medium
 
   * Imported Upstream version 4.2.1
