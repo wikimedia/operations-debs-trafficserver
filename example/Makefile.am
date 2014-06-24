@@ -28,6 +28,7 @@ plugins = \
   cache-scan.la \
   file-1.la \
   hello.la \
+  intercept.la \
   lifecycle-plugin.la \
   null-transform.la \
   output-header.la \
@@ -37,6 +38,7 @@ plugins = \
   remap.la \
   replace-header.la \
   response-header-1.la \
+  secure-link.la \
   server-transform.la \
   thread-1.la \
   version.la
@@ -56,6 +58,7 @@ bnull_transform_la_SOURCES = bnull-transform/bnull-transform.c
 cache_scan_la_SOURCES = cache-scan/cache-scan.cc
 file_1_la_SOURCES = file-1/file-1.c
 hello_la_SOURCES = hello/hello.c
+intercept_la_SOURCES = intercept/intercept.cc
 lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
 null_transform_la_SOURCES = null-transform/null-transform.c
 output_header_la_SOURCES = output-header/output-header.c
@@ -68,6 +71,7 @@ server_transform_la_SOURCES = server-transform/server-transform.c
 thread_1_la_SOURCES = thread-1/thread-1.c
 psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
 version_la_SOURCES = version/version.c
+secure_link_la_SOURCES = secure-link/secure-link.c
 
 # The following examples do not build:
 #

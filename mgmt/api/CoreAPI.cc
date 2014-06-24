@@ -58,7 +58,7 @@ CallbackTable *local_event_callbacks;
  * performs any necesary initializations for the local API client,
  * eg. set up global structures; called by the TSMgmtAPI::TSInit()
  */
-TSError
+TSMgmtError
 Init(const char * /* socket_path ATS_UNUSED */, TSInitOptionT options)
 {
   // socket_path should be null; only applies to remote clients
@@ -79,7 +79,7 @@ Init(const char * /* socket_path ATS_UNUSED */, TSInitOptionT options)
  * performs any necesary cleanup of global structures, etc,
  * for the local API client,
  */
-TSError
+TSMgmtError
 Terminate()
 {
   delete_callback_table(local_event_callbacks);
@@ -164,7 +164,7 @@ ProxyStateGet()
  * tsArgs  - (optional) a string with space delimited options that user
  *            wants to start traffic Server with
  */
-TSError
+TSMgmtError
 ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
 {
   int i = 0;
@@ -233,7 +233,7 @@ Lerror:
  *-------------------------------------------------------------------------
  * Rereads configuration files
  */
-TSError
+TSMgmtError
 Reconfigure()
 {
   configFiles->rereadConfig();  // TM rereads
@@ -248,7 +248,7 @@ Reconfigure()
  * Restarts Traffic Manager. Traffic Cop must be running in order to
  * restart Traffic Manager!!
  */
-TSError
+TSMgmtError
 Restart(bool cluster)
 {
   if (cluster) {                // Enqueue an event to restart the proxies across the cluster
@@ -262,24 +262,11 @@ Restart(bool cluster)
 }
 
 /*-------------------------------------------------------------------------
- * HardRestart
- *-------------------------------------------------------------------------
- * Cannot be executed locally since it requires a restart of Traffic Cop.
- * So just return TS_ERR_FAIL. Should only be called by remote API clients.
- */
-TSError
-HardRestart()
-{
-  return TS_ERR_FAIL;
-}
-
-
-/*-------------------------------------------------------------------------
  * Bouncer
  *-------------------------------------------------------------------------
  * Bounces traffic_server process(es).
  */
-TSError
+TSMgmtError
 Bounce(bool cluster)
 {
   if (cluster) {
@@ -299,7 +286,7 @@ Bounce(bool cluster)
  * CoreAPI is linked (it must match the remote CoreAPI signature so compiling
  * this source or CoreAPIRemote.cc yields the same set of symbols).
  */
-TSError
+TSMgmtError
 StorageDeviceCmdOffline(char const* dev)
 {
   lmgmt->signalEvent(MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE, dev);
@@ -314,7 +301,7 @@ StorageDeviceCmdOffline(char const* dev)
  * rec_ele has allocated memory already but with all empty fields.
  * The record info associated with rec_name will be returned in rec_ele.
  */
-TSError
+TSMgmtError
 MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
 {
   RecDataT rec_type;
@@ -336,26 +323,27 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
     rec_ele->rec_type = TS_REC_COUNTER;
     if (!varCounterFromName(rec_name, &(counter_val)))
       return TS_ERR_FAIL;
-    rec_ele->counter_val = (TSCounter) counter_val;
+    rec_ele->valueT.counter_val = (TSCounter) counter_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->counter_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Counter Var %s = %" PRId64"\n", rec_ele->rec_name,
+          rec_ele->valueT.counter_val);
     break;
 
   case RECD_INT:
     rec_ele->rec_type = TS_REC_INT;
     if (!varIntFromName(rec_name, &(int_val)))
       return TS_ERR_FAIL;
-    rec_ele->int_val = (TSInt) int_val;
+    rec_ele->valueT.int_val = (TSInt) int_val;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->int_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Int Var %s = %" PRId64"\n", rec_ele->rec_name, rec_ele->valueT.int_val);
     break;
 
   case RECD_FLOAT:
     rec_ele->rec_type = TS_REC_FLOAT;
-    if (!varFloatFromName(rec_name, &(rec_ele->float_val)))
+    if (!varFloatFromName(rec_name, &(rec_ele->valueT.float_val)))
       return TS_ERR_FAIL;
 
-    Debug("RecOp", "[MgmtRecordGet] Get Float Var %s = %f\n", rec_ele->rec_name, rec_ele->float_val);
+    Debug("RecOp", "[MgmtRecordGet] Get Float Var %s = %f\n", rec_ele->rec_name, rec_ele->valueT.float_val);
     break;
 
   case RECD_STRING:
@@ -371,8 +359,8 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
     }
 
     rec_ele->rec_type = TS_REC_STRING;
-    rec_ele->string_val = str_val;
-    Debug("RecOp", "[MgmtRecordGet] Get String Var %s = %s\n", rec_ele->rec_name, rec_ele->string_val);
+    rec_ele->valueT.string_val = str_val;
+    Debug("RecOp", "[MgmtRecordGet] Get String Var %s = %s\n", rec_ele->rec_name, rec_ele->valueT.string_val);
     break;
 
   default:                     // UNKOWN TYPE
@@ -383,6 +371,15 @@ MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
   return TS_ERR_OKAY;
 }
 
+// This is not implemented in the Core side of the API because we don't want
+// to buffer up all the matching records in memory. We stream the records
+// directory onto the management socket in handle_record_match(). This stub
+// is just here for link time dependencies.
+TSMgmtError
+MgmtRecordGetMatching(const char * /* regex */, TSList /* rec_vals */)
+{
+  return TS_ERR_FAIL;
+}
 
 /*-------------------------------------------------------------------------
  * reads the RecordsConfig info to determine which type of action is needed
@@ -410,9 +407,6 @@ determine_action_need(const char *rec_name)
   case RECU_RESTART_TM:          // requires TM/TS restart
     return TS_ACTION_RESTART;
 
-  case RECU_RESTART_TC:          // requires TC/TM/TS restart
-    return TS_ACTION_SHUTDOWN;
-
   default:                     // shouldn't get here actually
     return TS_ACTION_UNDEFINED;
   }
@@ -433,7 +427,7 @@ determine_action_need(const char *rec_name)
  *  returns true if the variable was successfully set
  *   and false otherwise
  */
-TSError
+TSMgmtError
 MgmtRecordSet(const char *rec_name, const char *val, TSActionNeedT * action_need)
 {
   Debug("RecOp", "[MgmtRecordSet] Start\n");
@@ -459,7 +453,7 @@ MgmtRecordSet(const char *rec_name, const char *val, TSActionNeedT * action_need
  * Returns TS_ERR_FAIL if the type is not a valid integer.
  * Converts the integer value to a string and call MgmtRecordSet
  */
-TSError
+TSMgmtError
 MgmtRecordSetInt(const char *rec_name, MgmtInt int_val, TSActionNeedT * action_need)
 {
   if (!rec_name || !action_need)
@@ -480,7 +474,7 @@ MgmtRecordSetInt(const char *rec_name, MgmtInt int_val, TSActionNeedT * action_n
  *-------------------------------------------------------------------------
  * converts the counter_val to a string and uses MgmtRecordSet
  */
-TSError
+TSMgmtError
 MgmtRecordSetCounter(const char *rec_name, MgmtIntCounter counter_val, TSActionNeedT * action_need)
 {
   if (!rec_name || !action_need)
@@ -502,7 +496,7 @@ MgmtRecordSetCounter(const char *rec_name, MgmtIntCounter counter_val, TSActionN
  * converts the float value to string (to do record validity check)
  * and calls MgmtRecordSet
  */
-TSError
+TSMgmtError
 MgmtRecordSetFloat(const char *rec_name, MgmtFloat float_val, TSActionNeedT * action_need)
 {
   if (!rec_name || !action_need)
@@ -523,7 +517,7 @@ MgmtRecordSetFloat(const char *rec_name, MgmtFloat float_val, TSActionNeedT * ac
  *-------------------------------------------------------------------------
  * The string value is copied so it's okay to free the string later
  */
-TSError
+TSMgmtError
 MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT * action_need)
 {
   return MgmtRecordSet(rec_name, string_val, action_need);
@@ -544,7 +538,7 @@ MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT 
  *          ver  - the version number of file being read
  * Note: CALLEE must DEALLOCATE text memory returned
  */
-TSError
+TSMgmtError
 ReadFile(TSFileNameT file, char **text, int *size, int *version)
 {
   const char *fname;
@@ -594,7 +588,7 @@ ReadFile(TSFileNameT file, char **text, int *size, int *version)
  *        version - the current version level; new file will have the
  *                  version number above this one
  */
-TSError
+TSMgmtError
 WriteFile(TSFileNameT file, char *text, int size, int version)
 {
   const char *fname;
@@ -653,7 +647,7 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
  * be careful because this alarm description is used to keep track
  * of alarms in the current alarm processor
  */
-TSError
+TSMgmtError
 EventSignal(char * /* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
 {
   //char *text;
@@ -673,7 +667,7 @@ EventSignal(char * /* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
  * unresolved, just return TS_ERR_OKAY.
 
  */
-TSError
+TSMgmtError
 EventResolve(char *event_name)
 {
   alarm_t a;
@@ -694,7 +688,7 @@ EventResolve(char *event_name)
  * functions fail for a single event
  * note: returns list of local alarms at that instant of fn call (snapshot)
  */
-TSError
+TSMgmtError
 ActiveEventGetMlt(LLQ * active_events)
 {
   InkHashTable *event_ht;
@@ -735,7 +729,7 @@ ActiveEventGetMlt(LLQ * active_events)
  * Sets *is_current to true if the event named event_name is currently
  * unresolved; otherwise sets *is_current to false.
  */
-TSError
+TSMgmtError
 EventIsActive(char *event_name, bool * is_current)
 {
   alarm_t a;
@@ -766,7 +760,7 @@ EventIsActive(char *event_name, bool * is_current)
  * event callback functions for each type of event. The functions are also
  * stored in the the hashtable, not in the TM alarm processor model
  */
-TSError
+TSMgmtError
 EventSignalCbRegister(char *event_name, TSEventSignalFunc func, void *data)
 {
   return cb_table_register(local_event_callbacks, event_name, func, data, NULL);
@@ -778,7 +772,7 @@ EventSignalCbRegister(char *event_name, TSEventSignalFunc func, void *data)
  *-------------------------------------------------------------------------
  * Removes the callback function from the local side CallbackTable
  */
-TSError
+TSMgmtError
 EventSignalCbUnregister(char *event_name, TSEventSignalFunc func)
 {
   return cb_table_unregister(local_event_callbacks, event_name, func);
@@ -787,7 +781,7 @@ EventSignalCbUnregister(char *event_name, TSEventSignalFunc func)
 /***************************************************************************
  * Snapshots
  ***************************************************************************/
-TSError
+TSMgmtError
 SnapshotTake(char *snapshot_name)
 {
   char *snapDirFromRecordsConf;
@@ -813,7 +807,7 @@ SnapshotTake(char *snapshot_name)
     return TS_ERR_OKAY;
 }
 
-TSError
+TSMgmtError
 SnapshotRestore(char *snapshot_name)
 {
   char *snapDirFromRecordsConf;
@@ -840,7 +834,7 @@ SnapshotRestore(char *snapshot_name)
     return TS_ERR_OKAY;
 }
 
-TSError
+TSMgmtError
 SnapshotRemove(char *snapshot_name)
 {
   char *snapDirFromRecordsConf;
@@ -868,7 +862,7 @@ SnapshotRemove(char *snapshot_name)
 }
 
 /* based on FileManager.cc::displaySnapOption() */
-TSError
+TSMgmtError
 SnapshotGetMlt(LLQ * snapshots)
 {
   ExpandingArray snap_list(25, true);
@@ -899,7 +893,7 @@ SnapshotGetMlt(LLQ * snapshots)
  * but will return TS_ERR_FAIL. Only returns TS_ERR_OKAY if all
  * stats are set back to defaults successfully.
  */
-TSError
+TSMgmtError
 StatsReset(bool cluster, const char *name)
 {
   if (cluster)

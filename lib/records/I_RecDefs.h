@@ -53,17 +53,18 @@ typedef char *RecString;
 typedef const char *RecStringConst;
 typedef int64_t RecCounter;
 typedef int8_t RecByte;
+typedef bool RecBool;
 
 enum RecT
 {
-  RECT_NULL = 0,
-  RECT_CONFIG,
-  RECT_PROCESS,
-  RECT_NODE,
-  RECT_CLUSTER,
-  RECT_LOCAL,
-  RECT_PLUGIN,
-  RECT_MAX
+  RECT_NULL     = 0x00,
+  RECT_CONFIG   = 0x01,
+  RECT_PROCESS  = 0x02,
+  RECT_NODE     = 0x04,
+  RECT_CLUSTER  = 0x08,
+  RECT_LOCAL    = 0x10,
+  RECT_PLUGIN   = 0x20,
+  RECT_ALL      = 0x3F
 };
 
 enum RecDataT

@@ -43,10 +43,10 @@ Apache Traffic Server releases.
   cacheurl.en
   conf_remap.en
   gzip.en
-  header_filter.en
   header_rewrite.en
   regex_remap.en
   stats_over_http.en
+  tcpinfo.en
 
 Experimental plugins
 ====================
@@ -64,14 +64,16 @@ directory of the Apache Traffic Server source tree. Exmperimental plugins can be
   :maxdepth: 1
 
   authproxy.en
+  background_fetch.en
   balancer.en
   buffer_upload.en
   combo_handler.en
   esi.en
   geoip_acl.en
   hipes.en
-  metafilter.en
+  metalink.en
   mysql_remap.en
+  s3_auth.en
   stale_while_revalidate.en
   ts_lua.en
   xdebug.en

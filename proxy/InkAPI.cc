@@ -21,9 +21,6 @@
   limitations under the License.
  */
 
-// Avoid complaining about the deprecated APIs.
-// #define TS_DEPRECATED
-
 #include <stdio.h>
 
 #include "libts.h"
@@ -54,7 +51,7 @@
 #include "PluginVC.h"
 #include "api/ts/experimental.h"
 #include "ICP.h"
-#include "HttpAccept.h"
+#include "HttpSessionAccept.h"
 #include "PluginVC.h"
 #include "FetchSM.h"
 #include "HttpDebugNames.h"
@@ -87,6 +84,9 @@
 // Globals for new librecords stats
 volatile int top_stat = 0;
 RecRawStatBlock *api_rsb;
+
+// Library init functions needed for API.
+extern void ts_session_protocol_well_known_name_indices_init();
 
 // Globals for the Sessions/Transaction index registry
 volatile int next_argv_index = 0;
@@ -359,14 +359,6 @@ tsapi int TS_HTTP_LEN_PUT;
 tsapi int TS_HTTP_LEN_TRACE;
 tsapi int TS_HTTP_LEN_PUSH;
 
-/* TLS Next Protocol well-known protocol names. */
-
-tsapi const char * TS_NPN_PROTOCOL_HTTP_1_0 = "http/1.0";
-tsapi const char * TS_NPN_PROTOCOL_HTTP_1_1 = "http/1.1";
-tsapi const char * TS_NPN_PROTOCOL_SPDY_1   = "spdy/1";   // obsolete
-tsapi const char * TS_NPN_PROTOCOL_SPDY_2   = "spdy/2";   // shipping
-tsapi const char * TS_NPN_PROTOCOL_SPDY_3   = "spdy/3";   // upcoming
-
 /* MLoc Constants */
 tsapi const TSMLoc TS_NULL_MLOC = (TSMLoc)NULL;
 
@@ -418,12 +410,14 @@ int
 _TSAssert(const char *text, const char *file, int line)
 {
   _ink_assert(text, file, line);
+  return 0;
+}
 #else
 _TSAssert(const char *, const char *, int)
 {
-#endif
- return 0;
+  return 0;
 }
+#endif
 
 // This assert is for internal API use only.
 #if TS_USE_FAST_SDK
@@ -432,7 +426,6 @@ _TSAssert(const char *, const char *, int)
 #define sdk_assert(EX)                                          \
   ( (void)((EX) ? (void)0 : _TSReleaseAssert(#EX, __FILE__, __LINE__)) )
 #endif
-
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -579,6 +572,15 @@ TSReturnCode
 sdk_sanity_check_continuation(TSCont cont)
 {
   if ((cont == NULL) || (((INKContInternal *) cont)->m_free_magic == INKCONT_INTERN_MAGIC_DEAD))
+    return TS_ERROR;
+
+  return TS_SUCCESS;
+}
+
+TSReturnCode
+sdk_sanity_check_fetch_sm(TSFetchSM fetch_sm)
+{
+  if (fetch_sm == NULL)
     return TS_ERROR;
 
   return TS_SUCCESS;
@@ -1319,7 +1321,7 @@ ConfigUpdateCbTable::invoke(const char *name)
 void
 ConfigUpdateCbTable::invoke(INKContInternal *contp)
 {
-  eventProcessor.schedule_imm(NEW(new ConfigUpdateCallback(contp)), ET_TASK);
+  eventProcessor.schedule_imm(new ConfigUpdateCallback(contp), ET_TASK);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1586,9 +1588,9 @@ api_init()
     TS_HTTP_LEN_PUBLIC = HTTP_LEN_PUBLIC;
     TS_HTTP_LEN_S_MAXAGE = HTTP_LEN_S_MAXAGE;
 
-    http_global_hooks = NEW(new HttpAPIHooks);
-    lifecycle_hooks = NEW(new LifecycleAPIHooks);
-    global_config_cbs = NEW(new ConfigUpdateCbTable);
+    http_global_hooks = new HttpAPIHooks;
+    lifecycle_hooks = new LifecycleAPIHooks;
+    global_config_cbs = new ConfigUpdateCbTable;
 
     if (TS_MAX_API_STATS > 0) {
       api_rsb = RecAllocateRawStatBlock(TS_MAX_API_STATS);
@@ -1610,7 +1612,6 @@ api_init()
     if (sscanf(traffic_server_version, "%d.%d.%d", &ts_major_version, &ts_minor_version, &ts_patch_version) != 3) {
       Warning("Unable to parse traffic server version string '%s'\n", traffic_server_version);
     }
-
   }
 }
 
@@ -1803,7 +1804,7 @@ TSfopen(const char *filename, const char *mode)
 {
   FileImpl *file;
 
-  file = NEW(new FileImpl);
+  file = new FileImpl;
   if (!file->fopen(filename, mode)) {
     delete file;
     return NULL;
@@ -1898,7 +1899,7 @@ TSMBuffer
 TSMBufferCreate(void)
 {
   TSMBuffer bufp;
-  HdrHeapSDKHandle *new_heap = NEW(new HdrHeapSDKHandle);
+  HdrHeapSDKHandle *new_heap = new HdrHeapSDKHandle;
 
   new_heap->m_heap = new_HdrHeap();
   bufp = (TSMBuffer)new_heap;
@@ -2976,7 +2977,7 @@ TSMimeHdrFieldNext(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
       return TS_NULL_MLOC;
     if (f->is_live()) {
       MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, handle->mh);
-      
+
       h->field_ptr = f;
       return reinterpret_cast<TSMLoc>(h);
     }
@@ -3900,7 +3901,7 @@ sdk_sanity_check_cachekey(TSCacheKey key)
 TSCacheKey
 TSCacheKeyCreate(void)
 {
-  TSCacheKey key = (TSCacheKey)NEW(new CacheInfo());
+  TSCacheKey key = (TSCacheKey)new CacheInfo();
 
   // TODO: Probably remove this when we can be use "NEW" can't fail.
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
@@ -3913,7 +3914,7 @@ TSCacheKeyDigestSet(TSCacheKey key, const char *input, int length)
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_iocore_structure((void*) input) == TS_SUCCESS);
   sdk_assert(length > 0);
-  
+
   if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
@@ -4007,7 +4008,7 @@ TSCacheKeyDestroy(TSCacheKey key)
 TSCacheHttpInfo
 TSCacheHttpInfoCopy(TSCacheHttpInfo infop)
 {
-  CacheHTTPInfo *new_info = NEW(new CacheHTTPInfo);
+  CacheHTTPInfo *new_info = new CacheHTTPInfo;
 
   new_info->copy((CacheHTTPInfo *) infop);
   return reinterpret_cast<TSCacheHttpInfo>(new_info);
@@ -4122,7 +4123,7 @@ TSCacheHttpInfoCreate(void)
 unsigned int
 TSConfigSet(unsigned int id, void *data, TSConfigDestroyFunc funcp)
 {
-  INKConfigImpl *config = NEW(new INKConfigImpl);
+  INKConfigImpl *config = new INKConfigImpl;
   config->mdata = data;
   config->m_destroy_func = funcp;
   return configProcessor.set(id, config);
@@ -4466,11 +4467,11 @@ TSHttpSsnReenable(TSHttpSsn ssnp, TSEvent event)
   // which is DEDICATED, the continuation needs to be called back on a
   // REGULAR thread.
   if (eth->tt != REGULAR) {
-    eventProcessor.schedule_imm(NEW(new TSHttpSsnCallback(cs, event)), ET_NET);
+    eventProcessor.schedule_imm(new TSHttpSsnCallback(cs, event), ET_NET);
   } else {
     MUTEX_TRY_LOCK(trylock, cs->mutex, eth);
     if (!trylock) {
-      eventProcessor.schedule_imm(NEW(new TSHttpSsnCallback(cs, event)), ET_NET);
+      eventProcessor.schedule_imm(new TSHttpSsnCallback(cs, event), ET_NET);
     } else {
       cs->handleEvent((int) event, 0);
     }
@@ -4617,7 +4618,7 @@ TSHttpTxnServerReqGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
     *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     sdk_sanity_check_mbuffer(*bufp);
     return TS_SUCCESS;
-  } 
+  }
 
   return TS_ERROR;
 }
@@ -4930,17 +4931,6 @@ TSHttpTxnSecondUrlTryLock(TSHttpTxn txnp)
 }
 
 TSReturnCode
-TSHttpTxnFollowRedirect(TSHttpTxn txnp, int on)
-{
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-
-  HttpSM *sm = (HttpSM *) txnp;
-
-  sm->api_enable_redirection = (on ? true : false);
-  return TS_SUCCESS;
-}
-
-TSReturnCode
 TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
@@ -4980,7 +4970,7 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   s->request_sent_time = 0;
   s->response_received_time = 0;
   s->cache_info.write_lock_state = HttpTransact::CACHE_WL_INIT;
-  s->next_action = HttpTransact::REDIRECT_READ;
+  s->next_action = HttpTransact::SM_ACTION_REDIRECT_READ;
 
   return TS_SUCCESS;
 }
@@ -5037,14 +5027,6 @@ TSHttpTxnNoActivityTimeoutSet(TSHttpTxn txnp, int timeout)
 
   HttpTransact::State *s = &(((HttpSM *) txnp)->t_state);
   s->api_txn_no_activity_timeout_value = timeout;
-}
-
-
-// TS-2196: TSHttpTxnCacheLookupSkip will be removed in the 5.x release.
-TSReturnCode
-TSHttpTxnCacheLookupSkip(TSHttpTxn txnp)
-{
-  return TSHttpTxnConfigIntSet(txnp, TS_CONFIG_HTTP_CACHE_HTTP, 0);
 }
 
 TSReturnCode
@@ -5187,9 +5169,27 @@ TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
     *(reinterpret_cast<HTTPHdr**>(bufp)) = hptr;
     *obj = reinterpret_cast<TSMLoc>(hptr->m_http);
     return sdk_sanity_check_mbuffer(*bufp);
-  } 
+  }
 
   return TS_ERROR;
+}
+
+void *
+TSHttpSsnSSLConnectionGet(TSHttpSsn ssnp)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void*)ssnp) == TS_SUCCESS);
+
+  HttpClientSession *cs = reinterpret_cast<HttpClientSession *>(ssnp);
+  if (cs == NULL) {
+    return NULL;
+  }
+
+  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(cs->get_netvc());
+  if (ssl_vc == NULL) {
+    return NULL;
+  }
+
+  return (void *)ssl_vc->ssl;
 }
 
 sockaddr const*
@@ -5208,7 +5208,7 @@ sockaddr const*
 TSHttpTxnClientAddrGet(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
- 
+
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
   return TSHttpSsnClientAddrGet(ssnp);
 }
@@ -5229,7 +5229,7 @@ sockaddr const*
 TSHttpTxnIncomingAddrGet(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
- 
+
   TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
   return TSHttpSsnIncomingAddrGet(ssnp);
 }
@@ -5250,6 +5250,8 @@ TSHttpTxnServerAddrSet(TSHttpTxn txnp, struct sockaddr const* addr)
 
   HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
   if (ats_ip_copy(&sm->t_state.server_info.addr.sa, addr)) {
+    ats_ip_port_cast(&sm->t_state.server_info.addr.sa) = ats_ip_port_cast(addr);
+    sm->t_state.server_info.port = htons(ats_ip_port_cast(addr));
     sm->t_state.api_server_addr_set = true;
     return TS_SUCCESS;
   } else {
@@ -5405,46 +5407,46 @@ TSHttpTxnServerPacketTosSet(TSHttpTxn txnp, int tos)
   return TS_SUCCESS;
 }
 
+// Set the body, or, if you provide a NULL buffer, clear the body message
 void
-TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, int buflength, char *mimetype)
+TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, size_t buflength, char *mimetype)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)buf) == TS_SUCCESS);
-  sdk_assert(buflength > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
-  if (s->internal_msg_buffer)
-    HttpTransact::free_internal_msg_buffer(s->internal_msg_buffer, s->internal_msg_buffer_fast_allocator_size);
-
-  ats_free_null(s->internal_msg_buffer_type);
+  // Cleanup anything already set.
+  s->free_internal_msg_buffer();
+  ats_free(s->internal_msg_buffer_type);
 
   s->internal_msg_buffer = buf;
-  s->internal_msg_buffer_type = mimetype;
-  s->internal_msg_buffer_size = buflength;
+  s->internal_msg_buffer_size = buf ? buflength : 0;
   s->internal_msg_buffer_fast_allocator_size = -1;
+
+  s->internal_msg_buffer_type = mimetype;
 }
 
 void
 TSHttpTxnServerRequestBodySet(TSHttpTxn txnp, char *buf, int64_t buflength)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)buf) == TS_SUCCESS);
-  sdk_assert(buflength > 0);
 
   HttpSM *sm = (HttpSM *) txnp;
   HttpTransact::State *s = &(sm->t_state);
 
-  if (s->method != HTTP_WKSIDX_GET)
-    return;
+  // Cleanup anything already set.
+  s->free_internal_msg_buffer();
 
-  if (s->internal_msg_buffer)
-    HttpTransact::free_internal_msg_buffer(s->internal_msg_buffer, s->internal_msg_buffer_fast_allocator_size);
-
-  s->api_server_request_body_set = true;
-  s->internal_msg_buffer = buf;
-  s->internal_msg_buffer_size = buflength;
+  if (buf) {
+    s->api_server_request_body_set = true;
+    s->internal_msg_buffer = buf;
+    s->internal_msg_buffer_size = buflength;
+  } else {
+    s->api_server_request_body_set = false;
+    s->internal_msg_buffer = NULL;
+    s->internal_msg_buffer_size = 0;
+  }
   s->internal_msg_buffer_fast_allocator_size = -1;
 }
 
@@ -5532,11 +5534,11 @@ TSHttpTxnReenable(TSHttpTxn txnp, TSEvent event)
   // which is DEDICATED, the continuation needs to be called back on a
   // REGULAR thread.
   if (eth == NULL || eth->tt != REGULAR) {
-    eventProcessor.schedule_imm(NEW(new TSHttpSMCallback(sm, event)), ET_NET);
+    eventProcessor.schedule_imm(new TSHttpSMCallback(sm, event), ET_NET);
   } else {
     MUTEX_TRY_LOCK(trylock, sm->mutex, eth);
     if (!trylock) {
-      eventProcessor.schedule_imm(NEW(new TSHttpSMCallback(sm, event)), ET_NET);
+      eventProcessor.schedule_imm(new TSHttpSMCallback(sm, event), ET_NET);
     } else {
       sm->state_api_callback((int) event, 0);
     }
@@ -5643,30 +5645,6 @@ TSHttpTxnSetHttpRetStatus(TSHttpTxn txnp, TSHttpStatus http_retstatus)
 
   HttpSM *sm = (HttpSM *) txnp;
   sm->t_state.http_return_code = (HTTPStatus) http_retstatus;
-}
-
-int
-TSHttpTxnGetMaxHttpRetBodySize(void)
-{
-  return HTTP_TRANSACT_STATE_MAX_XBUF_SIZE;
-}
-
-void
-TSHttpTxnSetHttpRetBody(TSHttpTxn txnp, const char *body_msg, int plain_msg_flag)
-{
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-
-  HttpSM *sm = (HttpSM *) txnp;
-  HttpTransact::State *s = &(sm->t_state);
-
-  s->return_xbuf_size = 0;
-  s->return_xbuf[0] = 0;
-  s->return_xbuf_plain = false;
-  if (body_msg) {
-    ink_strlcpy(s->return_xbuf, body_msg, HTTP_TRANSACT_STATE_MAX_XBUF_SIZE);
-    s->return_xbuf_size = strlen(s->return_xbuf);
-    s->return_xbuf_plain = plain_msg_flag;
-  }
 }
 
 /* control channel for HTTP */
@@ -6065,11 +6043,11 @@ TSHttpAltInfoQualitySet(TSHttpAltInfo infop, float quality)
   info->m_qvalue = quality;
 }
 
-extern HttpAccept *plugin_http_accept;
-extern HttpAccept *plugin_http_transparent_accept;
+extern HttpSessionAccept *plugin_http_accept;
+extern HttpSessionAccept *plugin_http_transparent_accept;
 
 TSVConn
-TSHttpConnect(sockaddr const* addr)
+TSHttpConnectWithPluginId(sockaddr const* addr, char const* tag, int64_t id)
 {
   sdk_assert(addr);
 
@@ -6080,6 +6058,8 @@ TSHttpConnect(sockaddr const* addr)
     PluginVCCore *new_pvc = PluginVCCore::alloc();
 
     new_pvc->set_active_addr(addr);
+    new_pvc->set_plugin_id(id);
+    new_pvc->set_plugin_tag(tag);
     new_pvc->set_accept_cont(plugin_http_accept);
 
     PluginVC *return_vc = new_pvc->connect();
@@ -6096,6 +6076,12 @@ TSHttpConnect(sockaddr const* addr)
   }
 
   return NULL;
+}
+
+TSVConn
+TSHttpConnect(sockaddr const* addr)
+{
+  return TSHttpConnectWithPluginId(addr, "plugin", 0);
 }
 
 TSVConn
@@ -6162,26 +6148,6 @@ TSActionDone(TSAction actionp)
 
 /* Connections */
 
-/* Deprectated.
-   Do not use this API.
-   The reason is even if VConn is created using this API, it is still useless.
-   For example, if we do TSVConnRead, the read operation returns read_vio, if
-   we do TSVIOReenable (read_vio), it actually calls:
-   void VIO::reenable()
-   {
-       if (vc_server) vc_server->reenable(this);
-   }
-   vc_server->reenable calls:
-   VConnection::reenable(VIO)
-
-   this function is virtual in VConnection.h. It is defined separately for
-   UnixNet, NTNet and CacheVConnection.
-
-   Thus, unless VConn is either NetVConnection or CacheVConnection, it can't
-   be instantiated for functions like reenable.
-
-   Meanwhile, this function has never been used.
-   */
 TSVConn
 TSVConnCreate(TSEventFunc event_funcp, TSMutex mutexp)
 {
@@ -6197,6 +6163,56 @@ TSVConnCreate(TSEventFunc event_funcp, TSMutex mutexp)
 
   i->init(event_funcp, mutexp);
   return reinterpret_cast<TSVConn>(i);
+}
+
+struct ActionSink : public Continuation
+{
+  ActionSink() : Continuation(NULL) {
+    SET_HANDLER(&ActionSink::mainEvent);
+  }
+
+  int mainEvent(int event, void * edata) {
+    // Just sink the event ...
+    Debug("iocore_net", "sinking event=%d (%s), edata=%p",
+        event, HttpDebugNames::get_event_name(event), edata);
+    return EVENT_CONT;
+  }
+};
+
+static ActionSink a;
+
+TSVConn
+TSVConnFdCreate(int fd)
+{
+  UnixNetVConnection * vc;
+
+  if (unlikely(fd == NO_FD)) {
+    return NULL;
+  }
+
+  vc = (UnixNetVConnection *)netProcessor.allocate_vc(this_ethread());
+  if (vc == NULL) {
+    return NULL;
+  }
+
+  // We need to set an Action to handle NET_EVENT_OPEN* events. Since we have a
+  // socket already, we don't need to do anything in those events, so we can just
+  // sink them. It's better to sink them here, than to make the NetVC code more
+  // complex.
+  vc->action_ = &a;
+
+  vc->id = net_next_connection_number();
+  vc->submit_time = ink_get_hrtime();
+  vc->set_is_transparent(false);
+  vc->mutex = new_ProxyMutex();
+
+  if (vc->connectUp(this_ethread(), fd) != CONNECT_SUCCESS) {
+    vc->free(this_ethread());
+    return NULL;
+  }
+
+  NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
+  return reinterpret_cast<TSVConn>(vc);
 }
 
 TSVIO
@@ -6772,34 +6788,34 @@ TSTextLogObjectCreate(const char *filename, int mode, TSTextLogObject *new_objec
   sdk_assert(sdk_sanity_check_null_ptr((void*)filename) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)new_object) == TS_SUCCESS);
 
-  if (mode<0 || mode>= TS_LOG_MODE_INVALID_FLAG) {
+  if (mode <0 || mode >= TS_LOG_MODE_INVALID_FLAG) {
     *new_object = NULL;
     return TS_ERROR;
   }
 
-  TextLogObject *tlog = NEW(new TextLogObject(filename, Log::config->logfile_dir,
-                                              (bool) mode & TS_LOG_MODE_ADD_TIMESTAMP,
-                                              NULL,
-                                              Log::config->rolling_enabled,
-                                              Log::config->collation_preproc_threads,
-                                              Log::config->rolling_interval_sec,
-                                              Log::config->rolling_offset_hr,
-                                              Log::config->rolling_size_mb));
-  if (tlog) {
-    int err = (mode & TS_LOG_MODE_DO_NOT_RENAME ?
-               Log::config->log_object_manager.manage_api_object(tlog, 0) :
-               Log::config->log_object_manager.manage_api_object(tlog));
-    if (err != LogObjectManager::NO_FILENAME_CONFLICTS) {
-      delete tlog;
-      *new_object = NULL;
-      return TS_ERROR;
-    }
-  } else {
+  TextLogObject *tlog = new TextLogObject(filename, Log::config->logfile_dir,
+                                          (bool) mode & TS_LOG_MODE_ADD_TIMESTAMP,
+                                          NULL,
+                                          Log::config->rolling_enabled,
+                                          Log::config->collation_preproc_threads,
+                                          Log::config->rolling_interval_sec,
+                                          Log::config->rolling_offset_hr,
+                                          Log::config->rolling_size_mb);
+  if (tlog == NULL) {
     *new_object = NULL;
     return TS_ERROR;
   }
+
+  int err = (mode & TS_LOG_MODE_DO_NOT_RENAME ?
+             Log::config->log_object_manager.manage_api_object(tlog, 0) :
+             Log::config->log_object_manager.manage_api_object(tlog));
+  if (err != LogObjectManager::NO_FILENAME_CONFLICTS) {
+    delete tlog;
+    *new_object = NULL;
+    return TS_ERROR;
+  }
+
   *new_object = (TSTextLogObject) tlog;
-
   return TS_SUCCESS;
 }
 
@@ -6859,12 +6875,17 @@ TSTextLogObjectHeaderSet(TSTextLogObject the_object, const char *header)
   ((TextLogObject *) the_object)->set_log_file_header(header);
 }
 
-void
+TSReturnCode
 TSTextLogObjectRollingEnabledSet(TSTextLogObject the_object, int rolling_enabled)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
-  ((TextLogObject *) the_object)->set_rolling_enabled(rolling_enabled);
+  if (LogRollingEnabledIsValid(rolling_enabled)) {
+    ((TextLogObject *) the_object)->set_rolling_enabled((Log::RollingEnabledValues)rolling_enabled);
+    return TS_SUCCESS;
+  }
+
+  return TS_ERROR;
 }
 
 void
@@ -7112,7 +7133,41 @@ TSCacheHttpInfoSizeSet(TSCacheHttpInfo infop, int64_t size)
   info->object_size_set(size);
 }
 
+// This API tells the core to follow normal (301/302) redirects using the
+// standard Location: URL. This does not need to be called if you set an
+// explicit URL using TSRedirectUrlSet().
+TSReturnCode
+TSHttpTxnFollowRedirect(TSHttpTxn txnp, int on)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *) txnp;
+
+  sm->enable_redirection = (on ? true : false);
+  return TS_SUCCESS;
+}
+
 // this function should be called at TS_EVENT_HTTP_READ_RESPONSE_HDR
+void
+TSHttpTxnRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void*)url) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM*) txnp;
+
+  if (sm->redirect_url != NULL) {
+    ats_free(sm->redirect_url);
+    sm->redirect_url = NULL;
+    sm->redirect_url_len = 0;
+  }
+
+  sm->redirect_url = (char*)url;
+  sm->redirect_url_len = url_len;
+  sm->enable_redirection = true;
+}
+
+// Deprecated, remove for v6.0.0
 void
 TSRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
 {
@@ -7128,7 +7183,7 @@ TSRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
   }
 
   sm->redirect_url = (char*)ats_malloc(url_len + 1);
-  ink_strlcpy(sm->redirect_url, (char*)url, url_len + 1);
+  ink_strlcpy(sm->redirect_url, url, url_len + 1);
   sm->redirect_url_len = url_len;
   // have to turn redirection on for this transaction if user wants to redirect to another URL
   if (sm->enable_redirection == false) {
@@ -7140,14 +7195,31 @@ TSRedirectUrlSet(TSHttpTxn txnp, const char* url, const int url_len)
 }
 
 const char*
-TSRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
+TSHttpTxnRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
   HttpSM *sm = (HttpSM*)txnp;
 
   *url_len_ptr = sm->redirect_url_len;
-  return (const char*)sm->redirect_url;
+  return sm->redirect_url;
+}
+
+// Deprecated, remove for v6.0.0
+const char*
+TSRedirectUrlGet(TSHttpTxn txnp, int *url_len_ptr)
+{
+  return TSHttpTxnRedirectUrlGet(txnp, url_len_ptr);
+}
+
+int
+TSHttpTxnRedirectRetries(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM*)txnp;
+
+  return sm->redirection_tries;
 }
 
 char*
@@ -7186,10 +7258,8 @@ TSFetchPages(TSFetchUrlParams_t *params)
   while (myparams != NULL) {
     FetchSM *fetch_sm =  FetchSMAllocator.alloc();
     sockaddr* addr = ats_ip_sa_cast(&myparams->ip);
-    in_addr_t ip = ats_ip4_addr_cast(addr);
-    uint16_t port = ats_ip_port_host_order(addr);
 
-    fetch_sm->init((Continuation*)myparams->contp, myparams->options,myparams->events, myparams->request, myparams->request_len, ip, port);
+    fetch_sm->init((Continuation*)myparams->contp, myparams->options,myparams->events, myparams->request, myparams->request_len, addr);
     fetch_sm->httpConnect();
     myparams= myparams->next;
   }
@@ -7201,31 +7271,142 @@ TSFetchUrl(const char* headers, int request_len, sockaddr const* ip , TSCont con
   if (callback_options != NO_CALLBACK) {
     sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
   }
-  sdk_assert(ats_is_ip4(ip));
 
   FetchSM *fetch_sm =  FetchSMAllocator.alloc();
-  in_addr_t addr = ats_ip4_addr_cast(ip);
-  unsigned short port = ats_ip_port_cast(ip);
 
-  fetch_sm->init((Continuation*)contp, callback_options, events, headers, request_len, addr, port);
+  fetch_sm->init((Continuation*)contp, callback_options, events, headers, request_len, ip);
   fetch_sm->httpConnect();
+}
+
+TSFetchSM
+TSFetchCreate(TSCont contp, TSFetchMethod method,
+              const char *url, const char *version,
+              struct sockaddr const* client_addr, int flags)
+{
+  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
+  sdk_assert(ats_is_ip(client_addr));
+
+  FetchSM *fetch_sm = FetchSMAllocator.alloc();
+
+  fetch_sm->ext_init((Continuation*)contp, method, url, version,
+                     client_addr, flags);
+
+  return (TSFetchSM)fetch_sm;
+}
+
+void
+TSFetchHeaderAdd(TSFetchSM fetch_sm,
+                 const char *name, int name_len,
+                 const char *value, int value_len)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_add_header(name, name_len, value, value_len);
+}
+
+void
+TSFetchWriteData(TSFetchSM fetch_sm, const void *data, size_t len)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_write_data(data, len);
+}
+
+ssize_t
+TSFetchReadData(TSFetchSM fetch_sm, void *buf, size_t len)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  return ((FetchSM*)fetch_sm)->ext_read_data((char *)buf, len);
+}
+
+void
+TSFetchLaunch(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_lanuch();
+}
+
+void
+TSFetchDestroy(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_destroy();
+}
+
+void
+TSFetchUserDataSet(TSFetchSM fetch_sm, void *data)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_set_user_data(data);
+}
+
+# if 0
+void
+TSFetchClientProtoStackSet(TSFetchSM fetch_sm, TSClientProtoStack proto_stack)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  ((FetchSM*)fetch_sm)->ext_set_proto_stack(proto_stack);
+}
+
+TSClientProtoStack
+TSFetchClientProtoStackGet(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  return ((FetchSM*)fetch_sm)->ext_get_proto_stack();
+}
+# endif
+
+void*
+TSFetchUserDataGet(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  return ((FetchSM*)fetch_sm)->ext_get_user_data();
+}
+
+TSMBuffer
+TSFetchRespHdrMBufGet(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  return ((FetchSM*)fetch_sm)->resp_hdr_bufp();
+}
+
+TSMLoc
+TSFetchRespHdrMLocGet(TSFetchSM fetch_sm)
+{
+  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
+
+  return ((FetchSM*)fetch_sm)->resp_hdr_mloc();
+}
+
+TSReturnCode
+TSHttpIsInternalSession(TSHttpSsn ssnp)
+{
+  HttpClientSession *cs = (HttpClientSession *) ssnp;
+  if (!cs) {
+    return TS_ERROR;
+  }
+
+  NetVConnection *vc = cs->get_netvc();
+  if (!vc) {
+    return TS_ERROR;
+  }
+
+  return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
 }
 
 TSReturnCode
 TSHttpIsInternalRequest(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-
-  TSHttpSsn ssnp = TSHttpTxnSsnGet(txnp);
-  HttpClientSession *cs = (HttpClientSession *) ssnp;
-  if (!cs)
-    return TS_ERROR;
-
-  NetVConnection *vc = cs->get_netvc();
-  if (!vc)
-    return TS_ERROR;
-
-  return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
+  return TSHttpIsInternalSession(TSHttpTxnSsnGet(txnp));
 }
 
 
@@ -7273,7 +7454,7 @@ TSReturnCode
 TSAIOWrite(int fd, off_t offset, char* buf, const size_t bufSize, TSCont contp)
 {
   sdk_assert(sdk_sanity_check_iocore_structure (contp) == TS_SUCCESS);
-  
+
   Continuation* pCont = (Continuation*) contp;
   AIOCallback* pAIO = new_AIOCallback();
 
@@ -7308,12 +7489,12 @@ TSAIOThreadNumSet(int thread_num)
 }
 
 void
-TSRecordDump(TSRecordType rec_type, TSRecordDumpCb callback, void *edata)
+TSRecordDump(int rec_type, TSRecordDumpCb callback, void *edata)
 {
   RecDumpRecords((RecT)rec_type, (RecDumpEntryCb)callback, edata);
 }
 
-/* ability to skip the remap phase of the State Machine 
+/* ability to skip the remap phase of the State Machine
    this only really makes sense in TS_HTTP_READ_REQUEST_HDR_HOOK
 */
 void
@@ -7326,8 +7507,10 @@ TSSkipRemappingSet(TSHttpTxn txnp, int flag)
 }
 
 // Little helper function to find the struct member
-void*
-_conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *typep)
+static void*
+_conf_to_memberp(TSOverridableConfigKey conf,
+    OverridableHttpConfigParams *overridableHttpConfig,
+    OverridableDataType *typep)
 {
   // The default is "Byte", make sure to override that for those configs which are "Int".
   OverridableDataType typ = OVERRIDABLE_TYPE_BYTE;
@@ -7335,291 +7518,300 @@ _conf_to_memberp(TSOverridableConfigKey conf, HttpSM* sm, OverridableDataType *t
 
   switch (conf) {
   case TS_CONFIG_URL_REMAP_PRISTINE_HOST_HDR:
-    ret = &sm->t_state.txn_conf->maintain_pristine_host_hdr;
+    ret = &overridableHttpConfig->maintain_pristine_host_hdr;
     break;
   case TS_CONFIG_HTTP_CHUNKING_ENABLED:
-    ret = &sm->t_state.txn_conf->chunking_enabled;
+    ret = &overridableHttpConfig->chunking_enabled;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_CACHING_ENABLED:
-    ret = &sm->t_state.txn_conf->negative_caching_enabled;
+    ret = &overridableHttpConfig->negative_caching_enabled;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_CACHING_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->negative_caching_lifetime;
+    ret = &overridableHttpConfig->negative_caching_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_WHEN_TO_REVALIDATE:
-    ret = &sm->t_state.txn_conf->cache_when_to_revalidate;
+    ret = &overridableHttpConfig->cache_when_to_revalidate;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN:
-    ret = &sm->t_state.txn_conf->keep_alive_enabled_in;
+    ret = &overridableHttpConfig->keep_alive_enabled_in;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_OUT:
-    ret = &sm->t_state.txn_conf->keep_alive_enabled_out;
+    ret = &overridableHttpConfig->keep_alive_enabled_out;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_POST_OUT:
-    ret = &sm->t_state.txn_conf->keep_alive_post_out;
+    ret = &overridableHttpConfig->keep_alive_post_out;
     break;
   case TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS:
-    ret = &sm->t_state.txn_conf->share_server_sessions;
+    ink_assert("Deprecated config key value - TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS");
+//    ret = &overridableHttpConfig->share_server_sessions;
+    break;
+  case TS_CONFIG_HTTP_SERVER_SESSION_SHARING_POOL:
+    ret = &overridableHttpConfig->server_session_sharing_pool;
+    break;
+  case TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH:
+    ret = &overridableHttpConfig->server_session_sharing_match;
     break;
   case TS_CONFIG_NET_SOCK_RECV_BUFFER_SIZE_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->sock_recv_buffer_size_out;
+    ret = &overridableHttpConfig->sock_recv_buffer_size_out;
     break;
   case TS_CONFIG_NET_SOCK_SEND_BUFFER_SIZE_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->sock_send_buffer_size_out;
+    ret = &overridableHttpConfig->sock_send_buffer_size_out;
     break;
   case TS_CONFIG_NET_SOCK_OPTION_FLAG_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->sock_option_flag_out;
+    ret = &overridableHttpConfig->sock_option_flag_out;
     break;
   case TS_CONFIG_HTTP_FORWARD_PROXY_AUTH_TO_PARENT:
-    ret = &sm->t_state.txn_conf->fwd_proxy_auth_to_parent;
+    ret = &overridableHttpConfig->fwd_proxy_auth_to_parent;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM:
-    ret = &sm->t_state.txn_conf->anonymize_remove_from;
+    ret = &overridableHttpConfig->anonymize_remove_from;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_REFERER:
-    ret = &sm->t_state.txn_conf->anonymize_remove_referer;
+    ret = &overridableHttpConfig->anonymize_remove_referer;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_USER_AGENT:
-    ret = &sm->t_state.txn_conf->anonymize_remove_user_agent;
+    ret = &overridableHttpConfig->anonymize_remove_user_agent;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_COOKIE:
-    ret = &sm->t_state.txn_conf->anonymize_remove_cookie;
+    ret = &overridableHttpConfig->anonymize_remove_cookie;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_REMOVE_CLIENT_IP:
-    ret = &sm->t_state.txn_conf->anonymize_remove_client_ip;
+    ret = &overridableHttpConfig->anonymize_remove_client_ip;
     break;
   case TS_CONFIG_HTTP_ANONYMIZE_INSERT_CLIENT_IP:
-    ret = &sm->t_state.txn_conf->anonymize_insert_client_ip;
+    ret = &overridableHttpConfig->anonymize_insert_client_ip;
     break;
   case TS_CONFIG_HTTP_RESPONSE_SERVER_ENABLED:
-    ret = &sm->t_state.txn_conf->proxy_response_server_enabled;
+    ret = &overridableHttpConfig->proxy_response_server_enabled;
     break;
   case TS_CONFIG_HTTP_INSERT_SQUID_X_FORWARDED_FOR:
-    ret = &sm->t_state.txn_conf->insert_squid_x_forwarded_for;
+    ret = &overridableHttpConfig->insert_squid_x_forwarded_for;
     break;
   case TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->server_tcp_init_cwnd;
+    ret = &overridableHttpConfig->server_tcp_init_cwnd;
     break;
   case TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS:
-    ret = &sm->t_state.txn_conf->send_http11_requests;
+    ret = &overridableHttpConfig->send_http11_requests;
     break;
   case TS_CONFIG_HTTP_CACHE_HTTP:
-    ret = &sm->t_state.txn_conf->cache_http;
+    ret = &overridableHttpConfig->cache_http;
     break;
   case TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL:
-    ret = &sm->t_state.txn_conf->cache_cluster_cache_local;
+    ret = &overridableHttpConfig->cache_cluster_cache_local;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE:
-    ret = &sm->t_state.txn_conf->cache_ignore_client_no_cache;
+    ret = &overridableHttpConfig->cache_ignore_client_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE:
-    ret = &sm->t_state.txn_conf->cache_ignore_client_cc_max_age;
+    ret = &overridableHttpConfig->cache_ignore_client_cc_max_age;
     break;
   case TS_CONFIG_HTTP_CACHE_IMS_ON_CLIENT_NO_CACHE:
-    ret = &sm->t_state.txn_conf->cache_ims_on_client_no_cache;
+    ret = &overridableHttpConfig->cache_ims_on_client_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_SERVER_NO_CACHE:
-    ret = &sm->t_state.txn_conf->cache_ignore_server_no_cache;
+    ret = &overridableHttpConfig->cache_ignore_server_no_cache;
     break;
   case TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES:
-    ret = &sm->t_state.txn_conf->cache_responses_to_cookies;
+    ret = &overridableHttpConfig->cache_responses_to_cookies;
     break;
   case TS_CONFIG_HTTP_CACHE_IGNORE_AUTHENTICATION:
-    ret = &sm->t_state.txn_conf->cache_ignore_auth;
+    ret = &overridableHttpConfig->cache_ignore_auth;
     break;
   case TS_CONFIG_HTTP_CACHE_CACHE_URLS_THAT_LOOK_DYNAMIC:
-    ret = &sm->t_state.txn_conf->cache_urls_that_look_dynamic;
+    ret = &overridableHttpConfig->cache_urls_that_look_dynamic;
     break;
   case TS_CONFIG_HTTP_CACHE_REQUIRED_HEADERS:
-    ret = &sm->t_state.txn_conf->cache_required_headers;
+    ret = &overridableHttpConfig->cache_required_headers;
     break;
   case TS_CONFIG_HTTP_INSERT_REQUEST_VIA_STR:
-    ret = &sm->t_state.txn_conf->insert_request_via_string;
+    ret = &overridableHttpConfig->insert_request_via_string;
     break;
   case TS_CONFIG_HTTP_INSERT_RESPONSE_VIA_STR:
-    ret = &sm->t_state.txn_conf->insert_response_via_string;
+    ret = &overridableHttpConfig->insert_response_via_string;
     break;
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_MIN_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_heuristic_min_lifetime;
+    ret = &overridableHttpConfig->cache_heuristic_min_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_MAX_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_heuristic_max_lifetime;
+    ret = &overridableHttpConfig->cache_heuristic_max_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_GUARANTEED_MIN_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_guaranteed_min_lifetime;
+    ret = &overridableHttpConfig->cache_guaranteed_min_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_GUARANTEED_MAX_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_guaranteed_max_lifetime;
+    ret = &overridableHttpConfig->cache_guaranteed_max_lifetime;
     break;
   case TS_CONFIG_HTTP_CACHE_MAX_STALE_AGE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_max_stale_age;
+    ret = &overridableHttpConfig->cache_max_stale_age;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->keep_alive_no_activity_timeout_in;
+    ret = &overridableHttpConfig->keep_alive_no_activity_timeout_in;
     break;
   case TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->keep_alive_no_activity_timeout_out;
+    ret = &overridableHttpConfig->keep_alive_no_activity_timeout_out;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->transaction_no_activity_timeout_in;
+    ret = &overridableHttpConfig->transaction_no_activity_timeout_in;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->transaction_no_activity_timeout_out;
+    ret = &overridableHttpConfig->transaction_no_activity_timeout_out;
     break;
   case TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->transaction_active_timeout_out;
+    ret = &overridableHttpConfig->transaction_active_timeout_out;
     break;
   case TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->origin_max_connections;
+    ret = &overridableHttpConfig->origin_max_connections;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->connect_attempts_max_retries;
+    ret = &overridableHttpConfig->connect_attempts_max_retries;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES_DEAD_SERVER:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->connect_attempts_max_retries_dead_server;
+    ret = &overridableHttpConfig->connect_attempts_max_retries_dead_server;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_RR_RETRIES:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->connect_attempts_rr_retries;
+    ret = &overridableHttpConfig->connect_attempts_rr_retries;
     break;
   case TS_CONFIG_HTTP_CONNECT_ATTEMPTS_TIMEOUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->connect_attempts_timeout;
+    ret = &overridableHttpConfig->connect_attempts_timeout;
     break;
   case TS_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->post_connect_attempts_timeout;
+    ret = &overridableHttpConfig->post_connect_attempts_timeout;
     break;
   case TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->down_server_timeout;
+    ret = &overridableHttpConfig->down_server_timeout;
     break;
   case TS_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->client_abort_threshold;
+    ret = &overridableHttpConfig->client_abort_threshold;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_TIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->freshness_fuzz_time;
+    ret = &overridableHttpConfig->freshness_fuzz_time;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->freshness_fuzz_min_time;
+    ret = &overridableHttpConfig->freshness_fuzz_min_time;
     break;
   case TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS:
-    ret = &sm->t_state.txn_conf->doc_in_cache_skip_dns;
+    ret = &overridableHttpConfig->doc_in_cache_skip_dns;
     break;
   case TS_CONFIG_HTTP_BACKGROUND_FILL_ACTIVE_TIMEOUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->background_fill_active_timeout;
+    ret = &overridableHttpConfig->background_fill_active_timeout;
     break;
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
     typ = OVERRIDABLE_TYPE_STRING;
-    ret = &sm->t_state.txn_conf->proxy_response_server_string;
+    ret = &overridableHttpConfig->proxy_response_server_string;
     break;
   case TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR:
     typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf->cache_heuristic_lm_factor;
+    ret = &overridableHttpConfig->cache_heuristic_lm_factor;
     break;
   case TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY:
     typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf->freshness_fuzz_prob;
+    ret = &overridableHttpConfig->freshness_fuzz_prob;
     break;
   case TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD:
     typ = OVERRIDABLE_TYPE_FLOAT;
-    ret = &sm->t_state.txn_conf->background_fill_threshold;
+    ret = &overridableHttpConfig->background_fill_threshold;
     break;
   case TS_CONFIG_NET_SOCK_PACKET_MARK_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->sock_packet_mark_out;
+    ret = &overridableHttpConfig->sock_packet_mark_out;
     break;
   case TS_CONFIG_NET_SOCK_PACKET_TOS_OUT:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->sock_packet_tos_out;
+    ret = &overridableHttpConfig->sock_packet_tos_out;
     break;
   case TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE:
-    ret = &sm->t_state.txn_conf->insert_age_in_response;
+    ret = &overridableHttpConfig->insert_age_in_response;
     break;
   case TS_CONFIG_HTTP_CHUNKING_SIZE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->http_chunking_size;
+    ret = &overridableHttpConfig->http_chunking_size;
     break;
   case TS_CONFIG_HTTP_FLOW_CONTROL_ENABLED:
-    ret = &sm->t_state.txn_conf->flow_control_enabled;
+    ret = &overridableHttpConfig->flow_control_enabled;
     break;
   case TS_CONFIG_HTTP_FLOW_CONTROL_LOW_WATER_MARK:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->flow_low_water_mark;
+    ret = &overridableHttpConfig->flow_low_water_mark;
     break;
   case TS_CONFIG_HTTP_FLOW_CONTROL_HIGH_WATER_MARK:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->flow_high_water_mark;
+    ret = &overridableHttpConfig->flow_high_water_mark;
     break;
   case TS_CONFIG_HTTP_CACHE_RANGE_LOOKUP:
-    ret = &sm->t_state.txn_conf->cache_range_lookup;
+    ret = &overridableHttpConfig->cache_range_lookup;
     break;
   case TS_CONFIG_HTTP_NORMALIZE_AE_GZIP:
-    ret = &sm->t_state.txn_conf->normalize_ae_gzip;
+    ret = &overridableHttpConfig->normalize_ae_gzip;
     break;
   case TS_CONFIG_HTTP_DEFAULT_BUFFER_SIZE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->default_buffer_size_index;
+    ret = &overridableHttpConfig->default_buffer_size_index;
     break;
   case TS_CONFIG_HTTP_DEFAULT_BUFFER_WATER_MARK:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->default_buffer_water_mark;
+    ret = &overridableHttpConfig->default_buffer_water_mark;
     break;
   case TS_CONFIG_HTTP_REQUEST_HEADER_MAX_SIZE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->request_hdr_max_size;
+    ret = &overridableHttpConfig->request_hdr_max_size;
     break;
   case TS_CONFIG_HTTP_RESPONSE_HEADER_MAX_SIZE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->response_hdr_max_size;
+    ret = &overridableHttpConfig->response_hdr_max_size;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_ENABLED:
-    ret = &sm->t_state.txn_conf->negative_revalidating_enabled;
+    ret = &overridableHttpConfig->negative_revalidating_enabled;
     break;
   case TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_LIFETIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->negative_revalidating_lifetime;
+    ret = &overridableHttpConfig->negative_revalidating_lifetime;
     break;
   case TS_CONFIG_HTTP_ACCEPT_ENCODING_FILTER_ENABLED:
-    ret = &sm->t_state.txn_conf->accept_encoding_filter_enabled;
+    ret = &overridableHttpConfig->accept_encoding_filter_enabled;
     break;
   case TS_CONFIG_SSL_HSTS_MAX_AGE:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->proxy_response_hsts_max_age;
+    ret = &overridableHttpConfig->proxy_response_hsts_max_age;
     break;
   case TS_CONFIG_SSL_HSTS_INCLUDE_SUBDOMAINS:
-    typ = OVERRIDABLE_TYPE_BYTE;
-    ret = &sm->t_state.txn_conf->proxy_response_hsts_include_subdomains;
+    ret = &overridableHttpConfig->proxy_response_hsts_include_subdomains;
     break;
   case TS_CONFIG_HTTP_CACHE_OPEN_READ_RETRY_TIME:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->cache_open_read_retry_time;
+    ret = &overridableHttpConfig->cache_open_read_retry_time;
     break;
   case TS_CONFIG_HTTP_CACHE_MAX_OPEN_READ_RETRIES:
     typ = OVERRIDABLE_TYPE_INT;
-    ret = &sm->t_state.txn_conf->max_cache_open_read_retries;
+    ret = &overridableHttpConfig->max_cache_open_read_retries;
+    break;
+  case TS_CONFIG_HTTP_CACHE_RANGE_WRITE:
+    ret = &overridableHttpConfig->cache_range_write;
     break;
 
     // This helps avoiding compiler warnings, yet detect unhandled enum members.
@@ -7647,7 +7839,27 @@ TSHttpTxnConfigIntSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt val
 
   s->t_state.setup_per_txn_configs();
 
-  void *dest = _conf_to_memberp(conf, s, &type);
+  // 4.1.X backwards compatibility - remove for 5.0
+  if (TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS == conf) {
+    switch (value) {
+    case 0: s->t_state.txn_conf->server_session_sharing_match = TS_SERVER_SESSION_SHARING_MATCH_NONE; break;
+    case 1:
+      s->t_state.txn_conf->server_session_sharing_match = TS_SERVER_SESSION_SHARING_MATCH_BOTH;
+      s->t_state.txn_conf->server_session_sharing_pool = TS_SERVER_SESSION_SHARING_POOL_GLOBAL;
+      break;
+    case 2:
+      s->t_state.txn_conf->server_session_sharing_match = TS_SERVER_SESSION_SHARING_MATCH_BOTH;
+      s->t_state.txn_conf->server_session_sharing_pool = TS_SERVER_SESSION_SHARING_POOL_THREAD;
+      break;
+    default:
+      return TS_ERROR;
+      break; // make the compiler happy
+    }
+    return TS_SUCCESS;
+  }
+  // end 4.1.X BC
+
+  void *dest = _conf_to_memberp(conf, s->t_state.txn_conf, &type);
 
   if (!dest)
     return TS_ERROR;
@@ -7672,8 +7884,26 @@ TSHttpTxnConfigIntGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt *va
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
+  HttpSM *s = reinterpret_cast<HttpSM*>(txnp);
   OverridableDataType type;
-  void* src = _conf_to_memberp(conf, (HttpSM*)txnp, &type);
+
+  // 4.1.X backwards compatibility - remove for 5.0
+  if (TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS == conf) {
+    if (s->t_state.txn_conf->server_session_sharing_match == TS_SERVER_SESSION_SHARING_MATCH_NONE)
+      *value = 0;
+    else if (s->t_state.txn_conf->server_session_sharing_match == TS_SERVER_SESSION_SHARING_MATCH_BOTH &&
+             s->t_state.txn_conf->server_session_sharing_pool == TS_SERVER_SESSION_SHARING_POOL_GLOBAL)
+      *value = 1;
+    else if (s->t_state.txn_conf->server_session_sharing_match == TS_SERVER_SESSION_SHARING_MATCH_BOTH &&
+             s->t_state.txn_conf->server_session_sharing_pool == TS_SERVER_SESSION_SHARING_POOL_THREAD)
+      *value = 2;
+    else
+      return TS_ERROR;
+    return TS_SUCCESS;
+  }
+  // end 4.1.X BC
+
+  void* src = _conf_to_memberp(conf, s->t_state.txn_conf, &type);
 
   if (!src)
     return TS_ERROR;
@@ -7702,7 +7932,7 @@ TSHttpTxnConfigFloatSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
 
   s->t_state.setup_per_txn_configs();
 
-  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, s, &type));
+  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, s->t_state.txn_conf, &type));
 
   if (type != OVERRIDABLE_TYPE_FLOAT)
     return TS_ERROR;
@@ -7722,7 +7952,7 @@ TSHttpTxnConfigFloatGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
   sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   OverridableDataType type;
-  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, (HttpSM*)txnp, &type));
+  TSMgmtFloat* dest = static_cast<TSMgmtFloat*>(_conf_to_memberp(conf, ((HttpSM*)txnp)->t_state.txn_conf, &type));
 
   if (type != OVERRIDABLE_TYPE_FLOAT)
     return TS_ERROR;
@@ -7826,8 +8056,16 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 35:
-    if (!strncmp(name, "proxy.config.http.normalize_ae_gzip", length))
-      cnf = TS_CONFIG_HTTP_NORMALIZE_AE_GZIP;
+    switch (name[length-1]) {
+    case 'e':
+      if (!strncmp(name, "proxy.config.http.cache.range.write", length))
+        cnf = TS_CONFIG_HTTP_CACHE_RANGE_WRITE;
+      break;
+    case 'p':
+      if (!strncmp(name, "proxy.config.http.normalize_ae_gzip", length))
+        cnf = TS_CONFIG_HTTP_NORMALIZE_AE_GZIP;
+      break;
+    }
     break;
 
   case 36:
@@ -8048,6 +8286,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
       else if (!strncmp(name, "proxy.config.http.cache.max_open_read_retries", length))
         cnf = TS_CONFIG_HTTP_CACHE_MAX_OPEN_READ_RETRIES;
       break;
+    case 'l':
+      if (0 == strncmp(name, "proxy.config.http.server_session_sharing.pool", length))
+        cnf = TS_CONFIG_HTTP_SERVER_SESSION_SHARING_POOL;
+      break;
     }
     break;
 
@@ -8076,6 +8318,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 't':
       if (!strncmp(name, "proxy.config.http.forward.proxy_auth_to_parent", length))
         cnf = TS_CONFIG_HTTP_FORWARD_PROXY_AUTH_TO_PARENT;
+      break;
+    case 'h':
+      if (0 == strncmp(name, "proxy.config.http.server_session_sharing.match", length))
+        cnf = TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH;
       break;
     }
     break;
@@ -8248,7 +8494,7 @@ TSHttpTxnCloseAfterResponse (TSHttpTxn txnp, int should_close)
 TSPortDescriptor
 TSPortDescriptorParse(const char * descriptor)
 {
-  HttpProxyPort * port = NEW(new HttpProxyPort());
+  HttpProxyPort * port = new HttpProxyPort();
 
   if (descriptor && port->processOptions(descriptor)) {
     return (TSPortDescriptor)port;
@@ -8298,4 +8544,50 @@ TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp)
   HttpSM *s = (HttpSM*) txnp;
 
   return (s->background_fill == BACKGROUND_FILL_STARTED);
+}
+
+int
+TSHttpTxnIsCacheable(TSHttpTxn txnp, TSMBuffer request, TSMBuffer response)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm = (HttpSM *) txnp;
+  HTTPHdr *req, *resp;
+
+  // We allow for either request or response to be empty (or both), in
+  // which case we default to the transactions request or response.
+  if (request) {
+    sdk_sanity_check_mbuffer(request);
+    req = reinterpret_cast<HTTPHdr*>(request);
+  } else {
+    req = &(sm->t_state.hdr_info.client_request);
+  }
+  if (response) {
+    sdk_sanity_check_mbuffer(response);
+    resp = reinterpret_cast<HTTPHdr*>(response);
+  } else {
+    resp = &(sm->t_state.hdr_info.server_response);
+  }
+
+  // Make sure these are valid response / requests, then verify if it's cacheable.
+  return (req->valid() && resp->valid() && HttpTransact::is_response_cacheable(&(sm->t_state), req, resp)) ? 1: 0;
+}
+
+
+// Lookup various debug names for common HTTP types.
+const char*
+TSHttpServerStateNameLookup(TSServerState state)
+{
+  return HttpDebugNames::get_server_state_name(static_cast<HttpTransact::ServerState_t>(state));
+}
+
+const char*
+TSHttpHookNameLookup(TSHttpHookID hook)
+{
+  return HttpDebugNames::get_api_hook_name(static_cast<TSHttpHookID>(hook));
+}
+
+const char*
+TSHttpEventNameLookup(TSEvent event)
+{
+  return HttpDebugNames::get_event_name(static_cast<int>(event));
 }

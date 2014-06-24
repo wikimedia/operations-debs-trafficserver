@@ -128,12 +128,11 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
-	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lua.m4 \
-	$(top_srcdir)/build/lzma.m4 $(top_srcdir)/build/network.m4 \
-	$(top_srcdir)/build/pcre.m4 $(top_srcdir)/build/pkg.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
-	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
+	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
+	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -226,6 +225,12 @@ am_hello_la_OBJECTS = hello/hello.lo
 hello_la_OBJECTS = $(am_hello_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_hello_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_hello_la_rpath = -rpath $(pkglibdir)
+intercept_la_LIBADD =
+am_intercept_la_OBJECTS = intercept/intercept.lo
+intercept_la_OBJECTS = $(am_intercept_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_intercept_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_intercept_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 lifecycle_plugin_la_LIBADD =
 am_lifecycle_plugin_la_OBJECTS = lifecycle-plugin/lifecycle-plugin.lo
 lifecycle_plugin_la_OBJECTS = $(am_lifecycle_plugin_la_OBJECTS)
@@ -277,6 +282,12 @@ am_response_header_1_la_OBJECTS =  \
 response_header_1_la_OBJECTS = $(am_response_header_1_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_response_header_1_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_response_header_1_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+secure_link_la_LIBADD =
+am_secure_link_la_OBJECTS = secure-link/secure-link.lo
+secure_link_la_OBJECTS = $(am_secure_link_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_secure_link_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_secure_link_la_rpath = -rpath \
 @BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 server_transform_la_LIBADD =
 am_server_transform_la_OBJECTS = server-transform/server-transform.lo
@@ -350,22 +361,24 @@ SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(basic_auth_la_SOURCES) $(blacklist_0_la_SOURCES) \
 	$(blacklist_1_la_SOURCES) $(bnull_transform_la_SOURCES) \
 	$(cache_scan_la_SOURCES) $(file_1_la_SOURCES) \
-	$(hello_la_SOURCES) $(lifecycle_plugin_la_SOURCES) \
-	$(null_transform_la_SOURCES) $(output_header_la_SOURCES) \
-	$(protocol_la_SOURCES) $(psi_la_SOURCES) \
-	$(query_remap_la_SOURCES) $(remap_la_SOURCES) \
-	$(replace_header_la_SOURCES) $(response_header_1_la_SOURCES) \
+	$(hello_la_SOURCES) $(intercept_la_SOURCES) \
+	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
+	$(output_header_la_SOURCES) $(protocol_la_SOURCES) \
+	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
+	$(remap_la_SOURCES) $(replace_header_la_SOURCES) \
+	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
 	$(server_transform_la_SOURCES) $(thread_1_la_SOURCES) \
 	$(version_la_SOURCES)
 DIST_SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(basic_auth_la_SOURCES) $(blacklist_0_la_SOURCES) \
 	$(blacklist_1_la_SOURCES) $(bnull_transform_la_SOURCES) \
 	$(cache_scan_la_SOURCES) $(file_1_la_SOURCES) \
-	$(hello_la_SOURCES) $(lifecycle_plugin_la_SOURCES) \
-	$(null_transform_la_SOURCES) $(output_header_la_SOURCES) \
-	$(protocol_la_SOURCES) $(psi_la_SOURCES) \
-	$(query_remap_la_SOURCES) $(remap_la_SOURCES) \
-	$(replace_header_la_SOURCES) $(response_header_1_la_SOURCES) \
+	$(hello_la_SOURCES) $(intercept_la_SOURCES) \
+	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
+	$(output_header_la_SOURCES) $(protocol_la_SOURCES) \
+	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
+	$(remap_la_SOURCES) $(replace_header_la_SOURCES) \
+	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
 	$(server_transform_la_SOURCES) $(thread_1_la_SOURCES) \
 	$(version_la_SOURCES)
 am__can_run_installinfo = \
@@ -447,6 +460,8 @@ FLEX_CFLAGS = @FLEX_CFLAGS@
 GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
+HWLOC_CFLAGS = @HWLOC_CFLAGS@
+HWLOC_LIBS = @HWLOC_LIBS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -475,9 +490,7 @@ LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LIBS = @LUA_LIBS@
-LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
+LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -518,6 +531,8 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
+SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
+SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -533,6 +548,7 @@ TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
 TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
+TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -612,6 +628,7 @@ has_interim_cache = @has_interim_cache@
 has_ip_tos = @has_ip_tos@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
@@ -621,19 +638,15 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-hwloc_CFLAGS = @hwloc_CFLAGS@
-hwloc_LIBS = @hwloc_LIBS@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_def = @ink_with_modules_def@
 ink_with_modules_local = @ink_with_modules_local@
 ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
-is_micro_build = @is_micro_build@
 jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
@@ -641,8 +654,6 @@ libgenh = @libgenh@
 localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
-luajit_CFLAGS = @luajit_CFLAGS@
-luajit_LIBS = @luajit_LIBS@
 lzmah = @lzmah@
 machine_endianh = @machine_endianh@
 malloch = @malloch@
@@ -725,7 +736,6 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cop_debug = @use_cop_debug@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -736,6 +746,7 @@ use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
+use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
 use_tls_sni = @use_tls_sni@
@@ -773,6 +784,7 @@ plugins = \
   cache-scan.la \
   file-1.la \
   hello.la \
+  intercept.la \
   lifecycle-plugin.la \
   null-transform.la \
   output-header.la \
@@ -782,6 +794,7 @@ plugins = \
   remap.la \
   replace-header.la \
   response-header-1.la \
+  secure-link.la \
   server-transform.la \
   thread-1.la \
   version.la
@@ -797,6 +810,7 @@ bnull_transform_la_SOURCES = bnull-transform/bnull-transform.c
 cache_scan_la_SOURCES = cache-scan/cache-scan.cc
 file_1_la_SOURCES = file-1/file-1.c
 hello_la_SOURCES = hello/hello.c
+intercept_la_SOURCES = intercept/intercept.cc
 lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
 null_transform_la_SOURCES = null-transform/null-transform.c
 output_header_la_SOURCES = output-header/output-header.c
@@ -809,6 +823,7 @@ server_transform_la_SOURCES = server-transform/server-transform.c
 thread_1_la_SOURCES = thread-1/thread-1.c
 psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
 version_la_SOURCES = version/version.c
+secure_link_la_SOURCES = secure-link/secure-link.c
 all: all-am
 
 .SUFFIXES:
@@ -989,6 +1004,17 @@ hello/hello.lo: hello/$(am__dirstamp) hello/$(DEPDIR)/$(am__dirstamp)
 
 hello.la: $(hello_la_OBJECTS) $(hello_la_DEPENDENCIES) $(EXTRA_hello_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_hello_la_rpath) $(hello_la_OBJECTS) $(hello_la_LIBADD) $(LIBS)
+intercept/$(am__dirstamp):
+	@$(MKDIR_P) intercept
+	@: > intercept/$(am__dirstamp)
+intercept/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) intercept/$(DEPDIR)
+	@: > intercept/$(DEPDIR)/$(am__dirstamp)
+intercept/intercept.lo: intercept/$(am__dirstamp) \
+	intercept/$(DEPDIR)/$(am__dirstamp)
+
+intercept.la: $(intercept_la_OBJECTS) $(intercept_la_DEPENDENCIES) $(EXTRA_intercept_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_intercept_la_rpath) $(intercept_la_OBJECTS) $(intercept_la_LIBADD) $(LIBS)
 lifecycle-plugin/$(am__dirstamp):
 	@$(MKDIR_P) lifecycle-plugin
 	@: > lifecycle-plugin/$(am__dirstamp)
@@ -1093,6 +1119,17 @@ response-header-1/response-header-1.lo:  \
 
 response-header-1.la: $(response_header_1_la_OBJECTS) $(response_header_1_la_DEPENDENCIES) $(EXTRA_response_header_1_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_response_header_1_la_rpath) $(response_header_1_la_OBJECTS) $(response_header_1_la_LIBADD) $(LIBS)
+secure-link/$(am__dirstamp):
+	@$(MKDIR_P) secure-link
+	@: > secure-link/$(am__dirstamp)
+secure-link/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) secure-link/$(DEPDIR)
+	@: > secure-link/$(DEPDIR)/$(am__dirstamp)
+secure-link/secure-link.lo: secure-link/$(am__dirstamp) \
+	secure-link/$(DEPDIR)/$(am__dirstamp)
+
+secure-link.la: $(secure_link_la_OBJECTS) $(secure_link_la_DEPENDENCIES) $(EXTRA_secure_link_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK) $(am_secure_link_la_rpath) $(secure_link_la_OBJECTS) $(secure_link_la_LIBADD) $(LIBS)
 server-transform/$(am__dirstamp):
 	@$(MKDIR_P) server-transform
 	@: > server-transform/$(am__dirstamp)
@@ -1148,6 +1185,8 @@ mostlyclean-compile:
 	-rm -f file-1/*.lo
 	-rm -f hello/*.$(OBJEXT)
 	-rm -f hello/*.lo
+	-rm -f intercept/*.$(OBJEXT)
+	-rm -f intercept/*.lo
 	-rm -f lifecycle-plugin/*.$(OBJEXT)
 	-rm -f lifecycle-plugin/*.lo
 	-rm -f null-transform/*.$(OBJEXT)
@@ -1164,6 +1203,8 @@ mostlyclean-compile:
 	-rm -f replace-header/*.lo
 	-rm -f response-header-1/*.$(OBJEXT)
 	-rm -f response-header-1/*.lo
+	-rm -f secure-link/*.$(OBJEXT)
+	-rm -f secure-link/*.lo
 	-rm -f server-transform/*.$(OBJEXT)
 	-rm -f server-transform/*.lo
 	-rm -f thread-1/*.$(OBJEXT)
@@ -1185,6 +1226,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@cache-scan/$(DEPDIR)/cache-scan.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@file-1/$(DEPDIR)/file-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@hello/$(DEPDIR)/hello.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@intercept/$(DEPDIR)/intercept.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@lifecycle-plugin/$(DEPDIR)/lifecycle-plugin.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@null-transform/$(DEPDIR)/null-transform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@output-header/$(DEPDIR)/output-header.Plo@am__quote@
@@ -1194,6 +1236,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@remap/$(DEPDIR)/remap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@replace-header/$(DEPDIR)/replace-header.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@response-header-1/$(DEPDIR)/response-header-1.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@secure-link/$(DEPDIR)/secure-link.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@server-transform/$(DEPDIR)/server-transform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@thread-1/$(DEPDIR)/thread-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@thread-pool/$(DEPDIR)/psi.Plo@am__quote@
@@ -1262,6 +1305,7 @@ clean-libtool:
 	-rm -rf cache-scan/.libs cache-scan/_libs
 	-rm -rf file-1/.libs file-1/_libs
 	-rm -rf hello/.libs hello/_libs
+	-rm -rf intercept/.libs intercept/_libs
 	-rm -rf lifecycle-plugin/.libs lifecycle-plugin/_libs
 	-rm -rf null-transform/.libs null-transform/_libs
 	-rm -rf output-header/.libs output-header/_libs
@@ -1270,6 +1314,7 @@ clean-libtool:
 	-rm -rf remap/.libs remap/_libs
 	-rm -rf replace-header/.libs replace-header/_libs
 	-rm -rf response-header-1/.libs response-header-1/_libs
+	-rm -rf secure-link/.libs secure-link/_libs
 	-rm -rf server-transform/.libs server-transform/_libs
 	-rm -rf thread-1/.libs thread-1/_libs
 	-rm -rf thread-pool/.libs thread-pool/_libs
@@ -1408,6 +1453,8 @@ distclean-generic:
 	-rm -f file-1/$(am__dirstamp)
 	-rm -f hello/$(DEPDIR)/$(am__dirstamp)
 	-rm -f hello/$(am__dirstamp)
+	-rm -f intercept/$(DEPDIR)/$(am__dirstamp)
+	-rm -f intercept/$(am__dirstamp)
 	-rm -f lifecycle-plugin/$(DEPDIR)/$(am__dirstamp)
 	-rm -f lifecycle-plugin/$(am__dirstamp)
 	-rm -f null-transform/$(DEPDIR)/$(am__dirstamp)
@@ -1424,6 +1471,8 @@ distclean-generic:
 	-rm -f replace-header/$(am__dirstamp)
 	-rm -f response-header-1/$(DEPDIR)/$(am__dirstamp)
 	-rm -f response-header-1/$(am__dirstamp)
+	-rm -f secure-link/$(DEPDIR)/$(am__dirstamp)
+	-rm -f secure-link/$(am__dirstamp)
 	-rm -f server-transform/$(DEPDIR)/$(am__dirstamp)
 	-rm -f server-transform/$(am__dirstamp)
 	-rm -f thread-1/$(DEPDIR)/$(am__dirstamp)
@@ -1442,7 +1491,7 @@ clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
 	clean-pkglibLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) server-transform/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -1488,7 +1537,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) server-transform/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

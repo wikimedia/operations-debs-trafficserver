@@ -104,7 +104,7 @@ TESTS = tests/test_logstats_json tests/test_logstats_summary \
 @BUILD_TESTS_TRUE@    RegressionSM.h \
 @BUILD_TESTS_TRUE@    RegressionSM.cc
 
-@BUILD_LUA_SUPPORT_TRUE@am__append_2 = @LUA_LUAJIT_LDFLAGS@
+@BUILD_LUAJIT_TRUE@am__append_2 = $(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
 @BUILD_TESTS_TRUE@am__append_3 = RegressionSM.cc
 subdir = proxy
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
@@ -126,12 +126,11 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
-	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lua.m4 \
-	$(top_srcdir)/build/lzma.m4 $(top_srcdir)/build/network.m4 \
-	$(top_srcdir)/build/pcre.m4 $(top_srcdir)/build/pkg.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
-	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
+	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
+	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -186,8 +185,10 @@ am__traffic_sac_SOURCES_DIST = sac.cc ICP.cc ICPConfig.cc \
 	ICPProcessor.cc ICPStats.cc IPAllow.cc ParentSelection.cc \
 	ControlBase.cc ControlMatcher.cc CacheControl.cc StatSystem.cc \
 	ReverseProxy.cc EventName.cc StatPages.cc PluginVC.cc \
-	AbstractBuffer.cc Transform.cc Prefetch.cc Update.cc Plugin.cc \
-	InkAPI.cc FetchSM.cc InkIOCoreAPI.cc RegressionSM.cc
+	AbstractBuffer.cc Transform.cc Prefetch.cc \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	Update.cc Plugin.cc InkAPI.cc FetchSM.cc InkIOCoreAPI.cc \
+	RegressionSM.cc
 @BUILD_TESTS_TRUE@am__objects_1 = RegressionSM.$(OBJEXT)
 am_traffic_sac_OBJECTS = sac.$(OBJEXT) ICP.$(OBJEXT) \
 	ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) \
@@ -196,15 +197,16 @@ am_traffic_sac_OBJECTS = sac.$(OBJEXT) ICP.$(OBJEXT) \
 	CacheControl.$(OBJEXT) StatSystem.$(OBJEXT) \
 	ReverseProxy.$(OBJEXT) EventName.$(OBJEXT) StatPages.$(OBJEXT) \
 	PluginVC.$(OBJEXT) AbstractBuffer.$(OBJEXT) \
-	Transform.$(OBJEXT) Prefetch.$(OBJEXT) Update.$(OBJEXT) \
+	Transform.$(OBJEXT) Prefetch.$(OBJEXT) \
+	ProtocolProbeSessionAccept.$(OBJEXT) Update.$(OBJEXT) \
 	Plugin.$(OBJEXT) InkAPI.$(OBJEXT) FetchSM.$(OBJEXT) \
 	InkIOCoreAPI.$(OBJEXT) $(am__objects_1)
 traffic_sac_OBJECTS = $(am_traffic_sac_OBJECTS)
-traffic_sac_DEPENDENCIES = http/libhttp.a shared/libdiagsconfig.a \
-	http/remap/libhttp_remap.a congest/libCongestionControl.a \
-	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
-	shared/liberror.a shared/libsignals.a shared/libxml.a \
-	$(top_builddir)/mgmt/preparse/libpreparse.a \
+traffic_sac_DEPENDENCIES = http/libhttp.a spdy/libspdy.a \
+	shared/libdiagsconfig.a http/remap/libhttp_remap.a \
+	congest/libCongestionControl.a logging/liblogging.a \
+	logging/liblogcollation.a hdrs/libhdrs.a shared/liberror.a \
+	shared/libsignals.a shared/libxml.a \
 	$(top_builddir)/mgmt/utils/libutils_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.a \
 	$(top_builddir)/iocore/cluster/libinkcluster.a \
@@ -224,35 +226,36 @@ traffic_sac_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
 	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
 	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-	DynamicStats.h EventName.cc HttpTransStats.h ICP.cc ICP.h \
-	ICPConfig.cc ICPevents.h ICPlog.h ICPProcessor.cc \
-	ICPProcessor.h ICPStats.cc InkAPI.cc FetchSM.cc \
-	InkAPIInternal.h InkIOCoreAPI.cc IPAllow.cc IPAllow.h Main.cc \
-	Main.h ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
-	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h ReverseProxy.cc \
-	ReverseProxy.h SocksProxy.cc StatPages.cc StatPages.h \
-	StatSystem.cc StatSystem.h Transform.cc Transform.h \
-	TransformInternal.h Update.cc Update.h InkAPITest.cc \
-	RegressionSM.h RegressionSM.cc
+	DynamicStats.h EventName.cc FetchSM.cc HttpTransStats.h ICP.cc \
+	ICP.h ICPConfig.cc ICPProcessor.cc ICPProcessor.h ICPStats.cc \
+	ICPevents.h ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc \
+	InkAPIInternal.h InkIOCoreAPI.cc Main.cc Main.h \
+	ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
+	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	ReverseProxy.cc ReverseProxy.h SocksProxy.cc StatPages.cc \
+	StatPages.h StatSystem.cc StatSystem.h Transform.cc \
+	Transform.h TransformInternal.h Update.cc Update.h \
+	InkAPITest.cc RegressionSM.h RegressionSM.cc
 @BUILD_TESTS_TRUE@am__objects_2 = InkAPITest.$(OBJEXT) \
 @BUILD_TESTS_TRUE@	RegressionSM.$(OBJEXT)
 am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
 	CacheControl.$(OBJEXT) ControlBase.$(OBJEXT) \
 	ControlMatcher.$(OBJEXT) CoreUtils.$(OBJEXT) \
-	EventName.$(OBJEXT) ICP.$(OBJEXT) ICPConfig.$(OBJEXT) \
-	ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) InkAPI.$(OBJEXT) \
-	FetchSM.$(OBJEXT) InkIOCoreAPI.$(OBJEXT) IPAllow.$(OBJEXT) \
+	EventName.$(OBJEXT) FetchSM.$(OBJEXT) ICP.$(OBJEXT) \
+	ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) \
+	IPAllow.$(OBJEXT) InkAPI.$(OBJEXT) InkIOCoreAPI.$(OBJEXT) \
 	Main.$(OBJEXT) ParentSelection.$(OBJEXT) Plugin.$(OBJEXT) \
-	PluginVC.$(OBJEXT) Prefetch.$(OBJEXT) ReverseProxy.$(OBJEXT) \
+	PluginVC.$(OBJEXT) Prefetch.$(OBJEXT) \
+	ProtocolProbeSessionAccept.$(OBJEXT) ReverseProxy.$(OBJEXT) \
 	SocksProxy.$(OBJEXT) StatPages.$(OBJEXT) StatSystem.$(OBJEXT) \
 	Transform.$(OBJEXT) Update.$(OBJEXT) $(am__objects_2)
 traffic_server_OBJECTS = $(am_traffic_server_OBJECTS)
-traffic_server_DEPENDENCIES = http/libhttp.a \
+traffic_server_DEPENDENCIES = http/libhttp.a spdy/libspdy.a \
 	http/remap/libhttp_remap.a congest/libCongestionControl.a \
 	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
 	shared/liberror.a shared/libdiagsconfig.a shared/libsignals.a \
-	shared/libxml.a $(top_builddir)/mgmt/preparse/libpreparse.a \
-	$(top_builddir)/mgmt/utils/libutils_p.a \
+	shared/libxml.a $(top_builddir)/mgmt/utils/libutils_p.a \
 	$(top_builddir)/mgmt/libmgmt_p.a \
 	$(top_builddir)/iocore/utils/libinkutils.a \
 	$(top_builddir)/iocore/cluster/libinkcluster.a \
@@ -266,7 +269,7 @@ traffic_server_DEPENDENCIES = http/libhttp.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/records/librecprocess.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(which_libts)
+	$(which_libts) $(am__append_2)
 traffic_server_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_server_LDFLAGS) \
@@ -654,6 +657,8 @@ FLEX_CFLAGS = @FLEX_CFLAGS@
 GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
+HWLOC_CFLAGS = @HWLOC_CFLAGS@
+HWLOC_LIBS = @HWLOC_LIBS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -682,9 +687,7 @@ LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LIBS = @LUA_LIBS@
-LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
+LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -725,6 +728,8 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
+SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
+SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -740,6 +745,7 @@ TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
 TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
+TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -819,6 +825,7 @@ has_interim_cache = @has_interim_cache@
 has_ip_tos = @has_ip_tos@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
@@ -828,19 +835,15 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-hwloc_CFLAGS = @hwloc_CFLAGS@
-hwloc_LIBS = @hwloc_LIBS@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_def = @ink_with_modules_def@
 ink_with_modules_local = @ink_with_modules_local@
 ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
-is_micro_build = @is_micro_build@
 jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
@@ -848,8 +851,6 @@ libgenh = @libgenh@
 localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
-luajit_CFLAGS = @luajit_CFLAGS@
-luajit_LIBS = @luajit_LIBS@
 lzmah = @lzmah@
 machine_endianh = @machine_endianh@
 malloch = @malloch@
@@ -932,7 +933,6 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cop_debug = @use_cop_debug@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -943,6 +943,7 @@ use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
+use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
 use_tls_sni = @use_tls_sni@
@@ -952,26 +953,97 @@ waith = @waith@
 zlibh = @zlibh@
 
 # Note that hdrs is targeted from ../Makefile.am
-SUBDIRS = congest http logging config
+SUBDIRS = congest http spdy logging config
 noinst_LIBRARIES = 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(srcdir)/http \
+  -I$(srcdir)/spdy \
   -I$(srcdir)/logging \
   -I$(srcdir)/http/remap  \
   -I$(srcdir)/hdrs \
   -I$(srcdir)/shared \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils \
-  -I$(top_builddir)/proxy/api/ts \
-  -I$(top_srcdir)/lib
+  -I$(top_srcdir)/proxy/api/ts \
+  -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib
 
 noinst_HEADERS = \
   ConfigParse.h \
   Show.h
+
+
+# These are currently built separate, as part of building the lib/ tree, using
+# the normal LuaJIT build system. We are using the .o's directly, instead of the
+# luajit.a to avoid the linker from optimizing symbols away. We could maybe
+# switch to using the luajit.so, but that involves making sure it installs safely
+# and cleanly.
+LUAJIT = \
+  lib_aux.o \
+  lib_base.o \
+  lib_bit.o \
+  lib_debug.o \
+  lib_ffi.o \
+  lib_init.o \
+  lib_io.o \
+  lib_jit.o \
+  lib_math.o \
+  lib_os.o \
+  lib_package.o \
+  lib_string.o \
+  lib_table.o \
+  lj_alloc.o \
+  lj_api.o \
+  lj_asm.o \
+  lj_bc.o \
+  lj_bcread.o \
+  lj_bcwrite.o \
+  lj_carith.o \
+  lj_ccall.o \
+  lj_ccallback.o \
+  lj_cconv.o \
+  lj_cdata.o \
+  lj_char.o \
+  lj_clib.o \
+  lj_cparse.o \
+  lj_crecord.o \
+  lj_ctype.o \
+  lj_debug.o \
+  lj_dispatch.o \
+  lj_err.o \
+  lj_ffrecord.o \
+  lj_func.o \
+  lj_gc.o \
+  lj_gdbjit.o \
+  lj_ir.o \
+  lj_lex.o \
+  lj_lib.o \
+  lj_load.o \
+  lj_mcode.o \
+  lj_meta.o \
+  lj_obj.o \
+  lj_opt_dce.o \
+  lj_opt_fold.o \
+  lj_opt_loop.o \
+  lj_opt_mem.o \
+  lj_opt_narrow.o \
+  lj_opt_sink.o \
+  lj_opt_split.o \
+  lj_parse.o \
+  lj_record.o \
+  lj_snap.o \
+  lj_state.o \
+  lj_str.o \
+  lj_strscan.o \
+  lj_tab.o \
+  lj_trace.o \
+  lj_udata.o \
+  lj_vm.o \
+  lj_vmevent.o \
+  lj_vmmath.o
 
 @STATIC_LIBTS_FALSE@which_libts = $(top_builddir)/lib/ts/libtsutil.la
 @STATIC_LIBTS_TRUE@which_libts = $(top_builddir)/lib/ts/.libs/libtsutil.a
@@ -979,57 +1051,43 @@ EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
 traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
 	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
 	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-	DynamicStats.h EventName.cc HttpTransStats.h ICP.cc ICP.h \
-	ICPConfig.cc ICPevents.h ICPlog.h ICPProcessor.cc \
-	ICPProcessor.h ICPStats.cc InkAPI.cc FetchSM.cc \
-	InkAPIInternal.h InkIOCoreAPI.cc IPAllow.cc IPAllow.h Main.cc \
-	Main.h ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
-	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h ReverseProxy.cc \
-	ReverseProxy.h SocksProxy.cc StatPages.cc StatPages.h \
-	StatSystem.cc StatSystem.h Transform.cc Transform.h \
-	TransformInternal.h Update.cc Update.h $(am__append_1)
-traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
-	$(am__append_2)
-traffic_server_LDADD = \
-  http/libhttp.a \
-  http/remap/libhttp_remap.a \
-  congest/libCongestionControl.a \
-  logging/liblogging.a \
-  logging/liblogcollation.a \
-  hdrs/libhdrs.a  \
-  shared/liberror.a  \
-  shared/libdiagsconfig.a  \
-  shared/libsignals.a \
-  shared/libxml.a \
-  $(top_builddir)/mgmt/preparse/libpreparse.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/hostdb/libinkhostdb.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/cache/libinkcache.a \
-  $(top_builddir)/iocore/aio/libinkaio.a \
-  $(top_builddir)/iocore/net/libinknet.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/records/librecprocess.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(which_libts) \
-  @hwloc_LIBS@ \
-  @LIBPCRE@ \
-  @OPENSSL_LIBS@ \
-  @LIBTCL@ \
-  @LIBEXPAT@ \
-  @LIBDEMANGLE@ \
-  @LIBCAP@ \
-  @LIBRESOLV@ \
-  @LIBZ@ \
-  @LIBLZMA@ \
-  @LIBPROFILER@ \
-  -lm
+	DynamicStats.h EventName.cc FetchSM.cc HttpTransStats.h ICP.cc \
+	ICP.h ICPConfig.cc ICPProcessor.cc ICPProcessor.h ICPStats.cc \
+	ICPevents.h ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc \
+	InkAPIInternal.h InkIOCoreAPI.cc Main.cc Main.h \
+	ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
+	PluginVC.cc PluginVC.h Prefetch.cc Prefetch.h \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	ReverseProxy.cc ReverseProxy.h SocksProxy.cc StatPages.cc \
+	StatPages.h StatSystem.cc StatSystem.h Transform.cc \
+	Transform.h TransformInternal.h Update.cc Update.h \
+	$(am__append_1)
 
+# On Darwin LuaJIT requires magic link options, otherwise it will crash in luaL_openlibs() at startup. See
+# http://luajit.org/install.html.
+traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
+	@TS_LUAJIT_LDFLAGS@ $(am__empty)
+traffic_server_LDADD = http/libhttp.a spdy/libspdy.a \
+	http/remap/libhttp_remap.a congest/libCongestionControl.a \
+	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
+	shared/liberror.a shared/libdiagsconfig.a shared/libsignals.a \
+	shared/libxml.a $(top_builddir)/mgmt/utils/libutils_p.a \
+	$(top_builddir)/mgmt/libmgmt_p.a \
+	$(top_builddir)/iocore/utils/libinkutils.a \
+	$(top_builddir)/iocore/cluster/libinkcluster.a \
+	$(top_builddir)/iocore/dns/libinkdns.a \
+	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
+	$(top_builddir)/iocore/dns/libinkdns.a \
+	$(top_builddir)/iocore/cluster/libinkcluster.a \
+	$(top_builddir)/iocore/cache/libinkcache.a \
+	$(top_builddir)/iocore/aio/libinkaio.a \
+	$(top_builddir)/iocore/net/libinknet.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/lib/records/librecprocess.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(which_libts) @HWLOC_LIBS@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
+	@LIBEXPAT@ @LIBDEMANGLE@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ @LIBLZMA@ \
+	@LIBPROFILER@ @SPDYLAY_LIBS@ -lm $(am__append_2)
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_logcat_LDADD = \
@@ -1043,7 +1101,7 @@ traffic_logcat_LDADD = \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
 traffic_logstats_SOURCES = logstats.cc
@@ -1059,18 +1117,21 @@ traffic_logstats_LDADD = \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
 
 traffic_sac_SOURCES = sac.cc ICP.cc ICPConfig.cc ICPProcessor.cc \
 	ICPStats.cc IPAllow.cc ParentSelection.cc ControlBase.cc \
 	ControlMatcher.cc CacheControl.cc StatSystem.cc \
 	ReverseProxy.cc EventName.cc StatPages.cc PluginVC.cc \
-	AbstractBuffer.cc Transform.cc Prefetch.cc Update.cc Plugin.cc \
-	InkAPI.cc FetchSM.cc InkIOCoreAPI.cc $(am__append_3)
+	AbstractBuffer.cc Transform.cc Prefetch.cc \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	Update.cc Plugin.cc InkAPI.cc FetchSM.cc InkIOCoreAPI.cc \
+	$(am__append_3)
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
   http/libhttp.a \
+  spdy/libspdy.a \
   shared/libdiagsconfig.a \
   http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
@@ -1080,7 +1141,6 @@ traffic_sac_LDADD = \
   shared/liberror.a \
   shared/libsignals.a \
   shared/libxml.a \
-  $(top_builddir)/mgmt/preparse/libpreparse.a \
   $(top_builddir)/mgmt/utils/libutils_p.a \
   $(top_builddir)/mgmt/libmgmt_p.a \
   $(top_builddir)/iocore/cluster/libinkcluster.a \
@@ -1094,8 +1154,8 @@ traffic_sac_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/records/librecprocess.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
-  @LIBEXPAT@ @LIBDEMANGLE@ @LIBZ@ @LIBLZMA@ @LIBPROFILER@ -lm
+  @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
+  @LIBEXPAT@ @LIBDEMANGLE@ @LIBZ@ @LIBLZMA@ @LIBPROFILER@ @SPDYLAY_LIBS@ -lm
 
 test_xml_parser_SOURCES = test_xml_parser.cc
 test_xml_parser_LDADD = \
@@ -1251,6 +1311,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Plugin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PluginVC.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Prefetch.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ProtocolProbeSessionAccept.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionSM.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ReverseProxy.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SocksProxy.Po@am__quote@

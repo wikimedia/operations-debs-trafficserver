@@ -402,7 +402,7 @@ CacheVC::evacuateReadHead(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */
   alternate_tmp = 0;
   if (doc->ftype == CACHE_FRAG_TYPE_HTTP && doc->hlen) {
     // its an http document
-    if (this->load_http_info(&vector, doc) != doc->hlen) {
+    if (vector.get_handles(doc->hdr(), doc->hlen) != doc->hlen) {
       Note("bad vector detected during evacuation");
       goto Ldone;
     }
@@ -1499,7 +1499,7 @@ CacheVC::openWriteStartDone(int event, Event *e)
         goto Lcollision;
 
       if (doc->magic != DOC_MAGIC || !doc->hlen ||
-          this->load_http_info(write_vector, doc, buf) != doc->hlen) {
+          write_vector->get_handles(doc->hdr(), doc->hlen, buf) != doc->hlen) {
         err = ECACHE_BAD_META_DATA;
 #if TS_USE_INTERIM_CACHE == 1
         if (dir_ininterim(&dir)) {

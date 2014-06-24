@@ -311,6 +311,30 @@ set_process_limits(int fds_throttle)
   ink_max_out_rlimit(RLIMIT_RSS, true, true);
 #endif
 
+#if defined(linux)
+  float file_max_pct = 0.9;
+  FILE *fd;
+
+  if ((fd = fopen("/proc/sys/fs/file-max","r"))) {
+    ATS_UNUSED_RETURN(fscanf(fd, "%lu", &lim.rlim_max));
+    fclose(fd);
+    REC_ReadConfigFloat(file_max_pct, "proxy.config.system.file_max_pct");
+    lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(lim.rlim_max * file_max_pct);
+    if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
+      fds_limit = (int) lim.rlim_cur;
+#ifdef MGMT_USE_SYSLOG
+      syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
+    } else {
+      syslog(LOG_NOTICE, "NOTE: Unable to set RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
+#endif
+    }
+#ifdef MGMT_USE_SYSLOG
+  } else {
+    syslog(LOG_NOTICE, "NOTE: Unable to open /proc/sys/fs/file-max");
+#endif
+  }
+#endif // linux
+
   if (!getrlimit(RLIMIT_NOFILE, &lim)) {
     if (fds_throttle > (int) (lim.rlim_cur + FD_THROTTLE_HEADROOM)) {
       lim.rlim_cur = (lim.rlim_max = (rlim_t) fds_throttle);
@@ -522,7 +546,7 @@ main(int argc, char **argv)
 
   // Bootstrap the Diags facility so that we can use it while starting
   //  up the manager
-  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, false));
+  diagsConfig = new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
   diags = diagsConfig->diags;
   diags->prefix_str = "Manager ";
 
@@ -558,6 +582,7 @@ main(int argc, char **argv)
   Init_Errata_Logging();
 #endif
   ts_host_res_global_init();
+  ts_session_protocol_well_known_name_indices_init();
   lmgmt = new LocalManager(proxy_on);
   RecLocalInitMessage();
   lmgmt->initAlarm();
@@ -567,12 +592,12 @@ main(int argc, char **argv)
     // diagsConfig->reconfigure_diags(); INKqa11968
     /*
        delete diags;
-       diags = NEW (new Diags(debug_tags,action_tags));
+       diags = new Diags(debug_tags,action_tags);
      */
   }
   // INKqa11968: need to set up callbacks and diags data structures
   // using configuration in records.config
-  diagsConfig = NEW(new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, true));
+  diagsConfig = new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, true);
   diags = diagsConfig->diags;
   RecSetDiags(diags);
   diags->prefix_str = "Manager ";
@@ -704,7 +729,7 @@ main(int argc, char **argv)
   ticker = time(NULL);
   mgmt_log("[TrafficManager] Setup complete\n");
 
-  statProcessor = NEW(new StatProcessor());
+  statProcessor = new StatProcessor();
 
   for (;;) {
     lmgmt->processEventQueue();
@@ -1103,9 +1128,6 @@ runAsUser(char *userName)
       mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: proxy.config.admin.user_id is not set\n");
       _exit(1);
     }
-
-// this is behaving weird.  refer to getpwnam(3C) sparc -jcoates
-// this looks like the POSIX getpwnam_r
 
     struct passwd passwdInfo;
     struct passwd *ppasswd = NULL;

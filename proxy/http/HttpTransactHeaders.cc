@@ -622,7 +622,7 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header,
     hier_code = SQUID_HIER_NONE;
     break;
   case VIA_ERROR_SERVER:
-    if (log_code == SQUID_LOG_TCP_MISS || log_code == SQUID_LOG_TCP_MISS) {
+    if (log_code == SQUID_LOG_TCP_MISS || log_code == SQUID_LOG_TCP_IMS_MISS) {
       log_code = SQUID_LOG_ERR_CONNECT_FAIL;
     }
     break;
@@ -1006,6 +1006,18 @@ HttpTransactHeaders::remove_conditional_headers(HTTPHdr *outgoing)
   }
   // TODO: how about RANGE and IF_RANGE?
 }
+
+void
+HttpTransactHeaders::remove_100_continue_headers(HttpTransact::State *s, HTTPHdr *outgoing)
+{
+  int len = 0;
+  const char *expect = s->hdr_info.client_request.value_get(MIME_FIELD_EXPECT, MIME_LEN_EXPECT, &len);
+
+  if ((len == HTTP_LEN_100_CONTINUE) && (strncasecmp(expect, HTTP_VALUE_100_CONTINUE, HTTP_LEN_100_CONTINUE) == 0)) {
+    outgoing->field_delete(MIME_FIELD_EXPECT, MIME_LEN_EXPECT);
+  }
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////
