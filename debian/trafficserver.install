@@ -8,11 +8,11 @@ usr/lib/trafficserver/libts*.so.*
 usr/lib/trafficserver/modules/cacheurl.so
 usr/lib/trafficserver/modules/conf_remap.so
 usr/lib/trafficserver/modules/gzip.so
-usr/lib/trafficserver/modules/header_filter.so
 usr/lib/trafficserver/modules/header_rewrite.so
 usr/lib/trafficserver/modules/libloader.so
 usr/lib/trafficserver/modules/regex_remap.so
 usr/lib/trafficserver/modules/stats_over_http.so
+usr/lib/trafficserver/modules/tcpinfo.so
 usr/share/doc/trafficserver/trafficshell/*
 usr/share/man/*
 usr/share/perl5/*
