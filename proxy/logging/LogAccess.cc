@@ -75,6 +75,18 @@ LogAccess::init()
   -------------------------------------------------------------------------*/
 
 int
+LogAccess::marshal_plugin_identity_id(char *buf)
+{
+  DEFAULT_INT_FIELD;
+}
+
+int
+LogAccess::marshal_plugin_identity_tag(char *buf)
+{
+  DEFAULT_STR_FIELD;
+}
+
+int
 LogAccess::marshal_client_host_ip(char *buf)
 {
   DEFAULT_IP_FIELD;
@@ -220,15 +232,6 @@ int
 LogAccess::marshal_client_finish_status_code(char *buf)
 {
   DEFAULT_INT_FIELD;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-LogAccess::marshal_client_accelerator_id(char *buf)
-{
-  DEFAULT_STR_FIELD;
 }
 
 /*-------------------------------------------------------------------------

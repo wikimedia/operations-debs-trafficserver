@@ -51,6 +51,8 @@ operator_factory(const std::string& op)
     o = new OperatorSetRedirect();
   } else if (op == "timeout-out") {
     o = new OperatorSetTimeoutOut();
+  } else if (op == "skip-remap") {
+    o = new OperatorSkipRemap();
   } else if (op == "no-op") {
     o = new OperatorNoOp();
   } else if (op == "counter") {
@@ -105,6 +107,10 @@ condition_factory(const std::string& cond)
     c = new ConditionUrl(true);
   } else if (c_name == "DBM") {
     c = new ConditionDBM();
+  } else if (c_name == "INTERNAL-TRANSACTION") {
+    c = new ConditionInternalTransaction();
+  } else if (c_name == "CLIENT-IP") {
+    c = new ConditionClientIp();
   } else {
     TSError("%s: unknown condition: %s", PLUGIN_NAME, c_name.c_str());
     return NULL;

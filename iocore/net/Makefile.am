@@ -19,13 +19,13 @@
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils
 
 TESTS = $(check_PROGRAMS)
@@ -52,6 +52,8 @@ libinknet_a_SOURCES = \
   I_UDPNet.h \
   I_UDPPacket.h \
   Inline.cc \
+  I_SessionAccept.h \
+  SessionAccept.cc \
   Net.cc \
   NetVConnection.cc \
   P_CompletionUtil.h \
@@ -61,6 +63,7 @@ libinknet_a_SOURCES = \
   P_Net.h \
   P_NetAccept.h \
   P_NetVConnection.h \
+  P_Socks.h \
   P_SSLCertLookup.h \
   P_SSLConfig.h \
   P_SSLNetAccept.h \
@@ -81,6 +84,7 @@ libinknet_a_SOURCES = \
   P_UnixNetVConnection.h \
   P_UnixPollDescriptor.h \
   P_UnixUDPConnection.h \
+  Socks.cc \
   SSLCertLookup.cc \
   SSLConfig.cc \
   SSLNetAccept.cc \

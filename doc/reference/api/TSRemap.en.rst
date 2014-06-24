@@ -20,11 +20,13 @@
 TSRemapInit
 ===========
 
+Traffic Server remap plugin entry points.
+
 Synopsis
 ========
 
-`#include <ts/ts.h>`
-`#include <ts/remap.h>`
+| `#include <ts/ts.h>`
+| `#include <ts/remap.h>`
 
 .. function:: TSReturnCode TSRemapInit(TSRemapInterface * api_info, char* errbuf, int errbuf_size)
 .. function:: void TSRemapDone(void)

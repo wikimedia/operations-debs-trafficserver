@@ -30,7 +30,7 @@
  * Note: For remote implementation of this interface, most functions will:
  *  1) marshal: create the message to send across network
  *  2) connect and send request
- *  3) unmarshal: parse the reply (checking for TSError)
+ *  3) unmarshal: parse the reply (checking for TSMgmtError)
  *
  * Created: lant
  *
@@ -56,11 +56,10 @@ extern int main_socket_fd;      // from NetworkUtils
 extern int event_socket_fd;
 
 // forward declarations
-TSError send_and_parse_basic(OpType op);
-TSError send_and_parse_list(OpType op, LLQ * list);
-TSError send_and_parse_name(OpType op, char *name);
-TSError mgmt_record_set(const char *rec_name, const char *rec_val, TSActionNeedT * action_need);
-bool start_binary(const char *abs_bin_path);
+TSMgmtError send_and_parse_basic(OpType op);
+TSMgmtError send_and_parse_list(OpType op, LLQ * list);
+TSMgmtError send_and_parse_name(OpType op, char *name);
+TSMgmtError mgmt_record_set(const char *rec_name, const char *rec_val, TSActionNeedT * action_need);
 
 // global variables
 // need to store the thread id associated with socket_test_thread
@@ -78,10 +77,10 @@ TSInitOptionT ts_init_options;
  * helper function used by operations which only require sending a simple
  * operation type and parsing a simple error return value
  */
-TSError
+TSMgmtError
 send_and_parse_basic(OpType op)
 {
-  TSError err;
+  TSMgmtError err;
 
   err = send_request(main_socket_fd, op);
   if (err != TS_ERR_OKAY)
@@ -100,10 +99,10 @@ send_and_parse_basic(OpType op)
  * (delimited with REMOTE_DELIM_STR) and storing the tokens in the list
  * parameter
  */
-TSError
+TSMgmtError
 send_and_parse_list(OpType op, LLQ * list)
 {
-  TSError ret;
+  TSMgmtError ret;
   char *list_str;
   const char *tok;
   Tokenizer tokens(REMOTE_DELIM_STR);
@@ -142,13 +141,13 @@ send_and_parse_list(OpType op, LLQ * list)
  *-------------------------------------------------------------------------
  * helper function used by operations which only require sending a simple
  * operation type with one string name argument and then parsing a simple
- * TSError reply
+ * TSMgmtError reply
  * NOTE: name can be a NULL parameter!
  */
-TSError
+TSMgmtError
 send_and_parse_name(OpType op, char *name)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   // create and send request
   ret = send_request_name(main_socket_fd, op, name);
@@ -173,10 +172,10 @@ send_and_parse_name(OpType op, char *name)
  * Hence, on the local side, don't have to worry about typecasting a
  * void*. Just read out the string from socket and pass it MgmtRecordSet.
  */
-TSError
+TSMgmtError
 mgmt_record_set(const char *rec_name, const char *rec_val, TSActionNeedT * action_need)
 {
-  TSError err;
+  TSMgmtError err;
 
   if (!rec_name || !rec_val || !action_need)
     return TS_ERR_PARAMS;
@@ -186,54 +185,21 @@ mgmt_record_set(const char *rec_name, const char *rec_val, TSActionNeedT * actio
   if (err != TS_ERR_OKAY)
     return err;
 
-  // parse the reply to get TSError response and TSActionNeedT
+  // parse the reply to get TSMgmtError response and TSActionNeedT
   err = parse_record_set_reply(main_socket_fd, action_need);
 
   return err;
 }
 
 
-/*-------------------------------------------------------------------------
- * start_binary
- *-------------------------------------------------------------------------
- * helper function which calls the executable specified by abs_bin_path;
- * used by HardRestart to call the stop/start_traffic_server scripts
- * Output: returns false if fail, true if successful
- */
-bool
-start_binary(const char *abs_bin_path)
-{
-  TSDiags(TS_DIAG_NOTE, "[start_binary] abs_bin_path = %s", abs_bin_path);
-  // before doing anything, check for existence of binary and its execute
-  // permissions
-  if (access(abs_bin_path, F_OK) < 0) {
-    // ERROR: can't find binary
-    TSDiags(TS_DIAG_ERROR, "Cannot find executable %s", abs_bin_path);
-    return false;
-  }
-  // binary exists, check permissions
-  else if (access(abs_bin_path, R_OK | X_OK) < 0) {
-    // ERROR: doesn't have proper permissions
-    TSDiags(TS_DIAG_ERROR, "Cannot execute %s", abs_bin_path);
-    return false;
-  }
-
-  if (system(abs_bin_path) == -1) {
-    TSDiags(TS_DIAG_ERROR, "Cannot system(%s)", abs_bin_path);
-    return false;
-  }
-
-  return true;
-}
-
 
 /***************************************************************************
  * SetUp Operations
  ***************************************************************************/
-TSError
+TSMgmtError
 Init(const char *socket_path, TSInitOptionT options)
 {
-  TSError err = TS_ERR_OKAY;
+  TSMgmtError err = TS_ERR_OKAY;
 
   ts_init_options = options;
 
@@ -289,10 +255,10 @@ END:
 }
 
 // does clean up for remote API client; destroy structures and disconnects
-TSError
+TSMgmtError
 Terminate()
 {
-  TSError err;
+  TSMgmtError err;
 
   if (remote_event_callbacks)
     delete_callback_table(remote_event_callbacks);
@@ -341,7 +307,7 @@ Diags(TSDiagsT mode, const char *fmt, va_list ap)
   // format the diag message now so it can be sent
   // vsnprintf does not compile on DEC
   vsnprintf(diag_msg, MAX_BUF_SIZE - 1, fmt, ap);
-  TSError ret = send_diags_msg(main_socket_fd, mode, diag_msg);
+  TSMgmtError ret = send_diags_msg(main_socket_fd, mode, diag_msg);
   if (ret != TS_ERR_OKAY) {
     //fprintf(stderr, "[Diags] error sending diags message\n");
   }
@@ -353,7 +319,7 @@ Diags(TSDiagsT mode, const char *fmt, va_list ap)
 TSProxyStateT
 ProxyStateGet()
 {
-  TSError ret;
+  TSMgmtError ret;
   TSProxyStateT state;
 
   ret = send_request(main_socket_fd, PROXY_STATE_GET);
@@ -367,10 +333,10 @@ ProxyStateGet()
   return state;
 }
 
-TSError
+TSMgmtError
 ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   ret = send_proxy_state_set_request(main_socket_fd, state, clear);
   if (ret != TS_ERR_OKAY)
@@ -381,7 +347,7 @@ ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
   return ret;
 }
 
-TSError
+TSMgmtError
 Reconfigure()
 {
   return send_and_parse_basic(RECONFIGURE);
@@ -396,10 +362,10 @@ Reconfigure()
  * only signals the event putting it in a msg queue;
  * so keep trying to reconnect until successful or for MAX_CONN_TRIES
  */
-TSError
+TSMgmtError
 Restart(bool cluster)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   ret = send_request_bool(main_socket_fd, RESTART, cluster);
   if (ret != TS_ERR_OKAY)
@@ -416,45 +382,14 @@ Restart(bool cluster)
 
 
 /*-------------------------------------------------------------------------
- * HardRestart
- *-------------------------------------------------------------------------
- * Restarts Traffic Cop by using the stop_traffic_server, start_traffic_server script
- */
-TSError
-HardRestart()
-{
-  char start_path[1024];
-  char stop_path[1024];
-
-  if (!Layout::get() || !Layout::get()->bindir)
-    return TS_ERR_FAIL;
-  // determine the path of where start and stop TS scripts stored
-  TSDiags(TS_DIAG_NOTE, "Root Directory: %s", Layout::get()->bindir);
-
-  Layout::relative_to(start_path, sizeof(start_path), Layout::get()->bindir, "start_traffic_server");
-  Layout::relative_to(stop_path, sizeof(stop_path), Layout::get()->bindir, "stop_traffic_server");
-
-  TSDiags(TS_DIAG_NOTE, "[HardRestart] start_path = %s", start_path);
-  TSDiags(TS_DIAG_NOTE, "[HardRestart] stop_path = %s", stop_path);
-
-  if (!start_binary(stop_path)) // call stop_traffic_server script
-    return TS_ERR_FAIL;
-
-  if (!start_binary(start_path))        // call start_traffic_server script
-    return TS_ERR_FAIL;
-
-  return TS_ERR_OKAY;
-}
-
-/*-------------------------------------------------------------------------
  * Bounce
  *-------------------------------------------------------------------------
  * Restart the traffic_server process(es) only.
  */
-TSError
+TSMgmtError
 Bounce(bool cluster)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   ret = send_request_bool(main_socket_fd, BOUNCE, cluster);
   if (ret != TS_ERR_OKAY)
@@ -469,66 +404,125 @@ Bounce(bool cluster)
  *-------------------------------------------------------------------------
  * Disable a storage device.
  */
-TSError
+TSMgmtError
 StorageDeviceCmdOffline(char const* dev)
 {
-  TSError ret;
+  TSMgmtError ret;
   ret = send_request_name(main_socket_fd, STORAGE_DEVICE_CMD_OFFLINE, dev);
   return TS_ERR_OKAY != ret ? ret : parse_reply(main_socket_fd);
 }
+
 /***************************************************************************
  * Record Operations
  ***************************************************************************/
-// note that the record value is being sent as chunk of memory, regardless of
-// record type; it's not being converted to a string!!
-TSError
-MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
+static TSMgmtError
+mgmt_record_get_reply(TSRecordEle * rec_ele)
 {
-  TSError ret;
+  TSMgmtError ret;
   void *val;
+  char *name;
 
-  if (!rec_name || !rec_ele)
-    return TS_ERR_PARAMS;
-
-  rec_ele->rec_name = ats_strdup(rec_name);
-
-  // create and send request
-  ret = send_record_get_request(main_socket_fd, rec_ele->rec_name);
-  if (ret != TS_ERR_OKAY)
-    return ret;
+  ink_zero(*rec_ele);
+  rec_ele->rec_type = TS_REC_UNDEFINED;
 
   // parse the reply to get record value and type
-  ret = parse_record_get_reply(main_socket_fd, &(rec_ele->rec_type), &val);
-  if (ret != TS_ERR_OKAY)
+  ret = parse_record_get_reply(main_socket_fd, &(rec_ele->rec_type), &val, &name);
+  if (ret != TS_ERR_OKAY) {
     return ret;
+  }
 
   // convert the record value to appropriate type
-  switch (rec_ele->rec_type) {
-  case TS_REC_INT:
-    rec_ele->int_val = *(TSInt *) val;
-    break;
-  case TS_REC_COUNTER:
-    rec_ele->counter_val = *(TSCounter *) val;
-    break;
-  case TS_REC_FLOAT:
-    rec_ele->float_val = *(TSFloat *) val;
-    break;
-  case TS_REC_STRING:
-    rec_ele->string_val = ats_strdup((char *) val);
-    break;
-  default:                     // ERROR - invalid record type
-    return TS_ERR_FAIL;
+  if (val) {
+    switch (rec_ele->rec_type) {
+    case TS_REC_INT:
+      rec_ele->valueT.int_val = *(TSInt *) val;
+      break;
+    case TS_REC_COUNTER:
+      rec_ele->valueT.counter_val = *(TSCounter *) val;
+      break;
+    case TS_REC_FLOAT:
+      rec_ele->valueT.float_val = *(TSFloat *) val;
+      break;
+    case TS_REC_STRING:
+      rec_ele->valueT.string_val = ats_strdup((char *) val);
+      break;
+    default:
+      ; // nothing ... shut up compiler!
+    }
+  }
+
+  if (name) {
+    rec_ele->rec_name = name;
   }
 
   ats_free(val);
   return TS_ERR_OKAY;
 }
 
+// note that the record value is being sent as chunk of memory, regardless of
+// record type; it's not being converted to a string!!
+TSMgmtError
+MgmtRecordGet(const char *rec_name, TSRecordEle * rec_ele)
+{
+  TSMgmtError ret;
 
-TSError
+  if (!rec_name || !rec_ele) {
+    return TS_ERR_PARAMS;
+  }
+
+  // create and send request
+  ret = send_record_get_request(main_socket_fd, rec_name);
+  if (ret != TS_ERR_OKAY) {
+    return ret;
+  }
+
+  return mgmt_record_get_reply(rec_ele);
+}
+
+TSMgmtError
+MgmtRecordGetMatching(const char * regex, TSList rec_vals)
+{
+  TSMgmtError       ret;
+  TSRecordEle * rec_ele;
+
+  ret = send_record_match_request(main_socket_fd, regex);
+  if (ret != TS_ERR_OKAY) {
+    return ret;
+  }
+
+  for (;;) {
+    rec_ele = TSRecordEleCreate();
+
+    // parse the reply to get record value and type
+    ret = mgmt_record_get_reply(rec_ele);
+    if (ret != TS_ERR_OKAY) {
+      goto fail;
+    }
+
+    // A NULL record ends the list.
+    if (rec_ele->rec_type == TS_REC_UNDEFINED) {
+      break;
+    }
+
+    enqueue((LLQ *) rec_vals, rec_ele);
+  }
+
+  return TS_ERR_OKAY;
+
+fail:
+
+  TSRecordEleDestroy(rec_ele);
+  for (rec_ele = (TSRecordEle *) dequeue((LLQ *) rec_vals); rec_ele; rec_ele = (TSRecordEle *) dequeue((LLQ *) rec_vals)) {
+      TSRecordEleDestroy(rec_ele);
+  }
+
+  return ret;
+}
+
+TSMgmtError
 MgmtRecordSet(const char *rec_name, const char *val, TSActionNeedT * action_need)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   if (!rec_name || !val || !action_need)
     return TS_ERR_PARAMS;
@@ -539,11 +533,11 @@ MgmtRecordSet(const char *rec_name, const char *val, TSActionNeedT * action_need
 
 // first convert the MgmtInt into a string
 // NOTE: use long long, not just long, MgmtInt = int64_t
-TSError
+TSMgmtError
 MgmtRecordSetInt(const char *rec_name, MgmtInt int_val, TSActionNeedT * action_need)
 {
   char str_val[MAX_RECORD_SIZE];
-  TSError ret;
+  TSMgmtError ret;
 
   if (!rec_name || !action_need)
     return TS_ERR_PARAMS;
@@ -556,11 +550,11 @@ MgmtRecordSetInt(const char *rec_name, MgmtInt int_val, TSActionNeedT * action_n
 }
 
 // first convert the MgmtIntCounter into a string
-TSError
+TSMgmtError
 MgmtRecordSetCounter(const char *rec_name, MgmtIntCounter counter_val, TSActionNeedT * action_need)
 {
   char str_val[MAX_RECORD_SIZE];
-  TSError ret;
+  TSMgmtError ret;
 
   if (!rec_name || !action_need)
     return TS_ERR_PARAMS;
@@ -573,11 +567,11 @@ MgmtRecordSetCounter(const char *rec_name, MgmtIntCounter counter_val, TSActionN
 }
 
 // first convert the MgmtFloat into string
-TSError
+TSMgmtError
 MgmtRecordSetFloat(const char *rec_name, MgmtFloat float_val, TSActionNeedT * action_need)
 {
   char str_val[MAX_RECORD_SIZE];
-  TSError ret;
+  TSMgmtError ret;
 
   bzero(str_val, MAX_RECORD_SIZE);
   if (snprintf(str_val, sizeof(str_val), "%f", float_val) < 0)
@@ -588,10 +582,10 @@ MgmtRecordSetFloat(const char *rec_name, MgmtFloat float_val, TSActionNeedT * ac
 }
 
 
-TSError
+TSMgmtError
 MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT * action_need)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   if (!rec_name || !action_need)
     return TS_ERR_PARAMS;
@@ -617,10 +611,10 @@ MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT 
  * Connects to the socket and sends request over. Parses the response from
  * Traffic Manager.
  */
-TSError
+TSMgmtError
 ReadFile(TSFileNameT file, char **text, int *size, int *version)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   // marshal data into message request to be sent over socket
   // create connection and send request
@@ -648,10 +642,10 @@ ReadFile(TSFileNameT file, char **text, int *size, int *version)
  * Connects to the socket and sends request over. Parses the response from
  * Traffic Manager.
  */
-TSError
+TSMgmtError
 WriteFile(TSFileNameT file, char *text, int size, int version)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   ret = send_file_write_request(main_socket_fd, file, version, size, text);
   if (ret != TS_ERR_OKAY)
@@ -671,7 +665,7 @@ WriteFile(TSFileNameT file, char *text, int size, int version)
  *-------------------------------------------------------------------------
  * LAN - need to implement
  */
-TSError
+TSMgmtError
 EventSignal(char */* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
 {
   return TS_ERR_FAIL;
@@ -684,7 +678,7 @@ EventSignal(char */* event_name ATS_UNUSED */, va_list /* ap ATS_UNUSED */)
  * note:    when sending the message request, actually sends the event name,
  *          not the event id
  */
-TSError
+TSMgmtError
 EventResolve(char *event_name)
 {
   if (!event_name)
@@ -699,7 +693,7 @@ EventResolve(char *event_name)
  * purpose: Retrieves a list of active(unresolved) events
  * note:    list of event names returned in network msg which must be tokenized
  */
-TSError
+TSMgmtError
 ActiveEventGetMlt(LLQ * active_events)
 {
   if (!active_events)
@@ -713,10 +707,10 @@ ActiveEventGetMlt(LLQ * active_events)
  *-------------------------------------------------------------------------
  * determines if the event_name is active; sets result in is_current
  */
-TSError
+TSMgmtError
 EventIsActive(char *event_name, bool * is_current)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   if (!event_name || !is_current)
     return TS_ERR_PARAMS;
@@ -743,11 +737,11 @@ EventIsActive(char *event_name, bool * is_current)
  * then sends a callback registration notification to TM so that TM will know
  * which events have remote callbacks registered on it.
  */
-TSError
+TSMgmtError
 EventSignalCbRegister(char *event_name, TSEventSignalFunc func, void *data)
 {
   bool first_time = 0;
-  TSError err;
+  TSMgmtError err;
 
   if (func == NULL)
     return TS_ERR_PARAMS;
@@ -782,10 +776,10 @@ EventSignalCbRegister(char *event_name, TSEventSignalFunc func, void *data)
  *                     unregisters all callback functions for the event_name
  *                     specified
  */
-TSError
+TSMgmtError
 EventSignalCbUnregister(char *event_name, TSEventSignalFunc func)
 {
-  TSError err;
+  TSMgmtError err;
 
   if (!remote_event_callbacks)
     return TS_ERR_FAIL;
@@ -807,7 +801,7 @@ EventSignalCbUnregister(char *event_name, TSEventSignalFunc func)
 /***************************************************************************
  * Snapshots
  ***************************************************************************/
-TSError
+TSMgmtError
 SnapshotTake(char *snapshot_name)
 {
   if (!snapshot_name)
@@ -816,7 +810,7 @@ SnapshotTake(char *snapshot_name)
   return send_and_parse_name(SNAPSHOT_TAKE, snapshot_name);
 }
 
-TSError
+TSMgmtError
 SnapshotRestore(char *snapshot_name)
 {
   if (!snapshot_name)
@@ -825,7 +819,7 @@ SnapshotRestore(char *snapshot_name)
   return send_and_parse_name(SNAPSHOT_RESTORE, snapshot_name);
 }
 
-TSError
+TSMgmtError
 SnapshotRemove(char *snapshot_name)
 {
   if (!snapshot_name)
@@ -834,16 +828,16 @@ SnapshotRemove(char *snapshot_name)
   return send_and_parse_name(SNAPSHOT_REMOVE, snapshot_name);
 }
 
-TSError
+TSMgmtError
 SnapshotGetMlt(LLQ * snapshots)
 {
   return send_and_parse_list(SNAPSHOT_GET_MLT, snapshots);
 }
 
-TSError
+TSMgmtError
 StatsReset(bool cluster, const char* name)
 {
-  TSError ret;
+  TSMgmtError ret;
 
   if (cluster) {
     ret = send_request_name(main_socket_fd, STATS_RESET_CLUSTER, name);

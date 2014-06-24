@@ -33,6 +33,7 @@
 #  limitations under the License.
 
 
+
 VPATH = @srcdir@
 am__is_gnu_make = test -n '$(MAKEFILE_LIST)' && test -n '$(MAKELEVEL)'
 am__make_running_with_option = \
@@ -100,9 +101,9 @@ check_PROGRAMS = test_atomic$(EXEEXT) test_freelist$(EXEEXT) \
 	test_Vec$(EXEEXT)
 subdir = lib/ts
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
-	$(srcdir)/ink_autoconf.h.in $(srcdir)/ink_config.h.in \
-	$(top_srcdir)/build/aux/depcomp \
-	$(top_srcdir)/build/aux/test-driver
+	$(srcdir)/ink_autoconf.h.in $(srcdir)/apidefs.h.in \
+	$(srcdir)/ink_config.h.in $(top_srcdir)/build/aux/depcomp \
+	$(library_include_HEADERS) $(top_srcdir)/build/aux/test-driver
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
 	$(top_srcdir)/build/ax_check_openssl.m4 \
@@ -119,17 +120,16 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
-	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lua.m4 \
-	$(top_srcdir)/build/lzma.m4 $(top_srcdir)/build/network.m4 \
-	$(top_srcdir)/build/pcre.m4 $(top_srcdir)/build/pkg.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
-	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
+	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
+	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = ink_autoconf.h
-CONFIG_CLEAN_FILES = ink_config.h
+CONFIG_CLEAN_FILES = apidefs.h ink_config.h
 CONFIG_CLEAN_VPATH_FILES =
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
@@ -158,14 +158,15 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-am__installdirs = "$(DESTDIR)$(libdir)"
+am__installdirs = "$(DESTDIR)$(libdir)" \
+	"$(DESTDIR)$(library_includedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtsutil_la_DEPENDENCIES = @LIBOBJS@
 am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo Diags.lo EventNotify.lo \
 	HostLookup.lo IpMap.lo IpMapConf.lo Layout.lo MatcherUtils.lo \
 	MimeTable.lo ParseRules.lo RawHashTable.lo Regex.lo \
-	Regression.lo Resource.lo TextBuffer.lo Tokenizer.lo Vec.lo \
-	Version.lo fastlz.lo ink_args.lo ink_assert.lo ink_auth_api.lo \
+	Regression.lo TextBuffer.lo Tokenizer.lo Vec.lo Version.lo \
+	fastlz.lo ink_args.lo ink_assert.lo ink_auth_api.lo \
 	ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo \
 	ink_file.lo ink_hash_table.lo ink_hrtime.lo ink_inet.lo \
 	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_ext.lo \
@@ -288,6 +289,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+HEADERS = $(library_include_HEADERS)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) \
 	$(LISP)ink_autoconf.h.in
 # Read a list of newline-separated strings from the standard input,
@@ -540,6 +542,8 @@ FLEX_CFLAGS = @FLEX_CFLAGS@
 GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
+HWLOC_CFLAGS = @HWLOC_CFLAGS@
+HWLOC_LIBS = @HWLOC_LIBS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -568,9 +572,7 @@ LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LIBS = @LUA_LIBS@
-LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
+LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -611,6 +613,8 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
+SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
+SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -626,6 +630,7 @@ TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
 TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
+TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -705,6 +710,7 @@ has_interim_cache = @has_interim_cache@
 has_ip_tos = @has_ip_tos@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
@@ -714,19 +720,15 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-hwloc_CFLAGS = @hwloc_CFLAGS@
-hwloc_LIBS = @hwloc_LIBS@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_def = @ink_with_modules_def@
 ink_with_modules_local = @ink_with_modules_local@
 ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
-is_micro_build = @is_micro_build@
 jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
@@ -734,8 +736,6 @@ libgenh = @libgenh@
 localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
-luajit_CFLAGS = @luajit_CFLAGS@
-luajit_LIBS = @luajit_LIBS@
 lzmah = @lzmah@
 machine_endianh = @machine_endianh@
 malloch = @malloch@
@@ -818,7 +818,6 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cop_debug = @use_cop_debug@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -829,6 +828,7 @@ use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
+use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
 use_tls_sni = @use_tls_sni@
@@ -836,12 +836,14 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
+library_includedir = $(includedir)/ts
+library_include_HEADERS = apidefs.h
 TESTS = $(check_PROGRAMS)
 AM_CPPFLAGS = -I$(top_srcdir)/lib
 lib_LTLIBRARIES = libtsutil.la
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
 libtsutil_la_LIBADD = \
-  @hwloc_LIBS@ \
+  @HWLOC_LIBS@ \
   @LIBOBJS@ \
   @LIBPCRE@ \
   @OPENSSL_LIBS@ \
@@ -890,8 +892,6 @@ libtsutil_la_SOURCES = \
   Regex.h \
   Regression.cc \
   Regression.h \
-  Resource.cc \
-  Resource.h \
   SimpleTokenizer.h \
   TestBox.h \
   TextBuffer.cc \
@@ -1047,6 +1047,8 @@ $(srcdir)/ink_autoconf.h.in:  $(am__configure_deps)
 
 distclean-hdr:
 	-rm -f ink_autoconf.h stamp-h1
+apidefs.h: $(top_builddir)/config.status $(srcdir)/apidefs.h.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 ink_config.h: $(top_builddir)/config.status $(srcdir)/ink_config.h.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 
@@ -1159,7 +1161,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RawHashTable.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regression.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Resource.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TextBuffer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Tokenizer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Vec.Plo@am__quote@
@@ -1259,6 +1260,27 @@ mostlyclean-libtool:
 
 clean-libtool:
 	-rm -rf .libs _libs
+install-library_includeHEADERS: $(library_include_HEADERS)
+	@$(NORMAL_INSTALL)
+	@list='$(library_include_HEADERS)'; test -n "$(library_includedir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(library_includedir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(library_includedir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_HEADER) $$files '$(DESTDIR)$(library_includedir)'"; \
+	  $(INSTALL_HEADER) $$files "$(DESTDIR)$(library_includedir)" || exit $$?; \
+	done
+
+uninstall-library_includeHEADERS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(library_include_HEADERS)'; test -n "$(library_includedir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(library_includedir)'; $(am__uninstall_files_from_dir)
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -1544,9 +1566,9 @@ check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) ink_autoconf.h
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS) ink_autoconf.h
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(library_includedir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -1605,7 +1627,7 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-library_includeHEADERS
 
 install-dvi: install-dvi-am
 
@@ -1651,7 +1673,8 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-libLTLIBRARIES
+uninstall-am: uninstall-libLTLIBRARIES \
+	uninstall-library_includeHEADERS
 
 .MAKE: all check-am install-am install-strip
 
@@ -1664,12 +1687,13 @@ uninstall-am: uninstall-libLTLIBRARIES
 	install-data install-data-am install-dvi install-dvi-am \
 	install-exec install-exec-am install-html install-html-am \
 	install-info install-info-am install-libLTLIBRARIES \
-	install-man install-pdf install-pdf-am install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am recheck tags tags-am \
-	uninstall uninstall-am uninstall-libLTLIBRARIES
+	install-library_includeHEADERS install-man install-pdf \
+	install-pdf-am install-ps install-ps-am install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	recheck tags tags-am uninstall uninstall-am \
+	uninstall-libLTLIBRARIES uninstall-library_includeHEADERS
 
 
 #test_UNUSED_SOURCES = \

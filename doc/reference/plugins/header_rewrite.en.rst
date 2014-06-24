@@ -42,6 +42,10 @@ phase (the default) causes a transaction hook to be instantiated and used
 at a later time. This allows you to setup e.g. a rule that gets executed
 during the origin response header parsing, using READ_RESPONSE_HDR_HOOK.
 
+Configuration filenames without an absolute paths are searched for in the
+default configuration directory. This is typically where your main
+configuration files are, e.g. ``/usr/local/etc/trafficserver``.
+
 Operators
 ---------
 
@@ -113,6 +117,8 @@ only be evaluated if the condition(s) are met::
   cond %{PATH} operand                          [condition_flags]
   cond %{PARAMS} operand                        [condition_flags]
   cond %{QUERY} operand                         [condition_flags]
+  cond %{INTERNAL-TRANSACTION}                  [condition_flags]
+  cond %{CLIENT-IP}                             [condition_flags]
 
 The difference between HEADER and CLIENT-HEADER is that HEADER adapts to the
 hook it's running in, whereas CLIENT-HEADER always applies to the client

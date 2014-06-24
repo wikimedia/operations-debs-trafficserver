@@ -95,8 +95,12 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-noinst_PROGRAMS = jtest/jtest$(EXEEXT) $(am__EXEEXT_1)
-@BUILD_HTTP_LOAD_TRUE@am__append_1 = http_load/http_load
+@BUILD_TEST_TOOLS_TRUE@bin_PROGRAMS = jtest/jtest$(EXEEXT) \
+@BUILD_TEST_TOOLS_TRUE@	$(am__EXEEXT_1)
+@BUILD_TEST_TOOLS_FALSE@noinst_PROGRAMS = jtest/jtest$(EXEEXT) \
+@BUILD_TEST_TOOLS_FALSE@	$(am__EXEEXT_2)
+@BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_TRUE@am__append_1 = http_load/http_load
+@BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_FALSE@am__append_2 = http_load/http_load
 subdir = tools
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(srcdir)/tsxs.in $(top_srcdir)/build/aux/depcomp
@@ -116,20 +120,21 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_boost_base.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
-	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lua.m4 \
-	$(top_srcdir)/build/lzma.m4 $(top_srcdir)/build/network.m4 \
-	$(top_srcdir)/build/pcre.m4 $(top_srcdir)/build/pkg.m4 \
-	$(top_srcdir)/build/tcl.m4 $(top_srcdir)/build/tcmalloc.m4 \
-	$(top_srcdir)/build/xml.m4 $(top_srcdir)/build/zlib.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
+	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
+	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
+	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ts/ink_autoconf.h
 CONFIG_CLEAN_FILES = tsxs
 CONFIG_CLEAN_VPATH_FILES =
-@BUILD_HTTP_LOAD_TRUE@am__EXEEXT_1 = http_load/http_load$(EXEEXT)
-PROGRAMS = $(noinst_PROGRAMS)
+@BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_TRUE@am__EXEEXT_1 = http_load/http_load$(EXEEXT)
+am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)"
+@BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_FALSE@am__EXEEXT_2 = http_load/http_load$(EXEEXT)
+PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am__http_load_http_load_SOURCES_DIST = http_load/http_load.c \
 	http_load/timers.c http_load/port.h http_load/timers.h
 am__dirstamp = $(am__leading_dot)dirstamp
@@ -172,7 +177,6 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-am__installdirs = "$(DESTDIR)$(bindir)"
 SCRIPTS = $(bin_SCRIPTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -308,6 +312,8 @@ FLEX_CFLAGS = @FLEX_CFLAGS@
 GEOIP_LIBS = @GEOIP_LIBS@
 GREP = @GREP@
 HOST_GUESS = @HOST_GUESS@
+HWLOC_CFLAGS = @HWLOC_CFLAGS@
+HWLOC_LIBS = @HWLOC_LIBS@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -336,9 +342,7 @@ LIBZ = @LIBZ@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LIBS = @LUA_LIBS@
-LUA_LUAJIT_LDFLAGS = @LUA_LUAJIT_LDFLAGS@
+LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MGMT_DEFS = @MGMT_DEFS@
@@ -379,6 +383,8 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
+SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
+SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -394,6 +400,7 @@ TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
 TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
+TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -473,6 +480,7 @@ has_interim_cache = @has_interim_cache@
 has_ip_tos = @has_ip_tos@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
@@ -482,19 +490,15 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-hwloc_CFLAGS = @hwloc_CFLAGS@
-hwloc_LIBS = @hwloc_LIBS@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_def = @ink_with_modules_def@
 ink_with_modules_local = @ink_with_modules_local@
 ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
-is_micro_build = @is_micro_build@
 jemalloch = @jemalloch@
 libdir = @libdir@
 libexecdir = @libexecdir@
@@ -502,8 +506,6 @@ libgenh = @libgenh@
 localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
-luajit_CFLAGS = @luajit_CFLAGS@
-luajit_LIBS = @luajit_LIBS@
 lzmah = @lzmah@
 machine_endianh = @machine_endianh@
 malloch = @malloch@
@@ -586,7 +588,6 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-use_cop_debug = @use_cop_debug@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -597,6 +598,7 @@ use_linux_native_aio = @use_linux_native_aio@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
+use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
 use_tls_sni = @use_tls_sni@
@@ -654,6 +656,55 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 $(am__aclocal_m4_deps):
 tsxs: $(top_builddir)/config.status $(srcdir)/tsxs.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+install-binPROGRAMS: $(bin_PROGRAMS)
+	@$(NORMAL_INSTALL)
+	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(bindir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(bindir)" || exit 1; \
+	fi; \
+	for p in $$list; do echo "$$p $$p"; done | \
+	sed 's/$(EXEEXT)$$//' | \
+	while read p p1; do if test -f $$p \
+	 || test -f $$p1 \
+	  ; then echo "$$p"; echo "$$p"; else :; fi; \
+	done | \
+	sed -e 'p;s,.*/,,;n;h' \
+	    -e 's|.*|.|' \
+	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
+	sed 'N;N;N;s,\n, ,g' | \
+	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
+	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
+	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
+	    else { print "f", $$3 "/" $$4, $$1; } } \
+	  END { for (d in files) print "f", d, files[d] }' | \
+	while read type dir files; do \
+	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
+	    test -z "$$files" || { \
+	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(bindir)$$dir'"; \
+	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(bindir)$$dir" || exit $$?; \
+	    } \
+	; done
+
+uninstall-binPROGRAMS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
+	files=`for p in $$list; do echo "$$p"; done | \
+	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
+	      -e 's/$$/$(EXEEXT)/' \
+	`; \
+	test -n "$$list" || exit 0; \
+	echo " ( cd '$(DESTDIR)$(bindir)' && rm -f" $$files ")"; \
+	cd "$(DESTDIR)$(bindir)" && rm -f $$files
+
+clean-binPROGRAMS:
+	@list='$(bin_PROGRAMS)'; test -n "$$list" || exit 0; \
+	echo " rm -f" $$list; \
+	rm -f $$list || exit $$?; \
+	test -n "$(EXEEXT)" || exit 0; \
+	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
+	echo " rm -f" $$list; \
+	rm -f $$list
 
 clean-noinstPROGRAMS:
 	@list='$(noinst_PROGRAMS)'; test -n "$$list" || exit 0; \
@@ -879,7 +930,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(PROGRAMS) $(SCRIPTS)
 installdirs:
-	for dir in "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -918,8 +969,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstPROGRAMS \
-	mostlyclean-am
+clean-am: clean-binPROGRAMS clean-generic clean-libtool \
+	clean-noinstPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf http_load/$(DEPDIR) jtest/$(DEPDIR)
@@ -945,7 +996,7 @@ install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am: install-binSCRIPTS
+install-exec-am: install-binPROGRAMS install-binSCRIPTS
 
 install-html: install-html-am
 
@@ -985,15 +1036,16 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binSCRIPTS
+uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS
 
 .MAKE: install-am install-strip
 
-.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstPROGRAMS cscopelist-am ctags \
-	ctags-am distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-binSCRIPTS \
+.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean \
+	clean-binPROGRAMS clean-generic clean-libtool \
+	clean-noinstPROGRAMS cscopelist-am ctags ctags-am distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-binPROGRAMS install-binSCRIPTS \
 	install-data install-data-am install-dvi install-dvi-am \
 	install-exec install-exec-am install-html install-html-am \
 	install-info install-info-am install-man install-pdf \
@@ -1001,7 +1053,8 @@ uninstall-am: uninstall-binSCRIPTS
 	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binSCRIPTS
+	tags tags-am uninstall uninstall-am uninstall-binPROGRAMS \
+	uninstall-binSCRIPTS
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

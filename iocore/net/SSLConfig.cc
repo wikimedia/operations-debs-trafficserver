@@ -43,6 +43,7 @@ int SSLConfig::configid = 0;
 int SSLCertificateConfig::configid = 0;
 int SSLConfigParams::ssl_maxrecord = 0;
 bool SSLConfigParams::ssl_allow_client_renegotiation = false;
+init_ssl_ctx_func SSLConfigParams::init_ssl_ctx_cb = NULL;
 
 static ConfigUpdateHandler<SSLCertificateConfig> * sslCertUpdate;
 
@@ -130,6 +131,8 @@ SSLConfigParams::initialize()
   char *ssl_client_private_key_path = NULL;
   char *clientCACertRelativePath = NULL;
   char *multicert_config_file = NULL;
+  char *ssl_server_ca_cert_filename = NULL;
+  char *ssl_client_ca_cert_filename = NULL;
 
   cleanup();
 
@@ -150,7 +153,7 @@ SSLConfigParams::initialize()
   if (!options)
     ssl_ctx_options |= SSL_OP_NO_TLSv1;
 
-  // These are not available in all, older versions of OpenSSL (e.g. CentOS6)
+  // These are not available in all versions of OpenSSL (e.g. CentOS6). Also see http://s.apache.org/TS-2355.
 #ifdef SSL_OP_NO_TLSv1_1
   REC_ReadConfigInteger(options, "proxy.config.ssl.TLSv1_1");
   if (!options)
@@ -209,9 +212,10 @@ SSLConfigParams::initialize()
   set_paths_helper(ssl_server_private_key_path, NULL, &serverKeyPathOnly, NULL);
   ats_free(ssl_server_private_key_path);
 
-  REC_ReadConfigStringAlloc(serverCACertFilename, "proxy.config.ssl.CA.cert.filename");
+  REC_ReadConfigStringAlloc(ssl_server_ca_cert_filename, "proxy.config.ssl.CA.cert.filename");
   REC_ReadConfigStringAlloc(CACertRelativePath, "proxy.config.ssl.CA.cert.path");
-  set_paths_helper(CACertRelativePath, serverCACertFilename, &serverCACertPath, &serverCACertFilename);
+  set_paths_helper(CACertRelativePath, ssl_server_ca_cert_filename, &serverCACertPath, &serverCACertFilename);
+  ats_free(ssl_server_ca_cert_filename);
   ats_free(CACertRelativePath);
 
   // SSL session cache configurations
@@ -240,10 +244,11 @@ SSLConfigParams::initialize()
   ats_free_null(ssl_client_private_key_filename);
   ats_free_null(ssl_client_private_key_path);
 
-  REC_ReadConfigStringAlloc(clientCACertFilename, "proxy.config.ssl.client.CA.cert.filename");
+  REC_ReadConfigStringAlloc(ssl_client_ca_cert_filename, "proxy.config.ssl.client.CA.cert.filename");
   REC_ReadConfigStringAlloc(clientCACertRelativePath, "proxy.config.ssl.client.CA.cert.path");
-  set_paths_helper(clientCACertRelativePath, clientCACertFilename, &clientCACertPath, &clientCACertFilename);
+  set_paths_helper(clientCACertRelativePath, ssl_client_ca_cert_filename, &clientCACertPath, &clientCACertFilename);
   ats_free(clientCACertRelativePath);
+  ats_free(ssl_client_ca_cert_filename);
 
   REC_ReadConfigInt32(ssl_allow_client_renegotiation, "proxy.config.ssl.allow_client_renegotiation");
 }
@@ -258,7 +263,7 @@ void
 SSLConfig::reconfigure()
 {
   SSLConfigParams *params;
-  params = NEW(new SSLConfigParams);
+  params = new SSLConfigParams;
   params->initialize();         // re-read configuration
   configid = configProcessor.set(configid, params);
 }
@@ -278,7 +283,7 @@ SSLConfig::release(SSLConfigParams * params)
 void
 SSLCertificateConfig::startup()
 {
-  sslCertUpdate = NEW(new ConfigUpdateHandler<SSLCertificateConfig>());
+  sslCertUpdate = new ConfigUpdateHandler<SSLCertificateConfig>();
   sslCertUpdate->attach("proxy.config.ssl.server.multicert.filename");
   sslCertUpdate->attach("proxy.config.ssl.server.cert.path");
   sslCertUpdate->attach("proxy.config.ssl.server.private_key.path");
@@ -291,7 +296,15 @@ void
 SSLCertificateConfig::reconfigure()
 {
   SSLConfig::scoped_config params;
-  SSLCertLookup * lookup = NEW(new SSLCertLookup());
+  SSLCertLookup * lookup = new SSLCertLookup();
+
+  // Test SSL certificate loading startup. With large numbers of certificates, reloading can take time, so delay
+  // twice the healthcheck period to simulate a loading a large certificate set.
+  if (is_action_tag_set("test.multicert.delay")) {
+    const int secs = 60;
+    Debug("ssl", "delaying certificate reload by %dsecs", secs);
+    ink_hrtime_sleep(HRTIME_SECONDS(secs));
+  }
 
   if (SSLParseCertificateConfiguration(params, lookup)) {
     configid = configProcessor.set(configid, lookup);

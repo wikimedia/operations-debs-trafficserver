@@ -23,7 +23,8 @@
 #define __OPERATORS_H__ 1
 
 #include <string>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
 
 #include "operator.h"
 #include "resources.h"
@@ -183,6 +184,25 @@ private:
 
   TimeoutOutType _type;
   Value _timeout;
+};
+
+class OperatorSkipRemap : public Operator
+{
+public:
+  OperatorSkipRemap()
+    : _skip_remap(false)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSkipRemap");
+  }
+  void initialize(Parser& p);
+
+protected:
+  void exec(const Resources& res) const;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSkipRemap);
+
+  bool _skip_remap;
 };
 
 

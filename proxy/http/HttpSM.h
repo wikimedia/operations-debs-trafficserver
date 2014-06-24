@@ -62,15 +62,14 @@
 
 // The default size for http header buffers when we don't
 //   need to include extra space for the document
-#define HTTP_HEADER_BUFFER_SIZE       2048
-#define HTTP_HEADER_BUFFER_SIZE_INDEX BUFFER_SIZE_INDEX_4K      //changed by YTS Team, yamsat for BUGID-59651
+static size_t const HTTP_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
 
 // We want to use a larger buffer size when reading response
 //   headers from the origin server since we want to get
 //   as much of the document as possible on the first read
 //   Marco benchmarked about 3% ops/second improvement using
 //   the larger buffer size
-#define HTTP_SERVER_RESP_HDR_BUFFER_INDEX BUFFER_SIZE_INDEX_8K
+static size_t const HTTP_SERVER_RESP_HDR_BUFFER_INDEX = BUFFER_SIZE_INDEX_8K;
 
 class HttpServerSession;
 class AuthHttpAdapter;
@@ -263,20 +262,19 @@ public:
   void add_history_entry(const char *fileline, int event, int reentrant);
   void add_cache_sm();
   bool is_private();
-  bool decide_cached_url(URL * s_url);
+  bool is_redirect_required();
 
   int64_t sm_id;
   unsigned int magic;
 
   //YTS Team, yamsat Plugin
   bool enable_redirection;      //To check if redirection is enabled
-  bool api_enable_redirection;  //To check if redirection is enabled
-  char *redirect_url;           //url for force redirect (provide users a functionality to redirect to another url when needed)
+  char *redirect_url;     //url for force redirect (provide users a functionality to redirect to another url when needed)
   int redirect_url_len;
   int redirection_tries;        //To monitor number of redirections
-  int64_t transfered_bytes;         //Added to calculate POST data
+  int64_t transfered_bytes;     //Added to calculate POST data
   bool post_failed;             //Added to identify post failure
-  bool debug_on;              //Transaction specific debug flag
+  bool debug_on;               //Transaction specific debug flag
 
   // Tunneling request to plugin
   HttpPluginTunnel_t plugin_tunnel_type;
@@ -490,6 +488,11 @@ public:
   int pushed_response_hdr_bytes;
   int64_t pushed_response_body_bytes;
   TransactionMilestones milestones;
+  // The next two enable plugins to tag the state machine for
+  // the purposes of logging so the instances can be correlated
+  // with the source plugin.
+  char const* plugin_tag;
+  int64_t plugin_id;
 
   // hooks_set records whether there are any hooks relevant
   //  to this transaction.  Used to avoid costly calls
@@ -617,7 +620,7 @@ inline void
 HttpSM::add_cache_sm()
 {
   if (second_cache_sm == NULL) {
-    second_cache_sm = NEW(new HttpCacheSM);
+    second_cache_sm = new HttpCacheSM;
     second_cache_sm->init(this, mutex);
     second_cache_sm->set_lookup_url(cache_sm.get_lookup_url());
     if (t_state.cache_info.object_read != NULL) {
