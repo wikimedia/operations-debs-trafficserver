@@ -1,3 +1,11 @@
+trafficserver (5.0.0-1~bbc75+1) stable; urgency=medium
+
+  * Imported Upstream version 5.0.0
+  * Delete hwloc patch. Fixed upstream
+  * Delete TS-1375 & TS-2267 patch. Fixed upstream
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Tue, 24 Jun 2014 09:23:43 +0200
+
 trafficserver (4.2.1-2~bbc75+1) stable; urgency=medium
 
   * Fix libhwloc support
