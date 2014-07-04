@@ -22,6 +22,7 @@
  */
 
 #include "ink_config.h"
+#include "apidefs.h"
 #include "libts.h"
 #include "P_SSLNextProtocolSet.h"
 
@@ -62,6 +63,7 @@ create_npn_advertisement(
   }
 
   for (ep = endpoints.head; ep != NULL; ep = endpoints.next(ep)) {
+    Debug("ssl", "advertising protocol %s", ep->protocol);
     advertised = append_protocol(ep->protocol, advertised);
   }
 
@@ -84,7 +86,6 @@ SSLNextProtocolSet::advertiseProtocols(const unsigned char ** out, unsigned * le
   if (npn && npnsz) {
     *out = npn;
     *len = npnsz;
-    Debug("ssl", "advertised NPN set %.*s", (int)npnsz, npn);
     return true;
   }
 
@@ -94,6 +95,8 @@ SSLNextProtocolSet::advertiseProtocols(const unsigned char ** out, unsigned * le
 bool
 SSLNextProtocolSet::registerEndpoint(const char * proto, Continuation * ep)
 {
+  size_t len = strlen(proto);
+
   // Once we start advertising, the set is closed. We need to hand an immutable
   // string down into OpenSSL, and there is no mechanism to tell us when it's
   // done with it so we have to keep it forever.
@@ -101,12 +104,13 @@ SSLNextProtocolSet::registerEndpoint(const char * proto, Continuation * ep)
     return false;
   }
 
-  if (strlen(proto) > 255) {
+  // Both ALPN and NPN only allow 255 bytes of protocol name.
+  if (len > 255) {
     return false;
   }
 
-  if (findEndpoint(proto) == NULL) {
-    this->endpoints.push(NEW(new NextProtocolEndpoint(proto, ep)));
+  if (!findEndpoint((const unsigned char *)proto, len)) {
+    this->endpoints.push(new NextProtocolEndpoint(proto, ep));
     return true;
   }
 
@@ -131,29 +135,15 @@ SSLNextProtocolSet::unregisterEndpoint(const char * proto, Continuation * ep)
 }
 
 Continuation *
-SSLNextProtocolSet::findEndpoint(const unsigned char * proto, unsigned len) const
+SSLNextProtocolSet::findEndpoint(
+  const unsigned char * proto, unsigned len) const
 {
-  for (const NextProtocolEndpoint * ep = this->endpoints.head;
-        ep != NULL; ep = this->endpoints.next(ep)) {
+  for (const NextProtocolEndpoint * ep = this->endpoints.head; ep != NULL; ep = this->endpoints.next(ep)) {
     size_t sz = strlen(ep->protocol);
     if (sz == len && memcmp(ep->protocol, proto, len) == 0) {
       return ep->endpoint;
     }
   }
-
-  return NULL;
-}
-
-Continuation *
-SSLNextProtocolSet::findEndpoint(const char * proto) const
-{
-  for (const NextProtocolEndpoint * ep = this->endpoints.head;
-        ep != NULL; ep = this->endpoints.next(ep)) {
-    if (strcmp(proto, ep->protocol) == 0) {
-      return ep->endpoint;
-    }
-  }
-
   return NULL;
 }
 
@@ -172,8 +162,8 @@ SSLNextProtocolSet::~SSLNextProtocolSet()
 }
 
 SSLNextProtocolSet::NextProtocolEndpoint::NextProtocolEndpoint(
-        const char * proto, Continuation * ep)
-  : protocol(proto), endpoint(ep)
+        const char * _proto, Continuation * _ep)
+  : protocol(_proto),  endpoint(_ep)
 {
 }
 

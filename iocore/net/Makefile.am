@@ -16,26 +16,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-if STANDALONE_IOCORE
-AM_CPPFLAGS = \
-  $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts
-else
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
+  -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils
-endif
 
-
-DEFS += @IOCORE_MODULARIZED_DEFS@
 TESTS = $(check_PROGRAMS)
 
 check_PROGRAMS = test_certlookup
@@ -48,11 +40,10 @@ test_certlookup_SOURCES = \
 test_certlookup_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  @LIBSSL@
+  @OPENSSL_LIBS@
 
 libinknet_a_SOURCES = \
   Connection.cc \
-  I_NetErrno.h \
   I_Net.h \
   I_NetProcessor.h \
   I_NetVConnection.h \
@@ -60,14 +51,17 @@ libinknet_a_SOURCES = \
   I_UDPConnection.h \
   I_UDPNet.h \
   I_UDPPacket.h \
+  Inline.cc \
+  I_SessionAccept.h \
+  SessionAccept.cc \
   Net.cc \
   NetVConnection.cc \
   P_CompletionUtil.h \
   P_Connection.h \
   P_InkBulkIO.h \
   P_LibBulkIO.h \
-  P_NetAccept.h \
   P_Net.h \
+  P_NetAccept.h \
   P_NetVConnection.h \
   P_Socks.h \
   P_SSLCertLookup.h \
@@ -75,6 +69,10 @@ libinknet_a_SOURCES = \
   P_SSLNetAccept.h \
   P_SSLNetProcessor.h \
   P_SSLNetVConnection.h \
+  P_SSLNextProtocolAccept.h \
+  P_SSLNextProtocolSet.h \
+  P_SSLUtils.h \
+  P_Socks.h \
   P_UDPConnection.h \
   P_UDPIOEvent.h \
   P_UDPNet.h \
@@ -89,24 +87,32 @@ libinknet_a_SOURCES = \
   Socks.cc \
   SSLCertLookup.cc \
   SSLConfig.cc \
+  SSLNetAccept.cc \
   SSLNetProcessor.cc \
   SSLNetVConnection.cc \
-  SSLNetAccept.cc \
   SSLNextProtocolAccept.cc \
   SSLNextProtocolSet.cc \
   SSLUtils.cc \
+  Socks.cc \
   UDPIOEvent.cc \
   UnixConnection.cc \
-  UnixNetAccept.cc \
   UnixNet.cc \
+  UnixNetAccept.cc \
   UnixNetPages.cc \
   UnixNetProcessor.cc \
   UnixNetVConnection.cc \
   UnixUDPConnection.cc \
-  UnixUDPNet.cc \
-  Inline.cc
+  UnixUDPNet.cc
+
+#test_UNUSED_SOURCES = \
+#  NetTest-http-server.c \
+#  test_I_Net.cc \
+#  test_I_UDPNet.cc \
+#  test_P_Net.cc \
+#  test_P_UDPNet.cc
 
 if BUILD_TESTS
-  libinknet_a_SOURCES += NetVCTest.cc \
-    P_NetVCTest.h
+  libinknet_a_SOURCES += \
+     NetVCTest.cc \
+     P_NetVCTest.h
 endif

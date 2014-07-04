@@ -51,8 +51,8 @@ HttpServerSession::destroy()
   }
 
   mutex.clear();
-  if (2 == share_session)
-    THREAD_FREE(this, httpServerSessionAllocator, this_ethread());
+  if (TS_SERVER_SESSION_SHARING_POOL_THREAD == sharing_pool)
+    THREAD_FREE(this, httpServerSessionAllocator, this_thread());
   else
     httpServerSessionAllocator.free(this);
 }
@@ -119,8 +119,9 @@ HttpServerSession::do_io_close(int alerrno)
     this->server_trans_stat--;
   }
 
+  Debug("http_ss", "[%" PRId64 "] session closing, netvc %p", con_id, server_vc);
+
   server_vc->do_io_close(alerrno);
-  Debug("http_ss", "[%" PRId64 "] session closed", con_id);
   server_vc = NULL;
 
   HTTP_SUM_GLOBAL_DYN_STAT(http_current_server_connections_stat, -1); // Make sure to work on the global stat
@@ -165,7 +166,7 @@ HttpServerSession::release()
   state = HSS_KA_SHARED;
 
   // Private sessions are never released back to the shared pool
-  if (private_session || share_session == 0) {
+  if (private_session || TS_SERVER_SESSION_SHARING_MATCH_NONE == sharing_match) {
     this->do_io_close();
     return;
   }

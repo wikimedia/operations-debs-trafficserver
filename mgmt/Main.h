@@ -25,7 +25,6 @@
 #define _MAIN_H_
 
 #include "FileManager.h"
-#include "WebOverview.h"
 #include "I_Version.h"
 
 // TODO: consolidate location of these defaults
@@ -37,11 +36,10 @@
 void MgmtShutdown(int status);
 void fileUpdated(char *fname, bool incVersion);
 void runAsUser(char *userName);
-void extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *fds_throttle);
 void printUsage(void);
 
 extern FileManager *configFiles;
-extern overviewPage *overviewGenerator;
+//extern overviewPage *overviewGenerator;
 extern AppVersionInfo appVersionInfo;
 
 // Global strings

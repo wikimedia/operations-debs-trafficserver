@@ -32,6 +32,7 @@
 #include "libts.h"
 #include "I_Layout.h"
 #include "LocalManager.h"
+#include "Alarms.h"
 #include "WebHttp.h"
 #include "WebGlobals.h"
 #include "MgmtUtils.h"
@@ -51,20 +52,6 @@ extern "C"
   int usleep(unsigned int useconds);
 }
 #endif
-
-/* Ugly hack - define HEADER_MD_5 to prevent the SSLeay md5.h
- *  header file from being included since it conflicts with the
- *  md5 implememntation from ink_code.h
- *
- *  Additionally define HEAP_H and STACK_H to prevent stuff
- *   from the template library from being included which
- *   SUNPRO CC does not not like.
- */
-
-// part of ugly hack described no longer needed
-//#define HEADER_MD5_H
-#define HEAP_H
-#define STACK_H
 
 typedef int fd;
 
@@ -171,6 +158,7 @@ newUNIXsocket(char *fpath)
     return socketFD;
   }
 
+  ink_zero(serv_addr);
   serv_addr.sun_family = AF_UNIX;
   ink_strlcpy(serv_addr.sun_path, fpath, sizeof(serv_addr.sun_path));
 #if defined(darwin) || defined(freebsd)
@@ -415,11 +403,11 @@ webIntr_main(void *)
 
     if ((err = stat(autoconfContext.docRoot, &s)) < 0) {
       ats_free(autoconfContext.docRoot);
-      autoconfContext.docRoot = ats_strdup(system_config_directory);
+      autoconfContext.docRoot = ats_strdup(Layout::get()->sysconfdir);
       if ((err = stat(autoconfContext.docRoot, &s)) < 0) {
         mgmt_elog(0, "[WebIntrMain] unable to stat() directory '%s': %d %d, %s\n",
                 autoconfContext.docRoot, err, errno, strerror(errno));
-        mgmt_elog(0, "[WebIntrMain] please set config path via command line '-path <path>' or 'proxy.config.config_dir' \n");
+        mgmt_elog(0, "[WebIntrMain] please set the 'TS_ROOT' environment variable\n");
         mgmt_fatal(stderr, 0, "[WebIntrMain] No Client AutoConf Root\n");
       }
     }
@@ -432,11 +420,12 @@ webIntr_main(void *)
   // set up socket paths;
   char api_sock_path[1024];
   char event_sock_path[1024];
+  xptr<char> rundir(RecConfigReadRuntimeDir());
 
   bzero(api_sock_path, 1024);
   bzero(event_sock_path, 1024);
-  snprintf(api_sock_path, sizeof(api_sock_path), "%s/mgmtapisocket", system_runtime_dir);
-  snprintf(event_sock_path, sizeof(event_sock_path), "%s/eventapisocket", system_runtime_dir);
+  snprintf(api_sock_path, sizeof(api_sock_path), "%s/mgmtapisocket", (const char *)rundir);
+  snprintf(event_sock_path, sizeof(event_sock_path), "%s/eventapisocket", (const char *)rundir);
 
   // INKqa12562: MgmtAPI sockets should be created with 775 permission
   mode_t oldmask = umask(S_IWOTH);

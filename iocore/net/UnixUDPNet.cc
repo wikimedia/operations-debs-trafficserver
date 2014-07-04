@@ -298,6 +298,10 @@ UDPReadContinuation::setupPollDescriptor()
   Pollfd *pfd;
   EThread *et = (EThread *) this_thread();
   PollCont *pc = get_PollCont(et);
+  if (pc->nextPollDescriptor == NULL) {
+    pc->nextPollDescriptor = new PollDescriptor;
+    pc->nextPollDescriptor->init();
+  }
   pfd = pc->nextPollDescriptor->alloc();
   pfd->fd = fd;
   ifd = pfd - pc->nextPollDescriptor->pfd;
@@ -337,7 +341,7 @@ UDPReadContinuation::readPollEvent(int event_, Event * e)
   }
   //ink_assert(ifd < 0 || event_ == EVENT_INTERVAL || (event_ == EVENT_POLL && pc->pollDescriptor->nfds > ifd && pc->pollDescriptor->pfd[ifd].fd == fd));
   //if (ifd < 0 || event_ == EVENT_INTERVAL || (pc->pollDescriptor->pfd[ifd].revents & POLLIN)) {
-  ink_assert(!"incomplete");
+  //ink_assert(!"incomplete");
   c = completionUtil::getContinuation(event);
   // do read
   socklen_t tmp_fromlen = *fromaddrlen;
@@ -600,7 +604,7 @@ UDPNetProcessor::UDPBind(Continuation * cont, sockaddr const* addr, int send_buf
   if ((res = safe_getsockname(fd, &myaddr.sa, &myaddr_len)) < 0) {
     goto Lerror;
   }
-  n = NEW(new UnixUDPConnection(fd));
+  n = new UnixUDPConnection(fd);
 
   Debug("udpnet", "UDPNetProcessor::UDPBind: %p fd=%d", n, fd);
   n->setBinding(&myaddr.sa);
@@ -697,7 +701,6 @@ UDPQueue::SendPackets()
 
 sendPackets:
   sentOne = false;
-  send_threshold_time = now + SLOT_TIME;
   bytesThisPipe = (int32_t)bytesThisSlot;
 
   while ((bytesThisPipe > 0) && (pipeInfo.firstPacket(send_threshold_time))) {

@@ -141,6 +141,7 @@ const char *MIME_FIELD_RETRY_AFTER;
 const char *MIME_FIELD_SENDER;
 const char *MIME_FIELD_SERVER;
 const char *MIME_FIELD_SET_COOKIE;
+const char *MIME_FIELD_STRICT_TRANSPORT_SECURITY;
 const char *MIME_FIELD_SUBJECT;
 const char *MIME_FIELD_SUMMARY;
 const char *MIME_FIELD_TE;
@@ -155,6 +156,8 @@ const char *MIME_FIELD_XREF;
 const char *MIME_FIELD_INT_DATA_INFO;
 const char *MIME_FIELD_X_ID;
 const char *MIME_FIELD_X_FORWARDED_FOR;
+const char *MIME_FIELD_SEC_WEBSOCKET_KEY;
+const char *MIME_FIELD_SEC_WEBSOCKET_VERSION;
 
 const char *MIME_VALUE_BYTES;
 const char *MIME_VALUE_CHUNKED;
@@ -178,6 +181,8 @@ const char *MIME_VALUE_PROXY_REVALIDATE;
 const char *MIME_VALUE_PUBLIC;
 const char *MIME_VALUE_S_MAXAGE;
 const char *MIME_VALUE_NEED_REVALIDATE_ONCE;
+const char *MIME_VALUE_WEBSOCKET;
+
 // Cache-control: extension "need-revalidate-once" is used internally by T.S.
 // to invalidate a document, and it is not returned/forwarded.
 // If a cached document has this extension set (ie, is invalidated),
@@ -249,6 +254,7 @@ int MIME_LEN_RETRY_AFTER;
 int MIME_LEN_SENDER;
 int MIME_LEN_SERVER;
 int MIME_LEN_SET_COOKIE;
+int MIME_LEN_STRICT_TRANSPORT_SECURITY;
 int MIME_LEN_SUBJECT;
 int MIME_LEN_SUMMARY;
 int MIME_LEN_TE;
@@ -263,6 +269,8 @@ int MIME_LEN_XREF;
 int MIME_LEN_INT_DATA_INFO;
 int MIME_LEN_X_ID;
 int MIME_LEN_X_FORWARDED_FOR;
+int MIME_LEN_SEC_WEBSOCKET_KEY;
+int MIME_LEN_SEC_WEBSOCKET_VERSION;
 
 int MIME_WKSIDX_ACCEPT;
 int MIME_WKSIDX_ACCEPT_CHARSET;
@@ -323,6 +331,7 @@ int MIME_WKSIDX_RETRY_AFTER;
 int MIME_WKSIDX_SENDER;
 int MIME_WKSIDX_SERVER;
 int MIME_WKSIDX_SET_COOKIE;
+int MIME_WKSIDX_STRICT_TRANSPORT_SECURITY;
 int MIME_WKSIDX_SUBJECT;
 int MIME_WKSIDX_SUMMARY;
 int MIME_WKSIDX_TE;
@@ -337,7 +346,8 @@ int MIME_WKSIDX_XREF;
 int MIME_WKSIDX_INT_DATA_INFO;
 int MIME_WKSIDX_X_ID;
 int MIME_WKSIDX_X_FORWARDED_FOR;
-
+int MIME_WKSIDX_SEC_WEBSOCKET_KEY;
+int MIME_WKSIDX_SEC_WEBSOCKET_VERSION;
 
 /***********************************************************************
  *                                                                     *
@@ -512,7 +522,7 @@ mime_hdr_sanity_check(MIMEHdrImpl *mh)
     for (index = 0; index < fblock->m_freetop; index++) {
       field = &(fblock->m_field_slots[index]);
 
-      if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE) {
+      if (field->is_live()) {
         // dummy operations just to make sure deref doesn't crash
         checksum_block(field->m_ptr_name, field->m_len_name);
         if (field->m_ptr_value)
@@ -600,10 +610,10 @@ mime_init()
     init = 0;
     
     hdrtoken_init();
-    day_names_dfa = NEW(new DFA);
+    day_names_dfa = new DFA;
     day_names_dfa->compile(day_names, SIZEOF(day_names), RE_CASE_INSENSITIVE);
     
-    month_names_dfa = NEW(new DFA);
+    month_names_dfa = new DFA;
     month_names_dfa->compile(month_names, SIZEOF(month_names), RE_CASE_INSENSITIVE);
     
     MIME_FIELD_ACCEPT = hdrtoken_string_to_wks("Accept");
@@ -665,6 +675,7 @@ mime_init()
     MIME_FIELD_SENDER = hdrtoken_string_to_wks("Sender");
     MIME_FIELD_SERVER = hdrtoken_string_to_wks("Server");
     MIME_FIELD_SET_COOKIE = hdrtoken_string_to_wks("Set-Cookie");
+    MIME_FIELD_STRICT_TRANSPORT_SECURITY = hdrtoken_string_to_wks("Strict-Transport-Security");
     MIME_FIELD_SUBJECT = hdrtoken_string_to_wks("Subject");
     MIME_FIELD_SUMMARY = hdrtoken_string_to_wks("Summary");
     MIME_FIELD_TE = hdrtoken_string_to_wks("TE");
@@ -679,6 +690,9 @@ mime_init()
     MIME_FIELD_INT_DATA_INFO = hdrtoken_string_to_wks("@DataInfo");
     MIME_FIELD_X_ID = hdrtoken_string_to_wks("X-ID");
     MIME_FIELD_X_FORWARDED_FOR = hdrtoken_string_to_wks("X-Forwarded-For");
+
+    MIME_FIELD_SEC_WEBSOCKET_KEY = hdrtoken_string_to_wks("Sec-WebSocket-Key");
+    MIME_FIELD_SEC_WEBSOCKET_VERSION = hdrtoken_string_to_wks("Sec-WebSocket-Version");
 
 
     MIME_LEN_ACCEPT = hdrtoken_wks_to_length(MIME_FIELD_ACCEPT);
@@ -740,6 +754,7 @@ mime_init()
     MIME_LEN_SENDER = hdrtoken_wks_to_length(MIME_FIELD_SENDER);
     MIME_LEN_SERVER = hdrtoken_wks_to_length(MIME_FIELD_SERVER);
     MIME_LEN_SET_COOKIE = hdrtoken_wks_to_length(MIME_FIELD_SET_COOKIE);
+    MIME_LEN_STRICT_TRANSPORT_SECURITY = hdrtoken_wks_to_length(MIME_FIELD_STRICT_TRANSPORT_SECURITY);
     MIME_LEN_SUBJECT = hdrtoken_wks_to_length(MIME_FIELD_SUBJECT);
     MIME_LEN_SUMMARY = hdrtoken_wks_to_length(MIME_FIELD_SUMMARY);
     MIME_LEN_TE = hdrtoken_wks_to_length(MIME_FIELD_TE);
@@ -754,6 +769,10 @@ mime_init()
     MIME_LEN_INT_DATA_INFO = hdrtoken_wks_to_length(MIME_FIELD_INT_DATA_INFO);
     MIME_LEN_X_ID = hdrtoken_wks_to_length(MIME_FIELD_X_ID);
     MIME_LEN_X_FORWARDED_FOR = hdrtoken_wks_to_length(MIME_FIELD_X_FORWARDED_FOR);
+
+    MIME_LEN_SEC_WEBSOCKET_KEY = hdrtoken_wks_to_length(MIME_FIELD_SEC_WEBSOCKET_KEY);
+    MIME_LEN_SEC_WEBSOCKET_VERSION = hdrtoken_wks_to_length(MIME_FIELD_SEC_WEBSOCKET_VERSION);
+
 
     MIME_WKSIDX_ACCEPT = hdrtoken_wks_to_index(MIME_FIELD_ACCEPT);
     MIME_WKSIDX_ACCEPT_CHARSET = hdrtoken_wks_to_index(MIME_FIELD_ACCEPT_CHARSET);
@@ -814,6 +833,7 @@ mime_init()
     MIME_WKSIDX_SENDER = hdrtoken_wks_to_index(MIME_FIELD_SENDER);
     MIME_WKSIDX_SERVER = hdrtoken_wks_to_index(MIME_FIELD_SERVER);
     MIME_WKSIDX_SET_COOKIE = hdrtoken_wks_to_index(MIME_FIELD_SET_COOKIE);
+    MIME_WKSIDX_STRICT_TRANSPORT_SECURITY = hdrtoken_wks_to_index(MIME_FIELD_STRICT_TRANSPORT_SECURITY);
     MIME_WKSIDX_SUBJECT = hdrtoken_wks_to_index(MIME_FIELD_SUBJECT);
     MIME_WKSIDX_SUMMARY = hdrtoken_wks_to_index(MIME_FIELD_SUMMARY);
     MIME_WKSIDX_TE = hdrtoken_wks_to_index(MIME_FIELD_TE);
@@ -827,6 +847,8 @@ mime_init()
     MIME_WKSIDX_XREF = hdrtoken_wks_to_index(MIME_FIELD_XREF);
     MIME_WKSIDX_X_ID = hdrtoken_wks_to_index(MIME_FIELD_X_ID);
     MIME_WKSIDX_X_FORWARDED_FOR = hdrtoken_wks_to_index(MIME_FIELD_X_FORWARDED_FOR);
+    MIME_WKSIDX_SEC_WEBSOCKET_KEY = hdrtoken_wks_to_index(MIME_FIELD_SEC_WEBSOCKET_KEY);
+    MIME_WKSIDX_SEC_WEBSOCKET_VERSION = hdrtoken_wks_to_index(MIME_FIELD_SEC_WEBSOCKET_VERSION);
 
     MIME_VALUE_BYTES = hdrtoken_string_to_wks("bytes");
     MIME_VALUE_CHUNKED = hdrtoken_string_to_wks("chunked");
@@ -850,6 +872,8 @@ mime_init()
     MIME_VALUE_PUBLIC = hdrtoken_string_to_wks("public");
     MIME_VALUE_S_MAXAGE = hdrtoken_string_to_wks("s-maxage");
     MIME_VALUE_NEED_REVALIDATE_ONCE = hdrtoken_string_to_wks("need-revalidate-once");
+    MIME_VALUE_WEBSOCKET = hdrtoken_string_to_wks("websocket");
+
 
     mime_init_date_format_table();
     mime_init_cache_control_cooking_masks();
@@ -1119,10 +1143,13 @@ void
 mime_hdr_field_block_list_adjust(int /* block_count ATS_UNUSED */, MIMEFieldBlockImpl *old_list,
                                  MIMEFieldBlockImpl *new_list)
 {
-  for (MIMEFieldBlockImpl *new_blk = new_list; new_blk; new_blk = new_blk->m_next)
-    for (MIMEField *field = new_blk->m_field_slots, *end=field + new_blk->m_freetop; field != end; ++field)
-      if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE && field->m_next_dup)
+  for (MIMEFieldBlockImpl *new_blk = new_list; new_blk; new_blk = new_blk->m_next) {
+    for (MIMEField *field = new_blk->m_field_slots, *end=field + new_blk->m_freetop; field != end; ++field) {
+      if (field->is_live() && field->m_next_dup) {
         relocate(field, new_list, old_list);
+      }
+    }
+  }
 }
 
 int
@@ -1137,8 +1164,9 @@ mime_hdr_length_get(MIMEHdrImpl *mh)
   for (fblock = &(mh->m_first_fblock); fblock != NULL; fblock = fblock->m_next) {
     for (index = 0; index < fblock->m_freetop; index++) {
       field = &(fblock->m_field_slots[index]);
-      if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE)
+      if (field->is_live()) {
         length += mime_field_length_get(field);
+      }
     }
   }
 
@@ -1394,8 +1422,9 @@ mime_hdr_field_attach(MIMEHdrImpl *mh, MIMEField *field, int check_for_dups, MIM
 {
   MIME_HDR_SANITY_CHECK(mh);
 
-  if (field->m_readiness != MIME_FIELD_SLOT_READINESS_DETACHED)
+  if (!field->is_detached()) {
     return;
+  }
 
   ink_assert(field->m_ptr_name != NULL);
 
@@ -1493,8 +1522,14 @@ mime_hdr_field_detach(MIMEHdrImpl *mh, MIMEField *field, bool detach_all_dups)
 {
   MIMEField *next_dup = field->m_next_dup;
 
-  ink_assert(field->is_live());
+  // If this field is already detached, there's nothing to do. There must
+  // not be a dup list if we detached correctly.
+  if (field->is_detached()) {
+    ink_assert(next_dup == NULL);
+    return;
+  }
 
+  ink_assert(field->is_live());
   MIME_HDR_SANITY_CHECK(mh);
 
   // Normally, this function is called with the current dup list head,
@@ -1560,15 +1595,21 @@ mime_hdr_field_delete(HdrHeap *heap, MIMEHdrImpl *mh, MIMEField *field, bool del
 
       MIME_HDR_SANITY_CHECK(mh);
       mime_hdr_field_detach(mh, field, 0);
+
       MIME_HDR_SANITY_CHECK(mh);
       mime_field_destroy(mh, field);
+
       MIME_HDR_SANITY_CHECK(mh);
       field = next;
     }
   } else {
     heap->free_string(field->m_ptr_name, field->m_len_name);
     heap->free_string(field->m_ptr_value, field->m_len_value);
+
+    MIME_HDR_SANITY_CHECK(mh);
     mime_hdr_field_detach(mh, field, 0);
+
+    MIME_HDR_SANITY_CHECK(mh);
     mime_field_destroy(mh, field);
   }
 
@@ -3491,7 +3532,7 @@ MIMEFieldBlockImpl::marshal(MarshalXlate *ptr_xlate, int num_ptr, MarshalXlate *
     for (uint32_t index = 0; index < m_freetop; index++) {
       MIMEField *field = &(m_field_slots[index]);
 
-      if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE) {
+      if (field->is_live()) {
         HDR_MARSHAL_STR_1(field->m_ptr_name, str_xlate);
         HDR_MARSHAL_STR_1(field->m_ptr_value, str_xlate);
         if (field->m_next_dup) {
@@ -3503,7 +3544,7 @@ MIMEFieldBlockImpl::marshal(MarshalXlate *ptr_xlate, int num_ptr, MarshalXlate *
     for (uint32_t index = 0; index < m_freetop; index++) {
       MIMEField *field = &(m_field_slots[index]);
 
-      if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE) {
+      if (field->is_live()) {
         HDR_MARSHAL_STR(field->m_ptr_name, str_xlate, num_str);
         HDR_MARSHAL_STR(field->m_ptr_value, str_xlate, num_str);
         if (field->m_next_dup) {
@@ -3525,7 +3566,7 @@ MIMEFieldBlockImpl::unmarshal(intptr_t offset)
     MIMEField *field = &(m_field_slots[index]);
 
     // FIX ME - DO I NEED TO DEAL WITH OTHER READINESSES?
-    if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE) {
+    if (field->is_live()) {
       HDR_UNMARSHAL_STR(field->m_ptr_name, offset);
       HDR_UNMARSHAL_STR(field->m_ptr_value, offset);
       if (field->m_next_dup) {
@@ -3542,8 +3583,7 @@ MIMEFieldBlockImpl::move_strings(HdrStrHeap *new_heap)
   for (uint32_t index = 0; index < m_freetop; index++) {
     MIMEField *field = &(m_field_slots[index]);
 
-    if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE ||
-        field->m_readiness == MIME_FIELD_SLOT_READINESS_DETACHED) {
+    if (field->is_live() || field->is_detached()) {
       // FIX ME - Should do the field in one shot and preserve
       //   raw_printable if it's set
       field->m_n_v_raw_printable = 0;
@@ -3554,14 +3594,30 @@ MIMEFieldBlockImpl::move_strings(HdrStrHeap *new_heap)
   }
 }
 
+size_t
+MIMEFieldBlockImpl::strings_length()
+{
+  size_t ret = 0;
+
+  for (uint32_t index = 0; index < m_freetop; index++) {
+    MIMEField *field = &(m_field_slots[index]);
+
+    if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE ||
+        field->m_readiness == MIME_FIELD_SLOT_READINESS_DETACHED) {
+      ret += field->m_len_name;
+      ret += field->m_len_value;
+    }
+  }
+  return ret;
+}
+
 void
 MIMEFieldBlockImpl::check_strings(HeapCheck *heaps, int num_heaps)
 {
   for (uint32_t index = 0; index < m_freetop; index++) {
     MIMEField *field = &(m_field_slots[index]);
 
-    if (field->m_readiness == MIME_FIELD_SLOT_READINESS_LIVE ||
-        field->m_readiness == MIME_FIELD_SLOT_READINESS_DETACHED) {
+    if (field->is_live() || field->is_detached()) {
       // FIX ME - Should check raw printing characters as well
       CHECK_STR(field->m_ptr_name, field->m_len_name, heaps, num_heaps);
       CHECK_STR(field->m_ptr_value, field->m_len_value, heaps, num_heaps);
@@ -3588,6 +3644,12 @@ void
 MIMEHdrImpl::move_strings(HdrStrHeap *new_heap)
 {
   m_first_fblock.move_strings(new_heap);
+}
+
+size_t
+MIMEHdrImpl::strings_length()
+{
+  return m_first_fblock.strings_length();
 }
 
 void

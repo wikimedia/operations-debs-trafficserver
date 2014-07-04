@@ -156,6 +156,7 @@ struct DNSEntry: public Continuation
   ink_hrtime send_time;
   char qname[MAXDNAME];
   int qname_len;
+  int orig_qname_len;
   char **domains;
   EThread *submit_thread;
   Action action;
@@ -179,8 +180,9 @@ struct DNSEntry: public Continuation
        qtype(0),
        host_res_style(HOST_RES_NONE),
        retries(DEFAULT_DNS_RETRIES),
-       which_ns(NO_NAMESERVER_SELECTED), submit_time(0), send_time(0), qname_len(0), domains(0),
-       timeout(0), result_ent(0), dnsH(0), written_flag(false), once_written_flag(false), last(false)
+       which_ns(NO_NAMESERVER_SELECTED), submit_time(0), send_time(0), qname_len(0),
+       orig_qname_len(0), domains(0), timeout(0), result_ent(0), dnsH(0), written_flag(false),
+       once_written_flag(false), last(false)
   {
     for (int i = 0; i < MAX_DNS_RETRIES; i++)
       id[i] = -1;
@@ -290,6 +292,32 @@ struct DNSHandler: public Continuation
 private:
   // Check the IP address and switch to default if needed.
   void validate_ip();
+};
+
+/* --------------------------------------------------------------
+   **                struct DNSServer
+
+   A record for an single server
+   -------------------------------------------------------------- */
+struct DNSServer
+{
+  IpEndpoint x_server_ip[MAXNS];
+  char x_dns_ip_line[MAXDNAME * 2];
+
+  char x_def_domain[MAXDNAME];
+  char x_domain_srch_list[MAXDNAME];
+
+  DNSHandler *x_dnsH;
+
+  DNSServer()
+  : x_dnsH(NULL)
+  {
+    memset(x_server_ip, 0, sizeof(x_server_ip));
+
+    memset(x_def_domain, 0, MAXDNAME);
+    memset(x_domain_srch_list, 0, MAXDNAME);
+    memset(x_dns_ip_line, 0, MAXDNAME * 2);
+  }
 };
 
 

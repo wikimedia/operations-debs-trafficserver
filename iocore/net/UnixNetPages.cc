@@ -22,9 +22,6 @@
  */
 
 #include "libts.h"
-
-#ifdef NON_MODULAR
-
 #include "P_Net.h"
 #include "Show.h"
 #include "I_Tasks.h"
@@ -216,7 +213,7 @@ ShowNet(Continuation * c, HTTPHdr * h):
 Action *
 register_ShowNet(Continuation * c, HTTPHdr * h)
 {
-  ShowNet *s = NEW(new ShowNet(c, h));
+  ShowNet *s = new ShowNet(c, h);
   int path_len;
   const char *path = h->url_get()->path_get(&path_len);
 
@@ -250,4 +247,3 @@ register_ShowNet(Continuation * c, HTTPHdr * h)
   return &s->action;
 }
 
-#endif

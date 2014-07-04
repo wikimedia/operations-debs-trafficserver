@@ -42,10 +42,11 @@
 #include "api/ts/ts.h"
 #include "api/ts/experimental.h"
 #include "I_RecCore.h"
-#include "I_Layout.h"
+#include <sys/types.h>
 
 #include "InkAPITestTool.cc"
 #include "http/HttpSM.h"
+#include "ts/TestBox.h"
 
 #define TC_PASS 1
 #define TC_FAIL 0
@@ -3688,6 +3689,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int /* atype ATS
   const char *field1Value3Get;
   const char *field1Value4Get;
   const char *field1Value5Get;
+  const char *field1ValueAllGet;
   const char *field1ValueNewGet;
 
   int lengthField1Value1;
@@ -3695,6 +3697,7 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int /* atype ATS
   int lengthField1Value3;
   int lengthField1Value4;
   int lengthField1Value5;
+  int lengthField1ValueAll;
   int lengthField1ValueNew;
 
   time_t field2Value1 = time(NULL);
@@ -3996,13 +3999,20 @@ REGRESSION_TEST(SDK_API_TSMimeHdrField) (RegressionTest * test, int /* atype ATS
       field1Value3Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 2, &lengthField1Value3);
       field1Value4Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 3, &lengthField1Value4);
       field1Value5Get = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, 4, &lengthField1Value5);
+      field1ValueAllGet = TSMimeHdrFieldValueStringGet(bufp1, mime_loc1, field_loc11, -1, &lengthField1ValueAll);
       if (((strncmp(field1Value1Get, field1Value1, lengthField1Value1) == 0) && lengthField1Value1 == (int) strlen(field1Value1)) &&
           ((strncmp(field1Value2Get, field1Value2, lengthField1Value2) == 0) && lengthField1Value2 == (int) strlen(field1Value2)) &&
           ((strncmp(field1Value3Get, field1Value3, lengthField1Value3) == 0) && lengthField1Value3 == (int) strlen(field1Value3)) &&
           ((strncmp(field1Value4Get, field1Value4, lengthField1Value4) == 0) && lengthField1Value4 == (int) strlen(field1Value4)) &&
-          ((strncmp(field1Value5Get, field1Value5, lengthField1Value5) == 0) && lengthField1Value5 == (int) strlen(field1Value5))) {
+          ((strncmp(field1Value5Get, field1Value5, lengthField1Value5) == 0) && lengthField1Value5 == (int) strlen(field1Value5)) &&
+          (strstr(field1ValueAllGet, field1Value1Get) == field1Value1Get) &&
+          (strstr(field1ValueAllGet, field1Value2Get) == field1Value2Get) &&
+          (strstr(field1ValueAllGet, field1Value3Get) == field1Value3Get) &&
+          (strstr(field1ValueAllGet, field1Value4Get) == field1Value4Get) &&
+          (strstr(field1ValueAllGet, field1Value5Get) == field1Value5Get)) {
         SDK_RPRINT(test, "TSMimeHdrFieldValueStringInsert", "TestCase1&2&3&4&5", TC_PASS, "ok");
         SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet", "TestCase1&2&3&4&5", TC_PASS, "ok");
+        SDK_RPRINT(test, "TSMimeHdrFieldValueStringGet with IDX=-1", "TestCase1&2&3&4&5", TC_PASS, "ok");
         test_passed_Mime_Hdr_Field_Value_String_Insert = true;
         test_passed_Mime_Hdr_Field_Value_String_Get = true;
 
@@ -5331,10 +5341,9 @@ REGRESSION_TEST(SDK_API_TSTextLog) (RegressionTest * test, int /* atype ATS_UNUS
 
   /* Generate a random log file name, so if we run the test several times, we won't use the
      same log file name. */
-  char *tmp = REC_ConfigReadString("proxy.config.log.logfile_dir");
+  xptr<char> tmp(RecConfigReadLogDir());
   snprintf(logname, sizeof(logname), "RegressionTestLog%d.log", (int) getpid());
-  snprintf(fullpath_logname, sizeof(fullpath_logname), "%s/%s", tmp, logname);
-  // ats_free(tmp);
+  snprintf(fullpath_logname, sizeof(fullpath_logname), "%s/%s", (const char *)tmp, logname);
 
   unlink(fullpath_logname);
   retVal = TSTextLogObjectCreate(logname, TS_LOG_MODE_ADD_TIMESTAMP, &log);
@@ -5387,7 +5396,7 @@ REGRESSION_TEST(SDK_API_TSMgmtGet) (RegressionTest * test, int /* atype ATS_UNUS
   int CONFIG_PARAM_COUNTER_VALUE = 0;
 
   const char *CONFIG_PARAM_FLOAT_NAME = "proxy.config.http.background_fill_completed_threshold";
-  float CONFIG_PARAM_FLOAT_VALUE = 0.5;
+  float CONFIG_PARAM_FLOAT_VALUE = 0.0;
 
   const char *CONFIG_PARAM_INT_NAME = "proxy.config.http.cache.http";
   int CONFIG_PARAM_INT_VALUE = 1;
@@ -6088,8 +6097,7 @@ cache_hook_handler(TSCont contp, TSEvent event, void *edata)
     TSSkipRemappingSet(txnp,1);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     break;
-  
-  
+
   case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE:
     {
       int lookup_status;
@@ -6251,7 +6259,7 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpTxnCache) (RegressionTest * test, int /* a
   socktest->first_time = true;
   socktest->magic = MAGIC_ALIVE;
   TSContDataSet(cont, socktest);
-  
+
   TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, cont);
   /* Register to HTTP hooks that are called in case of a cache MISS */
   TSHttpHookAdd(TS_HTTP_READ_CACHE_HDR_HOOK, cont);
@@ -6744,7 +6752,7 @@ transform_hook_handler(TSCont contp, TSEvent event, void *edata)
       } else {
         SDK_RPRINT(data->test, "TSHttpTxnTransformedResponseCache", "TestCase1", TC_FAIL, "Value's Mismatch");
       }
-      
+
       /* Note: response is available using test->browser->response pointer */
       *(data->pstatus) = REGRESSION_TEST_PASSED;
       if (data->browser1->status != REQUEST_SUCCESS) {
@@ -6827,9 +6835,9 @@ EXCLUSIVE_REGRESSION_TEST(SDK_API_HttpTxnTransform) (RegressionTest * test, int 
 
   /* Prepare the buffer to be appended to responses */
   load(TRANSFORM_APPEND_STRING);
-  
+
   TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, cont); //so we can skip remapping
-  
+
   /* Register to HTTP hooks that are called in case of a cache MISS */
   TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
 
@@ -7337,6 +7345,8 @@ const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {
   "proxy.config.http.keep_alive_enabled_out",
   "proxy.config.http.keep_alive_post_out",
   "proxy.config.http.share_server_sessions",
+  "proxy.config.http.server_session_sharing.pool",
+  "proxy.config.http.server_session_sharing.match",
   "proxy.config.net.sock_recv_buffer_size_out",
   "proxy.config.net.sock_send_buffer_size_out",
   "proxy.config.net.sock_option_flag_out",
@@ -7404,7 +7414,12 @@ const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {
   "proxy.config.http.response_header_max_size",
   "proxy.config.http.negative_revalidating_enabled",
   "proxy.config.http.negative_revalidating_lifetime",
-  "proxy.config.http.accept_encoding_filter_enabled"
+  "proxy.config.http.accept_encoding_filter_enabled",
+  "proxy.config.ssl.hsts_max_age",
+  "proxy.config.ssl.hsts_include_subdomains",
+  "proxy.config.http.cache.open_read_retry_time",
+  "proxy.config.http.cache.max_open_read_retries",
+  "proxy.config.http.cache.range.write",
 };
 
 REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int /* atype ATS_UNUSED */, int *pstatus)
@@ -7421,7 +7436,7 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int /* atyp
   const char *sval_read;
   const char *test_string = "The Apache Traffic Server";
   int len;
-  
+
 
   s->init();
 
@@ -7445,6 +7460,9 @@ REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int /* atyp
     switch (type) {
     case TS_RECORDDATATYPE_INT:
       ival_rand = generator.random() % 126; // to fit in a signed byte
+      // 4.1 backwards compatibility - remove for 5.0
+      if (TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS == key) ival_rand %= 2;
+      // end BC
       TSHttpTxnConfigIntSet(txnp, key, ival_rand);
       TSHttpTxnConfigIntGet(txnp, key, &ival_read);
       if (ival_rand != ival_read) {
@@ -7587,6 +7605,61 @@ REGRESSION_TEST(SDK_API_ENCODING) (RegressionTest * test, int /* atype ATS_UNUSE
       SDK_RPRINT(test, "TSBase64Decode", "TestCase1", TC_PASS, "ok");
     }
   }
+
+  *pstatus = success ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED;
+
+  return;
+}
+
+
+
+////////////////////////////////////////////////
+// SDK_API_DEBUG_NAME_LOOKUPS
+//
+// Unit Test for API: TSHttpServerStateNameLookup
+//                    TSHttpHookNameLookup
+//                    TSHttpEventNameLookup
+////////////////////////////////////////////////
+
+REGRESSION_TEST(SDK_API_DEBUG_NAME_LOOKUPS) (RegressionTest * test, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  bool success = true;
+  const char state_name[] = "INACTIVE_TIMEOUT";
+  const char hook_name[] = "TS_HTTP_READ_RESPONSE_HDR_HOOK";
+  const char event_name[] = "VC_EVENT_IMMEDIATE";
+  const char* str;
+
+  *pstatus = REGRESSION_TEST_INPROGRESS;
+
+  str = TSHttpServerStateNameLookup(TS_SRVSTATE_INACTIVE_TIMEOUT);
+  if ((strlen(str) != strlen(state_name) || strcmp(str, state_name))) {
+    SDK_RPRINT(test, "TSHttpServerStateNameLookup", "TestCase1", TC_FAIL, "Failed on %d, expected %s, got %s",
+               TS_SRVSTATE_INACTIVE_TIMEOUT, state_name, str);
+    success = false;
+  } else {
+    SDK_RPRINT(test, "TSHttpServerStateNameLookup", "TestCase1", TC_PASS, "ok");
+  }
+
+
+  str = TSHttpHookNameLookup(TS_HTTP_READ_RESPONSE_HDR_HOOK);
+  if ((strlen(str) != strlen(hook_name) || strcmp(str, hook_name))) {
+    SDK_RPRINT(test, "TSHttpHookNameLookup", "TestCase1", TC_FAIL, "Failed on %d, expected %s, got %s",
+               TS_HTTP_READ_RESPONSE_HDR_HOOK, hook_name, str);
+    success = false;
+  } else {
+    SDK_RPRINT(test, "TSHttpHookNameLookup", "TestCase1", TC_PASS, "ok");
+  }
+
+
+  str = TSHttpEventNameLookup(TS_EVENT_IMMEDIATE);
+  if ((strlen(str) != strlen(event_name) || strcmp(str, event_name))) {
+    SDK_RPRINT(test, "TSHttpEventNameLookup", "TestCase1", TC_FAIL, "Failed on %d, expected %s, got %s",
+               TS_EVENT_IMMEDIATE, hook_name, str);
+    success = false;
+  } else {
+    SDK_RPRINT(test, "TSHttpEventNameLookup", "TestCase1", TC_PASS, "ok");
+  }
+
 
   *pstatus = success ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED;
 

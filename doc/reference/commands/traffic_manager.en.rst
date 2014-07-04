@@ -15,6 +15,8 @@
   specific language governing permissions and limitations
   under the License.
 
+.. _traffic_manager:
+
 ===============
 traffic_manager
 ===============
@@ -37,7 +39,6 @@ Description
 .. option:: -tsArgs ARGUMENTS
 .. option:: -proxyPort PORT
 .. option:: -proxyBackDoor PORT
-.. option:: -schema FILE
 .. option:: -version
 
 Environment

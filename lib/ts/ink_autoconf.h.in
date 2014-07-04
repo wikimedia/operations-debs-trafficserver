@@ -50,12 +50,11 @@
 /* Whether the compiler support C++11 */
 #undef HAVE_CXX_11
 
-/* Define to 1 if you have the declaration of `EVP_PKEY_CTX_new', and to 0 if
-   you don't. */
-#undef HAVE_DECL_EVP_PKEY_CTX_NEW
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the `EC_KEY_new_by_curve_name' function. */
+#undef HAVE_EC_KEY_NEW_BY_CURVE_NAME
 
 /* Define to 1 if you have the <editline/readline.h> header file. */
 #undef HAVE_EDITLINE_READLINE_H
@@ -98,9 +97,6 @@
 
 /* Define to 1 if you have the `hsearch_r' function. */
 #undef HAVE_HSEARCH_R
-
-/* Define to 1 if you have the <hwloc.h> header file. */
-#undef HAVE_HWLOC_H
 
 /* Whether HWLOC_OBJ_PU is available */
 #undef HAVE_HWLOC_OBJ_PU
@@ -201,6 +197,9 @@
 /* Define to 1 if you have the <net/ppp_defs.h> header file. */
 #undef HAVE_NET_PPP_DEFS_H
 
+/* Define to 1 if you have the <openssl/ec.h> header file. */
+#undef HAVE_OPENSSL_EC_H
+
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #undef HAVE_OPENSSL_SSL_H
 
@@ -209,9 +208,6 @@
 
 /* Define to 1 if you have the <openssl/ts.h> header file. */
 #undef HAVE_OPENSSL_TS_H
-
-/* Define to 1 if you have the <openssl/x509.h> header file. */
-#undef HAVE_OPENSSL_X509_H
 
 /* Define to 1 if you have the <pcre.h> header file. */
 #undef HAVE_PCRE_H
@@ -273,12 +269,21 @@
 /* Define to 1 if you have the `srand48_r' function. */
 #undef HAVE_SRAND48_R
 
+/* Define to 1 if you have the `SSL_CTX_set_alpn_protos' function. */
+#undef HAVE_SSL_CTX_SET_ALPN_PROTOS
+
+/* Define to 1 if you have the `SSL_CTX_set_alpn_select_cb' function. */
+#undef HAVE_SSL_CTX_SET_ALPN_SELECT_CB
+
 /* Define to 1 if you have the `SSL_CTX_set_next_protos_advertised_cb'
    function. */
 #undef HAVE_SSL_CTX_SET_NEXT_PROTOS_ADVERTISED_CB
 
 /* Define to 1 if you have the `SSL_CTX_set_next_proto_select_cb' function. */
 #undef HAVE_SSL_CTX_SET_NEXT_PROTO_SELECT_CB
+
+/* Define to 1 if you have the `SSL_get0_alpn_selected' function. */
+#undef HAVE_SSL_GET0_ALPN_SELECTED
 
 /* Define to 1 if you have the `SSL_get0_next_proto_negotiated' function. */
 #undef HAVE_SSL_GET0_NEXT_PROTO_NEGOTIATED
@@ -297,6 +302,9 @@
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
+
+/* whether std::shared_ptr is available */
+#undef HAVE_STD_SHARED_PTR
 
 /* Define to 1 if you have the <strings.h> header file. */
 #undef HAVE_STRINGS_H
@@ -327,6 +335,9 @@
 
 /* Define to 1 if `st_mtim.tv_nsec' is a member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+
+/* whether struct tcp_info is available */
+#undef HAVE_STRUCT_TCP_INFO
 
 /* Define to 1 if you have the `sysconf' function. */
 #undef HAVE_SYSCONF
@@ -458,9 +469,6 @@
 /* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
    `char[]'. */
 #undef YYTEXT_POINTER
-
-/* posix thread semantics */
-#undef _POSIX_PTHREAD_SEMANTICS
 
 
 

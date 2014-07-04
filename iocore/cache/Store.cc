@@ -296,17 +296,9 @@ Store::read_config(int fd)
   // Get pathname if not checking file
 
   if (fd < 0) {
-    char storage_path[PATH_NAME_MAX + 1];
-    char storage_file[PATH_NAME_MAX + 1];
-    // XXX: cache_system_config_directory is initialized
-    //      inside ink_cache_init() which is called AFTER
-    //      initialize_store().
-    //
-    // ink_strlcpy(p, cache_system_config_directory, sizeof(p));
-    REC_ReadConfigString(storage_file, "proxy.config.cache.storage_filename", PATH_NAME_MAX);
-    Layout::relative_to(storage_path, PATH_NAME_MAX, Layout::get()->sysconfdir, storage_file);
-    Debug("cache_init", "Store::read_config, fd = -1, \"%s\"", storage_path);
+    xptr<char> storage_path(RecConfigReadConfigPath("proxy.config.cache.storage_filename", "storage.config"));
 
+    Debug("cache_init", "Store::read_config, fd = -1, \"%s\"", (const char *)storage_path);
     fd =::open(storage_path, O_RDONLY);
     if (fd < 0) {
       err = "error on open";
@@ -351,9 +343,9 @@ Store::read_config(int fd)
 
     n[len] = 0;
     char *pp = Layout::get()->relative(n);
-    ns = NEW(new Span);
+    ns = new Span;
     ns->vol_num = volume_id;
-    Debug("cache_init", "Store::read_config - ns = NEW (new Span); ns->init(\"%s\",%" PRId64 "), ns->vol_num=%d",
+    Debug("cache_init", "Store::read_config - ns = new Span; ns->init(\"%s\",%" PRId64 "), ns->vol_num=%d",
       pp, size, ns->vol_num);
     if ((err = ns->init(pp, size))) {
       char buf[4096];
@@ -417,7 +409,7 @@ Store::read_interim_config() {
     char *e = strpbrk(n, " \t\n");
     len = e ? e - n : strlen(n);
     n[len] = '\0';
-    ns = NEW(new Span);
+    ns = new Span;
     if ((err = ns->init(n, -1))) {
       char buf[4096];
       snprintf(buf, sizeof(buf), "could not initialize storage \"%s\" [%s]", n,
@@ -504,16 +496,15 @@ Span::init(char *an, int64_t size)
     return "error stat of file";
   }
 
-  int fd = socketManager.open(n, O_RDONLY);
-  if (fd < 0) {
-    Warning("unable to open '%s': %d, %s", n, fd, strerror(errno));
+  xfd fd(socketManager.open(n, O_RDONLY));
+  if (!fd) {
+    Warning("unable to open '%s': %s", n, strerror(errno));
     return "unable to open";
   }
 
   struct statvfs fs;
   if ((ret = fstatvfs(fd, &fs)) < 0) {
     Warning("unable to statvfs '%s': %d %d, %s", n, ret, errno, strerror(errno));
-    socketManager.close(fd);
     return "unable to statvfs";
   }
 
@@ -577,7 +568,6 @@ Span::init(char *an, int64_t size)
   Debug("cache_init", "Span::init - %s hw_sector_size = %d  size = %" PRId64 ", blocks = %" PRId64 ", disk_id = %d, file_pathname = %d", pathname, hw_sector_size, size, blocks, disk_id, file_pathname);
 
 Lfail:
-  socketManager.close(fd);
   return err;
 }
 
@@ -597,9 +587,9 @@ Span::init(char *filename, int64_t size)
   //
   is_mmapable_internal = true;
 
-  int fd = socketManager.open(filename, O_RDONLY);
-  if (fd < 0) {
-    Warning("unable to open '%s': %d, %s", filename, fd, strerror(errno));
+  xfd fd(socketManager.open(filename, O_RDONLY));
+  if (!fd) {
+    Warning("unable to open '%s': %s", filename, strerror(errno));
     return "unable to open";
   }
 
@@ -665,7 +655,6 @@ Span::init(char *filename, int64_t size)
   Debug("cache_init", "Span::init - %s hw_sector_size = %d  size = %" PRId64 ", blocks = %" PRId64 ", disk_id = %d, file_pathname = %d", filename, hw_sector_size, size, blocks, disk_id, file_pathname);
 
 Lfail:
-  socketManager.close(fd);
   return err;
 }
 #endif
@@ -680,9 +669,10 @@ Lfail:
 const char *
 Span::init(char *filename, int64_t size)
 {
-  int devnum = 0, fd, arg = 0;
+  int devnum = 0, arg = 0;
   int ret = 0, is_disk = 0;
   u_int64_t heads, sectors, cylinders, adjusted_sec;
+  xfd fd;
 
   /* Fetch file type */
   struct stat stat_buf;
@@ -713,11 +703,12 @@ Span::init(char *filename, int64_t size)
     break;
   }
 
-  if ((fd = socketManager.open(filename, O_RDONLY)) < 0) {
-    Warning("unable to open '%s': %d, %s", filename, fd, strerror(errno));
+  fd = socketManager.open(filename, O_RDONLY);
+  if (!fd) {
+    Warning("unable to open '%s': %s", filename, strerror(errno));
     return "unable to open";
   }
-  Debug("cache_init", "Span::init - socketManager.open(\"%s\", O_RDONLY) = %d", filename, fd);
+  Debug("cache_init", "Span::init - socketManager.open(\"%s\", O_RDONLY) = %d", filename, (int)fd);
 
   adjusted_sec = 1;
 #ifdef BLKPBSZGET
@@ -830,8 +821,6 @@ Span::init(char *filename, int64_t size)
 
   disk_id = devnum;
 
-  socketManager.close(fd);
-
   return NULL;
 }
 #endif
@@ -861,7 +850,7 @@ try_alloc(Store & target, Span * source, unsigned int start_blocks, bool one_onl
         a = source->blocks;
       else
         a = blocks;
-      Span *d = NEW(new Span(*source));
+      Span *d = new Span(*source);
 
       d->pathname = ats_strdup(source->pathname);
       d->blocks = a;
@@ -937,7 +926,7 @@ Store::try_realloc(Store & s, Store & diff)
                 d->offset += sd->blocks;
                 goto Lfound;
               } else {
-                Span *x = NEW(new Span(*d));
+                Span *x = new Span(*d);
                 x->pathname = ats_strdup(x->pathname);
                 // d will be the first vol
                 d->blocks = sd->offset - d->offset;
@@ -1136,7 +1125,7 @@ Store::read(int fd, char *aname)
     Span *sd = NULL;
     while (n--) {
       Span *last = sd;
-      sd = NEW(new Span);
+      sd = new Span;
 
       if (!last)
         disk[i] = sd;
@@ -1158,7 +1147,7 @@ Lbail:
 Span *
 Span::dup()
 {
-  Span *ds = NEW(new Span(*this));
+  Span *ds = new Span(*this);
   ds->pathname = ats_strdup(pathname);
   if (ds->link.next)
     ds->link.next = ds->link.next->dup();

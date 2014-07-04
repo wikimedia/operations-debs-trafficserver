@@ -30,12 +30,7 @@
 
 #include "libts.h"
 #include "I_Layout.h"
-#ifdef NON_MODULAR
 #include "P_HostDB.h"
-#else
-//extern const char *system_config_directory;
-#endif
-
 #include "P_MultiCache.h"
 #include "P_EventSystem.h"      // FIXME: need to have this in I_* header files.
 #include "ink_file.h"
@@ -200,7 +195,7 @@ MultiCacheBase::initialize(Store *astore, char *afilename,
   //
   if (store)
     delete store;
-  store = NEW(new Store);
+  store = new Store;
   astore->spread_alloc(*store, blocks, true);
   unsigned int got = store->total_blocks();
 
@@ -218,7 +213,7 @@ MultiCacheBase::initialize(Store *astore, char *afilename,
 
   if (lowest_level_data)
     delete[]lowest_level_data;
-  lowest_level_data = NEW(new char[lowest_level_data_size()]);
+  lowest_level_data = new char[lowest_level_data_size()];
   ink_assert(lowest_level_data);
   memset(lowest_level_data, 0xFF, lowest_level_data_size());
 
@@ -500,9 +495,10 @@ int
 MultiCacheBase::read_config(const char *config_filename, Store & s, char *fn, int *pi, int *pbuck)
 {
   int scratch;
+  xptr<char> rundir(RecConfigReadRuntimeDir());
   char p[PATH_NAME_MAX + 1], buf[256];
 
-  Layout::relative_to(p, sizeof(p), system_runtime_dir, config_filename);
+  Layout::relative_to(p, sizeof(p), rundir, config_filename);
 
   int fd =::open(p, O_RDONLY);
   if (fd < 0)
@@ -536,10 +532,11 @@ MultiCacheBase::read_config(const char *config_filename, Store & s, char *fn, in
 int
 MultiCacheBase::write_config(const char *config_filename, int nominal_size, int abuckets)
 {
+  xptr<char> rundir(RecConfigReadRuntimeDir());
   char p[PATH_NAME_MAX + 1], buf[256];
   int fd, retcode = -1;
 
-  Layout::relative_to(p, sizeof(p), system_runtime_dir, config_filename);
+  Layout::relative_to(p, sizeof(p), rundir, config_filename);
 
   // XXX: Shouldn't that be 0664?
   //
@@ -1195,9 +1192,9 @@ MultiCacheBase::sync_partitions(Continuation *cont)
   // don't try to sync if we were not correctly initialized
   if (data && mapped_header) {
     if (heap_used[heap_halfspace] > halfspace_size() * MULTI_CACHE_HEAP_HIGH_WATER)
-      eventProcessor.schedule_imm(NEW(new MultiCacheHeapGC(cont, this)), ET_CALL);
+      eventProcessor.schedule_imm(new MultiCacheHeapGC(cont, this), ET_CALL);
     else
-      eventProcessor.schedule_imm(NEW(new MultiCacheSync(cont, this)), ET_CALL);
+      eventProcessor.schedule_imm(new MultiCacheSync(cont, this), ET_CALL);
   }
 }
 
@@ -1267,7 +1264,7 @@ UnsunkPtrRegistry::alloc(int *poffset, int base)
       return alloc(poffset, base);
     }
     if (!next) {
-      next = NEW(new UnsunkPtrRegistry);
+      next = new UnsunkPtrRegistry;
       next->mc = mc;
     }
     int s = MULTI_CACHE_UNSUNK_PTR_BLOCK_SIZE(mc->totalelements);

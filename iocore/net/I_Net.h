@@ -52,23 +52,7 @@
                                     NET_SYSTEM_MODULE_MINOR_VERSION, \
                                     PUBLIC_MODULE_HEADER)
 
-/** For commenting out portions of code temporarily. */
-#define NET_FIXME
-
-// Temporary definitions
-#ifdef NET_FIXME
-#define ACCEPTEX_POOL_SIZE                1
-#endif
-
 static int const NO_FD = -1;
-
-static unsigned int const DEFAULT_POLL_TIMEOUT =
-#if defined(solaris)
-                                                  30  /* mseconds */
-#else
-                                                  10  /* mseconds */
-#endif
-  ;
 
 extern int net_config_poll_timeout;
 
@@ -99,6 +83,7 @@ extern int net_config_poll_timeout;
 
 #include "I_NetVConnection.h"
 #include "I_NetProcessor.h"
+#include "I_SessionAccept.h"
 
 void ink_net_init(ModuleVersion version);
 #endif

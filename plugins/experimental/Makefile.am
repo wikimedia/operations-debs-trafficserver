@@ -14,19 +14,27 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-if BUILD_EXPERIMENTAL_PLUGINS
 SUBDIRS = \
- lua \
- buffer_upload \
- esi \
- rfc5861 \
- tcp_info \
- custom_redirect \
- metalink \
- spdy \
- channel_stats \
  authproxy \
+ background_fetch \
+ balancer \
+ buffer_upload \
+ channel_stats \
+ collapsed_connection \
+ custom_redirect \
+ escalate \
+ esi \
  geoip_acl \
  healthchecks \
- remap_stats
+ hipes \
+ metalink \
+ regex_revalidate \
+ remap_stats \
+ s3_auth \
+ stale_while_revalidate \
+ url_sig \
+ xdebug
+
+if BUILD_LUAJIT
+  SUBDIRS += ts_lua
 endif

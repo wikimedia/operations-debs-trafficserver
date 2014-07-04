@@ -23,7 +23,8 @@
 #define __OPERATOR_H__ 1
 
 #include <string>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
 
 #include "resources.h"
 #include "statement.h"
@@ -35,7 +36,7 @@ enum OperModifiers {
   OPER_NONE = 0,
   OPER_LAST = 1,
   OPER_NEXT = 2,
-  OPER_QSA=4
+  OPER_QSA = 4
 };
 
 
@@ -92,6 +93,5 @@ protected:
 private:
   DISALLOW_COPY_AND_ASSIGN(OperatorHeaders);
 };
-
 
 #endif // __OPERATOR_H

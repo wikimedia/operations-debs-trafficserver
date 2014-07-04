@@ -5,9 +5,9 @@
   to you under the Apache License, Version 2.0 (the
   "License"); you may not use this file except in compliance
   with the License.  You may obtain a copy of the License at
- 
+
    http://www.apache.org/licenses/LICENSE-2.0
- 
+
   Unless required by applicable law or agreed to in writing,
   software distributed under the License is distributed on an
   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,11 +21,12 @@ remap.config
 
 .. configfile:: remap.config
 
-.. toctree::                                                                                                                                                                                      
+.. toctree::
    :maxdepth: 2
 
 
-The :file:`remap.config` file contains mapping rules that Traffic Server
+The :file:`remap.config` file (by default, located in
+``/opt/trafficserver/etc/trafficserver/``) contains mapping rules that Traffic Server
 uses to perform the following actions:
 
 -  Map URL requests for a specific origin server to the appropriate
@@ -62,6 +63,16 @@ Traffic Server recognizes three space-delimited fields: ``type``,
 
     -  ``map`` --translates an incoming request URL to the appropriate
        origin server URL.
+
+    -  ``map_with_recv_port`` --exactly like 'map' except that it uses the port at
+       which the request was received to perform the mapping instead of the port present
+       in the request. The regex qualifier can also be used for this type. When present,
+       'map_with_recv_port' mappings are checked first. If there is a match, then it is
+       chosen without evaluating the "regular" forward mapping rules.
+
+    -  ``map_with_referer`` -- extended version of 'map', which can be used to activate
+       "deep linking protection", where target URLs are only accessible when the Referer
+       header is set to a URL that is allowed to link to the target.
 
     -  ``reverse_map`` --translates the URL in origin server redirect
        responses to point to the Traffic Server.
@@ -102,13 +113,14 @@ Traffic Server recognizes three space-delimited fields: ``type``,
 Precedence
 ==========
 
-Remap rules are not processed top-down, but based on an internal
-priority
+Remap rules are not processed top-down, but based on an internal priority. Once
+these rules are executed we pick the lowest line number as the match (which
+replicates first-match-wins).
 
-1. ``map`` and ``reverse_map``
-2. ``regex_map``
-3. ``redirect`` and ``redirect_temporary``
-4. ``regex_redirect`` and ``regex_redirect_temporary``
+1. ``map_with_recv_port`` and ```regex_map_with_recv_port```
+#. ``map`` and ``regex_map`` and ``reverse_map``
+#. ``redirect`` and ``redirect_temporary``
+#. ``regex_redirect`` and ``regex_redirect_temporary``
 
 
 Match-All
@@ -270,6 +282,75 @@ Examples
     regex_map http://x([0-9]+).z.com/ http://real-x$1.z.com/
     regex_redirect http://old.(.*).z.com http://new.$1.z.com
 
+.. _map_with_referer:
+
+map_with_referer
+================
+
+the format of is the following::
+
+    map_with_referer client-URL origin-server-URL redirect-URL regex1 [regex2 ...]
+
+'redirect-URL' is a redirection URL specified according to RFC 2616 and can
+contain special formatting instructions for run-time modifications of the
+resulting redirection URL.  All regexes Perl compatible  regular expressions,
+which describes the content of the "Referer" header which must be
+verified. In case an actual request does not have "Referer" header or it
+does not match with referer regular expression, the HTTP request will be
+redirected to 'redirect-URL'.
+
+At least one regular expressions must be specified in order to activate
+'deep linking protection'.  There are limitations for the number of referer
+regular expression strings - 2048.  In order to enable the 'deep linking
+protection' feature in Traffic Server, configure records.config with::
+
+    CONFIG proxy.config.http.referer_filter INT 1
+
+In order to enable run-time formatting for redirect URL, configure::
+
+    CONFIG proxy.config.http.referer_format_redirect INT 1
+
+When run-time formatting for redirect-URL was enabled the following format
+symbols can be used::
+
+    %r - to substitute original "Referer" header string
+    %f - to substitute client-URL from 'map_with_referer' record
+    %t - to substitute origin-server-URL from 'map_with_referer' record
+    %o - to substitute request URL to origin server, which was created a
+         the result of a mapping operation
+
+Note: There is a special referer type "~*" that can be used in order to
+specify that the Referer header is optional in the request.  If "~*" referer
+was used in map_with_referer mapping, only requests with Referer header will
+be verified for validity.  If the "~" symbol was specified before referer
+regular expression, it means that the request with a matching referer header
+will be redirected to redirectURL. It can be used to create a so-called
+negative referer list.  If "*" was used as a referer regular expression -
+all referers are allowed.  Various combinations of "*" and "~" in a referer
+list can be used to create different filtering rules.
+
+map_with_referer Examples
+-------------------------
+
+::
+
+   map_with_referer http://y.foo.bar.com/x/yy/  http://foo.bar.com/x/yy/ http://games.bar.com/new_games .*\.bar\.com www.bar-friends.com
+
+Explanation: Referer header must be in the request, only ".*\.bar\.com" and "www.bar-friends.com" are allowed.
+
+::
+
+   map_with_referer http://y.foo.bar.com/x/yy/  http://foo.bar.com/x/yy/ http://games.bar.com/new_games * ~.*\.evil\.com
+
+Explanation: Referer header must be in the request but all referers are allowed except ".*\.evil\.com".
+
+::
+
+    map_with_referer http://y.foo.bar.com/x/yy/  http://foo.bar.com/x/yy/ http://games.bar.com/error ~* * ~.*\.evil\.com
+
+Explanation: Referer header is optional. However, if Referer header exists, only request from ".*\.evil\.com" will be redirected to redirect-URL.
+
+
 .. _remap-config-plugin-chaining:
 
 Plugin Chaining
@@ -284,13 +365,36 @@ Examples
 
 ::
 
-    map http://url/path http://url/path @plugin=/etc/traffic_server/config/plugins/plugin1.so @pparam=1 @pparam=2 @plugin=/etc/traffic_server/config/plugins/plugin2.so @pparam=3
+    map http://url/path http://url/path \
+        @plugin=/etc/traffic_server/config/plugins/plugin1.so @pparam=1 @pparam=2 \
+        @plugin=/etc/traffic_server/config/plugins/plugin2.so @pparam=3
 
 will pass "1" and "2" to plugin1.so and "3" to plugin2.so.
 
 This will pass "1" and "2" to plugin1.so and "3" to plugin2.so
 
 .. _remap-config-named-filters:
+
+Acl Filters
+===========
+
+Acl filters can be created to control access of specific remap lines. The markup
+is very similar to that of :file:`ip_allow.config`, with slight changes to
+accomodate remap markup
+
+Examples
+--------
+
+::
+    map http://foo.example.com/neverpost  http://foo.example.com/neverpost @action=deny @method=post
+    map http://foo.example.com/onlypost  http://foo.example.com/onlypost @action=allow @method=post
+
+    map http://foo.example.com/  http://foo.example.com/ @action=deny @src_ip=1.2.3.4
+    map http://foo.example.com/  http://foo.example.com/ @action=allow @src_ip=127.0.0.1
+
+    map http://foo.example.com/  http://foo.example.com/ @action=allow @src_ip=127.0.0.1 @method=post @method=get @method=head
+
+Note that these Acl filters will return a 403 response if the resource is restricted.
 
 Named Filters
 =============
@@ -324,3 +428,52 @@ The filter `disable_delete_purge` will be applied to all of the
 mapping rules. (It is activated before any mappings and is never
 deactivated.) The filter `internal_only` will only be applied to the
 second mapping.
+
+Including Additional Remap Files
+================================
+
+The ``.include`` directive allows mapping rules to be spread across
+multiple files. The argument to the ``.include`` directive is a
+list of file names to be parsed for additional mapping rules. Unless
+the names are absolute paths, they are resolved relative to the
+Traffic Server configuration directory.
+
+The effect of the ``.include`` directive is as if the contents of
+the listed files is included in the parent and parsing restarted
+at the point of inclusion. This means that and filters named in the
+included files are global in scope, and that additional ``.include``
+directives are allowed.
+
+.. note::
+
+  Included remap files are not currently tracked by the configuration
+  subsystem. Changes to included remap files will not be noticed
+  by online configuration changes applied by :option:`traffic_line -x`
+  unless :file:`remap.config` has also changed.
+
+Examples
+--------
+
+In this example, a top-level :file:`remap.config` file simply
+references additional mapping rules files ::
+
+  .include filters.config
+  .include one.example.com.config two.example.com.config
+
+The file `filters.config` contains ::
+
+  .definefilter deny_purge @action=deny @method=purge
+  .definefilter allow_purge @action=allow @method=purge
+
+The file `one.example.com.config` contains::
+
+  .activatefilter deny_purge
+  map http://one.example.com http://origin-one.example.com
+  .deactivatefilter deny_purge
+
+The file `two.example.com.config` contains::
+
+  .activatefilter allow_purge
+  map http://two.example.com http://origin-two.example.com
+  .deactivatefilter dallowpurge
+

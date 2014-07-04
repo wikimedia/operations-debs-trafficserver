@@ -39,6 +39,7 @@
 #include <logging/LogAccess.h>
 #include <logging/LogAccessHttp.h>
 #include "HttpCompat.h"
+#include "I_Layout.h"
 
 //////////////////////////////////////////////////////////////////////
 // The HttpBodyFactory creates HTTP response page bodies, supported //
@@ -121,7 +122,7 @@ HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State * 
   ///////////////////////////////////////////
   // check if we don't need to format body //
   ///////////////////////////////////////////
-  if (context->return_xbuf_plain && format) {
+  if (format) {
     int l = ink_bvsprintf(NULL, format, ap);
     if (l < max_buffer_length) {
       buffer = (char *)ats_malloc(l + 1);
@@ -258,11 +259,9 @@ HttpBodyFactory::reconfigure()
 //#endif
 {
   RecInt e;
-  RecString s;
+  RecString s = NULL;
   bool all_found;
   int rec_err;
-  struct stat st;
-  int err;
 
   lock();
   sanity_check();
@@ -296,27 +295,26 @@ HttpBodyFactory::reconfigure()
   all_found = all_found && (rec_err == REC_ERR_OKAY);
   Debug("body_factory", "response_suppression_mode = %d (found = %" PRId64")", response_suppression_mode, e);
 
+  xptr<char> directory_of_template_sets;
+
   rec_err = RecGetRecordString_Xmalloc("proxy.config.body_factory.template_sets_dir", &s);
   all_found = all_found && (rec_err == REC_ERR_OKAY);
   if (rec_err == REC_ERR_OKAY) {
-    ats_free(directory_of_template_sets);
-    directory_of_template_sets = s;
-    if ((err = stat(directory_of_template_sets, &st)) < 0) {
-      if ((err = stat(system_config_directory, &st)) < 0) {
-        Warning("Unable to stat() directory '%s': %d %d, %s", system_config_directory, err, errno, strerror(errno));
-        Warning(" Please set 'proxy.config.body_factory.template_sets_dir' ");
-      } else {
-        ats_free(directory_of_template_sets);
-        directory_of_template_sets = ats_strdup(system_config_directory);
-      }
+    directory_of_template_sets = Layout::get()->relative(s);
+    if (access(directory_of_template_sets, R_OK) < 0) {
+      Warning("Unable to access() directory '%s': %d, %s", (const char *)directory_of_template_sets, errno, strerror(errno));
+      Warning(" Please set 'proxy.config.body_factory.template_sets_dir' ");
     }
+
   }
 
-  Debug("body_factory", "directory_of_template_sets = '%s' (found = %" PRId64")", directory_of_template_sets, e);
+  Debug("body_factory", "directory_of_template_sets = '%s' (found = %s)", (const char *)directory_of_template_sets, s);
+  ats_free(s);
 
   if (!all_found) {
     Warning("config changed, but can't fetch all proxy.config.body_factory values");
   }
+
   /////////////////////////////////////////////
   // clear out previous template hash tables //
   /////////////////////////////////////////////
@@ -353,7 +351,6 @@ HttpBodyFactory::HttpBodyFactory()
   ink_mutex_init(&mutex, "HttpBodyFactory::lock");
 
   table_of_sets = NULL;
-  directory_of_template_sets = NULL;
   enable_customizations = 0;
   enable_logging = true;
   callbacks_established = false;
@@ -616,7 +613,7 @@ HttpBodyFactory::load_sets_from_directory(char *set_dir)
     return (NULL);
   }
 
-  new_table_of_sets = NEW(new RawHashTable(RawHashTable_KeyType_String));
+  new_table_of_sets = new RawHashTable(RawHashTable_KeyType_String);
   entry_buffer = (struct dirent *)ats_malloc(sizeof(struct dirent) + MAXPATHLEN + 1);
 
   //////////////////////////////////////////
@@ -694,7 +691,7 @@ HttpBodyFactory::load_body_set_from_directory(char *set_name, char *tmpl_dir)
   // create body set, and loop over template files, loading them //
   /////////////////////////////////////////////////////////////////
 
-  HttpBodySet *body_set = NEW(new HttpBodySet);
+  HttpBodySet *body_set = new HttpBodySet;
   body_set->init(set_name, tmpl_dir);
 
   Debug("body_factory", "  body_set = %p (set_name '%s', lang '%s', charset '%s')",
@@ -722,7 +719,7 @@ HttpBodyFactory::load_body_set_from_directory(char *set_name, char *tmpl_dir)
     // read in this template file //
     ////////////////////////////////
 
-    tmpl = NEW(new HttpBodyTemplate());
+    tmpl = new HttpBodyTemplate();
     if (!tmpl->load_from_file(tmpl_dir, entry_buffer->d_name)) {
       delete tmpl;
     } else {
@@ -781,7 +778,7 @@ HttpBodySet::init(char *set, char *dir)
 
   if (this->table_of_pages)
     delete(this->table_of_pages);
-  this->table_of_pages = NEW(new RawHashTable(RawHashTable_KeyType_String));
+  this->table_of_pages = new RawHashTable(RawHashTable_KeyType_String);
 
   lineno = 0;
 

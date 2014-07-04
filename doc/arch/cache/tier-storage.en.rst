@@ -37,7 +37,7 @@ The most common case for tiers is an ordered list of tiers, where higher tiers a
 (or more limited in capacity). This is not required. It might be that different tiers are differentiated by other
 properties (such as expected persistence). The design here is intended to handle both cases.
 
-The design presumes that if a user has multiple tiers of storage and an ordering for those tiers, he will usually want
+The design presumes that if a user has multiple tiers of storage and an ordering for those tiers, they will usually want
 content stored at one tier level to also be stored at every other lower level as well, so that it does not have to be
 copied if evicted from a higher tier.
 
@@ -91,7 +91,7 @@ For a cache miss, all tiers marked `WRITE` will receive data from the origin ser
 
 This means, among other things, that if there is a tier with the object all other tiers that are written will get a
 local copy of the object, the origin server will not be used. In terms of implementation, currently a cache write to a
-volume is done via the construction of an instance of `CacheVC` which recieves the object stream. For tiered storage the
+volume is done via the construction of an instance of :cpp:class:`CacheVC` which recieves the object stream. For tiered storage the
 same thing is done for each target volume.
 
 For cache volume overrides (e.g. via :file:`hosting.config`) this same process is used except with only the volumes
@@ -102,7 +102,7 @@ Copying
 -------
 
 It may be necessary to provide a mechanism to copy objects between tiers outside of a client originated transaction. In
-terms of implementation this is straight forward using `HttpTunnel` as if in a transaction only using a `CacheVC`
+terms of implementation this is straight forward using :cpp:class:`HttpTunnel` as if in a transaction only using a :cpp:class:`CacheVC`
 instance for both the producer and consumer. The more difficult question is what event would trigger a possible copy. A
 signal could be provided whenever a volume directory entry is deleted although it should be noted that the object in
 question may have already been evicted when this event happens.

@@ -37,6 +37,7 @@
 #include "InkAPIInternal.h"
 #include "HTTP.h"
 #include "HttpConfig.h"
+#include "IPAllow.h"
 
 extern ink_mutex debug_cs_list_mutex;
 
@@ -52,9 +53,7 @@ public:
   void cleanup();
   virtual void destroy();
 
-  static HttpClientSession *allocate();
-
-  void new_connection(NetVConnection * new_vc, bool backdoor = false);
+  void new_connection(NetVConnection * new_vc, bool backdoor, MIOBuffer * iobuf, IOBufferReader * reader);
 
   virtual VIO *do_io_read(Continuation * c, int64_t nbytes = INT64_MAX, MIOBuffer * buf = 0);
   virtual VIO *do_io_write(Continuation * c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader * buf = 0, bool owner = false);
@@ -133,7 +132,6 @@ private:
   TSHttpHookID cur_hook_id;
   APIHook *cur_hook;
   int cur_hooks;
-  bool proxy_allocated;
 
   // api_hooks must not be changed directly
   //  Use ssn_hook_{ap,pre}pend so hooks_set is
@@ -155,8 +153,8 @@ public:
   bool f_transparent_passthrough;
   /// DNS resolution preferences.
   HostResStyle host_res_style;
-  /// acl method mask - cache IpAllow::match() call
-  uint32_t acl_method_mask;
+  /// acl record - cache IpAllow::match() call
+  const AclRecord *acl_record;
 
   // for DI. An active connection is one that a request has
   // been successfully parsed (PARSE_DONE) and it remains to
