@@ -4,8 +4,10 @@ trafficserver (5.0.0-1) UNRELEASED; urgency=medium
     coordination.
   * New upstream version. Patch changes:
     + drop 0001-TS-1821.patch: released upstream in 5.0.0
+    + drop 0001-TS-2454-Fix-undefined-reference-to-__sync_fetch_and_.patch:
+      released upstream in 4.2
 
- -- Arno Töll <arno@debian.org>  Fri, 04 Jul 2014 10:33:26 -1100
+ -- Arno Töll <arno@debian.org>  Fri, 04 Jul 2014 10:35:09 -1100
 
 trafficserver (4.1.2-1.2) unstable; urgency=medium
 
