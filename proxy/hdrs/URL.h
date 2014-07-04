@@ -80,6 +80,7 @@ struct URLImpl:public HdrHeapObjImpl
   int marshal(MarshalXlate *str_xlate, int num_xlate);
   void unmarshal(intptr_t offset);
   void move_strings(HdrStrHeap *new_heap);
+  size_t strings_length();
 
   // Sanity Check Functions
   void check_strings(HeapCheck *heaps, int num_heaps);
@@ -91,6 +92,8 @@ extern const char *URL_SCHEME_FTP;
 extern const char *URL_SCHEME_GOPHER;
 extern const char *URL_SCHEME_HTTP;
 extern const char *URL_SCHEME_HTTPS;
+extern const char *URL_SCHEME_WS;
+extern const char *URL_SCHEME_WSS;
 extern const char *URL_SCHEME_MAILTO;
 extern const char *URL_SCHEME_NEWS;
 extern const char *URL_SCHEME_NNTP;
@@ -110,6 +113,8 @@ extern int URL_WKSIDX_FTP;
 extern int URL_WKSIDX_GOPHER;
 extern int URL_WKSIDX_HTTP;
 extern int URL_WKSIDX_HTTPS;
+extern int URL_WKSIDX_WS;
+extern int URL_WKSIDX_WSS;
 extern int URL_WKSIDX_MAILTO;
 extern int URL_WKSIDX_NEWS;
 extern int URL_WKSIDX_NNTP;
@@ -129,6 +134,8 @@ extern int URL_LEN_FTP;
 extern int URL_LEN_GOPHER;
 extern int URL_LEN_HTTP;
 extern int URL_LEN_HTTPS;
+extern int URL_LEN_WS;
+extern int URL_LEN_WSS;
 extern int URL_LEN_MAILTO;
 extern int URL_LEN_NEWS;
 extern int URL_LEN_NNTP;

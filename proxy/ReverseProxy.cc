@@ -74,7 +74,7 @@ init_reverse_proxy()
 {
   ink_assert(rewrite_table == NULL);
   reconfig_mutex = new_ProxyMutex();
-  rewrite_table = NEW(new UrlRewrite());
+  rewrite_table = new UrlRewrite();
 
   if (!rewrite_table->is_valid()) {
     Warning("Can not load the remap table, exiting out!");
@@ -146,26 +146,6 @@ struct UR_UpdateContinuation: public Continuation
   }
 };
 
-struct UR_FreerContinuation;
-typedef int (UR_FreerContinuation::*UR_FreerContHandler) (int, void *);
-
-/** Used to free url rewrite class. */
-struct UR_FreerContinuation: public Continuation
-{
-  UrlRewrite *p;
-  int freeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
-  {
-    Debug("url_rewrite", "Deleting old remap.config table");
-    delete p;
-    delete this;
-    return EVENT_DONE;
-  }
-  UR_FreerContinuation(UrlRewrite * ap):Continuation(new_ProxyMutex()), p(ap)
-  {
-    SET_HANDLER((UR_FreerContHandler) & UR_FreerContinuation::freeEvent);
-  }
-};
-
 /**
   Called when the remap.config file changes. Since it called infrequently,
   we do the load of new file as blocking I/O and lock aquire is also
@@ -178,9 +158,9 @@ reloadUrlRewrite()
   UrlRewrite *newTable;
 
   Debug("url_rewrite", "remap.config updated, reloading...");
-  newTable = NEW(new UrlRewrite());
+  newTable = new UrlRewrite();
   if (newTable->is_valid()) {
-    eventProcessor.schedule_in(new UR_FreerContinuation(rewrite_table), URL_REWRITE_TIMEOUT, ET_TASK);
+    new_Deleter(rewrite_table, URL_REWRITE_TIMEOUT);
     Debug("url_rewrite", "remap.config done reloading!");
     ink_atomic_swap(&rewrite_table, newTable);
   } else {
@@ -206,7 +186,7 @@ url_rewrite_CB(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNU
   case DEFAULT_TO_PAC_PORT_CHANGED:
   case FILE_CHANGED:
   case HTTP_DEFAULT_REDIRECT_CHANGED:
-    eventProcessor.schedule_imm(NEW(new UR_UpdateContinuation(reconfig_mutex)), ET_TASK);
+    eventProcessor.schedule_imm(new UR_UpdateContinuation(reconfig_mutex), ET_TASK);
     break;
 
   case AC_PORT_CHANGED:

@@ -105,8 +105,8 @@ public:
   //  object is
   CacheHostTable(Cache *c, CacheType typ);
    ~CacheHostTable();
-  int BuildTable();
-  int BuildTableFromString(char *str);
+  int BuildTable(const char * config_file_path);
+  int BuildTableFromString(const char * config_file_path, char *str);
   void Match(char *rdata, int rlen, CacheHostResult *result);
   void Print();
 
@@ -128,7 +128,6 @@ public:
 private:
   CacheHostMatcher *hostMatch;
   const matcher_tags *config_tags;
-  char config_file_path[PATH_NAME_MAX];
   const char *matcher_name;     // Used for Debug/Warning/Error messages
 };
 
@@ -147,7 +146,7 @@ struct CacheHostTableConfig: public Continuation
   {
     (void) e;
     (void) event;
-    CacheHostTable *t = NEW(new CacheHostTable((*ppt)->cache, (*ppt)->type));
+    CacheHostTable *t = new CacheHostTable((*ppt)->cache, (*ppt)->type);
     CacheHostTable *old = (CacheHostTable *) ink_atomic_swap(&t, *ppt);
     new_Deleter(old, CACHE_MEM_FREE_TIMEOUT);
     return EVENT_DONE;

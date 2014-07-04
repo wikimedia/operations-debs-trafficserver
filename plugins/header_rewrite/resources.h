@@ -16,15 +16,16 @@
   limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Implement the classes for the various types of hash keys we support.
 //
 #ifndef __RESOURCES_H__
 #define __RESOURCES_H__ 1
 
 #include <string>
-#include <ts/ts.h>
-#include <ts/remap.h>
+
+#include "ts/ts.h"
+#include "ts/remap.h"
 
 #include "lulu.h"
 
@@ -60,7 +61,6 @@ public:
       _rri(rri), changed_url(false), _ready(false)
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Resources (RemapAPI)");
-    TSDebug(PLUGIN_NAME, "rri: %p", _rri);
   }
 
   ~Resources() { destroy(); }

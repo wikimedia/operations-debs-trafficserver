@@ -61,8 +61,16 @@ The following list shows ``LogFormat`` specifications.
 ``<Format = "valid_format_specification"/>``
     Required
     A valid format specification is a printf-style string describing
-    each log entry when formatted for ASCII output. Use ``%<``
-    ``field`` ``>`` as a placeholder for valid field names. For more
+    each log entry when formatted for ASCII output.
+
+    The printf-style could accept Oct/Hex escape representation:
+
+    -  ``\abc`` is Oct escape sequence, a,b,c should be one of [0-9], and
+       (a*8^2 + b*8 + c) should be greater than 0 and less than 255.
+    -  ``\xab`` is Hex escape sequence, a,b should be one of [0-9, a-f, A-F],
+       and (a*16 + b) should be greater than 0 and less than 255.
+
+    Use ``%<`` ``field`` ``>`` as a placeholder for valid field names. For more
     information, refer to :ref:`custom-logging-fields`.
 
     The specified field can be one of the following types:
@@ -137,9 +145,15 @@ The following list shows the ``LogFilter`` specifications.
     ``REJECT`` the record.
 
 ``<Action = "valid_action_field"/>``
-    Required: ``ACCEPT`` or ``REJECT`` .
-    This instructs Traffic Server to either accept or reject records
-    that satisfy the filter condition.
+    Required: ``ACCEPT`` or ``REJECT`` or ``WIPE_FIELD_VALUE``.
+    ACCEPT or REJECT instructs Traffic Server to either accept or reject records
+    that satisfy the filter condition. WIPE_FIELD_VALUE wipes out
+    the values of the query params in the url fields specified in the Condition.
+
+NOTES: 1. WIPE_FIELD_VALUE action is only applied to the parameters in the query part.
+       2. Multiple parameters can be listed in a single WIPE_FIELD_VALUE filter
+       3. If the same parameter appears more than once in the query part , only
+          the value of the first occurance is wiped
 
 .. _LogObject:
 
@@ -165,7 +179,7 @@ The following list shows the ``LogObject`` specifications.
     If the name does not contain an extension (for example, ``squid``),
     then the extension ``.log`` is automatically appended to it for
     ASCII logs and ``.blog`` for binary logs (refer to :ref:`Mode =
-    "valid_logging_mode" <LogObject-Mode>`_).
+    "valid_logging_mode" <LogObject-Mode>`).
 
     If you do not want an extension to be added, then end the filename
     with a single (.) dot (for example: ``squid.`` ).
@@ -217,12 +231,18 @@ The following list shows the ``LogObject`` specifications.
 
 .. _logs-xml-logobject-collationhost:
 
-``<CollationHosts = "list_of_valid_hostnames"/>``
+``<CollationHosts = "list_of_valid_hostnames:port|failover hosts"/>``
     Optional
-    A comma-separated list of collation servers to which all log entries
-    (for this object) are forwarded. Collation servers can be specified
-    by name or IP address. Specify the collation port with a colon after
-    the name; for example, ``host:port`` .
+    A comma-separated list of collation servers (with pipe delimited 
+    failover servers) to which all log entries (for this object) are 
+    forwarded. Collation servers can be specified by name or IP address. 
+    Specify the collation port with a colon after the name. For example, 
+    in ``host1:5000|failhostA:5000|failhostB:6000, host2:6000`` logs 
+    would be sent to host1 and host2, with failhostA and failhostB 
+    acting as failover hosts for host1. When host1 disconnects, 
+    logs would be sent to failhostA. If failhostA disconnects, log 
+    entries would be sent to failhostB until host1 or failhostA comes 
+    back. Logs would also be sent to host2.
 
 ``<Header = "header"/>``
     Optional
@@ -316,6 +336,15 @@ The following is an example of a ``LogFilter`` that will cause only
              <Action = "ACCEPT"/>
              <Condition = "pssc MATCH REFRESH_HIT"/>
          </LogFilter>
+
+The following is an example of a ``LogFilter`` that will cause the value of
+passwd field be wiped in cquc
+
+<LogFilter>
+    <Name = "wipe_password"/>
+    <Condition = "cquc CONTAIN passwd"/>
+    <Action = "WIPE_FIELD_VALUE"/>
+</LogFilter>
 
 The following is an example of a ``LogObject`` specification that
 creates a local log file for the minimal format defined earlier. The log

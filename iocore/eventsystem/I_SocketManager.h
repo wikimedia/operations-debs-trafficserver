@@ -40,6 +40,7 @@
 #define DEFAULT_OPEN_MODE                         0644
 
 class Thread;
+extern int net_config_poll_timeout;
 
 #define SOCKET int
 
@@ -85,7 +86,7 @@ struct SocketManager
   int epoll_create(int size);
   int epoll_close(int eps);
   int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
-  int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
+  int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout = net_config_poll_timeout);
 #endif
 #if TS_USE_KQUEUE
   int kqueue();
@@ -132,5 +133,47 @@ private:
 };
 
 extern SocketManager socketManager;
+
+struct xfd {
+
+  xfd() : m_fd(-1) {
+  }
+
+  explicit xfd(int _fd) : m_fd(_fd) {
+  }
+
+  ~xfd() {
+    if (this->m_fd != -1) {
+      socketManager.close(this->m_fd);
+    }
+  }
+
+  /// Auto convert to a raw file descriptor.
+  operator int() const { return m_fd; }
+
+  /// Boolean operator. Returns true if we have a valid file descriptor.
+  operator bool() const { return m_fd != -1; }
+
+  xfd& operator=(int fd) {
+    if (this->m_fd != -1) {
+      socketManager.close(this->m_fd);
+    }
+
+    this->m_fd = fd;
+    return *this;
+  }
+
+  int release() {
+    int tmp = this->m_fd;
+    this->m_fd = -1;
+    return tmp;
+  }
+
+ private:
+  int m_fd;
+
+  xfd(xfd const&);            // disabled
+  xfd& operator=(xfd const&); // disabled
+};
 
 #endif /*_SocketManager_h_*/

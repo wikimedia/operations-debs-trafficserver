@@ -16,14 +16,15 @@
   limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Implement the classes for the various types of hash keys we support.
 //
 #ifndef __OPERATORS_H__
 #define __OPERATORS_H__ 1
 
 #include <string>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
 
 #include "operator.h"
 #include "resources.h"
@@ -185,6 +186,25 @@ private:
   Value _timeout;
 };
 
+class OperatorSkipRemap : public Operator
+{
+public:
+  OperatorSkipRemap()
+    : _skip_remap(false)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorSkipRemap");
+  }
+  void initialize(Parser& p);
+
+protected:
+  void exec(const Resources& res) const;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorSkipRemap);
+
+  bool _skip_remap;
+};
+
 
 // All the header operators share a base class
 class OperatorRMHeader : public OperatorHeaders
@@ -240,5 +260,24 @@ private:
   Value _value;
 };
 
+class OperatorCounter : public Operator
+{
+public:
+  OperatorCounter()
+    : _counter_name(""), _counter(TS_ERROR)
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCounter");
+  }
+  void initialize(Parser& p);
+
+protected:
+  void exec(const Resources& res) const;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorCounter);
+
+  std::string _counter_name;
+  int _counter;
+};
 
 #endif // __OPERATORS_H

@@ -44,6 +44,8 @@ struct SSLCertLookup;
 /////////////////////////////////////////////////////////////
 
 
+typedef void (*init_ssl_ctx_func)(void *, bool);
+
 struct SSLConfigParams : public ConfigInfo
 {
   enum SSL_SESSION_CACHE_MODE
@@ -66,6 +68,7 @@ struct SSLConfigParams : public ConfigInfo
   int     verify_depth;
   int     ssl_session_cache; // SSL_SESSION_CACHE_MODE
   int     ssl_session_cache_size;
+  int     ssl_session_cache_timeout;
 
   char *  clientCertPath;
   char *  clientKeyPath;
@@ -74,6 +77,11 @@ struct SSLConfigParams : public ConfigInfo
   int     clientVerify;
   int     client_verify_depth;
   long    ssl_ctx_options;
+
+  static int ssl_maxrecord;
+  static bool ssl_allow_client_renegotiation;
+
+  static init_ssl_ctx_func init_ssl_ctx_cb;
 
   void initialize();
   void cleanup();

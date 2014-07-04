@@ -16,15 +16,17 @@
   limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Declarations for all conditionals / conditional values we support.
 //
 #ifndef __CONDITIONS_H__
 #define __CONDITIONS_H__ 1
 
 #include <string>
-#include <ts/ts.h>
 #include <boost/lexical_cast.hpp>
+#include <cstring>
+
+#include "ts/ts.h"
 
 #include "condition.h"
 #include "matcher.h"
@@ -146,6 +148,65 @@ private:
 };
 
 
+// cookie(name)
+class ConditionCookie: public Condition
+{
+public:
+  ConditionCookie()
+  {
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionCookie");
+  }
+  void initialize(Parser& p);
+  void append_value(std::string& s, const Resources& res);
+
+protected:
+  bool eval(const Resources& res);
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(ConditionCookie);
+
+  // Nginx-style cookie parsing:
+  //   nginx/src/http/ngx_http_parse.c:ngx_http_parse_multi_header_lines()
+  inline int
+  get_cookie_value(const char *buf, int buf_len, const char *name, int name_len,
+        const char **value, int *value_len)
+  {
+    const char *start, *last, *end;
+
+    // Sanity
+    if (buf == NULL || name == NULL || value == NULL || value_len == NULL)
+      return TS_ERROR;
+
+    start = buf;
+    end = buf + buf_len;
+
+    while (start < end) {
+      if (strncasecmp(start, name, name_len) != 0)
+        goto skip;
+
+      for (start += name_len; start < end && *start == ' '; start++);
+
+      if (start == end || *start++ != '=')
+        goto skip;
+
+      while (start < end && *start == ' ') { start++; }
+      for (last = start; last < end && *last != ';'; last++);
+
+      *value_len = last - start;
+      *value = start;
+      return TS_SUCCESS;
+skip:
+      while (start < end) {
+        char ch = *start++;
+        if (ch == ';' || ch == ',')
+          break;
+      }
+      while (start < end && *start == ' ') { start++; }
+    }
+    return TS_ERROR;
+  };
+};
+
 // header
 class ConditionHeader : public Condition
 {
@@ -168,7 +229,7 @@ private:
   bool _client;
 };
 
-// path 
+// path
 class ConditionPath : public Condition
 {
 public:
@@ -188,19 +249,7 @@ private:
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+// query
 class ConditionQuery : public Condition
 {
 public:
@@ -251,7 +300,7 @@ class ConditionDBM : public Condition
 {
 public:
   ConditionDBM()
-    : 
+    :
     //_dbm(NULL),
       _file("")
   {
@@ -279,6 +328,25 @@ private:
   std::string _file;
   Value _key;
   TSMutex _mutex;
+};
+
+class ConditionInternalTransaction : public Condition
+{
+public:
+  void append_value(std::string &/* s ATS_UNUSED */, const Resources &/* res ATS_UNUSED */) { }
+
+protected:
+  bool eval(const Resources &res);
+};
+
+class ConditionClientIp : public Condition
+{
+public:
+  void initialize(Parser& p);
+  void append_value(std::string &s, const Resources &res);
+
+protected:
+  bool eval(const Resources &res);
 };
 
 #endif // __CONDITIONS_H

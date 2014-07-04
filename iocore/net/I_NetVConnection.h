@@ -31,17 +31,13 @@
 #include "List.h"
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
+#include <ts/apidefs.h>
 
 #define CONNECT_SUCCESS   1
 #define CONNECT_FAILURE   0
 
 #define SSL_EVENT_SERVER 0
 #define SSL_EVENT_CLIENT 1
-
-enum NetDataType
-{
-  NET_DATA_ATTRIBUTES = VCONNECTION_NET_DATA_BASE
-};
 
 /** Holds client options for NetVConnection.
 

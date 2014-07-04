@@ -34,7 +34,7 @@
 #define CACHE_ALT_REMOVED           -2
 
 #define CACHE_DB_MAJOR_VERSION      23
-#define CACHE_DB_MINOR_VERSION      0
+#define CACHE_DB_MINOR_VERSION      2
 
 #define CACHE_DIR_MAJOR_VERSION     18
 #define CACHE_DIR_MINOR_VERSION     0
@@ -63,7 +63,7 @@ enum CacheType {
 };
 
 // NOTE: All the failures are ODD, and one greater than the success
-//       Some of these must match those in <ts/ts.h> (tested in verify_cache_api())
+//       Some of these must match those in <ts/ts.h>
 enum CacheEventType
 {
   CACHE_EVENT_LOOKUP = CACHE_EVENT_EVENTS_START + 0,

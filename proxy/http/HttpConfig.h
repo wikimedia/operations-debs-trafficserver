@@ -48,6 +48,7 @@
 #endif
 
 #include "libts.h"
+#include "HttpProxyAPIEnums.h"
 #include "ProxyConfig.h"
 
 #include "P_RecProcess.h"
@@ -66,6 +67,7 @@ enum
   http_background_fill_current_count_stat,
   http_current_client_connections_stat,
   http_current_active_client_connections_stat,
+  http_websocket_current_active_client_connections_stat,
   http_current_client_transactions_stat,
   http_total_incoming_connections_stat,
   http_current_parent_proxy_transactions_stat,
@@ -147,15 +149,6 @@ enum
   http_tunnels_stat,
   http_throttled_proxy_only_stat,
 
-  // HTTP requests classified by IMS/no-cache/MSIE
-  http_request_taxonomy_i0_n0_m0_stat,
-  http_request_taxonomy_i1_n0_m0_stat,
-  http_request_taxonomy_i0_n1_m0_stat,
-  http_request_taxonomy_i1_n1_m0_stat,
-  http_request_taxonomy_i0_n0_m1_stat,
-  http_request_taxonomy_i1_n0_m1_stat,
-  http_request_taxonomy_i0_n1_m1_stat,
-  http_request_taxonomy_i1_n1_m1_stat,
   http_icp_suggested_lookups_stat,
 
   // document size stats
@@ -344,6 +337,9 @@ enum
   http_response_status_505_count_stat,
   http_response_status_5xx_count_stat,
 
+  https_incoming_requests_stat,
+  https_total_client_connections_stat,
+
   http_stat_count
 };
 
@@ -403,13 +399,17 @@ struct OverridableHttpConfigParams {
     : maintain_pristine_host_hdr(1), chunking_enabled(1),
       negative_caching_enabled(0), negative_revalidating_enabled(0), cache_when_to_revalidate(0),
       keep_alive_enabled_in(1), keep_alive_enabled_out(1), keep_alive_post_out(0),
-      share_server_sessions(2), fwd_proxy_auth_to_parent(0), insert_age_in_response(1),
+      server_session_sharing_match(TS_SERVER_SESSION_SHARING_MATCH_BOTH),
+      server_session_sharing_pool(TS_SERVER_SESSION_SHARING_POOL_THREAD),
+      fwd_proxy_auth_to_parent(0), insert_age_in_response(1),
       anonymize_remove_from(0), anonymize_remove_referer(0), anonymize_remove_user_agent(0),
       anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
-      proxy_response_server_enabled(1), insert_squid_x_forwarded_for(1), send_http11_requests(1),
+      proxy_response_server_enabled(1), proxy_response_hsts_max_age(-1), proxy_response_hsts_include_subdomains(0),
+      insert_squid_x_forwarded_for(1), send_http11_requests(1),
       cache_http(1), cache_cluster_cache_local(0), cache_ignore_client_no_cache(1), cache_ignore_client_cc_max_age(0),
       cache_ims_on_client_no_cache(1), cache_ignore_server_no_cache(0), cache_responses_to_cookies(1),
-      cache_ignore_auth(0), cache_urls_that_look_dynamic(1), cache_required_headers(2), cache_range_lookup(1),
+      cache_ignore_auth(0), cache_urls_that_look_dynamic(1), cache_required_headers(2),
+      cache_range_lookup(1), cache_range_write(0),
       insert_request_via_string(1), insert_response_via_string(0), doc_in_cache_skip_dns(1),
       flow_control_enabled(0), accept_encoding_filter_enabled(0), normalize_ae_gzip(0),
       negative_caching_lifetime(1800), negative_revalidating_lifetime(1800),
@@ -455,7 +455,9 @@ struct OverridableHttpConfigParams {
   MgmtByte keep_alive_enabled_out;
   MgmtByte keep_alive_post_out;  // share server sessions for post
 
-  MgmtByte share_server_sessions;
+  MgmtByte server_session_sharing_match;
+  MgmtByte server_session_sharing_pool;
+  //  MgmtByte share_server_sessions;
   MgmtByte fwd_proxy_auth_to_parent;
 
   MgmtByte insert_age_in_response;
@@ -471,6 +473,8 @@ struct OverridableHttpConfigParams {
   MgmtByte anonymize_insert_client_ip;
 
   MgmtByte proxy_response_server_enabled;
+  MgmtInt proxy_response_hsts_max_age;
+  MgmtByte proxy_response_hsts_include_subdomains;
 
   /////////////////////
   // X-Forwarded-For //
@@ -496,6 +500,7 @@ struct OverridableHttpConfigParams {
   MgmtByte cache_urls_that_look_dynamic;
   MgmtByte cache_required_headers;
   MgmtByte cache_range_lookup;
+  MgmtByte cache_range_write;
 
   MgmtByte insert_request_via_string;
   MgmtByte insert_response_via_string;
@@ -640,6 +645,7 @@ public:
 
   MgmtInt server_max_connections;
   MgmtInt origin_min_keep_alive_connections; // TODO: This one really ought to be overridable, but difficult right now.
+  MgmtInt attach_server_session_to_client;
 
   MgmtByte parent_proxy_routing_enable;
   MgmtByte disable_ssl_parenting;
@@ -667,8 +673,6 @@ public:
   // connection variables. timeouts are in seconds //
   ///////////////////////////////////////////////////
   MgmtByte session_auth_cache_keep_alive_enabled;
-  MgmtInt origin_server_pipeline;
-  MgmtInt user_agent_pipeline;
   MgmtInt transaction_active_timeout_in;
   MgmtInt accept_no_activity_timeout;
 
@@ -709,7 +713,6 @@ public:
   // cache control //
   ///////////////////
   MgmtByte cache_enable_default_vary_headers;
-  MgmtByte cache_when_to_add_no_cache_to_msie_requests;
 
   ////////////////////////////////////////////
   // CONNECT ports (used to be == ssl_ports //
@@ -769,6 +772,7 @@ public:
   //##############################################################################
 
   MgmtByte redirection_enabled;
+  MgmtByte redirection_host_no_port;
   MgmtInt number_of_redirections;
   MgmtInt post_copy_size;
 
@@ -780,6 +784,8 @@ public:
   MgmtByte ignore_accept_language_mismatch;
   MgmtByte ignore_accept_encoding_mismatch;
   MgmtByte ignore_accept_charset_mismatch;
+
+  MgmtByte send_100_continue_response;
 
   OverridableHttpConfigParams oride;
 
@@ -892,8 +898,6 @@ HttpConfigParams::HttpConfigParams()
     url_expansions(NULL),
     num_url_expansions(0),
     session_auth_cache_keep_alive_enabled(1),
-    origin_server_pipeline(1),
-    user_agent_pipeline(8),
     transaction_active_timeout_in(900),
     accept_no_activity_timeout(120),
     parent_connect_attempts(4),
@@ -910,7 +914,6 @@ HttpConfigParams::HttpConfigParams()
     cache_vary_default_other(NULL),
     max_cache_open_write_retries(1),
     cache_enable_default_vary_headers(0),
-    cache_when_to_add_no_cache_to_msie_requests(-1),
     connect_ports_string(NULL),
     connect_ports(NULL),
     push_method_enabled(0),
@@ -923,13 +926,15 @@ HttpConfigParams::HttpConfigParams()
     errors_log_error_pages(1),
     enable_http_info(0),
     cluster_time_delta(0),
-    redirection_enabled(1),
+    redirection_enabled(0),
+    redirection_host_no_port(0),
     number_of_redirections(1),
     post_copy_size(2048),
     ignore_accept_mismatch(0),
     ignore_accept_language_mismatch(0),
     ignore_accept_encoding_mismatch(0),
-    ignore_accept_charset_mismatch(0)
+    ignore_accept_charset_mismatch(0),
+    send_100_continue_response(0)
 {
 }
 

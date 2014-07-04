@@ -68,9 +68,12 @@ HttpTransactHeaders::is_this_method_supported(int the_scheme, int the_method)
 {
   if (the_method == HTTP_WKSIDX_CONNECT) {
     return true;
-  } else if (the_scheme == URL_WKSIDX_HTTP || the_scheme == URL_WKSIDX_HTTPS)
+  } else if (the_scheme == URL_WKSIDX_HTTP || the_scheme == URL_WKSIDX_HTTPS) {
     return is_this_http_method_supported(the_method);
-  else
+  } else if ((the_scheme == URL_WKSIDX_WS || the_scheme == URL_WKSIDX_WSS) &&
+            the_method == HTTP_WKSIDX_GET) {
+    return true;
+  } else
     return false;
 }
 
@@ -619,7 +622,7 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header,
     hier_code = SQUID_HIER_NONE;
     break;
   case VIA_ERROR_SERVER:
-    if (log_code == SQUID_LOG_TCP_MISS || log_code == SQUID_LOG_TCP_MISS) {
+    if (log_code == SQUID_LOG_TCP_MISS || log_code == SQUID_LOG_TCP_IMS_MISS) {
       log_code = SQUID_LOG_ERR_CONNECT_FAIL;
     }
     break;
@@ -879,6 +882,25 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
   header->value_append(MIME_FIELD_VIA, MIME_LEN_VIA, new_via_string, via_string - new_via_string, true);
 }
 
+void
+HttpTransactHeaders::insert_hsts_header_in_response(HttpTransact::State *s, HTTPHdr *header)
+{
+  char new_hsts_string[64];
+  char *hsts_string = new_hsts_string;
+  const char include_subdomains[] = "; includeSubDomains";
+
+  // add max-age
+  int length = snprintf(new_hsts_string, sizeof(new_hsts_string), "max-age=%" PRId64, s->txn_conf->proxy_response_hsts_max_age);
+
+  // add include subdomain if set
+  if (s->txn_conf->proxy_response_hsts_include_subdomains) {
+    hsts_string += length;
+    memcpy(hsts_string, include_subdomains, sizeof(include_subdomains));
+    length += sizeof(include_subdomains);
+  }
+
+  header->value_set(MIME_FIELD_STRICT_TRANSPORT_SECURITY, MIME_LEN_STRICT_TRANSPORT_SECURITY, new_hsts_string, length);
+}
 
 void
 HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPHdr *header)
@@ -971,76 +993,6 @@ HttpTransactHeaders::insert_basic_realm_in_proxy_authenticate(const char *realm,
 }
 
 
-inline void
-HttpTransactHeaders::process_connection_field_in_outgoing_header(HTTPHdr *base, HTTPHdr *header)
-{
-  _process_xxx_connection_field_in_outgoing_header(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, base, header);
-}
-
-inline void
-HttpTransactHeaders::process_proxy_connection_field_in_outgoing_header(HTTPHdr *base, HTTPHdr *header)
-{
-  _process_xxx_connection_field_in_outgoing_header(MIME_FIELD_PROXY_CONNECTION, MIME_LEN_PROXY_CONNECTION, base, header);
-}
-
-
-void
-HttpTransactHeaders::process_connection_headers(HTTPHdr *base, HTTPHdr *outgoing)
-{
-  process_connection_field_in_outgoing_header(base, outgoing);
-  process_proxy_connection_field_in_outgoing_header(base, outgoing);
-}
-
-
-void
-HttpTransactHeaders::_process_xxx_connection_field_in_outgoing_header(const char *wks_field_name,
-                                                                      int wks_field_name_len,
-                                                                      HTTPHdr *base, HTTPHdr *header)
-{
-  MIMEField *con_hdr;
-  con_hdr = base->field_find(wks_field_name, wks_field_name_len);
-
-  if (con_hdr) {
-    int val_len;
-    const char *val;
-
-    if (!con_hdr->has_dups()) { // try fastpath first
-      val = con_hdr->value_get(&val_len);
-      if ((ptr_len_casecmp(val, val_len, "keep-alive", 10) == 0) || (ptr_len_casecmp(val, val_len, "close", 5) == 0)) {
-        return;
-      }
-    }
-    {
-      HdrCsvIter iter;
-      val = iter.get_first(con_hdr, &val_len);
-
-      while (val) {
-
-        const char *wks = hdrtoken_string_to_wks(val, val_len);
-        if (wks) {
-          if ((wks != HTTP_VALUE_KEEP_ALIVE) && (wks != HTTP_VALUE_CLOSE) &&
-              (wks != MIME_FIELD_HOST) && (wks != MIME_FIELD_DATE)) {
-            int wks_length = hdrtoken_wks_to_length(wks);
-            header->field_delete(wks, wks_length);
-          }
-        } else {
-          // the following are needed to delete non-standard HTTP headers.
-          MIMEHdrImpl *m_hdr_impl = header->m_http->m_fields_impl;
-          MIMEField *hdr_to_remove;
-
-          // The specified header is not a standard HTTP header.
-          hdr_to_remove = _mime_hdr_field_list_search_by_string(m_hdr_impl, val, val_len);
-          if (hdr_to_remove)
-            header->field_delete(hdr_to_remove);
-        }
-
-        val = iter.get_next(&val_len);
-      }
-    }
-  }
-}
-
-
 void
 HttpTransactHeaders::remove_conditional_headers(HTTPHdr *outgoing)
 {
@@ -1054,6 +1006,18 @@ HttpTransactHeaders::remove_conditional_headers(HTTPHdr *outgoing)
   }
   // TODO: how about RANGE and IF_RANGE?
 }
+
+void
+HttpTransactHeaders::remove_100_continue_headers(HttpTransact::State *s, HTTPHdr *outgoing)
+{
+  int len = 0;
+  const char *expect = s->hdr_info.client_request.value_get(MIME_FIELD_EXPECT, MIME_LEN_EXPECT, &len);
+
+  if ((len == HTTP_LEN_100_CONTINUE) && (strncasecmp(expect, HTTP_VALUE_100_CONTINUE, HTTP_LEN_100_CONTINUE) == 0)) {
+    outgoing->field_delete(MIME_FIELD_EXPECT, MIME_LEN_EXPECT);
+  }
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////

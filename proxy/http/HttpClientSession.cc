@@ -36,6 +36,7 @@
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
 #include "HttpServerSession.h"
+#include "Plugin.h"
 
 #define DebugSsn(tag, ...) DebugSpecific(debug_on, tag, __VA_ARGS__)
 #define STATE_ENTER(state_name, event, vio) { \
@@ -64,10 +65,10 @@ HttpClientSession::HttpClientSession()
     read_buffer(NULL), current_reader(NULL), read_state(HCS_INIT),
     ka_vio(NULL), slave_ka_vio(NULL),
     cur_hook_id(TS_HTTP_LAST_HOOK), cur_hook(NULL),
-    cur_hooks(0), proxy_allocated(false), backdoor_connect(false),
+    cur_hooks(0), backdoor_connect(false),
     hooks_set(0),
     outbound_port(0), f_outbound_transparent(false),
-    host_res_style(HOST_RES_IPV4), acl_method_mask(0),
+    host_res_style(HOST_RES_IPV4), acl_record(NULL),
     m_active(false), debug_on(false)
 {
   memset(user_args, 0, sizeof(user_args));
@@ -107,17 +108,7 @@ void
 HttpClientSession::destroy()
 {
   this->cleanup();
-  if (proxy_allocated)
-    THREAD_FREE(this, httpClientSessionAllocator, this_ethread());
-  else
-    httpClientSessionAllocator.free(this);
-}
-
-HttpClientSession *
-HttpClientSession::allocate()
-{
-  ink_assert(0);
-  return NULL;
+  THREAD_FREE(this, httpClientSessionAllocator, this_thread());
 }
 
 void
@@ -147,6 +138,7 @@ void
 HttpClientSession::new_transaction()
 {
   ink_assert(current_reader == NULL);
+  PluginIdentity* pi = dynamic_cast<PluginIdentity*>(client_vc);
 
   read_state = HCS_ACTIVE_READER;
   current_reader = HttpSM::allocate();
@@ -155,6 +147,12 @@ HttpClientSession::new_transaction()
   DebugSsn("http_cs", "[%" PRId64 "] Starting transaction %d using sm [%" PRId64 "]", con_id, transact_count, current_reader->sm_id);
 
   current_reader->attach_client_session(this, sm_reader);
+  if (pi) {
+    // it's a plugin VC of some sort with identify information.
+    // copy it to the SM.
+    current_reader->plugin_tag = pi->getPluginTag();
+    current_reader->plugin_id = pi->getPluginId();
+  }
 }
 
 inline void
@@ -175,7 +173,7 @@ HttpClientSession::do_api_callout(TSHttpHookID id)
 }
 
 void
-HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
+HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor, MIOBuffer * iobuf, IOBufferReader * reader)
 {
 
   ink_assert(new_vc != NULL);
@@ -193,6 +191,10 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
   HTTP_INCREMENT_DYN_STAT(http_current_client_connections_stat);
   conn_decrease = true;
   HTTP_INCREMENT_DYN_STAT(http_total_client_connections_stat);
+  if (static_cast<HttpProxyPort::TransportType>(new_vc->attributes) == HttpProxyPort::TRANSPORT_SSL) {
+    HTTP_INCREMENT_DYN_STAT(https_total_client_connections_stat);
+  }
+
   /* inbound requests stat should be incremented here, not after the
    * header has been read */
   HTTP_INCREMENT_DYN_STAT(http_total_incoming_connections_stat);
@@ -225,8 +227,8 @@ HttpClientSession::new_connection(NetVConnection * new_vc, bool backdoor)
 
   DebugSsn("http_cs", "[%" PRId64 "] session born, netvc %p", con_id, new_vc);
 
-  read_buffer = new_MIOBuffer(HTTP_HEADER_BUFFER_SIZE_INDEX);
-  sm_reader = read_buffer->alloc_reader();
+  read_buffer = iobuf ? iobuf : new_MIOBuffer(HTTP_HEADER_BUFFER_SIZE_INDEX);
+  sm_reader = reader ? reader : read_buffer->alloc_reader();
 
   // INKqa11186: Use a local pointer to the mutex as
   // when we return from do_api_callout, the ClientSession may
@@ -285,6 +287,7 @@ HttpClientSession::do_io_close(int alerrno)
       HTTP_DECREMENT_DYN_STAT(http_current_active_client_connections_stat);
     }
   }
+
   // Prevent double closing
   ink_release_assert(read_state != HCS_CLOSED);
 
@@ -303,7 +306,7 @@ HttpClientSession::do_io_close(int alerrno)
 
     // We want the client to know that that we're finished
     //  writing.  The write shutdown accomplishes this.  Unfortuantely,
-    //  the IO Core symnatics don't stop us from getting events
+    //  the IO Core semantics don't stop us from getting events
     //  on the write side of the connection like timeouts so we
     //  need to zero out the write of the continuation with
     //  the do_io_write() call (INKqa05309)
@@ -475,7 +478,7 @@ HttpClientSession::state_api_callout(int event, void * /* data ATS_UNUSED */)
           plugin_lock = MUTEX_TAKE_TRY_LOCK(cur_hook->m_cont->mutex, mutex->thread_holding);
           if (!plugin_lock) {
             SET_HANDLER(&HttpClientSession::state_api_callout);
-            mutex->thread_holding->schedule_in(this, HRTIME_MSECONDS(10), ET_NET);
+            mutex->thread_holding->schedule_in(this, HRTIME_MSECONDS(10));
             return 0;
           }
         } else {
@@ -499,6 +502,7 @@ HttpClientSession::state_api_callout(int event, void * /* data ATS_UNUSED */)
     handle_api_return(event);
     break;
 
+  // coverity[unterminated_default]
   default:
     ink_assert(false);
   case HTTP_API_ERROR:

@@ -18,19 +18,16 @@
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
+  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy/http \
   -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_builddir)/proxy \
-  -I$(top_builddir)/proxy/api/ts \
+  -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils
-
-DEFS += @IOCORE_MODULARIZED_DEFS@
 
 noinst_LIBRARIES = libinkcluster.a
 
@@ -47,6 +44,7 @@ libinkcluster_a_SOURCES = \
   ClusterProcessor.cc \
   ClusterRPC.cc \
   ClusterVConnection.cc \
+  Inline.cc \
   P_Cluster.h \
   P_ClusterCache.h \
   P_ClusterCacheInternal.h \
@@ -56,6 +54,8 @@ libinkcluster_a_SOURCES = \
   P_ClusterLib.h \
   P_ClusterLoadMonitor.h \
   P_ClusterMachine.h \
-  P_TimeTrace.h \
-  Inline.cc
+  P_TimeTrace.h
 
+#test_Cluster_SOURCES = \
+#  test_I_Cluster.cc \
+#  test_P_Cluster.cc

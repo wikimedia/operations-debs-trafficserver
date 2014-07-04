@@ -35,6 +35,7 @@
 
 #include "ink_hash_table.h"
 #include "List.h"
+#include "Rollback.h"
 #include "WebGlobals.h"
 #include "MultiFile.h"
 #include "WebHttpMessage.h"
@@ -134,7 +135,6 @@ private:
     DLL<callbackListable> cblist;
   InkHashTable *bindings;
   //InkHashTable* g_snapshot_directory_ht;
-  char *snapshotDir;
   SnapResult copyFile(Rollback * rb, const char *snapPath);
   SnapResult readFile(const char *filePath, textBuffer * contents);
   void abortRestore(const char *abortTo);

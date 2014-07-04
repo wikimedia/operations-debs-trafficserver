@@ -20,25 +20,26 @@ SUBDIRS = remap
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_builddir)/proxy \
-  -I$(top_builddir)/proxy/api/ts \
+  -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/proxy/hdrs \
+  -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/proxy/http/remap \
-  -I$(top_srcdir)/proxy/logging
+  -I$(top_srcdir)/proxy/logging \
+  -I$(top_srcdir)/proxy/spdy
 
 noinst_HEADERS = HttpProxyServerMain.h
 noinst_LIBRARIES = libhttp.a
 
 libhttp_a_SOURCES = \
-  HttpAccept.cc \
-  HttpAccept.h \
+  HttpSessionAccept.cc \
+  HttpSessionAccept.h \
   HttpBodyFactory.cc \
   HttpBodyFactory.h \
   HttpCacheSM.cc \
@@ -54,16 +55,17 @@ libhttp_a_SOURCES = \
   HttpPages.cc \
   HttpPages.h \
   HttpProxyServerMain.cc \
+  HttpProxyServerMain.h \
+  HttpSM.cc \
+  HttpSM.h \
   HttpServerSession.cc \
   HttpServerSession.h \
   HttpSessionManager.cc \
   HttpSessionManager.h \
-  HttpSM.cc \
-  HttpSM.h \
-  HttpTransactCache.cc \
-  HttpTransactCache.h \
   HttpTransact.cc \
   HttpTransact.h \
+  HttpTransactCache.cc \
+  HttpTransactCache.h \
   HttpTransactHeaders.cc \
   HttpTransactHeaders.h \
   HttpTunnel.cc \
@@ -72,5 +74,12 @@ libhttp_a_SOURCES = \
   HttpUpdateSM.h
 
 if BUILD_TESTS
-  libhttp_a_SOURCES += HttpUpdateTester.cc
+  libhttp_a_SOURCES += HttpUpdateTester.cc \
+    RegressionHttpTransact.cc
 endif
+
+#test_UNUSED_SOURCES = \
+#  TestHttpTransact.cc \
+#  TestUrl.cc \
+#  test_socket_close.cc \
+#  testheaders.cc

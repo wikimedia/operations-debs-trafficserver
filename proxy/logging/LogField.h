@@ -31,6 +31,35 @@
 
 class LogAccess;
 
+struct LogSlice
+{
+  bool m_enable;
+  int m_start;
+  int m_end;
+
+  LogSlice() {
+    m_enable = false;
+    m_start = 0;
+    m_end = INT_MAX;
+  }
+
+  //
+  // Initialize LogSlice by slice notation,
+  // the str looks like: "xxx[0:30]".
+  //
+  LogSlice(char *str);
+
+  //
+  // Convert slice notation to target string's offset,
+  // return the available length belongs to this slice.
+  //
+  // Use the offset and return value, we can locate the
+  // string content indicated by this slice.
+  //
+  int toStrOffset(int strlen, int *offset);
+};
+
+
 /*-------------------------------------------------------------------------
   LogField
 
@@ -47,7 +76,9 @@ class LogField
 public:
   typedef int (LogAccess::*MarshalFunc) (char *buf);
   typedef int (*UnmarshalFunc) (char **buf, char *dest, int len);
+  typedef int (*UnmarshalFuncWithSlice) (char **buf, char *dest, int len, LogSlice *slice);
   typedef int (*UnmarshalFuncWithMap) (char **buf, char *dest, int len, Ptr<LogFieldAliasMap> map);
+  typedef void (LogAccess::*SetFunc) (char *buf, int len);
 
 
   enum Type
@@ -89,14 +120,14 @@ public:
     N_AGGREGATES
   };
 
-    LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFunc unmarshal);
+  LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFunc unmarshal, SetFunc _setFunc=NULL);
 
-    LogField(const char *name, const char *symbol, Type type,
-             MarshalFunc marshal, UnmarshalFuncWithMap unmarshal, Ptr<LogFieldAliasMap> map);
+  LogField(const char *name, const char *symbol, Type type,
+      MarshalFunc marshal, UnmarshalFuncWithMap unmarshal, Ptr<LogFieldAliasMap> map, SetFunc _setFunc=NULL);
 
-    LogField(const char *field, Container container);
-    LogField(const LogField & rhs);
-   ~LogField();
+  LogField(const char *field, Container container, SetFunc _setFunc=NULL);
+  LogField(const LogField & rhs);
+  ~LogField();
 
   unsigned marshal_len(LogAccess * lad);
   unsigned marshal(LogAccess * lad, char *buf);
@@ -104,6 +135,7 @@ public:
   unsigned unmarshal(char **buf, char *dest, int len);
   void display(FILE * fd = stdout);
   bool operator==(LogField & rhs);
+  void updateField(LogAccess * lad, char* val, int len);
 
   char *name()
   {
@@ -149,9 +181,11 @@ private:
   int64_t m_agg_val;
   bool m_time_field;
   Ptr<LogFieldAliasMap> m_alias_map; // map sINT <--> string
+  SetFunc m_set_func;
 
 public:
   LINK(LogField, link);
+  LogSlice m_slice;
 
 private:
 // luis, check where this is used and what it does

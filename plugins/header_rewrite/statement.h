@@ -16,7 +16,7 @@
   limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Base class for all Conditions and Operations. We share the "linked" list, and the
 // resource management / requirements.
 //
@@ -25,7 +25,8 @@
 
 #include <string>
 #include <vector>
-#include <ts/ts.h>
+
+#include "ts/ts.h"
 
 #include "resources.h"
 #include "parser.h"

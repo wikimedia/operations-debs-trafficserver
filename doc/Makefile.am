@@ -19,36 +19,6 @@ trafficshelldir = $(pkgdocdir)/trafficshell
 .PHONY: help dirhtml singlehtml epub latex man changes linkcheck doxygen
 
 dist_trafficshell_DATA = \
-  man/config_alarms.1 \
-  man/config_cache.1 \
-  man/config_clock.1 \
-  man/config_dns.1 \
-  man/config_get.1 \
-  man/config_hard-restart.1 \
-  man/config_hostdb.1 \
-  man/config_http.1 \
-  man/config_icp.1 \
-  man/config_logging.1 \
-  man/config_name.1 \
-  man/config_network.1 \
-  man/config_parent.1 \
-  man/config_port-tunnels.1 \
-  man/config_remap.1 \
-  man/config_reset-stats.1 \
-  man/config_restart.1 \
-  man/config_root.1 \
-  man/config_scheduled-update.1 \
-  man/config_security.1 \
-  man/config_set.1 \
-  man/config_socks.1 \
-  man/config_ssl.1 \
-  man/config_start.1 \
-  man/config_stop.1 \
-  man/config_upgrade.1 \
-  man/config_virtual-ip.1 \
-  man/disable.1 \
-  man/enable.1 \
-  man/exit.1 \
   man/show_alarms.1 \
   man/show_cache.1 \
   man/show_cache-stats.1 \
@@ -78,8 +48,21 @@ dist_trafficshell_DATA = \
   man/show_version.1 \
   man/show_virtual-ip.1
 
-man1_MANS = \
-  man/traffic_shell.1
+if BUILD_MANPAGES
+
+man1_MANS = $(TS_MAN1_MANPAGES)
+man3_MANS = $(TS_MAN3_MANPAGES)
+man5_MANS = $(TS_MAN5_MANPAGES)
+man8_MANS = $(TS_MAN8_MANPAGES)
+
+$(man1_MANS) $(man3_MANS) $(man5_MANS) $(man8_MANS): man
+
+# Hook the 'all' target so that the man pages get generated in the "all" target, prior
+# to "make install". If we leave it to "make install" time, then the man pages are likely
+# to me generated as root.
+all-am: $(man1_MANS) $(man3_MANS) $(man5_MANS) $(man8_MANS)
+
+endif
 
 EXTRA_DIST = \
   Doxyfile.in \
@@ -96,8 +79,6 @@ doxygen: Doxyfile
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    =
-SPHINXBUILD   = sphinx-build
 PAPER         = letter
 BUILDDIR      = docbuild
 

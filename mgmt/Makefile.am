@@ -17,7 +17,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-SUBDIRS = cluster preparse utils web2 stats api cli
+SUBDIRS = cluster utils web2 stats api
 
 # This is for traffic_manager only (local manager)
 AM_CPPFLAGS = $(ink_with_modules_local) \
@@ -26,14 +26,15 @@ AM_CPPFLAGS = $(ink_with_modules_local) \
   -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
+  -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/cluster \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/stats \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/mgmt/web2 \
-  -I$(top_srcdir)/lib
+  -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib
 
 MGMT_DEFS = @MGMT_DEFS@
 DEFS += $(MGMT_DEFS)
@@ -47,16 +48,16 @@ libmgmt_p_a_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/cluster \
-  -I$(top_srcdir)/mgmt/preparse \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/mgmt/web2 \
-  -I$(top_builddir)/proxy \
-  -I$(top_builddir)/proxy/api/ts \
+  -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
-  -I$(top_srcdir)/lib
+  -I$(top_srcdir)/lib \
+  -I$(top_builddir)/lib
+
 libmgmt_p_a_SOURCES = \
   BaseManager.cc \
   BaseManager.h \
@@ -69,8 +70,6 @@ libmgmt_p_a_SOURCES = \
   RecordsConfig.h
 
 traffic_manager_SOURCES = \
-  ../proxy/Error.cc \
-  ../proxy/DiagsConfig.cc \
   AddConfigFilesHere.cc \
   Alarms.cc \
   Alarms.h \
@@ -96,12 +95,15 @@ traffic_manager_LDADD = \
   stats/libstats.a \
   web2/libweb.a \
   api/libmgmtapilocal.a \
+  api/libtsmgmtshare.la \
   utils/libutils_lm.a \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/lib/records/libreclocal.a \
   $(top_builddir)/lib/ts/libtsutil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ \
+  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/proxy/shared/liberror.a \
+  $(top_builddir)/proxy/shared/libdiagsconfig.a \
+  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
   -lm
 
 # Must do it this way or the dependencies aren't detected.
@@ -111,5 +113,5 @@ traffic_manager_LDADD += \
   $(top_builddir)/lib/tsconfig/libtsconfig.la
 endif
 
-traffic_manager_LDADD += @LIBSSL@
+traffic_manager_LDADD += @OPENSSL_LIBS@
 

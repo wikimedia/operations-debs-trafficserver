@@ -25,10 +25,8 @@
 #include "P_Cache.h"
 
 // Cache Inspector and State Pages
-#ifdef NON_MODULAR
 #include "P_CacheTest.h"
 #include "StatPages.h"
-#endif
 
 #include "I_Layout.h"
 
@@ -77,7 +75,6 @@ int cache_config_agg_write_backlog = AGG_SIZE * 2;
 int cache_config_enable_checksum = 0;
 int cache_config_alt_rewrite_max_size = 4096;
 int cache_config_read_while_writer = 0;
-char cache_system_config_directory[PATH_NAME_MAX + 1];
 int cache_config_mutex_retry_delay = 2;
 #ifdef HTTP_CACHE
 static int enable_cache_empty_http_doc = 0;
@@ -123,20 +120,6 @@ CacheKey zero_key(0, 0);
 #if TS_USE_INTERIM_CACHE == 1
 ClassAllocator<MigrateToInterimCache> migrateToInterimCacheAllocator("migrateToInterimCache");
 #endif
-void verify_cache_api() {
-  ink_assert((int)TS_EVENT_CACHE_OPEN_READ == (int)CACHE_EVENT_OPEN_READ);
-  ink_assert((int)TS_EVENT_CACHE_OPEN_READ_FAILED == (int)CACHE_EVENT_OPEN_READ_FAILED);
-  ink_assert((int)TS_EVENT_CACHE_OPEN_WRITE == (int)CACHE_EVENT_OPEN_WRITE);
-  ink_assert((int)TS_EVENT_CACHE_OPEN_WRITE_FAILED == (int)CACHE_EVENT_OPEN_WRITE_FAILED);
-  ink_assert((int)TS_EVENT_CACHE_REMOVE == (int)CACHE_EVENT_REMOVE);
-  ink_assert((int)TS_EVENT_CACHE_REMOVE_FAILED == (int)CACHE_EVENT_REMOVE_FAILED);
-  ink_assert((int)TS_EVENT_CACHE_SCAN == (int)CACHE_EVENT_SCAN);
-  ink_assert((int)TS_EVENT_CACHE_SCAN_FAILED == (int)CACHE_EVENT_SCAN_FAILED);
-  ink_assert((int)TS_EVENT_CACHE_SCAN_OBJECT == (int)CACHE_EVENT_SCAN_OBJECT);
-  ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_BLOCKED == (int)CACHE_EVENT_SCAN_OPERATION_BLOCKED);
-  ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_FAILED == (int)CACHE_EVENT_SCAN_OPERATION_FAILED);
-  ink_assert((int)TS_EVENT_CACHE_SCAN_DONE == (int)CACHE_EVENT_SCAN_DONE);
-}
 
 struct VolInitInfo
 {
@@ -309,12 +292,14 @@ CacheVC::CacheVC():alternate_index(CACHE_ALT_INDEX_DEFAULT)
   //coverity[uninit_member]
 }
 
+#ifdef HTTP_CACHE
 HTTPInfo::FragOffset*
 CacheVC::get_frag_table()
 {
   ink_assert(alternate.valid());
   return alternate.valid() ? alternate.get_frag_table() : 0;
 }
+#endif
 
 VIO *
 CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
@@ -593,9 +578,19 @@ static const int DEFAULT_CACHE_OPTIONS = (O_RDWR | _O_ATTRIB_OVERLAPPED);
 int
 CacheProcessor::start_internal(int flags)
 {
-#ifdef NON_MODULAR
-  verify_cache_api();
-#endif
+
+  ink_assert((int)TS_EVENT_CACHE_OPEN_READ == (int)CACHE_EVENT_OPEN_READ);
+  ink_assert((int)TS_EVENT_CACHE_OPEN_READ_FAILED == (int)CACHE_EVENT_OPEN_READ_FAILED);
+  ink_assert((int)TS_EVENT_CACHE_OPEN_WRITE == (int)CACHE_EVENT_OPEN_WRITE);
+  ink_assert((int)TS_EVENT_CACHE_OPEN_WRITE_FAILED == (int)CACHE_EVENT_OPEN_WRITE_FAILED);
+  ink_assert((int)TS_EVENT_CACHE_REMOVE == (int)CACHE_EVENT_REMOVE);
+  ink_assert((int)TS_EVENT_CACHE_REMOVE_FAILED == (int)CACHE_EVENT_REMOVE_FAILED);
+  ink_assert((int)TS_EVENT_CACHE_SCAN == (int)CACHE_EVENT_SCAN);
+  ink_assert((int)TS_EVENT_CACHE_SCAN_FAILED == (int)CACHE_EVENT_SCAN_FAILED);
+  ink_assert((int)TS_EVENT_CACHE_SCAN_OBJECT == (int)CACHE_EVENT_SCAN_OBJECT);
+  ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_BLOCKED == (int)CACHE_EVENT_SCAN_OPERATION_BLOCKED);
+  ink_assert((int)TS_EVENT_CACHE_SCAN_OPERATION_FAILED == (int)CACHE_EVENT_SCAN_OPERATION_FAILED);
+  ink_assert((int)TS_EVENT_CACHE_SCAN_DONE == (int)CACHE_EVENT_SCAN_DONE);
 
 #if AIO_MODE == AIO_MODE_NATIVE
   int etype = ET_NET;
@@ -652,7 +647,7 @@ CacheProcessor::start_internal(int flags)
         }
       }
       if (diskok) {
-        CacheDisk *disk = NEW(new CacheDisk());
+        CacheDisk *disk = new CacheDisk();
         Debug("cache_hosting", "interim Disk: %d, blocks: %d", gn_interim_disks, blocks);
         int sector_size = sd->hw_sector_size;
         if (sector_size < cache_config_force_sector_size)
@@ -736,7 +731,7 @@ CacheProcessor::start_internal(int flags)
         }
       }
       if (diskok) {
-        gdisks[gndisks] = NEW(new CacheDisk());
+        gdisks[gndisks] = new CacheDisk();
         gdisks[gndisks]->forced_volume_num = sd->vol_num;
         Debug("cache_hosting", "Disk: %d, blocks: %d", gndisks, blocks);
         int sector_size = sd->hw_sector_size;
@@ -750,7 +745,7 @@ CacheProcessor::start_internal(int flags)
         off_t skip = ROUND_TO_STORE_BLOCK((sd->offset < START_POS ? START_POS + sd->alignment : sd->offset));
         blocks = blocks - (skip >> STORE_BLOCK_SHIFT);
 #if AIO_MODE == AIO_MODE_NATIVE
-        eventProcessor.schedule_imm(NEW(new DiskInit(gdisks[gndisks], path, blocks, skip, sector_size, fd, clear)));
+        eventProcessor.schedule_imm(new DiskInit(gdisks[gndisks], path, blocks, skip, sector_size, fd, clear));
 #else
         gdisks[gndisks]->open(path, blocks, skip, sector_size, fd, clear);
 #endif
@@ -858,19 +853,19 @@ CacheProcessor::diskInitialized()
       d->sync();
     }
     if (config_volumes.num_volumes == 0) {
-      theCache = NEW(new Cache());
+      theCache = new Cache();
       theCache->scheme = CACHE_HTTP_TYPE;
       theCache->open(clear, fix);
       return;
     }
     if (config_volumes.num_http_volumes != 0) {
-      theCache = NEW(new Cache());
+      theCache = new Cache();
       theCache->scheme = CACHE_HTTP_TYPE;
       theCache->open(clear, fix);
     }
 
     if (config_volumes.num_stream_volumes != 0) {
-      theStreamCache = NEW(new Cache());
+      theStreamCache = new Cache();
       theStreamCache->scheme = CACHE_RTSP_TYPE;
       theStreamCache->open(clear, fix);
     }
@@ -1988,8 +1983,8 @@ Lfinish:
 
 // explicit pair for random table in build_vol_hash_table
 struct rtable_pair {
-  unsigned int rval;
-  unsigned int vol;
+  unsigned int rval; ///< relative value, used to sort.
+  unsigned int idx; ///< volume mapping table index.
 };
 
 // comparison operator for random table in build_vol_hash_table
@@ -2044,6 +2039,7 @@ build_vol_hash_table(CacheHostRecord *cp)
   unsigned int *gotvol = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
   unsigned int *rnd = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
   unsigned short *ttable = (unsigned short *)ats_malloc(sizeof(unsigned short) * VOL_HASH_TABLE_SIZE);
+  unsigned short *old_table;
   unsigned int *rtable_entries = (unsigned int *) ats_malloc(sizeof(unsigned int) * num_vols);
   unsigned int rtable_size = 0;
 
@@ -2073,7 +2069,7 @@ build_vol_hash_table(CacheHostRecord *cp)
   for (int i = 0; i < num_vols; i++)
     for (int j = 0; j < (int)rtable_entries[i]; j++) {
       rtable[rindex].rval = next_rand(&rnd[i]);
-      rtable[rindex].vol = i;
+      rtable[rindex].idx = i;
       rindex++;
     }
   ink_assert(rindex == (int)rtable_size);
@@ -2086,15 +2082,15 @@ build_vol_hash_table(CacheHostRecord *cp)
   for (int j = 0; j < VOL_HASH_TABLE_SIZE; j++) {
     pos = width / 2 + j * width;  // position to select closest to
     while (pos > rtable[i].rval && i < (int)rtable_size - 1) i++;
-    ttable[j] = rtable[i].vol;
-    gotvol[ttable[j]]++;
+    ttable[j] = mapping[rtable[i].idx];
+    gotvol[rtable[i].idx]++;
   }
   for (int i = 0; i < num_vols; i++) {
-    Debug("cache_init", "build_vol_hash_table %d request %d got %d", i, forvol[i], gotvol[i]);
+    Debug("cache_init", "build_vol_hash_table index %d mapped to %d requested %d got %d", i, mapping[i], forvol[i], gotvol[i]);
   }
   // install new table
-  if (cp->vol_hash_table)
-    new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
+  if (0 != (old_table = ink_atomic_swap(&(cp->vol_hash_table), ttable)))
+    new_Freer(old_table, CACHE_MEM_FREE_TIMEOUT);
   ats_free(mapping);
   ats_free(p);
   ats_free(forvol);
@@ -2102,7 +2098,6 @@ build_vol_hash_table(CacheHostRecord *cp)
   ats_free(rnd);
   ats_free(rtable_entries);
   ats_free(rtable);
-  cp->vol_hash_table = ttable;
 }
 
 void
@@ -2113,29 +2108,94 @@ Cache::vol_initialized(bool result) {
     open_done();
 }
 
+/** Set the state of a disk programmatically.
+*/
+bool
+CacheProcessor::mark_storage_offline( CacheDisk* d ///< Target disk
+  ) {
+  bool zret; // indicates whether there's any online storage left.
+  int p;
+  uint64_t total_bytes_delete = 0;
+  uint64_t total_dir_delete = 0;
+  uint64_t used_dir_delete = 0;
+
+  if (!DISK_BAD(d)) SET_DISK_BAD(d);
+
+  for (p = 0; p < gnvol; p++) {
+    if (d->fd == gvol[p]->fd) {
+      total_dir_delete += gvol[p]->buckets * gvol[p]->segments * DIR_DEPTH;
+      used_dir_delete += dir_entries_used(gvol[p]);
+      total_bytes_delete += gvol[p]->len - vol_dirlen(gvol[p]);
+    }
+  }
+
+  RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_bytes_delete);
+  RecIncrGlobalRawStat(cache_rsb, cache_direntries_total_stat, -total_dir_delete);
+  RecIncrGlobalRawStat(cache_rsb, cache_direntries_used_stat, -used_dir_delete);
+
+  if (theCache) {
+    rebuild_host_table(theCache);
+  }
+  if (theStreamCache) {
+    rebuild_host_table(theStreamCache);
+  }
+
+  zret = this->has_online_storage();
+  if (!zret) {
+    Warning("All storage devices offline, cache disabled");
+    CacheProcessor::cache_ready = 0;
+  } else { // check cache types specifically
+    if (theCache && !theCache->hosttable->gen_host_rec.vol_hash_table) {
+      unsigned int caches_ready = 0;
+      caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_HTTP);
+      caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_NONE);
+      caches_ready = ~caches_ready;
+      CacheProcessor::cache_ready &= caches_ready;
+      Warning("all volumes for http cache are corrupt, http cache disabled");
+    }
+    if (theStreamCache && !theStreamCache->hosttable->gen_host_rec.vol_hash_table) {
+      unsigned int caches_ready = 0;
+      caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_RTSP);
+      caches_ready = ~caches_ready;
+      CacheProcessor::cache_ready &= caches_ready;
+      Warning("all volumes for mixt cache are corrupt, mixt cache disabled");
+    }
+  }
+
+  return zret;
+}
+
+bool
+CacheProcessor::has_online_storage() const {
+  CacheDisk** dptr = gdisks;
+  for (int disk_no = 0 ; disk_no < gndisks ; ++disk_no, ++dptr) {
+    if (!DISK_BAD(*dptr)) return true;
+  }
+  return false;
+}
+
 int
 AIO_Callback_handler::handle_disk_failure(int /* event ATS_UNUSED */, void *data) {
   /* search for the matching file descriptor */
   if (!CacheProcessor::cache_ready)
     return EVENT_DONE;
   int disk_no = 0;
-  int good_disks = 0;
   AIOCallback *cb = (AIOCallback *) data;
 #if TS_USE_INTERIM_CACHE == 1
   for (; disk_no < gn_interim_disks; disk_no++) {
     CacheDisk *d = g_interim_disks[disk_no];
 
     if (d->fd == cb->aiocb.aio_fildes) {
+      char message[256];
+
       d->num_errors++;
       if (!DISK_BAD(d)) {
-        char message[128];
-        snprintf(message, sizeof(message), "Error accessing Disk %s", d->path);
+        snprintf(message, sizeof(message), "Error accessing Disk %s [%d/%d]", d->path, d->num_errors, cache_config_max_disk_errors);
         Warning("%s", message);
         REC_SignalManager(REC_SIGNAL_CACHE_WARNING, message);
       } else if (!DISK_BAD_SIGNALLED(d)) {
-        char message[128];
         snprintf(message, sizeof(message),
-            "too many errors accessing disk %s: declaring disk bad", d->path);
+                 "too many errors [%d] accessing disk %s: declaring disk bad", d->num_errors, d->path);
         Warning("%s", message);
         REC_SignalManager(REC_SIGNAL_CACHE_ERROR, message);
         good_interim_disks--;
@@ -2143,96 +2203,45 @@ AIO_Callback_handler::handle_disk_failure(int /* event ATS_UNUSED */, void *data
     }
   }
 #endif
+
   for (; disk_no < gndisks; disk_no++) {
     CacheDisk *d = gdisks[disk_no];
 
     if (d->fd == cb->aiocb.aio_fildes) {
+      char message[256];
       d->num_errors++;
 
       if (!DISK_BAD(d)) {
-        char message[128];
-        snprintf(message, sizeof(message), "Error accessing Disk %s", d->path);
+        snprintf(message, sizeof(message), "Error accessing Disk %s [%d/%d]", d->path, d->num_errors, cache_config_max_disk_errors);
         Warning("%s", message);
         REC_SignalManager(REC_SIGNAL_CACHE_WARNING, message);
       } else if (!DISK_BAD_SIGNALLED(d)) {
-
-        char message[128];
-        snprintf(message, sizeof(message), "too many errors accessing disk %s: declaring disk bad", d->path);
+        snprintf(message, sizeof(message), "too many errors accessing disk %s [%d/%d]: declaring disk bad", d->path, d->num_errors, cache_config_max_disk_errors);
         Warning("%s", message);
         REC_SignalManager(REC_SIGNAL_CACHE_ERROR, message);
-        /* subtract the disk space that was being used from  the cache size stat */
-        // dir entries stat
-        int p;
-        uint64_t total_bytes_delete = 0;
-        uint64_t total_dir_delete = 0;
-        uint64_t used_dir_delete = 0;
-
-        for (p = 0; p < gnvol; p++) {
-          if (d->fd == gvol[p]->fd) {
-            total_dir_delete += gvol[p]->buckets * gvol[p]->segments * DIR_DEPTH;
-            used_dir_delete += dir_entries_used(gvol[p]);
-            total_bytes_delete += gvol[p]->len - vol_dirlen(gvol[p]);
-          }
-        }
-
-        RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_bytes_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_direntries_total_stat, -total_dir_delete);
-        RecIncrGlobalRawStat(cache_rsb, cache_direntries_used_stat, -used_dir_delete);
-
-        if (theCache) {
-          rebuild_host_table(theCache);
-        }
-        if (theStreamCache) {
-          rebuild_host_table(theStreamCache);
-        }
+        cacheProcessor.mark_storage_offline(d); // take it out of service
       }
-      if (good_disks)
-        return EVENT_DONE;
+      break;
     }
-    if (!DISK_BAD(d))
-      good_disks++;
-  }
-  if (!good_disks) {
-    Warning("all disks are bad, cache disabled");
-    CacheProcessor::cache_ready = 0;
-    delete cb;
-    return EVENT_DONE;
   }
 
-  if (theCache && !theCache->hosttable->gen_host_rec.vol_hash_table) {
-    unsigned int caches_ready = 0;
-    caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_HTTP);
-    caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_NONE);
-    caches_ready = ~caches_ready;
-    CacheProcessor::cache_ready &= caches_ready;
-    Warning("all volumes for http cache are corrupt, http cache disabled");
-  }
-  if (theStreamCache && !theStreamCache->hosttable->gen_host_rec.vol_hash_table) {
-    unsigned int caches_ready = 0;
-    caches_ready = caches_ready | (1 << CACHE_FRAG_TYPE_RTSP);
-    caches_ready = ~caches_ready;
-    CacheProcessor::cache_ready &= caches_ready;
-    Warning("all volumes for mixt cache are corrupt, mixt cache disabled");
-  }
   delete cb;
   return EVENT_DONE;
 }
 
 int
 Cache::open_done() {
-#ifdef NON_MODULAR
   Action *register_ShowCache(Continuation * c, HTTPHdr * h);
   Action *register_ShowCacheInternal(Continuation *c, HTTPHdr *h);
   statPagesManager.register_http("cache", register_ShowCache);
   statPagesManager.register_http("cache-internal", register_ShowCacheInternal);
-#endif
   if (total_good_nvol == 0) {
     ready = CACHE_INIT_FAILED;
     cacheProcessor.cacheInitialized();
     return 0;
   }
 
-  hosttable = NEW(new CacheHostTable(this, scheme));
+  hosttable = new CacheHostTable(this, scheme);
   hosttable->register_config_callback(&hosttable);
 
   if (hosttable->gen_host_rec.num_cachevols == 0)
@@ -2266,7 +2275,7 @@ Cache::open(bool clear, bool /* fix ATS_UNUSED */) {
         if (cp->disk_vols[i] && !DISK_BAD(cp->disk_vols[i]->disk)) {
           DiskVolBlockQueue *q = cp->disk_vols[i]->dpb_queue.head;
           for (; q; q = q->link.next) {
-            cp->vols[vol_no] = NEW(new Vol());
+            cp->vols[vol_no] = new Vol();
             CacheDisk *d = cp->disk_vols[i]->disk;
             cp->vols[vol_no]->disk = d;
             cp->vols[vol_no]->fd = d->fd;
@@ -2276,7 +2285,7 @@ Cache::open(bool clear, bool /* fix ATS_UNUSED */) {
 
             bool vol_clear = clear || d->cleared || q->new_block;
 #if AIO_MODE == AIO_MODE_NATIVE
-            eventProcessor.schedule_imm(NEW(new VolInit(cp->vols[vol_no], d->path, blocks, q->b->offset, vol_clear)));
+            eventProcessor.schedule_imm(new VolInit(cp->vols[vol_no], d->path, blocks, q->b->offset, vol_clear));
 #else
             cp->vols[vol_no]->init(d->path, blocks, q->b->offset, vol_clear);
 #endif
@@ -2647,7 +2656,6 @@ Cache::lookup(Continuation *cont, CacheKey *key, CacheFragType type, char *hostn
     return ACTION_RESULT_DONE;
 }
 
-#ifdef NON_MODULAR
 Action *
 Cache::lookup(Continuation *cont, CacheURL *url, CacheFragType type)
 {
@@ -2658,7 +2666,6 @@ Cache::lookup(Continuation *cont, CacheURL *url, CacheFragType type)
   const char *hostname = url->host_get(&len);
   return lookup(cont, &md5, type, (char *) hostname, len);
 }
-#endif
 
 int
 CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
@@ -2813,7 +2820,7 @@ cplist_init()
       if (!p) {
         // did not find a volume in the cache vol list...create
         // a new one
-        CacheVol *new_p = NEW(new CacheVol());
+        CacheVol *new_p = new CacheVol();
         new_p->vol_number = dp[j]->vol_number;
         new_p->num_vols = dp[j]->num_volblocks;
         new_p->size = dp[j]->size;
@@ -2933,7 +2940,7 @@ cplist_reconfigure()
   gnvol = 0;
   if (config_volumes.num_volumes == 0) {
     /* only the http cache */
-    CacheVol *cp = NEW(new CacheVol());
+    CacheVol *cp = new CacheVol();
     cp->vol_number = 0;
     cp->scheme = CACHE_HTTP_TYPE;
     cp->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
@@ -3039,7 +3046,7 @@ cplist_reconfigure()
       if (!config_vol->cachep) {
         // we did not find a corresponding entry in cache vol...creat one
 
-        CacheVol *new_cp = NEW(new CacheVol());
+        CacheVol *new_cp = new CacheVol();
         new_cp->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
         memset(new_cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
         if (create_volume(config_vol->number, size_in_blocks, config_vol->scheme, new_cp))
@@ -3359,26 +3366,6 @@ ink_cache_init(ModuleVersion v)
   REC_EstablishStaticConfigInt32(cache_config_mutex_retry_delay, "proxy.config.cache.mutex_retry_delay");
   Debug("cache_init", "proxy.config.cache.mutex_retry_delay = %dms", cache_config_mutex_retry_delay);
 
-  // This is just here to make sure IOCORE "standalone" works, it's usually configured in RecordsConfig.cc
-  RecRegisterConfigString(RECT_CONFIG, "proxy.config.config_dir", TS_BUILD_SYSCONFDIR, RECU_DYNAMIC, RECC_NULL, NULL);
-  REC_ReadConfigString(cache_system_config_directory, "proxy.config.config_dir", PATH_NAME_MAX);
-  if (cache_system_config_directory[0] != '/') {
-    // Not an absolute path so use system one
-    Layout::get()->relative(cache_system_config_directory, sizeof(cache_system_config_directory), cache_system_config_directory);
-  }
-  Debug("cache_init", "proxy.config.config_dir = \"%s\"", cache_system_config_directory);
-  if (access(cache_system_config_directory, R_OK) == -1) {
-    ink_strlcpy(cache_system_config_directory, Layout::get()->sysconfdir,
-                sizeof(cache_system_config_directory));
-    Debug("cache_init", "proxy.config.config_dir = \"%s\"", cache_system_config_directory);
-    if (access(cache_system_config_directory, R_OK) == -1) {
-      fprintf(stderr,"unable to access() config dir '%s': %d, %s\n",
-              cache_system_config_directory, errno, strerror(errno));
-      fprintf(stderr, "please set config path via 'proxy.config.config_dir' \n");
-      _exit(1);
-    }
-  }
-
   REC_EstablishStaticConfigInt32(cache_config_hit_evacuate_percent, "proxy.config.cache.hit_evacuate_percent");
   Debug("cache_init", "proxy.config.cache.hit_evacuate_percent = %d", cache_config_hit_evacuate_percent);
 
@@ -3424,16 +3411,10 @@ ink_cache_init(ModuleVersion v)
     printf("%s  failed\n", err);
     exit(1);
   }
-  // XXX: The read for proxy.config.cache.storage_filename is unused!
-  //
+
   if (theCacheStore.n_disks == 0) {
-    char p[PATH_NAME_MAX + 1];
-    snprintf(p, sizeof(p), "%s/", cache_system_config_directory);
-    REC_ReadConfigString(p + strlen(p), "proxy.config.cache.storage_filename", PATH_NAME_MAX - strlen(p) - 1);
-    if (p[strlen(p) - 1] == '/' || p[strlen(p) - 1] == '\\') {
-      ink_strlcat(p, "storage.config", sizeof(p));
-    }
-    Warning("no cache disks specified in %s: cache disabled\n", p);
+    xptr<char> path(RecConfigReadConfigPath("proxy.config.cache.storage_filename", "storage.config"));
+    Warning("no cache disks specified in %s: cache disabled\n", (const char *)path);
     //exit(1);
   }
 #if TS_USE_INTERIM_CACHE == 1
@@ -3445,7 +3426,6 @@ ink_cache_init(ModuleVersion v)
 #endif
 }
 
-#ifdef NON_MODULAR
 //----------------------------------------------------------------------------
 Action *
 CacheProcessor::open_read(Continuation *cont, URL *url, bool cluster_cache_local, CacheHTTPHdr *request,
@@ -3469,13 +3449,13 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, URL *url, bool
 #ifdef CLUSTER_CACHE
   if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     INK_MD5 url_md5;
-    Cache::generate_key(&url_md5, url, request);
+    Cache::generate_key(&url_md5, url);
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(url_md5));
 
     if (m) {
       // Do remote open_write()
       INK_MD5 url_only_md5;
-      Cache::generate_key(&url_only_md5, url, 0);
+      Cache::generate_key(&url_only_md5, url);
       return Cluster_write(cont, expected_size, (MIOBuffer *) 0, m,
                            &url_only_md5, type,
                            false, pin_in_cache, CACHE_OPEN_WRITE_LONG,
@@ -3511,4 +3491,18 @@ CacheProcessor::remove(Continuation *cont, URL *url, bool cluster_cache_local, C
   return caches[frag_type]->remove(cont, &md5, frag_type, true, false, const_cast<char*>(hostname), len);
 }
 
-#endif
+CacheDisk*
+CacheProcessor::find_by_path(char const* path, int len)
+{
+  if (CACHE_INITIALIZED == initialized) {
+    // If no length is passed in, assume it's null terminated.
+    if (0 >= len && 0 != *path) len = strlen(path);
+
+    for ( int i = 0 ; i < gndisks ; ++i ) {
+      if (0 == strncmp(path, gdisks[i]->path, len))
+        return gdisks[i];
+    }
+  }
+
+  return 0;
+}
