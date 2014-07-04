@@ -1,3 +1,11 @@
+trafficserver (5.0.0-1) UNRELEASED; urgency=medium
+
+  * Acknowledge previous NMUs, thanks to Anibal Monsalve Salazar for
+    coordination.
+  * New upstream version. Patch changes:
+
+ -- Arno Töll <arno@debian.org>  Fri, 04 Jul 2014 10:28:44 -1100
+
 trafficserver (4.1.2-1.2) unstable; urgency=medium
 
   * Non-maintainer upload.
