@@ -12,7 +12,7 @@ trafficserver (5.0.0-1) UNRELEASED; urgency=medium
   * Build with dh-autoreconf to avoid build time issues with Automake 1.13
     which is not in Debian yet.
 
- -- Arno Töll <arno@debian.org>  Sat, 05 Jul 2014 01:49:39 -1100
+ -- Arno Töll <arno@debian.org>  Sat, 05 Jul 2014 04:54:58 -1100
 
 trafficserver (4.1.2-1.2) unstable; urgency=medium
 
