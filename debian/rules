@@ -10,6 +10,7 @@ DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 configure_flags = \
 	--enable-layout=Debian \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
+	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-reclaimable-freelist\
         $(shell dpkg-buildflags --export=configure)
@@ -19,12 +20,10 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@ --parallel
+	dh $@ --parallel --with autoreconf
 
 override_dh_auto_configure:
-	# autoreconf -i
-	# note dh_auto_configure -- $(configure_flags) does /NOT/ the same
-	./configure $(configure_flags)
+	dh_auto_configure -- $(configure_flags)
 
 override_dh_auto_install:
 	dh_auto_install -- INSTALLDIRS=vendor
