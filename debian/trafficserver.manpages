@@ -1,1 +1,4 @@
-debian/tmp/usr/share/man/man1/traffic_shell.1
+debian/tmp/usr/share/man/man1/traffic_top.1
+debian/tmp/usr/share/man/man1/tspush.1
+debian/tmp/usr/share/man/man8/traffic_*
+debian/tmp/usr/share/man/man5/*

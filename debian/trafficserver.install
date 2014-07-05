@@ -1,10 +1,7 @@
-var/log/*
-var/cache/*
 usr/bin/traffic_*
 usr/bin/tspush
 etc/trafficserver/*
 usr/lib/trafficserver/lib*.so.*
 usr/lib/trafficserver/modules/*
 usr/share/doc/trafficserver/trafficshell/*
-usr/share/man/*
 usr/share/perl5/*
