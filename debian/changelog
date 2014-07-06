@@ -1,4 +1,4 @@
-trafficserver (5.0.0-1) UNRELEASED; urgency=medium
+trafficserver (5.0.0-1) unstable; urgency=medium
 
   * Acknowledge previous NMUs, thanks to Anibal Monsalve Salazar for
     coordination.
@@ -9,10 +9,11 @@ trafficserver (5.0.0-1) UNRELEASED; urgency=medium
     + drop add-mips-support.patch: released upstream in 5.0.0
     + drop pthread_setname_np.patch: This was a Debian specific issue which is
       being worked around in eglibc's commit r5460.
+  * Add "support for mips64": merged upstream (Closes: #750807)
   * Build with dh-autoreconf to avoid build time issues with Automake 1.13
     which is not in Debian yet.
 
- -- Arno Töll <arno@debian.org>  Sat, 05 Jul 2014 04:54:58 -1100
+ -- Arno Töll <arno@debian.org>  Sun, 06 Jul 2014 00:20:59 -1100
 
 trafficserver (4.1.2-1.2) unstable; urgency=medium
 
