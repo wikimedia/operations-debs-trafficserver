@@ -10,28 +10,23 @@ DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 # enable hardening options
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
-# minimise needless linking
-export DEB_LDFLAGS_MAINT_APPEND= -Wl,--as-needed
-
 configure_flags = \
 	--enable-layout=Debian \
 	--sysconfdir=/etc/trafficserver --libdir=/usr/lib/trafficserver \
+	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-reclaimable-freelist \
-	--enable-interim-cache \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	configure_flags += --enable-wccp
+	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
 %:
-	dh $@ --parallel
+	dh $@ --parallel --with autoreconf
 
 override_dh_auto_configure:
-	autoreconf -if
-	# note dh_auto_configure -- $(configure_flags) does /NOT/ the same
-	./configure $(configure_flags)
+	dh_auto_configure -- $(configure_flags)
 
 override_dh_auto_install:
 	dh_auto_install -- INSTALLDIRS=vendor
@@ -47,7 +42,7 @@ override_dh_install:
 
 override_dh_fixperms:
 	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
-		-X var/log/trafficserver -X /var/cache/trafficserver \
+		-X var/log/trafficserver -X var/cache/trafficserver \
 		-X var/run/trafficserver
 
 override_dh_installexamples:
@@ -59,6 +54,5 @@ override_dh_makeshlibs:
 override_dh_auto_test:
 	-dh_auto_test
 
-.PHONY: override_dh_strip
 override_dh_strip:
 	dh_strip --dbg-package=trafficserver-dbg

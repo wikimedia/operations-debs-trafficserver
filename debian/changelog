@@ -1,90 +1,102 @@
-trafficserver (5.0.0-1~bbc75+1) stable; urgency=medium
+trafficserver (5.0.0-1) unstable; urgency=medium
 
-  * Imported Upstream version 5.0.0
-  * Delete hwloc patch. Fixed upstream
-  * Delete TS-1375 & TS-2267 patch. Fixed upstream
+  * Acknowledge previous NMUs, thanks to Anibal Monsalve Salazar for
+    coordination.
+  * New upstream version. Patch changes:
+    + drop 0001-TS-1821.patch: released upstream in 5.0.0
+    + drop 0001-TS-2454-Fix-undefined-reference-to-__sync_fetch_and_.patch:
+      released upstream in 4.2
+    + drop add-mips-support.patch: released upstream in 5.0.0
+    + drop pthread_setname_np.patch: This was a Debian specific issue which is
+      being worked around in eglibc's commit r5460.
+  * Add "support for mips64": merged upstream (Closes: #750807)
+  * Build with dh-autoreconf to avoid build time issues with Automake 1.13
+    which is not in Debian yet.
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Tue, 24 Jun 2014 09:23:43 +0200
+ -- Arno Töll <arno@debian.org>  Sun, 06 Jul 2014 00:20:59 -1100
 
-trafficserver (4.2.1-2~bbc75+1) stable; urgency=medium
+trafficserver (4.1.2-1.2) unstable; urgency=medium
 
-  * Fix libhwloc support
+  * Non-maintainer upload.
+  * Add missing prototype for pthread_setname_np()
+    Add pthread_setname_np.patch
+    Patch by Petr Salinger
+    Closes: #743584
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Tue, 17 Jun 2014 16:54:29 +0200
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Fri, 04 Apr 2014 08:59:48 +0100
 
-trafficserver (4.2.1-1~bbc75+1) stable; urgency=medium
+trafficserver (4.1.2-1.1) unstable; urgency=medium
 
-  * Imported Upstream version 4.2.1
+  * Non-maintainer upload.
+  * Fix undefined reference to `__sync_fetch_and_sub_8' on ARM 32bit
+    Add 0001-TS-2454-Fix-undefined-reference-to-__sync_fetch_and_.patch
+    from https://issues.apache.org/jira/browse/TS-2454
+    Patch by Yunkai Zhang
+  * Add support for MIPS
+    Add add-mips-support.patch
+    Submitted: https://issues.apache.org/jira/browse/TS-2687
+    Merged: https://git-wip-us.apache.org/repos/asf?p=trafficserver.git;h=2f81790
+    Patch by Dejan Latinovic
+    Closes: 743395
+  * Build-depend on libboost-dev
+    Patch by Dejan Latinovic
+    Closes: #737510
 
- --  Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 04 Jun 2014 10:17:46 +0200
+ -- Anibal Monsalve Salazar <anibal@debian.org>  Thu, 03 Apr 2014 04:18:23 +0100
 
-trafficserver (4.2.0-3~bbc74+1) stable; urgency=medium
+trafficserver (4.1.2-1) unstable; urgency=medium
 
-  * Remove Linux native-AIO support which could make traffic_server segfault
+  * Merge the experimental branch of trafficserver to unstable
+  * New upstram release (Closes: #711530, #733377)
+    + Refresh 0001-TS-1821.patch until it is fixed upstream
+    + Don't run autoreconf anymore, we do not need it anymore
+    + build depend on libaio-dev to support AIO on Linux systems
+  * Push standards version
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 09 Apr 2014 16:24:58 +0200
+ -- Arno Töll <arno@debian.org>  Wed, 29 Jan 2014 03:01:12 -1100
 
-trafficserver (4.2.0-2~bbc74+1) stable; urgency=medium
+trafficserver (3.3.2-1) experimental; urgency=low
 
-  * Move all experimental plugins into trafficserver-plugins package
-  * Remove unbuild experimental plugins from install file
+  [ Arno Töll ]
+  * Drop --with-arg-max from configure
+  * Update changelog in view of the new upstream version
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Tue, 01 Apr 2014 14:16:37 +0200
+  [ Aron Xu ]
+  * Imported Upstream version 3.3.2
+  * Drop patch for enabling experimental plugins
+  * Add liblua5.1-dev and liboost1.53-dev to B-D
+  * Try on all archs for experimental builds
+  * Permit parallel building
+  * Fix typo in dep5 copyright file
+  * Do not install staticly linked library
+  * Enable Linux native AIO support for linux-any
+  * Enable reclaimable freelist
 
-trafficserver (4.2.0-1~bbc74+1) stable; urgency=medium
+ -- Aron Xu <aron@debian.org>  Thu, 09 May 2013 01:00:04 +0800
 
-  * Imported Upstream version 4.2.0
-  * Patches refresh for ATS 4.2
-  * Update list of plugins to be installed
-  * Fix build dependencies list to reflect changes for traffic_shell #TS-2469
+trafficserver (3.3.0+git20121208-0exp1) experimental; urgency=low
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Thu, 20 Mar 2014 15:48:59 +0100
+  * Upstream git snapshot.
+  * Enable most of experimental plugins, install related libraries.
+  * Run dh_autoreconf.
+  * Make dh_auto_test errors non-fatal.
 
-trafficserver (4.1.2-1~bbc72+1) stable; urgency=medium
+ -- Aron Xu <aron@debian.org>  Thu, 06 Dec 2012 23:32:25 +0800
 
-  * Imported Upstream version 4.1.2
-  * Sync with Debian unstable
+trafficserver (3.3.0-1) experimental; urgency=low
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Fri, 14 Feb 2014 17:56:59 +0100
+  * Upload upstream development release to experimental.
 
-trafficserver (4.0.2-3~bbc72+1) stable; urgency=low
-
-  * Add fix for #1375 & #2267
-
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Fri, 22 Nov 2013 11:05:43 +0100
-
-trafficserver (4.0.2-2~bbc72+1) stable; urgency=low
-
-  * Backport of TrafficServer 4.0.2 for Wheezy by BlaBlaCar
-  * Fix build & binaries dependencies
-  * Add debug package trafficserver-dbg
-  * Enable hardening compilation options
-  * Include tspush and tstop utilities into trafficserver package
-  * Add trafficserver-plugins packages for experimental plugins
-  * Enable Linux native AIO support
-
- -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Sun, 10 Nov 2013 14:38:42 +0100
-
-trafficserver (4.0.2-1) stable; urgency=low
-
-  * Imported Upstream version 4.0.2
-
- -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Fri, 08 Nov 2013 15:21:32 +0100
-
-trafficserver (3.2.5-2~bbc72+1) stable; urgency=low
-
-  * Backport for Wheezy
-
- -- Jean Baptiste Favre <jean-batiste.favre@blablacar.com>  Fri, 18 Oct 2013 15:51:15 +0200
+ -- Aron Xu <aron@debian.org>  Thu, 29 Nov 2012 22:13:55 +0800
 
 trafficserver (3.2.5-1) unstable; urgency=low
 
   * New upstream release
     + Fix FTBFS on ARM (Closes: #691179)
     + Fix FTBS with gcc 4.8 (Closes: #701427)
-  * Promote trafficserver to depend for trafficserver-dev to fix a broken library
-    symlink. The library is not required for all users, but those who need it
-    don't need to install it manually anymore (Closes: #715134)
+  * Promote trafficserver to depend for trafficserver-dev to fix a broken
+    library symlink. The library is not required for all users, but those who
+    need it don't need to install it manually anymore (Closes: #715134)
 
  -- Arno Töll <arno@debian.org>  Sun, 21 Jul 2013 11:55:38 +0200
 
@@ -98,7 +110,7 @@ trafficserver (3.2.4-1) unstable; urgency=low
     the postinst fails to purge the cache (Closes: #687698)
   * Drop --with-arg-max from ./configure, it's not needed anymore.
 
- -- Arno Töll <arno@debian.org>  Thu, 07 Feb 2013 23:37:35 +0100
+ -- Arno Töll <arno@debian.org>  Tue, 29 Jan 2013 23:54:44 +0100
 
 trafficserver (3.2.0-1) unstable; urgency=low
 
