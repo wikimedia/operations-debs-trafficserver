@@ -1,3 +1,11 @@
+trafficserver (5.0.1-1) unstable; urgency=medium
+
+  * New upstream release including a fix for CVE-2014-3525 that allowed
+    attackers by special crafted packets to obtain privileges for services bound
+    to localhost
+
+ -- Arno Töll <arno@debian.org>  Wed, 23 Jul 2014 04:43:00 -1100
+
 trafficserver (5.0.0-1) unstable; urgency=medium
 
   * Acknowledge previous NMUs, thanks to Anibal Monsalve Salazar for
