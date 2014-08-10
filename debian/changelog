@@ -1,3 +1,9 @@
+trafficserver (5.0.1-2) UNRELEASED; urgency=medium
+
+  * Add a debug package with debug symbols for those who need it.
+
+ -- Arno Töll <arno@debian.org>  Sat, 09 Aug 2014 23:52:09 -1100
+
 trafficserver (5.0.1-1) unstable; urgency=medium
 
   * New upstream release including a fix for CVE-2014-3525 that allowed

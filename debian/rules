@@ -47,5 +47,9 @@ override_dh_installexamples:
 
 override_dh_makeshlibs:
 	dh_makeshlibs -X/usr/lib/trafficserver
+
 override_dh_auto_test:
 	-dh_auto_test
+
+override_dh_strip:
+	dh_strip --dbg-package=trafficserver-dbg
