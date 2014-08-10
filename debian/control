@@ -18,6 +18,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
   ${perl:Depends}
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~)
+Suggests: trafficserver-experimental-plugins (= ${binary:Version})
 Breaks: trafficserver-plugin-conf-remap (<< 3.2~)
 Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
@@ -30,6 +31,19 @@ Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy serv
    * Scaling: Scales well on modern SMP hardware.
    * Extensions: Use the API to modify anything from the HTTP headers to your
      own cache algorithm.
+
+Package: trafficserver-experimental-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: trafficserver (= ${binary:Version})
+Breaks: trafficserver (<< 5.0.1-2~)
+Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
+ This package provides the Apache Traffic Server. A fast, scalable reverse
+ proxy server which may operate as forward proxy as well.
+ .
+ This package provides experimental plugins: authproxy, channel stats,
+ combo handler, custom_redirect, esi, geoip acl, healthchecks, lua, metalink,
+ rfc5861, spdy and tcp info.
 
 Package: trafficserver-dev
 Architecture: any

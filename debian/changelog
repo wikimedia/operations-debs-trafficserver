@@ -1,8 +1,10 @@
 trafficserver (5.0.1-2) UNRELEASED; urgency=medium
 
   * Add a debug package with debug symbols for those who need it.
+  * Split out experimental trafficserver plugins into a separate package so
+    that users are aware of their experimental character before using them.
 
- -- Arno Töll <arno@debian.org>  Sat, 09 Aug 2014 23:52:09 -1100
+ -- Arno Töll <arno@debian.org>  Sat, 09 Aug 2014 23:57:18 -1100
 
 trafficserver (5.0.1-1) unstable; urgency=medium
 
