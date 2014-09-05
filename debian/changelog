@@ -1,3 +1,11 @@
+trafficserver (4.2.2-1~bbc76+1) stable; urgency=medium
+
+  * Stick \d watch file for 4.2.x serie
+  * Imported Upstream version 4.2.2
+  * Patches refresh for 4.2.2
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Fri, 05 Sep 2014 10:17:47 +0200
+
 trafficserver (4.2.1.1-1~bbc76+1) stable; urgency=medium
 
   * Imported Upstream version 4.2.1.1. Fix CVE-2014-3525
