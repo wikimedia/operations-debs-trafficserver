@@ -1,5 +1,3 @@
-diff --git a/iocore/aio/Makefile.am b/iocore/aio/Makefile.am
-index d270520..82d2118 100644
 --- a/iocore/aio/Makefile.am
 +++ b/iocore/aio/Makefile.am
 @@ -56,5 +56,6 @@ test_AIO_LDADD = \
@@ -9,8 +7,6 @@ index d270520..82d2118 100644
 +  @hwloc_LIBS@ \
    @LIBTCL@
  
-diff --git a/iocore/eventsystem/Makefile.am b/iocore/eventsystem/Makefile.am
-index 7d43def..c27f746 100644
 --- a/iocore/eventsystem/Makefile.am
 +++ b/iocore/eventsystem/Makefile.am
 @@ -91,6 +91,7 @@ test_LDADD = \
@@ -21,8 +17,6 @@ index 7d43def..c27f746 100644
    @LIBTCL@
  
  test_Buffer_SOURCES = \
-diff --git a/proxy/Makefile.am b/proxy/Makefile.am
-index 88f8d54..409c2b9 100644
 --- a/proxy/Makefile.am
 +++ b/proxy/Makefile.am
 @@ -176,6 +176,7 @@ traffic_logcat_LDADD = \
