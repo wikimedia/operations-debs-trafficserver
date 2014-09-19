@@ -693,7 +693,7 @@ Value Effect
 .. ts:cv:: CONFIG proxy.config.http.record_heartbeat INT 0
    :reloadable:
 
-   Enables (``1``) or disables (``0``) :program:`traffic_cop` heartbeat ogging.
+   Enables (``1``) or disables (``0``) :program:`traffic_cop` heartbeat logging.
 
 .. ts:cv:: CONFIG proxy.config.http.use_client_target_addr  INT 0
 
@@ -709,6 +709,18 @@ effective if the following three conditions are true -
 
 If any of these conditions are not true, then normal DNS processing
 is done for the connection.
+
+There are three valid values.
+*  0 - Disables the feature.
+*  1 - Enables the feature with address verification.  The Proxy does the 
+regular DNS processing.  If the client-specified origin address is not in the 
+set of addresses found by the Proxy, the request continues to the client
+specified address, but the result is not cached.
+*  2 - Enables the feature with no address verification.  No DNS processing
+is performed.  The result is cached (if allowed otherwise).  This option is
+vulnerable to cache poisoning if an incorrect Host header is specified, so
+this option should be used with extreme caution.  See bug TS-2954 for 
+details.
 
 If all of these conditions are met, then the origin server IP
 address is retrieved from the original client connection, rather
@@ -2362,6 +2374,34 @@ Sockets
 .. ts:cv:: CONFIG proxy.config.net.sock_mss_in INT 0
 
    Same as the command line option ``--accept_mss`` that sets the MSS for all incoming requests.
+
+.. ts:cv:: CONFIG proxy.config.net.sock_packet_mark_in INT 0x0
+
+   Set the packet mark on traffic destined for the client
+   (the packets that make up a client response).
+
+   .. seealso:: :c:func:`TSHttpTxnClientPacketMarkSet` and TS-1090
+
+.. ts:cv:: CONFIG proxy.config.net.sock_packet_mark_out INT 0x0
+
+   Set the packet mark on traffic destined for the origin
+   (the packets that make up an origin request).
+
+   .. seealso:: :c:func:`TSHttpTxnServerPacketMarkSet` and TS-1090
+
+.. ts:cv:: CONFIG proxy.config.net.sock_packet_tos_in INT 0x0
+
+   Set the TOS/DSCP field on packets sent to the client
+   (the packets that make up a client response).
+
+   .. seealso:: :c:func:`TSHttpTxnClientPacketTosSet` and TS-1090
+
+.. ts:cv:: CONFIG proxy.config.net.sock_packet_tos_out INT 0x0
+
+   Set the TOS/DSCP field on packets sent to the origin
+   (the packets that make up an origin request).
+
+   .. seealso:: :c:func:`TSHttpTxnServerPacketTosSet` and TS-1090
 
 .. ts:cv:: CONFIG proxy.config.net.poll_timeout INT 10 (or 30 on Solaris)
 

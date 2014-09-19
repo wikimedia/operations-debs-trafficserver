@@ -46,7 +46,6 @@
 #include "StatPages.h"
 #include "HttpClientSession.h"
 #include "I_Machine.h"
-#include "IPAllow.h"
 
 static char range_type[] = "multipart/byteranges; boundary=RANGE_SEPARATOR";
 #define RANGE_NUMBERS_LENGTH 60
@@ -64,7 +63,7 @@ static char range_type[] = "multipart/byteranges; boundary=RANGE_SEPARATOR";
     sm->history_pos += 1; \
 }
 
-#define DebugTxn(tag, ...) DebugSpecific((s->state_machine && s->state_machine->debug_on), tag, __VA_ARGS__)
+#define DebugTxn(tag, ...) DebugSpecific((s->state_machine->debug_on), tag, __VA_ARGS__)
 
 extern HttpBodyFactory *body_factory;
 extern int cache_config_vary_on_user_agent;
@@ -152,7 +151,8 @@ is_request_conditional(HTTPHdr* header)
   uint64_t mask = (MIME_PRESENCE_IF_UNMODIFIED_SINCE |
                  MIME_PRESENCE_IF_MODIFIED_SINCE | MIME_PRESENCE_IF_RANGE |
                  MIME_PRESENCE_IF_MATCH | MIME_PRESENCE_IF_NONE_MATCH);
-  return (header->presence(mask) && (header->method_get_wksidx() == HTTP_WKSIDX_GET));
+  return (header->presence(mask) && (header->method_get_wksidx() == HTTP_WKSIDX_GET ||
+			  header->method_get_wksidx() == HTTP_WKSIDX_HEAD));
 }
 
 static inline bool
@@ -455,11 +455,12 @@ do_cookies_prevent_caching(int cookies_conf, HTTPHdr* request, HTTPHdr* response
 
 
 inline static bool
-does_method_require_cache_copy_deletion(int method)
+does_method_require_cache_copy_deletion(const HttpConfigParams *http_config_param, const int method)
 {
   return ((method != HTTP_WKSIDX_GET) &&
           (method == HTTP_WKSIDX_DELETE || method == HTTP_WKSIDX_PURGE ||
-           method == HTTP_WKSIDX_PUT || method == HTTP_WKSIDX_POST));
+           method == HTTP_WKSIDX_PUT ||
+           (http_config_param->cache_post_method != 1 && method == HTTP_WKSIDX_POST)));
 }
 
 
@@ -781,11 +782,16 @@ HttpTransact::StartRemapRequest(State* s)
   int host_len, path_len;
   const char *host = url->host_get(&host_len);
   const char *path = url->path_get(&path_len);
+  const int port = url->port_get();
 
   const char syntxt[] = "synthetic.txt";
 
   s->cop_test_page = (ptr_len_cmp(host, host_len, local_host_ip_str, sizeof(local_host_ip_str) - 1) == 0) &&
-    (ptr_len_cmp(path, path_len, syntxt, sizeof(syntxt) - 1) == 0);
+    (ptr_len_cmp(path, path_len, syntxt, sizeof(syntxt) - 1) == 0) &&
+    port == s->http_config_param->autoconf_port &&
+    s->method == HTTP_WKSIDX_GET &&
+    s->orig_scheme == URL_WKSIDX_HTTP &&
+    (!s->http_config_param->autoconf_localhost_only || ats_ip4_addr_cast(&s->client_info.addr.sa) == htonl(INADDR_LOOPBACK));
 
   //////////////////////////////////////////////////////////////////
   // FIX: this logic seems awfully convoluted and hard to follow; //
@@ -957,6 +963,8 @@ done:
     otherwise, 502/404 the request right now. /eric
   */
   if (!s->reverse_proxy && s->state_machine->plugin_tunnel_type == HTTP_NO_PLUGIN_TUNNEL) {
+    // TS-2879: Let's initialize the state variables so the connection can be kept alive.
+    initialize_state_variables_from_request(s, &s->hdr_info.client_request);
     DebugTxn("http_trans", "END HttpTransact::EndRemapRequest");
     HTTP_INCREMENT_TRANS_STAT(http_invalid_client_requests_stat);
     TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, NULL);
@@ -1105,28 +1113,40 @@ HttpTransact::handle_websocket_connection(State *s) {
 }
 
 
+static bool mimefield_value_equal(MIMEField *field, const char *value, const int value_len)
+{
+  if (field != NULL) {
+    int field_value_len = 0;
+    const char *field_value = field->value_get(&field_value_len);
+    if (field_value != NULL) {
+      if (field_value_len == value_len) {
+        return !strncasecmp(field_value, value, value_len);
+      }
+    }
+  }
+  return false;
+}
+
 void
 HttpTransact::ModifyRequest(State* s)
 {
   int scheme, hostname_len;
   const char *hostname;
-  MIMEField *max_forwards_f;
-  int max_forwards = -1;
-  HTTPHdr* request = &s->hdr_info.client_request;
+  HTTPHdr& request = s->hdr_info.client_request;
 
   DebugTxn("http_trans", "START HttpTransact::ModifyRequest");
 
-  // Intialize the state vars necessary to sending error responses
-  bootstrap_state_variables_from_request(s, request);
+  // Initialize the state vars necessary to sending error responses
+  bootstrap_state_variables_from_request(s, &request);
 
   ////////////////////////////////////////////////
   // If there is no scheme default to http      //
   ////////////////////////////////////////////////
-  URL *url = request->url_get();
+  URL *url = request.url_get();
 
   s->orig_scheme = (scheme = url->scheme_get_wksidx());
 
-  s->method = s->hdr_info.client_request.method_get_wksidx();
+  s->method = request.method_get_wksidx();
   if (scheme < 0 && s->method != HTTP_WKSIDX_CONNECT) {
     if (s->client_info.port_attribute == HttpProxyPort::TRANSPORT_SSL) {
       url->scheme_set(URL_SCHEME_HTTPS, URL_LEN_HTTPS);
@@ -1137,7 +1157,7 @@ HttpTransact::ModifyRequest(State* s)
     }
   }
 
-  if (s->method == HTTP_WKSIDX_CONNECT && !request->is_port_in_header())
+  if (s->method == HTTP_WKSIDX_CONNECT && !request.is_port_in_header())
     url->port_set(80);
 
   // Ugly - this must come after the call to url->scheme_set or
@@ -1145,24 +1165,23 @@ HttpTransact::ModifyRequest(State* s)
   // The solution should be to move the scheme detecting logic in to
   // the header class, rather than doing it in a random bit of
   // external code.
-  hostname = request->host_get(&hostname_len);
-  if (!request->is_target_in_url())
+  hostname = request.host_get(&hostname_len);
+  if (!request.is_target_in_url()) {
     s->hdr_info.client_req_is_server_style = true;
+  }
 
   // If the incoming request is proxy-style make sure the Host: header
   // matches the incoming request URL. The exception is if we have
-  // Max-Fowards set to 0 in the request (ToDo: why??)
-  max_forwards_f = s->hdr_info.client_request.field_find(MIME_FIELD_MAX_FORWARDS, MIME_LEN_MAX_FORWARDS);
-  if (max_forwards_f) {
-    max_forwards = max_forwards_f->value_get_int();
+  // Max-Forwards set to 0 in the request
+  int max_forwards = -1;  // -1 is a valid value meaning that it didn't find the header
+  if (request.presence(MIME_PRESENCE_MAX_FORWARDS)) {
+    max_forwards = request.get_max_forwards();
   }
 
   if ((max_forwards != 0) && !s->hdr_info.client_req_is_server_style && s->method != HTTP_WKSIDX_CONNECT) {
-    MIMEField *host_field = s->hdr_info.client_request.field_find(MIME_FIELD_HOST, MIME_LEN_HOST);
+    MIMEField *host_field = request.field_find(MIME_FIELD_HOST, MIME_LEN_HOST);
     int host_val_len = hostname_len;
     const char **host_val = &hostname;
-    int req_host_val_len;
-    const char *req_host_val;
     int port = url->port_get_raw();
     char *buf = NULL;
 
@@ -1174,17 +1193,13 @@ HttpTransact::ModifyRequest(State* s)
       host_val = (const char**)(&buf);
     }
 
-    if (!host_field ||
-        ((req_host_val = host_field->value_get(&req_host_val_len)) == NULL) ||
-        (host_val_len != req_host_val_len) ||
-        (strncasecmp(*host_val, req_host_val, host_val_len) != 0)) {
-
+    if (mimefield_value_equal(host_field, *host_val, host_val_len) == false) {
       if (!host_field) { // Assure we have a Host field, before setting it
-        host_field = s->hdr_info.client_request.field_create(MIME_FIELD_HOST, MIME_LEN_HOST);
-        s->hdr_info.client_request.field_attach(host_field);
+        host_field = request.field_create(MIME_FIELD_HOST, MIME_LEN_HOST);
+        request.field_attach(host_field);
       }
-      s->hdr_info.client_request.field_value_set(host_field, *host_val, host_val_len);
-      request->mark_target_dirty();
+      request.field_value_set(host_field, *host_val, host_val_len);
+      request.mark_target_dirty();
     }
   }
 
@@ -2252,7 +2267,7 @@ HttpTransact::issue_revalidate(State* s)
     // request to the server. is_cache_response_returnable will ensure
     // that we forward the request. We now specify what the cache
     // action should be when the response is received.
-    if (does_method_require_cache_copy_deletion(s->method)) {
+    if (does_method_require_cache_copy_deletion(s->http_config_param, s->method)) {
       s->cache_info.action = CACHE_PREPARE_TO_DELETE;
       DebugTxn("http_seq", "[HttpTransact::issue_revalidate] cache action: DELETE");
     } else {
@@ -2307,7 +2322,8 @@ HttpTransact::issue_revalidate(State* s)
     //   (or is method that we don't conditionalize but lookup the
     //    cache on like DELETE)
     if (c_resp->get_last_modified() > 0 &&
-        s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET && s->range_setup == RANGE_NONE) {
+        (s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET ||
+		s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD) && s->range_setup == RANGE_NONE) {
       // make this a conditional request
       int length;
       const char *str = c_resp->value_get(MIME_FIELD_LAST_MODIFIED, MIME_LEN_LAST_MODIFIED, &length);
@@ -2317,7 +2333,9 @@ HttpTransact::issue_revalidate(State* s)
         DUMP_HEADER("http_hdrs", &s->hdr_info.server_request, s->state_machine_id, "Proxy's Request (Conditionalized)");
     }
     // if Etag exists, also add if-non-match header
-    if (c_resp->presence(MIME_PRESENCE_ETAG) && s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET) {
+    if (c_resp->presence(MIME_PRESENCE_ETAG) &&
+			(s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET ||
+			 s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD)) {
       int length;
       const char *etag = c_resp->value_get(MIME_FIELD_ETAG, MIME_LEN_ETAG, &length);
       if ((length >= 2) && (etag[0] == 'W') && (etag[1] == '/')) {
@@ -3025,7 +3043,7 @@ HttpTransact::HandleCacheOpenReadMiss(State* s)
   }
   // We do a cache lookup for DELETE and PUT requests as well.
   // We must, however, not cache the responses to these requests.
-  if (does_method_require_cache_copy_deletion(s->method) && s->api_req_cacheable == false) {
+  if (does_method_require_cache_copy_deletion(s->http_config_param, s->method) && s->api_req_cacheable == false) {
     s->cache_info.action = CACHE_DO_NO_ACTION;
   } else if ((s->hdr_info.client_request.presence(MIME_PRESENCE_RANGE) && !s->txn_conf->cache_range_write) ||
              s->range_setup == RANGE_NOT_SATISFIABLE || s->range_setup == RANGE_NOT_HANDLED) {
@@ -4780,11 +4798,14 @@ HttpTransact::set_headers_for_cache_write(State* s, HTTPInfo* cache_info, HTTPHd
     request->url_set(s->hdr_info.client_request.url_get());
   }
   cache_info->request_set(request);
-  if (!s->negative_caching)
+  /* Why do we check the negative caching case? No one knows. This used to assert if the cache_info
+     response wasn't already valid, which broke negative caching when a transform is active. Why it
+     wasn't OK to pull in the @a response explicitly passed in isn't clear and looking at the call
+     sites yields no insight. So the assert is removed and we keep the behavior that if the response
+     in @a cache_info is already set, we don't override it.
+  */
+  if (!s->negative_caching || !cache_info->response_get()->valid())
     cache_info->response_set(response);
-  else {
-    ink_assert(cache_info->response_get()->valid());
-  }
 
   if (s->api_server_request_body_set)
     cache_info->request_get()->method_set(HTTP_METHOD_GET, HTTP_LEN_GET);
@@ -5198,7 +5219,8 @@ HttpTransact::RequestError_t HttpTransact::check_request_validity(State* s, HTTP
     if ((scheme == URL_WKSIDX_HTTP || scheme == URL_WKSIDX_HTTPS) &&
         (method == HTTP_WKSIDX_POST || method == HTTP_WKSIDX_PUSH || method == HTTP_WKSIDX_PUT) &&
         s->client_info.transfer_encoding != CHUNKED_ENCODING) {
-      if (!incoming_hdr->presence(MIME_PRESENCE_CONTENT_LENGTH)) {
+      if ((s->txn_conf->post_check_content_length_enabled) &&
+          !incoming_hdr->presence(MIME_PRESENCE_CONTENT_LENGTH)) {
         return NO_POST_CONTENT_LENGTH;
       }
       if (HTTP_UNDEFINED_CL == s->hdr_info.request_content_length) {
@@ -5734,7 +5756,7 @@ HttpTransact::is_cache_response_returnable(State* s)
     return false;
   }
 
-  if (!HttpTransactHeaders::is_method_cacheable(s->method) && s->api_resp_cacheable == false) {
+  if (!HttpTransactHeaders::is_method_cacheable(s->http_config_param, s->method) && s->api_resp_cacheable == false) {
     SET_VIA_STRING(VIA_CACHE_RESULT, VIA_IN_CACHE_NOT_ACCEPTABLE);
     SET_VIA_STRING(VIA_DETAIL_CACHE_LOOKUP, VIA_DETAIL_MISS_METHOD);
     return false;
@@ -5992,13 +6014,24 @@ response_cacheable_indicated_by_cc(HTTPHdr* response)
 bool
 HttpTransact::is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* response)
 {
+  // If the use_client_target_addr is specified but the client
+  // specified OS addr does not match any of trafficserver's looked up
+  // host addresses, do not allow cache.  This may cause DNS cache poisoning
+  // of other trafficserver clients. The flag is set in the 
+  // process_host_db_info method
+  if (!s->dns_info.lookup_validated
+    && s->client_info.is_transparent) {
+    DebugTxn("http_trans", "[is_response_cacheable] " "Lookup not validated.  Possible DNS cache poison.  Don't cache");
+    return false;
+  }
+
   // if method is not GET or HEAD, do not cache.
   // Note: POST is also cacheable with Expires or Cache-control.
   // but due to INKqa11567, we are not caching POST responses.
   // Basically, the problem is the resp for POST url1 req should not
   // be served to a GET url1 request, but we just match URL not method.
   int req_method = request->method_get_wksidx();
-  if (!(HttpTransactHeaders::is_method_cacheable(req_method)) && s->api_req_cacheable == false) {
+  if (!(HttpTransactHeaders::is_method_cacheable(s->http_config_param, req_method)) && s->api_req_cacheable == false) {
     DebugTxn("http_trans", "[is_response_cacheable] " "only GET, and some HEAD and POST are cachable");
     return false;
   }
@@ -6282,7 +6315,7 @@ HttpTransact::is_request_valid(State* s, HTTPHdr* incoming_request)
     {
       DebugTxn("http_trans", "[is_request_valid] post request without content length");
       SET_VIA_STRING(VIA_DETAIL_TUNNEL, VIA_DETAIL_TUNNEL_NO_FORWARD);
-      build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Content Length Required", "request#no_content_length", NULL);
+      build_error_response(s, HTTP_STATUS_LENGTH_REQUIRED, "Content Length Required", "request#no_content_length", NULL);
       return false;
     }
   case UNACCEPTABLE_TE_REQUIRED:
@@ -6442,7 +6475,7 @@ HttpTransact::process_quick_http_filter(State* s, int method)
     if (deny_request) {
       if (is_debug_tag_set("ip-allow")) {
         ip_text_buffer ipb;
-        Debug("ip-allow", "Quick filter denial on %s:%s with mask %x", ats_ip_ntop(&s->client_info.addr.sa, ipb, sizeof(ipb)), hdrtoken_index_to_wks(method), acl_record->_method_mask);
+        Debug("ip-allow", "Quick filter denial on %s:%s with mask %x", ats_ip_ntop(&s->client_info.addr.sa, ipb, sizeof(ipb)), hdrtoken_index_to_wks(method), acl_record ? acl_record->_method_mask : 0x0);
       }
       s->client_connection_enabled = false;
     }
@@ -7632,9 +7665,14 @@ HttpTransact::build_request(State* s, HTTPHdr* base_request, HTTPHdr* outgoing_r
   HttpTransactHeaders::copy_header_fields(base_request, outgoing_request, s->txn_conf->fwd_proxy_auth_to_parent);
   add_client_ip_to_outgoing_request(s, outgoing_request);
   HttpTransactHeaders::remove_privacy_headers_from_request(s->http_config_param, s->txn_conf, outgoing_request);
-  HttpTransactHeaders::add_global_user_agent_header_to_request(s->http_config_param, outgoing_request);
+  HttpTransactHeaders::add_global_user_agent_header_to_request(s->txn_conf, outgoing_request);
   handle_request_keep_alive_headers(s, outgoing_version, outgoing_request);
-  HttpTransactHeaders::handle_conditional_headers(&s->cache_info, outgoing_request);
+
+  // handle_conditional_headers appears to be obsolete.  Nothing happens
+  // unelss s->cache_info.action == HttpTransact::CACHE_DO_UPDATE.  In that
+  // case an assert will go off.  The functionality of this method
+  // (e.g., setting the if-modfied-since header occurs in issue_revalidate
+  //HttpTransactHeaders::handle_conditional_headers(&s->cache_info, outgoing_request);
 
   if (s->next_hop_scheme < 0)
     s->next_hop_scheme = URL_WKSIDX_HTTP;

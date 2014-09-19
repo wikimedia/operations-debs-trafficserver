@@ -33,7 +33,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-
 VPATH = @srcdir@
 am__is_gnu_make = test -n '$(MAKEFILE_LIST)' && test -n '$(MAKELEVEL)'
 am__make_running_with_option = \
@@ -95,13 +94,6 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = traffic_manager$(EXEEXT)
-
-# Must do it this way or the dependencies aren't detected.
-@BUILD_WCCP_TRUE@am__append_1 = \
-@BUILD_WCCP_TRUE@  $(top_builddir)/lib/wccp/libwccp.a \
-@BUILD_WCCP_TRUE@  $(top_builddir)/lib/tsconfig/libtsconfig.la
-
 subdir = mgmt
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/build/aux/depcomp
@@ -132,42 +124,21 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ts/ink_autoconf.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-LIBRARIES = $(noinst_LIBRARIES)
-ARFLAGS = cru
-AM_V_AR = $(am__v_AR_@AM_V@)
-am__v_AR_ = $(am__v_AR_@AM_DEFAULT_V@)
-am__v_AR_0 = @echo "  AR      " $@;
-am__v_AR_1 = 
-libmgmt_p_a_AR = $(AR) $(ARFLAGS)
-libmgmt_p_a_LIBADD =
-am_libmgmt_p_a_OBJECTS = libmgmt_p_a-BaseManager.$(OBJEXT) \
-	libmgmt_p_a-ProcessManager.$(OBJEXT) \
-	libmgmt_p_a-ProxyConfig.$(OBJEXT) \
-	libmgmt_p_a-RecordsConfig.$(OBJEXT)
-libmgmt_p_a_OBJECTS = $(am_libmgmt_p_a_OBJECTS)
-am__installdirs = "$(DESTDIR)$(bindir)"
-PROGRAMS = $(bin_PROGRAMS)
-am_traffic_manager_OBJECTS = AddConfigFilesHere.$(OBJEXT) \
-	Alarms.$(OBJEXT) BaseManager.$(OBJEXT) FileManager.$(OBJEXT) \
-	LocalManager.$(OBJEXT) Main.$(OBJEXT) MultiFile.$(OBJEXT) \
-	RecordsConfig.$(OBJEXT) Rollback.$(OBJEXT)
-traffic_manager_OBJECTS = $(am_traffic_manager_OBJECTS)
-traffic_manager_DEPENDENCIES = cluster/libcluster.a stats/libstats.a \
-	web2/libweb.a api/libmgmtapilocal.a api/libtsmgmtshare.la \
-	utils/libutils_lm.a $(top_builddir)/proxy/hdrs/libhdrs.a \
-	$(top_builddir)/lib/records/libreclocal.a \
-	$(top_builddir)/lib/ts/libtsutil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/proxy/shared/liberror.a \
-	$(top_builddir)/proxy/shared/libdiagsconfig.a $(am__append_1)
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+libmgmt_lm_la_DEPENDENCIES = cluster/libcluster.la \
+	utils/libutils_lm.la
+am__objects_1 = BaseManager.lo RecordsConfig.lo
+am_libmgmt_lm_la_OBJECTS = $(am__objects_1) Alarms.lo FileManager.lo \
+	LocalManager.lo MultiFile.lo Rollback.lo WebMgmtUtils.lo
+libmgmt_lm_la_OBJECTS = $(am_libmgmt_lm_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-traffic_manager_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_manager_LDFLAGS) \
-	$(LDFLAGS) -o $@
+libmgmt_p_la_DEPENDENCIES = utils/libutils_p.la
+am_libmgmt_p_la_OBJECTS = $(am__objects_1) ProcessManager.lo \
+	ProxyConfig.lo
+libmgmt_p_la_OBJECTS = $(am_libmgmt_p_la_OBJECTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -220,8 +191,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libmgmt_p_a_SOURCES) $(traffic_manager_SOURCES)
-DIST_SOURCES = $(libmgmt_p_a_SOURCES) $(traffic_manager_SOURCES)
+SOURCES = $(libmgmt_lm_la_SOURCES) $(libmgmt_p_la_SOURCES)
+DIST_SOURCES = $(libmgmt_lm_la_SOURCES) $(libmgmt_p_la_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -324,7 +295,7 @@ CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
-DEFS = @DEFS@ $(MGMT_DEFS)
+DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
@@ -376,7 +347,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -467,6 +437,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -524,8 +495,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -637,29 +606,9 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-SUBDIRS = cluster utils web2 stats api
-
-# This is for traffic_manager only (local manager)
-AM_CPPFLAGS = $(ink_with_modules_local) \
-  $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
-  -I$(top_srcdir)/proxy \
-  -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_srcdir)/proxy/shared \
-  -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/api/include \
-  -I$(top_srcdir)/mgmt/cluster \
-  -I$(top_srcdir)/mgmt/stats \
-  -I$(top_srcdir)/mgmt/utils \
-  -I$(top_srcdir)/mgmt/web2 \
-  -I$(top_srcdir)/lib \
-  -I$(top_builddir)/lib
-
-noinst_LIBRARIES = libmgmt_p.a
-
-# Compile this for "process manager"
-libmgmt_p_a_CPPFLAGS = \
+SUBDIRS = cluster utils web2 api
+noinst_LTLIBRARIES = libmgmt_p.la libmgmt_lm.la
+AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/cluster \
@@ -673,48 +622,42 @@ libmgmt_p_a_CPPFLAGS = \
   -I$(top_srcdir)/lib \
   -I$(top_builddir)/lib
 
-libmgmt_p_a_SOURCES = \
+libmgmt_COMMON = \
   BaseManager.cc \
   BaseManager.h \
   MgmtDefs.h \
-  ProcessManager.cc \
-  ProcessManager.h \
-  ProxyConfig.cc \
-  ProxyConfig.h \
   RecordsConfig.cc \
   RecordsConfig.h
 
-traffic_manager_SOURCES = \
-  AddConfigFilesHere.cc \
+libmgmt_p_la_SOURCES = \
+  $(libmgmt_COMMON) \
+  ProcessManager.cc \
+  ProcessManager.h \
+  ProxyConfig.cc \
+  ProxyConfig.h
+
+libmgmt_lm_la_SOURCES = \
+  $(libmgmt_COMMON) \
   Alarms.cc \
   Alarms.h \
-  BaseManager.cc \
-  BaseManager.h \
   FileManager.cc \
   FileManager.h \
   LocalManager.cc \
   LocalManager.h \
-  Main.cc \
-  Main.h \
-  MgmtDefs.h \
   MultiFile.cc \
   MultiFile.h \
-  RecordsConfig.cc \
-  RecordsConfig.h \
   Rollback.cc \
-  Rollback.h
+  Rollback.h \
+  WebMgmtUtils.cc \
+  WebMgmtUtils.h
 
-traffic_manager_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @EXPAT_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-traffic_manager_LDADD = cluster/libcluster.a stats/libstats.a \
-	web2/libweb.a api/libmgmtapilocal.a api/libtsmgmtshare.la \
-	utils/libutils_lm.a $(top_builddir)/proxy/hdrs/libhdrs.a \
-	$(top_builddir)/lib/records/libreclocal.a \
-	$(top_builddir)/lib/ts/libtsutil.la \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/proxy/shared/liberror.a \
-	$(top_builddir)/proxy/shared/libdiagsconfig.a @LIBRESOLV@ \
-	@LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ -lm \
-	$(am__append_1) @OPENSSL_LIBS@
+libmgmt_lm_la_LIBADD = \
+  cluster/libcluster.la \
+  utils/libutils_lm.la
+
+libmgmt_p_la_LIBADD = \
+  utils/libutils_p.la
+
 all: all-recursive
 
 .SUFFIXES:
@@ -750,66 +693,22 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
-clean-noinstLIBRARIES:
-	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
 
-libmgmt_p.a: $(libmgmt_p_a_OBJECTS) $(libmgmt_p_a_DEPENDENCIES) $(EXTRA_libmgmt_p_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libmgmt_p.a
-	$(AM_V_AR)$(libmgmt_p_a_AR) libmgmt_p.a $(libmgmt_p_a_OBJECTS) $(libmgmt_p_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libmgmt_p.a
-install-binPROGRAMS: $(bin_PROGRAMS)
-	@$(NORMAL_INSTALL)
-	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
-	if test -n "$$list"; then \
-	  echo " $(MKDIR_P) '$(DESTDIR)$(bindir)'"; \
-	  $(MKDIR_P) "$(DESTDIR)$(bindir)" || exit 1; \
-	fi; \
-	for p in $$list; do echo "$$p $$p"; done | \
-	sed 's/$(EXEEXT)$$//' | \
-	while read p p1; do if test -f $$p \
-	 || test -f $$p1 \
-	  ; then echo "$$p"; echo "$$p"; else :; fi; \
-	done | \
-	sed -e 'p;s,.*/,,;n;h' \
-	    -e 's|.*|.|' \
-	    -e 'p;x;s,.*/,,;s/$(EXEEXT)$$//;$(transform);s/$$/$(EXEEXT)/' | \
-	sed 'N;N;N;s,\n, ,g' | \
-	$(AWK) 'BEGIN { files["."] = ""; dirs["."] = 1 } \
-	  { d=$$3; if (dirs[d] != 1) { print "d", d; dirs[d] = 1 } \
-	    if ($$2 == $$4) files[d] = files[d] " " $$1; \
-	    else { print "f", $$3 "/" $$4, $$1; } } \
-	  END { for (d in files) print "f", d, files[d] }' | \
-	while read type dir files; do \
-	    if test "$$dir" = .; then dir=; else dir=/$$dir; fi; \
-	    test -z "$$files" || { \
-	    echo " $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files '$(DESTDIR)$(bindir)$$dir'"; \
-	    $(INSTALL_PROGRAM_ENV) $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL_PROGRAM) $$files "$(DESTDIR)$(bindir)$$dir" || exit $$?; \
-	    } \
-	; done
+libmgmt_lm.la: $(libmgmt_lm_la_OBJECTS) $(libmgmt_lm_la_DEPENDENCIES) $(EXTRA_libmgmt_lm_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK)  $(libmgmt_lm_la_OBJECTS) $(libmgmt_lm_la_LIBADD) $(LIBS)
 
-uninstall-binPROGRAMS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
-	files=`for p in $$list; do echo "$$p"; done | \
-	  sed -e 'h;s,^.*/,,;s/$(EXEEXT)$$//;$(transform)' \
-	      -e 's/$$/$(EXEEXT)/' \
-	`; \
-	test -n "$$list" || exit 0; \
-	echo " ( cd '$(DESTDIR)$(bindir)' && rm -f" $$files ")"; \
-	cd "$(DESTDIR)$(bindir)" && rm -f $$files
-
-clean-binPROGRAMS:
-	@list='$(bin_PROGRAMS)'; test -n "$$list" || exit 0; \
-	echo " rm -f" $$list; \
-	rm -f $$list || exit $$?; \
-	test -n "$(EXEEXT)" || exit 0; \
-	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
-	echo " rm -f" $$list; \
-	rm -f $$list
-
-traffic_manager$(EXEEXT): $(traffic_manager_OBJECTS) $(traffic_manager_DEPENDENCIES) $(EXTRA_traffic_manager_DEPENDENCIES) 
-	@rm -f traffic_manager$(EXEEXT)
-	$(AM_V_CXXLD)$(traffic_manager_LINK) $(traffic_manager_OBJECTS) $(traffic_manager_LDADD) $(LIBS)
+libmgmt_p.la: $(libmgmt_p_la_OBJECTS) $(libmgmt_p_la_DEPENDENCIES) $(EXTRA_libmgmt_p_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK)  $(libmgmt_p_la_OBJECTS) $(libmgmt_p_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -817,19 +716,16 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/AddConfigFilesHere.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Alarms.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BaseManager.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/FileManager.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/LocalManager.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MultiFile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecordsConfig.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rollback.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-BaseManager.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-ProcessManager.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-ProxyConfig.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libmgmt_p_a-RecordsConfig.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Alarms.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BaseManager.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/FileManager.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/LocalManager.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MultiFile.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ProcessManager.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ProxyConfig.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecordsConfig.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Rollback.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/WebMgmtUtils.Plo@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -854,62 +750,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
-
-libmgmt_p_a-BaseManager.o: BaseManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-BaseManager.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-BaseManager.Tpo -c -o libmgmt_p_a-BaseManager.o `test -f 'BaseManager.cc' || echo '$(srcdir)/'`BaseManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-BaseManager.Tpo $(DEPDIR)/libmgmt_p_a-BaseManager.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='BaseManager.cc' object='libmgmt_p_a-BaseManager.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-BaseManager.o `test -f 'BaseManager.cc' || echo '$(srcdir)/'`BaseManager.cc
-
-libmgmt_p_a-BaseManager.obj: BaseManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-BaseManager.obj -MD -MP -MF $(DEPDIR)/libmgmt_p_a-BaseManager.Tpo -c -o libmgmt_p_a-BaseManager.obj `if test -f 'BaseManager.cc'; then $(CYGPATH_W) 'BaseManager.cc'; else $(CYGPATH_W) '$(srcdir)/BaseManager.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-BaseManager.Tpo $(DEPDIR)/libmgmt_p_a-BaseManager.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='BaseManager.cc' object='libmgmt_p_a-BaseManager.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-BaseManager.obj `if test -f 'BaseManager.cc'; then $(CYGPATH_W) 'BaseManager.cc'; else $(CYGPATH_W) '$(srcdir)/BaseManager.cc'; fi`
-
-libmgmt_p_a-ProcessManager.o: ProcessManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProcessManager.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProcessManager.Tpo -c -o libmgmt_p_a-ProcessManager.o `test -f 'ProcessManager.cc' || echo '$(srcdir)/'`ProcessManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProcessManager.Tpo $(DEPDIR)/libmgmt_p_a-ProcessManager.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProcessManager.cc' object='libmgmt_p_a-ProcessManager.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProcessManager.o `test -f 'ProcessManager.cc' || echo '$(srcdir)/'`ProcessManager.cc
-
-libmgmt_p_a-ProcessManager.obj: ProcessManager.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProcessManager.obj -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProcessManager.Tpo -c -o libmgmt_p_a-ProcessManager.obj `if test -f 'ProcessManager.cc'; then $(CYGPATH_W) 'ProcessManager.cc'; else $(CYGPATH_W) '$(srcdir)/ProcessManager.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProcessManager.Tpo $(DEPDIR)/libmgmt_p_a-ProcessManager.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProcessManager.cc' object='libmgmt_p_a-ProcessManager.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProcessManager.obj `if test -f 'ProcessManager.cc'; then $(CYGPATH_W) 'ProcessManager.cc'; else $(CYGPATH_W) '$(srcdir)/ProcessManager.cc'; fi`
-
-libmgmt_p_a-ProxyConfig.o: ProxyConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProxyConfig.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo -c -o libmgmt_p_a-ProxyConfig.o `test -f 'ProxyConfig.cc' || echo '$(srcdir)/'`ProxyConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo $(DEPDIR)/libmgmt_p_a-ProxyConfig.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProxyConfig.cc' object='libmgmt_p_a-ProxyConfig.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProxyConfig.o `test -f 'ProxyConfig.cc' || echo '$(srcdir)/'`ProxyConfig.cc
-
-libmgmt_p_a-ProxyConfig.obj: ProxyConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-ProxyConfig.obj -MD -MP -MF $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo -c -o libmgmt_p_a-ProxyConfig.obj `if test -f 'ProxyConfig.cc'; then $(CYGPATH_W) 'ProxyConfig.cc'; else $(CYGPATH_W) '$(srcdir)/ProxyConfig.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-ProxyConfig.Tpo $(DEPDIR)/libmgmt_p_a-ProxyConfig.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ProxyConfig.cc' object='libmgmt_p_a-ProxyConfig.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-ProxyConfig.obj `if test -f 'ProxyConfig.cc'; then $(CYGPATH_W) 'ProxyConfig.cc'; else $(CYGPATH_W) '$(srcdir)/ProxyConfig.cc'; fi`
-
-libmgmt_p_a-RecordsConfig.o: RecordsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-RecordsConfig.o -MD -MP -MF $(DEPDIR)/libmgmt_p_a-RecordsConfig.Tpo -c -o libmgmt_p_a-RecordsConfig.o `test -f 'RecordsConfig.cc' || echo '$(srcdir)/'`RecordsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-RecordsConfig.Tpo $(DEPDIR)/libmgmt_p_a-RecordsConfig.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecordsConfig.cc' object='libmgmt_p_a-RecordsConfig.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-RecordsConfig.o `test -f 'RecordsConfig.cc' || echo '$(srcdir)/'`RecordsConfig.cc
-
-libmgmt_p_a-RecordsConfig.obj: RecordsConfig.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libmgmt_p_a-RecordsConfig.obj -MD -MP -MF $(DEPDIR)/libmgmt_p_a-RecordsConfig.Tpo -c -o libmgmt_p_a-RecordsConfig.obj `if test -f 'RecordsConfig.cc'; then $(CYGPATH_W) 'RecordsConfig.cc'; else $(CYGPATH_W) '$(srcdir)/RecordsConfig.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libmgmt_p_a-RecordsConfig.Tpo $(DEPDIR)/libmgmt_p_a-RecordsConfig.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecordsConfig.cc' object='libmgmt_p_a-RecordsConfig.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libmgmt_p_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libmgmt_p_a-RecordsConfig.obj `if test -f 'RecordsConfig.cc'; then $(CYGPATH_W) 'RecordsConfig.cc'; else $(CYGPATH_W) '$(srcdir)/RecordsConfig.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -1073,12 +913,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-recursive
-all-am: Makefile $(LIBRARIES) $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(bindir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
@@ -1111,8 +948,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
 
-clean-am: clean-binPROGRAMS clean-generic clean-libtool \
-	clean-noinstLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -rf ./$(DEPDIR)
@@ -1138,7 +975,7 @@ install-dvi: install-dvi-recursive
 
 install-dvi-am:
 
-install-exec-am: install-binPROGRAMS
+install-exec-am:
 
 install-html: install-html-recursive
 
@@ -1178,24 +1015,24 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS
+uninstall-am:
 
 .MAKE: $(am__recursive_targets) install-am install-strip
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am check \
-	check-am clean clean-binPROGRAMS clean-generic clean-libtool \
-	clean-noinstLIBRARIES cscopelist-am ctags ctags-am distclean \
+	check-am clean clean-generic clean-libtool \
+	clean-noinstLTLIBRARIES cscopelist-am ctags ctags-am distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-binPROGRAMS install-data \
-	install-data-am install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binPROGRAMS
+	install install-am install-data install-data-am install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am uninstall \
+	uninstall-am
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

@@ -29,10 +29,10 @@
  *
  ***************************************************************************/
 
-#include "ink_platform.h"
-#include "Main.h"
+#include "libts.h"
 #include "MgmtUtils.h"
 #include "LocalManager.h"
+#include "ClusterCom.h"
 #include "FileManager.h"
 #include "Rollback.h"
 #include "WebMgmtUtils.h"
@@ -47,10 +47,10 @@
 #include "EventCallback.h"
 #include "I_Layout.h"
 
-extern int diags_init;          // from Main.cc
-
 // global variable
 CallbackTable *local_event_callbacks;
+
+extern FileManager *configFiles; // global in traffic_manager
 
 /*-------------------------------------------------------------------------
  * Init
@@ -131,7 +131,7 @@ Diags(TSDiagsT mode, const char *fmt, va_list ap)
     level = DL_Diag;
   }
 
-  if (diags_init) {             // check that diags is initialized
+  if (diags) {             // check that diags is initialized
     diags->print_va("TSMgmtAPI", level, NULL, fmt, ap);
     va_end(ap);
   }
@@ -827,7 +827,6 @@ SnapshotRestore(char *snapshot_name)
   ats_free(snapDirFromRecordsConf);
 
   SnapResult result = configFiles->restoreSnap(snapshot_name, snapDir);
-  ats_free(snapDirFromRecordsConf);
   if (result != SNAP_OK)
     return TS_ERR_FAIL;
   else
@@ -854,7 +853,6 @@ SnapshotRemove(char *snapshot_name)
   ats_free(snapDirFromRecordsConf);
 
   SnapResult result = configFiles->removeSnap(snapshot_name, snapDir);
-  ats_free(snapDirFromRecordsConf);
   if (result != SNAP_OK)
     return TS_ERR_FAIL;
   else

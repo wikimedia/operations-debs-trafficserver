@@ -399,7 +399,6 @@ addOrCheckKeepPassRecords(uint32_t hash_key, int64_t timeout)
         getCurrentKeepPassEntries(keep_pass_list);
         TSDebug(PLUGIN_NAME,
                 "insert pass entry with timeout = %zd, hash_key = %u", passRecord.timeout, passRecord.hash_key);
-        added = true;
         break;
       }
     } else {
@@ -943,12 +942,13 @@ collapsedConnectionMainHandler(TSCont /* contp ATS_UNUSED */, TSEvent event, voi
             addMutexRetry(txn_data, event, 0);
           } else {
             freeCcTxnData(txn_data);
+            txn_data = NULL;
           }
         } else {
           txn_data->cc_state = CC_REMOVE;
         }
       }
-      if (CC_INSERT == txn_data->cc_state || CC_REMOVE == txn_data->cc_state) {
+      if (txn_data && (CC_INSERT == txn_data->cc_state || CC_REMOVE == txn_data->cc_state)) {
         txn_data->cc_state = CC_REMOVE;
         if (TS_SUCCESS == updateOrRemoveHashEntry(txn_data)) {
           freeCcTxnData(txn_data);

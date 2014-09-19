@@ -124,22 +124,18 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ts/ink_autoconf.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
-LIBRARIES = $(noinst_LIBRARIES)
-ARFLAGS = cru
-AM_V_AR = $(am__v_AR_@AM_V@)
-am__v_AR_ = $(am__v_AR_@AM_DEFAULT_V@)
-am__v_AR_0 = @echo "  AR      " $@;
-am__v_AR_1 = 
-libutils_lm_a_AR = $(AR) $(ARFLAGS)
-libutils_lm_a_LIBADD =
-am_libutils_lm_a_OBJECTS = libutils_lm_a-ExpandingArray.$(OBJEXT) \
-	libutils_lm_a-MgmtUtils.$(OBJEXT) \
-	libutils_lm_a-WebMgmtUtils.$(OBJEXT)
-libutils_lm_a_OBJECTS = $(am_libutils_lm_a_OBJECTS)
-libutils_p_a_AR = $(AR) $(ARFLAGS)
-libutils_p_a_LIBADD =
-am_libutils_p_a_OBJECTS = MgmtUtils.$(OBJEXT)
-libutils_p_a_OBJECTS = $(am_libutils_p_a_OBJECTS)
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+libutils_lm_la_LIBADD =
+am_libutils_lm_la_OBJECTS = ExpandingArray.lo MgmtLocalCleanup.lo \
+	MgmtUtils.lo
+libutils_lm_la_OBJECTS = $(am_libutils_lm_la_OBJECTS)
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
+libutils_p_la_LIBADD =
+am_libutils_p_la_OBJECTS = MgmtProcessCleanup.lo MgmtUtils.lo
+libutils_p_la_OBJECTS = $(am_libutils_p_la_OBJECTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -156,10 +152,6 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
@@ -196,8 +188,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libutils_lm_a_SOURCES) $(libutils_p_a_SOURCES)
-DIST_SOURCES = $(libutils_lm_a_SOURCES) $(libutils_p_a_SOURCES)
+SOURCES = $(libutils_lm_la_SOURCES) $(libutils_p_la_SOURCES)
+DIST_SOURCES = $(libutils_lm_la_SOURCES) $(libutils_p_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -258,7 +250,7 @@ CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
-DEFS = @DEFS@ $(MGMT_DEFS)
+DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
@@ -310,7 +302,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -401,6 +392,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -458,8 +450,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -576,8 +566,6 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/api \
   -I$(top_srcdir)/mgmt/api/include \
-  -I$(top_srcdir)/mgmt/cluster \
-  -I$(top_srcdir)/mgmt/web2 \
   -I$(top_srcdir)/lib/tsconfig \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/lib/records \
@@ -588,17 +576,16 @@ AM_CPPFLAGS = \
 
 # header files used by other libraries
 EXTRA_DIST = MgmtHashTable.h MgmtSocket.h
-noinst_LIBRARIES = libutils_lm.a libutils_p.a
-libutils_lm_a_CPPFLAGS = $(ink_with_modules_local) $(AM_CPPFLAGS)
-libutils_lm_a_SOURCES = \
+noinst_LTLIBRARIES = libutils_lm.la libutils_p.la
+libutils_lm_la_SOURCES = \
   ExpandingArray.cc \
   ExpandingArray.h \
+  MgmtLocalCleanup.cc \
   MgmtUtils.cc \
-  MgmtUtils.h \
-  WebMgmtUtils.cc \
-  WebMgmtUtils.h
+  MgmtUtils.h
 
-libutils_p_a_SOURCES = \
+libutils_p_la_SOURCES = \
+  MgmtProcessCleanup.cc \
   MgmtUtils.cc \
   MgmtUtils.h
 
@@ -637,18 +624,22 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
-clean-noinstLIBRARIES:
-	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
 
-libutils_lm.a: $(libutils_lm_a_OBJECTS) $(libutils_lm_a_DEPENDENCIES) $(EXTRA_libutils_lm_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libutils_lm.a
-	$(AM_V_AR)$(libutils_lm_a_AR) libutils_lm.a $(libutils_lm_a_OBJECTS) $(libutils_lm_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libutils_lm.a
+libutils_lm.la: $(libutils_lm_la_OBJECTS) $(libutils_lm_la_DEPENDENCIES) $(EXTRA_libutils_lm_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK)  $(libutils_lm_la_OBJECTS) $(libutils_lm_la_LIBADD) $(LIBS)
 
-libutils_p.a: $(libutils_p_a_OBJECTS) $(libutils_p_a_DEPENDENCIES) $(EXTRA_libutils_p_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libutils_p.a
-	$(AM_V_AR)$(libutils_p_a_AR) libutils_p.a $(libutils_p_a_OBJECTS) $(libutils_p_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libutils_p.a
+libutils_p.la: $(libutils_p_la_OBJECTS) $(libutils_p_la_DEPENDENCIES) $(EXTRA_libutils_p_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK)  $(libutils_p_la_OBJECTS) $(libutils_p_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -656,10 +647,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MgmtUtils.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-ExpandingArray.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-MgmtUtils.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ExpandingArray.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MgmtLocalCleanup.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MgmtProcessCleanup.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MgmtUtils.Plo@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -684,48 +675,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
-
-libutils_lm_a-ExpandingArray.o: ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.o `test -f 'ExpandingArray.cc' || echo '$(srcdir)/'`ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ExpandingArray.cc' object='libutils_lm_a-ExpandingArray.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-ExpandingArray.o `test -f 'ExpandingArray.cc' || echo '$(srcdir)/'`ExpandingArray.cc
-
-libutils_lm_a-ExpandingArray.obj: ExpandingArray.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-ExpandingArray.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo -c -o libutils_lm_a-ExpandingArray.obj `if test -f 'ExpandingArray.cc'; then $(CYGPATH_W) 'ExpandingArray.cc'; else $(CYGPATH_W) '$(srcdir)/ExpandingArray.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-ExpandingArray.Tpo $(DEPDIR)/libutils_lm_a-ExpandingArray.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='ExpandingArray.cc' object='libutils_lm_a-ExpandingArray.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-ExpandingArray.obj `if test -f 'ExpandingArray.cc'; then $(CYGPATH_W) 'ExpandingArray.cc'; else $(CYGPATH_W) '$(srcdir)/ExpandingArray.cc'; fi`
-
-libutils_lm_a-MgmtUtils.o: MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.o `test -f 'MgmtUtils.cc' || echo '$(srcdir)/'`MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='MgmtUtils.cc' object='libutils_lm_a-MgmtUtils.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtUtils.o `test -f 'MgmtUtils.cc' || echo '$(srcdir)/'`MgmtUtils.cc
-
-libutils_lm_a-MgmtUtils.obj: MgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-MgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo -c -o libutils_lm_a-MgmtUtils.obj `if test -f 'MgmtUtils.cc'; then $(CYGPATH_W) 'MgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-MgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-MgmtUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='MgmtUtils.cc' object='libutils_lm_a-MgmtUtils.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-MgmtUtils.obj `if test -f 'MgmtUtils.cc'; then $(CYGPATH_W) 'MgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/MgmtUtils.cc'; fi`
-
-libutils_lm_a-WebMgmtUtils.o: WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.o -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.o `test -f 'WebMgmtUtils.cc' || echo '$(srcdir)/'`WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='WebMgmtUtils.cc' object='libutils_lm_a-WebMgmtUtils.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-WebMgmtUtils.o `test -f 'WebMgmtUtils.cc' || echo '$(srcdir)/'`WebMgmtUtils.cc
-
-libutils_lm_a-WebMgmtUtils.obj: WebMgmtUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT libutils_lm_a-WebMgmtUtils.obj -MD -MP -MF $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo -c -o libutils_lm_a-WebMgmtUtils.obj `if test -f 'WebMgmtUtils.cc'; then $(CYGPATH_W) 'WebMgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/WebMgmtUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Tpo $(DEPDIR)/libutils_lm_a-WebMgmtUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='WebMgmtUtils.cc' object='libutils_lm_a-WebMgmtUtils.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libutils_lm_a_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o libutils_lm_a-WebMgmtUtils.obj `if test -f 'WebMgmtUtils.cc'; then $(CYGPATH_W) 'WebMgmtUtils.cc'; else $(CYGPATH_W) '$(srcdir)/WebMgmtUtils.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -817,7 +766,7 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LIBRARIES)
+all-am: Makefile $(LTLIBRARIES)
 installdirs:
 install: install-am
 install-exec: install-exec-am
@@ -851,7 +800,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-generic clean-libtool clean-noinstLIBRARIES \
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
 	mostlyclean-am
 
 distclean: distclean-am
@@ -923,7 +872,7 @@ uninstall-am:
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLIBRARIES cscopelist-am ctags \
+	clean-libtool clean-noinstLTLIBRARIES cscopelist-am ctags \
 	ctags-am distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \

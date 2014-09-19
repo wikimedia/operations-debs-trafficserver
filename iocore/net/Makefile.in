@@ -146,33 +146,36 @@ libinknet_a_AR = $(AR) $(ARFLAGS)
 libinknet_a_LIBADD =
 am__libinknet_a_SOURCES_DIST = Connection.cc I_Net.h I_NetProcessor.h \
 	I_NetVConnection.h I_Socks.h I_UDPConnection.h I_UDPNet.h \
-	I_UDPPacket.h Inline.cc I_SessionAccept.h SessionAccept.cc \
-	Net.cc NetVConnection.cc P_CompletionUtil.h P_Connection.h \
+	I_UDPPacket.h Inline.cc I_SessionAccept.h Net.cc \
+	NetVConnection.cc P_CompletionUtil.h P_Connection.h \
 	P_InkBulkIO.h P_LibBulkIO.h P_Net.h P_NetAccept.h \
 	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
 	P_SSLNetAccept.h P_SSLNetProcessor.h P_SSLNetVConnection.h \
 	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLUtils.h \
-	P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h P_UDPPacket.h \
-	P_UnixCompletionUtil.h P_UnixNet.h P_UnixNetProcessor.h \
-	P_UnixNetState.h P_UnixNetVConnection.h P_UnixPollDescriptor.h \
-	P_UnixUDPConnection.h Socks.cc SSLCertLookup.cc SSLConfig.cc \
-	SSLNetAccept.cc SSLNetProcessor.cc SSLNetVConnection.cc \
+	P_OCSPStapling.h P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h \
+	P_UDPPacket.h P_UnixCompletionUtil.h P_UnixNet.h \
+	P_UnixNetProcessor.h P_UnixNetState.h P_UnixNetVConnection.h \
+	P_UnixPollDescriptor.h P_UnixUDPConnection.h Socks.cc \
+	SSLCertLookup.cc SSLConfig.cc SSLNetAccept.cc \
+	SSLNetProcessor.cc SSLNetVConnection.cc \
 	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLUtils.cc \
-	UDPIOEvent.cc UnixConnection.cc UnixNet.cc UnixNetAccept.cc \
-	UnixNetPages.cc UnixNetProcessor.cc UnixNetVConnection.cc \
-	UnixUDPConnection.cc UnixUDPNet.cc NetVCTest.cc P_NetVCTest.h
+	OCSPStapling.cc UDPIOEvent.cc UnixConnection.cc UnixNet.cc \
+	UnixNetAccept.cc UnixNetPages.cc UnixNetProcessor.cc \
+	UnixNetVConnection.cc UnixUDPConnection.cc UnixUDPNet.cc \
+	NetVCTest.cc P_NetVCTest.h
 @BUILD_TESTS_TRUE@am__objects_1 = NetVCTest.$(OBJEXT)
 am_libinknet_a_OBJECTS = Connection.$(OBJEXT) Inline.$(OBJEXT) \
-	SessionAccept.$(OBJEXT) Net.$(OBJEXT) NetVConnection.$(OBJEXT) \
-	Socks.$(OBJEXT) SSLCertLookup.$(OBJEXT) SSLConfig.$(OBJEXT) \
+	Net.$(OBJEXT) NetVConnection.$(OBJEXT) Socks.$(OBJEXT) \
+	SSLCertLookup.$(OBJEXT) SSLConfig.$(OBJEXT) \
 	SSLNetAccept.$(OBJEXT) SSLNetProcessor.$(OBJEXT) \
 	SSLNetVConnection.$(OBJEXT) SSLNextProtocolAccept.$(OBJEXT) \
 	SSLNextProtocolSet.$(OBJEXT) SSLUtils.$(OBJEXT) \
-	Socks.$(OBJEXT) UDPIOEvent.$(OBJEXT) UnixConnection.$(OBJEXT) \
-	UnixNet.$(OBJEXT) UnixNetAccept.$(OBJEXT) \
-	UnixNetPages.$(OBJEXT) UnixNetProcessor.$(OBJEXT) \
-	UnixNetVConnection.$(OBJEXT) UnixUDPConnection.$(OBJEXT) \
-	UnixUDPNet.$(OBJEXT) $(am__objects_1)
+	OCSPStapling.$(OBJEXT) Socks.$(OBJEXT) UDPIOEvent.$(OBJEXT) \
+	UnixConnection.$(OBJEXT) UnixNet.$(OBJEXT) \
+	UnixNetAccept.$(OBJEXT) UnixNetPages.$(OBJEXT) \
+	UnixNetProcessor.$(OBJEXT) UnixNetVConnection.$(OBJEXT) \
+	UnixUDPConnection.$(OBJEXT) UnixUDPNet.$(OBJEXT) \
+	$(am__objects_1)
 libinknet_a_OBJECTS = $(am_libinknet_a_OBJECTS)
 am_test_certlookup_OBJECTS = test_certlookup.$(OBJEXT) \
 	SSLCertLookup.$(OBJEXT)
@@ -554,7 +557,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -645,6 +647,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -702,8 +705,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -840,23 +841,23 @@ test_certlookup_LDADD = \
 
 libinknet_a_SOURCES = Connection.cc I_Net.h I_NetProcessor.h \
 	I_NetVConnection.h I_Socks.h I_UDPConnection.h I_UDPNet.h \
-	I_UDPPacket.h Inline.cc I_SessionAccept.h SessionAccept.cc \
-	Net.cc NetVConnection.cc P_CompletionUtil.h P_Connection.h \
+	I_UDPPacket.h Inline.cc I_SessionAccept.h Net.cc \
+	NetVConnection.cc P_CompletionUtil.h P_Connection.h \
 	P_InkBulkIO.h P_LibBulkIO.h P_Net.h P_NetAccept.h \
 	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
 	P_SSLNetAccept.h P_SSLNetProcessor.h P_SSLNetVConnection.h \
 	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLUtils.h \
-	P_Socks.h P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h \
-	P_UDPPacket.h P_UnixCompletionUtil.h P_UnixNet.h \
+	P_OCSPStapling.h P_Socks.h P_UDPConnection.h P_UDPIOEvent.h \
+	P_UDPNet.h P_UDPPacket.h P_UnixCompletionUtil.h P_UnixNet.h \
 	P_UnixNetProcessor.h P_UnixNetState.h P_UnixNetVConnection.h \
 	P_UnixPollDescriptor.h P_UnixUDPConnection.h Socks.cc \
 	SSLCertLookup.cc SSLConfig.cc SSLNetAccept.cc \
 	SSLNetProcessor.cc SSLNetVConnection.cc \
 	SSLNextProtocolAccept.cc SSLNextProtocolSet.cc SSLUtils.cc \
-	Socks.cc UDPIOEvent.cc UnixConnection.cc UnixNet.cc \
-	UnixNetAccept.cc UnixNetPages.cc UnixNetProcessor.cc \
-	UnixNetVConnection.cc UnixUDPConnection.cc UnixUDPNet.cc \
-	$(am__append_1)
+	OCSPStapling.cc Socks.cc UDPIOEvent.cc UnixConnection.cc \
+	UnixNet.cc UnixNetAccept.cc UnixNetPages.cc \
+	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
+	UnixUDPNet.cc $(am__append_1)
 all: all-am
 
 .SUFFIXES:
@@ -924,6 +925,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Net.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NetVCTest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/NetVConnection.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/OCSPStapling.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLCertLookup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLConfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNetAccept.Po@am__quote@
@@ -932,7 +934,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolAccept.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLNextProtocolSet.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SSLUtils.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SessionAccept.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Socks.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UDPIOEvent.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/UnixConnection.Po@am__quote@

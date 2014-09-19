@@ -68,8 +68,10 @@ SpdyRequest::clear()
 {
   SPDY_DECREMENT_THREAD_DYN_STAT(SPDY_STAT_CURRENT_CLIENT_STREAM_COUNT, spdy_sm->mutex->thread_holding);
 
-  if (fetch_sm)
+  if (fetch_sm) {
     TSFetchDestroy(fetch_sm);
+    fetch_sm = NULL;
+  }
 
   vector<pair<string, string> >().swap(headers);
 
@@ -174,7 +176,7 @@ SpdyClientSession::clear()
 }
 
 void
-spdy_sm_create(NetVConnection * netvc, spdy::SessionVersion vers, MIOBuffer * iobuf, IOBufferReader * reader)
+spdy_cs_create(NetVConnection * netvc, spdy::SessionVersion vers, MIOBuffer * iobuf, IOBufferReader * reader)
 {
   SpdyClientSession  *sm;
 
@@ -336,16 +338,19 @@ spdy_process_fetch(TSEvent event, SpdyClientSession *sm, void *edata)
     Debug("spdy", "----[FETCH ERROR]");
     if (req->fetch_body_completed)
       ret = 0; // Ignore fetch errors after FETCH BODY DONE
-    else
+    else {
+      Error("spdy_process_fetch fetch error, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
       req->fetch_sm = NULL;
+    }
     break;
   }
 
   if (ret) {
-    spdy_prepare_status_response(sm, req->stream_id, STATUS_500);
-    sm->req_map.erase(req->stream_id);
-    req->clear();
-    spdyRequestAllocator.free(req);
+    Error("spdy_process_fetch sending STATUS_500, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
+    spdy_prepare_status_response_and_clean_request(sm, req->stream_id, STATUS_500);
+    // It is better to send back a 500 response on the stream and have the client connection remain open.  However, we
+    // have seen a core around this.  We have a local patch to close the client connection (return -1) this is related
+    // to TS-2883.  TS-2883 still needs to be fixed.
   }
 
   return 0;
@@ -354,14 +359,19 @@ spdy_process_fetch(TSEvent event, SpdyClientSession *sm, void *edata)
 static int
 spdy_process_fetch_header(TSEvent /*event*/, SpdyClientSession *sm, TSFetchSM fetch_sm)
 {
-  int ret;
+  int ret = -1;
   SpdyRequest *req = (SpdyRequest *)TSFetchUserDataGet(fetch_sm);
+
   SpdyNV spdy_nv(fetch_sm);
 
   Debug("spdy", "----spdylay_submit_syn_reply");
-  ret = spdylay_submit_syn_reply(sm->session,
+  if (sm->session) {
+    ret = spdylay_submit_syn_reply(sm->session,
                                  SPDYLAY_CTRL_FLAG_NONE, req->stream_id,
                                  spdy_nv.nv);
+  } else {
+    Error("spdy_process_fetch_header, sm->session NULL, sm_id %" PRId64 ", fetch_sm %p, stream_id %d, req_time %" PRId64 ", url %s", sm->sm_id, fetch_sm, req->stream_id, req->start_time, req->url.c_str());
+  }
 
   TSVIOReenable(sm->write_vio);
   return ret;
@@ -382,7 +392,7 @@ spdy_read_fetch_body_callback(spdylay_session * /*session*/, int32_t stream_id,
   //
   // req has been deleted, ignore this data.
   //
-  if (req != sm->req_map[stream_id]) {
+  if (req != sm->find_request(stream_id)) {
     Debug("spdy", "    stream_id:%d, call:%d, req has been deleted, return 0",
           stream_id, g_call_cnt);
     *eof = 1;
@@ -416,9 +426,7 @@ spdy_read_fetch_body_callback(spdylay_session * /*session*/, int32_t stream_id,
         }
       }
       *eof = 1;
-      sm->req_map.erase(stream_id);
-      req->clear();
-      spdyRequestAllocator.free(req);
+      sm->cleanup_request(stream_id);
     } else if (already == 0) {
       req->need_resume_data = true;
       return SPDYLAY_ERR_DEFERRED;

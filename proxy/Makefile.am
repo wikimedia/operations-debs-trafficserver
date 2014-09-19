@@ -17,7 +17,7 @@
 #  limitations under the License.
 
 # Note that hdrs is targeted from ../Makefile.am
-SUBDIRS = congest http spdy logging config
+SUBDIRS = congest http http2 spdy logging config
 noinst_LIBRARIES =
 bin_PROGRAMS = \
   traffic_server \
@@ -170,6 +170,8 @@ traffic_server_SOURCES = \
   Prefetch.h \
   ProtocolProbeSessionAccept.cc \
   ProtocolProbeSessionAccept.h \
+  ProxyClientSession.cc \
+  ProxyClientSession.h \
   ReverseProxy.cc \
   ReverseProxy.h \
   SocksProxy.cc \
@@ -192,6 +194,7 @@ endif
 traffic_server_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_server_LDADD = \
   http/libhttp.a \
+  http2/libhttp2.a \
   spdy/libspdy.a \
   http/remap/libhttp_remap.a \
   congest/libCongestionControl.a \
@@ -202,8 +205,7 @@ traffic_server_LDADD = \
   shared/libdiagsconfig.a  \
   shared/libsignals.a \
   shared/libxml.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/iocore/utils/libinkutils.a \
   $(top_builddir)/iocore/cluster/libinkcluster.a \
   $(top_builddir)/iocore/dns/libinkdns.a \
@@ -214,7 +216,7 @@ traffic_server_LDADD = \
   $(top_builddir)/iocore/aio/libinkaio.a \
   $(top_builddir)/iocore/net/libinknet.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/records/librecprocess.a \
+  $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(which_libts) \
   @HWLOC_LIBS@ \
@@ -247,9 +249,8 @@ traffic_logcat_LDADD = \
   shared/libUglyLogStubs.a \
   shared/libsignals.a \
   shared/libxml.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
-  $(top_builddir)/lib/records/librecprocess.a \
+  $(top_builddir)/mgmt/libmgmt_p.la \
+  $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
@@ -263,9 +264,8 @@ traffic_logstats_LDADD = \
   shared/libUglyLogStubs.a \
   shared/libsignals.a \
   shared/libxml.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
-  $(top_builddir)/lib/records/librecprocess.a \
+  $(top_builddir)/mgmt/libmgmt_p.la \
+  $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
@@ -292,6 +292,8 @@ traffic_sac_SOURCES = \
   Prefetch.cc \
   ProtocolProbeSessionAccept.cc \
   ProtocolProbeSessionAccept.h \
+  ProxyClientSession.cc \
+  ProxyClientSession.h \
   Update.cc \
   Plugin.cc \
   InkAPI.cc \
@@ -301,6 +303,7 @@ traffic_sac_SOURCES = \
 traffic_sac_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_sac_LDADD = \
   http/libhttp.a \
+  http2/libhttp2.a \
   spdy/libspdy.a \
   shared/libdiagsconfig.a \
   http/remap/libhttp_remap.a \
@@ -311,8 +314,7 @@ traffic_sac_LDADD = \
   shared/liberror.a \
   shared/libsignals.a \
   shared/libxml.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/iocore/cluster/libinkcluster.a \
   $(top_builddir)/iocore/dns/libinkdns.a \
   $(top_builddir)/iocore/hostdb/libinkhostdb.a \
@@ -322,7 +324,7 @@ traffic_sac_LDADD = \
   $(top_builddir)/iocore/aio/libinkaio.a \
   $(top_builddir)/iocore/net/libinknet.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/records/librecprocess.a \
+  $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ @HWLOC_LIBS@ \
   @LIBEXPAT@ @LIBDEMANGLE@ @LIBZ@ @LIBLZMA@ @LIBPROFILER@ @SPDYLAY_LIBS@ -lm
@@ -334,9 +336,8 @@ endif
 
 test_xml_parser_SOURCES = test_xml_parser.cc
 test_xml_parser_LDADD = \
-  $(top_builddir)/lib/records/librecprocess.a \
-  $(top_builddir)/mgmt/libmgmt_p.a \
-  $(top_builddir)/mgmt/utils/libutils_p.a \
+  $(top_builddir)/mgmt/libmgmt_p.la \
+  $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   shared/libsignals.a \
