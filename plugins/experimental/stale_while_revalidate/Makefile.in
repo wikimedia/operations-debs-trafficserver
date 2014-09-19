@@ -328,7 +328,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -419,6 +418,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -476,8 +476,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -592,7 +590,8 @@ zlibh = @zlibh@
 TS_PLUGIN_LDFLAGS = \
   -module \
   -shared \
-  -avoid-version
+  -avoid-version \
+  -export-symbols-regex '^(TSRemapInit|TSRemapDone|TSRemapDoRemap|TSRemapNewInstance|TSRemapDeleteInstance|TSRemapOSResponse|TSPluginInit)$$'
 
 TS_PLUGIN_CPPFLAGS = \
   -D__STDC_LIMIT_MACROS=1 \

@@ -68,12 +68,14 @@ directory of the Apache Traffic Server source tree. Exmperimental plugins can be
   balancer.en
   buffer_upload.en
   combo_handler.en
+  epic.en
   esi.en
   geoip_acl.en
   hipes.en
   metalink.en
   mysql_remap.en
   s3_auth.en
+  sslheaders.en
   stale_while_revalidate.en
   ts_lua.en
   xdebug.en

@@ -320,7 +320,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -411,6 +410,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -468,8 +468,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -598,7 +596,7 @@ DISTCHECK_CONFIGURE_FLAGS = --with-user=${DIST_BUILD_USER} --with-group=${DIST_B
 EXTRA_DIST = CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
 
 # Default value when creating release candidates
-RC = 0
+RC = 1
 all: all-recursive
 
 .SUFFIXES:
@@ -1088,7 +1086,7 @@ asf-distdir:
 	@$(am__remove_distdir)
 	test -d .git && git clone . $(distdir)
 	cd $(distdir) && git submodule update --init && autoreconf -i
-	rm -rf -- $(distdir)/autom4te.cache $(distdir)/.git $(distdir)/.gitignore $(distdir)/ci
+	$(RM) -r -- $(distdir)/autom4te.cache $(distdir)/ci `find $(distdir) -name .git -o -name .gitignore -o -name .gitmodules`
 
 asf-dist-sign: asf-dist
 	md5sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.md5

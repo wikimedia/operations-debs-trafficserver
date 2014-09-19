@@ -129,39 +129,23 @@ AM_V_AR = $(am__v_AR_@AM_V@)
 am__v_AR_ = $(am__v_AR_@AM_DEFAULT_V@)
 am__v_AR_0 = @echo "  AR      " $@;
 am__v_AR_1 = 
-librec4cop_a_AR = $(AR) $(ARFLAGS)
-librec4cop_a_LIBADD =
-am_librec4cop_a_OBJECTS = librec4cop_a-RecConfigParse.$(OBJEXT) \
-	librec4cop_a-RecFile.$(OBJEXT) librec4cop_a-RecDebug.$(OBJEXT)
-librec4cop_a_OBJECTS = $(am_librec4cop_a_OBJECTS)
-libreclocal_a_AR = $(AR) $(ARFLAGS)
-libreclocal_a_LIBADD =
-am_libreclocal_a_OBJECTS = libreclocal_a-P_RecCore.$(OBJEXT) \
-	libreclocal_a-RecFile.$(OBJEXT) \
-	libreclocal_a-RecCore.$(OBJEXT) \
-	libreclocal_a-RecLocal.$(OBJEXT) \
-	libreclocal_a-RecMessage.$(OBJEXT) \
-	libreclocal_a-RecMutex.$(OBJEXT) \
-	libreclocal_a-RecTree.$(OBJEXT) \
-	libreclocal_a-RecHttp.$(OBJEXT) \
-	libreclocal_a-RecUtils.$(OBJEXT) \
-	libreclocal_a-RecDebug.$(OBJEXT) \
-	libreclocal_a-RecConfigParse.$(OBJEXT)
-libreclocal_a_OBJECTS = $(am_libreclocal_a_OBJECTS)
-librecprocess_a_AR = $(AR) $(ARFLAGS)
-librecprocess_a_LIBADD =
-am_librecprocess_a_OBJECTS = librecprocess_a-P_RecCore.$(OBJEXT) \
-	librecprocess_a-RecFile.$(OBJEXT) \
-	librecprocess_a-RecCore.$(OBJEXT) \
-	librecprocess_a-RecMessage.$(OBJEXT) \
-	librecprocess_a-RecMutex.$(OBJEXT) \
-	librecprocess_a-RecProcess.$(OBJEXT) \
-	librecprocess_a-RecTree.$(OBJEXT) \
-	librecprocess_a-RecHttp.$(OBJEXT) \
-	librecprocess_a-RecUtils.$(OBJEXT) \
-	librecprocess_a-RecDebug.$(OBJEXT) \
-	librecprocess_a-RecConfigParse.$(OBJEXT)
-librecprocess_a_OBJECTS = $(am_librecprocess_a_OBJECTS)
+librecords_cop_a_AR = $(AR) $(ARFLAGS)
+librecords_cop_a_LIBADD =
+am_librecords_cop_a_OBJECTS = RecConfigParse.$(OBJEXT) \
+	RecFile.$(OBJEXT) RecDebug.$(OBJEXT)
+librecords_cop_a_OBJECTS = $(am_librecords_cop_a_OBJECTS)
+librecords_lm_a_AR = $(AR) $(ARFLAGS)
+librecords_lm_a_LIBADD =
+am__objects_1 = P_RecCore.$(OBJEXT) RecConfigParse.$(OBJEXT) \
+	RecCore.$(OBJEXT) RecDebug.$(OBJEXT) RecFile.$(OBJEXT) \
+	RecHttp.$(OBJEXT) RecMessage.$(OBJEXT) RecMutex.$(OBJEXT) \
+	RecTree.$(OBJEXT) RecUtils.$(OBJEXT)
+am_librecords_lm_a_OBJECTS = $(am__objects_1) RecLocal.$(OBJEXT)
+librecords_lm_a_OBJECTS = $(am_librecords_lm_a_OBJECTS)
+librecords_p_a_AR = $(AR) $(ARFLAGS)
+librecords_p_a_LIBADD =
+am_librecords_p_a_OBJECTS = $(am__objects_1) RecProcess.$(OBJEXT)
+librecords_p_a_OBJECTS = $(am_librecords_p_a_OBJECTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -178,12 +162,12 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib/ts
 depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
+CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
-	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
 	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
@@ -218,10 +202,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(librec4cop_a_SOURCES) $(libreclocal_a_SOURCES) \
-	$(librecprocess_a_SOURCES)
-DIST_SOURCES = $(librec4cop_a_SOURCES) $(libreclocal_a_SOURCES) \
-	$(librecprocess_a_SOURCES)
+SOURCES = $(librecords_cop_a_SOURCES) $(librecords_lm_a_SOURCES) \
+	$(librecords_p_a_SOURCES)
+DIST_SOURCES = $(librecords_cop_a_SOURCES) $(librecords_lm_a_SOURCES) \
+	$(librecords_p_a_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -334,7 +318,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -425,6 +408,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -482,8 +466,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -599,77 +581,52 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/iocore/eventsystem \
   -I$(top_srcdir)/iocore/utils \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/cluster \
-  -I$(top_srcdir)/mgmt/web2 \
   -I$(top_srcdir)/mgmt/api/include \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/lib \
   -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/ts
 
-noinst_LIBRARIES = libreclocal.a librecprocess.a librec4cop.a
-libreclocal_a_CXXFLAGS = $(ink_with_modules_local)
-libreclocal_a_SOURCES = \
+noinst_LIBRARIES = librecords_lm.a librecords_p.a librecords_cop.a
+librecords_COMMON = \
   I_RecAlarms.h \
   I_RecCore.h \
   I_RecDefs.h \
   I_RecEvents.h \
+  I_RecHttp.h \
+  I_RecMutex.h \
+  I_RecSignals.h \
+  P_RecCore.cc \
+  P_RecCore.h \
+  P_RecDefs.h \
+  P_RecFile.h \
+  P_RecFile.h \
+  P_RecMessage.h \
+  P_RecTree.h \
+  P_RecUtils.h \
+  RecConfigParse.cc \
+  RecCore.cc \
+  RecDebug.cc \
+  RecFile.cc \
+  RecHttp.cc \
+  RecMessage.cc \
+  RecMutex.cc \
+  RecTree.cc \
+  RecUtils.cc
+
+librecords_lm_a_SOURCES = \
+  $(librecords_COMMON) \
   I_RecLocal.h \
-  I_RecMutex.h \
-  I_RecSignals.h \
-  P_RecFile.h \
-  P_RecCore.h \
-  P_RecCore.cc \
-  P_RecDefs.h \
   P_RecLocal.h \
-  P_RecMessage.h \
-  P_RecTree.h \
-  P_RecUtils.h \
-  P_RecFile.h \
-  RecFile.cc \
-  RecCore.cc \
-  RecLocal.cc \
-  RecMessage.cc \
-  RecMutex.cc \
-  RecTree.cc \
-  I_RecHttp.h \
-  RecHttp.cc \
-  RecUtils.cc \
-  RecDebug.cc \
-  RecConfigParse.cc
+  RecLocal.cc
 
-librecprocess_a_CXXFLAGS = $(ink_with_modules_process)
-librecprocess_a_SOURCES = \
-  I_RecAlarms.h \
-  I_RecCore.h \
-  I_RecDefs.h \
-  I_RecEvents.h \
-  I_RecMutex.h \
+librecords_p_a_SOURCES = \
+  $(librecords_COMMON) \
   I_RecProcess.h \
-  I_RecSignals.h \
-  P_RecFile.h \
-  P_RecCore.h \
-  P_RecCore.cc \
-  P_RecDefs.h \
-  P_RecMessage.h \
   P_RecProcess.h \
-  P_RecTree.h \
-  P_RecUtils.h \
-  P_RecFile.h \
-  RecFile.cc \
-  RecCore.cc \
-  RecMessage.cc \
-  RecMutex.cc \
-  RecProcess.cc \
-  RecTree.cc \
-  I_RecHttp.h \
-  RecHttp.cc \
-  RecUtils.cc \
-  RecDebug.cc \
-  RecConfigParse.cc
+  RecProcess.cc
 
-librec4cop_a_CXXFLAGS = $(ink_with_modules_process)
-librec4cop_a_SOURCES = \
+librecords_cop_a_SOURCES = \
   RecConfigParse.cc \
   RecFile.cc \
   RecDebug.cc
@@ -712,20 +669,20 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 
-librec4cop.a: $(librec4cop_a_OBJECTS) $(librec4cop_a_DEPENDENCIES) $(EXTRA_librec4cop_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f librec4cop.a
-	$(AM_V_AR)$(librec4cop_a_AR) librec4cop.a $(librec4cop_a_OBJECTS) $(librec4cop_a_LIBADD)
-	$(AM_V_at)$(RANLIB) librec4cop.a
+librecords_cop.a: $(librecords_cop_a_OBJECTS) $(librecords_cop_a_DEPENDENCIES) $(EXTRA_librecords_cop_a_DEPENDENCIES) 
+	$(AM_V_at)-rm -f librecords_cop.a
+	$(AM_V_AR)$(librecords_cop_a_AR) librecords_cop.a $(librecords_cop_a_OBJECTS) $(librecords_cop_a_LIBADD)
+	$(AM_V_at)$(RANLIB) librecords_cop.a
 
-libreclocal.a: $(libreclocal_a_OBJECTS) $(libreclocal_a_DEPENDENCIES) $(EXTRA_libreclocal_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libreclocal.a
-	$(AM_V_AR)$(libreclocal_a_AR) libreclocal.a $(libreclocal_a_OBJECTS) $(libreclocal_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libreclocal.a
+librecords_lm.a: $(librecords_lm_a_OBJECTS) $(librecords_lm_a_DEPENDENCIES) $(EXTRA_librecords_lm_a_DEPENDENCIES) 
+	$(AM_V_at)-rm -f librecords_lm.a
+	$(AM_V_AR)$(librecords_lm_a_AR) librecords_lm.a $(librecords_lm_a_OBJECTS) $(librecords_lm_a_LIBADD)
+	$(AM_V_at)$(RANLIB) librecords_lm.a
 
-librecprocess.a: $(librecprocess_a_OBJECTS) $(librecprocess_a_DEPENDENCIES) $(EXTRA_librecprocess_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f librecprocess.a
-	$(AM_V_AR)$(librecprocess_a_AR) librecprocess.a $(librecprocess_a_OBJECTS) $(librecprocess_a_LIBADD)
-	$(AM_V_at)$(RANLIB) librecprocess.a
+librecords_p.a: $(librecords_p_a_OBJECTS) $(librecords_p_a_DEPENDENCIES) $(EXTRA_librecords_p_a_DEPENDENCIES) 
+	$(AM_V_at)-rm -f librecords_p.a
+	$(AM_V_AR)$(librecords_p_a_AR) librecords_p.a $(librecords_p_a_OBJECTS) $(librecords_p_a_LIBADD)
+	$(AM_V_at)$(RANLIB) librecords_p.a
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -733,31 +690,18 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librec4cop_a-RecConfigParse.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librec4cop_a-RecDebug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librec4cop_a-RecFile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-P_RecCore.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecConfigParse.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecCore.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecDebug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecFile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecHttp.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecLocal.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecMessage.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecMutex.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecTree.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libreclocal_a-RecUtils.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-P_RecCore.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecConfigParse.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecCore.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecDebug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecFile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecHttp.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecMessage.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecMutex.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecProcess.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecTree.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/librecprocess_a-RecUtils.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/P_RecCore.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecConfigParse.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecCore.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecDebug.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecFile.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecHttp.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecLocal.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecMessage.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecMutex.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecProcess.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecTree.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecUtils.Po@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -782,356 +726,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
-
-librec4cop_a-RecConfigParse.o: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecConfigParse.o -MD -MP -MF $(DEPDIR)/librec4cop_a-RecConfigParse.Tpo -c -o librec4cop_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecConfigParse.Tpo $(DEPDIR)/librec4cop_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='librec4cop_a-RecConfigParse.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-
-librec4cop_a-RecConfigParse.obj: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecConfigParse.obj -MD -MP -MF $(DEPDIR)/librec4cop_a-RecConfigParse.Tpo -c -o librec4cop_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecConfigParse.Tpo $(DEPDIR)/librec4cop_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='librec4cop_a-RecConfigParse.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
-
-librec4cop_a-RecFile.o: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecFile.o -MD -MP -MF $(DEPDIR)/librec4cop_a-RecFile.Tpo -c -o librec4cop_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecFile.Tpo $(DEPDIR)/librec4cop_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='librec4cop_a-RecFile.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-
-librec4cop_a-RecFile.obj: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecFile.obj -MD -MP -MF $(DEPDIR)/librec4cop_a-RecFile.Tpo -c -o librec4cop_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecFile.Tpo $(DEPDIR)/librec4cop_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='librec4cop_a-RecFile.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-
-librec4cop_a-RecDebug.o: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecDebug.o -MD -MP -MF $(DEPDIR)/librec4cop_a-RecDebug.Tpo -c -o librec4cop_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecDebug.Tpo $(DEPDIR)/librec4cop_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='librec4cop_a-RecDebug.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-
-librec4cop_a-RecDebug.obj: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -MT librec4cop_a-RecDebug.obj -MD -MP -MF $(DEPDIR)/librec4cop_a-RecDebug.Tpo -c -o librec4cop_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librec4cop_a-RecDebug.Tpo $(DEPDIR)/librec4cop_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='librec4cop_a-RecDebug.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librec4cop_a_CXXFLAGS) $(CXXFLAGS) -c -o librec4cop_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-
-libreclocal_a-P_RecCore.o: P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-P_RecCore.o -MD -MP -MF $(DEPDIR)/libreclocal_a-P_RecCore.Tpo -c -o libreclocal_a-P_RecCore.o `test -f 'P_RecCore.cc' || echo '$(srcdir)/'`P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-P_RecCore.Tpo $(DEPDIR)/libreclocal_a-P_RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='P_RecCore.cc' object='libreclocal_a-P_RecCore.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-P_RecCore.o `test -f 'P_RecCore.cc' || echo '$(srcdir)/'`P_RecCore.cc
-
-libreclocal_a-P_RecCore.obj: P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-P_RecCore.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-P_RecCore.Tpo -c -o libreclocal_a-P_RecCore.obj `if test -f 'P_RecCore.cc'; then $(CYGPATH_W) 'P_RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/P_RecCore.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-P_RecCore.Tpo $(DEPDIR)/libreclocal_a-P_RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='P_RecCore.cc' object='libreclocal_a-P_RecCore.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-P_RecCore.obj `if test -f 'P_RecCore.cc'; then $(CYGPATH_W) 'P_RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/P_RecCore.cc'; fi`
-
-libreclocal_a-RecFile.o: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecFile.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecFile.Tpo -c -o libreclocal_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecFile.Tpo $(DEPDIR)/libreclocal_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='libreclocal_a-RecFile.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-
-libreclocal_a-RecFile.obj: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecFile.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecFile.Tpo -c -o libreclocal_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecFile.Tpo $(DEPDIR)/libreclocal_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='libreclocal_a-RecFile.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-
-libreclocal_a-RecCore.o: RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecCore.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecCore.Tpo -c -o libreclocal_a-RecCore.o `test -f 'RecCore.cc' || echo '$(srcdir)/'`RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecCore.Tpo $(DEPDIR)/libreclocal_a-RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecCore.cc' object='libreclocal_a-RecCore.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecCore.o `test -f 'RecCore.cc' || echo '$(srcdir)/'`RecCore.cc
-
-libreclocal_a-RecCore.obj: RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecCore.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecCore.Tpo -c -o libreclocal_a-RecCore.obj `if test -f 'RecCore.cc'; then $(CYGPATH_W) 'RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/RecCore.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecCore.Tpo $(DEPDIR)/libreclocal_a-RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecCore.cc' object='libreclocal_a-RecCore.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecCore.obj `if test -f 'RecCore.cc'; then $(CYGPATH_W) 'RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/RecCore.cc'; fi`
-
-libreclocal_a-RecLocal.o: RecLocal.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecLocal.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecLocal.Tpo -c -o libreclocal_a-RecLocal.o `test -f 'RecLocal.cc' || echo '$(srcdir)/'`RecLocal.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecLocal.Tpo $(DEPDIR)/libreclocal_a-RecLocal.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecLocal.cc' object='libreclocal_a-RecLocal.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecLocal.o `test -f 'RecLocal.cc' || echo '$(srcdir)/'`RecLocal.cc
-
-libreclocal_a-RecLocal.obj: RecLocal.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecLocal.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecLocal.Tpo -c -o libreclocal_a-RecLocal.obj `if test -f 'RecLocal.cc'; then $(CYGPATH_W) 'RecLocal.cc'; else $(CYGPATH_W) '$(srcdir)/RecLocal.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecLocal.Tpo $(DEPDIR)/libreclocal_a-RecLocal.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecLocal.cc' object='libreclocal_a-RecLocal.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecLocal.obj `if test -f 'RecLocal.cc'; then $(CYGPATH_W) 'RecLocal.cc'; else $(CYGPATH_W) '$(srcdir)/RecLocal.cc'; fi`
-
-libreclocal_a-RecMessage.o: RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecMessage.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecMessage.Tpo -c -o libreclocal_a-RecMessage.o `test -f 'RecMessage.cc' || echo '$(srcdir)/'`RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecMessage.Tpo $(DEPDIR)/libreclocal_a-RecMessage.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMessage.cc' object='libreclocal_a-RecMessage.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecMessage.o `test -f 'RecMessage.cc' || echo '$(srcdir)/'`RecMessage.cc
-
-libreclocal_a-RecMessage.obj: RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecMessage.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecMessage.Tpo -c -o libreclocal_a-RecMessage.obj `if test -f 'RecMessage.cc'; then $(CYGPATH_W) 'RecMessage.cc'; else $(CYGPATH_W) '$(srcdir)/RecMessage.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecMessage.Tpo $(DEPDIR)/libreclocal_a-RecMessage.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMessage.cc' object='libreclocal_a-RecMessage.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecMessage.obj `if test -f 'RecMessage.cc'; then $(CYGPATH_W) 'RecMessage.cc'; else $(CYGPATH_W) '$(srcdir)/RecMessage.cc'; fi`
-
-libreclocal_a-RecMutex.o: RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecMutex.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecMutex.Tpo -c -o libreclocal_a-RecMutex.o `test -f 'RecMutex.cc' || echo '$(srcdir)/'`RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecMutex.Tpo $(DEPDIR)/libreclocal_a-RecMutex.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMutex.cc' object='libreclocal_a-RecMutex.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecMutex.o `test -f 'RecMutex.cc' || echo '$(srcdir)/'`RecMutex.cc
-
-libreclocal_a-RecMutex.obj: RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecMutex.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecMutex.Tpo -c -o libreclocal_a-RecMutex.obj `if test -f 'RecMutex.cc'; then $(CYGPATH_W) 'RecMutex.cc'; else $(CYGPATH_W) '$(srcdir)/RecMutex.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecMutex.Tpo $(DEPDIR)/libreclocal_a-RecMutex.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMutex.cc' object='libreclocal_a-RecMutex.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecMutex.obj `if test -f 'RecMutex.cc'; then $(CYGPATH_W) 'RecMutex.cc'; else $(CYGPATH_W) '$(srcdir)/RecMutex.cc'; fi`
-
-libreclocal_a-RecTree.o: RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecTree.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecTree.Tpo -c -o libreclocal_a-RecTree.o `test -f 'RecTree.cc' || echo '$(srcdir)/'`RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecTree.Tpo $(DEPDIR)/libreclocal_a-RecTree.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecTree.cc' object='libreclocal_a-RecTree.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecTree.o `test -f 'RecTree.cc' || echo '$(srcdir)/'`RecTree.cc
-
-libreclocal_a-RecTree.obj: RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecTree.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecTree.Tpo -c -o libreclocal_a-RecTree.obj `if test -f 'RecTree.cc'; then $(CYGPATH_W) 'RecTree.cc'; else $(CYGPATH_W) '$(srcdir)/RecTree.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecTree.Tpo $(DEPDIR)/libreclocal_a-RecTree.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecTree.cc' object='libreclocal_a-RecTree.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecTree.obj `if test -f 'RecTree.cc'; then $(CYGPATH_W) 'RecTree.cc'; else $(CYGPATH_W) '$(srcdir)/RecTree.cc'; fi`
-
-libreclocal_a-RecHttp.o: RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecHttp.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecHttp.Tpo -c -o libreclocal_a-RecHttp.o `test -f 'RecHttp.cc' || echo '$(srcdir)/'`RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecHttp.Tpo $(DEPDIR)/libreclocal_a-RecHttp.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecHttp.cc' object='libreclocal_a-RecHttp.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecHttp.o `test -f 'RecHttp.cc' || echo '$(srcdir)/'`RecHttp.cc
-
-libreclocal_a-RecHttp.obj: RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecHttp.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecHttp.Tpo -c -o libreclocal_a-RecHttp.obj `if test -f 'RecHttp.cc'; then $(CYGPATH_W) 'RecHttp.cc'; else $(CYGPATH_W) '$(srcdir)/RecHttp.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecHttp.Tpo $(DEPDIR)/libreclocal_a-RecHttp.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecHttp.cc' object='libreclocal_a-RecHttp.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecHttp.obj `if test -f 'RecHttp.cc'; then $(CYGPATH_W) 'RecHttp.cc'; else $(CYGPATH_W) '$(srcdir)/RecHttp.cc'; fi`
-
-libreclocal_a-RecUtils.o: RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecUtils.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecUtils.Tpo -c -o libreclocal_a-RecUtils.o `test -f 'RecUtils.cc' || echo '$(srcdir)/'`RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecUtils.Tpo $(DEPDIR)/libreclocal_a-RecUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecUtils.cc' object='libreclocal_a-RecUtils.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecUtils.o `test -f 'RecUtils.cc' || echo '$(srcdir)/'`RecUtils.cc
-
-libreclocal_a-RecUtils.obj: RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecUtils.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecUtils.Tpo -c -o libreclocal_a-RecUtils.obj `if test -f 'RecUtils.cc'; then $(CYGPATH_W) 'RecUtils.cc'; else $(CYGPATH_W) '$(srcdir)/RecUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecUtils.Tpo $(DEPDIR)/libreclocal_a-RecUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecUtils.cc' object='libreclocal_a-RecUtils.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecUtils.obj `if test -f 'RecUtils.cc'; then $(CYGPATH_W) 'RecUtils.cc'; else $(CYGPATH_W) '$(srcdir)/RecUtils.cc'; fi`
-
-libreclocal_a-RecDebug.o: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecDebug.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecDebug.Tpo -c -o libreclocal_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecDebug.Tpo $(DEPDIR)/libreclocal_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='libreclocal_a-RecDebug.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-
-libreclocal_a-RecDebug.obj: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecDebug.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecDebug.Tpo -c -o libreclocal_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecDebug.Tpo $(DEPDIR)/libreclocal_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='libreclocal_a-RecDebug.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-
-libreclocal_a-RecConfigParse.o: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecConfigParse.o -MD -MP -MF $(DEPDIR)/libreclocal_a-RecConfigParse.Tpo -c -o libreclocal_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecConfigParse.Tpo $(DEPDIR)/libreclocal_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='libreclocal_a-RecConfigParse.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-
-libreclocal_a-RecConfigParse.obj: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -MT libreclocal_a-RecConfigParse.obj -MD -MP -MF $(DEPDIR)/libreclocal_a-RecConfigParse.Tpo -c -o libreclocal_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libreclocal_a-RecConfigParse.Tpo $(DEPDIR)/libreclocal_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='libreclocal_a-RecConfigParse.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libreclocal_a_CXXFLAGS) $(CXXFLAGS) -c -o libreclocal_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
-
-librecprocess_a-P_RecCore.o: P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-P_RecCore.o -MD -MP -MF $(DEPDIR)/librecprocess_a-P_RecCore.Tpo -c -o librecprocess_a-P_RecCore.o `test -f 'P_RecCore.cc' || echo '$(srcdir)/'`P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-P_RecCore.Tpo $(DEPDIR)/librecprocess_a-P_RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='P_RecCore.cc' object='librecprocess_a-P_RecCore.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-P_RecCore.o `test -f 'P_RecCore.cc' || echo '$(srcdir)/'`P_RecCore.cc
-
-librecprocess_a-P_RecCore.obj: P_RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-P_RecCore.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-P_RecCore.Tpo -c -o librecprocess_a-P_RecCore.obj `if test -f 'P_RecCore.cc'; then $(CYGPATH_W) 'P_RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/P_RecCore.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-P_RecCore.Tpo $(DEPDIR)/librecprocess_a-P_RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='P_RecCore.cc' object='librecprocess_a-P_RecCore.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-P_RecCore.obj `if test -f 'P_RecCore.cc'; then $(CYGPATH_W) 'P_RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/P_RecCore.cc'; fi`
-
-librecprocess_a-RecFile.o: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecFile.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecFile.Tpo -c -o librecprocess_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecFile.Tpo $(DEPDIR)/librecprocess_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='librecprocess_a-RecFile.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecFile.o `test -f 'RecFile.cc' || echo '$(srcdir)/'`RecFile.cc
-
-librecprocess_a-RecFile.obj: RecFile.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecFile.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecFile.Tpo -c -o librecprocess_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecFile.Tpo $(DEPDIR)/librecprocess_a-RecFile.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecFile.cc' object='librecprocess_a-RecFile.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecFile.obj `if test -f 'RecFile.cc'; then $(CYGPATH_W) 'RecFile.cc'; else $(CYGPATH_W) '$(srcdir)/RecFile.cc'; fi`
-
-librecprocess_a-RecCore.o: RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecCore.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecCore.Tpo -c -o librecprocess_a-RecCore.o `test -f 'RecCore.cc' || echo '$(srcdir)/'`RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecCore.Tpo $(DEPDIR)/librecprocess_a-RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecCore.cc' object='librecprocess_a-RecCore.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecCore.o `test -f 'RecCore.cc' || echo '$(srcdir)/'`RecCore.cc
-
-librecprocess_a-RecCore.obj: RecCore.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecCore.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecCore.Tpo -c -o librecprocess_a-RecCore.obj `if test -f 'RecCore.cc'; then $(CYGPATH_W) 'RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/RecCore.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecCore.Tpo $(DEPDIR)/librecprocess_a-RecCore.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecCore.cc' object='librecprocess_a-RecCore.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecCore.obj `if test -f 'RecCore.cc'; then $(CYGPATH_W) 'RecCore.cc'; else $(CYGPATH_W) '$(srcdir)/RecCore.cc'; fi`
-
-librecprocess_a-RecMessage.o: RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecMessage.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecMessage.Tpo -c -o librecprocess_a-RecMessage.o `test -f 'RecMessage.cc' || echo '$(srcdir)/'`RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecMessage.Tpo $(DEPDIR)/librecprocess_a-RecMessage.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMessage.cc' object='librecprocess_a-RecMessage.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecMessage.o `test -f 'RecMessage.cc' || echo '$(srcdir)/'`RecMessage.cc
-
-librecprocess_a-RecMessage.obj: RecMessage.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecMessage.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecMessage.Tpo -c -o librecprocess_a-RecMessage.obj `if test -f 'RecMessage.cc'; then $(CYGPATH_W) 'RecMessage.cc'; else $(CYGPATH_W) '$(srcdir)/RecMessage.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecMessage.Tpo $(DEPDIR)/librecprocess_a-RecMessage.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMessage.cc' object='librecprocess_a-RecMessage.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecMessage.obj `if test -f 'RecMessage.cc'; then $(CYGPATH_W) 'RecMessage.cc'; else $(CYGPATH_W) '$(srcdir)/RecMessage.cc'; fi`
-
-librecprocess_a-RecMutex.o: RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecMutex.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecMutex.Tpo -c -o librecprocess_a-RecMutex.o `test -f 'RecMutex.cc' || echo '$(srcdir)/'`RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecMutex.Tpo $(DEPDIR)/librecprocess_a-RecMutex.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMutex.cc' object='librecprocess_a-RecMutex.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecMutex.o `test -f 'RecMutex.cc' || echo '$(srcdir)/'`RecMutex.cc
-
-librecprocess_a-RecMutex.obj: RecMutex.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecMutex.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecMutex.Tpo -c -o librecprocess_a-RecMutex.obj `if test -f 'RecMutex.cc'; then $(CYGPATH_W) 'RecMutex.cc'; else $(CYGPATH_W) '$(srcdir)/RecMutex.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecMutex.Tpo $(DEPDIR)/librecprocess_a-RecMutex.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecMutex.cc' object='librecprocess_a-RecMutex.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecMutex.obj `if test -f 'RecMutex.cc'; then $(CYGPATH_W) 'RecMutex.cc'; else $(CYGPATH_W) '$(srcdir)/RecMutex.cc'; fi`
-
-librecprocess_a-RecProcess.o: RecProcess.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecProcess.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecProcess.Tpo -c -o librecprocess_a-RecProcess.o `test -f 'RecProcess.cc' || echo '$(srcdir)/'`RecProcess.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecProcess.Tpo $(DEPDIR)/librecprocess_a-RecProcess.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecProcess.cc' object='librecprocess_a-RecProcess.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecProcess.o `test -f 'RecProcess.cc' || echo '$(srcdir)/'`RecProcess.cc
-
-librecprocess_a-RecProcess.obj: RecProcess.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecProcess.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecProcess.Tpo -c -o librecprocess_a-RecProcess.obj `if test -f 'RecProcess.cc'; then $(CYGPATH_W) 'RecProcess.cc'; else $(CYGPATH_W) '$(srcdir)/RecProcess.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecProcess.Tpo $(DEPDIR)/librecprocess_a-RecProcess.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecProcess.cc' object='librecprocess_a-RecProcess.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecProcess.obj `if test -f 'RecProcess.cc'; then $(CYGPATH_W) 'RecProcess.cc'; else $(CYGPATH_W) '$(srcdir)/RecProcess.cc'; fi`
-
-librecprocess_a-RecTree.o: RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecTree.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecTree.Tpo -c -o librecprocess_a-RecTree.o `test -f 'RecTree.cc' || echo '$(srcdir)/'`RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecTree.Tpo $(DEPDIR)/librecprocess_a-RecTree.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecTree.cc' object='librecprocess_a-RecTree.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecTree.o `test -f 'RecTree.cc' || echo '$(srcdir)/'`RecTree.cc
-
-librecprocess_a-RecTree.obj: RecTree.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecTree.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecTree.Tpo -c -o librecprocess_a-RecTree.obj `if test -f 'RecTree.cc'; then $(CYGPATH_W) 'RecTree.cc'; else $(CYGPATH_W) '$(srcdir)/RecTree.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecTree.Tpo $(DEPDIR)/librecprocess_a-RecTree.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecTree.cc' object='librecprocess_a-RecTree.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecTree.obj `if test -f 'RecTree.cc'; then $(CYGPATH_W) 'RecTree.cc'; else $(CYGPATH_W) '$(srcdir)/RecTree.cc'; fi`
-
-librecprocess_a-RecHttp.o: RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecHttp.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecHttp.Tpo -c -o librecprocess_a-RecHttp.o `test -f 'RecHttp.cc' || echo '$(srcdir)/'`RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecHttp.Tpo $(DEPDIR)/librecprocess_a-RecHttp.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecHttp.cc' object='librecprocess_a-RecHttp.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecHttp.o `test -f 'RecHttp.cc' || echo '$(srcdir)/'`RecHttp.cc
-
-librecprocess_a-RecHttp.obj: RecHttp.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecHttp.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecHttp.Tpo -c -o librecprocess_a-RecHttp.obj `if test -f 'RecHttp.cc'; then $(CYGPATH_W) 'RecHttp.cc'; else $(CYGPATH_W) '$(srcdir)/RecHttp.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecHttp.Tpo $(DEPDIR)/librecprocess_a-RecHttp.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecHttp.cc' object='librecprocess_a-RecHttp.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecHttp.obj `if test -f 'RecHttp.cc'; then $(CYGPATH_W) 'RecHttp.cc'; else $(CYGPATH_W) '$(srcdir)/RecHttp.cc'; fi`
-
-librecprocess_a-RecUtils.o: RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecUtils.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecUtils.Tpo -c -o librecprocess_a-RecUtils.o `test -f 'RecUtils.cc' || echo '$(srcdir)/'`RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecUtils.Tpo $(DEPDIR)/librecprocess_a-RecUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecUtils.cc' object='librecprocess_a-RecUtils.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecUtils.o `test -f 'RecUtils.cc' || echo '$(srcdir)/'`RecUtils.cc
-
-librecprocess_a-RecUtils.obj: RecUtils.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecUtils.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecUtils.Tpo -c -o librecprocess_a-RecUtils.obj `if test -f 'RecUtils.cc'; then $(CYGPATH_W) 'RecUtils.cc'; else $(CYGPATH_W) '$(srcdir)/RecUtils.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecUtils.Tpo $(DEPDIR)/librecprocess_a-RecUtils.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecUtils.cc' object='librecprocess_a-RecUtils.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecUtils.obj `if test -f 'RecUtils.cc'; then $(CYGPATH_W) 'RecUtils.cc'; else $(CYGPATH_W) '$(srcdir)/RecUtils.cc'; fi`
-
-librecprocess_a-RecDebug.o: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecDebug.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecDebug.Tpo -c -o librecprocess_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecDebug.Tpo $(DEPDIR)/librecprocess_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='librecprocess_a-RecDebug.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecDebug.o `test -f 'RecDebug.cc' || echo '$(srcdir)/'`RecDebug.cc
-
-librecprocess_a-RecDebug.obj: RecDebug.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecDebug.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecDebug.Tpo -c -o librecprocess_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecDebug.Tpo $(DEPDIR)/librecprocess_a-RecDebug.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecDebug.cc' object='librecprocess_a-RecDebug.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecDebug.obj `if test -f 'RecDebug.cc'; then $(CYGPATH_W) 'RecDebug.cc'; else $(CYGPATH_W) '$(srcdir)/RecDebug.cc'; fi`
-
-librecprocess_a-RecConfigParse.o: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecConfigParse.o -MD -MP -MF $(DEPDIR)/librecprocess_a-RecConfigParse.Tpo -c -o librecprocess_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecConfigParse.Tpo $(DEPDIR)/librecprocess_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='librecprocess_a-RecConfigParse.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecConfigParse.o `test -f 'RecConfigParse.cc' || echo '$(srcdir)/'`RecConfigParse.cc
-
-librecprocess_a-RecConfigParse.obj: RecConfigParse.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -MT librecprocess_a-RecConfigParse.obj -MD -MP -MF $(DEPDIR)/librecprocess_a-RecConfigParse.Tpo -c -o librecprocess_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
-@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/librecprocess_a-RecConfigParse.Tpo $(DEPDIR)/librecprocess_a-RecConfigParse.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='RecConfigParse.cc' object='librecprocess_a-RecConfigParse.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(librecprocess_a_CXXFLAGS) $(CXXFLAGS) -c -o librecprocess_a-RecConfigParse.obj `if test -f 'RecConfigParse.cc'; then $(CYGPATH_W) 'RecConfigParse.cc'; else $(CYGPATH_W) '$(srcdir)/RecConfigParse.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

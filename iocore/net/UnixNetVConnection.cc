@@ -31,7 +31,6 @@
 #define enable_read(_vc) (_vc)->read.enabled = 1
 #define enable_write(_vc) (_vc)->write.enabled = 1
 
-typedef struct iovec IOVec;
 #ifndef UIO_MAXIOV
 #define NET_MAX_IOV 16          // UIO_MAXIOV shall be at least 16 1003.1g (5.4.1.1)
 #else
@@ -267,7 +266,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
       }
       NET_DEBUG_COUNT_DYN_STAT(net_calls_to_read_stat, 1);
       total_read += rattempted;
-    } while (r == rattempted && total_read < toread);
+    } while (rattempted && r == rattempted && total_read < toread);
 
     // if we have already moved some bytes successfully, summarize in r
     if (total_read != rattempted) {

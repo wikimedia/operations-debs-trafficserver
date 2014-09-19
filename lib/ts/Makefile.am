@@ -46,11 +46,22 @@ libtsutil_la_SOURCES = \
   Bitops.cc \
   Bitops.h \
   Compatability.h \
+  Cryptohash.h \
+  ConsistentHash.cc \
+  ConsistentHash.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
   EventNotify.cc \
   EventNotify.h \
+  Hash.cc \
+  Hash.h \
+  HashFNV.cc \
+  HashFNV.h \
+  HashMD5.cc \
+  HashMD5.h \
+  HashSip.cc \
+  HashSip.h \
   HostLookup.cc \
   HostLookup.h \
   INK_MD5.h \
@@ -70,6 +81,8 @@ libtsutil_la_SOURCES = \
   MatcherUtils.h \
   MimeTable.cc \
   MimeTable.h \
+  MMH.h \
+  MMH.cc \
   ParseRules.cc \
   ParseRules.h \
   Ptr.h \

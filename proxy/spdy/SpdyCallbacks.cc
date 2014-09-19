@@ -50,7 +50,7 @@ spdy_callbacks_init(spdylay_session_callbacks *callbacks)
 }
 
 void
-spdy_prepare_status_response(SpdyClientSession *sm, int stream_id, const char *status)
+spdy_prepare_status_response_and_clean_request(SpdyClientSession *sm, int stream_id, const char *status)
 {
   SpdyRequest *req = sm->req_map[stream_id];
   string date_str = http_date(time(0));
@@ -76,6 +76,7 @@ spdy_prepare_status_response(SpdyClientSession *sm, int stream_id, const char *s
 
   TSVIOReenable(sm->write_vio);
   delete [] nv;
+  sm->cleanup_request(stream_id);
 }
 
 static void
@@ -165,7 +166,7 @@ spdy_show_ctl_frame(const char *head_str, spdylay_session * /*session*/, spdylay
 }
 
 static int
-spdy_fetcher_launch(SpdyRequest *req, TSFetchMethod method)
+spdy_fetcher_launch(SpdyRequest *req)
 {
   string url;
   int fetch_flags;
@@ -182,7 +183,11 @@ spdy_fetcher_launch(SpdyRequest *req, TSFetchMethod method)
   // HTTP content should be dechunked before packed into SPDY.
   //
   fetch_flags = TS_FETCH_FLAGS_DECHUNK;
-  req->fetch_sm = TSFetchCreate((TSCont)sm, method,
+
+  // TS-2906: FetchSM sets requests are internal requests, we need to not do that for SPDY streams.
+  fetch_flags |= TS_FETCH_FLAGS_NOT_INTERNAL_REQUEST;
+
+  req->fetch_sm = TSFetchCreate((TSCont)sm, req->method.c_str(),
                                 url.c_str(), req->version.c_str(),
                                 client_addr, fetch_flags);
   TSFetchUserDataSet(req->fetch_sm, req);
@@ -285,33 +290,11 @@ spdy_process_syn_stream_frame(SpdyClientSession *sm, SpdyRequest *req)
 
   if(!req->path.size()|| !req->method.size() || !req->scheme.size()
      || !req->version.size() || !req->host.size()) {
-    spdy_prepare_status_response(sm, req->stream_id, STATUS_400);
+    spdy_prepare_status_response_and_clean_request(sm, req->stream_id, STATUS_400);
     return;
   }
 
-  if (req->method == "GET")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_GET);
-  else if (req->method == "POST")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_POST);
-  else if (req->method == "PURGE")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_PURGE);
-  else if (req->method == "PUT")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_PUT);
-  else if (req->method == "HEAD")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_HEAD);
-  else if (req->method == "CONNECT")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_CONNECT);
-  else if (req->method == "DELETE")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_DELETE);
-  else if (req->method == "OPTIONS")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_OPTIONS);
-  else if (req->method == "TRACE")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_TRACE);
-  else if (req->method == "LAST")
-    spdy_fetcher_launch(req, TS_FETCH_METHOD_LAST);
-  else
-    spdy_prepare_status_response(sm, req->stream_id, STATUS_405);
-
+  spdy_fetcher_launch(req);
 }
 
 void
@@ -368,7 +351,7 @@ spdy_on_data_chunk_recv_callback(spdylay_session * /*session*/, uint8_t /*flags*
                                  size_t len, void *user_data)
 {
   SpdyClientSession *sm = (SpdyClientSession *)user_data;
-  SpdyRequest *req = sm->req_map[stream_id];
+  SpdyRequest *req = sm->find_request(stream_id);
 
   //
   // SpdyRequest has been deleted on error, drop this data;
@@ -387,7 +370,7 @@ spdy_on_data_recv_callback(spdylay_session *session, uint8_t flags,
                            int32_t stream_id, int32_t length, void *user_data)
 {
   SpdyClientSession *sm = (SpdyClientSession *)user_data;
-  SpdyRequest *req = sm->req_map[stream_id];
+  SpdyRequest *req = sm->find_request(stream_id);
 
   spdy_show_data_frame("++++RECV", session, flags, stream_id, length, user_data);
 
