@@ -413,7 +413,8 @@ struct FD {
     length = 0;
     if (!urls_mode)
       response = NULL;
-    response_header[0] = 0;
+    if (response_header)
+      response_header[0] = 0;
     response_length = 0;
     response_remaining = 0;
     count = NULL;
@@ -1289,7 +1290,6 @@ static int read_ftp_request(int sock) {
         fd[sock].req_pos = 0;
         fd[sock].response_length = strlen(fd[sock].req_header);
         poll_set(sock, NULL, write_ftp_response);
-        buffer = n+1;
         return 0;
     } else {
       if (verbose || verbose_errors) printf("ftp junk : %s\n", buffer);
@@ -2326,6 +2326,7 @@ static int make_client (unsigned int addr, int port) {
 
   /* Give the socket a name. */
   struct sockaddr_in name;
+  memset(&name, 0, sizeof(sockaddr_in));
   name.sin_family = AF_INET;
   name.sin_port = htons(port);
   name.sin_addr.s_addr = addr;
@@ -3422,8 +3423,6 @@ static void ink_web_canonicalize_url(const char *base_url, const char *emb_url, 
 
   dest_url[0] = '\0';
 
-  use_base_sche = 1;
-  use_base_host = 1;
   use_base_path = 0;
   use_base_quer = 0;
   use_base_para = 0;

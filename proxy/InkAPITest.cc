@@ -1567,7 +1567,7 @@ REGRESSION_TEST(SDK_API_TSMutexCreate) (RegressionTest * test, int /* atype ATS_
   /* This is normal because all locking is from the same thread */
   TSReturnCode lock = TS_ERROR;
 
-  lock = TSMutexLockTry(mutexp);
+  TSMutexLockTry(mutexp);
   lock = TSMutexLockTry(mutexp);
 
   if (TS_SUCCESS == lock) {
@@ -3258,7 +3258,6 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int /* atype ATS_UNUS
         if ((TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc1) != TS_SUCCESS) ||
             (TSHttpHdrUrlGet(bufp3, hdr_loc3, &url_loc2) != TS_SUCCESS)) {
           SDK_RPRINT(test, "TSHttpHdrCopy", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
-          flag = false;
         } else {
           const char *scheme1;
           const char *scheme2;
@@ -3372,7 +3371,6 @@ REGRESSION_TEST(SDK_API_TSHttpHdr) (RegressionTest * test, int /* atype ATS_UNUS
         if ((TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc1) != TS_SUCCESS) ||
             (TSHttpHdrUrlGet(bufp4, hdr_loc4, &url_loc2) != TS_SUCCESS)) {
           SDK_RPRINT(test, "TSHttpHdrClone", "TestCase1", TC_FAIL, "TSHttpVersionGet returns TS_ERROR");
-          flag = false;
         } else {
           const char *scheme1;
           const char *scheme2;
@@ -4522,8 +4520,7 @@ REGRESSION_TEST(SDK_API_TSHttpHdrParse) (RegressionTest * test, int /* atype ATS
     start = resp;
     end = resp + strlen(resp) + 1;
     if ((retval = TSHttpHdrParseResp(parser, respbufp, resp_hdr_loc, &start, end)) == TS_PARSE_ERROR) {
-      SDK_RPRINT(test, "TSHttpHdrParseReq", "TestCase1", TC_FAIL,
-                 "TSHttpHdrParseReq returns TS_PARSE_ERROR. Maybe an error with TSHttpParserClear.");
+      SDK_RPRINT(test, "TSHttpHdrParseResp", "TestCase1", TC_FAIL, "TSHttpHdrParseResp returns TS_PARSE_ERROR.");
     } else {
       if (retval == TS_PARSE_DONE) {
         test_passed_parse_resp = true;
@@ -5341,7 +5338,7 @@ REGRESSION_TEST(SDK_API_TSTextLog) (RegressionTest * test, int /* atype ATS_UNUS
 
   /* Generate a random log file name, so if we run the test several times, we won't use the
      same log file name. */
-  xptr<char> tmp(RecConfigReadLogDir());
+  ats_scoped_str tmp(RecConfigReadLogDir());
   snprintf(logname, sizeof(logname), "RegressionTestLog%d.log", (int) getpid());
   snprintf(fullpath_logname, sizeof(fullpath_logname), "%s/%s", (const char *)tmp, logname);
 
@@ -7420,6 +7417,8 @@ const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {
   "proxy.config.http.cache.open_read_retry_time",
   "proxy.config.http.cache.max_open_read_retries",
   "proxy.config.http.cache.range.write",
+  "proxy.config.http.post.check.content_length.enabled",
+  "proxy.config.http.global_user_agent_header",
 };
 
 REGRESSION_TEST(SDK_API_OVERRIDABLE_CONFIGS) (RegressionTest * test, int /* atype ATS_UNUSED */, int *pstatus)

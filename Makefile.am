@@ -29,7 +29,7 @@ export CCACHE_BASEDIR
 # proxy/api/ts has to be built first, since so much of libraries and "core
 # depends on the generates ts/ts.h include file.
 
-SUBDIRS =  proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy cmd plugins tools example rc doc
+SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy cmd plugins tools example rc doc
 
 
 DIST_BUILD_USER=`id -nu`
@@ -39,7 +39,7 @@ DISTCHECK_CONFIGURE_FLAGS=--with-user=${DIST_BUILD_USER} --with-group=${DIST_BUI
 EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
 
 # Default value when creating release candidates
-RC = 0
+RC = 1
 
 # igalic can't remember if this is make check or make test and neither should you.
 test: check
@@ -65,7 +65,7 @@ asf-distdir:
 	@$(am__remove_distdir)
 	test -d .git && git clone . $(distdir)
 	cd $(distdir) && git submodule update --init && autoreconf -i
-	rm -rf -- $(distdir)/autom4te.cache $(distdir)/.git $(distdir)/.gitignore $(distdir)/ci
+	$(RM) -r -- $(distdir)/autom4te.cache $(distdir)/ci `find $(distdir) -name .git -o -name .gitignore -o -name .gitmodules`
 
 asf-dist-sign: asf-dist
 	md5sum -b $(distdir).tar.bz2 >$(distdir).tar.bz2.md5

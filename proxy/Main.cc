@@ -164,13 +164,6 @@ static volatile int delay_listen_for_cache_p = 0;
 
 AppVersionInfo appVersionInfo;  // Build info for this application
 
-const Version version = {
-  {CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION},     // cacheDB
-  {CACHE_DIR_MAJOR_VERSION, CACHE_DIR_MINOR_VERSION},   // cacheDir
-  {CLUSTER_MAJOR_VERSION, CLUSTER_MINOR_VERSION},       // current clustering
-  {MIN_CLUSTER_MAJOR_VERSION, MIN_CLUSTER_MINOR_VERSION},       // min clustering
-};
-
 static const ArgumentDescription argument_descriptions[] = {
   {"net_threads", 'n', "Number of Net Threads", "I", &num_of_net_threads, "PROXY_NET_THREADS", NULL},
   {"cluster_threads", 'Z', "Number of Cluster Threads", "I", &num_of_cluster_threads, "PROXY_CLUSTER_THREADS", NULL},
@@ -248,8 +241,8 @@ init_system()
 static void
 check_lockfile()
 {
-  xptr<char> rundir(RecConfigReadRuntimeDir());
-  xptr<char> lockfile;
+  ats_scoped_str rundir(RecConfigReadRuntimeDir());
+  ats_scoped_str lockfile;
   pid_t holding_pid;
   int err;
 
@@ -278,7 +271,7 @@ check_lockfile()
 static void
 check_config_directories(void)
 {
-  xptr<char> rundir(RecConfigReadRuntimeDir());
+  ats_scoped_str rundir(RecConfigReadRuntimeDir());
 
   if (access(Layout::get()->sysconfdir, R_OK) == -1) {
     fprintf(stderr,"unable to access() config dir '%s': %d, %s\n",
@@ -396,6 +389,18 @@ CB_After_Cache_Init()
   int start;
 
   start = ink_atomic_swap(&delay_listen_for_cache_p, -1);
+
+  // Check for cache BC after the cache is initialized and before listen, if possible.
+  if (cacheProcessor.min_stripe_version.ink_major < CACHE_DB_MAJOR_VERSION) {
+    // Versions before 23 need the MMH hash.
+    if (cacheProcessor.min_stripe_version.ink_major < 23) {
+      Debug("cache_bc", "Pre 4.0 stripe (cache version %d.%d) found, forcing MMH hash for cache URLs"
+        , cacheProcessor.min_stripe_version.ink_major, cacheProcessor.min_stripe_version.ink_minor
+        );
+      URLHashContext::Setting = URLHashContext::MMH;
+    }
+  }
+
   if (1 == start) {
     Debug("http_listen", "Delayed listen enable, cache initialization finished");
     start_HttpProxyServer();
@@ -478,7 +483,6 @@ cmd_check_internal(char * /* cmd ATS_UNUSED */, bool fix = false)
   const char *n = fix ? "REPAIR" : "CHECK";
 
   printf("%s\n\n", n);
-  int res = 0;
 
   hostdb_current_interval = (ink_get_based_hrtime() / HRTIME_MINUTE);
 
@@ -498,7 +502,7 @@ cmd_check_internal(char * /* cmd ATS_UNUSED */, bool fix = false)
     printf("\tunable to open Host Database, %s failed\n", n);
     return CMD_OK;
   }
-  res = hd.check("hostdb.config", fix) < 0 || res;
+  hd.check("hostdb.config", fix);
   hd.reset();
 
   if (cacheProcessor.start() < 0) {
@@ -535,8 +539,8 @@ cmd_clear(char *cmd)
   bool c_cache = !strcmp(cmd, "clear_cache");
 
   if (c_all || c_hdb) {
-    xptr<char> rundir(RecConfigReadRuntimeDir());
-    xptr<char> config(Layout::relative_to(rundir, "hostdb.config"));
+    ats_scoped_str rundir(RecConfigReadRuntimeDir());
+    ats_scoped_str config(Layout::relative_to(rundir, "hostdb.config"));
 
     Note("Clearing HostDB Configuration");
     if (unlink(config) < 0)
@@ -805,7 +809,7 @@ adjust_sys_settings(void)
     ats_mallopt(ATS_MMAP_MAX, mmap_max);
 
   if ((fd = fopen("/proc/sys/fs/file-max","r"))) {
-    ATS_UNUSED_RETURN(fscanf(fd, "%lu", &lim.rlim_max));
+    ATS_UNUSED_RETURN(fscanf(fd, "%" PRIu64 "", &lim.rlim_max));
     fclose(fd);
     REC_ReadConfigFloat(file_max_pct, "proxy.config.system.file_max_pct");
     lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(lim.rlim_max * file_max_pct);
@@ -1101,7 +1105,7 @@ chdir_root()
 static int
 getNumSSLThreads(void)
 {
-  int num_of_ssl_threads = 0;
+  int num_of_ssl_threads = -1;
 
   // Set number of ssl threads equal to num of processors if
   // SSL is enabled so it will scale properly. If SSL is not
@@ -1112,8 +1116,10 @@ getNumSSLThreads(void)
 
     REC_ReadConfigInteger(config_num_ssl_threads, "proxy.config.ssl.number.threads");
 
-    if (config_num_ssl_threads != 0) {
+    if (config_num_ssl_threads > 0) {
       num_of_ssl_threads = config_num_ssl_threads;
+    } else if (config_num_ssl_threads == -1) {
+      return -1; // This will disable ET_SSL threads entirely
     } else {
       float autoconfig_scale = 1.5;
 
@@ -1156,12 +1162,12 @@ adjust_num_of_net_threads(int nthreads)
     REC_ReadConfigFloat(autoconfig_scale, "proxy.config.exec_thread.autoconfig.scale");
     num_of_threads_tmp = (int) ((float) num_of_threads_tmp * autoconfig_scale);
 
-    if (num_of_threads_tmp) {
-      nthreads = num_of_threads_tmp;
-    }
-
     if (unlikely(num_of_threads_tmp > MAX_EVENT_THREADS)) {
       num_of_threads_tmp = MAX_EVENT_THREADS;
+    }
+
+    if (num_of_threads_tmp) {
+      nthreads = num_of_threads_tmp;
     }
   }
 
@@ -1338,7 +1344,7 @@ main(int /* argc ATS_UNUSED */, char **argv)
   if (!num_task_threads)
     REC_ReadConfigInteger(num_task_threads, "proxy.config.task_threads");
 
-  xptr<char> user(MAX_LOGIN + 1);
+  ats_scoped_str user(MAX_LOGIN + 1);
 
   *user = '\0';
   admin_user_p = ((REC_ERR_OKAY == REC_ReadConfigString(user, "proxy.config.admin.user_id", MAX_LOGIN)) &&
