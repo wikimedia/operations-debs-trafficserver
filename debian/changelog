@@ -1,6 +1,7 @@
 trafficserver (5.1.0-1) unstable; urgency=medium
 
   * New upstream release
+  * Bump standards version to 3.9.6 (no changes needed)
 
   [Jean Baptiste Favre]
   * Add a debug package with debug symbols for those who need it.
@@ -9,7 +10,7 @@ trafficserver (5.1.0-1) unstable; urgency=medium
   * Add a libhwloc b-d so that ATS has a better idea about the underlying
     hardware it runs at to improve the runtime performance
 
- -- Arno Töll <arno@debian.org>  Wed, 08 Oct 2014 23:16:34 -1100
+ -- Arno Töll <arno@debian.org>  Wed, 08 Oct 2014 23:50:49 -1100
 
 trafficserver (5.0.1-1) unstable; urgency=medium
 
