@@ -64,6 +64,20 @@ enum SSL_Stats
   ssl_user_agent_session_timeout_stat,
   ssl_total_handshake_time_stat,
   ssl_total_success_handshake_count_stat,
+  ssl_total_tickets_created_stat,
+  ssl_total_tickets_verified_stat,
+  ssl_total_tickets_not_found_stat,
+  ssl_total_tickets_renewed_stat,
+
+  /* error stats */
+  ssl_error_want_write,
+  ssl_error_want_read,
+  ssl_error_want_x509_lookup,
+  ssl_error_syscall,
+  ssl_error_read_eos,
+  ssl_error_zero_return,
+  ssl_error_ssl,
+  ssl_sni_name_set_failure,
 
   ssl_cipher_stats_start = 100,
   ssl_cipher_stats_end = 300,
@@ -116,5 +130,24 @@ void SSLDebugBufferPrint(const char * tag, const char * buffer, unsigned buflen,
 
 // Load the SSL certificate configuration.
 bool SSLParseCertificateConfiguration(const SSLConfigParams * params, SSLCertLookup * lookup);
+
+namespace ssl { namespace detail {
+  struct SCOPED_X509_TRAITS {
+    typedef X509* value_type;
+    static value_type initValue() { return NULL; }
+    static bool isValid(value_type x) { return x != NULL; }
+    static void destroy(value_type x) { X509_free(x); }
+  };
+
+  struct SCOPED_BIO_TRAITS {
+    typedef BIO* value_type;
+    static value_type initValue() { return NULL; }
+    static bool isValid(value_type x) { return x != NULL; }
+    static void destroy(value_type x) { BIO_free(x); }
+  };
+/* namespace ssl */ } /* namespace detail */ }
+
+typedef ats_scoped_resource<ssl::detail::SCOPED_X509_TRAITS>  scoped_X509;
+typedef ats_scoped_resource<ssl::detail::SCOPED_BIO_TRAITS>   scoped_BIO;
 
 #endif /* __P_SSLUTILS_H__ */

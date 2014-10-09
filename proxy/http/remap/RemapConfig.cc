@@ -248,7 +248,7 @@ parse_include_directive(const char * directive, BUILD_TABLE_INFO * bti, char * e
     // to keep the ACL rules from the parent because ACLs must be global across the full set of config
     // files.
     BUILD_TABLE_INFO  nbti;
-    xptr<char>        path;
+    ats_scoped_str        path;
     bool              success;
 
     // The included path is relative to SYSCONFDIR, just like remap.config is.
@@ -883,7 +883,7 @@ remap_parse_config_bti(const char * path, BUILD_TABLE_INFO * bti)
   bool is_cur_mapping_regex;
   const char *type_id_str;
 
-  xptr<char> file_buf(readIntoBuffer(path, modulePrefix, NULL));
+  ats_scoped_str file_buf(readIntoBuffer(path, modulePrefix, NULL));
   if (!file_buf) {
     Warning("can't load remapping configuration file %s", path);
     return false;
@@ -892,6 +892,8 @@ remap_parse_config_bti(const char * path, BUILD_TABLE_INFO * bti)
   Debug("url_rewrite", "[BuildTable] UrlRewrite::BuildTable()");
 
   for (cur_line = tokLine(file_buf, &tok_state, '\\'); cur_line != NULL;) {
+    reg_map = NULL;
+    new_mapping = NULL;
     errStrBuf[0] = 0;
     bti->reset();
 
@@ -1246,6 +1248,8 @@ remap_parse_config_bti(const char * path, BUILD_TABLE_INFO * bti)
     Warning("Could not add rule at line #%d; Aborting!", cln + 1);
     snprintf(errBuf, sizeof(errBuf), "%s %s at line %d", modulePrefix, errStr, cln + 1);
     SignalError(errBuf, alarm_already);
+    delete reg_map;
+    delete new_mapping;
     return false;
   }                             /* end of while(cur_line != NULL) */
 

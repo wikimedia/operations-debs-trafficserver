@@ -22,6 +22,7 @@ SUBDIRS = \
  channel_stats \
  collapsed_connection \
  custom_redirect \
+ epic \
  escalate \
  esi \
  geoip_acl \
@@ -31,6 +32,7 @@ SUBDIRS = \
  regex_revalidate \
  remap_stats \
  s3_auth \
+ sslheaders \
  stale_while_revalidate \
  url_sig \
  xdebug

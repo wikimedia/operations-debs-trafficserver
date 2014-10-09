@@ -162,19 +162,20 @@ am__installdirs = "$(DESTDIR)$(libdir)" \
 	"$(DESTDIR)$(library_includedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtsutil_la_DEPENDENCIES = @LIBOBJS@
-am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo Diags.lo EventNotify.lo \
-	HostLookup.lo IpMap.lo IpMapConf.lo Layout.lo MatcherUtils.lo \
-	MimeTable.lo ParseRules.lo RawHashTable.lo Regex.lo \
-	Regression.lo TextBuffer.lo Tokenizer.lo Vec.lo Version.lo \
-	fastlz.lo ink_args.lo ink_assert.lo ink_auth_api.lo \
-	ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo \
-	ink_file.lo ink_hash_table.lo ink_hrtime.lo ink_inet.lo \
-	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_ext.lo \
-	ink_queue_utils.lo ink_rand.lo ink_res_init.lo \
-	ink_res_mkquery.lo ink_resource.lo ink_rwlock.lo ink_sock.lo \
-	ink_sprintf.lo ink_stack_trace.lo ink_string++.lo \
-	ink_string.lo ink_sys_control.lo ink_syslog.lo ink_thread.lo \
-	ink_time.lo llqueue.lo lockfile.lo
+am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo ConsistentHash.lo \
+	Diags.lo EventNotify.lo Hash.lo HashFNV.lo HashMD5.lo \
+	HashSip.lo HostLookup.lo IpMap.lo IpMapConf.lo Layout.lo \
+	MatcherUtils.lo MimeTable.lo MMH.lo ParseRules.lo \
+	RawHashTable.lo Regex.lo Regression.lo TextBuffer.lo \
+	Tokenizer.lo Vec.lo Version.lo fastlz.lo ink_args.lo \
+	ink_assert.lo ink_auth_api.lo ink_base64.lo ink_cap.lo \
+	ink_code.lo ink_defs.lo ink_error.lo ink_file.lo \
+	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_memory.lo \
+	ink_mutex.lo ink_queue.lo ink_queue_ext.lo ink_queue_utils.lo \
+	ink_rand.lo ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
+	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
+	ink_string++.lo ink_string.lo ink_sys_control.lo ink_syslog.lo \
+	ink_thread.lo ink_time.lo llqueue.lo lockfile.lo
 libtsutil_la_OBJECTS = $(am_libtsutil_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -575,7 +576,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -666,6 +666,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -723,8 +724,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -859,11 +858,22 @@ libtsutil_la_SOURCES = \
   Bitops.cc \
   Bitops.h \
   Compatability.h \
+  Cryptohash.h \
+  ConsistentHash.cc \
+  ConsistentHash.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
   EventNotify.cc \
   EventNotify.h \
+  Hash.cc \
+  Hash.h \
+  HashFNV.cc \
+  HashFNV.h \
+  HashMD5.cc \
+  HashMD5.h \
+  HashSip.cc \
+  HashSip.h \
   HostLookup.cc \
   HostLookup.h \
   INK_MD5.h \
@@ -883,6 +893,8 @@ libtsutil_la_SOURCES = \
   MatcherUtils.h \
   MimeTable.cc \
   MimeTable.h \
+  MMH.h \
+  MMH.cc \
   ParseRules.cc \
   ParseRules.h \
   Ptr.h \
@@ -1149,12 +1161,18 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Arena.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Bitops.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CompileParseRules.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ConsistentHash.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Diags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/EventNotify.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Hash.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashFNV.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashMD5.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashSip.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HostLookup.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMapConf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Layout.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MMH.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MatcherUtils.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MimeTable.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParseRules.Plo@am__quote@

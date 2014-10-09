@@ -82,14 +82,14 @@
     _HDR.m_mime = _HDR.m_http->m_fields_impl;
 
 // Globals for new librecords stats
-volatile int top_stat = 0;
-RecRawStatBlock *api_rsb;
+static volatile int api_rsb_index = 0;
+static RecRawStatBlock * api_rsb;
 
 // Library init functions needed for API.
 extern void ts_session_protocol_well_known_name_indices_init();
 
 // Globals for the Sessions/Transaction index registry
-volatile int next_argv_index = 0;
+static volatile int next_argv_index = 0;
 
 struct _STATE_ARG_TABLE {
   char* name;
@@ -1248,7 +1248,7 @@ APIHooks::append(INKContInternal *cont)
 }
 
 APIHook *
-APIHooks::get()
+APIHooks::get() const
 {
   return m_hooks.head;
 }
@@ -3914,11 +3914,12 @@ TSCacheKeyDigestSet(TSCacheKey key, const char *input, int length)
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_iocore_structure((void*) input) == TS_SUCCESS);
   sdk_assert(length > 0);
-
-  if (((CacheInfo *) key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  CacheInfo* ci = reinterpret_cast<CacheInfo*>(key);
+  
+  if (ci->magic != CACHE_INFO_MAGIC_ALIVE)
     return TS_ERROR;
 
-  ((CacheInfo *) key)->cache_key.encodeBuffer((char *) input, length);
+  MD5Context().hash_immediate(ci->cache_key, input, length);
   return TS_SUCCESS;
 }
 
@@ -4890,8 +4891,8 @@ TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
     s->cache_info.lookup_url = &(s->cache_info.lookup_url_storage);
     l_url = s->cache_info.lookup_url;
   } else {
-    l_url->MD5_get(&md51);
-    new_url.MD5_get(&md52);
+    l_url->hash_get(&md51);
+    new_url.hash_get(&md52);
     if (md51 == md52)
       return TS_ERROR;
     o_url = &(s->cache_info.original_url);
@@ -5550,7 +5551,7 @@ TSHttpArgIndexReserve(const char* name, const char* description, int *arg_idx)
 {
   sdk_assert(sdk_sanity_check_null_ptr(arg_idx) == TS_SUCCESS);
 
-  int volatile ix = ink_atomic_increment(&next_argv_index, 1);
+  int ix = ink_atomic_increment(&next_argv_index, 1);
 
   if (ix < HTTP_SSN_TXN_MAX_USER_ARG) {
     state_arg_table[ix].name = ats_strdup(name);
@@ -5736,17 +5737,19 @@ TSHttpTxnDebugGet(TSHttpTxn txnp)
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   return ((HttpSM *)txnp)->debug_on;
 }
+
 void
 TSHttpSsnDebugSet(TSHttpSsn ssnp, int on)
 {
   sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
   ((HttpClientSession *)ssnp)->debug_on = on;
 }
+
 int
 TSHttpSsnDebugGet(TSHttpSsn ssnp)
 {
   sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
-  return ((HttpClientSession *)ssnp)->debug_on;
+  return ((HttpClientSession *)ssnp)->debug();
 }
 
 int
@@ -6654,7 +6657,7 @@ TSCacheScan(TSCont contp, TSCacheKey key, int KB_per_second)
 int
 TSStatCreate(const char *the_name, TSRecordDataType the_type, TSStatPersistence persist, TSStatSync sync)
 {
-  int id = ink_atomic_increment(&top_stat, 1);
+  int id = ink_atomic_increment(&api_rsb_index, 1);
   RecRawStatSyncCb syncer = RecRawStatSyncCount;
 
   // TODO: This only supports "int" data types at this point, since the "Raw" stats
@@ -7279,7 +7282,7 @@ TSFetchUrl(const char* headers, int request_len, sockaddr const* ip , TSCont con
 }
 
 TSFetchSM
-TSFetchCreate(TSCont contp, TSFetchMethod method,
+TSFetchCreate(TSCont contp, const char *method,
               const char *url, const char *version,
               struct sockaddr const* client_addr, int flags)
 {
@@ -7813,6 +7816,13 @@ _conf_to_memberp(TSOverridableConfigKey conf,
   case TS_CONFIG_HTTP_CACHE_RANGE_WRITE:
     ret = &overridableHttpConfig->cache_range_write;
     break;
+  case TS_CONFIG_HTTP_POST_CHECK_CONTENT_LENGTH_ENABLED:
+    ret = &overridableHttpConfig->post_check_content_length_enabled;
+    break;
+  case TS_CONFIG_HTTP_GLOBAL_USER_AGENT_HEADER:
+    typ = OVERRIDABLE_TYPE_STRING;
+    ret = &overridableHttpConfig->global_user_agent_header;
+    break;
 
     // This helps avoiding compiler warnings, yet detect unhandled enum members.
   case TS_CONFIG_NULL:
@@ -7969,7 +7979,6 @@ TSReturnCode
 TSHttpTxnConfigStringSet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char* value, int length)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void*)value) == TS_SUCCESS);
 
   if (length == -1)
     length = strlen(value);
@@ -7980,8 +7989,22 @@ TSHttpTxnConfigStringSet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
 
   switch (conf) {
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
-    s->t_state.txn_conf->proxy_response_server_string = const_cast<char*>(value); // The "core" likes non-const char*
-    s->t_state.txn_conf->proxy_response_server_string_len = length;
+    if (value && length > 0) {
+      s->t_state.txn_conf->proxy_response_server_string = const_cast<char*>(value); // The "core" likes non-const char*
+      s->t_state.txn_conf->proxy_response_server_string_len = length;
+    } else {
+      s->t_state.txn_conf->proxy_response_server_string = NULL;
+      s->t_state.txn_conf->proxy_response_server_string_len = 0;
+    }
+    break;
+  case TS_CONFIG_HTTP_GLOBAL_USER_AGENT_HEADER:
+    if (value && length > 0) {
+      s->t_state.txn_conf->global_user_agent_header = const_cast<char*>(value); // The "core" likes non-const char*
+      s->t_state.txn_conf->global_user_agent_header_size = length;
+    } else {
+      s->t_state.txn_conf->global_user_agent_header = NULL;
+      s->t_state.txn_conf->global_user_agent_header_size = 0;
+    }
     break;
   default:
     return TS_ERROR;
@@ -8005,6 +8028,10 @@ TSHttpTxnConfigStringGet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
   case TS_CONFIG_HTTP_RESPONSE_SERVER_STR:
     *value = sm->t_state.txn_conf->proxy_response_server_string;
     *length = sm->t_state.txn_conf->proxy_response_server_string_len;
+    break;
+  case TS_CONFIG_HTTP_GLOBAL_USER_AGENT_HEADER:
+    *value = sm->t_state.txn_conf->global_user_agent_header;
+    *length = sm->t_state.txn_conf->global_user_agent_header_size;
     break;
   default:
     return TS_ERROR;
@@ -8216,6 +8243,10 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     case 'r':
       if (!strncmp(name, "proxy.config.http.anonymize_remove_referer", length))
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_REFERER;
+      else if (!strncmp(name, "proxy.config.http.global_user_agent_header", length)) {
+        cnf = TS_CONFIG_HTTP_GLOBAL_USER_AGENT_HEADER;
+        typ = TS_RECORDDATATYPE_STRING;
+      }
       break;
     case 't':
       if (!strncmp(name, "proxy.config.net.sock_recv_buffer_size_out", length))
@@ -8379,8 +8410,16 @@ TSHttpTxnConfigFind(const char* name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 51:
-    if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_in", length))
-      cnf = TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN;
+    switch (name[length-1]) {
+    case 'n':
+      if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_in", length))
+        cnf = TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN;
+      break;
+    case 'd':
+      if (!strncmp(name, "proxy.config.http.post.check.content_length.enabled", length))
+        cnf = TS_CONFIG_HTTP_POST_CHECK_CONTENT_LENGTH_ENABLED;
+      break;
+    }
     break;
 
   case 52:

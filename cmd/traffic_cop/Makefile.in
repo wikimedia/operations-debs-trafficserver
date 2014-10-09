@@ -132,7 +132,7 @@ traffic_cop_OBJECTS = $(am_traffic_cop_OBJECTS)
 traffic_cop_DEPENDENCIES = $(top_builddir)/mgmt/api/libtsmgmtshare.la \
 	$(top_builddir)/mgmt/api/libtsmgmt.la \
 	$(top_builddir)/lib/ts/libtsutil.la \
-	$(top_builddir)/lib/records/librec4cop.a
+	$(top_builddir)/lib/records/librecords_cop.a
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -236,7 +236,7 @@ CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
-DEFS = @DEFS@ $(MGMT_DEFS)
+DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 DOXYGEN = @DOXYGEN@
@@ -288,7 +288,6 @@ LTLIBOBJS = @LTLIBOBJS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
-MGMT_DEFS = @MGMT_DEFS@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
@@ -379,6 +378,7 @@ build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_group = @build_group@
 build_machine = @build_machine@
+build_number = @build_number@
 build_os = @build_os@
 build_person = @build_person@
 build_vendor = @build_vendor@
@@ -436,8 +436,6 @@ htmldir = @htmldir@
 ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
-ink_with_modules_local = @ink_with_modules_local@
-ink_with_modules_process = @ink_with_modules_process@
 install_sh = @install_sh@
 installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
@@ -565,7 +563,7 @@ traffic_cop_LDADD = \
   $(top_builddir)/mgmt/api/libtsmgmtshare.la \
   $(top_builddir)/mgmt/api/libtsmgmt.la \
   $(top_builddir)/lib/ts/libtsutil.la \
-  $(top_builddir)/lib/records/librec4cop.a \
+  $(top_builddir)/lib/records/librecords_cop.a \
   @LIBRESOLV@ @OPENSSL_LIBS@
 
 all: all-am

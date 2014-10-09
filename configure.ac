@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[5.0.1])
-m4_define([TS_VERSION_N],[5000001])
+m4_define([TS_VERSION_S],[5.1.0])
+m4_define([TS_VERSION_N],[5001000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -107,16 +107,6 @@ AC_CANONICAL_HOST
 HOST_GUESS="$host"
 AC_SUBST(HOST_GUESS)
 
-#
-# Build environment
-#
-build_person="`id -nu`"
-build_group="`id -ng`"
-build_machine="`uname -n`"
-AC_SUBST([build_machine])
-AC_SUBST([build_person])
-AC_SUBST([build_group])
-
 AC_ARG_WITH([user],
   [AS_HELP_STRING([--with-user],[specify the system user [default=nobody]])],
   [
@@ -137,6 +127,22 @@ AC_ARG_WITH([group],
 )
 AC_SUBST([pkgsysuser],[$with_user])
 AC_SUBST([pkgsysgroup],[$with_group])
+
+AC_ARG_WITH([build-number],
+  [AS_HELP_STRING([--with-build-number],[specify a version string for this build])],
+  [ build_number="$withval" ]
+)
+
+#
+# Build environment
+#
+build_person="`id -nu`"
+build_group="`id -ng`"
+build_machine="`uname -n`"
+AC_SUBST([build_machine])
+AC_SUBST([build_person])
+AC_SUBST([build_group])
+AC_SUBST([build_number])
 
 # -----------------------------------------------------------------------------
 # 2. SITE CONFIGURATION
@@ -214,9 +220,6 @@ AC_MSG_RESULT([$enable_tests])
 TS_ARG_ENABLE_VAR([has], [tests])
 AC_SUBST(has_tests)
 AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
-
-AC_SUBST([ink_with_modules_local],["-DLOCAL_MANAGER"])
-AC_SUBST([ink_with_modules_process],["-DPROCESS_MANAGER"])
 
 #
 # Force some static linkage (for testing / development only)
@@ -1431,8 +1434,10 @@ fi
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
 
-TS_FLAG_HEADERS([sys/types.h sys/mman.h])
-TS_FLAG_HEADERS([sys/epoll.h \
+TS_FLAG_HEADERS([sys/types.h \
+                  sys/uio.h \
+                  sys/mman.h \
+                  sys/epoll.h \
                   sys/event.h \
                   sys/param.h \
                   sys/pset.h \
@@ -1833,8 +1838,6 @@ iocore_include_dirs="-I\$(top_srcdir)/iocore/eventsystem \
 # Testing Framework suffix generation hack
 TFW_PACKAGE_SUFFIX=$os_type
 
-MGMT_DEFS="$MGMT_DEFS -DMGMT_USE_SYSLOG"
-
 AC_SUBST([API_DEFS])
 AC_SUBST([CC])
 AC_SUBST([CFLAGS])
@@ -1846,7 +1849,6 @@ AC_SUBST([EXTRA_CXX_LDFLAGS])
 AC_SUBST([LIBTOOL_LINK_FLAGS])
 AC_SUBST([iocore_include_dirs])
 AC_SUBST([LDFLAGS])
-AC_SUBST([MGMT_DEFS])
 AC_SUBST([SHARED_CFLAGS])
 AC_SUBST([SHARED_CXXFLAGS])
 AC_SUBST([SHARED_CXXLINKFLAGS])
@@ -1861,6 +1863,7 @@ AC_CONFIG_FILES([
   cmd/Makefile
   cmd/traffic_cop/Makefile
   cmd/traffic_line/Makefile
+  cmd/traffic_manager/Makefile
   cmd/traffic_top/Makefile
   doc/Doxyfile
   doc/Makefile
@@ -1887,7 +1890,6 @@ AC_CONFIG_FILES([
   mgmt/api/Makefile
   mgmt/api/include/Makefile
   mgmt/cluster/Makefile
-  mgmt/stats/Makefile
   mgmt/utils/Makefile
   mgmt/web2/Makefile
   plugins/Makefile
@@ -1910,6 +1912,7 @@ AC_CONFIG_FILES([
   proxy/hdrs/Makefile
   proxy/http/Makefile
   proxy/http/remap/Makefile
+  proxy/http2/Makefile
   proxy/logging/Makefile
   proxy/shared/Makefile
   proxy/spdy/Makefile
@@ -1932,15 +1935,17 @@ AS_IF([test "x$enable_experimental_plugins" = xyes], [
     plugins/experimental/channel_stats/Makefile
     plugins/experimental/collapsed_connection/Makefile
     plugins/experimental/custom_redirect/Makefile
+    plugins/experimental/epic/Makefile
     plugins/experimental/escalate/Makefile
     plugins/experimental/esi/Makefile
     plugins/experimental/geoip_acl/Makefile
     plugins/experimental/healthchecks/Makefile
     plugins/experimental/hipes/Makefile
     plugins/experimental/metalink/Makefile
-    plugins/experimental/remap_stats/Makefile
     plugins/experimental/regex_revalidate/Makefile
+    plugins/experimental/remap_stats/Makefile
     plugins/experimental/s3_auth/Makefile
+    plugins/experimental/sslheaders/Makefile
     plugins/experimental/stale_while_revalidate/Makefile
     plugins/experimental/ts_lua/Makefile
     plugins/experimental/url_sig/Makefile
@@ -1974,7 +1979,6 @@ AS_IF([test "x$enable_cppapi" = xyes], [
   lib/atscppapi/src/Makefile
 ])])
 
-
 # -----------------------------------------------------------------------------
 # 7. autoheader TEMPLATES
 
@@ -1995,6 +1999,6 @@ AC_MSG_NOTICE([Build option summary:
     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
-    MGMT_DEFS:          $MGMT_DEFS
     API_DEFS:           $API_DEFS
+
 ])
