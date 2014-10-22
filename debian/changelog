@@ -1,3 +1,10 @@
+trafficserver (5.1.0-1~bbc76+1) stable; urgency=medium
+
+  * Imported Upstream version 5.1.0
+  * Update gbp.conf
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 22 Oct 2014 15:37:20 +0200
+
 trafficserver (5.0.0-1) unstable; urgency=medium
 
   * Acknowledge previous NMUs, thanks to Anibal Monsalve Salazar for
