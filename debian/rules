@@ -6,6 +6,7 @@
 
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+DEB_BUILD_ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 configure_flags = \
 	--enable-layout=Debian \
@@ -17,6 +18,10 @@ configure_flags = \
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 	configure_flags += --enable-wccp --enable-linux-native-aio
+endif
+
+ifeq ($(DEB_BUILD_ARCH),ppc64el)
+	configure_flags += --disable-luajit
 endif
 
 %:
