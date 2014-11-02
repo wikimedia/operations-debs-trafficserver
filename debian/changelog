@@ -1,3 +1,15 @@
+trafficserver (5.1.1-1) UNRELEASED; urgency=medium
+
+  * New upstream release. This release includes fixes for these security
+    related vulnerabilities:
+    - CVE-2014-3566: Do not enable SSL3 by default
+    - CVE-2014-3624: Ensure remap requests are properly tunneled using CONNECT
+      requests to avoid an open relay
+  * Fix "ftbfs on kfreebsd" by conditionally building healthchecks.so on Linux
+    only. Patch supplied by Steven Chamberlain, thanks (Closes: #767287)
+
+ -- Arno Töll <arno@debian.org>  Sun, 02 Nov 2014 12:24:21 -1100
+
 trafficserver (5.1.0-1) unstable; urgency=medium
 
   * New upstream release
