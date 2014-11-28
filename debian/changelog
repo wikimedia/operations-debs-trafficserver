@@ -1,15 +1,8 @@
-trafficserver (5.1.1-1) unstable; urgency=medium
+trafficserver (5.1.1-2~bbc77+1) stable; urgency=medium
 
-  * New upstream release. This release includes fixes for these security
-    related vulnerabilities:
-    - CVE-2014-3566: Do not enable SSL3 by default
-    - CVE-2014-3624: Ensure remap requests are properly tunneled using CONNECT
-      requests to avoid an open relay
-  * Add support for ppc64el, patch merged upstream (Closes: #754134, #754808)
-  * Fix "ftbfs on kfreebsd" by conditionally building healthchecks.so on Linux
-    only. Patch supplied by Steven Chamberlain, thanks (Closes: #767287)
+  * Sync with Debian
 
- -- Arno Töll <arno@debian.org>  Sun, 02 Nov 2014 12:40:44 -1100
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Fri, 28 Nov 2014 16:31:30 +0100
 
 trafficserver (5.1.0-1) unstable; urgency=medium
 
