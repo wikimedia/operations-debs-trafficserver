@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config,
   libgeoip-dev, liblua5.1-0-dev, dh-autoreconf, libboost-dev, python-sphinx,
   libhwloc-dev
-Standards-Version: 3.9.5
+Standards-Version: 3.9.6
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
@@ -37,7 +37,8 @@ Package: trafficserver-experimental-plugins
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Pre-Depends: trafficserver (= ${binary:Version})
-Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
+Breaks: trafficserver (<< 5.0.1-2~)
+Description: experimental plugins for Apache Traffic Server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well.
  .
@@ -58,9 +59,8 @@ Description: Apache Traffic Server Software Developers Kit (SDK)
 Package: trafficserver-dbg
 Architecture: any
 Section: debug
-Priority: extra
 Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
-Description: Debug symbols for Apache Traffic Server
+Description: debug symbols for Apache Traffic Server
  Apache Traffic Server is a fast, scalable and extensible HTTP/1.1 compliant
  caching proxy server which may operate as forward proxy as well.
  This package  contains the debugging symbols for trafficserver.

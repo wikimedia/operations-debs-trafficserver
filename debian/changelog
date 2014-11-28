@@ -1,9 +1,37 @@
-trafficserver (5.1.0-1~bbc76+1) stable; urgency=medium
+trafficserver (5.1.1-1) unstable; urgency=medium
 
-  * Imported Upstream version 5.1.0
-  * Update gbp.conf
+  * New upstream release. This release includes fixes for these security
+    related vulnerabilities:
+    - CVE-2014-3566: Do not enable SSL3 by default
+    - CVE-2014-3624: Ensure remap requests are properly tunneled using CONNECT
+      requests to avoid an open relay
+  * Add support for ppc64el, patch merged upstream (Closes: #754134, #754808)
+  * Fix "ftbfs on kfreebsd" by conditionally building healthchecks.so on Linux
+    only. Patch supplied by Steven Chamberlain, thanks (Closes: #767287)
 
- -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 22 Oct 2014 15:37:20 +0200
+ -- Arno Töll <arno@debian.org>  Sun, 02 Nov 2014 12:40:44 -1100
+
+trafficserver (5.1.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * Bump standards version to 3.9.6 (no changes needed)
+
+  [Jean Baptiste Favre]
+  * Add a debug package with debug symbols for those who need it.
+  * Split out experimental trafficserver plugins into a separate package so
+    that users are aware of their experimental character before using them.
+  * Add a libhwloc b-d so that ATS has a better idea about the underlying
+    hardware it runs at to improve the runtime performance
+
+ -- Arno Töll <arno@debian.org>  Wed, 08 Oct 2014 23:50:49 -1100
+
+trafficserver (5.0.1-1) unstable; urgency=medium
+
+  * New upstream release including a fix for CVE-2014-3525 that allowed
+    attackers by special crafted packets to obtain privileges for services bound
+    to localhost
+
+ -- Arno Töll <arno@debian.org>  Wed, 23 Jul 2014 04:43:00 -1100
 
 trafficserver (5.0.0-1) unstable; urgency=medium
 

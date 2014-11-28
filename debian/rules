@@ -6,6 +6,7 @@
 
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+DEB_BUILD_ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
 
 # enable hardening options
 export DEB_BUILD_MAINT_OPTIONS=hardening=+all
@@ -22,6 +23,10 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
+ifeq ($(DEB_BUILD_ARCH),ppc64el)
+	configure_flags += --disable-luajit
+endif
+
 %:
 	dh $@ --parallel --with autoreconf
 
@@ -35,6 +40,11 @@ override_dh_auto_install:
 	rm -f debian/tmp/usr/lib/trafficserver/lib*.la
 	rm -f debian/tmp/usr/lib/trafficserver/modules/*.la
 	rm -f debian/tmp/usr/lib/trafficserver/lib*.a
+ifneq ($(DEB_HOST_ARCH_OS),linux)
+	# Remove Linux-specific plugin
+	sed -i '/\/healthchecks\.so$$/d' \
+		debian/trafficserver-experimental-plugins.install
+endif
 
 override_dh_install:
 	dh_install --list-missing
