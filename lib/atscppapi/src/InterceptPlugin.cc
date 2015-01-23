@@ -88,9 +88,9 @@ struct InterceptPlugin::State {
     plugin_mutex_ = plugin->getMutex();
     http_parser_ = TSHttpParserCreate();
   }
-  
+
   ~State() {
-    TSHttpParserDestroy(http_parser_); 
+    TSHttpParserDestroy(http_parser_);
     if (hdr_loc_) {
       TSHandleMLocRelease(hdr_buf_, TS_NULL_MLOC, hdr_loc_);
     }
@@ -180,7 +180,7 @@ bool InterceptPlugin::doRead() {
     LOG_ERROR("Error while getting number of bytes available");
     return false;
   }
-  
+
   int consumed = 0; // consumed is used to update the input buffers
   if (avail > 0) {
     int64_t num_body_bytes_in_block;
@@ -233,7 +233,7 @@ bool InterceptPlugin::doRead() {
   }
   LOG_DEBUG("Consumed %d bytes from input vio", consumed);
   TSIOBufferReaderConsume(state_->input_.reader_, consumed);
-  
+
   // Modify the input VIO to reflect how much data we've completed.
   TSVIONDoneSet(state_->input_.vio_, TSVIONDoneGet(state_->input_.vio_) + consumed);
 
@@ -274,11 +274,11 @@ void InterceptPlugin::handleEvent(int abstract_event, void *edata) {
     break;
 
   case TS_EVENT_VCONN_WRITE_READY: // nothing to do
-    LOG_DEBUG("Got write ready"); 
+    LOG_DEBUG("Got write ready");
     break;
 
   case TS_EVENT_VCONN_READ_READY:
-    LOG_DEBUG("Handling read ready");  
+    LOG_DEBUG("Handling read ready");
     if (doRead()) {
       break;
     }
@@ -311,6 +311,7 @@ int handleEvents(TSCont cont, TSEvent event, void *edata) {
   InterceptPlugin::State *state = static_cast<InterceptPlugin::State *>(TSContDataGet(cont));
   ScopedSharedMutexTryLock scopedTryLock(state->plugin_mutex_);
   if (!scopedTryLock.hasLock()) {
+    LOG_ERROR("Couldn't get plugin lock. Will retry");
     if (event != TS_EVENT_TIMEOUT) { // save only "non-retry" info
       state->saved_event_ = event;
       state->saved_edata_ = edata;
@@ -318,12 +319,15 @@ int handleEvents(TSCont cont, TSEvent event, void *edata) {
     state->timeout_action_ = TSContSchedule(cont, 1, TS_THREAD_POOL_DEFAULT);
     return 0;
   }
+  if (event == TS_EVENT_TIMEOUT) {
+    state->timeout_action_ = NULL;
+    event = state->saved_event_; // restore saved event
+    edata = state->saved_edata_;
+  }
   if (state->plugin_) {
-    if (event == TS_EVENT_TIMEOUT) { // restore original event
-      event = state->saved_event_;
-      edata = state->saved_edata_;
-    }
     utils::internal::dispatchInterceptEvent(state->plugin_, event, edata);
+  }
+  else if (state->timeout_action_) { // we had scheduled a timeout on ourselves; let's wait for it
   }
   else { // plugin was destroyed before intercept was completed; cleaning up here
     LOG_DEBUG("Cleaning up as intercept plugin is already destroyed");
@@ -338,10 +342,6 @@ void destroyCont(InterceptPlugin::State *state) {
     TSVConnShutdown(state->net_vc_, 1, 1);
     TSVConnClose(state->net_vc_);
     state->net_vc_ = NULL;
-  }
-  if (state->timeout_action_) {
-    TSActionCancel(state->timeout_action_);
-    state->timeout_action_ = NULL;
   }
   TSContDestroy(state->cont_);
 }

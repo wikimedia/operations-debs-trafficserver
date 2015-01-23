@@ -132,7 +132,7 @@ if test "x$expat_base_dir" = "x"; then
   _expat_dir_list=""
   case $host_os_def in
     darwin)
-    for dir in "`xcrun -show-sdk-path 2>/dev/null`/usr" /usr/local /usr; do
+    for dir in /usr/local /usr "`xcrun -show-sdk-path 2>/dev/null`/usr" ; do
       if test -d $dir && test -f $dir/include/expat.h; then
         ats_cv_expat_dir=$dir
         break
@@ -183,7 +183,7 @@ if test "$enable_expat" != "no"; then
   fi
   AC_SEARCH_LIBS([XML_SetUserData], [expat], [expat_have_libs=1])
   if test "$expat_have_libs" != "0"; then
-      TS_FLAG_HEADERS(expat.h, [expat_have_headers=1])
+      AC_CHECK_HEADERS(expat.h, [expat_have_headers=1])
   fi
   if test "$expat_have_headers" != "0"; then
     enable_xml=yes

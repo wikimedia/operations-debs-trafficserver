@@ -24,7 +24,6 @@
 #ifndef __HTTP_H__
 #define __HTTP_H__
 
-
 #include <assert.h>
 #include "Arena.h"
 #include "INK_MD5.h"
@@ -37,6 +36,7 @@
 #define HTTP_MINOR(v)      ((v) & 0xFFFF)
 #define HTTP_MAJOR(v)      (((v) >> 16) & 0xFFFF)
 
+class Http2HeaderTable;
 
 enum HTTPStatus
 {
@@ -470,6 +470,8 @@ MIMEParseResult http_parser_parse_req(HTTPParser *parser, HdrHeap *heap,
 MIMEParseResult http_parser_parse_resp(HTTPParser *parser, HdrHeap *heap,
                                        HTTPHdrImpl *hh, const char **start,
                                        const char *end, bool must_copy_strings, bool eof);
+
+
 HTTPStatus http_parse_status(const char *start, const char *end);
 int32_t http_parse_version(const char *start, const char *end);
 
@@ -1520,6 +1522,5 @@ inline int
 HTTPInfo::get_frag_offset_count() {
   return m_alt ? m_alt->m_frag_offset_count : 0;
 }
-
 
 #endif /* __HTTP_H__ */

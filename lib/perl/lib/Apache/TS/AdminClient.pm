@@ -28,7 +28,6 @@ use IO::Select;
 
 use Apache::TS;
 
-
 # Mgmt API command constants, should track ts/mgmtapi.h
 use constant {
     TS_FILE_READ            => 0,
@@ -54,10 +53,9 @@ use constant {
     TS_STATS_RESET          => 20
 };
 
-# We treat both REC_INT and REC_COUNTER the same here
 use constant {
     TS_REC_INT     => 0,
-    TS_REC_COUNTER => 0,
+    TS_REC_COUNTER => 1,
     TS_REC_FLOAT   => 2,
     TS_REC_STRING  => 3
 };
@@ -204,29 +202,36 @@ sub get_stat {
     return undef unless defined($self->{_socket});
     return undef unless $self->{_select}->can_write(10);
 
-# This is a total hack for now, we need to wrap this into the proper mgmt API library.
-    $self->{_socket}->print(pack("sla*", TS_RECORD_GET, length($stat)), $stat);
+    # This is a total hack for now, we need to wrap this into the proper mgmt API library.
+    # The request format is:
+    #   MGMT_MARSHALL_INT: message length
+    #   MGMT_MARSHALL_INT: TS_RECORD_GET
+    #   MGMT_MARSHALL_STRING: record name
+    my $msg = pack("ll/Z", TS_RECORD_GET, $stat);
+    $self->{_socket}->print(pack("l/a", $msg));
     $res = $self->_do_read();
 
-    my @resp = unpack("slls", $res);
-    return undef unless (scalar(@resp) == 4);
+    # The response format is:
+    #   MGMT_MARSHALL_INT: message length
+    #   MGMT_MARSHALL_INT: error code
+    #   MGMT_MARSHALL_INT: record type
+    #   MGMT_MARSHALL_STRING: record name
+    #   MGMT_MARSHALL_DATA: record data
+    ($msg) = unpack("l/a", $res);
+    my ($ecode, $type, $name, $value) = unpack("l l l/Z l/a", $msg);
 
-    if ($resp[0] == TS_ERR_OKAY) {
-        if ($resp[3] < TS_REC_FLOAT) {
-            @resp = unpack("sllsq", $res);
-            return undef unless (scalar(@resp) == 5);
-            return int($resp[4]);
+    if ($ecode == TS_ERR_OKAY) {
+        if ($type == TS_REC_INT || $type == TS_REC_COUNTER) {
+            my ($ival) = unpack("q", $value);
+            return $ival;
         }
-        elsif ($resp[3] == TS_REC_FLOAT) {
-            @resp = unpack("sllsf", $res);
-            return undef unless (scalar(@resp) == 5);
-            return $resp[4];
+        elsif ($type == TS_REC_FLOAT) {
+            my ($fval) = unpack("f", $value);
+            return $fval;
         }
-        elsif ($resp[3] == TS_REC_STRING) {
-            @resp = unpack("sllsa*", $res);
-            return undef unless (scalar(@resp) == 5);
-	    my @result = split($stat, $resp[4]);
-            return $result[0];
+        elsif ($type == TS_REC_STRING) {
+            my ($sval) = unpack("Z*", $value);
+            return $sval;
         }
     }
 
@@ -631,7 +636,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.manager_binary
  proxy.config.net.connections_throttle
  proxy.config.net.listen_backlog
- proxy.config.net_snapshot_filename
  proxy.config.net.sock_mss_in
  proxy.config.net.sock_option_flag_in
  proxy.config.net.sock_option_flag_out
@@ -644,7 +648,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ping.npacks_to_trans
  proxy.config.ping.timeout_sec
  proxy.config.plugin.plugin_dir
- proxy.config.plugin.plugin_mgmt_dir
  proxy.config.prefetch.child_port
  proxy.config.prefetch.config_file
  proxy.config.prefetch.default_data_proto
@@ -703,6 +706,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.server.cert.path
  proxy.config.ssl.server.cipher_suite
  proxy.config.ssl.server.honor_cipher_order
+ proxy.config.ssl.server.dhparams_file
  proxy.config.ssl.SSLv2
  proxy.config.ssl.SSLv3
  proxy.config.ssl.TLSv1
@@ -710,7 +714,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.server.multicert.filename
  proxy.config.ssl.server_port
  proxy.config.ssl.server.private_key.path
- proxy.config.stack_dump_enabled
  proxy.config.stat_collector.interval
  proxy.config.stat_collector.port
  proxy.config.stats.config_file

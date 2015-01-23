@@ -537,6 +537,7 @@ HdrTest::test_mime()
       "ACCEPT\r\n"
       "foo: bar\r\n"
       "foo: argh\r\n"
+      "foo: three, four\r\n"
       "word word: word \r\n"
       "accept: \"fazzle, dazzle\"\r\n"
       "accept: 1, 2, 3, 4, 5, 6, 7, 8\r\n"
@@ -610,10 +611,32 @@ HdrTest::test_mime()
   // TODO: Do we need to check the "count" returned?
   cc_field->value_get_comma_list(&slist); // FIX: correct usage?
 
+  if (cc_field->value_get_index("Private", 7) < 0) {
+    printf("Failed: value_get_index of Cache-Control did not find private");
+    return (failures_to_status("test_mime", 1));
+  }
+  if (cc_field->value_get_index("Bogus", 5) >= 0) {
+    printf("Failed: value_get_index of Cache-Control incorrectly found bogus");
+    return (failures_to_status("test_mime", 1));
+  }
+  if (hdr.value_get_index("foo", 3, "three", 5) < 0) {
+    printf("Failed: value_get_index of foo did not find three");
+    return (failures_to_status("test_mime", 1));
+  }
+  if (hdr.value_get_index("foo", 3, "bar", 3) < 0) {
+    printf("Failed: value_get_index of foo did not find bar");
+    return (failures_to_status("test_mime", 1));
+  }
+  if (hdr.value_get_index("foo", 3, "Bogus", 5) >= 0) {
+    printf("Failed: value_get_index of foo incorrectly found bogus");
+    return (failures_to_status("test_mime", 1));
+  }
+
   mime_parser_clear(&parser);
 
   hdr.print(NULL, 0, NULL, NULL);
   printf("\n");
+
 
   obj_describe((HdrHeapObjImpl *) (hdr.m_mime), true);
 
@@ -948,6 +971,17 @@ HdrTest::test_http_hdr_print_and_copy()
       test_http_hdr_print_and_copy_aux(i + 1, tests[i].req, tests[i].req_tgt, tests[i].rsp, tests[i].rsp_tgt);
     if (status == 0)
       ++failures;
+
+    // Test for expected failures
+    // parse with a '\0' in the header.  Should fail
+    status =  test_http_hdr_null_char(i + 1, tests[i].req, tests[i].req_tgt);
+    if (status == 0)
+      ++failures;
+
+    // Parse with a CTL character in the method name.  Should fail
+    status =  test_http_hdr_ctl_char(i + 1, tests[i].req, tests[i].req_tgt);
+    if (status == 0)
+      ++failures;
   }
 
   return (failures_to_status("test_http_hdr_print_and_copy", failures));
@@ -1116,6 +1150,90 @@ done:
   }
 }
 
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+int
+HdrTest::test_http_hdr_null_char(int testnum,
+                                 const char *request, const char * /*request_tgt*/)
+{
+  int err;
+  HTTPHdr hdr;
+  HTTPParser parser;
+  const char *start;
+  char cpy_buf[2048];
+  const char *cpy_buf_ptr = cpy_buf;
+
+  /*** (1) parse the request string into hdr ***/
+
+  hdr.create(HTTP_TYPE_REQUEST);
+
+  start = request;
+
+  if (strlen(start) > sizeof(cpy_buf)) {
+    printf("FAILED: (test #%d) Internal buffer too small for null char test\n", testnum);
+    return (0);
+  }
+  strcpy(cpy_buf, start);
+
+  // Put a null character somewhere in the header
+  int length = strlen(start);
+  cpy_buf[length/2] = '\0';
+  http_parser_init(&parser);
+
+  while (1) {
+    err = hdr.parse_req(&parser, &cpy_buf_ptr, cpy_buf_ptr + length, true);
+    if (err != PARSE_CONT)
+      break;
+  }
+  if (err != PARSE_ERROR) {
+    printf("FAILED: (test #%d) no parse error parsing request with null char\n", testnum);
+    return (0);
+  }
+  return 1;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+int
+HdrTest::test_http_hdr_ctl_char(int testnum,
+                                const char *request, const char * /*request_tgt */)
+{
+  int err;
+  HTTPHdr hdr;
+  HTTPParser parser;
+  const char *start;
+  char cpy_buf[2048];
+  const char *cpy_buf_ptr = cpy_buf;
+
+  /*** (1) parse the request string into hdr ***/
+
+  hdr.create(HTTP_TYPE_REQUEST);
+
+  start = request;
+  
+  if (strlen(start) > sizeof(cpy_buf)) {
+    printf("FAILED: (test #%d) Internal buffer too small for ctl char test\n", testnum);
+    return (0);
+  }
+  strcpy(cpy_buf, start);
+
+  // Replace a character in the method
+  cpy_buf[1] = 16;
+
+  http_parser_init(&parser);
+
+  while (1) {
+    err = hdr.parse_req(&parser, &cpy_buf_ptr, cpy_buf_ptr + strlen(start), true);
+    if (err != PARSE_CONT)
+      break;
+  }
+
+  if (err != PARSE_ERROR) {
+    printf("FAILED: (test #%d) no parse error parsing method with ctl char\n", testnum);
+    return (0);
+  }
+  return 1;
+}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -1605,15 +1723,15 @@ HdrTest::test_regex()
 {
   DFA dfa;
   int status = 1;
-  
+
   const char *test_harness[] = {
     "foo",
     "(.*\\.apache\\.org)",
     "(.*\\.example\\.com)"
   };
-  
+
   bri_box("test_regex");
-  
+
   dfa.compile(test_harness,SIZEOF(test_harness));
   status = status & (dfa.match("trafficserver.apache.org") == 1);
   status = status & (dfa.match("www.example.com") == 2);

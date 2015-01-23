@@ -25,7 +25,7 @@ the core files in the :file:`records.config` file to -1 as follows:
 
 ::
 
-    CONFIG proxy.config.core_limit INT -1
+    CONFIG :ts:cv:`proxy.config.core_limit` INT -1
 
 This is the equivalent of setting ``ulimit -c unlimited``
 
@@ -34,6 +34,6 @@ Debugging Tips:
 
 -  Use a Traffic Server debug version.
 
--  Use assertions in your plugin (``TSAssert``/``TSReleaseAssert``).
+-  Use assertions in your plugin (:c:func:`TSAssert` and :c:func:`TSReleaseAssert`).
 
 

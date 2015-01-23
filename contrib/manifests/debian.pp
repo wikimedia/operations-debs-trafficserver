@@ -20,7 +20,7 @@ package {[
     'libssl-dev', 'tcl-dev', 'libexpat1-dev', 'libpcre3-dev', 'libhwloc-dev',
     'libcurl3-dev', 'libncurses5-dev', 'libaio-dev',
     'libcap-dev', 'libcap2', 'bison', 'flex', 'make',
-    'libmodule-install-perl',
+    'libmodule-install-perl', 'libunwind8-dev'
   ]:
   ensure => latest
 }
@@ -28,7 +28,11 @@ package {[
 # Development extras.
 package {[
     'gdb', 'valgrind', 'git', 'ack-grep', 'curl', 'tmux', 'screen',
-    'ccache', 'python-sphinx',
+    'ccache', 'python-sphinx', 'doxygen',
+
+    # For parsing Doxygen XML output, to add links from API descriptions
+    # to the source code for that object
+    'python-lxml'
   ]:
   ensure => latest
 }

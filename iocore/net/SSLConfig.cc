@@ -37,6 +37,7 @@
 #include "P_SSLConfig.h"
 #include "P_SSLUtils.h"
 #include "P_SSLCertLookup.h"
+#include "SSLSessionCache.h"
 #include <records/I_RecHttp.h>
 
 int SSLConfig::configid = 0;
@@ -47,6 +48,10 @@ bool SSLConfigParams::ssl_ocsp_enabled = false;
 int SSLConfigParams::ssl_ocsp_cache_timeout = 3600;
 int SSLConfigParams::ssl_ocsp_request_timeout = 10;
 int SSLConfigParams::ssl_ocsp_update_period = 60;
+size_t SSLConfigParams::session_cache_number_buckets = 1024;
+bool SSLConfigParams::session_cache_skip_on_lock_contention = false;
+size_t SSLConfigParams::session_cache_max_bucket_size = 100;
+
 init_ssl_ctx_func SSLConfigParams::init_ssl_ctx_cb = NULL;
 
 static ConfigUpdateHandler<SSLCertificateConfig> * sslCertUpdate;
@@ -64,15 +69,19 @@ SSLConfigParams::SSLConfigParams()
     clientCACertPath =
     cipherSuite =
     client_cipherSuite =
+    dhparamsFile =
     serverKeyPathOnly = NULL;
 
   clientCertLevel = client_verify_depth = verify_depth = clientVerify = 0;
 
   ssl_ctx_options = 0;
   ssl_client_ctx_protocols = 0;
-  ssl_session_cache = SSL_SESSION_CACHE_MODE_SERVER;
-  ssl_session_cache_size = 1024*20;
+  ssl_session_cache = SSL_SESSION_CACHE_MODE_SERVER_ATS_IMPL;
+  ssl_session_cache_size = 1024*100;
+  ssl_session_cache_num_buckets = 1024; // Sessions per bucket is ceil(ssl_session_cache_size / ssl_session_cache_num_buckets)
+  ssl_session_cache_skip_on_contention = 0;
   ssl_session_cache_timeout = 0;
+  ssl_session_cache_auto_clear = 1;
 }
 
 SSLConfigParams::~SSLConfigParams()
@@ -95,6 +104,7 @@ SSLConfigParams::cleanup()
   ats_free_null(serverKeyPathOnly);
   ats_free_null(cipherSuite);
   ats_free_null(client_cipherSuite);
+  ats_free_null(dhparamsFile);
 
   clientCertLevel = client_verify_depth = verify_depth = clientVerify = 0;
 }
@@ -112,9 +122,9 @@ set_paths_helper(const char *path, const char *filename, char **final_path, char
 {
   if (final_path) {
     if (path && path[0] != '/') {
-      *final_path = Layout::get()->relative_to(Layout::get()->prefix, path);
+      *final_path = RecConfigReadPrefixPath(NULL, path);
     } else if (!path || path[0] == '\0'){
-      *final_path = ats_strdup(Layout::get()->sysconfdir);
+      *final_path = RecConfigReadConfigDir();
     } else {
       *final_path = ats_strdup(path);
     }
@@ -137,7 +147,6 @@ SSLConfigParams::initialize()
   char *ssl_client_private_key_filename = NULL;
   char *ssl_client_private_key_path = NULL;
   char *clientCACertRelativePath = NULL;
-  char *multicert_config_file = NULL;
   char *ssl_server_ca_cert_filename = NULL;
   char *ssl_client_ca_cert_filename = NULL;
 
@@ -149,6 +158,7 @@ SSLConfigParams::initialize()
   REC_ReadConfigInt32(clientCertLevel, "proxy.config.ssl.client.certification_level");
   REC_ReadConfigStringAlloc(cipherSuite, "proxy.config.ssl.server.cipher_suite");
   REC_ReadConfigStringAlloc(client_cipherSuite, "proxy.config.ssl.client.cipher_suite");
+  dhparamsFile = RecConfigReadConfigPath("proxy.config.ssl.server.dhparams_file");
 
   int options;
   int client_ssl_options;
@@ -231,9 +241,7 @@ SSLConfigParams::initialize()
   set_paths_helper(serverCertRelativePath, NULL, &serverCertPathOnly, NULL);
   ats_free(serverCertRelativePath);
 
-  REC_ReadConfigStringAlloc(multicert_config_file, "proxy.config.ssl.server.multicert.filename");
-  set_paths_helper(Layout::get()->sysconfdir, multicert_config_file, NULL, &configFilePath);
-  ats_free(multicert_config_file);
+  configFilePath = RecConfigReadConfigPath("proxy.config.ssl.server.multicert.filename");
 
   REC_ReadConfigStringAlloc(ssl_server_private_key_path, "proxy.config.ssl.server.private_key.path");
   set_paths_helper(ssl_server_private_key_path, NULL, &serverKeyPathOnly, NULL);
@@ -248,7 +256,16 @@ SSLConfigParams::initialize()
   // SSL session cache configurations
   REC_ReadConfigInteger(ssl_session_cache, "proxy.config.ssl.session_cache");
   REC_ReadConfigInteger(ssl_session_cache_size, "proxy.config.ssl.session_cache.size");
+  REC_ReadConfigInteger(ssl_session_cache_num_buckets, "proxy.config.ssl.session_cache.num_buckets");
+  REC_ReadConfigInteger(ssl_session_cache_skip_on_contention, "proxy.config.ssl.session_cache.skip_cache_on_bucket_contention");
   REC_ReadConfigInteger(ssl_session_cache_timeout, "proxy.config.ssl.session_cache.timeout");
+  REC_ReadConfigInteger(ssl_session_cache_auto_clear, "proxy.config.ssl.session_cache.auto_clear");
+
+  SSLConfigParams::session_cache_max_bucket_size = ceil(ssl_session_cache_size/ssl_session_cache_num_buckets );
+  SSLConfigParams::session_cache_skip_on_lock_contention = ssl_session_cache_skip_on_contention;
+  SSLConfigParams::session_cache_number_buckets = ssl_session_cache_num_buckets;
+
+  session_cache = new SSLSessionCache();
 
   // SSL record size
   REC_EstablishStaticConfigInt32(ssl_maxrecord, "proxy.config.ssl.max_record_size");

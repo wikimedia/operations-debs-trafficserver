@@ -1109,6 +1109,7 @@ extern "C"
 
   tsapi const char* TSHttpHdrMethodGet(TSMBuffer bufp, TSMLoc offset, int* length);
   tsapi TSReturnCode TSHttpHdrMethodSet(TSMBuffer bufp, TSMLoc offset, const char* value, int length);
+  tsapi const char* TSHttpHdrHostGet(TSMBuffer bufp, TSMLoc offset, int* length);
   tsapi TSReturnCode TSHttpHdrUrlGet(TSMBuffer bufp, TSMLoc offset, TSMLoc* locp);
   tsapi TSReturnCode TSHttpHdrUrlSet(TSMBuffer bufp, TSMLoc offset, TSMLoc url);
 
@@ -1128,6 +1129,7 @@ extern "C"
   /* --------------------------------------------------------------------------
      Mutexes */
   tsapi TSMutex TSMutexCreate(void);
+  tsapi void TSMutexDestroy(TSMutex mutexp);
   tsapi void TSMutexLock(TSMutex mutexp);
   tsapi TSReturnCode TSMutexLockTry(TSMutex mutexp);
 
@@ -1221,6 +1223,21 @@ extern "C"
   tsapi void TSHttpSsnHookAdd(TSHttpSsn ssnp, TSHttpHookID id, TSCont contp);
   tsapi void TSHttpSsnReenable(TSHttpSsn ssnp, TSEvent event);
   tsapi int TSHttpSsnTransactionCount(TSHttpSsn ssnp);
+
+  /* --------------------------------------------------------------------------
+     SSL connections */
+  /// Re-enable an SSL connection from a hook.
+  /// This must be called exactly once before the SSL connection will resume.
+  tsapi void TSVConnReenable(TSVConn sslvcp);
+  /// Set the connection to go into blind tunnel mode
+  tsapi TSReturnCode TSVConnTunnel(TSVConn sslp);
+  // Return the SSL object associated with the connection
+  tsapi TSSslConnection TSVConnSSLConnectionGet(TSVConn sslp);
+  // Fetch a SSL context from the global lookup table
+  tsapi TSSslContext TSSslContextFindByName(const char *name);
+  tsapi TSSslContext TSSslContextFindByAddr(struct sockaddr const*);
+  // Returns 1 if the sslp argument refers to a SSL connection
+  tsapi int TSVConnIsSsl(TSVConn sslp);
 
   /* --------------------------------------------------------------------------
      HTTP transactions */
@@ -1353,44 +1370,44 @@ extern "C"
   /** Change packet firewall mark for the client side connection
    *
       @note The change takes effect immediately
-      
+
       @return TS_SUCCESS if the client connection was modified
   */
   tsapi TSReturnCode TSHttpTxnClientPacketMarkSet(TSHttpTxn txnp, int mark);
-  
+
   /** Change packet firewall mark for the server side connection
    *
       @note The change takes effect immediately, if no OS connection has been
       made, then this sets the mark that will be used IF an OS connection
       is established
-      
+
       @return TS_SUCCESS if the (future?) server connection was modified
   */
   tsapi TSReturnCode TSHttpTxnServerPacketMarkSet(TSHttpTxn txnp, int mark);
-  
+
   /** Change packet TOS for the client side connection
    *
       @note The change takes effect immediately
-      
+
       @note TOS is deprecated and replaced by DSCP, this is still used to
       set DSCP however the first 2 bits of this value will be ignored as
       they now belong to the ECN field.
-      
+
       @return TS_SUCCESS if the client connection was modified
   */
   tsapi TSReturnCode TSHttpTxnClientPacketTosSet(TSHttpTxn txnp, int tos);
-  
+
   /** Change packet TOS for the server side connection
    *
-      
+
       @note The change takes effect immediately, if no OS connection has been
       made, then this sets the mark that will be used IF an OS connection
       is established
-      
+
       @note TOS is deprecated and replaced by DSCP, this is still used to
       set DSCP however the first 2 bits of this value will be ignored as
       they now belong to the ECN field.
-      
+
       @return TS_SUCCESS if the (future?) server connection was modified
   */
   tsapi TSReturnCode TSHttpTxnServerPacketTosSet(TSHttpTxn txnp, int tos);
@@ -2126,6 +2143,13 @@ extern "C"
   tsapi void TSTextLogObjectRollingOffsetHrSet(TSTextLogObject the_object, int rolling_offset_hr);
 
   /**
+      Set the rolling size. rolling_size_mb specifies the size in MB when log rolling
+      should take place.
+
+   */
+  tsapi void TSTextLogObjectRollingSizeMbSet(TSTextLogObject the_object, int rolling_size_mb);
+
+  /**
       Async disk IO read
 
       @return TS_SUCCESS or TS_ERROR.
@@ -2228,7 +2252,7 @@ extern "C"
      make sure it is heap allocated, and that you do not free it.
 
      Calling this API implicitly also enables the "Follow Redirect" feature, so
-     there is no rason to call TSHttpTxnFollowRedirect() as well.
+     there is no reason to call TSHttpTxnFollowRedirect() as well.
 
      @param txnp the transaction pointer
      @param url  a heap allocated string with the URL
