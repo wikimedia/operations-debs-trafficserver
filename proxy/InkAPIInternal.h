@@ -290,6 +290,17 @@ class HttpAPIHooks : public FeatureAPIHooks<TSHttpHookID, TS_HTTP_LAST_HOOK>
 {
 };
 
+typedef enum {
+  TS_SSL_INTERNAL_FIRST_HOOK,
+  TS_VCONN_PRE_ACCEPT_INTERNAL_HOOK = TS_SSL_INTERNAL_FIRST_HOOK,
+  TS_SSL_SNI_INTERNAL_HOOK,
+  TS_SSL_INTERNAL_LAST_HOOK
+} TSSslHookInternalID;
+
+class SslAPIHooks : public FeatureAPIHooks<TSSslHookInternalID, TS_SSL_INTERNAL_LAST_HOOK>
+{
+};
+
 class LifecycleAPIHooks : public FeatureAPIHooks<TSLifecycleHookID, TS_LIFECYCLE_LAST_HOOK>
 {
 };
@@ -308,7 +319,7 @@ public:
   {
     if (m_cont->mutex != NULL) {
       MUTEX_TRY_LOCK(trylock, m_cont->mutex, this_ethread());
-      if (!trylock) {
+      if (!trylock.is_locked()) {
         eventProcessor.schedule_in(this, HRTIME_MSECONDS(10), ET_TASK);
       } else {
         m_cont->handleEvent(TS_EVENT_MGMT_UPDATE, NULL);
@@ -344,6 +355,7 @@ void api_init();
 
 extern HttpAPIHooks *http_global_hooks;
 extern LifecycleAPIHooks* lifecycle_hooks;
+extern SslAPIHooks* ssl_hooks;
 extern ConfigUpdateCbTable *global_config_cbs;
 
 #endif /* __INK_API_INTERNAL_H__ */

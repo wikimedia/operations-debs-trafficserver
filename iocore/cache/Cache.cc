@@ -463,11 +463,11 @@ CacheVC::set_http_info(CacheHTTPInfo *ainfo)
   }
   if (enable_cache_empty_http_doc) {
     MIMEField *field = ainfo->m_alt->m_response_hdr.field_find(MIME_FIELD_CONTENT_LENGTH, MIME_LEN_CONTENT_LENGTH);
-    if (field && !field->value_get_int64()) 
+    if (field && !field->value_get_int64())
       f.allow_empty_doc = 1;
     else
       f.allow_empty_doc = 0;
-  } else 
+  } else
     f.allow_empty_doc = 0;
   alternate.copy_shallow(ainfo);
   ainfo->clear();
@@ -661,7 +661,7 @@ CacheProcessor::start_internal(int flags)
         if (sector_size < cache_config_force_sector_size)
           sector_size = cache_config_force_sector_size;
         if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE) {
-          Warning("bad hardware sector size %d, resetting to %d", sector_size, STORE_BLOCK_SIZE);
+          Note("resetting hardware sector size from %d to %d", sector_size, STORE_BLOCK_SIZE);
           sector_size = STORE_BLOCK_SIZE;
         }
         off_t skip = ROUND_TO_STORE_BLOCK((sd->offset * STORE_BLOCK_SIZE < START_POS ? START_POS + sd->alignment :
@@ -748,12 +748,18 @@ CacheProcessor::start_internal(int flags)
 
         Debug("cache_hosting", "Disk: %d, blocks: %d", gndisks, blocks);
 
-        if (sector_size < cache_config_force_sector_size)
+        if (sector_size < cache_config_force_sector_size) {
           sector_size = cache_config_force_sector_size;
+        }
+
+        // It's actually common that the hardware I/O size is larger than the store block size as
+        // storage systems increasingly want larger I/Os. For example, on OS X, the filesystem block
+        // size is always reported as 1MB.
         if (sd->hw_sector_size <= 0 || sector_size > STORE_BLOCK_SIZE) {
-          Warning("bad hardware sector size %d, resetting to %d", sector_size, STORE_BLOCK_SIZE);
+          Note("resetting hardware sector size from %d to %d", sector_size, STORE_BLOCK_SIZE);
           sector_size = STORE_BLOCK_SIZE;
         }
+
         off_t skip = ROUND_TO_STORE_BLOCK((sd->offset < START_POS ? START_POS + sd->alignment : sd->offset));
         blocks = blocks - (skip >> STORE_BLOCK_SHIFT);
 #if AIO_MODE == AIO_MODE_NATIVE
@@ -770,8 +776,8 @@ CacheProcessor::start_internal(int flags)
       else
         Warning("cache unable to open '%s': %s", path, strerror(errno));
     }
-    if(fd > 0) {
-    	close(fd);
+    if (fd > 0) {
+      close(fd);
     }
   }
 
@@ -2417,7 +2423,7 @@ static bool upgrade_doc_version(Ptr<IOBufferData>& buf) {
         dst = d_buf->data();
         memcpy(dst, src, sizeofDoc);
         src += sizeofDoc + doc->_flen; dst += sizeofDoc; n -= sizeofDoc;
-        
+
         // We copy the fragment table iff there is a fragment table and there is only one alternate.
         if (frag_count > 0 && cache_bc::HTTPInfo_v21::marshalled_length(src) > doc->hlen)
           frag_count = 0; // inhibit fragment table insertion.
@@ -2468,7 +2474,7 @@ CacheVC::handleReadDone(int event, Event *e)
       return EVENT_CONT;
   {
     MUTEX_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
-    if (!lock)
+    if (!lock.is_locked())
       VC_SCHED_LOCK_RETRY();
     if ((!dir_valid(vol, &dir)) || (!io.ok())) {
       if (!io.ok()) {
@@ -2498,7 +2504,7 @@ CacheVC::handleReadDone(int event, Event *e)
 
     if (doc->doc_type == CACHE_FRAG_TYPE_HTTP_V23) {
       if (upgrade_doc_version(buf)) {
-        doc = reinterpret_cast<Doc*>(buf->data()); // buf may be a new copy 
+        doc = reinterpret_cast<Doc*>(buf->data()); // buf may be a new copy
       } else {
         Debug("cache_bc", "Upgrade of fragment failed - disk %s - doc id = %" PRIx64 ":%" PRIx64 "\n"
               , vol->hash_text.get(), read_key->slice64(0), read_key->slice64(1));
@@ -2817,7 +2823,7 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   set_io_not_in_progress();
   {
     MUTEX_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
-    if (!lock)
+    if (!lock.is_locked())
       VC_SCHED_LOCK_RETRY();
     if (_action.cancelled) {
       if (od) {
@@ -2909,7 +2915,7 @@ Cache::remove(Continuation *cont, CacheKey *key, CacheFragType type, bool /* use
     cont = new_CacheRemoveCont();
 
   CACHE_TRY_LOCK(lock, cont->mutex, this_ethread());
-  ink_assert(lock);
+  ink_assert(lock.is_locked());
   Vol *vol = key_to_vol(key, hostname, host_len);
   // coverity[var_decl]
   Dir result;
@@ -3198,8 +3204,8 @@ cplist_reconfigure()
         new_cp->disk_vols = (DiskVol **)ats_malloc(gndisks * sizeof(DiskVol *));
         memset(new_cp->disk_vols, 0, gndisks * sizeof(DiskVol *));
         if (create_volume(config_vol->number, size_in_blocks, config_vol->scheme, new_cp)) {
-        	delete new_cp;
-        	return -1;
+          delete new_cp;
+          return -1;
         }
         cp_list.enqueue(new_cp);
         cp_list_len++;
@@ -3754,7 +3760,7 @@ namespace cache_bc {
     length -= hdr_size;
 
     src = reinterpret_cast<char*>(s_hdr) + hdr_size;
-  
+
     return true;
   }
 

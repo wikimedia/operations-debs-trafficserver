@@ -52,7 +52,12 @@ spdy_callbacks_init(spdylay_session_callbacks *callbacks)
 void
 spdy_prepare_status_response_and_clean_request(SpdyClientSession *sm, int stream_id, const char *status)
 {
-  SpdyRequest *req = sm->req_map[stream_id];
+  SpdyRequest *req = sm->find_request(stream_id);
+  if (!req) {
+    Error ("spdy_prepare_status_response_and_clean_request, req object null for sm %" PRId64 ", stream_id %d",
+           sm->sm_id, stream_id);
+    return;
+  }
   string date_str = http_date(time(0));
   const char **nv = new const char*[8+req->headers.size()*2+1];
 
@@ -271,6 +276,7 @@ spdy_recv_callback(spdylay_session * /*session*/, uint8_t *buf, size_t length,
 static void
 spdy_process_syn_stream_frame(SpdyClientSession *sm, SpdyRequest *req)
 {
+  bool acceptEncodingRecvd = false;
   // validate request headers
   for(size_t i = 0; i < req->headers.size(); ++i) {
     const std::string &field = req->headers[i].first;
@@ -286,12 +292,19 @@ spdy_process_syn_stream_frame(SpdyClientSession *sm, SpdyRequest *req)
       req->version = value;
     else if(field == ":host")
       req->host = value;
+    else if(field == "accept-encoding")
+      acceptEncodingRecvd = true;
   }
 
   if(!req->path.size()|| !req->method.size() || !req->scheme.size()
      || !req->version.size() || !req->host.size()) {
     spdy_prepare_status_response_and_clean_request(sm, req->stream_id, STATUS_400);
     return;
+  }
+
+  if (!acceptEncodingRecvd) {
+    Debug("spdy", "Accept-Encoding header not received, adding gzip for method %s", req->method.c_str());
+    req->headers.push_back(make_pair("accept-encoding", "gzip, deflate"));
   }
 
   spdy_fetcher_launch(req);
@@ -320,7 +333,12 @@ spdy_on_ctrl_recv_callback(spdylay_session *session, spdylay_frame_type type,
 
   case SPDYLAY_HEADERS:
     stream_id = frame->syn_stream.stream_id;
-    req = sm->req_map[stream_id];
+    req = sm->find_request(stream_id);
+    if (!req) {
+      Error ("spdy_on_ctrl_recv_callback, req object null on SPDYLAY_HEADERS for sm %" PRId64 ", stream_id %d",
+             sm->sm_id, stream_id);
+      return;
+    }
     req->append_nv(frame->headers.nv);
     break;
 
@@ -365,6 +383,21 @@ spdy_on_data_chunk_recv_callback(spdylay_session * /*session*/, uint8_t /*flags*
   return;
 }
 
+unsigned
+spdy_session_delta_window_size(SpdyClientSession *sm)
+{
+  unsigned sess_delta_window_size = 0;
+  map<int, SpdyRequest*>::iterator iter = sm->req_map.begin();
+  map<int, SpdyRequest*>::iterator endIter = sm->req_map.end();
+  for (; iter != endIter; ++iter) {
+    SpdyRequest* req = iter->second;
+    sess_delta_window_size += req->delta_window_size;
+  }
+  Debug("spdy", "----sm_id:%" PRId64 ", session delta_window_size:%u",
+        sm->sm_id, sess_delta_window_size);
+  return sess_delta_window_size;
+}
+
 void
 spdy_on_data_recv_callback(spdylay_session *session, uint8_t flags,
                            int32_t stream_id, int32_t length, void *user_data)
@@ -389,7 +422,7 @@ spdy_on_data_recv_callback(spdylay_session *session, uint8_t flags,
   Debug("spdy", "----sm_id:%" PRId64 ", stream_id:%d, delta_window_size:%u",
         sm->sm_id, stream_id, req->delta_window_size);
 
-  if (req->delta_window_size >= spdy_initial_window_size/2) {
+  if (spdy_session_delta_window_size(sm) >= spdy_initial_window_size/2) {
     Debug("spdy", "----Reenable write_vio for WINDOW_UPDATE frame, delta_window_size:%u",
           req->delta_window_size);
 

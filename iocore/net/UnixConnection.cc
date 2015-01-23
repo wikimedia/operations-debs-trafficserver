@@ -335,7 +335,7 @@ Connection::connect(sockaddr const* target, NetVCOptions const& opt) {
   // (Is EWOULDBLOCK ok? Does that start the connect?)
   // We also want to handle the cases where the connect blocking
   // and IO blocking differ, by turning it on or off as needed.
-  if (-1 == res 
+  if (-1 == res
       && (opt.f_blocking_connect
           || ! (EINPROGRESS == errno || EWOULDBLOCK == errno))) {
     return -errno;
@@ -369,6 +369,13 @@ Connection::apply_options(NetVCOptions const& opt)
     if (opt.sockopt_flags & NetVCOptions::SOCK_OPT_KEEP_ALIVE) {
       safe_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, SOCKOPT_ON, sizeof(int));
       Debug("socket", "::open: setsockopt() SO_KEEPALIVE on socket");
+    }
+    if (opt.sockopt_flags & NetVCOptions::SOCK_OPT_LINGER_ON) {
+      struct linger l;
+      l.l_onoff  = 1;
+      l.l_linger = 0;
+      safe_setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *)&l, sizeof(l));
+      Debug("socket", "::open:: setsockopt() turn on SO_LINGER on socket");
     }
   }
 

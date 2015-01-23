@@ -117,6 +117,7 @@ public:
   LINK(url_mapping, link); // For use with the main Queue linked list holding all the mapping
 
   int getRank() const { return _rank; };
+  void setRank(int rank) { _rank = rank; };
 
 private:
   remap_plugin_info* _plugin_list[MAX_REMAP_PLUGIN_CHAIN];
@@ -140,13 +141,13 @@ public:
   { }
 
   ~UrlMappingContainer() { deleteToURL(); }
-  
+
   URL * getToURL() const { return _toURLPtr; };
   URL * getFromURL() const { return _mapping ? &(_mapping->fromURL) : NULL; };
 
   url_mapping *getMapping() const { return _mapping; };
 
-  void set(url_mapping *m) { 
+  void set(url_mapping *m) {
     deleteToURL();
     _mapping = m;
     _toURLPtr = m ? &(m->toUrl) : NULL;
@@ -161,7 +162,7 @@ public:
     deleteToURL();
     _toURL.create(_heap);
     _toURLPtr = &_toURL;
-    return _toURLPtr; 
+    return _toURLPtr;
   }
 
   void deleteToURL() {
@@ -182,7 +183,7 @@ private:
   URL *_toURLPtr;
   URL _toURL;
   HdrHeap *_heap;
-  
+
   // non-copyable, non-assignable
   UrlMappingContainer(const UrlMappingContainer &orig);
   UrlMappingContainer &operator =(const UrlMappingContainer &rhs);

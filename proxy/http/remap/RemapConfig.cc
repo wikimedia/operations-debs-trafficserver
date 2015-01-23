@@ -248,11 +248,11 @@ parse_include_directive(const char * directive, BUILD_TABLE_INFO * bti, char * e
     // to keep the ACL rules from the parent because ACLs must be global across the full set of config
     // files.
     BUILD_TABLE_INFO  nbti;
-    ats_scoped_str        path;
+    ats_scoped_str    path;
     bool              success;
 
     // The included path is relative to SYSCONFDIR, just like remap.config is.
-    path = Layout::relative_to(Layout::get()->sysconfdir, bti->paramv[i]);
+    path = RecConfigReadConfigPath(NULL, bti->paramv[i]);
 
     // XXX including directories is not supported (yet!).
     if (ink_file_is_directory(path)) {
@@ -631,12 +631,12 @@ remap_load_plugin(const char ** argv, int argc, url_mapping *mp, char *errbuf, i
     }
     Debug("remap_plugin", "New remap plugin info created for \"%s\"", c);
 
-    // elevate the access to read files as root if compiled with capabilities, if not
-    // change the effective user to root
     {
+#if TS_USE_POSIX_CAP
       uint32_t elevate_access = 0;
       REC_ReadConfigInteger(elevate_access, "proxy.config.plugin.load_elevated");
       ElevateAccess access(elevate_access != 0);
+#endif /* TS_USE_POSIX_CAP */
 
       if ((pi->dlh = dlopen(c, RTLD_NOW)) == NULL) {
 #if defined(freebsd) || defined(openbsd)
@@ -922,7 +922,7 @@ remap_parse_config_bti(const char * path, BUILD_TABLE_INFO * bti)
 
     Debug("url_rewrite", "[BuildTable] Parsing: \"%s\"", cur_line);
 
-    tok_count = whiteTok.Initialize(cur_line, SHARE_TOKS);
+    tok_count = whiteTok.Initialize(cur_line, (SHARE_TOKS | ALLOW_SPACES));
 
     for (int j = 0; j < tok_count; j++) {
       if (((char *) whiteTok[j])[0] == '@') {
@@ -984,7 +984,7 @@ remap_parse_config_bti(const char * path, BUILD_TABLE_INFO * bti)
       goto MAP_ERROR;
     }
 
-    new_mapping = new url_mapping(cln);  // use line # for rank for now
+    new_mapping = new url_mapping();
 
     // apply filter rules if we have to
     if ((errStr = process_filter_opt(new_mapping, bti, errStrBuf, sizeof(errStrBuf))) != NULL) {

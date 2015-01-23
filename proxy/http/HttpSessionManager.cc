@@ -55,7 +55,7 @@ ServerSessionPool::ServerSessionPool()
 
 void
 ServerSessionPool::purge()
-{ 
+{
   for ( IPHashTable::iterator last = m_ip_pool.end(), spot = m_ip_pool.begin() ; spot != last ; ++spot ) {
     spot->do_io_close();
   }
@@ -222,7 +222,7 @@ HttpSessionManager::purge_keepalives()
   EThread *ethread = this_ethread();
 
   MUTEX_TRY_LOCK(lock, m_g_pool->mutex, ethread);
-  if (lock) {
+  if (lock.is_locked()) {
     m_g_pool->purge();
   } // should we do something clever if we don't get the lock?
 }
@@ -263,7 +263,7 @@ HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockad
     to_return = ethread->server_session_pool->acquireSession(ip, hostname_hash, match_style);
   } else {
     MUTEX_TRY_LOCK(lock, m_g_pool->mutex, ethread);
-    if (lock) {
+    if (lock.is_locked()) {
       to_return = m_g_pool->acquireSession(ip, hostname_hash, match_style);
       Debug("http_ss", "[acquire session] pool search %s", to_return ? "successful" : "failed");
     } else {
@@ -287,10 +287,10 @@ HttpSessionManager::release_session(HttpServerSession *to_release)
   EThread *ethread = this_ethread();
   ServerSessionPool* pool = TS_SERVER_SESSION_SHARING_POOL_THREAD == to_release->sharing_pool ? ethread->server_session_pool : m_g_pool;
   bool released_p = true;
-  
+
   // The per thread lock looks like it should not be needed but if it's not locked the close checking I/O op will crash.
   MUTEX_TRY_LOCK(lock, pool->mutex, ethread);
-  if (lock) {
+  if (lock.is_locked()) {
     pool->releaseSession(to_release);
   } else {
     Debug("http_ss", "[%" PRId64 "] [release session] could not release session due to lock contention", to_release->con_id);

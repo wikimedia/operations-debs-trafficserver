@@ -21,10 +21,8 @@
   limitations under the License.
  */
 
-#include "ink_config.h"
-#include "ink_file.h"
+#include "libts.h"
 #include "I_Layout.h"
-#include "I_Version.h"
 #include "P_Net.h"
 
 #define PROGRAM_NAME  "traffic_sac"
@@ -48,28 +46,35 @@
 
 #define DIAGS_LOG_FILENAME "collector.log"
 
-// sac-specific command-line flags
-//
-static int version_flag = 0;
-
 // command-line argument descriptions
 //
 
 ArgumentDescription argument_descriptions[] = {
 
-  {"version", 'V', "Print Version Id", "T", &version_flag, NULL, NULL},
 #ifdef DEBUG
   {"error_tags", 'T', "Colon-Separated Debug Tags", "S1023", &error_tags,
    NULL, NULL},
   {"action_tags", 'A', "Colon-Separated Debug Tags", "S1023", &action_tags,
    NULL, NULL},
 #endif
-  {"help", 'h', "HELP!", NULL, NULL, NULL, usage},
+  HELP_ARGUMENT_DESCRIPTION(),
+  VERSION_ARGUMENT_DESCRIPTION()
 };
 
 /*-------------------------------------------------------------------------
   main
   -------------------------------------------------------------------------*/
+
+static void
+sac_signal_handler(int signo, siginfo_t * info, void *)
+{
+  if (signo == SIGHUP) {
+    return;
+  }
+
+  signal_format_siginfo(signo, info, appVersionInfo.AppStr);
+  _exit(signo);
+}
 
 int
 main(int /* argc ATS_UNUSED */, char *argv[])
@@ -83,14 +88,7 @@ main(int /* argc ATS_UNUSED */, char *argv[])
   Layout::create();
   // take care of command-line arguments
   //
-  process_args(argument_descriptions, countof(argument_descriptions), argv);
-
-  // check for the version number request
-  //
-  if (version_flag) {
-    fprintf(stderr, "%s\n", appVersionInfo.FullVersionInfoStr);
-    _exit(0);
-  }
+  process_args(&appVersionInfo, argument_descriptions, countof(argument_descriptions), argv);
 
   diagsConfig = new DiagsConfig(DIAGS_LOG_FILENAME, error_tags, action_tags, false);
   diags = diagsConfig->diags;
@@ -100,6 +98,8 @@ main(int /* argc ATS_UNUSED */, char *argv[])
   //
   bool one_copy = true;
   init_log_standalone(PROGRAM_NAME, one_copy);
+
+  signal_register_default_handler(sac_signal_handler);
 
   // set up IO Buffers
   //
