@@ -59,7 +59,7 @@ override_dh_installexamples:
 	dh_installexamples -X Makefile -X.deps -X.la -X.lo
 
 override_dh_makeshlibs:
-	dh_makeshlibs -X/usr/lib/trafficserver
+	dh_makeshlibs -Xdebian/tmp/usr/lib/trafficserver
 
 override_dh_auto_test:
 	-dh_auto_test

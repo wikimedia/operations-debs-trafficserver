@@ -14,6 +14,7 @@ usr/lib/trafficserver/modules/header_normalize.so
 usr/lib/trafficserver/modules/healthchecks.so
 usr/lib/trafficserver/modules/hipes.so
 usr/lib/trafficserver/modules/metalink.so
+usr/lib/trafficserver/modules/mysql_remap.so
 usr/lib/trafficserver/modules/regex_revalidate.so
 usr/lib/trafficserver/modules/remap_stats.so
 usr/lib/trafficserver/modules/s3_auth.so
