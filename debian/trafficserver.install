@@ -10,5 +10,4 @@ usr/lib/trafficserver/modules/libloader.so
 usr/lib/trafficserver/modules/regex_remap.so
 usr/lib/trafficserver/modules/stats_over_http.so
 usr/lib/trafficserver/modules/tcpinfo.so
-usr/share/doc/trafficserver/trafficshell/*
 usr/share/perl5/*
