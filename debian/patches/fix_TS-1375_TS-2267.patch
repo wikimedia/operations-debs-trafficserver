@@ -7,9 +7,11 @@ Reviewed-by: Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>
 Last-Update: 2013-11-22
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/iocore/net/UnixNet.cc
-+++ b/iocore/net/UnixNet.cc
-@@ -62,7 +62,17 @@ struct InactivityCop : public Continuati
+Index: trafficserver/iocore/net/UnixNet.cc
+===================================================================
+--- trafficserver.orig/iocore/net/UnixNet.cc	2015-02-09 21:30:03.544921699 +0100
++++ trafficserver/iocore/net/UnixNet.cc	2015-02-09 21:30:03.544921699 +0100
+@@ -62,7 +62,17 @@
        if (vc->closed) {
          close_UnixNetVConnection(vc, e->ethread);
          continue;

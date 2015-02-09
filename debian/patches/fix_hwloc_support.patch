@@ -1,15 +1,19 @@
---- a/iocore/aio/Makefile.am
-+++ b/iocore/aio/Makefile.am
-@@ -56,5 +56,6 @@ test_AIO_LDADD = \
+Index: trafficserver/iocore/aio/Makefile.am
+===================================================================
+--- trafficserver.orig/iocore/aio/Makefile.am	2015-02-09 21:30:03.392921698 +0100
++++ trafficserver/iocore/aio/Makefile.am	2015-02-09 21:30:03.388921698 +0100
+@@ -56,5 +56,6 @@
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/proxy/shared/libUglyLogStubs.a \
 +  @hwloc_LIBS@ \
    @LIBTCL@
  
---- a/iocore/eventsystem/Makefile.am
-+++ b/iocore/eventsystem/Makefile.am
-@@ -91,6 +91,7 @@ test_LDADD = \
+Index: trafficserver/iocore/eventsystem/Makefile.am
+===================================================================
+--- trafficserver.orig/iocore/eventsystem/Makefile.am	2015-02-09 21:30:03.392921698 +0100
++++ trafficserver/iocore/eventsystem/Makefile.am	2015-02-09 21:30:03.388921698 +0100
+@@ -91,6 +91,7 @@
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/proxy/shared/libUglyLogStubs.a \
@@ -17,9 +21,11 @@
    @LIBTCL@
  
  test_Buffer_SOURCES = \
---- a/proxy/Makefile.am
-+++ b/proxy/Makefile.am
-@@ -176,6 +176,7 @@ traffic_logcat_LDADD = \
+Index: trafficserver/proxy/Makefile.am
+===================================================================
+--- trafficserver.orig/proxy/Makefile.am	2015-02-09 21:30:03.392921698 +0100
++++ trafficserver/proxy/Makefile.am	2015-02-09 21:30:03.388921698 +0100
+@@ -176,6 +176,7 @@
    $(top_builddir)/lib/records/librecprocess.a \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
@@ -27,7 +33,7 @@
    @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
    @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
  
-@@ -192,6 +193,7 @@ traffic_logstats_LDADD = \
+@@ -192,6 +193,7 @@
    $(top_builddir)/lib/records/librecprocess.a \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
@@ -35,7 +41,7 @@
    @LIBRESOLV@ @LIBPCRE@ @OPENSSL_LIBS@ @LIBTCL@ \
    @LIBEXPAT@ @LIBDEMANGLE@ @LIBPROFILER@ -lm
  
-@@ -246,6 +248,7 @@ traffic_sac_LDADD = \
+@@ -246,6 +248,7 @@
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/records/librecprocess.a \
    $(top_builddir)/lib/ts/libtsutil.la \
