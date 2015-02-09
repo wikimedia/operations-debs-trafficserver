@@ -1,4 +1,20 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 4.2.3
+
+  *) [TS-2715] Fix some ESI compile warnings, change the constants to
+   be part of an include.
+
+  *) [TS-3283] Certain SSL handshake error during client-hello hangs the client and
+   leaves network connection open.
+
+  *) [TS-3304] Add NULL check to ink_inet_addr() input.
+
+  *) [TS-898] Remove pointless NULL check on address of array.
+
+  *) [TS-3262] Change abs() to std::abs(), avoid compiler errors.
+
+  *) [TS-2959] Fix compiler issue for MultiCache.
+
 Changes with Apache Traffic Server 4.2.2
 
   *) [TS-2055] limit access to synthetic healthcheck
