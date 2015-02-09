@@ -1,3 +1,10 @@
+trafficserver (4.2.3-1~bbc78+1) stable; urgency=medium
+
+  * Imported Upstream version 4.2.3
+  * Patches refresh for 4.2.3
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 09 Feb 2015 21:34:29 +0100
+
 trafficserver (4.2.2-1~bbc76+1) stable; urgency=medium
 
   * Stick \d watch file for 4.2.x serie
