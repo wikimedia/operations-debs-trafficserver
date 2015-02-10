@@ -1,0 +1,138 @@
+From cc6b44fad9ba735d2591dd2e0aa991ce5bc91f9a Mon Sep 17 00:00:00 2001
+From: James Peach <jpeach@apache.org>
+Date: Fri, 16 Jan 2015 16:00:36 -0800
+Subject: [PATCH 1/1] TS-3316: various trivial build fixes for 32bit systems.
+
+---
+ CHANGES                                                  |  3 +++
+ cmd/traffic_crashlog/procinfo.cc                         |  2 +-
+ iocore/hostdb/HostDB.cc                                  |  2 +-
+ iocore/net/SSLSessionCache.cc                            |  2 +-
+ mgmt/api/CoreAPI.cc                                      |  2 +-
+ .../collapsed_connection/collapsed_connection.cc         | 16 ++++++++--------
+ plugins/experimental/ts_lua/ts_lua_http_intercept.c      |  2 +-
+ 7 files changed, 16 insertions(+), 13 deletions(-)
+
+--- a/CHANGES
++++ b/CHANGES
+@@ -1,6 +1,8 @@
+                                                          -*- coding: utf-8 -*-
+ Changes with Apache Traffic Server 5.2.0
+ 
++  *) [TS-3316] Fix the build for 32 bit architectures.
++
+   *) [TS-3280] Segfault in new freelist bulk freeing (in debug mode).
+ 
+   *) [TS-3276] Fix cache backwards compatibility issue.
+--- a/cmd/traffic_crashlog/procinfo.cc
++++ b/cmd/traffic_crashlog/procinfo.cc
+@@ -284,7 +284,7 @@ crashlog_write_registers(FILE * fp, cons
+   // x86 register names as per ucontext.h.
+ #if defined(__i386__)
+ #define REGFMT "0x%08" PRIx32
+-#define ADDRCAST(x) ((uint32_t)(x))
++#define REGCAST(x) ((uint32_t)(x))
+   static const char * names[NGREG] = {
+     "GS", "FS", "ES", "DS", "EDI", "ESI", "EBP", "ESP",
+     "EBX", "EDX", "ECX", "EAX", "TRAPNO", "ERR", "EIP", "CS",
+--- a/iocore/net/SSLSessionCache.cc
++++ b/iocore/net/SSLSessionCache.cc
+@@ -40,7 +40,7 @@ using ts::detail::RBNode;
+ SSLSessionCache::SSLSessionCache()
+   : session_bucket(NULL), nbuckets(SSLConfigParams::session_cache_number_buckets)
+ {
+-  Debug("ssl.session_cache", "Created new ssl session cache %p with %ld buckets each with size max size %ld",
++  Debug("ssl.session_cache", "Created new ssl session cache %p with %zu buckets each with size max size %zu",
+     this, nbuckets, SSLConfigParams::session_cache_max_bucket_size);
+ 
+   session_bucket = new SSLSessionBucket[nbuckets];
+--- a/mgmt/api/CoreAPI.cc
++++ b/mgmt/api/CoreAPI.cc
+@@ -366,7 +366,7 @@ ServerBacktrace(unsigned /* options */,
+ 
+   Debug("backtrace", "tracing %zd threads for traffic_server PID %ld", threads.count(), (long)lmgmt->watched_process_pid);
+   for_Vec(pid_t, threadid, threads) {
+-    Debug("backtrace", "tracing thread %zd", (long)threadid);
++    Debug("backtrace", "tracing thread %ld", (long)threadid);
+     // Get the thread name using /proc/PID/comm
+     ats_scoped_fd fd;
+     char threadname[128];
+--- a/plugins/experimental/collapsed_connection/collapsed_connection.cc
++++ b/plugins/experimental/collapsed_connection/collapsed_connection.cc
+@@ -374,7 +374,7 @@ addOrCheckKeepPassRecords(uint32_t hash_
+       keep_pass_list->push_back(passRecord);
+       getCurrentKeepPassEntries(keep_pass_list);
+       TSDebug(PLUGIN_NAME,
+-              "push_back pass entry with timeout = %zd, hash_key = %u", passRecord.timeout, passRecord.hash_key);
++              "push_back pass entry with timeout = %" PRId64 ", hash_key = %" PRIu32, passRecord.timeout, passRecord.hash_key);
+     } else {
+       added = false;
+     }
+@@ -392,13 +392,13 @@ addOrCheckKeepPassRecords(uint32_t hash_
+       keep_pass_list->erase(it++);
+       getCurrentKeepPassEntries(keep_pass_list);
+       TSDebug(PLUGIN_NAME,
+-              "remove pass entry with timeout = %zd, hash_key = %u", thisRecord.timeout, thisRecord.hash_key);
++              "remove pass entry with timeout = %" PRId64 ", hash_key = %" PRIu32, thisRecord.timeout, thisRecord.hash_key);
+     } else if (false == added) {
+       if (thisRecord.timeout >= passRecord.timeout) {
+         keep_pass_list->insert(it, passRecord);
+         getCurrentKeepPassEntries(keep_pass_list);
+         TSDebug(PLUGIN_NAME,
+-                "insert pass entry with timeout = %zd, hash_key = %u", passRecord.timeout, passRecord.hash_key);
++                "insert pass entry with timeout = %" PRId64 ", hash_key = %" PRIu32, passRecord.timeout, passRecord.hash_key);
+         break;
+       }
+     } else {
+@@ -436,7 +436,7 @@ insertNewHashEntry(CcTxnData * txn_data)
+     size = getCurrentHashEntries(active_hash_map);
+     TSMutexUnlock(plugin_data->mutex);
+     if (false != map_ret.second) {
+-      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hash_key inserted, active_hash_map.size = %zd", txn_data->seq_id, size);
++      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hash_key inserted, active_hash_map.size = %" PRId64, txn_data->seq_id, size);
+       ret = CC_INSERT;
+     } else if (CC_PASS == map_ret.first->second) {
+       TSDebug(PLUGIN_NAME, "hash value = %d, previous request mark it non-cacheable", map_ret.first->second);
+@@ -458,12 +458,12 @@ insertNewHashEntry(CcTxnData * txn_data)
+       txn_data->wait_time = cur_ms - txn_data->wait_time;
+       // Pass cache lock
+       ret = CC_PASS;
+-      TSDebug(PLUGIN_NAME, "timeout (%zd > %d), pass plugin",
++      TSDebug(PLUGIN_NAME, "timeout (%" PRId64 " > %d), pass plugin",
+               txn_data->wait_time, static_cast < int32_t > (txn_data->config->max_lock_retry_timeout));
+     }
+   } else if (0 != txn_data->wait_time) {
+     txn_data->wait_time = TShrtime() / 1000000 - txn_data->wait_time;
+-    TSDebug(PLUGIN_NAME, "waited for %zd ms", txn_data->wait_time);
++    TSDebug(PLUGIN_NAME, "waited for %" PRId64 " ms", txn_data->wait_time);
+   }
+ 
+   return ret;
+@@ -503,14 +503,14 @@ updateOrRemoveHashEntry(CcTxnData * txn_
+       size = getCurrentHashEntries(active_hash_map);
+       TSMutexUnlock(plugin_data->mutex);
+ 
+-      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hashEntry updated, active_hash_map.size = %zd", txn_data->seq_id, size);
++      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hashEntry updated, active_hash_map.size = %" PRId64, txn_data->seq_id, size);
+       txn_data->cc_state = CC_PASSED;
+     } else {
+       addOrCheckKeepPassRecords(0, 0);
+       size = getCurrentHashEntries(active_hash_map);
+       TSMutexUnlock(plugin_data->mutex);
+ 
+-      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hashEntry removed, active_hash_map.size = %zd", txn_data->seq_id, size);
++      TSDebug(PLUGIN_NAME, "[%" PRIu64 "] hashEntry removed, active_hash_map.size = %" PRId64, txn_data->seq_id, size);
+       txn_data->cc_state = CC_DONE;
+     }
+     ret = TS_SUCCESS;
+--- a/plugins/experimental/ts_lua/ts_lua_http_intercept.c
++++ b/plugins/experimental/ts_lua/ts_lua_http_intercept.c
+@@ -207,7 +207,7 @@ ts_lua_http_intercept_handler(TSCont con
+ 
+   } else {
+     mtxp = ictx->mctx->mutexp;
+-    n = (int64_t) edata & 0xFFFF;
++    n = (int)((intptr_t) edata & 0xFFFF);
+     TSMutexLock(mtxp);
+     ret = ts_lua_http_intercept_run_coroutine(ictx, n);
+   }
