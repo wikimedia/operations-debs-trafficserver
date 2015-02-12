@@ -26,6 +26,10 @@
 
 #include "ink_defs.h"
 #include "ink_memory.h"
+#include "HPACK.h"
+#include "MIME.h"
+
+class HTTPHdr;
 
 typedef unsigned Http2StreamId;
 
@@ -36,9 +40,9 @@ typedef int32_t Http2WindowSize;
 extern const char * const HTTP2_CONNECTION_PREFACE;
 const size_t HTTP2_CONNECTION_PREFACE_LEN = 24;
 
-const size_t HTTP2_FRAME_HEADER_LEN = 8;
+const size_t HTTP2_FRAME_HEADER_LEN = 9;
 const size_t HTTP2_GOAWAY_LEN = 8;
-const size_t HTTP2_SETTINGS_PARAMETER_LEN = 5;
+const size_t HTTP2_SETTINGS_PARAMETER_LEN = 6;
 
 // 4.2. Frame Size. The absolute maximum size of a frame payload is 2^14-1 (16,383) octets.
 const size_t HTTP2_MAX_FRAME_PAYLOAD = 16383;
@@ -58,6 +62,7 @@ enum Http2ErrorCode
   HTTP2_ERROR_CONNECT_ERROR = 10,
   HTTP2_ERROR_ENHANCE_YOUR_CALM = 11,
   HTTP2_ERROR_INADEQUATE_SECURITY = 12,
+  HTTP2_ERROR_HTTP_1_1_REQUIRED = 13,
 
   HTTP2_ERROR_MAX,
 };
@@ -183,7 +188,8 @@ enum Http2SettingsIdentifier
   HTTP2_SETTINGS_ENABLE_PUSH = 2,
   HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS = 3,
   HTTP2_SETTINGS_INITIAL_WINDOW_SIZE = 4,
-  HTTP2_SETTINGS_COMPRESS_DATA = 5,
+  HTTP2_SETTINGS_MAX_FRAME_SIZE = 5,
+  HTTP2_SETTINGS_MAX_HEADER_LIST_SIZE = 6,
 
   HTTP2_SETTINGS_MAX
 };
@@ -191,16 +197,16 @@ enum Http2SettingsIdentifier
 // 4.1. Frame Format
 struct Http2FrameHeader
 {
-  uint16_t      length;
-  uint8_t       type;
-  uint8_t       flags;
-  Http2StreamId streamid;
+  uint32_t         length;
+  uint8_t          type;
+  uint8_t          flags;
+  Http2StreamId    streamid;
 };
 
 // 6.5.1. SETTINGS Format
 struct Http2SettingsParameter
 {
-  uint8_t   id;
+  uint16_t  id;
   uint32_t  value;
 };
 
@@ -248,5 +254,14 @@ http2_settings_parameter_is_valid(const Http2SettingsParameter&);
 
 bool
 http2_parse_settings_parameter(IOVec, Http2SettingsParameter&);
+
+MIMEParseResult
+http2_parse_header_fragment(HTTPHdr *, IOVec, Http2HeaderTable&);
+
+MIMEParseResult
+convert_from_2_to_1_1_header(HTTPHdr * header);
+
+int64_t
+convert_from_1_1_to_2_header(HTTPHdr * in, uint8_t * out, uint64_t out_len, Http2HeaderTable& header_table);
 
 #endif /* __HTTP2_H__ */

@@ -25,6 +25,7 @@
 #include "ink_defs.h"
 #include "ink_string.h"
 #include "ink_time.h"
+#include "ink_memory.h"
 
 #include "WebUtils.h"
 #include "WebHttpMessage.h"
@@ -332,7 +333,7 @@ httpMessage::getModDate()
     delete[]dateStr;
 
     // Now figure out the content length from if modified
-    if (parser->getNumber() > numDateFields + 1) {
+    if (parser->count() > (unsigned)(numDateFields + 1)) {
       clStr = (*parser)[numDateFields + 1];
       equalTok = new Tokenizer("=\r\n");
       equalTok->Initialize(clStr);

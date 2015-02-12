@@ -103,4 +103,31 @@ int ink_file_fd_zerofill(int fd, off_t size);
  Return true if the path is a directory.
  */
 bool ink_file_is_directory(const char * path);
+
+/**
+ Return true if this file type can be mmap(2)'ed.
+ */
+bool ink_file_is_mmappable(mode_t st_mode);
+
+struct ink_device_geometry
+{
+  uint64_t  totalsz;  // Total device size in bytes.
+  unsigned  blocksz;  // Preferred I/O block size.
+  unsigned  alignsz;  // Block device alignment in bytes. Only relevant with stacked block devices.
+};
+
+bool ink_file_get_geometry(int fd, ink_device_geometry& geometry);
+
+// Is the given path "."?
+static inline bool
+isdot(const char * path) {
+  return path[0] == '.' && path[1] == '\0';
+}
+
+// Is the given path ".."?
+static inline bool
+isdotdot(const char * path) {
+  return path[0] == '.' && path[1] == '.' && path[2] == '\0';
+}
+
 #endif // _ink_file_h_

@@ -36,6 +36,11 @@ FetchSM::cleanUp()
 {
   Debug(DEBUG_TAG, "[%s] calling cleanup", __FUNCTION__);
 
+  if (!ink_atomic_cas(&destroyed, false, true)) {
+    Debug(DEBUG_TAG, "Error: Double delete on FetchSM, this:%p", this);
+    return;
+  }
+
   if (resp_is_chunked > 0 && (fetch_flags & TS_FETCH_FLAGS_DECHUNK)) {
     chunked_handler.clear();
    }
@@ -105,6 +110,8 @@ FetchSM::has_body()
   if (!header_done)
     return false;
 
+  if (is_method_head)
+    return false;
   //
   // The following code comply with HTTP/1.1:
   // http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4
@@ -192,7 +199,7 @@ FetchSM::check_connection_close()
 {
   static char const CLOSE_TEXT[] = "close";
   static size_t const CLOSE_LEN = sizeof(CLOSE_TEXT) - 1;
- 
+
   if (resp_received_close < 0) {
     resp_received_close = static_cast<int>(this->check_for_field_value(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION, CLOSE_TEXT, CLOSE_LEN));
   }
@@ -245,9 +252,24 @@ FetchSM::InvokePluginExt(int fetch_event)
   }
 
   if (!has_sent_header) {
-    contp->handleEvent(TS_FETCH_EVENT_EXT_HEAD_DONE, this);
-    has_sent_header = true;
+    if (fetch_event != TS_EVENT_VCONN_EOS) {
+      contp->handleEvent(TS_FETCH_EVENT_EXT_HEAD_DONE, this);
+      has_sent_header = true;
+    } else {
+      contp->handleEvent(fetch_event, this);
+      goto out;
+    }
   }
+
+  // TS-3112: always check 'contp' after handleEvent()
+  // since handleEvent effectively calls the plugin (or SPDY layer)
+  // which may call TSFetchDestroy in error conditions.
+  // TSFetchDestroy sets contp to NULL, but, doesn't destroy FetchSM yet,
+  // since, it¹s in a tight loop protected by 'recursion' counter.
+  // When handleEvent returns, 'recursion' is decremented and contp is
+  // already null, so, FetchSM gets destroyed.
+  if (!contp)
+    goto out;
 
   if (!has_body()) {
     contp->handleEvent(TS_FETCH_EVENT_EXT_BODY_DONE, this);
@@ -259,9 +281,16 @@ FetchSM::InvokePluginExt(int fetch_event)
         resp_is_chunked > 0 ? chunked_handler.chunked_reader->read_avail() : resp_reader->read_avail());
 
   if (resp_is_chunked > 0) {
-    if (!chunked_handler.chunked_reader->read_avail())
+    if (!chunked_handler.chunked_reader->read_avail()) {
+      if (read_complete_event) {
+        contp->handleEvent(TS_FETCH_EVENT_EXT_BODY_DONE, this);
+      }
       goto out;
+    }
   } else if (!resp_reader->read_avail()) {
+      if (read_complete_event) {
+        contp->handleEvent(TS_FETCH_EVENT_EXT_BODY_DONE, this);
+      }
       goto out;
   }
 
@@ -283,6 +312,11 @@ FetchSM::InvokePluginExt(int fetch_event)
       }
 
       contp->handleEvent(event, this);
+
+      // contp may be null after handleEvent
+      if (!contp)
+        goto out;
+
     } while (chunked_handler.state == ChunkedHandler::CHUNK_FLOW_CONTROL);
   } else if (check_body_done()){
     contp->handleEvent(TS_FETCH_EVENT_EXT_BODY_DONE, this);
@@ -523,12 +557,17 @@ FetchSM::ext_init(Continuation *cont, const char *method,
   memset(&callback_options, 0, sizeof(callback_options));
   memset(&callback_events, 0, sizeof(callback_events));
 
-  req_buffer->write(method, strlen(method));
+  int method_len = strlen(method);
+  req_buffer->write(method, method_len);
   req_buffer->write(" ", 1);
   req_buffer->write(url, strlen(url));
   req_buffer->write(" ", 1);
   req_buffer->write(version, strlen(version));
   req_buffer->write("\r\n", 2);
+
+  if ((method_len == HTTP_LEN_HEAD) && !memcmp(method, HTTP_METHOD_HEAD, HTTP_LEN_HEAD)) {
+    is_method_head = true;
+  }
 }
 
 void
@@ -547,7 +586,7 @@ FetchSM::ext_add_header(const char *name, int name_len,
 }
 
 void
-FetchSM::ext_lanuch()
+FetchSM::ext_launch()
 {
   req_buffer->write("\r\n", 2);
   httpConnect();
@@ -579,7 +618,7 @@ FetchSM::ext_read_data(char *buf, size_t len)
 
   if (fetch_flags & TS_FETCH_FLAGS_NEWLOCK) {
     MUTEX_TRY_LOCK(lock, mutex, this_ethread());
-    if (!lock)
+    if (!lock.is_locked())
       return 0;
   }
 
@@ -629,7 +668,7 @@ FetchSM::ext_destroy()
 
   if (fetch_flags & TS_FETCH_FLAGS_NEWLOCK) {
     MUTEX_TRY_LOCK(lock, mutex, this_ethread());
-    if (!lock) {
+    if (!lock.is_locked()) {
       eventProcessor.schedule_in(this, FETCH_LOCK_RETRY_TIME);
       return;
     }

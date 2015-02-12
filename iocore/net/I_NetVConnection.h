@@ -153,13 +153,17 @@ struct NetVCOptions {
   static uint32_t const SOCK_OPT_NO_DELAY = 1;
   /// Value for keep alive for @c sockopt_flags.
   static uint32_t const SOCK_OPT_KEEP_ALIVE = 2;
+  /// Value for linger on for @c sockopt_flags
+  static uint32_t const SOCK_OPT_LINGER_ON = 4;
 
   uint32_t packet_mark;
   uint32_t packet_tos;
 
   EventType etype;
 
-  char * sni_servername; // SSL SNI to origin
+  /** Server name to use for SNI data on an outbound connection.
+   */
+  ats_scoped_str sni_servername;
 
   /// Reset all values to defaults.
   void reset();
@@ -167,31 +171,35 @@ struct NetVCOptions {
   void set_sock_param(int _recv_bufsize, int _send_bufsize, unsigned long _opt_flags,
                       unsigned long _packet_mark = 0, unsigned long _packet_tos = 0);
 
-  NetVCOptions() : sni_servername(NULL) {
+  NetVCOptions() {
     reset();
   }
 
   ~NetVCOptions() {
-    ats_free(sni_servername);
   }
 
-  void set_sni_servername(const char * name, size_t len) {
+  /** Set the SNI server name.
+      A local copy is made of @a name.
+  */
+  self& set_sni_servername(const char * name, size_t len) {
     IpEndpoint ip;
 
-    ats_free(sni_servername);
-    sni_servername = NULL;
     // Literal IPv4 and IPv6 addresses are not permitted in "HostName".(rfc6066#section-3)
     if (ats_ip_pton(ts::ConstBuffer(name, len), &ip) != 0) {
       sni_servername = ats_strndup(name, len);
+    } else {
+      sni_servername = NULL;
     }
+    return *this;
   }
 
-  NetVCOptions & operator=(const NetVCOptions & opt) {
-    if (&opt != this) {
-      ats_free(this->sni_servername);
-      memcpy(this, &opt, sizeof(opt));
-      if (opt.sni_servername) {
-        this->sni_servername = ats_strdup(opt.sni_servername);
+  self& operator=(self const& that) {
+    if (&that != this) {
+      sni_servername = NULL; // release any current name.
+      memcpy(this, &that, sizeof(self));
+      if (that.sni_servername) {
+	sni_servername.release(); // otherwise we'll free the source string.
+        this->sni_servername = ats_strdup(that.sni_servername);
       }
     }
     return *this;
@@ -428,13 +436,24 @@ public:
   /** @return current inactivity_timeout value in nanosecs */
   virtual ink_hrtime get_inactivity_timeout() = 0;
 
+  /** Force an @a event if a write operation empties the write buffer.
+
+      This event will be sent to the VIO, the same place as other IO events.
+      Use an @a event value of 0 to cancel the trap.
+
+      The event is sent only the next time the write buffer is emptied, not
+      every future time. The event is sent only if otherwise no event would
+      be generated.
+   */
+  virtual void trapWriteBufferEmpty(int event = VC_EVENT_WRITE_READY);
+
   /** Returns local sockaddr storage. */
   sockaddr const* get_local_addr();
 
   /** Returns local ip.
       @deprecated get_local_addr() should be used instead for AF_INET6 compatibility.
   */
-  
+
   in_addr_t get_local_ip();
 
   /** Returns local port. */
@@ -443,7 +462,7 @@ public:
   /** Returns remote sockaddr storage. */
   sockaddr const* get_remote_addr();
 
-  /** Returns remote ip. 
+  /** Returns remote ip.
       @deprecated get_remote_addr() should be used instead for AF_INET6 compatibility.
   */
   in_addr_t get_remote_ip();
@@ -529,6 +548,8 @@ protected:
   bool is_internal_request;
   /// Set if this connection is transparent.
   bool is_transparent;
+  /// Set if the next write IO that empties the write buffer should generate an event.
+  int write_buffer_empty_event;
 };
 
 inline
@@ -539,10 +560,17 @@ NetVConnection::NetVConnection():
   got_local_addr(0),
   got_remote_addr(0),
   is_internal_request(false),
-  is_transparent(false)
+  is_transparent(false),
+  write_buffer_empty_event(0)
 {
   ink_zero(local_addr);
   ink_zero(remote_addr);
+}
+
+inline void
+NetVConnection::trapWriteBufferEmpty(int event)
+{
+  write_buffer_empty_event = event;
 }
 
 #endif

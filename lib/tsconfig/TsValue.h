@@ -644,8 +644,8 @@ namespace detail {
   inline ValueItem const& ValueTable::operator [] (ValueIndex idx) const { return const_cast<self*>(this)->operator [] (idx); }
   inline ValueTable& ValueTable::reset() { _ptr = 0; return *this; }
 
-  inline ValueItem::ValueItem() : _type(VoidValue) {}
-  inline ValueItem::ValueItem(ValueType type) : _type(type) {}
+  inline ValueItem::ValueItem() : _type(VoidValue), _local_index(0), _srcLine(0), _srcColumn(0) {}
+  inline ValueItem::ValueItem(ValueType type) : _type(type), _local_index(0), _srcLine(0), _srcColumn(0) {}
   inline ValueType ValueItem::getType() const { return _type; }
 }
 
@@ -672,7 +672,7 @@ inline size_t Value::getIndex() const {
   detail::ValueItem const* item = this->item();
   return item ? item->_local_index : 0;
 }
-  
+
 inline bool Value::isLiteral() const { return 0 != (detail::IS_LITERAL & detail::Type_Property[this->getType()]); }
 inline bool Value::isContainer() const { return 0 != (detail::IS_CONTAINER & detail::Type_Property[this->getType()]); }
 inline Value Value::getParent() const { return this->hasValue() ? Value(_config, _config._table[_vidx]._parent) : Value(); }

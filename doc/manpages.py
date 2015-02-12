@@ -22,16 +22,17 @@ man_pages = [
   ('reference/api/' + filename[:-4], filename.split('.', 1)[0], '', None, '3ts') for filename in os.listdir('reference/api') if filename != 'index.en.rst' and filename.endswith('.rst')] + [
 
   ('reference/commands/traffic_cop.en', 'traffic_cop', u'Traffic Server watchdog', None, '8'),
+  ('reference/commands/traffic_crashlog.en', 'traffic_crashlog', u'Traffic Server crash log helper', None, '8'),
   ('reference/commands/traffic_line.en', 'traffic_line', u'Traffic Server command line', None, '8'),
   ('reference/commands/traffic_logcat.en', 'traffic_logcat', u'Traffic Server log spooler', None, '8'),
   ('reference/commands/traffic_logstats.en', 'traffic_logstats', u'Traffic Server analyzer', None, '8'),
   ('reference/commands/traffic_manager.en', 'traffic_manager', u'Traffic Server process manager', None, '8'),
   ('reference/commands/traffic_server.en', 'traffic_server', u'Traffic Server', None, '8'),
-  ('reference/commands/traffic_shell.en', 'traffic_shell', u'Traffic Server shell', None, '8'),
 
   ('reference/commands/tspush.en', 'tspush', u'Push objects into the Traffic Server cache', None, '1'),
   ('reference/commands/traffic_top.en','traffic_top', u'Display Traffic Server statistics', None, '1'),
   ('reference/commands/tsxs.en', 'tsxs', u'Traffic Server plugin tool', None, '1'),
+  ('reference/commands/traffic_via.en', 'traffic_via', u'Traffic Server Via header decoder', None, '1'),
 
   ('reference/configuration/cache.config.en', 'cache.config', u'Traffic Server cache configuration file', None, '5'),
   ('reference/configuration/congestion.config.en', 'congestion.config', u'Traffic Server congestion control configuration file', None, '5'),

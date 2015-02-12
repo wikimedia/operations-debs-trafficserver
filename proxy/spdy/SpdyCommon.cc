@@ -38,7 +38,7 @@ static char const * const SPDY_STAT_TOTAL_CLIENT_CONNECTION_NAME = "proxy.proces
 
 // Configurations
 uint32_t spdy_max_concurrent_streams = 100;
-uint32_t spdy_initial_window_size = 65536;
+uint32_t spdy_initial_window_size = 1048576;
 int32_t spdy_accept_no_activity_timeout = 120;
 int32_t spdy_no_activity_timeout_in = 115;
 
@@ -95,8 +95,11 @@ SpdyNV::SpdyNV(TSFetchSM fetch_sm)
 
   nr_fields = TSMimeHdrFieldsCount(bufp, loc);
 
+  valid_response = true;
+
   if (nr_fields <= 0) {
     Debug("spdy_error", "invalid fetchsm %p, nr_fields %d, hdr_len %d", fetch_sm, nr_fields, hdr_len);
+    valid_response = false;
   }
 
   nv = (const char **)malloc((2*nr_fields + 5) * sizeof(char *));

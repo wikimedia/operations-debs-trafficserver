@@ -36,7 +36,7 @@ SessionProtocolNameRegistry globalSessionProtocolNameRegistry;
 const char * const TS_NPN_PROTOCOL_HTTP_0_9 = "http/0.9";
 const char * const TS_NPN_PROTOCOL_HTTP_1_0 = "http/1.0";
 const char * const TS_NPN_PROTOCOL_HTTP_1_1 = "http/1.1";
-const char * const TS_NPN_PROTOCOL_HTTP_2_0 = "h2-12";    // draft-ietf-httpbis-http2-12
+const char * const TS_NPN_PROTOCOL_HTTP_2_0 = "h2-14";    // draft-ietf-httpbis-http2-14
 const char * const TS_NPN_PROTOCOL_SPDY_1   = "spdy/1";   // obsolete
 const char * const TS_NPN_PROTOCOL_SPDY_2   = "spdy/2";
 const char * const TS_NPN_PROTOCOL_SPDY_3   = "spdy/3";
@@ -403,12 +403,12 @@ void
 SessionProtocolNameRegistry::markIn(char const* value, SessionProtocolSet& sp_set) {
   int n; // # of tokens
   Tokenizer tokens(" ;|,:");
- 
+
   n = tokens.Initialize(value);
 
   for ( int i = 0 ; i < n ; ++i ) {
     char const* elt = tokens[i];
-    
+
     /// Check special cases
     if (0 == strcasecmp(elt, TS_NPN_PROTOCOL_GROUP_HTTP)) {
       sp_set.markIn(HTTP_PROTOCOL_SET);
@@ -525,7 +525,7 @@ HttpProxyPort::print(char* out, size_t n) {
     need_colon_p = false;
   }
   if (sp_set.contains(SPDY_PROTOCOL_SET)) {
-    if (need_colon_p) 
+    if (need_colon_p)
       zret += snprintf(out+zret, n-zret, ":%s=", OPT_PROTO_PREFIX);
     else
       out[zret++] = ';';
@@ -596,6 +596,9 @@ ts_session_protocol_well_known_name_indices_init()
   SPDY_PROTOCOL_SET.markIn(TS_NPN_PROTOCOL_INDEX_SPDY_3_1);
 
   DEFAULT_TLS_SESSION_PROTOCOL_SET.markAllIn();
+  // Don't enable HTTP/2 by default until it is stable.
+  DEFAULT_TLS_SESSION_PROTOCOL_SET.markOut(HTTP2_PROTOCOL_SET);
+
   DEFAULT_NON_TLS_SESSION_PROTOCOL_SET = HTTP_PROTOCOL_SET;
 }
 
