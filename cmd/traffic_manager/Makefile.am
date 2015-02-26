@@ -44,16 +44,16 @@ traffic_manager_SOURCES = \
 
 traffic_manager_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @EXPAT_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 traffic_manager_LDADD = \
-  $(top_builddir)/mgmt/libmgmt_lm.la \
   $(top_builddir)/mgmt/web2/libweb.a \
-  $(top_builddir)/mgmt/api/libmgmtapilocal.a \
-  $(top_builddir)/mgmt/api/libtsmgmtshare.la \
+  $(top_builddir)/mgmt/api/libmgmtapilocal.la \
+  $(top_builddir)/mgmt/libmgmt_lm.la \
   $(top_builddir)/proxy/hdrs/libhdrs.a \
   $(top_builddir)/lib/records/librecords_lm.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/proxy/shared/liberror.a \
   $(top_builddir)/proxy/shared/libdiagsconfig.a \
+  $(LIBUNWIND_LIBS) \
   @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
   -lm
 

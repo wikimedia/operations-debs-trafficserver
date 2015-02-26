@@ -26,16 +26,22 @@ SUBDIRS = \
  escalate \
  esi \
  geoip_acl \
+ header_normalize \
  healthchecks \
  hipes \
  metalink \
  regex_revalidate \
  remap_stats \
  s3_auth \
+ ssl_cert_loader \
  sslheaders \
  stale_while_revalidate \
  url_sig \
  xdebug
+
+if HAS_MYSQL
+  SUBDIRS += mysql_remap
+endif
 
 if BUILD_LUAJIT
   SUBDIRS += ts_lua

@@ -20,14 +20,13 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
-
 */
+
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <string>
 #include <stdarg.h>
 #include <getopt.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -35,18 +34,126 @@
 #include "ts/remap.h"
 #include "ink_defs.h"
 
+#include <string>
+#include <set>
+#include <map>
 
 // Some wonkiness around compiler version and the unordered map (hash)
 #if HAVE_UNORDERED_MAP
 #  include <unordered_map>
    typedef std::unordered_map<std::string, bool> OutstandingRequests;
 #else
-#  include <map>
    typedef std::map<std::string, bool> OutstandingRequests;
 #endif
 
 // Constants
 const char PLUGIN_NAME[] = "background_fetch";
+
+// Types
+typedef struct {
+  bool exclude;
+  std::string ruleField;
+  std::string ruleValue;
+} BgFetchRuleStruct;
+
+typedef std::map<uint32_t, BgFetchRuleStruct> BgFetchRuleMap;
+
+// Global config, if we don't have a remap specific config.
+static BgFetchRuleMap gBgFetchRuleMap;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Read a config file
+//
+static bool
+read_config(char* config_file, BgFetchRuleMap* ri)
+{
+  char file_path[1024];
+  TSFile file;
+
+  if (config_file == NULL) {
+    TSError("%s: invalid config file", PLUGIN_NAME);
+    return false;
+  }
+
+  TSDebug(PLUGIN_NAME, "trying to open config file in this path: %s", config_file);
+
+  file = TSfopen(config_file, "r");
+  if (file == NULL) {
+    TSDebug(PLUGIN_NAME, "Failed to open config file %s, trying rel path", config_file);
+    snprintf(file_path, sizeof(file_path), "%s/%s", TSInstallDirGet(), config_file);
+    file = TSfopen(file_path, "r");
+    if (file == NULL) {
+      TSError("%s: invalid config file", PLUGIN_NAME);
+      return false;
+    }
+  }
+
+  BgFetchRuleMap* bgFetchRuleMapP = ri;
+  char buffer[8192];
+  uint32_t index = 0;
+
+  memset(buffer, 0, sizeof(buffer));
+  while (TSfgets(file, buffer, sizeof(buffer) - 1) != NULL) {
+    char *eol = 0;
+    // make sure line was not bigger than buffer
+    if ((eol = strchr(buffer, '\n')) == NULL && (eol = strstr(buffer, "\r\n")) == NULL) {
+      TSError("%s: exclusion line too long, did not get a good line in cfg, skipping, line: %s", PLUGIN_NAME, buffer);
+      memset(buffer, 0, sizeof(buffer));
+      continue;
+    }
+    // make sure line has something useful on it
+    if (eol - buffer < 2 || buffer[0] == '#') {
+      memset(buffer, 0, sizeof(buffer));
+      continue;
+    }
+
+    char *savePtr = NULL;
+    char* cfg = strtok_r(buffer, "\n\r\n", &savePtr);
+
+    if (cfg != NULL) {
+      TSDebug(PLUGIN_NAME, "setting background_fetch exclusion criterion based on string: %s", cfg);
+      char* cfg_type = strtok_r(buffer, " ", &savePtr);
+      char* cfg_name = NULL;
+      char* cfg_value = NULL;
+      bool exclude = false;
+
+      if (cfg_type) {
+        if (!strcmp(cfg_type, "exclude")) {
+          exclude = true;
+        } else if (strcmp(cfg_type, "include")) {
+          TSError("%s: invalid specifier %s, skipping config line", PLUGIN_NAME, cfg_type);
+          memset(buffer, 0, sizeof(buffer));
+          continue;
+        }
+        cfg_name = strtok_r(NULL, " ", &savePtr);
+        if (cfg_name) {
+          cfg_value = strtok_r(NULL, " ", &savePtr);
+          if (cfg_value) {
+            if (!strcmp(cfg_name, "Content-Length")) {
+              if ((cfg_value[0] != '<') && (cfg_value[0] != '>')) {
+                TSError("%s: invalid content-len condition %s, skipping config value", PLUGIN_NAME, cfg_value);
+                memset(buffer, 0, sizeof(buffer));
+                continue;
+              }
+            }
+            TSDebug(PLUGIN_NAME, "adding background_fetch exclusion rule %d for %s: %s", exclude, cfg_name, cfg_value);
+            BgFetchRuleStruct ruleS = {exclude, cfg_name, cfg_value};
+            bgFetchRuleMapP->insert(std::make_pair(index++, ruleS));
+          } else {
+            TSError("%s: invalid value %s, skipping config line", PLUGIN_NAME, cfg_name);
+          }
+        }
+      }
+      memset(buffer, 0, sizeof(buffer));
+    }
+  }
+  TSfclose(file);
+
+  TSDebug(PLUGIN_NAME, "Done parsing config");
+
+  return true;
+}
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -56,19 +163,20 @@ int
 remove_header(TSMBuffer bufp, TSMLoc hdr_loc, const char* header, int len)
 {
   TSMLoc field = TSMimeHdrFieldFind(bufp, hdr_loc, header, len);
-  int c = 0;
+  int cnt = 0;
 
   while (field) {
-    ++c;
     TSMLoc tmp = TSMimeHdrFieldNextDup(bufp, hdr_loc, field);
 
+    ++cnt;
     TSMimeHdrFieldDestroy(bufp, hdr_loc, field);
     TSHandleMLocRelease(bufp, hdr_loc, field);
     field = tmp;
   }
 
-  return c;
+  return cnt;
 }
+
 
 ///////////////////////////////////////////////////////////////////////////
 // Set a header to a specific value. This will avoid going to through a
@@ -155,7 +263,8 @@ dump_headers(TSMBuffer bufp, TSMLoc hdr_loc)
 // remap rule. This also holds the list of currently outstanding URLs,
 // such that we can avoid sending more than one background fill per URL at
 // any given time.
-class BGFetchConfig {
+class BGFetchConfig
+{
 public:
   BGFetchConfig()
     : log(NULL)
@@ -214,6 +323,7 @@ private:
 };
 
 BGFetchConfig* gConfig;
+
 
 //////////////////////////////////////////////////////////////////////////////
 // Hold and manage some state for the background fetch continuation
@@ -542,12 +652,162 @@ cont_check_cacheable(TSCont contp, TSEvent /* event ATS_UNUSED */, void* edata)
   return 0;
 }
 
+///////////////////////////////////////////////////////////////////////////
+// Check if a header excludes us from running the background fetch
+//
+static bool
+check_client_ip_configured(TSHttpTxn txnp, const char* cfg_ip)
+{
+  const sockaddr* client_ip = TSHttpTxnClientAddrGet(txnp);
+  char ip_buf[INET6_ADDRSTRLEN];
+
+  if(AF_INET == client_ip->sa_family) {
+    inet_ntop(AF_INET, &(reinterpret_cast<const sockaddr_in*>(client_ip)->sin_addr), ip_buf, INET_ADDRSTRLEN);
+  } else if(AF_INET6 == client_ip->sa_family) {
+    inet_ntop(AF_INET6, &(reinterpret_cast<const sockaddr_in6*>(client_ip)->sin6_addr), ip_buf, INET6_ADDRSTRLEN);
+  } else {
+    TSError("%s: unknown family %d", PLUGIN_NAME, client_ip->sa_family);
+    return false;
+  }
+
+  TSDebug(PLUGIN_NAME,"cfg_ip %s, client_ip %s", cfg_ip,ip_buf);
+
+  if ((strlen(cfg_ip) == strlen(ip_buf)) && !strcmp(cfg_ip, ip_buf)) {
+    TSDebug(PLUGIN_NAME,"bg fetch for ip %s, configured ip %s", ip_buf, cfg_ip);
+    return true;
+  }
+
+  return false;
+}
+
+static bool
+check_content_length(const uint32_t len, const char* cfg_val)
+{
+  uint32_t cfg_cont_len = atoi(&cfg_val[1]);
+
+  if (cfg_val[0] == '<') {
+    return (len <= cfg_cont_len);
+  } else if (cfg_val[0] == '>') {
+    return (len >= cfg_cont_len);
+  } else {
+    TSError("%s: invalid content length condition %c", PLUGIN_NAME, cfg_val[0]);
+    return false;
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Check if a header excludes us from running the background fetch
+//
+static bool
+check_field_configured(TSHttpTxn txnp, const char* field_name, const char* cfg_val)
+{
+  // check for client-ip first
+  if (!strcmp(field_name, "Client-IP")) {
+    if (!strcmp(cfg_val, "*")) {
+      TSDebug(PLUGIN_NAME, "Found client_ip wild card");
+      return true;
+    }
+    if (check_client_ip_configured(txnp, cfg_val)) {
+      TSDebug(PLUGIN_NAME, "Found client_ip match");
+      return true;
+    }
+  }
+
+  bool hdr_found = false;
+
+  TSMBuffer hdr_bufp;
+  TSMLoc resp_hdrs;
+
+  if (!strcmp(field_name, "Content-Length")) {
+    if (TS_SUCCESS == TSHttpTxnServerRespGet(txnp, &hdr_bufp, &resp_hdrs)) {
+      TSMLoc loc = TSMimeHdrFieldFind(hdr_bufp, resp_hdrs, field_name, -1);
+      if (TS_NULL_MLOC != loc) {
+        uint32_t content_len = TSMimeHdrFieldValueUintGet(hdr_bufp, resp_hdrs, loc, 0 /* index */ );
+        if (check_content_length(content_len, cfg_val)) {
+          TSDebug(PLUGIN_NAME, "Found content-length match");
+          hdr_found = true;
+        }
+        TSHandleMLocRelease(hdr_bufp, resp_hdrs, loc);
+      } else {
+        TSDebug(PLUGIN_NAME, "No content-length field in resp");
+      }
+    } else {
+      TSError ("%s: Failed to get resp headers", PLUGIN_NAME);
+    }
+    TSHandleMLocRelease(hdr_bufp, TS_NULL_MLOC, resp_hdrs);
+    return hdr_found;
+  }
+
+  TSMLoc req_hdrs;
+  TSReturnCode ret = TSHttpTxnClientReqGet(txnp, &hdr_bufp, &req_hdrs);
+
+  if (ret != TS_SUCCESS) {
+    // something wrong..
+    TSError ("%s: Failed to get req headers", PLUGIN_NAME);
+    return false;
+  }
+
+  TSMLoc loc = TSMimeHdrFieldFind(hdr_bufp, req_hdrs, field_name, -1);
+
+  if (TS_NULL_MLOC != loc) {
+    if (!strcmp(cfg_val, "*")) {
+      TSDebug(PLUGIN_NAME, "Found %s wild card", field_name);
+      hdr_found = true;
+    } else {
+      int val_len = 0;
+      const char *val_str = TSMimeHdrFieldValueStringGet(hdr_bufp, req_hdrs, loc, 0, &val_len);
+
+      if (!val_str || val_len <= 0) {
+        TSDebug(PLUGIN_NAME,"invalid field");
+      } else {
+        TSDebug(PLUGIN_NAME, "comparing with %s", cfg_val);
+        if (NULL != strstr(val_str, cfg_val)) {
+          hdr_found = true;
+        }
+      }
+    }
+    TSHandleMLocRelease(hdr_bufp, req_hdrs, loc);
+  } else {
+    TSDebug(PLUGIN_NAME, "no field %s in request header", field_name);
+  }
+
+  TSHandleMLocRelease(hdr_bufp, TS_NULL_MLOC, req_hdrs);
+  return hdr_found;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Check the configuration (either per remap, or global), and decide if
+// this request is allowed to trigger a background fetch.
+//
+static bool
+is_background_fetch_allowed(TSHttpTxn txnp, BgFetchRuleMap* ri)
+{
+  TSDebug(PLUGIN_NAME, "Testing: request is internal?");
+  if (TSHttpIsInternalRequest(txnp) == TS_SUCCESS) {
+    return false;
+  }
+
+  bool allow_bg_fetch = true;
+
+  for (BgFetchRuleMap::iterator it=ri->begin(); it!=ri->end(); ++it) {
+    BgFetchRuleStruct sRule = it->second;
+    const char* ruleField = sRule.ruleField.c_str();
+    if (check_field_configured (txnp, ruleField, sRule.ruleValue.c_str())) {
+        TSDebug(PLUGIN_NAME, "found field match %s, exclude %d", ruleField, sRule.exclude);
+        allow_bg_fetch = !sRule.exclude;
+        break;
+    }
+  }
+
+  return allow_bg_fetch;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////
 // Main "plugin", which is a global READ_RESPONSE_HDR hook. Before
 // initiating a background fetch, this checks:
 //
-//     1. Is this an internal request? This avoid infinite loops...
+//     1. Check if a background fetch is allowed for this request
 // and
 //     2. Is the response from origin a 206 (Partial)?
 //
@@ -555,14 +815,19 @@ cont_check_cacheable(TSCont contp, TSEvent /* event ATS_UNUSED */, void* edata)
 // there could be other plugins that modifies the response after us.
 //
 static int
-cont_handle_response(TSCont /* contp ATS_UNUSED */, TSEvent /* event ATS_UNUSED */, void* edata)
+cont_handle_response(TSCont contp, TSEvent /* event ATS_UNUSED */, void* edata)
 {
   // ToDo: If we want to support per-remap configurations, we have to pass along the data here
   TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
+  BgFetchRuleMap *ri = static_cast<BgFetchRuleMap*>(TSContDataGet(contp));
 
-  // 1. Make sure it's not an internal request first.
-  TSDebug(PLUGIN_NAME, "Testing: request is internal?");
-  if (TSHttpIsInternalRequest(txnp) != TS_SUCCESS) {
+  if (ri == NULL) {
+    // something wrong..
+    TSError("%s: can't get BgFetchRule Map", PLUGIN_NAME);
+    ri = &gBgFetchRuleMap;
+  }
+
+  if (is_background_fetch_allowed(txnp, ri)) {
     TSMBuffer response;
     TSMLoc resp_hdr;
 
@@ -597,6 +862,7 @@ TSPluginInit(int argc, const char* argv[])
   TSPluginRegistrationInfo info;
   static const struct option longopt[] = {
     { const_cast<char *>("log"), required_argument, NULL, 'l' },
+    { const_cast<char *>("config"), required_argument, NULL, 'c' },
     { NULL, no_argument, NULL, '\0' }
   };
 
@@ -612,11 +878,15 @@ TSPluginInit(int argc, const char* argv[])
   optind = 1;
 
   while (true) {
-    int opt = getopt_long(argc, (char * const *)argv, "l", longopt, NULL);
+    int opt = getopt_long(argc, (char* const *)argv, "lc", longopt, NULL);
 
     switch (opt) {
     case 'l':
       gConfig->create_log(optarg);
+      break;
+    case 'c':
+      TSDebug(PLUGIN_NAME, "config file %s..", optarg);
+      read_config(optarg, &gBgFetchRuleMap);
       break;
     }
 
@@ -625,7 +895,92 @@ TSPluginInit(int argc, const char* argv[])
     }
   }
 
-
   TSDebug(PLUGIN_NAME, "Initialized");
-  TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, TSContCreate(cont_handle_response, NULL));
+
+  TSCont cont = TSContCreate(cont_handle_response, NULL);
+  TSContDataSet(cont, static_cast<void*>(&gBgFetchRuleMap));
+  TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
+}
+
+
+///////////////////////////////////////////////////////////////////////////
+// Setup Remap mode
+///////////////////////////////////////////////////////////////////////////////
+// Initialize the plugin.
+//
+TSReturnCode
+TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
+{
+  TSDebug(PLUGIN_NAME, "background fetch remap init");
+  if (!api_info) {
+    strncpy(errbuf, "[tsremap_init] - Invalid TSRemapInterface argument", errbuf_size - 1);
+    return TS_ERROR;
+  }
+
+  if (api_info->tsremap_version < TSREMAP_VERSION) {
+    snprintf(errbuf, errbuf_size - 1, "[TSRemapInit] - Incorrect API version %ld.%ld",
+             api_info->tsremap_version >> 16, (api_info->tsremap_version & 0xffff));
+    return TS_ERROR;
+  }
+
+  TSDebug(PLUGIN_NAME, "background fetch remap is successfully initialized");
+  return TS_SUCCESS;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// We don't have any specific "instances" here, at least not yet.
+//
+TSReturnCode
+TSRemapNewInstance(int  argc, char* argv[], void** ih, char* /* errbuf */, int /* errbuf_size */)
+{
+  BgFetchRuleMap *ri = new BgFetchRuleMap();
+  if (ri == NULL) {
+    TSError("%s:Unable to create remap instance", PLUGIN_NAME);
+    return TS_ERROR;
+  }
+
+  if (gConfig == NULL) {
+    TSDebug(PLUGIN_NAME, "creating gConfig");
+    gConfig = new BGFetchConfig();
+  }
+
+  char* fileName = NULL;
+  if (argc > 2) {
+    fileName = argv[2];
+    TSDebug(PLUGIN_NAME, "config file %s", fileName);
+  }
+
+  read_config(fileName, ri);
+
+  *ih = (void*)ri;
+
+  return TS_SUCCESS;
+}
+
+void
+TSRemapDeleteInstance(void* ih)
+{
+  BgFetchRuleMap* ri = static_cast<BgFetchRuleMap*>(ih);
+  delete ri;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+//// This is the main "entry" point for the plugin, called for every request.
+////
+TSRemapStatus
+TSRemapDoRemap(void* ih, TSHttpTxn txnp, TSRemapRequestInfo* /* rri */)
+{
+  if (NULL == ih) {
+    return TSREMAP_NO_REMAP;
+  }
+
+  TSDebug(PLUGIN_NAME, "background fetch TSRemapDoRemap...");
+
+  TSCont cont = TSContCreate(cont_handle_response, NULL);
+  TSContDataSet(cont, static_cast<void*>(ih));
+  TSHttpTxnHookAdd(txnp, TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
+
+  return TSREMAP_NO_REMAP;
 }

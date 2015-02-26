@@ -218,11 +218,11 @@ public:
   // setup Range transfomration if so.
   // return true when the Range is unsatisfiable
   void do_range_setup_if_necessary();
-  
+
   void do_range_parse(MIMEField *range_field);
   void calculate_output_cl(int64_t, int64_t);
   void parse_range_and_compare(MIMEField*, int64_t);
-  
+
   // Called by transact to prevent reset problems
   //  failed PUSH requests
   void set_ua_half_close_flag();
@@ -441,13 +441,13 @@ protected:
   void setup_cache_lookup_complete_api();
   void setup_server_send_request();
   void setup_server_send_request_api();
-  void setup_server_transfer();
+  HttpTunnelProducer * setup_server_transfer();
   void setup_server_transfer_to_cache_only();
-  void setup_cache_read_transfer();
+  HttpTunnelProducer * setup_cache_read_transfer();
   void setup_internal_transfer(HttpSMHandler handler);
   void setup_error_transfer();
   void setup_100_continue_transfer();
-  void setup_push_transfer_to_cache();
+  HttpTunnelProducer * setup_push_transfer_to_cache();
   void setup_transform_to_server_transfer();
   void setup_cache_write_transfer(HttpCacheSM * c_sm,
                                   VConnection * source_vc, HTTPInfo * store_info, int64_t skip_bytes, const char *name);
@@ -520,6 +520,7 @@ protected:
   //   when the flag is set
   bool terminate_sm;
   bool kill_this_async_done;
+  bool parse_range_done;
   virtual int kill_this_async_hook(int event, void *data);
   void kill_this();
   void update_stats();

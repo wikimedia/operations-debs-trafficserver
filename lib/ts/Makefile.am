@@ -21,7 +21,7 @@ library_includedir=$(includedir)/ts
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_atomic test_freelist test_arena test_List test_Map test_Vec
+check_PROGRAMS = test_arena test_atomic test_freelist test_geometry test_List test_Map test_Regex test_Vec
 TESTS = $(check_PROGRAMS)
 
 AM_CPPFLAGS = -I$(top_srcdir)/lib
@@ -46,9 +46,9 @@ libtsutil_la_SOURCES = \
   Bitops.cc \
   Bitops.h \
   Compatability.h \
-  Cryptohash.h \
   ConsistentHash.cc \
   ConsistentHash.h \
+  Cryptohash.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
@@ -76,18 +76,20 @@ libtsutil_la_SOURCES = \
   IpMapConf.h \
   Layout.cc \
   List.h \
+  MMH.cc \
+  MMH.h \
   Map.h \
   MatcherUtils.cc \
   MatcherUtils.h \
   MimeTable.cc \
   MimeTable.h \
-  MMH.h \
-  MMH.cc \
   ParseRules.cc \
   ParseRules.h \
   Ptr.h \
   RawHashTable.cc \
   RawHashTable.h \
+  RbTree.cc \
+  RbTree.h \
   Regex.cc \
   Regex.h \
   Regression.cc \
@@ -177,8 +179,9 @@ libtsutil_la_SOURCES = \
   ink_time.h \
   libts.h \
   llqueue.cc \
-  lockfile.cc
-
+  lockfile.cc \
+  signals.cc \
+  signals.h
 
 #test_UNUSED_SOURCES = \
 #  load_http_hdr.cc \
@@ -213,9 +216,17 @@ test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
+test_Regex_SOURCES = test_Regex.cc
+test_Regex_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_Regex_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+
+test_geometry_SOURCES = test_geometry.cc
+test_geometry_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_geometry_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 CompileParseRules_SOURCES = CompileParseRules.cc
 

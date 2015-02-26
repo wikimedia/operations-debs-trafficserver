@@ -57,6 +57,17 @@ textBuffer::~textBuffer()
   ats_free(bufferStart);
 }
 
+char *
+textBuffer::release()
+{
+  char * ret = bufferStart;
+
+  bufferStart = nextAdd = NULL;
+  currentSize = spaceLeft = 0;
+
+  return ret;
+}
+
 // void textBuffer::reUse()
 //
 //   Sets the text buffer for reuse by repositioning the
@@ -81,7 +92,7 @@ textBuffer::reUse()
 //  Returns the number of bytes copies or
 //  -1 if there was insufficient memory
 int
-textBuffer::copyFrom(const void *source, int num_bytes)
+textBuffer::copyFrom(const void *source, unsigned num_bytes)
 {
 
   // Get more space if necessary
@@ -110,22 +121,23 @@ textBuffer::copyFrom(const void *source, int num_bytes)
 //  Returns -1 if insufficient memory,
 //    zero otherwise
 int
-textBuffer::enlargeBuffer(int N)
+textBuffer::enlargeBuffer(unsigned N)
 {
-  int addedSize = currentSize;
-  int newSize = currentSize * 2;
+  unsigned addedSize = 0;
+  unsigned newSize = (currentSize ? currentSize : 1) * 2;
   char *newSpace;
 
   if (spaceLeft < N) {
 
-    while (addedSize < N) {
-      addedSize += newSize;
+    while ((newSize - currentSize) < N) {
       newSize *= 2;
     }
 
+    addedSize = newSize - currentSize;
+
     newSpace = (char *)ats_realloc(bufferStart, newSize);
     if (newSpace != NULL) {
-      nextAdd = newSpace + (unsigned int) (nextAdd - bufferStart);
+      nextAdd = newSpace + (unsigned) (nextAdd - bufferStart);
       bufferStart = newSpace;
       spaceLeft += addedSize;
       currentSize = newSize;
@@ -173,6 +185,17 @@ textBuffer::rawReadFromFile(int fd)
   }
 }
 
+// Read the entire contents of the given file descriptor.
+void
+textBuffer::slurp(int fd)
+{
+  int nbytes;
+
+  do {
+    nbytes = readFromFD(fd);
+  } while (nbytes > 0);
+}
+
 // int textBuffer::readFromFD(int fd)
 //
 // Issues a single read command on the file
@@ -211,4 +234,43 @@ char *
 textBuffer::bufPtr()
 {
   return bufferStart;
+}
+
+void
+textBuffer::format(const char * fmt, ...)
+{
+  va_list ap;
+  bool done = false;
+
+  do {
+    int num;
+
+    va_start(ap, fmt);
+    num = vsnprintf(this->nextAdd, this->spaceLeft, fmt, ap);
+    va_end(ap);
+
+    if ((unsigned)num < this->spaceLeft) {
+      // We had enough space to format including the NUL. Since the returned character
+      // count does not include the NUL, we can just increment and the next format will
+      // overwrite the previous NUL.
+      this->spaceLeft -= num;
+      this->nextAdd += num;
+      done = true;
+    } else {
+      if (enlargeBuffer(num + 1) == -1) {
+        return;
+      }
+    }
+
+  } while (!done);
+}
+
+void
+textBuffer::chomp()
+{
+  while ((nextAdd > bufferStart) && (nextAdd[-1] == '\n')) {
+    --nextAdd;
+    ++spaceLeft;
+    *nextAdd = '\0';
+  }
 }

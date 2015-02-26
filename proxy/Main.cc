@@ -102,7 +102,6 @@ extern "C" int plock(int);
 #define DEFAULT_COMMAND_FLAG              0
 
 #define DEFAULT_VERBOSE_FLAG              0
-#define DEFAULT_VERSION_FLAG              0
 #define DEFAULT_STACK_TRACE_FLAG          0
 
 #if DEFAULT_COMMAND_FLAG
@@ -119,8 +118,6 @@ static const long MAX_LOGIN =  sysconf(_SC_LOGIN_NAME_MAX) <= 0 ? _POSIX_LOGIN_N
 static void * mgmt_restart_shutdown_callback(void *, char *, int data_len);
 static void*  mgmt_storage_device_cmd_callback(void* x, char* data, int len);
 static void init_ssl_ctx_callback(void *ctx, bool server);
-
-static int version_flag = DEFAULT_VERSION_FLAG;
 
 static int num_of_net_threads = ink_number_of_processors();
 static int num_of_udp_threads = 0;
@@ -157,6 +154,8 @@ static int accept_mss = 0;
 static int cmd_line_dprintf_level = 0;  // default debug output level from ink_dprintf function
 static int poll_timeout = -1; // No value set.
 
+static volatile bool sigusr1_received = false;
+
 // 1: delay listen, wait for cache.
 // 0: Do not delay, start listen ASAP.
 // -1: cache is already initialized, don't delay.
@@ -174,7 +173,6 @@ static const ArgumentDescription argument_descriptions[] = {
    "PROXY_HTTP_ACCEPT_PORT", NULL},
   {"cluster_port", 'P', "Cluster Port Number", "I", &cluster_port_number, "PROXY_CLUSTER_PORT", NULL},
   {"dprintf_level", 'o', "Debug output level", "I", &cmd_line_dprintf_level, "PROXY_DPRINTF_LEVEL", NULL},
-  {"version", 'V', "Print Version String", "T", &version_flag, NULL, NULL},
 
 #if TS_HAS_TESTS
   {"regression", 'R',
@@ -210,8 +208,148 @@ static const ArgumentDescription argument_descriptions[] = {
 
   {"accept_mss", ' ', "MSS for client connections", "I", &accept_mss, NULL, NULL},
   {"poll_timeout", 't', "poll timeout in milliseconds", "I", &poll_timeout, NULL, NULL},
-  {"help", 'h', "HELP!", NULL, NULL, NULL, usage},
+  HELP_ARGUMENT_DESCRIPTION(),
+  VERSION_ARGUMENT_DESCRIPTION()
 };
+
+class SignalContinuation : public Continuation
+{
+public:
+  char *end;
+  char *snap;
+  int fastmemsnap;
+
+  SignalContinuation() : Continuation(new_ProxyMutex()) {
+    end = snap = 0;
+    fastmemsnap = 0;
+    SET_HANDLER(&SignalContinuation::periodic);
+  }
+
+  int periodic(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */) {
+    if (sigusr1_received) {
+      sigusr1_received = false;
+
+      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      ink_freelists_dump(stderr);
+      ResourceTracker::dump(stderr);
+      if (!end)
+        end = (char *) sbrk(0);
+      if (!snap)
+        snap = (char *) sbrk(0);
+      char *now = (char *) sbrk(0);
+      // TODO: Use logging instead directly writing to stderr
+      //       This is not error condition at the first place
+      //       so why stderr?
+      //
+      fprintf(stderr, "sbrk 0x%" PRIu64 "x from first %" PRIu64 " from last %" PRIu64 "\n",
+              (uint64_t) ((ptrdiff_t) now), (uint64_t) ((ptrdiff_t) (now - end)),
+              (uint64_t) ((ptrdiff_t) (now - snap)));
+#ifdef DEBUG
+      int fmdelta = fastmemtotal - fastmemsnap;
+      fprintf(stderr, "fastmem %" PRId64 " from last %" PRId64 "\n", (int64_t) fastmemtotal, (int64_t) fmdelta);
+      fastmemsnap += fmdelta;
+#endif
+      snap = now;
+    }
+
+    return EVENT_CONT;
+  }
+};
+
+class TrackerContinuation : public Continuation {
+public:
+  int baseline_taken;
+  int use_baseline;
+
+  TrackerContinuation() : Continuation(new_ProxyMutex()) {
+    SET_HANDLER(&TrackerContinuation::periodic);
+    use_baseline = 0;
+    // TODO: ATS prefix all those environment stuff or
+    //       even better use config since env can be
+    //       different for parent and child process users.
+    //
+    if (getenv("MEMTRACK_BASELINE")) {
+      use_baseline = 1;
+    }
+
+    baseline_taken = 0;
+  }
+
+  int periodic(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */) {
+    if (use_baseline) {
+      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      ink_freelists_dump_baselinerel(stderr);
+    } else {
+      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      ink_freelists_dump(stderr);
+      ResourceTracker::dump(stderr);
+    }
+    if (!baseline_taken && use_baseline) {
+      ink_freelists_snap_baseline();
+      // TODO: TS-567 Integrate with debugging allocators "dump" features?
+      baseline_taken = 1;
+    }
+    return EVENT_CONT;
+  }
+};
+
+static int
+init_memory_tracker(const char *config_var, RecDataT /* type ATS_UNUSED */, RecData data, void * /* cookie ATS_UNUSED */)
+{
+  static Event *tracker_event = NULL;
+  int dump_mem_info_frequency = 0;
+
+  if (config_var) {
+    dump_mem_info_frequency = data.rec_int;
+  } else {
+    dump_mem_info_frequency = REC_ConfigReadInteger("proxy.config.dump_mem_info_frequency");
+  }
+
+  Debug("tracker", "init_tracker called [%d]\n", dump_mem_info_frequency);
+
+  if (tracker_event) {
+    tracker_event->cancel();
+    tracker_event = NULL;
+  }
+
+  if (dump_mem_info_frequency > 0) {
+    tracker_event = eventProcessor.schedule_every(new TrackerContinuation,
+                                                  HRTIME_SECONDS(dump_mem_info_frequency), ET_CALL);
+  }
+
+  return 1;
+}
+
+static void
+proxy_signal_handler(int signo, siginfo_t * info, void *)
+{
+  switch (signo) {
+  case SIGUSR1:
+    sigusr1_received = true;
+    return;
+  case SIGHUP:
+    return;
+  }
+
+  signal_format_siginfo(signo, info, appVersionInfo.AppStr);
+
+#if TS_HAS_PROFILER
+  ProfilerStop();
+#endif
+
+  if (signal_is_crash(signo)) {
+    // The only call to abort(2) should be from ink_fatal, which has already logged a stack trace.
+    if (signo != SIGABRT) {
+      ink_stack_trace_dump();
+    }
+
+    // Make sure to drop a core for signals that normally would do so.
+    signal(signo, SIG_DFL);
+    return;
+  }
+
+  _exit(signo);
+}
 
 //
 // Initialize operating system related information/services
@@ -219,15 +357,8 @@ static const ArgumentDescription argument_descriptions[] = {
 static void
 init_system()
 {
-  RecInt stackDump;
-  bool found = (RecGetRecordInt("proxy.config.stack_dump_enabled", &stackDump) == REC_ERR_OKAY);
-
-  if (found == false) {
-    Warning("Unable to determine stack_dump_enabled , assuming enabled");
-    stackDump = 1;
-  }
-
-  init_signals(stackDump == 1);
+  signal_register_default_handler(proxy_signal_handler);
+  signal_register_crash_handler(proxy_signal_handler);
 
   syslog(LOG_NOTICE, "NOTE: --- %s Starting ---", appVersionInfo.AppStr);
   syslog(LOG_NOTICE, "NOTE: %s Version: %s", appVersionInfo.AppStr, appVersionInfo.FullVersionInfoStr);
@@ -272,10 +403,10 @@ static void
 check_config_directories(void)
 {
   ats_scoped_str rundir(RecConfigReadRuntimeDir());
+  ats_scoped_str sysconfdir(RecConfigReadConfigDir());
 
-  if (access(Layout::get()->sysconfdir, R_OK) == -1) {
-    fprintf(stderr,"unable to access() config dir '%s': %d, %s\n",
-            Layout::get()->sysconfdir, errno, strerror(errno));
+  if (access(sysconfdir, R_OK) == -1) {
+    fprintf(stderr,"unable to access() config dir '%s': %d, %s\n", (const char *)sysconfdir, errno, strerror(errno));
     fprintf(stderr, "please set the 'TS_ROOT' environment variable\n");
     _exit(1);
   }
@@ -302,12 +433,13 @@ initialize_process_manager()
     remote_management_flag = true;
   }
 
-  RecProcessInit(remote_management_flag ? RECM_CLIENT : RECM_STAND_ALONE, diags);
-
-  if (!remote_management_flag) {
-    LibRecordsConfigInit();
-    RecordsConfigOverrideFromEnvironment();
+  if (remote_management_flag) {
+    // We are being managed by traffic_manager, TERM ourselves if it goes away.
+    EnableDeathSignal(SIGTERM);
   }
+
+  RecProcessInit(remote_management_flag ? RECM_CLIENT : RECM_STAND_ALONE, diags);
+  LibRecordsConfigInit();
 
   // Start up manager
   pmgmt = new ProcessManager(remote_management_flag);
@@ -327,14 +459,6 @@ initialize_process_manager()
   RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_date", appVersionInfo.BldDateStr, RECP_NON_PERSISTENT);
   RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_machine", appVersionInfo.BldMachineStr, RECP_NON_PERSISTENT);
   RecRegisterStatString(RECT_PROCESS, "proxy.process.version.server.build_person", appVersionInfo.BldPersonStr, RECP_NON_PERSISTENT);
-}
-
-//
-// Shutdown
-//
-void
-shutdown_system()
-{
 }
 
 #define CMD_ERROR    -2         // serious error, exit maintaince mode
@@ -486,16 +610,6 @@ cmd_check_internal(char * /* cmd ATS_UNUSED */, bool fix = false)
 
   hostdb_current_interval = (ink_get_based_hrtime() / HRTIME_MINUTE);
 
-//#ifndef INK_NO_ACC
-//  acc.clear_cache();
-//#endif
-
-  const char *err = NULL;
-  theStore.delete_all();
-  if ((err = theStore.read_config())) {
-    printf("%s, %s failed\n", err, n);
-    return CMD_FAILED;
-  }
   printf("Host Database\n");
   HostDBCache hd;
   if (hd.start(fix) < 0) {
@@ -545,15 +659,6 @@ cmd_clear(char *cmd)
     Note("Clearing HostDB Configuration");
     if (unlink(config) < 0)
       Note("unable to unlink %s", (const char *)config);
-  }
-
-  if (c_all || c_cache) {
-    const char *err = NULL;
-    theStore.delete_all();
-    if ((err = theStore.read_config())) {
-      printf("%s, CLEAR failed\n", err);
-      return CMD_FAILED;
-    }
   }
 
   if (c_hdb || c_all) {
@@ -796,53 +901,54 @@ init_core_size()
 static void
 adjust_sys_settings(void)
 {
-#if defined(linux)
   struct rlimit lim;
-  int mmap_max = -1;
   int fds_throttle = -1;
-  float file_max_pct = 0.9;
-  FILE *fd;
+  rlim_t maxfiles;
 
   // TODO: I think we might be able to get rid of this?
+#if defined(ATS_MMAP_MAX)
+  int mmap_max = -1;
+
   REC_ReadConfigInteger(mmap_max, "proxy.config.system.mmap_max");
   if (mmap_max >= 0)
     ats_mallopt(ATS_MMAP_MAX, mmap_max);
+#endif
 
-  if ((fd = fopen("/proc/sys/fs/file-max","r"))) {
-    ATS_UNUSED_RETURN(fscanf(fd, "%" PRIu64 "", &lim.rlim_max));
-    fclose(fd);
+  maxfiles = ink_get_max_files();
+  if (maxfiles != RLIM_INFINITY) {
+    float file_max_pct = 0.9;
+
     REC_ReadConfigFloat(file_max_pct, "proxy.config.system.file_max_pct");
-    lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(lim.rlim_max * file_max_pct);
-    if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
+    if (file_max_pct > 1.0) {
+      file_max_pct = 1.0;
+    }
+
+    lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(maxfiles * file_max_pct);
+    if (setrlimit(RLIMIT_NOFILE, &lim) == 0 && getrlimit(RLIMIT_NOFILE, &lim) == 0) {
       fds_limit = (int) lim.rlim_cur;
       syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
-    } else {
-      syslog(LOG_NOTICE, "NOTE: Unable to set RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
     }
-  } else {
-    syslog(LOG_NOTICE, "NOTE: Unable to open /proc/sys/fs/file-max");
   }
 
   REC_ReadConfigInteger(fds_throttle, "proxy.config.net.connections_throttle");
 
-  if (!getrlimit(RLIMIT_NOFILE, &lim)) {
+  if (getrlimit(RLIMIT_NOFILE, &lim) == 0) {
     if (fds_throttle > (int) (lim.rlim_cur + THROTTLE_FD_HEADROOM)) {
       lim.rlim_cur = (lim.rlim_max = (rlim_t) fds_throttle);
-      if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
+      if (setrlimit(RLIMIT_NOFILE, &lim) == 0 && getrlimit(RLIMIT_NOFILE, &lim) == 0) {
         fds_limit = (int) lim.rlim_cur;
         syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
       }
     }
   }
 
-  ink_max_out_rlimit(RLIMIT_STACK,true,true);
-  ink_max_out_rlimit(RLIMIT_DATA,true,true);
+  ink_max_out_rlimit(RLIMIT_STACK, true, true);
+  ink_max_out_rlimit(RLIMIT_DATA, true, true);
   ink_max_out_rlimit(RLIMIT_FSIZE, true, false);
-#ifdef RLIMIT_RSS
-  ink_max_out_rlimit(RLIMIT_RSS,true,true);
-#endif
 
-#endif  // linux check
+#ifdef RLIMIT_RSS
+  ink_max_out_rlimit(RLIMIT_RSS, true, true);
+#endif
 }
 
 struct ShowStats: public Continuation
@@ -980,9 +1086,6 @@ ShowStats():Continuation(NULL),
 };
 
 
-// TODO: How come this is never used ??
-static int syslog_facility = LOG_DAEMON;
-
 // static void syslog_log_configure()
 //
 //   Reads the syslog configuration variable
@@ -993,21 +1096,24 @@ static int syslog_facility = LOG_DAEMON;
 static void
 syslog_log_configure()
 {
-  char *facility_str = NULL;
-  int facility;
+  bool found = false;
+  char sys_var[] = "proxy.config.syslog_facility";
+  char *facility_str = REC_readString(sys_var, &found);
 
-  REC_ReadConfigStringAlloc(facility_str, "proxy.config.syslog_facility");
+  if (found) {
+    int facility = facility_string_to_int(facility_str);
 
-  if (facility_str == NULL || (facility = facility_string_to_int(facility_str)) < 0) {
-    syslog(LOG_WARNING, "Bad or missing syslog facility.  " "Defaulting to LOG_DAEMON");
+    ats_free(facility_str);
+    if (facility < 0) {
+      syslog(LOG_WARNING, "Bad syslog facility in records.config. Keeping syslog at LOG_DAEMON");
+    } else {
+      Debug("server", "Setting syslog facility to %d\n", facility);
+      closelog();
+      openlog("traffic_server", LOG_PID | LOG_NDELAY | LOG_NOWAIT, facility);
+    }
   } else {
-    syslog_facility = facility;
-    closelog();
-    openlog("traffic_server", LOG_PID | LOG_NDELAY | LOG_NOWAIT, facility);
+    syslog(LOG_WARNING, "Missing syslog facility config %s. Keeping syslog at LOG_DAEMON", sys_var);
   }
-  // TODO: Not really, what's up with this?
-  Debug("server", "Setting syslog facility to %d\n", syslog_facility);
-  ats_free(facility_str);
 }
 
 static void
@@ -1092,12 +1198,12 @@ chdir_root()
   const char * prefix = Layout::get()->prefix;
 
   if (chdir(prefix) < 0) {
-    fprintf(stderr,"unable to change to root directory \"%s\" [%d '%s']\n",
-            prefix, errno, strerror(errno));
-    fprintf(stderr," please set correct path in env variable TS_ROOT \n");
+    fprintf(stderr, "%s: unable to change to root directory \"%s\" [%d '%s']\n",
+            appVersionInfo.AppStr, prefix, errno, strerror(errno));
+    fprintf(stderr, "%s: please correct the path or set the TS_ROOT environment variable\n", appVersionInfo.AppStr);
     _exit(1);
   } else {
-    printf("[TrafficServer] using root directory '%s'\n", prefix);
+    printf("%s: using root directory '%s'\n", appVersionInfo.AppStr, prefix);
   }
 }
 
@@ -1185,77 +1291,46 @@ adjust_num_of_net_threads(int nthreads)
  * @param user User name in the passwd file to change the uid and gid to.
  */
 static void
-change_uid_gid(const char *user)
+change_uid_gid(const char * user)
 {
-  struct passwd pwbuf;
-  struct passwd *pwbufp = NULL;
-#if defined(freebsd) // TODO: investigate sysconf(_SC_GETPW_R_SIZE_MAX)) failure
-  long buflen = 1024; // or 4096?
-#else
-  long buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
+#if !TS_USE_POSIX_CAP
+  RecInt enabled;
+
+  if (RecGetRecordInt("proxy.config.ssl.cert.load_elevated", &enabled) == REC_ERR_OKAY && enabled) {
+    Warning("ignoring proxy.config.ssl.cert.load_elevated because Traffic Server was built without POSIX capabilities support");
+  }
+
+  if (RecGetRecordInt("proxy.config.plugin.load_elevated", &enabled) == REC_ERR_OKAY && enabled) {
+    Warning("ignoring proxy.config.plugin.load_elevated because Traffic Server was built without POSIX capabilities support");
+  }
+#endif /* TS_USE_POSIX_CAP */
+
+  // This is primarily for regression tests, where people just run "traffic_server -R1" as a regular user. Dropping
+  // privilege is never going to succeed unless we were privileged in the first place. I guess we ought to check
+  // capabilities as well :-/
+  if (getuid() != 0 && geteuid() != 0) {
+    Note("Traffic Server is running unprivileged, not switching to user '%s'", user);
+    return;
+  }
+
+  Debug("privileges", "switching to unprivileged user '%s'", user);
+  ImpersonateUser(user, IMPERSONATE_PERMANENT);
+
+#if !defined(BIG_SECURITY_HOLE) || (BIG_SECURITY_HOLE != 0)
+  if (getuid() == 0 || geteuid() == 0) {
+    ink_fatal_die(
+      "Trafficserver has not been designed to serve pages while\n"
+      "\trunning as root. There are known race conditions that\n"
+      "\twill allow any local user to read any file on the system.\n"
+      "\tIf you still desire to serve pages as root then\n"
+      "\tadd -DBIG_SECURITY_HOLE to the CFLAGS env variable\n"
+      "\tand then rebuild the server.\n"
+      "\tIt is strongly suggested that you instead modify the\n"
+      "\tproxy.config.admin.user_id directive in your\n"
+      "\trecords.config file to list a non-root user.\n");
+  }
 #endif
-  if (buflen < 0) {
-    ink_fatal_die("sysconf() failed for _SC_GETPW_R_SIZE_MAX");
-  }
 
-  char *buf = (char *)ats_malloc(buflen);
-
-  if (0 != geteuid() && 0 == getuid())
-    ATS_UNUSED_RETURN(seteuid(0)); // revert euid if possible.
-  if (0 != geteuid()) {
-    // Not root so can't change user ID. Logging isn't operational yet so
-    // we have to write directly to stderr. Perhaps this should be fatal?
-    fprintf(stderr,
-          "Can't change user to '%s' because running with effective uid=%d\n",
-          user, geteuid());
-  }
-  else {
-    if (user[0] == '#') {
-      // numeric user notation
-      uid_t uid = (uid_t)atoi(&user[1]);
-      getpwuid_r(uid, &pwbuf, buf, buflen, &pwbufp);
-    }
-    else {
-      // read the entry from the passwd file
-      getpwnam_r(user, &pwbuf, buf, buflen, &pwbufp);
-    }
-    // check to see if we found an entry
-    if (pwbufp == NULL) {
-      ink_fatal_die("Can't find entry in password file for user: %s", user);
-    }
-#if !defined (BIG_SECURITY_HOLE)
-    if (pwbuf.pw_uid == 0) {
-      ink_fatal_die("Trafficserver has not been designed to serve pages while\n"
-        "\trunning as root.  There are known race conditions that\n"
-        "\twill allow any local user to read any file on the system.\n"
-        "\tIf you still desire to serve pages as root then\n"
-        "\tadd -DBIG_SECURITY_HOLE to the CFLAGS env variable\n"
-        "\tand then rebuild the server.\n"
-        "\tIt is strongly suggested that you instead modify the\n"
-        "\tproxy.config.admin.user_id  directive in your\n"
-        "\trecords.config file to list a non-root user.\n");
-    }
-#endif
-    // change the gid to passwd entry if we are not already running as that gid
-    if (getgid() != pwbuf.pw_gid) {
-      if (setgid(pwbuf.pw_gid) != 0) {
-        ink_fatal_die("Can't change group to user: %s, gid: %d",
-                      user, pwbuf.pw_gid);
-      }
-    }
-    // change the uid to passwd entry if we are not already running as that uid
-    if (getuid() != pwbuf.pw_uid) {
-      if (setuid(pwbuf.pw_uid) != 0) {
-        ink_fatal_die("Can't change uid to user: %s, uid: %d",
-                      user, pwbuf.pw_uid);
-      }
-    }
-  }
-  ats_free(buf);
-
-  // Ugly but this gets reset when the process user ID is changed so
-  // it must be udpated here.
-  EnableCoreFile(enable_core_file_p);
 }
 
 //
@@ -1287,13 +1362,8 @@ main(int /* argc ATS_UNUSED */, char **argv)
   Layout::create();
   chdir_root(); // change directory to the install root of traffic server.
 
-  process_args(argument_descriptions, countof(argument_descriptions), argv);
-
-  // Check for version number request
-  if (version_flag) {
-    fprintf(stderr, "%s\n", appVersionInfo.FullVersionInfoStr);
-    _exit(0);
-  }
+  process_args(&appVersionInfo, argument_descriptions, countof(argument_descriptions), argv);
+  command_flag = command_flag || *command_string;
 
   // Set stdout/stdin to be unbuffered
   setbuf(stdout, NULL);
@@ -1344,6 +1414,14 @@ main(int /* argc ATS_UNUSED */, char **argv)
   if (!num_task_threads)
     REC_ReadConfigInteger(num_task_threads, "proxy.config.task_threads");
 
+  // Set up crash logging. We need to do this while we are still privileged so that the crash
+  // logging helper runs as root. Don't bother setting up a crash logger if we are going into
+  // command mode since that's not going to daemonize or run for a long time unattended.
+  if (!command_flag) {
+    crash_logger_init();
+    signal_register_crash_handler(crash_logger_invoke);
+  }
+
   ats_scoped_str user(MAX_LOGIN + 1);
 
   *user = '\0';
@@ -1384,10 +1462,8 @@ main(int /* argc ATS_UNUSED */, char **argv)
   diags->prefix_str = "Server ";
   if (is_debug_tag_set("diags"))
     diags->dump();
-# if TS_USE_POSIX_CAP
-  if (is_debug_tag_set("server"))
-    DebugCapabilities("server"); // Can do this now, logging is up.
-# endif
+
+  DebugCapabilities("privileges"); // Can do this now, logging is up.
 
   // Check if we should do mlockall()
 #if defined(MCL_FUTURE)
@@ -1438,11 +1514,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
 
   // Sanity checks
   check_fd_limit();
-  command_flag = command_flag || *command_string;
-
-  // Set up store
-  if (!command_flag && initialize_store())
-    ProcessFatal("unable to initialize storage, (Re)Configuration required\n");
 
   // Alter the frequecies at which the update threads will trigger
 #define SET_INTERVAL(scope, name, var) do { \
@@ -1514,7 +1585,10 @@ main(int /* argc ATS_UNUSED */, char **argv)
     remapProcessor.setUseSeparateThread();
   }
 
-  init_signals2();
+  eventProcessor.schedule_every(new SignalContinuation, HRTIME_MSECOND * 500, ET_CALL);
+  REC_RegisterConfigUpdateFunc("proxy.config.dump_mem_info_frequency", init_memory_tracker, NULL);
+  init_memory_tracker(NULL, RECD_NULL, RecData(), NULL);
+
   // log initialization moved down
 
   if (command_flag) {
@@ -1683,7 +1757,6 @@ main(int /* argc ATS_UNUSED */, char **argv)
 # if ! TS_USE_POSIX_CAP
   if (admin_user_p) {
     change_uid_gid(user);
-    DebugCapabilities("server");
   }
 # endif
 

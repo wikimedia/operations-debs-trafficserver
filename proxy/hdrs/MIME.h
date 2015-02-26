@@ -133,14 +133,28 @@ struct MIMEField
       return true;               // by default, assume supports commas
   }
 
-  const char *name_get(int *length);
+  const char *name_get(int *length) const;
 
-  const char *value_get(int *length);
-  int32_t value_get_int();
-  uint32_t value_get_uint();
-  int64_t value_get_int64();
-  time_t value_get_date();
-  int value_get_comma_list(StrList * list);
+  /** Find the index of the value in the multi-value field.
+
+     If @a value is one of the values in this field return the
+     0 based index of it in the list of values. If the field is
+     not multivalued the index will always be zero if found.
+     Otherwise return -1 if the @a value is not found.
+
+     @note The most common use of this is to check for the presence of a specific
+     value in a comma enabled field.
+
+     @return The index of @a value.
+  */
+  int value_get_index(char const *value, int length) const;
+
+  const char *value_get(int *length) const;
+  int32_t value_get_int() const;
+  uint32_t value_get_uint() const;
+  int64_t value_get_int64() const;
+  time_t value_get_date() const;
+  int value_get_comma_list(StrList * list) const;
 
   void name_set(HdrHeap * heap, MIMEHdrImpl * mh, const char *name, int length);
 
@@ -154,7 +168,7 @@ struct MIMEField
   // Other separators (e.g. ';' in Set-cookie/Cookie) are also possible
   void value_append(HdrHeap * heap, MIMEHdrImpl * mh, const char *value,
                     int length, bool prepend_comma = false, const char separator = ',');
-  int has_dups();
+  int has_dups() const;
 };
 
 struct MIMEFieldBlockImpl:public HdrHeapObjImpl
@@ -637,18 +651,18 @@ inkcoreapi MIMEField *mime_hdr_prepare_for_value_set(HdrHeap * heap, MIMEHdrImpl
 
 void mime_field_destroy(MIMEHdrImpl * mh, MIMEField * field);
 
-const char *mime_field_name_get(MIMEField * field, int *length);
+const char *mime_field_name_get(const MIMEField * field, int *length);
 void mime_field_name_set(HdrHeap * heap, MIMEHdrImpl * mh, MIMEField * field,
                          int16_t name_wks_idx_or_neg1, const char *name, int length, bool must_copy_string);
 
-inkcoreapi const char *mime_field_value_get(MIMEField * field, int *length);
-int32_t mime_field_value_get_int(MIMEField * field);
-uint32_t mime_field_value_get_uint(MIMEField * field);
-int64_t mime_field_value_get_int64(MIMEField * field);
-time_t mime_field_value_get_date(MIMEField * field);
-const char *mime_field_value_get_comma_val(MIMEField * field, int *length, int idx);
-int mime_field_value_get_comma_val_count(MIMEField * field);
-int mime_field_value_get_comma_list(MIMEField * field, StrList * list);
+inkcoreapi const char *mime_field_value_get(const MIMEField * field, int *length);
+int32_t mime_field_value_get_int(const MIMEField * field);
+uint32_t mime_field_value_get_uint(const MIMEField * field);
+int64_t mime_field_value_get_int64(const MIMEField * field);
+time_t mime_field_value_get_date(const MIMEField * field);
+const char *mime_field_value_get_comma_val(const MIMEField * field, int *length, int idx);
+int mime_field_value_get_comma_val_count(const MIMEField * field);
+int mime_field_value_get_comma_list(const MIMEField * field, StrList * list);
 
 void mime_field_value_set_comma_val(HdrHeap * heap, MIMEHdrImpl * mh, MIMEField * field, int idx,
                                     const char *new_piece_str, int new_piece_len);
@@ -729,7 +743,7 @@ int mime_parse_integer(const char *&buf, const char *end, int *integer);
   -------------------------------------------------------------------------*/
 
 inline const char *
-MIMEField::name_get(int *length)
+MIMEField::name_get(int *length) const
 {
   return (mime_field_name_get(this, length));
 }
@@ -756,37 +770,37 @@ MIMEField::name_set(HdrHeap * heap, MIMEHdrImpl * mh, const char *name, int leng
   -------------------------------------------------------------------------*/
 
 inline const char *
-MIMEField::value_get(int *length)
+MIMEField::value_get(int *length) const
 {
   return (mime_field_value_get(this, length));
 }
 
 inline int32_t
-MIMEField::value_get_int()
+MIMEField::value_get_int() const
 {
   return (mime_field_value_get_int(this));
 }
 
 inline uint32_t
-MIMEField::value_get_uint()
+MIMEField::value_get_uint() const
 {
   return (mime_field_value_get_uint(this));
 }
 
 inline int64_t
-MIMEField::value_get_int64()
+MIMEField::value_get_int64() const
 {
   return (mime_field_value_get_int64(this));
 }
 
 inline time_t
-MIMEField::value_get_date()
+MIMEField::value_get_date() const
 {
   return (mime_field_value_get_date(this));
 }
 
 inline int
-MIMEField::value_get_comma_list(StrList * list)
+MIMEField::value_get_comma_list(StrList * list) const
 {
   return (mime_field_value_get_comma_list(this, list));
 }
@@ -844,7 +858,7 @@ MIMEField::value_append(HdrHeap * heap, MIMEHdrImpl * mh, const char *value,
 }
 
 inline int
-MIMEField::has_dups()
+MIMEField::has_dups() const
 {
   return (m_next_dup != NULL);
 }
@@ -905,6 +919,7 @@ public:
 
   int parse(MIMEParser * parser, const char **start, const char *end, bool must_copy_strs, bool eof);
 
+  int value_get_index(const char *name, int name_length, const char *value, int value_length);
   const char *value_get(const char *name, int name_length, int *value_length);
   int32_t value_get_int(const char *name, int name_length);
   uint32_t value_get_uint(const char *name, int name_length);
@@ -1185,6 +1200,18 @@ MIMEHdr::parse(MIMEParser * parser, const char **start, const char *end, bool mu
     m_mime = mime_hdr_create(m_heap);
 
   return mime_parser_parse(parser, m_heap, m_mime, start, end, must_copy_strs, eof);
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+inline int
+MIMEHdr::value_get_index(const char *name, int name_length, const char *value, int value_length)
+{
+  MIMEField *field = field_find(name, name_length);
+  if (field)
+    return field->value_get_index(value, value_length);
+  else
+    return -1;
 }
 
 /*-------------------------------------------------------------------------

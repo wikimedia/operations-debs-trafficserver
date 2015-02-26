@@ -82,7 +82,7 @@ public:
     AsyncHttpFetch *post_request = new AsyncHttpFetch("http://127.0.0.1/post", "data");
 
     (void)post_request;
-    
+
     Async::execute<AsyncHttpFetch>(this, new AsyncHttpFetch("http://127.0.0.1/post", "data"),
                                    getMutex());
     ++num_fetches_pending_;
@@ -141,7 +141,7 @@ private:
     const Response &response = async_http_fetch.getResponse();
     if (async_http_fetch.getResult() == AsyncHttpFetch::RESULT_SUCCESS) {
       TS_DEBUG(TAG, "Response version is [%s], status code %d, reason phrase [%s]",
-               HTTP_VERSION_STRINGS[response.getVersion()].c_str(), response.getStatusCode(), 
+               HTTP_VERSION_STRINGS[response.getVersion()].c_str(), response.getStatusCode(),
                response.getReasonPhrase().c_str());
 
       TS_DEBUG(TAG, "Reponse Headers: \n%s\n", response.getHeaders().str().c_str());
@@ -149,7 +149,8 @@ private:
       const void *body;
       size_t body_size;
       async_http_fetch.getResponseBody(body, body_size);
-      TS_DEBUG(TAG, "Response body is [%.*s]", static_cast<int>(body_size), static_cast<const char*>(body));
+      TS_DEBUG(TAG, "Response body is %zu bytes long and is [%.*s]", body_size, static_cast<int>(body_size),
+               static_cast<const char*>(body));
     } else {
       TS_ERROR(TAG, "Fetch did not complete successfully; Result %d",
                static_cast<int>(async_http_fetch.getResult()));

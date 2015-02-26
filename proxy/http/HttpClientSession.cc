@@ -124,6 +124,10 @@ HttpClientSession::new_transaction()
   ink_assert(current_reader == NULL);
   PluginIdentity* pi = dynamic_cast<PluginIdentity*>(client_vc);
 
+  // Defensive programming, make sure nothing persists across
+  // connection re-use
+  half_close = false;
+
   read_state = HCS_ACTIVE_READER;
   current_reader = HttpSM::allocate();
   current_reader->init();
@@ -148,7 +152,7 @@ HttpClientSession::new_connection(NetVConnection * new_vc, MIOBuffer * iobuf, IO
   magic = HTTP_CS_MAGIC_ALIVE;
   mutex = new_vc->mutex;
   MUTEX_TRY_LOCK(lock, mutex, this_ethread());
-  ink_assert(!!lock);
+  ink_assert(lock.is_locked());
 
   // Disable hooks for backdoor connections.
   this->hooks_on = !backdoor;
@@ -264,7 +268,7 @@ HttpClientSession::do_io_close(int alerrno)
     slave_ka_vio = NULL;
   }
 
-  if (half_close) {
+  if (half_close && this->current_reader) {
     read_state = HCS_HALF_CLOSED;
     SET_HANDLER(&HttpClientSession::state_wait_for_close);
     DebugHttpSsn("[%" PRId64 "] session half close", con_id);

@@ -119,7 +119,7 @@ ConfigEnumPair<TSServerSessionSharingMatchType> SessionSharingMatchStrings[] =
   { TS_SERVER_SESSION_SHARING_MATCH_HOST, "host" },
   { TS_SERVER_SESSION_SHARING_MATCH_BOTH, "both" }
 };
-  
+
 static
 ConfigEnumPair<TSServerSessionSharingPoolType> SessionSharingPoolStrings[] =
 {
@@ -194,7 +194,7 @@ static void
 http_config_share_server_sessions_read_bc(HttpConfigParams* c)
 {
   MgmtByte v;
-  if (REC_ERR_OKAY == RecGetRecordByte("proxy.config.http.share_server_sessions", &v)) 
+  if (REC_ERR_OKAY == RecGetRecordByte("proxy.config.http.share_server_sessions", &v))
     http_config_share_server_sessions_bc(c, v);
 }
 
@@ -232,7 +232,7 @@ http_server_session_sharing_cb(char const* name, RecDataT dtype, RecData data, v
   }
 
   // Signal an update if valid value arrived.
-  if (valid_p) 
+  if (valid_p)
     http_config_cb(name, dtype, data, cookie);
 
  return REC_ERR_OKAY;
@@ -1402,6 +1402,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.ignore_accept_charset_mismatch, "proxy.config.http.cache.ignore_accept_charset_mismatch");
 
   HttpEstablishStaticConfigByte(c.send_100_continue_response, "proxy.config.http.send_100_continue_response");
+  HttpEstablishStaticConfigByte(c.send_408_post_timeout_response, "proxy.config.http.send_408_post_timeout_response");
 
   HttpEstablishStaticConfigByte(c.oride.cache_when_to_revalidate, "proxy.config.http.cache.when_to_revalidate");
   HttpEstablishStaticConfigByte(c.oride.cache_required_headers, "proxy.config.http.cache.required_headers");
@@ -1562,6 +1563,7 @@ HttpConfig::reconfigure()
 //  params->oride.share_server_sessions = m_master.oride.share_server_sessions;
   params->oride.server_session_sharing_pool = m_master.oride.server_session_sharing_pool;
   params->oride.server_session_sharing_match = m_master.oride.server_session_sharing_match;
+  params->oride.keep_alive_post_out = m_master.oride.keep_alive_post_out;
 
   params->oride.keep_alive_no_activity_timeout_in = m_master.oride.keep_alive_no_activity_timeout_in;
   params->oride.keep_alive_no_activity_timeout_out = m_master.oride.keep_alive_no_activity_timeout_out;
@@ -1657,6 +1659,7 @@ HttpConfig::reconfigure()
   params->ignore_accept_charset_mismatch = m_master.ignore_accept_charset_mismatch;
 
   params->send_100_continue_response = INT_TO_BOOL(m_master.send_100_continue_response);
+  params->send_408_post_timeout_response = INT_TO_BOOL(m_master.send_408_post_timeout_response);
 
   params->oride.cache_when_to_revalidate = m_master.oride.cache_when_to_revalidate;
 

@@ -1756,6 +1756,20 @@ TSProxyStateSet(TSProxyStateT proxy_state, TSCacheClearT clear)
   return ProxyStateSet(proxy_state, clear);
 }
 
+tsapi TSMgmtError
+TSProxyBacktraceGet(unsigned options, TSString * trace)
+{
+  if (options != 0) {
+    return TS_ERR_PARAMS;
+  }
+
+  if (trace == NULL) {
+    return TS_ERR_PARAMS;
+  }
+
+  return ServerBacktrace(options, trace);
+}
+
 /* TSReconfigure: tell traffic_server to re-read its configuration files
  * Input:  <none>
  * Output: TSMgmtError
@@ -1880,6 +1894,9 @@ TSGetErrorMessage(TSMgmtError err_id)
     break;
   case TS_ERR_FAIL:
     snprintf(msg, sizeof(msg), "[%d] Generic Fail message (ie. CoreAPI call).", err_id);
+    break;
+  case TS_ERR_NOT_SUPPORTED:
+    snprintf(msg, sizeof(msg), "[%d] Operation not supported on this platform.", err_id);
     break;
 
   default:
@@ -2403,81 +2420,4 @@ TSIsValid(TSCfgEle * ele)
 
   ele_obj = create_ele_obj_from_ele(ele);
   return (ele_obj->isValid());
-}
-
-/* Network conifguration functions */
-
-// close all file descriptors belong to process specified by pid
-void
-closeAllFds()
-{
-  const int BUFFLEN = 200;
-  char command[BUFFLEN];
-  char buffer[BUFFLEN];         // this is assumption.. so would break if some one try to hack this.
-  int num;
-
-  // WARNING:  this part of code doesn't work yet.  for some strange reason, we can not upgrade
-  //           to root
-  if (getuid() != 0) {          // if not super user, need to upgrade to root
-    //printf("before upgrade:current uid%d, euid %d\n", getuid(), geteuid()); fflush(stdout);
-    if(seteuid(0) != 0 || setreuid(0, 0) != 0)
-      perror("[closeAllFds] unable to restore root privilege.");
-    //printf("after upgrade:current uid %d, euid %d\n", getuid(), geteuid()); fflush(stdout);
-  }
-
-  if (getuid() == 0 || geteuid() == 0) {        // only if it's successful
-    snprintf(command, sizeof(command), "/bin/ls -1 /proc/%" PRId64 "/fd", (int64_t)getpid());
-    FILE *fd = popen(command, "r");
-    if (fd) {
-      while (!feof(fd)) {
-        ATS_UNUSED_RETURN(fgets(buffer, BUFFLEN, fd));
-        num = atoi(buffer);
-        if (num != fileno(fd) && num != 0 && num != 1 && num != 2) {   // for out put
-          //printf("closing fd (%d)\n", num); fflush(stdout);
-          close(num);
-        }
-      }
-      pclose(fd);
-    }
-  }
-}
-
-tsapi TSMgmtError rm_start_proxy()
-{
-
-#if defined(linux)
-  static time_t rm_last_stop = 0;
-
-  time_t time_diff = time(NULL) - rm_last_stop;
-
-  if (time_diff > 60 || time_diff < 0) {        // wrap around??  shall never happen
-    pid_t pid;
-    const char *argv[3];
-    argv[0] = "net_config";
-    argv[1] = "7";
-    argv[2] = NULL;
-    char command_path[PATH_NAME_MAX + 1];
-    Layout::relative_to(command_path, sizeof(command_path),
-                        Layout::get()->bindir, "net_config");
-
-    rm_last_stop = time(NULL);
-
-    if ((pid = fork()) < 0) {
-      exit(1);
-    } else if (pid > 0) {
-      // do not wait
-    } else {
-      closeAllFds();
-      close(1);                 // close STDOUT
-      close(2);                 // close STDERR
-
-      int res = execv(command_path, (char* const*)argv);
-      if (res != 0) {
-        perror("[rm_start_proxy] net_config stop_proxy failed! ");
-      }
-      _exit(res);
-    }
-  }                             // else already try to stop within 60s Window, skip
-#endif
-  return TS_ERR_OKAY;
 }

@@ -23,6 +23,7 @@
 
 #include "libts.h"
 #include "ink_sys_control.h"
+#include "ink_cap.h"
 
 #include "MgmtUtils.h"
 #include "WebMgmtUtils.h"
@@ -59,14 +60,12 @@ LocalManager *lmgmt = NULL;
 FileManager *configFiles;
 
 static void fileUpdated(char *fname, bool incVersion);
-static void runAsUser(char *userName);
+static void runAsUser(const char *userName);
 static void printUsage(void);
 
 #if defined(freebsd)
 extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer, size_t buflen, struct passwd **resptr);
 #endif
-
-static void extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *fds_throttle);
 
 static StatProcessor *statProcessor;   // Statistics Processors
 static AppVersionInfo appVersionInfo;  // Build info for this application
@@ -243,35 +242,20 @@ initSignalHandlers()
   sigaction(SIGCHLD, &sigChldHandler, NULL);
 }
 
-#if defined(linux)
-#include <sys/prctl.h>
-#endif
-static int
-setup_coredump()
-{
-#if defined(linux)
-#ifndef PR_SET_DUMPABLE
-#define PR_SET_DUMPABLE 4       /* Ugly, but we cannot compile with 2.2.x otherwise.
-                                   Should be removed when we compile only on 2.4.x */
-#endif
-  prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
-#endif  // linux check
-  return 0;
-}
-
 static void
 init_dirs()
 {
   ats_scoped_str rundir(RecConfigReadRuntimeDir());
+  ats_scoped_str sysconfdir(RecConfigReadConfigDir());
 
-  if (access(Layout::get()->sysconfdir, R_OK) == -1) {
-    mgmt_elog(0, "unable to access() config dir '%s': %d, %s\n", Layout::get()->sysconfdir, errno, strerror(errno));
+  if (access(sysconfdir, R_OK) == -1) {
+    mgmt_elog(0, "unable to access() config directory '%s': %d, %s\n", (const char *)sysconfdir, errno, strerror(errno));
     mgmt_elog(0, "please set the 'TS_ROOT' environment variable\n");
     _exit(1);
   }
 
   if (access(rundir, R_OK) == -1) {
-    mgmt_elog(0, "unable to access() local state dir '%s': %d, %s\n", (const char *)rundir, errno, strerror(errno));
+    mgmt_elog(0, "unable to access() local state directory '%s': %d, %s\n", (const char *)rundir, errno, strerror(errno));
     mgmt_elog(0, "please set 'proxy.config.local_state_dir'\n");
     _exit(1);
   }
@@ -295,6 +279,7 @@ static void
 set_process_limits(int fds_throttle)
 {
   struct rlimit lim;
+  rlim_t maxfiles;
 
   // Set needed rlimits (root)
   ink_max_out_rlimit(RLIMIT_NOFILE, true, false);
@@ -305,32 +290,28 @@ set_process_limits(int fds_throttle)
   ink_max_out_rlimit(RLIMIT_RSS, true, true);
 #endif
 
-#if defined(linux)
-  float file_max_pct = 0.9;
-  FILE *fd;
+  maxfiles = ink_get_max_files();
+  if (maxfiles != RLIM_INFINITY) {
+    float file_max_pct = 0.9;
 
-  if ((fd = fopen("/proc/sys/fs/file-max","r"))) {
-    ATS_UNUSED_RETURN(fscanf(fd, "%lu", &lim.rlim_max));
-    fclose(fd);
     REC_ReadConfigFloat(file_max_pct, "proxy.config.system.file_max_pct");
-    lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(lim.rlim_max * file_max_pct);
-    if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
+    if (file_max_pct > 1.0) {
+      file_max_pct = 1.0;
+    }
+
+    lim.rlim_cur = lim.rlim_max = static_cast<rlim_t>(maxfiles * file_max_pct);
+    if (setrlimit(RLIMIT_NOFILE, &lim) == 0 && getrlimit(RLIMIT_NOFILE, &lim) == 0) {
       fds_limit = (int) lim.rlim_cur;
       syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
-    } else {
-      syslog(LOG_NOTICE, "NOTE: Unable to set RLIMIT_NOFILE(%d):cur(%d),max(%d)", RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
     }
-  } else {
-    syslog(LOG_NOTICE, "NOTE: Unable to open /proc/sys/fs/file-max");
   }
-#endif // linux
 
-  if (!getrlimit(RLIMIT_NOFILE, &lim)) {
+  if (getrlimit(RLIMIT_NOFILE, &lim) == 0) {
     if (fds_throttle > (int) (lim.rlim_cur + FD_THROTTLE_HEADROOM)) {
       lim.rlim_cur = (lim.rlim_max = (rlim_t) fds_throttle);
       if (!setrlimit(RLIMIT_NOFILE, &lim) && !getrlimit(RLIMIT_NOFILE, &lim)) {
         fds_limit = (int) lim.rlim_cur;
-	syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
+	      syslog(LOG_NOTICE, "NOTE: RLIMIT_NOFILE(%d):cur(%d),max(%d)",RLIMIT_NOFILE, (int)lim.rlim_cur, (int)lim.rlim_max);
       }
     }
   }
@@ -391,7 +372,7 @@ main(int argc, char **argv)
   char *envVar = NULL, *group_addr = NULL, *tsArgs = NULL;
   bool log_to_syslog = true;
   char userToRunAs[80];
-  int  fds_throttle = -1;
+  RecInt fds_throttle = -1;
   time_t ticker;
   ink_thread webThrId;
 
@@ -536,16 +517,18 @@ main(int argc, char **argv)
 
   RecLocalInit();
   LibRecordsConfigInit();
-  RecordsConfigOverrideFromEnvironment();
 
   init_dirs();// setup critical directories, needs LibRecords
 
-  // Get the config info we need while we are still root
-  extractConfigInfo(mgmt_path, recs_conf, userToRunAs, &fds_throttle);
+  if (RecGetRecordString("proxy.config.admin.user_id", userToRunAs, sizeof(userToRunAs)) != TS_ERR_OKAY || strlen(userToRunAs) == 0) {
+    mgmt_fatal(stderr, 0, "proxy.config.admin.user_id is not set\n");
+  }
+
+  RecGetRecordInt("proxy.config.net.connections_throttle", &fds_throttle);
 
   set_process_limits(fds_throttle); // as root
   runAsUser(userToRunAs);
-  setup_coredump();
+  EnableCoreFile(true);
   check_lockfile();
 
   url_init();
@@ -595,17 +578,18 @@ main(int argc, char **argv)
     char sys_var[] = "proxy.config.syslog_facility";
     char *facility_str = NULL;
     int facility_int;
+
     facility_str = REC_readString(sys_var, &found);
     ink_assert(found);
 
     if (!found) {
-      mgmt_elog(0, "Could not read %s.  Defaulting to DAEMON\n", sys_var);
+      mgmt_elog(0, "Could not read %s.  Defaulting to LOG_DAEMON\n", sys_var);
       facility_int = LOG_DAEMON;
     } else {
       facility_int = facility_string_to_int(facility_str);
       ats_free(facility_str);
       if (facility_int < 0) {
-        mgmt_elog(0, "Bad syslog facility specified.  Defaulting to DAEMON\n");
+        mgmt_elog(0, "Bad syslog facility specified.  Defaulting to LOG_DAEMON\n");
         facility_int = LOG_DAEMON;
       }
     }
@@ -1073,69 +1057,10 @@ restoreCapabilities() {
 //  If we are not root, do nothing
 //
 void
-runAsUser(char *userName)
+runAsUser(const char * userName)
 {
-  uid_t uid, euid;
-  struct passwd *result;
-  const int bufSize = 1024;
-  char buf[bufSize];
-
-  uid = getuid();
-  euid = geteuid();
-
-  if (uid == 0 || euid == 0) {
-
-    /* Figure out what user we should run as */
-
-    Debug("lm", "[runAsUser] Attempting to run as user '%s'\n", userName);
-
-    if (userName == NULL || userName[0] == '\0') {
-      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: proxy.config.admin.user_id is not set\n");
-      _exit(1);
-    }
-
-    struct passwd passwdInfo;
-    struct passwd *ppasswd = NULL;
-    result = NULL;
-    int res;
-    if (*userName == '#') {
-      int uuid = atoi(userName + 1);
-      if (uuid == -1)
-        uuid = (int)uid;
-      res = getpwuid_r((uid_t)uuid, &passwdInfo, buf, bufSize, &ppasswd);
-    }
-    else {
-      res = getpwnam_r(&userName[0], &passwdInfo, buf, bufSize, &ppasswd);
-    }
-
-    if (!res && ppasswd) {
-      result = ppasswd;
-    }
-
-    if (result == NULL) {
-      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Unable to get info about user %s : %s\n", userName, strerror(errno));
-      _exit(1);
-    }
-
-    if (setegid(result->pw_gid) != 0 || seteuid(result->pw_uid) != 0) {
-      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Unable to switch to user %s : %s\n", userName, strerror(errno));
-      _exit(1);
-    }
-
-    uid = getuid();
-    euid = geteuid();
-
-    Debug("lm", "[runAsUser] Running with uid: '%d' euid: '%d'\n", uid, euid);
-
-    if (uid != result->pw_uid && euid != result->pw_uid) {
-      mgmt_elog(stderr, 0, "[runAsUser] Fatal Error: Failed to switch to user %s\n", userName);
-      _exit(1);
-    }
-
-    // setup supplementary groups if it is not set.
-    if (0 == getgroups(0, NULL)) {
-      initgroups(&userName[0],result->pw_gid);
-    }
+  if (getuid() == 0 || geteuid() == 0) {
+    ImpersonateUser(userName, IMPERSONATE_EFFECTIVE);
 
 #if TS_USE_POSIX_CAP
     if (0 != restoreCapabilities()) {
@@ -1145,58 +1070,3 @@ runAsUser(char *userName)
 
   }
 }                               /* End runAsUser() */
-
-//  void extractConfigInfo(...)
-//
-//  We need to get certain records.config values while we are
-//   root.  We can not use LMRecords to get them because the constructor
-//   for LMRecords creates the mgmt DBM and we do not want that to
-//   be owned as root.  This function extracts that info from
-//   records.config
-//
-//
-void
-extractConfigInfo(char *mgmt_path, const char *recs_conf, char *userName, int *fds_throttle)
-{
-  char file[1024];
-  bool useridFound = false;
-  bool throttleFound = false;
-
-  /* Figure out what user we should run as */
-  if (mgmt_path && recs_conf) {
-    FILE *fin;
-    snprintf(file, sizeof(file), "%s/%s.shadow", mgmt_path, recs_conf);
-    if (!(fin = fopen(file, "r"))) {
-      ink_filepath_make(file, sizeof(file), mgmt_path, recs_conf);
-      if (!(fin = fopen(file, "r"))) {
-        mgmt_elog(stderr, errno, "[extractConfigInfo] Unable to open config file(%s)\n", file);
-        _exit(1);
-      }
-    }
-    // Get 'user id' and 'network connections throttle limit'
-    while (((!useridFound) || (!throttleFound)) && fgets(file, 1024, fin)) {
-      if (strstr(file, "CONFIG proxy.config.admin.user_id STRING")) {
-        //coverity[secure_coding]
-        if ((sscanf(file, "CONFIG proxy.config.admin.user_id STRING %1023s\n", userName) == 1) &&
-            strcmp(userName, "NULL") != 0) {
-          useridFound = true;
-        }
-      } else if (strstr(file, "CONFIG proxy.config.net.connections_throttle INT")) {
-        if ((sscanf(file, "CONFIG proxy.config.net.connections_throttle INT %d\n", fds_throttle) == 1)) {
-          throttleFound = true;
-        }
-      }
-
-    }
-    fclose(fin);
-  } else {
-    mgmt_elog(stderr, 0, "[extractConfigInfo] Fatal Error: unable to access records file\n");
-    _exit(1);
-  }
-
-  if (useridFound == false) {
-    mgmt_elog(stderr, 0, "[extractConfigInfo] Fatal Error: proxy.config.admin.user_id is not set\n");
-    _exit(1);
-  }
-
-}                               /* End extractConfigInfo() */

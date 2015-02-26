@@ -159,13 +159,10 @@ REGRESSION_TEST(SDK_API_TSPluginDirGet) (RegressionTest * test, int /* atype ATS
     return;
   }
 
-  // Note: This doesn't have to be true
-  //      since the location can be anywhere
-  //      We only pass this test, with the default layout.
-  if (strstr(plugin_dir, "libexec/trafficserver") == NULL) {
+  if (strstr(plugin_dir, TS_BUILD_LIBEXECDIR) == NULL) {
     SDK_RPRINT(test, "TSPluginDirGet", "TestCase2", TC_FAIL,
-               "plugin dir(%s) is incorrect, expected (%s) in path. Are you using the default layout?",
-               plugin_dir,"libexec/trafficserver");
+               "plugin dir(%s) is incorrect, expected (%s) in path.",
+               plugin_dir, TS_BUILD_LIBEXECDIR);
     *pstatus = REGRESSION_TEST_FAILED;
     return;
   }
@@ -5556,6 +5553,10 @@ typedef enum
   ORIG_TS_HTTP_PRE_REMAP_HOOK,
   ORIG_TS_HTTP_POST_REMAP_HOOK,
   ORIG_TS_HTTP_RESPONSE_CLIENT_HOOK,
+  ORIG_TS_SSL_FIRST_HOOK,
+  ORIG_TS_VCONN_PRE_ACCEPT_HOOK = ORIG_TS_SSL_FIRST_HOOK,
+  ORIG_TS_SSL_SNI_HOOK,
+  ORIG_TS_SSL_LAST_HOOK = ORIG_TS_SSL_SNI_HOOK,
   ORIG_TS_HTTP_LAST_HOOK
 } ORIG_TSHttpHookID;
 

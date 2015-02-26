@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[5.1.1])
-m4_define([TS_VERSION_N],[5001001])
+m4_define([TS_VERSION_S],[5.2.0])
+m4_define([TS_VERSION_N],[5002000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -46,8 +46,6 @@ AC_CONFIG_HEADERS([lib/ts/ink_autoconf.h])
 # Configure with --disable-silent-rules to get verbose output. For more info, see
 # http://www.gnu.org/software/automake/manual/html_node/Automake-silent_002drules-Option.html
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-
-AC_DISABLE_STATIC
 
 # Libtool versioning uses different conventions on different
 # platforms.  At least on FreeBSD, libtool uses an overly complex
@@ -224,15 +222,17 @@ AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 #
 # Force some static linkage (for testing / development only)
 #
-AC_MSG_CHECKING([whether to build some static libts (dev only)])
-AC_ARG_ENABLE([static-libts],
-  [AS_HELP_STRING([--enable-static-libts],[build some static libts (dev only)])],
-  [],
-  [enable_static_libts=no]
+AC_MSG_CHECKING([whether to build a static traffic_server binary])
+AC_ARG_ENABLE([static-proxy], [AS_HELP_STRING([--enable-static-proxy],[build a static traffic_server binary])], [
+    AC_ENABLE_STATIC
+  ], [
+    AC_DISABLE_STATIC
+    enable_static_proxy=no
+  ]
 )
-AC_MSG_RESULT([$enable_static_libts])
-TS_ARG_ENABLE_VAR([has],[static-libts])
-AM_CONDITIONAL([STATIC_LIBTS], [test 0 -ne $has_static_libts])
+AC_MSG_RESULT([$enable_static_proxy])
+TS_ARG_ENABLE_VAR([has],[static-proxy])
+AM_CONDITIONAL([BUILD_STATIC_PROXY], [test 0 -ne $has_static_proxy])
 
 #
 # Remote Coverity Prevent commit
@@ -585,7 +585,12 @@ if test "x${enable_cxx_11_support}" = "xyes" ; then
 fi
 
 # While we are in C++ mode, check for the GNU hash_map extension.
-TS_FLAG_HEADERS([unordered_map unordered_set])
+AC_CHECK_HEADERS([unordered_map unordered_set], [], [],
+[[#ifdef HAVE_UNORDERED_MAP
+#include <unordered_map>
+#endif
+]])
+
 AC_MSG_CHECKING([for <ext/hash_map>])
 AC_COMPILE_IFELSE([
   AC_LANG_PROGRAM([
@@ -604,7 +609,6 @@ if test "x${have_gnu_cxx_hash_map}" = "xyes" ; then
 fi
 
 # And check for std::shared_ptr vs std::tr1::shared_ptr
-TS_FLAG_HEADERS([unordered_map unordered_set])
 AC_MSG_CHECKING([for std::shared_ptr])
 AC_COMPILE_IFELSE([
   AC_LANG_PROGRAM([
@@ -779,18 +783,9 @@ AS_IF([test -n "$LEX"],
       ]
 )
 
-AS_IF([test "x$enable_wccp" = "xyes"],
-  [
-    AS_IF([test -z "$LEX"  ],
-       AC_MSG_ERROR([Need flex version $FLEX_MAJOR.$FLEX_MINOR.$FLEX_POINT or better to enable WCCP (found $flex_version_check)])
-    )
-
-    AS_IF([test -z "$YACC" ],
-        AC_MSG_ERROR([Need bison version $BISON_MAJOR.$BISON_MINOR.$BISON_POINT or better to enable WCCP (found $bison_version_check)])
-    )
-
-  ]
-)
+# Generated files checked in, only build them if the local OS has the necessary support.
+# Otherwise just use the checked in version.
+AM_CONDITIONAL([BUILD_TSCONFIG_GRAMMAR], [ test -n "$LEX" && test -n "$YACC" ])
 
 # Check for Perl and Doxygen
 AC_PATH_PROG([DOXYGEN], [doxygen]) # needed for Doxygen
@@ -1037,7 +1032,8 @@ else
 fi
 TS_ADDTO(CPPFLAGS, [-D_GNU_SOURCE])
 TS_ADDTO(CPPFLAGS, [-D_REENTRANT])
-
+TS_ADDTO(CPPFLAGS, [-D__STDC_LIMIT_MACROS=1])
+TS_ADDTO(CPPFLAGS, [-D__STDC_FORMAT_MACROS=1])
 
 AC_MSG_NOTICE([Build for host OS: $host_os, arch: $host_cpu, optimization: $host_os_def])
 
@@ -1111,13 +1107,6 @@ AX_LIB_CURL([7.19], [
 )
 
 #
-# The header_rewrite module depends on boost.
-AX_BOOST_BASE([1.33],
-  [ AM_CONDITIONAL([BUILD_HAVE_BOOST], [true]) ],
-  [ AM_CONDITIONAL([BUILD_HAVE_BOOST], [false]) ]
-)
-
-#
 # Check for SSL presence and usability
 TS_CHECK_CRYPTO
 
@@ -1174,9 +1163,11 @@ fi
 
 AC_CHECK_FUNCS([clock_gettime kqueue epoll_ctl posix_memalign posix_fadvise posix_madvise posix_fallocate inotify_init])
 AC_CHECK_FUNCS([lrand48_r srand48_r port_create strlcpy strlcat sysconf getpagesize])
+AC_CHECK_FUNCS([getreuid getresuid getresgid setreuid setresuid])
+AC_CHECK_FUNCS([strsignal psignal psiginfo])
 
 # Check for eventfd() and sys/eventfd.h (both must exist ...)
-TS_FLAG_HEADERS([sys/eventfd.h], [
+AC_CHECK_HEADERS([sys/eventfd.h], [
   AS_IF([test "x$enable_eventfd" = "xyes"], [
     AC_CHECK_FUNCS([eventfd])
   ]
@@ -1187,7 +1178,7 @@ AC_CHECK_FUNCS(eventfd)
 #
 # Check for mcheck_pedantic(3)
 #
-TS_FLAG_HEADERS(mcheck.h)
+AC_CHECK_HEADERS(mcheck.h)
 AC_CHECK_FUNCS(mcheck_pedantic)
 
 #
@@ -1200,7 +1191,7 @@ fi
 
 has_backtrace=0
 # Check for backtrace() support
-TS_FLAG_HEADERS([execinfo.h], [has_backtrace=1],[])
+AC_CHECK_HEADERS([execinfo.h], [has_backtrace=1],[])
 if test "${has_backtrace}" = "1"; then
   # FreeBSD requires '/usr/ports/devel/libexecinfo' for gdb style backtrace() support
   AC_SEARCH_LIBS([backtrace], [execinfo], [have_backtrace_lib=yes])
@@ -1209,6 +1200,18 @@ else
 fi
 AC_SUBST(execinfoh)
 AC_SUBST(has_backtrace)
+
+# Remote process unwinding is only implemented on Linux because it depends on various Linux-specific
+# features such as /proc filesystem nodes, ptrace(2) and waitpid(2) extensions.
+AS_IF([test "$host_os_def" = "linux"], [
+  PKG_CHECK_MODULES([LIBUNWIND], [libunwind-ptrace], [
+    enable_remote_unwinding=yes
+  ], [
+    dnl no remote unwind support
+  ])
+])
+TS_ARG_ENABLE_VAR([use], [remote_unwinding])
+AC_SUBST(use_remote_unwinding)
 
 use_epoll=0
 use_kqueue=0
@@ -1242,19 +1245,6 @@ if test "x${with_profiler}" = "xyes"; then
   )
 fi
 AC_SUBST(has_profiler)
-
-# For SunPro 5.2 - we need the demangle symbol for
-#  ink_stack_trace.cc in lib/ts.  Because this
-#  library is part of the SunPro distribution, we need
-#  check with the C++ compiler since we might be using
-#  SunPro CC for the C++ compiler and gcc for the C compiler
-AC_LANG_PUSH([C++])
-AC_SEARCH_LIBS([cplus_demangle],[demangle],
-  [LIBDEMANGLE="-ldemangle"
-  ]
-)
-AC_SUBST([LIBDEMANGLE])
-AC_LANG_POP
 
 AC_MSG_CHECKING(for 128bit CAS support)
 AC_LANG_PUSH([C++])
@@ -1394,7 +1384,7 @@ AC_SUBST(use_hwloc)
 enable_maxmind_geoip=no
 TS_SEARCH_LIBRARY([GeoIP_id_by_code], [GeoIP], [
   GEOIP_LIBS=$ts_cv_search_GeoIP_id_by_code
-  TS_FLAG_HEADERS([GeoIP.h], [ enable_maxmind_geoip=yes ])
+  AC_CHECK_HEADERS([GeoIP.h], [ enable_maxmind_geoip=yes ])
 ])
 
 AC_SUBST(GEOIP_LIBS)
@@ -1434,7 +1424,7 @@ fi
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
 
-TS_FLAG_HEADERS([sys/types.h \
+AC_CHECK_HEADERS([sys/types.h \
                   sys/uio.h \
                   sys/mman.h \
                   sys/epoll.h \
@@ -1521,27 +1511,28 @@ AC_SUBST(net_ppp_defsh)
 AC_SUBST(ifaddrsh)
 AC_SUBST(readline_readlineh)
 
-TS_FLAG_HEADERS([sys/statfs.h sys/statvfs.h sys/disk.h sys/disklabel.h])
+AC_CHECK_HEADERS([sys/statfs.h sys/statvfs.h sys/disk.h sys/disklabel.h])
+AC_CHECK_HEADERS([linux/hdreg.h linux/fs.h linux/major.h])
 
-TS_FLAG_HEADERS([sys/sysctl.h], [], [],
+AC_CHECK_HEADERS([sys/sysctl.h], [], [],
                  [[#ifdef HAVE_SYS_PARAM_H
                     #include <sys/param.h>
                    #endif
                  ]])
 
-TS_FLAG_HEADERS([sys/cpuset.h], [], [],
+AC_CHECK_HEADERS([sys/cpuset.h], [], [],
                  [[#ifdef HAVE_SYS_PARAM_H
                     #include <sys/param.h>
                    #endif
                  ]])
 
-TS_FLAG_HEADERS([sys/mount.h], [], [],
+AC_CHECK_HEADERS([sys/mount.h], [], [],
                  [[#ifdef HAVE_SYS_PARAM_H
                     #include <sys/param.h>
                    #endif
                  ]])
 
-TS_FLAG_HEADERS([arpa/inet.h], [], [],
+AC_CHECK_HEADERS([arpa/inet.h], [], [],
                  [[#ifdef HAVE_SYS_TYPES_H
                     #include <sys/types.h>
                    #endif
@@ -1550,7 +1541,7 @@ TS_FLAG_HEADERS([arpa/inet.h], [], [],
                    #endif
                  ]])
 
-TS_FLAG_HEADERS([netinet/ip.h], [], [],
+AC_CHECK_HEADERS([netinet/ip.h], [], [],
                  [[#ifdef HAVE_SYS_TYPES_H
                     #include <sys/types.h>
                    #endif
@@ -1562,7 +1553,7 @@ TS_FLAG_HEADERS([netinet/ip.h], [], [],
                    #endif
                  ]])
 
-TS_FLAG_HEADERS([netinet/ip_icmp.h], [], [],
+AC_CHECK_HEADERS([netinet/ip_icmp.h], [], [],
                  [[#ifdef HAVE_SYS_TYPES_H
                     #include <sys/types.h>
                    #endif
@@ -1664,7 +1655,7 @@ if test "x${ac_cv_member_struct_sockaddr_in6_sin6_len}" = xyes; then
 fi
 
 if test "x${with_profiler}" = "xyes"; then
-TS_FLAG_HEADERS([google/profiler.h \
+AC_CHECK_HEADERS([google/profiler.h \
                   ], [], [])
 fi
 
@@ -1862,10 +1853,12 @@ AC_CONFIG_FILES([
   Makefile
   cmd/Makefile
   cmd/traffic_cop/Makefile
+  cmd/traffic_crashlog/Makefile
+  cmd/traffic_layout/Makefile
   cmd/traffic_line/Makefile
   cmd/traffic_manager/Makefile
   cmd/traffic_top/Makefile
-  doc/Doxyfile
+  cmd/traffic_via/Makefile
   doc/Makefile
   example/Makefile
   iocore/Makefile
@@ -1925,8 +1918,14 @@ AC_CONFIG_FILES([
   tools/tsxs
 ])
 
-AS_IF([test "x$enable_experimental_plugins" = xyes], [
+AC_CHECK_HEADERS([mysql/mysql.h], [has_mysql=1],[has_mysql=0])
+AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlclient"])],[has_mysql=0])
+AC_SUBST(has_mysql)
+AM_CONDITIONAL([HAS_MYSQL], [ test "x${has_mysql}" = "x1" ])
+
+AS_IF([test "x$enable_experimental_plugins" = xyes], [  
   AC_CONFIG_FILES([
+    plugins/experimental/mysql_remap/Makefile
     plugins/experimental/Makefile
     plugins/experimental/authproxy/Makefile
     plugins/experimental/background_fetch/Makefile
@@ -1939,6 +1938,7 @@ AS_IF([test "x$enable_experimental_plugins" = xyes], [
     plugins/experimental/escalate/Makefile
     plugins/experimental/esi/Makefile
     plugins/experimental/geoip_acl/Makefile
+    plugins/experimental/header_normalize/Makefile
     plugins/experimental/healthchecks/Makefile
     plugins/experimental/hipes/Makefile
     plugins/experimental/metalink/Makefile
@@ -1946,6 +1946,7 @@ AS_IF([test "x$enable_experimental_plugins" = xyes], [
     plugins/experimental/remap_stats/Makefile
     plugins/experimental/s3_auth/Makefile
     plugins/experimental/sslheaders/Makefile
+    plugins/experimental/ssl_cert_loader/Makefile
     plugins/experimental/stale_while_revalidate/Makefile
     plugins/experimental/ts_lua/Makefile
     plugins/experimental/url_sig/Makefile
@@ -1976,6 +1977,7 @@ AS_IF([test "x$enable_cppapi" = xyes], [
   lib/atscppapi/examples/stat_example/Makefile
   lib/atscppapi/examples/timeout_example/Makefile
   lib/atscppapi/examples/transactionhook/Makefile
+  lib/atscppapi/examples/async_http_fetch_streaming/Makefile
   lib/atscppapi/src/Makefile
 ])])
 
