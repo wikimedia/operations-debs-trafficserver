@@ -113,9 +113,9 @@ Traffic Server recognizes three space-delimited fields: ``type``,
 Precedence
 ==========
 
-Remap rules are not processed top-down, but based on an internal priority. Once
-these rules are executed we pick the lowest line number as the match (which
-replicates first-match-wins).
+Remap rules are not processed top-down, but based on an internal
+priority. Once these rules are executed we pick the first match
+based on configuration file parse order.
 
 1. ``map_with_recv_port`` and ```regex_map_with_recv_port```
 #. ``map`` and ``regex_map`` and ``reverse_map``
@@ -386,6 +386,7 @@ Examples
 --------
 
 ::
+
     map http://foo.example.com/neverpost  http://foo.example.com/neverpost @action=deny @method=post
     map http://foo.example.com/onlypost  http://foo.example.com/onlypost @action=allow @method=post
 

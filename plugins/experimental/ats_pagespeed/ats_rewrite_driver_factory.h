@@ -50,7 +50,7 @@ namespace net_instaweb {
   class StaticAssetManager;
   //class SystemCaches;
 
-class AtsRewriteDriverFactory : public SystemRewriteDriverFactory { 
+class AtsRewriteDriverFactory : public SystemRewriteDriverFactory {
  public:
   explicit AtsRewriteDriverFactory(const ProcessContext& process_context,
 				   AtsThreadSystem* thread_system,
@@ -70,8 +70,8 @@ class AtsRewriteDriverFactory : public SystemRewriteDriverFactory {
     return true;
   }
 
-  virtual void InitStaticAssetManager(StaticAssetManager* static_js_manager);
-  
+  //virtual void InitStaticAssetManager(StaticAssetManager* static_js_manager);
+
   // Initializes all the statistics objects created transitively by
   // AtsRewriteDriverFactory, including nginx-specific and
   // platform-independent statistics.

@@ -112,19 +112,4 @@ ink_mutex_try_acquire(ink_mutex * m)
 }
 
 #endif /* #if defined(POSIX_THREAD) */
-
-struct ink_scoped_mutex
-{
-  explicit ink_scoped_mutex(ink_mutex& m) : mtx(m) {
-    ink_mutex_acquire(&mtx);
-  }
-
-  ~ink_scoped_mutex() {
-    ink_mutex_release(&mtx);
-  }
-
-private:
-  ink_mutex& mtx;
-};
-
 #endif /* _ink_mutex_h_ */

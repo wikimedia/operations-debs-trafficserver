@@ -636,14 +636,14 @@ mime_init()
 
   if (init) {
     init = 0;
-    
+
     hdrtoken_init();
     day_names_dfa = new DFA;
     day_names_dfa->compile(day_names, SIZEOF(day_names), RE_CASE_INSENSITIVE);
-    
+
     month_names_dfa = new DFA;
     month_names_dfa->compile(month_names, SIZEOF(month_names), RE_CASE_INSENSITIVE);
-    
+
     MIME_FIELD_ACCEPT = hdrtoken_string_to_wks("Accept");
     MIME_FIELD_ACCEPT_CHARSET = hdrtoken_string_to_wks("Accept-Charset");
     MIME_FIELD_ACCEPT_ENCODING = hdrtoken_string_to_wks("Accept-Encoding");
@@ -1281,8 +1281,8 @@ _mime_hdr_field_list_search_by_slotnum(MIMEHdrImpl *mh, int slotnum)
 MIMEField *
 mime_hdr_field_find(MIMEHdrImpl *mh, const char *field_name_str, int field_name_len)
 {
-  int is_wks;
   HdrTokenHeapPrefix *token_info;
+  const bool is_wks = hdrtoken_is_wks(field_name_str);
 
   ink_assert(field_name_len >= 0);
 
@@ -1290,7 +1290,6 @@ mime_hdr_field_find(MIMEHdrImpl *mh, const char *field_name_str, int field_name_
   // do presence check and slot accelerator //
   ////////////////////////////////////////////
 
-  is_wks = hdrtoken_is_wks(field_name_str);
 #if TRACK_FIELD_FIND_CALLS
   Debug("http", "mime_hdr_field_find(hdr 0x%X, field %.*s): is_wks = %d\n", mh, field_name_len, field_name_str, is_wks);
 #endif
@@ -1325,12 +1324,11 @@ mime_hdr_field_find(MIMEHdrImpl *mh, const char *field_name_str, int field_name_
 #endif
       }
     }
-  }
-  ///////////////////////////////////////////////////////////////////////////
-  // search by well-known string index or by case-insensitive string match //
-  ///////////////////////////////////////////////////////////////////////////
 
-  if (is_wks) {
+    ///////////////////////////////////////////////////////////////////////////
+    // search by well-known string index or by case-insensitive string match //
+    ///////////////////////////////////////////////////////////////////////////
+
     MIMEField *f = _mime_hdr_field_list_search_by_wks(mh, token_info->wks_idx);
     ink_assert((f == NULL) || f->is_live());
 #if TRACK_FIELD_FIND_CALLS
@@ -1701,7 +1699,7 @@ mime_field_destroy(MIMEHdrImpl */* mh ATS_UNUSED */, MIMEField *field)
 }
 
 const char *
-mime_field_name_get(MIMEField *field, int *length)
+mime_field_name_get(const MIMEField *field, int *length)
 {
   *length = field->m_len_name;
   if (field->m_wks_idx >= 0)
@@ -1724,15 +1722,42 @@ mime_field_name_set(HdrHeap *heap, MIMEHdrImpl */* mh ATS_UNUSED */, MIMEField *
   }
 }
 
+int
+MIMEField::value_get_index(char const *value, int length)  const {
+  int retval = -1;
+
+  // if field doesn't support commas and there is just one instance, just compare the value
+  if (!this->supports_commas() && !this->has_dups()) {
+    if (this->m_len_value == length &&
+        strncasecmp(value, this->m_ptr_value, length) == 0)
+      retval = 0;
+  } else {
+    HdrCsvIter iter;
+    int tok_len;
+    const char *tok = iter.get_first(this, &tok_len);
+    int index = 0;
+    while (tok) {
+      if (tok_len == length && strncasecmp(tok, value, length) == 0) {
+        retval = index;
+        break;
+      } else {
+        index++;
+      }
+      tok = iter.get_next(&tok_len);
+    }
+  }
+  return retval;
+}
+
 const char *
-mime_field_value_get(MIMEField *field, int *length)
+mime_field_value_get(const MIMEField *field, int *length)
 {
   *length = field->m_len_value;
   return field->m_ptr_value;
 }
 
 int32_t
-mime_field_value_get_int(MIMEField *field)
+mime_field_value_get_int(const MIMEField *field)
 {
   int length;
   const char *str = mime_field_value_get(field, &length);
@@ -1741,7 +1766,7 @@ mime_field_value_get_int(MIMEField *field)
 }
 
 uint32_t
-mime_field_value_get_uint(MIMEField *field)
+mime_field_value_get_uint(const MIMEField *field)
 {
   int length;
   const char *str = mime_field_value_get(field, &length);
@@ -1749,7 +1774,7 @@ mime_field_value_get_uint(MIMEField *field)
 }
 
 int64_t
-mime_field_value_get_int64(MIMEField *field)
+mime_field_value_get_int64(const MIMEField *field)
 {
   int length;
   const char *str = mime_field_value_get(field, &length);
@@ -1758,7 +1783,7 @@ mime_field_value_get_int64(MIMEField *field)
 }
 
 time_t
-mime_field_value_get_date(MIMEField *field)
+mime_field_value_get_date(const MIMEField *field)
 {
   int length;
   const char *str = mime_field_value_get(field, &length);
@@ -1766,7 +1791,7 @@ mime_field_value_get_date(MIMEField *field)
 }
 
 const char *
-mime_field_value_get_comma_val(MIMEField *field, int *length, int idx)
+mime_field_value_get_comma_val(const MIMEField *field, int *length, int idx)
 {
   // some fields (like Date) contain commas but should not be ripped apart
   if (!field->supports_commas()) {
@@ -1791,7 +1816,7 @@ mime_field_value_get_comma_val(MIMEField *field, int *length, int idx)
 }
 
 int
-mime_field_value_get_comma_val_count(MIMEField *field)
+mime_field_value_get_comma_val_count(const MIMEField *field)
 {
   // some fields (like Date) contain commas but should not be ripped apart
   if (!field->supports_commas()) {
@@ -1804,7 +1829,7 @@ mime_field_value_get_comma_val_count(MIMEField *field)
 }
 
 int
-mime_field_value_get_comma_list(MIMEField *field, StrList *list)
+mime_field_value_get_comma_list(const MIMEField *field, StrList *list)
 {
   const char *str;
   int len;
@@ -2206,7 +2231,7 @@ MIMEField* MIMEHdr::get_host_port_values(
           host = b;
         }
       }
-      
+
       if (host) {
         if (host_ptr) *host_ptr = host._ptr;
         if (host_len) *host_len = static_cast<int>(host._size);
@@ -2401,27 +2426,32 @@ mime_scanner_get(MIMEScanner *S,
       mime_scanner_append(S, *raw_input_s, data_size);
       data_size = 0; // Don't append again.
     }
-  } 
+  }
 
   if (data_size && S->m_line_length) {
     // If we're already accumulating, continue to do so if we have data.
     mime_scanner_append(S, *raw_input_s, data_size);
   }
+  // No sharing if we've accumulated data (really, force this to make compiler shut up).
+  *output_shares_raw_input = 0 == S->m_line_length;
 
   // adjust out arguments.
   if (PARSE_CONT != zret) {
     if (0 != S->m_line_length) {
       *output_s = S->m_line;
       *output_e = *output_s + S->m_line_length;
-      *output_shares_raw_input = false;
       S->m_line_length = 0;
     } else {
       *output_s = *raw_input_s;
       *output_e = raw_input_c;
-      *output_shares_raw_input = true;
     }
   }
-  
+
+  // Make sure there are no '\0' in the input scanned so far
+  if (zret != PARSE_ERROR &&
+      memchr(*raw_input_s, '\0', raw_input_c - *raw_input_s) != NULL)
+    zret = PARSE_ERROR; 
+
   *raw_input_s = raw_input_c; // mark input consumed.
   return zret;
 }
@@ -2459,8 +2489,8 @@ mime_parser_parse(MIMEParser *parser, HdrHeap *heap, MIMEHdrImpl *mh, const char
   bool line_is_real;
   const char *colon;
   const char *line_c;
-  const char *line_s;
-  const char *line_e;
+  const char *line_s = NULL;
+  const char *line_e = NULL;
   const char *field_name_first;
   const char *field_name_last;
   const char *field_value_first;

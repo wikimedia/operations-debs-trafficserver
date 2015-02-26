@@ -45,6 +45,10 @@ typedef void (*RecConfigEntryCallback)(RecT rec_type, RecDataT data_type, const 
 void RecConfigFileInit(void);
 int RecConfigFileParse(const char * path, RecConfigEntryCallback handler, bool inc_version);
 
+// Return a copy of the system's configuration directory, taking proxy.config.config_dir into account. The
+// caller MUST release the result with ats_free().
+char * RecConfigReadConfigDir();
+
 // Return a copy of the system's local state directory, taking proxy.config.local_state_dir into account. The
 // caller MUST release the result with ats_free().
 char * RecConfigReadRuntimeDir();
@@ -65,6 +69,9 @@ char * RecConfigReadBinDir();
 // file is specified in the configuration variable named by "file_variable". If the configuration variable has no
 // value, NULL is returned. The caller MUST release the result with ats_free().
 char * RecConfigReadConfigPath(const char * file_variable, const char * default_value = NULL);
+
+// This is the same as RecConfigReadConfigPath, except it makes the paths relative to $PREFIX.
+char * RecConfigReadPrefixPath(const char * file_variable, const char * default_value = NULL);
 
 // Return a copy of the persistent stats file. This is $RUNTIMEDIR/records.snap.
 // The caller MUST release the result with ats_free().

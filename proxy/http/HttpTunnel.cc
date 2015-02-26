@@ -728,7 +728,7 @@ HttpTunnel::tunnel_run(HttpTunnelProducer * p_arg)
 
     for (int i = 0 ; i < MAX_PRODUCERS ; ++i) {
       p = producers + i;
-      if (p->vc != NULL) {
+      if (p->vc != NULL && (p->alive || (p->vc_type == HT_STATIC && p->buffer_start != NULL))) {
         producer_run(p);
       }
     }
@@ -891,6 +891,18 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
       c->write_vio = NULL;
       consumer_handler(VC_EVENT_WRITE_COMPLETE, c);
     } else {
+      // In the client half close case, all the data that will be sent
+      // from the client is already in the buffer.  Go ahead and set
+      // the amount to read since we know it.  We will forward the FIN
+      // to the server on VC_EVENT_WRITE_COMPLETE.
+      if (p->vc_type == HT_HTTP_CLIENT) {
+        HttpClientSession* ua_vc = static_cast<HttpClientSession*>(p->vc);
+        if (ua_vc->get_half_close_flag()) {
+          c_write = c->buffer_reader->read_avail();
+          p->alive = false;
+          p->handler_state = HTTP_SM_POST_SUCCESS;
+        }
+      }
       c->write_vio = c->vc->do_io_write(this, c_write, c->buffer_reader);
       ink_assert(c_write > 0);
     }
@@ -953,6 +965,7 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
     }
   }
 
+
   if (p->alive) {
     ink_assert(producer_n >= 0);
 
@@ -962,6 +975,7 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
       // done but we didn't do anything
       p->alive = false;
       p->read_success = true;
+      p->handler_state = HTTP_SM_POST_SUCCESS;
       Debug("http_tunnel", "[%" PRId64 "] [tunnel_run] producer already done", sm->sm_id);
       producer_handler(HTTP_TUNNEL_EVENT_PRECOMPLETE, p);
     } else {
@@ -978,6 +992,7 @@ HttpTunnel::producer_run(HttpTunnelProducer * p)
   // that it doesn't act like a buffer guard
   p->read_buffer->dealloc_reader(p->buffer_start);
   p->buffer_start = NULL;
+
 }
 
 int
@@ -1144,6 +1159,7 @@ bool HttpTunnel::producer_handler(int event, HttpTunnelProducer * p)
     jump_point = p->vc_handler;
     (sm->*jump_point) (event, p);
     sm_callback = true;
+    p->update_state_if_not_set(HTTP_SM_POST_SUCCESS);
     break;
 
   case VC_EVENT_READ_COMPLETE:
@@ -1171,6 +1187,7 @@ bool HttpTunnel::producer_handler(int event, HttpTunnelProducer * p)
     jump_point = p->vc_handler;
     (sm->*jump_point) (event, p);
     sm_callback = true;
+    p->update_state_if_not_set(HTTP_SM_POST_SUCCESS);
 
     // Data read from producer, reenable consumers
     for (c = p->consumer_list.head; c; c = c->link.next) {
@@ -1190,6 +1207,8 @@ bool HttpTunnel::producer_handler(int event, HttpTunnelProducer * p)
     jump_point = p->vc_handler;
     (sm->*jump_point) (event, p);
     sm_callback = true;
+    // Failure case anyway
+    p->update_state_if_not_set(HTTP_SM_POST_UA_FAIL);
     break;
 
   case VC_EVENT_WRITE_READY:
@@ -1207,8 +1226,8 @@ bool
 HttpTunnel::consumer_reenable(HttpTunnelConsumer* c)
 {
   HttpTunnelProducer* p = c->producer;
-  HttpTunnelProducer* srcp = p->flow_control_source;
-  if (p->alive
+
+  if (p && p->alive
 #ifndef LAZY_BUF_ALLOC
       && p->read_buffer->write_avail() > 0
 #endif
@@ -1218,8 +1237,8 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer* c)
     // the backlog short cuts quit when the value is equal (or
     // greater) to the target, we use strict comparison only for
     // checking low water, otherwise the flow control can stall out.
-    uint64_t backlog = (flow_state.enabled_p && p->is_source())
-      ? p->backlog(flow_state.high_water) : 0;
+    uint64_t backlog = (flow_state.enabled_p && p->is_source()) ? p->backlog(flow_state.high_water) : 0;
+    HttpTunnelProducer* srcp = p->flow_control_source;
 
     if (backlog >= flow_state.high_water) {
       if (is_debug_tag_set("http_tunnel"))
@@ -1241,6 +1260,15 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer* c)
           srcp->read_vio->reenable();
           // Kick source producer to get flow ... well, flowing.
           this->producer_handler(VC_EVENT_READ_READY, srcp);
+        } else {
+          // We can stall for small thresholds on network sinks because this event happens
+          // before the actual socket write. So we trap for the buffer becoming empty to
+          // make sure we get an event to unthrottle after the write.
+          if (HT_HTTP_CLIENT == c->vc_type) {
+            NetVConnection* netvc = dynamic_cast<NetVConnection*>(c->write_vio->vc_server);
+            if (netvc) // really, this should always be true.
+              netvc->trapWriteBufferEmpty();
+          }
         }
       }
       p->read_vio->reenable();
@@ -1289,6 +1317,16 @@ bool HttpTunnel::consumer_handler(int event, HttpTunnelConsumer * c)
     // Interesting tunnel event, call SM
     jump_point = c->vc_handler;
     (sm->*jump_point) (event, c);
+    // Make sure the handler_state is set
+    // Necessary for post tunnel end processing
+    if (c->producer && c->producer->handler_state == 0) {
+      if (event == VC_EVENT_WRITE_COMPLETE) 
+        c->producer->handler_state = HTTP_SM_POST_SUCCESS;
+      else if (c->vc_type == HT_HTTP_SERVER) 
+        c->producer->handler_state = HTTP_SM_POST_UA_FAIL;
+      else if (c->vc_type == HT_HTTP_CLIENT) 
+        c->producer->handler_state = HTTP_SM_POST_SERVER_FAIL;
+    }
     sm_callback = true;
 
     // Deallocate the reader after calling back the sm
@@ -1350,7 +1388,12 @@ HttpTunnel::chain_abort_all(HttpTunnelProducer * p)
     }
 
     if (c->self_producer) {
-      chain_abort_all(c->self_producer);
+      // Must snip the link before recursively
+      // freeing to avoid looks introduced by 
+      // blind tunneling
+      HttpTunnelProducer *selfp = c->self_producer;
+      c->self_producer = NULL;
+      chain_abort_all(selfp);
     }
 
     c = c->link.next;

@@ -448,6 +448,21 @@ LogAccess::marshal_server_resp_http_version(char *buf)
 }
 
 /*-------------------------------------------------------------------------
+-------------------------------------------------------------------------*/
+int
+LogAccess::marshal_server_resp_time_ms(char *buf)
+{
+  DEFAULT_INT_FIELD;
+}
+
+int
+LogAccess::marshal_server_resp_time_s(char *buf)
+{
+  DEFAULT_INT_FIELD;
+}
+
+
+/*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 int
@@ -544,6 +559,12 @@ LogAccess::marshal_http_header_field_escapify(LogField::Container /* container A
                                               char * /* field ATS_UNUSED */, char *buf)
 {
   DEFAULT_STR_FIELD;
+}
+
+int
+LogAccess::marshal_proxy_host_port(char *buf)
+{
+  DEFAULT_INT_FIELD;
 }
 
 /*-------------------------------------------------------------------------
@@ -840,7 +861,7 @@ LogAccess::marshal_ip(char* dest, sockaddr const* ip) {
 inline int
 LogAccess::unmarshal_with_map(int64_t code, char *dest, int len, Ptr<LogFieldAliasMap> map, const char *msg)
 {
-  int codeStrLen;
+  long int codeStrLen = 0;
 
   switch (map->asString(code, dest, len, (size_t *) & codeStrLen)) {
   case LogFieldAliasMap::INVALID_INT:

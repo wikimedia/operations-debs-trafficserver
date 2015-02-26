@@ -48,10 +48,11 @@ public:
     is_internal_request = true;
     recursion = 0;
     req_finished = 0;
-    resp_finished = 0;
+    is_method_head = 0;
     header_done = 0;
     user_data = NULL;
     has_sent_header = false;
+    destroyed = false;
     req_content_length = 0;
     resp_is_chunked = -1;
     resp_content_length = -1;
@@ -115,7 +116,7 @@ public:
                 const sockaddr *client_addr, int flags);
   void ext_add_header(const char *name, int name_len,
                       const char *value, int value_len);
-  void ext_lanuch();
+  void ext_launch();
   void ext_destroy();
   ssize_t ext_read_data(char *buf, size_t len);
   void ext_write_data(const void *data, size_t len);
@@ -165,8 +166,9 @@ private:
   TSFetchWakeUpOptions callback_options;
   bool req_finished;
   bool header_done;
-  bool resp_finished;
+  bool is_method_head;
   bool is_internal_request;
+  bool destroyed;
   IpEndpoint _addr;
   int resp_is_chunked;
   int resp_received_close;

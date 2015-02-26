@@ -339,18 +339,15 @@ spdy_process_fetch(TSEvent event, SpdyClientSession *sm, void *edata)
     if (req->fetch_body_completed)
       ret = 0; // Ignore fetch errors after FETCH BODY DONE
     else {
-      Error("spdy_process_fetch fetch error, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
+      Debug("spdy_error", "spdy_process_fetch fetch error, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
       req->fetch_sm = NULL;
     }
     break;
   }
 
   if (ret) {
-    Error("spdy_process_fetch sending STATUS_500, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
+    Debug("spdy_error", "spdy_process_fetch sending STATUS_500, fetch_sm %p, ret %d for sm_id %" PRId64 ", stream_id %u, req time %" PRId64 ", url %s", req->fetch_sm, ret, sm->sm_id, req->stream_id, req->start_time, req->url.c_str());
     spdy_prepare_status_response_and_clean_request(sm, req->stream_id, STATUS_500);
-    // It is better to send back a 500 response on the stream and have the client connection remain open.  However, we
-    // have seen a core around this.  We have a local patch to close the client connection (return -1) this is related
-    // to TS-2883.  TS-2883 still needs to be fixed.
   }
 
   return 0;
@@ -363,6 +360,11 @@ spdy_process_fetch_header(TSEvent /*event*/, SpdyClientSession *sm, TSFetchSM fe
   SpdyRequest *req = (SpdyRequest *)TSFetchUserDataGet(fetch_sm);
 
   SpdyNV spdy_nv(fetch_sm);
+
+  if (!spdy_nv.is_valid_response()) {
+    Debug("spdy_error", "----spdy_process_fetch_header, invalid http response");
+    return -1;
+  }
 
   Debug("spdy", "----spdylay_submit_syn_reply");
   if (sm->session) {
@@ -420,10 +422,11 @@ spdy_read_fetch_body_callback(spdylay_session * /*session*/, int32_t stream_id,
       unsigned char digest[MD5_DIGEST_LENGTH];
       if (is_debug_tag_set("spdy")) {
         MD5_Final(digest, &req->recv_md5);
-        Debug("spdy", "----recv md5sum: ");
+        char md5_strbuf[MD5_DIGEST_LENGTH * 2 + 1];
         for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-          Debug("spdy", "%02x", digest[i]);
+          snprintf(md5_strbuf + (i * 2), 3 /* null byte counts towards the limit */, "%02x", digest[i]);
         }
+        Debug("spdy", "----recv md5sum: %s", md5_strbuf);
       }
       *eof = 1;
       sm->cleanup_request(stream_id);

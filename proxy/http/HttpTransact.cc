@@ -88,44 +88,10 @@ is_header_keep_alive(const HTTPVersion & http_version, const HTTPVersion & reque
   //    *unknown_tokens = false;
 
   if (con_hdr) {
-    int val_len;
-    const char *val;
-
-    if (!con_hdr->has_dups()) { // try fastpath first
-      val = con_hdr->value_get(&val_len);
-      if (ptr_len_casecmp(val, val_len, "keep-alive", 10) == 0) {
-        con_token = CON_TOKEN_KEEP_ALIVE;
-      } else if (ptr_len_casecmp(val, val_len, "close", 5) == 0) {
-        con_token = CON_TOKEN_CLOSE;
-      }
-    }
-
-    if (con_token == CON_TOKEN_NONE) {
-      HdrCsvIter iter;
-
-      val = iter.get_first(con_hdr, &val_len);
-
-      while (val) {
-        if (ptr_len_casecmp(val, val_len, "keep-alive", 10) == 0) {
-          con_token = CON_TOKEN_KEEP_ALIVE;
-          /*
-             if (!*unknown_tokens) {
-             *unknown_tokens = (iter->get_next(&val_len) == NULL);
-             } */
-          break;
-        } else if (ptr_len_casecmp(val, val_len, "close", 5) == 0) {
-          con_token = CON_TOKEN_CLOSE;
-          /*
-             if (!*unknown_tokens) {
-             *unknown_tokens = (iter->get_next(&val_len) == NULL);
-             } */
-          break;
-        } else {
-          //      *unknown_tokens = true;
-        }
-        val = iter.get_next(&val_len);
-      }
-    }
+    if (con_hdr->value_get_index("keep-alive", 10) >= 0)
+      con_token = CON_TOKEN_KEEP_ALIVE;
+    else if (con_hdr->value_get_index("close", 5) >= 0)
+      con_token = CON_TOKEN_CLOSE;
   }
 
   if (HTTPVersion(1, 0) == http_version) {
@@ -152,7 +118,7 @@ is_request_conditional(HTTPHdr* header)
                  MIME_PRESENCE_IF_MODIFIED_SINCE | MIME_PRESENCE_IF_RANGE |
                  MIME_PRESENCE_IF_MATCH | MIME_PRESENCE_IF_NONE_MATCH);
   return (header->presence(mask) && (header->method_get_wksidx() == HTTP_WKSIDX_GET ||
-			  header->method_get_wksidx() == HTTP_WKSIDX_HEAD));
+                                     header->method_get_wksidx() == HTTP_WKSIDX_HEAD));
 }
 
 static inline bool
@@ -283,7 +249,6 @@ is_negative_caching_appropriate(HttpTransact::State* s)
 inline static HttpTransact::LookingUp_t
 find_server_and_update_current_info(HttpTransact::State* s)
 {
-  URL *url = s->hdr_info.client_request.url_get();
   int host_len;
   const char *host = s->hdr_info.client_request.host_get(&host_len);
 
@@ -291,9 +256,6 @@ find_server_and_update_current_info(HttpTransact::State* s)
     // Do not forward requests to local_host onto a parent.
     // I just wanted to do this for cop heartbeats, someone else
     // wanted it for all requests to local_host.
-    s->parent_result.r = PARENT_DIRECT;
-  } else if (url->scheme_get_wksidx() == URL_WKSIDX_HTTPS) {
-    // Do not forward HTTPS requests onto a parent.
     s->parent_result.r = PARENT_DIRECT;
   } else if (s->method == HTTP_WKSIDX_CONNECT && s->http_config_param->disable_ssl_parenting) {
     s->parent_result.r = PARENT_DIRECT;
@@ -532,7 +494,7 @@ how_to_open_connection(HttpTransact::State* s)
         int port = url->port_get();
         if (port != url_canonicalize_port(URL_TYPE_HTTP, 0)) {
           char *buf = (char *)alloca(host_len + 15);
-          memcpy(buf, host, host_len); 
+          memcpy(buf, host, host_len);
           host_len += snprintf(buf + host_len, 15, ":%d", port);
           s->hdr_info.server_request.value_set(MIME_FIELD_HOST, MIME_LEN_HOST, buf, host_len);
         } else {
@@ -596,13 +558,17 @@ HttpTransact::BadRequest(State* s)
 void
 HttpTransact::HandleBlindTunnel(State* s)
 {
+  bool inbound_transparent_p = s->state_machine->ua_session->get_netvc()->get_is_transparent();
+  URL u;
+  //IpEndpoint dest_addr;
+  //ip_text_buffer new_host;
+
   DebugTxn("http_trans", "[HttpTransact::HandleBlindTunnel]");
 
   // We've received a request on a port which we blind forward
   //  For logging purposes we create a fake request
   s->hdr_info.client_request.create(HTTP_TYPE_REQUEST);
   s->hdr_info.client_request.method_set(HTTP_METHOD_CONNECT, HTTP_LEN_CONNECT);
-  URL u;
   s->hdr_info.client_request.url_create(&u);
   u.scheme_set(URL_SCHEME_TUNNEL, URL_LEN_TUNNEL);
   s->hdr_info.client_request.url_set(&u);
@@ -613,10 +579,9 @@ HttpTransact::HandleBlindTunnel(State* s)
   HTTPVersion ver(0, 9);
   s->hdr_info.client_request.version_set(ver);
 
-  struct in_addr dest_addr;
-  dest_addr.s_addr = s->state_machine->ua_session->get_netvc()->get_local_ip();
+  char new_host[INET6_ADDRSTRLEN];
+  ats_ip_ntop(s->state_machine->ua_session->get_netvc()->get_local_addr(), new_host, sizeof(new_host));
 
-  char *new_host = inet_ntoa(dest_addr);
   s->hdr_info.client_request.url_get()->host_set(new_host, strlen(new_host));
   s->hdr_info.client_request.url_get()->port_set(s->state_machine->ua_session->get_netvc()->get_local_port());
 
@@ -641,14 +606,14 @@ HttpTransact::HandleBlindTunnel(State* s)
     url_remap_success = true;
   } else if (url_remap_mode == URL_REMAP_DEFAULT || url_remap_mode == URL_REMAP_ALL) {
     // TODO: take a look at this
-    // This probably doesn't work properly, since request_url_remap() is broken.  
+    // This probably doesn't work properly, since request_url_remap() is broken.
     url_remap_success = request_url_remap(s, &s->hdr_info.client_request, &remap_redirect);
   }
   // We must have mapping or we will self loop since the this
   //    request was addressed to us to begin with.  Remap directs
   //    are something used in the normal reverse proxy and if we
   //    get them here they indicate a very bad misconfiguration!
-  if (url_remap_success == false || remap_redirect != NULL) {
+  if (!(inbound_transparent_p || url_remap_success) || remap_redirect != NULL) {
     // The error message we send back will be suppressed so
     //  the only important thing in selecting the error is what
     //  status code it gets logged as
@@ -757,7 +722,6 @@ HttpTransact::perform_accept_encoding_filtering(State* s)
 void
 HttpTransact::StartRemapRequest(State* s)
 {
-  
   if (s->api_skip_all_remapping) {
     Debug ("http_trans", "API request to skip remapping");
 
@@ -767,15 +731,15 @@ HttpTransact::StartRemapRequest(State* s)
 
     TRANSACT_RETURN(SM_ACTION_POST_REMAP_SKIP, HttpTransact::HandleRequest);
   }
-  
+
   DebugTxn("http_trans", "START HttpTransact::StartRemapRequest");
 
   /**
-	 * Check for URL remappings before checking request
-	 * validity or initializing state variables since
-	 * the remappings can insert or change the destination
-	 * host, port and protocol.
-	**/
+   * Check for URL remappings before checking request
+   * validity or initializing state variables since
+   * the remappings can insert or change the destination
+   * host, port and protocol.
+   **/
 
   HTTPHdr *incoming_request = &s->hdr_info.client_request;
   URL *url = incoming_request->url_get();
@@ -843,7 +807,7 @@ HttpTransact::EndRemapRequest(State* s)
   int host_len;
   const char *host = incoming_request->host_get(&host_len);
   DebugTxn("http_trans","EndRemapRequest host is %.*s", host_len,host);
-  
+
   ////////////////////////////////////////////////////////////////
   // if we got back a URL to redirect to, vector the user there //
   ////////////////////////////////////////////////////////////////
@@ -957,14 +921,12 @@ done:
   /*
     if s->reverse_proxy == false, we can assume remapping failed in some way
       -however-
-    If an API setup a tunnel to fake the origin or proxy's response we will 
+    If an API setup a tunnel to fake the origin or proxy's response we will
     continue to handle the request (as this was likely the plugin author's intent)
-    
+
     otherwise, 502/404 the request right now. /eric
   */
   if (!s->reverse_proxy && s->state_machine->plugin_tunnel_type == HTTP_NO_PLUGIN_TUNNEL) {
-    // TS-2879: Let's initialize the state variables so the connection can be kept alive.
-    initialize_state_variables_from_request(s, &s->hdr_info.client_request);
     DebugTxn("http_trans", "END HttpTransact::EndRemapRequest");
     HTTP_INCREMENT_TRANS_STAT(http_invalid_client_requests_stat);
     TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, NULL);
@@ -1365,7 +1327,7 @@ HttpTransact::HandleRequest(State* s)
     // origin server. Ignore the no_dns_just_forward_to_parent setting.
     // we need to see if the hostname is an
     //   ip address since the parent selection code result
-    //   could change as a result of this ip address    
+    //   could change as a result of this ip address
     IpEndpoint addr;
     ats_ip_pton(s->server_info.name, &addr);
     if (ats_is_ip(&addr)) {
@@ -1479,9 +1441,9 @@ HttpTransact::HandleApiErrorJump(State* s)
     s->hdr_info.client_response.fields_clear();
     s->source = SOURCE_INTERNAL;
   }
-  
-  /** 
-    The API indicated an error. Lets use a >=400 error from the state (if one's set) or fallback to a 
+
+  /**
+    The API indicated an error. Lets use a >=400 error from the state (if one's set) or fallback to a
     generic HTTP/1.X 500 INKApi Error
   **/
   if ( s->http_return_code && s->http_return_code >= HTTP_STATUS_BAD_REQUEST ) {
@@ -1492,7 +1454,7 @@ HttpTransact::HandleApiErrorJump(State* s)
   else {
     build_response(s, &s->hdr_info.client_response, s->client_info.http_version,
                    HTTP_STATUS_INTERNAL_SERVER_ERROR, "INKApi Error");
-  }  
+  }
 
   TRANSACT_RETURN(SM_ACTION_INTERNAL_CACHE_NOOP, NULL);
   return;
@@ -2323,7 +2285,7 @@ HttpTransact::issue_revalidate(State* s)
     //    cache on like DELETE)
     if (c_resp->get_last_modified() > 0 &&
         (s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET ||
-		s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD) && s->range_setup == RANGE_NONE) {
+         s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD) && s->range_setup == RANGE_NONE) {
       // make this a conditional request
       int length;
       const char *str = c_resp->value_get(MIME_FIELD_LAST_MODIFIED, MIME_LEN_LAST_MODIFIED, &length);
@@ -2334,8 +2296,8 @@ HttpTransact::issue_revalidate(State* s)
     }
     // if Etag exists, also add if-non-match header
     if (c_resp->presence(MIME_PRESENCE_ETAG) &&
-			(s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET ||
-			 s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD)) {
+        (s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_GET ||
+         s->hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD)) {
       int length;
       const char *etag = c_resp->value_get(MIME_FIELD_ETAG, MIME_LEN_ETAG, &length);
       if ((length >= 2) && (etag[0] == 'W') && (etag[1] == '/')) {
@@ -2860,8 +2822,9 @@ HttpTransact::build_response_from_cache(State* s, HTTPWarningCode warning_code)
           s->cache_info.action = CACHE_DO_NO_ACTION;
           s->next_action = SM_ACTION_INTERNAL_CACHE_NOOP;
           break;
-        } else if (s->range_setup == RANGE_NOT_HANDLED) {
+        } else if ((s->range_setup == RANGE_NOT_HANDLED) || !s->range_in_cache) {
           // we switch to tunneling for Range requests if it is out of order.
+          // or if the range can't be satisfied from the cache
           // In that case we fetch the entire source so it's OK to switch
           // this late.
           DebugTxn("http_seq", "[HttpTransact::HandleCacheOpenReadHit] Out-of-order Range request - tunneling");
@@ -2982,6 +2945,7 @@ HttpTransact::handle_cache_write_lock(State* s)
   }
 
   if (s->cache_info.write_lock_state == CACHE_WL_READ_RETRY) {
+    DebugTxn("http_error", "calling hdr_info.server_request.destroy");
     s->hdr_info.server_request.destroy();
     HandleCacheOpenReadHitFreshness(s);
   } else {
@@ -3131,9 +3095,9 @@ HttpTransact::HandleICPLookup(State* s)
     // TODO in this case we should go to the miss case
     // just a little shy about using goto's, that's all.
     ink_release_assert(
-        (s->icp_info.port != s->client_info.port) || 
+        (s->icp_info.port != s->client_info.port) ||
         (ats_ip_addr_cmp(&s->icp_info.addr.sa, &Machine::instance()->ip.sa) != 0)
-    );        
+    );
 
     // Since the ICPDNSLookup is not called, these two
     //   values are not initialized.
@@ -3709,7 +3673,7 @@ void
 HttpTransact::delete_server_rr_entry(State* s, int max_retries)
 {
   char addrbuf[INET6_ADDRSTRLEN];
-  
+
   DebugTxn("http_trans", "[%d] failed to connect to %s", s->current.attempts,
         ats_ip_ntop(&s->current.server->addr.sa, addrbuf, sizeof(addrbuf)));
   DebugTxn("http_trans", "[delete_server_rr_entry] marking rr entry " "down and finding next one");
@@ -4377,11 +4341,11 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State* s)
           resp->set_expires(exp_time);
         }
       } else if (is_request_conditional(&s->hdr_info.client_request) && server_response_code == HTTP_STATUS_OK) {
-        DebugTxn("http_trans", "[hcoofsr] conditional request, 200 " "response, send back 304 if possible");
         client_response_code =
           HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request,
                                                                     &s->hdr_info.server_response);
 
+        DebugTxn("http_trans", "[hcoofsr] conditional request, 200 " "response, send back 304 if possible [crc=%d]", client_response_code);
         if ((client_response_code == HTTP_STATUS_NOT_MODIFIED) || (client_response_code == HTTP_STATUS_PRECONDITION_FAILED)) {
           switch (s->cache_info.action) {
           case CACHE_DO_WRITE:
@@ -5395,9 +5359,8 @@ HttpTransact::handle_trace_and_options_requests(State* s, HTTPHdr* incoming_hdr)
       int req_length = incoming_hdr->length_get();
       HTTP_RELEASE_ASSERT(req_length > 0);
 
-      s->internal_msg_buffer_index = 0;
-      s->internal_msg_buffer_size = req_length * 2;
       s->free_internal_msg_buffer();
+      s->internal_msg_buffer_size = req_length * 2;
 
       if (s->internal_msg_buffer_size <= max_iobuffer_size) {
         s->internal_msg_buffer_fast_allocator_size = buffer_size_to_index(s->internal_msg_buffer_size);
@@ -5526,8 +5489,6 @@ HttpTransact::initialize_state_variables_from_request(State* s, HTTPHdr* obsolet
   if (!s->server_info.name || s->redirect_info.redirect_in_process) {
     s->server_info.name = s->arena.str_store(host_name, host_len);
     s->server_info.port = incoming_request->port_get();
-  } else {
-    ink_assert(s->server_info.port != 0);
   }
 
   s->next_hop_scheme = s->scheme = incoming_request->url_get()->scheme_get_wksidx();
@@ -6017,7 +5978,7 @@ HttpTransact::is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* respons
   // If the use_client_target_addr is specified but the client
   // specified OS addr does not match any of trafficserver's looked up
   // host addresses, do not allow cache.  This may cause DNS cache poisoning
-  // of other trafficserver clients. The flag is set in the 
+  // of other trafficserver clients. The flag is set in the
   // process_host_db_info method
   if (!s->dns_info.lookup_validated
     && s->client_info.is_transparent) {
@@ -6223,13 +6184,13 @@ HttpTransact::is_response_cacheable(State* s, HTTPHdr* request, HTTPHdr* respons
 //             ! (response->is_cache_control_set(HTTP_VALUE_PROXY_REVALIDATE)) &&
 //             ! (response->is_cache_control_set(HTTP_VALUE_PUBLIC))) {
 
-	    DebugTxn("http_trans", "[is_response_cacheable] request has AUTHORIZATION - not cacheable");
+            DebugTxn("http_trans", "[is_response_cacheable] request has AUTHORIZATION - not cacheable");
             return(false);
 //         }
-// 	else {
-// 	    DebugTxn("http_trans","[is_response_cacheable] request has AUTHORIZATION, "
-// 		  "but response has a cache-control that allows caching");
-// 	}
+//      else {
+//          DebugTxn("http_trans","[is_response_cacheable] request has AUTHORIZATION, "
+//                "but response has a cache-control that allows caching");
+//      }
     }
 */
 }
@@ -7967,14 +7928,18 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
     url_string = NULL;
   }
 
+  // Make sure that if this error occured before we initailzied the state variables that we do now.
+  initialize_state_variables_from_request(s, &s->hdr_info.client_request);
+
   //////////////////////////////////////////////////////
   //  If there is a request body, we must disable     //
   //  keep-alive to prevent the body being read as    //
   //  the next header (unless we've already drained   //
   //  which we do for NTLM auth)                      //
   //////////////////////////////////////////////////////
-  if (s->hdr_info.request_content_length != 0 &&
-      s->state_machine->client_request_body_bytes < s->hdr_info.request_content_length) {
+  if (status_code == HTTP_STATUS_REQUEST_TIMEOUT ||
+      s->hdr_info.client_request.get_content_length() != 0 ||
+      s->client_info.transfer_encoding == HttpTransact::CHUNKED_ENCODING) {
     s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
   } else {
     // We don't have a request body.  Since we are
@@ -8107,7 +8072,6 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   s->free_internal_msg_buffer();
   s->internal_msg_buffer = new_msg;
   s->internal_msg_buffer_size = len;
-  s->internal_msg_buffer_index = 0;
   s->internal_msg_buffer_fast_allocator_size = -1;
 
   s->hdr_info.client_response.value_set(MIME_FIELD_CONTENT_TYPE, MIME_LEN_CONTENT_TYPE, body_type, strlen(body_type));
@@ -8129,9 +8093,9 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   if (s->http_config_param->errors_log_error_pages && status_code >= HTTP_STATUS_BAD_REQUEST) {
     char ip_string[INET6_ADDRSTRLEN];
 
-    Log::error("RESPONSE: sent %s status %d (%s) for '%s'", 
-        ats_ip_ntop(&s->client_info.addr.sa, ip_string, sizeof(ip_string)), 
-        status_code, 
+    Log::error("RESPONSE: sent %s status %d (%s) for '%s'",
+        ats_ip_ntop(&s->client_info.addr.sa, ip_string, sizeof(ip_string)),
+        status_code,
         reason_phrase,
         (url_string ? url_string : "<none>"));
   }
@@ -8190,13 +8154,12 @@ HttpTransact::build_redirect_response(State* s)
   //////////////////////////
   // set descriptive text //
   //////////////////////////
-  s->internal_msg_buffer_index = 0;
   s->free_internal_msg_buffer();
   s->internal_msg_buffer_fast_allocator_size = -1;
   s->internal_msg_buffer = body_factory->fabricate_with_old_api_build_va("redirect#moved_temporarily", s, 8192,
                                                                          &s->internal_msg_buffer_size,
                                                                          body_language, sizeof(body_language),
-                                                                         body_type, sizeof(body_type), 
+                                                                         body_type, sizeof(body_type),
                                                                          "%s <a href=\"%s\">%s</a>.  %s.",
                                                                          "The document you requested is now",
                                                                          new_url, new_url,
@@ -8495,7 +8458,7 @@ HttpTransact::client_result_stat(State* s, ink_hrtime total_time, ink_hrtime req
     default: break;
     }
   }
-  
+
   // Increment the completed connection count
   HTTP_INCREMENT_TRANS_STAT(http_completed_requests_stat);
 
