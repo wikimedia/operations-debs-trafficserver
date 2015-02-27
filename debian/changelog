@@ -1,5 +1,6 @@
-trafficserver (5.2.0-1) UNRELEASED; urgency=medium
+trafficserver (5.2.0-1) unstable; urgency=medium
 
+  [ Jean Baptiste Favre ]
   * New upstream release.
   * Add support for following experimental modules:
     - epic
@@ -12,7 +13,11 @@ trafficserver (5.2.0-1) UNRELEASED; urgency=medium
   * Fix misconfigured call to dh_makeshlibs (used system dir instead
     of temporary build one)
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 12 Feb 2015 22:22:44 +0100
+  [ Aron Xu ]
+  * Enable all hardening features.
+  * Update copyright file.
+
+ -- Aron Xu <aron@debian.org>  Thu, 12 Feb 2015 22:22:44 +0100
 
 trafficserver (5.1.1-1) unstable; urgency=medium
 
