@@ -22,7 +22,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
-ifeq ($(DEB_BUILD_ARCH),ppc64el)
+ifneq (,$(findstring $(DEB_BUILD_ARCH),arm64 ppc64el))
 	configure_flags += --disable-luajit
 endif
 
