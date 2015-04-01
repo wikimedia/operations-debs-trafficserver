@@ -1,3 +1,10 @@
+trafficserver (5.2.1-1~bbc78+1) stable; urgency=medium
+
+  * Imported Upstream version 5.2.1
+  * Remove TS3316 fix. Merged upstream
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 01 Apr 2015 13:35:21 +0200
+
 trafficserver (5.2.0-1~bbc78+1) stable; urgency=medium
 
   * Imported Upstream version 5.2.0
