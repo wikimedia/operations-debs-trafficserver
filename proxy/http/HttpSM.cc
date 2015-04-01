@@ -1515,13 +1515,9 @@ HttpSM::handle_api_return()
   case HttpTransact::SM_ACTION_API_READ_CACHE_HDR:
   case HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR:
   case HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE:
-    // this part is added for automatic redirect
-    if (t_state.api_next_action == HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR && t_state.api_release_server_session) {
-      t_state.api_release_server_session = false;
-      release_server_session();
-    } else if (t_state.api_next_action == HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE &&
-               t_state.api_cleanup_cache_read &&
-               t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
+    if (t_state.api_next_action == HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE &&
+        t_state.api_cleanup_cache_read &&
+        t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
       t_state.api_cleanup_cache_read = false;
       t_state.cache_info.object_read = NULL;
       t_state.request_sent_time = UNDEFINED_TIME;
@@ -1603,6 +1599,11 @@ HttpSM::handle_api_return()
 
   case HttpTransact::SM_ACTION_REDIRECT_READ:
     {
+      // Clean up from any communication with previous servers
+      release_server_session();
+      cache_sm.close_write();
+      //tunnel.deallocate_redirect_postdata_buffers();
+    
       call_transact_and_set_next_state(HttpTransact::HandleRequest);
       break;
     }
@@ -1924,6 +1925,10 @@ HttpSM::state_send_server_request_header(int event, void *data)
           // imediately, before receive the real response from original server.
           if ((len == HTTP_LEN_100_CONTINUE) && (strncasecmp(expect, HTTP_VALUE_100_CONTINUE, HTTP_LEN_100_CONTINUE) == 0)) {
             int64_t alloc_index = buffer_size_to_index(len_100_continue_response);
+            if (ua_entry->write_buffer) {
+              free_MIOBuffer(ua_entry->write_buffer);
+              ua_entry->write_buffer = NULL;
+            }
             ua_entry->write_buffer = new_MIOBuffer(alloc_index);
             IOBufferReader *buf_start = ua_entry->write_buffer->alloc_reader();
 
@@ -2657,12 +2662,16 @@ HttpSM::tunnel_handler_post(int event, void *data)
 
   HttpTunnelProducer *p = tunnel.get_producer(ua_session);
   if (event != HTTP_TUNNEL_EVENT_DONE) {
+    if ((event == VC_EVENT_WRITE_COMPLETE) || (event == VC_EVENT_EOS)) {
+      if (ua_entry->write_buffer) {
+        free_MIOBuffer(ua_entry->write_buffer);
+        ua_entry->write_buffer = NULL;
+      }
+    }
     if (t_state.http_config_param->send_408_post_timeout_response && p->handler_state == HTTP_SM_POST_UA_FAIL) {
       Debug("http_tunnel", "cleanup tunnel in tunnel_handler_post");
       hsm_release_assert(ua_entry->in_tunnel == true);
       ink_assert((event == VC_EVENT_WRITE_COMPLETE) || (event == VC_EVENT_EOS));
-      free_MIOBuffer(ua_entry->write_buffer);
-      ua_entry->write_buffer = NULL;
       vc_table.cleanup_all();
       tunnel.chain_abort_all(p);
       p->read_vio = NULL;
@@ -2869,7 +2878,8 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer * p)
   bool close_connection = false;
 
   if (t_state.current.server->keep_alive == HTTP_KEEPALIVE &&
-      server_entry->eos == false && plugin_tunnel_type == HTTP_NO_PLUGIN_TUNNEL) {
+      server_entry->eos == false && plugin_tunnel_type == HTTP_NO_PLUGIN_TUNNEL &&
+      t_state.txn_conf->keep_alive_enabled_out == 1) {
     close_connection = false;
   } else {
     close_connection = true;
@@ -2907,6 +2917,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer * p)
     if (is_http_server_eos_truncation(p)) {
       DebugSM("http", "[%" PRId64 "] [HttpSM::tunnel_handler_server] aborting HTTP tunnel due to server truncation", sm_id);
       tunnel.chain_abort_all(p);
+      ua_session = NULL;
       t_state.current.server->abort = HttpTransact::ABORTED;
       t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
       t_state.current.server->keep_alive = HTTP_NO_KEEPALIVE;
@@ -3203,11 +3214,20 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer * c)
   if (close_connection) {
     // If the client could be pipelining or is doing a POST, we need to
     //   set the ua_session into half close mode
-    if ((t_state.method == HTTP_WKSIDX_POST || t_state.client_info.pipeline_possible == true)
-        && c->producer->vc_type != HT_STATIC
-        && event == VC_EVENT_WRITE_COMPLETE) {
-      ua_session->set_half_close_flag();
-    }
+
+         // only external POSTs should be subject to this logic; ruling out internal POSTs here
+         bool is_eligible_post_request = (t_state.method == HTTP_WKSIDX_POST);
+         if (is_eligible_post_request) {
+          NetVConnection *vc = ua_session->get_netvc();
+          if (vc) {
+                 is_eligible_post_request = vc->get_is_internal_request() ? false : true;
+          }
+         }
+         if ((is_eligible_post_request || t_state.client_info.pipeline_possible == true) &&
+                          c->producer->vc_type != HT_STATIC &&
+                         event == VC_EVENT_WRITE_COMPLETE) {
+                 ua_session->set_half_close_flag();
+         }
 
     ua_session->do_io_close();
     ua_session = NULL;
@@ -3419,15 +3439,6 @@ HttpSM::tunnel_handler_post_ua(int event, HttpTunnelProducer * p)
 
   case VC_EVENT_READ_COMPLETE:
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
-    // We have completed reading POST data from client here.
-    // It's time to free MIOBuffer of 100 Continue's response now,
-    // althought this is a little late.
-    if (t_state.http_config_param->send_100_continue_response &&
-       ua_entry->write_buffer) {
-      free_MIOBuffer(ua_entry->write_buffer);
-      ua_entry->write_buffer = NULL;
-    }
-
     p->handler_state = HTTP_SM_POST_SUCCESS;
     p->read_success = true;
     ua_entry->in_tunnel = false;
@@ -4791,7 +4802,8 @@ HttpSM::do_http_server_open(bool raw)
     DebugSM("http", "calling sslNetProcessor.connect_re");
     int len = 0;
     const char * host = t_state.hdr_info.server_request.host_get(&len);
-    opt.set_sni_servername(host, len);
+    if (host && len > 0)
+      opt.set_sni_servername(host, len);
     connect_action_handle = sslNetProcessor.connect_re(this,    // state machine
                                                        &t_state.current.server->addr.sa,    // addr + port
                                                        &opt);
@@ -5064,6 +5076,7 @@ HttpSM::release_server_session(bool serve_from_cache)
   if (TS_SERVER_SESSION_SHARING_MATCH_NONE != t_state.txn_conf->server_session_sharing_match &&
       t_state.current.server->keep_alive == HTTP_KEEPALIVE &&
       t_state.hdr_info.server_response.valid() &&
+      t_state.hdr_info.server_request.valid() &&
       (t_state.hdr_info.server_response.status_get() == HTTP_STATUS_NOT_MODIFIED ||
        (t_state.hdr_info.server_request.method_get_wksidx() == HTTP_WKSIDX_HEAD
         && t_state.www_auth_content != HttpTransact::CACHE_AUTH_NONE)) &&
@@ -7605,8 +7618,10 @@ HttpSM::redirect_request(const char *redirect_url, const int redirect_len)
     valid_origHost = false;
 
   t_state.hdr_info.server_request.destroy();
+
   // we want to close the server session
-  t_state.api_release_server_session = true;
+  // will do that in handle_api_return under the 
+  // HttpTransact::SM_ACTION_REDIRECT_READ state
   t_state.parent_result.r = PARENT_UNDEFINED;
   t_state.request_sent_time = 0;
   t_state.response_received_time = 0;
@@ -7615,6 +7630,10 @@ HttpSM::redirect_request(const char *redirect_url, const int redirect_len)
   // we have a new OS and need to have DNS lookup the new OS
   t_state.dns_info.lookup_success = false;
   t_state.force_dns = false;
+
+  if (t_state.txn_conf->cache_http) {
+    t_state.cache_info.object_read = NULL;
+  }
 
   bool noPortInHost = HttpConfig::m_master.redirection_host_no_port;
 
