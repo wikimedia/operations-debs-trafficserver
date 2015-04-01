@@ -1,4 +1,35 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 5.2.1
+
+  *) [TS-3140] Traffic Server asserts during response redirect.
+
+  *) [TS-3437] A null dhParams file will disable DHE.
+
+  *) [TS-3424] SSL Failed: decryption failed or bad record mac.
+
+  *) [TS-3439] Chunked responses don't honor keep-alive.
+
+  *) [TS-3404] Handle race condition in handling delayed terminating chunk.
+
+  *) [TS-3285] Fix premature freeing of MIOBuffer to prevent freelist
+   corruption.
+
+  *) [TS-3299] Fix leaking vc's during inactivitycop, due to null
+   continuation.
+
+  *) [TS-3334] Restore default for proxy.config.proxy_name.
+
+  *) [TS-3397] Bug with ink_strlcpy and non-null terminated strings.
+
+  *) [TS-3359] Use after free: Tunnel destroyed without updating HttpSM.
+
+  *) [TS-3304] Add NULL check to ink_inet_addr() input.
+
+  *) [TS-3355] Fix compiler warning on CentOS5.
+
+  *) [TS-3316] Fix the build for 32 bit architectures.
+
+
 Changes with Apache Traffic Server 5.2.0
 
   *) [TS-3280] Segfault in new freelist bulk freeing (in debug mode).
