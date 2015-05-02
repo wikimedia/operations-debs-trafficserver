@@ -1,3 +1,9 @@
+trafficserver (5.2.1-3~bbc78+1) stable; urgency=medium
+
+  * Enable SPDY support
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Sat, 02 May 2015 13:02:11 +0200
+
 trafficserver (5.2.1-2~bbc78+1) stable; urgency=medium
 
   * Sync with Debian
