@@ -80,6 +80,12 @@
 /* Define to 1 if you have the `getpagesize' function. */
 #undef HAVE_GETPAGESIZE
 
+/* Define to 1 if you have the `getpeereid' function. */
+#undef HAVE_GETPEEREID
+
+/* Define to 1 if you have the `getpeerucred' function. */
+#undef HAVE_GETPEERUCRED
+
 /* Define to 1 if you have the `getresgid' function. */
 #undef HAVE_GETRESGID
 
@@ -375,6 +381,9 @@
 /* Define to 1 if you have the `sysconf' function. */
 #undef HAVE_SYSCONF
 
+/* Define to 1 if you have the <sysexits.h> header file. */
+#undef HAVE_SYSEXITS_H
+
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 #undef HAVE_SYS_BYTEORDER_H
 
@@ -446,6 +455,9 @@
 
 /* Define to 1 if you have the <sys/uio.h> header file. */
 #undef HAVE_SYS_UIO_H
+
+/* Define to 1 if you have the <ucred.h> header file. */
+#undef HAVE_UCRED_H
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H

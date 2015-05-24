@@ -734,6 +734,36 @@ Here is an example:
 
 `TOP <#ts-lua-plugin>`_
 
+ts.http.set_cache_lookup_status
+-------------------------------
+**syntax:** *ts.http.set_cache_lookup_status()*
+
+**context:** function after TS_LUA_HOOK_CACHE_LOOKUP_COMPLETE hook point
+
+**description:** This function can be used to set cache lookup status.
+
+Here is an example:
+
+::
+
+    function cache_lookup()
+        local cache_status = ts.http.get_cache_lookup_status()
+        if cache_status == TS_LUA_CACHE_LOOKUP_HIT_FRESH then
+            print('hit')
+        else
+            print('not hit')
+        end
+        ts.http.set_cache_lookup_status(TS_LUA_CACHE_LOOKUP_MISS)
+    end
+
+    function do_remap()
+        ts.hook(TS_LUA_HOOK_CACHE_LOOKUP_COMPLETE, cache_lookup)
+        return 0
+    end
+
+
+`TOP <#ts-lua-plugin>`_
+
 Http cache lookup status constants
 ----------------------------------
 **context:** global
@@ -1015,6 +1045,92 @@ We will get the output:
     User-Agent: curl/7.19.7
     Accept: */*
 
+
+`TOP <#ts-lua-plugin>`_
+
+ts.server_request.server_addr.get_addr
+--------------------------------------
+**syntax:** *ts.server_request.server_addr.get_addr()*
+
+**context:** do_remap or do_global_* or later
+
+**description**: This function can be used to get socket address of the origin server.
+
+The ts.server_request.server_addr.get_addr function returns three values, ip is a string, port and family is number.
+
+Here is an example:
+
+::
+
+    function do_global_send_request()
+        ip, port, family = ts.server_request.server_addr.get_addr()
+        print(ip)               -- 192.168.231.17
+        print(port)             -- 80
+        print(family)           -- 2(AF_INET)
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.server_request.server_addr.get_ip
+------------------------------------
+**syntax:** *ts.server_request.server_addr.get_ip()*
+
+**context:** do_remap or do_global_* or later
+
+**description**: This function can be used to get ip address of the origin server.
+
+The ts.server_request.server_addr.get_ip function returns ip as a string.
+
+Here is an example:
+
+::
+
+    function do_global_send_request()
+        ip = ts.server_request.server_addr.get_ip()
+        print(ip)               -- 192.168.231.17
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.server_request.server_addr.get_port
+--------------------------------------
+**syntax:** *ts.server_request.server_addr.get_port()*
+
+**context:** do_remap or do_global_* or later
+
+**description**: This function can be used to get port of the origin server.
+
+The ts.server_request.server_addr.get_port function returns port as number.
+
+Here is an example:
+
+::
+
+    function do_global_send_request()
+        port = ts.server_request.server_addr.get_port()
+        print(port)             -- 80
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.server_request.server_addr.get_outgoing_port
+-----------------------------------------------
+**syntax:** *ts.server_request.server_addr.get_outgoing_port()*
+
+**context:** do_remap or do_global_* or later
+
+**description**: This function can be used to get outgoing port to the origin server.
+
+The ts.server_request.server_addr.get_outgoing_port function returns outgoing port as number.
+
+Here is an example:
+
+::
+
+    function do_global_send_request()
+        port = ts.server_request.server_addr.get_outgoing_port()
+        print(port)             -- 50880
+    end
 
 `TOP <#ts-lua-plugin>`_
 
@@ -1595,6 +1711,87 @@ Here is an example:
 
 `TOP <#ts-lua-plugin>`_
 
+ts.base64_encode
+-----------
+**syntax:** *value = ts.base64_encode(str)*
+
+**context:** global
+
+**description:** Returns the base64 encoding of the ``str`` argument.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        uri = ts.client_request.get_uri()
+        value = ts.base64_encode(uri)
+    end
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.base64_decode
+-----------
+**syntax:** *value = ts.base64_decode(str)*
+
+**context:** global
+
+**description:** Returns the base64 decoding of the ``str`` argument.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        uri = ts.client_request.get_uri()
+        encoded_value = ts.base64_encode(uri)
+        decoded_value = ts.base64_decode(encoded_value)
+    end
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.escape_uri
+-----------
+**syntax:** *value = ts.escape_uri(str)*
+
+**context:** global
+
+**description:** Returns the uri-escaped value of the ``str`` argument.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        test = '/some value/'
+        value = ts.escape_uri(test)
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.unescape_uri
+-----------
+**syntax:** *value = ts.unescape_uri(str)*
+
+**context:** global
+
+**description:** Returns the uri-unescaped value of the ``str`` argument.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        test = '/some value/'
+        escaped_value = ts.escape_uri(test)
+        unescaped_value = ts.unescape_uri(escaped_value)
+    end
+
+
+`TOP <#ts-lua-plugin>`_
+
 ts.intercept
 ------------
 **syntax:** *ts.intercept(FUNCTION)*
@@ -1962,6 +2159,115 @@ Http config constants
     TS_LUA_CONFIG_NET_SOCK_PACKET_MARK_OUT
     TS_LUA_CONFIG_NET_SOCK_PACKET_TOS_OUT
 
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.timeout_set
+----------------------
+**syntax:** *ts.http.timeout_set(CONFIG, NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to overwrite the timeout settings.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        ts.http.timeout_set(TS_LUA_TIMEOUT_DNS, 30)    -- 30 seconds
+        return 0
+    end
+
+
+`TOP <#ts-lua-plugin>`_
+
+Timeout constants
+---------------------
+**context:** do_remap or do_global_* or later
+
+::
+
+    TS_LUA_TIMEOUT_ACTIVE
+    TS_LUA_TIMEOUT_DNS
+    TS_LUA_TIMEOUT_CONNECT
+    TS_LUA_TIMEOUT_NO_ACTIVITY
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.client_packet_mark_set
+----------------------
+**syntax:** *ts.http.client_packet_mark_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet mark for client connection.
+
+Here is an example:
+
+::
+
+    function do_remap()
+        ts.http.client_packet_mark_set(TS_LUA_TIMEOUT_DNS, 0)
+        return 0
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.server_packet_mark_set
+-------------------------
+**syntax:** *ts.http.server_packet_mark_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet mark for server connection.
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.client_packet_tos_set
+-------------------------
+**syntax:** *ts.http.client_packet_tos_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet tos for client connection.
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.server_packet_tos_set
+-------------------------
+**syntax:** *ts.http.server_packet_tos_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet tos for server connection.
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.client_packet_dscp_set
+-------------------------
+**syntax:** *ts.http.client_packet_dscp_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet dscp for client connection.
+
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.server_packet_dscp_set
+-------------------------
+**syntax:** *ts.http.server_packet_dscp_set(NUMBER)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to set packet dscp for server connection.
+
+
 `TOP <#ts-lua-plugin>`_
 
 ts.http.cntl_get
@@ -2010,6 +2316,52 @@ Http control channel constants
     TS_LUA_HTTP_CNTL_GET_INTERCEPT_RETRY_MODE
     TS_LUA_HTTP_CNTL_SET_INTERCEPT_RETRY_MODE
 
+
+`TOP <#ts-lua-plugin>`_
+
+ts.http.milestone_get
+----------------
+**syntax:** *val = ts.http.milestone_get(MILESTONE_TYPE)*
+
+**context:** do_remap or do_global_* or later.
+
+**description:** This function can be used to retireve the various milestone times. They are how long the 
+transaction took to traverse portions of the HTTP state machine. Each milestone value is a fractional number 
+of seconds since the beginning of the transaction.
+
+::
+
+    val = ts.http.milestone_get(TS_LUA_MILESTONE_SM_START)
+
+`TOP <#ts-lua-plugin>`_
+
+Milestone constants
+------------------------------
+**context:** do_remap or do_global_* or later
+
+::
+
+    TS_LUA_MILESTONE_UA_BEGIN
+    TS_LUA_MILESTONE_UA_READ_HEADER_DONE
+    TS_LUA_MILESTONE_UA_BEGIN_WRITE
+    TS_LUA_MILESTONE_UA_CLOSE
+    TS_LUA_MILESTONE_SERVER_FIRST_CONNECT
+    TS_LUA_MILESTONE_SERVER_CONNECT
+    TS_LUA_MILESTONE_SERVER_CONNECT_END
+    TS_LUA_MILESTONE_SERVER_BEGIN_WRITE
+    TS_LUA_MILESTONE_SERVER_FIRST_READ
+    TS_LUA_MILESTONE_SERVER_READ_HEADER_DONE
+    TS_LUA_MILESTONE_SERVER_CLOSE
+    TS_LUA_MILESTONE_CACHE_OPEN_READ_BEGIN
+    TS_LUA_MILESTONE_CACHE_OPEN_READ_END
+    TS_LUA_MILESTONE_CACHE_OPEN_WRITE_BEGIN
+    TS_LUA_MILESTONE_CACHE_OPEN_WRITE_END
+    TS_LUA_MILESTONE_DNS_LOOKUP_BEGIN
+    TS_LUA_MILESTONE_DNS_LOOKUP_END
+    TS_LUA_MILESTONE_SM_START
+    TS_LUA_MILESTONE_SM_FINISH
+
+
 `TOP <#ts-lua-plugin>`_
 
 ts.mgmt.get_counter
@@ -2057,6 +2409,56 @@ ts.mgmt.get_string
 ::
 
     name = ts.mgmt.get_string('proxy.config.product_name')
+
+`TOP <#ts-lua-plugin>`_
+
+ts.stat_create
+--------------
+**syntax:** *val = ts.stat_create(STAT_NAME, RECORDDATA_TYPE, PERSISTENT, SYNC)*
+
+**context:** global
+
+**description:** This function can be used to create a statistics record given the name, data type, persistent 
+requirement, and sync requirement. A statistics record table will be created with 4 functions to increment, 
+decrement, get and set the value.
+
+:: 
+
+    stat:increment(value)
+    stat:decrement(value)
+    v = stat:get_value()
+    stat:set_value(value)
+
+Here is an example.
+
+::
+
+    local test_stat;
+
+    function __init__(args)
+        test_stat = ts.stat_create("test_stat", 
+          TS_LUA_RECORDDATATYPE_INT, 
+          TS_LUA_STAT_PERSISTENT, 
+          TS_LUA_STAT_SYNC_COUNT)
+    end
+
+    function do_global_read_request()
+        local value = test_stat:get_value()
+        ts.debug(value)
+        test_stat:increment(1)
+        return 0
+    end
+
+`TOP <#ts-lua-plugin>`_
+
+ts.stat_find
+--------------
+**syntax:** *val = ts.stat_create(STAT_NAME)*
+
+**context:** global
+
+**description:** This function can be used to find a statistics record given the name. A statistics record table will 
+be returned with 4 functions to increment, decrement, get and set the value. That is similar to ts.stat_create()
 
 `TOP <#ts-lua-plugin>`_
 

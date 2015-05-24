@@ -269,6 +269,12 @@ am_remap_la_OBJECTS = remap/remap.lo
 remap_la_OBJECTS = $(am_remap_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_remap_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_remap_la_rpath = -rpath $(pkglibdir)
+remap_header_add_la_LIBADD =
+am_remap_header_add_la_OBJECTS = remap_header_add/remap_header_add.lo
+remap_header_add_la_OBJECTS = $(am_remap_header_add_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_remap_header_add_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_remap_header_add_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 replace_header_la_LIBADD =
 am_replace_header_la_OBJECTS = replace-header/replace-header.lo
 replace_header_la_OBJECTS = $(am_replace_header_la_OBJECTS)
@@ -382,11 +388,12 @@ SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
 	$(output_header_la_SOURCES) $(protocol_la_SOURCES) \
 	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
-	$(remap_la_SOURCES) $(replace_header_la_SOURCES) \
-	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
-	$(server_transform_la_SOURCES) $(ssl_preaccept_la_SOURCES) \
-	$(ssl_sni_whitelist_la_SOURCES) $(ssl_sni_la_SOURCES) \
-	$(thread_1_la_SOURCES) $(version_la_SOURCES)
+	$(remap_la_SOURCES) $(remap_header_add_la_SOURCES) \
+	$(replace_header_la_SOURCES) $(response_header_1_la_SOURCES) \
+	$(secure_link_la_SOURCES) $(server_transform_la_SOURCES) \
+	$(ssl_preaccept_la_SOURCES) $(ssl_sni_whitelist_la_SOURCES) \
+	$(ssl_sni_la_SOURCES) $(thread_1_la_SOURCES) \
+	$(version_la_SOURCES)
 DIST_SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(basic_auth_la_SOURCES) $(blacklist_0_la_SOURCES) \
 	$(blacklist_1_la_SOURCES) $(bnull_transform_la_SOURCES) \
@@ -395,11 +402,12 @@ DIST_SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
 	$(output_header_la_SOURCES) $(protocol_la_SOURCES) \
 	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
-	$(remap_la_SOURCES) $(replace_header_la_SOURCES) \
-	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
-	$(server_transform_la_SOURCES) $(ssl_preaccept_la_SOURCES) \
-	$(ssl_sni_whitelist_la_SOURCES) $(ssl_sni_la_SOURCES) \
-	$(thread_1_la_SOURCES) $(version_la_SOURCES)
+	$(remap_la_SOURCES) $(remap_header_add_la_SOURCES) \
+	$(replace_header_la_SOURCES) $(response_header_1_la_SOURCES) \
+	$(secure_link_la_SOURCES) $(server_transform_la_SOURCES) \
+	$(ssl_preaccept_la_SOURCES) $(ssl_sni_whitelist_la_SOURCES) \
+	$(ssl_sni_la_SOURCES) $(thread_1_la_SOURCES) \
+	$(version_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -433,7 +441,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -496,6 +503,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -509,6 +517,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -648,6 +657,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -754,6 +764,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -765,6 +776,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -816,6 +828,7 @@ plugins = \
   secure-link.la \
   server-transform.la \
   ssl-preaccept.la \
+  remap_header_add.la \
   ssl-sni.la \
   ssl-sni-whitelist.la \
   thread-1.la \
@@ -840,6 +853,7 @@ protocol_la_SOURCES = protocol/Protocol.c protocol/TxnSM.c
 query_remap_la_SOURCES = query-remap/query-remap.c
 remap_la_SOURCES = remap/remap.cc
 replace_header_la_SOURCES = replace-header/replace-header.c
+remap_header_add_la_SOURCES = remap_header_add/remap_header_add.cc
 response_header_1_la_SOURCES = response-header-1/response-header-1.c
 server_transform_la_SOURCES = server-transform/server-transform.c
 thread_1_la_SOURCES = thread-1/thread-1.c
@@ -1121,6 +1135,18 @@ remap/remap.lo: remap/$(am__dirstamp) remap/$(DEPDIR)/$(am__dirstamp)
 
 remap.la: $(remap_la_OBJECTS) $(remap_la_DEPENDENCIES) $(EXTRA_remap_la_DEPENDENCIES) 
 	$(AM_V_CXXLD)$(CXXLINK) $(am_remap_la_rpath) $(remap_la_OBJECTS) $(remap_la_LIBADD) $(LIBS)
+remap_header_add/$(am__dirstamp):
+	@$(MKDIR_P) remap_header_add
+	@: > remap_header_add/$(am__dirstamp)
+remap_header_add/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) remap_header_add/$(DEPDIR)
+	@: > remap_header_add/$(DEPDIR)/$(am__dirstamp)
+remap_header_add/remap_header_add.lo:  \
+	remap_header_add/$(am__dirstamp) \
+	remap_header_add/$(DEPDIR)/$(am__dirstamp)
+
+remap_header_add.la: $(remap_header_add_la_OBJECTS) $(remap_header_add_la_DEPENDENCIES) $(EXTRA_remap_header_add_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_remap_header_add_la_rpath) $(remap_header_add_la_OBJECTS) $(remap_header_add_la_LIBADD) $(LIBS)
 replace-header/$(am__dirstamp):
 	@$(MKDIR_P) replace-header
 	@: > replace-header/$(am__dirstamp)
@@ -1258,6 +1284,8 @@ mostlyclean-compile:
 	-rm -f query-remap/*.lo
 	-rm -f remap/*.$(OBJEXT)
 	-rm -f remap/*.lo
+	-rm -f remap_header_add/*.$(OBJEXT)
+	-rm -f remap_header_add/*.lo
 	-rm -f replace-header/*.$(OBJEXT)
 	-rm -f replace-header/*.lo
 	-rm -f response-header-1/*.$(OBJEXT)
@@ -1299,6 +1327,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@protocol/$(DEPDIR)/TxnSM.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@query-remap/$(DEPDIR)/query-remap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@remap/$(DEPDIR)/remap.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@remap_header_add/$(DEPDIR)/remap_header_add.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@replace-header/$(DEPDIR)/replace-header.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@response-header-1/$(DEPDIR)/response-header-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@secure-link/$(DEPDIR)/secure-link.Plo@am__quote@
@@ -1380,6 +1409,7 @@ clean-libtool:
 	-rm -rf protocol/.libs protocol/_libs
 	-rm -rf query-remap/.libs query-remap/_libs
 	-rm -rf remap/.libs remap/_libs
+	-rm -rf remap_header_add/.libs remap_header_add/_libs
 	-rm -rf replace-header/.libs replace-header/_libs
 	-rm -rf response-header-1/.libs response-header-1/_libs
 	-rm -rf secure-link/.libs secure-link/_libs
@@ -1538,6 +1568,8 @@ distclean-generic:
 	-rm -f query-remap/$(am__dirstamp)
 	-rm -f remap/$(DEPDIR)/$(am__dirstamp)
 	-rm -f remap/$(am__dirstamp)
+	-rm -f remap_header_add/$(DEPDIR)/$(am__dirstamp)
+	-rm -f remap_header_add/$(am__dirstamp)
 	-rm -f replace-header/$(DEPDIR)/$(am__dirstamp)
 	-rm -f replace-header/$(am__dirstamp)
 	-rm -f response-header-1/$(DEPDIR)/$(am__dirstamp)
@@ -1568,7 +1600,7 @@ clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
 	clean-pkglibLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -1614,7 +1646,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

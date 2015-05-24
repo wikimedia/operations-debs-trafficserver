@@ -138,7 +138,7 @@ librecords_lm_a_LIBADD =
 am__objects_1 = P_RecCore.$(OBJEXT) RecConfigParse.$(OBJEXT) \
 	RecCore.$(OBJEXT) RecDebug.$(OBJEXT) RecFile.$(OBJEXT) \
 	RecHttp.$(OBJEXT) RecMessage.$(OBJEXT) RecMutex.$(OBJEXT) \
-	RecTree.$(OBJEXT) RecUtils.$(OBJEXT)
+	RecUtils.$(OBJEXT)
 am_librecords_lm_a_OBJECTS = $(am__objects_1) RecLocal.$(OBJEXT)
 librecords_lm_a_OBJECTS = $(am_librecords_lm_a_OBJECTS)
 librecords_p_a_AR = $(AR) $(ARFLAGS)
@@ -238,7 +238,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -301,6 +300,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -314,6 +314,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -453,6 +454,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -559,6 +561,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -570,6 +573,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -603,7 +607,6 @@ librecords_COMMON = \
   P_RecFile.h \
   P_RecFile.h \
   P_RecMessage.h \
-  P_RecTree.h \
   P_RecUtils.h \
   RecConfigParse.cc \
   RecCore.cc \
@@ -612,7 +615,6 @@ librecords_COMMON = \
   RecHttp.cc \
   RecMessage.cc \
   RecMutex.cc \
-  RecTree.cc \
   RecUtils.cc
 
 librecords_lm_a_SOURCES = \
@@ -701,7 +703,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecMessage.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecMutex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecProcess.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecTree.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RecUtils.Po@am__quote@
 
 .cc.o:
