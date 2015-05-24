@@ -131,13 +131,15 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-libmgmt_lm_la_DEPENDENCIES = libmgmt_c.la cluster/libcluster.la \
-	utils/libutils_lm.la
+libmgmt_lm_la_DEPENDENCIES = libmgmt_c.la \
+	$(top_builddir)/mgmt/cluster/libcluster.la \
+	$(top_builddir)/mgmt/utils/libutils_lm.la
 am__objects_1 = BaseManager.lo RecordsConfigUtils.lo
 am_libmgmt_lm_la_OBJECTS = $(am__objects_1) Alarms.lo FileManager.lo \
 	LocalManager.lo MultiFile.lo Rollback.lo WebMgmtUtils.lo
 libmgmt_lm_la_OBJECTS = $(am_libmgmt_lm_la_OBJECTS)
-libmgmt_p_la_DEPENDENCIES = libmgmt_c.la utils/libutils_p.la
+libmgmt_p_la_DEPENDENCIES = libmgmt_c.la \
+	$(top_builddir)/mgmt/utils/libutils_p.la
 am_libmgmt_p_la_OBJECTS = $(am__objects_1) ProcessManager.lo \
 	ProxyConfig.lo
 libmgmt_p_la_OBJECTS = $(am_libmgmt_p_la_OBJECTS)
@@ -272,7 +274,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -335,6 +336,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -348,6 +350,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -487,6 +490,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -593,6 +597,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -604,6 +609,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -667,12 +673,12 @@ libmgmt_lm_la_SOURCES = \
 
 libmgmt_lm_la_LIBADD = \
   libmgmt_c.la \
-  cluster/libcluster.la \
-  utils/libutils_lm.la
+  $(top_builddir)/mgmt/cluster/libcluster.la \
+  $(top_builddir)/mgmt/utils/libutils_lm.la
 
 libmgmt_p_la_LIBADD = \
   libmgmt_c.la \
-  utils/libutils_p.la
+  $(top_builddir)/mgmt/utils/libutils_p.la
 
 all: all-recursive
 

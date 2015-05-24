@@ -80,10 +80,10 @@ use constant {
 # Semi-intelligent way of finding the mgmtapi socket.
 sub _find_socket {
     my $path = shift || "";
-    my $name = shift || "mgmtapisocket";
+    my $name = shift || "mgmtapi.sock";
     my @sockets_def = (
         $path,
-        Apache::TS::PREFIX . '/' . Apache::TS::REL_RUNTIMEDIR . '/' . 'mgmtapisocket',
+        Apache::TS::PREFIX . '/' . Apache::TS::REL_RUNTIMEDIR . '/' . 'mgmtapi.sock',
         '/usr/local/var/trafficserver',
         '/usr/local/var/run/trafficserver',
         '/usr/local/var/run',
@@ -279,7 +279,7 @@ For example:
 
 
 This would make the module look for the 'Unix Domain Socket' in the directory '/var/trafficserver'. The path
-can optionally include the name of the Socket file, without it the constructor defaults to 'mgmtapisocket'.
+can optionally include the name of the Socket file, without it the constructor defaults to 'mgmtapi.sock'.
 
 =back
 
@@ -349,7 +349,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cache.storage_filename
  proxy.config.cache.threads_per_disk
  proxy.config.cache.url_hash_method
- proxy.config.cache.vary_on_user_agent
  proxy.config.cache.mutex_retry_delay
  proxy.config.cluster.cluster_configuration
  proxy.config.cluster.cluster_load_clear_duration
@@ -554,7 +553,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.send_http11_requests
  proxy.config.http.server_max_connections
  proxy.config.http.server_port
- proxy.config.http.server_port_attr
  proxy.config.http.share_server_sessions
  proxy.config.http.slow.log.threshold
  proxy.config.http.connect_ports
