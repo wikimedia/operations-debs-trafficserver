@@ -9,6 +9,7 @@ usr/lib/trafficserver/modules/custom_redirect.so
 usr/lib/trafficserver/modules/epic.so
 usr/lib/trafficserver/modules/escalate.so
 usr/lib/trafficserver/modules/esi.so
+usr/lib/trafficserver/modules/generator.so
 usr/lib/trafficserver/modules/geoip_acl.so
 usr/lib/trafficserver/modules/header_normalize.so
 usr/lib/trafficserver/modules/healthchecks.so
