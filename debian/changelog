@@ -1,3 +1,11 @@
+trafficserver (5.3.0-1.1) UNRELEASED; urgency=medium
+
+  * Imported Upstream version 5.3.0
+  * Remove fix_TS3316_i386_build patch
+  * Fix traffic_wccp build, missing OpenSSL symbol
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 25 May 2015 11:43:19 +0200
+
 trafficserver (5.2.0-2) unstable; urgency=medium
 
   * Disable LuaJIT for arm64
