@@ -178,9 +178,10 @@ am_tslua_la_OBJECTS = tslua_la-ts_lua.lo \
 	tslua_la-ts_lua_server_response.lo \
 	tslua_la-ts_lua_transform.lo tslua_la-ts_lua_util.lo \
 	tslua_la-ts_lua_remap.lo tslua_la-ts_lua_http_cntl.lo \
+	tslua_la-ts_lua_http_milestone.lo \
 	tslua_la-ts_lua_http_config.lo tslua_la-ts_lua_mgmt.lo \
 	tslua_la-ts_lua_package.lo tslua_la-ts_lua_string.lo \
-	tslua_la-ts_lua_crypto.lo
+	tslua_la-ts_lua_crypto.lo tslua_la-ts_lua_stat.lo
 tslua_la_OBJECTS = $(am_tslua_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -258,7 +259,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -321,6 +321,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -334,6 +335,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -473,6 +475,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -579,6 +582,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -590,6 +594,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -641,11 +646,13 @@ tslua_la_SOURCES = \
   ts_lua_util.c \
   ts_lua_remap.c \
   ts_lua_http_cntl.c \
+  ts_lua_http_milestone.c \
   ts_lua_http_config.c \
   ts_lua_mgmt.c \
   ts_lua_package.c \
   ts_lua_string.c \
-  ts_lua_crypto.c
+  ts_lua_crypto.c \
+  ts_lua_stat.c
 
 tslua_la_LDFLAGS = $(TS_PLUGIN_LDFLAGS)
 all: all-am
@@ -739,6 +746,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_http_cntl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_http_config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_http_intercept.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_log.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_mgmt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_misc.Plo@am__quote@
@@ -746,6 +754,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_remap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_server_request.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_server_response.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_stat.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_string.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_transform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tslua_la-ts_lua_util.Plo@am__quote@
@@ -886,6 +895,13 @@ tslua_la-ts_lua_http_cntl.lo: ts_lua_http_cntl.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tslua_la-ts_lua_http_cntl.lo `test -f 'ts_lua_http_cntl.c' || echo '$(srcdir)/'`ts_lua_http_cntl.c
 
+tslua_la-ts_lua_http_milestone.lo: ts_lua_http_milestone.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tslua_la-ts_lua_http_milestone.lo -MD -MP -MF $(DEPDIR)/tslua_la-ts_lua_http_milestone.Tpo -c -o tslua_la-ts_lua_http_milestone.lo `test -f 'ts_lua_http_milestone.c' || echo '$(srcdir)/'`ts_lua_http_milestone.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/tslua_la-ts_lua_http_milestone.Tpo $(DEPDIR)/tslua_la-ts_lua_http_milestone.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ts_lua_http_milestone.c' object='tslua_la-ts_lua_http_milestone.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tslua_la-ts_lua_http_milestone.lo `test -f 'ts_lua_http_milestone.c' || echo '$(srcdir)/'`ts_lua_http_milestone.c
+
 tslua_la-ts_lua_http_config.lo: ts_lua_http_config.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tslua_la-ts_lua_http_config.lo -MD -MP -MF $(DEPDIR)/tslua_la-ts_lua_http_config.Tpo -c -o tslua_la-ts_lua_http_config.lo `test -f 'ts_lua_http_config.c' || echo '$(srcdir)/'`ts_lua_http_config.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/tslua_la-ts_lua_http_config.Tpo $(DEPDIR)/tslua_la-ts_lua_http_config.Plo
@@ -920,6 +936,13 @@ tslua_la-ts_lua_crypto.lo: ts_lua_crypto.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ts_lua_crypto.c' object='tslua_la-ts_lua_crypto.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tslua_la-ts_lua_crypto.lo `test -f 'ts_lua_crypto.c' || echo '$(srcdir)/'`ts_lua_crypto.c
+
+tslua_la-ts_lua_stat.lo: ts_lua_stat.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT tslua_la-ts_lua_stat.lo -MD -MP -MF $(DEPDIR)/tslua_la-ts_lua_stat.Tpo -c -o tslua_la-ts_lua_stat.lo `test -f 'ts_lua_stat.c' || echo '$(srcdir)/'`ts_lua_stat.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/tslua_la-ts_lua_stat.Tpo $(DEPDIR)/tslua_la-ts_lua_stat.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ts_lua_stat.c' object='tslua_la-ts_lua_stat.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(tslua_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o tslua_la-ts_lua_stat.lo `test -f 'ts_lua_stat.c' || echo '$(srcdir)/'`ts_lua_stat.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

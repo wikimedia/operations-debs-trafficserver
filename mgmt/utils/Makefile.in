@@ -142,6 +142,10 @@ am_test_marshall_OBJECTS = test_marshall.$(OBJEXT)
 test_marshall_OBJECTS = $(am_test_marshall_OBJECTS)
 test_marshall_DEPENDENCIES = libutils_p.la \
 	$(top_builddir)/lib/ts/libtsutil.la
+test_marshall_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_marshall_LDFLAGS) $(LDFLAGS) \
+	-o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -435,7 +439,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -498,6 +501,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -511,6 +515,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -650,6 +655,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -756,6 +762,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -767,6 +774,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -785,7 +793,8 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib/records \
   -I$(top_srcdir)/lib/ts \
   -I$(top_builddir)/lib \
-  -I$(top_srcdir)/lib
+  -I$(top_srcdir)/lib \
+  @OPENSSL_INCLUDES@
 
 
 # header files used by other libraries
@@ -809,6 +818,11 @@ libutils_lm_la_SOURCES = \
 libutils_p_la_SOURCES = \
   $(libutils_COMMON) \
   MgmtProcessCleanup.cc
+
+test_marshall_LDFLAGS = \
+  @EXTRA_CXX_LDFLAGS@ \
+  @LIBTOOL_LINK_FLAGS@ \
+  @OPENSSL_LDFLAGS@
 
 test_marshall_SOURCES = test_marshall.cc
 test_marshall_LDADD = \
@@ -878,7 +892,7 @@ clean-checkPROGRAMS:
 
 test_marshall$(EXEEXT): $(test_marshall_OBJECTS) $(test_marshall_DEPENDENCIES) $(EXTRA_test_marshall_DEPENDENCIES) 
 	@rm -f test_marshall$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(test_marshall_OBJECTS) $(test_marshall_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_marshall_LINK) $(test_marshall_OBJECTS) $(test_marshall_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

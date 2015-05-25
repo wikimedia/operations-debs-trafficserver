@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include "ink_platform.h"
 #include "ink_file.h"
-#include "Compatability.h"
 #include "ParseRules.h"
 #include "I_RecCore.h"
 #include "I_Layout.h"
@@ -35,7 +34,7 @@
 
 static const char *plugin_dir = ".";
 
-typedef void (*init_func_t) (int argc, char *argv[]);
+typedef void (*init_func_t)(int argc, char *argv[]);
 
 // Plugin registration vars
 //
@@ -52,12 +51,13 @@ DLL<PluginRegInfo> plugin_reg_list;
 PluginRegInfo *plugin_reg_current = NULL;
 
 PluginRegInfo::PluginRegInfo()
-  : plugin_registered(false), plugin_path(NULL), sdk_version(PLUGIN_SDK_VERSION_UNKNOWN),
-    plugin_name(NULL), vendor_name(NULL), support_email(NULL)
-{ }
+  : plugin_registered(false), plugin_path(NULL), sdk_version(PLUGIN_SDK_VERSION_UNKNOWN), plugin_name(NULL), vendor_name(NULL),
+    support_email(NULL)
+{
+}
 
-static void
-plugin_load(int argc, char *argv[])
+static bool
+plugin_load(int argc, char *argv[], bool validateOnly)
 {
   char path[PATH_NAME_MAX + 1];
   void *handle;
@@ -65,7 +65,7 @@ plugin_load(int argc, char *argv[])
   PluginRegInfo *plugin_reg_temp;
 
   if (argc < 1) {
-    return;
+    return true;
   }
   ink_filepath_make(path, sizeof(path), plugin_dir, argv[0]);
 
@@ -82,7 +82,6 @@ plugin_load(int argc, char *argv[])
   // elevate the access to read files as root if compiled with capabilities, if not
   // change the effective user to root
   {
-
 #if TS_USE_POSIX_CAP
     uint32_t elevate_access = 0;
     REC_ReadConfigInteger(elevate_access, "proxy.config.plugin.load_elevated");
@@ -91,6 +90,9 @@ plugin_load(int argc, char *argv[])
 
     handle = dlopen(path, RTLD_NOW);
     if (!handle) {
+      if (validateOnly) {
+        return false;
+      }
       Fatal("unable to load '%s': %s", path, dlerror());
     }
 
@@ -100,10 +102,13 @@ plugin_load(int argc, char *argv[])
     plugin_reg_current = new PluginRegInfo;
     plugin_reg_current->plugin_path = ats_strdup(path);
 
-    init = (init_func_t) dlsym(handle, "TSPluginInit");
+    init = (init_func_t)dlsym(handle, "TSPluginInit");
     if (!init) {
+      if (validateOnly) {
+        return false;
+      }
       Fatal("unable to find TSPluginInit function in '%s': %s", path, dlerror());
-      return; // this line won't get called since Fatal brings down ATS
+      return false; // this line won't get called since Fatal brings down ATS
     }
 
     init(argc, argv);
@@ -111,6 +116,8 @@ plugin_load(int argc, char *argv[])
 
   plugin_reg_list.push(plugin_reg_current);
   plugin_reg_current = NULL;
+
+  return true;
 }
 
 static char *
@@ -120,7 +127,7 @@ plugin_expand(char *arg)
   char *str = NULL;
 
   if (*arg != '$') {
-    return (char *) NULL;
+    return (char *)NULL;
   }
   // skip the $ character
   arg += 1;
@@ -130,48 +137,44 @@ plugin_expand(char *arg)
   }
 
   switch (data_type) {
-  case RECD_STRING:
-    {
-      RecString str_val;
-      if (RecGetRecordString_Xmalloc(arg, &str_val) != REC_ERR_OKAY) {
-        goto not_found;
-      }
-      return (char *) str_val;
-      break;
+  case RECD_STRING: {
+    RecString str_val;
+    if (RecGetRecordString_Xmalloc(arg, &str_val) != REC_ERR_OKAY) {
+      goto not_found;
     }
-  case RECD_FLOAT:
-    {
-      RecFloat float_val;
-      if (RecGetRecordFloat(arg, &float_val) != REC_ERR_OKAY) {
-        goto not_found;
-      }
-      str = (char *)ats_malloc(128);
-      snprintf(str, 128, "%f", (float) float_val);
-      return str;
-      break;
+    return (char *)str_val;
+    break;
+  }
+  case RECD_FLOAT: {
+    RecFloat float_val;
+    if (RecGetRecordFloat(arg, &float_val) != REC_ERR_OKAY) {
+      goto not_found;
     }
-  case RECD_INT:
-    {
-      RecInt int_val;
-      if (RecGetRecordInt(arg, &int_val) != REC_ERR_OKAY) {
-        goto not_found;
-      }
-      str = (char *)ats_malloc(128);
-      snprintf(str, 128, "%ld", (long int) int_val);
-      return str;
-      break;
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%f", (float)float_val);
+    return str;
+    break;
+  }
+  case RECD_INT: {
+    RecInt int_val;
+    if (RecGetRecordInt(arg, &int_val) != REC_ERR_OKAY) {
+      goto not_found;
     }
-  case RECD_COUNTER:
-    {
-      RecCounter count_val;
-      if (RecGetRecordCounter(arg, &count_val) != REC_ERR_OKAY) {
-        goto not_found;
-      }
-      str = (char *)ats_malloc(128);
-      snprintf(str, 128, "%ld", (long int) count_val);
-      return str;
-      break;
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%ld", (long int)int_val);
+    return str;
+    break;
+  }
+  case RECD_COUNTER: {
+    RecCounter count_val;
+    if (RecGetRecordCounter(arg, &count_val) != REC_ERR_OKAY) {
+      goto not_found;
     }
+    str = (char *)ats_malloc(128);
+    snprintf(str, 128, "%ld", (long int)count_val);
+    return str;
+    break;
+  }
   default:
     goto not_found;
     break;
@@ -183,8 +186,8 @@ not_found:
   return NULL;
 }
 
-void
-plugin_init(void)
+bool
+plugin_init(bool validateOnly)
 {
   ats_scoped_str path;
   char line[1024], *p;
@@ -193,6 +196,7 @@ plugin_init(void)
   int argc;
   int fd;
   int i;
+  bool retVal = true;
   static bool INIT_ONCE = true;
 
   if (INIT_ONCE) {
@@ -206,7 +210,7 @@ plugin_init(void)
   fd = open(path, O_RDONLY);
   if (fd < 0) {
     Warning("unable to open plugin config file '%s': %d, %s", (const char *)path, errno, strerror(errno));
-    return;
+    return false;
   }
 
   while (ink_file_fd_readline(fd, sizeof(line) - 1, line) > 0) {
@@ -224,7 +228,7 @@ plugin_init(void)
       while (*p && ParseRules::is_wslfcr(*p))
         ++p;
       if ((*p == '\0') || (*p == '#'))
-        break;                  // EOL
+        break; // EOL
 
       if (*p == '\"') {
         p += 1;
@@ -258,12 +262,12 @@ plugin_init(void)
       }
     }
 
-    plugin_load(argc, argv);
+    retVal = plugin_load(argc, argv, validateOnly);
 
     for (i = 0; i < argc; i++)
       ats_free(vars[i]);
   }
 
   close(fd);
+  return retVal;
 }
-

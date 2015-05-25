@@ -153,14 +153,14 @@ am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
 test_Buffer_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(test_Buffer_CXXFLAGS) \
-	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(test_Buffer_LDFLAGS) $(LDFLAGS) -o $@
 am_test_Event_OBJECTS = test_Event-test_Event.$(OBJEXT)
 test_Event_OBJECTS = $(am_test_Event_OBJECTS)
 test_Event_DEPENDENCIES = $(am__DEPENDENCIES_1)
 test_Event_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(test_Event_CXXFLAGS) \
-	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(test_Event_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -454,7 +454,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -517,6 +516,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -530,6 +530,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -669,6 +670,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -775,6 +777,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -786,6 +789,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -845,7 +849,13 @@ libinkevent_a_SOURCES = \
   UnixEvent.cc \
   UnixEventProcessor.cc
 
-test_CXXFLAGS = \
+test_LD_FLAGS = \
+  @EXTRA_CXX_LDFLAGS@ \
+  @LIBTOOL_LINK_FLAGS@ \
+  @OPENSSL_LDFLAGS@
+
+test_CPP_FLAGS = \
+  $(AM_CPPFLAGS) \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/proxy/api \
@@ -854,9 +864,10 @@ test_CXXFLAGS = \
   -I$(top_srcdir)/proxy/http \
   -I$(top_srcdir)/proxy/logging \
   -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/utils
+  -I$(top_srcdir)/mgmt/utils \
+  @OPENSSL_INCLUDES@
 
-test_LDADD = \
+test_LD_ADD = \
   libinkevent.a \
   $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
@@ -879,10 +890,12 @@ test_Event_SOURCES = \
 #test_UNUSED_SOURCES = \
 #  test_I_Event.cc \
 #  test_P_Event.cc
-test_Buffer_CXXFLAGS = $(test_CXXFLAGS)
-test_Event_CXXFLAGS = $(test_CXXFLAGS)
-test_Buffer_LDADD = $(test_LDADD)
-test_Event_LDADD = $(test_LDADD)
+test_Buffer_CPPFLAGS = $(test_CPP_FLAGS)
+test_Event_CPPFLAGS = $(test_CPP_FLAGS)
+test_Buffer_LDFLAGS = $(test_LD_FLAGS)
+test_Event_LDFLAGS = $(test_LD_FLAGS)
+test_Buffer_LDADD = $(test_LD_ADD)
+test_Event_LDADD = $(test_LD_ADD)
 all: all-am
 
 .SUFFIXES:
@@ -991,32 +1004,32 @@ distclean-compile:
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
 
 test_Buffer-test_Buffer.o: test_Buffer.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Buffer_CXXFLAGS) $(CXXFLAGS) -MT test_Buffer-test_Buffer.o -MD -MP -MF $(DEPDIR)/test_Buffer-test_Buffer.Tpo -c -o test_Buffer-test_Buffer.o `test -f 'test_Buffer.cc' || echo '$(srcdir)/'`test_Buffer.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Buffer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Buffer-test_Buffer.o -MD -MP -MF $(DEPDIR)/test_Buffer-test_Buffer.Tpo -c -o test_Buffer-test_Buffer.o `test -f 'test_Buffer.cc' || echo '$(srcdir)/'`test_Buffer.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Buffer-test_Buffer.Tpo $(DEPDIR)/test_Buffer-test_Buffer.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_Buffer.cc' object='test_Buffer-test_Buffer.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Buffer_CXXFLAGS) $(CXXFLAGS) -c -o test_Buffer-test_Buffer.o `test -f 'test_Buffer.cc' || echo '$(srcdir)/'`test_Buffer.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Buffer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Buffer-test_Buffer.o `test -f 'test_Buffer.cc' || echo '$(srcdir)/'`test_Buffer.cc
 
 test_Buffer-test_Buffer.obj: test_Buffer.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Buffer_CXXFLAGS) $(CXXFLAGS) -MT test_Buffer-test_Buffer.obj -MD -MP -MF $(DEPDIR)/test_Buffer-test_Buffer.Tpo -c -o test_Buffer-test_Buffer.obj `if test -f 'test_Buffer.cc'; then $(CYGPATH_W) 'test_Buffer.cc'; else $(CYGPATH_W) '$(srcdir)/test_Buffer.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Buffer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Buffer-test_Buffer.obj -MD -MP -MF $(DEPDIR)/test_Buffer-test_Buffer.Tpo -c -o test_Buffer-test_Buffer.obj `if test -f 'test_Buffer.cc'; then $(CYGPATH_W) 'test_Buffer.cc'; else $(CYGPATH_W) '$(srcdir)/test_Buffer.cc'; fi`
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Buffer-test_Buffer.Tpo $(DEPDIR)/test_Buffer-test_Buffer.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_Buffer.cc' object='test_Buffer-test_Buffer.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Buffer_CXXFLAGS) $(CXXFLAGS) -c -o test_Buffer-test_Buffer.obj `if test -f 'test_Buffer.cc'; then $(CYGPATH_W) 'test_Buffer.cc'; else $(CYGPATH_W) '$(srcdir)/test_Buffer.cc'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Buffer_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Buffer-test_Buffer.obj `if test -f 'test_Buffer.cc'; then $(CYGPATH_W) 'test_Buffer.cc'; else $(CYGPATH_W) '$(srcdir)/test_Buffer.cc'; fi`
 
 test_Event-test_Event.o: test_Event.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Event_CXXFLAGS) $(CXXFLAGS) -MT test_Event-test_Event.o -MD -MP -MF $(DEPDIR)/test_Event-test_Event.Tpo -c -o test_Event-test_Event.o `test -f 'test_Event.cc' || echo '$(srcdir)/'`test_Event.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Event_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Event-test_Event.o -MD -MP -MF $(DEPDIR)/test_Event-test_Event.Tpo -c -o test_Event-test_Event.o `test -f 'test_Event.cc' || echo '$(srcdir)/'`test_Event.cc
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Event-test_Event.Tpo $(DEPDIR)/test_Event-test_Event.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_Event.cc' object='test_Event-test_Event.o' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Event_CXXFLAGS) $(CXXFLAGS) -c -o test_Event-test_Event.o `test -f 'test_Event.cc' || echo '$(srcdir)/'`test_Event.cc
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Event_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Event-test_Event.o `test -f 'test_Event.cc' || echo '$(srcdir)/'`test_Event.cc
 
 test_Event-test_Event.obj: test_Event.cc
-@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Event_CXXFLAGS) $(CXXFLAGS) -MT test_Event-test_Event.obj -MD -MP -MF $(DEPDIR)/test_Event-test_Event.Tpo -c -o test_Event-test_Event.obj `if test -f 'test_Event.cc'; then $(CYGPATH_W) 'test_Event.cc'; else $(CYGPATH_W) '$(srcdir)/test_Event.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Event_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Event-test_Event.obj -MD -MP -MF $(DEPDIR)/test_Event-test_Event.Tpo -c -o test_Event-test_Event.obj `if test -f 'test_Event.cc'; then $(CYGPATH_W) 'test_Event.cc'; else $(CYGPATH_W) '$(srcdir)/test_Event.cc'; fi`
 @am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Event-test_Event.Tpo $(DEPDIR)/test_Event-test_Event.Po
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='test_Event.cc' object='test_Event-test_Event.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_Event_CXXFLAGS) $(CXXFLAGS) -c -o test_Event-test_Event.obj `if test -f 'test_Event.cc'; then $(CYGPATH_W) 'test_Event.cc'; else $(CYGPATH_W) '$(srcdir)/test_Event.cc'; fi`
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Event_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Event-test_Event.obj `if test -f 'test_Event.cc'; then $(CYGPATH_W) 'test_Event.cc'; else $(CYGPATH_W) '$(srcdir)/test_Event.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

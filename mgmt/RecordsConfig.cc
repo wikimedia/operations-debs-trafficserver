@@ -35,6 +35,7 @@
 // RecordsConfig
 //-------------------------------------------------------------------------
 
+// clang-format off
 static const RecordElement RecordsConfig[] =
 {
   //##############################################################################
@@ -48,7 +49,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.product_name", RECD_STRING, "Traffic Server", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.proxy_name", RECD_STRING, "<proxy_name>", RECU_DYNAMIC, RR_REQUIRED, RECC_STR, ".+", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.proxy_name", RECD_STRING, BUILD_MACHINE, RECU_DYNAMIC, RR_REQUIRED, RECC_STR, ".+", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.bin_path", RECD_STRING, "bin", RECU_NULL, RR_REQUIRED, RECC_NULL, NULL, RECA_READ_ONLY}
   ,
@@ -103,28 +104,30 @@ static const RecordElement RecordsConfig[] =
   //# Traffic Server system settings
   //##############################################################################
   // The maximum number of chunks to allocate with mmap. Setting this to zero disables all use of mmap. (Unix only)
-  {RECT_CONFIG, "proxy.config.system.mmap_max", RECD_INT, "2097152", RECU_RESTART_TS, RR_NULL, RECC_INT, NULL, RECA_READ_ONLY}
+  {RECT_CONFIG, "proxy.config.system.mmap_max", RECD_INT, "2097152", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_READ_ONLY}
   ,
   // The percent of the /proc/sys/fs/file-max value to set the RLIMIT_NOFILE cur/max to
   {RECT_CONFIG, "proxy.config.system.file_max_pct", RECD_FLOAT, "0.9", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_READ_ONLY}
   ,
   // Traffic Server Execution threads configuration
   // By default Traffic Server set number of execution threads equal to total CPUs
-  {RECT_CONFIG, "proxy.config.exec_thread.autoconfig", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-65535]", RECA_READ_ONLY}
+  {RECT_CONFIG, "proxy.config.exec_thread.autoconfig", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_READ_ONLY}
   ,
   {RECT_CONFIG, "proxy.config.exec_thread.autoconfig.scale", RECD_FLOAT, "1.5", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_READ_ONLY}
   ,
-  {RECT_CONFIG, "proxy.config.exec_thread.limit", RECD_INT, "2", RECU_RESTART_TS, RR_NULL, RECC_INT, "[1-1024]", RECA_READ_ONLY}
+  {RECT_CONFIG, "proxy.config.exec_thread.limit", RECD_INT, "2", RECU_RESTART_TS, RR_NULL, RECC_INT, "[1-" TS_STR(TS_MAX_NUMBER_EVENT_THREADS) "]", RECA_READ_ONLY}
   ,
   {RECT_CONFIG, "proxy.config.exec_thread.affinity", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-4]", RECA_READ_ONLY}
   ,
-  {RECT_CONFIG, "proxy.config.accept_threads", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_READ_ONLY}
+  {RECT_CONFIG, "proxy.config.accept_threads", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-" TS_STR(TS_MAX_NUMBER_EVENT_THREADS) "]", RECA_READ_ONLY}
   ,
-  {RECT_CONFIG, "proxy.config.task_threads", RECD_INT, "2", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-99999]", RECA_READ_ONLY}
+  {RECT_CONFIG, "proxy.config.task_threads", RECD_INT, "2", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-" TS_STR(TS_MAX_NUMBER_EVENT_THREADS) "]", RECA_READ_ONLY}
   ,
   {RECT_CONFIG, "proxy.config.thread.default.stacksize", RECD_INT, "1048576", RECU_RESTART_TS, RR_NULL, RECC_INT, "[131072-104857600]", RECA_READ_ONLY}
   ,
   {RECT_CONFIG, "proxy.config.user_name", RECD_STRING, "nobody", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.restart.active_client_threshold", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##############################################################################
@@ -259,6 +262,8 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.admin.cli_path", RECD_STRING, "cli", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.admin.api.restricted", RECD_INT, "1", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  ,
 
   //##############################################################################
   //#
@@ -356,6 +361,8 @@ static const RecordElement RecordsConfig[] =
   //        ###########
   {RECT_CONFIG, "proxy.config.header.parse.no_host_url_redirect", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_STR, ".*", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.http.parse.allow_non_http", RECD_INT, "1", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
 
   //##############################################################################
   //#
@@ -433,6 +440,8 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.http.send_408_post_timeout_response", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.http.disallow_post_100_continue", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
   {RECT_CONFIG, "proxy.config.http.share_server_sessions", RECD_INT, "2", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.server_session_sharing.match", RECD_STRING, "both", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -457,10 +466,12 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.http.attach_server_session_to_client", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.net.max_connections_in", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
 
-  //       ##########################
-  //       # HTTP referer filtering #
-  //       ##########################
+  //       ###########################
+  //       # HTTP referrer filtering #
+  //       ###########################
   {RECT_CONFIG, "proxy.config.http.referer_filter", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.referer_format_redirect", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -711,7 +722,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.body_factory.enable_logging", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.body_factory.template_sets_dir", RECD_STRING, TS_BUILD_SYSCONFDIR "/body_factory", RECU_RESTART_TS, RR_NULL, RECC_STR, "^[^[:space:]]+$", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.body_factory.template_sets_dir", RECD_STRING, TS_BUILD_SYSCONFDIR "/body_factory", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[^[:space:]]+$", RECA_NULL}
   ,
   //# 0 - never suppress generated responses
   //# 1 - always suppress generated responses
@@ -804,7 +815,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.net.poll_timeout", RECD_INT, "10", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.net.default_inactivity_timeout", RECD_INT, "86400", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.net.default_inactivity_timeout", RECD_INT, "86400", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##############################################################################
@@ -888,8 +899,6 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.cache.permit.pinning", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.cache.vary_on_user_agent", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
   //  # default the ram cache size to AUTO_SIZE (-1)
   //  # alternatively: 20971520 (20MB)
   {RECT_CONFIG, "proxy.config.cache.ram_cache.size", RECD_INT, "-1", RECU_RESTART_TS, RR_NULL, RECC_STR, "^-?[0-9]+$", RECA_NULL}
@@ -912,8 +921,6 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.cache.ram_cache_cutoff", RECD_INT, "4194304", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //  # The maximum number of alternates that are allowed for any given URL.
-  //  # It is not possible to strictly enforce this if the variable
-  //  #   'proxy.config.cache.vary_on_user_agent' is set to 1.
   //  # (0 disables the maximum number of alts check)
   {RECT_CONFIG, "proxy.config.cache.limits.http.max_alts", RECD_INT, "5", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
@@ -973,9 +980,9 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.dns.nameservers", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.dns.local_ipv6", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.dns.local_ipv6", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.dns.local_ipv4", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.dns.local_ipv4", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.dns.resolv_conf", RECD_STRING, "/etc/resolv.conf", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -983,7 +990,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.dns.dedicated_thread", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.hostdb.ip_resolve", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.ip_resolve", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##############################################################################
@@ -1036,6 +1043,10 @@ static const RecordElement RecordsConfig[] =
   ,
   //       # how often should the hostdb be synced (seconds)
   {RECT_CONFIG, "proxy.config.cache.hostdb.sync_frequency", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.hostdb.host_file.path", RECD_STRING, "/etc/hosts", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.hostdb.host_file.interval", RECD_INT, "86400", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //##########################################################################
@@ -1217,7 +1228,7 @@ static const RecordElement RecordsConfig[] =
   // # 2 - URL_REMAP_FOR_OS remap url's for requests to OS's only
   {RECT_CONFIG, "proxy.config.url_remap.url_remap_mode", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.url_remap.handle_backdoor_urls", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.url_remap.handle_backdoor_urls", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
 
   //##############################################################################
@@ -1267,9 +1278,13 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.cert.path", RECD_STRING, TS_BUILD_SYSCONFDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.ssl.server.cert_chain.filename", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.ssl.server.cert_chain.filename", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.multicert.filename", RECD_STRING, "ssl_multicert.config", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.ssl.server.multicert.exit_on_load_fail", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.ssl.server.ticket_key.filename", RECD_STRING, "ssl_ticket.key", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.private_key.path", RECD_STRING, TS_BUILD_SYSCONFDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1339,7 +1354,7 @@ static const RecordElement RecordsConfig[] =
   //##############################################################################
   {RECT_CONFIG, "proxy.config.icp.enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.icp.stale_icp_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.icp.stale_icp_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.icp.icp_interface", RECD_STRING, NULL, RECU_RESTART_TS, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1365,9 +1380,9 @@ static const RecordElement RecordsConfig[] =
   //# WCCP
   //#
   //############################################################################
-  {RECT_LOCAL, "proxy.config.wccp.addr", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_STR, NULL, RECA_NULL}
+  {RECT_LOCAL, "proxy.config.wccp.addr", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.wccp.services", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_STR, NULL, RECA_NULL }
+  {RECT_CONFIG, "proxy.config.wccp.services", RECD_STRING, "", RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL }
   ,
 
   //##############################################################################
@@ -1788,6 +1803,8 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_NODE, "proxy.node.log.bytes_lost_before_written_to_disk", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
+  {RECT_NODE, "proxy.process.ssl.total_success_handshake_count_in", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
 
   //#
   //# Add CLUSTER    Records Here
@@ -1980,6 +1997,24 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.spdy.accept_no_activity_timeout", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
 
+  //############
+  //#
+  //# HTTP/2 global configuration.
+  //#
+  //############
+  {RECT_CONFIG, "proxy.config.http2.enabled", RECD_INT, "0", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.max_concurrent_streams_in", RECD_INT, "100", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.initial_window_size_in", RECD_INT, "1048576", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.max_frame_size", RECD_INT, "16384", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.header_table_size", RECD_INT, "4096", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http2.max_header_list_size", RECD_INT, "4294967295", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  ,
+
   //# Add LOCAL Records Here
   {RECT_LOCAL, "proxy.local.incoming_ip_to_bind", RECD_STRING, NULL, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -2058,8 +2093,11 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.cache.http.compatibility.4-2-0-fixup", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
 
 };
+// clang-format on
 
-void RecordsConfigIterate(RecordElementCallback callback, void * data)
+
+void
+RecordsConfigIterate(RecordElementCallback callback, void *data)
 {
   for (unsigned i = 0; i < countof(RecordsConfig); ++i) {
     callback(&RecordsConfig[i], data);
