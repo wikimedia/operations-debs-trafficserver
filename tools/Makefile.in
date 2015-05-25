@@ -34,6 +34,7 @@
 #  limitations under the License.
 
 
+
 VPATH = @srcdir@
 am__is_gnu_make = test -n '$(MAKEFILE_LIST)' && test -n '$(MAKELEVEL)'
 am__make_running_with_option = \
@@ -103,7 +104,8 @@ host_triplet = @host@
 @BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_FALSE@am__append_2 = http_load/http_load
 subdir = tools
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
-	$(srcdir)/tsxs.in $(top_srcdir)/build/aux/depcomp
+	$(srcdir)/trafficserver.pc.in $(srcdir)/tsxs.in \
+	$(top_srcdir)/build/aux/depcomp
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
@@ -128,10 +130,11 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ts/ink_autoconf.h
-CONFIG_CLEAN_FILES = tsxs
+CONFIG_CLEAN_FILES = trafficserver.pc tsxs
 CONFIG_CLEAN_VPATH_FILES =
 @BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_TRUE@am__EXEEXT_1 = http_load/http_load$(EXEEXT)
-am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)"
+am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" \
+	"$(DESTDIR)$(pkgconfigdir)"
 @BUILD_HTTP_LOAD_TRUE@@BUILD_TEST_TOOLS_FALSE@am__EXEEXT_2 = http_load/http_load$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am__http_load_http_load_SOURCES_DIST = http_load/http_load.c \
@@ -237,6 +240,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+DATA = $(pkgconfig_DATA)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -265,7 +269,6 @@ AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-API_DEFS = @API_DEFS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -328,6 +331,7 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
+LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -341,6 +345,7 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -480,6 +485,7 @@ has_ip_tos = @has_ip_tos@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
+has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
@@ -586,6 +592,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
+use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
@@ -597,6 +604,7 @@ use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_reclaimable_freelist = @use_reclaimable_freelist@
 use_remote_unwinding = @use_remote_unwinding@
+use_set_rbio = @use_set_rbio@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -606,10 +614,13 @@ valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
 bin_SCRIPTS = tsxs tspush
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = trafficserver.pc
 AM_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 AM_CPPFLAGS = $(iocore_include_dirs) \
   -I$(top_srcdir)/lib -I$(top_builddir)/lib \
-  -I$(top_srcdir)/lib/ts -I$(top_builddir)/lib/ts
+  -I$(top_srcdir)/lib/ts -I$(top_builddir)/lib/ts \
+  -I$(top_srcdir)/lib/wccp
 
 jtest_jtest_SOURCES = jtest/jtest.cc
 jtest_jtest_LDADD = $(top_builddir)/lib/ts/libtsutil.la @OPENSSL_LIBS@
@@ -654,6 +665,8 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
+trafficserver.pc: $(top_builddir)/config.status $(srcdir)/trafficserver.pc.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 tsxs: $(top_builddir)/config.status $(srcdir)/tsxs.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 install-binPROGRAMS: $(bin_PROGRAMS)
@@ -843,6 +856,27 @@ clean-libtool:
 	-rm -rf .libs _libs
 	-rm -rf http_load/.libs http_load/_libs
 	-rm -rf jtest/.libs jtest/_libs
+install-pkgconfigDATA: $(pkgconfig_DATA)
+	@$(NORMAL_INSTALL)
+	@list='$(pkgconfig_DATA)'; test -n "$(pkgconfigdir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgconfigdir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(pkgconfigdir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(pkgconfigdir)'"; \
+	  $(INSTALL_DATA) $$files "$(DESTDIR)$(pkgconfigdir)" || exit $$?; \
+	done
+
+uninstall-pkgconfigDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(pkgconfig_DATA)'; test -n "$(pkgconfigdir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(pkgconfigdir)'; $(am__uninstall_files_from_dir)
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -928,9 +962,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS) $(SCRIPTS)
+all-am: Makefile $(PROGRAMS) $(SCRIPTS) $(DATA)
 installdirs:
-	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(pkgconfigdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -990,7 +1024,7 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-pkgconfigDATA
 
 install-dvi: install-dvi-am
 
@@ -1036,7 +1070,8 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS
+uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS \
+	uninstall-pkgconfigDATA
 
 .MAKE: install-am install-strip
 
@@ -1049,12 +1084,13 @@ uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS
 	install-data install-data-am install-dvi install-dvi-am \
 	install-exec install-exec-am install-html install-html-am \
 	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binPROGRAMS \
-	uninstall-binSCRIPTS
+	install-pdf-am install-pkgconfigDATA install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags tags-am uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-binSCRIPTS \
+	uninstall-pkgconfigDATA
 
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
