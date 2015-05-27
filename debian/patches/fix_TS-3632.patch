@@ -1,3 +1,14 @@
+Description: Fix missing Openssl MD5_FINAL symbol
+ Fix for issue #3632. Allows package build
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other, https://issues.apache.org/jira/browse/TS-3632
+Forwarded: https://github.com/apache/trafficserver/pull/203
+Bug: https://issues.apache.org/jira/browse/TS-3632
+Last-Update: 2015-05-27
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: cmd/traffic_wccp/Makefile.am
+===================================================================
 diff --git a/cmd/traffic_wccp/Makefile.am b/cmd/traffic_wccp/Makefile.am
 index 949388c..f7b6148 100644
 --- a/cmd/traffic_wccp/Makefile.am
