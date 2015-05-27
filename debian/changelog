@@ -1,3 +1,9 @@
+trafficserver (5.3.0-2~bbc78+1) stable; urgency=medium
+
+  * Patch for TS-3632 reformat
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Wed, 27 May 2015 10:10:13 +0200
+
 trafficserver (5.3.0-1~bbc78+1) stable; urgency=medium
 
   * Fix d/gbp.conf for ATS 5.3.x series
