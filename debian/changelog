@@ -1,6 +1,7 @@
-trafficserver (5.3.0-1.4) UNRELEASED; urgency=medium
+trafficserver (5.3.0-1) unstable; urgency=medium
 
   * Imported Upstream version 5.3.0
+    - CVE-2014-10022: remote DoS
   * Remove fix_TS3316_i386_build patch
   * Fix traffic_wccp build, missing OpenSSL symbol
   * Add experimental plugin generator
