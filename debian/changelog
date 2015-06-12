@@ -1,3 +1,10 @@
+trafficserver (5.3.0-2) unstable; urgency=medium
+
+  * Avoid installing tslua.so on archs built without LuaJIT
+    (Closes: #770353)
+
+ -- Aron Xu <aron@debian.org>  Thu, 11 Jun 2015 15:28:39 +0800
+
 trafficserver (5.3.0-1) unstable; urgency=medium
 
   * Imported Upstream version 5.3.0
