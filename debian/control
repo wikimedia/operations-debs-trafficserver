@@ -2,7 +2,7 @@ Source: trafficserver
 Section: web
 Priority: extra
 Maintainer: Arno Töll <arno@debian.org>
-Uploaders: Jean Baptiste Favre <debian@jbfavre.org>
+Uploaders: Aron Xu <aron@debian.org>, Jean Baptiste Favre <debian@jbfavre.org>
 Build-Depends: debhelper (>= 8.0), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libaio-dev [linux-any], libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config,
