@@ -1,4 +1,41 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 5.3.1
+
+  *) [TS-3721] Remove scoping on enum for HTTP2_FRAME_TYPE_MAX.
+
+  *) [TS-3719] HPACK error in lowering table size.
+
+  *) [TS-3697] Fix frame type check for http/2.
+
+  *) [TS-3665] Redirect logic causing debug asserts.
+
+  *) [TS-3661] keep cache_sm active during 3xx redirect follow to allow
+   for caching the final response.
+
+  *) [TS-3696] Fix range check in HdrHeap::attach_str_heap() such that gcc 5.1
+   doesn't complain.
+
+  *) [TS-3667] Make SSL Handhake read correctly handle EOF and error cases.
+
+  *) [TS-3554] Memory leak on ssl_multicert.config reload.
+
+  *) [TS-3649] url_sig: fix for crasher related to key index.
+   Author: Gancho Tenev <gttenev@gmail.com>
+
+  *) [TS-3632] Add OPENSSL_INCLUDE and OPENSSL_LIBS in Makefile.am.
+
+  *) [TS-3603] Debug Assert due to missing lock when accept_threads are disabled.
+
+  *) [TS-3597] TLS can fail accecpt / handshake when accept thread is turned off.
+
+  *) [TS-3600] Missing break; statement in background_fetch plugin.
+
+  *) [TS-3590] Mark H2 fetch streams as non-internal requests.
+
+  *) [TS-3504] Only read "proxy.config.cache.ram_cache.use_seen_filter" once.
+    Do not set up a callback.
+
+
 Changes with Apache Traffic Server 5.3.0
 
   *) [TS-3531] Ignore blank lines in the plugin config file.
