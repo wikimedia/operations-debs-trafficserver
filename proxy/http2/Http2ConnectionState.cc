@@ -640,8 +640,8 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
     Http2ErrorCode error;
 
     //  Implementations MUST ignore and discard any frame that has a type that is unknown.
-    ink_assert(frame->header().type < countof(frame_handlers));
-    if (frame->header().type > countof(frame_handlers)) {
+    ink_assert(frame->header().type < HTTP2_FRAME_TYPE_MAX);
+    if (frame->header().type >= HTTP2_FRAME_TYPE_MAX) {
       return 0;
     }
 
@@ -1005,7 +1005,7 @@ Http2Stream::init_fetcher(Http2ConnectionState &cstate)
   // Initialize FetchSM
   _fetch_sm = FetchSMAllocator.alloc();
   _fetch_sm->ext_init((Continuation *)cstate.ua_session, method, url, HTTP2_FETCHING_HTTP_VERSION,
-                      cstate.ua_session->get_client_addr(), TS_FETCH_FLAGS_DECHUNK);
+                      cstate.ua_session->get_client_addr(), (TS_FETCH_FLAGS_DECHUNK | TS_FETCH_FLAGS_NOT_INTERNAL_REQUEST));
 
   // Set request header
   MIMEFieldIter fiter;
