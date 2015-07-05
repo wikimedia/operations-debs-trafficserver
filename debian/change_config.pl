@@ -28,4 +28,5 @@ foreach my $line (@config_lines)
 {
         print F $line;
 }
+print F "CONFIG proxy.config.admin.user_id STRING trafficserver\n";
 close(F);

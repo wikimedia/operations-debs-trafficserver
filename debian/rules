@@ -4,7 +4,7 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
@@ -23,10 +23,8 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	configure_flags += --enable-wccp --enable-linux-native-aio
 endif
 
-ifeq ($(DEB_BUILD_ARCH),ppc64el)
+ifneq (,$(findstring $(DEB_BUILD_ARCH),arm64 mips mipsel mipsn32 mipsn32el mips64 mips64el ppc64el))
 	configure_flags += --disable-luajit
-	sed -i '/\/tslua\.so$$/d' \
-		debian/trafficserver-experimental-plugins.install
 endif
 
 %:
@@ -49,12 +47,15 @@ ifneq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 override_dh_install:
+ifneq (,$(findstring $(DEB_BUILD_ARCH),arm64 mips mipsel mipsn32 mipsn32el mips64 mips64el ppc64el))
+	sed -i '/\/tslua\.so$$/d' $(CURDIR)/debian/trafficserver-experimental-plugins.install
+endif
 	dh_install --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
 
 override_dh_fixperms:
 	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
-		-X var/log/trafficserver -X var/cache/trafficserver \
+		-X var/log/trafficserver -X /var/cache/trafficserver \
 		-X var/run/trafficserver
 
 override_dh_installexamples:
