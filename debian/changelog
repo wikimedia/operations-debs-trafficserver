@@ -1,3 +1,19 @@
+trafficserver (5.3.1-1) unstable; urgency=medium
+
+  [ Arno Töll ]
+  * Add proxy.config.admin.user_id setting
+
+  [ Aron Xu ]
+  * Add myself back to Uploaders
+  * Use dh compat 9
+
+  [ Jean Baptiste Favre ]
+  * Imported Upstream version 5.3.1
+  * Removed patch for TS-3632 (merged upstream)
+  * Upstream changes allow ftbfs with GCC-5 (Closes #778148)
+
+ --  Jean Baptiste Favre <debian@jbfavre.org>  Sat, 04 Jul 2015 23:20:49 +0200
+
 trafficserver (5.3.0-2) unstable; urgency=medium
 
   * Avoid installing tslua.so on archs built without LuaJIT
