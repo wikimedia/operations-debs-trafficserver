@@ -10,7 +10,7 @@ trafficserver (5.3.1-1) unstable; urgency=medium
   [ Jean Baptiste Favre ]
   * Imported Upstream version 5.3.1
   * Removed patch for TS-3632 (merged upstream)
-  * Upstream changes allow ftbfs with GCC-5 (Closes #778148)
+  * Upstream changes allow ftbfs with GCC-5 (Closes: #778148)
 
  --  Jean Baptiste Favre <debian@jbfavre.org>  Sat, 04 Jul 2015 23:20:49 +0200
 
