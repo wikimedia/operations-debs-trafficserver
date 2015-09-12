@@ -383,6 +383,12 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     return;
   }
 
+  MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, lthread, s->vio._cont);
+  if (!lock.is_locked()) {
+    readReschedule(nh);
+    return;
+  }
+  // If the key renegotiation failed it's over, just signal the error and finish.
   if (sslClientRenegotiationAbort == true) {
     this->read.triggered = 0;
     readSignalError(nh, (int)r);
@@ -390,11 +396,6 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     return;
   }
 
-  MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, lthread, s->vio._cont);
-  if (!lock.is_locked()) {
-    readReschedule(nh);
-    return;
-  }
   // If it is not enabled, lower its priority.  This allows
   // a fast connection to speed match a slower connection by
   // shifting down in priority even if it could read.
@@ -799,6 +800,7 @@ SSLNetVConnection::free(EThread *t)
   read.vio.mutex.clear();
   write.vio.mutex.clear();
   this->mutex.clear();
+  action_.mutex.clear();
   flags = 0;
   SET_CONTINUATION_HANDLER(this, (SSLNetVConnHandler)&SSLNetVConnection::startEvent);
   nh = NULL;
@@ -949,23 +951,14 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
     return EVENT_DONE;
   }
 
-  // All the pre-accept hooks have completed, proceed with the actual accept.
+  int retval = 1; // Initialze with a non-error value
 
+  // All the pre-accept hooks have completed, proceed with the actual accept.
   if (BIO_eof(SSL_get_rbio(this->ssl))) { // No more data in the buffer
     // Read from socket to fill in the BIO buffer with the
     // raw handshake data before calling the ssl accept calls.
-    int retval = this->read_raw_data();
-    if (retval < 0) {
-      if (retval == -EAGAIN) {
-        // No data at the moment, hang tight
-        SSLDebugVC(this, "SSL handshake: EAGAIN");
-        return SSL_HANDSHAKE_WANT_READ;
-      } else {
-        // An error, make us go away
-        SSLDebugVC(this, "SSL handshake error: read_retval=%d", retval);
-        return EVENT_ERROR;
-      }
-    } else if (retval == 0) {
+    retval = this->read_raw_data();
+    if (retval == 0) {
       // EOF, go away, we stopped in the handshake
       SSLDebugVC(this, "SSL handshake error: EOF");
       return EVENT_ERROR;
@@ -1057,6 +1050,15 @@ SSLNetVConnection::sslServerHandShakeEvent(int &err)
     return SSL_HANDSHAKE_WANT_WRITE;
 
   case SSL_ERROR_WANT_READ:
+    if (retval == -EAGAIN) {
+      // No data at the moment, hang tight
+      SSLDebugVC(this, "SSL handshake: EAGAIN");
+      return SSL_HANDSHAKE_WANT_READ;
+    } else if (retval < 0) {
+      // An error, make us go away
+      SSLDebugVC(this, "SSL handshake error: read_retval=%d", retval);
+      return EVENT_ERROR;
+    }
     return SSL_HANDSHAKE_WANT_READ;
 
 // This value is only defined in openssl has been patched to

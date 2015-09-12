@@ -1,4 +1,47 @@
                                                          -*- coding: utf-8 -*-
+Changes with Apache Traffic Server 5.3.2
+
+  *) [TS-3890] Errors in the huffman tree for HTTP/2.
+
+  *) [TS-3747] Error in Huffman decoder for HPACK.
+
+  *) [TS-3896] Fix crash in OpenDir::close_write from unlocked mutex.
+
+  *) [TS-3895] Mutex leak for TLS connections going to the origin.
+
+  *) [TS-3889] Avoid reenabling the txn before we release the mbuf.
+
+  *) [TS-3461] Changes sizeof() to not use non-static member variables.
+
+  *) [TS-3888] Initialize memory if buffer is large enough.
+
+  *) [TS-3887] Use snprintf() instead of sprintf() in UrlPrintHack.
+
+  *) [TS-3658] ASAN triggers when using the escalate.so plugin.
+
+  *) [TS-3486] Crashes due to race condition on server sessions moving between threads.
+
+  *) [TS-3788] SNI Callbacks stall after TS-3667 fix.
+
+  *) [TS-3618] Crashes in traffic_cop on shutdown / restart.
+
+  *) [TS-3823] Fix ASAN build support.
+
+  *) [TS-3824] Fix #include of pcre for a couple of plugins.
+
+  *) [TS-3825] epic plugin does not compile on OmniOS.
+
+  *) [TS-3720] Revert "TS-3237: Don't segregate DNS results by port."
+
+  *) [TS-3622] Add a bound to read_while_writer retries with a config setting.
+
+  *) [TS-3806] Resolve undefined reference to symbol MD5_Final.
+
+  *) [TS-3642] Server session sharing configuration not working.
+
+  *) [TS-3650] Track source of configuration values.
+
+
 Changes with Apache Traffic Server 5.3.1
 
   *) [TS-3721] Remove scoping on enum for HTTP2_FRAME_TYPE_MAX.
