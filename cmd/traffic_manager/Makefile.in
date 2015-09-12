@@ -97,7 +97,8 @@ bin_PROGRAMS = traffic_manager$(EXEEXT)
 # Must do it this way or the dependencies aren't detected.
 @BUILD_WCCP_TRUE@am__append_1 = \
 @BUILD_WCCP_TRUE@  $(top_builddir)/lib/wccp/libwccp.a \
-@BUILD_WCCP_TRUE@  $(top_builddir)/lib/tsconfig/libtsconfig.la
+@BUILD_WCCP_TRUE@  $(top_builddir)/lib/tsconfig/libtsconfig.la \
+@BUILD_WCCP_TRUE@  @OPENSSL_LIBS@
 
 subdir = cmd/traffic_manager
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
@@ -135,6 +136,9 @@ am_traffic_manager_OBJECTS = AddConfigFilesHere.$(OBJEXT) \
 	StatType.$(OBJEXT) StatXML.$(OBJEXT)
 traffic_manager_OBJECTS = $(am_traffic_manager_OBJECTS)
 am__DEPENDENCIES_1 =
+@BUILD_WCCP_TRUE@am__DEPENDENCIES_2 =  \
+@BUILD_WCCP_TRUE@	$(top_builddir)/lib/wccp/libwccp.a \
+@BUILD_WCCP_TRUE@	$(top_builddir)/lib/tsconfig/libtsconfig.la
 traffic_manager_DEPENDENCIES = $(top_builddir)/mgmt/web2/libweb.a \
 	$(top_builddir)/mgmt/api/libmgmtapilocal.la \
 	$(top_builddir)/mgmt/libmgmt_lm.la \
@@ -144,7 +148,7 @@ traffic_manager_DEPENDENCIES = $(top_builddir)/mgmt/web2/libweb.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/proxy/shared/liberror.a \
 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
-	$(am__DEPENDENCIES_1) $(am__append_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -298,7 +302,6 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
-LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -622,7 +625,7 @@ traffic_manager_LDADD = $(top_builddir)/mgmt/web2/libweb.a \
 	$(top_builddir)/proxy/shared/liberror.a \
 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
 	$(LIBUNWIND_LIBS) @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ \
-	@LIBCAP@ @HWLOC_LIBS@ @LIBPTHREAD@ -lm $(am__append_1)
+	@LIBCAP@ @HWLOC_LIBS@ -lm $(am__append_1)
 all: all-am
 
 .SUFFIXES:

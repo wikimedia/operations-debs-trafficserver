@@ -60,12 +60,13 @@ traffic_manager_LDADD = \
   $(top_builddir)/proxy/shared/liberror.a \
   $(top_builddir)/proxy/shared/libdiagsconfig.a \
   $(LIBUNWIND_LIBS) \
-  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ @LIBPTHREAD@ \
+  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
   -lm
 
 # Must do it this way or the dependencies aren't detected.
 if BUILD_WCCP
 traffic_manager_LDADD += \
   $(top_builddir)/lib/wccp/libwccp.a \
-  $(top_builddir)/lib/tsconfig/libtsconfig.la
+  $(top_builddir)/lib/tsconfig/libtsconfig.la \
+  @OPENSSL_LIBS@
 endif

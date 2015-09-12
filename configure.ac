@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[5.3.1])
-m4_define([TS_VERSION_N],[5003001])
+m4_define([TS_VERSION_S],[5.3.2])
+m4_define([TS_VERSION_N],[5003002])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -1097,15 +1097,18 @@ fi
 
 AC_SEARCH_LIBS([exc_capture_context], [exc], [], [])
 AC_SEARCH_LIBS([MLD_demangle_string], [mld], [], [])
-AC_SEARCH_LIBS([dlopen], [dl], [], [])
 AC_SEARCH_LIBS([socket], [socket], [], [])
 AC_SEARCH_LIBS([gethostbyname], [nsl], [], [])
 AC_SEARCH_LIBS([clock_gettime], [rt], [], [])
 AC_SEARCH_LIBS([clock_gettime], [posix4], [], [])
 
-dnl Linux has pthread symbol stubss in both libc ad libpthread, so it's important to test
-dnl specifically for pthread_create() here.
-AC_SEARCH_LIBS([pthread_create], [pthread],[AC_SUBST([LIBPTHREAD],["-lpthread"])], [])
+dnl We check for dlsym here instead of e.g. dlopen() because ASAN hijacks the latter.
+AC_SEARCH_LIBS([dlsym], [dl], [], [])
+
+dnl Linux has pthread symbol stubss in both libc and libpthread, so it's important to test
+dnl specifically for pthread_yield() here. In addition, ASAN hijacks pthread_create() so
+dnl we can't use that anymore.
+AC_SEARCH_LIBS([pthread_yield], [pthread], [], [])
 
 dnl XXX The following check incorrectly causes the build to succeed
 dnl on Darwin. We should be using AC_SEARCH_LIBS, but rest_init is

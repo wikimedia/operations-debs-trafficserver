@@ -660,7 +660,6 @@ LIBLZMA = @LIBLZMA@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
-LIBPTHREAD = @LIBPTHREAD@
 LIBREADLINE = @LIBREADLINE@
 LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
@@ -1081,8 +1080,8 @@ traffic_server_LDADD = http/libhttp.a http2/libhttp2.a spdy/libspdy.a \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a @HWLOC_LIBS@ \
 	@LIBPCRE@ @LIBTCL@ @LIBEXPAT@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ \
-	@LIBLZMA@ @LIBPROFILER@ @SPDYLAY_LIBS@ @OPENSSL_LIBS@ \
-	@LIBPTHREAD@ -lm $(am__append_3)
+	@LIBLZMA@ @LIBPROFILER@ @SPDYLAY_LIBS@ @OPENSSL_LIBS@ -lm \
+	$(am__append_3)
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDADD = \
   logging/liblogging.a \
@@ -1094,7 +1093,7 @@ traffic_logcat_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
-  @LIBEXPAT@ @LIBPROFILER@ @LIBPTHREAD@ -lm
+  @LIBEXPAT@ @LIBPROFILER@ -lm
 
 traffic_logstats_SOURCES = logstats.cc
 traffic_logstats_LDADD = \
@@ -1107,7 +1106,7 @@ traffic_logstats_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
-  @LIBEXPAT@ @LIBPROFILER@ @LIBPTHREAD@ -lm
+  @LIBEXPAT@ @LIBPROFILER@ -lm
 
 traffic_sac_SOURCES = sac.cc ICP.cc ICPConfig.cc ICPProcessor.cc \
 	ICPStats.cc IPAllow.cc ParentSelection.cc ControlBase.cc \
@@ -1151,7 +1150,6 @@ traffic_sac_LDADD = \
   @LIBPROFILER@ \
   @SPDYLAY_LIBS@ \
   @OPENSSL_LIBS@ \
-  @LIBPTHREAD@ \
   -lm
 
 test_xml_parser_SOURCES = test_xml_parser.cc
