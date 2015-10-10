@@ -50,7 +50,7 @@ allowed values.
 .. _parent-config-format-dest-domain:
 
 ``dest_domain``
-    A requested domain name.
+    A requested domain name, and its subdomains.
 
 .. _parent-config-format-dest-host:
 
@@ -112,6 +112,13 @@ values.
 ``src_ip``
     A client IP address.
 
+.. _parent-config-format-internal:
+
+``internal``
+    A boolean value, ``true`` or ``false``, specifying if the rule should
+    match (or not match) a transaction originating from an internal API. This
+    is useful to differentiate transaction originating from an ATS plugin.
+
 The following list shows the possible actions and their allowed values.
 
 .. _parent-config-format-parent:
@@ -133,7 +140,12 @@ The following list shows the possible actions and their allowed values.
        turn. For example: machine ``proxy1`` serves the first request,
        ``proxy2`` serves the second request, and so on.
     -  ``false`` - Round robin selection does not occur.
-    -  ``consistent_hash`` - consistent hash.
+    -  ``consistent_hash`` - consistent hash of the url so that one parent
+       is chosen for a given url. If a parent is down, the traffic that
+       would go to the down parent is rehashed amongst the remaining parents.
+       The other traffic is unaffected. Once the downed parent becomes
+       available, the traffic distribution returns to the pre-down
+       state.
 
 .. _parent-config-format-go-direct:
 

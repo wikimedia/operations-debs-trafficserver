@@ -29,15 +29,17 @@
  *
  ***************************************************************************/
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_file.h"
+#include "ts/ParseRules.h"
 #include "MgmtUtils.h"
 #include "LocalManager.h"
 #include "ClusterCom.h"
 #include "FileManager.h"
 #include "Rollback.h"
 #include "WebMgmtUtils.h"
-#include "Diags.h"
-#include "ink_hash_table.h"
+#include "ts/Diags.h"
+#include "ts/ink_hash_table.h"
 #include "ExpandingArray.h"
 //#include "I_AccCrypto.h"
 
@@ -45,8 +47,8 @@
 #include "CoreAPIShared.h"
 #include "CfgContextUtils.h"
 #include "EventCallback.h"
-#include "I_Layout.h"
-#include "ink_cap.h"
+#include "ts/I_Layout.h"
+#include "ts/ink_cap.h"
 
 // global variable
 CallbackTable *local_event_callbacks;
@@ -413,8 +415,8 @@ Reconfigure()
 {
   configFiles->rereadConfig();                              // TM rereads
   lmgmt->signalEvent(MGMT_EVENT_PLUGIN_CONFIG_UPDATE, "*"); // TS rereads
-  RecSetRecordInt("proxy.node.config.reconfigure_time", time(NULL));
-  RecSetRecordInt("proxy.node.config.reconfigure_required", 0);
+  RecSetRecordInt("proxy.node.config.reconfigure_time", time(NULL), REC_SOURCE_DEFAULT);
+  RecSetRecordInt("proxy.node.config.reconfigure_required", 0, REC_SOURCE_DEFAULT);
 
   return TS_ERR_OKAY;
 }

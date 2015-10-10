@@ -36,7 +36,6 @@ TESTS = \
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
   -I$(srcdir)/http \
   -I$(srcdir)/http2 \
   -I$(srcdir)/spdy \
@@ -48,7 +47,6 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/lib \
-  -I$(top_builddir)/lib \
   @OPENSSL_INCLUDES@
 
 # NOTE: it is safe to use AM_LDFLAGS here because we are only building executables. If we start
@@ -170,8 +168,6 @@ traffic_server_SOURCES = \
   Plugin.h \
   PluginVC.cc \
   PluginVC.h \
-  Prefetch.cc \
-  Prefetch.h \
   ProtocolProbeSessionAccept.cc \
   ProtocolProbeSessionAccept.h \
   ProxyClientSession.cc \
@@ -185,9 +181,7 @@ traffic_server_SOURCES = \
   StatSystem.h \
   Transform.cc \
   Transform.h \
-  TransformInternal.h \
-  Update.cc \
-  Update.h
+  TransformInternal.h
 
 if BUILD_TESTS
 traffic_server_SOURCES +=  \
@@ -239,7 +233,6 @@ traffic_server_LDADD = \
   @LIBPROFILER@ \
   @SPDYLAY_LIBS@ \
   @OPENSSL_LIBS@ \
-  @LIBPTHREAD@ \
   -lm
 
 if BUILD_LUAJIT
@@ -261,7 +254,7 @@ traffic_logcat_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
-  @LIBEXPAT@ @LIBPROFILER@ @LIBPTHREAD@ -lm
+  @LIBEXPAT@ @LIBPROFILER@ -lm
 
 traffic_logstats_SOURCES = logstats.cc
 traffic_logstats_LDADD = \
@@ -274,7 +267,7 @@ traffic_logstats_LDADD = \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
-  @LIBEXPAT@ @LIBPROFILER@ @LIBPTHREAD@ -lm
+  @LIBEXPAT@ @LIBPROFILER@ -lm
 
 traffic_sac_SOURCES = \
   sac.cc \
@@ -294,12 +287,10 @@ traffic_sac_SOURCES = \
   PluginVC.cc \
   AbstractBuffer.cc \
   Transform.cc \
-  Prefetch.cc \
   ProtocolProbeSessionAccept.cc \
   ProtocolProbeSessionAccept.h \
   ProxyClientSession.cc \
   ProxyClientSession.h \
-  Update.cc \
   Plugin.cc \
   InkAPI.cc \
   FetchSM.cc \
@@ -339,7 +330,6 @@ traffic_sac_LDADD = \
   @LIBPROFILER@ \
   @SPDYLAY_LIBS@ \
   @OPENSSL_LIBS@ \
-  @LIBPTHREAD@ \
   -lm
 
 if BUILD_TESTS

@@ -26,7 +26,7 @@
 #include "ReverseProxy.h"
 #include "UrlMappingPathIndex.h"
 #include "RemapConfig.h"
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 #include "HttpSM.h"
 
 #define modulePrefix "[ReverseProxy]"
@@ -54,9 +54,9 @@ SetHomePageRedirectFlag(url_mapping *new_mapping, URL &new_to_url)
 // CTOR / DTOR for the UrlRewrite class.
 //
 UrlRewrite::UrlRewrite()
-  : nohost_rules(0), reverse_proxy(0), backdoor_enabled(0), mgmt_autoconf_port(0), default_to_pac(0), default_to_pac_port(0),
-    ts_name(NULL), http_default_redirect_url(NULL), num_rules_forward(0), num_rules_reverse(0), num_rules_redirect_permanent(0),
-    num_rules_redirect_temporary(0), num_rules_forward_with_recv_port(0), _valid(false)
+  : nohost_rules(0), reverse_proxy(0), mgmt_synthetic_port(0), ts_name(NULL), http_default_redirect_url(NULL), num_rules_forward(0),
+    num_rules_reverse(0), num_rules_redirect_permanent(0), num_rules_redirect_temporary(0), num_rules_forward_with_recv_port(0),
+    _valid(false)
 {
   ats_scoped_str config_file_path;
 
@@ -87,11 +87,7 @@ UrlRewrite::UrlRewrite()
   }
 
   REC_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
-  REC_ReadConfigInteger(mgmt_autoconf_port, "proxy.config.admin.autoconf_port");
-  REC_ReadConfigInteger(default_to_pac, "proxy.config.url_remap.default_to_server_pac");
-  REC_ReadConfigInteger(default_to_pac_port, "proxy.config.url_remap.default_to_server_pac_port");
-  REC_ReadConfigInteger(url_remap_mode, "proxy.config.url_remap.url_remap_mode");
-  REC_ReadConfigInteger(backdoor_enabled, "proxy.config.url_remap.handle_backdoor_urls");
+  REC_ReadConfigInteger(mgmt_synthetic_port, "proxy.config.admin.synthetic_port");
 
   if (0 == this->BuildTable(config_file_path)) {
     _valid = true;
@@ -123,35 +119,6 @@ UrlRewrite::SetReverseFlag(int flag)
   reverse_proxy = flag;
   if (is_debug_tag_set("url_rewrite"))
     Print();
-}
-
-/**
-  Allocaites via new, and setups the default mapping to the PAC generator
-  port which is used to serve the PAC (proxy autoconfig) file.
-
-*/
-url_mapping *
-UrlRewrite::SetupPacMapping()
-{
-  const char *from_url = "http:///";
-  const char *local_url = "http://127.0.0.1/";
-
-  url_mapping *mapping;
-  int pac_generator_port;
-
-  mapping = new url_mapping;
-
-  mapping->fromURL.create(NULL);
-  mapping->fromURL.parse(from_url, strlen(from_url));
-
-  mapping->toUrl.create(NULL);
-  mapping->toUrl.parse(local_url, strlen(local_url));
-
-  pac_generator_port = (default_to_pac_port < 0) ? mgmt_autoconf_port : default_to_pac_port;
-
-  mapping->toUrl.port_set(pac_generator_port);
-
-  return mapping;
 }
 
 /**
@@ -421,7 +388,7 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
     int method_wksidx = (method != -1) ? (method - HTTP_WKSIDX_CONNECT) : -1;
     bool client_enabled_flag = true;
 
-    ink_release_assert(ats_is_ip(&s->client_info.addr));
+    ink_release_assert(ats_is_ip(&s->client_info.src_addr));
 
     for (acl_filter_rule *rp = map->filter; rp && client_enabled_flag; rp = rp->next) {
       bool match = true;
@@ -439,8 +406,34 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
       if (match && rp->src_ip_valid) {
         match = false;
         for (int j = 0; j < rp->src_ip_cnt && !match; j++) {
-          bool in_range = rp->src_ip_array[j].contains(s->client_info.addr);
+          bool in_range = rp->src_ip_array[j].contains(s->client_info.src_addr);
           if (rp->src_ip_array[j].invert) {
+            if (!in_range) {
+              match = true;
+            }
+          } else {
+            if (in_range) {
+              match = true;
+            }
+          }
+        }
+      }
+
+      if (match && rp->in_ip_valid) {
+        Debug("url_rewrite", "match was true and we have specified a in_ip field");
+        match = false;
+        for (int j = 0; j < rp->in_ip_cnt && !match; j++) {
+          IpEndpoint incoming_addr;
+          incoming_addr.assign(s->state_machine->ua_session->get_netvc()->get_local_addr());
+          if (is_debug_tag_set("url_rewrite")) {
+            char buf1[128], buf2[128], buf3[128];
+            ats_ip_ntop(incoming_addr, buf1, sizeof(buf1));
+            ats_ip_ntop(rp->in_ip_array[j].start, buf2, sizeof(buf2));
+            ats_ip_ntop(rp->in_ip_array[j].end, buf3, sizeof(buf3));
+            Debug("url_rewrite", "Trying to match incoming address %s in range %s - %s.", buf1, buf2, buf3);
+          }
+          bool in_range = rp->in_ip_array[j].contains(incoming_addr);
+          if (rp->in_ip_array[j].invert) {
             if (!in_range) {
               match = true;
             }
@@ -672,7 +665,6 @@ int
 UrlRewrite::BuildTable(const char *path)
 {
   BUILD_TABLE_INFO bti;
-  url_mapping *new_mapping = NULL;
 
   ink_assert(forward_mappings.empty());
   ink_assert(reverse_mappings.empty());
@@ -685,7 +677,6 @@ UrlRewrite::BuildTable(const char *path)
   ink_assert(num_rules_redirect_temporary == 0);
   ink_assert(num_rules_forward_with_recv_port == 0);
 
-
   forward_mappings.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
   reverse_mappings.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
   permanent_redirects.hash_lookup = ink_hash_table_create(InkHashTableKeyType_String);
@@ -697,31 +688,6 @@ UrlRewrite::BuildTable(const char *path)
     return 3;
   }
 
-  // Add the mapping for backdoor urls if enabled.
-  // This needs to be before the default PAC mapping for ""
-  // since this is more specific
-  if (unlikely(backdoor_enabled)) {
-    new_mapping = SetupBackdoorMapping();
-    if (TableInsert(forward_mappings.hash_lookup, new_mapping, "")) {
-      num_rules_forward++;
-    } else {
-      Warning("Could not insert backdoor mapping into store");
-      delete new_mapping;
-      return 3;
-    }
-  }
-  // Add the default mapping to the manager PAC file
-  //  if we need it
-  if (default_to_pac) {
-    new_mapping = SetupPacMapping();
-    if (TableInsert(forward_mappings.hash_lookup, new_mapping, "")) {
-      num_rules_forward++;
-    } else {
-      Warning("Could not insert pac mapping into store");
-      delete new_mapping;
-      return 3;
-    }
-  }
   // Destroy unused tables
   if (num_rules_forward == 0) {
     forward_mappings.hash_lookup = ink_hash_table_destroy(forward_mappings.hash_lookup);
@@ -891,6 +857,13 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
   int request_path_len, reg_map_path_len;
   const char *request_path = request_url->path_get(&request_path_len), *reg_map_path;
 
+  // If the scheme is empty (e.g. because of a CONNECT method), guess it based on port
+  // This is equivalent to the logic in UrlMappingPathIndex::_GetTrie().
+  if (request_scheme_len == 0) {
+    request_scheme = request_port == 80 ? URL_SCHEME_HTTP : URL_SCHEME_HTTPS;
+    request_scheme_len = hdrtoken_wks_to_length(request_scheme);
+  }
+
   // Loop over the entire linked list, or until we're satisfied
   forl_LL(RegexMapping, list_iter, regex_mappings)
   {
@@ -921,9 +894,9 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
     }
 
     int matches_info[MAX_REGEX_SUBS * 3];
-    int match_result = pcre_exec(list_iter->re, list_iter->re_extra, request_host, request_host_len, 0, 0, matches_info,
-                                 (sizeof(matches_info) / sizeof(int)));
-    if (match_result > 0) {
+    bool match_result = list_iter->regular_expression.exec(request_host, request_host_len, matches_info, countof(matches_info));
+
+    if (match_result == true) {
       Debug("url_rewrite_regex", "Request URL host [%.*s] matched regex in mapping of rank %d "
                                  "with %d possible substitutions",
             request_host_len, request_host, reg_map_rank, match_result);
@@ -942,12 +915,9 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
       Debug("url_rewrite_regex", "Expanded toURL to [%.*s]", expanded_url->length_get(), expanded_url->string_get_ref());
       retval = true;
       break;
-    } else if (match_result == PCRE_ERROR_NOMATCH) {
+    } else {
       Debug("url_rewrite_regex", "Request URL host [%.*s] did NOT match regex in mapping of rank %d", request_host_len,
             request_host, reg_map_rank);
-    } else {
-      Warning("pcre_exec() failed with error code %d", match_result);
-      break;
     }
   }
 
@@ -960,12 +930,6 @@ UrlRewrite::_destroyList(RegexMappingList &mappings)
   RegexMapping *list_iter;
   while ((list_iter = mappings.pop()) != NULL) {
     delete list_iter->url_map;
-    if (list_iter->re) {
-      pcre_free(list_iter->re);
-    }
-    if (list_iter->re_extra) {
-      pcre_free(list_iter->re_extra);
-    }
     if (list_iter->to_url_host_template) {
       ats_free(list_iter->to_url_host_template);
     }

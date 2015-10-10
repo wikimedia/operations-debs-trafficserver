@@ -26,9 +26,9 @@
 
 #include <sys/time.h>
 
-#include "ink_assert.h"
-#include "ink_apidefs.h"
-#include "ink_string++.h"
+#include "ts/ink_assert.h"
+#include "ts/ink_apidefs.h"
+#include "ts/ink_string++.h"
 #include "HdrHeap.h"
 #include "HdrToken.h"
 
@@ -184,7 +184,7 @@ struct MIMEFieldBlockImpl : public HdrHeapObjImpl {
   MIMEFieldBlockImpl *m_next;
   MIMEField m_field_slots[MIME_FIELD_BLOCK_SLOTS];
   // mime_hdr_copy_onto assumes that m_field_slots is last --
-  // don't add any new fields afterit.
+  // don't add any new fields after it.
 
   // Marshaling Functions
   int marshal(MarshalXlate *ptr_xlate, int num_ptr, MarshalXlate *str_xlate, int num_str);
@@ -382,7 +382,7 @@ extern const char *MIME_FIELD_VIA;
 extern const char *MIME_FIELD_WARNING;
 extern const char *MIME_FIELD_WWW_AUTHENTICATE;
 extern const char *MIME_FIELD_XREF;
-extern const char *MIME_FIELD_INT_DATA_INFO;
+extern const char *MIME_FIELD_ATS_INTERNAL;
 extern const char *MIME_FIELD_X_ID;
 extern const char *MIME_FIELD_X_FORWARDED_FOR;
 extern const char *MIME_FIELD_SEC_WEBSOCKET_KEY;
@@ -485,7 +485,7 @@ extern int MIME_LEN_VIA;
 extern int MIME_LEN_WARNING;
 extern int MIME_LEN_WWW_AUTHENTICATE;
 extern int MIME_LEN_XREF;
-extern int MIME_LEN_INT_DATA_INFO;
+extern int MIME_LEN_ATS_INTERNAL;
 extern int MIME_LEN_X_ID;
 extern int MIME_LEN_X_FORWARDED_FOR;
 
@@ -588,7 +588,7 @@ extern int MIME_WKSIDX_VIA;
 extern int MIME_WKSIDX_WARNING;
 extern int MIME_WKSIDX_WWW_AUTHENTICATE;
 extern int MIME_WKSIDX_XREF;
-extern int MIME_WKSIDX_INT_DATA_INFO;
+extern int MIME_WKSIDX_ATS_INTERNAL;
 extern int MIME_WKSIDX_X_ID;
 extern int MIME_WKSIDX_SEC_WEBSOCKET_KEY;
 extern int MIME_WKSIDX_SEC_WEBSOCKET_VERSION;
@@ -942,6 +942,7 @@ public:
   // Other separators (e.g. ';' in Set-cookie/Cookie) are also possible
   void field_value_append(MIMEField *field, const char *value, int value_length, bool prepend_comma = false,
                           const char separator = ',');
+  void field_combine_dups(MIMEField *field, bool prepend_comma = false, const char separator = ',');
   time_t get_age();
   int64_t get_content_length() const;
   time_t get_date();
@@ -1326,6 +1327,24 @@ inline void
 MIMEHdr::field_value_append(MIMEField *field, const char *value_str, int value_len, bool prepend_comma, const char separator)
 {
   field->value_append(m_heap, m_mime, value_str, value_len, prepend_comma, separator);
+}
+
+inline void
+MIMEHdr::field_combine_dups(MIMEField *field, bool prepend_comma, const char separator)
+{
+  MIMEField *current = field->m_next_dup;
+
+  while (current) {
+    int value_len = 0;
+    const char *value_str = current->value_get(&value_len);
+
+    if (value_len > 0) {
+      HdrHeap::HeapGuard guard(m_heap, value_str); // reference count the source string so it doesn't get moved
+      field->value_append(m_heap, m_mime, value_str, value_len, prepend_comma, separator);
+    }
+    field_delete(current, false); // don't delete duplicates
+    current = field->m_next_dup;
+  }
 }
 
 /*-------------------------------------------------------------------------

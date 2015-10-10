@@ -21,8 +21,10 @@
   limitations under the License.
  */
 
-#include "libts.h"
-#include "Regex.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_thread.h"
+#include "ts/ink_memory.h"
+#include "ts/Regex.h"
 
 #ifdef PCRE_CONFIG_JIT
 struct RegexThreadKey {
@@ -48,7 +50,7 @@ get_jit_stack(void *data ATS_UNUSED)
 #endif
 
 bool
-Regex::compile(const char *pattern, unsigned flags)
+Regex::compile(const char *pattern, const unsigned flags)
 {
   const char *error;
   int erroffset;
@@ -86,6 +88,17 @@ Regex::compile(const char *pattern, unsigned flags)
   return true;
 }
 
+int
+Regex::get_capture_count()
+{
+  int captures = -1;
+  if (pcre_fullinfo(regex, regex_extra, PCRE_INFO_CAPTURECOUNT, &captures) != 0) {
+    return -1;
+  }
+
+  return captures;
+}
+
 bool
 Regex::exec(const char *str)
 {
@@ -95,9 +108,16 @@ Regex::exec(const char *str)
 bool
 Regex::exec(const char *str, int length)
 {
-  int ovector[30], rv;
+  int ovector[30];
+  return exec(str, length, ovector, countof(ovector));
+}
 
-  rv = pcre_exec(regex, regex_extra, str, length, 0, 0, ovector, countof(ovector));
+bool
+Regex::exec(const char *str, int length, int *ovector, int ovecsize)
+{
+  int rv;
+
+  rv = pcre_exec(regex, regex_extra, str, length, 0, 0, ovector, ovecsize);
   return rv > 0 ? true : false;
 }
 

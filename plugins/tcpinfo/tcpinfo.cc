@@ -37,7 +37,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-#include "ink_defs.h"
+#include "ts/ink_defs.h"
 
 #if defined(TCP_INFO) && defined(HAVE_STRUCT_TCP_INFO)
 #define TCPI_PLUGIN_SUPPORTED 1
@@ -107,8 +107,12 @@ log_tcp_info(Config *config, const char *event_name, TSHttpSsn ssnp)
 
   TSReleaseAssert(config->log != NULL);
 
-  if (TSHttpSsnClientFdGet(ssnp, &fd) != TS_SUCCESS) {
-    TSDebug("tcpinfo", "error getting the client socket fd");
+  if (ssnp != NULL && (TSHttpSsnClientFdGet(ssnp, &fd) != TS_SUCCESS || fd <= 0)) {
+    TSDebug("tcpinfo", "error getting the client socket fd from ssn");
+    return;
+  }
+  if (ssnp == NULL) {
+    TSDebug("tcpinfo", "ssn is not specified");
     return;
   }
 
@@ -206,7 +210,7 @@ tcp_info_hook(TSCont contp, TSEvent event, void *edata)
   }
 
   // Don't try to sample internal requests. TCP metrics for loopback are not interesting.
-  if (TSHttpIsInternalSession(ssnp) == TS_SUCCESS) {
+  if (TSHttpSsnIsInternal(ssnp) == TS_SUCCESS) {
     goto done;
   }
 
@@ -316,7 +320,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = (char *)"Apache Software Foundation";
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (TSPluginRegister(&info) != TS_SUCCESS) {
     TSError("[tcpinfo] plugin registration failed");
   }
 

@@ -25,6 +25,7 @@
 #define __HTTP2_CLIENT_SESSION_H__
 
 #include "HTTP2.h"
+#include "Plugin.h"
 #include "ProxyClientSession.h"
 #include "Http2ConnectionState.h"
 
@@ -43,7 +44,7 @@ static size_t const HTTP2_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_REA
 
 // To support Upgrade: h2c
 struct Http2UpgradeContext {
-  Http2UpgradeContext() {}
+  Http2UpgradeContext() : req_header(NULL) {}
 
   ~Http2UpgradeContext()
   {
@@ -130,6 +131,16 @@ public:
     }
   }
 
+  int64_t
+  size()
+  {
+    if (ioblock) {
+      return ioblock->size();
+    } else {
+      return sizeof(this->hdr.raw);
+    }
+  }
+
 private:
   Http2Frame(Http2Frame &);                  // noncopyable
   Http2Frame &operator=(const Http2Frame &); // noncopyable
@@ -143,16 +154,17 @@ private:
   } hdr;
 };
 
-class Http2ClientSession : public ProxyClientSession
+class Http2ClientSession : public ProxyClientSession, public PluginIdentity
 {
 public:
+  typedef ProxyClientSession super; ///< Parent type.
   Http2ClientSession();
 
   typedef int (Http2ClientSession::*SessionHandler)(int, void *);
 
   // Implement ProxyClientSession interface.
   void start();
-  void destroy();
+  virtual void destroy();
   void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor);
 
   // Implement VConnection interface.
@@ -161,6 +173,16 @@ public:
   void do_io_close(int lerrno = -1);
   void do_io_shutdown(ShutdownHowTo_t howto);
   void reenable(VIO *vio);
+  virtual NetVConnection *
+  get_netvc() const
+  {
+    return client_vc;
+  };
+  virtual void
+  release_netvc()
+  {
+    client_vc = NULL;
+  }
 
   int64_t
   connection_id() const
@@ -187,6 +209,8 @@ public:
     return upgrade_context;
   }
 
+  virtual char const *getPluginTag() const;
+  virtual int64_t getPluginId() const;
 
 private:
   Http2ClientSession(Http2ClientSession &);                  // noncopyable
@@ -199,6 +223,7 @@ private:
   int state_complete_frame_read(int, void *);
 
   int64_t con_id;
+  int64_t total_write_len;
   SessionHandler session_handler;
   NetVConnection *client_vc;
   MIOBuffer *read_buffer;

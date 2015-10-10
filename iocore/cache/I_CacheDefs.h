@@ -25,6 +25,8 @@
 #ifndef _I_CACHE_DEFS_H__
 #define _I_CACHE_DEFS_H__
 
+#include "ts/CryptoHash.h"
+
 #define CACHE_INIT_FAILED -1
 #define CACHE_INITIALIZING 0
 #define CACHE_INITIALIZED 1
@@ -117,6 +119,24 @@ enum CacheFragType {
 };
 
 typedef CryptoHash CacheKey;
+
+struct HttpCacheKey {
+  uint64_t
+  slice64(int i) const
+  {
+    return hash.slice64(i);
+  }
+  uint32_t
+  slice32(int i) const
+  {
+    return hash.slice32(i);
+  }
+
+  int hostlen;
+  const char *hostname;
+  CacheKey hash;
+};
+
 #define CACHE_ALLOW_MULTIPLE_WRITES 1
 #define CACHE_EXPECTED_SIZE 32768
 

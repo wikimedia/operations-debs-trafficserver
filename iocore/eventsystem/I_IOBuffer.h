@@ -39,8 +39,12 @@
 #if !defined(I_IOBuffer_h)
 #define I_IOBuffer_h
 
-#include "libts.h"
-#include "ink_resource.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_apidefs.h"
+#include "ts/Allocator.h"
+#include "ts/Ptr.h"
+#include "ts/ink_assert.h"
+#include "ts/ink_resource.h"
 
 struct MIOBufferAccessor;
 
@@ -68,11 +72,7 @@ enum AllocType {
   CONSTANT,
 };
 
-#if TS_USE_RECLAIMABLE_FREELIST
-#define DEFAULT_BUFFER_NUMBER 64
-#else
 #define DEFAULT_BUFFER_NUMBER 128
-#endif
 #define DEFAULT_HUGE_BUFFER_NUMBER 32
 #define MAX_MIOBUFFER_READERS 5
 #define DEFAULT_BUFFER_ALIGNMENT 8192 // should be disk/page size

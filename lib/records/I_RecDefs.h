@@ -24,8 +24,8 @@
 #ifndef _I_REC_DEFS_H_
 #define _I_REC_DEFS_H_
 
-#include "ink_mutex.h"
-#include "ink_rwlock.h"
+#include "ts/ink_mutex.h"
+#include "ts/ink_rwlock.h"
 #include "I_RecMutex.h"
 
 #define STAT_PROCESSOR
@@ -119,6 +119,15 @@ enum RecCheckT {
   RECC_STR,  // config is a string
   RECC_INT,  // config is an integer with a range
   RECC_IP    // config is an ip address
+};
+
+/// The source of the value.
+/// @internal @c REC_SOURCE_NULL is useful for a return value, I don't see using it in the actual data.
+enum RecSourceT {
+  REC_SOURCE_NULL,     ///< No source / value not set.
+  REC_SOURCE_DEFAULT,  ///< Built in default.
+  REC_SOURCE_EXPLICIT, ///< Set by administrator (config file, external API, cluster, etc.)
+  REC_SOURCE_ENV       ///< Process environment variable.
 };
 
 enum RecModeT {

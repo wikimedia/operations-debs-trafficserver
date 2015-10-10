@@ -45,13 +45,8 @@ If a client disconnects during the time that Traffic Server is downloading a lar
 -----------------------------------------------------------------------------------------------------------------------------------
 
 When a client disconnects during an HTTP operation, Traffic Server
-continues to download the object from the origin server for up to 10
-seconds. If the transfer from the origin server completes successfully
-within 10 seconds after the client disconnect, then Traffic Server
-stores the object in cache. If the origin server download does *not*
-complete successfully within 10 seconds, then Traffic Server disconnects
-from the origin server and deletes the object from cache. Traffic Server
-does not store partial documents in the cache.
+can continue to download the object from the origin server, using the :ref:`background fill feature <background_fill>`.
+It will continue downloading based on the :ts:cv:`proxy.config.http.background_fill_active_timeout` and :ts:cv:`proxy.config.http.background_fill_completed_threshold` settings.
 
 Can Traffic Server cache Java applets, JavaScript programs, or other application files like VBScript?
 -----------------------------------------------------------------------------------------------------
@@ -377,7 +372,7 @@ Traffic Line commands do not execute under the following conditions:
 .. XXX: this is wrong
 
     You should always start and stop Traffic Server with the
-    :program:`trafficserver start`` and :program:`trafficserver stop` commands to ensure
+    :program:`trafficserver start` and :program:`trafficserver stop` commands to ensure
     that all the processes start and stop correctly. For more information,
     refer to :ref:`getting-started`.
 
@@ -587,6 +582,16 @@ the system log files (``/var/log/messages``)::
 
 To avoid memory exhaustion, add more RAM to the system or reduce the
 load on Traffic Server.
+
+Config checker
+--------------
+
+Traffic Server supports the below command to validate the config offline, inorder to
+allow the config to be pre-checked for possible service disruptions due to synatx errors::
+
+   traffic_server -Cverify_config -D<config_dir>
+
+<config_dir> is the location of the config files to be validated.
 
 Connection timeouts with the origin server
 ------------------------------------------

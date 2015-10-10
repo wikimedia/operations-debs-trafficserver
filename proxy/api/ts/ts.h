@@ -30,7 +30,7 @@
 #ifndef __TS_API_H__
 #define __TS_API_H__
 
-#include "apidefs.h"
+#include <ts/apidefs.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -148,14 +148,12 @@ int TSTrafficServerVersionGetPatch(void);
     Traffic Server version currently running also supports your plugin.
     See the SDK sample code for usage.
 
-    @param sdk_version earliest version of the Traffic Server SDK that
-      supports your plugin.
     @param plugin_info contains registration information about your
       plugin. See TSPluginRegistrationInfo.
     @return TS_ERROR if the plugin registration failed.
 
  */
-tsapi TSReturnCode TSPluginRegister(TSSDKVersion sdk_version, TSPluginRegistrationInfo *plugin_info);
+tsapi TSReturnCode TSPluginRegister(TSPluginRegistrationInfo *plugin_info);
 
 /* --------------------------------------------------------------------------
    Files */
@@ -1286,6 +1284,10 @@ tsapi TSReturnCode TSHttpTxnCacheLookupStatusGet(TSHttpTxn txnp, int *lookup_sta
 
 tsapi TSReturnCode TSHttpTxnTransformRespGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *offset);
 
+/** Set the @a port value for the inbound (user agent) connection in the transaction @a txnp.
+    This is used primarily where the conection is synthetic and therefore does not have a port.
+    @note @a port is in @b host @b order.
+*/
 tsapi void TSHttpTxnClientIncomingPortSet(TSHttpTxn txnp, int port);
 
 /** Get SSL object of this session.
@@ -1358,6 +1360,7 @@ tsapi struct sockaddr const *TSHttpTxnNextHopAddrGet(TSHttpTxn txnp);
 tsapi TSReturnCode TSHttpTxnClientFdGet(TSHttpTxn txnp, int *fdp);
 tsapi TSReturnCode TSHttpTxnOutgoingAddrSet(TSHttpTxn txnp, struct sockaddr const *addr);
 tsapi TSReturnCode TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag);
+tsapi TSReturnCode TSHttpTxnServerFdGet(TSHttpTxn txnp, int *fdp);
 
 /* TS-1008: the above TXN calls for the Client conn should work with SSN */
 tsapi struct sockaddr const *TSHttpSsnClientAddrGet(TSHttpSsn ssnp);
@@ -1656,8 +1659,13 @@ tsapi void TSFetchUrl(const char *request, int request_len, struct sockaddr cons
 tsapi void TSFetchPages(TSFetchUrlParams_t *params);
 
 /* Check if HTTP State machine is internal or not */
-tsapi TSReturnCode TSHttpIsInternalRequest(TSHttpTxn txnp);
-tsapi TSReturnCode TSHttpIsInternalSession(TSHttpSsn ssnp);
+/** @deprecated to be renamed as TSHttpTxnIsInternal **/
+tsapi TS_DEPRECATED TSReturnCode TSHttpIsInternalRequest(TSHttpTxn txnp);
+/** @deprecated to be renamed as TSHttpSsnIsInternal **/
+tsapi TS_DEPRECATED TSReturnCode TSHttpIsInternalSession(TSHttpSsn ssnp);
+
+tsapi TSReturnCode TSHttpTxnIsInternal(TSHttpTxn txnp);
+tsapi TSReturnCode TSHttpSsnIsInternal(TSHttpSsn ssnp);
 
 /* --------------------------------------------------------------------------
    HTTP alternate selection */
@@ -2315,6 +2323,7 @@ tsapi int TSHttpCurrentServerConnectionsGet(void);
 tsapi TSReturnCode TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *offset);
 tsapi TSReturnCode TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup);
 tsapi TSReturnCode TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
+tsapi TSReturnCode TSHttpTxnCacheLookupUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
 tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
 tsapi int TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp);
 

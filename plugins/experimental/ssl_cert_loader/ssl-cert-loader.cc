@@ -26,15 +26,16 @@
 #include <memory.h>
 #include <inttypes.h>
 #include <ts/ts.h>
-#include <ink_config.h>
 #include <tsconfig/TsValue.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
-#include <ts/ink_inet.h>
 #include <getopt.h>
-#include <ts/IpMap.h>
 #include "domain-tree.h"
+
+#include "ts/ink_inet.h"
+#include "ts/ink_config.h"
+#include "ts/IpMap.h"
 
 using ts::config::Configuration;
 using ts::config::Value;
@@ -478,10 +479,9 @@ TSPluginInit(int argc, const char *argv[])
 {
   bool success = false;
   TSPluginRegistrationInfo info;
-  TSCont cb_pa = 0;   // pre-accept callback continuation
-  TSCont cb_lc = 0;   // life cycle callback continuuation
-  TSCont cb_sni = 0;  // SNI callback continuuation
-  TSCont cb_sni2 = 0; // SNI callback continuuation
+  TSCont cb_pa = 0;  // pre-accept callback continuation
+  TSCont cb_lc = 0;  // life cycle callback continuuation
+  TSCont cb_sni = 0; // SNI callback continuuation
   static const struct option longopt[] = {{const_cast<char *>("config"), required_argument, NULL, 'c'},
                                           {NULL, no_argument, NULL, '\0'}};
 
@@ -506,7 +506,7 @@ TSPluginInit(int argc, const char *argv[])
     TSDebug(PN, "No config path set in arguments, using default: %s", DEFAULT_CONFIG_PATH);
   }
 
-  if (TS_SUCCESS != TSPluginRegister(TS_SDK_VERSION_2_0, &info)) {
+  if (TS_SUCCESS != TSPluginRegister(&info)) {
     TSError(PCP "registration failed.");
   } else if (TSTrafficServerVersionGetMajor() < 5) {
     TSError(PCP "requires Traffic Server 5.0 or later.");
@@ -520,7 +520,6 @@ TSPluginInit(int argc, const char *argv[])
     TSLifecycleHookAdd(TS_LIFECYCLE_PORTS_INITIALIZED_HOOK, cb_lc);
     TSHttpHookAdd(TS_VCONN_PRE_ACCEPT_HOOK, cb_pa);
     TSHttpHookAdd(TS_SSL_SNI_HOOK, cb_sni);
-    TSHttpHookAdd(TS_SSL_SNI_HOOK, cb_sni2);
     success = true;
   }
 

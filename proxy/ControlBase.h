@@ -33,7 +33,8 @@
 #ifndef _CONTROL_BASE_H_
 #define _CONTROL_BASE_H_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/Vec.h"
 
 class HttpRequestData;
 class Tokenizer;
@@ -54,6 +55,7 @@ public:
       MOD_SRC_IP,
       MOD_IPORT,
       MOD_TAG,
+      MOD_INTERNAL,
     };
     /// Destructor - force virtual.
     virtual ~Modifier();

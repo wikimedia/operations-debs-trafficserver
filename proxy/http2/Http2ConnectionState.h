@@ -35,7 +35,8 @@ class Http2ConnectionSettings
 public:
   Http2ConnectionSettings()
   {
-    // 6.5.2.  Defined SETTINGS Parameters. These should generally not be modified,
+    // 6.5.2.  Defined SETTINGS Parameters. These should generally not be
+    // modified,
     // only if the protocol changes should these change.
     settings[indexof(HTTP2_SETTINGS_ENABLE_PUSH)] = 0; // Disabled for now
 
@@ -59,23 +60,25 @@ public:
   unsigned
   get(Http2SettingsIdentifier id) const
   {
-    ink_assert(id <= HTTP2_SETTINGS_MAX - 1);
-
-    if (id > HTTP2_SETTINGS_MAX - 1) {
-      return 0;
+    if (id < HTTP2_SETTINGS_MAX) {
+      return this->settings[indexof(id)];
+    } else {
+      ink_assert(!"Bad Settings Identifier");
     }
-    return this->settings[indexof(id)];
+
+    return 0;
   }
 
   unsigned
   set(Http2SettingsIdentifier id, unsigned value)
   {
-    ink_assert(id <= HTTP2_SETTINGS_MAX - 1);
-
-    if (id > HTTP2_SETTINGS_MAX - 1) {
-      return 0;
+    if (id < HTTP2_SETTINGS_MAX) {
+      return this->settings[indexof(id)] = value;
+    } else {
+      ink_assert(!"Bad Settings Identifier");
     }
-    return this->settings[indexof(id)] = value;
+
+    return 0;
   }
 
 private:
@@ -83,7 +86,7 @@ private:
   static unsigned
   indexof(Http2SettingsIdentifier id)
   {
-    ink_assert(id <= HTTP2_SETTINGS_MAX - 1);
+    ink_assert(id < HTTP2_SETTINGS_MAX);
 
     return id - 1;
   }
@@ -97,19 +100,29 @@ class Http2Stream
 {
 public:
   Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size)
-    : client_rwnd(initial_rwnd), server_rwnd(initial_rwnd), _id(sid), _state(HTTP2_STREAM_STATE_IDLE), _fetch_sm(NULL),
-      body_done(false), data_length(0)
+    : client_rwnd(initial_rwnd), server_rwnd(Http2::initial_window_size), header_blocks(NULL), header_blocks_length(0), request_header_length(0),
+      end_stream(false), _id(sid), _state(HTTP2_STREAM_STATE_IDLE), _fetch_sm(NULL), body_done(false), data_length(0)
   {
+    _thread = this_ethread();
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_STREAM_COUNT, _thread);
+    _start_time = ink_hrtime();
+    // FIXME: Are you sure? every "stream" needs _req_header?
     _req_header.create(HTTP_TYPE_REQUEST);
   }
 
   ~Http2Stream()
   {
+    HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_STREAM_COUNT, _thread);
+    ink_hrtime end_time = ink_hrtime();
+    HTTP2_SUM_THREAD_DYN_STAT(HTTP2_STAT_TOTAL_TRANSACTIONS_TIME, _thread, end_time - _start_time);
     _req_header.destroy();
 
     if (_fetch_sm) {
       _fetch_sm->ext_destroy();
       _fetch_sm = NULL;
+    }
+    if (header_blocks) {
+      ats_free(header_blocks);
     }
   }
 
@@ -145,9 +158,10 @@ public:
   bool change_state(uint8_t type, uint8_t flags);
 
   int64_t
-  decode_request_header(const IOVec &iov, Http2DynamicTable &dynamic_table, bool cont)
+  decode_header_blocks(Http2DynamicTable &dynamic_table)
   {
-    return http2_parse_header_fragment(&_req_header, iov, dynamic_table, cont);
+    return http2_decode_header_blocks(&_req_header, (const uint8_t *)header_blocks,
+                                      (const uint8_t *)header_blocks + header_blocks_length, dynamic_table);
   }
 
   // Check entire DATA payload length if content-length: header is exist
@@ -168,7 +182,16 @@ public:
 
   LINK(Http2Stream, link);
 
+  uint8_t *header_blocks;
+  uint32_t header_blocks_length;  // total length of header blocks (not include
+                                  // Padding or other fields)
+  uint32_t request_header_length; // total length of payload (include Padding
+                                  // and other fields)
+  bool end_stream;
+
 private:
+  ink_hrtime _start_time;
+  EThread *_thread;
   Http2StreamId _id;
   Http2StreamState _state;
 
@@ -178,10 +201,10 @@ private:
   uint64_t data_length;
 };
 
-
 // Http2ConnectionState
 //
-// Capture the semantics of a HTTP/2 connection. The client session captures the frame layer, and the
+// Capture the semantics of a HTTP/2 connection. The client session captures the
+// frame layer, and the
 // connection state captures the connection-wide state.
 
 class Http2ConnectionState : public Continuation
@@ -189,7 +212,7 @@ class Http2ConnectionState : public Continuation
 public:
   Http2ConnectionState()
     : Continuation(NULL), ua_session(NULL), client_rwnd(Http2::initial_window_size), server_rwnd(Http2::initial_window_size),
-      stream_list(), latest_streamid(0), client_streams_count(0), continued_id(0)
+      stream_list(), latest_streamid(0), client_streams_count(0), continued_stream_id(0)
   {
     SET_HANDLER(&Http2ConnectionState::main_event_handler);
   }
@@ -210,9 +233,6 @@ public:
 
     continued_buffer.iov_base = NULL;
     continued_buffer.iov_len = 0;
-
-    // Load the server settings from the records.config / RecordsConfig.cc settings.
-    server_settings.settings_from_configs();
   }
 
   void
@@ -220,6 +240,7 @@ public:
   {
     cleanup_streams();
 
+    mutex = NULL; // magic happens - assigning to NULL frees the ProxyMutex
     delete local_dynamic_table;
     delete remote_dynamic_table;
 
@@ -239,19 +260,28 @@ public:
 
   void update_initial_rwnd(Http2WindowSize new_size);
 
+  Http2StreamId
+  get_latest_stream_id() const
+  {
+    return latest_streamid;
+  }
+
   // Continuated header decoding
   Http2StreamId
-  get_continued_id() const
+  get_continued_stream_id() const
   {
-    return continued_id;
+    return continued_stream_id;
   }
-  const IOVec &
-  get_continued_headers() const
+  void
+  set_continued_stream_id(Http2StreamId stream_id)
   {
-    return continued_buffer;
+    continued_stream_id = stream_id;
   }
-  void set_continued_headers(const char *buf, uint32_t len, Http2StreamId id);
-  void finish_continued_headers();
+  void
+  clear_continued_stream_id()
+  {
+    continued_stream_id = 0;
+  }
 
   // Connection level window size
   ssize_t client_rwnd, server_rwnd;
@@ -260,6 +290,7 @@ public:
   void send_data_frame(FetchSM *fetch_sm);
   void send_headers_frame(FetchSM *fetch_sm);
   void send_rst_stream_frame(Http2StreamId id, Http2ErrorCode ec);
+  void send_settings_frame(const Http2ConnectionSettings &new_settings);
   void send_ping_frame(Http2StreamId id, uint8_t flag, const uint8_t *opaque_data);
   void send_goaway_frame(Http2StreamId id, Http2ErrorCode ec);
   void send_window_update_frame(Http2StreamId id, uint32_t size);
@@ -274,14 +305,26 @@ private:
   Http2ConnectionState(const Http2ConnectionState &);            // noncopyable
   Http2ConnectionState &operator=(const Http2ConnectionState &); // noncopyable
 
+  // NOTE: 'stream_list' has only active streams.
+  //   If given Stream Identifier is not found in stream_list and it is less
+  //   than or equal to latest_streamid, the state of Stream
+  //   is CLOSED.
+  //   If given Stream Identifier is not found in stream_list and it is greater
+  //   than latest_streamid, the state of Stream is IDLE.
   DLL<Http2Stream> stream_list;
   Http2StreamId latest_streamid;
 
   // Counter for current acive streams which is started by client
   uint32_t client_streams_count;
 
-  // The buffer used for storing incomplete fragments of a header field which consists of multiple frames.
-  Http2StreamId continued_id;
+  // NOTE: Id of stream which MUST receive CONTINUATION frame.
+  //   - [RFC 7540] 6.2 HEADERS
+  //     "A HEADERS frame without the END_HEADERS flag set MUST be followed by a
+  //     CONTINUATION frame for the same stream."
+  //   - [RFC 7540] 6.10 CONTINUATION
+  //     "If the END_HEADERS bit is not set, this frame MUST be followed by
+  //     another CONTINUATION frame."
+  Http2StreamId continued_stream_id;
   IOVec continued_buffer;
 };
 

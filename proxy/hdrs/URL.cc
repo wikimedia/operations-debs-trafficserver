@@ -23,11 +23,13 @@
 
 #include <assert.h>
 #include <new>
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_memory.h"
+#include "ts/TsBuffer.h"
 #include "URL.h"
 #include "MIME.h"
 #include "HTTP.h"
-#include "Diags.h"
+#include "ts/Diags.h"
 
 const char *URL_SCHEME_FILE;
 const char *URL_SCHEME_FTP;
@@ -92,8 +94,9 @@ int URL_LEN_MMS;
 int URL_LEN_MMSU;
 int URL_LEN_MMST;
 
-int url_hash_method = 0;
-
+// Whether we should implement url_MD5_get() using url_MD5_get_fast(). Note that
+// url_MD5_get_fast() does NOT produce the same result as url_MD5_get_general().
+static int url_hash_method = 0;
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -1571,7 +1574,7 @@ memcpy_tolower(char *d, const char *s, int n)
 // no buffer overflow, no unescaping needed
 
 static inline void
-url_MD5_get_fast(URLImpl *url, CryptoContext &ctx, CryptoHash *hash)
+url_MD5_get_fast(const URLImpl *url, CryptoContext &ctx, CryptoHash *hash, cache_generation_t generation)
 {
   char buffer[BUFSIZE];
   char *p;
@@ -1602,12 +1605,16 @@ url_MD5_get_fast(URLImpl *url, CryptoContext &ctx, CryptoHash *hash)
   *p++ = ((char *)&port)[1];
 
   ctx.update(buffer, p - buffer);
+  if (generation != -1) {
+    ctx.update(&generation, sizeof(generation));
+  }
+
   ctx.finalize(hash);
 }
 
 
 static inline void
-url_MD5_get_general(URLImpl *url, CryptoContext &ctx, CryptoHash &hash)
+url_MD5_get_general(const URLImpl *url, CryptoContext &ctx, CryptoHash &hash, cache_generation_t generation)
 {
   char buffer[BUFSIZE];
   char *p, *e;
@@ -1674,25 +1681,29 @@ url_MD5_get_general(URLImpl *url, CryptoContext &ctx, CryptoHash &hash)
   port = url_canonicalize_port(url->m_url_type, url->m_port);
 
   ctx.update(&port, sizeof(port));
+  if (generation != -1) {
+    ctx.update(&generation, sizeof(generation));
+  }
+
   ctx.finalize(hash);
 }
 
 void
-url_MD5_get(URLImpl *url, CryptoHash *hash)
+url_MD5_get(const URLImpl *url, CryptoHash *hash, cache_generation_t generation)
 {
   URLHashContext ctx;
   if ((url_hash_method != 0) && (url->m_url_type == URL_TYPE_HTTP) &&
       ((url->m_len_user + url->m_len_password + url->m_len_params + url->m_len_query) == 0) &&
       (3 + 1 + 1 + 1 + 1 + 1 + 2 + url->m_len_scheme + url->m_len_host + url->m_len_path < BUFSIZE) &&
       (memchr(url->m_ptr_host, '%', url->m_len_host) == NULL) && (memchr(url->m_ptr_path, '%', url->m_len_path) == NULL)) {
-    url_MD5_get_fast(url, ctx, hash);
+    url_MD5_get_fast(url, ctx, hash, generation);
 #ifdef DEBUG
     CryptoHash md5_general;
-    url_MD5_get_general(url, ctx, md5_general);
+    url_MD5_get_general(url, ctx, md5_general, generation);
     ink_assert(*hash == md5_general);
 #endif
   } else {
-    url_MD5_get_general(url, ctx, *hash);
+    url_MD5_get_general(url, ctx, *hash, generation);
   }
 }
 

@@ -30,7 +30,7 @@
 #include <getopt.h>
 #include <arpa/inet.h>
 
-#include "ink_defs.h"
+#include "ts/ink_defs.h"
 #include "ts/ts.h"
 #include "ts/experimental.h"
 
@@ -352,7 +352,7 @@ consume_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
     TSContDestroy(cont);
     break;
   default:
-    TSError("Unknown event %d.", event);
+    TSError("[stale_while_revalidate] Unknown event %d.", event);
     break;
   }
 
@@ -473,7 +473,7 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
   // Is this the proper event?
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
 
-    if (TSHttpIsInternalRequest(txn) != TS_SUCCESS) {
+    if (TSHttpTxnIsInternal(txn) != TS_SUCCESS) {
       TSDebug(PLUGIN_NAME, "External Request");
       plugin_config = (config_t *)TSContDataGet(cont);
       state = TSmalloc(sizeof(StateInfo));
@@ -484,7 +484,7 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
       TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
     } else {
       TSDebug(PLUGIN_NAME, "Internal Request"); // This is insufficient if there are other plugins using TSHttpConnect
-      TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_SHARE_SERVER_SESSIONS, 1);
+      TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH, TS_SERVER_SESSION_SHARING_MATCH_NONE);
       // TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
       TSHttpTxnHookAdd(txn, TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
       // This might be needed in 3.2.0 to fix a timeout issue
@@ -615,8 +615,9 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = "Apache Software Foundation";
   info.support_email = "dev@trafficserver.apache.org";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
-    TSError("Plugin registration failed.\n");
+  if (TSPluginRegister(&info) != TS_SUCCESS) {
+    TSError("[%s] Plugin registration failed.\n", PLUGIN_NAME);
+
     return;
   } else {
     TSDebug(PLUGIN_NAME, "Plugin registration succeeded.\n");

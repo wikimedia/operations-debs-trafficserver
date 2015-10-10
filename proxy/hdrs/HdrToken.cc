@@ -21,13 +21,16 @@
   limitations under the License.
  */
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/HashFNV.h"
+#include "ts/Diags.h"
+#include "ts/ink_memory.h"
 #include <stdio.h>
-#include "Allocator.h"
+#include "ts/Allocator.h"
 #include "HTTP.h"
 #include "HdrToken.h"
 #include "MIME.h"
-#include "Regex.h"
+#include "ts/Regex.h"
 #include "URL.h"
 
 /*
@@ -77,8 +80,8 @@ static const char *_hdrtoken_strs[] = {
   "Subject", // NNTP
   "Summary", // NNTP
   "Transfer-Encoding", "Upgrade", "User-Agent", "Vary", "Via", "Warning", "Www-Authenticate",
-  "Xref",      // NNTP
-  "@DataInfo", // Internal Hack
+  "Xref",          // NNTP
+  "@Ats-Internal", // Internal Hack
 
   // Accept-Encoding
   "compress", "deflate", "gzip", "identity",
@@ -227,7 +230,6 @@ static HdrTokenFieldInfo _hdrtoken_strs_field_initializers[] = {
   {"Warning", MIME_SLOTID_NONE, MIME_PRESENCE_WARNING, (HTIF_COMMAS | HTIF_MULTVALS)},
   {"Www-Authenticate", MIME_SLOTID_WWW_AUTHENTICATE, MIME_PRESENCE_WWW_AUTHENTICATE, HTIF_NONE},
   {"Xref", MIME_SLOTID_NONE, MIME_PRESENCE_XREF, HTIF_NONE},
-  {"@DataInfo", MIME_SLOTID_NONE, MIME_PRESENCE_INT_DATA_INFO, HTIF_NONE},
   {"X-ID", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},
   {"X-Forwarded-For", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, (HTIF_COMMAS | HTIF_MULTVALS)},
   {"Sec-WebSocket-Key", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, HTIF_NONE},
@@ -320,8 +322,8 @@ static const char *_hdrtoken_commonly_tokenized_strs[] = {
   "Subject", // NNTP
   "Summary", // NNTP
   "Transfer-Encoding", "Upgrade", "User-Agent", "Vary", "Via", "Warning", "Www-Authenticate",
-  "Xref",      // NNTP
-  "@DataInfo", // Internal Hack
+  "Xref",          // NNTP
+  "@Ats-Internal", // Internal Hack
 
   // Accept-Encoding
   "compress", "deflate", "gzip", "identity",

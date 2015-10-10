@@ -45,6 +45,7 @@ static int ts_lua_http_set_resp(lua_State *L);
 static int ts_lua_http_get_cache_lookup_status(lua_State *L);
 static int ts_lua_http_set_cache_lookup_status(lua_State *L);
 static int ts_lua_http_set_cache_url(lua_State *L);
+static int ts_lua_http_set_server_resp_no_store(lua_State *L);
 
 static void ts_lua_inject_cache_lookup_result_variables(lua_State *L);
 
@@ -53,6 +54,10 @@ static int ts_lua_http_resp_cache_untransformed(lua_State *L);
 
 static int ts_lua_http_is_internal_request(lua_State *L);
 static int ts_lua_http_skip_remapping_set(lua_State *L);
+
+static void ts_lua_inject_http_resp_transform_api(lua_State *L);
+static int ts_lua_http_resp_transform_get_upstream_bytes(lua_State *L);
+static int ts_lua_http_resp_transform_set_downstream_bytes(lua_State *L);
 
 void
 ts_lua_inject_http_api(lua_State *L)
@@ -96,6 +101,9 @@ ts_lua_inject_http_cache_api(lua_State *L)
   lua_pushcfunction(L, ts_lua_http_set_cache_url);
   lua_setfield(L, -2, "set_cache_url");
 
+  lua_pushcfunction(L, ts_lua_http_set_server_resp_no_store);
+  lua_setfield(L, -2, "set_server_resp_no_store");
+
   ts_lua_inject_cache_lookup_result_variables(L);
 }
 
@@ -107,6 +115,21 @@ ts_lua_inject_http_transform_api(lua_State *L)
 
   lua_pushcfunction(L, ts_lua_http_resp_cache_untransformed);
   lua_setfield(L, -2, "resp_cache_untransformed");
+
+  /*  ts.http.resp_transform api */
+  lua_newtable(L);
+  ts_lua_inject_http_resp_transform_api(L);
+  lua_setfield(L, -2, "resp_transform");
+}
+
+static void
+ts_lua_inject_http_resp_transform_api(lua_State *L)
+{
+  lua_pushcfunction(L, ts_lua_http_resp_transform_get_upstream_bytes);
+  lua_setfield(L, -2, "get_upstream_bytes");
+
+  lua_pushcfunction(L, ts_lua_http_resp_transform_set_downstream_bytes);
+  lua_setfield(L, -2, "set_downstream_bytes");
 }
 
 static void
@@ -234,6 +257,22 @@ ts_lua_http_set_cache_url(lua_State *L)
 }
 
 static int
+ts_lua_http_set_server_resp_no_store(lua_State *L)
+{
+  int status;
+
+  ts_lua_http_ctx *http_ctx;
+
+  http_ctx = ts_lua_get_http_ctx(L);
+
+  status = luaL_checknumber(L, 1);
+
+  TSHttpTxnServerRespNoStoreSet(http_ctx->txnp, status);
+
+  return 0;
+}
+
+static int
 ts_lua_http_resp_cache_transformed(lua_State *L)
 {
   int action;
@@ -271,7 +310,7 @@ ts_lua_http_is_internal_request(lua_State *L)
 
   http_ctx = ts_lua_get_http_ctx(L);
 
-  ret = TSHttpIsInternalRequest(http_ctx->txnp);
+  ret = TSHttpTxnIsInternal(http_ctx->txnp);
 
   if (ret == TS_SUCCESS) {
     lua_pushnumber(L, 1);
@@ -294,6 +333,33 @@ ts_lua_http_skip_remapping_set(lua_State *L)
   action = luaL_checkinteger(L, 1);
 
   TSSkipRemappingSet(http_ctx->txnp, action);
+
+  return 0;
+}
+
+static int
+ts_lua_http_resp_transform_get_upstream_bytes(lua_State *L)
+{
+  ts_lua_http_transform_ctx *transform_ctx;
+
+  transform_ctx = ts_lua_get_http_transform_ctx(L);
+
+  lua_pushnumber(L, transform_ctx->upstream_bytes);
+
+  return 1;
+}
+
+static int
+ts_lua_http_resp_transform_set_downstream_bytes(lua_State *L)
+{
+  int64_t n;
+  ts_lua_http_transform_ctx *transform_ctx;
+
+  transform_ctx = ts_lua_get_http_transform_ctx(L);
+
+  n = luaL_checkinteger(L, 1);
+
+  transform_ctx->downstream_bytes = n;
 
   return 0;
 }

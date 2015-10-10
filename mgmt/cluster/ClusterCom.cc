@@ -31,11 +31,13 @@
  *
  */
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_sock.h"
+#include "ts/ink_file.h"
 
-#include "I_Version.h"
+#include "ts/I_Version.h"
 
-#include "TextBuffer.h"
+#include "ts/TextBuffer.h"
 #include "MgmtSocket.h"
 
 #include "LocalManager.h"
@@ -64,8 +66,6 @@ drainIncomingChannel_broadcast(void *arg)
   while (lmgmt->ccom != ccom || !lmgmt->ccom->init) {
     mgmt_sleep_sec(1);
   }
-
-  lmgmt->syslogThrInit();
 
   for (;;) { /* Loop draining mgmt network channels */
     int nevents = 0;
@@ -156,8 +156,6 @@ drainIncomingChannel(void *arg)
     mgmt_sleep_sec(1);
   }
 
-  lmgmt->syslogThrInit();
-
   for (;;) { /* Loop draining mgmt network channels */
     ink_zero(message);
 
@@ -169,7 +167,7 @@ drainIncomingChannel(void *arg)
 
     if (mgmt_read_timeout(ccom->reliable_server_fd, ccom->mc_poll_timeout /* secs */, 0 /* usecs */) > 0) {
       /* Reliable(TCP) request */
-      int clilen = sizeof(cli_addr);
+      socklen_t clilen = sizeof(cli_addr);
       int req_fd = mgmt_accept(ccom->reliable_server_fd, (struct sockaddr *)&cli_addr, &clilen);
       if (req_fd < 0) {
         mgmt_elog(stderr, errno, "[drainIncomingChannel] error accepting "
@@ -2336,7 +2334,7 @@ checkBackDoor(int req_fd, char *message)
       return false;
     }
     // TODO: I think this is correct, it used to do lmgmt->record_data-> ...
-    if (RecSetRecordConvert(variable, value, true, false) == REC_ERR_OKAY) {
+    if (RecSetRecordConvert(variable, value, REC_SOURCE_EXPLICIT, true, false) == REC_ERR_OKAY) {
       ink_strlcpy(reply, "\nRecord Updated\n\n", sizeof(reply));
       mgmt_writeline(req_fd, reply, strlen(reply));
     } else {

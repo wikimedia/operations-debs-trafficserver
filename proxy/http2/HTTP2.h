@@ -24,16 +24,18 @@
 #ifndef __HTTP2_H__
 #define __HTTP2_H__
 
-#include "ink_defs.h"
-#include "ink_memory.h"
+#include "ts/ink_defs.h"
+#include "ts/ink_memory.h"
 #include "HPACK.h"
 #include "MIME.h"
+#include "P_RecDefs.h"
 
 class HTTPHdr;
 
 typedef unsigned Http2StreamId;
 
-// 6.9.2 Initial Flow Control Window Size - the flow control window can be come negative
+// 6.9.2 Initial Flow Control Window Size - the flow control window can be come
+// negative
 // so we need to track it with a signed type.
 typedef int32_t Http2WindowSize;
 
@@ -59,9 +61,35 @@ const uint32_t HTTP2_MAX_FRAME_SIZE = 16384;
 const uint32_t HTTP2_HEADER_TABLE_SIZE = 4096;
 const uint32_t HTTP2_MAX_HEADER_LIST_SIZE = UINT_MAX;
 
+// Statistics
+enum {
+  HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT,  // Current # of active HTTP2
+                                            // sessions.
+  HTTP2_STAT_CURRENT_CLIENT_STREAM_COUNT,   // Current # of active HTTP2 streams.
+  HTTP2_STAT_TOTAL_TRANSACTIONS_TIME,       // Total stream time and streams
+  HTTP2_STAT_TOTAL_CLIENT_CONNECTION_COUNT, // Total connections running http2
+  HTTP2_STAT_STREAM_ERRORS_COUNT,
+  HTTP2_STAT_CONNECTION_ERRORS_COUNT,
+
+  HTTP2_N_STATS // Terminal counter, NOT A STAT INDEX.
+};
+
+#define HTTP2_INCREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(http2_rsb, _t, (int)_s, 1);
+#define HTTP2_DECREMENT_THREAD_DYN_STAT(_s, _t) RecIncrRawStat(http2_rsb, _t, (int)_s, -1);
+#define HTTP2_SUM_THREAD_DYN_STAT(_s, _t, _v) RecIncrRawStat(http2_rsb, _t, (int)_s, _v);
+extern RecRawStatBlock *http2_rsb; // Container for statistics.
+
 // 6.9.1 The Flow Control Window
 static const Http2WindowSize HTTP2_MAX_WINDOW_SIZE = 0x7FFFFFFF;
 
+// 5.4.  Error Handling
+enum Http2ErrorClass {
+  HTTP2_ERROR_CLASS_NONE,
+  HTTP2_ERROR_CLASS_CONNECTION,
+  HTTP2_ERROR_CLASS_STREAM,
+};
+
+// 7.  Error Codes
 enum Http2ErrorCode {
   HTTP2_ERROR_NO_ERROR = 0,
   HTTP2_ERROR_PROTOCOL_ERROR = 1,
@@ -197,6 +225,18 @@ struct Http2FrameHeader {
   Http2StreamId streamid;
 };
 
+// 5.4.  Error Handling
+struct Http2Error {
+  Http2Error(const Http2ErrorClass error_class = HTTP2_ERROR_CLASS_NONE, const Http2ErrorCode error_code = HTTP2_ERROR_NO_ERROR)
+  {
+    cls = error_class;
+    code = error_code;
+  };
+
+  Http2ErrorClass cls;
+  Http2ErrorCode code;
+};
+
 // 6.5.1. SETTINGS Format
 struct Http2SettingsParameter {
   uint16_t id;
@@ -205,12 +245,16 @@ struct Http2SettingsParameter {
 
 // 6.3 PRIORITY
 struct Http2Priority {
+  Http2Priority() : stream_dependency(0), weight(15) {}
+
   uint32_t stream_dependency;
   uint8_t weight;
 };
 
 // 6.2 HEADERS Format
 struct Http2HeadersParameter {
+  Http2HeadersParameter() : pad_length(0) {}
+
   uint8_t pad_length;
   Http2Priority priority;
 };
@@ -222,8 +266,10 @@ struct Http2Goaway {
   Http2StreamId last_streamid;
   uint32_t error_code;
 
-  // NOTE: we don't (de)serialize the variable length debug data at this layer because there's
-  // really nothing we can do with it without some out of band agreement. Trying to deal with it
+  // NOTE: we don't (de)serialize the variable length debug data at this layer
+  // because there's
+  // really nothing we can do with it without some out of band agreement. Trying
+  // to deal with it
   // just complicates memory management.
 };
 
@@ -254,7 +300,7 @@ bool http2_write_headers(const uint8_t *, size_t, const IOVec &);
 
 bool http2_write_rst_stream(uint32_t, IOVec);
 
-bool http2_write_settings(const Http2SettingsParameter &, IOVec);
+bool http2_write_settings(const Http2SettingsParameter &, const IOVec &);
 
 bool http2_write_ping(const uint8_t *, IOVec);
 
@@ -278,7 +324,7 @@ bool http2_parse_goaway(IOVec, Http2Goaway &);
 
 bool http2_parse_window_update(IOVec, uint32_t &);
 
-int64_t http2_parse_header_fragment(HTTPHdr *, IOVec, Http2DynamicTable &, bool);
+int64_t http2_decode_header_blocks(HTTPHdr *, const uint8_t *, const uint8_t *, Http2DynamicTable &);
 
 MIMEParseResult convert_from_2_to_1_1_header(HTTPHdr *);
 
@@ -286,9 +332,10 @@ int64_t http2_write_psuedo_headers(HTTPHdr *, uint8_t *, uint64_t, Http2DynamicT
 
 int64_t http2_write_header_fragment(HTTPHdr *, MIMEFieldIter &, uint8_t *, uint64_t, Http2DynamicTable &, bool &);
 
-
-// Not sure where else to put this, but figure this is as good of a start as anything else.
-// Right now, only the static init() is available, which sets up some basic librecords
+// Not sure where else to put this, but figure this is as good of a start as
+// anything else.
+// Right now, only the static init() is available, which sets up some basic
+// librecords
 // dependencies.
 class Http2
 {
@@ -298,6 +345,9 @@ public:
   static uint32_t max_frame_size;
   static uint32_t header_table_size;
   static uint32_t max_header_list_size;
+  static uint32_t max_request_header_size;
+  static uint32_t accept_no_activity_timeout;
+  static uint32_t no_activity_timeout_in;
 
   static void init();
 };

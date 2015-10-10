@@ -16,6 +16,7 @@
   limitations under the License.
  */
 
+#include "ts/ink_defs.h"
 #include "url_sig.h"
 
 #include <stdio.h>
@@ -31,6 +32,12 @@
 #include <limits.h>
 #include <ctype.h>
 
+#ifdef HAVE_PCRE_PCRE_H
+#include <pcre/pcre.h>
+#else
+#include <pcre.h>
+#endif
+
 #include <ts/ts.h>
 #include <ts/remap.h>
 
@@ -40,13 +47,26 @@ struct config {
   TSHttpStatus err_status;
   char *err_url;
   char keys[MAX_KEY_NUM][MAX_KEY_LEN];
+  pcre *regex;
+  pcre_extra *regex_extra;
 };
 
-void
+static void
 free_cfg(struct config *cfg)
 {
-  TSError("Cleaning up...");
+  TSError("[url_sig] Cleaning up...");
   TSfree(cfg->err_url);
+
+  if (cfg->regex_extra)
+#ifndef PCRE_STUDY_JIT_COMPILE
+    pcre_free(cfg->regex_extra);
+#else
+    pcre_free_study(cfg->regex_extra);
+#endif
+
+  if (cfg->regex)
+    pcre_free(cfg->regex);
+
   TSfree(cfg);
 }
 
@@ -105,7 +125,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       continue;
     char *pos = strchr(line, '=');
     if (pos == NULL) {
-      TSError("Error parsing line %d of file %s (%s).", line_no, config_file, line);
+      TSError("[url_sig] Error parsing line %d of file %s (%s).", line_no, config_file, line);
       continue;
     }
     *pos = '\0';
@@ -149,18 +169,32 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       value += 3;
       while (isspace(*value))
         value++;
-      //                      if (strncmp(value, "http://", strlen("http://")) != 0) {
-      //                              snprintf(errbuf, errbuf_size - 1,
-      //                                              "[TSRemapNewInstance] - Invalid config, err_status == 302, but err_url does
-      //                                              not start with \"http://\"");
-      //                              return TS_ERROR;
-      //                      }
       if (cfg->err_status == TS_HTTP_STATUS_MOVED_TEMPORARILY)
         cfg->err_url = TSstrndup(value, strlen(value));
       else
         cfg->err_url = NULL;
+    } else if (strncmp(line, "excl_regex", 10) == 0) {
+      // compile and study regex
+      const char *errptr;
+      int erroffset, options = 0;
+
+      if (cfg->regex) {
+        TSDebug(PLUGIN_NAME, "Skipping duplicate excl_regex");
+        continue;
+      }
+
+      cfg->regex = pcre_compile(value, options, &errptr, &erroffset, NULL);
+      if (cfg->regex == NULL) {
+        TSDebug(PLUGIN_NAME, "Regex compilation failed with error (%s) at character %d.", errptr, erroffset);
+      } else {
+#ifdef PCRE_STUDY_JIT_COMPILE
+        options = PCRE_STUDY_JIT_COMPILE;
+#endif
+        cfg->regex_extra = pcre_study(
+          cfg->regex, options, &errptr); // We do not need to check the error here because we can still run without the studying?
+      }
     } else {
-      TSError("Error parsing line %d of file %s (%s).", line_no, config_file, line);
+      TSError("[url_sig] Error parsing line %d of file %s (%s).", line_no, config_file, line);
     }
   }
 
@@ -200,14 +234,14 @@ TSRemapDeleteInstance(void *ih)
   free_cfg((struct config *)ih);
 }
 
-void
+static void
 err_log(char *url, char *msg)
 {
   if (msg && url) {
     TSDebug(PLUGIN_NAME, "[URL=%s]: %s", url, msg);
-    TSError("[URL=%s]: %s", url, msg); // This goes to error.log
+    TSError("[url_sig] [URL=%s]: %s", url, msg); // This goes to error.log
   } else {
-    TSError("Invalid err_log request");
+    TSError("[url_sig] Invalid err_log request");
   }
 }
 
@@ -257,6 +291,24 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   TSDebug(PLUGIN_NAME, "%s", url);
 
   query = strstr(url, "?");
+
+  if (cfg->regex) {
+    int offset = 0, options = 0;
+    int ovector[30];
+    int len = url_len;
+    char *anchor = strstr(url, "#");
+    if (query && !anchor) {
+      len -= (query - url);
+    } else if (anchor && !query) {
+      len -= (anchor - url);
+    } else if (anchor && query) {
+      len -= ((query < anchor ? query : anchor) - url);
+    }
+    if (pcre_exec(cfg->regex, cfg->regex_extra, url, len, offset, options, ovector, 30) >= 0) {
+      goto allow;
+    }
+  }
+
   if (query == NULL) {
     err_log(url, "Has no query string.");
     goto deny;
@@ -462,7 +514,7 @@ allow:
   /* drop the query string so we can cache-hit */
   rval = TSUrlHttpQuerySet(rri->requestBufp, rri->requestUrl, NULL, 0);
   if (rval != TS_SUCCESS) {
-    TSError("Error stripping query string: %d.", rval);
+    TSError("[url_sig] Error stripping query string: %d.", rval);
   }
   return TSREMAP_NO_REMAP;
 }

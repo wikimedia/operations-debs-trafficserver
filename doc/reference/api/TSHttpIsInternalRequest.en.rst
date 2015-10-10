@@ -35,8 +35,16 @@ Description
 :func:`TSHttpIsInternalRequest` tests whether a HTTP transaction
 was originated within Traffic Server.
 
+.. admonition:: Deprecated
+
+   Deprecated
+
 :func:`TSHttpIsInternalSession` tests whether a HTTP session
 was originated within Traffic Server.
+
+.. admonition:: Deprecated
+
+   Deprecated
 
 Return Values
 =============

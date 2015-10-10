@@ -31,7 +31,7 @@
 #ifndef _Store_h_
 #define _Store_h_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 
 #define STORE_BLOCK_SIZE 8192
 #define STORE_BLOCK_SHIFT 13
@@ -242,11 +242,6 @@ struct Store {
 
   unsigned n_disks;
   Span **disk;
-#if TS_USE_INTERIM_CACHE == 1
-  int n_interim_disks;
-  Span **interim_disk;
-  const char *read_interim_config();
-#endif
   //
   // returns NULL on success
   // if fd >= 0 then on failure it returns an error string

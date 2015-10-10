@@ -24,10 +24,10 @@
 #ifndef _URL_REWRITE_H_
 #define _URL_REWRITE_H_
 
-#include "ink_config.h"
+#include "ts/ink_config.h"
 #include "UrlMapping.h"
 #include "HttpTransact.h"
-#include "Regex.h"
+#include "ts/Regex.h"
 
 #define URL_REMAP_FILTER_NONE 0x00000000
 #define URL_REMAP_FILTER_REFERER 0x00000001      /* enable "referer" header validation */
@@ -73,8 +73,7 @@ public:
 
   struct RegexMapping {
     url_mapping *url_map;
-    pcre *re;
-    pcre_extra *re_extra;
+    Regex regular_expression;
 
     // we store the host-string-to-substitute here; if a match is found,
     // the substitutions are made and the resulting url is stored
@@ -107,7 +106,6 @@ public:
   };
 
   void PerformACLFiltering(HttpTransact::State *s, url_mapping *mapping);
-  url_mapping *SetupPacMapping(); // manager proxy-autconfig mapping
   url_mapping *SetupBackdoorMapping();
   void PrintStore(MappingsStore &store);
 
@@ -164,12 +162,9 @@ public:
 
   int nohost_rules;
   int reverse_proxy;
-  int backdoor_enabled;
 
-  // Vars for PAC mapping
-  int mgmt_autoconf_port;
-  int default_to_pac;
-  int default_to_pac_port;
+  // Vars for synthetic health checks
+  int mgmt_synthetic_port;
 
   char *ts_name; // Used to send redirects when no host info
 

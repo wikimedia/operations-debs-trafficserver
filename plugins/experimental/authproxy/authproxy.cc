@@ -37,7 +37,8 @@
 #include <arpa/inet.h>
 #include <sys/param.h>
 #include <ts/remap.h>
-#include <ink_config.h>
+
+#include "ts/ink_config.h"
 
 using std::strlen;
 
@@ -469,7 +470,8 @@ StateAuthProxySendResponse(AuthRequestContext *auth, void * /* edata ATS_UNUSED 
 
   TSReleaseAssert(TSHttpHdrCopy(mbuf, mhdr, auth->rheader.buffer, auth->rheader.header) == TS_SUCCESS);
 
-  status = TSHttpHdrStatusGet(mbuf, mhdr), snprintf(msg, sizeof(msg), "%d %s\n", status, TSHttpHdrReasonLookup(status));
+  status = TSHttpHdrStatusGet(mbuf, mhdr);
+  snprintf(msg, sizeof(msg), "%d %s\n", status, TSHttpHdrReasonLookup(status));
 
   TSHttpTxnErrorBodySet(auth->txn, TSstrdup(msg), strlen(msg), TSstrdup("text/plain"));
 
@@ -482,8 +484,9 @@ StateAuthProxySendResponse(AuthRequestContext *auth, void * /* edata ATS_UNUSED 
 
   AuthLogDebug("sending auth proxy response for status %d", status);
 
-  TSHttpTxnReenable(auth->txn, TS_EVENT_HTTP_CONTINUE);
   TSHandleMLocRelease(mbuf, TS_NULL_MLOC, mhdr);
+  TSHttpTxnReenable(auth->txn, TS_EVENT_HTTP_CONTINUE);
+
   return TS_EVENT_CONTINUE;
 }
 
@@ -638,7 +641,7 @@ AuthProxyGlobalHook(TSCont /* cont ATS_UNUSED */, TSEvent event, void *edata)
   switch (event) {
   case TS_EVENT_HTTP_POST_REMAP:
     // Ignore internal requests since we generated them.
-    if (TSHttpIsInternalRequest(txn) == TS_SUCCESS) {
+    if (TSHttpTxnIsInternal(txn) == TS_SUCCESS) {
       // All our internal requests *must* hit the origin since it is the
       // agent that needs to make the authorization decision. We can't
       // allow that to be cached. Note that this only affects the remap
@@ -739,7 +742,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = (char *)"Apache Software Foundation";
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (TSPluginRegister(&info) != TS_SUCCESS) {
     AuthLogError("plugin registration failed");
   }
 

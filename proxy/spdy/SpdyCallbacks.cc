@@ -188,7 +188,7 @@ spdy_fetcher_launch(SpdyRequest *req)
   fetch_flags |= TS_FETCH_FLAGS_NOT_INTERNAL_REQUEST;
 
   req->fetch_sm = TSFetchCreate((TSCont)sm, req->method.c_str(), url.c_str(), req->version.c_str(), client_addr, fetch_flags);
-  TSFetchUserDataSet(req->fetch_sm, req);
+  TSFetchUserDataSet(req->fetch_sm, (void *)req);
 
   //
   // Set header list
@@ -313,7 +313,7 @@ spdy_on_ctrl_recv_callback(spdylay_session *session, spdylay_frame_type type, sp
     req->init(sm, stream_id);
     req->append_nv(frame->syn_stream.nv);
     sm->req_map[stream_id] = req;
-    sm->vc->add_to_keep_alive_lru();
+    sm->vc->add_to_active_queue();
     spdy_process_syn_stream_frame(sm, req);
     break;
 

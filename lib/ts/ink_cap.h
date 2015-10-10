@@ -23,7 +23,11 @@
  */
 #if !defined(_ink_cap_h_)
 #define _ink_cap_h_
-#include "ink_mutex.h"
+
+#include <unistd.h>
+#include <sys/types.h>
+
+#include "ts/ink_mutex.h"
 
 /// Generate a debug message with the current capabilities for the process.
 extern void DebugCapabilities(char const *tag ///< Debug message tag.

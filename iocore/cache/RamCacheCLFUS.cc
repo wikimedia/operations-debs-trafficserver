@@ -26,6 +26,7 @@
 
 #include "P_Cache.h"
 #include "I_Tasks.h"
+#include "ts/fastlz.h"
 #if TS_HAS_LIBZ
 #include <zlib.h>
 #endif
@@ -74,7 +75,7 @@ struct RamCacheCLFUS : public RamCache {
   // returns 1 on found/stored, 0 on not found/stored, if provided auxkey1 and auxkey2 must match
   int get(INK_MD5 *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0);
   int put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool copy = false, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0);
-  int fixup(INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2);
+  int fixup(const INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2);
 
   void init(int64_t max_bytes, Vol *vol);
 
@@ -671,7 +672,7 @@ Lhistory:
 }
 
 int
-RamCacheCLFUS::fixup(INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2)
+RamCacheCLFUS::fixup(const INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2)
 {
   if (!max_bytes)
     return 0;

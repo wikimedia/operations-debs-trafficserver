@@ -24,11 +24,11 @@
 #ifndef _P_REC_CORE_H_
 #define _P_REC_CORE_H_
 
-#include "ink_thread.h"
-#include "ink_hash_table.h"
-#include "ink_llqueue.h"
-#include "ink_rwlock.h"
-#include "TextBuffer.h"
+#include "ts/ink_thread.h"
+#include "ts/ink_hash_table.h"
+#include "ts/ink_llqueue.h"
+#include "ts/ink_rwlock.h"
+#include "ts/TextBuffer.h"
 
 #include "I_RecCore.h"
 #include "P_RecDefs.h"
@@ -60,7 +60,7 @@ int RecCoreInit(RecModeT mode_type, Diags *diags);
 RecRecord *RecRegisterStat(RecT rec_type, const char *name, RecDataT data_type, RecData data_default, RecPersistT persist_type);
 
 RecRecord *RecRegisterConfig(RecT rec_type, const char *name, RecDataT data_type, RecData data_default, RecUpdateT update_type,
-                             RecCheckT check_type, const char *check_regex, RecAccessT access_type = RECA_NULL);
+                             RecCheckT check_type, const char *check_regex, RecSourceT source, RecAccessT access_type = RECA_NULL);
 
 RecRecord *RecForceInsert(RecRecord *record);
 
@@ -68,8 +68,8 @@ RecRecord *RecForceInsert(RecRecord *record);
 // Setting/Getting
 //-------------------------------------------------------------------------
 
-int RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data, RecRawStat *raw_stat, bool lock = true,
-                 bool inc_version = true);
+int RecSetRecord(RecT rec_type, const char *name, RecDataT data_type, RecData *data, RecRawStat *raw_stat, RecSourceT source,
+                 bool lock = true, bool inc_version = true);
 
 int RecGetRecord_Xmalloc(const char *name, RecDataT data_type, RecData *data, bool lock = true);
 
