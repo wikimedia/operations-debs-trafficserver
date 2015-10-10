@@ -1,2 +1,2 @@
 version=3
-http://www.apache.org/dist//trafficserver/trafficserver-(\d+\.\d+.\d+)\.tar\.bz2 debian uupdate
+http://www.apache.org/dist//trafficserver/trafficserver-(5\.3\.\d+)\.tar\.bz2 debian uupdate
