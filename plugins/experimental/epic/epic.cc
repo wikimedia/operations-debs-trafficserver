@@ -29,7 +29,8 @@
 #include <inttypes.h>
 #include <set>
 #include <string>
-#include "ink_defs.h"
+
+#include "ts/ink_defs.h"
 
 #define debug_tag(tag, fmt, ...)          \
   do {                                    \
@@ -43,7 +44,7 @@
 #if defined(DEBUG)
 #define error(fmt, ...) debug(fmt, ##__VA_ARGS__)
 #else
-#define error(fmt, ...) TSError("epic:%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define error(fmt, ...) TSError("[epic]%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
 #endif
 
 static TSHRTime epic_period;
@@ -300,8 +301,9 @@ epic_flush_stats(TSCont /* contp */, TSEvent /* event */, void * /* edata */)
 void
 TSPluginInit(int argc, const char *argv[])
 {
-  static const struct option longopts[] = {
-    {"directory", required_argument, NULL, 'd'}, {"period", required_argument, NULL, 'p'}, {NULL, 0, NULL, 0}};
+  static const struct option longopts[] = {{const_cast<char *>("directory"), required_argument, NULL, 'd'},
+                                           {const_cast<char *>("period"), required_argument, NULL, 'p'},
+                                           {NULL, 0, NULL, 0}};
 
   TSPluginRegistrationInfo info;
 
@@ -309,7 +311,7 @@ TSPluginInit(int argc, const char *argv[])
   info.vendor_name = (char *)"Apache Software Foundation";
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
-  if (TSPluginRegister(TS_SDK_VERSION_3_0, &info) != TS_SUCCESS) {
+  if (TSPluginRegister(&info) != TS_SUCCESS) {
     error("plugin registration failed");
   }
 

@@ -32,7 +32,8 @@
 #ifndef _HTTP_CLIENT_SESSION_H_
 #define _HTTP_CLIENT_SESSION_H_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_resolver.h"
 #include "P_Net.h"
 #include "InkAPIInternal.h"
 #include "HTTP.h"
@@ -50,6 +51,7 @@ class SecurityContext;
 class HttpClientSession : public ProxyClientSession
 {
 public:
+  typedef ProxyClientSession super; ///< Parent type.
   HttpClientSession();
 
   // Implement ProxyClientSession interface.
@@ -89,11 +91,16 @@ public:
     return half_close;
   };
   virtual void release(IOBufferReader *r);
-  NetVConnection *
+  virtual NetVConnection *
   get_netvc() const
   {
     return client_vc;
   };
+  virtual void
+  release_netvc()
+  {
+    client_vc = NULL;
+  }
 
   virtual void attach_server_session(HttpServerSession *ssession, bool transaction_done = true);
   HttpServerSession *

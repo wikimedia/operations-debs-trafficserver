@@ -21,8 +21,9 @@
   limitations under the License.
  */
 
-#include "libts.h"
-#include "I_Layout.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_args.h"
+#include "ts/I_Layout.h"
 
 #define PROGRAM_NAME "traffic_logcat"
 #define MAX_LOGBUFFER_SIZE 65536
@@ -42,7 +43,6 @@
 #include "LogBuffer.h"
 #include "LogUtils.h"
 #include "LogSock.h"
-#include "LogPredefined.h"
 #include "Log.h"
 
 // logcat-specific command-line flags
@@ -149,15 +149,6 @@ process_file(int in_fd, int out_fd)
     // line
     //
     const char *alt_format = NULL;
-    if (squid_flag)
-      alt_format = PreDefinedFormatInfo::squid;
-    if (clf_flag)
-      alt_format = PreDefinedFormatInfo::common;
-    if (elf_flag)
-      alt_format = PreDefinedFormatInfo::extended;
-    if (elf2_flag)
-      alt_format = PreDefinedFormatInfo::extended2;
-
     // convert the buffer to ascii entries and place onto stdout
     //
     if (header->fmt_fieldlist()) {

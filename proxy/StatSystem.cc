@@ -34,7 +34,7 @@
 #include "ProxyConfig.h"
 #include "StatPages.h"
 #include "HTTP.h"
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 
 // defines
 
@@ -308,7 +308,7 @@ take_rusage_snap()
         continue;
       Note("getrusage [%d %s]", errno, strerror(errno));
     } else
-      rusage_snap_time = ink_get_hrtime();
+      rusage_snap_time = Thread::get_hrtime();
     break;
   }
   Debug("rusage", "took rusage snap %" PRId64 "", rusage_snap_time);

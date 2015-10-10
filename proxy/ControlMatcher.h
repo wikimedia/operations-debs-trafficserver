@@ -87,13 +87,15 @@
 #ifndef _CONTROL_MATCHER_H_
 #define _CONTROL_MATCHER_H_
 
-#include "DynArray.h"
-#include <ts/IpMap.h>
+#include "ts/DynArray.h"
+#include "ts/ink_hash_table.h"
+#include "ts/IpMap.h"
+#include "ts/MatcherUtils.h"
 
-#include "ink_apidefs.h"
-#include "ink_defs.h"
+#include "ts/ink_apidefs.h"
+#include "ts/ink_defs.h"
 #include "HTTP.h"
-#include "Regex.h"
+#include "ts/Regex.h"
 
 #ifdef HAVE_CTYPE_H
 #include <ctype.h>
@@ -146,7 +148,7 @@ public:
   inkcoreapi sockaddr const *get_ip();
   inkcoreapi sockaddr const *get_client_ip();
 
-  HttpRequestData() : hdr(NULL), hostname_str(NULL), api_info(NULL), xact_start(0), incoming_port(0), tag(NULL)
+  HttpRequestData() : hdr(NULL), hostname_str(NULL), api_info(NULL), xact_start(0), incoming_port(0), tag(NULL), internal_txn(false)
   {
     ink_zero(src_ip);
     ink_zero(dest_ip);
@@ -160,6 +162,7 @@ public:
   IpEndpoint dest_ip;
   uint16_t incoming_port;
   char *tag;
+  bool internal_txn;
 };
 
 

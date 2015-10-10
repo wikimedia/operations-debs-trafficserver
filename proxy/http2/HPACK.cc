@@ -43,8 +43,6 @@ const unsigned HPACK_LEN_STATUS = countof(":status") - 1;
 // Section 6.2), plus 32.
 const static unsigned ADDITIONAL_OCTETS = 32;
 
-const static uint32_t HEADER_FIELD_LIMIT_LENGTH = 4096;
-
 typedef enum {
   TS_HPACK_STATIC_TABLE_0 = 0,
   TS_HPACK_STATIC_TABLE_AUTHORITY,
@@ -241,10 +239,13 @@ Http2DynamicTable::add_header_field(const MIMEField *field)
   uint32_t header_size = ADDITIONAL_OCTETS + name_len + value_len;
 
   if (header_size > _settings_dynamic_table_size) {
-    // 5.3. It is not an error to attempt to add an entry that is larger than the maximum size; an
-    // attempt to add an entry larger than the entire table causes the table to be emptied of all existing entries.
+    // 5.3. It is not an error to attempt to add an entry that is larger than
+    // the maximum size; an
+    // attempt to add an entry larger than the entire table causes the table to
+    // be emptied of all existing entries.
     _headers.clear();
     _mhdr->fields_clear();
+    _current_size = 0;
   } else {
     _current_size += header_size;
     while (_current_size > _settings_dynamic_table_size) {
@@ -476,6 +477,7 @@ encode_literal_header_field(uint8_t *buf_start, const uint8_t *buf_end, const MI
 
   p += len;
 
+  Debug("http2_hpack_encode", "Encoded field: %.*s: %.*s", name_len, name, value_len, value);
   return p - buf_start;
 }
 
@@ -537,7 +539,7 @@ decode_string(Arena &arena, char **str, uint32_t &str_length, const uint8_t *buf
     return HPACK_ERROR_COMPRESSION_ERROR;
   p += len;
 
-  if (encoded_string_len > HEADER_FIELD_LIMIT_LENGTH || (p + encoded_string_len) > buf_end) {
+  if ((p + encoded_string_len) > buf_end) {
     return HPACK_ERROR_COMPRESSION_ERROR;
   }
 
@@ -583,7 +585,7 @@ decode_indexed_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
     const char *decoded_value = header.value_get(&decoded_value_len);
 
     Arena arena;
-    Debug("http2_hpack_decode", "Decoded field:  %s: %s\n", arena.str_store(decoded_name, decoded_name_len),
+    Debug("http2_hpack_decode", "Decoded field: %s: %s", arena.str_store(decoded_name, decoded_name_len),
           arena.str_store(decoded_value, decoded_value_len));
   }
 
@@ -602,7 +604,8 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
   HpackFieldType ftype = hpack_parse_field_type(*p);
 
   if (ftype == HPACK_FIELD_INDEXED_LITERAL) {
-    // 7.2.1. index extraction based on Literal Header Field with Incremental Indexing
+    // 7.2.1. index extraction based on Literal Header Field with Incremental
+    // Indexing
     len = decode_integer(index, p, buf_end, 6);
     isIncremental = true;
   } else if (ftype == HPACK_FIELD_NEVERINDEX_LITERAL) {
@@ -654,7 +657,6 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
   p += len;
   header.value_set(value_str, value_str_len);
 
-
   // Incremental Indexing adds header to header table as new entry
   if (isIncremental) {
     dynamic_table.add_header_field(header.field_get());
@@ -667,7 +669,7 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
     int decoded_value_len;
     const char *decoded_value = header.value_get(&decoded_value_len);
 
-    Debug("http2_hpack_decode", "Decoded field:  %s: %s\n", arena.str_store(decoded_name, decoded_name_len),
+    Debug("http2_hpack_decode", "Decoded field: %s: %s", arena.str_store(decoded_name, decoded_name_len),
           arena.str_store(decoded_value, decoded_value_len));
   }
 

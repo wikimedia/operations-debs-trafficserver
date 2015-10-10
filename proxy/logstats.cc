@@ -21,12 +21,13 @@
   limitations under the License.
  */
 
-#include "libts.h"
-#undef std // FIXME: remove dependency on the STL
-#include "ink_config.h"
-#include "ink_file.h"
-#include "I_Layout.h"
-#include "I_Version.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_file.h"
+#include "ts/I_Layout.h"
+#include "ts/I_Version.h"
+#include "ts/HashFNV.h"
+#include "ts/ink_args.h"
+#include "ts/MatcherUtils.h"
 
 // Includes and namespaces etc.
 #include "LogStandalone.cc"
@@ -51,6 +52,9 @@
 #include <list>
 #include <functional>
 #include <fcntl.h>
+#include <unordered_map>
+#include <unordered_set>
+
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
@@ -316,10 +320,6 @@ struct hash_fnv32 {
 };
 
 typedef std::list<UrlStats> LruStack;
-
-#if HAVE_CXX_11 && HAVE_UNORDERED_MAP && HAVE_UNORDERED_SET
-#include <unordered_map>
-#include <unordered_set>
 typedef std::unordered_map<const char *, OriginStats *, hash_fnv32, eqstr> OriginStorage;
 typedef std::unordered_set<const char *, hash_fnv32, eqstr> OriginSet;
 typedef std::unordered_map<const char *, LruStack::iterator, hash_fnv32, eqstr> LruHash;
@@ -332,26 +332,6 @@ rehash(T &container, N size)
   container.rehash(size);
 }
 
-#elif HAVE_GNU_CXX_HASH_MAP
-#define _BACKWARD_BACKWARD_WARNING_H // needed for gcc 4.3
-#include <ext/hash_map>
-#include <ext/hash_set>
-typedef __gnu_cxx::hash_map<const char *, OriginStats *, hash_fnv32, eqstr> OriginStorage;
-typedef __gnu_cxx::hash_set<const char *, hash_fnv32, eqstr> OriginSet;
-typedef __gnu_cxx::hash_map<const char *, LruStack::iterator, hash_fnv32, eqstr> LruHash;
-
-// Resize a hash-based container.
-template <class T, class N>
-void
-rehash(T &container, N size)
-{
-  container.resize(size);
-}
-
-#undef _BACKWARD_BACKWARD_WARNING_H
-#else
-#error no supported hash container
-#endif
 
 // LRU class for the URL data
 void update_elapsed(ElapsedStats &stat, const int elapsed, const StatsCounter &counter);

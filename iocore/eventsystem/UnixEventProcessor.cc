@@ -27,7 +27,7 @@
 #include <alloca.h>
 #include <hwloc.h>
 #endif
-#include "ink_defs.h"
+#include "ts/ink_defs.h"
 
 EventType
 EventProcessor::spawn_event_threads(int n_threads, const char *et_name, size_t stacksize)
@@ -97,7 +97,7 @@ EventProcessor::start(int n_event_threads, size_t stacksize)
   n_threads_for_type[ET_CALL] = n_event_threads;
 
 #if TS_USE_HWLOC
-  int affinity = 0;
+  int affinity = 1;
   REC_ReadConfigInteger(affinity, "proxy.config.exec_thread.affinity");
   hwloc_obj_t obj;
   hwloc_obj_type_t obj_type;

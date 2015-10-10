@@ -60,7 +60,7 @@ HttpUpdateSM::start_scheduled_update(Continuation *cont, HTTPHdr *request)
 {
   // Use passed continuation's mutex for this state machine
   this->mutex = cont->mutex;
-  MUTEX_LOCK(lock, this->mutex, this_ethread());
+  SCOPED_MUTEX_LOCK(lock, this->mutex, this_ethread());
 
   // Set up the Action
   cb_cont = cont;
@@ -74,7 +74,7 @@ HttpUpdateSM::start_scheduled_update(Continuation *cont, HTTPHdr *request)
 
   // Fix ME: What should these be set to since there is not a
   //   real client
-  ats_ip4_set(&t_state.client_info.addr, htonl(INADDR_LOOPBACK), 0);
+  ats_ip4_set(&t_state.client_info.src_addr, htonl(INADDR_LOOPBACK), 0);
   t_state.backdoor_request = 0;
   t_state.client_info.port_attribute = HttpProxyPort::TRANSPORT_DEFAULT;
 

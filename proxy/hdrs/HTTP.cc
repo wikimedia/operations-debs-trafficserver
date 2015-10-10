@@ -21,14 +21,16 @@
   limitations under the License.
  */
 
-#include "ink_defs.h"
-#include "libts.h"
+#include "ts/ink_defs.h"
+#include "ts/ink_platform.h"
+#include "ts/TsBuffer.h"
+#include "ts/ink_inet.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "HTTP.h"
 #include "HdrToken.h"
-#include "Diags.h"
+#include "ts/Diags.h"
 
 /***********************************************************************
  *                                                                     *
@@ -314,7 +316,7 @@ http_hdr_init(HdrHeap *heap, HTTPHdrImpl *hh, HTTPType polarity)
 {
   memset(&(hh->u), 0, sizeof(hh->u));
   hh->m_polarity = polarity;
-  hh->m_version = HTTP_VERSION(0, 9);
+  hh->m_version = HTTP_VERSION(1, 0);
   hh->m_fields_impl = mime_hdr_create(heap);
   if (polarity == HTTP_TYPE_REQUEST) {
     hh->u.req.m_url_impl = url_create(heap);
@@ -949,7 +951,7 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
       end = real_end;
       parser->m_parsing_http = false;
       if (version == HTTP_VERSION(0, 9))
-        return PARSE_DONE;
+        return PARSE_ERROR;
 
       MIMEParseResult ret = mime_parser_parse(&parser->m_mime_parser, heap, hh->m_fields_impl, start, end, must_copy_strings, eof);
       if (ret == PARSE_DONE)
@@ -1083,14 +1085,18 @@ http_parser_parse_req(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const 
     int32_t version;
     if (version_start && version_end) {
       version = http_parse_version(version_start, version_end);
-    } else
-      version = HTTP_VERSION(0, 9);
+    } else {
+      return PARSE_ERROR;
+    }
+
+    if (version == HTTP_VERSION(0, 9)) {
+      return PARSE_ERROR;
+    }
+
     http_hdr_version_set(hh, version);
 
     end = real_end;
     parser->m_parsing_http = false;
-    if (version == HTTP_VERSION(0, 9))
-      return PARSE_DONE;
 
     MIMEParseResult ret = mime_parser_parse(&parser->m_mime_parser, heap, hh->m_fields_impl, start, end, must_copy_strings, eof);
     if (ret == PARSE_DONE)
@@ -1297,10 +1303,17 @@ http_parser_parse_resp(HTTPParser *parser, HdrHeap *heap, HTTPHdrImpl *hh, const
 
   done:
     if (!version_start || !version_end) {
-      return PARSE_DONE;
+      return PARSE_ERROR;
     }
 
-    http_hdr_version_set(hh, http_parse_version(version_start, version_end));
+    int32_t version;
+    version = http_parse_version(version_start, version_end);
+
+    if (version == HTTP_VERSION(0, 9)) {
+      return PARSE_ERROR;
+    }
+
+    http_hdr_version_set(hh, version);
 
     if (status_start && status_end)
       http_hdr_status_set(hh, http_parse_status(status_start, status_end));
@@ -1594,7 +1607,7 @@ class UrlPrintHack
       if (0 == hdr->m_url_cached.port_get_raw() && hdr->m_port_in_header) {
         ink_assert(0 == ui->m_ptr_port); // shouldn't be set if not in URL.
         ui->m_ptr_port = m_port_buff;
-        ui->m_len_port = sprintf(m_port_buff, "%.5d", hdr->m_port);
+        ui->m_len_port = snprintf(m_port_buff, sizeof(m_port_buff), "%d", hdr->m_port);
         m_port_modified_p = true;
       } else {
         m_port_modified_p = false;
@@ -1640,7 +1653,7 @@ class UrlPrintHack
   HTTPHdr *m_hdr;
   ///@}
   /// Temporary buffer for port data.
-  char m_port_buff[6];
+  char m_port_buff[32];
 };
 
 char *

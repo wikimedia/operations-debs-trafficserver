@@ -36,12 +36,12 @@
  *
  ***************************************************************************/
 
-#include "ink_config.h"
-#include "ink_defs.h"
+#include "ts/ink_config.h"
+#include "ts/ink_defs.h"
 #include <strings.h>
-#include "ink_string.h"
-#include "I_Layout.h"
-#include "ParseRules.h"
+#include "ts/ink_string.h"
+#include "ts/I_Layout.h"
+#include "ts/ParseRules.h"
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
 #include "CfgContextUtils.h"
@@ -585,9 +585,10 @@ MgmtConfigRecordDescribe(const char *rec_name, unsigned options, TSConfigRecordD
     MgmtMarshallInt update;
     MgmtMarshallInt updatetype;
     MgmtMarshallInt checktype;
+    MgmtMarshallInt source;
 
     ret = recv_mgmt_response(reply.ptr, reply.len, RECORD_DESCRIBE_CONFIG, &err, &name, &value, &deflt, &rtype, &rclass, &version,
-                             &rsb, &order, &access, &update, &updatetype, &checktype, &expr);
+                             &rsb, &order, &access, &update, &updatetype, &checktype, &source, &expr);
 
     ats_free(reply.ptr);
 
@@ -611,6 +612,7 @@ MgmtConfigRecordDescribe(const char *rec_name, unsigned options, TSConfigRecordD
     val->rec_access = access;
     val->rec_updatetype = updatetype;
     val->rec_checktype = checktype;
+    val->rec_source = source;
 
     mgmt_record_convert_value(val->rec_type, value, val->rec_value);
     mgmt_record_convert_value(val->rec_type, deflt, val->rec_default);

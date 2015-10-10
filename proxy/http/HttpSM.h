@@ -33,7 +33,7 @@
 #ifndef _HTTP_SM_H_
 #define _HTTP_SM_H_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 #include "P_EventSystem.h"
 #include "HttpCacheSM.h"
 #include "HttpTransact.h"
@@ -191,8 +191,6 @@ public:
   static HttpSM *allocate();
   HttpCacheSM &get_cache_sm();      // Added to get the object of CacheSM YTS Team, yamsat
   HttpVCTableEntry *get_ua_entry(); // Added to get the ua_entry pointer  - YTS-TEAM
-  static void _instantiate_func(HttpSM *prototype, HttpSM *new_instance);
-  static void _make_scatter_list(HttpSM *prototype);
 
   void init();
 
@@ -495,7 +493,11 @@ public:
   int64_t cache_response_body_bytes;
   int pushed_response_hdr_bytes;
   int64_t pushed_response_body_bytes;
+  bool client_tcp_reused;
+  bool client_ssl_reused;
+  bool client_connection_is_ssl;
   TransactionMilestones milestones;
+  ink_hrtime api_timer;
   // The next two enable plugins to tag the state machine for
   // the purposes of logging so the instances can be correlated
   // with the source plugin.
@@ -560,7 +562,7 @@ HttpSM::get_ua_entry()
 inline HttpSM *
 HttpSM::allocate()
 {
-  extern SparseClassAllocator<HttpSM> httpSMAllocator;
+  extern ClassAllocator<HttpSM> httpSMAllocator;
   return httpSMAllocator.alloc();
 }
 
@@ -631,7 +633,6 @@ HttpSM::add_cache_sm()
   if (second_cache_sm == NULL) {
     second_cache_sm = new HttpCacheSM;
     second_cache_sm->init(this, mutex);
-    second_cache_sm->set_lookup_url(cache_sm.get_lookup_url());
     if (t_state.cache_info.object_read != NULL) {
       second_cache_sm->cache_read_vc = cache_sm.cache_read_vc;
       cache_sm.cache_read_vc = NULL;

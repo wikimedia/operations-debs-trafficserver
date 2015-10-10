@@ -24,7 +24,7 @@
 #ifndef __TS_REGEX_H__
 #define __TS_REGEX_H__
 
-#include "ink_config.h"
+#include "ts/ink_config.h"
 
 #ifdef HAVE_PCRE_PCRE_H
 #include <pcre/pcre.h>
@@ -42,10 +42,12 @@ class Regex
 {
 public:
   Regex() : regex(NULL), regex_extra(NULL) {}
-  bool compile(const char *pattern, unsigned flags = 0);
+  bool compile(const char *pattern, const unsigned flags = 0);
   // It is safe to call exec() concurrently on the same object instance
   bool exec(const char *str);
   bool exec(const char *str, int length);
+  bool exec(const char *str, int length, int *ovector, int ovecsize);
+  int get_capture_count();
   ~Regex();
 
 private:

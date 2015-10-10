@@ -19,12 +19,11 @@
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib \
-  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/proxy/shared \
+  -I$(top_srcdir)/proxy/logging \
   -I$(top_srcdir)/mgmt \
   -I$(top_srcdir)/mgmt/utils \
   -I$(top_srcdir)/proxy/api/ts \
@@ -46,6 +45,7 @@ test_certlookup_SOURCES = \
   SSLCertLookup.cc
 
 test_certlookup_LDADD = \
+  @OPENSSL_LIBS@ \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a
 
@@ -78,6 +78,7 @@ libinknet_a_SOURCES = \
   P_SSLNextProtocolAccept.h \
   P_SSLNextProtocolSet.h \
   P_SSLUtils.h \
+  P_SSLClientUtils.h \
   P_OCSPStapling.h \
   P_Socks.h \
   P_UDPConnection.h \
@@ -102,6 +103,7 @@ libinknet_a_SOURCES = \
   SSLNextProtocolAccept.cc \
   SSLNextProtocolSet.cc \
   SSLUtils.cc \
+  SSLClientUtils.cc \
   OCSPStapling.cc \
   Socks.cc \
   UDPIOEvent.cc \
@@ -112,7 +114,8 @@ libinknet_a_SOURCES = \
   UnixNetProcessor.cc \
   UnixNetVConnection.cc \
   UnixUDPConnection.cc \
-  UnixUDPNet.cc
+  UnixUDPNet.cc \
+  SSLDynlock.cc
 
 #test_UNUSED_SOURCES = \
 #  NetTest-http-server.c \

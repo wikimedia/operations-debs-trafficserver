@@ -23,7 +23,7 @@
 
 #include "ts_lua_util.h"
 
-#define TS_LUA_MAX_STATE_COUNT 512
+#define TS_LUA_MAX_STATE_COUNT 256
 
 static uint64_t ts_lua_http_next_id = 0;
 static uint64_t ts_lua_g_http_next_id = 0;
@@ -88,6 +88,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
   }
 
   memset(conf, 0, sizeof(ts_lua_instance_conf));
+  conf->remap = 1;
 
   if (fn) {
     snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[2]);
@@ -124,16 +125,16 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   uint64_t req_id;
 
   TSCont contp;
-  lua_State *l;
+  lua_State *L;
 
   ts_lua_main_ctx *main_ctx;
   ts_lua_http_ctx *http_ctx;
+  ts_lua_cont_info *ci;
 
   ts_lua_instance_conf *instance_conf;
 
   instance_conf = (ts_lua_instance_conf *)ih;
   req_id = __sync_fetch_and_add(&ts_lua_http_next_id, 1);
-
 
   main_ctx = &ts_lua_main_ctx_array[req_id % TS_LUA_MAX_STATE_COUNT];
 
@@ -148,24 +149,31 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   http_ctx->remap = 1;
   http_ctx->has_hook = 0;
 
+  ci = &http_ctx->cinfo;
+  L = ci->routine.lua;
+
   contp = TSContCreate(ts_lua_http_cont_handler, NULL);
   TSContDataSet(contp, http_ctx);
-  http_ctx->main_contp = contp;
 
-  l = http_ctx->lua;
+  ci->contp = contp;
+  ci->mutex = TSContMutexGet((TSCont)rh);
 
-  lua_getglobal(l, TS_LUA_FUNCTION_REMAP);
-  if (lua_type(l, -1) != LUA_TFUNCTION) {
+  lua_getglobal(L, TS_LUA_FUNCTION_REMAP);
+  if (lua_type(L, -1) != LUA_TFUNCTION) {
     TSMutexUnlock(main_ctx->mutexp);
     return TSREMAP_NO_REMAP;
   }
 
-  if (lua_pcall(l, 0, 1, 0) != 0) {
-    TSError("lua_pcall failed: %s", lua_tostring(l, -1));
+  ts_lua_set_cont_info(L, NULL);
+  if (lua_pcall(L, 0, 1, 0) != 0) {
+    TSError("[ts_lua] lua_pcall failed: %s", lua_tostring(L, -1));
+    ret = TSREMAP_NO_REMAP;
+
+  } else {
+    ret = lua_tointeger(L, -1);
   }
 
-  ret = lua_tointeger(l, -1);
-  lua_pop(l, 1);
+  lua_pop(L, 1);
 
   if (http_ctx->has_hook) {
     TSDebug(TS_LUA_DEBUG_TAG, "[%s] has txn hook -> adding txn close hook handler to release resources", __FUNCTION__);
@@ -173,7 +181,6 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   } else {
     TSDebug(TS_LUA_DEBUG_TAG, "[%s] no txn hook -> release resources now", __FUNCTION__);
     ts_lua_destroy_http_ctx(http_ctx);
-    TSContDestroy(contp);
   }
 
   TSMutexUnlock(main_ctx->mutexp);
@@ -198,6 +205,7 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
 
   ts_lua_main_ctx *main_ctx;
   ts_lua_http_ctx *http_ctx;
+  ts_lua_cont_info *ci;
 
   ts_lua_instance_conf *conf = (ts_lua_instance_conf *)TSContDataGet(contp);
 
@@ -225,15 +233,21 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
   }
 
   if (!http_ctx->client_request_hdrp) {
+    ts_lua_destroy_http_ctx(http_ctx);
+    TSMutexUnlock(main_ctx->mutexp);
+
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     return 0;
   }
 
   txn_contp = TSContCreate(ts_lua_http_cont_handler, NULL);
   TSContDataSet(txn_contp, http_ctx);
-  http_ctx->main_contp = txn_contp;
 
-  l = http_ctx->lua;
+  ci = &http_ctx->cinfo;
+  ci->contp = txn_contp;
+  ci->mutex = TSContMutexGet((TSCont)txnp);
+
+  l = ci->routine.lua;
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -285,19 +299,25 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
     break;
 
   default:
+    ts_lua_destroy_http_ctx(http_ctx);
+    TSMutexUnlock(main_ctx->mutexp);
     TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     return 0;
-    break;
   }
 
   if (lua_type(l, -1) != LUA_TFUNCTION) {
-    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     lua_pop(l, 1);
+    ts_lua_destroy_http_ctx(http_ctx);
+    TSMutexUnlock(main_ctx->mutexp);
+
+    TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
     return 0;
   }
 
+  ts_lua_set_cont_info(l, NULL);
+
   if (lua_pcall(l, 0, 1, 0) != 0) {
-    TSError("lua_pcall failed: %s", lua_tostring(l, -1));
+    TSError("[ts_lua] lua_pcall failed: %s", lua_tostring(l, -1));
   }
 
   ret = lua_tointeger(l, -1);
@@ -310,7 +330,6 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
   } else {
     TSDebug(TS_LUA_DEBUG_TAG, "[%s] no txn hook -> release resources now", __FUNCTION__);
     ts_lua_destroy_http_ctx(http_ctx);
-    TSContDestroy(txn_contp);
   }
 
   TSMutexUnlock(main_ctx->mutexp);
@@ -327,6 +346,16 @@ globalHookHandler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
 void
 TSPluginInit(int argc, const char *argv[])
 {
+  TSPluginRegistrationInfo info;
+
+  info.plugin_name = "ts_lua";
+  info.vendor_name = "Apache Software Foundation";
+  info.support_email = "dev@trafficserver.apache.org";
+
+  if (TSPluginRegister(&info) != TS_SUCCESS) {
+    TSError("[ts_lua] Plugin registration failed.");
+  }
+
   int ret = 0;
   ts_lua_g_main_ctx_array = TSmalloc(sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
   memset(ts_lua_g_main_ctx_array, 0, sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
@@ -340,21 +369,22 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (argc < 2) {
-    TSError("[%s] lua script file required !!", __FUNCTION__);
+    TSError("[ts_lua][%s] lua script file required !!", __FUNCTION__);
     return;
   }
 
   if (strlen(argv[1]) >= TS_LUA_MAX_SCRIPT_FNAME_LENGTH - 16) {
-    TSError("[%s] lua script file name too long !!", __FUNCTION__);
+    TSError("[ts_lua][%s] lua script file name too long !!", __FUNCTION__);
     return;
   }
 
   ts_lua_instance_conf *conf = TSmalloc(sizeof(ts_lua_instance_conf));
   if (!conf) {
-    TSError("[%s] TSmalloc failed !!", __FUNCTION__);
+    TSError("[ts_lua][%s] TSmalloc failed !!", __FUNCTION__);
     return;
   }
   memset(conf, 0, sizeof(ts_lua_instance_conf));
+  conf->remap = 0;
 
   snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[1]);
 
@@ -367,13 +397,13 @@ TSPluginInit(int argc, const char *argv[])
 
   if (ret != 0) {
     TSError(errbuf, NULL);
-    TSError("[%s] ts_lua_add_module failed", __FUNCTION__);
+    TSError("[ts_lua][%s] ts_lua_add_module failed", __FUNCTION__);
     return;
   }
 
   TSCont global_contp = TSContCreate(globalHookHandler, NULL);
   if (!global_contp) {
-    TSError("[%s] could not create transaction start continuation", __FUNCTION__);
+    TSError("[ts_lua][%s] could not create transaction start continuation", __FUNCTION__);
     return;
   }
   TSContDataSet(global_contp, conf);
@@ -381,7 +411,7 @@ TSPluginInit(int argc, const char *argv[])
   // adding hook based on whether the lua global function exists.
   ts_lua_main_ctx *main_ctx = &ts_lua_g_main_ctx_array[0];
   ts_lua_http_ctx *http_ctx = ts_lua_create_http_ctx(main_ctx, conf);
-  lua_State *l = http_ctx->lua;
+  lua_State *l = http_ctx->cinfo.routine.lua;
 
   lua_getglobal(l, TS_LUA_FUNCTION_G_SEND_REQUEST);
   if (lua_type(l, -1) == LUA_TFUNCTION) {

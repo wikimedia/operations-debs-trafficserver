@@ -53,6 +53,10 @@ distclean-local:
 doxygen:
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
 
+changelog:
+	./tools/changelog.pl $(VERSION) > CHANGELOG-$(VERSION)
+	-git add CHANGELOG-$(VERSION) && git commit -m "Adding CHANGELOG-$(VERSION)"
+
 asf-dist: asf-distdir
 	tardir=$(distdir) && $(am__tar) --mtime=./configure.ac | bzip2 -9 -c >$(distdir).tar.bz2
 	@$(am__remove_distdir)
@@ -64,7 +68,7 @@ asf-dist-rc: asf-distdir
 asf-distdir:
 	@$(am__remove_distdir)
 	test -d .git && git clone . $(distdir)
-	cd $(distdir) && git submodule update --init && autoreconf -i
+	cd $(distdir) && autoreconf -i
 	$(RM) -r -- $(distdir)/autom4te.cache $(distdir)/ci `find $(distdir) -name .git -o -name .gitignore -o -name .gitmodules`
 
 asf-dist-sign: asf-dist
@@ -77,10 +81,10 @@ asf-dist-sign-rc: asf-dist-rc
 	sha1sum -b $(distdir)-rc$(RC).tar.bz2 >$(distdir)-rc$(RC).tar.bz2.sha1
 	gpg --armor --output $(distdir)-rc$(RC).tar.bz2.asc  --detach-sig $(distdir)-rc$(RC).tar.bz2
 
-release: asf-dist-sign
+release: changelog asf-dist-sign
 	git tag -fs -m "Release $(VERSION)" $(VERSION)
 
-rel-candidate: asf-dist-sign-rc
+rel-candidate: changelog asf-dist-sign-rc
 	git tag -fs -m "Release Candidate $(VERSION)-rc$(RC)" $(VERSION)-rc$(RC)
 
 examples: all
@@ -95,11 +99,8 @@ install-data-hook:
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.11-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
 
-submodules:
-	git submodule update --init
-
 clang-format:
-	for f in `find . -iname \*.[ch] -o -iname \*.cc | fgrep -v -e lib/ck -e lib/luajit -e lib/tsconfig`; do \
+	for f in `find $(top_srcdir) -iname \*.[ch] -o -iname \*.cc | fgrep -v -e lib/luajit -e lib/tsconfig`; do \
 	  echo $$f; clang-format -i $$f; done
 
 help:
@@ -115,11 +116,9 @@ help:
 	echo 'rel-candidate    recreate a signed relelease candidate source package and a signed git tag' && \
 	echo 'distcheck        verify dist by performing VPATH build and then distclean' && \
 	echo 'rat              produce a RAT licence compliance report of the source' && \
-	echo 'submodules       update the git submodules' && \
 	echo 'doxygen          generate doxygen docs in doc/html dir' && \
-	echo 'clang-format     run clang-format over most C and C++ files (not git submodules/trees)' && \
+	echo 'clang-format     run clang-format over most C and C++ files (not git subtrees)' && \
 	echo 'help             display this list of make targets' && \
 	echo 'install          install by copying the built files to system-wide dirs' && \
 	echo 'install-strip    same as install but then strips debugging symbols' && \
 	echo 'install-examples install examples by copying the built files to system-wide dirs'
-

@@ -21,9 +21,9 @@
   limitations under the License.
  */
 
-#include "ink_config.h"
-#include "apidefs.h"
-#include "libts.h"
+#include "ts/ink_config.h"
+#include "ts/apidefs.h"
+#include "ts/ink_platform.h"
 #include "P_SSLNextProtocolSet.h"
 
 // For currently defined protocol strings, see
@@ -52,6 +52,7 @@ create_npn_advertisement(const SSLNextProtocolSet::NextProtocolEndpoint::list_ty
   *len = 0;
 
   for (ep = endpoints.head; ep != NULL; ep = endpoints.next(ep)) {
+    ink_release_assert((strlen(ep->protocol) > 0));
     *len += (strlen(ep->protocol) + 1);
   }
 

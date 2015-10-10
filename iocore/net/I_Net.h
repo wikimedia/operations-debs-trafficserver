@@ -41,7 +41,7 @@
 #ifndef __I_NET_H_
 #define __I_NET_H_
 
-#include "I_Version.h"
+#include "ts/I_Version.h"
 #include "I_EventSystem.h"
 #include <netinet/in.h>
 
@@ -52,7 +52,12 @@
 
 static int const NO_FD = -1;
 
+// All in milli-seconds
 extern int net_config_poll_timeout;
+extern int net_event_period;
+extern int net_accept_period;
+extern int net_retry_delay;
+extern int net_throttle_delay;
 
 #define NET_EVENT_OPEN (NET_EVENT_EVENTS_START)
 #define NET_EVENT_OPEN_FAILED (NET_EVENT_EVENTS_START + 1)

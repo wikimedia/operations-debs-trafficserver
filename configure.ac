@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[5.3.1])
-m4_define([TS_VERSION_N],[5003001])
+m4_define([TS_VERSION_S],[6.0.0])
+m4_define([TS_VERSION_N],[6000000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -41,7 +41,7 @@ AC_CONFIG_AUX_DIR([build/aux])
 AC_CONFIG_SRCDIR([proxy/Main.cc])
 AC_CONFIG_MACRO_DIR([build])
 AM_INIT_AUTOMAKE([-Wall -Werror tar-ustar foreign no-installinfo no-installman subdir-objects 1.9.2])
-AC_CONFIG_HEADERS([lib/ts/ink_autoconf.h])
+AC_CONFIG_HEADERS([lib/ink_autoconf.h])
 
 # Configure with --disable-silent-rules to get verbose output. For more info, see
 # http://www.gnu.org/software/automake/manual/html_node/Automake-silent_002drules-Option.html
@@ -264,20 +264,6 @@ TS_ARG_ENABLE_VAR([has],[wccp])
 AC_SUBST(has_wccp)
 AM_CONDITIONAL([BUILD_WCCP], [test 0 -ne $has_wccp])
 
-#
-# InterimCache
-#
-AC_MSG_CHECKING([whether to enable interim cache support])
-AC_ARG_ENABLE([interim_cache],
-  [AS_HELP_STRING([--enable-interim-cache],[enable interim cache])],
-  [],
-  [enable_interim_cache=no]
-)
-AC_MSG_RESULT([$enable_interim_cache])
-TS_ARG_ENABLE_VAR([has],[interim_cache])
-AC_SUBST(has_interim_cache)
-AM_CONDITIONAL([BUILD_INTERIM_CACHE], [test 0 -ne $has_interim_cache])
-
 # Google profiler
 AC_MSG_CHECKING([whether to enable profiler])
 AC_ARG_WITH([profiler],
@@ -366,26 +352,6 @@ AC_ARG_ENABLE([freelist],
 AC_MSG_RESULT([$enable_freelist])
 TS_ARG_ENABLE_VAR([use], [freelist])
 AC_SUBST(use_freelist)
-
-#
-# The original InkFreeList memory pool could not reclaim itself
-# automatically. We can use '--enable-reclaimable-freelist' option
-# to enable the reclaiming feature. This option is effective only
-# when freelist is enable.
-#
-if test "x${enable_freelist}" = "xyes"; then
-  AC_MSG_CHECKING([whether to enable reclaimable freelist])
-  AC_ARG_ENABLE([reclaimable-freelist],
-                [AS_HELP_STRING([--enable-reclaimable-freelist],
-                                [enable reclaimable freelist support (effective only when freelist is enabled)])],
-                [],
-                [enable_reclaimable_freelist="no"])
-  AC_MSG_RESULT([$enable_reclaimable_freelist])
-else
-  enable_reclaimable_freelist="no"
-fi
-TS_ARG_ENABLE_VAR([use], [reclaimable_freelist])
-AC_SUBST(use_reclaimable_freelist)
 
 #
 # Options for SPDY
@@ -493,7 +459,7 @@ AC_MSG_RESULT([$enable_cppapi])
 AM_CONDITIONAL([ENABLE_CPPAPI], [ test "x${enable_cppapi}" = "xyes" ])
 
 #
-# Disable LuaJIT? This is a interrim option, when Lua becomes part of the core
+# Disable LuaJIT? This is a interim option, when Lua becomes part of the core
 # requirements, we will remove this option.
 #
 AC_MSG_CHECKING([whether to disable LuaJIT])
@@ -504,6 +470,19 @@ AC_ARG_ENABLE([luajit],
 )
 AC_MSG_RESULT([$enable_luajit])
 AM_CONDITIONAL([BUILD_LUAJIT], [ test "x${enable_luajit}" = "xyes" ])
+
+
+#
+# Check if we should allow builds on 32-bit platforms
+#
+AC_MSG_CHECKING([whether to allow 32-bit builds])
+AC_ARG_ENABLE([32bit-build],
+  [AS_HELP_STRING([--enable-32bit-build],[allow 32bit builds])],
+  [],
+  [enable_32bit=no]
+)
+AC_MSG_RESULT([$enable_32bit])
+
 
 #
 # Installation directories
@@ -575,44 +554,15 @@ AX_COMPILER_VENDOR
 CFLAGS="${_ts_saved_CFLAGS}"
 CXXFLAGS="${_ts_saved_CXXFLAGS}"
 
-# AX_CXX_COMPILE_STDCXX_11 requires the current language to be C++.
+# All compilers we support have 'gnu99' as an available C standard
+TS_ADDTO(CFLAGS, [-std=gnu99])
+
+# These tests requires C++
 AC_LANG_PUSH([C++])
 
-AX_CXX_COMPILE_STDCXX_11( [noext], [enable_cxx_11_support=yes], [
-  enable_cxx_11_support=no
-  AC_MSG_NOTICE([disabling features that depend on C++11 support])
-])
+AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
-AM_CONDITIONAL([BUILD_HAVE_CXX_11], [ test "x${enable_cxx_11_support}" = "xyes" ])
-if test "x${enable_cxx_11_support}" = "xyes" ; then
-  AC_DEFINE(HAVE_CXX_11, 1, [Whether the compiler support C++11])
-fi
-
-# While we are in C++ mode, check for the GNU hash_map extension.
-AC_CHECK_HEADERS([unordered_map unordered_set], [], [],
-[[#ifdef HAVE_UNORDERED_MAP
-#include <unordered_map>
-#endif
-]])
-
-AC_MSG_CHECKING([for <ext/hash_map>])
-AC_COMPILE_IFELSE([
-  AC_LANG_PROGRAM([
-    #include <string>
-    #include <ext/hash_map>
-    ], [
-     __gnu_cxx::hash_map<std::string, std::string> map;
-  ])],
-  [ have_gnu_cxx_hash_map=yes ],
-  [ have_gnu_cxx_hash_map=no ]
-)
-
-AC_MSG_RESULT([$have_gnu_cxx_hash_map])
-if test "x${have_gnu_cxx_hash_map}" = "xyes" ; then
-  AC_DEFINE(HAVE_GNU_CXX_HASH_MAP, 1, [whether __gnu_cxx::hash_map is available])
-fi
-
-# And check for std::shared_ptr vs std::tr1::shared_ptr
+# And check for std::shared_ptr vs std::tr1::shared_ptr. For the CPPLIB
 AC_MSG_CHECKING([for std::shared_ptr])
 AC_COMPILE_IFELSE([
   AC_LANG_PROGRAM([
@@ -820,8 +770,6 @@ AS_IF([test "x${has_optimizer_flags}" = "xno"],
         ]
 )
 
-AM_CONDITIONAL([BUILD_HAVE_LIBCXX], [ false ])
-
 case $host_os_def in
   linux)
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xintel"], [
@@ -880,9 +828,6 @@ case $host_os_def in
       AC_MSG_WARN([clang is the only supported compiler on Darwin])
     ])
 
-    # Darwin needs to use libc++ for any C++11 code.
-    AM_CONDITIONAL([BUILD_HAVE_LIBCXX], [ true ])
-
     # NOTE: This seems semi-kludgy, but useful for MacPorts I think.
     AS_IF([test -d /opt/local/include], [
       TS_ADDTO(CPPFLAGS, [-I/opt/local/include])
@@ -935,7 +880,7 @@ case $host_os_def in
     ])
 esac
 
-AS_IF([test x"$enable_coverage" = xyes], [
+AS_IF([test x"$enable_coverage" = "xyes"], [
   # Map per-compiler code coverage instrumentation flags.  Note that
   # we don't test whether the compiler actually support these options
   # (we don't do that in general). The user is expected to use a modern,
@@ -953,7 +898,7 @@ AS_IF([test x"$enable_coverage" = xyes], [
 
 # Only add -Werror if the user has requested it. We enable this by default for
 # development, disable it by default for release.
-AS_IF([test x"$enable_werror" = xyes], [
+AS_IF([test x"$enable_werror" = "xyes"], [
   TS_ADDTO(release_opt, -Werror)
   TS_ADDTO(debug_opt, -Werror)
 ])
@@ -990,12 +935,22 @@ else
   TS_ADDTO(CXXFLAGS, [${cxx_oflag_opt}])
 fi
 
-# Checks for pointer size
+# Checks for pointer size.
+# TODO: Later this is irrelevant, and we should just bail on 32-bit platforms always
 AC_CHECK_SIZEOF([void*])
 if test "x$ac_cv_sizeof_voidp" == "x"; then
   AC_ERROR([Cannot determine size of void*])
 fi
 AC_SUBST(ac_cv_sizeof_voidp)
+
+# Right now, 32-bit platform is a build error, unless we've forced it with --enable-32bit-build
+if test "${ac_cv_sizeof_voidp}" = "4"; then
+   AS_IF([test x"$enable_32bit_build" = "xyes"], [
+     AC_MSG_NOTICE([Explicitly building on a 32-bit platform, this might be unsupported soon!])
+   ], [
+     AC_ERROR([You are trying to build on a 32-bit platform, which is unsupported.])
+   ])
+fi
 
 
 #
@@ -1097,15 +1052,18 @@ fi
 
 AC_SEARCH_LIBS([exc_capture_context], [exc], [], [])
 AC_SEARCH_LIBS([MLD_demangle_string], [mld], [], [])
-AC_SEARCH_LIBS([dlopen], [dl], [], [])
 AC_SEARCH_LIBS([socket], [socket], [], [])
 AC_SEARCH_LIBS([gethostbyname], [nsl], [], [])
 AC_SEARCH_LIBS([clock_gettime], [rt], [], [])
 AC_SEARCH_LIBS([clock_gettime], [posix4], [], [])
 
-dnl Linux has pthread symbol stubss in both libc ad libpthread, so it's important to test
-dnl specifically for pthread_create() here.
-AC_SEARCH_LIBS([pthread_create], [pthread],[AC_SUBST([LIBPTHREAD],["-lpthread"])], [])
+dnl We check for dlsym here instead of e.g. dlopen() because ASAN hijacks the latter.
+AC_SEARCH_LIBS([dlsym], [dl], [], [])
+
+dnl Linux has pthread symbol stubss in both libc and libpthread, so it's important to test
+dnl specifically for pthread_yield() here. In addition, ASAN hijacks pthread_create() so
+dnl we can't use that anymore.
+AC_SEARCH_LIBS([pthread_yield], [pthread], [], [])
 
 dnl XXX The following check incorrectly causes the build to succeed
 dnl on Darwin. We should be using AC_SEARCH_LIBS, but rest_init is
@@ -1125,9 +1083,9 @@ AX_WITH_CURSES
 CFLAGS="$__saved_CFLAGS"
 
 AX_LIB_CURL([7.19], [
-    AM_CONDITIONAL([BUILD_TSTOP], [test "x$ax_cv_curses" = "xyes"])
+    AM_CONDITIONAL([BUILD_TRAFFIC_TOP], [test "x$ax_cv_curses" = "xyes"])
   ], [
-    AM_CONDITIONAL([BUILD_TSTOP], [false])
+    AM_CONDITIONAL([BUILD_TRAFFIC_TOP], [false])
   ]
 )
 
@@ -1674,17 +1632,17 @@ AC_CHECK_MEMBER([struct sockaddr.sa_len], [], [], [#include <netinet/in.h>])
 AC_CHECK_MEMBER([struct sockaddr_in.sin_len], [], [], [#include <netinet/in.h>])
 AC_CHECK_MEMBER([struct sockaddr_in6.sin6_len], [], [], [#include <netinet/in.h>])
 
-if test "x${ac_cv_member_struct_sockaddr_sa_len}" = xyes; then
+if test "x${ac_cv_member_struct_sockaddr_sa_len}" = "xyes"; then
     AC_DEFINE(HAVE_STRUCT_SOCKADDR_SA_LEN, 1,
             [Whether struct sockaddr_in has the sa_len member])
 fi
 
-if test "x${ac_cv_member_struct_sockaddr_in_sin_len}" = xyes ; then
+if test "x${ac_cv_member_struct_sockaddr_in_sin_len}" = "xyes"; then
 AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN_SIN_LEN, 1,
             [Whether struct sockaddr_in has the sin_len member])
 fi
 
-if test "x${ac_cv_member_struct_sockaddr_in6_sin6_len}" = xyes; then
+if test "x${ac_cv_member_struct_sockaddr_in6_sin6_len}" = "xyes"; then
     AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN, 1,
             [Whether struct sockaddr_in6 has the sin6_len member])
 fi
@@ -1812,7 +1770,7 @@ AC_CHECK_TYPE([struct tcp_info],
 )
 
 # See if we can build the remap_stats plugin
-AS_IF([test "x$enable_experimental_plugins" = xyes],
+AS_IF([test "x$enable_experimental_plugins" = "xyes"],
   [
     AC_CHECK_HEADERS([search.h])
     AS_IF([test "x$ac_cv_header_search_h" = "xyes"],
@@ -1898,7 +1856,6 @@ AC_CONFIG_FILES([
   mgmt/api/include/Makefile
   mgmt/cluster/Makefile
   mgmt/utils/Makefile
-  mgmt/web2/Makefile
   plugins/Makefile
   plugins/cacheurl/Makefile
   plugins/conf_remap/Makefile
@@ -1938,14 +1895,16 @@ AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlcli
 AC_SUBST(has_mysql)
 AM_CONDITIONAL([HAS_MYSQL], [ test "x${has_mysql}" = "x1" ])
 
-AS_IF([test "x$enable_experimental_plugins" = xyes], [  
+AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
   AC_CONFIG_FILES([
     plugins/experimental/Makefile
     plugins/experimental/authproxy/Makefile
     plugins/experimental/background_fetch/Makefile
     plugins/experimental/balancer/Makefile
     plugins/experimental/buffer_upload/Makefile
+    plugins/experimental/cache_range_requests/Makefile
     plugins/experimental/channel_stats/Makefile
+    plugins/experimental/cache_promote/Makefile
     plugins/experimental/collapsed_connection/Makefile
     plugins/experimental/custom_redirect/Makefile
     plugins/experimental/epic/Makefile
@@ -1967,9 +1926,11 @@ AS_IF([test "x$enable_experimental_plugins" = xyes], [
     plugins/experimental/ts_lua/Makefile
     plugins/experimental/url_sig/Makefile
     plugins/experimental/xdebug/Makefile
+    plugins/experimental/mp4/Makefile
+    plugins/experimental/stream_editor/Makefile
 ])])
 
-AS_IF([test "x$enable_cppapi" = xyes], [
+AS_IF([test "x$enable_cppapi" = "xyes"], [
   AC_CONFIG_FILES([
   lib/atscppapi/Makefile
   lib/atscppapi/examples/Makefile

@@ -24,16 +24,7 @@
 #ifndef __PLUGIN_H__
 #define __PLUGIN_H__
 
-#include "List.h"
-
-// need to keep syncronized with TSSDKVersion
-//   in ts/ts.h.in
-typedef enum {
-  PLUGIN_SDK_VERSION_UNKNOWN = -1,
-  PLUGIN_SDK_VERSION_2_0,
-  PLUGIN_SDK_VERSION_3_0,
-  PLUGIN_SDK_VERSION_4_0
-} PluginSDKVersion;
+#include "ts/List.h"
 
 struct PluginRegInfo {
   PluginRegInfo();
@@ -42,10 +33,11 @@ struct PluginRegInfo {
   bool plugin_registered;
   char *plugin_path;
 
-  PluginSDKVersion sdk_version;
   char *plugin_name;
   char *vendor_name;
   char *support_email;
+
+  void *dlh;
 
   LINK(PluginRegInfo, link);
 };

@@ -32,11 +32,11 @@
 #if !defined(_SSLNetVConnection_h_)
 #define _SSLNetVConnection_h_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 #include "P_EventSystem.h"
 #include "P_UnixNetVConnection.h"
 #include "P_UnixNet.h"
-#include "apidefs.h"
+#include "ts/apidefs.h"
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -107,6 +107,16 @@ public:
   {
     sslClientConnection = state;
   };
+  virtual void
+  setSSLSessionCacheHit(bool state)
+  {
+    sslSessionCacheHit = state;
+  };
+  virtual bool
+  getSSLSessionCacheHit()
+  {
+    return sslSessionCacheHit;
+  };
   int sslServerHandShakeEvent(int &err);
   int sslClientHandShakeEvent(int &err);
   virtual void net_read_io(NetHandler *nh, EThread *lthread);
@@ -162,6 +172,18 @@ public:
     transparentPassThrough = val;
   };
 
+  void
+  set_session_accept_pointer(SessionAccept *acceptPtr)
+  {
+    sessionAcceptPtr = acceptPtr;
+  };
+
+  SessionAccept *
+  get_session_accept_pointer(void) const
+  {
+    return sessionAcceptPtr;
+  };
+
   // Copy up here so we overload but don't override
   using super::reenable;
 
@@ -207,6 +229,44 @@ public:
   // least some of the hooks
   bool calledHooks(TSHttpHookID /* eventId */) { return (this->sslHandshakeHookState != HANDSHAKE_HOOKS_PRE); }
 
+  MIOBuffer *
+  get_ssl_iobuf()
+  {
+    return iobuf;
+  }
+
+  void
+  set_ssl_iobuf(MIOBuffer *buf)
+  {
+    iobuf = buf;
+  }
+
+  IOBufferReader *
+  get_ssl_reader()
+  {
+    return reader;
+  }
+
+  bool
+  isEosRcvd()
+  {
+    return eosRcvd;
+  }
+
+  bool
+  getSSLTrace() const
+  {
+    return sslTrace || super::origin_trace;
+  };
+
+  void
+  setSSLTrace(bool state)
+  {
+    sslTrace = state;
+  };
+
+  bool computeSSLTrace();
+
 private:
   SSLNetVConnection(const SSLNetVConnection &);
   SSLNetVConnection &operator=(const SSLNetVConnection &);
@@ -214,6 +274,7 @@ private:
   bool sslHandShakeComplete;
   bool sslClientConnection;
   bool sslClientRenegotiationAbort;
+  bool sslSessionCacheHit;
   MIOBuffer *handShakeBuffer;
   IOBufferReader *handShakeHolder;
   IOBufferReader *handShakeReader;
@@ -243,6 +304,11 @@ private:
 
   const SSLNextProtocolSet *npnSet;
   Continuation *npnEndpoint;
+  SessionAccept *sessionAcceptPtr;
+  MIOBuffer *iobuf;
+  IOBufferReader *reader;
+  bool eosRcvd;
+  bool sslTrace;
 };
 
 typedef int (SSLNetVConnection::*SSLNetVConnHandler)(int, void *);

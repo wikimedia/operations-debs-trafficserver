@@ -24,7 +24,9 @@
 #ifndef __HPACK_H__
 #define __HPACK_H__
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/Vec.h"
+#include "ts/Diags.h"
 #include "HTTP.h"
 
 // Constant strings for pseudo headers of HPACK
@@ -108,6 +110,7 @@ public:
   {
     _headers.clear();
     _mhdr->fields_clear();
+    _mhdr->destroy();
     delete _mhdr;
   }
 

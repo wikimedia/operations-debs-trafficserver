@@ -25,12 +25,12 @@
 #define __HTTP_H__
 
 #include <assert.h>
-#include "Arena.h"
-#include "INK_MD5.h"
+#include "ts/Arena.h"
+#include "ts/INK_MD5.h"
 #include "MIME.h"
 #include "URL.h"
 
-#include "ink_apidefs.h"
+#include "ts/ink_apidefs.h"
 
 #define HTTP_VERSION(a, b) ((((a)&0xFFFF) << 16) | ((b)&0xFFFF))
 #define HTTP_MINOR(v) ((v)&0xFFFF)
@@ -136,6 +136,7 @@ enum SquidLogCode {
   SQUID_LOG_UDP_FUTURE_2 = 'o',
   SQUID_LOG_ERR_READ_TIMEOUT = 'p',
   SQUID_LOG_ERR_LIFETIME_EXP = 'q',
+  SQUID_LOG_ERR_POST_ENTITY_TOO_LARGE = 'L',
   SQUID_LOG_ERR_NO_CLIENTS_BIG_OBJ = 'r',
   SQUID_LOG_ERR_READ_ERROR = 's',
   SQUID_LOG_ERR_CLIENT_ABORT = 't',
@@ -671,7 +672,7 @@ private:
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline HTTPVersion::HTTPVersion() : m_version(HTTP_VERSION(0, 9))
+inline HTTPVersion::HTTPVersion() : m_version(HTTP_VERSION(1, 0))
 {
 }
 

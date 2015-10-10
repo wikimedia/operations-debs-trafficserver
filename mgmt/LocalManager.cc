@@ -22,13 +22,14 @@
  */
 
 
-#include "libts.h"
-#include "ink_platform.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_sock.h"
+#include "ts/ink_file.h"
 #include "MgmtUtils.h"
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 #include "LocalManager.h"
 #include "MgmtSocket.h"
-#include "ink_cap.h"
+#include "ts/ink_cap.h"
 #include "FileManager.h"
 #include "ClusterCom.h"
 #include "VMap.h"
@@ -142,17 +143,6 @@ LocalManager::clearStats(const char *name)
   }
 }
 
-// void LocalManager::syslogThrInit()
-//
-//    On the DEC, syslog is per thread.  This function
-//      allows a thread to init syslog with the appropriate
-//      configuration
-//
-void
-LocalManager::syslogThrInit()
-{
-}
-
 // bool LocalManager::clusterOk()
 //
 //   Returns false if the proxy has been up for more than
@@ -202,7 +192,7 @@ LocalManager::LocalManager(bool proxy_on) : BaseManager(), run_proxy(proxy_on), 
   proxy_launch_outstanding = false;
   mgmt_shutdown_outstanding = MGMT_PENDING_NONE;
   proxy_running = 0;
-  RecSetRecordInt("proxy.node.proxy_running", 0);
+  RecSetRecordInt("proxy.node.proxy_running", 0, REC_SOURCE_DEFAULT);
   mgmt_sync_key = REC_readInteger("proxy.config.lm.sem_id", &found);
   if (!found || mgmt_sync_key <= 0) {
     mgmt_log("Bad or missing proxy.config.lm.sem_id value; using default id %d\n", MGMT_SEMID_DEFAULT);
@@ -389,7 +379,7 @@ LocalManager::initMgmtProcessServer()
   }
 
   umask(oldmask);
-  RecSetRecordInt("proxy.node.restarts.manager.start_time", manager_started_at);
+  RecSetRecordInt("proxy.node.restarts.manager.start_time", manager_started_at, REC_SOURCE_DEFAULT);
 }
 
 /*
@@ -402,7 +392,6 @@ LocalManager::pollMgmtProcessServer()
 {
   int num;
   struct timeval timeout;
-  struct sockaddr_in clientAddr;
   fd_set fdlist;
 #if TS_HAS_WCCP
   int wccp_fd = wccp_cache.getSocket();
@@ -440,7 +429,8 @@ LocalManager::pollMgmtProcessServer()
       }
 #endif
       if (FD_ISSET(process_server_sockfd, &fdlist)) { /* New connection */
-        int clientLen = sizeof(clientAddr);
+        struct sockaddr_in clientAddr;
+        socklen_t clientLen = sizeof(clientAddr);
         int new_sockfd = mgmt_accept(process_server_sockfd, (struct sockaddr *)&clientAddr, &clientLen);
         MgmtMessageHdr *mh;
         int data_len;
@@ -515,7 +505,7 @@ LocalManager::pollMgmtProcessServer()
             proxy_running--;
           }
           proxy_started_at = -1;
-          RecSetRecordInt("proxy.node.proxy_running", 0);
+          RecSetRecordInt("proxy.node.proxy_running", 0, REC_SOURCE_DEFAULT);
         }
 
         num--;
@@ -540,7 +530,7 @@ LocalManager::handleMgmtMsgFromProcesses(MgmtMessageHdr *mh)
     proxy_running++;
     proxy_launch_pid = -1;
     proxy_launch_outstanding = false;
-    RecSetRecordInt("proxy.node.proxy_running", 1);
+    RecSetRecordInt("proxy.node.proxy_running", 1, REC_SOURCE_DEFAULT);
     break;
 
   case MGMT_SIGNAL_MACHINE_UP:
@@ -599,7 +589,7 @@ LocalManager::handleMgmtMsgFromProcesses(MgmtMessageHdr *mh)
     }
     switch (stype) {
     case MGMT_INT:
-      RecSetRecordInt(var_name, ink_atoi64(var_value));
+      RecSetRecordInt(var_name, ink_atoi64(var_value), REC_SOURCE_EXPLICIT);
       break;
     case MGMT_COUNTER:
     case MGMT_FLOAT:
@@ -751,7 +741,7 @@ LocalManager::sendMgmtMsgToProcesses(MgmtMessageHdr *mh)
               proxy_running--;
             }
             proxy_started_at = -1;
-            RecSetRecordInt("proxy.node.proxy_running", 0);
+            RecSetRecordInt("proxy.node.proxy_running", 0, REC_SOURCE_DEFAULT);
             // End of TS down
           } else {
             // TS is still up, but the connection is lost
@@ -917,8 +907,8 @@ LocalManager::startProxy()
     proxy_launch_outstanding = true;
     proxy_started_at = time(NULL);
     ++proxy_launch_count;
-    RecSetRecordInt("proxy.node.restarts.proxy.start_time", proxy_started_at);
-    RecSetRecordInt("proxy.node.restarts.proxy.restart_count", proxy_launch_count);
+    RecSetRecordInt("proxy.node.restarts.proxy.start_time", proxy_started_at, REC_SOURCE_DEFAULT);
+    RecSetRecordInt("proxy.node.restarts.proxy.restart_count", proxy_launch_count, REC_SOURCE_DEFAULT);
   } else {
     int res, i = 0;
     char *options[32], *last, *tok;

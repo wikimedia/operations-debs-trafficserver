@@ -24,7 +24,7 @@
 #ifndef __INK_POOL_R_H_INCLUDED__
 #define __INK_POOL_R_H_INCLUDED__
 
-#include "InkPool.h"
+#include "ts/InkPool.h"
 #include "P_EventSystem.h"
 
 template <class C> class InkStaticPool_r : public InkStaticPool<C>
@@ -34,21 +34,21 @@ public:
 
   virtual ~InkStaticPool_r()
   {
-    MUTEX_LOCK(lock, mutex, this_ethread());
+    SCOPED_MUTEX_LOCK(lock, mutex, this_ethread());
     cleanUp();
   }
 
   C *
   get()
   {
-    MUTEX_LOCK(lock, mutex, this_ethread());
+    SCOPED_MUTEX_LOCK(lock, mutex, this_ethread());
     return (InkStaticPool<C>::get());
   }
 
   bool
   put(C *newObj)
   {
-    MUTEX_LOCK(lock, mutex, this_ethread());
+    SCOPED_MUTEX_LOCK(lock, mutex, this_ethread());
     return (InkStaticPool<C>::put(newObj));
   }
 

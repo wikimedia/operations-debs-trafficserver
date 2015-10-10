@@ -21,18 +21,19 @@
   limitations under the License.
  */
 
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_memory.h"
 
-#include "TextBuffer.h"
-#include "Tokenizer.h"
-#include "ink_defs.h"
-#include "ink_string.h"
+#include "ts/TextBuffer.h"
+#include "ts/Tokenizer.h"
+#include "ts/ink_defs.h"
+#include "ts/ink_string.h"
 
 #include "P_RecFile.h"
 #include "P_RecUtils.h"
 #include "P_RecMessage.h"
 #include "P_RecCore.h"
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 
 const char *g_rec_config_fpath = NULL;
 LLQ *g_rec_config_contents_llq = NULL;
@@ -123,6 +124,7 @@ RecConfigFileParse(const char *path, RecConfigEntryCallback handler, bool inc_ve
   int line_num;
 
   char *rec_type_str, *name_str, *data_type_str, *data_str;
+  char const *value_str;
   RecT rec_type;
   RecDataT data_type;
 
@@ -233,7 +235,8 @@ RecConfigFileParse(const char *path, RecConfigEntryCallback handler, bool inc_ve
     }
 
     // OK, we parsed the record, send it to the handler ...
-    handler(rec_type, data_type, name_str, RecConfigOverrideFromEnvironment(name_str, data_str), inc_version);
+    value_str = RecConfigOverrideFromEnvironment(name_str, data_str);
+    handler(rec_type, data_type, name_str, value_str, value_str == data_str ? REC_SOURCE_EXPLICIT : REC_SOURCE_ENV, inc_version);
 
     // update our g_rec_config_contents_xxx
     cfe = (RecConfigFileEntry *)ats_malloc(sizeof(RecConfigFileEntry));

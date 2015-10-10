@@ -87,7 +87,7 @@ struct SSLNextProtocolTrampoline : public Continuation {
     case VC_EVENT_INACTIVITY_TIMEOUT:
       netvc->do_io(VIO::CLOSE);
       delete this;
-      return EVENT_CONT;
+      return EVENT_ERROR;
     case VC_EVENT_READ_COMPLETE:
       break;
     default:
@@ -117,7 +117,6 @@ SSLNextProtocolAccept::mainEvent(int event, void *edata)
 {
   SSLNetVConnection *netvc = ssl_netvc_cast(event, edata);
 
-  netvc->sslHandshakeBeginTime = ink_get_hrtime();
   Debug("ssl", "[SSLNextProtocolAccept:mainEvent] event %d netvc %p", event, netvc);
 
   switch (event) {
@@ -132,6 +131,7 @@ SSLNextProtocolAccept::mainEvent(int event, void *edata)
     // and we know which protocol was negotiated.
     netvc->registerNextProtocolSet(&this->protoset);
     netvc->do_io(VIO::READ, new SSLNextProtocolTrampoline(this, netvc->mutex), 0, this->buffer, 0);
+    netvc->set_session_accept_pointer(this);
     return EVENT_CONT;
   default:
     netvc->do_io(VIO::CLOSE);

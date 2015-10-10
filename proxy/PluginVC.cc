@@ -74,7 +74,7 @@
 #include "PluginVC.h"
 #include "P_EventSystem.h"
 #include "P_Net.h"
-#include "Regression.h"
+#include "ts/Regression.h"
 
 #define PVC_LOCK_RETRY_TIME HRTIME_MSECONDS(10)
 #define PVC_DEFAULT_MAX_BYTES 32768
@@ -188,7 +188,7 @@ PluginVC::main_handler(int event, void *data)
   if (call_event == active_event) {
     process_timeout(&active_event, VC_EVENT_ACTIVE_TIMEOUT);
   } else if (call_event == inactive_event) {
-    if (inactive_timeout_at && inactive_timeout_at < ink_get_hrtime()) {
+    if (inactive_timeout_at && inactive_timeout_at < Thread::get_hrtime()) {
       process_timeout(&inactive_event, VC_EVENT_INACTIVITY_TIMEOUT);
       call_event->cancel();
     }
@@ -770,7 +770,7 @@ PluginVC::update_inactive_time()
   if (inactive_event && inactive_timeout) {
     // inactive_event->cancel();
     // inactive_event = eventProcessor.schedule_in(this, inactive_timeout);
-    inactive_timeout_at = ink_get_hrtime() + inactive_timeout;
+    inactive_timeout_at = Thread::get_hrtime() + inactive_timeout;
   }
 }
 
@@ -827,7 +827,7 @@ PluginVC::set_inactivity_timeout(ink_hrtime timeout_in)
 {
   inactive_timeout = timeout_in;
   if (inactive_timeout != 0) {
-    inactive_timeout_at = ink_get_hrtime() + inactive_timeout;
+    inactive_timeout_at = Thread::get_hrtime() + inactive_timeout;
     if (inactive_event == NULL) {
       inactive_event = eventProcessor.schedule_every(this, HRTIME_SECONDS(1));
     }
@@ -865,21 +865,29 @@ PluginVC::get_inactivity_timeout()
 }
 
 void
-PluginVC::add_to_keep_alive_lru()
+PluginVC::add_to_keep_alive_queue()
 {
   // do nothing
 }
 
 void
-PluginVC::remove_from_keep_alive_lru()
+PluginVC::remove_from_keep_alive_queue()
 {
   // do nothing
+}
+
+bool
+PluginVC::add_to_active_queue()
+{
+  // do nothing
+  return false;
 }
 
 SOCKET
 PluginVC::get_socket()
 {
-  return 0;
+  // Return an invalid file descriptor
+  return ts::NO_FD;
 }
 
 void
@@ -936,6 +944,9 @@ PluginVC::get_data(int id, void *data)
     } else {
       *(void **)data = core_obj->active_data;
     }
+    return true;
+  case TS_API_DATA_CLOSED:
+    *static_cast<int *>(data) = this->closed;
     return true;
   default:
     *(void **)data = NULL;

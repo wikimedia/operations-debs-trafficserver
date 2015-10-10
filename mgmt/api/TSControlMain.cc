@@ -31,7 +31,8 @@
  ***************************************************************************/
 
 #include "mgmtapi.h"
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_sock.h"
 #include "LocalManager.h"
 #include "MgmtUtils.h"
 #include "MgmtSocket.h"
@@ -138,7 +139,6 @@ ts_ctrl_main(void *arg)
   InkHashTableIteratorState con_state; // used to iterate through hash table
   int fds_ready;                       // stores return value for select
   struct timeval timeout;
-  int addr_len = (sizeof(struct sockaddr));
 
   // loops until TM dies; waits for and processes requests from clients
   while (1) {
@@ -180,6 +180,7 @@ ts_ctrl_main(void *arg)
           // return TS_ERR_SYS_CALL; WHAT TO DO? just keep going
           Debug("ts_main", "[ts_ctrl_main] can't allocate new ClientT\n");
         } else { // accept connection
+          socklen_t addr_len = (sizeof(struct sockaddr));
           new_con_fd = mgmt_accept(con_socket_fd, new_client_con->adr, &addr_len);
           new_client_con->fd = new_con_fd;
           ink_hash_table_insert(accepted_con, (char *)&new_client_con->fd, new_client_con);
@@ -1025,6 +1026,7 @@ send_record_describe(const RecRecord *rec, void *ptr)
   MgmtMarshallInt rec_update = rec->config_meta.update_required;
   MgmtMarshallInt rec_updatetype = rec->config_meta.update_type;
   MgmtMarshallInt rec_checktype = rec->config_meta.check_type;
+  MgmtMarshallInt rec_source = rec->config_meta.source;
   MgmtMarshallString rec_checkexpr = rec->config_meta.check_expr;
 
   MgmtMarshallInt err = TS_ERR_OKAY;
@@ -1066,7 +1068,7 @@ send_record_describe(const RecRecord *rec, void *ptr)
 
   err = send_mgmt_response(*fderr, RECORD_DESCRIBE_CONFIG, &err, &rec_name, &rec_value, &rec_default, &rec_type, &rec_class,
                            &rec_version, &rec_rsb, &rec_order, &rec_access, &rec_update, &rec_updatetype, &rec_checktype,
-                           &rec_checkexpr);
+                           &rec_source, &rec_checkexpr);
 
 done:
   *fderr = err;

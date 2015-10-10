@@ -41,8 +41,9 @@
 #include <ctype.h>
 #endif
 
-#include "libts.h"
-#include "Regex.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_inet.h"
+#include "ts/Regex.h"
 #include "HttpProxyAPIEnums.h"
 #include "ProxyConfig.h"
 #include "P_RecProcess.h"
@@ -228,6 +229,7 @@ enum {
   http_ua_msecs_counts_other_unclassified_stat,
 
   disallowed_post_100_continue,
+  http_post_body_too_large,
 
   http_total_x_redirect_stat,
 
@@ -288,6 +290,28 @@ enum {
   https_incoming_requests_stat,
   https_total_client_connections_stat,
 
+  // milestone timing statistics in milliseconds
+  http_ua_begin_time_stat,
+  http_ua_first_read_time_stat,
+  http_ua_read_header_done_time_stat,
+  http_ua_begin_write_time_stat,
+  http_ua_close_time_stat,
+  http_server_first_connect_time_stat,
+  http_server_connect_time_stat,
+  http_server_connect_end_time_stat,
+  http_server_begin_write_time_stat,
+  http_server_first_read_time_stat,
+  http_server_read_header_done_time_stat,
+  http_server_close_time_stat,
+  http_cache_open_read_begin_time_stat,
+  http_cache_open_read_end_time_stat,
+  http_cache_open_write_begin_time_stat,
+  http_cache_open_write_end_time_stat,
+  http_dns_lookup_begin_time_stat,
+  http_dns_lookup_end_time_stat,
+  http_sm_start_time_stat,
+  http_sm_finish_time_stat,
+
   http_stat_count
 };
 
@@ -339,8 +363,7 @@ struct OverridableHttpConfigParams {
   OverridableHttpConfigParams()
     : maintain_pristine_host_hdr(1), chunking_enabled(1), negative_caching_enabled(0), negative_revalidating_enabled(0),
       cache_when_to_revalidate(0), keep_alive_enabled_in(1), keep_alive_enabled_out(1), keep_alive_post_out(1),
-      server_session_sharing_match(TS_SERVER_SESSION_SHARING_MATCH_BOTH),
-      server_session_sharing_pool(TS_SERVER_SESSION_SHARING_POOL_THREAD), auth_server_session_private(1),
+      server_session_sharing_match(TS_SERVER_SESSION_SHARING_MATCH_BOTH), auth_server_session_private(1),
       fwd_proxy_auth_to_parent(0), insert_age_in_response(1), anonymize_remove_from(0), anonymize_remove_referer(0),
       anonymize_remove_user_agent(0), anonymize_remove_cookie(0), anonymize_remove_client_ip(0), anonymize_insert_client_ip(1),
       proxy_response_server_enabled(1), proxy_response_hsts_max_age(-1), proxy_response_hsts_include_subdomains(0),
@@ -358,9 +381,9 @@ struct OverridableHttpConfigParams {
       transaction_active_timeout_out(0), origin_max_connections(0), connect_attempts_max_retries(0),
       connect_attempts_max_retries_dead_server(3), connect_attempts_rr_retries(3), connect_attempts_timeout(30),
       post_connect_attempts_timeout(1800), down_server_timeout(300), client_abort_threshold(10), freshness_fuzz_time(240),
-      freshness_fuzz_min_time(0), max_cache_open_read_retries(-1), cache_open_read_retry_time(10),
+      freshness_fuzz_min_time(0), max_cache_open_read_retries(-1), cache_open_read_retry_time(10), cache_generation_number(-1),
       background_fill_active_timeout(60), http_chunking_size(4096), flow_high_water_mark(0), flow_low_water_mark(0),
-      default_buffer_size_index(8), default_buffer_water_mark(32768),
+      default_buffer_size_index(8), default_buffer_water_mark(32768), slow_log_threshold(0),
 
       // Strings / floats must come last
       proxy_response_server_string(NULL), proxy_response_server_string_len(0), global_user_agent_header(NULL),
@@ -389,7 +412,6 @@ struct OverridableHttpConfigParams {
   MgmtByte keep_alive_post_out; // share server sessions for post
 
   MgmtByte server_session_sharing_match;
-  MgmtByte server_session_sharing_pool;
   //  MgmtByte share_server_sessions;
   MgmtByte auth_server_session_private;
   MgmtByte fwd_proxy_auth_to_parent;
@@ -523,6 +545,7 @@ struct OverridableHttpConfigParams {
   // open read failure retries.
   MgmtInt max_cache_open_read_retries;
   MgmtInt cache_open_read_retry_time; // time is in mseconds
+  MgmtInt cache_generation_number;
 
   MgmtInt background_fill_active_timeout;
 
@@ -532,7 +555,7 @@ struct OverridableHttpConfigParams {
 
   MgmtInt default_buffer_size_index;
   MgmtInt default_buffer_water_mark;
-
+  MgmtInt slow_log_threshold;
   // IMPORTANT: Here comes all strings / floats configs.
 
   ///////////////////////////////////////////////////////////////////
@@ -588,6 +611,7 @@ public:
   MgmtInt server_max_connections;
   MgmtInt origin_min_keep_alive_connections; // TODO: This one really ought to be overridable, but difficult right now.
   MgmtInt attach_server_session_to_client;
+  MgmtInt max_websocket_connections;
 
   MgmtByte parent_proxy_routing_enable;
   MgmtByte disable_ssl_parenting;
@@ -685,8 +709,6 @@ public:
   // Error Reporting //
   /////////////////////
   MgmtByte errors_log_error_pages;
-  MgmtInt slow_log_threshold;
-
   MgmtByte enable_http_info;
 
   // Cluster time delta is not a config variable,
@@ -718,17 +740,19 @@ public:
   MgmtByte ignore_accept_charset_mismatch;
 
   MgmtByte send_100_continue_response;
-  MgmtByte send_408_post_timeout_response;
   MgmtByte disallow_post_100_continue;
   MgmtByte parser_allow_non_http;
+  MgmtInt cache_open_write_fail_action;
+  MgmtInt max_post_size;
+
+  MgmtByte server_session_sharing_pool;
 
   OverridableHttpConfigParams oride;
 
   ////////////////////
   // Local Manager  //
   ////////////////////
-  MgmtInt autoconf_port;
-  MgmtByte autoconf_localhost_only;
+  MgmtInt synthetic_port;
 
 private:
   /////////////////////////////////////
@@ -817,9 +841,9 @@ extern volatile int32_t icp_dynamic_enabled;
 /////////////////////////////////////////////////////////////
 inline HttpConfigParams::HttpConfigParams()
   : proxy_hostname(NULL), proxy_hostname_len(0), server_max_connections(0), origin_min_keep_alive_connections(0),
-    parent_proxy_routing_enable(0), disable_ssl_parenting(0), enable_url_expandomatic(0), no_dns_forward_to_parent(0),
-    uncacheable_requests_bypass_parent(1), no_origin_server_dns(0), use_client_target_addr(0), use_client_source_port(0),
-    proxy_request_via_string(NULL), proxy_request_via_string_len(0), proxy_response_via_string(NULL),
+    max_websocket_connections(-1), parent_proxy_routing_enable(0), disable_ssl_parenting(0), enable_url_expandomatic(0),
+    no_dns_forward_to_parent(0), uncacheable_requests_bypass_parent(1), no_origin_server_dns(0), use_client_target_addr(0),
+    use_client_source_port(0), proxy_request_via_string(NULL), proxy_request_via_string_len(0), proxy_response_via_string(NULL),
     proxy_response_via_string_len(0), url_expansions_string(NULL), url_expansions(NULL), num_url_expansions(0),
     session_auth_cache_keep_alive_enabled(1), transaction_active_timeout_in(900), accept_no_activity_timeout(120),
     parent_connect_attempts(4), per_parent_connect_attempts(2), parent_connect_timeout(30), anonymize_other_header_list(NULL),
@@ -827,10 +851,11 @@ inline HttpConfigParams::HttpConfigParams()
     cache_vary_default_other(NULL), max_cache_open_write_retries(1), cache_enable_default_vary_headers(0), cache_post_method(0),
     connect_ports_string(NULL), connect_ports(NULL), push_method_enabled(0), referer_filter_enabled(0), referer_format_redirect(0),
     reverse_proxy_enabled(0), url_remap_required(1), record_cop_page(0), errors_log_error_pages(1), enable_http_info(0),
-    cluster_time_delta(0), redirection_enabled(0), redirection_host_no_port(0), number_of_redirections(1), post_copy_size(2048),
+    cluster_time_delta(0), redirection_enabled(0), redirection_host_no_port(1), number_of_redirections(1), post_copy_size(2048),
     ignore_accept_mismatch(0), ignore_accept_language_mismatch(0), ignore_accept_encoding_mismatch(0),
-    ignore_accept_charset_mismatch(0), send_100_continue_response(0), send_408_post_timeout_response(0),
-    disallow_post_100_continue(0), parser_allow_non_http(1), autoconf_port(0), autoconf_localhost_only(0)
+    ignore_accept_charset_mismatch(0), send_100_continue_response(0), disallow_post_100_continue(0), parser_allow_non_http(1),
+    cache_open_write_fail_action(0), max_post_size(0), server_session_sharing_pool(TS_SERVER_SESSION_SHARING_POOL_THREAD),
+    synthetic_port(0)
 {
 }
 

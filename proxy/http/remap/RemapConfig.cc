@@ -24,10 +24,13 @@
 #include "RemapConfig.h"
 #include "UrlRewrite.h"
 #include "ReverseProxy.h"
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 #include "HTTP.h"
-#include "libts.h"
-#include "ink_cap.h"
+#include "ts/ink_platform.h"
+#include "ts/List.h"
+#include "ts/ink_cap.h"
+#include "ts/ink_file.h"
+#include "ts/Tokenizer.h"
 
 #define modulePrefix "[ReverseProxy]"
 
@@ -235,6 +238,51 @@ parse_deactivate_directive(const char *directive, BUILD_TABLE_INFO *bti, char *e
   return NULL;
 }
 
+static void
+free_directory_list(int n_entries, struct dirent **entrylist)
+{
+  for (int i = 0; i < n_entries; ++i) {
+    free(entrylist[i]);
+  }
+
+  free(entrylist);
+}
+
+static const char *
+parse_remap_fragment(const char *path, BUILD_TABLE_INFO *bti, char *errbuf, size_t errbufsize)
+{
+  // We need to create a new bti so that we don't clobber any state in the parent parse, but we want
+  // to keep the ACL rules from the parent because ACLs must be global across the full set of config
+  // files.
+  BUILD_TABLE_INFO nbti;
+  bool success;
+
+  if (access(path, R_OK) == -1) {
+    snprintf(errbuf, errbufsize, "%s: %s", path, strerror(errno));
+    return (const char *)errbuf;
+  }
+
+  nbti.rules_list = bti->rules_list;
+  nbti.rewrite = bti->rewrite;
+
+  // XXX at this point, we need to register the included file(s) with the management subsystem
+  // so that we can correctly reload them when they change. Otherwise, the operator will have to
+  // touch remap.config before reloading the configuration.
+
+  Debug("url_rewrite", "[%s] including remap configuration from %s", __func__, (const char *)path);
+  success = remap_parse_config_bti(path, &nbti);
+
+  // The sub-parse might have updated the rules list, so push it up to the parent parse.
+  bti->rules_list = nbti.rules_list;
+
+  if (!success) {
+    snprintf(errbuf, errbufsize, "failed to parse included file %s", path);
+    return (const char *)errbuf;
+  }
+
+  return NULL;
+}
+
 static const char *
 parse_include_directive(const char *directive, BUILD_TABLE_INFO *bti, char *errbuf, size_t errbufsize)
 {
@@ -245,38 +293,49 @@ parse_include_directive(const char *directive, BUILD_TABLE_INFO *bti, char *errb
   }
 
   for (unsigned i = 1; i < (unsigned)bti->paramc; ++i) {
-    // We need to create a new bti so that we don't clobber any state in the parent parse, but we want
-    // to keep the ACL rules from the parent because ACLs must be global across the full set of config
-    // files.
-    BUILD_TABLE_INFO nbti;
     ats_scoped_str path;
-    bool success;
+    const char *errmsg = NULL;
 
     // The included path is relative to SYSCONFDIR, just like remap.config is.
     path = RecConfigReadConfigPath(NULL, bti->paramv[i]);
 
-    // XXX including directories is not supported (yet!).
     if (ink_file_is_directory(path)) {
-      snprintf(errbuf, errbufsize, "included path %s is a directory", bti->paramv[i]);
-      return (const char *)errbuf;
+      struct dirent **entrylist;
+      int n_entries;
+
+      n_entries = scandir(path, &entrylist, NULL, alphasort);
+      if (n_entries == -1) {
+        snprintf(errbuf, errbufsize, "failed to open %s: %s", path.get(), strerror(errno));
+        return (const char *)errbuf;
+      }
+
+      for (int j = 0; j < n_entries; ++j) {
+        ats_scoped_str subpath;
+
+        if (isdot(entrylist[j]->d_name) || isdotdot(entrylist[j]->d_name)) {
+          continue;
+        }
+
+        subpath = Layout::relative_to(path, entrylist[j]->d_name);
+
+        if (ink_file_is_directory(subpath)) {
+          continue;
+        }
+
+        errmsg = parse_remap_fragment(subpath, bti, errbuf, errbufsize);
+        if (errmsg != NULL) {
+          break;
+        }
+      }
+
+      free_directory_list(n_entries, entrylist);
+
+    } else {
+      errmsg = parse_remap_fragment(path, bti, errbuf, errbufsize);
     }
 
-    nbti.rules_list = bti->rules_list;
-    nbti.rewrite = bti->rewrite;
-
-    // XXX at this point, we need to register the included file(s) with the management subsystem
-    // so that we can correctly reload them when they change. Otherwise, the operator will have to
-    // touch remap.config before reloading the configuration.
-
-    Debug("url_rewrite", "[%s] including remap configuration from %s", __func__, (const char *)path);
-    success = remap_parse_config_bti(path, &nbti);
-
-    // The sub-parse might have updated the rules list, so push it up to the parent parse.
-    bti->rules_list = nbti.rules_list;
-
-    if (!success) {
-      snprintf(errbuf, errbufsize, "failed to parse included file %s", bti->paramv[i]);
-      return (const char *)errbuf;
+    if (errmsg) {
+      return errmsg;
     }
   }
 
@@ -470,6 +529,45 @@ remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int arg
       }
     }
 
+    if (ul & REMAP_OPTFLG_IN_IP) { /* "dst_ip=" option */
+      if (rule->in_ip_cnt >= ACL_FILTER_MAX_IN_IP) {
+        Debug("url_rewrite", "[validate_filter_args] Too many \"in_ip=\" filters");
+        snprintf(errStrBuf, errStrBufSize, "Defined more than %d \"in_ip=\" filters!", ACL_FILTER_MAX_IN_IP);
+        errStrBuf[errStrBufSize - 1] = 0;
+        if (new_rule_flg) {
+          delete rule;
+          *rule_pp = NULL;
+        }
+        return (const char *)errStrBuf;
+      }
+      ipi = &rule->in_ip_array[rule->in_ip_cnt];
+      if (ul & REMAP_OPTFLG_INVERT)
+        ipi->invert = true;
+      ink_strlcpy(tmpbuf, argptr, sizeof(tmpbuf));
+      // important! use copy of argument
+      if (ExtractIpRange(tmpbuf, &ipi->start.sa, &ipi->end.sa) != NULL) {
+        Debug("url_rewrite", "[validate_filter_args] Unable to parse IP value in %s", argv[i]);
+        snprintf(errStrBuf, errStrBufSize, "Unable to parse IP value in %s", argv[i]);
+        errStrBuf[errStrBufSize - 1] = 0;
+        if (new_rule_flg) {
+          delete rule;
+          *rule_pp = NULL;
+        }
+        return (const char *)errStrBuf;
+      }
+      for (j = 0; j < rule->in_ip_cnt; j++) {
+        if (rule->in_ip_array[j].start == ipi->start && rule->in_ip_array[j].end == ipi->end) {
+          ipi->reset();
+          ipi = NULL;
+          break; /* we have the same src_ip in the list */
+        }
+      }
+      if (ipi) {
+        rule->in_ip_cnt++;
+        rule->in_ip_valid = 1;
+      }
+    }
+
     if (ul & REMAP_OPTFLG_ACTION) { /* "action=" option */
       if (is_inkeylist(argptr, "0", "off", "deny", "disable", NULL)) {
         rule->allow_flag = 0;
@@ -542,6 +640,18 @@ remap_check_option(const char **argv, int argc, unsigned long findmode, int *_re
         if (argptr)
           *argptr = &argv[i][7];
         ret_flags |= REMAP_OPTFLG_SRC_IP;
+      } else if (!strncasecmp(argv[i], "in_ip=~", 7)) {
+        if ((findmode & REMAP_OPTFLG_IN_IP) != 0)
+          idx = i;
+        if (argptr)
+          *argptr = &argv[i][7];
+        ret_flags |= (REMAP_OPTFLG_IN_IP | REMAP_OPTFLG_INVERT);
+      } else if (!strncasecmp(argv[i], "in_ip=", 6)) {
+        if ((findmode & REMAP_OPTFLG_IN_IP) != 0)
+          idx = i;
+        if (argptr)
+          *argptr = &argv[i][6];
+        ret_flags |= REMAP_OPTFLG_IN_IP;
       } else if (!strncasecmp(argv[i], "action=", 7)) {
         if ((findmode & REMAP_OPTFLG_ACTION) != 0)
           idx = i;
@@ -784,9 +894,8 @@ process_regex_mapping_config(const char *from_host_lower, url_mapping *new_mappi
   int to_host_len;
   int substitution_id;
   int substitution_count = 0;
+  int captures;
 
-  reg_map->re = NULL;
-  reg_map->re_extra = NULL;
   reg_map->to_url_host_template = NULL;
   reg_map->to_url_host_template_len = 0;
   reg_map->n_substitutions = 0;
@@ -795,25 +904,18 @@ process_regex_mapping_config(const char *from_host_lower, url_mapping *new_mappi
 
   // using from_host_lower (and not new_mapping->fromURL.host_get())
   // as this one will be NULL-terminated (required by pcre_compile)
-  reg_map->re = pcre_compile(from_host_lower, 0, &str, &str_index, NULL);
-  if (reg_map->re == NULL) {
-    Warning("pcre_compile failed! Regex has error starting at %s", from_host_lower + str_index);
+  if (reg_map->regular_expression.compile(from_host_lower) == false) {
+    Warning("pcre_compile failed! Regex has error starting at %s", from_host_lower);
     goto lFail;
   }
 
-  reg_map->re_extra = pcre_study(reg_map->re, 0, &str);
-  if ((reg_map->re_extra == NULL) && (str != NULL)) {
-    Warning("pcre_study failed with message [%s]", str);
-    goto lFail;
-  }
-
-  int n_captures;
-  if (pcre_fullinfo(reg_map->re, reg_map->re_extra, PCRE_INFO_CAPTURECOUNT, &n_captures) != 0) {
+  captures = reg_map->regular_expression.get_capture_count();
+  if (captures == -1) {
     Warning("pcre_fullinfo failed!");
     goto lFail;
   }
-  if (n_captures >= UrlRewrite::MAX_REGEX_SUBS) { // off by one for $0 (implicit capture)
-    Warning("Regex has %d capturing subpatterns (including entire regex); Max allowed: %d", n_captures + 1,
+  if (captures >= UrlRewrite::MAX_REGEX_SUBS) { // off by one for $0 (implicit capture)
+    Warning("regex has %d capturing subpatterns (including entire regex); Max allowed: %d", captures + 1,
             UrlRewrite::MAX_REGEX_SUBS);
     goto lFail;
   }
@@ -826,7 +928,7 @@ process_regex_mapping_config(const char *from_host_lower, url_mapping *new_mappi
         goto lFail;
       }
       substitution_id = to_host[i + 1] - '0';
-      if ((substitution_id < 0) || (substitution_id > n_captures)) {
+      if ((substitution_id < 0) || (substitution_id > captures)) {
         Warning("Substitution id [%c] has no corresponding capture pattern in regex [%s]", to_host[i + 1], from_host_lower);
         goto lFail;
       }
@@ -847,14 +949,6 @@ process_regex_mapping_config(const char *from_host_lower, url_mapping *new_mappi
   return true;
 
 lFail:
-  if (reg_map->re) {
-    pcre_free(reg_map->re);
-    reg_map->re = NULL;
-  }
-  if (reg_map->re_extra) {
-    pcre_free(reg_map->re_extra);
-    reg_map->re_extra = NULL;
-  }
   if (reg_map->to_url_host_template) {
     ats_free(reg_map->to_url_host_template);
     reg_map->to_url_host_template = NULL;

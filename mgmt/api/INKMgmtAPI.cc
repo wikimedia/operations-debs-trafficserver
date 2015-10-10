@@ -29,9 +29,11 @@
  *
  *
  ***************************************************************************/
-#include "libts.h"
+#include "ts/ink_platform.h"
+#include "ts/ink_code.h"
+#include "ts/ParseRules.h"
 #include <limits.h>
-#include "I_Layout.h"
+#include "ts/I_Layout.h"
 
 #include "mgmtapi.h"
 #include "CfgContextManager.h"
@@ -40,7 +42,7 @@
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
 
-#include "TextBuffer.h"
+#include "ts/TextBuffer.h"
 
 // forward declarations
 void init_pdss_format(TSPdSsFormat &info);
@@ -1346,37 +1348,6 @@ TSStorageEleDestroy(TSStorageEle *ele)
 {
   if (ele) {
     ats_free(ele->pathname);
-    ats_free(ele);
-  }
-  return;
-}
-
-/*-------------------------------------------------------------
- * TSUpdateEle
- *-------------------------------------------------------------*/
-TSUpdateEle *
-TSUpdateEleCreate()
-{
-  TSUpdateEle *ele = (TSUpdateEle *)ats_malloc(sizeof(TSUpdateEle));
-
-  ele->cfg_ele.type = TS_UPDATE_URL;
-  ele->cfg_ele.error = TS_ERR_OKAY;
-  ele->url = NULL;
-  ele->headers = TS_INVALID_LIST;
-  ele->offset_hour = -1;
-  ele->interval = -1;
-  ele->recursion_depth = 0;
-
-  return ele;
-}
-
-void
-TSUpdateEleDestroy(TSUpdateEle *ele)
-{
-  if (ele) {
-    ats_free(ele->url);
-    if (ele->headers)
-      TSStringListDestroy(ele->headers);
     ats_free(ele);
   }
   return;

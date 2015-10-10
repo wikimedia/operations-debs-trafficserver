@@ -32,7 +32,7 @@
 #ifndef __P_UNIXNETVCONNECTION_H__
 #define __P_UNIXNETVCONNECTION_H__
 
-#include "ink_sock.h"
+#include "ts/ink_sock.h"
 #include "I_NetVConnection.h"
 #include "P_UnixNetState.h"
 #include "P_Connection.h"
@@ -149,8 +149,10 @@ public:
   virtual void set_inactivity_timeout(ink_hrtime timeout_in);
   virtual void cancel_active_timeout();
   virtual void cancel_inactivity_timeout();
-  virtual void add_to_keep_alive_lru();
-  virtual void remove_from_keep_alive_lru();
+  virtual void add_to_keep_alive_queue();
+  virtual void remove_from_keep_alive_queue();
+  virtual bool add_to_active_queue();
+  virtual void remove_from_active_queue();
 
   // The public interface is VIO::reenable()
   virtual void reenable(VIO *vio);
@@ -225,17 +227,19 @@ public:
   SLINKM(UnixNetVConnection, read, enable_link)
   LINKM(UnixNetVConnection, write, ready_link)
   SLINKM(UnixNetVConnection, write, enable_link)
-  LINK(UnixNetVConnection, keep_alive_link);
+  LINK(UnixNetVConnection, keep_alive_queue_link);
+  LINK(UnixNetVConnection, active_queue_link);
 
   ink_hrtime inactivity_timeout_in;
   ink_hrtime active_timeout_in;
 #ifdef INACTIVITY_TIMEOUT
   Event *inactivity_timeout;
+  Event *activity_timeout;
 #else
   ink_hrtime next_inactivity_timeout_at;
+  ink_hrtime next_activity_timeout_at;
 #endif
 
-  Event *active_timeout;
   EventIO ep;
   NetHandler *nh;
   unsigned int id;
@@ -258,6 +262,11 @@ public:
   OOB_callback *oob_ptr;
   bool from_accept_thread;
 
+  // es - origin_trace associated connections
+  bool origin_trace;
+  const sockaddr *origin_trace_addr;
+  int origin_trace_port;
+
   int startEvent(int event, Event *e);
   int acceptEvent(int event, Event *e);
   int mainEvent(int event, Event *e);
@@ -273,6 +282,24 @@ public:
   virtual void apply_options();
 
   friend void write_to_net_io(NetHandler *, UnixNetVConnection *, EThread *);
+
+  void
+  setOriginTrace(bool t)
+  {
+    origin_trace = t;
+  }
+
+  void
+  setOriginTraceAddr(const sockaddr *addr)
+  {
+    origin_trace_addr = addr;
+  }
+
+  void
+  setOriginTracePort(int port)
+  {
+    origin_trace_port = port;
+  }
 };
 
 extern ClassAllocator<UnixNetVConnection> netVCAllocator;
@@ -310,9 +337,8 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
 {
   Debug("socket", "Set inactive timeout=%" PRId64 ", for NetVC=%p", timeout, this);
   inactivity_timeout_in = timeout;
-#ifndef INACTIVITY_TIMEOUT
-  next_inactivity_timeout_at = ink_get_hrtime() + timeout;
-#else
+#ifdef INACTIVITY_TIMEOUT
+
   if (inactivity_timeout)
     inactivity_timeout->cancel_action(this);
   if (inactivity_timeout_in) {
@@ -332,6 +358,8 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
       inactivity_timeout = 0;
   } else
     inactivity_timeout = 0;
+#else
+  next_inactivity_timeout_at = Thread::get_hrtime() + timeout;
 #endif
 }
 
@@ -340,6 +368,7 @@ UnixNetVConnection::set_active_timeout(ink_hrtime timeout)
 {
   Debug("socket", "Set active timeout=%" PRId64 ", NetVC=%p", timeout, this);
   active_timeout_in = timeout;
+#ifdef INACTIVITY_TIMEOUT
   if (active_timeout)
     active_timeout->cancel_action(this);
   if (active_timeout_in) {
@@ -359,11 +388,15 @@ UnixNetVConnection::set_active_timeout(ink_hrtime timeout)
       active_timeout = 0;
   } else
     active_timeout = 0;
+#else
+  next_activity_timeout_at = Thread::get_hrtime() + timeout;
+#endif
 }
 
 TS_INLINE void
 UnixNetVConnection::cancel_inactivity_timeout()
 {
+  Debug("socket", "Cancel inactive timeout for NetVC=%p", this);
   inactivity_timeout_in = 0;
 #ifdef INACTIVITY_TIMEOUT
   if (inactivity_timeout) {
@@ -372,7 +405,6 @@ UnixNetVConnection::cancel_inactivity_timeout()
     inactivity_timeout = NULL;
   }
 #else
-  Debug("socket", "Cancel inactive timeout for NetVC=%p", this);
   next_inactivity_timeout_at = 0;
 #endif
 }
@@ -380,12 +412,17 @@ UnixNetVConnection::cancel_inactivity_timeout()
 TS_INLINE void
 UnixNetVConnection::cancel_active_timeout()
 {
+  Debug("socket", "Cancel active timeout for NetVC=%p", this);
+  active_timeout_in = 0;
+#ifdef INACTIVITY_TIMEOUT
   if (active_timeout) {
     Debug("socket", "Cancel active timeout for NetVC=%p", this);
     active_timeout->cancel_action(this);
     active_timeout = NULL;
-    active_timeout_in = 0;
   }
+#else
+  next_activity_timeout_at = 0;
+#endif
 }
 
 TS_INLINE int

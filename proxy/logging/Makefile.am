@@ -19,9 +19,7 @@
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib \
-  -I$(top_builddir)/lib \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/lib/ts \
   -I$(top_srcdir)/proxy/api/ts \
   -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/http \
@@ -64,8 +62,6 @@ liblogging_a_SOURCES = \
   LogLimits.h \
   LogObject.cc \
   LogObject.h \
-  LogPredefined.cc \
-  LogPredefined.h \
   LogSock.cc \
   LogSock.h \
   LogUtils.cc \

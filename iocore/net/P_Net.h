@@ -50,8 +50,8 @@ enum Net_Stats {
   socks_connections_unsuccessful_stat,
   socks_connections_currently_open_stat,
   inactivity_cop_lock_acquire_failure_stat,
-  keep_alive_lru_timeout_total_stat,
-  keep_alive_lru_timeout_count_stat,
+  keep_alive_queue_timeout_total_stat,
+  keep_alive_queue_timeout_count_stat,
   default_inactivity_timeout_stat,
   Net_Stat_Count
 };
@@ -87,7 +87,7 @@ extern RecRawStatBlock *net_rsb;
 #define NET_SUM_GLOBAL_DYN_STAT(_x, _r) RecIncrGlobalRawStatSum(net_rsb, (_x), (_r))
 #define NET_READ_GLOBAL_DYN_SUM(_x, _sum) RecGetGlobalRawStatSum(net_rsb, _x, &_sum)
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 #include "P_EventSystem.h"
 #include "I_Net.h"
 #include "P_NetVConnection.h"

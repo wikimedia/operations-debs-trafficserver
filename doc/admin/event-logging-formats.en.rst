@@ -44,7 +44,7 @@ The following list describes Traffic Server custom logging fields.
     ``Accept-Language:`` field in client request headers.
 
     .. note::
-        ecqh is the escaped version of this map
+        ecqh is the urlencoded version of this map
 
 .. _pqh:
 
@@ -54,7 +54,7 @@ The following list describes Traffic Server custom logging fields.
     the ``Authorization:`` field in proxy request headers.
 
     .. note::
-        epqh is the escaped version of this map
+        epqh is the urlencoded version of this map
 
 .. _psh:
 
@@ -64,7 +64,7 @@ The following list describes Traffic Server custom logging fields.
     ``Retry-After:`` field in proxy response headers.
 
     .. note::
-        epsh is the escaped version of this map
+        epsh is the urlencoded version of this map
 
 .. _ssh:
 
@@ -74,7 +74,7 @@ The following list describes Traffic Server custom logging fields.
     server response headers.
 
     .. note::
-        essh is the escaped version of this map
+        essh is the urlencoded version of this map
 
 .. _cssh:
 
@@ -84,7 +84,7 @@ The following list describes Traffic Server custom logging fields.
     the cached server response headers.
 
     .. note::
-        ecssh is the escaped version of this map
+        ecssh is the urlencoded version of this map
 
 .. _caun:
 
@@ -109,16 +109,20 @@ The following list describes Traffic Server custom logging fields.
 ``chih``
     The IP address of the client's host machine in hexadecimal.
 
+.. _hii:
+
+``hii``
+    This is the incoming (interface) ip for traffic server, in otherwords this is the ip address the client connected to.
+
+.. _hiih:
+
+``hiih``
+    The the incoming (interface) ip in hexadecimal.
+
 .. _chp:
 
 ``chp``
     The port number of the client's host machine.
-
-.. _cps:
-
-``cps``
-    Client Protocol Stack, the output would be the conjunction of
-    protocol names in the stack spliced with '+', such as "TLS+SPDY".
 
 .. _cqbl:
 
@@ -142,6 +146,11 @@ The following list describes Traffic Server custom logging fields.
 
 ``cqhv``
     The client request HTTP version.
+
+.. _cqpv:
+
+``cqhv``
+    The client request protocol & version.
 
 .. _cqtd:
 
@@ -175,6 +184,24 @@ The following list describes Traffic Server custom logging fields.
     format hh:mm:ss, where hh is the two-digit hour in 24-hour format,
     mm is the two-digit minutes value, and ss is the 2-digit seconds
     value (for example, 16:01:19).
+
+.. _cqtr:
+
+``cqtr``
+    The TCP reused status; indicates if this client request went through
+    an already established connection.
+
+.. _cqssl:
+
+``cqssl``
+    The SSL client request status indicates if this client connection
+    is over SSL.
+
+.. _cqssr:
+
+``cqssr``
+    The SSL session/ticket reused status; indicates if this request hit
+    the SSL session/ticket and avoided a full SSL handshake.
 
 .. _cqtx:
 
@@ -241,6 +268,12 @@ The following list describes Traffic Server custom logging fields.
     The client request unmapped URL host. This field records a URL's
     host before it is remapped (reverse proxy mode).
 
+.. _cluc:
+
+``cluc``
+    The cache lookup URL, or cache key, for the client request. This URL is
+    canonicalized as well.
+
 .. _crat:
 
 ``crat``
@@ -298,6 +331,20 @@ The following list describes Traffic Server custom logging fields.
 
 ``fsiz``
     The size of the file (*n* bytes) as seen by the origin server.
+
+
+.. _ms:
+
+``{Milestone field name}ms``
+    The timestamp in milliseconds of a specific milestone for this request.
+    see :c:func:`TSHttpTxnMilestoneGet` for milestone names.
+
+.. _msdms
+
+``{Milestone field name1-Milestone field name2}msdms``
+    The difference in milliseconds of between two milestones.
+    see :c:func:`TSHttpTxnMilestoneGet` for milestone names.
+
 
 .. _pfsc:
 

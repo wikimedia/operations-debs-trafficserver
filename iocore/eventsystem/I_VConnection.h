@@ -25,7 +25,7 @@
 #if !defined(_I_VConnection_h_)
 #define _I_VConnection_h_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 #include "I_EventSystem.h"
 #if !defined(I_VIO_h)
 #error "include I_VIO.h"
@@ -129,7 +129,8 @@ enum TSApiDataType {
   TS_API_DATA_READ_VIO = VCONNECTION_API_DATA_BASE,
   TS_API_DATA_WRITE_VIO,
   TS_API_DATA_OUTPUT_VC,
-  TS_API_DATA_CLOSED
+  TS_API_DATA_CLOSED,
+  TS_API_DATA_LAST ///< Used by other classes to extend the enum values.
 };
 
 extern "C" {

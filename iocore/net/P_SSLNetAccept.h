@@ -39,7 +39,7 @@
 #if !defined(_SSLNetAccept_h_)
 #define _SSLNetAccept_h_
 
-#include "libts.h"
+#include "ts/ink_platform.h"
 #include "P_Connection.h"
 #include "P_NetAccept.h"
 
@@ -53,7 +53,7 @@ class UnixNetVConnection;
 struct SSLNetAccept : public NetAccept {
   virtual NetProcessor *getNetProcessor() const;
   virtual EventType getEtype() const;
-  virtual void init_accept_per_thread();
+  virtual void init_accept_per_thread(bool isTransparent);
   virtual NetAccept *clone() const;
 
   SSLNetAccept(){};
