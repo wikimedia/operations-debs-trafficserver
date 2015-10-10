@@ -1,3 +1,12 @@
+trafficserver (5.3.2-1~bbc78+1) stable; urgency=medium
+
+  * Imported Upstream version 5.3.2
+  * Update d/gbp.conf
+  * Update d/watch for 5.3.x serie
+  * Imported Upstream version 5.3.2
+
+ -- Jean Baptiste Favre <jean-baptiste.favre@blablacar.com>  Sat, 10 Oct 2015 10:52:43 +0200
+
 trafficserver (5.3.1-1~bbc78+1) stable; urgency=medium
 
   * Imported Upstream version 5.3.1
