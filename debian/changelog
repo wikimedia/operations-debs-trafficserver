@@ -1,3 +1,19 @@
+trafficserver (6.0.0-1) UNRELEASED; urgency=medium
+
+  [ Aron Xu ]
+  * Avoid possible-missing-colon-in-closes
+
+  [ Jean Baptiste Favre ]
+  * Imported Upstream version 6.0.0
+  * Update experimental plugins list
+    - Remove channel_stats
+    - Add cache promote cache_promote.so
+    - Add cache ranage request cache_range_requests.so
+    - Add mp4 streaming media mp4.so
+    - Add Stream editor stream_editor.so
+
+ -- Aron Xu <aron@debian.org>  Sat, 10 Oct 2015 11:19:19 +0200
+
 trafficserver (5.3.1-1) unstable; urgency=medium
 
   [ Arno Töll ]
