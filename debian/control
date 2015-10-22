@@ -1,6 +1,6 @@
 Source: trafficserver
 Section: web
-Priority: extra
+Priority: optional
 Maintainer: Arno Töll <arno@debian.org>
 Uploaders: Aron Xu <aron@debian.org>, Jean Baptiste Favre <debian@jbfavre.org>
 Build-Depends: debhelper (>= 9), libssl-dev, tcl-dev, libexpat1-dev,
