@@ -5,6 +5,8 @@
 #export DH_VERBOSE=1
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND = -O3
+export DEB_CXXFLAGS_MAINT_APPEND = -O3
 
 # Get build architecture. ./configure is different on Linux
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
