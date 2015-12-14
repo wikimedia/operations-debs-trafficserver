@@ -1,4 +1,12 @@
-trafficserver (6.0.0-1) UNRELEASED; urgency=medium
+trafficserver (6.0.0-2) unstable; urgency=medium
+
+  * Re-enable 32-bit builds
+  * Add some optional build dependencies
+  * Use -O3 by default
+
+ -- Aron Xu <aron@debian.org>  Sat, 31 Oct 2015 03:05:20 +0800
+
+trafficserver (6.0.0-1) unstable; urgency=medium
 
   [ Aron Xu ]
   * Avoid possible-missing-colon-in-closes
