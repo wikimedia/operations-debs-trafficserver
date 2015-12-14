@@ -1,6 +1,13 @@
 trafficserver for Debian
 ------------------------
 
+* If you are using 32-bits package, please note that upstream has
+    discontinued 32-bit support.
+    32-bits Debian package will still be built, but is subject to removal
+    whenever 32-bit fails.
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 14 Dec 2015 10:29:12 +0100
+
 * Please read the CONFIGURATION.Debian file to get started with Traffic Server.
 
 * Currently Apache Traffic Server lacks man pages of binaries shipped along the

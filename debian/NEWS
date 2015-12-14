@@ -1,3 +1,12 @@
+trafficserver (6.0.0-3) unstable; urgency=medium
+
+  * If you are using 32-bits package, please not that upstream has
+    discontinued 32-bit support.
+    32-bits Debian package will still be built, but is subject to removal
+    whenever 32-bit fails.
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 14 Dec 2015 10:29:12 +0100
+
 trafficserver (3.0.0-1) unstable; urgency=low
 
   * If you are upgrading from v2.1.8 or earlier to ATS 3.0 you need to migrate
