@@ -1,3 +1,9 @@
+trafficserver (6.0.0-3) unstable; urgency=medium
+
+  * Update d/NEWS & d/README.Debian with 32-bit upstream support drop
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 14 Dec 2015 10:48:20 +0100
+
 trafficserver (6.0.0-2) unstable; urgency=medium
 
   * Re-enable 32-bit builds
