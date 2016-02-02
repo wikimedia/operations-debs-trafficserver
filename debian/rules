@@ -68,6 +68,3 @@ override_dh_makeshlibs:
 
 override_dh_auto_test:
 	-dh_auto_test
-
-override_dh_strip:
-	dh_strip --dbg-package=trafficserver-dbg
