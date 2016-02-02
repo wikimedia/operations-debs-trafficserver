@@ -1,3 +1,10 @@
+trafficserver (6.1.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * Use -mcx16 on x86 platforms only (Closes: #805124)
+
+ -- Aron Xu <aron@debian.org>  Tue, 02 Feb 2016 12:18:10 +0800
+
 trafficserver (6.0.0-3) unstable; urgency=medium
 
   * Update d/NEWS & d/README.Debian with 32-bit upstream support drop
