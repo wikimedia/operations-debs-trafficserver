@@ -214,11 +214,12 @@ sub get_stat {
     # The response format is:
     #   MGMT_MARSHALL_INT: message length
     #   MGMT_MARSHALL_INT: error code
+    #   MGMT_MARSHALL_INT: record class
     #   MGMT_MARSHALL_INT: record type
     #   MGMT_MARSHALL_STRING: record name
     #   MGMT_MARSHALL_DATA: record data
     ($msg) = unpack("l/a", $res);
-    my ($ecode, $type, $name, $value) = unpack("l l l/Z l/a", $msg);
+    my ($ecode, $rclass, $type, $name, $value) = unpack("l l l l/Z l/a", $msg);
 
     if ($ecode == TS_ERR_OKAY) {
         if ($type == TS_REC_INT || $type == TS_REC_COUNTER) {
@@ -570,7 +571,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.io.max_buffer_size
  proxy.config.lm.pserver_timeout_msecs
  proxy.config.lm.pserver_timeout_secs
- proxy.config.lm.sem_id
  proxy.config.local_state_dir
  proxy.config.log.ascii_buffer_size
  proxy.config.log.auto_delete_rolled_files

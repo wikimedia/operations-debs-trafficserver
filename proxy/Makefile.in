@@ -117,7 +117,7 @@ TESTS = tests/test_logstats_json tests/test_logstats_summary \
 
 @BUILD_STATIC_PROXY_TRUE@am__append_2 = -all-static
 @BUILD_LUAJIT_TRUE@am__append_3 = $(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
-@BUILD_LUAJIT_TRUE@am__append_4 = $(TS_LUAJIT_LDFLAGS)
+@BUILD_LUAJIT_TRUE@am__append_4 = $(LUAJIT_LDFLAGS)
 @BUILD_TESTS_TRUE@am__append_5 = RegressionSM.cc
 subdir = proxy
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -178,8 +178,9 @@ traffic_logstats_DEPENDENCIES = logging/liblogging.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/ts/libtsutil.la
 am__traffic_sac_SOURCES_DIST = sac.cc ICP.cc ICPConfig.cc \
-	ICPProcessor.cc ICPStats.cc IPAllow.cc ParentSelection.cc \
-	ControlBase.cc ControlMatcher.cc CacheControl.cc StatSystem.cc \
+	ICPProcessor.cc ICPStats.cc IPAllow.cc ParentConsistentHash.cc \
+	ParentRoundRobin.cc ParentSelection.cc ControlBase.cc \
+	ControlMatcher.cc CacheControl.cc StatSystem.cc \
 	ReverseProxy.cc EventName.cc StatPages.cc PluginVC.cc \
 	AbstractBuffer.cc Transform.cc ProtocolProbeSessionAccept.cc \
 	ProtocolProbeSessionAccept.h ProxyClientSession.cc \
@@ -188,7 +189,8 @@ am__traffic_sac_SOURCES_DIST = sac.cc ICP.cc ICPConfig.cc \
 @BUILD_TESTS_TRUE@am__objects_1 = RegressionSM.$(OBJEXT)
 am_traffic_sac_OBJECTS = sac.$(OBJEXT) ICP.$(OBJEXT) \
 	ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) \
-	IPAllow.$(OBJEXT) ParentSelection.$(OBJEXT) \
+	IPAllow.$(OBJEXT) ParentConsistentHash.$(OBJEXT) \
+	ParentRoundRobin.$(OBJEXT) ParentSelection.$(OBJEXT) \
 	ControlBase.$(OBJEXT) ControlMatcher.$(OBJEXT) \
 	CacheControl.$(OBJEXT) StatSystem.$(OBJEXT) \
 	ReverseProxy.$(OBJEXT) EventName.$(OBJEXT) StatPages.$(OBJEXT) \
@@ -221,13 +223,15 @@ am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
 	HttpTransStats.h ICP.cc ICP.h ICPConfig.cc ICPProcessor.cc \
 	ICPProcessor.h ICPStats.cc ICPevents.h ICPlog.h IPAllow.cc \
 	IPAllow.h InkAPI.cc InkAPIInternal.h InkIOCoreAPI.cc Main.cc \
-	Main.h ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
-	PluginVC.cc PluginVC.h ProtocolProbeSessionAccept.cc \
-	ProtocolProbeSessionAccept.h ProxyClientSession.cc \
-	ProxyClientSession.h ReverseProxy.cc ReverseProxy.h \
-	SocksProxy.cc StatPages.cc StatPages.h StatSystem.cc \
-	StatSystem.h Transform.cc Transform.h TransformInternal.h \
-	InkAPITest.cc RegressionSM.h RegressionSM.cc
+	Main.h ParentConsistentHash.cc ParentConsistentHash.h \
+	ParentRoundRobin.cc ParentRoundRobin.h ParentSelection.cc \
+	ParentSelection.h Plugin.cc Plugin.h PluginVC.cc PluginVC.h \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	ProxyClientSession.cc ProxyClientSession.h ReverseProxy.cc \
+	ReverseProxy.h SocksProxy.cc StatPages.cc StatPages.h \
+	StatSystem.cc StatSystem.h Transform.cc Transform.h \
+	TransformInternal.h InkAPITest.cc RegressionSM.h \
+	RegressionSM.cc
 @BUILD_TESTS_TRUE@am__objects_2 = InkAPITest.$(OBJEXT) \
 @BUILD_TESTS_TRUE@	RegressionSM.$(OBJEXT)
 am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
@@ -236,8 +240,10 @@ am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
 	EventName.$(OBJEXT) FetchSM.$(OBJEXT) ICP.$(OBJEXT) \
 	ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) \
 	IPAllow.$(OBJEXT) InkAPI.$(OBJEXT) InkIOCoreAPI.$(OBJEXT) \
-	Main.$(OBJEXT) ParentSelection.$(OBJEXT) Plugin.$(OBJEXT) \
-	PluginVC.$(OBJEXT) ProtocolProbeSessionAccept.$(OBJEXT) \
+	Main.$(OBJEXT) ParentConsistentHash.$(OBJEXT) \
+	ParentRoundRobin.$(OBJEXT) ParentSelection.$(OBJEXT) \
+	Plugin.$(OBJEXT) PluginVC.$(OBJEXT) \
+	ProtocolProbeSessionAccept.$(OBJEXT) \
 	ProxyClientSession.$(OBJEXT) ReverseProxy.$(OBJEXT) \
 	SocksProxy.$(OBJEXT) StatPages.$(OBJEXT) StatSystem.$(OBJEXT) \
 	Transform.$(OBJEXT) $(am__objects_2)
@@ -666,6 +672,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -682,8 +690,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -716,6 +729,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -738,9 +752,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -932,7 +944,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -1058,13 +1069,14 @@ traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
 	HttpTransStats.h ICP.cc ICP.h ICPConfig.cc ICPProcessor.cc \
 	ICPProcessor.h ICPStats.cc ICPevents.h ICPlog.h IPAllow.cc \
 	IPAllow.h InkAPI.cc InkAPIInternal.h InkIOCoreAPI.cc Main.cc \
-	Main.h ParentSelection.cc ParentSelection.h Plugin.cc Plugin.h \
-	PluginVC.cc PluginVC.h ProtocolProbeSessionAccept.cc \
-	ProtocolProbeSessionAccept.h ProxyClientSession.cc \
-	ProxyClientSession.h ReverseProxy.cc ReverseProxy.h \
-	SocksProxy.cc StatPages.cc StatPages.h StatSystem.cc \
-	StatSystem.h Transform.cc Transform.h TransformInternal.h \
-	$(am__append_1)
+	Main.h ParentConsistentHash.cc ParentConsistentHash.h \
+	ParentRoundRobin.cc ParentRoundRobin.h ParentSelection.cc \
+	ParentSelection.h Plugin.cc Plugin.h PluginVC.cc PluginVC.h \
+	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
+	ProxyClientSession.cc ProxyClientSession.h ReverseProxy.cc \
+	ReverseProxy.h SocksProxy.cc StatPages.cc StatPages.h \
+	StatSystem.cc StatSystem.h Transform.cc Transform.h \
+	TransformInternal.h $(am__append_1)
 traffic_server_LDFLAGS = $(AM_LDFLAGS) $(am__append_2) $(am__append_4)
 traffic_server_LDADD = http/libhttp.a http2/libhttp2.a spdy/libspdy.a \
 	http/remap/libhttp_remap.a congest/libCongestionControl.a \
@@ -1114,7 +1126,8 @@ traffic_logstats_LDADD = \
   @LIBEXPAT@ @LIBPROFILER@ -lm
 
 traffic_sac_SOURCES = sac.cc ICP.cc ICPConfig.cc ICPProcessor.cc \
-	ICPStats.cc IPAllow.cc ParentSelection.cc ControlBase.cc \
+	ICPStats.cc IPAllow.cc ParentConsistentHash.cc \
+	ParentRoundRobin.cc ParentSelection.cc ControlBase.cc \
 	ControlMatcher.cc CacheControl.cc StatSystem.cc \
 	ReverseProxy.cc EventName.cc StatPages.cc PluginVC.cc \
 	AbstractBuffer.cc Transform.cc ProtocolProbeSessionAccept.cc \
@@ -1171,7 +1184,7 @@ all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1195,9 +1208,9 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
@@ -1305,6 +1318,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/InkAPITest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/InkIOCoreAPI.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParentConsistentHash.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParentRoundRobin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParentSelection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Plugin.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/PluginVC.Po@am__quote@

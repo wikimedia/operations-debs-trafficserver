@@ -195,6 +195,10 @@ am_test_sslheaders_OBJECTS = test_sslheaders.$(OBJEXT)
 test_sslheaders_OBJECTS = $(am_test_sslheaders_OBJECTS)
 test_sslheaders_DEPENDENCIES = libsslhdr.la \
 	$(top_builddir)/lib/ts/libtsutil.la
+test_sslheaders_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_sslheaders_LDFLAGS) \
+	$(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -525,6 +529,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -541,8 +547,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -575,6 +586,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -597,9 +609,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -791,7 +801,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -823,7 +832,8 @@ TS_PLUGIN_CPPFLAGS = \
 # throws an error if we try to do the same with AM_LDFLAGS. Hence, we provide
 # TS_PLUGIN variables that can be used to construct the necessary automake
 # syntax.
-AM_CPPFLAGS = $(TS_PLUGIN_CPPFLAGS) -I$(top_srcdir)/lib
+AM_CPPFLAGS = $(TS_PLUGIN_CPPFLAGS) @OPENSSL_INCLUDES@ \
+	-I$(top_srcdir)/lib
 noinst_LTLIBRARIES = libsslhdr.la
 pkglib_LTLIBRARIES = sslheaders.la
 libsslhdr_la_SOURCES = sslheaders.h expand.cc util.cc
@@ -831,7 +841,9 @@ sslheaders_la_SOURCES = sslheaders.cc sslheaders.h
 sslheaders_la_LDFLAGS = $(TS_PLUGIN_LDFLAGS)
 sslheaders_la_LIBADD = libsslhdr.la
 test_sslheaders_SOURCES = test_sslheaders.cc sslheaders.h
+test_sslheaders_LDFLAGS = @OPENSSL_LDFLAGS@
 test_sslheaders_LDADD = \
+  @LIBTOOL_LINK_FLAGS@ \
   libsslhdr.la \
   $(top_builddir)/lib/ts/libtsutil.la \
   @OPENSSL_LIBS@
@@ -841,7 +853,7 @@ all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -866,9 +878,9 @@ $(top_srcdir)/build/plugins.mk $(am__empty):
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
@@ -935,7 +947,7 @@ clean-checkPROGRAMS:
 
 test_sslheaders$(EXEEXT): $(test_sslheaders_OBJECTS) $(test_sslheaders_DEPENDENCIES) $(EXTRA_test_sslheaders_DEPENDENCIES) 
 	@rm -f test_sslheaders$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(test_sslheaders_OBJECTS) $(test_sslheaders_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(test_sslheaders_LINK) $(test_sslheaders_OBJECTS) $(test_sslheaders_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

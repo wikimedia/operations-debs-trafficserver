@@ -277,7 +277,8 @@ HttpSM::HttpSM()
     client_request_hdr_bytes(0), client_request_body_bytes(0), server_request_hdr_bytes(0), server_request_body_bytes(0),
     server_response_hdr_bytes(0), server_response_body_bytes(0), client_response_hdr_bytes(0), client_response_body_bytes(0),
     cache_response_hdr_bytes(0), cache_response_body_bytes(0), pushed_response_hdr_bytes(0), pushed_response_body_bytes(0),
-    client_tcp_reused(false), client_ssl_reused(false), client_connection_is_ssl(false), plugin_tag(0), plugin_id(0),
+    client_tcp_reused(false), client_ssl_reused(false), client_connection_is_ssl(false), client_sec_protocol("-"),
+    client_cipher_suite("-"), server_transact_count(0), server_connection_is_ssl(false), plugin_tag(0), plugin_id(0),
     hooks_set(false), cur_hook_id(TS_HTTP_LAST_HOOK), cur_hook(NULL), cur_hooks(0), callout_state(HTTP_API_NO_CALLOUT),
     terminate_sm(false), kill_this_async_done(false), parse_range_done(false)
 {
@@ -362,7 +363,7 @@ HttpSM::init()
   // Added to skip dns if the document is in cache. DNS will be forced if there is a ip based ACL in
   // cache control or parent.config or if the doc_in_cache_skip_dns is disabled or if http caching is disabled
   // TODO: This probably doesn't honor this as a per-transaction overridable config.
-  t_state.force_dns = (ip_rule_in_CacheControlTable() || t_state.parent_params->ParentTable->ipMatch ||
+  t_state.force_dns = (ip_rule_in_CacheControlTable() || t_state.parent_params->parent_table->ipMatch ||
                        !(t_state.txn_conf->doc_in_cache_skip_dns) || !(t_state.txn_conf->cache_http));
 
   http_parser.m_allow_non_http = t_state.http_config_param->parser_allow_non_http;
@@ -481,6 +482,10 @@ HttpSM::attach_client_session(HttpClientSession *client_vc, IOBufferReader *buff
   if (ssl_vc != NULL) {
     client_connection_is_ssl = true;
     client_ssl_reused = ssl_vc->getSSLSessionCacheHit();
+    const char *protocol = ssl_vc->getSSLProtocol();
+    client_sec_protocol = protocol ? protocol : "-";
+    const char *cipher = ssl_vc->getSSLCipherSuite();
+    client_cipher_suite = cipher ? cipher : "-";
   }
 
   ink_release_assert(ua_session->get_half_close_flag() == false);
@@ -759,9 +764,9 @@ HttpSM::state_read_client_request_header(int event, void *data)
     }
     // YTS Team, yamsat Plugin
     // Setting enable_redirection according to HttpConfig master
-    if ((HttpConfig::m_master.number_of_redirections > 0) ||
+    if ((t_state.txn_conf->number_of_redirections > 0) ||
         (t_state.method == HTTP_WKSIDX_POST && HttpConfig::m_master.post_copy_size))
-      enable_redirection = HttpConfig::m_master.redirection_enabled;
+      enable_redirection = t_state.txn_conf->redirection_enabled;
 
     call_transact_and_set_next_state(HttpTransact::ModifyRequest);
 
@@ -842,7 +847,9 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
    * client.
    */
   case VC_EVENT_EOS:
-    static_cast<HttpClientSession *>(ua_entry->vc)->get_netvc()->do_io_shutdown(IO_SHUTDOWN_READ);
+    // We got an early EOS.
+    ua_session->get_netvc()->do_io_shutdown(IO_SHUTDOWN_READ);
+    ua_entry->eos = true;
     break;
   case VC_EVENT_ERROR:
   case VC_EVENT_ACTIVE_TIMEOUT:
@@ -1847,7 +1854,7 @@ HttpSM::state_read_server_response_header(int event, void *data)
     t_state.api_next_action = HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR;
 
     // if exceeded limit deallocate postdata buffers and disable redirection
-    if (enable_redirection && (redirection_tries < HttpConfig::m_master.number_of_redirections)) {
+    if (enable_redirection && (redirection_tries < t_state.txn_conf->number_of_redirections)) {
       ++redirection_tries;
     } else {
       tunnel.deallocate_redirect_postdata_buffers();
@@ -2368,13 +2375,22 @@ HttpSM::state_cache_open_write(int event, void *data)
   case CACHE_EVENT_OPEN_WRITE_FAILED:
     // Failed on the write lock and retrying the vector
     //  for reading
-    if (t_state.http_config_param->cache_open_write_fail_action == HttpTransact::CACHE_OPEN_WRITE_FAIL_DEFAULT) {
+    if (t_state.redirect_info.redirect_in_process) {
+      DebugSM("http_redirect", "[%" PRId64 "] CACHE_EVENT_OPEN_WRITE_FAILED during redirect follow", sm_id);
+      t_state.cache_open_write_fail_action = HttpTransact::CACHE_WL_FAIL_ACTION_DEFAULT;
+      t_state.cache_info.write_lock_state = HttpTransact::CACHE_WL_FAIL;
+      break;
+    }
+    if (t_state.txn_conf->cache_open_write_fail_action == HttpTransact::CACHE_WL_FAIL_ACTION_DEFAULT) {
       t_state.cache_info.write_lock_state = HttpTransact::CACHE_WL_FAIL;
       break;
     } else {
-      t_state.cache_open_write_fail_action = t_state.http_config_param->cache_open_write_fail_action;
-      if (!t_state.cache_info.object_read) {
+      t_state.cache_open_write_fail_action = t_state.txn_conf->cache_open_write_fail_action;
+      if (!t_state.cache_info.object_read ||
+          (t_state.cache_open_write_fail_action == HttpTransact::CACHE_WL_FAIL_ACTION_ERROR_ON_MISS_OR_REVALIDATE)) {
         // cache miss, set wl_state to fail
+        DebugSM("http", "[%" PRId64 "] cache object read %p, cache_wl_fail_action %d", sm_id, t_state.cache_info.object_read,
+                t_state.cache_open_write_fail_action);
         t_state.cache_info.write_lock_state = HttpTransact::CACHE_WL_FAIL;
         break;
       }
@@ -2912,7 +2928,7 @@ HttpSM::tunnel_handler_server(int event, HttpTunnelProducer *p)
     //
     // The transfer completed successfully
     //    If there is still data in the buffer, the server
-    //    sent to much indicating a failed transfer
+    //    sent too much indicating a failed transfer
     p->read_success = true;
     t_state.current.server->state = HttpTransact::TRANSACTION_COMPLETE;
     t_state.current.server->abort = HttpTransact::DIDNOT_ABORT;
@@ -3181,7 +3197,7 @@ HttpSM::tunnel_handler_ua(int event, HttpTunnelConsumer *c)
     if (is_eligible_post_request) {
       NetVConnection *vc = ua_session->get_netvc();
       if (vc) {
-        is_eligible_post_request = vc->get_is_internal_request() ? false : true;
+        is_eligible_post_request &= !vc->get_is_internal_request();
       }
     }
     if ((is_eligible_post_request || t_state.client_info.pipeline_possible == true) && c->producer->vc_type != HT_STATIC &&
@@ -4378,7 +4394,7 @@ HttpSM::do_cache_lookup_and_read()
   // Changed the lookup_url to c_url which enables even
   // the new redirect url to perform a CACHE_LOOKUP
   URL *c_url;
-  if (t_state.redirect_info.redirect_in_process)
+  if (t_state.redirect_info.redirect_in_process && !t_state.txn_conf->redirect_use_orig_cache_key)
     c_url = t_state.hdr_info.client_request.url_get();
   else
     c_url = t_state.cache_info.lookup_url;
@@ -5201,18 +5217,24 @@ HttpSM::handle_server_setup_error(int event, void *data)
       c = tunnel.get_consumer(post_transform_info.vc);
       // c->handler_state = HTTP_SM_TRANSFORM_FAIL;
 
-      HttpTunnelProducer *ua_producer = c->producer;
-      ink_assert(ua_entry->vc == ua_producer->vc);
+      // No point in proceeding if there is no consumer
+      // Do we need to do additional clean up in the c == NULL case?
+      if (c != NULL) {
+        HttpTunnelProducer *ua_producer = c->producer;
+        ink_assert(ua_entry->vc == ua_producer->vc);
 
-      ua_entry->vc_handler = &HttpSM::state_watch_for_client_abort;
-      ua_entry->read_vio = ua_producer->vc->do_io_read(this, INT64_MAX, c->producer->read_buffer);
-      ua_producer->vc->do_io_shutdown(IO_SHUTDOWN_READ);
+        ua_entry->vc_handler = &HttpSM::state_watch_for_client_abort;
+        ua_entry->read_vio = ua_producer->vc->do_io_read(this, INT64_MAX, c->producer->read_buffer);
+        ua_producer->vc->do_io_shutdown(IO_SHUTDOWN_READ);
 
-      ua_producer->alive = false;
-      ua_producer->handler_state = HTTP_SM_POST_SERVER_FAIL;
-      tunnel.handleEvent(VC_EVENT_ERROR, c->write_vio);
+        ua_producer->alive = false;
+        ua_producer->handler_state = HTTP_SM_POST_SERVER_FAIL;
+        tunnel.handleEvent(VC_EVENT_ERROR, c->write_vio);
+      }
     } else {
-      tunnel.handleEvent(event, c->write_vio);
+      // c could be null here as well
+      if (c != NULL)
+        tunnel.handleEvent(event, c->write_vio);
     }
     return;
   } else {
@@ -5249,7 +5271,7 @@ HttpSM::handle_server_setup_error(int event, void *data)
     // In case of TIMEOUT, the iocore sends back
     // server_entry->read_vio instead of the write_vio
     // if (vio->op == VIO::WRITE && vio->ndone == 0) {
-    if (server_entry->write_vio->nbytes > 0 && server_entry->write_vio->ndone == 0) {
+    if (server_entry->write_vio && server_entry->write_vio->nbytes > 0 && server_entry->write_vio->ndone == 0) {
       t_state.current.state = HttpTransact::CONNECTION_ERROR;
     } else {
       t_state.current.state = HttpTransact::INACTIVE_TIMEOUT;
@@ -5596,7 +5618,13 @@ HttpSM::attach_server_session(HttpServerSession *s)
   hsm_release_assert(server_entry == NULL);
   hsm_release_assert(s->state == HSS_ACTIVE);
   server_session = s;
-  server_session->transact_count++;
+  server_transact_count = server_session->transact_count++;
+  // Propagate the per client IP debugging
+  if (ua_session)
+    s->get_netvc()->control_flags = get_cont_flags();
+  else { // If there is no ua_session no sense in continuing to attach the server session
+    return;
+  }
 
   // Set the mutex so that we have something to update
   //   stats with
@@ -5610,6 +5638,7 @@ HttpSM::attach_server_session(HttpServerSession *s)
   server_entry->vc = server_session;
   server_entry->vc_type = HTTP_SERVER_VC;
   server_entry->vc_handler = &HttpSM::state_send_server_request_header;
+
 
   // es - is this a concern here in HttpSM?  Does it belong somewhere else?
   // Get server and client connections
@@ -5634,6 +5663,12 @@ HttpSM::attach_server_session(HttpServerSession *s)
     server_vc->setOriginTrace(false);
     server_vc->setOriginTraceAddr(NULL);
     server_vc->setOriginTracePort(0);
+  }
+
+  // set flag for server session is SSL
+  SSLNetVConnection *server_ssl_vc = dynamic_cast<SSLNetVConnection *>(server_vc);
+  if (server_ssl_vc) {
+    server_connection_is_ssl = true;
   }
 
   // Initiate a read on the session so that the SM and not
@@ -6010,7 +6045,7 @@ HttpSM::setup_internal_transfer(HttpSMHandler handler_arg)
                                  t_state.internal_msg_buffer_fast_allocator_size);
 
 
-    // The IOBufferBlock will xfree the msg buffer when necessary so
+    // The IOBufferBlock will free the msg buffer when necessary so
     //  eliminate our pointer to it
     t_state.internal_msg_buffer = NULL;
     t_state.internal_msg_buffer_size = 0;
@@ -7366,7 +7401,7 @@ void
 HttpSM::do_redirect()
 {
   DebugSM("http_redirect", "[HttpSM::do_redirect]");
-  if (!enable_redirection || redirection_tries >= HttpConfig::m_master.number_of_redirections) {
+  if (!enable_redirection || redirection_tries >= t_state.txn_conf->number_of_redirections) {
     tunnel.deallocate_redirect_postdata_buffers();
     return;
   }
@@ -7669,7 +7704,7 @@ HttpSM::is_private()
 inline bool
 HttpSM::is_redirect_required()
 {
-  bool redirect_required = (enable_redirection && (redirection_tries <= HttpConfig::m_master.number_of_redirections));
+  bool redirect_required = (enable_redirection && (redirection_tries <= t_state.txn_conf->number_of_redirections));
 
   DebugSM("http_redirect", "is_redirect_required %u", redirect_required);
 

@@ -91,15 +91,15 @@ struct EvacuationBlock;
 
 #define CONT_SCHED_LOCK_RETRY(_c) _c->mutex->thread_holding->schedule_in_local(_c, HRTIME_MSECONDS(cache_config_mutex_retry_delay))
 
-#define VC_SCHED_WRITER_RETRY()                                   \
-  do {                                                            \
-    ink_assert(!trigger);                                         \
-    writer_lock_retry++;                                          \
-    ink_hrtime _t = cache_read_while_writer_retry_delay;          \
-    if (writer_lock_retry > 2)                                    \
-      _t = cache_read_while_writer_retry_delay * 2;               \
-    trigger = mutex->thread_holding->schedule_in_local(this, _t); \
-    return EVENT_CONT;                                            \
+#define VC_SCHED_WRITER_RETRY()                                           \
+  do {                                                                    \
+    ink_assert(!trigger);                                                 \
+    writer_lock_retry++;                                                  \
+    ink_hrtime _t = HRTIME_MSECONDS(cache_read_while_writer_retry_delay); \
+    if (writer_lock_retry > 2)                                            \
+      _t = HRTIME_MSECONDS(cache_read_while_writer_retry_delay) * 2;      \
+    trigger = mutex->thread_holding->schedule_in_local(this, _t);         \
+    return EVENT_CONT;                                                    \
   } while (0)
 
 
@@ -268,6 +268,20 @@ struct CacheVC : public CacheVConnection {
       }
     }
     return -1;
+  }
+  int
+  get_volume_number() const
+  {
+    if (vol && vol->cache_vol) {
+      return vol->cache_vol->vol_number;
+    }
+    return -1;
+  }
+  bool
+  is_compressed_in_ram() const
+  {
+    ink_assert(vio.op == VIO::READ);
+    return !f.compressed_in_ram;
   }
 
   bool writer_done();
@@ -477,6 +491,7 @@ struct CacheVC : public CacheVConnection {
       unsigned int readers : 1;
       unsigned int doc_from_ram_cache : 1;
       unsigned int hit_evacuate : 1;
+      unsigned int compressed_in_ram : 1; // compressed state in ram cache
 #ifdef HTTP_CACHE
       unsigned int allow_empty_doc : 1; // used for cache empty http document
 #endif

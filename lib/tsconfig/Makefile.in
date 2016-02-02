@@ -244,6 +244,7 @@ AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
+@MAINTAINER_MODE_FALSE@am__skiplex = test -f $@ ||
 LEXCOMPILE = $(LEX) $(AM_LFLAGS) $(LFLAGS)
 LTLEXCOMPILE = $(LIBTOOL) $(AM_V_lt) $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=compile $(LEX) $(AM_LFLAGS) $(LFLAGS)
@@ -252,6 +253,7 @@ am__v_LEX_ = $(am__v_LEX_@AM_DEFAULT_V@)
 am__v_LEX_0 = @echo "  LEX     " $@;
 am__v_LEX_1 = 
 YLWRAP = $(top_srcdir)/build/aux/ylwrap
+@MAINTAINER_MODE_FALSE@am__skipyacc = test -f $@ ||
 am__yacc_c2h = sed -e s/cc$$/hh/ -e s/cpp$$/hpp/ -e s/cxx$$/hxx/ \
 		   -e s/c++$$/h++/ -e s/c$$/h/
 YACCCOMPILE = $(YACC) $(AM_YFLAGS) $(YFLAGS)
@@ -360,6 +362,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -376,8 +380,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -410,6 +419,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -432,9 +442,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -626,7 +634,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -664,7 +671,7 @@ all: $(BUILT_SOURCES)
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .l .lo .o .obj .y
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -688,9 +695,9 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 

@@ -478,7 +478,7 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqtr", field);
 
-  field = new LogField("client_req_ssl_reused", "cqssl", LogField::dINT, &LogAccess::marshal_client_req_is_ssl,
+  field = new LogField("client_req_is_ssl", "cqssl", LogField::dINT, &LogAccess::marshal_client_req_is_ssl,
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqssl", field);
@@ -487,6 +487,16 @@ Log::init_fields()
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqssr", field);
+
+  field = new LogField("client_sec_protocol", "cqssv", LogField::STRING, &LogAccess::marshal_client_security_protocol,
+                       (LogField::UnmarshalFunc) & LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "cqssv", field);
+
+  field = new LogField("client_cipher_suite", "cqssc", LogField::STRING, &LogAccess::marshal_client_security_cipher_suite,
+                       (LogField::UnmarshalFunc) & LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "cqssc", field);
 
   Ptr<LogFieldAliasTable> finish_status_map = make_ptr(new LogFieldAliasTable);
   finish_status_map->init(N_LOG_FINISH_CODE_TYPES, LOG_FINISH_FIN, "FIN", LOG_FINISH_INTR, "INTR", LOG_FINISH_TIMEOUT, "TIMEOUT");
@@ -643,8 +653,12 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "php", field);
 
-  // server -> proxy fields
+  field = new LogField("proxy_req_is_ssl", "pqssl", LogField::sINT, &LogAccess::marshal_proxy_req_is_ssl,
+                       &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "pqssl", field);
 
+  // server -> proxy fields
   field = new LogField("server_host_ip", "shi", LogField::IP, &LogAccess::marshal_server_host_ip, &LogAccess::unmarshal_ip_to_str);
 
   global_field_list.add(field, false);
@@ -694,6 +708,11 @@ Log::init_fields()
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "sts", field);
+
+  field = new LogField("server_transact_count", "sstc", LogField::sINT, &LogAccess::marshal_server_transact_count,
+                       &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "sstc", field);
 
   field = new LogField("cached_resp_status_code", "csssc", LogField::sINT, &LogAccess::marshal_cache_resp_status_code,
                        &LogAccess::unmarshal_http_status);
@@ -1211,6 +1230,10 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
         continue;
       }
 
+      int logfilefd = logfile->get_fd();
+      // This should always be true because we just checked it.
+      ink_assert(logfilefd >= 0);
+
       // write *all* data to target file as much as possible
       //
       while (total_bytes - bytes_written) {
@@ -1223,7 +1246,8 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
           break;
         }
 
-        len = ::write(logfile->m_fd, &buf[bytes_written], total_bytes - bytes_written);
+        len = ::write(logfilefd, &buf[bytes_written], total_bytes - bytes_written);
+
         if (len < 0) {
           Error("Failed to write log to %s: [tried %d, wrote %d, %s]", logfile->get_name(), total_bytes - bytes_written,
                 bytes_written, strerror(errno));
@@ -1232,12 +1256,14 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
                          total_bytes - bytes_written);
           break;
         }
+        Debug("log", "Successfully wrote some stuff to %s", logfile->get_name());
         bytes_written += len;
       }
 
       RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_bytes_written_to_disk_stat, bytes_written);
 
-      ink_atomic_increment(&logfile->m_bytes_written, bytes_written);
+      if (logfile->m_log)
+        ink_atomic_increment(&logfile->m_log->m_bytes_written, bytes_written);
 
       delete fdata;
     }
@@ -1399,18 +1425,16 @@ Log::match_logobject(LogBufferHeader *header)
   if (!obj) {
     // object does not exist yet, create it
     //
-    LogFormat *fmt = new LogFormat("__collation_format__", header->fmt_fieldlist(), header->fmt_printf());
+    LogFormat fmt("__collation_format__", header->fmt_fieldlist(), header->fmt_printf());
 
-    if (fmt->valid()) {
+    if (fmt.valid()) {
       LogFileFormat file_format = header->log_object_flags & LogObject::BINARY ?
                                     LOG_FILE_BINARY :
                                     (header->log_object_flags & LogObject::WRITES_TO_PIPE ? LOG_FILE_PIPE : LOG_FILE_ASCII);
 
-      obj = new LogObject(fmt, Log::config->logfile_dir, header->log_filename(), file_format, NULL,
+      obj = new LogObject(&fmt, Log::config->logfile_dir, header->log_filename(), file_format, NULL,
                           (Log::RollingEnabledValues)Log::config->rolling_enabled, Log::config->collation_preproc_threads,
                           Log::config->rolling_interval_sec, Log::config->rolling_offset_hr, Log::config->rolling_size_mb, true);
-
-      delete fmt; // This is copy constructed in LogObject.
 
       obj->set_remote_flag();
 
@@ -1423,5 +1447,6 @@ Log::match_logobject(LogBufferHeader *header)
       }
     }
   }
+
   return obj;
 }

@@ -104,7 +104,7 @@ public:
     }
 
     // Cleanup the active and keep-alive queues periodically
-    nh.manage_active_queue();
+    nh.manage_active_queue(true); // close any connections over the active timeout
     nh.manage_keep_alive_queue();
 
     return 0;
@@ -471,9 +471,9 @@ NetHandler::mainNetEvent(int event, Event *e)
       vc = epd->data.vc;
       if (get_ev_events(pd, x) & (EVENTIO_READ | EVENTIO_ERROR)) {
         vc->read.triggered = 1;
-        if (!read_ready_list.in(vc))
+        if (!read_ready_list.in(vc)) {
           read_ready_list.enqueue(vc);
-        else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
+        } else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
           // check for unhandled epoll events that should be handled
           Debug("iocore_net_main", "Unhandled epoll event on read: 0x%04x read.enabled=%d closed=%d read.netready_queue=%d",
                 get_ev_events(pd, x), vc->read.enabled, vc->closed, read_ready_list.in(vc));
@@ -482,14 +482,14 @@ NetHandler::mainNetEvent(int event, Event *e)
       vc = epd->data.vc;
       if (get_ev_events(pd, x) & (EVENTIO_WRITE | EVENTIO_ERROR)) {
         vc->write.triggered = 1;
-        if (!write_ready_list.in(vc))
+        if (!write_ready_list.in(vc)) {
           write_ready_list.enqueue(vc);
-        else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
+        } else if (get_ev_events(pd, x) & EVENTIO_ERROR) {
           // check for unhandled epoll events that should be handled
           Debug("iocore_net_main", "Unhandled epoll event on write: 0x%04x write.enabled=%d closed=%d write.netready_queue=%d",
                 get_ev_events(pd, x), vc->write.enabled, vc->closed, write_ready_list.in(vc));
         }
-      } else if (!(get_ev_events(pd, x) & EVENTIO_ERROR)) {
+      } else if (!(get_ev_events(pd, x) & EVENTIO_READ)) {
         Debug("iocore_net_main", "Unhandled epoll event: 0x%04x", get_ev_events(pd, x));
       }
     } else if (epd->type == EVENTIO_DNS_CONNECTION) {
@@ -510,6 +510,8 @@ NetHandler::mainNetEvent(int event, Event *e)
 #if defined(USE_EDGE_TRIGGER)
   // UnixNetVConnection *
   while ((vc = read_ready_list.dequeue())) {
+    // Initialize the thread-local continuation flags
+    set_cont_flags(vc->control_flags);
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->read.enabled && vc->read.triggered)
@@ -526,6 +528,7 @@ NetHandler::mainNetEvent(int event, Event *e)
     }
   }
   while ((vc = write_ready_list.dequeue())) {
+    set_cont_flags(vc->control_flags);
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->write.enabled && vc->write.triggered)
@@ -543,6 +546,7 @@ NetHandler::mainNetEvent(int event, Event *e)
   }
 #else  /* !USE_EDGE_TRIGGER */
   while ((vc = read_ready_list.dequeue())) {
+    diags->set_override(vc->control.debug_override);
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->read.enabled && vc->read.triggered)
@@ -551,6 +555,7 @@ NetHandler::mainNetEvent(int event, Event *e)
       vc->ep.modify(-EVENTIO_READ);
   }
   while ((vc = write_ready_list.dequeue())) {
+    diags->set_override(vc->control.debug_override);
     if (vc->closed)
       close_UnixNetVConnection(vc, trigger_event->ethread);
     else if (vc->write.enabled && vc->write.triggered)
@@ -564,7 +569,7 @@ NetHandler::mainNetEvent(int event, Event *e)
 }
 
 bool
-NetHandler::manage_active_queue()
+NetHandler::manage_active_queue(bool ignore_queue_size = false)
 {
   const int total_connections_in = active_queue_size + keep_alive_queue_size;
   Debug("net_queue", "max_connections_per_thread_in: %d max_connections_active_per_thread_in: %d total_connections_in: %d "
@@ -572,7 +577,7 @@ NetHandler::manage_active_queue()
         max_connections_per_thread_in, max_connections_active_per_thread_in, total_connections_in, active_queue_size,
         keep_alive_queue_size);
 
-  if (max_connections_active_per_thread_in > active_queue_size) {
+  if (ignore_queue_size == false && max_connections_active_per_thread_in > active_queue_size) {
     return true;
   }
 
@@ -586,12 +591,17 @@ NetHandler::manage_active_queue()
   int total_idle_time = 0;
   int total_idle_count = 0;
   for (; vc != NULL; vc = vc_next) {
-    if ((vc->next_inactivity_timeout_at > now) || (vc->next_activity_timeout_at > now)) {
+    vc_next = vc->active_queue_link.next;
+    if ((vc->next_inactivity_timeout_at <= now) || (vc->next_activity_timeout_at <= now)) {
       _close_vc(vc, now, handle_event, closed, total_idle_time, total_idle_count);
     }
-    if (max_connections_active_per_thread_in > active_queue_size) {
+    if (ignore_queue_size == false && max_connections_active_per_thread_in > active_queue_size) {
       return true;
     }
+  }
+
+  if (max_connections_active_per_thread_in > active_queue_size) {
+    return true;
   }
 
   return false; // failed to make room in the queue, all connections are active
@@ -630,7 +640,7 @@ NetHandler::manage_keep_alive_queue()
   int total_idle_time = 0;
   int total_idle_count = 0;
   for (UnixNetVConnection *vc = keep_alive_queue.head; vc != NULL; vc = vc_next) {
-    vc_next = vc->active_queue_link.next;
+    vc_next = vc->keep_alive_queue_link.next;
     _close_vc(vc, now, handle_event, closed, total_idle_time, total_idle_count);
 
     total_connections_in = active_queue_size + keep_alive_queue_size;
@@ -675,7 +685,7 @@ NetHandler::_close_vc(UnixNetVConnection *vc, ink_hrtime now, int &handle_event,
     // create a dummy event
     Event event;
     event.ethread = this_ethread();
-    keep_alive_queue.head->handleEvent(EVENT_IMMEDIATE, &event);
+    vc->handleEvent(EVENT_IMMEDIATE, &event);
     ++handle_event;
   }
 }

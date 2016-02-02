@@ -283,6 +283,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -299,8 +301,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -333,6 +340,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -355,9 +363,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -549,7 +555,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -568,21 +573,11 @@ zlibh = @zlibh@
 SUBDIRS = ts records tsconfig $(am__append_1) $(am__append_2) \
 	$(am__append_3)
 DIST_SUBDIRS = $(SUBDIRS)
-
-# Some special hacks around building the luajit.
-#
-#  - Copy the luajit source tree if we're doing out-of-source builds
-#  - Upon clean, remove the luajit tree from the out-of-source build tree
-#
-# Note: The LUA_LDFLAGS is a bit of a hack, since LuaJIT on OmniOS needs
-#       the -m64 flag. See configure.ac.
-#
-@BUILD_LUAJIT_TRUE@LUA_CFLAGS = $(CFLAGS) $(LUAJIT_CFLAGS) -DLUA_COMPAT_ALL -DLUA_USE_POSIX -DLUA_USE_DLOPEN
 all: ink_autoconf.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -606,9 +601,9 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
@@ -619,7 +614,7 @@ ink_autoconf.h: stamp-h1
 stamp-h1: $(srcdir)/ink_autoconf.h.in $(top_builddir)/config.status
 	@rm -f stamp-h1
 	cd $(top_builddir) && $(SHELL) ./config.status lib/ink_autoconf.h
-$(srcdir)/ink_autoconf.h.in:  $(am__configure_deps) 
+$(srcdir)/ink_autoconf.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps) 
 	($(am__cd) $(top_srcdir) && $(AUTOHEADER))
 	rm -f stamp-h1
 	touch $@
@@ -909,11 +904,24 @@ uninstall-am:
 .PRECIOUS: Makefile
 
 
+# Some special hacks around building the luajit.
+#
+#  - Copy the luajit source tree if we're doing out-of-source builds
+#  - Upon clean, remove the luajit tree from the out-of-source build tree
+#
+# Note: The LUA_LDFLAGS is a bit of a hack, since LuaJIT on OmniOS needs
+#       the -m64 flag. See configure.ac.
+#
 @BUILD_LUAJIT_TRUE@all-local:
 @BUILD_LUAJIT_TRUE@	@echo "Making all in luajit"
 @BUILD_LUAJIT_TRUE@	test -d "$(top_builddir)/$(subdir)/luajit/src" || cp -rf "$(srcdir)/luajit" "$(top_builddir)/$(subdir)/"
-@BUILD_LUAJIT_TRUE@	cd luajit && $(MAKE) $(AM_MAKEFLAGS) BUILDMODE="static" PREFIX="$(prefix)" CC="$(CC)" \
-@BUILD_LUAJIT_TRUE@	                     CFLAGS="$(LUA_CFLAGS)" LDFLAGS="@LUA_LDFLAGS@"
+@BUILD_LUAJIT_TRUE@	cd luajit && $(MAKE) $(AM_MAKEFLAGS) \
+@BUILD_LUAJIT_TRUE@		BUILDMODE="static" \
+@BUILD_LUAJIT_TRUE@		PREFIX="$(prefix)" \
+@BUILD_LUAJIT_TRUE@		CC="$(CC)" \
+@BUILD_LUAJIT_TRUE@		CFLAGS="$(CFLAGS) $(LUA_CFLAGS)" \
+@BUILD_LUAJIT_TRUE@		XCFLAGS="" \
+@BUILD_LUAJIT_TRUE@		LDFLAGS="$(LUA_LDFLAGS)"
 
 @BUILD_LUAJIT_TRUE@clean-local:
 @BUILD_LUAJIT_TRUE@	test "$(top_srcdir)" != "$(top_builddir)" || (cd "$(top_builddir)/$(subdir)/luajit" && $(MAKE) clean)

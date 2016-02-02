@@ -162,6 +162,10 @@ traffic_server_SOURCES = \
   InkIOCoreAPI.cc \
   Main.cc \
   Main.h \
+  ParentConsistentHash.cc \
+  ParentConsistentHash.h \
+  ParentRoundRobin.cc \
+  ParentRoundRobin.h \
   ParentSelection.cc \
   ParentSelection.h \
   Plugin.cc \
@@ -240,7 +244,7 @@ if BUILD_LUAJIT
 
   # On Darwin LuaJIT requires magic link options, otherwise it will crash in luaL_openlibs() at startup. See
   # http://luajit.org/install.html.
-  traffic_server_LDFLAGS += $(TS_LUAJIT_LDFLAGS)
+  traffic_server_LDFLAGS += $(LUAJIT_LDFLAGS)
 endif
 
 traffic_logcat_SOURCES = logcat.cc
@@ -276,6 +280,8 @@ traffic_sac_SOURCES = \
   ICPProcessor.cc \
   ICPStats.cc \
   IPAllow.cc \
+  ParentConsistentHash.cc \
+  ParentRoundRobin.cc \
   ParentSelection.cc \
   ControlBase.cc \
   ControlMatcher.cc \

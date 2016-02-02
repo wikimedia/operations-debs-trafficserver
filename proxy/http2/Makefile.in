@@ -104,6 +104,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@BUILD_TESTS_TRUE@am__append_1 = \
+@BUILD_TESTS_TRUE@	  RegressionHPACK.cc
+
 noinst_PROGRAMS = test_Huffmancode$(EXEEXT)
 TESTS = test_Huffmancode$(EXEEXT)
 subdir = proxy/http2
@@ -142,9 +145,16 @@ am__v_AR_0 = @echo "  AR      " $@;
 am__v_AR_1 = 
 libhttp2_a_AR = $(AR) $(ARFLAGS)
 libhttp2_a_LIBADD =
+am__libhttp2_a_SOURCES_DIST = HPACK.cc HPACK.h HTTP2.cc HTTP2.h \
+	Http2ClientSession.cc Http2ClientSession.h \
+	Http2ConnectionState.cc Http2ConnectionState.h Http2Stream.cc \
+	Http2Stream.h Http2SessionAccept.cc Http2SessionAccept.h \
+	HuffmanCodec.cc HuffmanCodec.h RegressionHPACK.cc
+@BUILD_TESTS_TRUE@am__objects_1 = RegressionHPACK.$(OBJEXT)
 am_libhttp2_a_OBJECTS = HPACK.$(OBJEXT) HTTP2.$(OBJEXT) \
 	Http2ClientSession.$(OBJEXT) Http2ConnectionState.$(OBJEXT) \
-	Http2SessionAccept.$(OBJEXT) HuffmanCodec.$(OBJEXT)
+	Http2Stream.$(OBJEXT) Http2SessionAccept.$(OBJEXT) \
+	HuffmanCodec.$(OBJEXT) $(am__objects_1)
 libhttp2_a_OBJECTS = $(am_libhttp2_a_OBJECTS)
 PROGRAMS = $(noinst_PROGRAMS)
 am_test_Huffmancode_OBJECTS = test_Huffmancode.$(OBJEXT) \
@@ -208,7 +218,8 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(libhttp2_a_SOURCES) $(test_Huffmancode_SOURCES)
-DIST_SOURCES = $(libhttp2_a_SOURCES) $(test_Huffmancode_SOURCES)
+DIST_SOURCES = $(am__libhttp2_a_SOURCES_DIST) \
+	$(test_Huffmancode_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -509,6 +520,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -525,8 +538,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -559,6 +577,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -581,9 +600,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -775,7 +792,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -805,20 +821,11 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/proxy/http/remap
 
 noinst_LIBRARIES = libhttp2.a
-libhttp2_a_SOURCES = \
-  HPACK.cc \
-  HPACK.h \
-  HTTP2.cc \
-  HTTP2.h \
-  Http2ClientSession.cc \
-  Http2ClientSession.h \
-  Http2ConnectionState.cc \
-  Http2ConnectionState.h \
-  Http2SessionAccept.cc \
-  Http2SessionAccept.h \
-  HuffmanCodec.cc \
-  HuffmanCodec.h
-
+libhttp2_a_SOURCES = HPACK.cc HPACK.h HTTP2.cc HTTP2.h \
+	Http2ClientSession.cc Http2ClientSession.h \
+	Http2ConnectionState.cc Http2ConnectionState.h Http2Stream.cc \
+	Http2Stream.h Http2SessionAccept.cc Http2SessionAccept.h \
+	HuffmanCodec.cc HuffmanCodec.h $(am__append_1)
 test_Huffmancode_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la
 
@@ -831,7 +838,7 @@ all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -855,9 +862,9 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
@@ -893,7 +900,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2ClientSession.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2ConnectionState.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2SessionAccept.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2Stream.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HuffmanCodec.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionHPACK.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Huffmancode.Po@am__quote@
 
 .cc.o:

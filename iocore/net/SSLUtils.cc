@@ -25,6 +25,7 @@
 #include "ts/I_Layout.h"
 #include "P_Net.h"
 #include "ts/ink_cap.h"
+#include "ts/ink_mutex.h"
 #include "P_OCSPStapling.h"
 #include "SSLSessionCache.h"
 #include "SSLDynlock.h"
@@ -121,7 +122,7 @@ static int ssl_session_ticket_index = -1;
 #endif
 
 
-static pthread_mutex_t *mutex_buf = NULL;
+static ink_mutex *mutex_buf = NULL;
 static bool open_ssl_initialized = false;
 
 RecRawStatBlock *ssl_rsb = NULL;
@@ -152,9 +153,9 @@ SSL_locking_callback(int mode, int type, const char *file, int line)
 #endif
 
   if (mode & CRYPTO_LOCK) {
-    pthread_mutex_lock(&mutex_buf[type]);
+    ink_mutex_acquire(&mutex_buf[type]);
   } else if (mode & CRYPTO_UNLOCK) {
-    pthread_mutex_unlock(&mutex_buf[type]);
+    ink_mutex_release(&mutex_buf[type]);
   } else {
     Debug("ssl", "invalid SSL locking mode 0x%x", mode);
     ink_assert(0);
@@ -793,7 +794,10 @@ void
 SSLInitializeLibrary()
 {
   if (!open_ssl_initialized) {
+// BoringSSL does not have the memory functions
+#ifndef OPENSSL_IS_BORINGSSL
     CRYPTO_set_mem_functions(ats_malloc, ats_realloc, ats_free);
+#endif
 
     SSL_load_error_strings();
     SSL_library_init();
@@ -806,10 +810,10 @@ SSLInitializeLibrary()
     Debug("ssl", "FIPS_mode: %d", mode);
 #endif
 
-    mutex_buf = (pthread_mutex_t *)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(pthread_mutex_t));
+    mutex_buf = (ink_mutex *)OPENSSL_malloc(CRYPTO_num_locks() * sizeof(ink_mutex));
 
     for (int i = 0; i < CRYPTO_num_locks(); i++) {
-      pthread_mutex_init(&mutex_buf[i], NULL);
+      ink_mutex_init(&mutex_buf[i], NULL);
     }
 
     CRYPTO_set_locking_callback(SSL_locking_callback);
@@ -971,8 +975,9 @@ SSLInitializeStatistics()
   ssl = SSL_new(ctx);
   ciphers = SSL_get_ciphers(ssl);
 
-  for (int index = 0; index < sk_SSL_CIPHER_num(ciphers); index++) {
-    SSL_CIPHER *cipher = sk_SSL_CIPHER_value(ciphers, index);
+  // BoringSSL has sk_SSL_CIPHER_num() return a size_t (well, sk_num() is)
+  for (int index = 0; index < static_cast<int>(sk_SSL_CIPHER_num(ciphers)); index++) {
+    SSL_CIPHER *cipher = const_cast<SSL_CIPHER *>(sk_SSL_CIPHER_value(ciphers, index));
     const char *cipherName = SSL_CIPHER_get_name(cipher);
     std::string statName = "proxy.process.ssl.cipher.user_agent." + std::string(cipherName);
 
@@ -1193,6 +1198,7 @@ SSLPrivateKeyHandler(SSL_CTX *ctx, const SSLConfigParams *params, const ats_scop
       SSLError("failed to load server private key from %s", (const char *)completeServerKeyPath);
       return false;
     }
+    SSLConfigParams::load_ssl_file_cb(completeServerKeyPath, CONFIG_FLAG_UNVERSIONED);
   } else {
     SSLError("empty SSL private key path in records.config");
     return false;
@@ -1207,10 +1213,9 @@ SSLPrivateKeyHandler(SSL_CTX *ctx, const SSLConfigParams *params, const ats_scop
 }
 
 static int
-SSLCheckServerCertNow(X509 *myCert, char *certname)
+SSLCheckServerCertNow(X509 *cert, const char *certname)
 {
   int timeCmpValue;
-  time_t currentTime;
 
   // SSLCheckServerCertNow() -  returns 0 on OK or negative value on failure
   // and update log as appropriate.
@@ -1220,34 +1225,37 @@ SSLCheckServerCertNow(X509 *myCert, char *certname)
   // - current time is between notBefore and notAfter dates of certificate
   // if anything is not kosher, a negative value is returned and appropriate error logged.
 
-  if (!myCert) {
+  if (!cert) {
     // a truncated certificate would fall into here
-    Error("Checking NULL certificate from %s", certname);
+    Error("invalid certificate %s: file is truncated or corrupted", certname);
     return -3;
   }
 
-  time(&currentTime);
-  if (!(timeCmpValue = X509_cmp_time(X509_get_notBefore(myCert), &currentTime))) {
+  // XXX we should log the notBefore and notAfter dates in the errors ...
+
+  timeCmpValue = X509_cmp_current_time(X509_get_notBefore(cert));
+  if (timeCmpValue == 0) {
     // an error occured parsing the time, which we'll call a bogosity
-    Error("Error occured while parsing server certificate notBefore time. %s", certname);
+    Error("invalid certificate %s: unable to parse notBefore time", certname);
     return -3;
-  } else if (0 < timeCmpValue) {
+  } else if (timeCmpValue > 0) {
     // cert contains a date before the notBefore
-    Error("Server certificate notBefore date is in the future - INVALID CERTIFICATE %s", certname);
+    Error("invalid certificate %s: notBefore date is in the future", certname);
     return -4;
   }
 
-  if (!(timeCmpValue = X509_cmp_time(X509_get_notAfter(myCert), &currentTime))) {
+  timeCmpValue = X509_cmp_current_time(X509_get_notAfter(cert));
+  if (timeCmpValue == 0) {
     // an error occured parsing the time, which we'll call a bogosity
-    Error("Error occured while parsing server certificate notAfter time.");
+    Error("invalid certificate %s: unable to parse notAfter time", certname);
     return -3;
-  } else if (0 > timeCmpValue) {
+  } else if (timeCmpValue < 0) {
     // cert is expired
-    Error("Server certificate EXPIRED - INVALID CERTIFICATE %s", certname);
+    Error("invalid certificate %s: certificate expired", certname);
     return -5;
   }
 
-  Debug("ssl", "Server certificate %s passed accessibility and date checks", certname);
+  Debug("ssl", "server certificate %s passed accessibility and date checks", certname);
   return 0; // all good
 
 } /* CheckServerCertNow() */
@@ -1373,6 +1381,7 @@ SSLInitServerContext(const SSLConfigParams *params, const ssl_user_config &sslMu
         goto fail;
       }
       certList.push_back(cert);
+      SSLConfigParams::load_ssl_file_cb(completeServerCertPath, CONFIG_FLAG_UNVERSIONED);
       // Load up any additional chain certificates
       X509 *ca;
       while ((ca = PEM_read_bio_X509(bio.get(), NULL, 0, NULL))) {
@@ -1395,6 +1404,7 @@ SSLInitServerContext(const SSLConfigParams *params, const ssl_user_config &sslMu
         SSLError("failed to load global certificate chain from %s", (const char *)completeServerCertChainPath);
         goto fail;
       }
+      SSLConfigParams::load_ssl_file_cb(completeServerCertChainPath, CONFIG_FLAG_UNVERSIONED);
     }
 
     // Now, load any additional certificate chains specified in this entry.
@@ -1404,6 +1414,7 @@ SSLInitServerContext(const SSLConfigParams *params, const ssl_user_config &sslMu
         SSLError("failed to load certificate chain from %s", (const char *)completeServerCertChainPath);
         goto fail;
       }
+      SSLConfigParams::load_ssl_file_cb(completeServerCertChainPath, CONFIG_FLAG_UNVERSIONED);
     }
   }
 
@@ -1539,7 +1550,7 @@ asn1_strdup(ASN1_STRING *s)
 // table aliases for subject CN and subjectAltNames DNS without wildcard,
 // insert trie aliases for those with wildcard.
 static bool
-ssl_index_certificate(SSLCertLookup *lookup, SSLCertContext const &cc, X509 *cert, char *certname)
+ssl_index_certificate(SSLCertLookup *lookup, SSLCertContext const &cc, X509 *cert, const char *certname)
 {
   X509_NAME *subject = NULL;
   bool inserted = false;
@@ -1610,7 +1621,13 @@ ssl_callback_info(const SSL *ssl, int where, int ret)
       SSLConfigParams::ssl_allow_client_renegotiation == false) {
     int state = SSL_get_state(ssl);
 
+// TODO: ifdef can be removed in the future
+// Support for SSL23 only if we have it
+#ifdef SSL23_ST_SR_CLNT_HELLO_A
     if (state == SSL3_ST_SR_CLNT_HELLO_A || state == SSL23_ST_SR_CLNT_HELLO_A) {
+#else
+    if (state == SSL3_ST_SR_CLNT_HELLO_A) {
+#endif
       netvc->setSSLClientRenegotiationAbort(true);
       Debug("ssl", "ssl_callback_info trying to renegotiate from the client");
     }
@@ -1667,13 +1684,13 @@ ssl_store_ssl_context(const SSLConfigParams *params, SSLCertLookup *lookup, cons
 #if TS_USE_TLS_ALPN
   SSL_CTX_set_alpn_select_cb(ctx, SSLNetVConnection::select_next_protocol, NULL);
 #endif /* TS_USE_TLS_ALPN */
-  char *certname = sslMultCertSettings.cert.get();
 
+  const char *certname = sslMultCertSettings.cert.get();
   for (unsigned i = 0; i < cert_list.length(); ++i) {
     if (0 > SSLCheckServerCertNow(cert_list[i], certname)) {
       /* At this point, we know cert is bad, and we've already printed a
          descriptive reason as to why cert is bad to the log file */
-      Debug("ssl", "Marking certificate as NOT VALID: %s", (certname) ? (const char *)certname : "(null)");
+      Debug("ssl", "Marking certificate as NOT VALID: %s", certname);
       lookup->is_valid = false;
     }
   }
@@ -1857,12 +1874,10 @@ SSLParseCertificateConfiguration(const SSLConfigParams *params, SSLCertLookup *l
     return false;
   }
 
-#if TS_USE_POSIX_CAP
   // elevate/allow file access to root read only files/certs
   uint32_t elevate_setting = 0;
   REC_ReadConfigInteger(elevate_setting, "proxy.config.ssl.cert.load_elevated");
-  ElevateAccess elevate_access(elevate_setting != 0); // destructor will demote for us
-#endif                                                /* TS_USE_POSIX_CAP */
+  ElevateAccess elevate_access(elevate_setting ? ElevateAccess::FILE_PRIVILEGE : 0); // destructor will demote for us
 
   line = tokLine(file_buf, &tok_state);
   while (line != NULL) {

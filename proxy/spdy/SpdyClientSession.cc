@@ -47,6 +47,20 @@ static int spdy_process_fetch_header(TSEvent event, SpdyClientSession *sm, TSFet
 static int spdy_process_fetch_body(TSEvent event, SpdyClientSession *sm, TSFetchSM fetch_sm, SpdyRequest *req);
 static uint64_t g_sm_id = 1;
 
+SpdyRequest *
+SpdyRequest::alloc()
+{
+  return spdyRequestAllocator.alloc();
+}
+
+void
+SpdyRequest::destroy()
+{
+  this->clear();
+  spdyRequestAllocator.free(this);
+}
+
+
 void
 SpdyRequest::init(SpdyClientSession *sm, int id)
 {
@@ -120,6 +134,9 @@ SpdyClientSession::init(NetVConnection *netvc)
 void
 SpdyClientSession::clear()
 {
+  if (!mutex)
+    return; // this object wasn't initialized.
+
   int last_event = event;
 
   SPDY_DECREMENT_THREAD_DYN_STAT(SPDY_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
@@ -133,8 +150,7 @@ SpdyClientSession::clear()
   for (; iter != endIter; ++iter) {
     SpdyRequest *req = iter->second;
     if (req) {
-      req->clear();
-      spdyRequestAllocator.free(req);
+      req->destroy();
     } else {
       Error("req null in SpdSM::clear");
     }
@@ -192,13 +208,20 @@ SpdyClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBu
 
   sm->init(new_vc);
 
-  sm->req_buffer = iobuf ? reinterpret_cast<TSIOBuffer>(iobuf) : TSIOBufferCreate();
+  sm->req_buffer = iobuf ? reinterpret_cast<TSIOBuffer>(iobuf) : reinterpret_cast<TSIOBuffer>(new_empty_MIOBuffer());
   sm->req_reader = reader ? reinterpret_cast<TSIOBufferReader>(reader) : TSIOBufferReaderAlloc(sm->req_buffer);
 
-  sm->resp_buffer = TSIOBufferCreate();
+  sm->resp_buffer = reinterpret_cast<TSIOBuffer>(new_empty_MIOBuffer());
   sm->resp_reader = TSIOBufferReaderAlloc(sm->resp_buffer);
 
-  eventProcessor.schedule_imm(sm, ET_NET);
+  // Block on the mutex.  We just allocated the object, so the lock should be available.
+  EThread *thread(this_ethread());
+  MUTEX_TAKE_LOCK(sm->mutex, thread);
+  // Call state_session_start directly rather than scheduling the event
+  // and leaving a half-setup session around.  It seems like there are some
+  // degenerate cases when event re-ordering causes problems (TS-3957)
+  sm->state_session_start(ET_NET, NULL);
+  MUTEX_UNTAKE_LOCK(sm->mutex, thread);
 }
 
 int

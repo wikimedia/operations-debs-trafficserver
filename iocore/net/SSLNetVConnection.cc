@@ -39,6 +39,11 @@
 void SSL_set_rbio(SSL *ssl, BIO *rbio);
 #endif
 
+// This is missing from BoringSSL
+#ifndef BIO_eof
+#define BIO_eof(b) (int) BIO_ctrl(b, BIO_CTRL_EOF, 0, NULL)
+#endif
+
 #define SSL_READ_ERROR_NONE 0
 #define SSL_READ_ERROR 1
 #define SSL_READ_READY 2
@@ -416,7 +421,13 @@ SSLNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
     readReschedule(nh);
     return;
   }
-
+  // Got closed by the HttpSessionManager thread during a migration
+  // The closed flag should be stable once we get the s->vio.mutex in that case
+  // (the global session pool mutex).
+  if (this->closed) {
+    this->super::net_read_io(nh, lthread);
+    return;
+  }
   // If the key renegotiation failed it's over, just signal the error and finish.
   if (sslClientRenegotiationAbort == true) {
     this->read.triggered = 0;
@@ -888,9 +899,13 @@ SSLNetVConnection::free(EThread *t)
   this->con.close();
   flags = 0;
   SET_CONTINUATION_HANDLER(this, (SSLNetVConnHandler)&SSLNetVConnection::startEvent);
-  nh->read_ready_list.remove(this);
-  nh->write_ready_list.remove(this);
-  nh = NULL;
+
+  if (nh) {
+    nh->read_ready_list.remove(this);
+    nh->write_ready_list.remove(this);
+    nh = NULL;
+  }
+
   read.triggered = 0;
   write.triggered = 0;
   read.enabled = 0;
@@ -901,6 +916,7 @@ SSLNetVConnection::free(EThread *t)
   write.vio.vc_server = NULL;
   options.reset();
   closed = 0;
+  con.close();
   ink_assert(con.fd == NO_FD);
   if (ssl != NULL) {
     SSL_free(ssl);
@@ -935,6 +951,7 @@ SSLNetVConnection::free(EThread *t)
   if (from_accept_thread) {
     sslNetVCAllocator.free(this);
   } else {
+    ink_assert(con.fd == NO_FD);
     THREAD_FREE(this, sslNetVCAllocator, t);
   }
 }
@@ -1514,4 +1531,20 @@ SSLNetVConnection::computeSSLTrace()
   Debug("ssl", "ssl_netvc random=%d, trace=%s", random, trace ? "TRUE" : "FALSE");
 
   return trace;
+}
+
+int
+SSLNetVConnection::populate(Connection &con, Continuation *c, void *arg)
+{
+  int retval = super::populate(con, c, arg);
+  if (retval != EVENT_DONE)
+    return retval;
+  // Add in the SSL data
+  this->ssl = (SSL *)arg;
+  // Maybe bring over the stats?
+
+  this->sslHandShakeComplete = true;
+  this->sslClientConnection = true;
+  SSL_set_ex_data(this->ssl, get_ssl_client_data_index(), this);
+  return EVENT_DONE;
 }
