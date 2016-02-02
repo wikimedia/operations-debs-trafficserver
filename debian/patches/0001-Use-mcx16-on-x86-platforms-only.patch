@@ -1,0 +1,26 @@
+From: Aron Xu <aron@debian.org>
+Date: Tue, 2 Feb 2016 12:17:24 +0800
+Subject: Use -mcx16 on x86 platforms only
+
+---
+ configure.ac | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/configure.ac b/configure.ac
+index 496e16f..c91ad31 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1275,10 +1275,13 @@ CFLAGS="${__saved_CFLAGS}"
+ AC_LANG_POP
+ AC_SUBST(has_128bit_cas)
+ 
++case "$host_cpu" in
++    amd64|x86_64|i*86)
+ AS_IF([test "x$has_128bit_cas" = "x1"], [
+   TS_ADDTO(CFLAGS, [-mcx16])
+   TS_ADDTO(CXXFLAGS, [-mcx16])
+ ])
++esac
+ 
+ # Check for POSIX capabilities library.
+ # If we don't find it, disable checking for header.
