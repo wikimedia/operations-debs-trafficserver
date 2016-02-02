@@ -506,16 +506,29 @@ LogAccessHttp::marshal_client_req_unmapped_url_path(char *buf)
 int
 LogAccessHttp::marshal_client_req_unmapped_url_host(char *buf)
 {
-  int len = INK_MIN_ALIGN;
+  int plen = INK_MIN_ALIGN;
 
   validate_unmapped_url();
   validate_unmapped_url_path();
 
-  len = round_strlen(m_client_req_unmapped_url_host_len + 1); // +1 for eos
-  if (buf) {
-    marshal_mem(buf, m_client_req_unmapped_url_host_str, m_client_req_unmapped_url_host_len, len);
+  int alen = m_client_req_unmapped_url_host_len;
+  if (alen < 0) {
+    alen = 0;
   }
-  return len;
+
+  // calculate the the padded length only if the actual length
+  // is not zero. We don't want the padded length to be zero
+  // because marshal_mem should write the DEFAULT_STR to the
+  // buffer if str is nil, and we need room for this.
+  if (alen) {
+    plen = round_strlen(alen + 1); // +1 for eos
+  }
+
+  if (buf) {
+    marshal_mem(buf, m_client_req_unmapped_url_host_str, alen, plen);
+  }
+
+  return plen;
 }
 
 int
@@ -704,6 +717,34 @@ LogAccessHttp::marshal_client_finish_status_code(char *buf)
     marshal_int(buf, code);
   }
   return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+-------------------------------------------------------------------------*/
+int
+LogAccessHttp::marshal_client_security_protocol(char *buf)
+{
+  const char *proto = m_http_sm->client_sec_protocol;
+  int round_len = LogAccess::strlen(proto);
+
+  if (buf) {
+    marshal_str(buf, proto, round_len);
+  }
+
+  return round_len;
+}
+
+int
+LogAccessHttp::marshal_client_security_cipher_suite(char *buf)
+{
+  const char *cipher = m_http_sm->client_cipher_suite;
+  int round_len = LogAccess::strlen(cipher);
+
+  if (buf) {
+    marshal_str(buf, cipher, round_len);
+  }
+
+  return round_len;
 }
 
 /*-------------------------------------------------------------------------
@@ -926,6 +967,20 @@ LogAccessHttp::marshal_proxy_req_server_port(char *buf)
   -------------------------------------------------------------------------*/
 
 int
+LogAccessHttp::marshal_proxy_req_is_ssl(char *buf)
+{
+  if (buf) {
+    int64_t is_ssl;
+    is_ssl = m_http_sm->server_connection_is_ssl;
+    marshal_int(buf, is_ssl);
+  }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
 LogAccessHttp::marshal_proxy_hierarchy_route(char *buf)
 {
   if (buf) {
@@ -1066,6 +1121,20 @@ LogAccessHttp::marshal_server_resp_time_s(char *buf)
     ink_hrtime elapsed = m_http_sm->milestones[TS_MILESTONE_SERVER_CLOSE] - m_http_sm->milestones[TS_MILESTONE_SERVER_CONNECT];
     int64_t val = (int64_t)ink_hrtime_to_sec(elapsed);
     marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_server_transact_count(char *buf)
+{
+  if (buf) {
+    int64_t count;
+    count = m_http_sm->server_transact_count;
+    marshal_int(buf, count);
   }
   return INK_MIN_ALIGN;
 }

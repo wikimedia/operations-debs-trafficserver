@@ -81,10 +81,10 @@ asf-dist-sign-rc: asf-dist-rc
 	sha1sum -b $(distdir)-rc$(RC).tar.bz2 >$(distdir)-rc$(RC).tar.bz2.sha1
 	gpg --armor --output $(distdir)-rc$(RC).tar.bz2.asc  --detach-sig $(distdir)-rc$(RC).tar.bz2
 
-release: changelog asf-dist-sign
+release: asf-dist-sign
 	git tag -fs -m "Release $(VERSION)" $(VERSION)
 
-rel-candidate: changelog asf-dist-sign-rc
+rel-candidate: asf-dist-sign-rc
 	git tag -fs -m "Release Candidate $(VERSION)-rc$(RC)" $(VERSION)-rc$(RC)
 
 examples: all
@@ -99,9 +99,45 @@ install-data-hook:
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.11-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
 
-clang-format:
-	for f in `find $(top_srcdir) -iname \*.[ch] -o -iname \*.cc | fgrep -v -e lib/luajit -e lib/tsconfig`; do \
-	  echo $$f; clang-format -i $$f; done
+#
+# These are rules to make clang-format easy and fast to run. Run it with e.g.
+#    make -j clang-format
+#
+# If you make changes to directory structures, you must update this as well.
+#
+.PHONY:	clang-format-cmd clang-format-example clang-format-iocore clang-format-lib clang-format-mgmt \
+	clang-format-plugins clang-format-proxy clang-format-tools
+
+clang-format: 	clang-format-cmd clang-format-example clang-format-iocore clang-format-lib clang-format-mgmt \
+		clang-format-plugins clang-format-proxy clang-format-tools
+
+clang-format-cmd:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/cmd
+
+clang-format-example:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/example
+
+clang-format-iocore:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/iocore
+
+clang-format-lib:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/atscppapi
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/raft
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/records
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/ts
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/wccp
+
+clang-format-mgmt:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/mgmt
+
+clang-format-plugins:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/plugins
+
+clang-format-proxy:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/proxy
+
+clang-format-tools:
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/tools
 
 help:
 	@echo 'all             default target for building the package' && \

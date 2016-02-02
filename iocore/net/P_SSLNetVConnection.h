@@ -267,6 +267,29 @@ public:
 
   bool computeSSLTrace();
 
+  const char *
+  getSSLProtocol(void) const
+  {
+    if (ssl == NULL)
+      return NULL;
+    return SSL_get_version(ssl);
+  };
+
+  const char *
+  getSSLCipherSuite(void) const
+  {
+    if (ssl == NULL)
+      return NULL;
+    return SSL_get_cipher_name(ssl);
+  }
+
+  /**
+   * Populate the current object based on the socket information in in the
+   * con parameter and the ssl object in the arg parameter
+   * This is logic is invoked when the NetVC object is created in a new thread context
+   */
+  virtual int populate(Connection &con, Continuation *c, void *arg);
+
 private:
   SSLNetVConnection(const SSLNetVConnection &);
   SSLNetVConnection &operator=(const SSLNetVConnection &);

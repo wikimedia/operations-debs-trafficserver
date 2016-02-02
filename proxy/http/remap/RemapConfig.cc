@@ -760,11 +760,9 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
     Debug("remap_plugin", "New remap plugin info created for \"%s\"", c);
 
     {
-#if TS_USE_POSIX_CAP
       uint32_t elevate_access = 0;
       REC_ReadConfigInteger(elevate_access, "proxy.config.plugin.load_elevated");
-      ElevateAccess access(elevate_access != 0);
-#endif /* TS_USE_POSIX_CAP */
+      ElevateAccess access(elevate_access ? ElevateAccess::FILE_PRIVILEGE : 0);
 
       if ((pi->dlh = dlopen(c, RTLD_NOW)) == NULL) {
 #if defined(freebsd) || defined(openbsd)
@@ -786,9 +784,6 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
       if (!pi->fp_tsremap_init) {
         snprintf(errbuf, errbufsize, "Can't find \"%s\" function in remap plugin \"%s\"", TSREMAP_FUNCNAME_INIT, c);
         retcode = -10;
-      } else if (!pi->fp_tsremap_new_instance) {
-        snprintf(errbuf, errbufsize, "Can't find \"%s\" function in remap plugin \"%s\"", TSREMAP_FUNCNAME_NEW_INSTANCE, c);
-        retcode = -11;
       } else if (!pi->fp_tsremap_do_remap) {
         snprintf(errbuf, errbufsize, "Can't find \"%s\" function in remap plugin \"%s\"", TSREMAP_FUNCNAME_DO_REMAP, c);
         retcode = -12;
@@ -858,12 +853,14 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
     Debug("url_rewrite", "Argument %d: %s", k, parv[k]);
   }
 
-  void *ih;
 
   Debug("remap_plugin", "creating new plugin instance");
 
-  TSReturnCode res = TS_ERROR;
-  res = pi->fp_tsremap_new_instance(parc, parv, &ih, tmpbuf, sizeof(tmpbuf) - 1);
+  void *ih = NULL;
+  TSReturnCode res = TS_SUCCESS;
+  if (pi->fp_tsremap_new_instance) {
+    res = pi->fp_tsremap_new_instance(parc, parv, &ih, tmpbuf, sizeof(tmpbuf) - 1);
+  }
 
   Debug("remap_plugin", "done creating new plugin instance");
 

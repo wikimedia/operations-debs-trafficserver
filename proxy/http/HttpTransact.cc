@@ -983,28 +983,7 @@ HttpTransact::handle_upgrade_request(State *s)
       }
     }
 
-    /*
-       draft-ietf-httpbis-http2-15
-
-       3.2.  Starting HTTP/2 for "http" URIs
-
-       The client makes an HTTP/1.1 request
-       that includes an Upgrade header field identifying HTTP/2 with the
-       "h2c" token.  The HTTP/1.1 request MUST include exactly one
-       HTTP2-Settings header field.
-     */
-    if (s->upgrade_token_wks == MIME_VALUE_H2C) {
-      MIMEField *http2_settings = s->hdr_info.client_request.field_find(MIME_FIELD_HTTP2_SETTINGS, MIME_LEN_HTTP2_SETTINGS);
-
-      // TODO Check whether h2c is enabled or not.
-      if (http2_settings) {
-        s->state_machine->ua_session->set_h2c_upgrade_flag();
-        build_upgrade_response(s);
-        TRANSACT_RETURN_VAL(SM_ACTION_INTERNAL_CACHE_NOOP, NULL, true);
-      } else {
-        DebugTxn("http_trans_upgrade", "Unable to upgrade connection to h2c, invalid headers");
-      }
-    }
+    // TODO accept h2c token to start HTTP/2 session after TS-3498 is fixed
   } else {
     DebugTxn("http_trans_upgrade", "Transaction requested upgrade for unknown protocol: %s", upgrade_hdr_val);
   }
@@ -1381,7 +1360,7 @@ HttpTransact::HandleRequest(State *s)
   // if the newly added varible doc_in_cache_skip_dns is not enabled
   if (s->dns_info.lookup_name[0] <= '9' && s->dns_info.lookup_name[0] >= '0' &&
       (!s->state_machine->enable_redirection || !s->redirect_info.redirect_in_process) &&
-      s->parent_params->ParentTable->hostMatch) {
+      s->parent_params->parent_table->hostMatch) {
     s->force_dns = 1;
   }
   /* A redirect means we need to check some things again.
@@ -1793,7 +1772,7 @@ HttpTransact::OSDNSLookup(State *s)
     // we've come back after already trying the server to get a better address
     // and finished with all backtracking - return to trying the server.
     TRANSACT_RETURN(how_to_open_connection(s), HttpTransact::HandleResponse);
-  } else if (s->dns_info.lookup_name[0] <= '9' && s->dns_info.lookup_name[0] >= '0' && s->parent_params->ParentTable->hostMatch &&
+  } else if (s->dns_info.lookup_name[0] <= '9' && s->dns_info.lookup_name[0] >= '0' && s->parent_params->parent_table->hostMatch &&
              !s->http_config_param->no_dns_forward_to_parent) {
     // note, broken logic: ACC fudges the OR stmt to always be true,
     // 'AuthHttpAdapter' should do the rev-dns if needed, not here .
@@ -2689,6 +2668,18 @@ HttpTransact::HandleCacheOpenReadHit(State *s)
         update_current_info(&s->current, NULL, UNDEFINED_LOOKUP, 0);
         DebugTxn("http_trans", "CacheOpenReadHit - server_down, returning stale document");
       }
+      // a parent lookup could come back as PARENT_FAIL if in parent.config, go_direct == false and
+      // there are no available parents (all down).
+      else if (s->current.request_to == HOST_NONE && s->parent_result.r == PARENT_FAIL) {
+        if (is_server_negative_cached(s) && response_returnable == true && is_stale_cache_response_returnable(s) == true) {
+          server_up = false;
+          update_current_info(&s->current, NULL, UNDEFINED_LOOKUP, 0);
+          DebugTxn("http_trans", "CacheOpenReadHit - server_down, returning stale document");
+        } else {
+          handle_parent_died(s);
+          return;
+        }
+      }
     }
 
     if (server_up || s->stale_icp_lookup) {
@@ -2822,7 +2813,8 @@ HttpTransact::build_response_from_cache(State *s, HTTPWarningCode warning_code)
   // the function match_response_to_request_conditionals() returns
   // the code of the cached response, which means that we should send
   // back the full document.
-  HTTPStatus client_response_code = HttpTransactCache::match_response_to_request_conditionals(client_request, cached_response);
+  HTTPStatus client_response_code =
+    HttpTransactCache::match_response_to_request_conditionals(client_request, cached_response, s->response_received_time);
 
   switch (client_response_code) {
   case HTTP_STATUS_NOT_MODIFIED:
@@ -2951,29 +2943,34 @@ HttpTransact::handle_cache_write_lock(State *s)
     // No write lock, ignore the cache and proxy only;
     // FIX: Should just serve from cache if this is a revalidate
     s->cache_info.action = CACHE_DO_NO_ACTION;
-    if (s->cache_open_write_fail_action & CACHE_OPEN_WRITE_FAIL_ERROR_ON_MISS) {
-      DebugTxn("http_error", "cache_open_write_fail_action, cache miss, return error");
+    switch (s->cache_open_write_fail_action) {
+    case CACHE_WL_FAIL_ACTION_ERROR_ON_MISS:
+    case CACHE_WL_FAIL_ACTION_ERROR_ON_MISS_STALE_ON_REVALIDATE:
+    case CACHE_WL_FAIL_ACTION_ERROR_ON_MISS_OR_REVALIDATE:
+      DebugTxn("http_error", "cache_open_write_fail_action %d, cache miss, return error", s->cache_open_write_fail_action);
       s->cache_info.write_status = CACHE_WRITE_ERROR;
       build_error_response(s, HTTP_STATUS_BAD_GATEWAY, "Connection Failed", "connect#failed_connect", NULL);
       MIMEField *ats_field;
-      HTTPHdr *header = &(s->hdr_info.client_response);
-
+      HTTPHdr *header;
+      header = &(s->hdr_info.client_response);
       if ((ats_field = header->field_find(MIME_FIELD_ATS_INTERNAL, MIME_LEN_ATS_INTERNAL)) == NULL) {
         if (likely((ats_field = header->field_create(MIME_FIELD_ATS_INTERNAL, MIME_LEN_ATS_INTERNAL)) != NULL))
           header->field_attach(ats_field);
       }
       if (likely(ats_field)) {
-        Debug("http_error", "Adding Ats-Internal-Messages: %d", CACHE_WL_FAIL);
-        header->field_value_set_int(ats_field, CACHE_WL_FAIL);
+        int value = (s->cache_info.object_read) ? 1 : 0;
+        Debug("http_error", "Adding Ats-Internal-Messages: %d", value);
+        header->field_value_set_int(ats_field, value);
       } else {
-        Debug("http_error", "failed to add Ats-Internal-Messages: %d", CACHE_WL_FAIL);
+        Debug("http_error", "failed to add Ats-Internal-Messages");
       }
 
       TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, NULL);
       return;
-    } else {
+    default:
       s->cache_info.write_status = CACHE_WRITE_LOCK_MISS;
       remove_ims = true;
+      break;
     }
     break;
   case CACHE_WL_READ_RETRY:
@@ -3119,6 +3116,12 @@ HttpTransact::HandleCacheOpenReadMiss(State *s)
 
   if (!h->is_cache_control_set(HTTP_VALUE_ONLY_IF_CACHED)) {
     find_server_and_update_current_info(s);
+    // a parent lookup could come back as PARENT_FAIL if in parent.config go_direct == false and
+    // there are no available parents (all down).
+    if (s->parent_result.r == PARENT_FAIL) {
+      handle_parent_died(s);
+      return;
+    }
     if (!s->current.server->dst_addr.isValid()) {
       ink_release_assert(s->current.request_to == PARENT_PROXY || s->http_config_param->no_dns_forward_to_parent != 0);
       if (s->current.request_to == PARENT_PROXY) {
@@ -3519,7 +3522,7 @@ HttpTransact::handle_response_from_parent(State *s)
     s->current.server->connect_result = 0;
     SET_VIA_STRING(VIA_DETAIL_PP_CONNECT, VIA_DETAIL_PP_SUCCESS);
     if (s->parent_result.retry) {
-      s->parent_params->recordRetrySuccess(&s->parent_result);
+      s->parent_params->markParentUp(&s->parent_result);
     }
     handle_forward_server_connection_open(s);
     break;
@@ -3826,7 +3829,6 @@ HttpTransact::handle_server_connection_not_open(State *s)
   DebugTxn("http_trans", "[handle_server_connection_not_open] (hscno)");
   DebugTxn("http_seq", "[HttpTransact::handle_server_connection_not_open] ");
   ink_assert(s->current.state != CONNECTION_ALIVE);
-  ink_assert(s->current.server->had_connect_fail());
 
   SET_VIA_STRING(VIA_SERVER_RESULT, VIA_SERVER_ERROR);
   HTTP_INCREMENT_TRANS_STAT(http_broken_server_connections_stat);
@@ -4144,8 +4146,8 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
       client_response_code = base_response->status_get();
     } else if ((s->cache_info.action == CACHE_DO_DELETE) || ((s->cache_info.action == CACHE_DO_UPDATE) && !cacheable)) {
       if (is_request_conditional(&s->hdr_info.client_request)) {
-        client_response_code = HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request,
-                                                                                         s->cache_info.object_read->response_get());
+        client_response_code = HttpTransactCache::match_response_to_request_conditionals(
+          &s->hdr_info.client_request, s->cache_info.object_read->response_get(), s->response_received_time);
       } else {
         client_response_code = HTTP_STATUS_OK;
       }
@@ -4178,7 +4180,7 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
       if (is_request_conditional(&s->hdr_info.client_request)) {
         if (s->txn_conf->cache_when_to_revalidate != 4)
           client_response_code = HttpTransactCache::match_response_to_request_conditionals(
-            &s->hdr_info.client_request, s->cache_info.object_read->response_get());
+            &s->hdr_info.client_request, s->cache_info.object_read->response_get(), s->response_received_time);
         else
           client_response_code = server_response_code;
       } else {
@@ -4296,8 +4298,9 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
       base_response->unset_cooked_cc_need_revalidate_once();
 
       if (is_request_conditional(&s->hdr_info.client_request) &&
-          HttpTransactCache::match_response_to_request_conditionals(
-            &s->hdr_info.client_request, s->cache_info.object_read->response_get()) == HTTP_STATUS_NOT_MODIFIED) {
+          HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request,
+                                                                    s->cache_info.object_read->response_get(),
+                                                                    s->response_received_time) == HTTP_STATUS_NOT_MODIFIED) {
         s->next_action = SM_ACTION_INTERNAL_CACHE_UPDATE_HEADERS;
         client_response_code = HTTP_STATUS_NOT_MODIFIED;
       } else {
@@ -4410,8 +4413,8 @@ HttpTransact::handle_cache_operation_on_forward_server_response(State *s)
           resp->set_expires(exp_time);
         }
       } else if (is_request_conditional(&s->hdr_info.client_request) && server_response_code == HTTP_STATUS_OK) {
-        client_response_code =
-          HttpTransactCache::match_response_to_request_conditionals(&s->hdr_info.client_request, &s->hdr_info.server_response);
+        client_response_code = HttpTransactCache::match_response_to_request_conditionals(
+          &s->hdr_info.client_request, &s->hdr_info.server_response, s->response_received_time);
 
         DebugTxn("http_trans", "[hcoofsr] conditional request, 200 "
                                "response, send back 304 if possible [crc=%d]",
@@ -5584,7 +5587,12 @@ HttpTransact::initialize_state_variables_from_request(State *s, HTTPHdr *obsolet
     s->client_info.proxy_connect_hdr = true;
   }
 
-  if (!s->txn_conf->keep_alive_enabled_in) {
+  if (s->state_machine->ua_session) {
+    s->request_data.incoming_port = s->state_machine->ua_session->get_netvc()->get_local_port();
+    s->request_data.internal_txn = s->state_machine->ua_session->get_netvc()->get_is_internal_request();
+  }
+  // If this is an internal request, never keep alive
+  if (!s->txn_conf->keep_alive_enabled_in || s->request_data.internal_txn) {
     s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
   } else {
     s->client_info.keep_alive = incoming_request->keep_alive_get();
@@ -5664,10 +5672,6 @@ HttpTransact::initialize_state_variables_from_request(State *s, HTTPHdr *obsolet
   s->request_data.hostname_str = s->arena.str_store(host_name, host_len);
   ats_ip_copy(&s->request_data.src_ip, &s->client_info.src_addr);
   memset(&s->request_data.dest_ip, 0, sizeof(s->request_data.dest_ip));
-  if (s->state_machine->ua_session) {
-    s->request_data.incoming_port = s->state_machine->ua_session->get_netvc()->get_local_port();
-    s->request_data.internal_txn = s->state_machine->ua_session->get_netvc()->get_is_internal_request();
-  }
   s->request_data.xact_start = s->client_request_time;
   s->request_data.api_info = &s->api_info;
 
@@ -6941,7 +6945,10 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     // Insert a Transfer-Encoding header in the response if necessary.
 
     // check that the client is HTTP 1.1 and the conf allows chunking
-    if (s->client_info.http_version == HTTPVersion(1, 1) && s->txn_conf->chunking_enabled == 1 &&
+    if (s->client_info.http_version == HTTPVersion(1, 1) &&
+        (s->txn_conf->chunking_enabled == 1 ||
+         (s->state_machine->plugin_tag &&
+          (!strcmp(s->state_machine->plugin_tag, "http/2") || !strncmp(s->state_machine->plugin_tag, "spdy", 4)))) &&
         // if we're not sending a body, don't set a chunked header regardless of server response
         !is_response_body_precluded(s->hdr_info.client_response.status_get(), s->method) &&
         // we do not need chunked encoding for internal error messages
@@ -7301,7 +7308,7 @@ HttpTransact::what_is_document_freshness(State *s, HTTPHdr *client_request, HTTP
   uint32_t cc_mask, cooked_cc_mask;
   uint32_t os_specifies_revalidate;
 
-  if (s->cache_open_write_fail_action & CACHE_OPEN_WRITE_FAIL_STALE_OR_REVALIDATE) {
+  if (s->cache_open_write_fail_action & CACHE_WL_FAIL_ACTION_STALE_ON_REVALIDATE) {
     if (is_stale_cache_response_returnable(s)) {
       DebugTxn("http_match", "[what_is_document_freshness] cache_serve_stale_on_write_lock_fail, return FRESH");
       return (FRESHNESS_FRESH);

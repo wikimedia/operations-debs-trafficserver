@@ -170,13 +170,13 @@ am__installdirs = "$(DESTDIR)$(libdir)" \
 	"$(DESTDIR)$(library_includedir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtsutil_la_DEPENDENCIES = @LIBOBJS@
-am_libtsutil_la_OBJECTS = Arena.lo Bitops.lo ConsistentHash.lo \
-	Diags.lo EventNotify.lo Hash.lo HashFNV.lo HashMD5.lo \
-	HashSip.lo HostLookup.lo IpMap.lo IpMapConf.lo Layout.lo \
-	MMH.lo MatcherUtils.lo MimeTable.lo ParseRules.lo \
-	RawHashTable.lo RbTree.lo Regex.lo Regression.lo TextBuffer.lo \
-	Tokenizer.lo Vec.lo Version.lo fastlz.lo hugepages.lo \
-	ink_args.lo ink_assert.lo ink_auth_api.lo ink_base64.lo \
+am_libtsutil_la_OBJECTS = Arena.lo BaseLogFile.lo Bitops.lo \
+	ConsistentHash.lo ContFlags.lo Diags.lo EventNotify.lo Hash.lo \
+	HashFNV.lo HashMD5.lo HashSip.lo HostLookup.lo IpMap.lo \
+	IpMapConf.lo Layout.lo MMH.lo MatcherUtils.lo MimeTable.lo \
+	ParseRules.lo RawHashTable.lo RbTree.lo Regex.lo Regression.lo \
+	TextBuffer.lo Tokenizer.lo Vec.lo Version.lo fastlz.lo \
+	hugepages.lo ink_args.lo ink_assert.lo ink_base64.lo \
 	ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo ink_file.lo \
 	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_memory.lo \
 	ink_mutex.lo ink_queue.lo ink_queue_utils.lo ink_rand.lo \
@@ -594,6 +594,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
+LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBPCRE = @LIBPCRE@
 LIBPROFILER = @LIBPROFILER@
@@ -610,8 +612,13 @@ LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
+LUA_CFLAGS = @LUA_CFLAGS@
 LUA_LDFLAGS = @LUA_LDFLAGS@
+MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
@@ -644,6 +651,7 @@ PYTHON_PREFIX = @PYTHON_PREFIX@
 PYTHON_VERSION = @PYTHON_VERSION@
 RANLIB = @RANLIB@
 RM = @RM@
+RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHARED_CFLAGS = @SHARED_CFLAGS@
@@ -666,9 +674,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
-TFW_PACKAGE_SUFFIX = @TFW_PACKAGE_SUFFIX@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
-TS_LUAJIT_LDFLAGS = @TS_LUAJIT_LDFLAGS@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
 TS_MAN5_MANPAGES = @TS_MAN5_MANPAGES@
@@ -860,7 +866,6 @@ use_cert_cb = @use_cert_cb@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
-use_freelist = @use_freelist@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
@@ -896,10 +901,14 @@ libtsutil_la_SOURCES = \
   Allocator.h \
   Arena.cc \
   Arena.h \
+  BaseLogFile.cc \
+  BaseLogFile.h \
   Bitops.cc \
   Bitops.h \
   ConsistentHash.cc \
   ConsistentHash.h \
+  ContFlags.cc \
+  ContFlags.h \
   Cryptohash.h \
   Diags.cc \
   Diags.h \
@@ -970,8 +979,6 @@ libtsutil_la_SOURCES = \
   ink_assert.cc \
   ink_assert.h \
   ink_atomic.h \
-  ink_auth_api.cc \
-  ink_auth_api.h \
   ink_base64.cc \
   ink_base64.h \
   ink_cap.cc \
@@ -1067,7 +1074,7 @@ all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1091,9 +1098,9 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 apidefs.h: $(top_builddir)/config.status $(srcdir)/apidefs.h.in
@@ -1208,9 +1215,11 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Arena.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BaseLogFile.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Bitops.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CompileParseRules.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ConsistentHash.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ContFlags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Diags.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/EventNotify.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Hash.Plo@am__quote@
@@ -1238,7 +1247,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hugepages.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_args.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_assert.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_auth_api.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_base64.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_cap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_code.Plo@am__quote@

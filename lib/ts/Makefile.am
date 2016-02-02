@@ -43,10 +43,14 @@ libtsutil_la_SOURCES = \
   Allocator.h \
   Arena.cc \
   Arena.h \
+  BaseLogFile.cc \
+  BaseLogFile.h \
   Bitops.cc \
   Bitops.h \
   ConsistentHash.cc \
   ConsistentHash.h \
+  ContFlags.cc \
+  ContFlags.h \
   Cryptohash.h \
   Diags.cc \
   Diags.h \
@@ -117,8 +121,6 @@ libtsutil_la_SOURCES = \
   ink_assert.cc \
   ink_assert.h \
   ink_atomic.h \
-  ink_auth_api.cc \
-  ink_auth_api.h \
   ink_base64.cc \
   ink_base64.h \
   ink_cap.cc \

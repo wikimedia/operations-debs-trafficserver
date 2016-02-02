@@ -24,17 +24,15 @@
 #include "P_Net.h"
 #include "Http2ConnectionState.h"
 #include "Http2ClientSession.h"
+#include "Http2Stream.h"
 
 #define DebugHttp2Ssn(fmt, ...) DebugSsn("http2_cs", "[%" PRId64 "] " fmt, this->con_id, __VA_ARGS__)
-
-// Currently use only HTTP/1.1 for requesting to origin server
-const static char *HTTP2_FETCHING_HTTP_VERSION = "HTTP/1.1";
 
 typedef Http2Error (*http2_frame_dispatch)(Http2ClientSession &, Http2ConnectionState &, const Http2Frame &);
 
 static const int buffer_size_index[HTTP2_FRAME_TYPE_MAX] = {
   BUFFER_SIZE_INDEX_8K,  // HTTP2_FRAME_TYPE_DATA
-  BUFFER_SIZE_INDEX_4K,  // HTTP2_FRAME_TYPE_HEADERS
+  BUFFER_SIZE_INDEX_16K, // HTTP2_FRAME_TYPE_HEADERS
   -1,                    // HTTP2_FRAME_TYPE_PRIORITY
   BUFFER_SIZE_INDEX_128, // HTTP2_FRAME_TYPE_RST_STREAM
   BUFFER_SIZE_INDEX_128, // HTTP2_FRAME_TYPE_SETTINGS
@@ -42,7 +40,7 @@ static const int buffer_size_index[HTTP2_FRAME_TYPE_MAX] = {
   BUFFER_SIZE_INDEX_128, // HTTP2_FRAME_TYPE_PING
   BUFFER_SIZE_INDEX_128, // HTTP2_FRAME_TYPE_GOAWAY
   BUFFER_SIZE_INDEX_128, // HTTP2_FRAME_TYPE_WINDOW_UPDATE
-  BUFFER_SIZE_INDEX_4K,  // HTTP2_FRAME_TYPE_CONTINUATION
+  BUFFER_SIZE_INDEX_16K, // HTTP2_FRAME_TYPE_CONTINUATION
 };
 
 inline static unsigned
@@ -165,9 +163,9 @@ rcv_data_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Http2
  *
  * NOTE: HEADERS Frame and CONTINUATION Frame
  *   1. A HEADERS frame with the END_STREAM flag set can be followed by
- *CONTINUATION frames on the same stream.
+ *      CONTINUATION frames on the same stream.
  *   2. A HEADERS frame without the END_HEADERS flag set MUST be followed by a
- *CONTINUATION frame
+ *      CONTINUATION frame
  */
 static Http2Error
 rcv_headers_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Http2Frame &frame)
@@ -181,14 +179,18 @@ rcv_headers_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Ht
     return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
   }
 
+  Http2Stream *stream = NULL;
   if (stream_id <= cstate.get_latest_stream_id()) {
-    return Http2Error(HTTP2_ERROR_CLASS_STREAM, HTTP2_ERROR_STREAM_CLOSED);
-  }
-
-  // Create new stream
-  Http2Stream *stream = cstate.create_stream(stream_id);
-  if (!stream) {
-    return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
+    stream = cstate.find_stream(stream_id);
+    if (stream == NULL || !stream->has_trailing_header()) {
+      return Http2Error(HTTP2_ERROR_CLASS_STREAM, HTTP2_ERROR_STREAM_CLOSED);
+    }
+  } else {
+    // Create new stream
+    stream = cstate.create_stream(stream_id);
+    if (!stream) {
+      return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
+    }
   }
 
   // keep track of how many bytes we get in the frame
@@ -249,11 +251,23 @@ rcv_headers_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Ht
 
   if (frame.header().flags & HTTP2_FLAGS_HEADERS_END_HEADERS) {
     // NOTE: If there are END_HEADERS flag, decode stored Header Blocks.
-    if (!stream->change_state(HTTP2_FRAME_TYPE_HEADERS, frame.header().flags)) {
+    if (!stream->change_state(HTTP2_FRAME_TYPE_HEADERS, frame.header().flags) && stream->has_trailing_header() == false) {
       return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
     }
 
-    const int64_t decoded_bytes = stream->decode_header_blocks(*cstate.local_dynamic_table);
+    bool skip_fetcher = false;
+    if (stream->has_trailing_header()) {
+      if (!(frame.header().flags & HTTP2_FLAGS_HEADERS_END_STREAM)) {
+        return Http2Error(HTTP2_ERROR_CLASS_STREAM, HTTP2_ERROR_PROTOCOL_ERROR);
+      }
+      // If the flag has already been set before decoding header blocks, this is the trailing header.
+      // Set a flag to avoid initializing fetcher for now.
+      // Decoding header blocks is stil needed to maintain a HPACK dynamic table.
+      // TODO: TS-3812
+      skip_fetcher = true;
+    }
+
+    const int64_t decoded_bytes = stream->decode_header_blocks(*cstate.local_indexing_table);
 
     if (decoded_bytes == 0 || decoded_bytes == HPACK_ERROR_COMPRESSION_ERROR) {
       return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_COMPRESSION_ERROR);
@@ -261,7 +275,11 @@ rcv_headers_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Ht
       return Http2Error(HTTP2_ERROR_CLASS_STREAM, HTTP2_ERROR_PROTOCOL_ERROR);
     }
 
-    stream->init_fetcher(cstate);
+    if (!skip_fetcher) {
+      if (!stream->init_fetcher(cstate)) {
+        return Http2Error(HTTP2_ERROR_CLASS_STREAM, HTTP2_ERROR_PROTOCOL_ERROR);
+      }
+    }
   } else {
     // NOTE: Expect CONTINUATION Frame. Do NOT change state of stream or decode
     // Header Blocks.
@@ -360,7 +378,7 @@ rcv_settings_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const H
 
   DebugSsn(&cs, "http2_cs", "[%" PRId64 "] Received SETTINGS frame.", cs.connection_id());
 
-  // 6.5 The stream identifier for a SETTINGS frame MUST be zero.
+  // [RFC 7540] 6.5. The stream identifier for a SETTINGS frame MUST be zero.
   // If an endpoint receives a SETTINGS frame whose stream identifier field is
   // anything other than 0x0, the endpoint MUST respond with a connection
   // error (Section 5.4.1) of type PROTOCOL_ERROR.
@@ -368,7 +386,7 @@ rcv_settings_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const H
     return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
   }
 
-  // 6.5 Receipt of a SETTINGS frame with the ACK flag set and a
+  // [RFC 7540] 6.5. Receipt of a SETTINGS frame with the ACK flag set and a
   // length field value other than 0 MUST be treated as a connection
   // error of type FRAME_SIZE_ERROR.
   if (frame.header().flags & HTTP2_FLAGS_SETTINGS_ACK) {
@@ -403,7 +421,7 @@ rcv_settings_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const H
 
     DebugSsn(&cs, "http2_cs", "[%" PRId64 "] setting param=%d value=%u", cs.connection_id(), param.id, param.value);
 
-    // 6.9.2. When the value of SETTINGS_INITIAL_WINDOW_SIZE
+    // [RFC 7540] 6.9.2. When the value of SETTINGS_INITIAL_WINDOW_SIZE
     // changes, a receiver MUST adjust the size of all stream flow control
     // windows that it maintains by the difference between the new value and
     // the old value.
@@ -414,9 +432,8 @@ rcv_settings_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const H
     cstate.client_settings.set((Http2SettingsIdentifier)param.id, param.value);
   }
 
-  // 6.5 Once all values have been applied, the recipient MUST immediately emit
-  // a
-  // SETTINGS frame with the ACK flag set.
+  // [RFC 7540] 6.5. Once all values have been applied, the recipient MUST
+  // immediately emit a SETTINGS frame with the ACK flag set.
   Http2Frame ackFrame(HTTP2_FRAME_TYPE_SETTINGS, 0, HTTP2_FLAGS_SETTINGS_ACK);
   cstate.ua_session->handleEvent(HTTP2_SESSION_EVENT_XMIT, &ackFrame);
 
@@ -428,12 +445,11 @@ rcv_push_promise_frame(Http2ClientSession &cs, Http2ConnectionState & /*cstate*/
 {
   DebugSsn(&cs, "http2_cs", "[%" PRId64 "] received PUSH_PROMISE frame", cs.connection_id());
 
-  // 8.2. A client cannot push.  Thus, servers MUST treat the receipt of a
+  // [RFC 7540] 8.2. A client cannot push. Thus, servers MUST treat the receipt of a
   // PUSH_PROMISE frame as a connection error of type PROTOCOL_ERROR.
   return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
 }
 
-// 6.7.  PING
 static Http2Error
 rcv_ping_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Http2Frame &frame)
 {
@@ -442,8 +458,7 @@ rcv_ping_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, const Http2
   DebugSsn(&cs, "http2_cs", "[%" PRId64 "] Received PING frame.", cs.connection_id());
 
   //  If a PING frame is received with a stream identifier field value other
-  //  than
-  //  0x0, the recipient MUST respond with a connection error of type
+  //  than 0x0, the recipient MUST respond with a connection error of type
   //  PROTOCOL_ERROR.
   if (frame.header().streamid != 0x0) {
     return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
@@ -576,7 +591,7 @@ rcv_window_update_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, co
 
     stream->client_rwnd += size;
     ssize_t wnd = min(cstate.client_rwnd, stream->client_rwnd);
-    if (wnd > 0) {
+    if (stream->get_state() == HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE && wnd > 0) {
       cstate.send_data_frame(stream->get_fetcher());
     }
   }
@@ -607,8 +622,7 @@ rcv_continuation_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, con
   // CONTINUATION frames MUST be associated with a stream.  If a
   // CONTINUATION frame is received whose stream identifier field is 0x0,
   // the recipient MUST respond with a connection error ([RFC 7540] Section
-  // 5.4.1) of
-  // type PROTOCOL_ERROR.
+  // 5.4.1) of type PROTOCOL_ERROR.
   Http2Stream *stream = cstate.find_stream(stream_id);
   if (stream == NULL) {
     if (stream_id <= cstate.get_latest_stream_id()) {
@@ -634,10 +648,6 @@ rcv_continuation_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, con
     return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
   }
 
-  if (!stream->header_blocks) {
-    return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
-  }
-
   uint32_t header_blocks_offset = stream->header_blocks_length;
   stream->header_blocks_length += payload_length;
 
@@ -652,7 +662,7 @@ rcv_continuation_frame(Http2ClientSession &cs, Http2ConnectionState &cstate, con
       return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_PROTOCOL_ERROR);
     }
 
-    const int64_t decoded_bytes = stream->decode_header_blocks(*cstate.local_dynamic_table);
+    const int64_t decoded_bytes = stream->decode_header_blocks(*cstate.local_indexing_table);
 
     if (decoded_bytes == 0 || decoded_bytes == HPACK_ERROR_COMPRESSION_ERROR) {
       return Http2Error(HTTP2_ERROR_CLASS_CONNECTION, HTTP2_ERROR_COMPRESSION_ERROR);
@@ -691,7 +701,7 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
     ink_assert(this->ua_session == NULL);
     this->ua_session = (Http2ClientSession *)edata;
 
-    // 3.5 HTTP/2 Connection Preface. Upon establishment of a TCP connection and
+    // [RFC 7540] 3.5. HTTP/2 Connection Preface. Upon establishment of a TCP connection and
     // determination that HTTP/2 will be used by both peers, each endpoint MUST
     // send a connection preface as a final confirmation ... The server
     // connection
@@ -724,9 +734,8 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
     Http2StreamId last_streamid = frame->header().streamid;
     Http2Error error;
 
-    // 5.5 Extending HTTP/2
-    //   Implementations MUST discard frames that have unknown or unsupported
-    //   types.
+    // [RFC 7540] 5.5. Extending HTTP/2
+    //   Implementations MUST discard frames that have unknown or unsupported types.
     if (frame->header().type >= HTTP2_FRAME_TYPE_MAX) {
       DebugSsn(this->ua_session, "http2_cs", "[%" PRId64 "] Discard a frame which has unknown type, type=%x",
                this->ua_session->connection_id(), frame->header().type);
@@ -843,7 +852,7 @@ Http2ConnectionState::restart_streams()
   Http2Stream *s = stream_list.head;
   while (s) {
     Http2Stream *next = s->link.next;
-    if (min(this->client_rwnd, s->client_rwnd) > 0) {
+    if (s->get_state() == HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE && min(this->client_rwnd, s->client_rwnd) > 0) {
       this->send_data_frame(s->get_fetcher());
     }
     s = next;
@@ -894,10 +903,18 @@ Http2ConnectionState::send_data_frame(FetchSM *fetch_sm)
 {
   DebugSsn(this->ua_session, "http2_cs", "[%" PRId64 "] Send DATA frame", this->ua_session->connection_id());
 
+  if (fetch_sm == NULL) {
+    return;
+  }
+
   size_t buf_len = BUFFER_SIZE_FOR_INDEX(buffer_size_index[HTTP2_FRAME_TYPE_DATA]) - HTTP2_FRAME_HEADER_LEN;
   uint8_t payload_buffer[buf_len];
 
   Http2Stream *stream = static_cast<Http2Stream *>(fetch_sm->ext_get_user_data());
+
+  if (stream->get_state() == HTTP2_STREAM_STATE_CLOSED) {
+    return;
+  }
 
   for (;;) {
     uint8_t flags = 0x00;
@@ -946,8 +963,7 @@ Http2ConnectionState::send_data_frame(FetchSM *fetch_sm)
       // Delete a stream immediately
       // TODO its should not be deleted for a several time to handling
       // RST_STREAM and WINDOW_UPDATE.
-      // See 'closed' state written at
-      // https://tools.ietf.org/html/draft-ietf-httpbis-http2-16#section-5.1
+      // See 'closed' state written at [RFC 7540] 5.1.
       this->delete_stream(stream);
       break;
     }
@@ -968,7 +984,7 @@ Http2ConnectionState::send_headers_frame(FetchSM *fetch_sm)
   HTTPHdr *resp_header = reinterpret_cast<HTTPHdr *>(fetch_sm->resp_hdr_bufp());
 
   // Write pseudo headers
-  payload_length += http2_write_psuedo_headers(resp_header, payload_buffer, buf_len, *(this->remote_dynamic_table));
+  payload_length += http2_write_psuedo_headers(resp_header, payload_buffer, buf_len, *(this->remote_indexing_table));
 
   // If response body is empty, set END_STREAM flag to HEADERS frame
   // Must check to ensure content-length is there.  Otherwise the value defaults
@@ -985,7 +1001,7 @@ Http2ConnectionState::send_headers_frame(FetchSM *fetch_sm)
 
     // Encode by HPACK naive
     payload_length += http2_write_header_fragment(resp_header, field_iter, payload_buffer + payload_length,
-                                                  buf_len - payload_length, *(this->remote_dynamic_table), cont);
+                                                  buf_len - payload_length, *(this->remote_indexing_table), cont);
 
     // If buffer size is enough to send rest of headers, set END_HEADERS flag
     if (buf_len >= payload_length && !cont) {
@@ -1020,6 +1036,15 @@ Http2ConnectionState::send_rst_stream_frame(Http2StreamId id, Http2ErrorCode ec)
   rst_stream.alloc(buffer_size_index[HTTP2_FRAME_TYPE_RST_STREAM]);
   http2_write_rst_stream(static_cast<uint32_t>(ec), rst_stream.write());
   rst_stream.finalize(HTTP2_RST_STREAM_LEN);
+
+  // change state to closed
+  Http2Stream *stream = find_stream(id);
+  if (stream != NULL) {
+    if (!stream->change_state(HTTP2_FRAME_TYPE_RST_STREAM, 0)) {
+      this->send_goaway_frame(stream->get_id(), HTTP2_ERROR_PROTOCOL_ERROR);
+      return;
+    }
+  }
 
   // xmit event
   SCOPED_MUTEX_LOCK(lock, this->ua_session->mutex, this_ethread());
@@ -1119,143 +1144,4 @@ Http2ConnectionState::send_window_update_frame(Http2StreamId id, uint32_t size)
   // xmit event
   SCOPED_MUTEX_LOCK(lock, this->ua_session->mutex, this_ethread());
   this->ua_session->handleEvent(HTTP2_SESSION_EVENT_XMIT, &window_update);
-}
-
-void
-Http2Stream::init_fetcher(Http2ConnectionState &cstate)
-{
-  extern ClassAllocator<FetchSM> FetchSMAllocator;
-
-  // Convert header to HTTP/1.1 format
-  convert_from_2_to_1_1_header(&_req_header);
-
-  // Get null-terminated URL and method
-  Arena arena;
-  int url_len, method_len;
-  const char *url_ref = _req_header.url_get()->string_get_ref(&url_len);
-  const char *url = arena.str_store(url_ref, url_len);
-  const char *method_ref = _req_header.method_get(&method_len);
-  const char *method = arena.str_store(method_ref, method_len);
-
-  // Initialize FetchSM
-  _fetch_sm = FetchSMAllocator.alloc();
-  _fetch_sm->ext_init((Continuation *)cstate.ua_session, method, url, HTTP2_FETCHING_HTTP_VERSION,
-                      cstate.ua_session->get_client_addr(), (TS_FETCH_FLAGS_DECHUNK | TS_FETCH_FLAGS_NOT_INTERNAL_REQUEST));
-
-  // Set request header
-  MIMEFieldIter fiter;
-  for (const MIMEField *field = _req_header.iter_get_first(&fiter); field != NULL; field = _req_header.iter_get_next(&fiter)) {
-    int name_len, value_len;
-    const char *name = field->name_get(&name_len);
-    const char *value = field->value_get(&value_len);
-
-    _fetch_sm->ext_add_header(name, name_len, value, value_len);
-  }
-
-  _fetch_sm->ext_set_user_data(this);
-  _fetch_sm->ext_launch();
-}
-
-void
-Http2Stream::set_body_to_fetcher(const void *data, size_t len)
-{
-  ink_assert(_fetch_sm != NULL);
-
-  _fetch_sm->ext_write_data(data, len);
-}
-
-/*
- * 5.1. Stream States
- *
- *                       +--------+
- *                 PP    |        |    PP
- *              ,--------|  idle  |--------.
- *             /         |        |         \
- *            v          +--------+          v
- *     +----------+          |           +----------+
- *     |          |          | H         |          |
- * ,---| reserved |          |           | reserved |---.
- * |   | (local)  |          v           | (remote) |   |
- * |   +----------+      +--------+      +----------+   |
- * |      |          ES  |        |  ES          |      |
- * |      | H    ,-------|  open  |-------.      | H    |
- * |      |     /        |        |        \     |      |
- * |      v    v         +--------+         v    v      |
- * |   +----------+          |           +----------+   |
- * |   |   half   |          |           |   half   |   |
- * |   |  closed  |          | R         |  closed  |   |
- * |   | (remote) |          |           | (local)  |   |
- * |   +----------+          |           +----------+   |
- * |        |                v                 |        |
- * |        |  ES / R    +--------+  ES / R    |        |
- * |        `----------->|        |<-----------'        |
- * |  R                  | closed |                  R  |
- * `-------------------->|        |<--------------------'
- *                       +--------+
- */
-bool
-Http2Stream::change_state(uint8_t type, uint8_t flags)
-{
-  switch (_state) {
-  case HTTP2_STREAM_STATE_IDLE:
-    if (type == HTTP2_FRAME_TYPE_HEADERS) {
-      if (end_stream && flags & HTTP2_FLAGS_HEADERS_END_HEADERS) {
-        _state = HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE;
-      } else {
-        _state = HTTP2_STREAM_STATE_OPEN;
-      }
-    } else if (type == HTTP2_FRAME_TYPE_CONTINUATION) {
-      if (end_stream && flags & HTTP2_FLAGS_CONTINUATION_END_HEADERS) {
-        _state = HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE;
-      } else {
-        _state = HTTP2_STREAM_STATE_OPEN;
-      }
-    } else if (type == HTTP2_FRAME_TYPE_PUSH_PROMISE) {
-      // XXX Server Push have been supported yet.
-    } else {
-      return false;
-    }
-    break;
-
-  case HTTP2_STREAM_STATE_OPEN:
-    if (type == HTTP2_FRAME_TYPE_RST_STREAM) {
-      _state = HTTP2_STREAM_STATE_CLOSED;
-    } else if (type == HTTP2_FRAME_TYPE_DATA && flags & HTTP2_FLAGS_DATA_END_STREAM) {
-      _state = HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE;
-    } else {
-      // Currently ATS supports only HTTP/2 server features
-      return false;
-    }
-    break;
-
-  case HTTP2_STREAM_STATE_RESERVED_LOCAL:
-    // Currently ATS supports only HTTP/2 server features
-    return false;
-
-  case HTTP2_STREAM_STATE_RESERVED_REMOTE:
-    // XXX Server Push have been supported yet.
-    return false;
-
-  case HTTP2_STREAM_STATE_HALF_CLOSED_LOCAL:
-    // Currently ATS supports only HTTP/2 server features
-    return false;
-
-  case HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE:
-    if (type == HTTP2_FRAME_TYPE_RST_STREAM || (type == HTTP2_FRAME_TYPE_HEADERS && flags & HTTP2_FLAGS_HEADERS_END_STREAM) ||
-        (type == HTTP2_FRAME_TYPE_DATA && flags & HTTP2_FLAGS_DATA_END_STREAM)) {
-      _state = HTTP2_STREAM_STATE_CLOSED;
-    } else {
-      return false;
-    }
-    break;
-
-  case HTTP2_STREAM_STATE_CLOSED:
-    // No state changing
-    return false;
-
-  default:
-    return false;
-  }
-
-  return true;
 }

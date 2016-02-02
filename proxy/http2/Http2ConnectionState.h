@@ -27,6 +27,7 @@
 #include "HTTP2.h"
 #include "HPACK.h"
 #include "FetchSM.h"
+#include "Http2Stream.h"
 
 class Http2ClientSession;
 
@@ -94,113 +95,6 @@ private:
   unsigned settings[HTTP2_SETTINGS_MAX - 1];
 };
 
-class Http2ConnectionState;
-
-class Http2Stream
-{
-public:
-  Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size)
-    : client_rwnd(initial_rwnd), server_rwnd(Http2::initial_window_size), header_blocks(NULL), header_blocks_length(0), request_header_length(0),
-      end_stream(false), _id(sid), _state(HTTP2_STREAM_STATE_IDLE), _fetch_sm(NULL), body_done(false), data_length(0)
-  {
-    _thread = this_ethread();
-    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_STREAM_COUNT, _thread);
-    _start_time = ink_hrtime();
-    // FIXME: Are you sure? every "stream" needs _req_header?
-    _req_header.create(HTTP_TYPE_REQUEST);
-  }
-
-  ~Http2Stream()
-  {
-    HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_STREAM_COUNT, _thread);
-    ink_hrtime end_time = ink_hrtime();
-    HTTP2_SUM_THREAD_DYN_STAT(HTTP2_STAT_TOTAL_TRANSACTIONS_TIME, _thread, end_time - _start_time);
-    _req_header.destroy();
-
-    if (_fetch_sm) {
-      _fetch_sm->ext_destroy();
-      _fetch_sm = NULL;
-    }
-    if (header_blocks) {
-      ats_free(header_blocks);
-    }
-  }
-
-  // Operate FetchSM
-  void init_fetcher(Http2ConnectionState &cstate);
-  void set_body_to_fetcher(const void *data, size_t len);
-  FetchSM *
-  get_fetcher()
-  {
-    return _fetch_sm;
-  }
-  bool
-  is_body_done() const
-  {
-    return body_done;
-  }
-  void
-  mark_body_done()
-  {
-    body_done = true;
-  }
-
-  const Http2StreamId
-  get_id() const
-  {
-    return _id;
-  }
-  const Http2StreamState
-  get_state() const
-  {
-    return _state;
-  }
-  bool change_state(uint8_t type, uint8_t flags);
-
-  int64_t
-  decode_header_blocks(Http2DynamicTable &dynamic_table)
-  {
-    return http2_decode_header_blocks(&_req_header, (const uint8_t *)header_blocks,
-                                      (const uint8_t *)header_blocks + header_blocks_length, dynamic_table);
-  }
-
-  // Check entire DATA payload length if content-length: header is exist
-  void
-  increment_data_length(uint64_t length)
-  {
-    data_length += length;
-  }
-  bool
-  payload_length_is_valid() const
-  {
-    uint32_t content_length = _req_header.get_content_length();
-    return content_length == 0 || content_length == data_length;
-  }
-
-  // Stream level window size
-  ssize_t client_rwnd, server_rwnd;
-
-  LINK(Http2Stream, link);
-
-  uint8_t *header_blocks;
-  uint32_t header_blocks_length;  // total length of header blocks (not include
-                                  // Padding or other fields)
-  uint32_t request_header_length; // total length of payload (include Padding
-                                  // and other fields)
-  bool end_stream;
-
-private:
-  ink_hrtime _start_time;
-  EThread *_thread;
-  Http2StreamId _id;
-  Http2StreamState _state;
-
-  HTTPHdr _req_header;
-  FetchSM *_fetch_sm;
-  bool body_done;
-  uint64_t data_length;
-};
-
 // Http2ConnectionState
 //
 // Capture the semantics of a HTTP/2 connection. The client session captures the
@@ -218,8 +112,8 @@ public:
   }
 
   Http2ClientSession *ua_session;
-  Http2DynamicTable *local_dynamic_table;
-  Http2DynamicTable *remote_dynamic_table;
+  Http2IndexingTable *local_indexing_table;
+  Http2IndexingTable *remote_indexing_table;
 
   // Settings.
   Http2ConnectionSettings server_settings;
@@ -228,8 +122,8 @@ public:
   void
   init()
   {
-    local_dynamic_table = new Http2DynamicTable();
-    remote_dynamic_table = new Http2DynamicTable();
+    local_indexing_table = new Http2IndexingTable();
+    remote_indexing_table = new Http2IndexingTable();
 
     continued_buffer.iov_base = NULL;
     continued_buffer.iov_len = 0;
@@ -241,8 +135,8 @@ public:
     cleanup_streams();
 
     mutex = NULL; // magic happens - assigning to NULL frees the ProxyMutex
-    delete local_dynamic_table;
-    delete remote_dynamic_table;
+    delete local_indexing_table;
+    delete remote_indexing_table;
 
     ats_free(continued_buffer.iov_base);
   }

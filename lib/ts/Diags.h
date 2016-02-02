@@ -36,12 +36,15 @@
 #define __DIAGS_H___
 
 #include <stdarg.h>
-#include "ts/ink_error.h"
-#include "ts/ink_mutex.h"
-#include "ts/Regex.h"
-#include "ts/ink_apidefs.h"
+#include "ink_mutex.h"
+#include "Regex.h"
+#include "ink_apidefs.h"
+#include "ContFlags.h"
+#include "ink_inet.h"
+#include "BaseLogFile.h"
 
 #define DIAGS_MAGIC 0x12345678
+#define BYTES_IN_MB 1000000
 
 class Diags;
 
@@ -70,6 +73,8 @@ typedef enum {  // do not renumber --- used as array index
   DL_Emergency, // causes process termination
   DL_Undefined  // must be last, used for size!
 } DiagsLevel;
+
+enum RollingEnabledValues { NO_ROLLING = 0, ROLL_ON_TIME, ROLL_ON_SIZE, INVALID_ROLLING_VALUE };
 
 #define DiagsLevel_Count DL_Undefined
 
@@ -112,9 +117,7 @@ public:
   }
 
   SrcLoc(const SrcLoc &rhs) : file(rhs.file), func(rhs.func), line(rhs.line) {}
-
   SrcLoc(const char *_file, const char *_func, int _line) : file(_file), func(_func), line(_line) {}
-
   SrcLoc &operator=(const SrcLoc &rhs)
   {
     this->file = rhs.file;
@@ -145,10 +148,13 @@ public:
 class Diags
 {
 public:
-  Diags(const char *base_debug_tags, const char *base_action_tags, FILE *_diags_log_fp = NULL);
+  Diags(const char *base_debug_tags, const char *base_action_tags, BaseLogFile *_diags_log);
   ~Diags();
 
-  FILE *diags_log_fp;
+  BaseLogFile *diags_log;
+  BaseLogFile *stdout_log;
+  BaseLogFile *stderr_log;
+
   const unsigned int magic;
   volatile DiagsConfigState config;
   int show_location;
@@ -158,6 +164,13 @@ public:
   ///////////////////////////
   // conditional debugging //
   ///////////////////////////
+
+
+  bool
+  get_override() const
+  {
+    return get_cont_flag(ContFlags::DEBUG_OVERRIDE);
+  }
 
   bool
   on(DiagsTagType mode = DiagsTagType_Debug) const
@@ -239,6 +252,14 @@ public:
 
   void deactivate_all(DiagsTagType mode = DiagsTagType_Debug);
 
+  void config_roll_diagslog(RollingEnabledValues re, int ri, int rs);
+  void config_roll_outputlog(RollingEnabledValues re, int ri, int rs);
+  bool should_roll_diagslog();
+  bool should_roll_outputlog();
+
+  bool set_stdout_output(const char *_bind_stdout);
+  bool set_stderr_output(const char *_bind_stderr);
+
   const char *base_debug_tags;  // internal copy of default debug tags
   const char *base_action_tags; // internal copy of default action tags
 
@@ -246,6 +267,19 @@ private:
   mutable ink_mutex tag_table_lock; // prevents reconfig/read races
   DFA *activated_tags[2];           // 1 table for debug, 1 for action
 
+
+  // log rotation variables
+  RollingEnabledValues outputlog_rolling_enabled;
+  int outputlog_rolling_size;
+  int outputlog_rolling_interval;
+  RollingEnabledValues diagslog_rolling_enabled;
+  int diagslog_rolling_interval;
+  int diagslog_rolling_size;
+  time_t outputlog_time_last_roll;
+  time_t diagslog_time_last_roll;
+
+  bool rebind_stdout(int new_fd);
+  bool rebind_stderr(int new_fd);
   void
   lock() const
   {
@@ -310,7 +344,7 @@ dummy_debug(const char *tag, const char *fmt, ...)
   diags->log(tag, DTA(DL_Diag), __VA_ARGS__)
 #define Debug(tag, ...)      \
   if (unlikely(diags->on())) \
-  diags->log(tag, DTA(DL_Debug), __VA_ARGS__)
+    diags->log(tag, DTA(DL_Debug), __VA_ARGS__);
 #define DiagSpecific(flag, tag, ...) \
   if (unlikely(diags->on()))         \
   flag ? diags->print(tag, DTA(DL_Diag), __VA_ARGS__) : diags->log(tag, DTA(DL_Diag), __VA_ARGS__)

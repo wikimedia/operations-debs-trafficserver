@@ -74,8 +74,8 @@ Alarms::Alarms()
 Alarms::~Alarms()
 {
   ink_hash_table_destroy(cblist);
-  ink_hash_table_destroy_and_xfree_values(local_alarms);
-  ink_hash_table_destroy_and_xfree_values(remote_alarms);
+  ink_hash_table_destroy_and_free_values(local_alarms);
+  ink_hash_table_destroy_and_free_values(remote_alarms);
   ink_mutex_destroy(&mutex);
 } /* End Alarms::Alarms */
 
@@ -413,6 +413,7 @@ Alarms::constructAlarmMessage(const AppVersionInfo &version, char *ip, char *mes
       if (max >= 1) {
         message[0] = '\0';
       }
+      ink_mutex_release(&mutex);
       return;
     }
     ink_strlcpy(&message[n], "alarm: none\n", max - n);
