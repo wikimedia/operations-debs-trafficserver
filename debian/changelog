@@ -1,3 +1,10 @@
+trafficserver (6.1.1-1) unstable; urgency=medium
+
+  * Imported Upstream version 6.1.1
+  * Update d/watch for gpg signature check
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 06 Feb 2016 10:37:41 +0100
+
 trafficserver (6.1.0-1) unstable; urgency=medium
 
   * New upstream release
