@@ -1,3 +1,12 @@
+trafficserver (6.2.0-1~bpo8+1) jessie-backports; urgency=medium
+
+  * Update d/gbp.conf
+  * Update trafficserver install & manpages
+  * Update trafficserver-experimental-plugins install list
+  * Update build dependencies. Update standards version
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 23 Jul 2016 18:49:01 +0200
+
 trafficserver (6.2.0-1) unstable; urgency=medium
 
   * Disable pristine-tar in d/gbp.conf
