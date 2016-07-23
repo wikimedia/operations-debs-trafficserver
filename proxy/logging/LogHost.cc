@@ -51,16 +51,30 @@
   -------------------------------------------------------------------------*/
 
 LogHost::LogHost(const char *object_filename, uint64_t object_signature)
-  : m_object_filename(ats_strdup(object_filename)), m_object_signature(object_signature), m_port(0), m_name(NULL), m_sock(NULL),
-    m_sock_fd(-1), m_connected(false), m_orphan_file(NULL), m_log_collation_client_sm(NULL)
+  : m_object_filename(ats_strdup(object_filename)),
+    m_object_signature(object_signature),
+    m_port(0),
+    m_name(NULL),
+    m_sock(NULL),
+    m_sock_fd(-1),
+    m_connected(false),
+    m_orphan_file(NULL),
+    m_log_collation_client_sm(NULL)
 {
   ink_zero(m_ip);
   ink_zero(m_ipstr);
 }
 
 LogHost::LogHost(const LogHost &rhs)
-  : m_object_filename(ats_strdup(rhs.m_object_filename)), m_object_signature(rhs.m_object_signature), m_ip(rhs.m_ip), m_port(0),
-    m_name(ats_strdup(rhs.m_name)), m_sock(NULL), m_sock_fd(-1), m_connected(false), m_orphan_file(NULL),
+  : m_object_filename(ats_strdup(rhs.m_object_filename)),
+    m_object_signature(rhs.m_object_signature),
+    m_ip(rhs.m_ip),
+    m_port(0),
+    m_name(ats_strdup(rhs.m_name)),
+    m_sock(NULL),
+    m_sock_fd(-1),
+    m_connected(false),
+    m_orphan_file(NULL),
     m_log_collation_client_sm(NULL)
 {
   memcpy(m_ipstr, rhs.m_ipstr, sizeof(m_ipstr));
@@ -130,7 +144,7 @@ LogHost::set_name_or_ipstr(char *name_or_ip)
     ts::ConstBuffer addr, port;
     if (ats_ip_parse(ts::ConstBuffer(name_or_ip, strlen(name_or_ip)), &addr, &port) == 0) {
       uint16_t p = port ? atoi(port.data()) : Log::config->collation_port;
-      char *n = const_cast<char *>(addr.data());
+      char *n    = const_cast<char *>(addr.data());
       // Force termination. We know we can do this because the address
       // string is followed by either a nul or a colon.
       n[addr.size()] = 0;
@@ -211,15 +225,14 @@ LogHost::disconnect()
   m_connected = false;
 }
 
-
 void
 LogHost::create_orphan_LogFile_object()
 {
   delete m_orphan_file;
 
   const char *orphan_ext = "orphan";
-  unsigned name_len = (unsigned)(strlen(m_object_filename) + strlen(name()) + strlen(orphan_ext) + 16);
-  char *name_buf = (char *)ats_malloc(name_len);
+  unsigned name_len      = (unsigned)(strlen(m_object_filename) + strlen(name()) + strlen(orphan_ext) + 16);
+  char *name_buf         = (char *)ats_malloc(name_len);
 
   // NT: replace ':'s with '-'s.  This change is necessary because
   // NT doesn't like filenames with ':'s in them.  ^_^
@@ -314,9 +327,9 @@ LogHost::clear()
   ink_zero(m_ip);
   m_port = 0;
   ink_zero(m_ipstr);
-  m_name = NULL;
-  m_sock = NULL;
-  m_sock_fd = -1;
+  m_name      = NULL;
+  m_sock      = NULL;
+  m_sock_fd   = -1;
   m_connected = false;
 }
 
@@ -329,9 +342,9 @@ LogHost::authenticated()
   }
 
   Debug("log-host", "Authenticating LogHost %s ...", name());
-  char *auth_key = Log::config->collation_secret;
+  char *auth_key        = Log::config->collation_secret;
   unsigned auth_key_len = (unsigned)::strlen(auth_key) + 1; // incl null
-  int bytes = m_sock->write(m_sock_fd, auth_key, auth_key_len);
+  int bytes             = m_sock->write(m_sock_fd, auth_key, auth_key_len);
   if ((unsigned)bytes != auth_key_len) {
     Debug("log-host", "... bad write on authenticate");
     return false;
@@ -389,7 +402,7 @@ LogHostList::preproc_and_try_delete(LogBuffer *lb)
 {
   int ret;
   unsigned nr_host, nr;
-  bool need_orphan = true;
+  bool need_orphan        = true;
   LogHost *available_host = NULL;
 
   ink_release_assert(lb->m_references == 0);
@@ -398,12 +411,12 @@ LogHostList::preproc_and_try_delete(LogBuffer *lb)
   ink_atomic_increment(&lb->m_references, nr_host);
 
   for (LogHost *host = first(); host && nr; host = next(host)) {
-    LogHost *lh = host;
+    LogHost *lh    = host;
     available_host = lh;
 
     do {
       ink_atomic_increment(&lb->m_references, 1);
-      ret = lh->preproc_and_try_delete(lb);
+      ret         = lh->preproc_and_try_delete(lb);
       need_orphan = need_orphan && (ret < 0);
     } while (ret < 0 && (lh = lh->failover_link.next));
 
@@ -427,7 +440,8 @@ LogHostList::display(FILE *fd)
   }
 }
 
-bool LogHostList::operator==(LogHostList &rhs)
+bool
+LogHostList::operator==(LogHostList &rhs)
 {
   LogHost *host;
   for (host = first(); host; host = next(host)) {

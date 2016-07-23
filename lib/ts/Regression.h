@@ -43,7 +43,6 @@
 //       *pstatus = REGRESSION_TEST_PASSED;
 //   }
 
-
 // status values
 #define REGRESSION_TEST_PASSED 1
 #define REGRESSION_TEST_INPROGRESS 0 // initial value
@@ -79,7 +78,7 @@ struct RegressionTest {
   static int ran_tests;
   static DFA dfa;
   static RegressionTest *current;
-  static int run(char *name = NULL);
+  static int run(const char *name = NULL);
   static int run_some();
   static int check_status();
 };

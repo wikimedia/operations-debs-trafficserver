@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-
 #ifndef LOG_FILTER_H
 #define LOG_FILTER_H
 
@@ -247,7 +246,6 @@ private:
 
 bool filters_are_equal(LogFilter *filt1, LogFilter *filt2);
 
-
 /*-------------------------------------------------------------------------
   LogFilterList
   -------------------------------------------------------------------------*/
@@ -305,7 +303,6 @@ private:
   LogFilterList(const LogFilterList &rhs);
   LogFilterList &operator=(const LogFilterList &rhs);
 };
-
 
 /*-------------------------------------------------------------------------
   Inline functions
@@ -409,12 +406,12 @@ wipeField(char **dest, char *field)
         temp_text += (p2 - p1);
         char *p3 = strstr(p2, "&");
         if (p3) {
-          for (int i = 0; i < (p3 - p2); i++)
+          for (int i     = 0; i < (p3 - p2); i++)
             temp_text[i] = 'X';
           temp_text += (p3 - p2);
           memcpy(temp_text, p3, ((buf_dest + strlen(buf_dest)) - p3));
         } else {
-          for (int i = 0; i < ((buf_dest + strlen(buf_dest)) - p2); i++)
+          for (int i     = 0; i < ((buf_dest + strlen(buf_dest)) - p2); i++)
             temp_text[i] = 'X';
         }
       } else {

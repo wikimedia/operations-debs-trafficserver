@@ -28,7 +28,6 @@
 
  ****************************************************************************/
 
-
 #ifndef _MultiCache_h_
 #define _MultiCache_h_
 
@@ -45,7 +44,6 @@
 #define MULTI_CACHE_PARTITIONS 64
 
 #define MULTI_CACHE_EVENT_SYNC MULTI_CACHE_EVENT_EVENTS_START
-
 
 // for heap_offset() and heap_size(), indicates no data
 #define MULTI_CACHE_HEAP_NONE -1
@@ -78,7 +76,6 @@ class Continuation;
 // MultiCacheBlock
 // This is an abstract class which simply documents the operations
 // required by the templated cache operations.
-
 
 struct MultiCacheBlock {
   uint64_t tag();
@@ -335,7 +332,7 @@ struct MultiCacheBase : public MultiCacheHeader {
     // beeping gcc 2.7.2 is broken
     if (tag_bits > 32) {
       uint64_t mask = 0x100000000LL << (tag_bits - 32);
-      mask = mask - 1;
+      mask          = mask - 1;
       return ttag & mask;
     } else {
       uint64_t mask = 1LL;
@@ -353,7 +350,6 @@ struct MultiCacheBase : public MultiCacheHeader {
 
   MultiCacheBase();
   virtual ~MultiCacheBase() { reset(); }
-
   virtual int
   get_elementsize()
   {
@@ -483,7 +479,7 @@ template <class C>
 inline C *
 MultiCache<C>::cache_bucket(uint64_t folded_md5, unsigned int level)
 {
-  int bucket = (int)(folded_md5 % buckets);
+  int bucket   = (int)(folded_md5 % buckets);
   char *offset = data + level_offset[level] + bucketsize[level] * bucket;
   return (C *)offset;
 }
@@ -495,15 +491,15 @@ template <class C>
 inline C *
 MultiCache<C>::insert_block(uint64_t folded_md5, C *new_block, unsigned int level)
 {
-  C *b = cache_bucket(folded_md5, level);
+  C *b     = cache_bucket(folded_md5, level);
   C *block = NULL, *empty = NULL;
   int bucket = (int)(folded_md5 % buckets);
-  int hits = 0;
+  int hits   = 0;
 
   // Find the entry
   //
   uint64_t tag = make_tag(folded_md5);
-  int n_empty = 0;
+  int n_empty  = 0;
 
   for (block = b; block < b + elements[level]; block++) {
     if (block->is_empty() && !empty) {
@@ -520,7 +516,7 @@ MultiCache<C>::insert_block(uint64_t folded_md5, C *new_block, unsigned int leve
   }
 
   {
-    C *best = NULL;
+    C *best   = NULL;
     int again = 1;
     do {
       // Find an entry previously backed to a higher level.
@@ -546,7 +542,7 @@ MultiCache<C>::insert_block(uint64_t folded_md5, C *new_block, unsigned int leve
 
 Lfound:
   if (new_block) {
-    *block = *new_block;
+    *block   = *new_block;
     int *hop = new_block->heap_offset_ptr();
     if (hop)
       update(block->heap_offset_ptr(), hop);
@@ -606,7 +602,7 @@ MultiCache<C>::delete_block(C *b)
     unsigned int l = level_of_block(b);
     if (l < levels - 1) {
       int bucket = (((char *)b - data) - level_offset[l]) / bucketsize[l];
-      C *x = (C *)(data + level_offset[l + 1] + bucket * bucketsize[l + 1]);
+      C *x       = (C *)(data + level_offset[l + 1] + bucket * bucketsize[l + 1]);
       for (C *y = x; y < x + elements[l + 1]; y++)
         if (b->tag() == y->tag())
           delete_block(y);
@@ -622,9 +618,9 @@ template <class C>
 inline C *
 MultiCache<C>::lookup_block(uint64_t folded_md5, unsigned int level)
 {
-  C *b = cache_bucket(folded_md5, 0);
+  C *b         = cache_bucket(folded_md5, 0);
   uint64_t tag = make_tag(folded_md5);
-  int i = 0;
+  int i        = 0;
   // Level 0
   for (i = 0; i < elements[0]; i++)
     if (tag == b[i].tag())
@@ -680,9 +676,9 @@ MultiCache<C>::copy_heap(int partition, MultiCacheHeapGC *gc)
   int b = first_bucket_of_partition(partition);
   int n = buckets_of_partition(partition);
   for (unsigned int level = 0; level < levels; level++) {
-    int e = n * elements[level];
+    int e   = n * elements[level];
     char *d = data + level_offset[level] + b * bucketsize[level];
-    C *x = (C *)d;
+    C *x    = (C *)d;
     for (int i = 0; i < e; i++) {
       int s = x[i].heap_size();
       if (s) {

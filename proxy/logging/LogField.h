@@ -21,14 +21,13 @@
   limitations under the License.
  */
 
-
 #ifndef LOG_FIELD_H
 #define LOG_FIELD_H
 
 #include "ts/ink_platform.h"
 #include "ts/List.h"
 #include "LogFieldAliasMap.h"
-#include "StatSystem.h"
+#include "Milestones.h"
 
 class LogAccess;
 
@@ -40,8 +39,8 @@ struct LogSlice {
   LogSlice()
   {
     m_enable = false;
-    m_start = 0;
-    m_end = INT_MAX;
+    m_start  = 0;
+    m_end    = INT_MAX;
   }
 
   //
@@ -59,7 +58,6 @@ struct LogSlice {
   //
   int toStrOffset(int strlen, int *offset);
 };
-
 
 /*-------------------------------------------------------------------------
   LogField
@@ -80,7 +78,6 @@ public:
   typedef int (*UnmarshalFuncWithSlice)(char **buf, char *dest, int len, LogSlice *slice);
   typedef int (*UnmarshalFuncWithMap)(char **buf, char *dest, int len, Ptr<LogFieldAliasMap> map);
   typedef void (LogAccess::*SetFunc)(char *buf, int len);
-
 
   enum Type {
     sINT = 0,

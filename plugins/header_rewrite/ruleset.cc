@@ -24,7 +24,6 @@
 #include "ruleset.h"
 #include "factory.h"
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Class implementation (no reason to have these inline)
 //
@@ -36,10 +35,9 @@ RuleSet::append(RuleSet *rule)
   TSReleaseAssert(rule->next == NULL);
 
   while (tmp->next)
-    tmp = tmp->next;
+    tmp     = tmp->next;
   tmp->next = rule;
 }
-
 
 void
 RuleSet::add_condition(Parser &p)
@@ -65,7 +63,6 @@ RuleSet::add_condition(Parser &p)
   }
 }
 
-
 void
 RuleSet::add_operator(Parser &p)
 {
@@ -87,6 +84,6 @@ RuleSet::add_operator(Parser &p)
 
     // Update some ruleset state based on this new operator
     _opermods = static_cast<OperModifiers>(_opermods | _oper->get_oper_modifiers());
-    _ids = static_cast<ResourceIDs>(_ids | _oper->get_resource_ids());
+    _ids      = static_cast<ResourceIDs>(_ids | _oper->get_resource_ids());
   }
 }

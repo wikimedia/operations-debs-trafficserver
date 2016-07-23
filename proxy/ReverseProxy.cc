@@ -32,7 +32,6 @@
 #include "Main.h"
 #include "Error.h"
 #include "P_EventSystem.h"
-#include "StatSystem.h"
 #include "P_Cache.h"
 #include "ProxyConfig.h"
 #include "ReverseProxy.h"
@@ -72,7 +71,7 @@ init_reverse_proxy()
 {
   ink_assert(rewrite_table == NULL);
   reconfig_mutex = new_ProxyMutex();
-  rewrite_table = new UrlRewrite();
+  rewrite_table  = new UrlRewrite();
 
   if (!rewrite_table->is_valid()) {
     Warning("Can not load the remap table, exiting out!");
@@ -116,7 +115,6 @@ response_url_remap(HTTPHdr *response_header)
 {
   return rewrite_table ? rewrite_table->ReverseMap(response_header) : false;
 }
-
 
 //
 //

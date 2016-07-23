@@ -60,11 +60,10 @@ SpdyRequest::destroy()
   spdyRequestAllocator.free(this);
 }
 
-
 void
 SpdyRequest::init(SpdyClientSession *sm, int id)
 {
-  spdy_sm = sm;
+  spdy_sm   = sm;
   stream_id = id;
   headers.clear();
 
@@ -91,7 +90,7 @@ SpdyRequest::clear()
     fetch_sm = NULL;
   }
 
-  vector<pair<string, string> >().swap(headers);
+  vector<pair<string, string>>().swap(headers);
 
   std::string().swap(url);
   std::string().swap(host);
@@ -109,7 +108,7 @@ SpdyClientSession::init(NetVConnection *netvc)
   int r;
 
   this->mutex = netvc->mutex;
-  this->vc = netvc;
+  this->vc    = netvc;
   this->req_map.clear();
 
   r = spdylay_session_server_new(&session, versmap[this->version], &spdy_callbacks, this);
@@ -122,7 +121,7 @@ SpdyClientSession::init(NetVConnection *netvc)
   SPDY_INCREMENT_THREAD_DYN_STAT(SPDY_STAT_TOTAL_CLIENT_CONNECTION_COUNT, netvc->mutex->thread_holding);
 
   ink_release_assert(r == 0);
-  sm_id = atomic_inc(g_sm_id);
+  sm_id      = atomic_inc(g_sm_id);
   total_size = 0;
   start_time = TShrtime();
 
@@ -145,7 +144,7 @@ SpdyClientSession::clear()
   // SpdyRequest depends on SpdyClientSession,
   // we should delete it firstly to avoid race.
   //
-  map<int, SpdyRequest *>::iterator iter = req_map.begin();
+  map<int, SpdyRequest *>::iterator iter    = req_map.begin();
   map<int, SpdyRequest *>::iterator endIter = req_map.end();
   for (; iter != endIter; ++iter) {
     SpdyRequest *req = iter->second;
@@ -160,15 +159,9 @@ SpdyClientSession::clear()
   this->mutex = NULL;
 
   if (vc) {
-    // clean up ssl's first byte iobuf
-    SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
-    if (ssl_vc) {
-      ssl_vc->set_ssl_iobuf(NULL);
-    }
     TSVConnClose(reinterpret_cast<TSVConn>(vc));
     vc = NULL;
   }
-
 
   if (req_reader) {
     TSIOBufferReaderFree(req_reader);
@@ -232,8 +225,8 @@ SpdyClientSession::state_session_start(int /* event */, void * /* edata */)
     {SPDYLAY_SETTINGS_INITIAL_WINDOW_SIZE, SPDYLAY_ID_FLAG_SETTINGS_NONE, spdy_initial_window_size}};
   int r;
 
-  this->read_vio = (TSVIO) this->vc->do_io_read(this, INT64_MAX, reinterpret_cast<MIOBuffer *>(this->req_buffer));
-  this->write_vio = (TSVIO) this->vc->do_io_write(this, INT64_MAX, reinterpret_cast<IOBufferReader *>(this->resp_reader));
+  this->read_vio  = (TSVIO)this->vc->do_io_read(this, INT64_MAX, reinterpret_cast<MIOBuffer *>(this->req_buffer));
+  this->write_vio = (TSVIO)this->vc->do_io_write(this, INT64_MAX, reinterpret_cast<IOBufferReader *>(this->resp_reader));
 
   if (TSIOBufferReaderAvail(this->req_reader) > 0) {
     spdy_process_read(TS_EVENT_VCONN_WRITE_READY, this);
@@ -258,7 +251,7 @@ SpdyClientSession::state_session_start(int /* event */, void * /* edata */)
 int
 SpdyClientSession::state_session_readwrite(int event, void *edata)
 {
-  int ret = 0;
+  int ret         = 0;
   bool from_fetch = false;
 
   this->event = event;
@@ -279,7 +272,7 @@ SpdyClientSession::state_session_readwrite(int event, void *edata)
     ret = spdy_process_write((TSEvent)event, this);
   } else {
     from_fetch = true;
-    ret = spdy_process_fetch((TSEvent)event, this, edata);
+    ret        = spdy_process_fetch((TSEvent)event, this, edata);
   }
 
   Debug("spdy-event", "++++SpdyClientSession[%" PRIu64 "], EVENT:%d, ret:%d", this->sm_id, event, ret);
@@ -299,7 +292,6 @@ SpdyClientSession::destroy()
   this->clear();
   spdyClientSessionAllocator.free(this);
 }
-
 
 SpdyClientSession *
 SpdyClientSession::alloc()
@@ -352,9 +344,9 @@ spdy_process_write(TSEvent /* event ATS_UNUSED */, SpdyClientSession *sm)
 static int
 spdy_process_fetch(TSEvent event, SpdyClientSession *sm, void *edata)
 {
-  int ret = -1;
+  int ret            = -1;
   TSFetchSM fetch_sm = (TSFetchSM)edata;
-  SpdyRequest *req = (SpdyRequest *)TSFetchUserDataGet(fetch_sm);
+  SpdyRequest *req   = (SpdyRequest *)TSFetchUserDataGet(fetch_sm);
   if (!req) {
     Warning("spdy_process_fetch: stream already gone");
     return ret;
@@ -374,7 +366,7 @@ spdy_process_fetch(TSEvent event, SpdyClientSession *sm, void *edata)
   case TS_FETCH_EVENT_EXT_BODY_DONE:
     Debug("spdy", "----[FETCH BODY DONE]");
     req->fetch_body_completed = true;
-    ret = spdy_process_fetch_body(event, sm, fetch_sm, req);
+    ret                       = spdy_process_fetch_body(event, sm, fetch_sm, req);
     break;
 
   default:
@@ -432,7 +424,7 @@ spdy_read_fetch_body_callback(spdylay_session * /*session*/, int32_t stream_id, 
   int64_t already;
 
   SpdyClientSession *sm = (SpdyClientSession *)user_data;
-  SpdyRequest *req = (SpdyRequest *)source->ptr;
+  SpdyRequest *req      = (SpdyRequest *)source->ptr;
 
   //
   // req has been deleted, ignore this data.
@@ -486,7 +478,7 @@ spdy_process_fetch_body(TSEvent event, SpdyClientSession *sm, TSFetchSM fetch_sm
   spdylay_data_provider data_prd;
   req->event = event;
 
-  data_prd.source.ptr = (void *)req;
+  data_prd.source.ptr    = (void *)req;
   data_prd.read_callback = spdy_read_fetch_body_callback;
 
   if (!req->has_submitted_data) {
@@ -507,14 +499,6 @@ spdy_process_fetch_body(TSEvent event, SpdyClientSession *sm, TSFetchSM fetch_sm
 void
 SpdyClientSession::do_io_close(int alertno)
 {
-  if (vc) {
-    // vc is released (null'ed) within ProxyClientSession when handling
-    // TS_HTTP_SSN_CLOSE_HOOK, so, reset ssl_iobuf to prevent double free
-    SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
-    if (ssl_vc) {
-      ssl_vc->set_ssl_iobuf(NULL);
-    }
-  }
   // The object will be cleaned up from within ProxyClientSession::handle_api_return
   // This way, the object will still be alive for any SSN_CLOSE hooks
   do_api_callout(TS_HTTP_SSN_CLOSE_HOOK);

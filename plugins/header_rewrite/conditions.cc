@@ -22,6 +22,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <sstream>
 
 #include "ts/ts.h"
@@ -34,7 +35,6 @@ void
 ConditionStatus::initialize(Parser &p)
 {
   Condition::initialize(p);
-
   Matchers<TSHttpStatus> *match = new Matchers<TSHttpStatus>(_cond_op);
 
   match->set(static_cast<TSHttpStatus>(strtol(p.get_arg().c_str(), NULL, 10)));
@@ -45,7 +45,6 @@ ConditionStatus::initialize(Parser &p)
   require_resources(RSRC_RESPONSE_STATUS);
 }
 
-
 void
 ConditionStatus::initialize_hooks()
 {
@@ -53,14 +52,12 @@ ConditionStatus::initialize_hooks()
   add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
 }
 
-
 bool
 ConditionStatus::eval(const Resources &res)
 {
   TSDebug(PLUGIN_NAME, "Evaluating STATUS()"); // TODO: It'd be nice to get the args here ...
   return static_cast<const Matchers<TSHttpStatus> *>(_matcher)->test(res.resp_status);
 }
-
 
 void
 ConditionStatus::append_value(std::string &s, const Resources &res)
@@ -71,14 +68,13 @@ ConditionStatus::append_value(std::string &s, const Resources &res)
   TSDebug(PLUGIN_NAME, "Appending STATUS(%d) to evaluation value -> %s", res.resp_status, s.c_str());
 }
 
-
 // ConditionMethod
 void
 ConditionMethod::initialize(Parser &p)
 {
   Condition::initialize(p);
-
   Matchers<std::string> *match = new Matchers<std::string>(_cond_op);
+
   match->set(p.get_arg());
 
   _matcher = match;
@@ -95,7 +91,6 @@ ConditionMethod::eval(const Resources &res)
   return rval;
 }
 
-
 void
 ConditionMethod::append_value(std::string &s, const Resources &res)
 {
@@ -104,7 +99,7 @@ ConditionMethod::append_value(std::string &s, const Resources &res)
   const char *value;
   int len;
 
-  bufp = res.client_bufp;
+  bufp    = res.client_bufp;
   hdr_loc = res.client_hdr_loc;
 
   if (bufp && hdr_loc) {
@@ -114,25 +109,21 @@ ConditionMethod::append_value(std::string &s, const Resources &res)
   }
 }
 
-
 // ConditionRandom: random 0 to (N-1)
 void
 ConditionRandom::initialize(Parser &p)
 {
   struct timeval tv;
-
   Condition::initialize(p);
+  Matchers<unsigned int> *match = new Matchers<unsigned int>(_cond_op);
 
   gettimeofday(&tv, NULL);
-
-  Matchers<unsigned int> *match = new Matchers<unsigned int>(_cond_op);
   _seed = getpid() * tv.tv_usec;
-  _max = strtol(_qualifier.c_str(), NULL, 10);
+  _max  = strtol(_qualifier.c_str(), NULL, 10);
 
   match->set(static_cast<unsigned int>(strtol(p.get_arg().c_str(), NULL, 10)));
   _matcher = match;
 }
-
 
 bool
 ConditionRandom::eval(const Resources & /* res ATS_UNUSED */)
@@ -141,23 +132,21 @@ ConditionRandom::eval(const Resources & /* res ATS_UNUSED */)
   return static_cast<const Matchers<unsigned int> *>(_matcher)->test(rand_r(&_seed) % _max);
 }
 
-
 void
 ConditionRandom::append_value(std::string &s, const Resources & /* res ATS_UNUSED */)
 {
   std::ostringstream oss;
+
   oss << rand_r(&_seed) % _max;
   s += oss.str();
   TSDebug(PLUGIN_NAME, "Appending RANDOM(%d) to evaluation value -> %s", _max, s.c_str());
 }
-
 
 // ConditionAccess: access(file)
 void
 ConditionAccess::initialize(Parser &p)
 {
   struct timeval tv;
-
   Condition::initialize(p);
 
   gettimeofday(&tv, NULL);
@@ -165,7 +154,6 @@ ConditionAccess::initialize(Parser &p)
   _next = tv.tv_sec + 2;
   _last = !access(_qualifier.c_str(), R_OK);
 }
-
 
 void
 ConditionAccess::append_value(std::string &s, const Resources &res)
@@ -176,7 +164,6 @@ ConditionAccess::append_value(std::string &s, const Resources &res)
     s += "NOT OK";
   }
 }
-
 
 bool
 ConditionAccess::eval(const Resources & /* res ATS_UNUSED */)
@@ -200,16 +187,14 @@ ConditionAccess::eval(const Resources & /* res ATS_UNUSED */)
   return _last;
 }
 
-
 // ConditionHeader: request or response header
 void
 ConditionHeader::initialize(Parser &p)
 {
   Condition::initialize(p);
-
   Matchers<std::string> *match = new Matchers<std::string>(_cond_op);
-  match->set(p.get_arg());
 
+  match->set(p.get_arg());
   _matcher = match;
 
   require_resources(RSRC_CLIENT_REQUEST_HEADERS);
@@ -217,7 +202,6 @@ ConditionHeader::initialize(Parser &p)
   require_resources(RSRC_SERVER_REQUEST_HEADERS);
   require_resources(RSRC_SERVER_RESPONSE_HEADERS);
 }
-
 
 void
 ConditionHeader::append_value(std::string &s, const Resources &res)
@@ -228,10 +212,10 @@ ConditionHeader::append_value(std::string &s, const Resources &res)
   int len;
 
   if (_client) {
-    bufp = res.client_bufp;
+    bufp    = res.client_bufp;
     hdr_loc = res.client_hdr_loc;
   } else {
-    bufp = res.bufp;
+    bufp    = res.bufp;
     hdr_loc = res.hdr_loc;
   }
 
@@ -242,7 +226,7 @@ ConditionHeader::append_value(std::string &s, const Resources &res)
     TSDebug(PLUGIN_NAME, "Getting Header: %s, field_loc: %p", _qualifier.c_str(), field_loc);
 
     while (field_loc) {
-      value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, -1, &len);
+      value          = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, -1, &len);
       next_field_loc = TSMimeHdrFieldNextDup(bufp, hdr_loc, field_loc);
       TSDebug(PLUGIN_NAME, "Appending HEADER(%s) to evaluation value -> %.*s", _qualifier.c_str(), len, value);
       s.append(value, len);
@@ -255,7 +239,6 @@ ConditionHeader::append_value(std::string &s, const Resources &res)
     }
   }
 }
-
 
 bool
 ConditionHeader::eval(const Resources &res)
@@ -273,10 +256,9 @@ void
 ConditionPath::initialize(Parser &p)
 {
   Condition::initialize(p);
-
   Matchers<std::string> *match = new Matchers<std::string>(_cond_op);
-  match->set(p.get_arg());
 
+  match->set(p.get_arg());
   _matcher = match;
 }
 
@@ -313,8 +295,8 @@ void
 ConditionQuery::initialize(Parser &p)
 {
   Condition::initialize(p);
-
   Matchers<std::string> *match = new Matchers<std::string>(_cond_op);
+
   match->set(p.get_arg());
   _matcher = match;
 }
@@ -322,8 +304,9 @@ ConditionQuery::initialize(Parser &p)
 void
 ConditionQuery::append_value(std::string &s, const Resources &res)
 {
-  int query_len = 0;
+  int query_len     = 0;
   const char *query = TSUrlHttpQueryGet(res._rri->requestBufp, res._rri->requestUrl, &query_len);
+
   TSDebug(PLUGIN_NAME, "Appending QUERY to evaluation value: %.*s", query_len, query);
   s.append(query, query_len);
 }
@@ -342,7 +325,6 @@ ConditionQuery::eval(const Resources &res)
   return static_cast<const Matchers<std::string> *>(_matcher)->test(s);
 }
 
-
 // ConditionUrl: request or response header. TODO: This is not finished, at all!!!
 void
 ConditionUrl::initialize(Parser &p)
@@ -354,27 +336,25 @@ ConditionUrl::initialize(Parser &p)
   _matcher = match;
 }
 
-
 void
 ConditionUrl::set_qualifier(const std::string &q)
 {
   Condition::set_qualifier(q);
 
+  TSDebug(PLUGIN_NAME, "\tParsing %%{URL:%s}", q.c_str());
   _url_qual = parse_url_qualifier(q);
 }
-
 
 void
 ConditionUrl::append_value(std::string & /* s ATS_UNUSED */, const Resources & /* res ATS_UNUSED */)
 {
 }
 
-
 bool
 ConditionUrl::eval(const Resources &res)
 {
   TSDebug(PLUGIN_NAME, "ConditionUrl::eval");
-  TSMLoc url = NULL;
+  TSMLoc url     = NULL;
   TSMBuffer bufp = NULL;
   std::string s;
 
@@ -398,10 +378,10 @@ ConditionUrl::eval(const Resources &res)
   } else {
     TSMLoc hdr_loc = NULL;
     if (_type == CLIENT) {
-      bufp = res.client_bufp;
+      bufp    = res.client_bufp;
       hdr_loc = res.client_hdr_loc;
     } else if (_type == URL) {
-      bufp = res.bufp;
+      bufp    = res.bufp;
       hdr_loc = res.hdr_loc;
     } else {
       TSError("[header_rewrite] Rule not supported at this hook");
@@ -414,7 +394,7 @@ ConditionUrl::eval(const Resources &res)
   }
 
   if (_url_qual == URL_QUAL_HOST) {
-    int host_len = 0;
+    int host_len     = 0;
     const char *host = TSUrlHostGet(bufp, url, &host_len);
     s.append(host, host_len);
     TSDebug(PLUGIN_NAME, "   Host to match is: %.*s", host_len, host);
@@ -422,7 +402,6 @@ ConditionUrl::eval(const Resources &res)
 
   return static_cast<const Matchers<std::string> *>(_matcher)->test(s);
 }
-
 
 // ConditionDBM: do a lookup against a DBM
 void
@@ -450,7 +429,6 @@ ConditionDBM::initialize(Parser &p)
   }
 }
 
-
 void
 ConditionDBM::append_value(std::string & /* s ATS_UNUSED */, const Resources & /* res ATS_UNUSED */)
 {
@@ -477,7 +455,6 @@ ConditionDBM::append_value(std::string & /* s ATS_UNUSED */, const Resources & /
   // }
 }
 
-
 bool
 ConditionDBM::eval(const Resources &res)
 {
@@ -488,7 +465,6 @@ ConditionDBM::eval(const Resources &res)
 
   return static_cast<const Matchers<std::string> *>(_matcher)->test(s);
 }
-
 
 // ConditionCookie: request or response header
 void
@@ -516,7 +492,7 @@ ConditionCookie::append_value(std::string &s, const Resources &res)
   const char *cookies;
   const char *cookie_value;
   const char *const cookie_name = _qualifier.c_str();
-  const int cookie_name_len = _qualifier.length();
+  const int cookie_name_len     = _qualifier.length();
 
   // Sanity
   if (bufp == NULL || hdr_loc == NULL)
@@ -608,7 +584,7 @@ bool
 ConditionIncomingPort::eval(const Resources &res)
 {
   uint16_t port = getPort(TSHttpTxnIncomingAddrGet(res.txnp));
-  bool rval = static_cast<const Matchers<uint16_t> *>(_matcher)->test(port);
+  bool rval     = static_cast<const Matchers<uint16_t> *>(_matcher)->test(port);
   TSDebug(PLUGIN_NAME, "Evaluating INCOMING-PORT(): %d: rval: %d", port, rval);
   return rval;
 }
@@ -629,7 +605,7 @@ ConditionTransactCount::initialize(Parser &p)
 {
   Condition::initialize(p);
 
-  MatcherType *match = new MatcherType(_cond_op);
+  MatcherType *match     = new MatcherType(_cond_op);
   std::string const &arg = p.get_arg();
   match->set(strtol(arg.c_str(), NULL, 10));
 
@@ -640,10 +616,10 @@ bool
 ConditionTransactCount::eval(const Resources &res)
 {
   TSHttpSsn ssn = TSHttpTxnSsnGet(res.txnp);
-  bool rval = false;
+  bool rval     = false;
   if (ssn) {
     int n = TSHttpSsnTransactionCount(ssn);
-    rval = static_cast<MatcherType *>(_matcher)->test(n);
+    rval  = static_cast<MatcherType *>(_matcher)->test(n);
     TSDebug(PLUGIN_NAME, "Evaluating TXN-COUNT(): %d: rval: %s", n, rval ? "true" : "false");
   } else {
     TSDebug(PLUGIN_NAME, "Evaluation TXN-COUNT(): No session found, returning false");
@@ -658,11 +634,348 @@ ConditionTransactCount::append_value(std::string &s, Resources const &res)
 
   if (ssn) {
     char value[32]; // enough for UINT64_MAX
-    int count = TSHttpSsnTransactionCount(ssn);
+    int count  = TSHttpSsnTransactionCount(ssn);
     int length = ink_fast_itoa(count, value, sizeof(value));
     if (length > 0) {
       TSDebug(PLUGIN_NAME, "Appending TXN-COUNT %s to evaluation value %.*s", _qualifier.c_str(), length, value);
       s.append(value, length);
     }
+  }
+}
+
+// ConditionNow: time related conditions, such as time since epoch (default), hour, day etc.
+// Time related functionality for statements. We return an int64_t here, to assure that
+// gettimeofday() / Epoch does not lose bits.
+int64_t
+ConditionNow::get_now_qualified(NowQualifiers qual) const
+{
+  time_t now;
+
+  // First short circuit for the Epoch qualifier, since it needs less data
+  time(&now);
+  if (NOW_QUAL_EPOCH == qual) {
+    return static_cast<int64_t>(now);
+  } else {
+    struct tm res;
+
+    localtime_r(&now, &res);
+    switch (qual) {
+    case NOW_QUAL_YEAR:
+      return static_cast<int64_t>(res.tm_year + 1900); // This makes more sense
+      break;
+    case NOW_QUAL_MONTH:
+      return static_cast<int64_t>(res.tm_mon);
+      break;
+    case NOW_QUAL_DAY:
+      return static_cast<int64_t>(res.tm_mday);
+      break;
+    case NOW_QUAL_HOUR:
+      return static_cast<int64_t>(res.tm_hour);
+      break;
+    case NOW_QUAL_MINUTE:
+      return static_cast<int64_t>(res.tm_min);
+      break;
+    case NOW_QUAL_WEEKDAY:
+      return static_cast<int64_t>(res.tm_wday);
+      break;
+    case NOW_QUAL_YEARDAY:
+      return static_cast<int64_t>(res.tm_yday);
+      break;
+    default:
+      TSReleaseAssert(!"All cases should have been handled");
+      break;
+    }
+  }
+  return 0;
+}
+
+void
+ConditionNow::initialize(Parser &p)
+{
+  Condition::initialize(p);
+  Matchers<int64_t> *match = new Matchers<int64_t>(_cond_op);
+
+  match->set(static_cast<int64_t>(strtol(p.get_arg().c_str(), NULL, 10)));
+  _matcher = match;
+}
+
+void
+ConditionNow::set_qualifier(const std::string &q)
+{
+  Condition::set_qualifier(q);
+
+  TSDebug(PLUGIN_NAME, "\tParsing %%{NOW:%s} qualifier", q.c_str());
+
+  if (q == "EPOCH") {
+    _now_qual = NOW_QUAL_EPOCH;
+  } else if (q == "YEAR") {
+    _now_qual = NOW_QUAL_YEAR;
+  } else if (q == "MONTH") {
+    _now_qual = NOW_QUAL_MONTH;
+  } else if (q == "DAY") {
+    _now_qual = NOW_QUAL_DAY;
+  } else if (q == "HOUR") {
+    _now_qual = NOW_QUAL_HOUR;
+  } else if (q == "MINUTE") {
+    _now_qual = NOW_QUAL_MINUTE;
+  } else if (q == "WEEKDAY") {
+    _now_qual = NOW_QUAL_WEEKDAY;
+  } else if (q == "YEARDAY") {
+    _now_qual = NOW_QUAL_YEARDAY;
+  } else {
+    TSError("[%s] Unknown Now() qualifier: %s", PLUGIN_NAME, q.c_str());
+  }
+}
+
+void
+ConditionNow::append_value(std::string &s, const Resources & /* res ATS_UNUSED */)
+{
+  std::ostringstream oss;
+
+  oss << get_now_qualified(_now_qual);
+  s += oss.str();
+  TSDebug(PLUGIN_NAME, "Appending NOW() to evaluation value -> %s", s.c_str());
+}
+
+bool
+ConditionNow::eval(const Resources &res)
+{
+  int64_t now = get_now_qualified(_now_qual);
+
+  TSDebug(PLUGIN_NAME, "Evaluating NOW() -> %" PRId64, now);
+
+  return static_cast<const Matchers<int64_t> *>(_matcher)->test(now);
+}
+
+// ConditionGeo: Geo-based information (integer). See ConditionGeoCountry for the string version.
+#if HAVE_GEOIP_H
+const char *
+ConditionGeo::get_geo_string(const sockaddr *addr) const
+{
+  const char *ret = NULL;
+  int v           = 4;
+
+  switch (_geo_qual) {
+  // Country database
+  case GEO_QUAL_COUNTRY:
+    switch (addr->sa_family) {
+    case AF_INET:
+      if (gGeoIP[GEOIP_COUNTRY_EDITION]) {
+        uint32_t ip = ntohl(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr);
+
+        ret = GeoIP_country_code_by_ipnum(gGeoIP[GEOIP_COUNTRY_EDITION], ip);
+      }
+      break;
+    case AF_INET6: {
+      if (gGeoIP[GEOIP_COUNTRY_EDITION_V6]) {
+        geoipv6_t ip = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
+
+        v   = 6;
+        ret = GeoIP_country_code_by_ipnum_v6(gGeoIP[GEOIP_COUNTRY_EDITION_V6], ip);
+      }
+    } break;
+    default:
+      break;
+    }
+    TSDebug(PLUGIN_NAME, "eval(): Client IPv%d seems to come from Country: %s", v, ret);
+    break;
+
+  // ASN database
+  case GEO_QUAL_ASN_NAME:
+    switch (addr->sa_family) {
+    case AF_INET:
+      if (gGeoIP[GEOIP_ASNUM_EDITION]) {
+        uint32_t ip = ntohl(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr);
+
+        ret = GeoIP_name_by_ipnum(gGeoIP[GEOIP_ASNUM_EDITION], ip);
+      }
+      break;
+    case AF_INET6: {
+      if (gGeoIP[GEOIP_ASNUM_EDITION_V6]) {
+        geoipv6_t ip = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
+
+        v   = 6;
+        ret = GeoIP_name_by_ipnum_v6(gGeoIP[GEOIP_ASNUM_EDITION_V6], ip);
+      }
+    } break;
+    default:
+      break;
+    }
+    TSDebug(PLUGIN_NAME, "eval(): Client IPv%d seems to come from ASN Name: %s", v, ret);
+    break;
+
+  default:
+    break;
+  }
+
+  return ret ? ret : "(unknown)";
+}
+
+int64_t
+ConditionGeo::get_geo_int(const sockaddr *addr) const
+{
+  int64_t ret = -1;
+  int v       = 4;
+
+  switch (_geo_qual) {
+  // Country Databse
+  case GEO_QUAL_COUNTRY_ISO:
+    switch (addr->sa_family) {
+    case AF_INET:
+      if (gGeoIP[GEOIP_COUNTRY_EDITION]) {
+        uint32_t ip = ntohl(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr);
+
+        ret = GeoIP_id_by_ipnum(gGeoIP[GEOIP_COUNTRY_EDITION], ip);
+      }
+      break;
+    case AF_INET6: {
+      if (gGeoIP[GEOIP_COUNTRY_EDITION_V6]) {
+        geoipv6_t ip = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
+
+        v   = 6;
+        ret = GeoIP_id_by_ipnum_v6(gGeoIP[GEOIP_COUNTRY_EDITION_V6], ip);
+      }
+    } break;
+    default:
+      break;
+    }
+    TSDebug(PLUGIN_NAME, "eval(): Client IPv%d seems to come from Country ISO: %" PRId64, v, ret);
+    break;
+
+  case GEO_QUAL_ASN: {
+    const char *asn_name = NULL;
+
+    switch (addr->sa_family) {
+    case AF_INET:
+      if (gGeoIP[GEOIP_ASNUM_EDITION]) {
+        uint32_t ip = ntohl(reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr.s_addr);
+
+        asn_name = GeoIP_name_by_ipnum(gGeoIP[GEOIP_ASNUM_EDITION], ip);
+      }
+      break;
+    case AF_INET6:
+      if (gGeoIP[GEOIP_ASNUM_EDITION_V6]) {
+        geoipv6_t ip = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
+
+        v        = 6;
+        asn_name = GeoIP_name_by_ipnum_v6(gGeoIP[GEOIP_ASNUM_EDITION_V6], ip);
+      }
+      break;
+    }
+    if (asn_name) {
+      // This is a little odd, but the strings returned are e.g. "AS1234 Acme Inc"
+      while (*asn_name && !(isdigit(*asn_name))) {
+        ++asn_name;
+      }
+      ret = strtol(asn_name, NULL, 10);
+    }
+  }
+    TSDebug(PLUGIN_NAME, "eval(): Client IPv%d seems to come from ASN #: %" PRId64, v, ret);
+    break;
+
+  // Likely shouldn't trip, should we assert?
+  default:
+    break;
+  }
+
+  return ret;
+}
+
+#else
+
+// No Geo library avaiable, these are just stubs.
+
+const char *
+ConditionGeo::get_geo_string(const sockaddr *addr) const
+{
+  TSError("[%s] No Geo library available!", PLUGIN_NAME);
+  return NULL;
+}
+
+int64_t
+ConditionGeo::get_geo_int(const sockaddr *addr) const
+{
+  TSError("[%s] No Geo library available!", PLUGIN_NAME);
+  return 0;
+}
+
+#endif
+
+void
+ConditionGeo::initialize(Parser &p)
+{
+  Condition::initialize(p);
+
+  if (is_int_type()) {
+    Matchers<int64_t> *match = new Matchers<int64_t>(_cond_op);
+
+    match->set(static_cast<int64_t>(strtol(p.get_arg().c_str(), NULL, 10)));
+    _matcher = match;
+  } else {
+    // The default is to have a string matcher
+    Matchers<std::string> *match = new Matchers<std::string>(_cond_op);
+
+    match->set(p.get_arg());
+    _matcher = match;
+  }
+}
+
+void
+ConditionGeo::set_qualifier(const std::string &q)
+{
+  Condition::set_qualifier(q);
+
+  TSDebug(PLUGIN_NAME, "\tParsing %%{GEO:%s} qualifier", q.c_str());
+
+  if (q == "COUNTRY") {
+    _geo_qual = GEO_QUAL_COUNTRY;
+    is_int_type(false);
+  } else if (q == "COUNTRY-ISO") {
+    _geo_qual = GEO_QUAL_COUNTRY_ISO;
+    is_int_type(true);
+  } else if (q == "ASN") {
+    _geo_qual = GEO_QUAL_ASN;
+    is_int_type(true);
+  } else if (q == "ASN-NAME") {
+    _geo_qual = GEO_QUAL_ASN_NAME;
+    is_int_type(false);
+  } else {
+    TSError("[%s] Unknown Geo() qualifier: %s", PLUGIN_NAME, q.c_str());
+  }
+}
+
+void
+ConditionGeo::append_value(std::string &s, const Resources &res)
+{
+  std::ostringstream oss;
+
+  if (is_int_type()) {
+    oss << get_geo_int(TSHttpTxnClientAddrGet(res.txnp));
+    s += oss.str();
+    TSDebug(PLUGIN_NAME, "Appending GEO() to evaluation value -> %s", s.c_str());
+  } else {
+    oss << get_geo_string(TSHttpTxnClientAddrGet(res.txnp));
+    s += oss.str();
+    TSDebug(PLUGIN_NAME, "Appending GEO() to evaluation value -> %s", s.c_str());
+  }
+}
+
+bool
+ConditionGeo::eval(const Resources &res)
+{
+  if (is_int_type()) {
+    int64_t geo = get_geo_int(TSHttpTxnClientAddrGet(res.txnp));
+
+    TSDebug(PLUGIN_NAME, "Evaluating GEO() -> %" PRId64, geo);
+
+    return static_cast<const Matchers<int64_t> *>(_matcher)->test(geo);
+  } else {
+    std::string s;
+
+    append_value(s, res);
+    bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+
+    TSDebug(PLUGIN_NAME, "Evaluating GEO(): %s - rval: %d", s.c_str(), rval);
+    return rval;
   }
 }

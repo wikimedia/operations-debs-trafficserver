@@ -134,7 +134,6 @@ int RecLinkConfigBool(const char *name, RecBool *rec_byte);
 int RecRegisterConfigUpdateCb(const char *name, RecConfigUpdateCb update_cb, void *cookie);
 int RecRegisterRawStatUpdateFunc(const char *name, RecRawStatBlock *rsb, int id, RecStatUpdateFunc update_func, void *cookie);
 
-
 //-------------------------------------------------------------------------
 // Record Reading/Writing
 //-------------------------------------------------------------------------
@@ -184,8 +183,6 @@ int RecGetRecordSource(const char *name, RecSourceT *source, bool lock = true);
 
 int RecGetRecordAccessType(const char *name, RecAccessT *secure, bool lock = true);
 int RecSetRecordAccessType(const char *name, RecAccessT secure, bool lock = true);
-
-int RecGetRecordPrefix_Xmalloc(char *prefix, char **result, int *result_len);
 
 //------------------------------------------------------------------------
 // Signal and Alarms
@@ -303,7 +300,6 @@ RecString REC_readString(const char *name, bool *found, bool lock = true);
 //------------------------------------------------------------------------
 int RecResetStatRecord(const char *name);
 int RecResetStatRecord(RecT type = RECT_NULL, bool all = false);
-
 
 //------------------------------------------------------------------------
 // Set RecRecord attributes

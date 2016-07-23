@@ -30,6 +30,7 @@
 #include "ts/INK_MD5.h"
 #include "ts/MMH.h"
 #include "MIME.h"
+#include "ts/TsBuffer.h"
 
 #include "ts/ink_apidefs.h"
 
@@ -193,6 +194,7 @@ extern int URL_LEN_MMST;
 void url_adjust(MarshalXlate *str_xlate, int num_xlate);
 
 /* Public */
+bool validate_host_name(ts::ConstBuffer addr);
 void url_init();
 
 URLImpl *url_create(HdrHeap *heap);
@@ -246,7 +248,6 @@ char *url_unescapify(Arena *arena, const char *str, int length);
 
 void unescape_str(char *&buf, char *buf_e, const char *&str, const char *str_e, int &state);
 void unescape_str_tolower(char *&buf, char *end, const char *&str, const char *str_e, int &state);
-
 
 inline int
 url_canonicalize_port(int type, int port)
@@ -327,7 +328,6 @@ private:
   URL(const URL &u);
   URL &operator=(const URL &u);
 };
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -497,7 +497,6 @@ URL::scheme_get(int *length)
   ink_assert(valid());
   return (url_scheme_get(m_url_impl, length));
 }
-
 
 inline int
 URL::scheme_get_wksidx()

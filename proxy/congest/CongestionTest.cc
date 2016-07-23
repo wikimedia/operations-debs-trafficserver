@@ -195,15 +195,20 @@ struct CCFailHistoryTestCont : public Continuation {
   }
 
   CCFailHistoryTestCont(Ptr<ProxyMutex> _mutex, RegressionTest *_test)
-    : Continuation(_mutex), test_mode(SIMPLE_TEST), final_status(REGRESSION_TEST_PASSED), complete(false), test(_test),
-      failEvents(NULL), pending_action(NULL)
+    : Continuation(_mutex),
+      test_mode(SIMPLE_TEST),
+      final_status(REGRESSION_TEST_PASSED),
+      complete(false),
+      test(_test),
+      failEvents(NULL),
+      pending_action(NULL)
   {
     SET_HANDLER(&CCFailHistoryTestCont::mainEvent);
-    rule = new CongestionControlRecord;
-    rule->fail_window = FAIL_WINDOW;
+    rule                          = new CongestionControlRecord;
+    rule->fail_window             = FAIL_WINDOW;
     rule->max_connection_failures = 10;
-    rule->pRecord = new CongestionControlRecord(*rule);
-    entry = new CongestionEntry("dummy_host", 0, rule->pRecord, 0);
+    rule->pRecord                 = new CongestionControlRecord(*rule);
+    entry                         = new CongestionEntry("dummy_host", 0, rule->pRecord, 0);
   }
 
   ~CCFailHistoryTestCont()
@@ -381,7 +386,6 @@ struct CCCongestionDBTestCont : public Continuation {
   int dbsize;
   CongestionEntry *gen_CongestionEntry(sockaddr const *ip, int congested = 0);
 
-
   CCCongestionDBTestCont(Ptr<ProxyMutex> _mutex, RegressionTest *_test)
     : Continuation(_mutex), final_status(REGRESSION_TEST_PASSED), complete(false), test(_test), rule(NULL), db(NULL), dbsize(1024)
   {
@@ -404,10 +408,10 @@ CCCongestionDBTestCont::gen_CongestionEntry(sockaddr const *ip, int congested)
   char hostname[INET6_ADDRSTRLEN];
   uint64_t key;
   ats_ip_ntop(ip, hostname, sizeof(hostname));
-  key = make_key(hostname, strlen(hostname), ip, rule->pRecord);
+  key                  = make_key(hostname, strlen(hostname), ip, rule->pRecord);
   CongestionEntry *ret = new CongestionEntry(hostname, ip, rule->pRecord, key);
-  ret->m_congested = congested;
-  ret->m_ref_count = 0;
+  ret->m_congested     = congested;
+  ret->m_ref_count     = 0;
   return ret;
 }
 
@@ -420,10 +424,10 @@ CCCongestionDBTestCont::init()
   else
     db->removeAllRecords();
   if (!rule) {
-    rule = new CongestionControlRecord;
-    rule->fail_window = 300;
+    rule                          = new CongestionControlRecord;
+    rule->fail_window             = 300;
     rule->max_connection_failures = 10;
-    rule->pRecord = new CongestionControlRecord(*rule);
+    rule->pRecord                 = new CongestionControlRecord(*rule);
   }
 }
 
@@ -477,7 +481,6 @@ CCCongestionDBTestCont::mainEvent(int /* event ATS_UNUSED */, Event * /* e ATS_U
   db->removeAllRecords();
 
   rprintf(test, "There are %d records in the db\n", items[0]);
-
 
   rprintf(test, "Add %d records into the db", to_add);
   for (i = 0; i < to_add; i++) {

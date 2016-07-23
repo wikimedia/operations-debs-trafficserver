@@ -100,8 +100,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@HAS_MYSQL_TRUE@am__append_1 = mysql_remap
-@BUILD_LUAJIT_TRUE@am__append_2 = ts_lua
+@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@@ENABLE_CPPAPI_TRUE@am__append_1 = webp_transform
+@HAS_MYSQL_TRUE@am__append_2 = mysql_remap
+@BUILD_LUAJIT_TRUE@am__append_3 = ts_lua
+@HAS_KYOTOCABINET_TRUE@am__append_4 = cache_key_genid
 subdir = plugins/experimental
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
@@ -184,14 +186,15 @@ am__define_uniq_tagged_files = \
   done | $(am__uniquify_input)`
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = authproxy background_fetch balancer buffer_upload \
+DIST_SUBDIRS = acme authproxy background_fetch balancer buffer_upload \
 	cachekey cache_range_requests cache_promote \
-	collapsed_connection custom_redirect epic escalate esi \
-	generator geoip_acl header_normalize hipes metalink \
-	multiplexer memcache memcached_remap regex_revalidate \
-	remap_stats s3_auth ssl_cert_loader sslheaders \
-	stale_while_revalidate url_sig xdebug mp4 stream_editor \
-	mysql_remap ts_lua
+	collapsed_connection collapsed_forwarding custom_redirect epic \
+	escalate esi generator geoip_acl header_normalize hipes \
+	inliner metalink multiplexer memcache memcached_remap \
+	regex_revalidate remap_stats s3_auth ssl_cert_loader \
+	sslheaders stale_while_revalidate url_sig xdebug mp4 \
+	stream_editor webp_transform mysql_remap ts_lua \
+	cache_key_genid
 am__DIST_COMMON = $(srcdir)/Makefile.in
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
@@ -267,7 +270,7 @@ EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEOIP_LIBS = @GEOIP_LIBS@
+GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
 HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
@@ -287,6 +290,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
+LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
 LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
 LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
@@ -301,6 +306,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -445,14 +451,17 @@ has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
+has_kyotocabinet = @has_kyotocabinet@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
+has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
+have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -562,6 +571,7 @@ use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
+use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
@@ -574,13 +584,15 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-SUBDIRS = authproxy background_fetch balancer buffer_upload cachekey \
-	cache_range_requests cache_promote collapsed_connection \
-	custom_redirect epic escalate esi generator geoip_acl \
-	header_normalize hipes metalink multiplexer memcache \
-	memcached_remap regex_revalidate remap_stats s3_auth \
-	ssl_cert_loader sslheaders stale_while_revalidate url_sig \
-	xdebug mp4 stream_editor $(am__append_1) $(am__append_2)
+SUBDIRS = acme authproxy background_fetch balancer buffer_upload \
+	cachekey cache_range_requests cache_promote \
+	collapsed_connection collapsed_forwarding custom_redirect epic \
+	escalate esi generator geoip_acl header_normalize hipes \
+	inliner metalink multiplexer memcache memcached_remap \
+	regex_revalidate remap_stats s3_auth ssl_cert_loader \
+	sslheaders stale_while_revalidate url_sig xdebug mp4 \
+	stream_editor $(am__append_1) $(am__append_2) $(am__append_3) \
+	$(am__append_4)
 all: all-recursive
 
 .SUFFIXES:

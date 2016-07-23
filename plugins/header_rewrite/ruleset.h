@@ -29,7 +29,6 @@
 #include "resources.h"
 #include "parser.h"
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Class holding one ruleset. A ruleset is one (or more) pre-conditions, and
 // one (or more) operators.
@@ -38,7 +37,12 @@ class RuleSet
 {
 public:
   RuleSet()
-    : next(NULL), _cond(NULL), _oper(NULL), _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK), _ids(RSRC_NONE), _opermods(OPER_NONE),
+    : next(NULL),
+      _cond(NULL),
+      _oper(NULL),
+      _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK),
+      _ids(RSRC_NONE),
+      _opermods(OPER_NONE),
       _last(false){};
 
   // No reason to inline these
@@ -112,6 +116,5 @@ private:
   OperModifiers _opermods;
   bool _last;
 };
-
 
 #endif // __RULESET_H

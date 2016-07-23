@@ -31,7 +31,7 @@
  ****************************************************************************/
 
 #include "HttpSessionManager.h"
-#include "HttpClientSession.h"
+#include "../ProxyClientSession.h"
 #include "HttpServerSession.h"
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
@@ -82,7 +82,7 @@ ServerSessionPool::acquireSession(sockaddr const *addr, INK_MD5 const &hostname_
   if (TS_SERVER_SESSION_SHARING_MATCH_HOST == match_style) {
     // This is broken out because only in this case do we check the host hash first.
     HostHashTable::Location loc = m_host_pool.find(hostname_hash);
-    in_port_t port = ats_ip_port_cast(addr);
+    in_port_t port              = ats_ip_port_cast(addr);
     while (loc && port != ats_ip_port_cast(loc->server_ip))
       ++loc; // scan for matching port.
     if (loc) {
@@ -140,7 +140,7 @@ int
 ServerSessionPool::eventHandler(int event, void *data)
 {
   NetVConnection *net_vc = NULL;
-  HttpServerSession *s = NULL;
+  HttpServerSession *s   = NULL;
 
   switch (event) {
   case VC_EVENT_READ_READY:
@@ -159,9 +159,9 @@ ServerSessionPool::eventHandler(int event, void *data)
     return 0;
   }
 
-  sockaddr const *addr = net_vc->get_remote_addr();
+  sockaddr const *addr                 = net_vc->get_remote_addr();
   HttpConfigParams *http_config_params = HttpConfig::acquire();
-  bool found = false;
+  bool found                           = false;
 
   for (ServerSessionPool::IPHashTable::Location lh = m_ip_pool.find(addr); lh; ++lh) {
     if ((s = lh)->get_netvc() == net_vc) {
@@ -171,8 +171,8 @@ ServerSessionPool::eventHandler(int event, void *data)
       // origin, then reset the timeouts on our end and do not close the connection
       if ((event == VC_EVENT_INACTIVITY_TIMEOUT || event == VC_EVENT_ACTIVE_TIMEOUT) && s->state == HSS_KA_SHARED &&
           s->enable_origin_connection_limiting) {
-        bool connection_count_below_min =
-          s->connection_count->getCount(s->server_ip) <= http_config_params->origin_min_keep_alive_connections;
+        bool connection_count_below_min = s->connection_count->getCount(s->server_ip, s->hostname_hash, s->sharing_match) <=
+                                          http_config_params->origin_min_keep_alive_connections;
 
         if (connection_count_below_min) {
           Debug("http_ss", "[%" PRId64 "] [session_bucket] session received io notice [%s], "
@@ -217,7 +217,6 @@ ServerSessionPool::eventHandler(int event, void *data)
   return 0;
 }
 
-
 void
 HttpSessionManager::init()
 {
@@ -239,7 +238,7 @@ HttpSessionManager::purge_keepalives()
 
 HSMresult_t
 HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockaddr const *ip, const char *hostname,
-                                    HttpClientSession *ua_session, HttpSM *sm)
+                                    ProxyClientTransaction *ua_session, HttpSM *sm)
 {
   HttpServerSession *to_return = NULL;
   TSServerSessionSharingMatchType match_style =
@@ -278,7 +277,7 @@ HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockad
   // client session
   {
     // Now check to see if we have a connection in our shared connection pool
-    EThread *ethread = this_ethread();
+    EThread *ethread       = this_ethread();
     ProxyMutex *pool_mutex = (TS_SERVER_SESSION_SHARING_POOL_THREAD == sm->t_state.http_config_param->server_session_sharing_pool) ?
                                ethread->server_session_pool->mutex :
                                m_g_pool->mutex;
@@ -304,7 +303,7 @@ HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockad
                 // Close out to_return, we were't able to get a connection
                 to_return->do_io_close();
                 to_return = NULL;
-                retval = HSM_NOT_FOUND;
+                retval    = HSM_NOT_FOUND;
               } else {
                 // Keep things from timing out on us
                 new_vc->set_inactivity_timeout(new_vc->get_inactivity_timeout());

@@ -62,8 +62,8 @@ Token::setValue(const char *str)
   ink_assert(value == NULL);
   if (str_copy) {
     size_t len = strlen(str_copy);
-    value = (char *)ats_malloc(sizeof(char) * (BUFSIZ));
-    len = (len < BUFSIZ) ? len : BUFSIZ - 1;
+    value      = (char *)ats_malloc(sizeof(char) * (BUFSIZ));
+    len        = (len < BUFSIZ) ? len : BUFSIZ - 1;
     memcpy(value, str_copy, len);
     value[len] = '\0';
     ats_free(str_copy);
@@ -73,7 +73,7 @@ Token::setValue(const char *str)
 void
 Token::appendValue(const char *str)
 {
-  char *str_copy = (char *)strtrim(str);
+  char *str_copy        = (char *)strtrim(str);
   static bool firstTime = true;
 
   if (value == NULL) {
@@ -224,7 +224,6 @@ Rule::parse(const char *const_rule, TSFileNameT filetype)
   }
 }
 
-
 /**
  * arm_securityParse
  **/
@@ -234,8 +233,8 @@ Rule::arm_securityParse(char *rule)
   Tokenizer ruleTok(" \t");
   ruleTok.Initialize(rule);
   tok_iter_state ruleTok_state;
-  const char *tokenStr = ruleTok.iterFirst(&ruleTok_state);
-  Token *token = (Token *)NULL;
+  const char *tokenStr   = ruleTok.iterFirst(&ruleTok_state);
+  Token *token           = (Token *)NULL;
   TokenList *m_tokenList = new TokenList();
 
   // ASSUMPTIONS:
@@ -266,7 +265,6 @@ Rule::arm_securityParse(char *rule)
   return m_tokenList;
 }
 
-
 /**
  * cacheParse
  * CAUTION: This function is used for number of similar formatted
@@ -280,8 +278,8 @@ Rule::cacheParse(char *rule, unsigned short minNumToken, unsigned short maxNumTo
   int numRuleTok = ruleTok.Initialize(rule);
   tok_iter_state ruleTok_state;
   const char *tokenStr = ruleTok.iterFirst(&ruleTok_state);
-  Token *token = NULL;
-  bool insideQuote = false;
+  Token *token         = NULL;
+  bool insideQuote     = false;
   const char *newStr;
 
   // Sanity Check -- number of token
@@ -365,7 +363,6 @@ Rule::cacheParse(char *rule, unsigned short minNumToken, unsigned short maxNumTo
   return m_tokenList;
 }
 
-
 /**
  * congestionParse
  **/
@@ -386,7 +383,6 @@ Rule::hostingParse(char *rule)
   //   NO SPACE around ","
   return cacheParse(rule, 2, 2);
 }
-
 
 /**
  * icpParse
@@ -413,7 +409,6 @@ Rule::icpParse(char *rule, unsigned short minNumToken, unsigned short maxNumToke
     return NULL;
   }
 
-
   m_tokenList = new TokenList();
   for (; tokenStr; tokenStr = ruleTok.iterNext(&ruleTok_state)) {
     token = new Token();
@@ -423,7 +418,6 @@ Rule::icpParse(char *rule, unsigned short minNumToken, unsigned short maxNumToke
 
   return m_tokenList;
 }
-
 
 /**
  * ip_allowParse
@@ -437,7 +431,6 @@ Rule::ip_allowParse(char *rule)
   return cacheParse(rule, 2, 2);
 }
 
-
 /**
  * logsParse
  **/
@@ -446,7 +439,6 @@ Rule::logsParse(char * /* rule ATS_UNUSED */)
 {
   return NULL;
 }
-
 
 /**
  * log_hostsParse
@@ -458,14 +450,13 @@ Rule::log_hostsParse(char *rule)
     return NULL;
   }
 
-  Token *token = new Token();
+  Token *token           = new Token();
   TokenList *m_tokenList = new TokenList();
   token->setName(rule);
   m_tokenList->enqueue(token);
 
   return m_tokenList;
 }
-
 
 /**
  * logs_xmlParse
@@ -476,7 +467,6 @@ Rule::logs_xmlParse(char * /* rule ATS_UNUSED */)
   return NULL;
 }
 
-
 /**
  * parentParse
  **/
@@ -486,7 +476,6 @@ Rule::parentParse(char *rule)
   return cacheParse(rule, 2);
 }
 
-
 /**
  * volumeParse
  **/
@@ -495,7 +484,6 @@ Rule::volumeParse(char *rule)
 {
   return cacheParse(rule, 3, 3);
 }
-
 
 /**
  * pluginParse
@@ -518,7 +506,6 @@ Rule::pluginParse(char *rule)
 
   return m_tokenList;
 }
-
 
 /**
  * remapParse
@@ -561,7 +548,6 @@ Rule::remapParse(char *rule)
   return m_tokenList;
 }
 
-
 /**
  * socksParse
  **/
@@ -572,10 +558,9 @@ Rule::socksParse(char *rule)
   int numRuleTok = ruleTok.Initialize(rule);
   tok_iter_state ruleTok_state;
   const char *tokenStr = ruleTok.iterFirst(&ruleTok_state);
-  Token *token = NULL;
-  bool insideQuote = false;
+  Token *token         = NULL;
+  bool insideQuote     = false;
   const char *newStr;
-
 
   if (numRuleTok < 2) {
     setErrorHint("Expecting at least 2 space delimited tokens");
@@ -675,7 +660,6 @@ Rule::socksParse(char *rule)
   return m_tokenList;
 }
 
-
 /**
  * splitdnsParse
  **/
@@ -686,8 +670,8 @@ Rule::splitdnsParse(char *rule)
   int numRuleTok = ruleTok.Initialize(rule);
   tok_iter_state ruleTok_state;
   const char *tokenStr = ruleTok.iterFirst(&ruleTok_state);
-  Token *token = NULL;
-  bool insideQuote = false;
+  Token *token         = NULL;
+  bool insideQuote     = false;
   const char *newStr;
 
   // Sanity Check -- number of token
@@ -761,7 +745,6 @@ Rule::splitdnsParse(char *rule)
   //  return cacheParse(rule, 2);
 }
 
-
 /**
  * updateParse
  **/
@@ -793,7 +776,6 @@ Rule::updateParse(char *rule)
   return m_tokenList;
 }
 
-
 /**
  * vaddrsParse
  **/
@@ -818,7 +800,6 @@ Rule::vaddrsParse(char *rule)
 
   return m_tokenList;
 }
-
 
 /**
  * storageParse
@@ -854,7 +835,6 @@ Rule::storageParse(char *rule)
   return m_tokenList;
 }
 
-
 /*
  * bool Rule::inQuote(char *str)
  *   Counts the number of quote found in "str"
@@ -872,7 +852,6 @@ Rule::inQuote(const char *str)
   }
   return (numQuote & 1);
 }
-
 
 /***************************************************************************
  * RuleList
@@ -994,7 +973,7 @@ RuleList::parse(char *fileBuf, TSFileNameT filetype)
       } else {
         // rule->setComment("## WARNING: The following configuration rule is invalid!");
         size_t error_rule_size = sizeof(char) * (strlen(line) + strlen("#ERROR: ") + 1);
-        char *error_rule = (char *)ats_malloc(error_rule_size);
+        char *error_rule       = (char *)ats_malloc(error_rule_size);
 
         snprintf(error_rule, error_rule_size, "#ERROR: %s", line);
         rule->setComment(error_rule);
@@ -1010,7 +989,6 @@ RuleList::parse(char *fileBuf, TSFileNameT filetype)
   }
   // this->Print();
 }
-
 
 /***************************************************************************
  * General Routines

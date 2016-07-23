@@ -325,7 +325,6 @@ public:
   int m_len;
 
   LogFlushData(LogFile *logfile, void *data, int len = -1) : m_logfile(logfile), m_data(data), m_len(len) {}
-
   ~LogFlushData()
   {
     switch (m_logfile->m_file_format) {
@@ -355,10 +354,10 @@ class Log
 public:
   enum ReturnCodeFlags {
     LOG_OK = 1,
-    SKIP = 2,
-    AGGR = 4,
-    FAIL = 8,
-    FULL = 16,
+    SKIP   = 2,
+    AGGR   = 4,
+    FAIL   = 8,
+    FULL   = 16,
   };
 
   enum LoggingMode {
@@ -370,13 +369,13 @@ public:
 
   enum InitFlags {
     FIELDS_INITIALIZED = 1,
-    FULLY_INITIALIZED = 2,
+    FULLY_INITIALIZED  = 2,
   };
 
   enum ConfigFlags {
     NO_REMOTE_MANAGEMENT = 1,
-    STANDALONE_COLLATOR = 2,
-    LOGCAT = 4,
+    STANDALONE_COLLATOR  = 2,
+    LOGCAT               = 4,
   };
 
   enum CollationMode {
@@ -478,7 +477,6 @@ private:
   Log(const Log &rhs);
   Log &operator=(const Log &rhs);
 };
-
 
 static inline bool
 LogRollingEnabledIsValid(int enabled)

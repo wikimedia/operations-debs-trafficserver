@@ -146,7 +146,8 @@ libhttp_a_AR = $(AR) $(ARFLAGS)
 libhttp_a_LIBADD =
 am__libhttp_a_SOURCES_DIST = HttpSessionAccept.cc HttpSessionAccept.h \
 	HttpBodyFactory.cc HttpBodyFactory.h HttpCacheSM.cc \
-	HttpCacheSM.h HttpClientSession.cc HttpClientSession.h \
+	HttpCacheSM.h Http1ClientSession.cc Http1ClientSession.h \
+	Http1ClientTransaction.cc Http1ClientTransaction.h \
 	HttpConfig.cc HttpConfig.h HttpConnectionCount.cc \
 	HttpConnectionCount.h HttpDebugNames.cc HttpDebugNames.h \
 	HttpPages.cc HttpPages.h HttpProxyServerMain.cc \
@@ -161,13 +162,14 @@ am__libhttp_a_SOURCES_DIST = HttpSessionAccept.cc HttpSessionAccept.h \
 @BUILD_TESTS_TRUE@	RegressionHttpTransact.$(OBJEXT)
 am_libhttp_a_OBJECTS = HttpSessionAccept.$(OBJEXT) \
 	HttpBodyFactory.$(OBJEXT) HttpCacheSM.$(OBJEXT) \
-	HttpClientSession.$(OBJEXT) HttpConfig.$(OBJEXT) \
-	HttpConnectionCount.$(OBJEXT) HttpDebugNames.$(OBJEXT) \
-	HttpPages.$(OBJEXT) HttpProxyServerMain.$(OBJEXT) \
-	HttpSM.$(OBJEXT) HttpServerSession.$(OBJEXT) \
-	HttpSessionManager.$(OBJEXT) HttpTransact.$(OBJEXT) \
-	HttpTransactCache.$(OBJEXT) HttpTransactHeaders.$(OBJEXT) \
-	HttpTunnel.$(OBJEXT) HttpUpdateSM.$(OBJEXT) $(am__objects_1)
+	Http1ClientSession.$(OBJEXT) Http1ClientTransaction.$(OBJEXT) \
+	HttpConfig.$(OBJEXT) HttpConnectionCount.$(OBJEXT) \
+	HttpDebugNames.$(OBJEXT) HttpPages.$(OBJEXT) \
+	HttpProxyServerMain.$(OBJEXT) HttpSM.$(OBJEXT) \
+	HttpServerSession.$(OBJEXT) HttpSessionManager.$(OBJEXT) \
+	HttpTransact.$(OBJEXT) HttpTransactCache.$(OBJEXT) \
+	HttpTransactHeaders.$(OBJEXT) HttpTunnel.$(OBJEXT) \
+	HttpUpdateSM.$(OBJEXT) $(am__objects_1)
 libhttp_a_OBJECTS = $(am_libhttp_a_OBJECTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
@@ -345,7 +347,7 @@ EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEOIP_LIBS = @GEOIP_LIBS@
+GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
 HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
@@ -365,6 +367,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
+LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
 LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
 LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
@@ -379,6 +383,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -523,14 +528,17 @@ has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
+has_kyotocabinet = @has_kyotocabinet@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
+has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
+have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -640,6 +648,7 @@ use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
+use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
@@ -672,7 +681,8 @@ noinst_HEADERS = HttpProxyServerMain.h
 noinst_LIBRARIES = libhttp.a
 libhttp_a_SOURCES = HttpSessionAccept.cc HttpSessionAccept.h \
 	HttpBodyFactory.cc HttpBodyFactory.h HttpCacheSM.cc \
-	HttpCacheSM.h HttpClientSession.cc HttpClientSession.h \
+	HttpCacheSM.h Http1ClientSession.cc Http1ClientSession.h \
+	Http1ClientTransaction.cc Http1ClientTransaction.h \
 	HttpConfig.cc HttpConfig.h HttpConnectionCount.cc \
 	HttpConnectionCount.h HttpDebugNames.cc HttpDebugNames.h \
 	HttpPages.cc HttpPages.h HttpProxyServerMain.cc \
@@ -730,9 +740,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientSession.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http1ClientTransaction.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpBodyFactory.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpCacheSM.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpClientSession.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpConfig.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpConnectionCount.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HttpDebugNames.Po@am__quote@

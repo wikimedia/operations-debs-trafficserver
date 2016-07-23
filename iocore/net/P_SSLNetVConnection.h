@@ -84,7 +84,7 @@ public:
   virtual void
   enableRead()
   {
-    read.enabled = 1;
+    read.enabled  = 1;
     write.enabled = 1;
   };
   virtual bool
@@ -132,7 +132,6 @@ public:
   ////////////////////////////////////////////////////////////
   SSLNetVConnection();
   virtual ~SSLNetVConnection() {}
-
   SSL *ssl;
   ink_hrtime sslHandshakeBeginTime;
   ink_hrtime sslLastWriteTime;
@@ -200,9 +199,9 @@ public:
   void
   initialize_handshake_buffers()
   {
-    this->handShakeBuffer = new_MIOBuffer();
-    this->handShakeReader = this->handShakeBuffer->alloc_reader();
-    this->handShakeHolder = this->handShakeReader->clone();
+    this->handShakeBuffer    = new_MIOBuffer();
+    this->handShakeReader    = this->handShakeBuffer->alloc_reader();
+    this->handShakeHolder    = this->handShakeReader->clone();
     this->handShakeBioStored = 0;
   }
   void
@@ -217,9 +216,9 @@ public:
     if (this->handShakeBuffer) {
       free_MIOBuffer(this->handShakeBuffer);
     }
-    this->handShakeReader = NULL;
-    this->handShakeHolder = NULL;
-    this->handShakeBuffer = NULL;
+    this->handShakeReader    = NULL;
+    this->handShakeHolder    = NULL;
+    this->handShakeBuffer    = NULL;
     this->handShakeBioStored = 0;
   }
   // Returns true if all the hooks reenabled
@@ -228,25 +227,6 @@ public:
   // Returns true if we have already called at
   // least some of the hooks
   bool calledHooks(TSHttpHookID /* eventId */) { return (this->sslHandshakeHookState != HANDSHAKE_HOOKS_PRE); }
-
-  MIOBuffer *
-  get_ssl_iobuf()
-  {
-    return iobuf;
-  }
-
-  void
-  set_ssl_iobuf(MIOBuffer *buf)
-  {
-    iobuf = buf;
-  }
-
-  IOBufferReader *
-  get_ssl_reader()
-  {
-    return reader;
-  }
-
   bool
   isEosRcvd()
   {
@@ -328,8 +308,6 @@ private:
   const SSLNextProtocolSet *npnSet;
   Continuation *npnEndpoint;
   SessionAccept *sessionAcceptPtr;
-  MIOBuffer *iobuf;
-  IOBufferReader *reader;
   bool eosRcvd;
   bool sslTrace;
 };

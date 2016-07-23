@@ -90,7 +90,7 @@ public:
   {
     ResponseData resp;
     if (getData(url, resp)) {
-      content = resp.content;
+      content     = resp.content;
       content_len = resp.content_len;
       return true;
     }
@@ -144,7 +144,6 @@ private:
   bool _checkHeaderValue(TSMBuffer bufp, TSMLoc hdr_loc, const char *name, int name_len, const char *exp_value, int exp_value_len,
                          bool prefix) const;
 
-
   std::string _headers_str;
 
   inline void _release(RequestData &req_data);
@@ -155,11 +154,11 @@ private:
 inline void
 HttpDataFetcherImpl::ResponseData::set(const char *c, int clen, TSMBuffer b, TSMLoc loc, TSHttpStatus s)
 {
-  content = c;
+  content     = c;
   content_len = clen;
-  bufp = b;
-  hdr_loc = loc;
-  status = s;
+  bufp        = b;
+  hdr_loc     = loc;
+  status      = s;
 }
 
 #endif
