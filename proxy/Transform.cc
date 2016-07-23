@@ -61,18 +61,14 @@
 
 #include "ProxyConfig.h"
 #include "P_Net.h"
-#include "ts/MimeTable.h"
 #include "TransformInternal.h"
 #include "HdrUtils.h"
 #include "Log.h"
 
-
 #define ART 1
 #define AGIF 2
 
-
 TransformProcessor transformProcessor;
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -107,7 +103,6 @@ TransformProcessor::null_transform(ProxyMutex *mutex)
   return new NullTransform(mutex);
 }
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -120,17 +115,21 @@ TransformProcessor::range_transform(ProxyMutex *mut, RangeRecord *ranges, int nu
   return range_transform;
 }
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 TransformTerminus::TransformTerminus(TransformVConnection *tvc)
-  : VConnection(tvc->mutex), m_tvc(tvc), m_read_vio(), m_write_vio(), m_event_count(0), m_deletable(0), m_closed(0),
+  : VConnection(tvc->mutex),
+    m_tvc(tvc),
+    m_read_vio(),
+    m_write_vio(),
+    m_event_count(0),
+    m_deletable(0),
+    m_closed(0),
     m_called_user(0)
 {
   SET_HANDLER(&TransformTerminus::handle_event);
 }
-
 
 #define RETRY()                                                  \
   if (ink_atomic_increment((int *)&m_event_count, 1) < 0) {      \
@@ -138,7 +137,6 @@ TransformTerminus::TransformTerminus(TransformVConnection *tvc)
   }                                                              \
   eventProcessor.schedule_in(this, HRTIME_MSECONDS(10), ET_NET); \
   return 0;
-
 
 int
 TransformTerminus::handle_event(int event, void * /* edata ATS_UNUSED */)
@@ -279,8 +277,8 @@ TransformTerminus::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
   m_read_vio.buffer.writer_for(buf);
   m_read_vio.op = VIO::READ;
   m_read_vio.set_continuation(c);
-  m_read_vio.nbytes = nbytes;
-  m_read_vio.ndone = 0;
+  m_read_vio.nbytes    = nbytes;
+  m_read_vio.ndone     = 0;
   m_read_vio.vc_server = this;
 
   if (ink_atomic_increment((int *)&m_event_count, 1) < 0) {
@@ -304,8 +302,8 @@ TransformTerminus::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *
   m_write_vio.buffer.reader_for(buf);
   m_write_vio.op = VIO::WRITE;
   m_write_vio.set_continuation(c);
-  m_write_vio.nbytes = nbytes;
-  m_write_vio.ndone = 0;
+  m_write_vio.nbytes    = nbytes;
+  m_write_vio.ndone     = 0;
   m_write_vio.vc_server = this;
 
   if (ink_atomic_increment((int *)&m_event_count, 1) < 0) {
@@ -331,7 +329,7 @@ TransformTerminus::do_io_close(int error)
   INK_WRITE_MEMORY_BARRIER;
 
   if (error != -1) {
-    lerrno = error;
+    lerrno   = error;
     m_closed = TS_VC_CLOSE_ABORT;
   } else {
     m_closed = TS_VC_CLOSE_NORMAL;
@@ -383,7 +381,6 @@ TransformTerminus::reenable(VIO *vio)
   }
 }
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -418,7 +415,7 @@ TransformVConnection::~TransformVConnection()
   m_terminus.m_read_vio.set_continuation(NULL);
   m_terminus.m_write_vio.set_continuation(NULL);
   m_terminus.mutex = NULL;
-  this->mutex = NULL;
+  this->mutex      = NULL;
 }
 
 /*-------------------------------------------------------------------------
@@ -498,7 +495,7 @@ TransformVConnection::reenable(VIO * /* vio ATS_UNUSED */)
 uint64_t
 TransformVConnection::backlog(uint64_t limit)
 {
-  uint64_t b = 0; // backlog
+  uint64_t b          = 0; // backlog
   VConnection *raw_vc = m_transform;
   MIOBuffer *w;
   while (raw_vc && raw_vc != &m_terminus) {
@@ -549,8 +546,8 @@ TransformControl::handle_event(int event, void * /* edata ATS_UNUSED */)
     ink_assert(m_tvc != NULL);
 
     m_write_buf = new_MIOBuffer();
-    s = m_write_buf->end();
-    e = m_write_buf->buf_end();
+    s           = m_write_buf->end();
+    e           = m_write_buf->buf_end();
 
     memset(s, 'a', e - s);
     m_write_buf->fill(e - s);
@@ -648,9 +645,9 @@ NullTransform::handle_event(int event, void *edata)
       ink_assert(m_output_vc != NULL);
 
       if (!m_output_vio) {
-        m_output_buf = new_empty_MIOBuffer();
+        m_output_buf    = new_empty_MIOBuffer();
         m_output_reader = m_output_buf->alloc_reader();
-        m_output_vio = m_output_vc->do_io_write(this, m_write_vio.nbytes, m_output_reader);
+        m_output_vio    = m_output_vc->do_io_write(this, m_write_vio.nbytes, m_output_reader);
       }
 
       MUTEX_TRY_LOCK(trylock, m_write_vio.mutex, this_ethread());
@@ -706,7 +703,6 @@ NullTransform::handle_event(int event, void *edata)
   return 0;
 }
 
-
 /*-------------------------------------------------------------------------
   Reasons the JG transform cannot currently be a plugin:
     a) Uses the config system
@@ -718,7 +714,6 @@ NullTransform::handle_event(int event, void *edata)
 
 /* the JG transform is now a plugin. All the JG code,
    config variables and stats are removed from Transform.cc */
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -733,23 +728,30 @@ TransformTest::run()
 }
 #endif
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 RangeTransform::RangeTransform(ProxyMutex *mut, RangeRecord *ranges, int num_fields, HTTPHdr *transform_resp,
                                const char *content_type, int content_type_len, int64_t content_length)
-  : INKVConnInternal(NULL, reinterpret_cast<TSMutex>(mut)), m_output_buf(NULL), m_output_reader(NULL),
-    m_transform_resp(transform_resp), m_output_vio(NULL), m_range_content_length(0), m_num_range_fields(num_fields),
-    m_current_range(0), m_content_type(content_type), m_content_type_len(content_type_len), m_ranges(ranges),
-    m_output_cl(content_length), m_done(0)
+  : INKVConnInternal(NULL, reinterpret_cast<TSMutex>(mut)),
+    m_output_buf(NULL),
+    m_output_reader(NULL),
+    m_transform_resp(transform_resp),
+    m_output_vio(NULL),
+    m_range_content_length(0),
+    m_num_range_fields(num_fields),
+    m_current_range(0),
+    m_content_type(content_type),
+    m_content_type_len(content_type_len),
+    m_ranges(ranges),
+    m_output_cl(content_length),
+    m_done(0)
 {
   SET_HANDLER(&RangeTransform::handle_event);
 
   m_num_chars_for_cl = num_chars_for_int(m_range_content_length);
   Debug("http_trans", "RangeTransform creation finishes");
 }
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -759,7 +761,6 @@ RangeTransform::~RangeTransform()
   if (m_output_buf)
     free_MIOBuffer(m_output_buf);
 }
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -788,9 +789,9 @@ RangeTransform::handle_event(int event, void *edata)
       ink_assert(m_output_vc != NULL);
 
       if (!m_output_vio) {
-        m_output_buf = new_empty_MIOBuffer();
+        m_output_buf    = new_empty_MIOBuffer();
         m_output_reader = m_output_buf->alloc_reader();
-        m_output_vio = m_output_vc->do_io_write(this, m_output_cl, m_output_reader);
+        m_output_vio    = m_output_vc->do_io_write(this, m_output_cl, m_output_reader);
 
         change_response_header();
 
@@ -824,7 +825,6 @@ RangeTransform::handle_event(int event, void *edata)
   return 0;
 }
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -837,10 +837,10 @@ RangeTransform::transform_to_range()
   int64_t prev_end = 0;
   int64_t *done_byte;
 
-  end = &m_ranges[m_current_range]._end;
+  end       = &m_ranges[m_current_range]._end;
   done_byte = &m_ranges[m_current_range]._done_byte;
-  start = &m_ranges[m_current_range]._start;
-  avail = reader->read_avail();
+  start     = &m_ranges[m_current_range]._start;
+  avail     = reader->read_avail();
 
   while (true) {
     if (*done_byte < (*start - 1)) {
@@ -895,9 +895,9 @@ RangeTransform::transform_to_range()
         return;
       }
 
-      end = &m_ranges[m_current_range]._end;
+      end       = &m_ranges[m_current_range]._end;
       done_byte = &m_ranges[m_current_range]._done_byte;
-      start = &m_ranges[m_current_range]._start;
+      start     = &m_ranges[m_current_range]._start;
 
       // if this is a good Range
       if (*end != -1) {
@@ -929,7 +929,6 @@ RangeTransform::transform_to_range()
   m_write_vio._cont->handleEvent(VC_EVENT_WRITE_READY, &m_write_vio);
 }
 
-
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
@@ -937,9 +936,9 @@ RangeTransform::transform_to_range()
  * these two need be changed at the same time
  */
 
-static char bound[] = "RANGE_SEPARATOR";
+static char bound[]      = "RANGE_SEPARATOR";
 static char range_type[] = "multipart/byteranges; boundary=RANGE_SEPARATOR";
-static char cont_type[] = "Content-type: ";
+static char cont_type[]  = "Content-type: ";
 static char cont_range[] = "Content-range: bytes ";
 
 void
@@ -953,7 +952,6 @@ RangeTransform::add_boundary(bool end)
 
   m_done += m_output_buf->write("\r\n", 2);
 }
-
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -1009,7 +1007,6 @@ RangeTransform::change_response_header()
 
     if (field != NULL)
       m_transform_resp->field_delete(MIME_FIELD_CONTENT_TYPE, MIME_LEN_CONTENT_TYPE);
-
 
     field = m_transform_resp->field_create(MIME_FIELD_CONTENT_TYPE, MIME_LEN_CONTENT_TYPE);
     field->value_append(m_transform_resp->m_heap, m_transform_resp->m_mime, range_type, sizeof(range_type) - 1);

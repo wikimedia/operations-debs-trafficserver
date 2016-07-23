@@ -36,7 +36,7 @@
 
 enum INKContInternalMagic_t {
   INKCONT_INTERN_MAGIC_ALIVE = 0x00009631,
-  INKCONT_INTERN_MAGIC_DEAD = 0xDEAD9631,
+  INKCONT_INTERN_MAGIC_DEAD  = 0xDEAD9631,
 };
 
 class INKContInternal : public DummyVConnection
@@ -127,7 +127,6 @@ TSReturnCode sdk_sanity_check_iocore_structure(void *);
 
 tsapi TSMutex TSMutexCreateInternal(void);
 tsapi int TSMutexCheck(TSMutex mutex);
-
 
 /* IOBuffer */
 tsapi void TSIOBufferReaderCopy(TSIOBufferReader readerp, const void *buf, int64_t length);

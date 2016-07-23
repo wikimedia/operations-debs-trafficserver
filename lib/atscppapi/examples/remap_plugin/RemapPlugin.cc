@@ -16,7 +16,6 @@
   limitations under the License.
  */
 
-
 #include <atscppapi/RemapPlugin.h>
 #include <atscppapi/PluginInit.h>
 #include <atscppapi/Logger.h>
@@ -33,7 +32,6 @@ class MyRemapPlugin : public RemapPlugin
 {
 public:
   MyRemapPlugin(void **instance_handle) : RemapPlugin(instance_handle) {}
-
   Result
   doRemap(const Url &map_from_url, const Url &map_to_url, Transaction &transaction, bool &redirect)
   {
@@ -55,8 +53,8 @@ public:
       return RESULT_ERROR;
     }
     const string &remap = query_params["remap"];
-    bool stop = (query_params["stop"] == "true");
-    Result result = stop ? RESULT_NO_REMAP_STOP : RESULT_NO_REMAP;
+    bool stop           = (query_params["stop"] == "true");
+    Result result       = stop ? RESULT_NO_REMAP_STOP : RESULT_NO_REMAP;
     if (remap == "true") {
       const string &path = query_params["path"];
       if (path.size()) {

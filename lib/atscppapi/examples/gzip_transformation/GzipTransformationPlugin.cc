@@ -62,8 +62,8 @@ public:
   }
 
   enum ContentType {
-    UNKNOWN = 0,
-    TEXT_HTML = 1,
+    UNKNOWN    = 0,
+    TEXT_HTML  = 1,
     TEXT_PLAIN = 2,
   };
 
@@ -120,7 +120,6 @@ public:
   }
 
   virtual ~SomeTransformationPlugin() {}
-
 private:
   Transaction &transaction_;
 };

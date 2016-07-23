@@ -16,7 +16,6 @@
   limitations under the License.
 */
 
-
 #include "ts_lua_util.h"
 #include "ts_lua_http_intercept.h"
 #include "ts_lua_http_config.h"
@@ -255,7 +254,7 @@ ts_lua_http_get_cache_lookup_url(lua_State *L)
   char output[TS_LUA_MAX_URL_LENGTH];
   int output_len;
   TSMLoc url = TS_NULL_MLOC;
-  char *str = NULL;
+  char *str  = NULL;
   int len;
 
   ts_lua_http_ctx *http_ctx;
@@ -307,7 +306,7 @@ ts_lua_http_set_cache_lookup_url(lua_State *L)
 
   if (url && url_len) {
     const char *start = url;
-    const char *end = url + url_len;
+    const char *end   = url + url_len;
     TSMLoc new_url_loc;
     if (TSUrlCreate(http_ctx->client_request_bufp, &new_url_loc) == TS_SUCCESS &&
         TSUrlParse(http_ctx->client_request_bufp, new_url_loc, &start, end) == TS_PARSE_DONE &&
@@ -334,7 +333,9 @@ ts_lua_http_set_cache_url(lua_State *L)
   url = luaL_checklstring(L, 1, &url_len);
 
   if (url && url_len) {
-    TSCacheUrlSet(http_ctx->txnp, url, url_len);
+    if (TSCacheUrlSet(http_ctx->txnp, url, url_len) != TS_SUCCESS) {
+      TSError("[ts_lua] Failed to set cache url");
+    }
   }
 
   return 0;

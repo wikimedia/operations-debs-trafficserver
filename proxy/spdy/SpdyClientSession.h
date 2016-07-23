@@ -38,14 +38,30 @@ class SpdyRequest
 {
 public:
   SpdyRequest()
-    : event(0), spdy_sm(NULL), stream_id(-1), start_time(0), fetch_sm(NULL), has_submitted_data(false), need_resume_data(false),
-      fetch_data_len(0), delta_window_size(0), fetch_body_completed(false)
+    : event(0),
+      spdy_sm(NULL),
+      stream_id(-1),
+      start_time(0),
+      fetch_sm(NULL),
+      has_submitted_data(false),
+      need_resume_data(false),
+      fetch_data_len(0),
+      delta_window_size(0),
+      fetch_body_completed(false)
   {
   }
 
   SpdyRequest(SpdyClientSession *sm, int id)
-    : event(0), spdy_sm(NULL), stream_id(-1), start_time(0), fetch_sm(NULL), has_submitted_data(false), need_resume_data(false),
-      fetch_data_len(0), delta_window_size(0), fetch_body_completed(false)
+    : event(0),
+      spdy_sm(NULL),
+      stream_id(-1),
+      start_time(0),
+      fetch_sm(NULL),
+      has_submitted_data(false),
+      need_resume_data(false),
+      fetch_data_len(0),
+      delta_window_size(0),
+      fetch_body_completed(false)
   {
     init(sm, id);
   }
@@ -75,7 +91,7 @@ public:
   int fetch_data_len;
   unsigned delta_window_size;
   bool fetch_body_completed;
-  vector<pair<string, string> > headers;
+  vector<pair<string, string>> headers;
 
   string url;
   string host;
@@ -95,11 +111,21 @@ class SpdyClientSession : public ProxyClientSession, public PluginIdentity
 public:
   typedef ProxyClientSession super; ///< Parent type.
   SpdyClientSession()
-    : sm_id(0), version(spdy::SessionVersion::SESSION_VERSION_3_1), total_size(0), start_time(0), vc(NULL), req_buffer(NULL),
-      req_reader(NULL), resp_buffer(NULL), resp_reader(NULL), read_vio(NULL), write_vio(NULL), event(0), session(NULL)
+    : sm_id(0),
+      version(spdy::SessionVersion::SESSION_VERSION_3_1),
+      total_size(0),
+      start_time(0),
+      vc(NULL),
+      req_buffer(NULL),
+      req_reader(NULL),
+      resp_buffer(NULL),
+      resp_reader(NULL),
+      read_vio(NULL),
+      write_vio(NULL),
+      event(0),
+      session(NULL)
   {
   }
-
 
   void init(NetVConnection *netvc);
   void clear();
@@ -146,6 +172,16 @@ public:
   }
   void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor);
 
+  int
+  get_transact_count() const
+  {
+    return this->transact_count;
+  }
+  void
+  release(ProxyClientTransaction *)
+  { /* TBD */
+  }
+
   int64_t sm_id;
   spdy::SessionVersion version;
   uint64_t total_size;
@@ -164,6 +200,7 @@ public:
 
   int event;
   spdylay_session *session;
+  int transact_count;
 
   map<int32_t, SpdyRequest *> req_map;
 
@@ -194,6 +231,5 @@ private:
   int state_session_start(int event, void *edata);
   int state_session_readwrite(int event, void *edata);
 };
-
 
 #endif

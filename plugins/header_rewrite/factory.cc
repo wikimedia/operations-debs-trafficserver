@@ -24,7 +24,6 @@
 #include "operators.h"
 #include "conditions.h"
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // "Factory" functions, processing the parsed lines
 //
@@ -68,7 +67,6 @@ operator_factory(const std::string &op)
 
   return o;
 }
-
 
 Condition *
 condition_factory(const std::string &cond)
@@ -127,13 +125,18 @@ condition_factory(const std::string &cond)
     c = new ConditionMethod();
   } else if (c_name == "TXN-COUNT") {
     c = new ConditionTransactCount();
+  } else if (c_name == "NOW") {
+    c = new ConditionNow();
+  } else if (c_name == "GEO") {
+    c = new ConditionGeo();
   } else {
     TSError("[%s] Unknown condition: %s", PLUGIN_NAME, c_name.c_str());
     return NULL;
   }
 
-  if (c_qual != "")
+  if (c_qual != "") {
     c->set_qualifier(c_qual);
+  }
 
   return c;
 }

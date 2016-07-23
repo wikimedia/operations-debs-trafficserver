@@ -29,7 +29,6 @@
     # tsxs -i -o remap.so
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,7 +46,6 @@
 #include "ts/ink_defs.h"
 #include "ts/ts.h"
 #include "ts/remap.h"
-
 
 class remap_entry
 {
@@ -75,9 +73,9 @@ remap_entry::remap_entry(int _argc, char *_argv[]) : next(NULL), argc(0), argv(N
 
   if (_argc > 0 && _argv && (argv = (char **)TSmalloc(sizeof(char *) * (_argc + 1))) != 0) {
     argc = _argc;
-    for (i = 0; i < argc; i++)
+    for (i    = 0; i < argc; i++)
       argv[i] = TSstrdup(_argv[i]);
-    argv[i] = NULL;
+    argv[i]   = NULL;
   }
 }
 
@@ -99,7 +97,7 @@ remap_entry::add_to_list(remap_entry *re)
 {
   if (likely(re && plugin_init_counter)) {
     pthread_mutex_lock(&mutex);
-    re->next = active_list;
+    re->next    = active_list;
     active_list = re;
     pthread_mutex_unlock(&mutex);
   }
@@ -141,8 +139,8 @@ void
 TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
 {
   TSPluginRegistrationInfo info;
-  info.plugin_name = (char *)"remap_plugin";
-  info.vendor_name = (char *)"Apache";
+  info.plugin_name   = (char *)"remap_plugin";
+  info.vendor_name   = (char *)"Apache";
   info.support_email = (char *)"";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
@@ -191,7 +189,6 @@ TSRemapDone(void)
   fprintf(stderr, "Remap Plugin: TSRemapDone()\n");
 }
 
-
 // Plugin new instance for new remapping rule.
 // This function can be called multiple times (depends on remap.config)
 /* ------------------------ TSRemapNewInstance --------------------------- */
@@ -200,7 +197,6 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
 {
   remap_entry *ri;
   int i;
-
 
   fprintf(stderr, "Remap Plugin: TSRemapNewInstance()\n");
 
@@ -242,7 +238,7 @@ TSRemapDeleteInstance(void *ih)
 }
 
 static volatile unsigned long processing_counter = 0; // sequential counter
-static int arg_index = 0;
+static int arg_index                             = 0;
 
 /* -------------------------- TSRemapDoRemap -------------------------------- */
 TSRemapStatus
@@ -307,7 +303,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   // How to cancel request processing and return error message to the client
   // We wiil do it each other request
   if (_processing_counter & 1) {
-    char *tmp = (char *)TSmalloc(256);
+    char *tmp                   = (char *)TSmalloc(256);
     static int my_local_counter = 0;
 
     size_t len = snprintf(tmp, 255, "This is very small example of TS API usage!\nIteration %d!\nHTTP return code %d\n",
@@ -318,9 +314,9 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   }
   // hardcoded case for remapping
   // You need to check host and port if you are using the same plugin for multiple remapping rules
-  temp = TSUrlHostGet(rri->requestBufp, rri->requestUrl, &len);
+  temp  = TSUrlHostGet(rri->requestBufp, rri->requestUrl, &len);
   temp2 = TSUrlPathGet(rri->requestBufp, rri->requestUrl, &len2);
-  port = TSUrlPortGet(rri->requestBufp, rri->requestUrl);
+  port  = TSUrlPortGet(rri->requestBufp, rri->requestUrl);
 
   if (len == 10 && !memcmp("flickr.com", temp, 10) && port == 80 && len2 >= 3 && !memcmp("47/", temp2, 3)) {
     char new_path[8192];
@@ -351,7 +347,7 @@ void
 TSRemapOSResponse(void *ih ATS_UNUSED, TSHttpTxn rh, int os_response_type)
 {
   int request_id = -1;
-  void *data = TSHttpTxnArgGet((TSHttpTxn)rh, arg_index); // read counter (we store it in TSRemapDoRemap function call)
+  void *data     = TSHttpTxnArgGet((TSHttpTxn)rh, arg_index); // read counter (we store it in TSRemapDoRemap function call)
 
   if (data)
     request_id = *((int *)data);

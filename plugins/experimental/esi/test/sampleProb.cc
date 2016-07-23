@@ -30,10 +30,10 @@
 #include <sys/time.h>
 using namespace std;
 
-static int windowSize = 200;     // ms
+static int windowSize    = 200;  // ms
 static int totalDuration = 2000; // seconds
-static int lowerCutOff = 300;
-static int higherCutOff = 1000;
+static int lowerCutOff   = 300;
+static int higherCutOff  = 1000;
 
 class FailureInfo
 {
@@ -42,16 +42,15 @@ public:
   {
     gettimeofday(&_start, NULL);
     _totalSlot = totalDuration / windowSize; // INtegral multiple
-    _marker = 0;
+    _marker    = 0;
     for (int i = 0; i < _totalSlot; i++)
       _passFail.push_back(make_pair(0, 0));
 
     _avgOverWindow = 0;
-    _windowPassed = 0;
+    _windowPassed  = 0;
   };
 
   ~FailureInfo() {}
-
   // Whenever the window time expires u start filling the count
   // by taking a mod
   // so what u get is over a window of 200 ms and 10 rounds
@@ -61,7 +60,7 @@ public:
   // according to which the probability of serving the
   // data from cache or contacting the origin server
   // will be decided
-  std::vector<std::pair<double, double> > _passFail;
+  std::vector<std::pair<double, double>> _passFail;
 
   int _marker;
 
@@ -74,7 +73,6 @@ public:
   int _windowPassed;
 };
 
-
 typedef std::map<std::string, class FailureInfo *> FailureData;
 
 void
@@ -84,16 +82,14 @@ registerSuccFail(string URL, FailureData &data, bool isSuccess)
   int marker;
   FailureData::iterator it;
   it = data.find(URL);
-  vector<pair<double, double> > &passFail = it->second->_passFail;
+  vector<pair<double, double>> &passFail = it->second->_passFail;
   marker = it->second->_marker;
-
 
   startTime = it->second->_start;
 
   gettimeofday(&currTime, NULL);
 
   timersub(&currTime, &startTime, &result);
-
 
   if ((result.tv_sec * 1000000 + result.tv_usec) > (windowSize * 1000)) {
     marker = ++marker % it->second->_totalSlot;
@@ -111,7 +107,6 @@ registerSuccFail(string URL, FailureData &data, bool isSuccess)
     gettimeofday(&it->second->_start, NULL);
   }
 
-
   if (isSuccess) {
     passFail[marker].second++;
   }
@@ -121,7 +116,6 @@ registerSuccFail(string URL, FailureData &data, bool isSuccess)
   }
 }
 
-
 bool
 isAttemptReq(string URL, FailureData &data)
 {
@@ -129,7 +123,7 @@ isAttemptReq(string URL, FailureData &data)
   it = data.find(URL);
   if (it != data.end()) {
     double avg = 0;
-    vector<pair<double, double> > &passFail = it->second->_passFail;
+    vector<pair<double, double>> &passFail = it->second->_passFail;
 
     for (int i = 0; i < it->second->_totalSlot; i++) {
       // cout<<"Failure:"<<passFail[i].first<< "Total"<< (passFail[i].first+passFail[i].second )<<endl;
@@ -143,15 +137,13 @@ isAttemptReq(string URL, FailureData &data)
       avg = avg / it->second->_totalSlot;
       double prob;
 
-
       if (avg * 1000 < lowerCutOff) {
         prob = avg;
       }
 
-
       else {
         double mapFactor = (((avg * 1000 - lowerCutOff) * (avg * 1000 - lowerCutOff)) / (higherCutOff - lowerCutOff)) + lowerCutOff;
-        prob = mapFactor / 1000;
+        prob             = mapFactor / 1000;
         cout << prob << endl;
       }
 
@@ -162,7 +154,6 @@ isAttemptReq(string URL, FailureData &data)
 
       int decision = rand() % 100;
 
-
       if (decision < prob * 100)
         return false;
 
@@ -172,11 +163,10 @@ isAttemptReq(string URL, FailureData &data)
 
   } else {
     FailureInfo *info = new FailureInfo();
-    data[URL] = info;
+    data[URL]         = info;
     return true;
   }
 }
-
 
 const std::string fetchURL = "www.example.com";
 int

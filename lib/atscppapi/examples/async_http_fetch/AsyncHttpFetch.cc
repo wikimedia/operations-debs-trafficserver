@@ -16,7 +16,6 @@
   limitations under the License.
  */
 
-
 #include <atscppapi/GlobalPlugin.h>
 #include <atscppapi/TransactionPlugin.h>
 #include <atscppapi/Logger.h>
@@ -70,7 +69,6 @@ public:
     return getDispatchController()->isEnabled();
   }
   ~DelayedAsyncHttpFetch() { delete timer_; }
-
 private:
   shared_ptr<Mutex> mutex_;
   AsyncTimer *timer_;
@@ -104,7 +102,7 @@ public:
 
     // we'll add some custom headers for this request
     AsyncHttpFetch2 *provider2 = new AsyncHttpFetch2("http://127.0.0.1/");
-    Headers &request_headers = provider2->getRequestHeaders();
+    Headers &request_headers   = provider2->getRequestHeaders();
     request_headers.set("Header1", "Value1");
     request_headers.set("Header2", "Value2");
     Async::execute<AsyncHttpFetch2>(this, provider2, getMutex());
