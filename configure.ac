@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[6.1.1])
-m4_define([TS_VERSION_N],[6001001])
+m4_define([TS_VERSION_S],[6.2.0])
+m4_define([TS_VERSION_N],[6002000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -197,7 +197,6 @@ AC_ARG_ENABLE([fast-sdk],
 )
 AC_MSG_RESULT([$enable_fast_sdk])
 TS_ARG_ENABLE_VAR([use], [fast-sdk])
-AC_SUBST(use_fast_sdk)
 
 #
 # Diags
@@ -211,7 +210,6 @@ AC_ARG_ENABLE([diags],
 )
 AC_MSG_RESULT([$enable_diags])
 TS_ARG_ENABLE_VAR([use], [diags])
-AC_SUBST(use_diags)
 
 #
 # Build regression tests?
@@ -225,7 +223,6 @@ AC_ARG_ENABLE([tests],
 )
 AC_MSG_RESULT([$enable_tests])
 TS_ARG_ENABLE_VAR([has], [tests])
-AC_SUBST(has_tests)
 AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 
 #
@@ -266,7 +263,6 @@ AC_ARG_ENABLE([wccp],
 )
 AC_MSG_RESULT([$enable_wccp])
 TS_ARG_ENABLE_VAR([has],[wccp])
-AC_SUBST(has_wccp)
 AM_CONDITIONAL([BUILD_WCCP], [test 0 -ne $has_wccp])
 
 # Google profiler
@@ -325,6 +321,17 @@ AC_ARG_ENABLE([ccache],
 AC_MSG_RESULT([$enable_ccache])
 
 #
+# Enble hardening of the executables
+#
+AC_MSG_CHECKING([whether to enable hardening of the executables])
+AC_ARG_ENABLE([hardening],
+  [AS_HELP_STRING([--enable-hardening],[Enable hardening of executables])],
+  [],
+  [enable_hardening="no"]
+)
+AC_MSG_RESULT([$enable_hardening])
+
+#
 # Use TPROXY for connection transparency.
 #
 AC_MSG_CHECKING([whether to enable TPROXY based transparency])
@@ -348,12 +355,11 @@ AC_MSG_RESULT([$enable_tproxy])
 #
 AC_MSG_CHECKING([whether to enable spdy])
 AC_ARG_ENABLE([spdy],
-        [AS_HELP_STRING([--enable-spdy], [turn on spdy protocol])],
+        [AS_HELP_STRING([--enable-spdy], [turn on spdy protocol [DEPRECATED!]])],
         [],
         [enable_spdy="no"])
 AC_MSG_RESULT([$enable_spdy])
 TS_ARG_ENABLE_VAR([has], [spdy])
-AC_SUBST(has_spdy)
 AM_CONDITIONAL([BUILD_SPDY], [test 0 -ne $has_spdy])
 
 #
@@ -414,6 +420,21 @@ PKG_CHECK_MODULES([LIBMEMCACHED], [libmemcached >= 1.0], [have_libmemcached=yes]
 AM_CONDITIONAL([BUILD_MEMCACHED_REMAP_PLUGIN], [test "x${have_libmemcached}" = "xyes"])
 
 #
+# Check Magick++ is available. Enable experimental/webp_transform plugin
+#
+PKG_CHECK_MODULES([LIBMAGICKCPP],[Magick++], [
+  have_libmagickcpp=yes
+  AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
+    enable_webp_transform_plugin=yes
+  ])
+],
+[
+  have_libmagickcpp=no
+])
+
+AM_CONDITIONAL([BUILD_WEBP_TRANSFORM_PLUGIN], [test "x${enable_webp_transform_plugin}" = "xyes"])
+
+#
 # Example plugins. The example plugins are always built, but not always installed. Installing
 # them is useful for QA, but not useful for most users, so we default this to disabled.
 #
@@ -466,7 +487,7 @@ AC_ARG_ENABLE([luajit],
 )
 AC_MSG_RESULT([$enable_luajit])
 AM_CONDITIONAL([BUILD_LUAJIT], [ test "x${enable_luajit}" = "xyes" ])
-
+TS_ARG_ENABLE_VAR([use], [luajit])
 
 #
 # Check if we should allow builds on 32-bit platforms
@@ -571,9 +592,13 @@ AC_COMPILE_IFELSE([
 )
 
 AC_MSG_RESULT([$have_std_shared_ptr])
-if test "x${have_std_shared_ptr}" = "xyes" ; then
-  AC_DEFINE(HAVE_STD_SHARED_PTR, 1, [whether std::shared_ptr is available])
-fi
+AS_IF([test "x${have_std_shared_ptr}" = "xyes"], [
+    AC_DEFINE(HAVE_STD_SHARED_PTR, 1, [whether std::shared_ptr is available])
+    AC_SUBST(have_std_shared_ptr, 1)
+  ], [
+    AC_SUBST(have_std_shared_ptr, 0)
+  ]
+)
 
 AC_LANG_POP()
 
@@ -1017,6 +1042,16 @@ TS_ADDTO(CPPFLAGS, [-D__STDC_FORMAT_MACROS=1])
 
 AC_MSG_NOTICE([Build for host OS: $host_os, arch: $host_cpu, optimization: $host_os_def])
 
+# Add hardening options to flags
+AS_IF([test "x${enable_hardening}" = "xyes"], [
+  TS_ADDTO(CPPFLAGS, [-D_FORTIFY_SOURCE=2])
+  TS_ADDTO(CXXFLAGS, [-fPIE -fstack-protector])
+  TS_ADDTO(CFLAGS, [-fPIE -fstack-protector])
+  AS_CASE("$host_os_def",
+    [linux], [TS_ADDTO(LDFLAGS, [-pie -Wl,-z,relro -Wl,-z,now])]
+  )
+])
+
 #
 # Note:  These are site-specific macro's that do various tests
 #         on the selected compilers.  There was some tunning
@@ -1108,7 +1143,7 @@ TS_CHECK_CRYPTO_EC_KEYS
 # Check for ServerNameIndication TLS extension support.
 TS_CHECK_CRYPTO_SNI
 
-# 
+#
 # Check for the presense of the certificate callback in the ssl library
 TS_CHECK_CRYPTO_CERT_CB
 
@@ -1173,6 +1208,11 @@ AC_CHECK_HEADERS(mcheck.h)
 AC_CHECK_FUNCS(mcheck_pedantic)
 
 #
+# Check for malloc_usable_size()
+#
+AC_CHECK_FUNCS(malloc_usable_size)
+
+#
 # Check for pcre library
 #
 TS_CHECK_PCRE
@@ -1202,30 +1242,63 @@ AS_IF([test "$host_os_def" = "linux"], [
   ])
 ])
 TS_ARG_ENABLE_VAR([use], [remote_unwinding])
-AC_SUBST(use_remote_unwinding)
+
+# Find the appropriate event handling interface. This can be forced on
+# platforms that support 2 or more of our supported interfaces. It
+# could also (in the future?) be used to enable other event systems
+# such as libev.
+AC_ARG_WITH([event-interface],
+  [AS_HELP_STRING([--with-event-interface=epoll|kqueue|port],[event interface to use [default=auto]])],
+  [event_interface=$withval],
+  [event_interface="auto"]
+)
 
 use_epoll=0
 use_kqueue=0
 use_port=0
-if test "$ac_cv_func_epoll_ctl" = "yes"; then
-  use_epoll=1
-  have_good_poller=1
-  AC_MSG_NOTICE([Using epoll event interface])
-elif test "$ac_cv_func_kqueue" = "yes"; then
-  use_kqueue=1
-  have_good_poller=1
-  AC_MSG_NOTICE([Using kqueue event interface])
-elif test "$ac_cv_func_port_create" = "yes"; then
-  use_port=1
-  have_good_poller=1
-  AC_MSG_NOTICE([Using port event interface])
-else
-  AC_MSG_FAILURE([No suitable polling interface found])
-fi
+
+AS_IF([test "x$event_interface" = "xauto"], [
+  if test "$ac_cv_func_port_create" = "yes"; then
+    use_port=1
+    have_good_poller=1
+    AC_MSG_NOTICE([Using port event interface])
+  elif test "$ac_cv_func_epoll_ctl" = "yes"; then
+    use_epoll=1
+    have_good_poller=1
+    AC_MSG_NOTICE([Using epoll event interface])
+  elif test "$ac_cv_func_kqueue" = "yes"; then
+    use_kqueue=1
+    have_good_poller=1
+    AC_MSG_NOTICE([Using kqueue event interface])
+  else
+    AC_MSG_FAILURE([No suitable polling interface found])
+  fi
+],[
+  case "x$event_interface" in
+    xepoll)
+      use_epoll=1
+      AC_MSG_RESULT([forced to epoll])
+      ;;
+    xport)
+      use_port=1
+      AC_MSG_RESULT([forced to port])
+      ;;
+    xkqueue)
+      use_kqueue=1
+      AC_MSG_RESULT([forced to port])
+      ;;
+    *)
+      AC_MSG_RESULT([failed])
+      AC_MSG_FAILURE([unknown event system])
+  esac
+])
+
 AC_SUBST(use_epoll)
 AC_SUBST(use_kqueue)
 AC_SUBST(use_port)
 
+
+# Profiler support
 has_profiler=0
 if test "x${with_profiler}" = "xyes"; then
   AC_SEARCH_LIBS([ProfilerStart], [profiler],
@@ -1327,7 +1400,6 @@ AS_IF([test "x$enable_linux_native_aio" = "xyes"], [
 
 AC_MSG_RESULT([$enable_linux_native_aio])
 TS_ARG_ENABLE_VAR([use], [linux_native_aio])
-AC_SUBST(use_linux_native_aio)
 
 # Check for hwloc library.
 # If we don't find it, disable checking for header.
@@ -1372,14 +1444,14 @@ AC_SUBST(use_hwloc)
 # GeoIP as a "helper" plugin, which other plugins can then use. Such a plugin could
 # then manage which libraries to use via explicit dlopen()'s.
 #
-enable_maxmind_geoip=no
-TS_SEARCH_LIBRARY([GeoIP_id_by_code], [GeoIP], [
-  GEOIP_LIBS=$ts_cv_search_GeoIP_id_by_code
-  AC_CHECK_HEADERS([GeoIP.h], [ enable_maxmind_geoip=yes ])
+AC_CHECK_HEADERS([GeoIP.h], [
+  AC_CHECK_LIB([GeoIP], [GeoIP_new], [
+    AC_SUBST([GEO_LIBS], ["-lGeoIP"])
+  ], [
+    AC_SUBST([GEO_LIBS], [""])
+  ])
 ])
 
-AC_SUBST(GEOIP_LIBS)
-AM_CONDITIONAL([BUILD_GEOIP_PLUGIN], [ test "x${enable_maxmind_geoip}" = x"yes" ])
 
 # Right now, the healthcheck plugins requires inotify_init (and friends)
 AM_CONDITIONAL([BUILD_HEALTHCHECK_PLUGIN], [ test "$ac_cv_func_inotify_init" = "yes" ])
@@ -1414,6 +1486,24 @@ AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
 if test "x${enable_spdy}" = "xyes"; then
   PKG_CHECK_MODULES([SPDYLAY],[libspdylay])
 fi
+
+AC_CHECK_HEADERS([mysql/mysql.h], [has_mysql=1],[has_mysql=0])
+AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlclient"])],[has_mysql=0])
+AC_SUBST(has_mysql)
+AM_CONDITIONAL([HAS_MYSQL], [ test "x${has_mysql}" = "x1" ])
+
+AC_CHECK_HEADERS([kclangc.h], [
+  AC_CHECK_LIB([kyotocabinet], [kcdbopen], [
+    AC_SUBST([LIB_KYOTOCABINET], ["-lkyotocabinet"])
+    has_kyotocabinet=1
+  ], [
+    has_kyotocabinet=0
+  ])
+],
+[has_kyotocabinet=0]
+)
+AC_SUBST(has_kyotocabinet)
+AM_CONDITIONAL([HAS_KYOTOCABINET], [ test "x${has_kyotocabinet}" = "x1" ])
 
 # -----------------------------------------------------------------------------
 # 5. CHECK FOR HEADER FILES
@@ -1785,13 +1875,11 @@ AS_IF([test "x$enable_experimental_plugins" = "xyes"],
 AM_CONDITIONAL([BUILD_REMAP_STATS_PLUGIN],
   [ test "x$enable_experimental_plugins" = "xyes" -a "x$ac_cv_header_search_h" = "xyes" -a "x$ac_cv_type_struct_hsearch_data" = "xyes" -a "x$ac_cv_func_hcreate_r" = "xyes" -a "x$ac_cv_func_hsearch_r" = "xyes" ])
 
-AM_CONDITIONAL([BUILD_COLLAPSED_CONNECTION_PLUGIN],
-  [ test "x$enable_experimental_plugins" = "xyes" -a "x${enable_collapsed_connection_plugin}" != "xno" ])
-
 #
 # use modular IOCORE
 #
-iocore_include_dirs="-I\$(top_srcdir)/iocore/eventsystem \
+iocore_include_dirs="\
+-I\$(top_srcdir)/iocore/eventsystem \
 -I\$(top_srcdir)/iocore/net \
 -I\$(top_srcdir)/iocore/aio \
 -I\$(top_srcdir)/iocore/hostdb \
@@ -1846,6 +1934,33 @@ AC_CONFIG_FILES([
   iocore/net/Makefile
   iocore/utils/Makefile
   lib/Makefile
+  lib/atscppapi/Makefile
+  lib/atscppapi/examples/Makefile
+  lib/atscppapi/examples/async_http_fetch/Makefile
+  lib/atscppapi/examples/async_http_fetch_streaming/Makefile
+  lib/atscppapi/examples/async_timer/Makefile
+  lib/atscppapi/examples/boom/Makefile
+  lib/atscppapi/examples/clientredirect/Makefile
+  lib/atscppapi/examples/clientrequest/Makefile
+  lib/atscppapi/examples/custom_error_remap_plugin/Makefile
+  lib/atscppapi/examples/customresponse/Makefile
+  lib/atscppapi/examples/globalhook/Makefile
+  lib/atscppapi/examples/gzip_transformation/Makefile
+  lib/atscppapi/examples/helloworld/Makefile
+  lib/atscppapi/examples/intercept/Makefile
+  lib/atscppapi/examples/internal_transaction_handling/Makefile
+  lib/atscppapi/examples/logger_example/Makefile
+  lib/atscppapi/examples/multiple_transaction_hooks/Makefile
+  lib/atscppapi/examples/null_transformation_plugin/Makefile
+  lib/atscppapi/examples/post_buffer/Makefile
+  lib/atscppapi/examples/remap_plugin/Makefile
+  lib/atscppapi/examples/serverresponse/Makefile
+  lib/atscppapi/examples/stat_example/Makefile
+  lib/atscppapi/examples/timeout_example/Makefile
+  lib/atscppapi/examples/transactionhook/Makefile
+  lib/atscppapi/src/Makefile
+  lib/atscppapi/src/include/atscppapi/shared_ptr.h
+  lib/bindings/Makefile
   lib/perl/Makefile
   lib/perl/lib/Apache/TS.pm
   lib/records/Makefile
@@ -1862,6 +1977,45 @@ AC_CONFIG_FILES([
   plugins/Makefile
   plugins/cacheurl/Makefile
   plugins/conf_remap/Makefile
+  plugins/experimental/Makefile
+  plugins/experimental/acme/Makefile
+  plugins/experimental/authproxy/Makefile
+  plugins/experimental/background_fetch/Makefile
+  plugins/experimental/balancer/Makefile
+  plugins/experimental/buffer_upload/Makefile
+  plugins/experimental/cache_key_genid/Makefile
+  plugins/experimental/cache_promote/Makefile
+  plugins/experimental/cache_range_requests/Makefile
+  plugins/experimental/cachekey/Makefile
+  plugins/experimental/channel_stats/Makefile
+  plugins/experimental/collapsed_connection/Makefile
+  plugins/experimental/collapsed_forwarding/Makefile
+  plugins/experimental/custom_redirect/Makefile
+  plugins/experimental/epic/Makefile
+  plugins/experimental/escalate/Makefile
+  plugins/experimental/esi/Makefile
+  plugins/experimental/generator/Makefile
+  plugins/experimental/geoip_acl/Makefile
+  plugins/experimental/header_normalize/Makefile
+  plugins/experimental/hipes/Makefile
+  plugins/experimental/inliner/Makefile
+  plugins/experimental/memcache/Makefile
+  plugins/experimental/memcached_remap/Makefile
+  plugins/experimental/metalink/Makefile
+  plugins/experimental/mp4/Makefile
+  plugins/experimental/multiplexer/Makefile
+  plugins/experimental/mysql_remap/Makefile
+  plugins/experimental/regex_revalidate/Makefile
+  plugins/experimental/remap_stats/Makefile
+  plugins/experimental/s3_auth/Makefile
+  plugins/experimental/ssl_cert_loader/Makefile
+  plugins/experimental/sslheaders/Makefile
+  plugins/experimental/stale_while_revalidate/Makefile
+  plugins/experimental/stream_editor/Makefile
+  plugins/experimental/ts_lua/Makefile
+  plugins/experimental/url_sig/Makefile
+  plugins/experimental/webp_transform/Makefile
+  plugins/experimental/xdebug/Makefile
   plugins/gzip/Makefile
   plugins/header_rewrite/Makefile
   plugins/healthchecks/Makefile
@@ -1893,77 +2047,6 @@ AC_CONFIG_FILES([
   tools/trafficserver.pc
   tools/tsxs
 ])
-
-AC_CHECK_HEADERS([mysql/mysql.h], [has_mysql=1],[has_mysql=0])
-AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlclient"])],[has_mysql=0])
-AC_SUBST(has_mysql)
-AM_CONDITIONAL([HAS_MYSQL], [ test "x${has_mysql}" = "x1" ])
-
-AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
-  AC_CONFIG_FILES([
-    plugins/experimental/Makefile
-    plugins/experimental/authproxy/Makefile
-    plugins/experimental/background_fetch/Makefile
-    plugins/experimental/balancer/Makefile
-    plugins/experimental/buffer_upload/Makefile
-    plugins/experimental/cache_range_requests/Makefile
-    plugins/experimental/channel_stats/Makefile
-    plugins/experimental/cachekey/Makefile
-    plugins/experimental/cache_promote/Makefile
-    plugins/experimental/collapsed_connection/Makefile
-    plugins/experimental/custom_redirect/Makefile
-    plugins/experimental/epic/Makefile
-    plugins/experimental/escalate/Makefile
-    plugins/experimental/esi/Makefile
-    plugins/experimental/generator/Makefile
-    plugins/experimental/geoip_acl/Makefile
-    plugins/experimental/header_normalize/Makefile
-    plugins/experimental/hipes/Makefile
-    plugins/experimental/memcache/Makefile
-    plugins/experimental/memcached_remap/Makefile
-    plugins/experimental/metalink/Makefile
-    plugins/experimental/multiplexer/Makefile
-    plugins/experimental/mysql_remap/Makefile
-    plugins/experimental/regex_revalidate/Makefile
-    plugins/experimental/remap_stats/Makefile
-    plugins/experimental/s3_auth/Makefile
-    plugins/experimental/ssl_cert_loader/Makefile
-    plugins/experimental/sslheaders/Makefile
-    plugins/experimental/stale_while_revalidate/Makefile
-    plugins/experimental/ts_lua/Makefile
-    plugins/experimental/url_sig/Makefile
-    plugins/experimental/xdebug/Makefile
-    plugins/experimental/mp4/Makefile
-    plugins/experimental/stream_editor/Makefile
-])])
-
-AS_IF([test "x$enable_cppapi" = "xyes"], [
-  AC_CONFIG_FILES([
-  lib/atscppapi/Makefile
-  lib/atscppapi/examples/Makefile
-  lib/atscppapi/examples/async_http_fetch/Makefile
-  lib/atscppapi/examples/async_timer/Makefile
-  lib/atscppapi/examples/clientredirect/Makefile
-  lib/atscppapi/examples/clientrequest/Makefile
-  lib/atscppapi/examples/customresponse/Makefile
-  lib/atscppapi/examples/boom/Makefile
-  lib/atscppapi/examples/globalhook/Makefile
-  lib/atscppapi/examples/gzip_transformation/Makefile
-  lib/atscppapi/examples/helloworld/Makefile
-  lib/atscppapi/examples/intercept/Makefile
-  lib/atscppapi/examples/internal_transaction_handling/Makefile
-  lib/atscppapi/examples/logger_example/Makefile
-  lib/atscppapi/examples/multiple_transaction_hooks/Makefile
-  lib/atscppapi/examples/null_transformation_plugin/Makefile
-  lib/atscppapi/examples/post_buffer/Makefile
-  lib/atscppapi/examples/remap_plugin/Makefile
-  lib/atscppapi/examples/serverresponse/Makefile
-  lib/atscppapi/examples/stat_example/Makefile
-  lib/atscppapi/examples/timeout_example/Makefile
-  lib/atscppapi/examples/transactionhook/Makefile
-  lib/atscppapi/examples/async_http_fetch_streaming/Makefile
-  lib/atscppapi/src/Makefile
-])])
 
 # -----------------------------------------------------------------------------
 # 7. autoheader TEMPLATES

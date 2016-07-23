@@ -76,7 +76,7 @@ struct SSLNextProtocolTrampoline : public Continuation {
     Continuation *plugin;
     SSLNetVConnection *netvc;
 
-    vio = static_cast<VIO *>(edata);
+    vio   = static_cast<VIO *>(edata);
     netvc = dynamic_cast<SSLNetVConnection *>(vio->vc_server);
     ink_assert(netvc != NULL);
 
@@ -95,6 +95,11 @@ struct SSLNextProtocolTrampoline : public Continuation {
     default:
       return EVENT_ERROR;
     }
+
+    // Cancel the action, so later timeouts and errors don't try to
+    // send the event to the Accept object.  After this point, the accept
+    // object does not care.
+    netvc->set_action(NULL);
 
     // Cancel the read before we have a chance to delete the continuation
     netvc->do_io_read(NULL, 0, NULL);

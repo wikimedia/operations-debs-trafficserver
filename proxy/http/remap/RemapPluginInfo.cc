@@ -26,8 +26,16 @@
 #include "ts/ink_memory.h"
 
 remap_plugin_info::remap_plugin_info(char *_path)
-  : next(0), path(NULL), path_size(0), dlh(NULL), fp_tsremap_init(NULL), fp_tsremap_done(NULL), fp_tsremap_new_instance(NULL),
-    fp_tsremap_delete_instance(NULL), fp_tsremap_do_remap(NULL), fp_tsremap_os_response(NULL)
+  : next(0),
+    path(NULL),
+    path_size(0),
+    dlh(NULL),
+    fp_tsremap_init(NULL),
+    fp_tsremap_done(NULL),
+    fp_tsremap_new_instance(NULL),
+    fp_tsremap_delete_instance(NULL),
+    fp_tsremap_do_remap(NULL),
+    fp_tsremap_os_response(NULL)
 {
   // coverity did not see ats_free
   // coverity[ctor_dtor_leak]
@@ -42,14 +50,13 @@ remap_plugin_info::~remap_plugin_info()
     dlclose(dlh);
 }
 
-
 //
 // Find a plugin by path from our linked list
 //
 remap_plugin_info *
 remap_plugin_info::find_by_path(char *_path)
 {
-  int _path_size = 0;
+  int _path_size        = 0;
   remap_plugin_info *pi = 0;
 
   if (likely(_path && (_path_size = strlen(_path)) > 0)) {
@@ -61,7 +68,6 @@ remap_plugin_info::find_by_path(char *_path)
 
   return pi;
 }
-
 
 //
 // Add a plugin to the linked list
@@ -75,11 +81,10 @@ remap_plugin_info::add_to_list(remap_plugin_info *pi)
     while (p->next)
       p = p->next;
 
-    p->next = pi;
+    p->next  = pi;
     pi->next = NULL;
   }
 }
-
 
 //
 // Remove and delete all plugins from a list, including ourselves.

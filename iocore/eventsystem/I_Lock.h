@@ -238,19 +238,19 @@ public:
     : srcloc(NULL, NULL, 0)
 #endif
   {
-    thread_holding = NULL;
+    thread_holding  = NULL;
     nthread_holding = 0;
 #ifdef DEBUG
     hold_time = 0;
-    handler = NULL;
+    handler   = NULL;
 #ifdef MAX_LOCK_TAKEN
     taken = 0;
 #endif // MAX_LOCK_TAKEN
 #ifdef LOCK_CONTENTION_PROFILING
-    total_acquires = 0;
-    blocking_acquires = 0;
-    nonblocking_acquires = 0;
-    successful_nonblocking_acquires = 0;
+    total_acquires                    = 0;
+    blocking_acquires                 = 0;
+    nonblocking_acquires              = 0;
+    successful_nonblocking_acquires   = 0;
     unsuccessful_nonblocking_acquires = 0;
 #endif // LOCK_CONTENTION_PROFILING
 #endif // DEBUG
@@ -301,8 +301,8 @@ Mutex_trylock(
     }
     m->thread_holding = t;
 #ifdef DEBUG
-    m->srcloc = location;
-    m->handler = ahandler;
+    m->srcloc    = location;
+    m->handler   = ahandler;
     m->hold_time = Thread::get_hrtime();
 #ifdef MAX_LOCK_TAKEN
     m->taken++;
@@ -350,8 +350,8 @@ Mutex_trylock_spin(
     m->thread_holding = t;
     ink_assert(m->thread_holding);
 #ifdef DEBUG
-    m->srcloc = location;
-    m->handler = ahandler;
+    m->srcloc    = location;
+    m->handler   = ahandler;
     m->hold_time = Thread::get_hrtime();
 #ifdef MAX_LOCK_TAKEN
     m->taken++;
@@ -383,8 +383,8 @@ Mutex_lock(
     m->thread_holding = t;
     ink_assert(m->thread_holding);
 #ifdef DEBUG
-    m->srcloc = location;
-    m->handler = ahandler;
+    m->srcloc    = location;
+    m->handler   = ahandler;
     m->hold_time = Thread::get_hrtime();
 #ifdef MAX_LOCK_TAKEN
     m->taken++;
@@ -416,7 +416,7 @@ Mutex_unlock(ProxyMutex *m, EThread *t)
       if (m->taken > MAX_LOCK_TAKEN)
         lock_taken(m->srcloc, m->handler);
 #endif // MAX_LOCK_TAKEN
-      m->srcloc = SrcLoc(NULL, NULL, 0);
+      m->srcloc  = SrcLoc(NULL, NULL, 0);
       m->handler = NULL;
 #endif // DEBUG
       ink_assert(m->thread_holding);
@@ -432,6 +432,7 @@ class MutexLock
 {
 private:
   Ptr<ProxyMutex> m;
+  bool locked_p;
 
 public:
   MutexLock(
@@ -439,7 +440,7 @@ public:
     const SrcLoc &location, const char *ahandler,
 #endif // DEBUG
     ProxyMutex *am, EThread *t)
-    : m(am)
+    : m(am), locked_p(true)
   {
     Mutex_lock(
 #ifdef DEBUG
@@ -448,7 +449,15 @@ public:
       m, t);
   }
 
-  ~MutexLock() { Mutex_unlock(m, m->thread_holding); }
+  void
+  release()
+  {
+    if (locked_p)
+      Mutex_unlock(m, m->thread_holding);
+    locked_p = false;
+  }
+
+  ~MutexLock() { this->release(); }
 };
 
 /** Scoped try lock class for ProxyMutex

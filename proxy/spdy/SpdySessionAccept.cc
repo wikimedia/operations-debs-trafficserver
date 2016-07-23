@@ -44,16 +44,9 @@ SpdySessionAccept::mainEvent(int event, void *edata)
 
 #if TS_HAS_SPDY
     SpdyClientSession *sm = SpdyClientSession::alloc();
-    sm->version = this->version;
+    sm->version           = this->version;
 
-    SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(netvc);
-    MIOBuffer *iobuf = NULL;
-    IOBufferReader *reader = NULL;
-    if (ssl_vc) {
-      iobuf = ssl_vc->get_ssl_iobuf();
-      reader = ssl_vc->get_ssl_reader();
-    }
-    sm->new_connection(netvc, iobuf, reader, false);
+    sm->new_connection(netvc, NULL, NULL, false);
 #else
     Error("accepted a SPDY session, but SPDY support is not available");
     netvc->do_io_close();
@@ -71,7 +64,7 @@ SpdySessionAccept::accept(NetVConnection *netvc, MIOBuffer *iobuf, IOBufferReade
 {
 #if TS_HAS_SPDY
   SpdyClientSession *sm = SpdyClientSession::alloc();
-  sm->version = this->version;
+  sm->version           = this->version;
   sm->new_connection(netvc, iobuf, reader, false);
 #else
   (void)netvc;

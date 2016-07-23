@@ -58,7 +58,7 @@ struct StatDataSamples {
     if (data_type != RECD_NULL)
       return RecDataSub(data_type, current_value, previous_value);
     else {
-      RecDataClear(RECD_NULL, &tmp);
+      RecDataZero(RECD_NULL, &tmp);
       return tmp;
     }
   }
@@ -111,7 +111,6 @@ public:
 
   bool statVarSet(RecDataT, RecData);
 };
-
 
 /**
  * StatExprList
@@ -180,7 +179,6 @@ public:
 private:
   void infix2postfix();
 };
-
 
 /**
  * StatObjectList

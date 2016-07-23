@@ -16,7 +16,6 @@
   limitations under the License.
  */
 
-
 #include <atscppapi/GlobalPlugin.h>
 #include <atscppapi/InterceptPlugin.h>
 #include <atscppapi/Logger.h>
@@ -110,7 +109,7 @@ void
 Intercept::handleAsyncComplete(AsyncHttpFetch &async_http_fetch)
 {
   AsyncHttpFetch::Result result = async_http_fetch.getResult();
-  string url = async_http_fetch.getRequestUrl().getUrlString();
+  string url                    = async_http_fetch.getRequestUrl().getUrlString();
   if (result == AsyncHttpFetch::RESULT_HEADER_COMPLETE) {
     TS_DEBUG(TAG, "Header completed for URL [%s]", url.c_str());
     const Response &response = async_http_fetch.getResponse();

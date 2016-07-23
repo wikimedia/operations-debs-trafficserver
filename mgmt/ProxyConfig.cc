@@ -28,7 +28,6 @@
 
 ConfigProcessor configProcessor;
 
-
 void *
 config_int_cb(void *data, void *value)
 {
@@ -66,7 +65,7 @@ config_long_long_cb(void *data, void *value)
 void *
 config_string_alloc_cb(void *data, void *value)
 {
-  char *_ss = (char *)value;
+  char *_ss        = (char *)value;
   char *_new_value = 0;
 
 //#define DEBUG_CONFIG_STRING_UPDATE
@@ -75,12 +74,12 @@ config_string_alloc_cb(void *data, void *value)
 #endif
   int len = -1;
   if (_ss) {
-    len = strlen(_ss);
+    len        = strlen(_ss);
     _new_value = (char *)ats_malloc(len + 1);
     memcpy(_new_value, _ss, len + 1);
   }
 
-  char *_temp2 = *(char **)data;
+  char *_temp2   = *(char **)data;
   *(char **)data = _new_value;
 
   // free old data
@@ -89,7 +88,6 @@ config_string_alloc_cb(void *data, void *value)
 
   return NULL;
 }
-
 
 class ConfigInfoReleaser : public Continuation
 {
@@ -111,7 +109,6 @@ public:
   unsigned int m_id;
   ConfigInfo *m_info;
 };
-
 
 ConfigProcessor::ConfigProcessor() : ninfos(0)
 {
@@ -181,7 +178,7 @@ ConfigProcessor::get(unsigned int id)
     return NULL;
   }
 
-  idx = id - 1;
+  idx  = id - 1;
   info = infos[idx];
 
   // Hand out a refcount to the caller. We should still have out
@@ -216,8 +213,8 @@ ConfigProcessor::release(unsigned int id, ConfigInfo *info)
 #if TS_HAS_TESTS
 
 enum {
-  REGRESSION_CONFIG_FIRST = 1,  // last config in a sequence
-  REGRESSION_CONFIG_LAST = 2,   // last config in a sequence
+  REGRESSION_CONFIG_FIRST  = 1, // last config in a sequence
+  REGRESSION_CONFIG_LAST   = 2, // last config in a sequence
   REGRESSION_CONFIG_SINGLE = 4, // single-owner config
 };
 
@@ -228,7 +225,6 @@ struct RegressionConfig : public ConfigInfo {
   // object count drops below the specified count.
   template <typename CallType> struct DeferredCall : public Continuation {
     DeferredCall(int _r, CallType _c) : remain(_r), call(_c) { SET_HANDLER(&DeferredCall::handleEvent); }
-
     int
     handleEvent(int event ATS_UNUSED, Event *e)
     {
@@ -289,8 +285,8 @@ volatile int RegressionConfig::nobjects = 0;
 
 struct ProxyConfig_Set_Completion {
   ProxyConfig_Set_Completion(int _id, RegressionConfig *_c) : configid(_id), config(_c) {}
-
-  void operator()(void) const
+  void
+  operator()(void) const
   {
     // Push one more RegressionConfig to force the LAST-tagged one to get destroyed.
     rprintf(config->test, "setting LAST config object %p\n", config);
@@ -306,7 +302,7 @@ EXCLUSIVE_REGRESSION_TEST(ProxyConfig_Set)(RegressionTest *test, int /* atype AT
 {
   int configid = 0;
 
-  *pstatus = REGRESSION_TEST_INPROGRESS;
+  *pstatus                   = REGRESSION_TEST_INPROGRESS;
   RegressionConfig::nobjects = 0;
 
   configid = configProcessor.set(configid, new RegressionConfig(test, pstatus, REGRESSION_CONFIG_FIRST), 1);
@@ -323,8 +319,8 @@ EXCLUSIVE_REGRESSION_TEST(ProxyConfig_Set)(RegressionTest *test, int /* atype AT
 
 struct ProxyConfig_Release_Completion {
   ProxyConfig_Release_Completion(int _id, RegressionConfig *_c) : configid(_id), config(_c) {}
-
-  void operator()(void) const
+  void
+  operator()(void) const
   {
     // Release the reference count. Since we were keeping this alive, it should be the last to die.
     configProcessor.release(configid, config);
@@ -341,12 +337,12 @@ EXCLUSIVE_REGRESSION_TEST(ProxyConfig_Release)(RegressionTest *test, int /* atyp
   int configid = 0;
   RegressionConfig *config;
 
-  *pstatus = REGRESSION_TEST_INPROGRESS;
+  *pstatus                   = REGRESSION_TEST_INPROGRESS;
   RegressionConfig::nobjects = 0;
 
   // Set an initial config, then get it back to hold a reference count.
   configid = configProcessor.set(configid, new RegressionConfig(test, pstatus, REGRESSION_CONFIG_LAST), 1);
-  config = (RegressionConfig *)configProcessor.get(configid);
+  config   = (RegressionConfig *)configProcessor.get(configid);
 
   // Now update the config a few times.
   configid = configProcessor.set(configid, new RegressionConfig(test, pstatus, REGRESSION_CONFIG_FIRST), 1);

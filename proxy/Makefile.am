@@ -143,7 +143,6 @@ traffic_server_SOURCES = \
   CoreUtils.cc \
   CoreUtils.h \
   Crash.cc \
-  DynamicStats.h \
   EventName.cc \
   FetchSM.cc \
   HttpTransStats.h \
@@ -162,6 +161,7 @@ traffic_server_SOURCES = \
   InkIOCoreAPI.cc \
   Main.cc \
   Main.h \
+  Milestones.h \
   ParentConsistentHash.cc \
   ParentConsistentHash.h \
   ParentRoundRobin.cc \
@@ -176,13 +176,13 @@ traffic_server_SOURCES = \
   ProtocolProbeSessionAccept.h \
   ProxyClientSession.cc \
   ProxyClientSession.h \
+  ProxyClientTransaction.cc \
+  ProxyClientTransaction.h \
   ReverseProxy.cc \
   ReverseProxy.h \
   SocksProxy.cc \
   StatPages.cc \
   StatPages.h \
-  StatSystem.cc \
-  StatSystem.h \
   Transform.cc \
   Transform.h \
   TransformInternal.h
@@ -286,7 +286,6 @@ traffic_sac_SOURCES = \
   ControlBase.cc \
   ControlMatcher.cc \
   CacheControl.cc \
-  StatSystem.cc \
   ReverseProxy.cc \
   EventName.cc \
   StatPages.cc \
@@ -297,6 +296,8 @@ traffic_sac_SOURCES = \
   ProtocolProbeSessionAccept.h \
   ProxyClientSession.cc \
   ProxyClientSession.h \
+  ProxyClientTransaction.cc \
+  ProxyClientTransaction.h \
   Plugin.cc \
   InkAPI.cc \
   FetchSM.cc \
