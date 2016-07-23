@@ -6,11 +6,9 @@ Subject: Use -mcx16 on x86 platforms only
  configure.ac | 3 +++
  1 file changed, 3 insertions(+)
 
-diff --git a/configure.ac b/configure.ac
-index 496e16f..c91ad31 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -1275,10 +1275,13 @@ CFLAGS="${__saved_CFLAGS}"
+@@ -1348,10 +1348,13 @@ CFLAGS="${__saved_CFLAGS}"
  AC_LANG_POP
  AC_SUBST(has_128bit_cas)
  
