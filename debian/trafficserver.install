@@ -1,13 +1,15 @@
 usr/bin/traffic_*
 usr/bin/tspush
+usr/bin/header_rewrite_test
 etc/trafficserver/*
 usr/lib/trafficserver/lib*.so.*
 usr/lib/trafficserver/modules/cacheurl.so
 usr/lib/trafficserver/modules/conf_remap.so
 usr/lib/trafficserver/modules/gzip.so
 usr/lib/trafficserver/modules/header_rewrite.so
+usr/lib/trafficserver/modules/healthchecks.so
 usr/lib/trafficserver/modules/libloader.so
 usr/lib/trafficserver/modules/regex_remap.so
 usr/lib/trafficserver/modules/stats_over_http.so
 usr/lib/trafficserver/modules/tcpinfo.so
-usr/share/perl5/*
+usr/lib/perl5/* usr/share/perl5/
