@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 9), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libaio-dev [linux-any], libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config,
   libgeoip-dev, liblua5.1-0-dev, dh-autoreconf, libboost-dev, python-sphinx,
-  libhwloc-dev, libmysqlclient-dev, libxml2-dev, libunwind8-dev [i386 amd64 ppc64el armhf arm64]
+  libhwloc-dev, libmysqlclient-dev | libmariadbclient-dev, libxml2-dev, libunwind8-dev [i386 amd64 ppc64el armhf arm64]
 Standards-Version: 3.9.6
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
