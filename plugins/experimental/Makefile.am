@@ -15,6 +15,7 @@
 #  limitations under the License.
 
 SUBDIRS = \
+ acme \
  authproxy \
  background_fetch \
  balancer \
@@ -23,6 +24,7 @@ SUBDIRS = \
  cache_range_requests \
  cache_promote \
  collapsed_connection \
+ collapsed_forwarding \
  custom_redirect \
  epic \
  escalate \
@@ -31,6 +33,7 @@ SUBDIRS = \
  geoip_acl \
  header_normalize \
  hipes \
+ inliner \
  metalink \
  multiplexer \
  memcache \
@@ -46,10 +49,20 @@ SUBDIRS = \
  mp4 \
  stream_editor
 
+if ENABLE_CPPAPI
+if BUILD_WEBP_TRANSFORM_PLUGIN
+ SUBDIRS += webp_transform
+endif
+endif
+
 if HAS_MYSQL
   SUBDIRS += mysql_remap
 endif
 
 if BUILD_LUAJIT
   SUBDIRS += ts_lua
+endif
+
+if HAS_KYOTOCABINET
+  SUBDIRS += cache_key_genid
 endif

@@ -40,8 +40,20 @@ namespace
 {
 // This is the highest txn arg that can be used, we choose this
 // value to minimize the likelihood of it causing any problems.
-const int MAX_TXN_ARG = 15;
+const int MAX_TXN_ARG               = 15;
 const int TRANSACTION_STORAGE_INDEX = MAX_TXN_ARG;
+
+void
+initTransactionHandles(Transaction &transaction, TSEvent event)
+{
+  utils::internal::initTransactionCachedRequest(transaction, event);
+  utils::internal::initTransactionCachedResponse(transaction, event);
+  utils::internal::initTransactionServerRequest(transaction, event);
+  utils::internal::initTransactionServerResponse(transaction, event);
+  utils::internal::initTransactionClientResponse(transaction, event);
+
+  return;
+}
 
 int
 handleTransactionEvents(TSCont cont, TSEvent event, void *edata)
@@ -61,19 +73,14 @@ handleTransactionEvents(TSCont cont, TSEvent event, void *edata)
     (void)TSHttpTxnClientReqGet(static_cast<TSHttpTxn>(transaction.getAtsHandle()), &hdr_buf, &hdr_loc);
     break;
   case TS_EVENT_HTTP_SEND_REQUEST_HDR:
-    utils::internal::initTransactionServerRequest(transaction);
-    break;
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
-    utils::internal::initTransactionServerResponse(transaction);
-    break;
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
-    utils::internal::initTransactionClientResponse(transaction);
-    break;
   case TS_EVENT_HTTP_READ_CACHE_HDR:
-    utils::internal::initTransactionCachedRequest(transaction);
-    utils::internal::initTransactionCachedResponse(transaction);
+    // the buffer handles may be destroyed in the core during redirect follow
+    initTransactionHandles(transaction, event);
     break;
   case TS_EVENT_HTTP_TXN_CLOSE: { // opening scope to declare plugins variable below
+    initTransactionHandles(transaction, event);
     const std::list<TransactionPlugin *> &plugins = utils::internal::getTransactionPlugins(transaction);
     for (std::list<TransactionPlugin *>::const_iterator iter = plugins.begin(), end = plugins.end(); iter != end; ++iter) {
       shared_ptr<Mutex> trans_mutex = utils::internal::getTransactionPluginMutex(**iter);
@@ -98,7 +105,7 @@ setupTransactionManagement()
 {
   // We must always have a cleanup handler available
   TSMutex mutex = NULL;
-  TSCont cont = TSContCreate(handleTransactionEvents, mutex);
+  TSCont cont   = TSContCreate(handleTransactionEvents, mutex);
   TSHttpHookAdd(TS_HTTP_POST_REMAP_HOOK, cont);
   TSHttpHookAdd(TS_HTTP_SEND_REQUEST_HDR_HOOK, cont);
   TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
@@ -255,7 +262,6 @@ utils::internal::consumeFromTSIOBufferReader(TSIOBufferReader reader)
 
   return str;
 }
-
 
 HttpVersion
 utils::internal::getHttpVersion(TSMBuffer hdr_buf, TSMLoc hdr_loc)

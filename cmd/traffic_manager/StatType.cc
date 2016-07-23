@@ -47,12 +47,11 @@ bool StatDebug = false; // global debug flag
 StatExprToken::StatExprToken()
   : m_arith_symbol('\0'), m_token_name(NULL), m_token_type(RECD_NULL), m_sum_var(false), m_node_var(true)
 {
-  RecDataClear(RECD_NULL, &m_token_value);
-  RecDataClear(RECD_NULL, &m_token_value_max);
-  RecDataClear(RECD_NULL, &m_token_value_min);
+  RecDataZero(RECD_NULL, &m_token_value);
+  RecDataZero(RECD_NULL, &m_token_value_max);
+  RecDataZero(RECD_NULL, &m_token_value_min);
   memset(&m_token_value_delta, 0, sizeof(m_token_value_delta));
 }
-
 
 /**
  * StatExprToken::copy()
@@ -67,23 +66,22 @@ StatExprToken::copy(const StatExprToken &source)
     m_token_name = ats_strdup(source.m_token_name);
   }
 
-  m_token_type = source.m_token_type;
-  m_token_value = source.m_token_value;
+  m_token_type      = source.m_token_type;
+  m_token_value     = source.m_token_value;
   m_token_value_min = source.m_token_value_min;
   m_token_value_max = source.m_token_value_max;
 
   if (source.m_token_value_delta) {
-    m_token_value_delta = new StatDataSamples();
-    m_token_value_delta->previous_time = source.m_token_value_delta->previous_time;
-    m_token_value_delta->current_time = source.m_token_value_delta->current_time;
+    m_token_value_delta                 = new StatDataSamples();
+    m_token_value_delta->previous_time  = source.m_token_value_delta->previous_time;
+    m_token_value_delta->current_time   = source.m_token_value_delta->current_time;
     m_token_value_delta->previous_value = source.m_token_value_delta->previous_value;
-    m_token_value_delta->current_value = source.m_token_value_delta->current_value;
+    m_token_value_delta->current_value  = source.m_token_value_delta->current_value;
   }
 
   m_node_var = source.m_node_var;
-  m_sum_var = source.m_sum_var;
+  m_sum_var  = source.m_sum_var;
 }
-
 
 /**
  * StatExprToken::assignTokenName()
@@ -135,7 +133,6 @@ StatExprToken::assignTokenName(const char *name)
   }
 }
 
-
 /**
  * assignTokenType()
  * -----------------
@@ -164,14 +161,12 @@ StatExprToken::assignTokenType()
   return (m_token_type != RECD_NULL);
 }
 
-
 void
 StatExprToken::clean()
 {
   ats_free(m_token_name);
   delete m_token_value_delta;
 }
-
 
 /**
  * FOR DEBUGGING ONLY
@@ -186,7 +181,6 @@ StatExprToken::print(const char *prefix)
     printf("%s\t%c\n", prefix, m_arith_symbol);
   }
 }
-
 
 /**
  * StatExprToken::precedence()
@@ -214,7 +208,6 @@ StatExprToken::precedence()
   }
 }
 
-
 /**
  * StatExprToken::statVarSet()
  * ---------------------------
@@ -234,7 +227,7 @@ StatExprToken::statVarSet(RecDataT type, RecData value)
        "[StatPro] ERROR in a statistics aggregation operations\n");
      */
     RecData err_value;
-    RecDataClear(m_token_type, &err_value);
+    RecDataZero(m_token_type, &err_value);
     return varSetData(m_token_type, m_token_name, err_value);
   }
 
@@ -280,7 +273,6 @@ StatExprToken::statVarSet(RecDataT type, RecData value)
   return varSetData(m_token_type, m_token_name, converted_value);
 }
 
-
 /***********************************************************************
                                                  StatExprList
  **********************************************************************/
@@ -292,7 +284,6 @@ StatExprToken::statVarSet(RecDataT type, RecData value)
 StatExprList::StatExprList() : m_size(0)
 {
 }
-
 
 /**
  * StatExprList::clean()
@@ -310,7 +301,6 @@ StatExprList::clean()
   ink_assert(m_size == 0);
 }
 
-
 void
 StatExprList::enqueue(StatExprToken *entry)
 {
@@ -319,7 +309,6 @@ StatExprList::enqueue(StatExprToken *entry)
   m_size += 1;
 }
 
-
 void
 StatExprList::push(StatExprToken *entry)
 {
@@ -327,7 +316,6 @@ StatExprList::push(StatExprToken *entry)
   m_tokenList.push(entry);
   m_size += 1;
 }
-
 
 StatExprToken *
 StatExprList::dequeue()
@@ -339,7 +327,6 @@ StatExprList::dequeue()
   return (StatExprToken *)m_tokenList.dequeue();
 }
 
-
 StatExprToken *
 StatExprList::pop()
 {
@@ -350,7 +337,6 @@ StatExprList::pop()
   return m_tokenList.pop();
 }
 
-
 StatExprToken *
 StatExprList::top()
 {
@@ -359,7 +345,6 @@ StatExprList::top()
   }
   return m_tokenList.head;
 }
-
 
 StatExprToken *
 StatExprList::first()
@@ -370,7 +355,6 @@ StatExprList::first()
   return m_tokenList.head;
 }
 
-
 StatExprToken *
 StatExprList::next(StatExprToken *current)
 {
@@ -379,7 +363,6 @@ StatExprList::next(StatExprToken *current)
   }
   return (current->link).next;
 }
-
 
 /**
  * StatExprList::print()
@@ -394,7 +377,6 @@ StatExprList::print(const char *prefix)
   }
 }
 
-
 /**
  * StatExprToken::count()
  * ----------------------
@@ -406,11 +388,9 @@ StatExprList::count()
   return m_size;
 }
 
-
 /***********************************************************************
                                                      StatObject
  **********************************************************************/
-
 
 /**
  * StatObject::StatObject()
@@ -418,20 +398,42 @@ StatExprList::count()
  */
 
 StatObject::StatObject()
-  : m_id(1), m_debug(false), m_expr_string(NULL), m_node_dest(NULL), m_cluster_dest(NULL), m_expression(NULL), m_postfix(NULL),
-    m_last_update(-1), m_current_time(-1), m_update_interval(-1), m_stats_max(FLT_MAX), m_stats_min(FLT_MIN), m_has_max(false),
-    m_has_min(false), m_has_delta(false)
+  : m_id(1),
+    m_debug(false),
+    m_expr_string(NULL),
+    m_node_dest(NULL),
+    m_cluster_dest(NULL),
+    m_expression(NULL),
+    m_postfix(NULL),
+    m_last_update(-1),
+    m_current_time(-1),
+    m_update_interval(-1),
+    m_stats_max(FLT_MAX),
+    m_stats_min(FLT_MIN),
+    m_has_max(false),
+    m_has_min(false),
+    m_has_delta(false)
 {
 }
-
 
 StatObject::StatObject(unsigned identifier)
-  : m_id(identifier), m_debug(false), m_expr_string(NULL), m_node_dest(NULL), m_cluster_dest(NULL), m_expression(NULL),
-    m_postfix(NULL), m_last_update(-1), m_current_time(-1), m_update_interval(-1), m_stats_max(FLT_MAX), m_stats_min(FLT_MIN),
-    m_has_max(false), m_has_min(false), m_has_delta(false)
+  : m_id(identifier),
+    m_debug(false),
+    m_expr_string(NULL),
+    m_node_dest(NULL),
+    m_cluster_dest(NULL),
+    m_expression(NULL),
+    m_postfix(NULL),
+    m_last_update(-1),
+    m_current_time(-1),
+    m_update_interval(-1),
+    m_stats_max(FLT_MAX),
+    m_stats_min(FLT_MIN),
+    m_has_max(false),
+    m_has_min(false),
+    m_has_delta(false)
 {
 }
-
 
 /**
  * StatObject::clean()
@@ -445,7 +447,6 @@ StatObject::clean()
   delete m_cluster_dest;
   delete m_postfix;
 }
-
 
 /**
  * StatObject::assignDst()
@@ -462,7 +463,7 @@ StatObject::assignDst(const char *str, bool m_node_var, bool m_sum_var)
 
   statToken->assignTokenName(str);
   statToken->m_node_var = m_node_var;
-  statToken->m_sum_var = m_sum_var;
+  statToken->m_sum_var  = m_sum_var;
 
   // The type of dst token should be always not NULL
   if (statToken->m_token_type == RECD_NULL) {
@@ -488,7 +489,6 @@ StatObject::assignDst(const char *str, bool m_node_var, bool m_sum_var)
     m_cluster_dest = statToken;
   }
 }
-
 
 /**
  * StatObject::assignExpr()
@@ -531,12 +531,12 @@ StatObject::assignExpr(char *str)
       // delta
       if (token[0] == '#') {
         token += 1; // skip '#'
-        statToken->m_token_value_delta = new StatDataSamples();
+        statToken->m_token_value_delta                = new StatDataSamples();
         statToken->m_token_value_delta->previous_time = (ink_hrtime)0;
-        statToken->m_token_value_delta->current_time = (ink_hrtime)0;
-        statToken->m_token_value_delta->data_type = RECD_NULL;
-        RecDataClear(RECD_NULL, &statToken->m_token_value_delta->previous_value);
-        RecDataClear(RECD_NULL, &statToken->m_token_value_delta->current_value);
+        statToken->m_token_value_delta->current_time  = (ink_hrtime)0;
+        statToken->m_token_value_delta->data_type     = RECD_NULL;
+        RecDataZero(RECD_NULL, &statToken->m_token_value_delta->previous_value);
+        RecDataZero(RECD_NULL, &statToken->m_token_value_delta->current_value);
       }
 
       statToken->assignTokenName(token);
@@ -553,7 +553,6 @@ StatObject::assignExpr(char *str)
   infix2postfix();
 }
 
-
 /**
  * StatObject::infix2postfix()
  * ---------------------------
@@ -567,8 +566,8 @@ StatObject::infix2postfix()
 {
   StatExprList stack;
   StatExprToken *tempToken = NULL;
-  StatExprToken *curToken = NULL;
-  m_postfix = new StatExprList();
+  StatExprToken *curToken  = NULL;
+  m_postfix                = new StatExprList();
 
   while (m_expression->top()) {
     curToken = m_expression->dequeue();
@@ -628,7 +627,6 @@ StatObject::infix2postfix()
   m_expression = NULL;
 }
 
-
 /**
  * StatObject::NodeStatEval()
  * --------------------------
@@ -639,12 +637,12 @@ RecData
 StatObject::NodeStatEval(RecDataT *result_type, bool cluster)
 {
   StatExprList stack;
-  StatExprToken *left = NULL;
-  StatExprToken *right = NULL;
-  StatExprToken *result = NULL;
+  StatExprToken *left     = NULL;
+  StatExprToken *right    = NULL;
+  StatExprToken *result   = NULL;
   StatExprToken *curToken = NULL;
   RecData tempValue;
-  RecDataClear(RECD_NULL, &tempValue);
+  RecDataZero(RECD_NULL, &tempValue);
 
   *result_type = RECD_NULL;
 
@@ -665,11 +663,11 @@ StatObject::NodeStatEval(RecDataT *result_type, bool cluster)
       tempValue = src->m_token_value_delta->diff_value(src->m_token_name);
     } else if (!cluster) {
       if (!varDataFromName(src->m_token_type, src->m_token_name, &tempValue)) {
-        RecDataClear(src->m_token_type, &tempValue);
+        RecDataZero(src->m_token_type, &tempValue);
       }
     } else {
       if (!overviewGenerator->varClusterDataFromName(src->m_token_type, src->m_token_name, &tempValue)) {
-        RecDataClear(src->m_token_type, &tempValue);
+        RecDataZero(src->m_token_type, &tempValue);
       }
     }
   } else {
@@ -684,7 +682,7 @@ StatObject::NodeStatEval(RecDataT *result_type, bool cluster)
       } else {
         ink_assert(isOperator(curToken->m_arith_symbol));
         right = stack.pop();
-        left = stack.pop();
+        left  = stack.pop();
 
         if (left->m_token_type == RECD_NULL) {
           left->assignTokenType();
@@ -709,12 +707,11 @@ StatObject::NodeStatEval(RecDataT *result_type, bool cluster)
     }
 
     *result_type = stack.top()->m_token_type;
-    tempValue = stack.top()->m_token_value;
+    tempValue    = stack.top()->m_token_value;
   }
 
   return tempValue;
 }
-
 
 /**
  * StatObject::ClusterStatEval()
@@ -736,13 +733,12 @@ StatObject::ClusterStatEval(RecDataT *result_type)
 
     if (!overviewGenerator->varClusterDataFromName(m_node_dest->m_token_type, m_node_dest->m_token_name, &tempValue)) {
       *result_type = RECD_NULL;
-      RecDataClear(*result_type, &tempValue);
+      RecDataZero(*result_type, &tempValue);
     }
 
     return (tempValue);
   }
 }
-
 
 /**
  * StatObject::setTokenValue()
@@ -783,14 +779,14 @@ StatObject::setTokenValue(StatExprToken *token, bool cluster)
     case RECD_FLOAT:
       if (cluster) {
         if (!overviewGenerator->varClusterDataFromName(token->m_token_type, token->m_token_name, &(token->m_token_value))) {
-          RecDataClear(token->m_token_type, &token->m_token_value);
+          RecDataZero(token->m_token_type, &token->m_token_value);
         }
       } else {
         if (token->m_token_value_delta) {
           token->m_token_value = token->m_token_value_delta->diff_value(token->m_token_name);
         } else {
           if (!varDataFromName(token->m_token_type, token->m_token_name, &(token->m_token_value))) {
-            RecDataClear(token->m_token_type, &token->m_token_value);
+            RecDataZero(token->m_token_type, &token->m_token_value);
           }
         } // delta?
       }   // cluster?
@@ -803,7 +799,6 @@ StatObject::setTokenValue(StatExprToken *token, bool cluster)
     } // switch
   }   // m_token_name?
 }
-
 
 /**
  * StatObject::StatBinaryEval()
@@ -821,7 +816,7 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
 {
   RecData l, r;
   StatExprToken *result = new StatExprToken();
-  result->m_token_type = RECD_INT;
+  result->m_token_type  = RECD_INT;
 
   if (left->m_token_type == RECD_NULL && right->m_token_type == RECD_NULL) {
     return result;
@@ -862,8 +857,8 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
   /*
    * We should make the operands with the same type before calculating.
    */
-  RecDataClear(RECD_NULL, &l);
-  RecDataClear(RECD_NULL, &r);
+  RecDataZero(RECD_NULL, &l);
+  RecDataZero(RECD_NULL, &r);
 
   if (left->m_token_type == right->m_token_type) {
     l = left->m_token_value;
@@ -904,7 +899,7 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
 
   case '/':
     RecData recTmp;
-    RecDataClear(RECD_NULL, &recTmp);
+    RecDataZero(RECD_NULL, &recTmp);
 
     /*
      * Force the type of result to be RecFloat on div operation
@@ -914,10 +909,10 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
 
       result->m_token_type = RECD_FLOAT;
 
-      t = (RecFloat)l.rec_int;
+      t           = (RecFloat)l.rec_int;
       l.rec_float = t;
 
-      t = (RecFloat)r.rec_int;
+      t           = (RecFloat)r.rec_int;
       r.rec_float = t;
     }
 
@@ -934,7 +929,6 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
   return (result);
 }
 
-
 /***********************************************************************
                                                    StatObjectList
  **********************************************************************/
@@ -942,7 +936,6 @@ StatObject::StatBinaryEval(StatExprToken *left, char op, StatExprToken *right, b
 StatObjectList::StatObjectList() : m_size(0)
 {
 }
-
 
 void
 StatObjectList::clean()
@@ -956,7 +949,6 @@ StatObjectList::clean()
 
   ink_assert(m_size == 0);
 }
-
 
 void
 StatObjectList::enqueue(StatObject *object)
@@ -972,20 +964,17 @@ StatObjectList::enqueue(StatObject *object)
   m_size += 1;
 }
 
-
 StatObject *
 StatObjectList::first()
 {
   return m_statList.head;
 }
 
-
 StatObject *
 StatObjectList::next(StatObject *current)
 {
   return (current->link).next;
 }
-
 
 /**
  * StatObjectList::Eval()
@@ -999,11 +988,11 @@ StatObjectList::Eval()
   RecData result;
   RecDataT result_type;
   ink_hrtime threshold = 0;
-  ink_hrtime delta = 0;
-  short count = 0;
+  ink_hrtime delta     = 0;
+  short count          = 0;
 
-  RecDataClear(RECD_NULL, &tempValue);
-  RecDataClear(RECD_NULL, &result);
+  RecDataZero(RECD_NULL, &tempValue);
+  RecDataZero(RECD_NULL, &result);
 
   for (StatObject *object = first(); object; object = next(object)) {
     StatError = false;
@@ -1033,7 +1022,7 @@ StatObjectList::Eval()
       object->m_current_time = ink_get_hrtime_internal();
 
       threshold = object->m_update_interval * HRTIME_SECOND;
-      delta = object->m_current_time - object->m_last_update;
+      delta     = object->m_current_time - object->m_last_update;
 
       if (StatDebug) {
         Debug(MODULE, "\tUPDATE:%" PRId64 " THRESHOLD:%" PRId64 ", DELTA:%" PRId64 "\n", object->m_update_interval, threshold,
@@ -1088,13 +1077,13 @@ StatObjectList::Eval()
 
             if (token->m_token_value_delta) {
               if (!varDataFromName(token->m_token_type, token->m_token_name, &tempValue)) {
-                RecDataClear(RECD_NULL, &tempValue);
+                RecDataZero(RECD_NULL, &tempValue);
               }
 
-              token->m_token_value_delta->previous_time = token->m_token_value_delta->current_time;
+              token->m_token_value_delta->previous_time  = token->m_token_value_delta->current_time;
               token->m_token_value_delta->previous_value = token->m_token_value_delta->current_value;
-              token->m_token_value_delta->current_time = object->m_current_time;
-              token->m_token_value_delta->current_value = tempValue;
+              token->m_token_value_delta->current_time   = object->m_current_time;
+              token->m_token_value_delta->current_value  = tempValue;
             }
           }
 
@@ -1127,7 +1116,6 @@ StatObjectList::Eval()
 
   return count;
 } /* Eval() */
-
 
 /**
  * StatObjectList::print()

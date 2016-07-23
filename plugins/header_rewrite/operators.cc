@@ -42,7 +42,6 @@ OperatorSetConfig::initialize(Parser &p)
   }
 }
 
-
 void
 OperatorSetConfig::exec(const Resources &res) const
 {
@@ -70,7 +69,6 @@ OperatorSetConfig::exec(const Resources &res) const
   }
 }
 
-
 // OperatorSetStatus
 void
 OperatorSetStatus::initialize(Parser &p)
@@ -91,7 +89,6 @@ OperatorSetStatus::initialize(Parser &p)
   require_resources(RSRC_RESPONSE_STATUS);
 }
 
-
 void
 OperatorSetStatus::initialize_hooks()
 {
@@ -101,7 +98,6 @@ OperatorSetStatus::initialize_hooks()
   add_allowed_hook(TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK);
   add_allowed_hook(TS_REMAP_PSEUDO_HOOK);
 }
-
 
 void
 OperatorSetStatus::exec(const Resources &res) const
@@ -124,7 +120,6 @@ OperatorSetStatus::exec(const Resources &res) const
   TSDebug(PLUGIN_NAME, "OperatorSetStatus::exec() invoked with status=%d", _status.get_int_value());
 }
 
-
 // OperatorSetStatusReason
 void
 OperatorSetStatusReason::initialize(Parser &p)
@@ -135,7 +130,6 @@ OperatorSetStatusReason::initialize(Parser &p)
   require_resources(RSRC_CLIENT_RESPONSE_HEADERS);
   require_resources(RSRC_SERVER_RESPONSE_HEADERS);
 }
-
 
 void
 OperatorSetStatusReason::initialize_hooks()
@@ -158,7 +152,6 @@ OperatorSetStatusReason::exec(const Resources &res) const
   }
 }
 
-
 // OperatorSetDestination
 void
 OperatorSetDestination::initialize(Parser &p)
@@ -171,7 +164,6 @@ OperatorSetDestination::initialize(Parser &p)
   require_resources(RSRC_SERVER_REQUEST_HEADERS);
 }
 
-
 void
 OperatorSetDestination::exec(const Resources &res) const
 {
@@ -182,7 +174,7 @@ OperatorSetDestination::exec(const Resources &res) const
     TSMBuffer bufp;
     TSMLoc url_m_loc;
     if (res._rri) {
-      bufp = res._rri->requestBufp;
+      bufp      = res._rri->requestBufp;
       url_m_loc = res._rri->requestUrl;
     } else {
       bufp = res.bufp;
@@ -223,7 +215,7 @@ OperatorSetDestination::exec(const Resources &res) const
       } else {
         // 1.6.4--Support for preserving QSA in case of set-destination
         if (get_oper_modifiers() & OPER_QSA) {
-          int query_len = 0;
+          int query_len     = 0;
           const char *query = TSUrlHttpQueryGet(bufp, url_m_loc, &query_len);
           TSDebug(PLUGIN_NAME, "QSA mode, append original query string: %.*s", query_len, query);
           // std::string connector = (value.find("?") == std::string::npos)? "?" : "&";
@@ -251,7 +243,7 @@ OperatorSetDestination::exec(const Resources &res) const
         TSDebug(PLUGIN_NAME, "Would set destination URL to an empty value, skipping");
       } else {
         const char *start = _value.get_value().c_str();
-        const char *end = _value.get_value().size() + start;
+        const char *end   = _value.get_value().size() + start;
         TSMLoc new_url_loc;
         if (TSUrlCreate(bufp, &new_url_loc) == TS_SUCCESS && TSUrlParse(bufp, new_url_loc, &start, end) == TS_PARSE_DONE &&
             TSHttpHdrUrlSet(bufp, res.hdr_loc, new_url_loc) == TS_SUCCESS) {
@@ -279,7 +271,6 @@ OperatorSetDestination::exec(const Resources &res) const
   }
 }
 
-
 // OperatorSetRedirect
 void
 OperatorSetRedirect::initialize(Parser &p)
@@ -299,7 +290,6 @@ OperatorSetRedirect::initialize(Parser &p)
   require_resources(RSRC_CLIENT_REQUEST_HEADERS);
   require_resources(RSRC_RESPONSE_STATUS);
 }
-
 
 void
 OperatorSetRedirect::exec(const Resources &res) const
@@ -326,7 +316,7 @@ OperatorSetRedirect::exec(const Resources &res) const
     TSMLoc url_loc;
     if (remap) {
       // Handle when called from remap plugin.
-      bufp = res._rri->requestBufp;
+      bufp    = res._rri->requestBufp;
       url_loc = res._rri->requestUrl;
     } else {
       // Handle when not called from remap plugin.
@@ -340,9 +330,9 @@ OperatorSetRedirect::exec(const Resources &res) const
     size_t pos_path = 0;
     if ((pos_path = value.find("%{PATH}")) != std::string::npos) {
       value.erase(pos_path, 7); // erase %{PATH} from the rewritten to url
-      int path_len = 0;
+      int path_len     = 0;
       const char *path = NULL;
-      path = TSUrlPathGet(bufp, url_loc, &path_len);
+      path             = TSUrlPathGet(bufp, url_loc, &path_len);
       if (path_len > 0) {
         TSDebug(PLUGIN_NAME, "Find %%{PATH} in redirect url, replace it with: %.*s", path_len, path);
         value.insert(pos_path, path, path_len);
@@ -350,9 +340,9 @@ OperatorSetRedirect::exec(const Resources &res) const
     }
 
     // Append the original query string
-    int query_len = 0;
+    int query_len     = 0;
     const char *query = NULL;
-    query = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
+    query             = TSUrlHttpQueryGet(bufp, url_loc, &query_len);
     if ((get_oper_modifiers() & OPER_QSA) && (query_len > 0)) {
       TSDebug(PLUGIN_NAME, "QSA mode, append original query string: %.*s", query_len, query);
       std::string connector = (value.find("?") == std::string::npos) ? "?" : "&";
@@ -362,14 +352,14 @@ OperatorSetRedirect::exec(const Resources &res) const
 
     // Prepare the destination URL for the redirect.
     const char *start = value.c_str();
-    const char *end = value.size() + start;
+    const char *end   = value.size() + start;
     if (remap) {
       // Set new location.
       TSUrlParse(bufp, url_loc, &start, end);
       // Set the new status.
       TSHttpTxnSetHttpRetStatus(res.txnp, (TSHttpStatus)_status.get_int_value());
       const_cast<Resources &>(res).changed_url = true;
-      res._rri->redirect = 1;
+      res._rri->redirect                       = 1;
     } else {
       // Set new location.
       TSMLoc field_loc;
@@ -384,8 +374,8 @@ OperatorSetRedirect::exec(const Resources &res) const
 
       // Set the new status code and reason.
       TSHttpStatus status = (TSHttpStatus)_status.get_int_value();
-      const char *reason = TSHttpHdrReasonLookup(status);
-      size_t len = strlen(reason);
+      const char *reason  = TSHttpHdrReasonLookup(status);
+      size_t len          = strlen(reason);
       TSHttpHdrStatusSet(res.bufp, res.hdr_loc, status);
       TSHttpHdrReasonSet(res.bufp, res.hdr_loc, reason, len);
 
@@ -403,7 +393,6 @@ OperatorSetRedirect::exec(const Resources &res) const
             _status.get_int_value());
   }
 }
-
 
 // OperatorSetTimeoutOut
 void
@@ -426,7 +415,6 @@ OperatorSetTimeoutOut::initialize(Parser &p)
 
   _timeout.set_value(p.get_value());
 }
-
 
 void
 OperatorSetTimeoutOut::exec(const Resources &res) const
@@ -475,7 +463,6 @@ OperatorSkipRemap::exec(const Resources &res) const
   TSSkipRemappingSet(res.txnp, _skip_remap ? 1 : 0);
 }
 
-
 // OperatorRMHeader
 void
 OperatorRMHeader::exec(const Resources &res) const
@@ -494,7 +481,6 @@ OperatorRMHeader::exec(const Resources &res) const
     }
   }
 }
-
 
 // OperatorAddHeader
 void
@@ -537,7 +523,6 @@ OperatorAddHeader::exec(const Resources &res) const
     }
   }
 }
-
 
 // OperatorSetHeader
 void

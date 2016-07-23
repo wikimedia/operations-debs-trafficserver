@@ -109,7 +109,8 @@ noinst_PROGRAMS = mkdfa$(EXEEXT) CompileParseRules$(EXEEXT)
 check_PROGRAMS = test_arena$(EXEEXT) test_atomic$(EXEEXT) \
 	test_freelist$(EXEEXT) test_geometry$(EXEEXT) \
 	test_List$(EXEEXT) test_Map$(EXEEXT) test_Regex$(EXEEXT) \
-	test_Vec$(EXEEXT) test_X509HostnameValidator$(EXEEXT)
+	test_PriorityQueue$(EXEEXT) test_Vec$(EXEEXT) \
+	test_X509HostnameValidator$(EXEEXT)
 subdir = lib/ts
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
@@ -173,17 +174,17 @@ libtsutil_la_DEPENDENCIES = @LIBOBJS@
 am_libtsutil_la_OBJECTS = Arena.lo BaseLogFile.lo Bitops.lo \
 	ConsistentHash.lo ContFlags.lo Diags.lo EventNotify.lo Hash.lo \
 	HashFNV.lo HashMD5.lo HashSip.lo HostLookup.lo IpMap.lo \
-	IpMapConf.lo Layout.lo MMH.lo MatcherUtils.lo MimeTable.lo \
-	ParseRules.lo RawHashTable.lo RbTree.lo Regex.lo Regression.lo \
-	TextBuffer.lo Tokenizer.lo Vec.lo Version.lo fastlz.lo \
-	hugepages.lo ink_args.lo ink_assert.lo ink_base64.lo \
-	ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo ink_file.lo \
-	ink_hash_table.lo ink_hrtime.lo ink_inet.lo ink_memory.lo \
-	ink_mutex.lo ink_queue.lo ink_queue_utils.lo ink_rand.lo \
-	ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
-	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
-	ink_string++.lo ink_string.lo ink_sys_control.lo ink_syslog.lo \
-	ink_thread.lo ink_time.lo llqueue.lo lockfile.lo signals.lo \
+	IpMapConf.lo Layout.lo MMH.lo MatcherUtils.lo ParseRules.lo \
+	RawHashTable.lo RbTree.lo Regex.lo Regression.lo TextBuffer.lo \
+	Tokenizer.lo Vec.lo Version.lo fastlz.lo hugepages.lo \
+	ink_args.lo ink_assert.lo ink_base64.lo ink_cap.lo ink_code.lo \
+	ink_defs.lo ink_error.lo ink_file.lo ink_hash_table.lo \
+	ink_hrtime.lo ink_inet.lo ink_memory.lo ink_mutex.lo \
+	ink_queue.lo ink_queue_utils.lo ink_rand.lo ink_res_init.lo \
+	ink_res_mkquery.lo ink_resource.lo ink_rwlock.lo ink_sock.lo \
+	ink_sprintf.lo ink_stack_trace.lo ink_string++.lo \
+	ink_string.lo ink_sys_control.lo ink_syslog.lo ink_thread.lo \
+	ink_time.lo llqueue.lo lockfile.lo signals.lo \
 	X509HostnameValidator.lo
 libtsutil_la_OBJECTS = $(am_libtsutil_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -209,6 +210,13 @@ test_Map_DEPENDENCIES = libtsutil.la
 test_Map_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(test_Map_LDFLAGS) $(LDFLAGS) -o $@
+am_test_PriorityQueue_OBJECTS = test_PriorityQueue.$(OBJEXT)
+test_PriorityQueue_OBJECTS = $(am_test_PriorityQueue_OBJECTS)
+test_PriorityQueue_DEPENDENCIES = libtsutil.la
+test_PriorityQueue_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
+	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_PriorityQueue_LDFLAGS) \
+	$(LDFLAGS) -o $@
 am_test_Regex_OBJECTS = test_Regex.$(OBJEXT)
 test_Regex_OBJECTS = $(am_test_Regex_OBJECTS)
 test_Regex_DEPENDENCIES = libtsutil.la
@@ -310,16 +318,16 @@ am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
-	$(test_Regex_SOURCES) $(test_Vec_SOURCES) \
-	$(test_X509HostnameValidator_SOURCES) $(test_arena_SOURCES) \
-	$(test_atomic_SOURCES) $(test_freelist_SOURCES) \
-	$(test_geometry_SOURCES)
+	$(test_PriorityQueue_SOURCES) $(test_Regex_SOURCES) \
+	$(test_Vec_SOURCES) $(test_X509HostnameValidator_SOURCES) \
+	$(test_arena_SOURCES) $(test_atomic_SOURCES) \
+	$(test_freelist_SOURCES) $(test_geometry_SOURCES)
 DIST_SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
-	$(test_Regex_SOURCES) $(test_Vec_SOURCES) \
-	$(test_X509HostnameValidator_SOURCES) $(test_arena_SOURCES) \
-	$(test_atomic_SOURCES) $(test_freelist_SOURCES) \
-	$(test_geometry_SOURCES)
+	$(test_PriorityQueue_SOURCES) $(test_Regex_SOURCES) \
+	$(test_Vec_SOURCES) $(test_X509HostnameValidator_SOURCES) \
+	$(test_arena_SOURCES) $(test_atomic_SOURCES) \
+	$(test_freelist_SOURCES) $(test_geometry_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -574,7 +582,7 @@ EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
-GEOIP_LIBS = @GEOIP_LIBS@
+GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
 HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
@@ -594,6 +602,8 @@ LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
 LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
+LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
+LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
 LIBMEMCACHED_CFLAGS = @LIBMEMCACHED_CFLAGS@
 LIBMEMCACHED_LIBS = @LIBMEMCACHED_LIBS@
 LIBOBJS = @LIBOBJS@
@@ -608,6 +618,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
 LN_S = @LN_S@
@@ -752,14 +763,17 @@ has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
+has_kyotocabinet = @has_kyotocabinet@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
 has_spdy = @has_spdy@
+has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
+have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -869,6 +883,7 @@ use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
+use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
@@ -909,7 +924,6 @@ libtsutil_la_SOURCES = \
   ConsistentHash.h \
   ContFlags.cc \
   ContFlags.h \
-  Cryptohash.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
@@ -929,7 +943,6 @@ libtsutil_la_SOURCES = \
   I_Layout.h \
   I_Version.h \
   InkErrno.h \
-  InkPool.h \
   IntrusiveDList.h \
   IpMap.cc \
   IpMap.h \
@@ -942,10 +955,9 @@ libtsutil_la_SOURCES = \
   Map.h \
   MatcherUtils.cc \
   MatcherUtils.h \
-  MimeTable.cc \
-  MimeTable.h \
   ParseRules.cc \
   ParseRules.h \
+  PriorityQueue.h \
   Ptr.h \
   RawHashTable.cc \
   RawHashTable.h \
@@ -1060,6 +1072,9 @@ test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Regex_SOURCES = test_Regex.cc
 test_Regex_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Regex_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+test_PriorityQueue_SOURCES = test_PriorityQueue.cc
+test_PriorityQueue_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_PriorityQueue_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
@@ -1180,6 +1195,10 @@ test_Map$(EXEEXT): $(test_Map_OBJECTS) $(test_Map_DEPENDENCIES) $(EXTRA_test_Map
 	@rm -f test_Map$(EXEEXT)
 	$(AM_V_CXXLD)$(test_Map_LINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
 
+test_PriorityQueue$(EXEEXT): $(test_PriorityQueue_OBJECTS) $(test_PriorityQueue_DEPENDENCIES) $(EXTRA_test_PriorityQueue_DEPENDENCIES) 
+	@rm -f test_PriorityQueue$(EXEEXT)
+	$(AM_V_CXXLD)$(test_PriorityQueue_LINK) $(test_PriorityQueue_OBJECTS) $(test_PriorityQueue_LDADD) $(LIBS)
+
 test_Regex$(EXEEXT): $(test_Regex_OBJECTS) $(test_Regex_DEPENDENCIES) $(EXTRA_test_Regex_DEPENDENCIES) 
 	@rm -f test_Regex$(EXEEXT)
 	$(AM_V_CXXLD)$(test_Regex_LINK) $(test_Regex_OBJECTS) $(test_Regex_LDADD) $(LIBS)
@@ -1232,7 +1251,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Layout.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MMH.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MatcherUtils.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/MimeTable.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ParseRules.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RawHashTable.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RbTree.Plo@am__quote@
@@ -1280,6 +1298,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/signals.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_List.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Map.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_PriorityQueue.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Regex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Vec.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_X509HostnameValidator.Po@am__quote@
@@ -1601,6 +1620,13 @@ test_Map.log: test_Map$(EXEEXT)
 test_Regex.log: test_Regex$(EXEEXT)
 	@p='test_Regex$(EXEEXT)'; \
 	b='test_Regex'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_PriorityQueue.log: test_PriorityQueue$(EXEEXT)
+	@p='test_PriorityQueue$(EXEEXT)'; \
+	b='test_PriorityQueue'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

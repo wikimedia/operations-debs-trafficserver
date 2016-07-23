@@ -64,7 +64,6 @@ extern unsigned int hostdb_ip_timeout_interval;
 extern unsigned int hostdb_ip_fail_timeout_interval;
 extern unsigned int hostdb_serve_stale_but_revalidate;
 
-
 static inline unsigned int
 makeHostHash(const char *string)
 {
@@ -120,9 +119,9 @@ union HostDBApplicationInfo {
 
   enum HttpVersion_t {
     HTTP_VERSION_UNDEFINED = 0,
-    HTTP_VERSION_09 = 1,
-    HTTP_VERSION_10 = 2,
-    HTTP_VERSION_11 = 3,
+    HTTP_VERSION_09        = 1,
+    HTTP_VERSION_10        = 2,
+    HTTP_VERSION_11        = 3,
   };
 
   struct application_data_rr {
@@ -158,13 +157,6 @@ struct HostDBInfo {
   char *hostname();
   char *perm_hostname();
   char *srvname(HostDBRoundRobin *rr);
-  /// Check if this entry is the root of a round robin entry.
-  /// If @c true then this entry needs to be converted to a specific element of the round robin to be used.
-  bool
-  is_rr() const
-  {
-    return 0 != round_robin;
-  }
   /// Check if this entry is an element of a round robin entry.
   /// If @c true then this entry is part of and was obtained from a round robin root. This is useful if the
   /// address doesn't work - a retry can probably get a new address by doing another lookup and resolving to
@@ -246,7 +238,6 @@ struct HostDBInfo {
     return false;
   }
 
-
   //
   // Private
   //
@@ -297,7 +288,7 @@ struct HostDBInfo {
       //  as to how far in the future we should tolerate bogus last
       //  failure times.  This sets the upper bound that we would ever
       //  consider a server down to 2*down_server_timeout
-      if (now + fail_window < last_failure) {
+      if ((unsigned int)(now + fail_window) < last_failure) {
         app.http_data.last_failure = 0;
         return false;
       }
@@ -340,9 +331,9 @@ struct HostDBInfo {
   void
   set_empty()
   {
-    full = 0;
-    md5_high = 0;
-    md5_low = 0;
+    full        = 0;
+    md5_high    = 0;
+    md5_low     = 0;
     md5_low_low = 0;
   }
 
@@ -352,10 +343,10 @@ struct HostDBInfo {
     uint64_t ttag = folded_md5 / buckets;
 
     if (!ttag)
-      ttag = 1;
+      ttag      = 1;
     md5_low_low = (unsigned int)ttag;
-    md5_low = (unsigned int)(ttag >> 24);
-    full = 1;
+    md5_low     = (unsigned int)(ttag >> 24);
+    full        = 1;
   }
 
   void
@@ -364,12 +355,12 @@ struct HostDBInfo {
     ats_ip_invalidate(ip());
     app.allotment.application1 = 0;
     app.allotment.application2 = 0;
-    backed = 0;
-    deleted = 0;
-    hits = 0;
-    round_robin = 0;
-    reverse_dns = 0;
-    is_srv = 0;
+    backed                     = 0;
+    deleted                    = 0;
+    hits                       = 0;
+    round_robin                = 0;
+    reverse_dns                = 0;
+    is_srv                     = 0;
   }
 
   uint64_t
@@ -383,7 +374,6 @@ struct HostDBInfo {
   int heap_size();
   int *heap_offset_ptr();
 };
-
 
 struct HostDBRoundRobin {
   /** Total number (to compute space used). */
@@ -447,10 +437,10 @@ struct HostDBProcessor : public Processor {
   //       The HostDBInfo may be changed during the callback.
 
   enum {
-    HOSTDB_DO_NOT_FORCE_DNS = 0,
-    HOSTDB_ROUND_ROBIN = 0,
-    HOSTDB_FORCE_DNS_RELOAD = 1,
-    HOSTDB_FORCE_DNS_ALWAYS = 2,
+    HOSTDB_DO_NOT_FORCE_DNS   = 0,
+    HOSTDB_ROUND_ROBIN        = 0,
+    HOSTDB_FORCE_DNS_RELOAD   = 1,
+    HOSTDB_FORCE_DNS_ALWAYS   = 2,
     HOSTDB_DO_NOT_ROUND_ROBIN = 4
   };
 
@@ -463,7 +453,6 @@ struct HostDBProcessor : public Processor {
     HostResStyle host_res_style; ///< How to query host (default HOST_RES_IPV4)
 
     Options() : port(0), flags(HOSTDB_DO_NOT_FORCE_DNS), timeout(0), host_res_style(HOST_RES_IPV4) {}
-
     /// Set the flags.
     self &
     setFlags(int f)
@@ -477,7 +466,6 @@ struct HostDBProcessor : public Processor {
   static Options const DEFAULT_OPTIONS;
 
   HostDBProcessor() {}
-
   inkcoreapi Action *getbyname_re(Continuation *cont, const char *hostname, int len, Options const &opt = DEFAULT_OPTIONS);
 
   Action *getbynameport_re(Continuation *cont, const char *hostname, int len, Options const &opt = DEFAULT_OPTIONS);

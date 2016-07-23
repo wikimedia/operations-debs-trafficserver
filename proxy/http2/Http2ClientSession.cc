@@ -31,9 +31,7 @@
              HttpDebugNames::get_event_name(event));                                         \
   } while (0)
 
-#define DebugHttp2Ssn(fmt, ...) DebugSsn(this, "http2_cs", "[%" PRId64 "] " fmt, this->connection_id(), __VA_ARGS__)
-
-#define DebugHttp2Ssn0(msg) DebugSsn(this, "http2_cs", "[%" PRId64 "] " msg, this->connection_id())
+#define DebugHttp2Ssn(fmt, ...) DebugSsn(this, "http2_cs", "[%" PRId64 "] " fmt, this->connection_id(), ##__VA_ARGS__)
 
 #define HTTP2_SET_SESSION_HANDLER(handler) \
   do {                                     \
@@ -61,7 +59,13 @@ send_connection_event(Continuation *cont, int event, void *edata)
 }
 
 Http2ClientSession::Http2ClientSession()
-  : con_id(0), total_write_len(0), client_vc(NULL), read_buffer(NULL), sm_reader(NULL), write_buffer(NULL), sm_writer(NULL),
+  : con_id(0),
+    total_write_len(0),
+    client_vc(NULL),
+    read_buffer(NULL),
+    sm_reader(NULL),
+    write_buffer(NULL),
+    sm_writer(NULL),
     upgrade_context()
 {
 }
@@ -69,7 +73,33 @@ Http2ClientSession::Http2ClientSession()
 void
 Http2ClientSession::destroy()
 {
-  DebugHttp2Ssn0("session destroy");
+  DebugHttp2Ssn("session destroy");
+
+  HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
+
+  // Update stats on how we died.  May want to eliminate this.  Was useful for
+  // tracking down which cases we were having problems cleaning up.  But for general
+  // use probably not worth the effort
+  switch (dying_event) {
+  case VC_EVENT_NONE:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_DEFAULT, this_ethread());
+    break;
+  case VC_EVENT_ACTIVE_TIMEOUT:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_ACTIVE, this_ethread());
+    break;
+  case VC_EVENT_INACTIVITY_TIMEOUT:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_INACTIVE, this_ethread());
+    break;
+  case VC_EVENT_ERROR:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_ERROR, this_ethread());
+    break;
+  case VC_EVENT_EOS:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_EOS, this_ethread());
+    break;
+  default:
+    HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_SESSION_DIE_OTHER, this_ethread());
+    break;
+  }
 
   ink_release_assert(this->client_vc == NULL);
 
@@ -79,7 +109,7 @@ Http2ClientSession::destroy()
 
   free_MIOBuffer(this->read_buffer);
   free_MIOBuffer(this->write_buffer);
-  http2ClientSessionAllocator.free(this);
+  THREAD_FREE(this, http2ClientSessionAllocator, this_ethread());
 }
 
 void
@@ -92,7 +122,7 @@ Http2ClientSession::start()
   SET_HANDLER(&Http2ClientSession::main_event_handler);
   HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_read_connection_preface);
 
-  read_vio = this->do_io_read(this, INT64_MAX, this->read_buffer);
+  read_vio  = this->do_io_read(this, INT64_MAX, this->read_buffer);
   write_vio = this->do_io_write(this, INT64_MAX, this->sm_writer);
 
   // 3.5 HTTP/2 Connection Preface. Upon establishment of a TCP connection and
@@ -117,7 +147,7 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
   ink_release_assert(backdoor == false);
 
   // Unique client session identifier.
-  this->con_id = ProxyClientSession::next_connection_id();
+  this->con_id    = ProxyClientSession::next_connection_id();
   this->client_vc = new_vc;
   client_vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::accept_no_activity_timeout));
   this->mutex = new_vc->mutex;
@@ -126,12 +156,12 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
 
   DebugHttp2Ssn("session born, netvc %p", this->client_vc);
 
-  this->read_buffer = iobuf ? iobuf : new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
+  this->read_buffer             = iobuf ? iobuf : new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
   this->read_buffer->water_mark = connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE);
-  this->sm_reader = reader ? reader : this->read_buffer->alloc_reader();
+  this->sm_reader               = reader ? reader : this->read_buffer->alloc_reader();
 
   this->write_buffer = new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
-  this->sm_writer = this->write_buffer->alloc_reader();
+  this->sm_writer    = this->write_buffer->alloc_reader();
 
   do_api_callout(TS_HTTP_SSN_START_HOOK);
 }
@@ -200,17 +230,9 @@ Http2ClientSession::do_io_shutdown(ShutdownHowTo_t howto)
 void
 Http2ClientSession::do_io_close(int alerrno)
 {
-  DebugHttp2Ssn0("session closed");
+  DebugHttp2Ssn("session closed");
 
   ink_assert(this->mutex->thread_holding == this_ethread());
-  if (client_vc) {
-    // clean up ssl's first byte iobuf
-    SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(client_vc);
-    if (ssl_vc) {
-      ssl_vc->set_ssl_iobuf(NULL);
-    }
-  }
-  HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_FINI, this);
   do_api_callout(TS_HTTP_SSN_CLOSE_HOOK);
 }
@@ -255,13 +277,6 @@ Http2ClientSession::main_event_handler(int event, void *edata)
     }
     return 0;
 
-  case TS_FETCH_EVENT_EXT_HEAD_DONE:
-  case TS_FETCH_EVENT_EXT_BODY_READY:
-  case TS_FETCH_EVENT_EXT_BODY_DONE:
-    // Process responses from origin server
-    send_connection_event(&this->connection_state, event, edata);
-    return 0;
-
   default:
     DebugHttp2Ssn("unexpected event=%d edata=%p", event, edata);
     ink_release_assert(0);
@@ -285,16 +300,17 @@ Http2ClientSession::state_read_connection_preface(int event, void *edata)
     ink_release_assert(nbytes == HTTP2_CONNECTION_PREFACE_LEN);
 
     if (memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) != 0) {
-      DebugHttp2Ssn0("invalid connection preface");
+      DebugHttp2Ssn("invalid connection preface");
       this->do_io_close();
       return 0;
     }
 
-    DebugHttp2Ssn0("received connection preface");
+    DebugHttp2Ssn("received connection preface");
     this->sm_reader->consume(nbytes);
     HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_start_frame_read);
 
     client_vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::no_activity_timeout_in));
+    client_vc->set_active_timeout(HRTIME_SECONDS(Http2::active_timeout_in));
 
     // XXX start the write VIO ...
 
@@ -325,11 +341,11 @@ Http2ClientSession::state_start_frame_read(int event, void *edata)
     uint8_t buf[HTTP2_FRAME_HEADER_LEN];
     unsigned nbytes;
 
-    DebugHttp2Ssn0("receiving frame header");
+    DebugHttp2Ssn("receiving frame header");
     nbytes = copy_from_buffer_reader(buf, this->sm_reader, sizeof(buf));
 
     if (!http2_parse_frame_header(make_iovec(buf), this->current_hdr)) {
-      DebugHttp2Ssn0("frame header parse failure");
+      DebugHttp2Ssn("frame header parse failure");
       this->do_io_close();
       return 0;
     }

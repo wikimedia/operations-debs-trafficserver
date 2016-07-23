@@ -42,7 +42,6 @@ testcall(char *foo, bool /* incVersion */)
   Debug("lm", "Received Callback that %s has changed\n", foo);
 }
 
-
 //
 // initializeRegistry()
 //
@@ -84,5 +83,6 @@ initializeRegistry()
   configFiles->addFile("splitdns.config", false);
   configFiles->addFile("ssl_multicert.config", false);
   configFiles->addFile("stats.config.xml", false);
+  configFiles->addFile("metrics.config", false);
   configFiles->registerCallback(testcall);
 }

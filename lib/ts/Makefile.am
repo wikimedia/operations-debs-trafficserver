@@ -21,7 +21,7 @@ library_includedir=$(includedir)/ts
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_arena test_atomic test_freelist test_geometry test_List test_Map test_Regex test_Vec test_X509HostnameValidator
+check_PROGRAMS = test_arena test_atomic test_freelist test_geometry test_List test_Map test_Regex test_PriorityQueue test_Vec test_X509HostnameValidator
 TESTS = $(check_PROGRAMS)
 
 AM_CPPFLAGS = -I$(top_srcdir)/lib
@@ -51,7 +51,6 @@ libtsutil_la_SOURCES = \
   ConsistentHash.h \
   ContFlags.cc \
   ContFlags.h \
-  Cryptohash.h \
   Diags.cc \
   Diags.h \
   DynArray.h \
@@ -71,7 +70,6 @@ libtsutil_la_SOURCES = \
   I_Layout.h \
   I_Version.h \
   InkErrno.h \
-  InkPool.h \
   IntrusiveDList.h \
   IpMap.cc \
   IpMap.h \
@@ -84,10 +82,9 @@ libtsutil_la_SOURCES = \
   Map.h \
   MatcherUtils.cc \
   MatcherUtils.h \
-  MimeTable.cc \
-  MimeTable.h \
   ParseRules.cc \
   ParseRules.h \
+  PriorityQueue.h \
   Ptr.h \
   RawHashTable.cc \
   RawHashTable.h \
@@ -219,6 +216,10 @@ test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Regex_SOURCES = test_Regex.cc
 test_Regex_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Regex_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+
+test_PriorityQueue_SOURCES = test_PriorityQueue.cc
+test_PriorityQueue_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_PriorityQueue_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@

@@ -55,7 +55,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
 #endif
@@ -66,29 +65,28 @@ using namespace std;
 #define PROGRAM_NAME "traffic_logstats"
 
 const int MAX_LOGBUFFER_SIZE = 65536;
-const int DEFAULT_LINE_LEN = 78;
-const double LOG10_1024 = 3.0102999566398116;
-const int MAX_ORIG_STRING = 4096;
-
+const int DEFAULT_LINE_LEN   = 78;
+const double LOG10_1024      = 3.0102999566398116;
+const int MAX_ORIG_STRING    = 4096;
 
 // Optimizations for "strcmp()", treat some fixed length (3 or 4 bytes) strings
 // as integers.
-const int GET_AS_INT = 5522759;
-const int PUT_AS_INT = 5526864;
+const int GET_AS_INT  = 5522759;
+const int PUT_AS_INT  = 5526864;
 const int HEAD_AS_INT = 1145128264;
 const int POST_AS_INT = 1414745936;
 
 const int TEXT_AS_INT = 1954047348;
 
 const int JPEG_AS_INT = 1734701162;
-const int JPG_AS_INT = 6778986;
-const int GIF_AS_INT = 6711655;
-const int PNG_AS_INT = 6778480;
-const int BMP_AS_INT = 7368034;
-const int CSS_AS_INT = 7566179;
-const int XML_AS_INT = 7105912;
+const int JPG_AS_INT  = 6778986;
+const int GIF_AS_INT  = 6711655;
+const int PNG_AS_INT  = 6778480;
+const int BMP_AS_INT  = 7368034;
+const int CSS_AS_INT  = 7566179;
+const int XML_AS_INT  = 7105912;
 const int HTML_AS_INT = 1819112552;
-const int ZIP_AS_INT = 7367034;
+const int ZIP_AS_INT  = 7367034;
 
 const int JAVA_AS_INT = 1635148138; // For "javascript"
 const int X_JA_AS_INT = 1634348408; // For "x-javascript"
@@ -103,7 +101,6 @@ struct LastState {
   ino_t st_ino;
 };
 static LastState last_state;
-
 
 // Store the collected counters and stats, per Origin Server, URL or total
 struct StatsCounter {
@@ -125,6 +122,7 @@ struct OriginStats {
   struct {
     struct {
       ElapsedStats hit;
+      ElapsedStats hit_ram;
       ElapsedStats ims;
       ElapsedStats refresh;
       ElapsedStats other;
@@ -142,6 +140,7 @@ struct OriginStats {
   struct {
     struct {
       StatsCounter hit;
+      StatsCounter hit_ram;
       StatsCounter ims;
       StatsCounter refresh;
       StatsCounter other;
@@ -284,7 +283,11 @@ struct OriginStats {
 };
 
 struct UrlStats {
-  bool operator<(const UrlStats &rhs) const { return req.count > rhs.req.count; } // Reverse order
+  bool
+  operator<(const UrlStats &rhs) const
+  {
+    return req.count > rhs.req.count;
+  } // Reverse order
 
   const char *url;
   StatsCounter req;
@@ -302,11 +305,16 @@ struct UrlStats {
 ///////////////////////////////////////////////////////////////////////////////
 // Equal operator for char* (for the hash_map)
 struct eqstr {
-  inline bool operator()(const char *s1, const char *s2) const { return 0 == strcmp(s1, s2); }
+  inline bool
+  operator()(const char *s1, const char *s2) const
+  {
+    return 0 == strcmp(s1, s2);
+  }
 };
 
 struct hash_fnv32 {
-  inline uint32_t operator()(const char *s) const
+  inline uint32_t
+  operator()(const char *s) const
   {
     ATSHash32FNV1a fnv;
 
@@ -331,7 +339,6 @@ rehash(T &container, N size)
 {
   container.rehash(size);
 }
-
 
 // LRU class for the URL data
 void update_elapsed(ElapsedStats &stat, const int elapsed, const StatsCounter &counter);
@@ -430,8 +437,8 @@ public:
       // Move this entry to the top of the stack (hence, LRU)
       if (_size > 0)
         _stack.splice(_stack.begin(), _stack, l);
-    } else {                           // "new" URL
-      const char *u = ats_strdup(url); // We own it.
+    } else {                                  // "new" URL
+      const char *u        = ats_strdup(url); // We own it.
       LruStack::iterator l = _stack.end();
 
       if (_size > 0) {
@@ -451,7 +458,7 @@ public:
       }
 
       // Setup this URL stat
-      l->url = u;
+      l->url       = u;
       l->req.bytes = bytes;
       l->req.count = 1;
 
@@ -555,7 +562,6 @@ private:
   LruStack::iterator _cur;
 };
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Globals, holding the accumulated stats (ok, I'm lazy ...)
 static OriginStats totals;
@@ -584,13 +590,23 @@ struct CommandLineArgs {
   int as_object;   // Show the URL stats as a single JSON object (not array)
 
   CommandLineArgs()
-    : max_origins(0), min_hits(0), max_age(0), line_len(DEFAULT_LINE_LEN), incremental(0), tail(0), summary(0), json(0), cgi(0),
-      urls(0), show_urls(0), as_object(0)
+    : max_origins(0),
+      min_hits(0),
+      max_age(0),
+      line_len(DEFAULT_LINE_LEN),
+      incremental(0),
+      tail(0),
+      summary(0),
+      json(0),
+      cgi(0),
+      urls(0),
+      show_urls(0),
+      as_object(0)
   {
-    log_file[0] = '\0';
+    log_file[0]    = '\0';
     origin_file[0] = '\0';
     origin_list[0] = '\0';
-    state_tag[0] = '\0';
+    state_tag[0]   = '\0';
   }
 
   void parse_arguments(const char **argv);
@@ -632,7 +648,7 @@ CommandLineArgs::parse_arguments(const char **argv)
     char *query;
 
     json = 1;
-    cgi = 1;
+    cgi  = 1;
 
     if (NULL != (query = getenv("QUERY_STRING"))) {
       char buffer[MAX_ORIG_STRING];
@@ -672,13 +688,12 @@ CommandLineArgs::parse_arguments(const char **argv)
   }
 }
 
-
 // Enum for return code levels.
 enum ExitLevel {
-  EXIT_OK = 0,
-  EXIT_WARNING = 1,
+  EXIT_OK       = 0,
+  EXIT_WARNING  = 1,
   EXIT_CRITICAL = 2,
-  EXIT_UNKNOWN = 3,
+  EXIT_UNKNOWN  = 3,
 };
 
 struct ExitStatus {
@@ -686,7 +701,6 @@ struct ExitStatus {
   char notice[1024];
 
   ExitStatus() : level(EXIT_OK) { memset(notice, 0, sizeof(notice)); }
-
   void
   set(ExitLevel l, const char *n = NULL)
   {
@@ -708,7 +722,6 @@ struct ExitStatus {
     ink_strlcat(notice, s.c_str(), sizeof(notice));
   }
 };
-
 
 // Enum for parsing a log line
 enum ParseStates {
@@ -749,22 +762,22 @@ enum URLScheme {
   SCHEME_OTHER,
 };
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the elapsed field
 inline void
 init_elapsed(OriginStats *stats)
 {
-  stats->elapsed.hits.hit.min = -1;
-  stats->elapsed.hits.ims.min = -1;
-  stats->elapsed.hits.refresh.min = -1;
-  stats->elapsed.hits.other.min = -1;
-  stats->elapsed.hits.total.min = -1;
-  stats->elapsed.misses.miss.min = -1;
-  stats->elapsed.misses.ims.min = -1;
+  stats->elapsed.hits.hit.min       = -1;
+  stats->elapsed.hits.hit_ram.min   = -1;
+  stats->elapsed.hits.ims.min       = -1;
+  stats->elapsed.hits.refresh.min   = -1;
+  stats->elapsed.hits.other.min     = -1;
+  stats->elapsed.hits.total.min     = -1;
+  stats->elapsed.misses.miss.min    = -1;
+  stats->elapsed.misses.ims.min     = -1;
   stats->elapsed.misses.refresh.min = -1;
-  stats->elapsed.misses.other.min = -1;
-  stats->elapsed.misses.total.min = -1;
+  stats->elapsed.misses.other.min   = -1;
+  stats->elapsed.misses.total.min   = -1;
 }
 
 // Update the counters for one StatsCounter
@@ -798,8 +811,8 @@ update_elapsed(ElapsedStats &stat, const int elapsed, const StatsCounter &counte
   // New count should never be zero, else there was a programming error.
   ink_release_assert(newcount);
   oldcount = counter.count - 1;
-  oldavg = stat.avg;
-  newavg = (oldavg * oldcount + elapsed) / newcount;
+  oldavg   = stat.avg;
+  newavg   = (oldavg * oldcount + elapsed) / newcount;
   // Now find the new standard deviation from the old one
 
   if (oldcount != 0)
@@ -814,7 +827,7 @@ update_elapsed(ElapsedStats &stat, const int elapsed, const StatsCounter &counte
   sum_of_squares = sum_of_squares + (elapsed - newavg) * (elapsed - newavg);
 
   stat.stddev = sqrt(sum_of_squares / newcount);
-  stat.avg = newavg;
+  stat.avg    = newavg;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -827,6 +840,12 @@ update_results_elapsed(OriginStats *stat, int result, int elapsed, int size)
     update_counter(stat->results.hits.hit, size);
     update_counter(stat->results.hits.total, size);
     update_elapsed(stat->elapsed.hits.hit, elapsed, stat->results.hits.hit);
+    update_elapsed(stat->elapsed.hits.total, elapsed, stat->results.hits.total);
+    break;
+  case SQUID_LOG_TCP_MEM_HIT:
+    update_counter(stat->results.hits.hit_ram, size);
+    update_counter(stat->results.hits.total, size);
+    update_elapsed(stat->elapsed.hits.hit_ram, elapsed, stat->results.hits.hit_ram);
     update_elapsed(stat->elapsed.hits.total, elapsed, stat->results.hits.total);
     break;
   case SQUID_LOG_TCP_MISS:
@@ -876,7 +895,6 @@ update_results_elapsed(OriginStats *stat, int result, int elapsed, int size)
     update_counter(stat->results.errors.total, size);
     break;
   case SQUID_LOG_TCP_DISK_HIT:
-  case SQUID_LOG_TCP_MEM_HIT:
   case SQUID_LOG_TCP_REF_FAIL_HIT:
   case SQUID_LOG_UDP_HIT:
   case SQUID_LOG_UDP_WEAK_HIT:
@@ -903,7 +921,6 @@ update_results_elapsed(OriginStats *stat, int result, int elapsed, int size)
     break;
   }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Update the "codes" stats for a particular record
@@ -1052,7 +1069,6 @@ update_codes(OriginStats *stat, int code, int size)
     update_counter(stat->codes.c_2xx, size);
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Update the "methods" stats for a particular record
 inline void
@@ -1106,7 +1122,6 @@ update_methods(OriginStats *stat, int method, int size)
   }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Update the "schemes" stats for a particular record
 inline void
@@ -1121,7 +1136,6 @@ update_schemes(OriginStats *stat, int scheme, int size)
   else
     update_counter(stat->schemes.other, size);
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Parse a log buffer
@@ -1164,16 +1178,16 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
     else // This shouldn't happen, buffer must be messed up.
       break;
 
-    state = P_STATE_ELAPSED;
-    o_stats = NULL;
+    state    = P_STATE_ELAPSED;
+    o_stats  = NULL;
     o_server = NULL;
-    method = METHOD_OTHER;
-    scheme = SCHEME_OTHER;
+    method   = METHOD_OTHER;
+    scheme   = SCHEME_OTHER;
 
     while ((field = fieldlist->next(field))) {
       switch (state) {
       case P_STATE_ELAPSED:
-        state = P_STATE_IP;
+        state   = P_STATE_IP;
         elapsed = *((int64_t *)(read_from));
         read_from += INK_MIN_ALIGN;
         break;
@@ -1183,7 +1197,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
         // Just skip the IP, we no longer assume it's always the same.
         {
           LogFieldIp *ip = reinterpret_cast<LogFieldIp *>(read_from);
-          int len = sizeof(LogFieldIp);
+          int len        = sizeof(LogFieldIp);
           if (AF_INET == ip->_family)
             len = sizeof(LogFieldIp4);
           else if (AF_INET6 == ip->_family)
@@ -1193,21 +1207,21 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
         break;
 
       case P_STATE_RESULT:
-        state = P_STATE_CODE;
+        state  = P_STATE_CODE;
         result = *((int64_t *)(read_from));
         read_from += INK_MIN_ALIGN;
         if ((result < 32) || (result > 255)) {
-          flag = 1;
+          flag  = 1;
           state = P_STATE_END;
         }
         break;
 
       case P_STATE_CODE:
-        state = P_STATE_SIZE;
+        state     = P_STATE_SIZE;
         http_code = *((int64_t *)(read_from));
         read_from += INK_MIN_ALIGN;
         if ((http_code < 0) || (http_code > 999)) {
-          flag = 1;
+          flag  = 1;
           state = P_STATE_END;
         }
         break;
@@ -1216,13 +1230,13 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
         // Warning: This is not 64-bit safe, when converting the log format,
         // this needs to be fixed as well.
         state = P_STATE_METHOD;
-        size = *((int64_t *)(read_from));
+        size  = *((int64_t *)(read_from));
         read_from += INK_MIN_ALIGN;
         break;
 
       case P_STATE_METHOD:
         state = P_STATE_URL;
-        flag = 0;
+        flag  = 0;
 
         // Small optimization for common (3-4 char) cases
         switch (*reinterpret_cast<int *>(read_from)) {
@@ -1252,7 +1266,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
             method = METHOD_OPTIONS;
           else if ((1 == tok_len) && ('-' == *read_from)) {
             method = METHOD_NONE;
-            flag = 1; // No method, so no need to parse the URL
+            flag   = 1; // No method, so no need to parse the URL
           } else {
             ptr = read_from;
             while (*ptr && isupper(*ptr))
@@ -1289,7 +1303,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
           } else {
             if ('/' == *tok)
               scheme = SCHEME_NONE;
-            tok_len = strlen(tok);
+            tok_len  = strlen(tok);
           }
           if ('/' == *tok) // This is to handle crazy stuff like http:///origin.com
             tok++;
@@ -1307,7 +1321,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
                 init_elapsed(o_stats);
                 o_server = ats_strdup(tok);
                 if (o_stats && o_server) {
-                  o_stats->server = o_server;
+                  o_stats->server   = o_server;
                   origins[o_server] = o_stats;
                 }
               } else
@@ -1318,7 +1332,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
           // No method given
           if ('/' == *read_from)
             scheme = SCHEME_NONE;
-          tok_len = strlen(read_from);
+          tok_len  = strlen(read_from);
         }
         read_from += LogAccess::round_strlen(tok_len + 1);
 
@@ -1347,7 +1361,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
 
       case P_STATE_HIERARCHY:
         state = P_STATE_PEER;
-        hier = *((int64_t *)(read_from));
+        hier  = *((int64_t *)(read_from));
         switch (hier) {
         case SQUID_HIER_NONE:
           update_counter(totals.hierarchies.none, size);
@@ -1546,7 +1560,7 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
             }
           }
         } else if (0 == strncmp(read_from, "audio", 5)) {
-          tok = read_from + 6;
+          tok     = read_from + 6;
           tok_len = 6 + strlen(tok);
           update_counter(totals.content.audio.total, size);
           if (o_stats != NULL)
@@ -1592,7 +1606,6 @@ parse_log_buff(LogBufferHeader *buf_header, bool summary = false)
   return 0;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Process a file (FD)
 int
@@ -1607,7 +1620,7 @@ process_file(int in_fd, off_t offset, unsigned max_age)
     buffer[0] = '\0';
 
     unsigned first_read_size = sizeof(uint32_t) + sizeof(uint32_t);
-    LogBufferHeader *header = (LogBufferHeader *)&buffer[0];
+    LogBufferHeader *header  = (LogBufferHeader *)&buffer[0];
 
     // Find the next log header, aligning us properly. This is not
     // particularly optimal, but we should only have to do this
@@ -1654,7 +1667,7 @@ process_file(int in_fd, off_t offset, unsigned max_age)
 
     // read the rest of the header
     unsigned second_read_size = sizeof(LogBufferHeader) - first_read_size;
-    nread = read(in_fd, &buffer[first_read_size], second_read_size);
+    nread                     = read(in_fd, &buffer[first_read_size], second_read_size);
     if (!nread || EOF == nread) {
       Debug("logstats", "Second read of header failed (attemped %d bytes at offset %d, got nothing), errno=%d.", second_read_size,
             first_read_size, errno);
@@ -1674,7 +1687,7 @@ process_file(int in_fd, off_t offset, unsigned max_age)
     }
 
     const int MAX_READ_TRIES = 5;
-    int total_read = 0;
+    int total_read           = 0;
     int read_tries_remaining = MAX_READ_TRIES; // since the data will be old anyway, let's only try a few times.
     do {
       nread = read(in_fd, &buffer[sizeof(LogBufferHeader) + total_read], buffer_bytes - total_read);
@@ -1714,7 +1727,6 @@ process_file(int in_fd, off_t offset, unsigned max_age)
   return 0;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Determine if this "stat" (Origin Server) is worthwhile to produce a
 // report for.
@@ -1723,7 +1735,6 @@ use_origin(const OriginStats *stat)
 {
   return ((stat->total.count > cl.min_hits) && (NULL != strchr(stat->server, '.')) && (NULL == strchr(stat->server, '%')));
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Produce a nicely formatted output for a stats collection on a stream
@@ -1787,7 +1798,6 @@ format_elapsed_line(const char *desc, const ElapsedStats &stat, bool json = fals
   }
 }
 
-
 void
 format_detail_header(const char *desc)
 {
@@ -1830,10 +1840,10 @@ format_line(const char *desc, const StatsCounter &stat, const StatsCounter &tota
   }
 }
 
-
 // Little "helpers" for the vector we use to sort the Origins.
 typedef pair<const char *, OriginStats *> OriginPair;
-inline bool operator<(const OriginPair &a, const OriginPair &b)
+inline bool
+operator<(const OriginPair &a, const OriginPair &b)
 {
   return a.second->total.count > b.second->total.count;
 }
@@ -1846,6 +1856,7 @@ print_detail_stats(const OriginStats *stat, bool json = false)
     format_detail_header("Request Result");
 
   format_line(json ? "hit.direct" : "Cache hit", stat->results.hits.hit, stat->total, json);
+  format_line(json ? "hit.ram" : "Cache hit RAM", stat->results.hits.hit_ram, stat->total, json);
   format_line(json ? "hit.ims" : "Cache hit IMS", stat->results.hits.ims, stat->total, json);
   format_line(json ? "hit.refresh" : "Cache hit refresh", stat->results.hits.refresh, stat->total, json);
   format_line(json ? "hit.other" : "Cache hit other", stat->results.hits.other, stat->total, json);
@@ -2050,6 +2061,7 @@ print_detail_stats(const OriginStats *stat, bool json = false)
   }
 
   format_elapsed_line(json ? "hit.direct.latency" : "Cache hit", stat->elapsed.hits.hit, json);
+  format_elapsed_line(json ? "hit.ram.latency" : "Cache hit RAM", stat->elapsed.hits.hit_ram, json);
   format_elapsed_line(json ? "hit.ims.latency" : "Cache hit IMS", stat->elapsed.hits.ims, json);
   format_elapsed_line(json ? "hit.refresh.latency" : "Cache hit refresh", stat->elapsed.hits.refresh, json);
   format_elapsed_line(json ? "hit.other.latency" : "Cache hit other", stat->elapsed.hits.other, json);
@@ -2068,7 +2080,6 @@ print_detail_stats(const OriginStats *stat, bool json = false)
     std::cout << "    \"_timestamp\" : \"" << static_cast<int>(ink_time_wall_seconds()) << '"' << std::endl;
   }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Little wrapper around exit, to allow us to exit gracefully
@@ -2214,7 +2225,6 @@ open_main_log(ExitStatus &status)
   return main_fd;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // main
 int
@@ -2235,7 +2245,7 @@ main(int /* argc ATS_UNUSED */, const char *argv[])
   memset(&totals, 0, sizeof(totals));
   init_elapsed(&totals);
 
-  origin_set = new OriginSet;
+  origin_set   = new OriginSet;
   parse_errors = 0;
 
   // Command line parsing
@@ -2351,11 +2361,11 @@ main(int /* argc ATS_UNUSED */, const char *argv[])
     }
     // Get an exclusive lock, if possible. Try for up to 20 seconds.
     // Use more portable & standard fcntl() over flock()
-    lck.l_type = F_WRLCK;
+    lck.l_type   = F_WRLCK;
     lck.l_whence = 0; /* offset l_start from beginning of file*/
-    lck.l_start = (off_t)0;
-    lck.l_len = (off_t)0; /* till end of file*/
-    cnt = 10;
+    lck.l_start  = (off_t)0;
+    lck.l_len    = (off_t)0; /* till end of file*/
+    cnt          = 10;
     while (((res = fcntl(state_fd, F_SETLK, &lck)) < 0) && --cnt) {
       switch (errno) {
       case EWOULDBLOCK:
@@ -2411,9 +2421,9 @@ main(int /* argc ATS_UNUSED */, const char *argv[])
     // Check if the main log file was rotated, and if so, locate
     // the old file first, and parse the remaining log data.
     if (stat_buf.st_ino != last_state.st_ino) {
-      DIR *dirp = NULL;
+      DIR *dirp         = NULL;
       struct dirent *dp = NULL;
-      ino_t old_inode = last_state.st_ino;
+      ino_t old_inode   = last_state.st_ino;
 
       // Save the current log-file's I-Node number.
       last_state.st_ino = stat_buf.st_ino;

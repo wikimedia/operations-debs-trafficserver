@@ -62,7 +62,7 @@ i_am_the_record_owner(RecT rec_type)
 static void *
 sync_thr(void *data)
 {
-  textBuffer *tb = new textBuffer(65536);
+  textBuffer *tb           = new textBuffer(65536);
   FileManager *configFiles = (FileManager *)data;
 
   Rollback *rb;
@@ -104,7 +104,6 @@ sync_thr(void *data)
   return NULL;
 }
 
-
 //-------------------------------------------------------------------------
 // config_update_thr
 //-------------------------------------------------------------------------
@@ -134,7 +133,6 @@ config_update_thr(void * /* data */)
   }
   return NULL;
 }
-
 
 //-------------------------------------------------------------------------
 // RecMessageInit
@@ -179,7 +177,6 @@ RecLocalInit(Diags *_diags)
 
   return REC_ERR_OKAY;
 }
-
 
 //-------------------------------------------------------------------------
 // RecLocalInitMessage
@@ -249,7 +246,7 @@ RecMessageSend(RecMessage *msg)
   // Make a copy of the record, but truncate it to the size actually used
   if (g_mode_type == RECM_CLIENT || g_mode_type == RECM_SERVER) {
     msg->o_end = msg->o_write;
-    msg_size = sizeof(RecMessageHdr) + (msg->o_write - msg->o_start);
+    msg_size   = sizeof(RecMessageHdr) + (msg->o_write - msg->o_start);
     lmgmt->signalEvent(MGMT_EVENT_LIBRECORDS, (char *)msg, msg_size);
   }
 

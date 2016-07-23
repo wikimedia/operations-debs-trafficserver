@@ -28,8 +28,36 @@
 #include "resources.h"
 
 // Debugs
-const char PLUGIN_NAME[] = "header_rewrite";
+const char PLUGIN_NAME[]     = "header_rewrite";
 const char PLUGIN_NAME_DBG[] = "dbg_header_rewrite";
+
+// Geo information, currently only Maxmind. These have to be initialized when the plugin loads.
+#if HAVE_GEOIP_H
+#include <GeoIP.h>
+
+GeoIP *gGeoIP[NUM_DB_TYPES];
+
+static void
+initGeoIP()
+{
+  GeoIPDBTypes dbs[] = {GEOIP_COUNTRY_EDITION, GEOIP_COUNTRY_EDITION_V6, GEOIP_ASNUM_EDITION, GEOIP_ASNUM_EDITION_V6};
+
+  for (unsigned i = 0; i < sizeof(dbs) / sizeof(dbs[0]); ++i) {
+    if (!gGeoIP[dbs[i]] && GeoIP_db_avail(dbs[i])) {
+      // GEOIP_STANDARD seems to break threaded apps...
+      gGeoIP[dbs[i]] = GeoIP_open_type(dbs[i], GEOIP_MMAP_CACHE);
+      TSDebug(PLUGIN_NAME, "initialized GeoIP-DB[%d] %s", dbs[i], GeoIP_database_info(gGeoIP[dbs[i]]));
+    }
+  }
+}
+
+#else
+
+static void
+initGeoIP()
+{
+}
+#endif
 
 // Forward declaration for the main continuation.
 static int cont_rewrite_headers(TSCont, TSEvent, void *);
@@ -112,7 +140,6 @@ RulesConfig::add_rule(RuleSet *rule)
 
   return false;
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Config parser, use to parse both the global, and per-remap, configurations.
@@ -222,14 +249,13 @@ RulesConfig::parse_config(const std::string fname, TSHttpHookID default_hook)
   return true;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Continuation
 //
 static int
 cont_rewrite_headers(TSCont contp, TSEvent event, void *edata)
 {
-  TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
+  TSHttpTxn txnp    = static_cast<TSHttpTxn>(edata);
   TSHttpHookID hook = TS_HTTP_LAST_HOOK;
   RulesConfig *conf = static_cast<RulesConfig *>(TSContDataGet(contp));
 
@@ -282,7 +308,6 @@ cont_rewrite_headers(TSCont contp, TSEvent event, void *edata)
   return 0;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the InkAPI plugin for the global hooks we support.
 //
@@ -291,8 +316,8 @@ TSPluginInit(int argc, const char *argv[])
 {
   TSPluginRegistrationInfo info;
 
-  info.plugin_name = (char *)PLUGIN_NAME;
-  info.vendor_name = (char *)"Apache Software Foundation";
+  info.plugin_name   = (char *)PLUGIN_NAME;
+  info.vendor_name   = (char *)"Apache Software Foundation";
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
   if (TS_SUCCESS != TSPluginRegister(&info)) {
@@ -302,8 +327,9 @@ TSPluginInit(int argc, const char *argv[])
   // Parse the global config file(s). All rules are just appended
   // to the "global" Rules configuration.
   RulesConfig *conf = new RulesConfig;
-  bool got_config = false;
+  bool got_config   = false;
 
+  initGeoIP();
   conf->hold();
 
   for (int i = 1; i < argc; ++i) {
@@ -335,7 +361,6 @@ TSPluginInit(int argc, const char *argv[])
   }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the plugin as a remap plugin.
 //
@@ -358,10 +383,11 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
+  initGeoIP();
   TSDebug(PLUGIN_NAME, "Remap plugin is successfully initialized");
+
   return TS_SUCCESS;
 }
-
 
 TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSED */, int /* errbuf_size ATS_UNUSED */)
@@ -407,7 +433,6 @@ TSRemapDeleteInstance(void *ih)
   static_cast<RulesConfig *>(ih)->release();
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // This is the main "entry" point for the plugin, called for every request.
 //
@@ -423,7 +448,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
   }
 
   TSRemapStatus rval = TSREMAP_NO_REMAP;
-  RulesConfig *conf = static_cast<RulesConfig *>(ih);
+  RulesConfig *conf  = static_cast<RulesConfig *>(ih);
 
   // Go through all hooks we support, and setup the txn hook(s) as necessary
   for (int i = TS_HTTP_READ_REQUEST_HDR_HOOK; i < TS_HTTP_LAST_HOOK; ++i) {

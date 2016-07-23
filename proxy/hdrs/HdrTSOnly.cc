@@ -56,8 +56,7 @@ HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool 
   ink_assert(m_http->m_polarity == HTTP_TYPE_REQUEST);
 
   MIMEParseResult state = PARSE_CONT;
-  *bytes_used = 0;
-
+  *bytes_used           = 0;
 
   do {
     int64_t b_avail = r->block_read_avail();
@@ -67,7 +66,7 @@ HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool 
     }
 
     tmp = start = r->start();
-    end = start + b_avail;
+    end         = start + b_avail;
 
     int heap_slot = m_heap->attach_block(r->get_current_block(), start);
 
@@ -97,7 +96,7 @@ HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool
   ink_assert(m_http->m_polarity == HTTP_TYPE_RESPONSE);
 
   MIMEParseResult state = PARSE_CONT;
-  *bytes_used = 0;
+  *bytes_used           = 0;
 
   do {
     int64_t b_avail = r->block_read_avail();
@@ -107,7 +106,7 @@ HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool
     }
 
     tmp = start = r->start();
-    end = start + b_avail;
+    end         = start + b_avail;
 
     int heap_slot = m_heap->attach_block(r->get_current_block(), start);
 
@@ -146,7 +145,6 @@ HdrHeap::set_ronly_str_heap_end(int slot, const char *end)
   m_ronly_heap[slot].m_heap_len = (int)(end - m_ronly_heap[slot].m_heap_start);
 }
 
-
 // void HdrHeap::attach_block(IOBufferBlock* b, const char* use_start)
 //
 //    Attachs data from an IOBuffer block to
@@ -171,8 +169,8 @@ RETRY:
   for (int i = 0; i < HDR_BUF_RONLY_HEAPS; i++) {
     if (m_ronly_heap[i].m_heap_start == NULL) {
       // Add block to heap in this slot
-      m_ronly_heap[i].m_heap_start = (char *)use_start;
-      m_ronly_heap[i].m_heap_len = (int)(b->end() - b->start());
+      m_ronly_heap[i].m_heap_start    = (char *)use_start;
+      m_ronly_heap[i].m_heap_len      = (int)(b->end() - b->start());
       m_ronly_heap[i].m_ref_count_ptr = b->data;
       //          printf("Attaching block at %X for %d in slot %d\n",
       //                 m_ronly_heap[i].m_heap_start,

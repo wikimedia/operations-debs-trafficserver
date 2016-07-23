@@ -38,14 +38,13 @@ public:
     registerHook(HOOK_SEND_REQUEST_HEADERS);
   }
 
-
   void
   handleReadRequestHeadersPreRemap(Transaction &transaction)
   {
     cout << "Hello from handleReadRequesHeadersPreRemap!" << endl;
 
     ClientRequest &client_request = transaction.getClientRequest();
-    Url &request_url = client_request.getUrl();
+    Url &request_url              = client_request.getUrl();
 
     cout << "Method is " << HTTP_METHOD_STRINGS[client_request.getMethod()] << endl;
     cout << "Version is " << HTTP_VERSION_STRINGS[client_request.getVersion()] << endl;
@@ -64,14 +63,13 @@ public:
     transaction.resume();
   }
 
-
   void
   handleReadRequestHeadersPostRemap(Transaction &transaction)
   {
     cout << "Hello from handleReadRequesHeadersPostRemap!" << endl;
 
-    ClientRequest &client_request = transaction.getClientRequest();
-    Url &request_url = client_request.getUrl();
+    ClientRequest &client_request   = transaction.getClientRequest();
+    Url &request_url                = client_request.getUrl();
     const Url &pristine_request_url = client_request.getPristineUrl();
 
     cout << "--------------------PRISTINE-----------------------" << endl;

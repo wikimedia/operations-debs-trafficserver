@@ -32,7 +32,6 @@ static const char PLUGIN_NAME[] = "conf_remap";
 // OK, since this plugin is distributed only with the "core" (it's a core piece).
 #define MAX_OVERRIDABLE_CONFIGS TS_CONFIG_LAST_ENTRY
 
-
 // Class to hold a set of configurations (one for each remap rule instance)
 struct RemapConfigs {
   struct Item {
@@ -43,7 +42,6 @@ struct RemapConfigs {
   };
 
   RemapConfigs() : _current(0) { memset(_items, 0, sizeof(_items)); };
-
   bool parse_file(const char *filename);
   bool parse_inline(const char *arg);
 
@@ -86,7 +84,7 @@ RemapConfigs::parse_inline(const char *arg)
     return false;
   }
 
-  key = std::string(arg, std::distance(arg, sep));
+  key   = std::string(arg, std::distance(arg, sep));
   value = std::string(sep + 1, std::distance(sep + 1, arg + strlen(arg)));
 
   if (TSHttpTxnConfigFind(key.c_str(), -1 /* len */, &name, &type) != TS_SUCCESS) {
@@ -101,10 +99,10 @@ RemapConfigs::parse_inline(const char *arg)
   case TS_RECORDDATATYPE_STRING:
     if (strcmp(value.c_str(), "NULL") == 0) {
       _items[_current]._data.rec_string = NULL;
-      _items[_current]._data_len = 0;
+      _items[_current]._data_len        = 0;
     } else {
       _items[_current]._data.rec_string = TSstrdup(value.c_str());
-      _items[_current]._data_len = value.size();
+      _items[_current]._data_len        = value.size();
     }
     break;
   default:
@@ -219,10 +217,10 @@ RemapConfigs::parse_file(const char *filename)
     case TS_RECORDDATATYPE_STRING:
       if (strcmp(tok, "NULL") == 0) {
         _items[_current]._data.rec_string = NULL;
-        _items[_current]._data_len = 0;
+        _items[_current]._data_len        = 0;
       } else {
         _items[_current]._data.rec_string = TSstrdup(tok);
-        _items[_current]._data_len = strlen(tok);
+        _items[_current]._data_len        = strlen(tok);
       }
       break;
     default:
@@ -238,7 +236,6 @@ RemapConfigs::parse_file(const char *filename)
   TSfclose(file);
   return (_current > 0);
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Initialize the plugin as a remap plugin.
@@ -259,7 +256,6 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   TSDebug(PLUGIN_NAME, "remap plugin is successfully initialized");
   return TS_SUCCESS; /* success */
 }
-
 
 TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf ATS_UNUSED */, int /* errbuf_size ATS_UNUSED */)
@@ -305,7 +301,6 @@ TSRemapDeleteInstance(void *ih)
   delete conf;
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Main entry point when used as a remap plugin.
 //
@@ -314,7 +309,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo * /* rri ATS_UNUSED */
 {
   if (NULL != ih) {
     RemapConfigs *conf = static_cast<RemapConfigs *>(ih);
-    TSHttpTxn txnp = static_cast<TSHttpTxn>(rh);
+    TSHttpTxn txnp     = static_cast<TSHttpTxn>(rh);
 
     for (int ix = 0; ix < conf->_current; ++ix) {
       switch (conf->_items[ix]._type) {

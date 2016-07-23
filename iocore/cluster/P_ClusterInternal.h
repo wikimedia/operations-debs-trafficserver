@@ -21,7 +21,6 @@
   limitations under the License.
  */
 
-
 /****************************************************************************
 
   ClusterInternal.h
@@ -37,7 +36,6 @@
 #define CLUSTER_THREAD_STEALING 1
 #define CLUSTER_TOMCAT 1
 #define CLUSTER_STATS 1
-
 
 #define ALIGN_DOUBLE(_p) ((((uintptr_t)(_p)) + 7) & ~7)
 #define ALLOCA_DOUBLE(_sz) ALIGN_DOUBLE(alloca((_sz) + 8))
@@ -208,8 +206,8 @@ struct CloseMessage : public ClusterMessageHeader {
   uint32_t sequence_number;
 
   enum {
-    MIN_VERSION = 1,
-    MAX_VERSION = 1,
+    MIN_VERSION                = 1,
+    MAX_VERSION                = 1,
     CLOSE_CHAN_MESSAGE_VERSION = MAX_VERSION,
   };
 
@@ -255,8 +253,8 @@ struct MachineListMessage : public ClusterMessageHeader {
   uint32_t ip[CLUSTER_MAX_MACHINES]; // variable length data
 
   enum {
-    MIN_VERSION = 1,
-    MAX_VERSION = 1,
+    MIN_VERSION                  = 1,
+    MAX_VERSION                  = 1,
     MACHINE_LIST_MESSAGE_VERSION = MAX_VERSION,
   };
 
@@ -296,8 +294,8 @@ struct SetChanDataMessage : public ClusterMessageHeader {
   char data[4];
 
   enum {
-    MIN_VERSION = 1,
-    MAX_VERSION = 1,
+    MIN_VERSION                      = 1,
+    MAX_VERSION                      = 1,
     SET_CHANNEL_DATA_MESSAGE_VERSION = MAX_VERSION,
   };
 
@@ -345,8 +343,8 @@ struct SetChanPinMessage : public ClusterMessageHeader {
   uint32_t pin_time;
 
   enum {
-    MIN_VERSION = 1,
-    MAX_VERSION = 1,
+    MIN_VERSION                     = 1,
+    MAX_VERSION                     = 1,
     SET_CHANNEL_PIN_MESSAGE_VERSION = MAX_VERSION,
   };
 
@@ -392,8 +390,8 @@ struct SetChanPriorityMessage : public ClusterMessageHeader {
   uint32_t disk_priority;
 
   enum {
-    MIN_VERSION = 1,
-    MAX_VERSION = 1,
+    MIN_VERSION                          = 1,
+    MAX_VERSION                          = 1,
     SET_CHANNEL_PRIORITY_MESSAGE_VERSION = MAX_VERSION,
   };
 

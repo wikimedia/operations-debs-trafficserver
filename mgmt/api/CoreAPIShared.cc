@@ -178,7 +178,6 @@ error: /* "Houston, we have a problem!" (Apollo 13) */
   return TS_ERR_NET_WRITE;
 }
 
-
 /* Modified from TrafficCop.cc (open_socket) */
 int
 connectDirect(const char *host, int port, uint64_t /* timeout ATS_UNUSED */)
@@ -212,7 +211,7 @@ connectDirect(const char *host, int port, uint64_t /* timeout ATS_UNUSED */)
   }
   // Connect to the specified port on the machine we're running on.
   name.sin_family = AF_INET;
-  name.sin_port = htons(port);
+  name.sin_port   = htons(port);
 
   struct hostent *pHostent;
   pHostent = gethostbyname(host);
@@ -245,8 +244,8 @@ poll_read(int fd, int timeout)
   struct pollfd info;
   int err;
 
-  info.fd = fd;
-  info.events = POLLIN;
+  info.fd      = fd;
+  info.events  = POLLIN;
   info.revents = 0;
 
   do {
@@ -266,14 +265,13 @@ poll_write(int fd, int timeout)
   struct pollfd info;
   int err;
 
-  info.fd = fd;
-  info.events = POLLOUT;
+  info.fd      = fd;
+  info.events  = POLLOUT;
   info.revents = 0;
 
   do {
     err = poll(&info, 1, timeout);
   } while ((err < 0) && ((errno == EINTR) || (errno == EAGAIN)));
-
 
   if ((err > 0) && (info.revents & POLLOUT)) {
     return 1;
