@@ -1,3 +1,16 @@
+trafficserver (6.2.0-1) unstable; urgency=medium
+
+  * Add upstream gpg keys for uscan pgpsigurlmangle option
+  * Imported Upstream version 6.2.0
+  * Patch refresh for 6.2.0
+  * Update trafficserver manpages list
+  * Update trafficserver install list
+  * Update trafficserver-experimental-plugins install list
+  * Update build dependencies (Add libmariadbclient-dev in experimental)
+  * Bump standards version
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 23 Jul 2016 19:15:58 +0200
+
 trafficserver (6.1.1-1) unstable; urgency=medium
 
   * Imported Upstream version 6.1.1
