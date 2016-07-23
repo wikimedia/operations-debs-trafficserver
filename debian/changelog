@@ -1,3 +1,11 @@
+trafficserver (6.2.0-1) unstable; urgency=medium
+
+  * Disable pristine-tar in d/gbp.conf
+  * Imported Upstream version 6.2.0
+  * Patches refresh for 6.2.0
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 23 Jul 2016 14:44:24 +0200
+
 trafficserver (6.1.1-1) unstable; urgency=medium
 
   * Imported Upstream version 6.1.1
