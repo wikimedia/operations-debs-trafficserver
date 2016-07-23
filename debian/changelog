@@ -1,3 +1,9 @@
+trafficserver (3.0.5-2) unstable; urgency=medium
+
+  * Fix CVE-2014-3525
+
+ -- Jean Baptiste FAvre <debian@jbfavre.org>  Sat, 23 Jul 2016 23:07:15 +0200
+
 trafficserver (3.0.5-1) unstable; urgency=low
 
   * New upstream release.
