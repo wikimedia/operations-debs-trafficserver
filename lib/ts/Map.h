@@ -1306,7 +1306,7 @@ public:
 
   /** Standard iterator for walking the table.
       This iterates over all elements.
-      @internal Iterator is end if m_value is NULL.
+      @internal Iterator is @a end if @a m_value is @c NULL.
    */
   struct iterator {
     Value *m_value;   ///< Current location.
@@ -1314,6 +1314,7 @@ public:
 
     iterator() : m_value(0), m_bucket(0) {}
     iterator &operator++();
+    iterator operator++(int);
     Value &operator*() { return *m_value; }
     Value *operator->() { return m_value; }
     bool
@@ -1373,6 +1374,8 @@ public:
   /** Remove the value at @a location from the table.
 
       This method assumes a @a location is consistent. Be very careful if you modify a @c Location.
+
+      @note This does @b not clean up the removed elements. Use carefully to avoid leaks.
 
       @return @c true if the value was removed, @c false otherwise.
   */
@@ -1458,6 +1461,10 @@ protected:
       Fills @a m_id and @a m_bucket in @a location from @a key.
   */
   void findBucket(Key key, Location &location);
+
+private:
+  TSHashTable(const TSHashTable &);            // noncopyable
+  TSHashTable &operator=(const TSHashTable &); // noncopyable
 };
 
 template <typename H>
@@ -1487,6 +1494,13 @@ template <typename H> typename TSHashTable<H>::iterator &TSHashTable<H>::iterato
     }
   }
   return *this;
+}
+
+template <typename H> typename TSHashTable<H>::iterator TSHashTable<H>::iterator::operator++(int)
+{
+  iterator prev(*this);
+  ++*this;
+  return prev;
 }
 
 template <typename H>

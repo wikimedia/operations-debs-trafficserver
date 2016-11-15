@@ -113,6 +113,15 @@ static int server_failures  = 0;
 static int server_not_found = 0;
 static int init_sleep_time  = cop_sleep_time; // 10 sec
 
+/* This gets setup when loading the configuration */
+typedef enum {
+  COP_KILL_NONE    = 0,
+  COP_KILL_SERVER  = 1,
+  COP_KILL_MANAGER = 2,
+} ActiveHealthChecks;
+
+static int active_health_checks = COP_KILL_SERVER | COP_KILL_MANAGER;
+
 // traffic_manager flap detection
 #define MANAGER_FLAP_DETECTION 1
 #if defined(MANAGER_FLAP_DETECTION)
@@ -456,8 +465,9 @@ transient_error(int error, int wait_ms)
 #if defined(ENOSR) && !defined(freebsd) && !defined(darwin)
   case ENOSR:
 #endif
-    if (wait_ms)
+    if (wait_ms) {
       millisleep(wait_ms);
+    }
     break;
 
   default:
@@ -491,10 +501,11 @@ config_read_string(const char *name, char *val, size_t val_len, bool miss_ok = f
 
   config = configTable.find(name);
   if (config == configTable.end()) {
-    if (miss_ok)
+    if (miss_ok) {
       return;
-    else
+    } else {
       goto ConfigStrFatalError;
+    }
   }
 
   if (config->second.data_type != RECD_STRING) {
@@ -516,10 +527,11 @@ config_read_int(const char *name, int *val, bool miss_ok = false)
 
   config = configTable.find(name);
   if (config == configTable.end()) {
-    if (miss_ok)
+    if (miss_ok) {
       return;
-    else
+    } else {
       goto ConfigIntFatalError;
+    }
   }
 
   if (config->second.data_type != RECD_INT) {
@@ -597,7 +609,7 @@ config_reload_records()
   struct stat stat_buf;
   static time_t last_mod = 0;
   char log_filename[PATH_NAME_MAX];
-  int tmp_int;
+  int tmp_int = 3;
 
   ats_scoped_str bindir;
   ats_scoped_str logdir;
@@ -649,13 +661,30 @@ config_reload_records()
   config_read_int("proxy.config.cluster.rsport", &rs_port, true);
   config_read_int("proxy.config.cop.init_sleep_time", &init_sleep_time, true);
 
+  config_read_int("proxy.config.cop.active_health_checks", &tmp_int, true);
+  // 0 == No servers are killed
+  // 1 == Only traffic_manager can be killed on failure
+  // 2 == Only traffic_server can be killed on failure
+  // 3 == Any failing healthchecks can cause restarts (default)
+  switch (tmp_int) {
+  case 0:
+    active_health_checks = COP_KILL_NONE;
+    break;
+  case 1:
+    active_health_checks = COP_KILL_MANAGER;
+    break;
+  case 2:
+    active_health_checks = COP_KILL_SERVER;
+    break;
+  default:
+    active_health_checks = COP_KILL_SERVER | COP_KILL_MANAGER;
+    break;
+  }
+
 #if defined(linux)
   // TS-1075 : auto-port ::connect DoS on high traffic linux systems
   config_read_int("proxy.config.cop.source_port", &source_port, true);
 #endif
-
-  config_read_int("proxy.local.cluster.type", &tmp_int);
-  cluster_type = static_cast<MgmtClusterType>(tmp_int);
 
   if (stdout_flag) {
     config_read_string("proxy.config.syslog_facility", syslog_fac_str, sizeof(syslog_fac_str), true);
@@ -675,8 +704,9 @@ get_admin_user()
 {
   struct passwd *pwd = NULL;
 
-  if (!admin_user)
+  if (!admin_user) {
     admin_user = (char *)ats_malloc(MAX_LOGIN);
+  }
 
   config_read_string("proxy.config.admin.user_id", admin_user, MAX_LOGIN);
 
@@ -684,8 +714,9 @@ get_admin_user()
     char *end = admin_user + strlen(admin_user) - 1;
 
     // Trim trailing spaces.
-    while (end >= admin_user && isspace(*end))
+    while (end >= admin_user && isspace(*end)) {
       end--;
+    }
     *(end + 1) = '\0';
 
     if (*admin_user == '#') {
@@ -1149,8 +1180,9 @@ test_mgmt_cli_port()
     }
   }
 
-  if (val)
+  if (val) {
     TSfree(val);
+  }
   return ret;
 }
 
@@ -1232,8 +1264,9 @@ heartbeat_manager()
   cop_log_trace("Entering heartbeat_manager()\n");
   // the CLI, and the rsport if cluster is enabled.
   err = test_mgmt_cli_port();
-  if ((0 == err) && (cluster_type != NO_CLUSTER))
+  if ((0 == err) && (cluster_type != NO_CLUSTER)) {
     err = test_rs_port();
+  }
 
   if (err < 0) {
     // See heartbeat_server()'s comments for how we determine a server/manager failure.
@@ -1242,8 +1275,12 @@ heartbeat_manager()
 
     if (manager_failures > 1) {
       manager_failures = 0;
-      cop_log(COP_WARNING, "killing manager\n");
-      safe_kill(manager_lockfile, manager_binary, true);
+      if (active_health_checks & COP_KILL_MANAGER) {
+        cop_log(COP_WARNING, "killing manager\n");
+        safe_kill(manager_lockfile, manager_binary, true);
+      } else {
+        cop_log(COP_WARNING, "would have killed manager, but configuration said not to\n");
+      }
     }
     cop_log_trace("Leaving heartbeat_manager() --> %d\n", err);
     return err;
@@ -1277,23 +1314,27 @@ heartbeat_server()
     // we kill the server.
     if (server_failures > 1) {
       server_failures = 0;
-      cop_log(COP_WARNING, "killing server\n");
-
       // TSqa02622: Change the ALRM signal handler while
       //   trying to kill the process since if a core
       //   is being written, it could take a long time
       //   Set a new alarm so that we can print warnings
       //   if it is taking too long to kill the server
       //
-      safe_kill(server_lockfile, server_binary, false);
-      // Allow a configurable longer sleep init time
-      // to load very large remap files
-      cop_log_trace("performing additional sleep for %d sec during init", init_sleep_time);
-      millisleep(init_sleep_time * 1000);
+      if (active_health_checks & COP_KILL_SERVER) {
+        cop_log(COP_WARNING, "killing server\n");
+        safe_kill(server_lockfile, server_binary, false);
+        // Allow a configurable longer sleep init time
+        // to load very large remap files
+        cop_log_trace("performing additional sleep for %d sec during init", init_sleep_time);
+        millisleep(init_sleep_time * 1000);
+      } else {
+        cop_log(COP_WARNING, "would have killed server, but configurations said not to\n");
+      }
     }
   } else {
-    if (server_failures)
+    if (server_failures) {
       cop_log(COP_WARNING, "server heartbeat succeeded\n");
+    }
     server_failures = 0;
   }
 
@@ -1495,11 +1536,20 @@ check_memory()
       // 5:     0       0      low     (bad)
       if ((swapsize != 0 && swapfree < check_memory_min_swapfree_kb) || (swapsize == 0 && memfree < check_memory_min_memfree_kb)) {
         cop_log(COP_WARNING, "Low memory available (swap: %dkB, mem: %dkB)\n", (int)swapfree, (int)memfree);
-        cop_log(COP_WARNING, "Killing '%s' and '%s'\n", manager_binary, server_binary);
-        manager_failures = 0;
-        safe_kill(manager_lockfile, manager_binary, true);
-        server_failures = 0;
-        safe_kill(server_lockfile, server_binary, false);
+        if (active_health_checks & COP_KILL_MANAGER) {
+          cop_log(COP_WARNING, "Killing '%s'\n", manager_binary);
+          manager_failures = 0;
+          safe_kill(manager_lockfile, manager_binary, true);
+        } else {
+          cop_log(COP_WARNING, "would have killed manager due to low memory, but configurations sayd not to\n");
+        }
+        if (active_health_checks & COP_KILL_SERVER) {
+          cop_log(COP_WARNING, "Killing '%s'\n", server_binary);
+          server_failures = 0;
+          safe_kill(server_lockfile, server_binary, false);
+        } else {
+          cop_log(COP_WARNING, "would have killed server due to low memory, but configurations sayd not to\n");
+        }
       }
     } else {
       cop_log(COP_WARNING, "Unable to open /proc/meminfo: %s\n", strerror(errno));

@@ -27,7 +27,7 @@
 //
 // ATS plugin to convert headers into camel-case. It may be useful to solve
 // interworking issues with legacy origins not supporting lower case headers
-// required by protocols such as spdy/http2 etc.
+// required by protocols such as http2 etc.
 //
 // Note that the plugin currently uses READ_REQUEST_HDR_HOOK to camel-case
 // the headers. As an optimization, it can be changed to SEND_REQUEST_HDR_HOOK
@@ -191,8 +191,9 @@ read_request_hook(TSCont /* contp */, TSEvent /* event */, void *edata)
     TSDebug(PLUGIN_NAME, "*** Camel Casing %u hdrs in the request", n_mime_headers);
 
     for (int i = 0; i < n_mime_headers; ++i) {
-      if (hdr == NULL)
+      if (hdr == NULL) {
         break;
+      }
       next_hdr = TSMimeHdrFieldNext(hdr_bufp, req_hdrs, hdr);
       int old_hdr_len;
       const char *old_hdr_name = TSMimeHdrFieldNameGet(hdr_bufp, req_hdrs, hdr, &old_hdr_len);
@@ -211,7 +212,7 @@ read_request_hook(TSCont /* contp */, TSEvent /* event */, void *edata)
       const char *hdr_value = TSMimeHdrFieldValueStringGet(hdr_bufp, req_hdrs, hdr, 0, &hdr_value_len);
 
       // hdr returned by TSMimeHdrFieldNameGet is already
-      // in camel case, just destroy the lowercase spdy header
+      // in camel case, just destroy the lowercase h2 header
       // and replace it with TSMimeHdrFieldNameGet
       char *new_hdr_name = (char *)old_hdr_name;
       if (new_hdr_name) {

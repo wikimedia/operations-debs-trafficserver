@@ -888,7 +888,7 @@ CacheProcessor::cacheInitialized()
   uint64_t vol_used_direntries   = 0;
   Vol *vol;
 
-  ProxyMutex *mutex = this_ethread()->mutex;
+  ProxyMutex *mutex = this_ethread()->mutex.get();
 
   if (theCache) {
     total_size += theCache->cache_size;
@@ -2000,6 +2000,13 @@ CacheProcessor::mark_storage_offline(CacheDisk *d ///< Target disk
   uint64_t total_dir_delete   = 0;
   uint64_t used_dir_delete    = 0;
 
+  /* Don't mark it again, it will invalidate the stats! */
+  if (!d->online) {
+    return this->has_online_storage();
+  }
+
+  d->online = false;
+
   if (!DISK_BAD(d))
     SET_DISK_BAD(d);
 
@@ -2052,7 +2059,7 @@ CacheProcessor::has_online_storage() const
 {
   CacheDisk **dptr = gdisks;
   for (int disk_no = 0; disk_no < gndisks; ++disk_no, ++dptr) {
-    if (!DISK_BAD(*dptr))
+    if (!DISK_BAD(*dptr) && (*dptr)->online)
       return true;
   }
   return false;
@@ -2203,7 +2210,7 @@ unmarshal_helper(Doc *doc, Ptr<IOBufferData> &buf, int &okay)
   char *tmp = doc->hdr();
   int len   = doc->hlen;
   while (len > 0) {
-    int r = HTTPInfo::unmarshal(tmp, len, buf._ptr());
+    int r = HTTPInfo::unmarshal(tmp, len, buf.get());
     if (r < 0) {
       ink_assert(!"CacheVC::handleReadDone unmarshal failed");
       okay = 0;
@@ -2346,7 +2353,7 @@ CacheVC::handleReadDone(int event, Event *e)
       if (upgrade_doc_version(buf)) {
         doc = reinterpret_cast<Doc *>(buf->data()); // buf may be a new copy
       } else {
-        Debug("cache_bc", "Upgrade of fragment failed - disk %s - doc id = %" PRIx64 ":%" PRIx64 "\n", vol->hash_text.get(),
+        Debug("cache_bc", "Upgrade of fragment failed - disk %s - doc id = %" PRIx64 ":%" PRIx64 "", vol->hash_text.get(),
               read_key->slice64(0), read_key->slice64(1));
         doc->magic = DOC_CORRUPT;
         // Should really trash the directory entry for this, as it's never going to work in the future.
@@ -2415,7 +2422,7 @@ CacheVC::handleReadDone(int event, Event *e)
                         (doc_len && (int64_t)doc_len < cache_config_ram_cache_cutoff) || !cache_config_ram_cache_cutoff);
         if (cutoff_check && !f.doc_from_ram_cache) {
           uint64_t o = dir_offset(&dir);
-          vol->ram_cache->put(read_key, buf, doc->len, http_copy_hdr, (uint32_t)(o >> 32), (uint32_t)o);
+          vol->ram_cache->put(read_key, buf.get(), doc->len, http_copy_hdr, (uint32_t)(o >> 32), (uint32_t)o);
         }
         if (!doc_len) {
           // keep a pointer to it. In case the state machine decides to
@@ -2510,7 +2517,7 @@ Cache::lookup(Continuation *cont, const CacheKey *key, CacheFragType type, char 
   }
 
   Vol *vol          = key_to_vol(key, hostname, host_len);
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   CacheVC *c        = new_CacheVC(cont);
   SET_CONTINUATION_HANDLER(c, &CacheVC::openReadStartHead);
   c->vio.op    = VIO::READ;

@@ -254,16 +254,23 @@ LogUtils::strip_trailing_newline(char *buf)
 }
 
 /*-------------------------------------------------------------------------
-  LogUtils::escapify_url
+  LogUtils::escapify_url_common
 
   This routine will escapify a URL to remove spaces (and perhaps other ugly
   characters) from a URL and replace them with a hex escape sequence.
   Since the escapes are larger (multi-byte) than the characters being
   replaced, the string returned will be longer than the string passed.
+
+  This is a worker function called by escapify_url and pure_escapify_url.  These
+  functions differ on whether the function tries to detect and avoid
+  double URL encoding (escapify_url) or not (pure_escapify_url)
   -------------------------------------------------------------------------*/
 
+namespace
+{
 char *
-LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, char *dst, size_t dst_size, const unsigned char *map)
+escapify_url_common(Arena *arena, char *url, size_t len_in, int *len_out, char *dst, size_t dst_size, const unsigned char *map,
+                    bool pure_escape)
 {
   // codes_to_escape is a bitmap encoding the codes that should be escaped.
   // These are all the codes defined in section 2.4.3 of RFC 2396
@@ -299,8 +306,9 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
     return NULL;
   }
 
-  if (!map)
+  if (!map) {
     map = codes_to_escape;
+  }
 
   // Count specials in the url, assuming that there won't be any.
   //
@@ -320,8 +328,9 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
     // The common case, no escapes, so just return the source string.
     //
     *len_out = len_in;
-    if (dst)
+    if (dst) {
       ink_strlcpy(dst, url, dst_size);
+    }
     return url;
   }
 
@@ -345,10 +354,11 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
   //
   char *new_url;
 
-  if (dst)
+  if (dst) {
     new_url = dst;
-  else
+  } else {
     new_url = (char *)arena->str_alloc(out_len + 1);
+  }
 
   char *from = url;
   char *to   = new_url;
@@ -356,6 +366,22 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
   while (from < in_url_end) {
     unsigned char c = *from;
     if (map[c / 8] & (1 << (7 - c % 8))) {
+      /*
+       * If two characters following a '%' don't need to be encoded, then it must
+       * mean that the three character sequence is already encoded.  Just copy it over.
+       */
+      if (!pure_escape && (*from == '%') && ((from + 2) < in_url_end)) {
+        unsigned char c1   = *(from + 1);
+        unsigned char c2   = *(from + 2);
+        bool needsEncoding = ((map[c1 / 8] & (1 << (7 - c1 % 8))) || (map[c2 / 8] & (1 << (7 - c2 % 8))));
+        if (!needsEncoding) {
+          out_len -= 2;
+          Debug("log-utils", "character already encoded..skipping %c, %c, %c", *from, *(from + 1), *(from + 2));
+          *to++ = *from++;
+          continue;
+        }
+      }
+
       *to++ = '%';
       *to++ = hex_digit[c / 16];
       *to++ = hex_digit[c % 16];
@@ -368,6 +394,20 @@ LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, cha
 
   *len_out = out_len;
   return new_url;
+}
+}
+
+char *
+LogUtils::escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, char *dst, size_t dst_size, const unsigned char *map)
+{
+  return escapify_url_common(arena, url, len_in, len_out, dst, dst_size, map, false);
+}
+
+char *
+LogUtils::pure_escapify_url(Arena *arena, char *url, size_t len_in, int *len_out, char *dst, size_t dst_size,
+                            const unsigned char *map)
+{
+  return escapify_url_common(arena, url, len_in, len_out, dst, dst_size, map, true);
 }
 
 /*-------------------------------------------------------------------------
@@ -414,8 +454,9 @@ LogUtils::timestamp_to_hex_str(unsigned ip, char *buf, size_t bufLen, size_t *nu
   int retVal               = 1;
   int shift                = 28;
   if (buf && bufLen > 0) {
-    if (bufLen > 8)
+    if (bufLen > 8) {
       bufLen = 8;
+    }
     for (retVal = 0; retVal < (int)bufLen;) {
       buf[retVal++] = (char)table[((ip >> shift) & 0xf)];
       shift -= 4;
@@ -493,8 +534,9 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
       errno   = EACCES;
       ret_val = -1;
     }
-    if (size_bytes)
+    if (size_bytes) {
       *size_bytes = stat_data.st_size;
+    }
   } else {
     // stat failed
     //
@@ -529,8 +571,9 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
       if (e < 0) {
         ret_val = -1;
       } else {
-        if (size_bytes)
+        if (size_bytes) {
           *size_bytes = 0;
+        }
       }
 
       if (prefix) {
@@ -548,13 +591,16 @@ LogUtils::file_is_writeable(const char *full_filename, off_t *size_bytes, bool *
       ret_val = -1;
     } else {
       if (limit_data.rlim_cur != (rlim_t)RLIM_INFINITY) {
-        if (has_size_limit)
+        if (has_size_limit) {
           *has_size_limit = true;
-        if (current_size_limit_bytes)
+        }
+        if (current_size_limit_bytes) {
           *current_size_limit_bytes = limit_data.rlim_cur;
+        }
       } else {
-        if (has_size_limit)
+        if (has_size_limit) {
           *has_size_limit = false;
+        }
       }
     }
   }

@@ -31,7 +31,6 @@
 
  ***************************************************************************/
 #include "ts/ink_platform.h"
-#include "Error.h"
 #include "LogAccessHttp.h"
 #include "http/HttpSM.h"
 #include "MIME.h"
@@ -40,6 +39,7 @@
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "Log.h"
+#include "I_Machine.h"
 
 /*-------------------------------------------------------------------------
   LogAccessHttp
@@ -224,8 +224,9 @@ LogAccessHttp::set_client_req_url_path(char *buf, int len)
 int
 LogAccessHttp::marshal_plugin_identity_id(char *buf)
 {
-  if (buf)
+  if (buf) {
     marshal_int(buf, m_http_sm->plugin_id);
+  }
   return INK_MIN_ALIGN;
 }
 
@@ -235,13 +236,15 @@ LogAccessHttp::marshal_plugin_identity_tag(char *buf)
   int len         = INK_MIN_ALIGN;
   char const *tag = m_http_sm->plugin_tag;
 
-  if (!tag)
+  if (!tag) {
     tag = "*";
-  else
+  } else {
     len = LogAccess::strlen(tag);
+  }
 
-  if (buf)
+  if (buf) {
     marshal_str(buf, tag, len);
+  }
 
   return len;
 }
@@ -433,8 +436,9 @@ LogAccessHttp::marshal_client_req_http_method(char *buf)
     }
   }
 
-  if (buf)
+  if (buf) {
     marshal_mem(buf, str, alen, plen);
+  }
   return plen;
 }
 
@@ -614,31 +618,29 @@ LogAccessHttp::marshal_client_req_http_version(char *buf)
 int
 LogAccessHttp::marshal_client_req_protocol_version(char *buf)
 {
-  int len         = INK_MIN_ALIGN;
-  char const *tag = m_http_sm->plugin_tag;
+  const char *protocol_str = m_http_sm->client_protocol;
+  int len                  = LogAccess::strlen(protocol_str);
 
-  if (!tag) {
+  // Set major & minor versions when protocol_str is not "http/2".
+  if (::strlen(protocol_str) == 4 && strncmp("http", protocol_str, 4) == 0) {
     if (m_client_request) {
       HTTPVersion versionObject = m_client_request->version_get();
       int64_t major             = HTTP_MAJOR(versionObject.m_version);
       int64_t minor             = HTTP_MINOR(versionObject.m_version);
       if (major == 1 && minor == 1) {
-        tag = "http/1.1";
+        protocol_str = "http/1.1";
       } else if (major == 1 && minor == 0) {
-        tag = "http/1.0";
-      } else if (major == 0 && minor == 9) {
-        tag = "http/0.9";
+        protocol_str = "http/1.0";
       } // else invalid http version
-      len = LogAccess::strlen(tag);
     } else {
-      tag = "*";
+      protocol_str = "*";
     }
-  } else {
-    len = LogAccess::strlen(tag);
+
+    len = LogAccess::strlen(protocol_str);
   }
 
   if (buf) {
-    marshal_str(buf, tag, len);
+    marshal_str(buf, protocol_str, len);
   }
 
   return len;
@@ -664,7 +666,7 @@ LogAccessHttp::marshal_client_req_header_len(char *buf)
   -------------------------------------------------------------------------*/
 
 int
-LogAccessHttp::marshal_client_req_body_len(char *buf)
+LogAccessHttp::marshal_client_req_content_len(char *buf)
 {
   if (buf) {
     int64_t len = 0;
@@ -672,6 +674,19 @@ LogAccessHttp::marshal_client_req_body_len(char *buf)
       len = m_http_sm->client_request_body_bytes;
     }
     marshal_int(buf, len);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_client_req_squid_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_client_request) {
+      val = m_client_request->length_get() + m_http_sm->client_request_body_bytes;
+    }
+    marshal_int(buf, val);
   }
   return INK_MIN_ALIGN;
 }
@@ -718,6 +733,9 @@ LogAccessHttp::marshal_client_req_ssl_reused(char *buf)
   return INK_MIN_ALIGN;
 }
 
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
 int
 LogAccessHttp::marshal_client_finish_status_code(char *buf)
 {
@@ -736,6 +754,42 @@ LogAccessHttp::marshal_client_finish_status_code(char *buf)
     marshal_int(buf, code);
   }
   return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_client_req_id(char *buf)
+{
+  if (buf) {
+    marshal_int(buf, m_http_sm->sm_id);
+  }
+  return INK_MIN_ALIGN;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_client_req_uuid(char *buf)
+{
+  static unsigned _MAX_CRUUID_LEN = TS_UUID_STRING_LEN + 1 + 20; // 20 == max len of int64_t
+
+  if (buf) {
+    char str[_MAX_CRUUID_LEN + 1];
+    const char *uuid = (char *)Machine::instance()->uuid.getString();
+    int len;
+
+    len = snprintf(str, sizeof(str), "%s-%" PRId64 "", uuid, m_http_sm->sm_id);
+    ink_assert(len < (int)sizeof(str));
+
+    len = round_strlen(len + 1);
+    marshal_str(buf, str, len);
+    return len;
+  }
+
+  return round_strlen(_MAX_CRUUID_LEN + 1);
 }
 
 /*-------------------------------------------------------------------------
@@ -936,12 +990,25 @@ LogAccessHttp::marshal_proxy_req_header_len(char *buf)
   -------------------------------------------------------------------------*/
 
 int
-LogAccessHttp::marshal_proxy_req_body_len(char *buf)
+LogAccessHttp::marshal_proxy_req_content_len(char *buf)
 {
   if (buf) {
     int64_t val = 0;
     if (m_proxy_request) {
       val = m_http_sm->server_request_body_bytes;
+    }
+    marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_proxy_req_squid_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_proxy_request) {
+      val = m_proxy_request->length_get() + m_http_sm->server_request_body_bytes;
     }
     marshal_int(buf, val);
   }
@@ -1021,8 +1088,9 @@ LogAccessHttp::marshal_server_host_ip(char *buf)
   if (!ats_is_ip(ip)) {
     if (m_http_sm->t_state.current.server) {
       ip = &m_http_sm->t_state.current.server->dst_addr.sa;
-      if (!ats_is_ip(ip))
+      if (!ats_is_ip(ip)) {
         ip = 0;
+      }
     } else {
       ip = 0;
     }
@@ -1043,8 +1111,9 @@ LogAccessHttp::marshal_server_host_name(char *buf)
   if (m_client_request) {
     str = m_client_request->host_get(&actual_len);
 
-    if (str)
+    if (str) {
       padded_len = round_strlen(actual_len + 1); // +1 for trailing 0
+    }
   }
   if (buf) {
     marshal_mem(buf, str, actual_len, padded_len);
@@ -1096,6 +1165,19 @@ LogAccessHttp::marshal_server_resp_header_len(char *buf)
     int64_t val = 0;
     if (m_server_response) {
       val = m_server_response->length_get();
+    }
+    marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_server_resp_squid_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_server_response) {
+      val = m_server_response->length_get() + m_http_sm->server_response_body_bytes;
     }
     marshal_int(buf, val);
   }
@@ -1197,6 +1279,19 @@ LogAccessHttp::marshal_cache_resp_content_len(char *buf)
     int64_t val = 0;
     if (m_cache_response) {
       val = m_http_sm->cache_response_body_bytes;
+    }
+    marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_cache_resp_squid_len(char *buf)
+{
+  if (buf) {
+    int64_t val = 0;
+    if (m_cache_response) {
+      val = m_cache_response->length_get() + m_http_sm->cache_response_body_bytes;
     }
     marshal_int(buf, val);
   }
@@ -1347,10 +1442,11 @@ LogAccessHttp::marshal_file_size(char *buf)
       }
     } else {
       // This is semi-broken when we serveq zero length objects. See TS-2213
-      if (m_http_sm->server_response_body_bytes > 0)
+      if (m_http_sm->server_response_body_bytes > 0) {
         marshal_int(buf, m_http_sm->server_response_body_bytes);
-      else if (m_http_sm->cache_response_body_bytes > 0)
+      } else if (m_http_sm->cache_response_body_bytes > 0) {
         marshal_int(buf, m_http_sm->cache_response_body_bytes);
+      }
     }
   }
   // Else, we don't set the value at all (so, -)

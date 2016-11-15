@@ -54,6 +54,7 @@ const size_t HTTP2_SETTINGS_PARAMETER_LEN = 6;
 // SETTINGS initial values. NOTE: These should not be modified
 // unless the protocol changes! Do not change this thinking you
 // are changing server defaults. that is done via RecordsConfig.cc
+const uint32_t HTTP2_ENABLE_PUSH            = 1;
 const uint32_t HTTP2_MAX_CONCURRENT_STREAMS = UINT_MAX;
 const uint32_t HTTP2_INITIAL_WINDOW_SIZE    = 65535;
 const uint32_t HTTP2_MAX_FRAME_SIZE         = 16384;
@@ -295,6 +296,13 @@ struct Http2RstStream {
   uint32_t error_code;
 };
 
+// [RFC 7540] 6.6 PUSH_PROMISE Format
+struct Http2PushPromise {
+  Http2PushPromise() : pad_length(0), promised_streamid(0) {}
+  uint8_t pad_length;
+  Http2StreamId promised_streamid;
+};
+
 static inline bool
 http2_is_client_streamid(Http2StreamId streamid)
 {
@@ -325,6 +333,8 @@ bool http2_write_goaway(const Http2Goaway &, IOVec);
 
 bool http2_write_window_update(const uint32_t new_size, const IOVec &);
 
+bool http2_write_push_promise(const Http2PushPromise &push_promise, const uint8_t *src, size_t length, const IOVec &iov);
+
 bool http2_frame_header_is_valid(const Http2FrameHeader &, unsigned);
 
 bool http2_settings_parameter_is_valid(const Http2SettingsParameter &);
@@ -345,7 +355,7 @@ Http2ErrorCode http2_decode_header_blocks(HTTPHdr *, const uint8_t *, const uint
 
 Http2ErrorCode http2_encode_header_blocks(HTTPHdr *, uint8_t *, uint32_t, uint32_t *, HpackHandle &);
 
-MIMEParseResult http2_convert_header_from_2_to_1_1(HTTPHdr *);
+ParseResult http2_convert_header_from_2_to_1_1(HTTPHdr *);
 void http2_generate_h2_header_from_1_1(HTTPHdr *headers, HTTPHdr *h2_headers);
 
 // Not sure where else to put this, but figure this is as good of a start as

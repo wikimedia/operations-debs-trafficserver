@@ -45,17 +45,17 @@ class Operator : public Statement
 {
 public:
   Operator() : _mods(OPER_NONE) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Operator"); }
+  const OperModifiers get_oper_modifiers() const;
+  virtual void initialize(Parser &p);
+
   void
   do_exec(const Resources &res) const
   {
     exec(res);
-    if (NULL != _next)
+    if (NULL != _next) {
       static_cast<Operator *>(_next)->do_exec(res);
+    }
   }
-
-  const OperModifiers get_oper_modifiers() const;
-
-  virtual void initialize(Parser &p);
 
 protected:
   virtual void exec(const Resources &res) const = 0;
@@ -81,6 +81,23 @@ protected:
 
 private:
   DISALLOW_COPY_AND_ASSIGN(OperatorHeaders);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// Base class for all Cookie based Operators, this is obviously also an
+// Operator interface.
+//
+class OperatorCookies : public Operator
+{
+public:
+  OperatorCookies() : _cookie("") { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for OperatorCookies"); }
+  void initialize(Parser &p);
+
+protected:
+  std::string _cookie;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(OperatorCookies);
 };
 
 #endif // __OPERATOR_H

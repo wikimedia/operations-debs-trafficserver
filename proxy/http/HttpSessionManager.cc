@@ -55,8 +55,9 @@ ServerSessionPool::ServerSessionPool() : Continuation(new_ProxyMutex()), m_ip_po
 void
 ServerSessionPool::purge()
 {
-  for (IPHashTable::iterator last = m_ip_pool.end(), spot = m_ip_pool.begin(); spot != last; ++spot) {
-    spot->do_io_close();
+  // @c do_io_close can free the instance which clears the intrusive links and breaks the iterator.
+  // Therefore @c do_io_close is called on a post-incremented iterator.
+  for (IPHashTable::iterator last = m_ip_pool.end(), spot = m_ip_pool.begin(); spot != last; spot++->do_io_close()) {
   }
   m_ip_pool.clear();
   m_host_pool.clear();
@@ -69,22 +70,42 @@ ServerSessionPool::match(HttpServerSession *ss, sockaddr const *addr, INK_MD5 co
   return TS_SERVER_SESSION_SHARING_MATCH_NONE != match_style && // if no matching allowed, fail immediately.
          // The hostname matches if we're not checking it or it (and the port!) is a match.
          (TS_SERVER_SESSION_SHARING_MATCH_IP == match_style ||
-          (ats_ip_port_cast(addr) == ats_ip_port_cast(ss->server_ip) && ss->hostname_hash == hostname_hash)) &&
+          (ats_ip_port_cast(addr) == ats_ip_port_cast(ss->get_server_ip()) && ss->hostname_hash == hostname_hash)) &&
          // The IP address matches if we're not checking it or it is a match.
-         (TS_SERVER_SESSION_SHARING_MATCH_HOST == match_style || ats_ip_addr_port_eq(ss->server_ip, addr));
+         (TS_SERVER_SESSION_SHARING_MATCH_HOST == match_style || ats_ip_addr_port_eq(ss->get_server_ip(), addr));
+}
+
+bool
+ServerSessionPool::validate_sni(HttpSM *sm, NetVConnection *netvc)
+{
+  // TS-4468: If the connection matches, make sure the SNI server
+  // name (if present) matches the request hostname
+  int len              = 0;
+  const char *req_host = sm->t_state.hdr_info.server_request.host_get(&len);
+  // The sni_servername of the connection was set on HttpSM::do_http_server_open
+  // by fetching the hostname from the server request.  So the connection should only
+  // be reused if the hostname in the new request is the same as the host name in the
+  // original request
+  const char *session_sni = netvc->options.sni_servername;
+
+  return ((sm->t_state.scheme != URL_WKSIDX_HTTPS) || !session_sni || strncasecmp(session_sni, req_host, len) == 0);
 }
 
 HSMresult_t
 ServerSessionPool::acquireSession(sockaddr const *addr, INK_MD5 const &hostname_hash, TSServerSessionSharingMatchType match_style,
-                                  HttpServerSession *&to_return)
+                                  HttpSM *sm, HttpServerSession *&to_return)
 {
   HSMresult_t zret = HSM_NOT_FOUND;
   if (TS_SERVER_SESSION_SHARING_MATCH_HOST == match_style) {
     // This is broken out because only in this case do we check the host hash first.
     HostHashTable::Location loc = m_host_pool.find(hostname_hash);
     in_port_t port              = ats_ip_port_cast(addr);
-    while (loc && port != ats_ip_port_cast(loc->server_ip))
-      ++loc; // scan for matching port.
+    while (loc) { // scan for matching port.
+      if (port == ats_ip_port_cast(loc->get_server_ip()) && validate_sni(sm, loc->get_netvc())) {
+        break;
+      }
+      ++loc;
+    }
     if (loc) {
       to_return = loc;
       m_host_pool.remove(loc);
@@ -96,8 +117,12 @@ ServerSessionPool::acquireSession(sockaddr const *addr, INK_MD5 const &hostname_
     // Otherwise we need to scan further matches to match the host name as well.
     // Note we don't have to check the port because it's checked as part of the IP address key.
     if (TS_SERVER_SESSION_SHARING_MATCH_IP != match_style) {
-      while (loc && loc->hostname_hash != hostname_hash)
+      while (loc) {
+        if (loc->hostname_hash == hostname_hash && validate_sni(sm, loc->get_netvc())) {
+          break;
+        }
         ++loc;
+      }
     }
     if (loc) {
       to_return = loc;
@@ -171,7 +196,7 @@ ServerSessionPool::eventHandler(int event, void *data)
       // origin, then reset the timeouts on our end and do not close the connection
       if ((event == VC_EVENT_INACTIVITY_TIMEOUT || event == VC_EVENT_ACTIVE_TIMEOUT) && s->state == HSS_KA_SHARED &&
           s->enable_origin_connection_limiting) {
-        bool connection_count_below_min = s->connection_count->getCount(s->server_ip, s->hostname_hash, s->sharing_match) <=
+        bool connection_count_below_min = s->connection_count->getCount(s->get_server_ip(), s->hostname_hash, s->sharing_match) <=
                                           http_config_params->origin_min_keep_alive_connections;
 
         if (connection_count_below_min) {
@@ -254,7 +279,12 @@ HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockad
   if (to_return != NULL) {
     ua_session->attach_server_session(NULL);
 
-    if (ServerSessionPool::match(to_return, ip, hostname_hash, match_style)) {
+    // Since the client session is reusing the same server session, it seems that the SNI should match
+    // Will the client make requests to different hosts over the same SSL session? Though checking
+    // the IP/hostname here seems a bit redundant too
+    //
+    if (ServerSessionPool::match(to_return, ip, hostname_hash, match_style) &&
+        ServerSessionPool::validate_sni(sm, to_return->get_netvc())) {
       Debug("http_ss", "[%" PRId64 "] [acquire session] returning attached session ", to_return->con_id);
       to_return->state = HSS_ACTIVE;
       sm->attach_server_session(to_return);
@@ -279,15 +309,15 @@ HttpSessionManager::acquire_session(Continuation * /* cont ATS_UNUSED */, sockad
     // Now check to see if we have a connection in our shared connection pool
     EThread *ethread       = this_ethread();
     ProxyMutex *pool_mutex = (TS_SERVER_SESSION_SHARING_POOL_THREAD == sm->t_state.http_config_param->server_session_sharing_pool) ?
-                               ethread->server_session_pool->mutex :
-                               m_g_pool->mutex;
+                               ethread->server_session_pool->mutex.get() :
+                               m_g_pool->mutex.get();
     MUTEX_TRY_LOCK(lock, pool_mutex, ethread);
     if (lock.is_locked()) {
       if (TS_SERVER_SESSION_SHARING_POOL_THREAD == sm->t_state.http_config_param->server_session_sharing_pool) {
-        retval = ethread->server_session_pool->acquireSession(ip, hostname_hash, match_style, to_return);
+        retval = ethread->server_session_pool->acquireSession(ip, hostname_hash, match_style, sm, to_return);
         Debug("http_ss", "[acquire session] thread pool search %s", to_return ? "successful" : "failed");
       } else {
-        retval = m_g_pool->acquireSession(ip, hostname_hash, match_style, to_return);
+        retval = m_g_pool->acquireSession(ip, hostname_hash, match_style, sm, to_return);
         Debug("http_ss", "[acquire session] global pool search %s", to_return ? "successful" : "failed");
         // At this point to_return has been removed from the pool. Do we need to move it
         // to the same thread?

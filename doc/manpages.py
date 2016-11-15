@@ -19,12 +19,11 @@ import sys, os
 man_pages = [
   # Add all files in the reference/api directory to the list of manual
   # pages
-  ('developer-guide/api/' + filename[:-4], filename.split('.', 1)[0], '', None, '3ts') for filename in os.listdir('developer-guide/api') if filename != 'index.en.rst' and filename.endswith('.rst')] + [
+  ('developer-guide/api/functions/' + filename[:-4], filename.split('.', 1)[0], '', None, '3ts') for filename in os.listdir('developer-guide/api/functions/') if filename != 'index.en.rst' and filename.endswith('.rst')] + [
 
   ('appendices/command-line/traffic_cop.en', 'traffic_cop', u'Traffic Server watchdog', None, '8'),
   ('appendices/command-line/traffic_ctl.en', 'traffic_ctl', u'Traffic Server command line tool', None, '8'),
   ('appendices/command-line/traffic_crashlog.en', 'traffic_crashlog', u'Traffic Server crash log helper', None, '8'),
-  ('appendices/command-line/traffic_line.en', 'traffic_line', u'Traffic Server command line', None, '8'),
   ('appendices/command-line/traffic_logcat.en', 'traffic_logcat', u'Traffic Server log spooler', None, '8'),
   ('appendices/command-line/traffic_logstats.en', 'traffic_logstats', u'Traffic Server analyzer', None, '8'),
   ('appendices/command-line/traffic_manager.en', 'traffic_manager', u'Traffic Server process manager', None, '8'),
@@ -36,12 +35,13 @@ man_pages = [
   ('appendices/command-line/traffic_via.en', 'traffic_via', u'Traffic Server Via header decoder', None, '1'),
 
   ('admin-guide/files/cache.config.en', 'cache.config', u'Traffic Server cache configuration file', None, '5'),
+  ('admin-guide/files/cluster.config.en', 'cluster.config', u'Traffic Server cluster configuration file', None, '5'),
   ('admin-guide/files/congestion.config.en', 'congestion.config', u'Traffic Server congestion control configuration file', None, '5'),
   ('admin-guide/files/hosting.config.en', 'hosting.config', u'Traffic Server domain hosting configuration file', None, '5'),
-  ('admin-guide/files/icp.config.en', 'icp.config', u'Traffic Server ICP configuration file', None, '5'),
   ('admin-guide/files/ip_allow.config.en', 'ip_allow.config', u'Traffic Server IP access control configuration file', None, '5'),
   ('admin-guide/files/log_hosts.config.en', 'log_hosts.config', u'Traffic Server log host configuration file', None, '5'),
-  ('admin-guide/files/logs_xml.config.en', 'logs_xml.config', u'Traffic Server log format configuration file', None, '5'),
+  ('admin-guide/files/logging.config.en', 'logging.config', u'Traffic Server logging configuration file', None, '5'),
+  ('admin-guide/files/metrics.config.en', 'metrics.config', u'Traffic Server dynamic metrics configuration file', None, '5'),
   ('admin-guide/files/parent.config.en', 'parent.config', u'Traffic Server parent cache configuration file', None, '5'),
   ('admin-guide/files/plugin.config.en', 'plugin.config', u'Traffic Server global plugin configuration file', None, '5'),
   ('admin-guide/files/records.config.en', 'records.config', u'Traffic Server configuration file', None, '5'),

@@ -16,12 +16,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+include $(top_srcdir)/build/tidy.mk
+
 library_includedir=$(includedir)/ts
 
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_arena test_atomic test_freelist test_geometry test_List test_Map test_Regex test_PriorityQueue test_Vec test_X509HostnameValidator
+check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator
+
 TESTS = $(check_PROGRAMS)
 
 AM_CPPFLAGS = -I$(top_srcdir)/lib
@@ -53,6 +56,8 @@ libtsutil_la_SOURCES = \
   ContFlags.h \
   Diags.cc \
   Diags.h \
+  SourceLocation.h \
+  SourceLocation.cc \
   DynArray.h \
   EventNotify.cc \
   EventNotify.h \
@@ -70,6 +75,7 @@ libtsutil_la_SOURCES = \
   I_Layout.h \
   I_Version.h \
   InkErrno.h \
+  InkErrno.cc \
   IntrusiveDList.h \
   IpMap.cc \
   IpMap.h \
@@ -175,6 +181,8 @@ libtsutil_la_SOURCES = \
   ink_thread.h \
   ink_time.cc \
   ink_time.h \
+  ink_uuid.cc \
+  ink_uuid.h \
   llqueue.cc \
   lockfile.cc \
   signals.cc \
@@ -213,14 +221,6 @@ test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
-test_Regex_SOURCES = test_Regex.cc
-test_Regex_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Regex_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-
-test_PriorityQueue_SOURCES = test_PriorityQueue.cc
-test_PriorityQueue_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_PriorityQueue_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
@@ -233,12 +233,19 @@ test_X509HostnameValidator_SOURCES = test_X509HostnameValidator.cc
 test_X509HostnameValidator_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@ @OPENSSL_LIBS@
 test_X509HostnameValidator_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
+test_tsutil_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_tsutil_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+test_tsutil_SOURCES = \
+	test_PriorityQueue.cc \
+	test_Ptr.cc \
+	test_Regex.cc \
+	tests.cc
+
 CompileParseRules_SOURCES = CompileParseRules.cc
-
-test:: $(TESTS)
-	for f in $(TESTS) ; do $$f ; done
-
-#$(foreach F, $(TESTS), $(shell $F))
 
 clean-local:
 	rm -f ParseRulesCType ParseRulesCTypeToLower ParseRulesCTypeToUpper
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)
+

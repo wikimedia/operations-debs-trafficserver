@@ -51,11 +51,9 @@ struct EvacuationBlock;
 #endif
 
 #ifdef DEBUG
-#define DDebug Debug
+#define DDebug(tag, fmt, ...) Debug(tag, fmt, ##__VA_ARGS__)
 #else
-#define DDebug \
-  if (0)       \
-  dummy_debug
+#define DDebug(tag, fmt, ...)
 #endif
 
 #define AIO_SOFT_FAILURE -100000
@@ -234,17 +232,20 @@ struct CacheVC : public CacheVConnection {
     ink_assert(vio.op == VIO::READ);
     return !f.not_from_ram_cache;
   }
+
   int
   get_header(void **ptr, int *len)
   {
-    if (first_buf.m_ptr) {
+    if (first_buf) {
       Doc *doc = (Doc *)first_buf->data();
       *ptr     = doc->hdr();
       *len     = doc->hlen;
       return 0;
-    } else
-      return -1;
+    }
+
+    return -1;
   }
+
   int
   set_header(void *ptr, int len)
   {
@@ -252,10 +253,11 @@ struct CacheVC : public CacheVConnection {
     header_to_write_len = len;
     return 0;
   }
+
   int
   get_single_data(void **ptr, int *len)
   {
-    if (first_buf.m_ptr) {
+    if (first_buf) {
       Doc *doc = (Doc *)first_buf->data();
       if (doc->data_len() == doc->total_len) {
         *ptr = doc->data();
@@ -263,16 +265,20 @@ struct CacheVC : public CacheVConnection {
         return 0;
       }
     }
+
     return -1;
   }
+
   int
   get_volume_number() const
   {
     if (vol && vol->cache_vol) {
       return vol->cache_vol->vol_number;
     }
+
     return -1;
   }
+
   bool
   is_compressed_in_ram() const
   {
@@ -560,7 +566,7 @@ TS_INLINE int
 free_CacheVC(CacheVC *cont)
 {
   Debug("cache_free", "free %p", cont);
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   Vol *vol          = cont->vol;
   if (vol) {
     CACHE_DECREMENT_DYN_STAT(cont->base_stat + CACHE_STAT_ACTIVE);
@@ -871,7 +877,7 @@ dir_overwrite_lock(CacheKey *key, Vol *d, Dir *to_part, ProxyMutex *m, Dir *over
 }
 
 void TS_INLINE
-rand_CacheKey(CacheKey *next_key, ProxyMutex *mutex)
+rand_CacheKey(CacheKey *next_key, Ptr<ProxyMutex> &mutex)
 {
   next_key->b[0] = mutex->thread_holding->generator.random();
   next_key->b[1] = mutex->thread_holding->generator.random();

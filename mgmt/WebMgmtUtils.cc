@@ -254,7 +254,7 @@ varSetInt(const char *varName, RecInt value, bool convert)
 bool
 varSetData(RecDataT varType, const char *varName, RecData value)
 {
-  int err = REC_ERR_FAIL;
+  RecErrT err = REC_ERR_FAIL;
 
   switch (varType) {
   case RECD_INT:
@@ -701,8 +701,9 @@ MgmtData::MgmtData()
 
 MgmtData::~MgmtData()
 {
-  if (type == RECD_STRING)
+  if (type == RECD_STRING) {
     ats_free(data.rec_string);
+  }
 }
 
 // MgmtData::compareFromString(const char* str, strLen)
@@ -782,7 +783,7 @@ varType(const char *varName)
     return RECD_NULL;
   }
 
-  Debug("RecOp", "[varType] %s is of type %d\n", varName, data_type);
+  Debug("RecOp", "[varType] %s is of type %d", varName, data_type);
   return data_type;
 }
 
@@ -1011,38 +1012,6 @@ substituteForHTMLChars(const char *buffer)
   return safeBuf;
 }
 
-// bool ProxyShutdown()
-//
-//  Attempts to turn the proxy off.  Returns
-//    true if the proxy is off when the call returns
-//    and false if it is still on
-//
-bool
-ProxyShutdown()
-{
-  int i = 0;
-
-  // Check to make sure that we are not already down
-  if (!lmgmt->processRunning()) {
-    return true;
-  }
-  // Send the shutdown event
-  lmgmt->signalEvent(MGMT_EVENT_SHUTDOWN, "shutdown");
-
-  // Wait for awhile for shtudown to happen
-  do {
-    mgmt_sleep_sec(1);
-    i++;
-  } while (i < 10 && lmgmt->processRunning());
-
-  // See if we succeeded
-  if (lmgmt->processRunning()) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
 //
 //
 //  Sets the LocalManager variable:  proxy.node.hostname
@@ -1057,7 +1026,7 @@ setHostnameVar()
 
   // Get Our HostName
   if (gethostname(ourHostName, MAXDNAME) < 0) {
-    mgmt_fatal(stderr, errno, "[setHostnameVar] Can not determine our hostname");
+    mgmt_fatal(errno, "[setHostnameVar] Can not determine our hostname");
   }
 
   res_init();
@@ -1107,13 +1076,13 @@ appendDefaultDomain(char *hostname, int bufLength)
         ink_strlcat(hostname, _res.defdname, bufLength);
       } else {
         if (error_before == 0) {
-          mgmt_log(stderr, "%s %s\n", "[appendDefaultDomain] Domain name is too long.", msg);
+          mgmt_log("%s %s\n", "[appendDefaultDomain] Domain name is too long.", msg);
           error_before++;
         }
       }
     } else {
       if (error_before == 0) {
-        mgmt_log(stderr, "%s %s\n", "[appendDefaultDomain] Unable to determine default domain name.", msg);
+        mgmt_log("%s %s\n", "[appendDefaultDomain] Unable to determine default domain name.", msg);
         error_before++;
       }
     }
@@ -1154,7 +1123,7 @@ recordValidityCheck(const char *varName, const char *value)
     return true;
   default:
     // unknown RecordCheckType...
-    mgmt_log(stderr, "[WebMgmtUtil] error, unknown RecordCheckType for record %s\n", varName);
+    mgmt_log("[WebMgmtUtil] error, unknown RecordCheckType for record %s\n", varName);
   }
 
   return false;
@@ -1253,18 +1222,6 @@ recordRestartCheck(const char *varName)
   return false;
 }
 
-void
-fileCheckSum(char *buffer, int size, char *checksum, const size_t checksumSize)
-{
-  INK_DIGEST_CTX md5_context;
-  char checksum_md5[16];
-
-  ink_code_incr_md5_init(&md5_context);
-  ink_code_incr_md5_update(&md5_context, buffer, size);
-  ink_code_incr_md5_final(checksum_md5, &md5_context);
-  ink_code_md5_stringify(checksum, checksumSize, checksum_md5);
-}
-
 //-------------------------------------------------------------------------
 // getFilesInDirectory
 //
@@ -1285,7 +1242,7 @@ getFilesInDirectory(char *managedDir, ExpandingArray *fileList)
   fileEntry *fileListEntry;
 
   if ((dir = opendir(managedDir)) == NULL) {
-    mgmt_log(stderr, "[getFilesInDirectory] Unable to open %s directory: %s\n", managedDir, strerror(errno));
+    mgmt_log("[getFilesInDirectory] Unable to open %s directory: %s\n", managedDir, strerror(errno));
     return -1;
   }
   // The fun of Solaris - readdir_r requires a buffer passed into it
@@ -1295,15 +1252,16 @@ getFilesInDirectory(char *managedDir, ExpandingArray *fileList)
 
   struct dirent *result;
   while (readdir_r(dir, dirEntry, &result) == 0) {
-    if (!result)
+    if (!result) {
       break;
+    }
     fileName = dirEntry->d_name;
     if (!fileName || !*fileName) {
       continue;
     }
     filePath = newPathString(managedDir, fileName);
     if (stat(filePath, &fileInfo) < 0) {
-      mgmt_log(stderr, "[getFilesInDirectory] Stat of a %s failed : %s\n", fileName, strerror(errno));
+      mgmt_log("[getFilesInDirectory] Stat of a %s failed : %s\n", fileName, strerror(errno));
     } else {
       // Ignore ., .., and any dot files
       if (fileName && *fileName != '.') {
@@ -1336,8 +1294,9 @@ newPathString(const char *s1, const char *s2)
   int addLen; // maximum total path length
 
   // Treat null as an empty path.
-  if (!s2)
-    s2   = "";
+  if (!s2) {
+    s2 = "";
+  }
   addLen = strlen(s2) + 1;
   if (*s2 == '/') {
     // If addpath is rooted, then rootpath is unused.
@@ -1356,8 +1315,9 @@ newPathString(const char *s1, const char *s2)
   ink_assert(newStr != NULL);
 
   ink_strlcpy(newStr, s1, srcLen + addLen + 1);
-  if (newStr[srcLen - 1] != '/')
+  if (newStr[srcLen - 1] != '/') {
     newStr[srcLen++] = '/';
+  }
   ink_strlcpy(&newStr[srcLen], s2, srcLen + addLen + 1);
 
   return newStr;

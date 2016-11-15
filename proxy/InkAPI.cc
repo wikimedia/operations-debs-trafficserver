@@ -49,7 +49,6 @@
 #include "LogConfig.h"
 #include "PluginVC.h"
 #include "api/ts/experimental.h"
-#include "ICP.h"
 #include "HttpSessionAccept.h"
 #include "PluginVC.h"
 #include "FetchSM.h"
@@ -59,6 +58,7 @@
 
 #include "I_RecDefs.h"
 #include "I_RecCore.h"
+#include "I_Machine.h"
 #include "HttpProxyServerMain.h"
 
 /****************************************************************
@@ -331,7 +331,6 @@ tsapi const char *TS_HTTP_METHOD_CONNECT;
 tsapi const char *TS_HTTP_METHOD_DELETE;
 tsapi const char *TS_HTTP_METHOD_GET;
 tsapi const char *TS_HTTP_METHOD_HEAD;
-tsapi const char *TS_HTTP_METHOD_ICP_QUERY;
 tsapi const char *TS_HTTP_METHOD_OPTIONS;
 tsapi const char *TS_HTTP_METHOD_POST;
 tsapi const char *TS_HTTP_METHOD_PURGE;
@@ -344,7 +343,6 @@ tsapi int TS_HTTP_LEN_CONNECT;
 tsapi int TS_HTTP_LEN_DELETE;
 tsapi int TS_HTTP_LEN_GET;
 tsapi int TS_HTTP_LEN_HEAD;
-tsapi int TS_HTTP_LEN_ICP_QUERY;
 tsapi int TS_HTTP_LEN_OPTIONS;
 tsapi int TS_HTTP_LEN_POST;
 tsapi int TS_HTTP_LEN_PURGE;
@@ -382,9 +380,10 @@ TSError(const char *fmt, ...)
 
   if (is_action_tag_set("deft") || is_action_tag_set("sdk_vbos_errors")) {
     va_start(args, fmt);
-    diags->print_va(NULL, DL_Error, NULL, fmt, args);
+    ErrorV(fmt, args);
     va_end(args);
   }
+
   va_start(args, fmt);
   Log::va_error((char *)fmt, args);
   va_end(args);
@@ -475,11 +474,11 @@ inline MIMEHdrImpl *
 _hdr_obj_to_mime_hdr_impl(HdrHeapObjImpl *obj)
 {
   MIMEHdrImpl *impl;
-  if (obj->m_type == HDR_HEAP_OBJ_HTTP_HEADER)
+  if (obj->m_type == HDR_HEAP_OBJ_HTTP_HEADER) {
     impl = ((HTTPHdrImpl *)obj)->m_fields_impl;
-  else if (obj->m_type == HDR_HEAP_OBJ_MIME_HEADER)
+  } else if (obj->m_type == HDR_HEAP_OBJ_MIME_HEADER) {
     impl = (MIMEHdrImpl *)obj;
-  else {
+  } else {
     ink_release_assert(!"mloc not a header type");
     impl = NULL; /* gcc does not know about 'ink_release_assert' - make it happy */
   }
@@ -495,17 +494,20 @@ _hdr_mloc_to_mime_hdr_impl(TSMLoc mloc)
 TSReturnCode
 sdk_sanity_check_field_handle(TSMLoc field, TSMLoc parent_hdr = NULL)
 {
-  if (field == TS_NULL_MLOC)
+  if (field == TS_NULL_MLOC) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_FIELD_SDK_HANDLE)
+  if (field_handle->m_type != HDR_HEAP_OBJ_FIELD_SDK_HANDLE) {
     return TS_ERROR;
+  }
 
   if (parent_hdr != NULL) {
     MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(parent_hdr);
-    if (field_handle->mh != mh)
+    if (field_handle->mh != mh) {
       return TS_ERROR;
+    }
   }
   return TS_SUCCESS;
 }
@@ -514,8 +516,9 @@ TSReturnCode
 sdk_sanity_check_mbuffer(TSMBuffer bufp)
 {
   HdrHeapSDKHandle *handle = (HdrHeapSDKHandle *)bufp;
-  if ((handle == NULL) || (handle->m_heap == NULL) || (handle->m_heap->m_magic != HDR_BUF_MAGIC_ALIVE))
+  if ((handle == NULL) || (handle->m_heap == NULL) || (handle->m_heap->m_magic != HDR_BUF_MAGIC_ALIVE)) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -523,12 +526,14 @@ sdk_sanity_check_mbuffer(TSMBuffer bufp)
 TSReturnCode
 sdk_sanity_check_mime_hdr_handle(TSMLoc field)
 {
-  if (field == TS_NULL_MLOC)
+  if (field == TS_NULL_MLOC) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_MIME_HEADER)
+  if (field_handle->m_type != HDR_HEAP_OBJ_MIME_HEADER) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -536,12 +541,14 @@ sdk_sanity_check_mime_hdr_handle(TSMLoc field)
 TSReturnCode
 sdk_sanity_check_url_handle(TSMLoc field)
 {
-  if (field == TS_NULL_MLOC)
+  if (field == TS_NULL_MLOC) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_URL)
+  if (field_handle->m_type != HDR_HEAP_OBJ_URL) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -549,12 +556,14 @@ sdk_sanity_check_url_handle(TSMLoc field)
 TSReturnCode
 sdk_sanity_check_http_hdr_handle(TSMLoc field)
 {
-  if (field == TS_NULL_MLOC)
+  if (field == TS_NULL_MLOC) {
     return TS_ERROR;
+  }
 
   HTTPHdrImpl *field_handle = (HTTPHdrImpl *)field;
-  if (field_handle->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
+  if (field_handle->m_type != HDR_HEAP_OBJ_HTTP_HEADER) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -562,8 +571,9 @@ sdk_sanity_check_http_hdr_handle(TSMLoc field)
 TSReturnCode
 sdk_sanity_check_continuation(TSCont cont)
 {
-  if ((cont == NULL) || (((INKContInternal *)cont)->m_free_magic == INKCONT_INTERN_MAGIC_DEAD))
+  if ((cont == NULL) || (((INKContInternal *)cont)->m_free_magic == INKCONT_INTERN_MAGIC_DEAD)) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -571,8 +581,9 @@ sdk_sanity_check_continuation(TSCont cont)
 TSReturnCode
 sdk_sanity_check_fetch_sm(TSFetchSM fetch_sm)
 {
-  if (fetch_sm == NULL)
+  if (fetch_sm == NULL) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -580,8 +591,9 @@ sdk_sanity_check_fetch_sm(TSFetchSM fetch_sm)
 TSReturnCode
 sdk_sanity_check_http_ssn(TSHttpSsn ssnp)
 {
-  if (ssnp == NULL)
+  if (ssnp == NULL) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -589,32 +601,36 @@ sdk_sanity_check_http_ssn(TSHttpSsn ssnp)
 TSReturnCode
 sdk_sanity_check_txn(TSHttpTxn txnp)
 {
-  if ((txnp != NULL) && (((HttpSM *)txnp)->magic == HTTP_SM_MAGIC_ALIVE))
+  if ((txnp != NULL) && (((HttpSM *)txnp)->magic == HTTP_SM_MAGIC_ALIVE)) {
     return TS_SUCCESS;
+  }
   return TS_ERROR;
 }
 
 TSReturnCode
 sdk_sanity_check_mime_parser(TSMimeParser parser)
 {
-  if (parser == NULL)
+  if (parser == NULL) {
     return TS_ERROR;
+  }
   return TS_SUCCESS;
 }
 
 TSReturnCode
 sdk_sanity_check_http_parser(TSHttpParser parser)
 {
-  if (parser == NULL)
+  if (parser == NULL) {
     return TS_ERROR;
+  }
   return TS_SUCCESS;
 }
 
 TSReturnCode
 sdk_sanity_check_alt_info(TSHttpAltInfo info)
 {
-  if (info == NULL)
+  if (info == NULL) {
     return TS_ERROR;
+  }
   return TS_SUCCESS;
 }
 
@@ -633,16 +649,35 @@ sdk_sanity_check_lifecycle_hook_id(TSLifecycleHookID id)
 TSReturnCode
 sdk_sanity_check_ssl_hook_id(TSHttpHookID id)
 {
-  if (id < TS_SSL_FIRST_HOOK || id > TS_SSL_LAST_HOOK)
+  if (id < TS_SSL_FIRST_HOOK || id > TS_SSL_LAST_HOOK) {
     return TS_ERROR;
+  }
   return TS_SUCCESS;
 }
 
 TSReturnCode
 sdk_sanity_check_null_ptr(void *ptr)
 {
-  if (ptr == NULL)
+  if (ptr == NULL) {
     return TS_ERROR;
+  }
+  return TS_SUCCESS;
+}
+
+static TSReturnCode
+sdk_sanity_check_mutex(Ptr<ProxyMutex> &m)
+{
+  return m ? TS_SUCCESS : TS_ERROR;
+}
+
+// Plugin metric IDs index the plugin RSB, so bounds check against that.
+static TSReturnCode
+sdk_sanity_check_stat_id(int id)
+{
+  if (id < 0 || id >= api_rsb->max_stats) {
+    return TS_ERROR;
+  }
+
   return TS_SUCCESS;
 }
 
@@ -953,6 +988,20 @@ INKContInternal::init(TSEventFunc funcp, TSMutex mutexp)
 }
 
 void
+INKContInternal::clear()
+{
+}
+
+void
+INKContInternal::free()
+{
+  clear();
+  this->mutex.clear();
+  m_free_magic = INKCONT_INTERN_MAGIC_DEAD;
+  INKContAllocator.free(this);
+}
+
+void
 INKContInternal::destroy()
 {
   if (m_free_magic == INKCONT_INTERN_MAGIC_DEAD) {
@@ -960,9 +1009,7 @@ INKContInternal::destroy()
   }
   m_deleted = 1;
   if (m_deletable) {
-    this->mutex  = NULL;
-    m_free_magic = INKCONT_INTERN_MAGIC_DEAD;
-    INKContAllocator.free(this);
+    free();
   } else {
     // TODO: Should this schedule on some other "thread" ?
     // TODO: we don't care about the return action?
@@ -995,9 +1042,7 @@ INKContInternal::handle_event(int event, void *edata)
   handle_event_count(event);
   if (m_deleted) {
     if (m_deletable) {
-      this->mutex  = NULL;
-      m_free_magic = INKCONT_INTERN_MAGIC_DEAD;
-      INKContAllocator.free(this);
+      free();
     } else {
       Warning("INKCont Deletable but not deleted %d", m_event_count);
     }
@@ -1031,43 +1076,36 @@ INKVConnInternal::INKVConnInternal(TSEventFunc funcp, TSMutex mutexp)
   : INKContInternal(funcp, mutexp), m_read_vio(), m_write_vio(), m_output_vc(NULL)
 {
   m_closed = 0;
-  SET_HANDLER(&INKVConnInternal::handle_event);
 }
 
 void
-INKVConnInternal::init(TSEventFunc funcp, TSMutex mutexp)
+INKVConnInternal::clear()
 {
-  INKContInternal::init(funcp, mutexp);
-  SET_HANDLER(&INKVConnInternal::handle_event);
+  m_read_vio.set_continuation(NULL);
+  m_write_vio.set_continuation(NULL);
+  INKContInternal::clear();
+}
+
+void
+INKVConnInternal::free()
+{
+  clear();
+  this->mutex.clear();
+  m_free_magic = INKCONT_INTERN_MAGIC_DEAD;
+  INKVConnAllocator.free(this);
 }
 
 void
 INKVConnInternal::destroy()
 {
+  if (m_free_magic == INKCONT_INTERN_MAGIC_DEAD) {
+    ink_release_assert(!"Plugin tries to use a vconnection which is deleted");
+  }
+
   m_deleted = 1;
   if (m_deletable) {
-    this->mutex = NULL;
-    m_read_vio.set_continuation(NULL);
-    m_write_vio.set_continuation(NULL);
-    INKVConnAllocator.free(this);
+    free();
   }
-}
-
-int
-INKVConnInternal::handle_event(int event, void *edata)
-{
-  handle_event_count(event);
-  if (m_deleted) {
-    if (m_deletable) {
-      this->mutex = NULL;
-      m_read_vio.set_continuation(NULL);
-      m_write_vio.set_continuation(NULL);
-      INKVConnAllocator.free(this);
-    }
-  } else {
-    return m_event_func((TSCont)this, (TSEvent)event, edata);
-  }
-  return EVENT_DONE;
 }
 
 VIO *
@@ -1297,8 +1335,9 @@ ConfigUpdateCbTable::insert(INKContInternal *contp, const char *name)
 {
   ink_assert(cb_table != NULL);
 
-  if (contp && name)
+  if (contp && name) {
     ink_hash_table_insert(cb_table, (InkHashTableKey)name, (InkHashTableValue)contp);
+  }
 }
 
 void
@@ -1525,29 +1564,27 @@ api_init()
     TS_MIME_LEN_X_FORWARDED_FOR           = MIME_LEN_X_FORWARDED_FOR;
 
     /* HTTP methods */
-    TS_HTTP_METHOD_CONNECT   = HTTP_METHOD_CONNECT;
-    TS_HTTP_METHOD_DELETE    = HTTP_METHOD_DELETE;
-    TS_HTTP_METHOD_GET       = HTTP_METHOD_GET;
-    TS_HTTP_METHOD_HEAD      = HTTP_METHOD_HEAD;
-    TS_HTTP_METHOD_ICP_QUERY = HTTP_METHOD_ICP_QUERY;
-    TS_HTTP_METHOD_OPTIONS   = HTTP_METHOD_OPTIONS;
-    TS_HTTP_METHOD_POST      = HTTP_METHOD_POST;
-    TS_HTTP_METHOD_PURGE     = HTTP_METHOD_PURGE;
-    TS_HTTP_METHOD_PUT       = HTTP_METHOD_PUT;
-    TS_HTTP_METHOD_TRACE     = HTTP_METHOD_TRACE;
-    TS_HTTP_METHOD_PUSH      = HTTP_METHOD_PUSH;
+    TS_HTTP_METHOD_CONNECT = HTTP_METHOD_CONNECT;
+    TS_HTTP_METHOD_DELETE  = HTTP_METHOD_DELETE;
+    TS_HTTP_METHOD_GET     = HTTP_METHOD_GET;
+    TS_HTTP_METHOD_HEAD    = HTTP_METHOD_HEAD;
+    TS_HTTP_METHOD_OPTIONS = HTTP_METHOD_OPTIONS;
+    TS_HTTP_METHOD_POST    = HTTP_METHOD_POST;
+    TS_HTTP_METHOD_PURGE   = HTTP_METHOD_PURGE;
+    TS_HTTP_METHOD_PUT     = HTTP_METHOD_PUT;
+    TS_HTTP_METHOD_TRACE   = HTTP_METHOD_TRACE;
+    TS_HTTP_METHOD_PUSH    = HTTP_METHOD_PUSH;
 
-    TS_HTTP_LEN_CONNECT   = HTTP_LEN_CONNECT;
-    TS_HTTP_LEN_DELETE    = HTTP_LEN_DELETE;
-    TS_HTTP_LEN_GET       = HTTP_LEN_GET;
-    TS_HTTP_LEN_HEAD      = HTTP_LEN_HEAD;
-    TS_HTTP_LEN_ICP_QUERY = HTTP_LEN_ICP_QUERY;
-    TS_HTTP_LEN_OPTIONS   = HTTP_LEN_OPTIONS;
-    TS_HTTP_LEN_POST      = HTTP_LEN_POST;
-    TS_HTTP_LEN_PURGE     = HTTP_LEN_PURGE;
-    TS_HTTP_LEN_PUT       = HTTP_LEN_PUT;
-    TS_HTTP_LEN_TRACE     = HTTP_LEN_TRACE;
-    TS_HTTP_LEN_PUSH      = HTTP_LEN_PUSH;
+    TS_HTTP_LEN_CONNECT = HTTP_LEN_CONNECT;
+    TS_HTTP_LEN_DELETE  = HTTP_LEN_DELETE;
+    TS_HTTP_LEN_GET     = HTTP_LEN_GET;
+    TS_HTTP_LEN_HEAD    = HTTP_LEN_HEAD;
+    TS_HTTP_LEN_OPTIONS = HTTP_LEN_OPTIONS;
+    TS_HTTP_LEN_POST    = HTTP_LEN_POST;
+    TS_HTTP_LEN_PURGE   = HTTP_LEN_PURGE;
+    TS_HTTP_LEN_PUT     = HTTP_LEN_PUT;
+    TS_HTTP_LEN_TRACE   = HTTP_LEN_TRACE;
+    TS_HTTP_LEN_PUSH    = HTTP_LEN_PUSH;
 
     /* HTTP miscellaneous values */
     TS_HTTP_VALUE_BYTES            = HTTP_VALUE_BYTES;
@@ -1727,14 +1764,15 @@ TSInstallDirGet(void)
 const char *
 TSConfigDirGet(void)
 {
-  static char *sysconfdir = NULL;
-
-  // This is not great, bit it's no worse than TSPluginDirGet :-/
-  if (sysconfdir == NULL) {
-    sysconfdir = RecConfigReadConfigDir();
-  }
-
+  static const char *sysconfdir = RecConfigReadConfigDir();
   return sysconfdir;
+}
+
+const char *
+TSRuntimeDirGet(void)
+{
+  static const char *runtimedir = RecConfigReadRuntimeDir();
+  return runtimedir;
 }
 
 const char *
@@ -1762,14 +1800,7 @@ TSTrafficServerVersionGetPatch()
 const char *
 TSPluginDirGet(void)
 {
-  static char path[PATH_NAME_MAX] = "";
-
-  if (*path == '\0') {
-    char *plugin_dir = RecConfigReadPrefixPath("proxy.config.plugin.plugin_dir");
-    ink_strlcpy(path, plugin_dir, sizeof(path));
-    ats_free(plugin_dir);
-  }
-
+  static const char *path = RecConfigReadPrefixPath("proxy.config.plugin.plugin_dir");
   return path;
 }
 
@@ -1780,7 +1811,7 @@ TSPluginDirGet(void)
 ////////////////////////////////////////////////////////////////////
 
 TSReturnCode
-TSPluginRegister(TSPluginRegistrationInfo *plugin_info)
+TSPluginRegister(const TSPluginRegistrationInfo *plugin_info)
 {
   sdk_assert(sdk_sanity_check_null_ptr((void *)plugin_info) == TS_SUCCESS);
 
@@ -1873,8 +1904,9 @@ TSHandleMLocRelease(TSMBuffer bufp, TSMLoc parent, TSMLoc mloc)
   MIMEFieldSDKHandle *field_handle;
   HdrHeapObjImpl *obj = (HdrHeapObjImpl *)mloc;
 
-  if (mloc == TS_NULL_MLOC)
+  if (mloc == TS_NULL_MLOC) {
     return TS_SUCCESS;
+  }
 
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
 
@@ -1886,8 +1918,9 @@ TSHandleMLocRelease(TSMBuffer bufp, TSMLoc parent, TSMLoc mloc)
 
   case HDR_HEAP_OBJ_FIELD_SDK_HANDLE:
     field_handle = (MIMEFieldSDKHandle *)obj;
-    if (sdk_sanity_check_field_handle(mloc, parent) != TS_SUCCESS)
+    if (sdk_sanity_check_field_handle(mloc, parent) != TS_SUCCESS) {
       return TS_ERROR;
+    }
 
     sdk_free_field_handle(bufp, field_handle);
     return TS_SUCCESS;
@@ -1926,8 +1959,9 @@ TSMBufferDestroy(TSMBuffer bufp)
   // if bufp is modifiable. If bufp is not modifiable return
   // TS_ERROR. If allowed, return TS_SUCCESS. Changed the
   // return value of function from void to TSReturnCode.
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   HdrHeapSDKHandle *sdk_heap = (HdrHeapSDKHandle *)bufp;
@@ -1971,8 +2005,9 @@ TSUrlClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_url, TSMLoc *locp
   sdk_assert(sdk_sanity_check_url_handle(src_url) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr(locp) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *s_heap, *d_heap;
   URLImpl *s_url, *d_url;
@@ -1994,8 +2029,9 @@ TSUrlCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc src_o
   sdk_assert(sdk_sanity_check_url_handle(src_obj) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(dest_obj) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *s_heap, *d_heap;
   URLImpl *s_url, *d_url;
@@ -2053,8 +2089,9 @@ TSUrlParse(TSMBuffer bufp, TSMLoc obj, const char **start, const char *end)
   sdk_assert(sdk_sanity_check_null_ptr((void *)*start) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)end) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_PARSE_ERROR;
+  }
 
   URL u;
   u.m_heap     = ((HdrHeapSDKHandle *)bufp)->m_heap;
@@ -2108,17 +2145,19 @@ URLPartSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length, URLPartSet
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   URL u;
   u.m_heap     = ((HdrHeapSDKHandle *)bufp)->m_heap;
   u.m_url_impl = (URLImpl *)obj;
 
-  if (!value)
+  if (!value) {
     length = 0;
-  else if (length < 0)
+  } else if (length < 0) {
     length = strlen(value);
+  }
   (u.*url_f)(value, length);
 
   return TS_SUCCESS;
@@ -2193,8 +2232,9 @@ TSUrlPortSet(TSMBuffer bufp, TSMLoc obj, int port)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(obj) == TS_SUCCESS);
 
-  if (!isWriteable(bufp) || (port < 0))
+  if (!isWriteable(bufp) || (port < 0)) {
     return TS_ERROR;
+  }
 
   URL u;
 
@@ -2299,20 +2339,28 @@ TSStringPercentEncode(const char *str, int str_len, char *dst, size_t dst_size, 
 
   int new_len; // Unfortunately, a lot of the core uses "int" for length's internally...
 
-  if (str_len < 0)
+  if (str_len < 0) {
     str_len = strlen(str);
+  }
 
   sdk_assert(str_len < static_cast<int>(dst_size));
 
   // TODO: Perhaps we should make escapify_url() deal with const properly...
-  if (NULL == LogUtils::escapify_url(NULL, const_cast<char *>(str), str_len, &new_len, dst, dst_size, map)) {
-    if (length)
+  // You would think making escapify_url const correct for the source argument would be easy, but in the case where
+  // No escaping is needed, the source argument is returned.  If there is a destination argument, the source is copied over
+  // However, if there is no destination argument, none is allocated.  I don't understand the full possibility of calling cases.
+  // It seems like we might want to review how this is being called and perhaps create a number of smaller accessor methods that
+  // can be set up correctly.
+  if (NULL == LogUtils::pure_escapify_url(NULL, const_cast<char *>(str), str_len, &new_len, dst, dst_size, map)) {
+    if (length) {
       *length = 0;
+    }
     return TS_ERROR;
   }
 
-  if (length)
+  if (length) {
     *length = new_len;
+  }
 
   return TS_SUCCESS;
 }
@@ -2323,8 +2371,9 @@ TSStringPercentDecode(const char *str, size_t str_len, char *dst, size_t dst_siz
   sdk_assert(sdk_sanity_check_null_ptr((void *)str) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)dst) == TS_SUCCESS);
 
-  if (0 == str_len)
+  if (0 == str_len) {
     str_len = strlen(str);
+  }
 
   // return unescapifyStr(str);
   char *buffer    = dst;
@@ -2334,8 +2383,9 @@ TSStringPercentDecode(const char *str, size_t str_len, char *dst, size_t dst_siz
   // TODO: We should check for "failures" here?
   unescape_str(buffer, buffer + dst_size, src, src + str_len, s);
   *buffer = '\0';
-  if (length)
+  if (length) {
     *length = (buffer - dst);
+  }
 
   return TS_SUCCESS;
 }
@@ -2411,8 +2461,9 @@ TSMimeHdrCreate(TSMBuffer bufp, TSMLoc *locp)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)locp) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   *locp = reinterpret_cast<TSMLoc>(mime_hdr_create(((HdrHeapSDKHandle *)bufp)->m_heap));
   return TS_SUCCESS;
@@ -2428,8 +2479,9 @@ TSMimeHdrDestroy(TSMBuffer bufp, TSMLoc obj)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
 
@@ -2449,8 +2501,9 @@ TSMimeHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc *
   sdk_assert(sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)locp) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *s_heap, *d_heap;
   MIMEHdrImpl *s_mh, *d_mh;
@@ -2479,8 +2532,9 @@ TSMimeHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc s
   sdk_assert((sdk_sanity_check_mime_hdr_handle(dest_obj) == TS_SUCCESS) ||
              (sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS));
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *s_heap, *d_heap;
   MIMEHdrImpl *s_mh, *d_mh;
@@ -2535,8 +2589,9 @@ TSMimeHdrParse(TSMimeParser parser, TSMBuffer bufp, TSMLoc obj, const char **sta
   sdk_assert(sdk_sanity_check_null_ptr((void *)*start) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)end) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_PARSE_ERROR;
+  }
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
 
@@ -2559,8 +2614,9 @@ TSMimeHdrFieldsClear(TSMBuffer bufp, TSMLoc obj)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert((sdk_sanity_check_mime_hdr_handle(obj) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS));
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(obj);
 
@@ -2598,13 +2654,15 @@ TSMimeFieldValueSet(TSMBuffer bufp, TSMLoc field_obj, int idx, const char *value
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field_obj;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
 
-  if (idx >= 0)
+  if (idx >= 0) {
     mime_field_value_set_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
-  else
+  } else {
     mime_field_value_set(heap, handle->mh, handle->field_ptr, value, length, true);
+  }
 }
 
 void
@@ -2613,8 +2671,9 @@ TSMimeFieldValueInsert(TSMBuffer bufp, TSMLoc field_obj, const char *value, int 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field_obj;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
 
   mime_field_value_insert_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
 }
@@ -2636,8 +2695,9 @@ TSMimeHdrFieldEqual(TSMBuffer bufp, TSMLoc hdr_obj, TSMLoc field1_obj, TSMLoc fi
   MIMEFieldSDKHandle *field1_handle = (MIMEFieldSDKHandle *)field1_obj;
   MIMEFieldSDKHandle *field2_handle = (MIMEFieldSDKHandle *)field2_obj;
 
-  if ((field1_handle == NULL) || (field2_handle == NULL))
+  if ((field1_handle == NULL) || (field2_handle == NULL)) {
     return (field1_handle == field2_handle);
+  }
   return (field1_handle->field_ptr == field2_handle->field_ptr);
 }
 
@@ -2652,8 +2712,9 @@ TSMimeHdrFieldGet(TSMBuffer bufp, TSMLoc hdr_obj, int idx)
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
   MIMEField *f    = mime_hdr_field_get(mh, idx);
 
-  if (f == NULL)
+  if (f == NULL) {
     return TS_NULL_MLOC;
+  }
 
   MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
 
@@ -2669,14 +2730,16 @@ TSMimeHdrFieldFind(TSMBuffer bufp, TSMLoc hdr_obj, const char *name, int length)
              (sdk_sanity_check_http_hdr_handle(hdr_obj) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_null_ptr((void *)name) == TS_SUCCESS);
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(name);
+  }
 
   MIMEHdrImpl *mh = _hdr_mloc_to_mime_hdr_impl(hdr_obj);
   MIMEField *f    = mime_hdr_field_find(mh, name, length);
 
-  if (f == NULL)
+  if (f == NULL) {
     return TS_NULL_MLOC;
+  }
 
   MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, mh);
 
@@ -2696,8 +2759,9 @@ TSMimeHdrFieldAppend(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
              (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field_mloc) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEField *mh_field;
   MIMEHdrImpl *mh                  = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
@@ -2746,8 +2810,9 @@ TSMimeHdrFieldRemove(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
              (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field_mloc;
 
@@ -2772,8 +2837,9 @@ TSMimeHdrFieldDestroy(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
              (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field_mloc, mh_mloc) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field_mloc;
 
@@ -2784,8 +2850,9 @@ TSMimeHdrFieldDestroy(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc field_mloc)
     HdrHeap *heap   = (HdrHeap *)(((HdrHeapSDKHandle *)bufp)->m_heap);
 
     ink_assert(mh == field_handle->mh);
-    if (sdk_sanity_check_field_handle(field_mloc, mh_mloc) != TS_SUCCESS)
+    if (sdk_sanity_check_field_handle(field_mloc, mh_mloc) != TS_SUCCESS) {
       return TS_ERROR;
+    }
 
     // detach and delete this field, but not all dups
     mime_hdr_field_delete(heap, mh, field_handle->field_ptr, false);
@@ -2806,8 +2873,9 @@ TSMimeHdrFieldCreate(TSMBuffer bufp, TSMLoc mh_mloc, TSMLoc *locp)
              (sdk_sanity_check_http_hdr_handle(mh_mloc) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_null_ptr((void *)locp) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEHdrImpl *mh       = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
   HdrHeap *heap         = (HdrHeap *)(((HdrHeapSDKHandle *)bufp)->m_heap);
@@ -2827,11 +2895,13 @@ TSMimeHdrFieldCreateNamed(TSMBuffer bufp, TSMLoc mh_mloc, const char *name, int 
   sdk_assert(sdk_sanity_check_null_ptr((void *)name) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)locp) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
-  if (name_len == -1)
+  if (name_len == -1) {
     name_len = strlen(name);
+  }
 
   MIMEHdrImpl *mh       = _hdr_mloc_to_mime_hdr_impl(mh_mloc);
   HdrHeap *heap         = (HdrHeap *)(((HdrHeapSDKHandle *)bufp)->m_heap);
@@ -2857,8 +2927,9 @@ TSMimeHdrFieldCopy(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field, TSMB
   sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   bool dest_attached;
   MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *)src_field;
@@ -2873,15 +2944,17 @@ TSMimeHdrFieldCopy(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field, TSMB
   // src_attached = (s_handle->mh && s_handle->field_ptr->is_live());
   dest_attached = (d_handle->mh && d_handle->field_ptr->is_live());
 
-  if (dest_attached)
+  if (dest_attached) {
     mime_hdr_field_detach(d_handle->mh, d_handle->field_ptr, false);
+  }
 
   mime_field_name_value_set(d_heap, d_handle->mh, d_handle->field_ptr, s_handle->field_ptr->m_wks_idx,
                             s_handle->field_ptr->m_ptr_name, s_handle->field_ptr->m_len_name, s_handle->field_ptr->m_ptr_value,
                             s_handle->field_ptr->m_len_value, 0, 0, true);
 
-  if (dest_attached)
+  if (dest_attached) {
     mime_hdr_field_attach(d_handle->mh, d_handle->field_ptr, 1, NULL);
+  }
   return TS_SUCCESS;
 }
 
@@ -2900,8 +2973,9 @@ TSMimeHdrFieldClone(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMBuffer src_bufp, TS
   sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)locp) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   // This is sort of sub-optimal, since we'll check the args again. TODO.
   if (TSMimeHdrFieldCreate(dest_bufp, dest_hdr, locp) == TS_SUCCESS) {
@@ -2929,8 +3003,9 @@ TSMimeHdrFieldCopyValues(TSMBuffer dest_bufp, TSMLoc dest_hdr, TSMLoc dest_field
   sdk_assert(sdk_sanity_check_field_handle(src_field, src_hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_field_handle(dest_field, dest_hdr) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *s_handle = (MIMEFieldSDKHandle *)src_field;
   MIMEFieldSDKHandle *d_handle = (MIMEFieldSDKHandle *)dest_field;
@@ -2956,19 +3031,22 @@ TSMimeHdrFieldNext(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field;
 
-  if (handle->mh == NULL)
+  if (handle->mh == NULL) {
     return TS_NULL_MLOC;
+  }
 
   int slotnum = mime_hdr_field_slotnum(handle->mh, handle->field_ptr);
-  if (slotnum == -1)
+  if (slotnum == -1) {
     return TS_NULL_MLOC;
+  }
 
   while (1) {
     ++slotnum;
     MIMEField *f = mime_hdr_field_get_slotnum(handle->mh, slotnum);
 
-    if (f == NULL)
+    if (f == NULL) {
       return TS_NULL_MLOC;
+    }
     if (f->is_live()) {
       MIMEFieldSDKHandle *h = sdk_alloc_field_handle(bufp, handle->mh);
 
@@ -2989,8 +3067,9 @@ TSMimeHdrFieldNextDup(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
   MIMEHdrImpl *mh                  = _hdr_mloc_to_mime_hdr_impl(hdr);
   MIMEFieldSDKHandle *field_handle = (MIMEFieldSDKHandle *)field;
   MIMEField *next                  = field_handle->field_ptr->m_next_dup;
-  if (next == NULL)
+  if (next == NULL) {
     return TS_NULL_MLOC;
+  }
 
   MIMEFieldSDKHandle *next_handle = sdk_alloc_field_handle(bufp, mh);
   next_handle->field_ptr          = next;
@@ -3032,24 +3111,28 @@ TSMimeHdrFieldNameSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, const char *name
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)name) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(name);
+  }
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
 
   int attached = (handle->mh && handle->field_ptr->is_live());
 
-  if (attached)
+  if (attached) {
     mime_hdr_field_detach(handle->mh, handle->field_ptr, false);
+  }
 
   handle->field_ptr->name_set(heap, handle->mh, name, length);
 
-  if (attached)
+  if (attached) {
     mime_hdr_field_attach(handle->mh, handle->field_ptr, 1, NULL);
+  }
   return TS_SUCCESS;
 }
 
@@ -3064,8 +3147,9 @@ TSMimeHdrFieldValuesClear(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
@@ -3111,8 +3195,9 @@ TSMimeHdrFieldValueDateGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field)
   int value_len;
   const char *value_str = TSMimeFieldValueGet(bufp, field, -1, &value_len);
 
-  if (value_str == NULL)
+  if (value_str == NULL) {
     return (time_t)0;
+  }
 
   return mime_parse_date(value_str, value_str + value_len);
 }
@@ -3127,8 +3212,9 @@ TSMimeHdrFieldValueIntGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
   int value_len;
   const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
 
-  if (value_str == NULL)
+  if (value_str == NULL) {
     return 0;
+  }
 
   return mime_parse_int(value_str, value_str + value_len);
 }
@@ -3143,8 +3229,9 @@ TSMimeHdrFieldValueInt64Get(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
   int value_len;
   const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
 
-  if (value_str == NULL)
+  if (value_str == NULL) {
     return 0;
+  }
 
   return mime_parse_int64(value_str, value_str + value_len);
 }
@@ -3159,8 +3246,9 @@ TSMimeHdrFieldValueUintGet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
   int value_len;
   const char *value_str = TSMimeFieldValueGet(bufp, field, idx, &value_len);
 
-  if (value_str == NULL)
+  if (value_str == NULL) {
     return 0;
+  }
 
   return mime_parse_uint(value_str, value_str + value_len);
 }
@@ -3177,11 +3265,13 @@ TSMimeHdrFieldValueStringSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, 
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)value) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
 
   TSMimeFieldValueSet(bufp, field, idx, value, length);
   return TS_SUCCESS;
@@ -3198,8 +3288,9 @@ TSMimeHdrFieldValueDateSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t valu
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[33];
   int len = mime_format_date(tmp, value);
@@ -3221,8 +3312,9 @@ TSMimeHdrFieldValueIntSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, int
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[16];
   int len = mime_format_int(tmp, value, sizeof(tmp));
@@ -3242,8 +3334,9 @@ TSMimeHdrFieldValueInt64Set(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, i
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[20];
   int len = mime_format_int64(tmp, value, sizeof(tmp));
@@ -3263,8 +3356,9 @@ TSMimeHdrFieldValueUintSet(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, un
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[16];
   int len = mime_format_uint(tmp, value, sizeof(tmp));
@@ -3286,14 +3380,16 @@ TSMimeHdrFieldValueAppend(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, con
   sdk_assert(sdk_sanity_check_null_ptr((void *)value) == TS_SUCCESS);
   sdk_assert(idx >= 0);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
   mime_field_value_extend_comma_val(heap, handle->mh, handle->field_ptr, idx, value, length);
   return TS_SUCCESS;
 }
@@ -3309,11 +3405,13 @@ TSMimeHdrFieldValueStringInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int id
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)value) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
   TSMimeFieldValueInsert(bufp, field, value, length, idx);
   return TS_SUCCESS;
 }
@@ -3328,8 +3426,9 @@ TSMimeHdrFieldValueIntInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx, 
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[16];
   int len = mime_format_int(tmp, value, sizeof(tmp));
@@ -3348,8 +3447,9 @@ TSMimeHdrFieldValueUintInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx,
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   char tmp[16];
   int len = mime_format_uint(tmp, value, sizeof(tmp));
@@ -3368,11 +3468,13 @@ TSMimeHdrFieldValueDateInsert(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, time_t v
   sdk_assert((sdk_sanity_check_mime_hdr_handle(hdr) == TS_SUCCESS) || (sdk_sanity_check_http_hdr_handle(hdr) == TS_SUCCESS));
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
-  if (TSMimeHdrFieldValuesClear(bufp, hdr, field) == TS_ERROR)
+  if (TSMimeHdrFieldValuesClear(bufp, hdr, field) == TS_ERROR) {
     return TS_ERROR;
+  }
 
   char tmp[33];
   int len = mime_format_date(tmp, value);
@@ -3394,8 +3496,9 @@ TSMimeHdrFieldValueDelete(TSMBuffer bufp, TSMLoc hdr, TSMLoc field, int idx)
   sdk_assert(sdk_sanity_check_field_handle(field, hdr) == TS_SUCCESS);
   sdk_assert(idx >= 0);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   MIMEFieldSDKHandle *handle = (MIMEFieldSDKHandle *)field;
   HdrHeap *heap              = ((HdrHeapSDKHandle *)bufp)->m_heap;
@@ -3468,8 +3571,9 @@ TSHttpHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc *
   sdk_assert(sdk_sanity_check_mbuffer(src_bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_http_hdr_handle(src_hdr) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *s_heap, *d_heap;
   HTTPHdrImpl *s_hh, *d_hh;
@@ -3478,8 +3582,9 @@ TSHttpHdrClone(TSMBuffer dest_bufp, TSMBuffer src_bufp, TSMLoc src_hdr, TSMLoc *
   d_heap = ((HdrHeapSDKHandle *)dest_bufp)->m_heap;
   s_hh   = (HTTPHdrImpl *)src_hdr;
 
-  if (s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
+  if (s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER) {
     return TS_ERROR;
+  }
 
   // TODO: This is never used
   // inherit_strs = (s_heap != d_heap ? true : false);
@@ -3501,8 +3606,9 @@ TSHttpHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc s
   sdk_assert(sdk_sanity_check_http_hdr_handle(dest_obj) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_http_hdr_handle(src_obj) == TS_SUCCESS);
 
-  if (!isWriteable(dest_bufp))
+  if (!isWriteable(dest_bufp)) {
     return TS_ERROR;
+  }
 
   bool inherit_strs;
   HdrHeap *s_heap, *d_heap;
@@ -3513,8 +3619,9 @@ TSHttpHdrCopy(TSMBuffer dest_bufp, TSMLoc dest_obj, TSMBuffer src_bufp, TSMLoc s
   s_hh   = (HTTPHdrImpl *)src_obj;
   d_hh   = (HTTPHdrImpl *)dest_obj;
 
-  if ((s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER) || (d_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER))
+  if ((s_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER) || (d_hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER)) {
     return TS_ERROR;
+  }
 
   inherit_strs = (s_heap != d_heap ? true : false);
   TSHttpHdrTypeSet(dest_bufp, dest_obj, (TSHttpType)(s_hh->m_polarity));
@@ -3566,8 +3673,9 @@ TSHttpHdrParseReq(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char **
   sdk_assert(sdk_sanity_check_null_ptr((void *)*start) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)end) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_PARSE_ERROR;
+  }
 
   HTTPHdr h;
 
@@ -3586,8 +3694,9 @@ TSHttpHdrParseResp(TSHttpParser parser, TSMBuffer bufp, TSMLoc obj, const char *
   sdk_assert(sdk_sanity_check_null_ptr((void *)*start) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)end) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_PARSE_ERROR;
+  }
 
   HTTPHdr h;
 
@@ -3635,8 +3744,9 @@ TSHttpHdrTypeSet(TSMBuffer bufp, TSMLoc obj, TSHttpType type)
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
   sdk_assert((type >= TS_HTTP_TYPE_UNKNOWN) && (type <= TS_HTTP_TYPE_RESPONSE));
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HTTPHdr h;
 
@@ -3685,8 +3795,9 @@ TSHttpHdrVersionSet(TSMBuffer bufp, TSMLoc obj, int ver)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HTTPHdr h;
   HTTPVersion version(ver);
@@ -3722,14 +3833,16 @@ TSHttpHdrMethodSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)value) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HTTPHdr h;
 
   SET_HTTP_HDR(h, bufp, obj);
-  if (length < 0)
+  if (length < 0) {
     length = strlen(value);
+  }
 
   h.method_set(value, length);
   return TS_SUCCESS;
@@ -3756,8 +3869,9 @@ TSHttpHdrUrlGet(TSMBuffer bufp, TSMLoc obj, TSMLoc *locp)
 
   HTTPHdrImpl *hh = (HTTPHdrImpl *)obj;
 
-  if (hh->m_polarity != HTTP_TYPE_REQUEST)
+  if (hh->m_polarity != HTTP_TYPE_REQUEST) {
     return TS_ERROR;
+  }
 
   *locp = ((TSMLoc)hh->u.req.m_url_impl);
   return TS_SUCCESS;
@@ -3774,14 +3888,16 @@ TSHttpHdrUrlSet(TSMBuffer bufp, TSMLoc obj, TSMLoc url)
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_url_handle(url) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HdrHeap *heap   = ((HdrHeapSDKHandle *)bufp)->m_heap;
   HTTPHdrImpl *hh = (HTTPHdrImpl *)obj;
 
-  if (hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER)
+  if (hh->m_type != HDR_HEAP_OBJ_HTTP_HEADER) {
     return TS_ERROR;
+  }
 
   URLImpl *url_impl = (URLImpl *)url;
   http_hdr_url_set(heap, hh, url_impl);
@@ -3810,8 +3926,9 @@ TSHttpHdrStatusSet(TSMBuffer bufp, TSMLoc obj, TSHttpStatus status)
   sdk_assert(sdk_sanity_check_mbuffer(bufp) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HTTPHdr h;
 
@@ -3845,8 +3962,9 @@ TSHttpHdrReasonSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
   sdk_assert(sdk_sanity_check_http_hdr_handle(obj) == TS_SUCCESS);
   sdk_assert(sdk_sanity_check_null_ptr((void *)value) == TS_SUCCESS);
 
-  if (!isWriteable(bufp))
+  if (!isWriteable(bufp)) {
     return TS_ERROR;
+  }
 
   HTTPHdr h;
 
@@ -3855,8 +3973,9 @@ TSHttpHdrReasonSet(TSMBuffer bufp, TSMLoc obj, const char *value, int length)
      ink_assert(h.m_http->m_type == HDR_HEAP_OBJ_HTTP_HEADER);
   */
 
-  if (length < 0)
+  if (length < 0) {
     length = strlen(value);
+  }
   h.reason_set(value, length);
   return TS_SUCCESS;
 }
@@ -3876,8 +3995,9 @@ TSHttpHdrReasonLookup(TSHttpStatus status)
 inline TSReturnCode
 sdk_sanity_check_cachekey(TSCacheKey key)
 {
-  if (NULL == key)
+  if (NULL == key) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -3900,8 +4020,9 @@ TSCacheKeyDigestSet(TSCacheKey key, const char *input, int length)
   sdk_assert(length > 0);
   CacheInfo *ci = reinterpret_cast<CacheInfo *>(key);
 
-  if (ci->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (ci->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   MD5Context().hash_immediate(ci->cache_key, input, length);
   return TS_SUCCESS;
@@ -3912,8 +4033,9 @@ TSCacheKeyDigestFromUrlSet(TSCacheKey key, TSMLoc url)
 {
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
-  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   url_MD5_get((URLImpl *)url, &((CacheInfo *)key)->cache_key);
   return TS_SUCCESS;
@@ -3924,8 +4046,9 @@ TSCacheKeyDataTypeSet(TSCacheKey key, TSCacheDataType type)
 {
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
-  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   switch (type) {
   case TS_CACHE_DATA_TYPE_NONE:
@@ -3949,8 +4072,9 @@ TSCacheKeyHostNameSet(TSCacheKey key, const char *hostname, int host_len)
   sdk_assert(sdk_sanity_check_null_ptr((void *)hostname) == TS_SUCCESS);
   sdk_assert(host_len > 0);
 
-  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   CacheInfo *i = (CacheInfo *)key;
   /* need to make a copy of the hostname. The caller
@@ -3966,8 +4090,9 @@ TSCacheKeyPinnedSet(TSCacheKey key, time_t pin_in_cache)
 {
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
-  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   CacheInfo *i    = (CacheInfo *)key;
   i->pin_in_cache = pin_in_cache;
@@ -3979,8 +4104,9 @@ TSCacheKeyDestroy(TSCacheKey key)
 {
   sdk_assert(sdk_sanity_check_cachekey(key) == TS_SUCCESS);
 
-  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE)
+  if (((CacheInfo *)key)->magic != CACHE_INFO_MAGIC_ALIVE) {
     return TS_ERROR;
+  }
 
   CacheInfo *i = (CacheInfo *)key;
 
@@ -4072,9 +4198,10 @@ TSCacheHttpInfoVector(TSCacheHttpInfo infop, void *data, int length)
 
   int size = vector.marshal_length();
 
-  if (size > length)
+  if (size > length) {
     // error
     return 0;
+  }
 
   return vector.marshal((char *)data, length);
 }
@@ -4185,8 +4312,9 @@ TSCont
 TSContCreate(TSEventFunc funcp, TSMutex mutexp)
 {
   // mutexp can be NULL
-  if (mutexp != NULL)
+  if (mutexp != NULL) {
     sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
+  }
 
   INKContInternal *i = INKContAllocator.alloc();
 
@@ -4234,8 +4362,9 @@ TSContSchedule(TSCont contp, ink_hrtime timeout, TSThreadPool tp)
   INKContInternal *i = (INKContInternal *)contp;
   TSAction action;
 
-  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0)
+  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0) {
     ink_assert(!"not reached");
+  }
 
   EventType etype;
 
@@ -4288,8 +4417,9 @@ TSContScheduleEvery(TSCont contp, ink_hrtime every, TSThreadPool tp)
   INKContInternal *i = (INKContInternal *)contp;
   TSAction action;
 
-  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0)
+  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0) {
     ink_assert(!"not reached");
+  }
 
   EventType etype;
 
@@ -4322,8 +4452,9 @@ TSHttpSchedule(TSCont contp, TSHttpTxn txnp, ink_hrtime timeout)
 
   INKContInternal *i = (INKContInternal *)contp;
 
-  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0)
+  if (ink_atomic_increment((int *)&i->m_event_count, 1) < 0) {
     ink_assert(!"not reached");
+  }
 
   TSAction action;
   Continuation *cont = (Continuation *)contp;
@@ -4354,7 +4485,7 @@ TSContMutexGet(TSCont contp)
   sdk_assert(sdk_sanity_check_iocore_structure(contp) == TS_SUCCESS);
 
   Continuation *c = (Continuation *)contp;
-  return (TSMutex)((ProxyMutex *)c->mutex);
+  return (TSMutex)(c->mutex.get());
 }
 
 /* HTTP hooks */
@@ -4393,8 +4524,9 @@ TSHttpIcpDynamicSet(int value)
   new_value = (value == 0) ? 0 : 1;
   old_value = icp_dynamic_enabled;
   while (old_value != new_value) {
-    if (ink_atomic_cas(&icp_dynamic_enabled, old_value, new_value))
+    if (ink_atomic_cas(&icp_dynamic_enabled, old_value, new_value)) {
       break;
+    }
     old_value = icp_dynamic_enabled;
   }
 }
@@ -4722,15 +4854,18 @@ TSHttpTxnCachedRespModifiableGet(TSHttpTxn txnp, TSMBuffer *bufp, TSMLoc *obj)
   HTTPInfo *cached_obj       = sm->t_state.cache_info.object_read;
   HTTPInfo *cached_obj_store = &(sm->t_state.cache_info.object_store);
 
-  if ((!cached_obj) || (!cached_obj->valid()))
+  if ((!cached_obj) || (!cached_obj->valid())) {
     return TS_ERROR;
+  }
 
-  if (!cached_obj_store->valid())
+  if (!cached_obj_store->valid()) {
     cached_obj_store->create();
+  }
 
   c_resp = cached_obj_store->response_get();
-  if (c_resp == NULL || !c_resp->valid())
+  if (c_resp == NULL || !c_resp->valid()) {
     cached_obj_store->response_set(cached_obj->response_get());
+  }
   c_resp                        = cached_obj_store->response_get();
   s->api_modifiable_cached_resp = true;
 
@@ -4796,8 +4931,9 @@ TSHttpTxnCacheLookupStatusSet(TSHttpTxn txnp, int cachelookup)
   HttpTransact::CacheLookupResult_t *sm_status = &(sm->t_state.cache_lookup_result);
 
   // converting from a miss to a hit is not allowed
-  if (*sm_status == HttpTransact::CACHE_LOOKUP_MISS && cachelookup != TS_CACHE_LOOKUP_MISS)
+  if (*sm_status == HttpTransact::CACHE_LOOKUP_MISS && cachelookup != TS_CACHE_LOOKUP_MISS) {
     return TS_ERROR;
+  }
 
   // here is to handle converting a hit to a miss
   if (cachelookup == TS_CACHE_LOOKUP_MISS && *sm_status != HttpTransact::CACHE_LOOKUP_MISS) {
@@ -4870,8 +5006,9 @@ TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
 
   u.m_heap     = ((HdrHeapSDKHandle *)bufp)->m_heap;
   u.m_url_impl = (URLImpl *)obj;
-  if (!u.valid())
+  if (!u.valid()) {
     return TS_ERROR;
+  }
 
   l_url = sm->t_state.cache_info.lookup_url;
   if (l_url && l_url->valid()) {
@@ -4927,15 +5064,17 @@ TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
 
   new_url.m_heap     = ((HdrHeapSDKHandle *)bufp)->m_heap;
   new_url.m_url_impl = (URLImpl *)url_loc;
-  if (!new_url.valid())
+  if (!new_url.valid()) {
     return TS_ERROR;
+  }
 
   HttpSM *sm             = (HttpSM *)txnp;
   HttpTransact::State *s = &(sm->t_state);
 
   client_url = s->hdr_info.client_request.url_get();
-  if (!(client_url->valid()))
+  if (!(client_url->valid())) {
     return TS_ERROR;
+  }
 
   // if l_url is not valid, then no cache lookup has been done yet
   // so we shouldn't be calling TSHttpTxnNewCacheLookupDo right now
@@ -4947,8 +5086,9 @@ TSHttpTxnNewCacheLookupDo(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   } else {
     l_url->hash_get(&md51);
     new_url.hash_get(&md52);
-    if (md51 == md52)
+    if (md51 == md52) {
       return TS_ERROR;
+    }
     o_url = &(s->cache_info.original_url);
     if (!o_url->valid()) {
       o_url->create(NULL);
@@ -4977,8 +5117,9 @@ TSHttpTxnSecondUrlTryLock(TSHttpTxn txnp)
   HttpSM *sm             = (HttpSM *)txnp;
   HttpTransact::State *s = &(sm->t_state);
   // TSHttpTxnNewCacheLookupDo didn't continue
-  if (!s->cache_info.original_url.valid())
+  if (!s->cache_info.original_url.valid()) {
     return TS_ERROR;
+  }
   sm->add_cache_sm();
   s->api_lock_url = HttpTransact::LOCK_URL_SECOND;
 
@@ -5003,12 +5144,14 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
 
   u.m_heap     = ((HdrHeapSDKHandle *)bufp)->m_heap;
   u.m_url_impl = (URLImpl *)url_loc;
-  if (!u.valid())
+  if (!u.valid()) {
     return TS_ERROR;
+  }
 
   client_url = s->hdr_info.client_request.url_get();
-  if (!(client_url->valid()))
+  if (!(client_url->valid())) {
     return TS_ERROR;
+  }
 
   s->redirect_info.redirect_in_process = true;
   o_url                                = &(s->redirect_info.original_url);
@@ -5019,8 +5162,9 @@ TSHttpTxnRedirectRequest(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc url_loc)
   client_url->copy(&u);
 
   r_url = &(s->redirect_info.redirect_url);
-  if (!r_url->valid())
+  if (!r_url->valid()) {
     r_url->create(NULL);
+  }
   r_url->copy(&u);
 
   s->hdr_info.server_request.destroy();
@@ -5106,12 +5250,14 @@ TSHttpTxnServerRespIgnore(TSHttpTxn txnp)
   HTTPInfo *cached_obj   = s->cache_info.object_read;
   HTTPHdr *cached_resp;
 
-  if (cached_obj == NULL || !cached_obj->valid())
+  if (cached_obj == NULL || !cached_obj->valid()) {
     return TS_ERROR;
+  }
 
   cached_resp = cached_obj->response_get();
-  if (cached_resp == NULL || !cached_resp->valid())
+  if (cached_resp == NULL || !cached_resp->valid()) {
     return TS_ERROR;
+  }
 
   s->api_server_response_ignore = true;
 
@@ -5123,8 +5269,9 @@ TSHttpTxnShutDown(TSHttpTxn txnp, TSEvent event)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  if (event == TS_EVENT_HTTP_TXN_CLOSE)
+  if (event == TS_EVENT_HTTP_TXN_CLOSE) {
     return TS_ERROR;
+  }
 
   HttpTransact::State *s  = &(((HttpSM *)txnp)->t_state);
   s->api_http_sm_shutdown = true;
@@ -5201,14 +5348,17 @@ TSHttpTxnUpdateCachedObject(TSHttpTxn txnp)
   HTTPInfo *cached_obj_store = &(sm->t_state.cache_info.object_store);
   HTTPHdr *client_request    = &(sm->t_state.hdr_info.client_request);
 
-  if (!cached_obj_store->valid() || !cached_obj_store->response_get())
+  if (!cached_obj_store->valid() || !cached_obj_store->response_get()) {
     return TS_ERROR;
+  }
 
-  if (!cached_obj_store->request_get() && !client_request->valid())
+  if (!cached_obj_store->request_get() && !client_request->valid()) {
     return TS_ERROR;
+  }
 
-  if (s->cache_info.write_lock_state == HttpTransact::CACHE_WL_READ_RETRY)
+  if (s->cache_info.write_lock_state == HttpTransact::CACHE_WL_READ_RETRY) {
     return TS_ERROR;
+  }
 
   s->api_update_cached_object = HttpTransact::UPDATE_CACHED_OBJECT_PREPARE;
   return TS_SUCCESS;
@@ -5254,12 +5404,14 @@ TSHttpSsnClientAddrGet(TSHttpSsn ssnp)
 {
   ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
 
-  if (cs == NULL)
+  if (cs == NULL) {
     return 0;
+  }
 
   NetVConnection *vc = cs->get_netvc();
-  if (vc == NULL)
+  if (vc == NULL) {
     return 0;
+  }
 
   return vc->get_remote_addr();
 }
@@ -5277,12 +5429,14 @@ TSHttpSsnIncomingAddrGet(TSHttpSsn ssnp)
 {
   ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
 
-  if (cs == NULL)
+  if (cs == NULL) {
     return 0;
+  }
 
   NetVConnection *vc = cs->get_netvc();
-  if (vc == NULL)
+  if (vc == NULL) {
     return 0;
+  }
 
   return vc->get_local_addr();
 }
@@ -5370,8 +5524,9 @@ TSHttpTxnNextHopAddrGet(TSHttpTxn txnp)
   /**
    * Return zero if the server structure is not yet constructed.
    */
-  if (sm->t_state.current.server == NULL)
+  if (sm->t_state.current.server == NULL) {
     return NULL;
+  }
 
   return &sm->t_state.current.server->dst_addr.sa;
 }
@@ -5379,8 +5534,9 @@ TSHttpTxnNextHopAddrGet(TSHttpTxn txnp)
 TSReturnCode
 TSHttpTxnOutgoingTransparencySet(TSHttpTxn txnp, int flag)
 {
-  if (TS_SUCCESS != sdk_sanity_check_txn(txnp))
+  if (TS_SUCCESS != sdk_sanity_check_txn(txnp)) {
     return TS_ERROR;
+  }
 
   HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
   if (NULL == sm || NULL == sm->ua_session) {
@@ -5663,9 +5819,10 @@ TSHttpArgIndexReserve(const char *name, const char *description, int *arg_idx)
   if (ix < HTTP_SSN_TXN_MAX_USER_ARG) {
     state_arg_table[ix].name     = ats_strdup(name);
     state_arg_table[ix].name_len = strlen(state_arg_table[ix].name);
-    if (description)
+    if (description) {
       state_arg_table[ix].description = ats_strdup(description);
-    *arg_idx                          = ix;
+    }
+    *arg_idx = ix;
 
     return TS_SUCCESS;
   }
@@ -5678,8 +5835,9 @@ TSHttpArgIndexLookup(int arg_idx, const char **name, const char **description)
   if (sdk_sanity_check_null_ptr(name) == TS_SUCCESS) {
     if (state_arg_table[arg_idx].name) {
       *name = state_arg_table[arg_idx].name;
-      if (description)
+      if (description) {
         *description = state_arg_table[arg_idx].description;
+      }
       return TS_SUCCESS;
     }
   }
@@ -5696,9 +5854,10 @@ TSHttpArgIndexNameLookup(const char *name, int *arg_idx, const char **descriptio
 
   for (int ix = 0; ix < next_argv_index; ++ix) {
     if ((len == state_arg_table[ix].name_len) && (0 == strcmp(name, state_arg_table[ix].name))) {
-      if (description)
+      if (description) {
         *description = state_arg_table[ix].description;
-      *arg_idx       = ix;
+      }
+      *arg_idx = ix;
       return TS_SUCCESS;
     }
   }
@@ -5765,8 +5924,9 @@ TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
 
   switch (cntl) {
   case TS_HTTP_CNTL_GET_LOGGING_MODE: {
-    if (data == NULL)
+    if (data == NULL) {
       return TS_ERROR;
+    }
 
     intptr_t *rptr = (intptr_t *)data;
 
@@ -5789,8 +5949,9 @@ TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data)
     break;
 
   case TS_HTTP_CNTL_GET_INTERCEPT_RETRY_MODE: {
-    if (data == NULL)
+    if (data == NULL) {
       return TS_ERROR;
+    }
 
     intptr_t *rptr = (intptr_t *)data;
 
@@ -5975,8 +6136,9 @@ TSHttpTxnCachedRespTimeGet(TSHttpTxn txnp, time_t *resp_time)
   HttpSM *sm           = (HttpSM *)txnp;
   HTTPInfo *cached_obj = sm->t_state.cache_info.object_read;
 
-  if (cached_obj == NULL || !cached_obj->valid())
+  if (cached_obj == NULL || !cached_obj->valid()) {
     return TS_ERROR;
+  }
 
   *resp_time = cached_obj->response_received_time_get();
   return TS_SUCCESS;
@@ -6020,8 +6182,9 @@ TSHttpCurrentIdleClientConnectionsGet(void)
   HTTP_READ_DYN_SUM(http_current_client_connections_stat, total);
   HTTP_READ_DYN_SUM(http_current_active_client_connections_stat, active);
 
-  if (total >= active)
+  if (total >= active) {
     return (int)(total - active);
+  }
 
   return 0;
 }
@@ -6095,6 +6258,15 @@ TSHttpAltInfoQualitySet(TSHttpAltInfo infop, float quality)
 
 extern HttpSessionAccept *plugin_http_accept;
 extern HttpSessionAccept *plugin_http_transparent_accept;
+
+char const *
+TSHttpTxnPluginTagGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = reinterpret_cast<HttpSM *>(txnp);
+  return sm->plugin_tag;
+}
 
 TSVConn
 TSHttpConnectWithPluginId(sockaddr const *addr, char const *tag, int64_t id)
@@ -6201,8 +6373,9 @@ TSActionDone(TSAction actionp)
 TSVConn
 TSVConnCreate(TSEventFunc event_funcp, TSMutex mutexp)
 {
-  if (mutexp == NULL)
+  if (mutexp == NULL) {
     mutexp = (TSMutex)new_ProxyMutex();
+  }
 
   // TODO: probably don't need this if memory allocations fails properly
   sdk_assert(sdk_sanity_check_mutex(mutexp) == TS_SUCCESS);
@@ -6254,7 +6427,6 @@ TSVConnFdCreate(int fd)
   vc->mutex = new_ProxyMutex();
 
   if (vc->connectUp(this_ethread(), fd) != CONNECT_SUCCESS) {
-    vc->free(this_ethread());
     return NULL;
   }
 
@@ -6381,8 +6553,9 @@ TSVConnCacheHttpInfoSet(TSVConn connp, TSCacheHttpInfo infop)
   sdk_assert(sdk_sanity_check_iocore_structure(connp) == TS_SUCCESS);
 
   CacheVC *vc = (CacheVC *)connp;
-  if (vc->base_stat == cache_scan_active_stat)
+  if (vc->base_stat == cache_scan_active_stat) {
     vc->set_http_info((CacheHTTPInfo *)infop);
+  }
 }
 
 /* Transformations */
@@ -6418,7 +6591,7 @@ TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp)
   INKContInternal *i = (INKContInternal *)contp;
 
   // Must have a mutex
-  sdk_assert(sdk_sanity_check_null_ptr((void *)i->mutex) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mutex(i->mutex) == TS_SUCCESS);
 
   http_sm->plugin_tunnel_type = HTTP_PLUGIN_AS_SERVER;
   http_sm->plugin_tunnel      = PluginVCCore::alloc();
@@ -6435,7 +6608,7 @@ TSHttpTxnIntercept(TSCont contp, TSHttpTxn txnp)
   INKContInternal *i = (INKContInternal *)contp;
 
   // Must have a mutex
-  sdk_assert(sdk_sanity_check_null_ptr((void *)i->mutex) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_mutex(i->mutex) == TS_SUCCESS);
 
   http_sm->plugin_tunnel_type = HTTP_PLUGIN_AS_INTERCEPT;
   http_sm->plugin_tunnel      = PluginVCCore::alloc();
@@ -6723,8 +6896,9 @@ TSStatCreate(const char *the_name, TSRecordDataType the_type, TSStatPersistence 
   // interfaces only supports integers. Going forward, we could extend either the "Raw"
   // stats APIs, or make non-int use the direct (synchronous) stats APIs (slower).
   if ((sdk_sanity_check_null_ptr((void *)the_name) != TS_SUCCESS) || (sdk_sanity_check_null_ptr((void *)api_rsb) != TS_SUCCESS) ||
-      (id >= api_rsb->max_stats))
+      (id >= api_rsb->max_stats)) {
     return TS_ERROR;
+  }
 
   switch (sync) {
   case TS_STAT_SYNC_SUM:
@@ -6756,41 +6930,52 @@ TSStatCreate(const char *the_name, TSRecordDataType the_type, TSStatPersistence 
 }
 
 void
-TSStatIntIncrement(int the_stat, TSMgmtInt amount)
+TSStatIntIncrement(int id, TSMgmtInt amount)
 {
-  RecIncrRawStat(api_rsb, NULL, the_stat, amount);
+  sdk_assert(sdk_sanity_check_stat_id(id) == TS_SUCCESS);
+  RecIncrRawStat(api_rsb, NULL, id, amount);
 }
 
 void
-TSStatIntDecrement(int the_stat, TSMgmtInt amount)
+TSStatIntDecrement(int id, TSMgmtInt amount)
 {
-  RecDecrRawStat(api_rsb, NULL, the_stat, amount);
+  RecDecrRawStat(api_rsb, NULL, id, amount);
 }
 
 TSMgmtInt
-TSStatIntGet(int the_stat)
+TSStatIntGet(int id)
 {
   TSMgmtInt value;
 
-  RecGetGlobalRawStatSum(api_rsb, the_stat, &value);
+  sdk_assert(sdk_sanity_check_stat_id(id) == TS_SUCCESS);
+  RecGetGlobalRawStatSum(api_rsb, id, &value);
   return value;
 }
 
 void
-TSStatIntSet(int the_stat, TSMgmtInt value)
+TSStatIntSet(int id, TSMgmtInt value)
 {
-  RecSetGlobalRawStatSum(api_rsb, the_stat, value);
+  sdk_assert(sdk_sanity_check_stat_id(id) == TS_SUCCESS);
+  RecSetGlobalRawStatSum(api_rsb, id, value);
 }
 
 TSReturnCode
 TSStatFindName(const char *name, int *idp)
 {
+  int id;
+
   sdk_assert(sdk_sanity_check_null_ptr((void *)name) == TS_SUCCESS);
 
-  if (RecGetRecordOrderAndId(name, NULL, idp) == REC_ERR_OKAY)
-    return TS_SUCCESS;
+  if (RecGetRecordOrderAndId(name, NULL, &id) != REC_ERR_OKAY) {
+    return TS_ERROR;
+  }
 
-  return TS_ERROR;
+  if (RecGetGlobalRawStatPtr(api_rsb, id) == NULL) {
+    return TS_ERROR;
+  }
+
+  *idp = id;
+  return TS_SUCCESS;
 }
 
 /**************************    Stats API    ****************************/
@@ -6800,8 +6985,9 @@ TSStatFindName(const char *name, int *idp)
 inline TSReturnCode
 ink_sanity_check_stat_structure(void *obj)
 {
-  if (obj == NULL)
+  if (obj == NULL) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -6827,7 +7013,7 @@ TSDebugSpecific(int debug_flag, const char *tag, const char *format_str, ...)
 }
 
 // Plugins would use TSDebug just as the TS internal uses Debug
-// e.g. TSDebug("plugin-cool", "Snoopy is a cool guy even after %d requests.\n", num_reqs);
+// e.g. TSDebug("plugin-cool", "Snoopy is a cool guy even after %d requests.", num_reqs);
 void
 TSDebug(const char *tag, const char *format_str, ...)
 {
@@ -6916,8 +7102,9 @@ TSTextLogObjectDestroy(TSTextLogObject the_object)
 {
   sdk_assert(sdk_sanity_check_iocore_structure(the_object) == TS_SUCCESS);
 
-  if (Log::config->log_object_manager.unmanage_api_object((TextLogObject *)the_object))
+  if (Log::config->log_object_manager.unmanage_api_object((TextLogObject *)the_object)) {
     return TS_SUCCESS;
+  }
 
   return TS_ERROR;
 }
@@ -6975,12 +7162,14 @@ TSHttpSsnClientFdGet(TSHttpSsn ssnp, int *fdp)
   VConnection *basecs    = reinterpret_cast<VConnection *>(ssnp);
   ProxyClientSession *cs = dynamic_cast<ProxyClientSession *>(basecs);
 
-  if (cs == NULL)
+  if (cs == NULL) {
     return TS_ERROR;
+  }
 
   NetVConnection *vc = cs->get_netvc();
-  if (vc == NULL)
+  if (vc == NULL) {
     return TS_ERROR;
+  }
 
   *fdp = vc->get_socket();
   return TS_SUCCESS;
@@ -7089,8 +7278,9 @@ TSMgmtConfigIntSet(const char *var_name, TSMgmtInt value)
   char *buffer;
 
   // is this a valid integer?
-  if (TSMgmtIntGet(var_name, &result) != TS_SUCCESS)
+  if (TSMgmtIntGet(var_name, &result) != TS_SUCCESS) {
     return TS_ERROR;
+  }
 
   // construct a buffer
   int buffer_size = strlen(var_name) + 1 + 32 + 1 + 64 + 1;
@@ -7106,79 +7296,6 @@ TSMgmtConfigIntSet(const char *var_name, TSMgmtInt value)
   return TS_SUCCESS;
 }
 
-void
-TSICPFreshnessFuncSet(TSPluginFreshnessCalcFunc funcp)
-{
-  pluginFreshnessCalcFunc = (PluginFreshnessCalcFunc)funcp;
-}
-
-TSReturnCode
-TSICPCachedReqGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
-{
-  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void *)bufp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void *)obj) == TS_SUCCESS);
-
-  ICPPeerReadCont *sm = (ICPPeerReadCont *)contp;
-  HTTPInfo *cached_obj;
-
-  cached_obj = sm->_object_read;
-  if (cached_obj == NULL || !cached_obj->valid())
-    return TS_ERROR;
-
-  HTTPHdr *cached_hdr = cached_obj->request_get();
-  if (!cached_hdr->valid())
-    return TS_ERROR;
-  ;
-
-  // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
-  //  threads can access.  We need to create our own for the transaction and return that.
-  HdrHeapSDKHandle **handle = &(sm->_cache_req_hdr_heap_handle);
-
-  if (*handle == NULL) {
-    *handle           = (HdrHeapSDKHandle *)ats_malloc(sizeof(HdrHeapSDKHandle));
-    (*handle)->m_heap = cached_hdr->m_heap;
-  }
-
-  *(reinterpret_cast<HdrHeapSDKHandle **>(bufp)) = *handle;
-  *obj                                           = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
-
-  return sdk_sanity_check_mbuffer(*bufp);
-}
-
-TSReturnCode
-TSICPCachedRespGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj)
-{
-  sdk_assert(sdk_sanity_check_continuation(contp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void *)bufp) == TS_SUCCESS);
-  sdk_assert(sdk_sanity_check_null_ptr((void *)obj) == TS_SUCCESS);
-
-  ICPPeerReadCont *sm = (ICPPeerReadCont *)contp;
-  HTTPInfo *cached_obj;
-
-  cached_obj = sm->_object_read;
-  if (cached_obj == NULL || !cached_obj->valid())
-    return TS_ERROR;
-
-  HTTPHdr *cached_hdr = cached_obj->response_get();
-  if (!cached_hdr->valid())
-    return TS_ERROR;
-
-  // We can't use the HdrHeapSDKHandle structure in the RamCache since multiple
-  //  threads can access.  We need to create our own for the transaction and return that.
-  HdrHeapSDKHandle **handle = &(sm->_cache_resp_hdr_heap_handle);
-
-  if (*handle == NULL) {
-    *handle           = (HdrHeapSDKHandle *)ats_malloc(sizeof(HdrHeapSDKHandle));
-    (*handle)->m_heap = cached_hdr->m_heap;
-  }
-
-  *(reinterpret_cast<HdrHeapSDKHandle **>(bufp)) = *handle;
-  *obj                                           = reinterpret_cast<TSMLoc>(cached_hdr->m_http);
-
-  return sdk_sanity_check_mbuffer(*bufp);
-}
-
 TSReturnCode
 TSCacheUrlSet(TSHttpTxn txnp, const char *url, int length)
 {
@@ -7190,8 +7307,9 @@ TSCacheUrlSet(TSHttpTxn txnp, const char *url, int length)
   if (sm->t_state.cache_info.lookup_url == NULL) {
     Debug("cache_url", "[TSCacheUrlSet] changing the cache url to: %s", url);
 
-    if (length == -1)
+    if (length == -1) {
       length = strlen(url);
+    }
 
     sm->t_state.cache_info.lookup_url_storage.create(NULL);
     sm->t_state.cache_info.lookup_url = &(sm->t_state.cache_info.lookup_url_storage);
@@ -7429,24 +7547,6 @@ TSFetchUserDataSet(TSFetchSM fetch_sm, void *data)
   ((FetchSM *)fetch_sm)->ext_set_user_data(data);
 }
 
-#if 0
-void
-TSFetchClientProtoStackSet(TSFetchSM fetch_sm, TSClientProtoStack proto_stack)
-{
-  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
-
-  ((FetchSM*)fetch_sm)->ext_set_proto_stack(proto_stack);
-}
-
-TSClientProtoStack
-TSFetchClientProtoStackGet(TSFetchSM fetch_sm)
-{
-  sdk_assert(sdk_sanity_check_fetch_sm(fetch_sm) == TS_SUCCESS);
-
-  return ((FetchSM*)fetch_sm)->ext_get_proto_stack();
-}
-#endif
-
 void *
 TSFetchUserDataGet(TSFetchSM fetch_sm)
 {
@@ -7471,52 +7571,45 @@ TSFetchRespHdrMLocGet(TSFetchSM fetch_sm)
   return ((FetchSM *)fetch_sm)->resp_hdr_mloc();
 }
 
-// Deprecated, remove for v7.0.0
-TSReturnCode
-TSHttpIsInternalSession(TSHttpSsn ssnp)
-{
-  ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
-  if (!cs) {
-    return TS_ERROR;
-  }
-
-  NetVConnection *vc = cs->get_netvc();
-  if (!vc) {
-    return TS_ERROR;
-  }
-
-  return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
-}
-
-TSReturnCode
+int
 TSHttpSsnIsInternal(TSHttpSsn ssnp)
 {
   ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
+
   if (!cs) {
-    return TS_ERROR;
+    return 0;
   }
 
   NetVConnection *vc = cs->get_netvc();
   if (!vc) {
-    return TS_ERROR;
+    return 0;
   }
 
-  return vc->get_is_internal_request() ? TS_SUCCESS : TS_ERROR;
+  return vc->get_is_internal_request() ? 1 : 0;
 }
 
-// Deprecated, remove for v7.0.0
-TSReturnCode
-TSHttpIsInternalRequest(TSHttpTxn txnp)
-{
-  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
-  return TSHttpSsnIsInternal(TSHttpTxnSsnGet(txnp));
-}
-
-TSReturnCode
+int
 TSHttpTxnIsInternal(TSHttpTxn txnp)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
   return TSHttpSsnIsInternal(TSHttpTxnSsnGet(txnp));
+}
+
+void
+TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  URL url_obj;
+  url_obj.create(NULL);
+  if (url_obj.parse(url, url_len) == PARSE_RESULT_ERROR) {
+    return;
+  }
+  HttpSM *sm          = reinterpret_cast<HttpSM *>(txnp);
+  Http2Stream *stream = dynamic_cast<Http2Stream *>(sm->ua_session);
+  if (stream) {
+    stream->push_promise(url_obj);
+  }
 }
 
 TSReturnCode
@@ -7527,8 +7620,9 @@ TSAIORead(int fd, off_t offset, char *buf, size_t buffSize, TSCont contp)
   Continuation *pCont = (Continuation *)contp;
   AIOCallback *pAIO   = new_AIOCallback();
 
-  if (pAIO == NULL)
+  if (pAIO == NULL) {
     return TS_ERROR;
+  }
 
   pAIO->aiocb.aio_fildes = fd;
   pAIO->aiocb.aio_offset = offset;
@@ -7536,10 +7630,11 @@ TSAIORead(int fd, off_t offset, char *buf, size_t buffSize, TSCont contp)
 
   pAIO->aiocb.aio_buf = buf;
   pAIO->action        = pCont;
-  pAIO->thread        = ((ProxyMutex *)pCont->mutex)->thread_holding;
+  pAIO->thread        = pCont->mutex->thread_holding;
 
-  if (ink_aio_read(pAIO, 1) == 1)
+  if (ink_aio_read(pAIO, 1) == 1) {
     return TS_SUCCESS;
+  }
 
   return TS_ERROR;
 }
@@ -7574,10 +7669,11 @@ TSAIOWrite(int fd, off_t offset, char *buf, const size_t bufSize, TSCont contp)
   pAIO->aiocb.aio_buf    = buf;
   pAIO->aiocb.aio_nbytes = bufSize;
   pAIO->action           = pCont;
-  pAIO->thread           = ((ProxyMutex *)pCont->mutex)->thread_holding;
+  pAIO->thread           = pCont->mutex->thread_holding;
 
-  if (ink_aio_write(pAIO, 1) == 1)
+  if (ink_aio_write(pAIO, 1) == 1) {
     return TS_SUCCESS;
+  }
 
   return TS_ERROR;
 }
@@ -7589,8 +7685,9 @@ TSAIOThreadNumSet(int thread_num)
   (void)thread_num;
   return TS_SUCCESS;
 #else
-  if (ink_aio_thread_num_set(thread_num))
+  if (ink_aio_thread_num_set(thread_num)) {
     return TS_SUCCESS;
+  }
 
   return TS_ERROR;
 #endif
@@ -7891,9 +7988,6 @@ _conf_to_memberp(TSOverridableConfigKey conf, OverridableHttpConfigParams *overr
     typ = OVERRIDABLE_TYPE_INT;
     ret = &overridableHttpConfig->negative_revalidating_lifetime;
     break;
-  case TS_CONFIG_HTTP_ACCEPT_ENCODING_FILTER_ENABLED:
-    ret = &overridableHttpConfig->accept_encoding_filter_enabled;
-    break;
   case TS_CONFIG_SSL_HSTS_MAX_AGE:
     typ = OVERRIDABLE_TYPE_INT;
     ret = &overridableHttpConfig->proxy_response_hsts_max_age;
@@ -7979,6 +8073,10 @@ _conf_to_memberp(TSOverridableConfigKey conf, OverridableHttpConfigParams *overr
     typ = OVERRIDABLE_TYPE_INT;
     ret = &overridableHttpConfig->transaction_active_timeout_in;
     break;
+  case TS_CONFIG_SRV_ENABLED:
+    typ = OVERRIDABLE_TYPE_INT;
+    ret = &overridableHttpConfig->srv_enabled;
+    break;
   // This helps avoiding compiler warnings, yet detect unhandled enum members.
   case TS_CONFIG_NULL:
   case TS_CONFIG_LAST_ENTRY:
@@ -8006,8 +8104,9 @@ TSHttpTxnConfigIntSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt val
 
   void *dest = _conf_to_memberp(conf, s->t_state.txn_conf, &type);
 
-  if (!dest)
+  if (!dest) {
     return TS_ERROR;
+  }
 
   switch (type) {
   case OVERRIDABLE_TYPE_INT:
@@ -8033,8 +8132,9 @@ TSHttpTxnConfigIntGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtInt *va
   OverridableDataType type;
   void *src = _conf_to_memberp(conf, s->t_state.txn_conf, &type);
 
-  if (!src)
+  if (!src) {
     return TS_ERROR;
+  }
 
   switch (type) {
   case OVERRIDABLE_TYPE_INT:
@@ -8062,8 +8162,9 @@ TSHttpTxnConfigFloatSet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
 
   TSMgmtFloat *dest = static_cast<TSMgmtFloat *>(_conf_to_memberp(conf, s->t_state.txn_conf, &type));
 
-  if (type != OVERRIDABLE_TYPE_FLOAT)
+  if (type != OVERRIDABLE_TYPE_FLOAT) {
     return TS_ERROR;
+  }
 
   if (dest) {
     *dest = value;
@@ -8082,8 +8183,9 @@ TSHttpTxnConfigFloatGet(TSHttpTxn txnp, TSOverridableConfigKey conf, TSMgmtFloat
   OverridableDataType type;
   TSMgmtFloat *dest = static_cast<TSMgmtFloat *>(_conf_to_memberp(conf, ((HttpSM *)txnp)->t_state.txn_conf, &type));
 
-  if (type != OVERRIDABLE_TYPE_FLOAT)
+  if (type != OVERRIDABLE_TYPE_FLOAT) {
     return TS_ERROR;
+  }
 
   if (dest) {
     *value = *dest;
@@ -8098,8 +8200,9 @@ TSHttpTxnConfigStringSet(TSHttpTxn txnp, TSOverridableConfigKey conf, const char
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(value);
+  }
 
   HttpSM *s = (HttpSM *)txnp;
 
@@ -8181,47 +8284,61 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   TSOverridableConfigKey cnf = TS_CONFIG_NULL;
   TSRecordDataType typ       = TS_RECORDDATATYPE_INT;
 
-  if (length == -1)
+  if (length == -1) {
     length = strlen(name);
-
+  }
   // Lots of string comparisons here, but we avoid quite a few by checking lengths
   switch (length) {
+  case 24:
+    if (!strncmp(name, "proxy.config.srv_enabled", length)) {
+      cnf = TS_CONFIG_SRV_ENABLED;
+    }
+    break;
   case 28:
-    if (!strncmp(name, "proxy.config.http.cache.http", length))
+    if (!strncmp(name, "proxy.config.http.cache.http", length)) {
       cnf = TS_CONFIG_HTTP_CACHE_HTTP;
+    }
     break;
 
   case 29:
-    if (!strncmp(name, "proxy.config.ssl.hsts_max_age", length))
+    if (!strncmp(name, "proxy.config.ssl.hsts_max_age", length)) {
       cnf = TS_CONFIG_SSL_HSTS_MAX_AGE;
+    }
     break;
 
   case 31:
-    if (!strncmp(name, "proxy.config.http.chunking.size", length))
+    if (!strncmp(name, "proxy.config.http.chunking.size", length)) {
       cnf = TS_CONFIG_HTTP_CHUNKING_SIZE;
+    }
     break;
 
   case 33:
-    if (!strncmp(name, "proxy.config.http.cache.fuzz.time", length))
+    if (!strncmp(name, "proxy.config.http.cache.fuzz.time", length)) {
       cnf = TS_CONFIG_HTTP_CACHE_FUZZ_TIME;
+    }
     break;
 
   case 34:
-    if (!strncmp(name, "proxy.config.http.chunking_enabled", length))
+    if (!strncmp(name, "proxy.config.http.chunking_enabled", length)) {
       cnf = TS_CONFIG_HTTP_CHUNKING_ENABLED;
-    else if (!strncmp(name, "proxy.config.http.cache.generation", length))
+    } else if (!strncmp(name, "proxy.config.http.cache.generation", length)) {
       cnf = TS_CONFIG_HTTP_CACHE_GENERATION;
+    } else if (!strncmp(name, "proxy.config.http.insert_client_ip", length)) {
+      cnf = TS_CONFIG_HTTP_ANONYMIZE_INSERT_CLIENT_IP;
+    }
     break;
 
   case 35:
     switch (name[length - 1]) {
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.range.write", length))
+      if (!strncmp(name, "proxy.config.http.cache.range.write", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_RANGE_WRITE;
+      }
       break;
     case 'p':
-      if (!strncmp(name, "proxy.config.http.normalize_ae_gzip", length))
+      if (!strncmp(name, "proxy.config.http.normalize_ae_gzip", length)) {
         cnf = TS_CONFIG_HTTP_NORMALIZE_AE_GZIP;
+      }
       break;
     }
     break;
@@ -8229,16 +8346,19 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 36:
     switch (name[length - 1]) {
     case 'p':
-      if (!strncmp(name, "proxy.config.http.cache.range.lookup", length))
+      if (!strncmp(name, "proxy.config.http.cache.range.lookup", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_RANGE_LOOKUP;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.net.sock_packet_tos_out", length))
+      if (!strncmp(name, "proxy.config.net.sock_packet_tos_out", length)) {
         cnf = TS_CONFIG_NET_SOCK_PACKET_TOS_OUT;
+      }
       break;
     case 'd':
-      if (!strncmp(name, "proxy.config.http.slow.log.threshold", length))
+      if (!strncmp(name, "proxy.config.http.slow.log.threshold", length)) {
         cnf = TS_CONFIG_HTTP_SLOW_LOG_THRESHOLD;
+      }
       break;
     }
     break;
@@ -8251,12 +8371,13 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
       }
       break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.max_stale_age", length))
+      if (!strncmp(name, "proxy.config.http.cache.max_stale_age", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_MAX_STALE_AGE;
-      else if (!strncmp(name, "proxy.config.http.cache.fuzz.min_time", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.fuzz.min_time", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME;
-      else if (!strncmp(name, "proxy.config.http.default_buffer_size", length))
+      } else if (!strncmp(name, "proxy.config.http.default_buffer_size", length)) {
         cnf = TS_CONFIG_HTTP_DEFAULT_BUFFER_SIZE;
+      }
       break;
     case 'r':
       if (!strncmp(name, "proxy.config.http.response_server_str", length)) {
@@ -8265,14 +8386,15 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
       }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.keep_alive_post_out", length))
+      if (!strncmp(name, "proxy.config.http.keep_alive_post_out", length)) {
         cnf = TS_CONFIG_HTTP_KEEP_ALIVE_POST_OUT;
-      else if (!strncmp(name, "proxy.config.net.sock_option_flag_out", length))
+      } else if (!strncmp(name, "proxy.config.net.sock_option_flag_out", length)) {
         cnf = TS_CONFIG_NET_SOCK_OPTION_FLAG_OUT;
-      else if (!strncmp(name, "proxy.config.net.sock_packet_mark_out", length))
+      } else if (!strncmp(name, "proxy.config.net.sock_packet_mark_out", length)) {
         cnf = TS_CONFIG_NET_SOCK_PACKET_MARK_OUT;
-      else if (!strncmp(name, "proxy.config.websocket.active_timeout", length))
+      } else if (!strncmp(name, "proxy.config.websocket.active_timeout", length)) {
         cnf = TS_CONFIG_WEBSOCKET_ACTIVE_TIMEOUT;
+      }
       break;
     }
     break;
@@ -8280,15 +8402,17 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 38:
     switch (name[length - 1]) {
     case 'd':
-      if (!strncmp(name, "proxy.config.http.server_tcp_init_cwnd", length))
+      if (!strncmp(name, "proxy.config.http.server_tcp_init_cwnd", length)) {
         cnf = TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND;
-      else if (!strncmp(name, "proxy.config.http.flow_control.enabled", length))
+      } else if (!strncmp(name, "proxy.config.http.flow_control.enabled", length)) {
         cnf = TS_CONFIG_HTTP_FLOW_CONTROL_ENABLED;
+      }
       break;
       break;
     case 's':
-      if (!strncmp(name, "proxy.config.http.send_http11_requests", length))
+      if (!strncmp(name, "proxy.config.http.send_http11_requests", length)) {
         cnf = TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS;
+      }
       break;
     }
     break;
@@ -8302,16 +8426,19 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
       }
       break;
     case 'm':
-      if (!strncmp(name, "proxy.config.http.anonymize_remove_from", length))
+      if (!strncmp(name, "proxy.config.http.anonymize_remove_from", length)) {
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_FROM;
+      }
       break;
     case 'n':
-      if (!strncmp(name, "proxy.config.http.keep_alive_enabled_in", length))
+      if (!strncmp(name, "proxy.config.http.keep_alive_enabled_in", length)) {
         cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_IN;
+      }
       break;
     case 's':
-      if (!strncmp(name, "proxy.config.http.doc_in_cache_skip_dns", length))
+      if (!strncmp(name, "proxy.config.http.doc_in_cache_skip_dns", length)) {
         cnf = TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS;
+      }
       break;
     }
     break;
@@ -8319,32 +8446,36 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 40:
     switch (name[length - 1]) {
     case 'e':
-      if (!strncmp(name, "proxy.config.http.down_server.cache_time", length))
+      if (!strncmp(name, "proxy.config.http.down_server.cache_time", length)) {
         cnf = TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME;
-      else if (!strncmp(name, "proxy.config.http.insert_age_in_response", length))
+      } else if (!strncmp(name, "proxy.config.http.insert_age_in_response", length)) {
         cnf = TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE;
+      }
       break;
     case 'r':
-      if (!strncmp(name, "proxy.config.url_remap.pristine_host_hdr", length))
+      if (!strncmp(name, "proxy.config.url_remap.pristine_host_hdr", length)) {
         cnf = TS_CONFIG_URL_REMAP_PRISTINE_HOST_HDR;
-      else if (!strncmp(name, "proxy.config.http.insert_request_via_str", length))
+      } else if (!strncmp(name, "proxy.config.http.insert_request_via_str", length)) {
         cnf = TS_CONFIG_HTTP_INSERT_REQUEST_VIA_STR;
-      else if (!strncmp(name, "proxy.config.http.flow_control.low_water", length))
+      } else if (!strncmp(name, "proxy.config.http.flow_control.low_water", length)) {
         cnf = TS_CONFIG_HTTP_FLOW_CONTROL_LOW_WATER_MARK;
+      }
       break;
     case 's':
-      if (!strncmp(name, "proxy.config.http.origin_max_connections", length))
+      if (!strncmp(name, "proxy.config.http.origin_max_connections", length)) {
         cnf = TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS;
-      else if (!strncmp(name, "proxy.config.http.cache.required_headers", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.required_headers", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_REQUIRED_HEADERS;
-      else if (!strncmp(name, "proxy.config.ssl.hsts_include_subdomains", length))
+      } else if (!strncmp(name, "proxy.config.ssl.hsts_include_subdomains", length)) {
         cnf = TS_CONFIG_SSL_HSTS_INCLUDE_SUBDOMAINS;
-      else if (!strncmp(name, "proxy.config.http.number_of_redirections", length))
+      } else if (!strncmp(name, "proxy.config.http.number_of_redirections", length)) {
         cnf = TS_CONFIG_HTTP_NUMBER_OF_REDIRECTIONS;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.keep_alive_enabled_out", length))
+      if (!strncmp(name, "proxy.config.http.keep_alive_enabled_out", length)) {
         cnf = TS_CONFIG_HTTP_KEEP_ALIVE_ENABLED_OUT;
+      }
       break;
     case 'y':
       if (!strncmp(name, "proxy.config.http.cache.fuzz.probability", length)) {
@@ -8358,20 +8489,23 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 41:
     switch (name[length - 1]) {
     case 'd':
-      if (!strncmp(name, "proxy.config.http.response_server_enabled", length))
+      if (!strncmp(name, "proxy.config.http.response_server_enabled", length)) {
         cnf = TS_CONFIG_HTTP_RESPONSE_SERVER_ENABLED;
+      }
       break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.anonymize_remove_cookie", length))
+      if (!strncmp(name, "proxy.config.http.anonymize_remove_cookie", length)) {
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_COOKIE;
-      else if (!strncmp(name, "proxy.config.http.request_header_max_size", length))
+      } else if (!strncmp(name, "proxy.config.http.request_header_max_size", length)) {
         cnf = TS_CONFIG_HTTP_REQUEST_HEADER_MAX_SIZE;
+      }
       break;
     case 'r':
-      if (!strncmp(name, "proxy.config.http.insert_response_via_str", length))
+      if (!strncmp(name, "proxy.config.http.insert_response_via_str", length)) {
         cnf = TS_CONFIG_HTTP_INSERT_RESPONSE_VIA_STR;
-      else if (!strncmp(name, "proxy.config.http.flow_control.high_water", length))
+      } else if (!strncmp(name, "proxy.config.http.flow_control.high_water", length)) {
         cnf = TS_CONFIG_HTTP_FLOW_CONTROL_HIGH_WATER_MARK;
+      }
       break;
     }
     break;
@@ -8379,32 +8513,35 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 42:
     switch (name[length - 1]) {
     case 'd':
-      if (!strncmp(name, "proxy.config.http.negative_caching_enabled", length))
+      if (!strncmp(name, "proxy.config.http.negative_caching_enabled", length)) {
         cnf = TS_CONFIG_HTTP_NEGATIVE_CACHING_ENABLED;
+      }
       break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.when_to_revalidate", length))
+      if (!strncmp(name, "proxy.config.http.cache.when_to_revalidate", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_WHEN_TO_REVALIDATE;
-      else if (!strncmp(name, "proxy.config.http.response_header_max_size", length))
+      } else if (!strncmp(name, "proxy.config.http.response_header_max_size", length)) {
         cnf = TS_CONFIG_HTTP_RESPONSE_HEADER_MAX_SIZE;
+      }
       break;
     case 'r':
-      if (!strncmp(name, "proxy.config.http.anonymize_remove_referer", length))
+      if (!strncmp(name, "proxy.config.http.anonymize_remove_referer", length)) {
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_REFERER;
-      else if (!strncmp(name, "proxy.config.http.global_user_agent_header", length)) {
+      } else if (!strncmp(name, "proxy.config.http.global_user_agent_header", length)) {
         cnf = TS_CONFIG_HTTP_GLOBAL_USER_AGENT_HEADER;
         typ = TS_RECORDDATATYPE_STRING;
       }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.net.sock_recv_buffer_size_out", length))
+      if (!strncmp(name, "proxy.config.net.sock_recv_buffer_size_out", length)) {
         cnf = TS_CONFIG_NET_SOCK_RECV_BUFFER_SIZE_OUT;
-      else if (!strncmp(name, "proxy.config.net.sock_send_buffer_size_out", length))
+      } else if (!strncmp(name, "proxy.config.net.sock_send_buffer_size_out", length)) {
         cnf = TS_CONFIG_NET_SOCK_SEND_BUFFER_SIZE_OUT;
-      else if (!strncmp(name, "proxy.config.http.connect_attempts_timeout", length))
+      } else if (!strncmp(name, "proxy.config.http.connect_attempts_timeout", length)) {
         cnf = TS_CONFIG_HTTP_CONNECT_ATTEMPTS_TIMEOUT;
-      else if (!strncmp(name, "proxy.config.websocket.no_activity_timeout", length))
+      } else if (!strncmp(name, "proxy.config.websocket.no_activity_timeout", length)) {
         cnf = TS_CONFIG_WEBSOCKET_NO_ACTIVITY_TIMEOUT;
+      }
       break;
     }
     break;
@@ -8412,16 +8549,19 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 43:
     switch (name[length - 1]) {
     case 'e':
-      if (!strncmp(name, "proxy.config.http.negative_caching_lifetime", length))
+      if (!strncmp(name, "proxy.config.http.negative_caching_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_NEGATIVE_CACHING_LIFETIME;
+      }
       break;
     case 'k':
-      if (!strncmp(name, "proxy.config.http.default_buffer_water_mark", length))
+      if (!strncmp(name, "proxy.config.http.default_buffer_water_mark", length)) {
         cnf = TS_CONFIG_HTTP_DEFAULT_BUFFER_WATER_MARK;
+      }
       break;
     case 'l':
-      if (!strncmp(name, "proxy.config.http.cache.cluster_cache_local", length))
+      if (!strncmp(name, "proxy.config.http.cache.cluster_cache_local", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL;
+      }
       break;
     case 'r':
       if (!strncmp(name, "proxy.config.http.cache.heuristic_lm_factor", length)) {
@@ -8435,14 +8575,14 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 44:
     switch (name[length - 1]) {
     case 'p':
-      if (!strncmp(name, "proxy.config.http.anonymize_remove_client_ip", length))
+      if (!strncmp(name, "proxy.config.http.anonymize_remove_client_ip", length)) {
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_CLIENT_IP;
-      else if (!strncmp(name, "proxy.config.http.anonymize_insert_client_ip", length))
-        cnf = TS_CONFIG_HTTP_ANONYMIZE_INSERT_CLIENT_IP;
+      }
       break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.open_read_retry_time", length))
+      if (!strncmp(name, "proxy.config.http.cache.open_read_retry_time", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_OPEN_READ_RETRY_TIME;
+      }
       break;
     }
     break;
@@ -8450,30 +8590,36 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 45:
     switch (name[length - 1]) {
     case 'd':
-      if (!strncmp(name, "proxy.config.http.down_server.abort_threshold", length))
+      if (!strncmp(name, "proxy.config.http.down_server.abort_threshold", length)) {
         cnf = TS_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD;
+      }
       break;
     case 'n':
-      if (!strncmp(name, "proxy.config.http.cache.ignore_authentication", length))
+      if (!strncmp(name, "proxy.config.http.cache.ignore_authentication", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_IGNORE_AUTHENTICATION;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.anonymize_remove_user_agent", length))
+      if (!strncmp(name, "proxy.config.http.anonymize_remove_user_agent", length)) {
         cnf = TS_CONFIG_HTTP_ANONYMIZE_REMOVE_USER_AGENT;
+      }
       break;
     case 's':
-      if (!strncmp(name, "proxy.config.http.connect_attempts_rr_retries", length))
+      if (!strncmp(name, "proxy.config.http.connect_attempts_rr_retries", length)) {
         cnf = TS_CONFIG_HTTP_CONNECT_ATTEMPTS_RR_RETRIES;
-      else if (!strncmp(name, "proxy.config.http.cache.max_open_read_retries", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.max_open_read_retries", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_MAX_OPEN_READ_RETRIES;
+      }
       break;
     case 'e':
-      if (0 == strncmp(name, "proxy.config.http.auth_server_session_private", length))
+      if (0 == strncmp(name, "proxy.config.http.auth_server_session_private", length)) {
         cnf = TS_CONFIG_HTTP_AUTH_SERVER_SESSION_PRIVATE;
+      }
       break;
     case 'y':
-      if (!strncmp(name, "proxy.config.http.redirect_use_orig_cache_key", length))
+      if (!strncmp(name, "proxy.config.http.redirect_use_orig_cache_key", length)) {
         cnf = TS_CONFIG_HTTP_REDIRECT_USE_ORIG_CACHE_KEY;
+      }
       break;
     }
     break;
@@ -8481,40 +8627,46 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 46:
     switch (name[length - 1]) {
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.ignore_client_no_cache", length))
+      if (!strncmp(name, "proxy.config.http.cache.ignore_client_no_cache", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE;
-      else if (!strncmp(name, "proxy.config.http.cache.ims_on_client_no_cache", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.ims_on_client_no_cache", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_IMS_ON_CLIENT_NO_CACHE;
-      else if (!strncmp(name, "proxy.config.http.cache.ignore_server_no_cache", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.ignore_server_no_cache", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_IGNORE_SERVER_NO_CACHE;
-      else if (!strncmp(name, "proxy.config.http.cache.heuristic_min_lifetime", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.heuristic_min_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_HEURISTIC_MIN_LIFETIME;
-      else if (!strncmp(name, "proxy.config.http.cache.heuristic_max_lifetime", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.heuristic_max_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_HEURISTIC_MAX_LIFETIME;
-      else if (!strncmp(name, "proxy.config.http.origin_max_connections_queue", length))
+      } else if (!strncmp(name, "proxy.config.http.origin_max_connections_queue", length)) {
         cnf = TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS_QUEUE;
+      }
       break;
     case 'r':
-      if (!strncmp(name, "proxy.config.http.insert_squid_x_forwarded_for", length))
+      if (!strncmp(name, "proxy.config.http.insert_squid_x_forwarded_for", length)) {
         cnf = TS_CONFIG_HTTP_INSERT_SQUID_X_FORWARDED_FOR;
+      }
       break;
     case 's':
-      if (!strncmp(name, "proxy.config.http.connect_attempts_max_retries", length))
+      if (!strncmp(name, "proxy.config.http.connect_attempts_max_retries", length)) {
         cnf = TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES;
-      else if (!strncmp(name, "proxy.config.http.cache.max_open_write_retries", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.max_open_write_retries", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_MAX_OPEN_WRITE_RETRIES;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.forward.proxy_auth_to_parent", length))
+      if (!strncmp(name, "proxy.config.http.forward.proxy_auth_to_parent", length)) {
         cnf = TS_CONFIG_HTTP_FORWARD_PROXY_AUTH_TO_PARENT;
+      }
       break;
     case 'h':
-      if (0 == strncmp(name, "proxy.config.http.server_session_sharing.match", length))
+      if (0 == strncmp(name, "proxy.config.http.server_session_sharing.match", length)) {
         cnf = TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH;
+      }
       break;
     case 'n':
-      if (!strncmp(name, "proxy.config.http.cache.open_write_fail_action", length))
+      if (!strncmp(name, "proxy.config.http.cache.open_write_fail_action", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_OPEN_WRITE_FAIL_ACTION;
+      }
       break;
     }
     break;
@@ -8522,43 +8674,45 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 47:
     switch (name[length - 1]) {
     case 'd':
-      if (!strncmp(name, "proxy.config.http.negative_revalidating_enabled", length))
+      if (!strncmp(name, "proxy.config.http.negative_revalidating_enabled", length)) {
         cnf = TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_ENABLED;
+      }
       break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.guaranteed_min_lifetime", length))
+      if (!strncmp(name, "proxy.config.http.cache.guaranteed_min_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_GUARANTEED_MIN_LIFETIME;
-      else if (!strncmp(name, "proxy.config.http.cache.guaranteed_max_lifetime", length))
+      } else if (!strncmp(name, "proxy.config.http.cache.guaranteed_max_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_GUARANTEED_MAX_LIFETIME;
+      }
       break;
     case 'n':
-      if (!strncmp(name, "proxy.config.http.transaction_active_timeout_in", length))
+      if (!strncmp(name, "proxy.config.http.transaction_active_timeout_in", length)) {
         cnf = TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_IN;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.post_connect_attempts_timeout", length))
+      if (!strncmp(name, "proxy.config.http.post_connect_attempts_timeout", length)) {
         cnf = TS_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT;
+      }
       break;
     }
     break;
 
   case 48:
     switch (name[length - 1]) {
-    case 'd':
-      if (!strncmp(name, "proxy.config.http.accept_encoding_filter_enabled", length))
-        cnf = TS_CONFIG_HTTP_ACCEPT_ENCODING_FILTER_ENABLED;
-      break;
     case 'e':
-      if (!strncmp(name, "proxy.config.http.cache.ignore_client_cc_max_age", length))
+      if (!strncmp(name, "proxy.config.http.cache.ignore_client_cc_max_age", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE;
-      else if (!strncmp(name, "proxy.config.http.negative_revalidating_lifetime", length))
+      } else if (!strncmp(name, "proxy.config.http.negative_revalidating_lifetime", length)) {
         cnf = TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_LIFETIME;
+      }
       break;
     case 't':
       switch (name[length - 4]) {
       case '_':
-        if (!strncmp(name, "proxy.config.http.transaction_active_timeout_out", length))
+        if (!strncmp(name, "proxy.config.http.transaction_active_timeout_out", length)) {
           cnf = TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_OUT;
+        }
         break;
       case 'e':
         if (!strncmp(name, "proxy.config.http.background_fill_active_timeout", length)) {
@@ -8571,24 +8725,28 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 49:
-    if (!strncmp(name, "proxy.config.http.attach_server_session_to_client", length))
+    if (!strncmp(name, "proxy.config.http.attach_server_session_to_client", length)) {
       cnf = TS_CONFIG_HTTP_ATTACH_SERVER_SESSION_TO_CLIENT;
+    }
     break;
 
   case 50:
-    if (!strncmp(name, "proxy.config.http.cache.cache_responses_to_cookies", length))
+    if (!strncmp(name, "proxy.config.http.cache.cache_responses_to_cookies", length)) {
       cnf = TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES;
+    }
     break;
 
   case 51:
     switch (name[length - 1]) {
     case 'n':
-      if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_in", length))
+      if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_in", length)) {
         cnf = TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_IN;
+      }
       break;
     case 'd':
-      if (!strncmp(name, "proxy.config.http.post.check.content_length.enabled", length))
+      if (!strncmp(name, "proxy.config.http.post.check.content_length.enabled", length)) {
         cnf = TS_CONFIG_HTTP_POST_CHECK_CONTENT_LENGTH_ENABLED;
+      }
       break;
     }
     break;
@@ -8596,18 +8754,21 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 52:
     switch (name[length - 1]) {
     case 'c':
-      if (!strncmp(name, "proxy.config.http.cache.cache_urls_that_look_dynamic", length))
+      if (!strncmp(name, "proxy.config.http.cache.cache_urls_that_look_dynamic", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_CACHE_URLS_THAT_LOOK_DYNAMIC;
+      }
       break;
     case 'n':
-      if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_in", length))
+      if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_in", length)) {
         cnf = TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN;
+      }
       break;
     case 't':
-      if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_out", length))
+      if (!strncmp(name, "proxy.config.http.keep_alive_no_activity_timeout_out", length)) {
         cnf = TS_CONFIG_HTTP_KEEP_ALIVE_NO_ACTIVITY_TIMEOUT_OUT;
-      else if (!strncmp(name, "proxy.config.http.uncacheable_requests_bypass_parent", length))
+      } else if (!strncmp(name, "proxy.config.http.uncacheable_requests_bypass_parent", length)) {
         cnf = TS_CONFIG_HTTP_UNCACHEABLE_REQUESTS_BYPASS_PARENT;
+      }
       break;
     }
     break;
@@ -8615,8 +8776,9 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
   case 53:
     switch (name[length - 1]) {
     case 't':
-      if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_out", length))
+      if (!strncmp(name, "proxy.config.http.transaction_no_activity_timeout_out", length)) {
         cnf = TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT;
+      }
       break;
     case 'd':
       if (!strncmp(name, "proxy.config.http.background_fill_completed_threshold", length)) {
@@ -8633,14 +8795,16 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 58:
-    if (!strncmp(name, "proxy.config.http.connect_attempts_max_retries_dead_server", length))
+    if (!strncmp(name, "proxy.config.http.connect_attempts_max_retries_dead_server", length)) {
       cnf = TS_CONFIG_HTTP_CONNECT_ATTEMPTS_MAX_RETRIES_DEAD_SERVER;
+    }
     break;
   }
 
   *conf = cnf;
-  if (type)
+  if (type) {
     *type = typ;
+  }
 
   return ((cnf != TS_CONFIG_NULL) ? TS_SUCCESS : TS_ERROR);
 }
@@ -8663,12 +8827,14 @@ TSReturnCode
 TSMgmtStringCreate(TSRecordType rec_type, const char *name, const TSMgmtString data_default, TSRecordUpdateType update_type,
                    TSRecordCheckType check_type, const char *check_regex, TSRecordAccessType access_type)
 {
-  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL)
+  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL) {
     return TS_ERROR;
+  }
   if (REC_ERR_OKAY != RecRegisterConfigString((enum RecT)rec_type, name, data_default, (enum RecUpdateT)update_type,
                                               (enum RecCheckT)check_type, check_regex, REC_SOURCE_EXPLICIT,
-                                              (enum RecAccessT)access_type))
+                                              (enum RecAccessT)access_type)) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -8677,12 +8843,14 @@ TSReturnCode
 TSMgmtIntCreate(TSRecordType rec_type, const char *name, TSMgmtInt data_default, TSRecordUpdateType update_type,
                 TSRecordCheckType check_type, const char *check_regex, TSRecordAccessType access_type)
 {
-  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL)
+  if (check_regex == NULL && check_type != TS_RECORDCHECK_NULL) {
     return TS_ERROR;
+  }
   if (REC_ERR_OKAY != RecRegisterConfigInt((enum RecT)rec_type, name, (RecInt)data_default, (enum RecUpdateT)update_type,
                                            (enum RecCheckT)check_type, check_regex, REC_SOURCE_EXPLICIT,
-                                           (enum RecAccessT)access_type))
+                                           (enum RecAccessT)access_type)) {
     return TS_ERROR;
+  }
 
   return TS_SUCCESS;
 }
@@ -8697,8 +8865,9 @@ TSHttpTxnCloseAfterResponse(TSHttpTxn txnp, int should_close)
   HttpSM *sm = (HttpSM *)txnp;
   if (should_close) {
     sm->t_state.client_info.keep_alive = HTTP_NO_KEEPALIVE;
-    if (sm->ua_session)
+    if (sm->ua_session) {
       sm->set_ua_half_close_flag();
+    }
   }
   // Don't change if PIPELINE is set...
   else if (sm->t_state.client_info.keep_alive == HTTP_NO_KEEPALIVE) {
@@ -8833,7 +9002,7 @@ TSVConnTunnel(TSVConn sslp)
   SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
   TSReturnCode zret         = TS_SUCCESS;
   if (0 != ssl_vc) {
-    ssl_vc->hookOpRequested = TS_SSL_HOOK_OP_TUNNEL;
+    ssl_vc->hookOpRequested = SSL_HOOK_OP_TUNNEL;
   } else {
     zret = TS_ERROR;
   }
@@ -8883,6 +9052,24 @@ TSSslContextFindByAddr(struct sockaddr const *addr)
   return ret;
 }
 
+tsapi TSSslContext
+TSSslServerContextCreate()
+{
+  TSSslContext ret        = NULL;
+  SSLConfigParams *config = SSLConfig::acquire();
+  if (config != NULL) {
+    ret = reinterpret_cast<TSSslContext>(SSLCreateServerContext(config));
+    SSLConfig::release(config);
+  }
+  return ret;
+}
+
+tsapi void
+TSSslContextDestroy(TSSslContext ctx)
+{
+  SSLReleaseContext(reinterpret_cast<SSL_CTX *>(ctx));
+}
+
 tsapi int
 TSVConnIsSsl(TSVConn sslp)
 {
@@ -8917,4 +9104,159 @@ TSVConnReenable(TSVConn vconn)
       ssl_vc->thread->schedule_imm(new TSSslCallback(ssl_vc));
     }
   }
+}
+
+// APIs for managing and using UUIDs.
+TSUuid
+TSUuidCreate(void)
+{
+  ATSUuid *uuid = new ATSUuid();
+  return (TSUuid)uuid;
+}
+
+void
+TSUuidDestroy(TSUuid uuid)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)uuid) == TS_SUCCESS);
+  delete (ATSUuid *)uuid;
+}
+
+TSReturnCode
+TSUuidCopy(TSUuid dest, const TSUuid src)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)dest) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void *)src) == TS_SUCCESS);
+  ATSUuid *d = (ATSUuid *)dest;
+  ATSUuid *s = (ATSUuid *)src;
+
+  if (s->valid()) {
+    *d = *s;
+    return TS_SUCCESS;
+  }
+
+  return TS_ERROR;
+}
+
+TSReturnCode
+TSUuidInitialize(TSUuid uuid, TSUuidVersion v)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)uuid) == TS_SUCCESS);
+  ATSUuid *u = (ATSUuid *)uuid;
+
+  u->initialize(v);
+  return u->valid() ? TS_SUCCESS : TS_ERROR;
+}
+
+const TSUuid
+TSProcessUuidGet(void)
+{
+  Machine *machine = Machine::instance();
+  return (TSUuid)(&machine->uuid);
+}
+
+const char *
+TSUuidStringGet(const TSUuid uuid)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)uuid) == TS_SUCCESS);
+  ATSUuid *u = (ATSUuid *)(uuid);
+
+  if (u->valid()) {
+    return u->getString();
+  }
+
+  return NULL;
+}
+
+TSReturnCode
+TSUuidStringParse(TSUuid uuid, const char *str)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)uuid) == TS_SUCCESS);
+  sdk_assert(sdk_sanity_check_null_ptr((void *)str) == TS_SUCCESS);
+  ATSUuid *u = (ATSUuid *)uuid;
+
+  if (u->parseString(str)) {
+    return TS_SUCCESS;
+  }
+
+  return TS_ERROR;
+}
+
+TSUuidVersion
+TSUuidVersionGet(TSUuid uuid)
+{
+  sdk_assert(sdk_sanity_check_null_ptr((void *)uuid) == TS_SUCCESS);
+  ATSUuid *u = (ATSUuid *)uuid;
+
+  return u->version();
+}
+
+// Expose the HttpSM's sequence number (ID)
+uint64_t
+TSHttpTxnIdGet(TSHttpTxn txnp)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm = (HttpSM *)txnp;
+
+  return (uint64_t)sm->sm_id;
+}
+
+// Return information about the protocols used by the client
+TSReturnCode
+TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int n, char const **result, int *actual)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  sdk_assert(n == 0 || result != NULL);
+  HttpSM *sm = (HttpSM *)txnp;
+  int count  = 0;
+  if (sm) {
+    count = sm->populate_client_protocol(result, n);
+  }
+  if (actual) {
+    *actual = count;
+  }
+  return TS_SUCCESS;
+}
+
+TSReturnCode
+TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int n, char const **result, int *actual)
+{
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
+  sdk_assert(n == 0 || result != NULL);
+  ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
+  int count              = 0;
+  if (cs) {
+    count = cs->populate_protocol(result, n);
+  }
+  if (actual) {
+    *actual = count;
+  }
+  return TS_SUCCESS;
+}
+
+char const *
+TSNormalizedProtocolTag(char const *tag)
+{
+  return RecNormalizeProtoTag(tag);
+}
+
+char const *
+TSHttpTxnClientProtocolStackContains(TSHttpTxn txnp, char const *tag)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+  HttpSM *sm = (HttpSM *)txnp;
+  return sm->client_protocol_contains(tag);
+}
+
+char const *
+TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char const *tag)
+{
+  sdk_assert(sdk_sanity_check_http_ssn(ssnp) == TS_SUCCESS);
+  ProxyClientSession *cs = reinterpret_cast<ProxyClientSession *>(ssnp);
+  return cs->protocol_contains(tag);
+}
+
+char const *
+TSRegisterProtocolTag(char const *tag)
+{
+  return NULL;
 }

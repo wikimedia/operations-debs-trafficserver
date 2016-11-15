@@ -486,6 +486,23 @@ AC_DEFUN([AM_OUTPUT_DEPENDENCY_COMMANDS],
      [AMDEP_TRUE="$AMDEP_TRUE" ac_aux_dir="$ac_aux_dir"])
 ])
 
+# AM_EXTRA_RECURSIVE_TARGETS                                -*- Autoconf -*-
+
+# Copyright (C) 2012-2014 Free Software Foundation, Inc.
+#
+# This file is free software; the Free Software Foundation
+# gives unlimited permission to copy and/or distribute it,
+# with or without modifications, as long as this notice is preserved.
+
+# AM_EXTRA_RECURSIVE_TARGETS
+# --------------------------
+# Define the list of user recursive targets.  This macro exists only to
+# be traced by Automake, which will ensure that a proper definition of
+# user-defined recursive targets (and associated rules) is propagated
+# into all the generated Makefiles.
+# TODO: We should really reject non-literal arguments here...
+AC_DEFUN([AM_EXTRA_RECURSIVE_TARGETS], [])
+
 # Do all the work for Automake.                             -*- Autoconf -*-
 
 # Copyright (C) 1996-2014 Free Software Foundation, Inc.
@@ -1504,11 +1521,11 @@ AC_SUBST([am__untar])
 m4_include([build/ax_check_openssl.m4])
 m4_include([build/ax_compare_version.m4])
 m4_include([build/ax_compiler_vendor.m4])
-m4_include([build/ax_cxx_compile_stdcxx_11.m4])
 m4_include([build/ax_lib_curl.m4])
 m4_include([build/ax_lib_readline.m4])
 m4_include([build/ax_path_generic.m4])
 m4_include([build/ax_perl_modules.m4])
+m4_include([build/ax_require_defined.m4])
 m4_include([build/ax_with_curses.m4])
 m4_include([build/common.m4])
 m4_include([build/crypto.m4])
@@ -1524,5 +1541,4 @@ m4_include([build/pcre.m4])
 m4_include([build/pkg.m4])
 m4_include([build/tcl.m4])
 m4_include([build/tcmalloc.m4])
-m4_include([build/xml.m4])
 m4_include([build/zlib.m4])

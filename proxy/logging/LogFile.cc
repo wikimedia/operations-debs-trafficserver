@@ -36,8 +36,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "Error.h"
-
 #include "P_EventSystem.h"
 #include "I_Machine.h"
 #include "LogSock.h"
@@ -89,7 +87,8 @@ LogFile::LogFile(const char *name, const char *header, LogFileFormat format, uin
   -------------------------------------------------------------------------*/
 
 LogFile::LogFile(const LogFile &copy)
-  : m_file_format(copy.m_file_format),
+  : RefCountObj(copy),
+    m_file_format(copy.m_file_format),
     m_name(ats_strdup(copy.m_name)),
     m_header(ats_strdup(copy.m_header)),
     m_signature(copy.m_signature),
@@ -128,8 +127,9 @@ void
 LogFile::change_name(const char *new_name)
 {
   ats_free(m_name);
-  if (m_log)
+  if (m_log) {
     m_log->change_name(new_name);
+  }
   m_name = ats_strdup(new_name);
 }
 
@@ -166,7 +166,7 @@ LogFile::open_file()
 
   if (m_file_format == LOG_FILE_PIPE) {
     // setup pipe
-    if (mkfifo(m_name, S_IRUSR | S_IWUSR) < 0) {
+    if (mkfifo(m_name, S_IRUSR | S_IWUSR | S_IRGRP) < 0) {
       if (errno != EEXIST) {
         Error("Could not create named pipe %s for logging: %s", m_name, strerror(errno));
         return LOG_FILE_COULD_NOT_CREATE_PIPE;
@@ -185,8 +185,9 @@ LogFile::open_file()
   } else {
     if (m_log) {
       int status = m_log->open_file(Log::config->logfile_perm);
-      if (status == BaseLogFile::LOG_FILE_COULD_NOT_OPEN_FILE)
+      if (status == BaseLogFile::LOG_FILE_COULD_NOT_OPEN_FILE) {
         return LOG_FILE_COULD_NOT_OPEN_FILE;
+      }
     } else {
       return LOG_FILE_COULD_NOT_OPEN_FILE;
     }
@@ -236,8 +237,6 @@ LogFile::close_file()
     } else if (m_log) {
       m_log->close_file();
       Debug("log-file", "LogFile %s is closed", m_log->get_name());
-      delete m_log;
-      m_log = NULL;
     } else {
       Warning("LogFile %s is open but was not closed", m_name);
     }
@@ -296,9 +295,12 @@ LogFile::preproc_and_try_delete(LogBuffer *lb)
   // the low_timestamp from the given LogBuffer.  Then, we always set the
   // end time to the high_timestamp, so it's always up to date.
   //
-  if (!m_log->m_start_time)
-    m_log->m_start_time = buffer_header->low_timestamp;
-  m_log->m_end_time     = buffer_header->high_timestamp;
+  if (m_log) {
+    if (!m_log->m_start_time) {
+      m_log->m_start_time = buffer_header->low_timestamp;
+    }
+    m_log->m_end_time = buffer_header->high_timestamp;
+  }
 
   if (m_file_format == LOG_FILE_BINARY) {
     //
@@ -311,7 +313,7 @@ LogFile::preproc_and_try_delete(LogBuffer *lb)
     //
     LogFlushData *flush_data = new LogFlushData(this, lb);
 
-    ProxyMutex *mutex = this_thread()->mutex;
+    ProxyMutex *mutex = this_thread()->mutex.get();
 
     RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_num_flush_to_disk_stat, lb->header()->entry_count);
 
@@ -419,7 +421,7 @@ LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_
         m_name, this);
   ink_assert(buffer_header != NULL);
 
-  ProxyMutex *mutex = this_thread()->mutex;
+  ProxyMutex *mutex = this_thread()->mutex.get();
   LogBufferIterator iter(buffer_header);
   LogEntryHeader *entry_header;
   int fmt_entry_count = 0;
@@ -449,10 +451,11 @@ LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_
     fmt_entry_count = 0;
     fmt_buf_bytes   = 0;
 
-    if (m_file_format == LOG_FILE_PIPE)
+    if (m_file_format == LOG_FILE_PIPE) {
       ascii_buffer = (char *)malloc(m_max_line_size);
-    else
+    } else {
       ascii_buffer = (char *)malloc(m_ascii_buffer_size);
+    }
 
     // fill the buffer with as many records as possible
     //
@@ -480,11 +483,13 @@ LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_
       // record to avoid as much as possible overflowing the
       // pipe buffer
       //
-      if (m_file_format == LOG_FILE_PIPE)
+      if (m_file_format == LOG_FILE_PIPE) {
         break;
+      }
 
-      if (m_ascii_buffer_size - fmt_buf_bytes < m_max_line_size)
+      if (m_ascii_buffer_size - fmt_buf_bytes < m_max_line_size) {
         break;
+      }
     } while ((entry_header = iter.next()));
 
     // send the buffer to flush thread
@@ -554,8 +559,9 @@ LogFile::writeln(char *data, int len, int fd, const char *path)
 
     if ((bytes_this_write = (int)::writev(fd, (const struct iovec *)wvec, vcnt)) < 0) {
       Warning("An error was encountered in writing to %s: %s.", ((path) ? path : "logfile"), strerror(errno));
-    } else
+    } else {
       total_bytes = bytes_this_write;
+    }
   }
   return total_bytes;
 }
@@ -613,10 +619,11 @@ LogFile::display(FILE *fd)
 bool
 LogFile::is_open()
 {
-  if (m_file_format == LOG_FILE_PIPE)
+  if (m_file_format == LOG_FILE_PIPE) {
     return m_fd >= 0;
-  else
+  } else {
     return m_log && m_log->is_open();
+  }
 }
 
 /*

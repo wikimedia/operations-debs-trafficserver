@@ -48,11 +48,13 @@ DiagsConfig::reconfigure_diags()
   static struct {
     const char *config_name;
     DiagsLevel level;
-  } output_records[] = {{"proxy.config.diags.output.diag", DL_Diag},           {"proxy.config.diags.output.debug", DL_Debug},
-                        {"proxy.config.diags.output.status", DL_Status},       {"proxy.config.diags.output.note", DL_Note},
-                        {"proxy.config.diags.output.warning", DL_Warning},     {"proxy.config.diags.output.error", DL_Error},
-                        {"proxy.config.diags.output.fatal", DL_Fatal},         {"proxy.config.diags.output.alert", DL_Alert},
-                        {"proxy.config.diags.output.emergency", DL_Emergency}, {NULL, DL_Undefined}};
+  } output_records[] = {
+    {"proxy.config.diags.output.diag", DL_Diag},           {"proxy.config.diags.output.debug", DL_Debug},
+    {"proxy.config.diags.output.status", DL_Status},       {"proxy.config.diags.output.note", DL_Note},
+    {"proxy.config.diags.output.warning", DL_Warning},     {"proxy.config.diags.output.error", DL_Error},
+    {"proxy.config.diags.output.fatal", DL_Fatal},         {"proxy.config.diags.output.alert", DL_Alert},
+    {"proxy.config.diags.output.emergency", DL_Emergency}, {NULL, DL_Undefined},
+  };
 
   if (!callbacks_established) {
     register_diags_callbacks();
@@ -70,17 +72,19 @@ DiagsConfig::reconfigure_diags()
   // enabled if records.config set
 
   e = (int)REC_readInteger("proxy.config.diags.debug.enabled", &found);
-  if (e && found)
+  if (e && found) {
     c.enabled[DiagsTagType_Debug] = 1; // implement OR logic
-  all_found                       = all_found && found;
+  }
+  all_found = all_found && found;
 
   e = (int)REC_readInteger("proxy.config.diags.action.enabled", &found);
-  if (e && found)
+  if (e && found) {
     c.enabled[DiagsTagType_Action] = 1; // implement OR logic
-  all_found                        = all_found && found;
+  }
+  all_found = all_found && found;
 
   e                    = (int)REC_readInteger("proxy.config.diags.show_location", &found);
-  diags->show_location = ((e && found) ? 1 : 0);
+  diags->show_location = ((e == 1 && found) ? SHOW_LOCATION_DEBUG : ((e == 2 && found) ? SHOW_LOCATION_ALL : SHOW_LOCATION_NONE));
   all_found            = all_found && found;
 
   // read output routing values
@@ -88,15 +92,18 @@ DiagsConfig::reconfigure_diags()
     const char *record_name = output_records[i].config_name;
     DiagsLevel l            = output_records[i].level;
 
-    if (!record_name)
+    if (!record_name) {
       break;
+    }
+
     p         = REC_readString(record_name, &found);
     all_found = all_found && found;
+
     if (found) {
       parse_output_string(p, &(c.outputs[l]));
       ats_free(p);
     } else {
-      diags->print(NULL, DTA(DL_Error), "can't find config variable '%s'\n", record_name);
+      Error("can't find config variable '%s'", record_name);
     }
   }
 
@@ -114,7 +121,7 @@ DiagsConfig::reconfigure_diags()
   ///////////////////////////////////////////////////////////////////
 
   if (!all_found) {
-    diags->print(NULL, DTA(DL_Error), "couldn't fetch all proxy.config.diags values");
+    Error("couldn't fetch all proxy.config.diags values");
   } else {
     //////////////////////////////
     // clear out old tag tables //
@@ -138,7 +145,7 @@ DiagsConfig::reconfigure_diags()
 #else
     memcpy(((void *)&diags->config), ((void *)&c), sizeof(DiagsConfigState));
 #endif
-    diags->print(NULL, DTA(DL_Note), "updated diags config");
+    Note("updated diags config");
   }
 
   ////////////////////////////////////
@@ -243,7 +250,7 @@ DiagsConfig::RegisterDiagConfig()
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.debug.tags", "", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
   RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.action.enabled", 0, RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.action.tags", "", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
-  RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.show_location", 0, RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
+  RecRegisterConfigInt(RECT_CONFIG, "proxy.config.diags.show_location", 1, RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.diag", "L", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.debug", "L", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.status", "L", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
@@ -255,7 +262,8 @@ DiagsConfig::RegisterDiagConfig()
   RecRegisterConfigString(RECT_CONFIG, "proxy.config.diags.output.emergency", "SL", RECU_NULL, RECC_NULL, NULL, REC_SOURCE_DEFAULT);
 }
 
-DiagsConfig::DiagsConfig(const char *filename, const char *tags, const char *actions, bool use_records) : diags_log(NULL)
+DiagsConfig::DiagsConfig(const char *prefix_string, const char *filename, const char *tags, const char *actions, bool use_records)
+  : diags_log(NULL)
 {
   char diags_logpath[PATH_NAME_MAX];
   ats_scoped_str logpath;
@@ -270,7 +278,7 @@ DiagsConfig::DiagsConfig(const char *filename, const char *tags, const char *act
   ////////////////////////////////////////////////////////////////////
 
   if (!use_records) {
-    diags = new Diags(tags, actions, NULL);
+    diags = new Diags(prefix_string, tags, actions, NULL);
     config_diags_norecords();
     return;
   }
@@ -282,7 +290,7 @@ DiagsConfig::DiagsConfig(const char *filename, const char *tags, const char *act
   if (access(logpath, W_OK | R_OK) == -1) {
     fprintf(stderr, "unable to access log directory '%s': %d, %s\n", (const char *)logpath, errno, strerror(errno));
     fprintf(stderr, "please set 'proxy.config.log.logfile_dir'\n");
-    _exit(1);
+    ::exit(1);
   }
 
   ink_filepath_make(diags_logpath, sizeof(diags_logpath), logpath, filename);
@@ -298,11 +306,11 @@ DiagsConfig::DiagsConfig(const char *filename, const char *tags, const char *act
 
   // Set up diags, FILE streams are opened in Diags constructor
   diags_log = new BaseLogFile(diags_logpath);
-  diags     = new Diags(tags, actions, diags_log);
+  diags     = new Diags(prefix_string, tags, actions, diags_log);
   diags->config_roll_diagslog((RollingEnabledValues)diags_log_roll_enable, diags_log_roll_int, diags_log_roll_size);
   diags->config_roll_outputlog((RollingEnabledValues)output_log_roll_enable, output_log_roll_int, output_log_roll_size);
 
-  diags->print(NULL, DTA(DL_Status), "opened %s", diags_logpath);
+  Status("opened %s", diags_logpath);
 
   register_diags_callbacks();
 
@@ -328,7 +336,8 @@ DiagsConfig::register_diags_callbacks()
     "proxy.config.diags.action.tags",    "proxy.config.diags.show_location",    "proxy.config.diags.output.diag",
     "proxy.config.diags.output.debug",   "proxy.config.diags.output.status",    "proxy.config.diags.output.note",
     "proxy.config.diags.output.warning", "proxy.config.diags.output.error",     "proxy.config.diags.output.fatal",
-    "proxy.config.diags.output.alert",   "proxy.config.diags.output.emergency", NULL};
+    "proxy.config.diags.output.alert",   "proxy.config.diags.output.emergency", NULL,
+  };
 
   bool total_status = true;
   bool status;
@@ -339,13 +348,13 @@ DiagsConfig::register_diags_callbacks()
   for (i = 0; config_record_names[i] != NULL; i++) {
     status = (REC_RegisterConfigUpdateFunc(config_record_names[i], diags_config_callback, o) == REC_ERR_OKAY);
     if (!status) {
-      diags->print(NULL, DTA(DL_Warning), "couldn't register variable '%s', is records.config up to date?", config_record_names[i]);
+      Warning("couldn't register variable '%s', is records.config up to date?", config_record_names[i]);
     }
     total_status = total_status && status;
   }
 
   if (total_status == false) {
-    diags->print(NULL, DTA(DL_Error), "couldn't setup all diags callbacks, diagnostics may misbehave");
+    Error("couldn't setup all diags callbacks, diagnostics may misbehave");
     callbacks_established = false;
   } else {
     callbacks_established = true;

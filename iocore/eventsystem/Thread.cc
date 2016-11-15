@@ -37,14 +37,12 @@
 
 static ink_thread_key init_thread_key();
 
-ProxyMutex *global_mutex                          = NULL;
 ink_hrtime Thread::cur_time                       = 0;
 inkcoreapi ink_thread_key Thread::thread_data_key = init_thread_key();
 
 Thread::Thread()
 {
-  mutex     = new_ProxyMutex();
-  mutex_ptr = mutex;
+  mutex = new_ProxyMutex();
   MUTEX_TAKE_LOCK(mutex, (EThread *)this);
   mutex->nthread_holding = THREAD_MUTEX_THREAD_HOLDING;
 }
@@ -89,7 +87,7 @@ spawn_thread_internal(void *a)
 }
 
 ink_thread
-Thread::start(const char *name, size_t stacksize, ThreadFunction f, void *a)
+Thread::start(const char *name, size_t stacksize, ThreadFunction f, void *a, void *stack)
 {
   thread_data_internal *p = (thread_data_internal *)ats_malloc(sizeof(thread_data_internal));
 
@@ -98,7 +96,7 @@ Thread::start(const char *name, size_t stacksize, ThreadFunction f, void *a)
   p->me = this;
   memset(p->name, 0, MAX_THREAD_NAME_LENGTH);
   ink_strlcpy(p->name, name, MAX_THREAD_NAME_LENGTH);
-  tid = ink_thread_create(spawn_thread_internal, (void *)p, 0, stacksize);
+  tid = ink_thread_create(spawn_thread_internal, (void *)p, 0, stacksize, stack);
 
   return tid;
 }

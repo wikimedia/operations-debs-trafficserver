@@ -31,6 +31,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 
 VPATH = @srcdir@
 am__is_gnu_make = { \
@@ -108,11 +124,11 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
-	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
 	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/ax_path_generic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
+	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
@@ -122,8 +138,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(library_include_HEADERS) \
@@ -193,7 +209,7 @@ am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 = 
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib
-depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
+depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -222,6 +238,7 @@ am__can_run_installinfo = \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
 HEADERS = $(library_include_HEADERS)
+am__extra_recursive_targets = tidy-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -242,7 +259,7 @@ am__define_uniq_tagged_files = \
 ETAGS = etags
 CTAGS = ctags
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/build/aux/depcomp
+	$(top_srcdir)/build/_aux/depcomp $(top_srcdir)/build/tidy.mk
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 pkgdatadir = @pkgdatadir@
 pkglibdir = @pkglibdir@
@@ -265,12 +282,14 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CFLAGS = @CURL_CFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
 CURL_LIBS = @CURL_LIBS@
-CURSES_LIB = @CURSES_LIB@
+CURSES_CFLAGS = @CURSES_CFLAGS@
+CURSES_LIBS = @CURSES_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -287,14 +306,12 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXPAT_LDFLAGS = @EXPAT_LDFLAGS@
 EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
-HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
 HWLOC_LIBS = @HWLOC_LIBS@
@@ -310,7 +327,6 @@ LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
-LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
@@ -334,11 +350,9 @@ LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
 LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-LUAJIT_LIBS = @LUAJIT_LIBS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LDFLAGS = @LUA_LDFLAGS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -380,8 +394,6 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
-SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
-SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -466,7 +478,6 @@ exp_prefix = @exp_prefix@
 exp_runtimedir = @exp_runtimedir@
 exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
-expath = @expath@
 floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
@@ -478,12 +489,9 @@ has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
-has_spdy = @has_spdy@
-has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
-have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -587,17 +595,18 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 use_cert_cb = @use_cert_cb@
+use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
-use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
+use_sslv3_client = @use_sslv3_client@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -644,7 +653,8 @@ libatscppapi_la_SOURCES = GlobalPlugin.cc \
 
 library_includedir = $(includedir)/atscppapi
 base_include_folder = $(top_srcdir)/$(subdir)/include/atscppapi
-library_include_HEADERS = $(base_include_folder)/GlobalPlugin.h \
+library_include_HEADERS = \
+	$(base_include_folder)/GlobalPlugin.h \
 	$(base_include_folder)/Plugin.h \
 	$(base_include_folder)/PluginInit.h \
 	$(base_include_folder)/Transaction.h \
@@ -656,25 +666,43 @@ library_include_HEADERS = $(base_include_folder)/GlobalPlugin.h \
 	$(base_include_folder)/Request.h \
 	$(base_include_folder)/CaseInsensitiveStringComparator.h \
 	$(base_include_folder)/ClientRequest.h \
-	$(base_include_folder)/Url.h $(base_include_folder)/Response.h \
+	$(base_include_folder)/Url.h \
+	$(base_include_folder)/Response.h \
 	$(base_include_folder)/utils.h \
 	$(base_include_folder)/TransformationPlugin.h \
 	$(base_include_folder)/Logger.h \
 	$(base_include_folder)/noncopyable.h \
-	$(base_include_folder)/Stat.h $(base_include_folder)/Mutex.h \
+	$(base_include_folder)/Stat.h \
+	$(base_include_folder)/Mutex.h \
 	$(base_include_folder)/RemapPlugin.h \
 	$(base_include_folder)/Async.h \
 	$(base_include_folder)/AsyncHttpFetch.h \
 	$(base_include_folder)/GzipDeflateTransformation.h \
 	$(base_include_folder)/GzipInflateTransformation.h \
 	$(base_include_folder)/AsyncTimer.h \
-	$(base_include_folder)/InterceptPlugin.h \
-	$(top_builddir)/$(subdir)/include/atscppapi/shared_ptr.h
+	$(base_include_folder)/InterceptPlugin.h
+
+Clang_Tidy_Options = -fix -fix-errors
+
+# Sort the filenames to remove duplicates, then filter to retain
+# just the C and C++ sources so we don't pick up lex and yacc files
+# for example.
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+
+#clang-tidy rules. We expect these to be actions with something like
+#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+#is not an automake API, it is an implementation detail, but it ought
+#to be stable enough.
+#
+#All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
 all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .o .obj
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -694,6 +722,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
 	esac;
+$(top_srcdir)/build/tidy.mk $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -823,6 +852,7 @@ uninstall-library_includeHEADERS:
 	@list='$(library_include_HEADERS)'; test -n "$(library_includedir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	dir='$(DESTDIR)$(library_includedir)'; $(am__uninstall_files_from_dir)
+tidy-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -1012,6 +1042,10 @@ ps: ps-am
 
 ps-am:
 
+tidy: tidy-am
+
+tidy-am: tidy-local
+
 uninstall-am: uninstall-libLTLIBRARIES \
 	uninstall-library_includeHEADERS
 
@@ -1030,11 +1064,14 @@ uninstall-am: uninstall-libLTLIBRARIES \
 	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-libLTLIBRARIES \
-	uninstall-library_includeHEADERS
+	tags tags-am tidy-am tidy-local uninstall uninstall-am \
+	uninstall-libLTLIBRARIES uninstall-library_includeHEADERS
 
 .PRECIOUS: Makefile
 
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

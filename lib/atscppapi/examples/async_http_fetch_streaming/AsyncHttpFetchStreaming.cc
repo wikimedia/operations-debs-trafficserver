@@ -34,6 +34,11 @@ using std::string;
 // To view the debug messages ./traffic_server -T "async_http_fetch_example.*"
 #define TAG "async_http_fetch_example"
 
+namespace
+{
+GlobalPlugin *plugin;
+}
+
 class Intercept : public InterceptPlugin, public AsyncReceiver<AsyncHttpFetch>
 {
 public:
@@ -75,7 +80,7 @@ void
 TSPluginInit(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
 {
   RegisterGlobalPlugin("CPP_Example_AsyncHttpFetchStreaming", "apache", "dev@trafficserver.apache.org");
-  new InterceptInstaller();
+  plugin = new InterceptInstaller();
 }
 
 void

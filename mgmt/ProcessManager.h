@@ -68,7 +68,7 @@ public:
   void
   stop()
   {
-    mgmt_log(stderr, "[ProcessManager::stop] Bringing down connection\n");
+    mgmt_log("[ProcessManager::stop] Bringing down connection\n");
     close_socket(local_manager_sockfd);
   }
 
@@ -103,6 +103,7 @@ private:
   static const int MAX_MSGS_IN_A_ROW = 10000;
 
   ConfigUpdateCbTable *cbtable;
+  int max_msgs_in_a_row;
 }; /* End class ProcessManager */
 
 inkcoreapi extern ProcessManager *pmgmt;

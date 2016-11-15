@@ -40,14 +40,16 @@ TSCont gNocacheCont;
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Note that all options for all policies has to go here. Not particularly pretty...
 //
-static const struct option longopt[] = {{const_cast<char *>("policy"), required_argument, NULL, 'p'},
-                                        // This is for both Chance and LRU (optional) policy
-                                        {const_cast<char *>("sample"), required_argument, NULL, 's'},
-                                        // For the LRU policy
-                                        {const_cast<char *>("buckets"), required_argument, NULL, 'b'},
-                                        {const_cast<char *>("hits"), required_argument, NULL, 'h'},
-                                        // EOF
-                                        {NULL, no_argument, NULL, '\0'}};
+static const struct option longopt[] = {
+  {const_cast<char *>("policy"), required_argument, NULL, 'p'},
+  // This is for both Chance and LRU (optional) policy
+  {const_cast<char *>("sample"), required_argument, NULL, 's'},
+  // For the LRU policy
+  {const_cast<char *>("buckets"), required_argument, NULL, 'b'},
+  {const_cast<char *>("hits"), required_argument, NULL, 'h'},
+  // EOF
+  {NULL, no_argument, NULL, '\0'},
+};
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Abstract base class for all policies.
@@ -349,7 +351,6 @@ public:
   bool
   factory(int argc, char *argv[])
   {
-    optind = 0;
     while (true) {
       int opt = getopt_long(argc, (char *const *)argv, "psbh", longopt, NULL);
 
@@ -425,7 +426,7 @@ cont_handle_policy(TSCont contp, TSEvent event, void *edata)
   switch (event) {
   // Main HOOK
   case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE:
-    if (TS_SUCCESS != TSHttpTxnIsInternal(txnp)) {
+    if (!TSHttpTxnIsInternal(txnp)) {
       int obj_status;
 
       if (TS_ERROR != TSHttpTxnCacheLookupStatusGet(txnp, &obj_status)) {

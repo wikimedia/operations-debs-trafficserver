@@ -43,7 +43,6 @@ Allocator hdrHeapAllocator("hdrHeap", HDR_HEAP_DEFAULT_SIZE);
 static HdrHeap proto_heap;
 
 Allocator strHeapAllocator("hdrStrHeap", HDR_STR_HEAP_DEFAULT_SIZE);
-static HdrStrHeap str_proto_heap;
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -99,13 +98,13 @@ HdrHeap::init()
   // We need to clear m_ptr directly since it's garbage and
   //  using the operator functions will to free() what ever
   //  garbage it is pointing to
-  m_read_write_heap.m_ptr = NULL;
+  m_read_write_heap.detach();
 
   for (int i = 0; i < HDR_BUF_RONLY_HEAPS; i++) {
-    m_ronly_heap[i].m_heap_start          = NULL;
-    m_ronly_heap[i].m_ref_count_ptr.m_ptr = NULL;
-    m_ronly_heap[i].m_locked              = false;
-    m_ronly_heap[i].m_heap_len            = 0;
+    m_ronly_heap[i].m_heap_start = NULL;
+    m_ronly_heap[i].m_ref_count_ptr.detach();
+    m_ronly_heap[i].m_locked   = false;
+    m_ronly_heap[i].m_heap_len = 0;
   }
   m_lost_string_space = 0;
 
@@ -155,13 +154,14 @@ new_HdrStrHeap(int requested_size)
 
   //    Debug("hdrs", "Allocated string heap in size %d", alloc_size);
 
-  // Patch virtual function table ptr
-  *((void **)sh) = *((void **)&str_proto_heap);
+  // Placement new the HdrStrHeap.
+  sh = new (sh) HdrStrHeap();
 
   sh->m_heap_size  = alloc_size;
   sh->m_free_size  = alloc_size - STR_HEAP_HDR_SIZE;
   sh->m_free_start = ((char *)sh) + STR_HEAP_HDR_SIZE;
-  sh->m_refcount   = 0;
+
+  ink_assert(sh->refcount() == 0);
 
   ink_assert(sh->m_free_size > 0);
 
@@ -176,8 +176,9 @@ HdrHeap::destroy()
   }
 
   m_read_write_heap = NULL;
-  for (int i                        = 0; i < HDR_BUF_RONLY_HEAPS; i++)
+  for (int i = 0; i < HDR_BUF_RONLY_HEAPS; i++) {
     m_ronly_heap[i].m_ref_count_ptr = NULL;
+  }
 
   if (m_size == HDR_HEAP_DEFAULT_SIZE) {
     THREAD_FREE(this, hdrHeapAllocator, this_thread());
@@ -296,8 +297,9 @@ FAILED:
 char *
 HdrHeap::expand_str(const char *old_str, int old_len, int new_len)
 {
-  if (m_read_write_heap && m_read_write_heap->contains(old_str))
+  if (m_read_write_heap && m_read_write_heap->contains(old_str)) {
     return m_read_write_heap->expand((char *)old_str, old_len, new_len);
+  }
 
   return NULL;
 }
@@ -331,8 +333,8 @@ HdrHeap::demote_rw_str_heap()
   for (int i = 0; i < HDR_BUF_RONLY_HEAPS; i++) {
     if (m_ronly_heap[i].m_heap_start == NULL) {
       // We've found a slot
-      m_ronly_heap[i].m_ref_count_ptr = m_read_write_heap;
-      m_ronly_heap[i].m_heap_start    = (char *)m_read_write_heap.m_ptr;
+      m_ronly_heap[i].m_ref_count_ptr = m_read_write_heap.object();
+      m_ronly_heap[i].m_heap_start    = (char *)m_read_write_heap.get();
       m_ronly_heap[i].m_heap_len      = m_read_write_heap->m_heap_size - m_read_write_heap->m_free_size;
 
       //          Debug("hdrs", "Demoted rw heap of %d size", m_read_write_heap->m_heap_size);
@@ -478,7 +480,7 @@ HdrHeap::sanity_check_strs()
 
   // Build up a string check table
   if (m_read_write_heap) {
-    heaps[num_heaps].start = ((char *)m_read_write_heap.m_ptr) + sizeof(HdrStrHeap);
+    heaps[num_heaps].start = ((char *)m_read_write_heap.get()) + sizeof(HdrStrHeap);
 
     int heap_size = m_read_write_heap->m_heap_size - (sizeof(HdrStrHeap) + m_read_write_heap->m_free_size);
 
@@ -661,22 +663,23 @@ HdrHeap::marshal(char *buf, int len)
 
   // Now that we've got the pointer blocks marshaled
   //  we can fill in the header on marshalled block
-  marshal_hdr->m_free_start            = NULL;
-  marshal_hdr->m_data_start            = (char *)HDR_HEAP_HDR_SIZE; // offset
-  marshal_hdr->m_magic                 = HDR_BUF_MAGIC_MARSHALED;
-  marshal_hdr->m_writeable             = false;
-  marshal_hdr->m_size                  = ptr_heap_size + HDR_HEAP_HDR_SIZE;
-  marshal_hdr->m_next                  = NULL;
-  marshal_hdr->m_free_size             = 0;
-  marshal_hdr->m_read_write_heap.m_ptr = NULL;
-  marshal_hdr->m_lost_string_space     = this->m_lost_string_space;
+  marshal_hdr->m_free_start = NULL;
+  marshal_hdr->m_data_start = (char *)HDR_HEAP_HDR_SIZE; // offset
+  marshal_hdr->m_magic      = HDR_BUF_MAGIC_MARSHALED;
+  marshal_hdr->m_writeable  = false;
+  marshal_hdr->m_size       = ptr_heap_size + HDR_HEAP_HDR_SIZE;
+  marshal_hdr->m_next       = NULL;
+  marshal_hdr->m_free_size  = 0;
+  marshal_hdr->m_read_write_heap.detach();
+  marshal_hdr->m_lost_string_space = this->m_lost_string_space;
 
   // We'have one read-only string heap after marshalling
-  marshal_hdr->m_ronly_heap[0].m_heap_start          = (char *)(intptr_t)marshal_hdr->m_size; // offset
-  marshal_hdr->m_ronly_heap[0].m_ref_count_ptr.m_ptr = NULL;
+  marshal_hdr->m_ronly_heap[0].m_heap_start = (char *)(intptr_t)marshal_hdr->m_size; // offset
+  marshal_hdr->m_ronly_heap[0].m_ref_count_ptr.detach();
 
-  for (int i                                  = 1; i < HDR_BUF_RONLY_HEAPS; i++)
+  for (int i = 1; i < HDR_BUF_RONLY_HEAPS; i++) {
     marshal_hdr->m_ronly_heap[i].m_heap_start = NULL;
+  }
 
   // Next order of business is to copy over string heaps
   //   As we are copying over the string heaps, build
@@ -690,7 +693,7 @@ HdrHeap::marshal(char *buf, int len)
   MarshalXlate str_xlation[HDR_BUF_RONLY_HEAPS + 1];
 
   if (m_read_write_heap) {
-    char *copy_start = ((char *)m_read_write_heap.m_ptr) + sizeof(HdrStrHeap);
+    char *copy_start = ((char *)m_read_write_heap.get()) + sizeof(HdrStrHeap);
     int nto_copy     = m_read_write_heap->m_heap_size - (sizeof(HdrStrHeap) + m_read_write_heap->m_free_size);
 
     if (nto_copy > len) {
@@ -903,7 +906,7 @@ HdrHeap::unmarshal(int buf_length, int obj_type, HdrHeapObjImpl **found_obj, Ref
   m_free_start                 = ((char *)this) + m_size;
   m_ronly_heap[0].m_heap_start = ((char *)this) + (intptr_t)m_ronly_heap[0].m_heap_start;
 
-  // Crazy Invarient - If we are sitting in a ref counted block,
+  // Crazy Invariant - If we are sitting in a ref counted block,
   //   the HdrHeap lifetime is externally determined.  Whoever
   //   unmarshalls us should keep the block around as long as
   //   they want to use the header.  However, the strings can
@@ -914,8 +917,9 @@ HdrHeap::unmarshal(int buf_length, int obj_type, HdrHeapObjImpl **found_obj, Ref
   //   the lifetime is explicit but copies will increase
   //   the refcount
   if (block_ref) {
-    m_ronly_heap[0].m_ref_count_ptr.m_ptr = block_ref;
+    m_ronly_heap[0].m_ref_count_ptr.swizzle(block_ref);
   }
+
   // Loop over objects and swizzle there pointer to
   //  live offsets
   char *obj_data  = m_data_start;
@@ -961,25 +965,26 @@ HdrHeap::unmarshal(int buf_length, int obj_type, HdrHeapObjImpl **found_obj, Ref
   return unmarshal_size;
 }
 
-inline int
+inline bool
 HdrHeap::attach_str_heap(char *h_start, int h_len, RefCountObj *h_ref_obj, int *index)
 {
   if (*index >= HDR_BUF_RONLY_HEAPS) {
-    return 0;
+    return false;
   }
 
   // Loop over existing entries to see if this one is already present
   for (int z = 0; z < *index; z++) {
     if (m_ronly_heap[z].m_heap_start == h_start) {
-      ink_assert(m_ronly_heap[z].m_ref_count_ptr._ptr() == h_ref_obj);
+      ink_assert(m_ronly_heap[z].m_ref_count_ptr.object() == h_ref_obj);
 
       // The lengths could be different because our copy could be
       //   read-only and the copy we are attaching from could be
       //   read-write and have expanded since the last time
       //   to was attached
-      if (h_len > m_ronly_heap[z].m_heap_len)
+      if (h_len > m_ronly_heap[z].m_heap_len) {
         m_ronly_heap[z].m_heap_len = h_len;
-      return 1;
+      }
+      return true;
     }
   }
 
@@ -989,7 +994,7 @@ HdrHeap::attach_str_heap(char *h_start, int h_len, RefCountObj *h_ref_obj, int *
   m_ronly_heap[*index].m_locked        = false;
   *index                               = *index + 1;
 
-  return 1;
+  return true;
 }
 
 // void HdrHeap::inhertit_string_heaps(const HdrHeap* inherit_from)
@@ -1001,10 +1006,11 @@ void
 HdrHeap::inherit_string_heaps(const HdrHeap *inherit_from)
 {
   // if heaps are the same, this is a no-op
-  if (inherit_from == (const HdrHeap *)this)
+  if (inherit_from == (const HdrHeap *)this) {
     return;
+  }
 
-  int index, result;
+  int index;
   int first_free       = HDR_BUF_RONLY_HEAPS; // default is out of array bounds
   int free_slots       = 0;
   int inherit_str_size = 0;
@@ -1054,16 +1060,14 @@ HdrHeap::inherit_string_heaps(const HdrHeap *inherit_from)
     if (inherit_from->m_read_write_heap) {
       int str_size =
         inherit_from->m_read_write_heap->m_heap_size - STR_HEAP_HDR_SIZE - inherit_from->m_read_write_heap->m_free_size;
-      result = attach_str_heap(((char *)inherit_from->m_read_write_heap.m_ptr) + STR_HEAP_HDR_SIZE, str_size,
-                               inherit_from->m_read_write_heap, &first_free);
-      ink_release_assert(result != 0);
+      ink_release_assert(attach_str_heap(((char *)inherit_from->m_read_write_heap.get()) + STR_HEAP_HDR_SIZE, str_size,
+                                         inherit_from->m_read_write_heap.get(), &first_free));
     }
     // Copy over read only string heaps
     for (int i = 0; i < HDR_BUF_RONLY_HEAPS; i++) {
       if (inherit_from->m_ronly_heap[i].m_heap_start) {
-        result = attach_str_heap(inherit_from->m_ronly_heap[i].m_heap_start, inherit_from->m_ronly_heap[i].m_heap_len,
-                                 inherit_from->m_ronly_heap[i].m_ref_count_ptr.m_ptr, &first_free);
-        ink_release_assert(result != 0);
+        ink_release_assert(attach_str_heap(inherit_from->m_ronly_heap[i].m_heap_start, inherit_from->m_ronly_heap[i].m_heap_len,
+                                           inherit_from->m_ronly_heap[i].m_ref_count_ptr.get(), &first_free));
       }
     }
 
@@ -1200,7 +1204,7 @@ REGRESSION_TEST(HdrHeap_Coalesce)(RegressionTest *t, int /* atype ATS_UNUSED */,
   HdrHeap *heap = new_HdrHeap();
   URLImpl *url  = url_create(heap);
 
-  tb.check(heap->m_read_write_heap.m_ptr == NULL, "Checking that we have no rw heap.");
+  tb.check(heap->m_read_write_heap.get() == NULL, "Checking that we have no rw heap.");
   url_path_set(heap, url, buf, next_required_overflow_size, true);
   tb.check(heap->m_read_write_heap->m_free_size == 0, "Checking that we've completely consumed the rw heap");
   for (int i = 0; i < HDR_BUF_RONLY_HEAPS; ++i) {
@@ -1237,7 +1241,7 @@ REGRESSION_TEST(HdrHeap_Coalesce)(RegressionTest *t, int /* atype ATS_UNUSED */,
   // Now if we add a url object that contains only non-copied strings it shouldn't affect the size of the rwheap
   // since it doesn't require allocating any storage on this heap.
   char buf3[next_required_overflow_size];
-  for (unsigned int i = 0; i < sizeof(buf); ++i) {
+  for (unsigned int i = 0; i < sizeof(buf3); ++i) {
     buf3[i] = ('a' + (i % 26));
   }
 

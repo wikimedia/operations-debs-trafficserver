@@ -103,8 +103,9 @@ public:
   void
   release()
   {
-    if (1 >= ink_atomic_decrement(&_ref_count, 1))
+    if (1 >= ink_atomic_decrement(&_ref_count, 1)) {
       delete this;
+    }
   }
 
 private:
@@ -129,7 +130,7 @@ bool
 RulesConfig::add_rule(RuleSet *rule)
 {
   if (rule && rule->has_operator()) {
-    TSDebug(PLUGIN_NAME_DBG, "   Adding rule to hook=%s\n", TSHttpHookNameLookup(rule->get_hook()));
+    TSDebug(PLUGIN_NAME_DBG, "   Adding rule to hook=%s", TSHttpHookNameLookup(rule->get_hook()));
     if (NULL == _rules[rule->get_hook()]) {
       _rules[rule->get_hook()] = rule;
     } else {
@@ -202,37 +203,42 @@ RulesConfig::parse_config(const std::string fname, TSHttpHookID default_hook)
       rule = NULL;
     }
 
+    TSHttpHookID hook = default_hook;
+    bool is_hook      = p.cond_is_hook(hook); // This updates the hook if explicitly set, if not leaves at default
+
     if (NULL == rule) {
       rule = new RuleSet();
-      rule->set_hook(default_hook);
+      rule->set_hook(hook);
 
-      // Special case for specifying the HOOK this rule applies to.
-      // These can only be at the beginning of a rule, and have an implicit [AND].
-      if (p.cond_op_is("READ_RESPONSE_HDR_HOOK")) {
-        rule->set_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
+      if (is_hook) {
+        // Check if the hooks are not available for the remap mode
+        if ((default_hook == TS_REMAP_PSEUDO_HOOK) &&
+            ((TS_HTTP_READ_REQUEST_HDR_HOOK == hook) || (TS_HTTP_PRE_REMAP_HOOK == hook))) {
+          TSError("[%s] you can not use cond %%{%s} in a remap rule", PLUGIN_NAME, p.get_op().c_str());
+          delete rule;
+          return false;
+        }
         continue;
-      } else if (p.cond_op_is("READ_REQUEST_HDR_HOOK")) {
-        rule->set_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
-        continue;
-      } else if (p.cond_op_is("READ_REQUEST_PRE_REMAP_HOOK")) {
-        rule->set_hook(TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK);
-        continue;
-      } else if (p.cond_op_is("SEND_REQUEST_HDR_HOOK")) {
-        rule->set_hook(TS_HTTP_SEND_REQUEST_HDR_HOOK);
-        continue;
-      } else if (p.cond_op_is("SEND_RESPONSE_HDR_HOOK")) {
-        rule->set_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
-        continue;
-      } else if (p.cond_op_is("REMAP_PSEUDO_HOOK")) {
-        rule->set_hook(TS_REMAP_PSEUDO_HOOK);
-        continue;
+      }
+    } else {
+      if (is_hook) {
+        TSError("[%s] cond %%{%s} at %s:%d should be the first hook condition in the rule set and each rule set should contain "
+                "only one hook condition",
+                PLUGIN_NAME, p.get_op().c_str(), fname.c_str(), lineno);
+        return false;
       }
     }
 
     if (p.is_cond()) {
-      rule->add_condition(p);
+      if (!rule->add_condition(p, filename.c_str(), lineno)) {
+        delete rule;
+        return false;
+      }
     } else {
-      rule->add_operator(p);
+      if (!rule->add_operator(p, filename.c_str(), lineno)) {
+        delete rule;
+        return false;
+      }
     }
   }
 
@@ -267,7 +273,7 @@ cont_rewrite_headers(TSCont contp, TSEvent event, void *edata)
     hook = TS_HTTP_READ_REQUEST_HDR_HOOK;
     break;
   case TS_EVENT_HTTP_READ_REQUEST_PRE_REMAP:
-    hook = TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK;
+    hook = TS_HTTP_PRE_REMAP_HOOK;
     break;
   case TS_EVENT_HTTP_SEND_REQUEST_HDR:
     hook = TS_HTTP_SEND_REQUEST_HDR_HOOK;
@@ -356,7 +362,7 @@ TSPluginInit(int argc, const char *argv[])
     }
   } else {
     // Didn't get anything, nuke it.
-    TSError("[%s] failed to parse configuration file", PLUGIN_NAME);
+    TSError("[%s] failed to parse any configuration file", PLUGIN_NAME);
     conf->release();
   }
 }

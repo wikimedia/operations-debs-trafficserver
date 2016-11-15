@@ -170,13 +170,13 @@ drainIncomingChannel(void *arg)
       socklen_t clilen = sizeof(cli_addr);
       int req_fd       = mgmt_accept(ccom->reliable_server_fd, (struct sockaddr *)&cli_addr, &clilen);
       if (req_fd < 0) {
-        mgmt_elog(stderr, errno, "[drainIncomingChannel] error accepting "
-                                 "reliable connection\n");
+        mgmt_elog(errno, "[drainIncomingChannel] error accepting "
+                         "reliable connection\n");
         continue;
       }
       if (fcntl(req_fd, F_SETFD, 1) < 0) {
-        mgmt_elog(stderr, errno, "[drainIncomingChannel] Unable to set close "
-                                 "on exec flag\n");
+        mgmt_elog(errno, "[drainIncomingChannel] Unable to set close "
+                         "on exec flag\n");
         close(req_fd);
         continue;
       }
@@ -275,9 +275,9 @@ drainIncomingChannel(void *arg)
             bytes_written        = write_socket(req_fd, buff->bufPtr(), strlen(buff->bufPtr()));
             if (bytes_written != strlen(buff->bufPtr())) {
               stat = false;
-              mgmt_log(stderr, "[drainIncomingChannel] Failed file req: %s v: %d\n", fname, ver);
+              mgmt_log("[drainIncomingChannel] Failed file req: %s v: %d\n", fname, ver);
             } else {
-              Debug("ccom", "[drainIncomingChannel] file req: %s v: %d bytes: %d\n", fname, ver, (int)strlen(buff->bufPtr()));
+              Debug("ccom", "[drainIncomingChannel] file req: %s v: %d bytes: %d", fname, ver, (int)strlen(buff->bufPtr()));
             }
           } else {
             mgmt_elog(0, "[drainIncomingChannel] Error file req: %s ver: %d\n", fname, ver);
@@ -287,8 +287,9 @@ drainIncomingChannel(void *arg)
             const char *msg = "file: failed";
             mgmt_writeline(req_fd, msg, strlen(msg));
           }
-          if (buff)
+          if (buff) {
             delete buff;
+          }
         } else if (strstr(message, "cmd: shutdown_manager")) {
           mgmt_log("[ClusterCom::drainIncomingChannel] Received manager shutdown request\n");
           lmgmt->mgmt_shutdown_outstanding = MGMT_PENDING_RESTART;
@@ -352,7 +353,7 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int mcport, char *group, i
 
   init = false;
   if (strlen(host) >= 1024) {
-    mgmt_fatal(stderr, 0, "[ClusterCom::ClusterCom] Hostname too large: %s\n", host);
+    mgmt_fatal(0, "[ClusterCom::ClusterCom] Hostname too large: %s\n", host);
   }
   // the constructor does a memset() on broadcast_addr and receive_addr, initializing them
   // coverity[uninit_member]
@@ -363,26 +364,8 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int mcport, char *group, i
   our_ip = oip;
 
   /* Get the cluster type */
-  cluster_type = CLUSTER_INVALID;
-  RecInt rec_int;
+  cluster_type = NO_CLUSTER;
 
-  rec_err      = RecGetRecordInt("proxy.local.cluster.type", &rec_int);
-  cluster_type = (MgmtClusterType)rec_int;
-  found        = (rec_err == REC_ERR_OKAY);
-  ink_assert(found);
-
-  switch (cluster_type) {
-  case FULL_CLUSTER:
-  case MGMT_CLUSTER:
-  case NO_CLUSTER:
-    break;
-  case CLUSTER_INVALID:
-  default:
-    mgmt_log(stderr, "[ClusterCom::ClusterCom] Invalid cluster type.  "
-                     "Defaulting to full clustering\n");
-    cluster_type = FULL_CLUSTER;
-    break;
-  }
   /* Get the cluster config file name + path */
   RecString cluster_file;
 
@@ -390,11 +373,11 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int mcport, char *group, i
   found   = (rec_err == REC_ERR_OKAY);
 
   if (!found) {
-    mgmt_fatal(stderr, 0, "[ClusterCom::ClusterCom] no cluster_configuration filename configured\n");
+    mgmt_fatal(0, "[ClusterCom::ClusterCom] no cluster_configuration filename configured\n");
   }
 
   if (strlen(p) + strlen(cluster_file) >= 1024) {
-    mgmt_fatal(stderr, 0, "[ClusterCom::ClusterCom] path + filename too large\n");
+    mgmt_fatal(0, "[ClusterCom::ClusterCom] path + filename too large\n");
   }
   // XXX: This allows to have absolute config cluster_configuration directive.
   //      If that file must be inside config directory (p) use
@@ -420,7 +403,7 @@ ClusterCom::ClusterCom(unsigned long oip, char *host, int mcport, char *group, i
   RecRegisterConfigUpdateCb("proxy.config.cluster.cluster_port", cluster_com_port_watcher, NULL);
 
   if (!(strlen(group) < (MAX_MC_GROUP_LEN - 1))) {
-    mgmt_fatal(stderr, 0, "[ClusterCom::ClusterCom] mc group length too large!\n");
+    mgmt_fatal(0, "[ClusterCom::ClusterCom] mc group length too large!\n");
   }
 
   ink_strlcpy(mc_group, group, sizeof(mc_group));
@@ -485,8 +468,9 @@ ClusterCom::checkPeers(time_t *ticker)
   // a hack, but it helps break the dependency on global FileManager in traffic_manager.
   cluster_file_rb->configFiles = configFiles;
 
-  if (cluster_type == NO_CLUSTER)
+  if (cluster_type == NO_CLUSTER) {
     return;
+  }
 
   if ((t - *ticker) > 5) {
     int num_peers = 0;
@@ -510,14 +494,14 @@ ClusterCom::checkPeers(time_t *ticker)
 
         ink_strlcpy(cip, inet_ntoa(addr), sizeof(cip));
 
-        Debug("ccom", "[ClusterCom::checkPeers] DEAD! %s idle since: %ld naddrs: %d\n", cip, idle_since, tmp->num_virt_addrs);
+        Debug("ccom", "[ClusterCom::checkPeers] DEAD! %s idle since: %ld naddrs: %d", cip, idle_since, tmp->num_virt_addrs);
 
         if ((idle_since = t - tmp->manager_idle_ticks) > peer_timeout) {
           if (tmp->manager_alive > 0) {
             Note("marking manager on node %s as down", cip);
           }
           tmp->manager_alive = -1;
-          Debug("ccom", "[ClusterCom::checkPeers] Manager DEAD! %s idle since: %ld\n", cip, idle_since);
+          Debug("ccom", "[ClusterCom::checkPeers] Manager DEAD! %s idle since: %ld", cip, idle_since);
         }
 
         if (tmp->num_virt_addrs >= 0) {
@@ -663,8 +647,9 @@ ClusterCom::generateClusterDelta(void)
   InkHashTableEntry *entry;
   InkHashTableIteratorState iterator_state;
 
-  if (cluster_type == NO_CLUSTER)
+  if (cluster_type == NO_CLUSTER) {
     return;
+  }
 
   ink_mutex_acquire(&(mutex));
   for (entry = ink_hash_table_iterator_first(peers, &iterator_state); entry != NULL;
@@ -712,12 +697,14 @@ ClusterCom::handleMultiCastMessage(char *message)
 
   /* Grab the ip address, we need to know this so that we only complain
      once about a cluster name or traffic server version mismatch */
-  if ((line = strtok_r(message, "\n", &last)) == NULL)
+  if ((line = strtok_r(message, "\n", &last)) == NULL) {
     goto Lbogus; /* IP of sender */
+  }
 
   // coverity[secure_coding]
-  if (strlen(line) >= sizeof(ip) || sscanf(line, "ip: %s", ip) != 1)
+  if (strlen(line) >= sizeof(ip) || sscanf(line, "ip: %s", ip) != 1) {
     goto Lbogus;
+  }
 
   // FIX THIS: elam 02/23/1999
   //   Loopback disable is currently not working on NT.
@@ -727,12 +714,14 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Make sure this is a message for the cluster we belong to */
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* ClusterName of sender */
+  }
 
   // coverity[secure_coding]
-  if (strlen(line) >= sizeof(cluster_name) || sscanf(line, "cluster: %s", cluster_name) != 1)
+  if (strlen(line) >= sizeof(cluster_name) || sscanf(line, "cluster: %s", cluster_name) != 1) {
     goto Lbogus;
+  }
 
   if (strcmp(cluster_name, lmgmt->proxy_name) != 0) {
     logClusterMismatch(ip, TS_NAME_MISMATCH, cluster_name);
@@ -740,8 +729,9 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Make sure this a message from a Traffic Server of the same version */
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* TS version of sender */
+  }
 
   // coverity[secure_coding]
   if (strlen(line) >= sizeof(tsver) || sscanf(line, "tsver: %s", tsver) != 1 || strcmp(line + 7, appVersionInfo.VersionStr) != 0) {
@@ -750,8 +740,9 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Figure out what type of message this is */
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus;
+  }
   if (strcmp("type: files", line) == 0) { /* Config Files report */
     handleMultiCastFilePacket(last, ip);
     return;
@@ -769,8 +760,9 @@ ClusterCom::handleMultiCastMessage(char *message)
   }
 
   /* Check OS and version info */
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* OS of sender */
+  }
   if (!strstr(line, "os: ") || !strstr(line, sys_name)) {
     /*
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
@@ -782,8 +774,9 @@ ClusterCom::handleMultiCastMessage(char *message)
           line, sys_name, sys_release);
   }
 
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* OS-Version of sender */
+  }
   if (!strstr(line, "rel: ") || !strstr(line, sys_release)) {
     /*
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_PROXY_SYSTEM_ERROR,
@@ -795,30 +788,34 @@ ClusterCom::handleMultiCastMessage(char *message)
           line, sys_name, sys_release);
   }
 
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* Hostname of sender */
+  }
   if (strlen(line) >= sizeof(hostname) || sscanf(line, "hostname: %s", hostname) != 1) {
     mgmt_elog(0, "[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
     return;
   }
 
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* mc_port of sender */
+  }
   if (sscanf(line, "port: %d", &peer_cluster_port) != 1) {
     mgmt_elog(0, "[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
     return;
   }
 
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus; /* rs_port of sender */
+  }
   if (sscanf(line, "ccomport: %d", &ccom_port) != 1) {
     mgmt_elog(0, "[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
     return;
   }
 
   /* Their wall clock time and last config change time */
-  if ((line = strtok_r(NULL, "\n", &last)) == NULL)
+  if ((line = strtok_r(NULL, "\n", &last)) == NULL) {
     goto Lbogus;
+  }
   int64_t tt;
   if (sscanf(line, "time: %" PRId64 "", &tt) != 1) {
     mgmt_elog(0, "[ClusterCom::handleMultiCastMessage] Invalid message-line(%d) '%s'\n", __LINE__, line);
@@ -889,7 +886,7 @@ Lbogus:
   if (log_bogus_mc_msgs) {
     mgmt_elog(0, "[ClusterCom::handleMultiCastMessage] Bogus mc message-line\n");
     if (line) {
-      Debug("ccom", "[ClusterCom::handleMultiCastMessage] Bogus mc message-line %s\n", line);
+      Debug("ccom", "[ClusterCom::handleMultiCastMessage] Bogus mc message-line %s", line);
     }
     return;
   }
@@ -926,8 +923,9 @@ ClusterCom::handleMultiCastStatPacket(char *last, ClusterPeerInfo *peer)
       if (v2) {
         tmp_type = (RecDataT)ink_atoi(v2 + 1);
         v3       = strchr(v2 + 1, ':');
-        if (v3)
+        if (v3) {
           tmp_msg_val = ink_atoi64(v3 + 1);
+        }
       }
       if (!v2 || !v3) {
         mgmt_elog(0, "[ClusterCom::handleMultiCastStatPacket] Invalid message-line(%d) '%s'\n", __LINE__, line);
@@ -1007,16 +1005,19 @@ bool
 scan_and_terminate(char *&p, char a, char b)
 {
   bool eob = false; // 'eob' is end-of-buffer
-  while ((*p != a) && (*p != b) && (*p != '\0'))
+  while ((*p != a) && (*p != b) && (*p != '\0')) {
     p++;
+  }
   if (*p == '\0') {
     eob = true;
   } else {
     *(p++) = '\0';
-    while ((*p == a) || ((*p == b) && (*p != '\0')))
+    while ((*p == a) || ((*p == b) && (*p != '\0'))) {
       p++;
-    if (*p == '\0')
+    }
+    if (*p == '\0') {
       eob = true;
+    }
   }
   return eob;
 }
@@ -1030,18 +1031,20 @@ extract_locals(MgmtHashTable *local_ht, char *record_buffer)
   for (eof = false; !eof;) {
     line = q = p;
     eof      = scan_and_terminate(p, '\r', '\n');
-    Debug("ccom_rec", "[extract_locals] %s\n", line);
-    while ((*q == ' ') || (*q == '\t'))
+    Debug("ccom_rec", "[extract_locals] %s", line);
+    while ((*q == ' ') || (*q == '\t')) {
       q++;
+    }
     // is this line a LOCAL?
     if (strncmp(q, "LOCAL", strlen("LOCAL")) == 0) {
       line_cp = ats_strdup(line);
       q += strlen("LOCAL");
-      while ((*q == ' ') || (*q == '\t'))
+      while ((*q == ' ') || (*q == '\t')) {
         q++;
+      }
       name = q;
       if (scan_and_terminate(q, ' ', '\t')) {
-        Debug("ccom_rec", "[extract_locals] malformed line: %s\n", name);
+        Debug("ccom_rec", "[extract_locals] malformed line: %s", name);
         ats_free(line_cp);
         continue;
       }
@@ -1062,17 +1065,19 @@ insert_locals(textBuffer *rec_cfg_new, textBuffer *rec_cfg, MgmtHashTable *local
   for (eof = false; !eof;) {
     line = q = p;
     eof      = scan_and_terminate(p, '\r', '\n');
-    Debug("ccom_rec", "[insert_locals] %s\n", line);
-    while ((*q == ' ') || (*q == '\t'))
+    Debug("ccom_rec", "[insert_locals] %s", line);
+    while ((*q == ' ') || (*q == '\t')) {
       q++;
+    }
     // is this line a local?
     if (strncmp(q, "LOCAL", strlen("LOCAL")) == 0) {
       q += strlen("LOCAL");
-      while ((*q == ' ') || (*q == '\t'))
+      while ((*q == ' ') || (*q == '\t')) {
         q++;
+      }
       name = q;
       if (scan_and_terminate(q, ' ', '\t')) {
-        Debug("ccom_rec", "[insert_locals] malformed line: %s\n", name);
+        Debug("ccom_rec", "[insert_locals] malformed line: %s", name);
         continue;
       }
       if (local_ht->mgmt_hash_table_lookup(name, (void **)&line)) {
@@ -1200,8 +1205,8 @@ ClusterCom::handleMultiCastFilePacket(char *last, char *ip)
         if (file_update_failure) {
           mgmt_elog(0, "[ClusterCom::handleMultiCastFilePacket] Update failed\n");
         } else {
-          mgmt_log(stderr, "[ClusterCom::handleMultiCastFilePacket] "
-                           "Updated '%s' o: %d n: %d\n",
+          mgmt_log("[ClusterCom::handleMultiCastFilePacket] "
+                   "Updated '%s' o: %d n: %d\n",
                    file, our_ver, ver);
         }
 
@@ -1255,7 +1260,7 @@ ClusterCom::handleMultiCastAlarmPacket(char *last, char *ip)
 
     /* Signalling will only re-issue if new */
     lmgmt->alarm_keeper->signalAlarm(a, desc, ip);
-    Debug("ccom", "[ClusterCom::handleMultiCastAlarmPacket] Alarm: ip: '%s' '%s'\n", ip, line);
+    Debug("ccom", "[ClusterCom::handleMultiCastAlarmPacket] Alarm: ip: '%s' '%s'", ip, line);
   }
   lmgmt->alarm_keeper->clearUnSeen(ip); /* Purge expired alarms */
   return;
@@ -1436,7 +1441,7 @@ ClusterCom::constructSharedGenericPacket(char *message, int max, RecT packet_typ
     ink_strlcpy(&message[running_sum], tmp, (max - running_sum));
     running_sum += strlen(tmp);
   } else {
-    mgmt_elog(stderr, errno, "[ClusterCom::constructSharedPacket] time failed\n");
+    mgmt_elog(errno, "[ClusterCom::constructSharedPacket] time failed\n");
   }
   ink_release_assert(running_sum < max);
 
@@ -1620,7 +1625,7 @@ ClusterCom::establishChannels()
     }
   }
 
-  Debug("ccom", "[ClusterCom::establishChannels] Channels setup\n");
+  Debug("ccom", "[ClusterCom::establishChannels] Channels setup");
   init = true;
   return;
 }
@@ -1780,7 +1785,7 @@ ClusterCom::sendClusterMessage(int msg_type, const char *args)
     }
     break;
   default:
-    mgmt_log(stderr, "[ClusterCom::sendClusterMessage] Invalid message type '%d'\n", msg_type);
+    mgmt_log("[ClusterCom::sendClusterMessage] Invalid message type '%d'\n", msg_type);
     return false;
   }
 
@@ -1871,7 +1876,7 @@ ClusterCom::rl_sendReliableMessage(unsigned long addr, const char *buf, int len)
   }
 
   if (mgmt_writeline(fd, buf, len) != 0) {
-    mgmt_elog(stderr, errno, "[ClusterCom::rl_sendReliableMessage] Write failed\n");
+    mgmt_elog(errno, "[ClusterCom::rl_sendReliableMessage] Write failed\n");
     close_socket(fd);
     return false;
   }
@@ -1945,7 +1950,7 @@ ClusterCom::sendReliableMessage(unsigned long addr, char *buf, int len, char *re
   }
 
   if (mgmt_readline(fd, reply, len2) == -1) {
-    mgmt_elog(stderr, errno, "[ClusterCom::sendReliableMessage] Read failed\n");
+    mgmt_elog(errno, "[ClusterCom::sendReliableMessage] Read failed\n");
     perror("ClusterCom::sendReliableMessage");
     reply[0] = '\0';
     if (take_lock) {
@@ -2014,7 +2019,7 @@ ClusterCom::sendReliableMessageReadTillClose(unsigned long addr, char *buf, int 
     close_socket(fd);
     return false;
   } else {
-    Debug("ccom", "[ClusterCom::sendReliableMessageREadTillClose] Sent '%s' len: %d on fd: %d\n", buf, len, fd);
+    Debug("ccom", "[ClusterCom::sendReliableMessageREadTillClose] Sent '%s' len: %d on fd: %d", buf, len, fd);
   }
 
   memset(tmp_reply, 0, 1024);
@@ -2050,7 +2055,7 @@ ClusterCom::receiveIncomingMessage(char *buf, int max)
   int nbytes = 0, addr_len = sizeof(receive_addr);
 
   if ((nbytes = recvfrom(receive_fd, buf, max, 0, (struct sockaddr *)&receive_addr, (socklen_t *)&addr_len)) < 0) {
-    mgmt_elog(stderr, errno, "[ClusterCom::receiveIncomingMessage] Receive failed\n");
+    mgmt_elog(errno, "[ClusterCom::receiveIncomingMessage] Receive failed\n");
   }
   return nbytes;
 } /* End ClusterCom::processIncomingMessages */
@@ -2145,13 +2150,13 @@ ClusterCom::logClusterMismatch(const char *ip, ClusterMismatch type, char *data)
   //   our hash table
   switch (type) {
   case TS_NAME_MISMATCH:
-    mgmt_log(stderr, "[ClusterCom::logClusterMismatch] Found node with ip %s.  Ignoring"
-                     " since it is part of cluster %s\n",
+    mgmt_log("[ClusterCom::logClusterMismatch] Found node with ip %s.  Ignoring"
+             " since it is part of cluster %s\n",
              ip, data);
     break;
   case TS_VER_MISMATCH:
-    mgmt_log(stderr, "[ClusterCom::logClusterMismatch] Found node with ip %s.  Ignoring"
-                     " since it is version %s (our version: %s)\n",
+    mgmt_log("[ClusterCom::logClusterMismatch] Found node with ip %s.  Ignoring"
+             " since it is version %s (our version: %s)\n",
              ip, data, appVersionInfo.VersionStr);
     break;
   default:

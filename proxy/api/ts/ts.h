@@ -89,6 +89,14 @@ tsapi const char *TSInstallDirGet(void);
 tsapi const char *TSConfigDirGet(void);
 
 /**
+    Gets the path of the directory of Traffic Server runtime.
+
+    @return pointer to Traffic Server runtime directory.
+
+ */
+tsapi const char *TSRuntimeDirGet(void);
+
+/**
     Gets the path of the plugin directory relative to the Traffic Server
     install directory. For example, to open the file "config_ui.txt" in
     the plugin directory:
@@ -153,7 +161,7 @@ int TSTrafficServerVersionGetPatch(void);
     @return TS_ERROR if the plugin registration failed.
 
  */
-tsapi TSReturnCode TSPluginRegister(TSPluginRegistrationInfo *plugin_info);
+tsapi TSReturnCode TSPluginRegister(const TSPluginRegistrationInfo *plugin_info);
 
 /* --------------------------------------------------------------------------
    Files */
@@ -1224,6 +1232,10 @@ tsapi TSSslConnection TSVConnSSLConnectionGet(TSVConn sslp);
 // Fetch a SSL context from the global lookup table
 tsapi TSSslContext TSSslContextFindByName(const char *name);
 tsapi TSSslContext TSSslContextFindByAddr(struct sockaddr const *);
+// Create a new SSL context based on the settings in records.config
+tsapi TSSslContext TSSslServerContextCreate(void);
+tsapi void TSSslContextDestroy(TSSslContext ctx);
+
 // Returns 1 if the sslp argument refers to a SSL connection
 tsapi int TSVConnIsSsl(TSVConn sslp);
 
@@ -1658,13 +1670,8 @@ tsapi void TSFetchUrl(const char *request, int request_len, struct sockaddr cons
 tsapi void TSFetchPages(TSFetchUrlParams_t *params);
 
 /* Check if HTTP State machine is internal or not */
-/** @deprecated to be renamed as TSHttpTxnIsInternal **/
-tsapi TS_DEPRECATED TSReturnCode TSHttpIsInternalRequest(TSHttpTxn txnp);
-/** @deprecated to be renamed as TSHttpSsnIsInternal **/
-tsapi TS_DEPRECATED TSReturnCode TSHttpIsInternalSession(TSHttpSsn ssnp);
-
-tsapi TSReturnCode TSHttpTxnIsInternal(TSHttpTxn txnp);
-tsapi TSReturnCode TSHttpSsnIsInternal(TSHttpSsn ssnp);
+tsapi int TSHttpTxnIsInternal(TSHttpTxn txnp);
+tsapi int TSHttpSsnIsInternal(TSHttpSsn ssnp);
 
 /* --------------------------------------------------------------------------
    HTTP alternate selection */
@@ -2325,6 +2332,9 @@ tsapi TSReturnCode TSHttpTxnCacheLookupUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TS
 tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
 tsapi int TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp);
 
+/* Get the Txn's (HttpSM's) unique identifier, which is a sequence number since server start) */
+tsapi uint64_t TSHttpTxnIdGet(TSHttpTxn txnp);
+
 /* Expose internal Base64 Encoding / Decoding */
 tsapi TSReturnCode TSBase64Decode(const char *str, size_t str_len, unsigned char *dst, size_t dst_size, size_t *length);
 tsapi TSReturnCode TSBase64Encode(const char *str, size_t str_len, char *dst, size_t dst_size, size_t *length);
@@ -2384,6 +2394,35 @@ tsapi const char *TSHttpHookNameLookup(TSHttpHookID hook);
    @return the string representation of the event
 */
 tsapi const char *TSHttpEventNameLookup(TSEvent event);
+
+/* APIs for dealing with UUIDs, either self made, or the system wide process UUID. See
+   https://docs.trafficserver.apache.org/en/latest/developer-guide/api/functions/TSUuidCreate.en.html
+*/
+tsapi TSUuid TSUuidCreate(void);
+tsapi TSReturnCode TSUuidInitialize(TSUuid uuid, TSUuidVersion v);
+tsapi void TSUuidDestroy(TSUuid uuid);
+tsapi TSReturnCode TSUuidCopy(TSUuid dest, const TSUuid src);
+tsapi const char *TSUuidStringGet(const TSUuid uuid);
+tsapi TSUuidVersion TSUuidVersionGet(const TSUuid uuid);
+tsapi TSReturnCode TSUuidStringParse(TSUuid uuid, const char *uuid_str);
+
+/* Get the process global UUID, resets on every startup */
+tsapi const TSUuid TSProcessUuidGet(void);
+
+/**
+   Returns the plugin_tag.
+*/
+tsapi const char *TSHttpTxnPluginTagGet(TSHttpTxn txnp);
+
+/*
+ * Return information about the client protocols
+ */
+tsapi TSReturnCode TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int n, char const **result, int *actual);
+tsapi TSReturnCode TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int n, char const **result, int *actual);
+tsapi char const *TSHttpTxnClientProtocolStackContains(TSHttpTxn txnp, char const *tag);
+tsapi char const *TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char const *tag);
+tsapi char const *TSNormalizedProtocolTag(char const *tag);
+tsapi char const *TSRegisterProtocolTag(char const *tag);
 
 #ifdef __cplusplus
 }

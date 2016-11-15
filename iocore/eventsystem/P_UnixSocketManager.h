@@ -55,23 +55,6 @@ transient_error()
   return transient;
 }
 
-//
-// Timing done in the connectionManager
-//
-TS_INLINE int
-SocketManager::accept(int s, struct sockaddr *addr, socklen_t *addrlen)
-{
-  int r;
-  do {
-    r = ::accept(s, addr, addrlen);
-    if (likely(r >= 0))
-      break;
-    r = -errno;
-  } while (transient_error());
-
-  return r;
-}
-
 TS_INLINE int
 SocketManager::open(const char *path, int oflag, mode_t mode)
 {
@@ -495,15 +478,9 @@ SocketManager::getsockname(int s, struct sockaddr *sa, socklen_t *sz)
 }
 
 TS_INLINE int
-SocketManager::socket(int domain, int type, int protocol, bool /* bNonBlocking ATS_UNUSED */)
+SocketManager::socket(int domain, int type, int protocol)
 {
   return ::socket(domain, type, protocol);
-}
-
-TS_INLINE int
-SocketManager::mc_socket(int domain, int type, int protocol, bool bNonBlocking)
-{
-  return SocketManager::socket(domain, type, protocol, bNonBlocking);
 }
 
 TS_INLINE int

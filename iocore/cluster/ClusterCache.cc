@@ -243,7 +243,7 @@ ClusterVConnectionCache::insert(INK_MD5 *key, ClusterVConnection *vc)
   int index = MD5ToIndex(key);
   Entry *e;
   EThread *thread   = this_ethread();
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
 
   MUTEX_TRY_LOCK(lock, hash_lock[index], thread);
   if (!lock.is_locked()) {
@@ -269,7 +269,7 @@ ClusterVConnectionCache::lookup(INK_MD5 *key)
   Entry *e;
   ClusterVConnection *vc = 0;
   EThread *thread        = this_ethread();
-  ProxyMutex *mutex      = thread->mutex;
+  ProxyMutex *mutex      = thread->mutex.get();
 
   MUTEX_TRY_LOCK(lock, hash_lock[index], thread);
   if (!lock.is_locked()) {
@@ -437,7 +437,7 @@ CacheContinuation::do_op(Continuation *c, ClusterMachine *mp, void *args, int us
   }
   case CACHE_OPEN_WRITE:
   case CACHE_OPEN_READ: {
-    ink_release_assert(c > 0);
+    ink_release_assert(c != NULL);
     //////////////////////
     // Use short format //
     //////////////////////
@@ -500,7 +500,7 @@ CacheContinuation::do_op(Continuation *c, ClusterMachine *mp, void *args, int us
 
   case CACHE_OPEN_READ_LONG:
   case CACHE_OPEN_WRITE_LONG: {
-    ink_release_assert(c > 0);
+    ink_release_assert(c != NULL);
     //////////////////////
     // Use long format  //
     //////////////////////
@@ -1023,7 +1023,7 @@ void
 cache_op_ClusterFunction(ClusterHandler *ch, void *data, int len)
 {
   EThread *thread   = this_ethread();
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
   ////////////////////////////////////////////////////////
   // Note: we are running on the ET_CLUSTER thread
   ////////////////////////////////////////////////////////
@@ -1616,7 +1616,7 @@ CacheContinuation::replyOpEvent(int event, VConnection *cvc)
       msg->token = token; // Tell sender conn established
 
       OneWayTunnel *pOWT = OneWayTunnel::OneWayTunnel_alloc();
-      pOWT->init(read_cluster_vc, cache_vc, NULL, nbytes ? nbytes : DEFAULT_MAX_BUFFER_SIZE, this->mutex);
+      pOWT->init(read_cluster_vc, cache_vc, NULL, nbytes ? nbytes : DEFAULT_MAX_BUFFER_SIZE, this->mutex.get());
       read_cluster_vc->allow_remote_close();
       results_expected--;
     }
@@ -1688,7 +1688,7 @@ CacheContinuation::replyOpEvent(int event, VConnection *cvc)
       // Transmit reply message and object data in same cluster message
       Debug("cache_proto", "Sending reply/data seqno=%d buflen=%" PRId64, seq_number,
             readahead_data ? bytes_IOBufferBlockList(readahead_data, 1) : 0);
-      clusterProcessor.invoke_remote_data(ch, CACHE_OP_RESULT_CLUSTER_FUNCTION, (void *)msg, (flen + len), readahead_data,
+      clusterProcessor.invoke_remote_data(ch, CACHE_OP_RESULT_CLUSTER_FUNCTION, (void *)msg, (flen + len), readahead_data.get(),
                                           cluster_vc_channel, &token, &CacheContinuation::disposeOfDataBuffer, (void *)this,
                                           CLUSTER_OPT_STEAL);
     } else {
@@ -1939,7 +1939,7 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
 
   unsigned int hash = FOLDHASH(ch->machine->ip, msg->seq_number);
   EThread *thread   = this_ethread();
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
   if (MUTEX_TAKE_TRY_LOCK(remoteCacheContQueueMutex[hash], thread)) {
     // Find it in pending list
 
@@ -1975,7 +1975,7 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
     c->freeMsgBuffer();
     if (ci.valid()) {
       // Unmarshaled CacheHTTPInfo contained in reply message, copy it.
-      c->setMsgBufferLen(len, iob);
+      c->setMsgBufferLen(len, iob.get());
       c->ic_new_info = ci;
     }
     msg->seq_number = len; // HACK ALERT: reusing variable
@@ -1996,7 +1996,7 @@ cache_op_result_ClusterFunction(ClusterHandler *ch, void *d, int l)
       c->token = msg->token;
     if (ci.valid()) {
       // Unmarshaled CacheHTTPInfo contained in reply message, copy it.
-      c->setMsgBufferLen(len, iob);
+      c->setMsgBufferLen(len, iob.get());
       c->ic_new_info = ci;
     }
     c->result_error = op_result_error;
@@ -2504,7 +2504,7 @@ cache_lookup_ClusterFunction(ClusterHandler *ch, void *data, int len)
 {
   (void)len;
   EThread *thread   = this_ethread();
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
   ////////////////////////////////////////////////////////
   // Note: we are running on the ET_CLUSTER thread
   ////////////////////////////////////////////////////////

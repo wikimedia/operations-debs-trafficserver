@@ -16,15 +16,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+include $(top_srcdir)/build/tidy.mk
+
 AM_CPPFLAGS = \
   $(LUAJIT_CPPFLAGS) \
   -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/records
-
-AM_CXXFLAGS = \
-  $(LUAJIT_CFLAGS)
-
-if BUILD_LUAJIT
 
 noinst_LTLIBRARIES = libbindings.la
 
@@ -38,5 +35,5 @@ libbindings_la_SOURCES = \
   repl.cc \
   repl.h
 
-endif
-
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)

@@ -24,6 +24,12 @@
 using namespace atscppapi;
 using std::string;
 
+namespace
+{
+GlobalPlugin *plugin;
+GlobalPlugin *plugin2;
+}
+
 #define TAG "internal_transaction_handling"
 
 class AllTransactionsGlobalPlugin : public GlobalPlugin
@@ -56,7 +62,7 @@ public:
   handleReadRequestHeadersPostRemap(Transaction &transaction)
   {
     TS_DEBUG(TAG, "Received a request in handleReadRequestHeadersPostRemap.");
-    shared_ptr<Mutex> mutex(new Mutex());                                                 // required for async operation
+    std::shared_ptr<Mutex> mutex(new Mutex());                                            // required for async operation
     Async::execute<AsyncHttpFetch>(this, new AsyncHttpFetch("http://127.0.0.1/"), mutex); // internal transaction
     transaction.resume();
   }
@@ -72,6 +78,6 @@ TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
   RegisterGlobalPlugin("CPP_Example_InternalTransactionHandling", "apache", "dev@trafficserver.apache.org");
   TS_DEBUG(TAG, "Loaded async_http_fetch_example plugin");
-  new AllTransactionsGlobalPlugin();
-  new NoInternalTransactionsGlobalPlugin();
+  plugin  = new AllTransactionsGlobalPlugin();
+  plugin2 = new NoInternalTransactionsGlobalPlugin();
 }

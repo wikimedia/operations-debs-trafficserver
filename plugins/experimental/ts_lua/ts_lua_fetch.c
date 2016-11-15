@@ -324,13 +324,14 @@ ts_lua_fetch_one_item(lua_State *L, const char *url, size_t url_len, ts_lua_fetc
         key   = luaL_checklstring(L, -1, &key_len);
         value = luaL_checklstring(L, -2, &value_len);
 
-        if (key_len == TS_MIME_LEN_CONTENT_LENGTH && !strncasecmp(TS_MIME_FIELD_CONTENT_LENGTH, key, key_len)) { // Content-Length
+        if ((int)key_len == TS_MIME_LEN_CONTENT_LENGTH &&
+            !strncasecmp(TS_MIME_FIELD_CONTENT_LENGTH, key, key_len)) { // Content-Length
           cl = 1;
 
-        } else if (key_len == TS_MIME_LEN_HOST && !strncasecmp(TS_MIME_FIELD_HOST, key, key_len)) { // Host
+        } else if ((int)key_len == TS_MIME_LEN_HOST && !strncasecmp(TS_MIME_FIELD_HOST, key, key_len)) { // Host
           ht = 1;
 
-        } else if (key_len == TS_MIME_LEN_USER_AGENT && !strncasecmp(TS_MIME_FIELD_USER_AGENT, key, key_len)) { // User-Agent
+        } else if ((int)key_len == TS_MIME_LEN_USER_AGENT && !strncasecmp(TS_MIME_FIELD_USER_AGENT, key, key_len)) { // User-Agent
           ua = 1;
         }
 
@@ -546,6 +547,8 @@ ts_lua_fetch_multi_handler(TSCont contp, TSEvent event ATS_UNUSED, void *edata)
     TSContCall(ci->contp, TS_LUA_EVENT_COROUTINE_CONT, (void *)1);
   }
 
+  ts_lua_fetch_multi_cleanup(ai);
+
   TSMutexUnlock(lmutex);
   return 0;
 }
@@ -586,6 +589,9 @@ static int
 ts_lua_fetch_multi_cleanup(ts_lua_async_item *ai)
 {
   ts_lua_fetch_multi_info *fmi;
+
+  if (ai->deleted)
+    return 0;
 
   if (ai->data) {
     fmi = (ts_lua_fetch_multi_info *)ai->data;

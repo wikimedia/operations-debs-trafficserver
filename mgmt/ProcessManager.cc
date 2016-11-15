@@ -47,7 +47,7 @@ startProcessManager(void *arg)
   void *ret = arg;
 
   while (!pmgmt) { /* Avert race condition, thread spun during constructor */
-    Debug("pmgmt", "[startProcessManager] Waiting for initialization of object...\n");
+    Debug("pmgmt", "[startProcessManager] Waiting for initialization of object...");
     mgmt_sleep_sec(1);
   }
   if (pmgmt->require_lm) { /* Allow p. process to run w/o a lm */
@@ -68,7 +68,7 @@ startProcessManager(void *arg)
   return ret;
 } /* End startProcessManager */
 
-ProcessManager::ProcessManager(bool rlm) : BaseManager(), require_lm(rlm), local_manager_sockfd(0), cbtable(NULL)
+ProcessManager::ProcessManager(bool rlm) : BaseManager(), require_lm(rlm), local_manager_sockfd(0), cbtable(NULL), max_msgs_in_a_row(1)
 {
   mgmt_signal_queue = create_queue();
 
@@ -83,6 +83,7 @@ void
 ProcessManager::reconfigure()
 {
   bool found;
+  max_msgs_in_a_row = MAX_MSGS_IN_A_ROW;
   timeout = REC_readInteger("proxy.config.process_manager.timeout", &found);
   ink_assert(found);
 
@@ -133,15 +134,14 @@ ProcessManager::processEventQueue()
   while (!queue_is_empty(mgmt_event_queue)) {
     MgmtMessageHdr *mh = (MgmtMessageHdr *)dequeue(mgmt_event_queue);
 
-    Debug("pmgmt", "[ProcessManager] ==> Processing event id '%d' payload=%d\n", mh->msg_id, mh->data_len);
+    Debug("pmgmt", "[ProcessManager] ==> Processing event id '%d' payload=%d", mh->msg_id, mh->data_len);
     if (mh->data_len > 0) {
       executeMgmtCallback(mh->msg_id, (char *)mh + sizeof(MgmtMessageHdr), mh->data_len);
     } else {
       executeMgmtCallback(mh->msg_id, NULL, 0);
     }
     if (mh->msg_id == MGMT_EVENT_SHUTDOWN) {
-      mgmt_log(stderr, "[ProcessManager::processEventQueue] Shutdown msg received, exiting\n");
-      _exit(0);
+      mgmt_fatal(0, "[ProcessManager::processEventQueue] Shutdown msg received, exiting\n");
     } /* Exit on shutdown */
     ats_free(mh);
     ret = true;
@@ -157,10 +157,10 @@ ProcessManager::processSignalQueue()
   while (!queue_is_empty(mgmt_signal_queue)) {
     MgmtMessageHdr *mh = (MgmtMessageHdr *)dequeue(mgmt_signal_queue);
 
-    Debug("pmgmt", "[ProcessManager] ==> Signalling local manager '%d'\n", mh->msg_id);
+    Debug("pmgmt", "[ProcessManager] ==> Signalling local manager '%d'", mh->msg_id);
 
     if (require_lm && mgmt_write_pipe(local_manager_sockfd, (char *)mh, sizeof(MgmtMessageHdr) + mh->data_len) <= 0) {
-      mgmt_fatal(stderr, errno, "[ProcessManager::processSignalQueue] Error writing message!");
+      mgmt_fatal(errno, "[ProcessManager::processSignalQueue] Error writing message!");
       // ink_assert(enqueue(mgmt_signal_queue, mh));
     } else {
       ats_free(mh);
@@ -194,16 +194,15 @@ ProcessManager::initLMConnection()
   servlen = strlen(serv_addr.sun_path) + sizeof(serv_addr.sun_family);
 #endif
   if ((local_manager_sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-    mgmt_fatal(stderr, errno, "[ProcessManager::initLMConnection] Unable to create socket\n");
+    mgmt_fatal(errno, "[ProcessManager::initLMConnection] Unable to create socket\n");
   }
 
-  if (fcntl(local_manager_sockfd, F_SETFD, 1) < 0) {
-    mgmt_fatal(stderr, errno, "[ProcessManager::initLMConnection] Unable to set close-on-exec\n");
+  if (fcntl(local_manager_sockfd, F_SETFD, FD_CLOEXEC) < 0) {
+    mgmt_fatal(errno, "[ProcessManager::initLMConnection] Unable to set close-on-exec\n");
   }
 
   if ((connect(local_manager_sockfd, (struct sockaddr *)&serv_addr, servlen)) < 0) {
-    mgmt_fatal(stderr, errno, "[ProcessManager::initLMConnection] failed to connect management socket '%s'\n",
-               (const char *)sockpath);
+    mgmt_fatal(errno, "[ProcessManager::initLMConnection] failed to connect management socket '%s'\n", (const char *)sockpath);
   }
 
   data_len          = sizeof(pid_t);
@@ -212,7 +211,7 @@ ProcessManager::initLMConnection()
   mh_full->data_len = data_len;
   memcpy((char *)mh_full + sizeof(MgmtMessageHdr), &(pid), data_len);
   if (mgmt_write_pipe(local_manager_sockfd, (char *)mh_full, sizeof(MgmtMessageHdr) + data_len) <= 0) {
-    mgmt_fatal(stderr, errno, "[ProcessManager::initLMConnection] Error writing message!\n");
+    mgmt_fatal(errno, "[ProcessManager::initLMConnection] Error writing message!\n");
   }
 
 } /* End ProcessManager::initLMConnection */
@@ -228,7 +227,7 @@ ProcessManager::pollLMConnection()
 
   // Avoid getting stuck enqueuing too many requests in a row, limit to MAX_MSGS_IN_A_ROW.
   int count;
-  for (count = 0; count < MAX_MSGS_IN_A_ROW; ++count) {
+  for (count = 0; count < max_msgs_in_a_row; ++count) {
     int num;
 
     num = mgmt_read_timeout(local_manager_sockfd, 1 /* sec */, 0 /* usec */);
@@ -246,25 +245,25 @@ ProcessManager::pollLMConnection()
           Debug("pmgmt", "[ProcessManager::pollLMConnection] Message: '%d'", mh_full->msg_id);
           handleMgmtMsgFromLM(mh_full);
         } else if (res < 0) {
-          mgmt_fatal(stderr, errno, "[ProcessManager::pollLMConnection] Error in read!");
+          mgmt_fatal(errno, "[ProcessManager::pollLMConnection] Error in read!");
         }
 
         ats_free(mh_full);
       } else if (res < 0) {
-        mgmt_fatal(stderr, errno, "[ProcessManager::pollLMConnection] Error in read!");
+        mgmt_fatal(errno, "[ProcessManager::pollLMConnection] Error in read!");
       }
 
       // handle EOF
       if (res == 0) {
         close_socket(local_manager_sockfd);
-        mgmt_fatal(stderr, 0, "[ProcessManager::pollLMConnection] Lost Manager EOF!");
+        mgmt_fatal(0, "[ProcessManager::pollLMConnection] Lost Manager EOF!");
       }
     } else if (num < 0) { /* Error */
-      mgmt_elog(stderr, 0, "[ProcessManager::pollLMConnection] select failed or was interrupted (%d)\n", errno);
+      mgmt_log("[ProcessManager::pollLMConnection] select failed or was interrupted (%d)\n", errno);
     }
   }
 
-  Debug("pmgmt", "[ProcessManager::pollLMConnection] enqueued %d of max %d messages in a row", count, MAX_MSGS_IN_A_ROW);
+  Debug("pmgmt", "[ProcessManager::pollLMConnection] enqueued %d of max %d messages in a row", count, max_msgs_in_a_row);
 } /* End ProcessManager::pollLMConnection */
 
 void
@@ -316,8 +315,11 @@ ProcessManager::handleMgmtMsgFromLM(MgmtMessageHdr *mh)
   case MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE:
     signalMgmtEntity(MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE, data_raw, mh->data_len);
     break;
+  case MGMT_EVENT_LIFECYCLE_MESSAGE:
+    signalMgmtEntity(MGMT_EVENT_LIFECYCLE_MESSAGE, data_raw, mh->data_len);
+    break;
   default:
-    mgmt_elog(stderr, 0, "[ProcessManager::pollLMConnection] unknown type %d\n", mh->msg_id);
+    mgmt_log("[ProcessManager::pollLMConnection] unknown type %d\n", mh->msg_id);
     break;
   }
 }

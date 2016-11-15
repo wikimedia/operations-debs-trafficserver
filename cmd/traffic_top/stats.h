@@ -33,7 +33,7 @@
 using namespace std;
 
 struct LookupItem {
-  LookupItem(const char *s, const char *n, const int t) : pretty(s), name(n), type(t) {}
+  LookupItem(const char *s, const char *n, const int t) : pretty(s), name(n), numerator(""), denominator(""), type(t) {}
   LookupItem(const char *s, const char *n, const char *d, const int t) : pretty(s), name(n), numerator(n), denominator(d), type(t)
   {
   }
@@ -51,7 +51,7 @@ namespace constant
 {
 const char global[]    = "\"global\": {\n";
 const char start[]     = "\"proxy.process.";
-const char seperator[] = "\": \"";
+const char separator[] = "\": \"";
 const char end[]       = "\",\n";
 };
 
@@ -82,6 +82,10 @@ public:
       _host = hostname;
     }
 
+    _time_diff = 0;
+    _old_time  = 0;
+    _now       = 0;
+    _time      = (struct timeval){0, 0};
     _stats     = NULL;
     _old_stats = NULL;
     _absolute  = false;
@@ -100,7 +104,7 @@ public:
     lookup_table.insert(make_pair("entries", LookupItem("Entries", "proxy.process.cache.direntries.used", 1)));
     lookup_table.insert(make_pair("avg_size", LookupItem("Avg Size", "disk_used", "entries", 3)));
 
-    lookup_table.insert(make_pair("dns_entry", LookupItem("DNS Entry", "proxy.process.hostdb.total_entries", 1)));
+    lookup_table.insert(make_pair("dns_entry", LookupItem("DNS Entry", "proxy.process.hostdb.cache.current_items", 1)));
     lookup_table.insert(make_pair("dns_hits", LookupItem("DNS Hits", "proxy.process.hostdb.total_hits", 2)));
     lookup_table.insert(make_pair("dns_lookups", LookupItem("DNS Lookups", "proxy.process.hostdb.total_lookups", 2)));
     lookup_table.insert(make_pair("client_req", LookupItem("Requests", "proxy.process.http.incoming_requests", 2)));
@@ -258,10 +262,15 @@ public:
           if (strcmp(item.pretty, "Version") == 0) {
             // special case for Version information
             TSString strValue = NULL;
-            assert(TSRecordGetString(item.name, &strValue) == TS_ERR_OKAY);
-            string key     = item.name;
-            (*_stats)[key] = strValue;
-            TSfree(strValue);
+            if (TSRecordGetString(item.name, &strValue) == TS_ERR_OKAY) {
+              string key     = item.name;
+              (*_stats)[key] = strValue;
+              TSfree(strValue);
+            } else {
+              fprintf(stderr, "Error getting stat: %s when calling TSRecordGetString() failed: file \"%s\", line %d\n\n", item.name,
+                      __FILE__, __LINE__);
+              abort();
+            }
           } else {
             if (TSRecordGetInt(item.name, &value) != TS_ERR_OKAY) {
               fprintf(stderr, "Error getting stat: %s when calling TSRecordGetInt() failed: file \"%s\", line %d\n\n", item.name,
@@ -441,19 +450,19 @@ public:
     // find parts of the line
     while (1) {
       size_t start     = response.find(constant::start, pos);
-      size_t seperator = response.find(constant::seperator, pos);
+      size_t separator = response.find(constant::separator, pos);
       size_t end       = response.find(constant::end, pos);
 
-      if (start == string::npos || seperator == string::npos || end == string::npos)
+      if (start == string::npos || separator == string::npos || end == string::npos)
         return;
 
       // cout << constant::start << " " << start << endl;
-      // cout << constant::seperator << " " << seperator << endl;
+      // cout << constant::separator << " " << separator << endl;
       // cout << constant::end << " " << end << endl;
 
-      string key = response.substr(start + 1, seperator - start - 1);
+      string key = response.substr(start + 1, separator - start - 1);
       string value =
-        response.substr(seperator + sizeof(constant::seperator) - 1, end - seperator - sizeof(constant::seperator) + 1);
+        response.substr(separator + sizeof(constant::separator) - 1, end - separator - sizeof(constant::separator) + 1);
 
       (*_stats)[key] = value;
       // cout << "key " << key << " " << "value " << value << endl;

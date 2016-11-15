@@ -33,7 +33,6 @@
 
 #include "Main.h"
 #include "ts/List.h"
-#include "InkXml.h"
 
 #include "Log.h"
 #include "LogField.h"
@@ -45,6 +44,7 @@
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "LogUtils.h"
+#include "LogBindings.h"
 #include "ts/SimpleTokenizer.h"
 
 #include "LogCollationAccept.h"
@@ -96,8 +96,6 @@ LogConfig::setup_default_values()
   rolling_size_mb          = 10;
   auto_delete_rolled_files = true;
   roll_log_files_now       = false;
-
-  custom_logs_enabled = false;
 
   sampling_frequency   = 1;
   file_stat_frequency  = 16;
@@ -151,8 +149,9 @@ LogConfig::read_configuration_variables()
 
   ptr                     = REC_ConfigReadString("proxy.config.log.logfile_perm");
   int logfile_perm_parsed = ink_fileperm_parse(ptr);
-  if (logfile_perm_parsed != -1)
+  if (logfile_perm_parsed != -1) {
     logfile_perm = logfile_perm_parsed;
+  }
   ats_free(ptr);
 
   ptr = REC_ConfigReadString("proxy.config.log.hostname");
@@ -168,7 +167,7 @@ LogConfig::read_configuration_variables()
     // Try 'system_root_dir/var/log/trafficserver' directory
     fprintf(stderr, "unable to access log directory '%s': %d, %s\n", logfile_dir, errno, strerror(errno));
     fprintf(stderr, "please set 'proxy.config.log.logfile_dir'\n");
-    _exit(1);
+    ::exit(1);
   }
 
   // COLLATION
@@ -232,10 +231,6 @@ LogConfig::read_configuration_variables()
   val                      = (int)REC_ConfigReadInteger("proxy.config.log.auto_delete_rolled_files");
   auto_delete_rolled_files = (val > 0);
 
-  // CUSTOM LOGGING
-  val                 = (int)REC_ConfigReadInteger("proxy.config.log.custom_logs_enabled");
-  custom_logs_enabled = (val > 0);
-
   // PERFORMANCE
   val = (int)REC_ConfigReadInteger("proxy.config.log.sampling_frequency");
   if (val > 0) {
@@ -280,7 +275,6 @@ LogConfig::LogConfig()
     m_space_used(0),
     m_partition_space_left((int64_t)UINT_MAX),
     m_log_collation_accept(NULL),
-    m_dir_entry(NULL),
     m_pDir(NULL),
     m_disk_full(false),
     m_disk_low(false),
@@ -312,7 +306,6 @@ LogConfig::~LogConfig()
   ats_free(logfile_dir);
   ats_free(collation_host);
   ats_free(collation_secret);
-  ats_free(m_dir_entry);
 }
 
 /*-------------------------------------------------------------------------
@@ -403,8 +396,7 @@ LogConfig::init(LogConfig *prev_config)
 
     Debug("log", "creating predefined error log object");
 
-    fmt = MakeTextLogFormat("error");
-    this->global_format_list.add(fmt, false);
+    fmt    = MakeTextLogFormat("error");
     errlog = new LogObject(fmt, logfile_dir, "error.log", LOG_FILE_ASCII, NULL, (Log::RollingEnabledValues)rolling_enabled,
                            collation_preproc_threads, rolling_interval_sec, rolling_offset_hr, rolling_size_mb);
     log_object_manager.manage_object(errlog);
@@ -479,12 +471,6 @@ LogConfig::display(FILE *fd)
   fprintf(fd, "\n");
   fprintf(fd, "************ Log Objects (%u objects) ************\n", (unsigned int)log_object_manager.get_num_objects());
   log_object_manager.display(fd);
-
-  fprintf(fd, "************ Global Filter List (%u filters) ************\n", global_filter_list.count());
-  global_filter_list.display(fd);
-
-  fprintf(fd, "************ Global Format List (%u formats) ************\n", global_format_list.count());
-  global_format_list.display(fd);
 }
 
 //-----------------------------------------------------------------------------
@@ -501,18 +487,10 @@ LogConfig::setup_log_objects()
 {
   Debug("log", "creating objects...");
 
-  // ----------------------------------------------------------------------
-  // Construct the LogObjects for the custom formats
+  // Evaluate logging.config to construct the custome log objects.
+  evaluate_config();
 
-  global_filter_list.clear();
-
-  if (custom_logs_enabled) {
-    /* Read xml configuration from logs_xml.config file.             */
-    read_xml_log_config();
-  }
-
-  // open local pipes so readers can see them
-  //
+  // Open local pipes so readers can see them.
   log_object_manager.open_local_pipes();
 
   if (is_debug_tag_set("log")) {
@@ -570,8 +548,7 @@ LogConfig::register_config_callbacks()
     "proxy.config.log.rolling_offset_hr",
     "proxy.config.log.rolling_size_mb",
     "proxy.config.log.auto_delete_rolled_files",
-    "proxy.config.log.custom_logs_enabled",
-    "proxy.config.log.xml_config_file",
+    "proxy.config.log.config.filename",
     "proxy.config.log.hosts_config_file",
     "proxy.config.log.sampling_frequency",
     "proxy.config.log.file_stat_frequency",
@@ -675,7 +652,7 @@ LogConfig::register_mgmt_callbacks()
   -------------------------------------------------------------------------*/
 
 bool
-LogConfig::space_to_write(int64_t bytes_to_write)
+LogConfig::space_to_write(int64_t bytes_to_write) const
 {
   int64_t config_space, partition_headroom;
   int64_t logical_space_used, physical_space_left;
@@ -721,8 +698,9 @@ LogConfig::update_space_used()
 {
   // no need to update space used if log directory is inaccessible
   //
-  if (m_log_directory_inaccessible)
+  if (m_log_directory_inaccessible) {
     return;
+  }
 
   static const int MAX_CANDIDATES = 128;
   LogDeleteCandidate candidates[MAX_CANDIDATES];
@@ -730,6 +708,7 @@ LogConfig::update_space_used()
   int64_t total_space_used, partition_space_left;
   char path[MAXPATHLEN];
   int sret;
+  struct dirent entry;
   struct dirent *result;
   struct stat sbuf;
   DIR *ld;
@@ -767,27 +746,21 @@ LogConfig::update_space_used()
     return;
   }
 
-  if (!m_dir_entry) {
-    size_t name_max = ink_file_namemax(logfile_dir);
-    m_dir_entry     = (struct dirent *)ats_malloc(sizeof(struct dirent) + name_max + 1);
-  }
-
   total_space_used = 0LL;
+  candidate_count  = 0;
 
-  candidate_count = 0;
-
-  while (readdir_r(ld, m_dir_entry, &result) == 0) {
+  while (readdir_r(ld, &entry, &result) == 0) {
     if (!result) {
       break;
     }
 
-    snprintf(path, MAXPATHLEN, "%s/%s", logfile_dir, m_dir_entry->d_name);
+    snprintf(path, MAXPATHLEN, "%s/%s", logfile_dir, entry.d_name);
 
     sret = ::stat(path, &sbuf);
     if (sret != -1 && S_ISREG(sbuf.st_mode)) {
       total_space_used += (int64_t)sbuf.st_size;
 
-      if (auto_delete_rolled_files && LogFile::rolled_logfile(m_dir_entry->d_name) && candidate_count < MAX_CANDIDATES) {
+      if (auto_delete_rolled_files && LogFile::rolled_logfile(entry.d_name) && candidate_count < MAX_CANDIDATES) {
         //
         // then add this entry to the candidate list
         //
@@ -875,8 +848,9 @@ LogConfig::update_space_used()
   //
 
   if (!space_to_write(headroom)) {
-    if (!logging_space_exhausted)
+    if (!logging_space_exhausted) {
       Note("Logging space exhausted, any logs writing to local disk will be dropped!");
+    }
 
     logging_space_exhausted = true;
     //
@@ -922,8 +896,9 @@ LogConfig::update_space_used()
     //
     // We have enough space to log again; clear any previous messages
     //
-    if (logging_space_exhausted)
+    if (logging_space_exhausted) {
       Note("Logging space is no longer exhausted.");
+    }
 
     logging_space_exhausted = false;
     if (m_disk_full || m_partition_full) {
@@ -939,560 +914,21 @@ LogConfig::update_space_used()
   }
 }
 
-/*-------------------------------------------------------------------------
-  LogConfig::read_xml_log_config
-
-  This is a new routine for reading the XML-based log config file.
-  -------------------------------------------------------------------------*/
-void
-LogConfig::read_xml_log_config()
+bool
+LogConfig::evaluate_config()
 {
-  ats_scoped_str config_path;
+  BindingInstance binding;
+  ats_scoped_str path(RecConfigReadConfigPath("proxy.config.log.config.filename", "logging.config"));
 
-  config_path = RecConfigReadConfigPath("proxy.config.log.xml_config_file", "logs_xml.config");
-  InkXmlConfigFile log_config(config_path ? (const char *)config_path : "memory://builtin");
-
-  Debug("log-config", "Reading log config file %s", (const char *)config_path);
-  Debug("xml", "%s is an XML-based config file", (const char *)config_path);
-
-  if (log_config.parse() < 0) {
-    Note("Error parsing log config file %s; ensure that it is XML-based", (const char *)config_path);
-    return;
+  if (!binding.construct()) {
+    Fatal("failed to initialize Lua runtime");
   }
 
-  if (is_debug_tag_set("xml")) {
-    log_config.display();
+  if (MakeLogBindings(binding, this)) {
+    return binding.require(path.get());
   }
 
-  //
-  // At this point, the XMl file has been parsed into a list of
-  // InkXmlObjects.  We'll loop through them and add the information to
-  // our current configuration.  Expected object names include:
-  //
-  //     LogFormat
-  //     LogFilter
-  //     LogObject
-  //
-
-  InkXmlObject *xobj;
-  InkXmlAttr *xattr;
-
-  for (xobj = log_config.first(); xobj; xobj = log_config.next(xobj)) {
-    Debug("xml", "XmlObject: %s", xobj->object_name());
-
-    if (strcmp(xobj->object_name(), "LogFormat") == 0) {
-      //
-      // Manditory attributes: Name, Format
-      // Optional attributes : Interval (for aggregate operators)
-      //
-      NameList name;
-      NameList format;
-      NameList interval;
-
-      for (xattr = xobj->first(); xattr; xattr = xobj->next(xattr)) {
-        Debug("xml", "XmlAttr  : <%s,%s>", xattr->tag(), xattr->value());
-
-        if (strcasecmp(xattr->tag(), "Name") == 0) {
-          name.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Format") == 0) {
-          format.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Interval") == 0) {
-          interval.enqueue(xattr->value());
-        } else {
-          Note("Unknown attribute %s for %s; ignoring", xattr->tag(), xobj->object_name());
-        }
-      }
-
-      // check integrity constraints
-      //
-      if (name.count() == 0) {
-        Note("'Name' attribute missing for LogFormat object");
-        continue;
-      }
-      if (format.count() == 0) {
-        Note("'Format' attribute missing for LogFormat object");
-        continue;
-      }
-      if (name.count() > 1) {
-        Note("Multiple values for 'Name' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (format.count() > 1) {
-        Note("Multiple values for 'Format' attribute in %s; using the first one", xobj->object_name());
-      }
-
-      char *format_str      = format.dequeue();
-      char *name_str        = name.dequeue();
-      unsigned interval_num = 0;
-
-      // if the format_str contains any of the aggregate operators,
-      // we need to ensure that an interval was specified.
-      //
-      if (LogField::fieldlist_contains_aggregates(format_str)) {
-        if (interval.count() == 0) {
-          Note("'Interval' attribute missing for LogFormat object"
-               " %s that contains aggregate operators: %s",
-               name_str, format_str);
-          continue;
-        } else if (interval.count() > 1) {
-          Note("Multiple values for 'Interval' attribute in %s; using the first one", xobj->object_name());
-        }
-        // interval
-        //
-        interval_num = ink_atoui(interval.dequeue());
-      } else if (interval.count() > 0) {
-        Note("Format %s has no aggregates, ignoring 'Interval' attribute.", name_str);
-      }
-      // create new format object and place onto global list
-      //
-      LogFormat *fmt = new LogFormat(name_str, format_str, interval_num);
-
-      ink_assert(fmt != NULL);
-      if (fmt->valid()) {
-        global_format_list.add(fmt, false);
-
-        if (is_debug_tag_set("xml")) {
-          printf("The following format was added to the global format list\n");
-          fmt->displayAsXML(stdout);
-        }
-      } else {
-        Note("Format named \"%s\" will not be active; not a valid format", fmt->name() ? fmt->name() : "");
-        delete fmt;
-      }
-    }
-
-    else if (strcmp(xobj->object_name(), "LogFilter") == 0) {
-      int i;
-
-      // Mandatory attributes: Name, Action, Condition
-      // Optional attributes : none
-      //
-      NameList name;
-      NameList condition;
-      NameList action;
-
-      for (xattr = xobj->first(); xattr; xattr = xobj->next(xattr)) {
-        Debug("xml", "XmlAttr  : <%s,%s>", xattr->tag(), xattr->value());
-
-        if (strcasecmp(xattr->tag(), "Name") == 0) {
-          name.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Action") == 0) {
-          action.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Condition") == 0) {
-          condition.enqueue(xattr->value());
-        } else {
-          Note("Unknown attribute %s for %s; ignoring", xattr->tag(), xobj->object_name());
-        }
-      }
-
-      // check integrity constraints
-      //
-      if (name.count() == 0) {
-        Note("'Name' attribute missing for LogFilter object");
-        continue;
-      }
-      if (action.count() == 0) {
-        Note("'Action' attribute missing for LogFilter object");
-        continue;
-      }
-      if (condition.count() == 0) {
-        Note("'Condition' attribute missing for LogFilter object");
-        continue;
-      }
-      if (name.count() > 1) {
-        Note("Multiple values for 'Name' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (action.count() > 1) {
-        Note("Multiple values for 'Action' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (condition.count() > 1) {
-        Note("Multiple values for 'Condition' attribute in %s; using the first one", xobj->object_name());
-      }
-
-      char *filter_name = name.dequeue();
-
-      // convert the action string to an enum value and validate it
-      //
-      char *action_str      = action.dequeue();
-      LogFilter::Action act = LogFilter::REJECT; /* lv: make gcc happy */
-      for (i = 0; i < LogFilter::N_ACTIONS; i++) {
-        if (strcasecmp(action_str, LogFilter::ACTION_NAME[i]) == 0) {
-          act = (LogFilter::Action)i;
-          break;
-        }
-      }
-
-      if (i == LogFilter::N_ACTIONS) {
-        Warning("%s is not a valid filter action value; cannot create filter %s.", action_str, filter_name);
-        continue;
-      }
-      // parse condition string and validate its fields
-      //
-      char *cond_str = condition.dequeue();
-
-      SimpleTokenizer tok(cond_str);
-
-      if (tok.getNumTokensRemaining() < 3) {
-        Warning("Invalid condition syntax \"%s\"; cannot create filter %s.", cond_str, filter_name);
-        continue;
-      }
-
-      char *field_str = tok.getNext();
-      char *oper_str  = tok.getNext();
-      char *val_str   = tok.getRest();
-
-      // validate field symbol
-      //
-      if (strlen(field_str) > 2 && field_str[0] == '%' && field_str[1] == '<') {
-        Debug("xml", "Field symbol has <> form: %s", field_str);
-        char *end = field_str;
-        while (*end && *end != '>')
-          end++;
-        *end = '\0';
-        field_str += 2;
-        Debug("xml", "... now field symbol is %s", field_str);
-      }
-
-      LogField *logfield = Log::global_field_list.find_by_symbol(field_str);
-      if (!logfield) {
-        // check for container fields
-        if (*field_str == '{') {
-          Note("%s appears to be a container field", field_str);
-          char *fname_end = strchr(field_str, '}');
-          if (NULL != fname_end) {
-            char *fname = field_str + 1;
-            *fname_end  = 0;             // changes '}' to '\0'
-            char *cname = fname_end + 1; // start of container symbol
-            Note("Found Container Field: Name = %s, symbol = %s", fname, cname);
-            LogField::Container container = LogField::valid_container_name(cname);
-            if (container == LogField::NO_CONTAINER) {
-              Warning("%s is not a valid container; cannot create filter %s.", cname, filter_name);
-              continue;
-            } else {
-              logfield = new LogField(fname, container);
-              ink_assert(logfield != NULL);
-            }
-          } else {
-            Warning("Invalid container field specification: no trailing '}' in %s cannot create filter %s.", field_str,
-                    filter_name);
-            continue;
-          }
-        }
-      }
-
-      if (!logfield) {
-        Warning("%s is not a valid field; cannot create filter %s.", field_str, filter_name);
-        continue;
-      }
-      // convert the operator string to an enum value and validate it
-      //
-      LogFilter::Operator oper = LogFilter::MATCH;
-      for (i = 0; i < LogFilter::N_OPERATORS; ++i) {
-        if (strcasecmp(oper_str, LogFilter::OPERATOR_NAME[i]) == 0) {
-          oper = (LogFilter::Operator)i;
-          break;
-        }
-      }
-
-      if (i == LogFilter::N_OPERATORS) {
-        Warning("%s is not a valid operator; cannot create filter %s.", oper_str, filter_name);
-        continue;
-      }
-      // now create the correct LogFilter
-      //
-      LogFilter *filter         = NULL;
-      LogField::Type field_type = logfield->type();
-
-      switch (field_type) {
-      case LogField::sINT:
-
-        filter = new LogFilterInt(filter_name, logfield, act, oper, val_str);
-        break;
-
-      case LogField::dINT:
-
-        Warning("Internal error: invalid field type (double int); cannot create filter %s.", filter_name);
-        continue;
-
-      case LogField::STRING:
-
-        filter = new LogFilterString(filter_name, logfield, act, oper, val_str);
-        break;
-
-      case LogField::IP:
-
-        filter = new LogFilterIP(filter_name, logfield, act, oper, val_str);
-        break;
-
-      default:
-
-        Warning("Internal error: unknown field type %d; cannot create filter %s.", field_type, filter_name);
-        continue;
-      }
-
-      ink_assert(filter);
-
-      if (filter->get_num_values() == 0) {
-        Warning("\"%s\" does not specify any valid values; cannot create filter %s.", val_str, filter_name);
-        delete filter;
-
-      } else {
-        // add filter to global filter list
-        //
-        global_filter_list.add(filter, false);
-
-        if (is_debug_tag_set("xml")) {
-          printf("The following filter was added to the global filter list\n");
-          filter->display_as_XML();
-        }
-      }
-    }
-
-    else if (strcasecmp(xobj->object_name(), "LogObject") == 0) {
-      NameList format;   // mandatory
-      NameList filename; // mandatory
-      NameList mode;
-      NameList filters;
-      NameList protocols;
-      NameList serverHosts;
-      NameList collationHosts;
-      NameList header;
-      NameList rollingEnabled;
-      NameList rollingIntervalSec;
-      NameList rollingOffsetHr;
-      NameList rollingSizeMb;
-
-      for (xattr = xobj->first(); xattr; xattr = xobj->next(xattr)) {
-        Debug("xml", "XmlAttr  : <%s,%s>", xattr->tag(), xattr->value());
-        if (strcasecmp(xattr->tag(), "Format") == 0) {
-          format.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Filename") == 0) {
-          filename.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Mode") == 0) {
-          mode.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Filters") == 0) {
-          filters.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Protocols") == 0) {
-          protocols.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "ServerHosts") == 0) {
-          serverHosts.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "CollationHosts") == 0) {
-          collationHosts.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "Header") == 0) {
-          header.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "RollingEnabled") == 0) {
-          rollingEnabled.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "RollingIntervalSec") == 0) {
-          rollingIntervalSec.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "RollingOffsetHr") == 0) {
-          rollingOffsetHr.enqueue(xattr->value());
-        } else if (strcasecmp(xattr->tag(), "RollingSizeMb") == 0) {
-          rollingSizeMb.enqueue(xattr->value());
-        } else {
-          Note("Unknown attribute %s for %s; ignoring", xattr->tag(), xobj->object_name());
-        }
-      }
-
-      // check integrity constraints
-      //
-      if (format.count() == 0) {
-        Note("'Format' attribute missing for LogObject object");
-        continue;
-      }
-      if (filename.count() == 0) {
-        Note("'Filename' attribute missing for LogObject object");
-        continue;
-      }
-
-      if (format.count() > 1) {
-        Note("Multiple values for 'Format' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (filename.count() > 1) {
-        Note("Multiple values for 'Filename' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (mode.count() > 1) {
-        Note("Multiple values for 'Mode' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (filters.count() > 1) {
-        Note("Multiple values for 'Filters' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (protocols.count() > 1) {
-        Note("Multiple values for 'Protocols' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (serverHosts.count() > 1) {
-        Note("Multiple values for 'ServerHosts' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (collationHosts.count() > 1) {
-        Note("Multiple values for 'CollationHosts' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (header.count() > 1) {
-        Note("Multiple values for 'Header' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (rollingEnabled.count() > 1) {
-        Note("Multiple values for 'RollingEnabled' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (rollingIntervalSec.count() > 1) {
-        Note("Multiple values for 'RollingIntervalSec' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (rollingOffsetHr.count() > 1) {
-        Note("Multiple values for 'RollingOffsetHr' attribute in %s; using the first one", xobj->object_name());
-      }
-      if (rollingSizeMb.count() > 1) {
-        Note("Multiple values for 'RollingSizeMb' attribute in %s; using the first one", xobj->object_name());
-      }
-      // create new LogObject and start adding to it
-      //
-
-      char *fmt_name = format.dequeue();
-      LogFormat *fmt = global_format_list.find_by_name(fmt_name);
-      if (!fmt) {
-        Warning("Format %s not in the global format list; cannot create LogObject", fmt_name);
-        continue;
-      }
-      // file format
-      //
-      LogFileFormat file_type = LOG_FILE_ASCII; // default value
-      if (mode.count()) {
-        char *mode_str = mode.dequeue();
-        file_type      = (strncasecmp(mode_str, "bin", 3) == 0 || (mode_str[0] == 'b' && mode_str[1] == 0) ?
-                       LOG_FILE_BINARY :
-                       (strcasecmp(mode_str, "ascii_pipe") == 0 ? LOG_FILE_PIPE : LOG_FILE_ASCII));
-      }
-      // rolling
-      //
-      char *rollingEnabled_str = rollingEnabled.dequeue();
-      int obj_rolling_enabled  = rollingEnabled_str ? ink_atoui(rollingEnabled_str) : rolling_enabled;
-
-      char *rollingIntervalSec_str = rollingIntervalSec.dequeue();
-      int obj_rolling_interval_sec = rollingIntervalSec_str ? ink_atoui(rollingIntervalSec_str) : rolling_interval_sec;
-
-      char *rollingOffsetHr_str = rollingOffsetHr.dequeue();
-      int obj_rolling_offset_hr = rollingOffsetHr_str ? ink_atoui(rollingOffsetHr_str) : rolling_offset_hr;
-
-      char *rollingSizeMb_str = rollingSizeMb.dequeue();
-      int obj_rolling_size_mb = rollingSizeMb_str ? ink_atoui(rollingSizeMb_str) : rolling_size_mb;
-
-      if (!LogRollingEnabledIsValid(obj_rolling_enabled)) {
-        Warning("Invalid log rolling value '%d' in log object %s", obj_rolling_enabled, xobj->object_name());
-      }
-
-      // create the new object
-      //
-      LogObject *obj = new LogObject(fmt, logfile_dir, filename.dequeue(), file_type, header.dequeue(),
-                                     (Log::RollingEnabledValues)obj_rolling_enabled, collation_preproc_threads,
-                                     obj_rolling_interval_sec, obj_rolling_offset_hr, obj_rolling_size_mb);
-
-      // filters
-      //
-      char *filters_str = filters.dequeue();
-      if (filters_str) {
-        SimpleTokenizer tok(filters_str, ',');
-        char *filter_name;
-        while (filter_name = tok.getNext(), filter_name != 0) {
-          LogFilter *f;
-          f = global_filter_list.find_by_name(filter_name);
-          if (!f) {
-            Warning("Filter %s not in the global filter list; cannot add to this LogObject", filter_name);
-          } else {
-            obj->add_filter(f);
-          }
-        }
-      }
-      // protocols
-      //
-      char *protocols_str = protocols.dequeue();
-      if (protocols_str) {
-        LogField *etype_field = Log::global_field_list.find_by_symbol("etype");
-        ink_assert(etype_field);
-
-        SimpleTokenizer tok(protocols_str, ',');
-        size_t n = tok.getNumTokensRemaining();
-
-        if (n) {
-          int64_t *val_array = new int64_t[n];
-          size_t numValid    = 0;
-          char *t;
-          while (t = tok.getNext(), t != NULL) {
-            if (strcasecmp(t, "icp") == 0) {
-              val_array[numValid++] = LOG_ENTRY_ICP;
-            } else if (strcasecmp(t, "http") == 0) {
-              val_array[numValid++] = LOG_ENTRY_HTTP;
-            }
-          }
-
-          if (numValid == 0) {
-            Warning("No valid protocol value(s) (%s) for Protocol "
-                    "field in definition of XML LogObject.\nObject will log all protocols.",
-                    protocols_str);
-          } else {
-            if (numValid < n) {
-              Warning("There are invalid protocol values (%s) in"
-                      " the Protocol field of XML LogObject.\n"
-                      "Only %zu out of %zu values will be used.",
-                      protocols_str, numValid, n);
-            }
-
-            LogFilterInt protocol_filter("__xml_protocol__", etype_field, LogFilter::ACCEPT, LogFilter::MATCH, numValid, val_array);
-            obj->add_filter(&protocol_filter);
-          }
-          delete[] val_array;
-        } else {
-          Warning("No value(s) in Protocol field of XML object, object will log all protocols.");
-        }
-      }
-      // server hosts
-      //
-      char *serverHosts_str = serverHosts.dequeue();
-      if (serverHosts_str) {
-        LogField *shn_field = Log::global_field_list.find_by_symbol("shn");
-        ink_assert(shn_field);
-
-        LogFilterString server_host_filter("__xml_server_hosts__", shn_field, LogFilter::ACCEPT,
-                                           LogFilter::CASE_INSENSITIVE_CONTAIN, serverHosts_str);
-
-        if (server_host_filter.get_num_values() == 0) {
-          Warning("No valid server host value(s) (%s) for Protocol "
-                  "field in definition of XML LogObject.\nObject will log all servers.",
-                  serverHosts_str);
-        } else {
-          obj->add_filter(&server_host_filter);
-        }
-      }
-      // collation hosts
-      //
-      char *collationHosts_str = collationHosts.dequeue();
-      if (collationHosts_str) {
-        char *host;
-        SimpleTokenizer tok(collationHosts_str, ',');
-        while (host = tok.getNext(), host != 0) {
-          LogHost *prev = NULL;
-          char *failover_str;
-          SimpleTokenizer failover_tok(host, '|'); // split failover hosts
-
-          while (failover_str = failover_tok.getNext(), failover_str != 0) {
-            LogHost *lh = new LogHost(obj->get_full_filename(), obj->get_signature());
-
-            if (lh->set_name_or_ipstr(failover_str)) {
-              Warning("Could not set \"%s\" as collation host", host);
-              delete lh;
-            } else if (!prev) {
-              obj->add_loghost(lh, false);
-              prev = lh;
-            } else {
-              prev->failover_link.next = lh;
-              prev                     = lh;
-            }
-          }
-        }
-      }
-      // now the object is complete; give it to the object manager
-      //
-      log_object_manager.manage_object(obj);
-    }
-
-    else {
-      Note("Unknown XML config object for logging: %s", xobj->object_name());
-    }
-  }
+  return false;
 }
 
 /*-------------------------------------------------------------------------

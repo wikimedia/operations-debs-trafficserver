@@ -308,7 +308,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   int keyindex      = -1;
   int cmp_res;
   int rval;
-  int i                = 0;
+  unsigned int i       = 0;
   int j                = 0;
   unsigned int sig_len = 0;
 
@@ -561,7 +561,9 @@ deny:
 
 /* ********* Allow ********* */
 allow:
-  app_qry = getAppQueryString(query, strlen(query));
+  if (query != NULL) {
+    app_qry = getAppQueryString(query, strlen(query));
+  }
 
   TSfree(url);
   /* drop the query string so we can cache-hit */

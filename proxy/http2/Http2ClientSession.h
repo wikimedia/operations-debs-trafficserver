@@ -65,14 +65,14 @@ class Http2Frame
 public:
   Http2Frame(const Http2FrameHeader &h, IOBufferReader *r)
   {
-    this->hdr.cooked = h;
-    this->ioreader   = r;
+    this->hdr      = h;
+    this->ioreader = r;
   }
 
   Http2Frame(Http2FrameType type, Http2StreamId streamid, uint8_t flags)
   {
-    Http2FrameHeader hdr = {0, (uint8_t)type, flags, streamid};
-    http2_write_frame_header(hdr, make_iovec(this->hdr.raw));
+    this->hdr      = {0, (uint8_t)type, flags, streamid};
+    this->ioreader = NULL;
   }
 
   IOBufferReader *
@@ -84,30 +84,25 @@ public:
   const Http2FrameHeader &
   header() const
   {
-    return this->hdr.cooked;
+    return this->hdr;
   }
 
-  // Allocate an IOBufferBlock for this frame. This switches us from using the in-line header
-  // buffer, to an external buffer block.
+  // Allocate an IOBufferBlock for payload of this frame.
   void
   alloc(int index)
   {
     this->ioblock = new_IOBufferBlock();
     this->ioblock->alloc(index);
-    memcpy(this->ioblock->start(), this->hdr.raw, sizeof(this->hdr.raw));
-    this->ioblock->fill(sizeof(this->hdr.raw));
-
-    http2_parse_frame_header(make_iovec(this->ioblock->start(), HTTP2_FRAME_HEADER_LEN), this->hdr.cooked);
   }
 
-  // Return the writeable buffer space.
+  // Return the writeable buffer space for frame payload
   IOVec
   write()
   {
     return make_iovec(this->ioblock->end(), this->ioblock->write_avail());
   }
 
-  // Once the frame has been serialized, update the length.
+  // Once the frame has been serialized, update the payload length of frame header.
   void
   finalize(size_t nbytes)
   {
@@ -115,18 +110,22 @@ public:
       ink_assert((int64_t)nbytes <= this->ioblock->write_avail());
       this->ioblock->fill(nbytes);
 
-      this->hdr.cooked.length = this->ioblock->size() - HTTP2_FRAME_HEADER_LEN;
-      http2_write_frame_header(this->hdr.cooked, make_iovec(this->ioblock->start(), HTTP2_FRAME_HEADER_LEN));
+      this->hdr.length = this->ioblock->size();
     }
   }
 
   void
   xmit(MIOBuffer *iobuffer)
   {
-    if (ioblock) {
-      iobuffer->append_block(this->ioblock);
-    } else {
-      iobuffer->write(this->hdr.raw, sizeof(this->hdr.raw));
+    // Write frame header
+    uint8_t buf[HTTP2_FRAME_HEADER_LEN];
+    http2_write_frame_header(hdr, make_iovec(buf));
+    iobuffer->write(buf, sizeof(buf));
+
+    // Write frame payload
+    // It could be empty (e.g. SETTINGS frame with ACK flag)
+    if (ioblock && ioblock->read_avail() > 0) {
+      iobuffer->append_block(this->ioblock.get());
     }
   }
 
@@ -134,9 +133,9 @@ public:
   size()
   {
     if (ioblock) {
-      return ioblock->size();
+      return HTTP2_FRAME_HEADER_LEN + ioblock->size();
     } else {
-      return sizeof(this->hdr.raw);
+      return HTTP2_FRAME_HEADER_LEN;
     }
   }
 
@@ -144,16 +143,12 @@ private:
   Http2Frame(Http2Frame &);                  // noncopyable
   Http2Frame &operator=(const Http2Frame &); // noncopyable
 
-  Ptr<IOBufferBlock> ioblock;
+  Http2FrameHeader hdr;       // frame header
+  Ptr<IOBufferBlock> ioblock; // frame payload
   IOBufferReader *ioreader;
-
-  union {
-    Http2FrameHeader cooked;
-    uint8_t raw[HTTP2_FRAME_HEADER_LEN];
-  } hdr;
 };
 
-class Http2ClientSession : public ProxyClientSession, public PluginIdentity
+class Http2ClientSession : public ProxyClientSession
 {
 public:
   typedef ProxyClientSession super; ///< Parent type.
@@ -164,7 +159,14 @@ public:
   // Implement ProxyClientSession interface.
   void start();
   virtual void destroy();
+  virtual void free();
   void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor);
+
+  bool
+  ready_to_free() const
+  {
+    return kill_me;
+  }
 
   // Implement VConnection interface.
   VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0);
@@ -180,7 +182,12 @@ public:
   virtual void
   release_netvc()
   {
-    client_vc = NULL;
+    // Make sure the vio's are also released to avoid later surprises in inactivity timeout
+    if (client_vc) {
+      client_vc->do_io_read(NULL, 0, NULL);
+      client_vc->do_io_write(NULL, 0, NULL);
+      client_vc->set_action(NULL);
+    }
   }
 
   sockaddr const *
@@ -202,13 +209,10 @@ public:
     return upgrade_context;
   }
 
-  virtual char const *getPluginTag() const;
-  virtual int64_t getPluginId() const;
-
   virtual int
   get_transact_count() const
   {
-    return (int)con_id;
+    return connection_state.get_stream_requests();
   }
   virtual void
   release(ProxyClientTransaction *trans)
@@ -226,6 +230,44 @@ public:
   {
     return dying_event;
   }
+  bool
+  is_recursing() const
+  {
+    return recursion > 0;
+  }
+
+  virtual const char *
+  get_protocol_string() const
+  {
+    return "http/2";
+  }
+
+  virtual int
+  populate_protocol(char const **result, int size) const
+  {
+    int retval = 0;
+    if (size > 0) {
+      result[0] = TS_PROTO_TAG_HTTP_2_0;
+      retval    = 1;
+      if (size > 1) {
+        retval += super::populate_protocol(result + 1, size - 1);
+      }
+    }
+    return retval;
+  }
+
+  virtual const char *
+  protocol_contains(const char *tag_prefix) const
+  {
+    const char *retval   = NULL;
+    unsigned int tag_len = strlen(tag_prefix);
+    if (tag_len <= strlen(TS_PROTO_TAG_HTTP_2_0) && strncmp(tag_prefix, TS_PROTO_TAG_HTTP_2_0, tag_len) == 0) {
+      retval = TS_PROTO_TAG_HTTP_2_0;
+    } else {
+      retval = super::protocol_contains(tag_prefix);
+    }
+    return retval;
+  }
 
 private:
   Http2ClientSession(Http2ClientSession &);                  // noncopyable
@@ -235,7 +277,13 @@ private:
 
   int state_read_connection_preface(int, void *);
   int state_start_frame_read(int, void *);
+  int do_start_frame_read(Http2ErrorCode &ret_error);
   int state_complete_frame_read(int, void *);
+  int do_complete_frame_read();
+  // state_start_frame_read and state_complete_frame_read are set up as
+  // event handler.  Both feed into state_process_frame_read which may iterate
+  // if there are multiple frames ready on the wire
+  int state_process_frame_read(int event, VIO *vio, bool inside_frame);
 
   int64_t con_id;
   int64_t total_write_len;
@@ -252,6 +300,8 @@ private:
 
   VIO *write_vio;
   int dying_event;
+  bool kill_me;
+  int recursion;
 };
 
 extern ClassAllocator<Http2ClientSession> http2ClientSessionAllocator;

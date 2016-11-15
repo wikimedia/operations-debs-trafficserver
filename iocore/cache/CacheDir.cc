@@ -33,19 +33,19 @@
 
 #define CACHE_INC_DIR_USED(_m)                            \
   do {                                                    \
-    ProxyMutex *mutex = _m;                               \
+    ProxyMutex *mutex = _m.get();                         \
     CACHE_INCREMENT_DYN_STAT(cache_direntries_used_stat); \
   } while (0)
 
 #define CACHE_DEC_DIR_USED(_m)                            \
   do {                                                    \
-    ProxyMutex *mutex = _m;                               \
+    ProxyMutex *mutex = _m.get();                         \
     CACHE_DECREMENT_DYN_STAT(cache_direntries_used_stat); \
   } while (0)
 
 #define CACHE_INC_DIR_COLLISIONS(_m)                                \
   do {                                                              \
-    ProxyMutex *mutex = _m;                                         \
+    ProxyMutex *mutex = _m.get();                                   \
     CACHE_INCREMENT_DYN_STAT(cache_directory_collision_count_stat); \
   } while (0);
 
@@ -547,8 +547,9 @@ Lagain:
           e = dir_delete_entry(e, p, s, d);
           continue;
         }
-      } else
+      } else {
         DDebug("dir_probe_tag", "tag mismatch %p %X vs expected %X", e, dir_tag(e), key->slice32(3));
+      }
     Lcont:
       p = e;
       e = next_dir(e, seg);

@@ -74,6 +74,10 @@ REGRESSION_TEST(PriorityQueue_1)(RegressionTest *t, int /* atype ATS_UNUSED */, 
 
   pq->pop();
   box.check(pq->top() == NULL, "top should be NULL");
+
+  delete pq;
+  delete a;
+  delete entry_a;
 }
 
 // Increase weight
@@ -107,6 +111,16 @@ REGRESSION_TEST(PriorityQueue_2)(RegressionTest *t, int /* atype ATS_UNUSED */, 
   pq->update(entry_b, true);
 
   box.check(pq->top() == entry_c, "top should be entry_c");
+
+  delete pq;
+
+  delete a;
+  delete b;
+  delete c;
+
+  delete entry_a;
+  delete entry_b;
+  delete entry_c;
 }
 
 // Decrease weight
@@ -140,6 +154,16 @@ REGRESSION_TEST(PriorityQueue_3)(RegressionTest *t, int /* atype ATS_UNUSED */, 
   pq->update(entry_c, false);
 
   box.check(pq->top() == entry_c, "top should be entry_c");
+
+  delete pq;
+
+  delete a;
+  delete b;
+  delete c;
+
+  delete entry_a;
+  delete entry_b;
+  delete entry_c;
 }
 
 // Push, top, and pop 9 entries
@@ -200,6 +224,28 @@ REGRESSION_TEST(PriorityQueue_4)(RegressionTest *t, int /* atype ATS_UNUSED */, 
   pq->pop();
 
   box.check(pq->top() == NULL, "top should be NULL");
+
+  delete pq;
+
+  delete a;
+  delete b;
+  delete c;
+  delete d;
+  delete e;
+  delete f;
+  delete g;
+  delete h;
+  delete i;
+
+  delete entry_a;
+  delete entry_b;
+  delete entry_c;
+  delete entry_d;
+  delete entry_e;
+  delete entry_f;
+  delete entry_g;
+  delete entry_h;
+  delete entry_i;
 }
 
 // // Push, top, pop, and update 9 entries
@@ -276,13 +322,141 @@ REGRESSION_TEST(PriorityQueue_5)(RegressionTest *t, int /* atype ATS_UNUSED */, 
   pq->pop();
 
   box.check(pq->top() == NULL, "top should be NULL");
+
+  delete pq;
+
+  delete a;
+  delete b;
+  delete c;
+  delete d;
+  delete e;
+  delete f;
+  delete g;
+  delete h;
+  delete i;
+
+  delete entry_a;
+  delete entry_b;
+  delete entry_c;
+  delete entry_d;
+  delete entry_e;
+  delete entry_f;
+  delete entry_g;
+  delete entry_h;
+  delete entry_i;
 }
 
-int
-main(int /* argc ATS_UNUSED */, const char ** /* argv ATS_UNUSED */)
+// Test erase method
+REGRESSION_TEST(PriorityQueue_6)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {
-  const char *name = "PriorityQueue";
-  RegressionTest::run(name);
+  TestBox box(t, pstatus);
+  box = REGRESSION_TEST_PASSED;
 
-  return RegressionTest::final_status == REGRESSION_TEST_PASSED ? 0 : 1;
+  PQ *pq = new PQ();
+
+  N *a = new N(10, "A");
+  N *b = new N(20, "B");
+  N *c = new N(30, "C");
+
+  Entry *entry_a = new Entry(a);
+  Entry *entry_b = new Entry(b);
+  Entry *entry_c = new Entry(c);
+
+  pq->push(entry_a);
+  pq->push(entry_b);
+  pq->push(entry_c);
+
+  box.check(pq->top() == entry_a, "top should be entry_a");
+  pq->erase(entry_a);
+  box.check(pq->top() == entry_b, "top should be entry_b");
+  pq->erase(entry_c);
+  box.check(pq->top() == entry_b, "top should be entry_b");
+  pq->erase(entry_b);
+  box.check(pq->top() == NULL, "top should be NULL");
+  box.check(pq->empty(), "should be empty");
+
+  delete pq;
+
+  delete a;
+  delete b;
+  delete c;
+
+  delete entry_a;
+  delete entry_b;
+  delete entry_c;
+
+  PQ *pq2 = new PQ();
+
+  N *w = new N(10, "W");
+  N *x = new N(20, "X");
+  N *y = new N(30, "Y");
+  N *z = new N(40, "Z");
+
+  Entry *entry_w = new Entry(w);
+  Entry *entry_x = new Entry(x);
+  Entry *entry_y = new Entry(y);
+  Entry *entry_z = new Entry(z);
+
+  pq2->push(entry_z);
+  pq2->push(entry_y);
+  pq2->push(entry_x);
+  pq2->push(entry_w);
+
+  box.check(pq2->top() == entry_w, "top should be entry_w 1");
+  pq2->erase(entry_x);
+  box.check(pq2->top() == entry_w, "top should be entry_w 2");
+  // The following two cases should test that erase preserves the index
+  pq2->erase(entry_y);
+  box.check(pq2->top() == entry_w, "top should be entry_w 3");
+  pq2->erase(entry_z);
+  box.check(pq2->top() == entry_w, "top should be entry_w 4");
+
+  delete pq2;
+
+  delete w;
+  delete x;
+  delete y;
+  delete z;
+
+  delete entry_w;
+  delete entry_x;
+  delete entry_y;
+  delete entry_z;
+}
+
+// Test erase and pop method to ensure the index entries are updated (TS-4915)
+REGRESSION_TEST(PriorityQueue_7)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  TestBox box(t, pstatus);
+  box = REGRESSION_TEST_PASSED;
+
+  PQ *pq2 = new PQ();
+
+  N *x = new N(20, "X");
+  N *y = new N(30, "Y");
+  N *z = new N(40, "Z");
+
+  Entry *entry_x = new Entry(x);
+  Entry *entry_y = new Entry(y);
+  Entry *entry_z = new Entry(z);
+
+  pq2->push(entry_z);
+  pq2->push(entry_y);
+  pq2->push(entry_x);
+
+  box.check(pq2->top() == entry_x, "top should be entry_x");
+  pq2->pop();
+  box.check(pq2->top() == entry_y, "top should be entry_y");
+  pq2->erase(entry_y);
+  box.check(pq2->top() == entry_z, "top should be entry_z");
+
+  delete pq2;
+
+  delete x;
+  delete y;
+  delete z;
+
+  delete entry_x;
+  delete entry_y;
+  delete entry_z;
 }

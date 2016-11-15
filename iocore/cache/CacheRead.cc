@@ -27,7 +27,6 @@
 #include "HttpCacheSM.h" //Added to get the scope of HttpCacheSM object.
 #endif
 
-#define READ_WHILE_WRITER 1
 extern int cache_config_compatibility_4_2_0_fixup;
 
 Action *
@@ -41,7 +40,7 @@ Cache::open_read(Continuation *cont, const CacheKey *key, CacheFragType type, co
 
   Vol *vol = key_to_vol(key, hostname, host_len);
   Dir result, *last_collision = NULL;
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   OpenDirEntry *od  = NULL;
   CacheVC *c        = NULL;
   {
@@ -104,7 +103,7 @@ Cache::open_read(Continuation *cont, const CacheKey *key, CacheHTTPHdr *request,
 
   Vol *vol = key_to_vol(key, hostname, host_len);
   Dir result, *last_collision = NULL;
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   OpenDirEntry *od  = NULL;
   CacheVC *c        = NULL;
 
@@ -306,9 +305,6 @@ CacheVC::openReadFromWriter(int event, Event *e)
   cancel_trigger();
   intptr_t err = ECACHE_DOC_BUSY;
   DDebug("cache_read_agg", "%p: key: %X In openReadFromWriter", this, first_key.slice32(1));
-#ifndef READ_WHILE_WRITER
-  return openReadFromWriterFailure(CACHE_EVENT_OPEN_READ_FAILED, (Event *)-err);
-#else
   if (_action.cancelled) {
     od = NULL; // only open for read so no need to close
     return free_CacheVC(this);
@@ -356,7 +352,7 @@ CacheVC::openReadFromWriter(int event, Event *e)
 #ifdef HTTP_CACHE
   OpenDirEntry *cod = od;
 #endif
-  od                = NULL;
+  od = NULL;
   // someone is currently writing the document
   if (write_vc->closed < 0) {
     MUTEX_RELEASE(lock);
@@ -410,7 +406,7 @@ CacheVC::openReadFromWriter(int event, Event *e)
       // Update case (b) : grab doc_len from the writer's alternate
       doc_len = alternate.object_size_get();
       if (write_vc->update_key == cod->single_doc_key && (cod->move_resident_alt || write_vc->f.rewrite_resident_alt) &&
-          write_vc->first_buf._ptr()) {
+          write_vc->first_buf.get()) {
         // the resident alternate is being updated and its a
         // header only update. The first_buf of the writer has the
         // document body.
@@ -468,7 +464,6 @@ CacheVC::openReadFromWriter(int event, Event *e)
   SET_HANDLER(&CacheVC::openReadFromWriterMain);
   CACHE_INCREMENT_DYN_STAT(cache_read_busy_success_stat);
   return callcont(CACHE_EVENT_OPEN_READ);
-#endif // READ_WHILE_WRITER
 }
 
 int
@@ -495,7 +490,7 @@ CacheVC::openReadFromWriterMain(int /* event ATS_UNUSED */, Event * /* e ATS_UNU
      openWriteWriteDone was called. */
   if (length > ((int64_t)doc_len) - vio.ndone) {
     int64_t skip_bytes = length - (doc_len - vio.ndone);
-    iobufferblock_skip(writer_buf, &writer_offset, &length, skip_bytes);
+    iobufferblock_skip(writer_buf.get(), &writer_offset, &length, skip_bytes);
   }
   int64_t bytes = length;
   if (bytes > vio.ntodo())
@@ -505,8 +500,8 @@ CacheVC::openReadFromWriterMain(int /* event ATS_UNUSED */, Event * /* e ATS_UNU
     // reached the end of the document and the user still wants more
     return calluser(VC_EVENT_EOS);
   }
-  b          = iobufferblock_clone(writer_buf, writer_offset, bytes);
-  writer_buf = iobufferblock_skip(writer_buf, &writer_offset, &length, bytes);
+  b          = iobufferblock_clone(writer_buf.get(), writer_offset, bytes);
+  writer_buf = iobufferblock_skip(writer_buf.get(), &writer_offset, &length, bytes);
   vio.buffer.writer()->append_block(b);
   vio.ndone += bytes;
   if (vio.ntodo() <= 0)
@@ -938,7 +933,7 @@ CacheVC::openReadVecWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */
     if (io.ok()) {
       ink_assert(f.evac_vector);
       ink_assert(frag_type == CACHE_FRAG_TYPE_HTTP);
-      ink_assert(!buf.m_ptr);
+      ink_assert(!buf);
       f.evac_vector   = false;
       last_collision  = NULL;
       f.update        = 0;
@@ -957,8 +952,9 @@ CacheVC::openReadVecWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */
         // case is rare.
         goto Lrestart;
       }
-    } else
+    } else {
       vol->close_write(this);
+    }
   }
 
   CACHE_INCREMENT_DYN_STAT(cache_read_failure_stat);

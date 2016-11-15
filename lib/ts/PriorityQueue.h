@@ -28,7 +28,8 @@
 #include "ts/Vec.h"
 
 template <typename T> struct PriorityQueueEntry {
-  PriorityQueueEntry(T n) : index(0), node(n) {}
+  PriorityQueueEntry(T n) : index(0), node(n){};
+  PriorityQueueEntry() : index(0), node(NULL){};
   uint32_t index;
   T node;
 };
@@ -52,6 +53,7 @@ public:
   void push(PriorityQueueEntry<T> *);
   void update(PriorityQueueEntry<T> *);
   void update(PriorityQueueEntry<T> *, bool);
+  void erase(PriorityQueueEntry<T> *);
   const Vec<PriorityQueueEntry<T> *> &dump() const;
 
 private:
@@ -108,9 +110,30 @@ PriorityQueue<T, Comp>::pop()
     return;
   }
 
-  _v[0] = _v[_v.length() - 1];
+  _swap(0, _v.length() - 1);
   _v.pop();
   _bubble_down(0);
+}
+
+template <typename T, typename Comp>
+void
+PriorityQueue<T, Comp>::erase(PriorityQueueEntry<T> *entry)
+{
+  if (empty()) {
+    return;
+  }
+
+  ink_release_assert(entry->index < _v.length());
+  const uint32_t original_index = entry->index;
+  if (original_index != (_v.length() - 1)) {
+    // Move the erased item to the end to be popped off
+    _swap(original_index, _v.length() - 1);
+    _v.pop();
+    _bubble_down(original_index);
+    _bubble_up(original_index);
+  } else { // Otherwise, we are already at the end, just pop
+    _v.pop();
+  }
 }
 
 template <typename T, typename Comp>

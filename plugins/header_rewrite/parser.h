@@ -26,6 +26,7 @@
 #include <vector>
 #include <algorithm>
 
+#include "ts/ts.h"
 #include "lulu.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,21 +41,11 @@ public:
   {
     return _empty;
   }
+
   bool
   is_cond() const
   {
     return _cond;
-  }
-
-  bool
-  cond_op_is(const std::string s) const
-  {
-    return _cond && (_op == s);
-  }
-  bool
-  oper_op_is(const std::string s) const
-  {
-    return !_cond && (_op == s);
   }
 
   const std::string &
@@ -62,11 +53,13 @@ public:
   {
     return _op;
   }
+
   std::string &
   get_arg()
   {
     return _arg;
   }
+
   const std::string &
   get_value() const
   {
@@ -78,6 +71,8 @@ public:
   {
     return (std::find(_mods.begin(), _mods.end(), m) != _mods.end());
   }
+
+  bool cond_is_hook(TSHttpHookID &hook) const;
 
 private:
   void preprocess(std::vector<std::string> tokens);

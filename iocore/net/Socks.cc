@@ -41,7 +41,7 @@ socks_conf_struct *g_socks_conf_stuff = 0;
 ClassAllocator<SocksEntry> socksAllocator("socksAllocator");
 
 void
-SocksEntry::init(ProxyMutex *m, SocksNetVC *vc, unsigned char socks_support, unsigned char ver)
+SocksEntry::init(Ptr<ProxyMutex> &m, SocksNetVC *vc, unsigned char socks_support, unsigned char ver)
 {
   mutex  = m;
   buf    = new_MIOBuffer();
@@ -56,7 +56,7 @@ SocksEntry::init(ProxyMutex *m, SocksNetVC *vc, unsigned char socks_support, uns
 
   SET_HANDLER(&SocksEntry::startEvent);
 
-  ats_ip_copy(&target_addr, vc->get_local_addr());
+  ats_ip_copy(&target_addr, vc->get_remote_addr());
 
 #ifdef SOCKS_WITH_TS
   req_data.hdr          = 0;
@@ -136,12 +136,9 @@ void
 SocksEntry::free()
 {
   MUTEX_TRY_LOCK(lock, action_.mutex, this_ethread());
-  if (lock.is_locked()) {
-    // Socks continuation share the user's lock
-    // so acquiring a lock shouldn't fail
-    ink_assert(0);
-    return;
-  }
+  // Socks continuation share the user's lock
+  // so acquiring a lock shouldn't fail
+  ink_release_assert(lock.is_locked());
 
   if (timeout)
     timeout->cancel(this);
@@ -247,21 +244,21 @@ SocksEntry::mainEvent(int event, void *data)
     if (auth_handler) {
       n_bytes = invokeSocksAuthHandler(auth_handler, SOCKS_AUTH_OPEN, p);
     } else {
-      // Debug("Socks", " Got NET_EVENT_OPEN to SOCKS server\n");
+      // Debug("Socks", " Got NET_EVENT_OPEN to SOCKS server");
 
       p[n_bytes++] = version;
       p[n_bytes++] = (socks_cmd == NORMAL_SOCKS) ? SOCKS_CONNECT : socks_cmd;
-      ts           = ntohs(ats_ip_port_cast(&server_addr));
+      ts           = ntohs(ats_ip_port_cast(&target_addr));
 
       if (version == SOCKS5_VERSION) {
         p[n_bytes++] = 0; // Reserved
-        if (ats_is_ip4(&server_addr)) {
+        if (ats_is_ip4(&target_addr)) {
           p[n_bytes++] = 1; // IPv4 addr
-          memcpy(p + n_bytes, &server_addr.sin.sin_addr, 4);
+          memcpy(p + n_bytes, &target_addr.sin.sin_addr, 4);
           n_bytes += 4;
-        } else if (ats_is_ip6(&server_addr)) {
+        } else if (ats_is_ip6(&target_addr)) {
           p[n_bytes++] = 4; // IPv6 addr
-          memcpy(p + n_bytes, &server_addr.sin6.sin6_addr, TS_IP6_SIZE);
+          memcpy(p + n_bytes, &target_addr.sin6.sin6_addr, TS_IP6_SIZE);
           n_bytes += TS_IP6_SIZE;
         } else {
           Debug("Socks", "SOCKS supports only IP addresses.");
@@ -272,9 +269,9 @@ SocksEntry::mainEvent(int event, void *data)
       n_bytes += 2;
 
       if (version == SOCKS4_VERSION) {
-        if (ats_is_ip4(&server_addr)) {
+        if (ats_is_ip4(&target_addr)) {
           // for socks4, ip addr is after the port
-          memcpy(p + n_bytes, &server_addr.sin.sin_addr, 4);
+          memcpy(p + n_bytes, &target_addr.sin.sin_addr, 4);
           n_bytes += 4;
 
           p[n_bytes++] = 0; // NULL
@@ -292,7 +289,7 @@ SocksEntry::mainEvent(int event, void *data)
     }
 
     netVConnection->do_io_write(this, n_bytes, reader, 0);
-    // Debug("Socks", "Sent the request to the SOCKS server\n");
+    // Debug("Socks", "Sent the request to the SOCKS server");
 
     ret = EVENT_CONT;
     break;
@@ -370,7 +367,7 @@ SocksEntry::mainEvent(int event, void *data)
       timeout->cancel(this);
       timeout = NULL;
     }
-    // Debug("Socks", "Successfully read the reply from the SOCKS server\n");
+    // Debug("Socks", "Successfully read the reply from the SOCKS server");
     p = (unsigned char *)buf->start();
 
     if (auth_handler) {

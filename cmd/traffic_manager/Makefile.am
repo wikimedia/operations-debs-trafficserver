@@ -21,7 +21,6 @@ AM_CPPFLAGS = \
   $(LUAJIT_CPPFLAGS) \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/proxy \
   -I$(top_srcdir)/proxy/hdrs \
   -I$(top_srcdir)/proxy/shared \
   -I$(top_srcdir)/mgmt \
@@ -32,25 +31,15 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/lib \
   -I$(top_srcdir)/lib/luajit/src
 
-AM_CXXFLAGS += \
-  $(LUAJIT_CFLAGS)
-
 AM_LDFLAGS = \
   @EXTRA_CXX_LDFLAGS@ \
   @LIBTOOL_LINK_FLAGS@ \
-  @EXPAT_LDFLAGS@ \
   @OPENSSL_LDFLAGS@
 
 traffic_manager_SOURCES = \
   AddConfigFilesHere.cc \
   MgmtHandlers.cc \
   MgmtHandlers.h \
-  StatProcessor.cc \
-  StatProcessor.h \
-  StatType.cc \
-  StatType.h \
-  StatXML.cc \
-  StatXML.h \
   WebOverview.cc \
   WebOverview.h \
   metrics.h \
@@ -63,10 +52,8 @@ traffic_manager_LDADD = \
   $(top_builddir)/lib/records/librecords_lm.a \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/proxy/shared/liberror.a \
   $(top_builddir)/proxy/shared/libdiagsconfig.a
 
-if BUILD_LUAJIT
 AM_LDFLAGS += \
   $(LUAJIT_LDFLAGS)
 
@@ -76,11 +63,10 @@ traffic_manager_SOURCES += \
 traffic_manager_LDADD += \
   $(top_builddir)/lib/bindings/libbindings.la \
   $(top_builddir)/lib/luajit/src/libluajit.a
-endif
 
 traffic_manager_LDADD +=\
   $(LIBUNWIND_LIBS) \
-  @LIBRESOLV@ @LIBEXPAT@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
+  @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
   -lm
 
 # Must do it this way or the dependencies aren't detected.
@@ -90,3 +76,8 @@ traffic_manager_LDADD += \
   $(top_builddir)/lib/tsconfig/libtsconfig.la \
   @OPENSSL_LIBS@
 endif
+
+include $(top_srcdir)/build/tidy.mk
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)

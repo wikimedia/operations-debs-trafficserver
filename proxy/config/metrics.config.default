@@ -341,7 +341,7 @@ integer 'proxy.node.http.user_agent_xacts_per_second' [[
   )
 ]]
 
-integer'proxy.cluster.http.user_agent_xacts_per_second' [[
+integer 'proxy.cluster.http.user_agent_xacts_per_second' [[
   return cluster('proxy.node.http.user_agent_xacts_per_second')
 ]]
 
@@ -455,6 +455,14 @@ counter 'proxy.cluster.http.origin_server_total_response_bytes' [[
   return cluster('proxy.node.http.origin_server_total_response_bytes')
 ]]
 
+counter 'proxy.node.http.parent_proxy_total_request_bytes' [[
+  return cluster('proxy.process.http.parent_proxy_request_total_bytes')
+]]
+
+counter 'proxy.node.http.parent_proxy_total_response_bytes' [[
+  return cluster('proxy.process.http.parent_proxy_response_total_bytes')
+]]
+
 -- Add up the downstream (client <-> proxy) traffic volume.
 counter 'proxy.node.user_agent_total_bytes' [[
   return proxy.node.http.user_agent_total_request_bytes +
@@ -519,10 +527,6 @@ float 'proxy.cluster.bandwidth_hit_ratio_avg_10s' [[
     cluster('proxy.node.user_agent_total_bytes_avg_10s') -
     cluster('proxy.node.origin_server_total_bytes_avg_10s')
   ) / cluster('proxy.node.user_agent_total_bytes_avg_10s')
-]]
-
-integer 'proxy.node.bandwidth_hit_ratio_avg_10s_int_pct' [[
-  return proxy.node.bandwidth_hit_ratio_avg_10s * 100
 ]]
 
 -- StatAggregation::Ag_Throughput()
@@ -694,14 +698,6 @@ float 'proxy.cluster.cache_hit_mem_ratio_avg_10s' [[
     cluster('proxy.node.cache_total_hits_avg_10s')   +
     cluster('proxy.node.cache_total_misses_avg_10s')
     )
-]]
-
-integer 'proxy.node.cache_hit_ratio_avg_10s_int_pct' [[
-  return proxy.node.cache_hit_ratio_avg_10s * 100
-]]
-
-integer 'proxy.node.cache_hit_mem_ratio_avg_10s_int_pct' [[
-  return proxy.node.cache_hit_mem_ratio_avg_10s * 100
 ]]
 
 counter 'proxy.node.cache_total_hits' [[
@@ -1085,50 +1081,6 @@ float 'proxy.node.http.transaction_frac_avg_10s.errors.other' [[
     end)
 ]]
 
-integer 'proxy.node.http.transaction_frac_avg_10s.hit_fresh_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.hit_fresh * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.miss_cold_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.miss_cold * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.hit_revalidated_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.hit_revalidated * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.miss_changed_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.miss_changed * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.miss_client_no_cache_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.miss_client_no_cache * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.miss_not_cacheable_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.miss_not_cacheable * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.errors.connect_failed_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.errors.connect_failed * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.errors.aborts_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.errors.aborts * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.errors.possible_aborts_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.errors.possible_aborts * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.errors.pre_accept_hangups_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.errors.pre_accept_hangups * 100
-]]
-
-integer 'proxy.node.http.transaction_frac_avg_10s.errors.other_int_pct' [[
-  return proxy.node.http.transaction_frac_avg_10s.errors.other * 100
-]]
-
 integer 'proxy.node.http.transaction_msec_avg_10s.hit_fresh' [[
   local self = ...
   return interval_of_10s(self, function()
@@ -1431,46 +1383,8 @@ integer 'proxy.cluster.client_throughput_out_kbit' [[
   return cluster('proxy.node.client_throughput_out_kbit')
 ]]
 
--- If proxy.node.cache_hit_ratio represents 100% as 1.0, this
--- represents it as 100.
-integer 'proxy.node.cache_hit_ratio_int_pct' [[
-    return proxy.node.cache_hit_ratio * 100
-]]
-
-integer 'proxy.cluster.cache_hit_ratio_int_pct' [[
-  return proxy.cluster.cache_hit_ratio * 100
-]]
-
-integer 'proxy.node.cache_hit_mem_ratio_int_pct' [[
-  return proxy.node.cache_hit_mem_ratio * 100
-]]
-
-integer 'proxy.cluster.cache_hit_mem_ratio_int_pct' [[
-  return proxy.node.cache_hit_mem_ratio * 100
-]]
-
-integer 'proxy.node.bandwidth_hit_ratio_int_pct' [[
-  return proxy.node.bandwidth_hit_ratio * 100
-]]
-
-integer 'proxy.cluster.bandwidth_hit_ratio_int_pct' [[
-  return proxy.cluster.bandwidth_hit_ratio * 100
-]]
-
-integer 'proxy.node.cache.percent_free_int_pct' [[
-  return proxy.node.cache.percent_free * 100
-]]
-
-integer 'proxy.cluster.cache.percent_free_int_pct' [[
-  return proxy.cluster.cache.percent_free * 100
-]]
-
-integer 'proxy.node.hostdb.hit_ratio_int_pct' [[
-  return proxy.node.hostdb.hit_ratio * 100
-]]
-
-integer 'proxy.cluster.hostdb.hit_ratio_int_pct' [[
-  return proxy.cluster.hostdb.hit_ratio * 100
+float 'proxy.cluster.hostdb.hit_ratio' [[
+  return cluster('proxy.node.hostdb.hit_ratio')
 ]]
 
 integer 'proxy.node.cache.bytes_total_mb' [[
@@ -1481,8 +1395,16 @@ integer 'proxy.node.cache.bytes_free_mb' [[
   return mbytes(proxy.node.cache.bytes_free)
 ]]
 
+integer 'proxy.cluster.cache.bytes_free' [[
+  return cluster('proxy.cluster.cache.bytes_free')
+]]
+
 integer 'proxy.cluster.cache.bytes_free_mb' [[
   return mbytes(proxy.cluster.cache.bytes_free)
+]]
+
+integer 'proxy.node.http.current_parent_proxy_connections' [[
+  return proxy.process.http.current_parent_proxy_connections
 ]]
 
 integer 'proxy.cluster.http.current_parent_proxy_connections' [[
@@ -1625,7 +1547,7 @@ integer 'proxy.node.log.bytes_sent_to_network_avg_10s' [[
 ]]
 
 integer 'proxy.cluster.log.bytes_sent_to_network_avg_10s' [[
-  return cluster(' proxy.node.log.bytes_sent_to_network_avg_10s')
+  return cluster('proxy.node.log.bytes_sent_to_network_avg_10s')
 ]]
 
 integer 'proxy.node.log.bytes_received_from_network_avg_10s' [[

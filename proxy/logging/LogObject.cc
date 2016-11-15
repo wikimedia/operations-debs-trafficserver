@@ -29,7 +29,6 @@
 #include "ts/ink_platform.h"
 #include "ts/CryptoHash.h"
 #include "ts/INK_MD5.h"
-#include "Error.h"
 #include "P_EventSystem.h"
 #include "LogUtils.h"
 #include "LogField.h"
@@ -131,7 +130,8 @@ LogObject::LogObject(const LogFormat *format, const char *log_dir, const char *b
 }
 
 LogObject::LogObject(LogObject &rhs)
-  : m_basename(ats_strdup(rhs.m_basename)),
+  : RefCountObj(rhs),
+    m_basename(ats_strdup(rhs.m_basename)),
     m_filename(ats_strdup(rhs.m_filename)),
     m_alt_filename(ats_strdup(rhs.m_alt_filename)),
     m_flags(rhs.m_flags),
@@ -306,6 +306,8 @@ LogObject::add_loghost(LogHost *host, bool copy)
   // then clear the intelligent Ptr containing LogFile.
   //
   m_logFile.clear();
+
+  Debug("log", "added log host %p to object %p for target %s:%d", host, this, host->name(), host->port());
 }
 
 // we conpute the object signature from the fieldlist_str and the printf_str
@@ -350,34 +352,6 @@ LogObject::display(FILE *fd)
   }
   m_filter_list.display(fd);
   fprintf(fd, "++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-}
-
-void
-LogObject::displayAsXML(FILE *fd, bool extended)
-{
-  if (extended) {
-    // display format and filter objects
-    m_format->displayAsXML(fd);
-    m_filter_list.display_as_XML(fd);
-  }
-
-  fprintf(fd, "<LogObject>\n"
-              "  <Mode        = \"%s\"/>\n"
-              "  <Format      = \"%s\"/>\n"
-              "  <Filename    = \"%s\"/>\n",
-          (m_flags & BINARY ? "binary" : "ascii"), m_format->name(), m_filename);
-
-  LogFilter *filter;
-  for (filter = m_filter_list.first(); filter != NULL; filter = m_filter_list.next(filter)) {
-    fprintf(fd, "  <Filter      = \"%s\"/>\n", filter->name());
-  }
-
-  LogHost *host;
-  for (host = m_host_list.first(); host != NULL; host = m_host_list.next(host)) {
-    fprintf(fd, "  <LogHostName = \"%s\"/>\n", host->name());
-  }
-
-  fprintf(fd, "</LogObject>\n");
 }
 
 LogBuffer *
@@ -464,14 +438,16 @@ LogObject::_checkout_write(size_t *write_offset, size_t bytes_needed)
       head_p old_h;
       do {
         INK_QUEUE_LD(old_h, m_log_buffer);
-        if (FREELIST_POINTER(old_h) != FREELIST_POINTER(h))
+        if (FREELIST_POINTER(old_h) != FREELIST_POINTER(h)) {
           break;
+        }
         head_p tmp_h;
         SET_FREELIST_POINTER_VERSION(tmp_h, FREELIST_POINTER(h), FREELIST_VERSION(old_h) - 1);
         result = ink_atomic_cas(&m_log_buffer.data, old_h.data, tmp_h.data);
       } while (!result);
-      if (FREELIST_POINTER(old_h) != FREELIST_POINTER(h))
+      if (FREELIST_POINTER(old_h) != FREELIST_POINTER(h)) {
         ink_atomic_increment(&buffer->m_references, -1);
+      }
     }
   } while (retry && write_offset); // if write_offset is null, we do
   // not retry because we really do
@@ -655,8 +631,9 @@ LogObject::_setup_rolling(Log::RollingEnabledValues rolling_enabled, int rolling
       } else {
         m_rolling_interval_sec = rolling_interval_sec;
         // increase so it divides day evenly
-        while (Log::MAX_ROLLING_INTERVAL_SEC % ++m_rolling_interval_sec)
+        while (Log::MAX_ROLLING_INTERVAL_SEC % ++m_rolling_interval_sec) {
           ;
+        }
       }
 
       if (m_rolling_interval_sec != rolling_interval_sec) {
@@ -690,15 +667,17 @@ LogObject::_setup_rolling(Log::RollingEnabledValues rolling_enabled, int rolling
 unsigned
 LogObject::roll_files(long time_now)
 {
-  if (!m_rolling_enabled)
+  if (!m_rolling_enabled) {
     return 0;
+  }
 
   unsigned num_rolled = 0;
   bool roll_on_time   = false;
   bool roll_on_size   = false;
 
-  if (!time_now)
+  if (!time_now) {
     time_now = LogUtils::timestamp();
+  }
 
   if (m_rolling_enabled != Log::ROLL_ON_SIZE_ONLY) {
     if (m_rolling_interval_sec > 0) {
@@ -1301,7 +1280,7 @@ int
 LogObjectManager::log(LogAccess *lad)
 {
   int ret           = Log::SKIP;
-  ProxyMutex *mutex = this_thread()->mutex;
+  ProxyMutex *mutex = this_thread()->mutex.get();
 
   for (unsigned i = 0; i < this->_objects.length(); i++) {
     //
@@ -1309,8 +1288,9 @@ LogObjectManager::log(LogAccess *lad)
     // data received from network in collation host. It should
     // be ignored here.
     //
-    if (_objects[i]->m_auto_created)
+    if (_objects[i]->m_auto_created) {
       continue;
+    }
 
     ret |= _objects[i]->log(lad);
   }

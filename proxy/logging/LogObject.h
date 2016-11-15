@@ -143,7 +143,7 @@ public:
       idx = m_buffer_manager_idx++ % m_flush_threads;
 
     if (m_logFile) {
-      nfb = m_buffer_manager[idx].preproc_buffers(m_logFile);
+      nfb = m_buffer_manager[idx].preproc_buffers(m_logFile.get());
     } else {
       nfb = m_buffer_manager[idx].preproc_buffers(&m_host_list);
     }
@@ -153,7 +153,6 @@ public:
   void check_buffer_expiration(long time_now);
 
   void display(FILE *fd = stdout);
-  void displayAsXML(FILE *fd = stdout, bool extended = false);
   static uint64_t compute_signature(LogFormat *format, char *filename, unsigned int flags);
 
   const char *
@@ -328,18 +327,6 @@ public:
   inkcoreapi int va_write(const char *format, va_list ap);
 
   static const LogFormat *textfmt;
-};
-
-/*-------------------------------------------------------------------------
-  RefCounter
-  -------------------------------------------------------------------------*/
-class RefCounter
-{
-public:
-  RefCounter(int *count) : m_count(count) { ink_atomic_increment(m_count, 1); }
-  ~RefCounter() { ink_atomic_increment(m_count, -1); }
-private:
-  int *m_count;
 };
 
 /*-------------------------------------------------------------------------

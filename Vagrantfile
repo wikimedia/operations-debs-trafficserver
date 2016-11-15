@@ -23,6 +23,9 @@ $network = {
   "centos6_64" => "192.168.2.106",
   "centos6_32" => "192.168.2.107",
   "omnios" => "192.168.2.108",
+  "fedora23_64" => "192.168.2.109",
+  "xenial_64" => "192.168.2.110",
+  "fedora24_64" => "192.168.2.111",
 }
 
 $vmspec = {
@@ -31,6 +34,9 @@ $vmspec = {
   ],
   "trusty_32" => [
     "ubuntu/trusty32"
+  ],
+  "xenial_64" => [
+    "ubuntu/xenial64"
   ],
   "jessie_64" => [
     "puppetlabs/debian-8.2-64-nocm"
@@ -49,6 +55,12 @@ $vmspec = {
   ],
   "omnios" => [
     "omniti/omnios-r151014"
+  ],
+  "fedora23_64" => [
+    "fedora/23-cloud-base"
+  ],
+  "fedora24_64" => [
+    "fedora/24-cloud-base"
   ],
 }
 

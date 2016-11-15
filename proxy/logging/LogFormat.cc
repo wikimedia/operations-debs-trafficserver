@@ -34,7 +34,6 @@
 
 #include "ts/INK_MD5.h"
 
-#include "Error.h"
 #include "ts/SimpleTokenizer.h"
 
 #include "LogUtils.h"
@@ -236,7 +235,8 @@ LogFormat::LogFormat(const char *name, const char *fieldlist_str, const char *pr
   -------------------------------------------------------------------------*/
 
 LogFormat::LogFormat(const LogFormat &rhs)
-  : m_interval_sec(0),
+  : RefCountObj(rhs),
+    m_interval_sec(0),
     m_interval_next(0),
     m_agg_marshal_space(NULL),
     m_valid(rhs.m_valid),
@@ -440,8 +440,9 @@ LogFormat::parse_symbol_string(const char *symbol_string, LogFieldList *field_li
   LogField::Container container;
   LogField::Aggregate aggregate;
 
-  if (symbol_string == NULL)
+  if (symbol_string == NULL) {
     return 0;
+  }
   ink_assert(field_list != NULL);
   ink_assert(contains_aggregates != NULL);
 
@@ -587,14 +588,16 @@ LogFormat::parse_escape_string(const char *str, int len)
   int sum, start = 0;
   unsigned char a, b, c;
 
-  if (str[start] != '\\' || len < 2)
+  if (str[start] != '\\' || len < 2) {
     return -1;
+  }
 
-  if (str[start + 1] == '\\')
+  if (str[start + 1] == '\\') {
     return '\\';
-
-  if (len < 4)
+  }
+  if (len < 4) {
     return -1;
+  }
 
   a = (unsigned char)str[start + 1];
   b = (unsigned char)str[start + 2];
@@ -606,28 +609,32 @@ LogFormat::parse_escape_string(const char *str, int len)
     if (sum == 0 || sum >= 255) {
       Warning("Octal escape sequence out of range: \\%c%c%c, treat it as normal string\n", a, b, c);
       return -1;
-    } else
+    } else {
       return sum;
+    }
 
   } else if (tolower(a) == 'x' && isxdigit(b) && isxdigit(c)) {
     int i, j;
-    if (isdigit(b))
+    if (isdigit(b)) {
       i = b - '0';
-    else
+    } else {
       i = toupper(b) - 'A' + 10;
+    }
 
-    if (isdigit(c))
+    if (isdigit(c)) {
       j = c - '0';
-    else
+    } else {
       j = toupper(c) - 'A' + 10;
+    }
 
     sum = i * 16 + j;
 
     if (sum == 0 || sum >= 255) {
       Warning("Hex escape sequence out of range: \\%c%c%c, treat it as normal string\n", a, b, c);
       return -1;
-    } else
+    } else {
       return sum;
+    }
   }
 
   return -1;
@@ -772,21 +779,6 @@ LogFormat::display(FILE *fd)
     fprintf(fd, "Fields : None\n");
   }
   fprintf(fd, "--------------------------------------------------------\n");
-}
-
-void
-LogFormat::displayAsXML(FILE *fd)
-{
-  if (valid()) {
-    fprintf(fd, "<LogFormat>\n"
-                "  <Name     = \"%s\"/>\n"
-                "  <Format   = \"%s\"/>\n"
-                "  <Interval = \"%ld\"/>\n"
-                "</LogFormat>\n",
-            m_name_str, m_format_str, m_interval_sec);
-  } else {
-    fprintf(fd, "INVALID FORMAT\n");
-  }
 }
 
 /*-------------------------------------------------------------------------

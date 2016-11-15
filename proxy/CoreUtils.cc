@@ -144,15 +144,17 @@ CoreUtils::find_vaddr(intptr_t vaddr, intptr_t upper, intptr_t lower)
     // no match
   } else if (index == lower) {
     inTable = false;
-    if ((index == 0) && (arrayMem[index].vaddr > vaddr))
+    if ((index == 0) && (arrayMem[index].vaddr > vaddr)) {
       return 0;
-    else
+    } else {
       return index + 1;
+    }
   } else {
-    if (arrayMem[index].vaddr > vaddr)
+    if (arrayMem[index].vaddr > vaddr) {
       return find_vaddr(vaddr, index, lower);
-    else
+    } else {
       return find_vaddr(vaddr, upper, index);
+    }
   }
   assert(0);
   return -1;
@@ -217,9 +219,9 @@ CoreUtils::read_from_core(intptr_t vaddr, intptr_t bytes, char *buf)
   intptr_t size    = arrayMem[index - 1].fsize;
   intptr_t offset2 = std::abs(vaddr - vadd);
 
-  if (bytes > (size - offset2))
+  if (bytes > (size - offset2)) {
     return -1;
-  else {
+  } else {
     if (fseek(fp, offset2 + offset, SEEK_SET) != -1) {
       char *frameoff;
       if ((frameoff = (char *)ats_malloc(sizeof(char) * bytes))) {
@@ -234,8 +236,9 @@ CoreUtils::read_from_core(intptr_t vaddr, intptr_t bytes, char *buf)
         }
         ats_free(frameoff);
       }
-    } else
+    } else {
       return -1;
+    }
   }
 
   return -1;
@@ -389,8 +392,9 @@ CoreUtils::test_HttpSM_from_tunnel(void *arg)
   HttpSM **hsm_ptr = (HttpSM **)(tmp + offset);
   HttpSM *hsm_test;
 
-  if (read_from_core((intptr_t)hsm_ptr, sizeof(HttpSM *), (char *)&hsm_test) == 0)
+  if (read_from_core((intptr_t)hsm_ptr, sizeof(HttpSM *), (char *)&hsm_test) == 0) {
     return;
+  }
 
   unsigned int *magic_ptr = &(hsm_test->magic);
   unsigned int magic      = 0;
@@ -459,8 +463,9 @@ CoreUtils::process_HttpSM(HttpSM *core_ptr)
       }
     }
     ats_free(http_sm);
-  } else
+  } else {
     printf("process_HttpSM : last_seen_http_sm == core_ptr\n");
+  }
 }
 
 void
@@ -505,7 +510,7 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
   do {
     if (read_from_core((intptr_t)heap, sizeof(HdrHeap), buf) == -1) {
       printf("Cannot read from core\n");
-      _exit(0);
+      ::exit(0);
     }
     heap      = (HdrHeap *)buf;
     copy_size = (int)(heap->m_free_start - heap->m_data_start);
@@ -522,14 +527,14 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
   do {
     if (read_from_core((intptr_t)heap_ptr, sizeof(HdrHeap), buf) == -1) {
       printf("Cannot read from core\n");
-      _exit(0);
+      ::exit(0);
     }
     heap_ptr  = (HdrHeap *)buf;
     copy_size = (int)(heap_ptr->m_free_start - heap_ptr->m_data_start);
 
     if (read_from_core((intptr_t)heap_ptr->m_data_start, copy_size, ptr_data) == -1) {
       printf("Cannot read from core\n");
-      _exit(0);
+      ::exit(0);
     }
     // Expand ptr xlation table if necessary
     if (ptr_heaps >= ptr_xl_size) {
@@ -552,7 +557,7 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
   heap = (HdrHeap *)http_hdr->m_heap;
   if (read_from_core((intptr_t)heap, sizeof(HdrHeap), buf) == -1) {
     printf("Cannot read from core\n");
-    _exit(0);
+    ::exit(0);
   }
   heap = (HdrHeap *)buf;
   // filling in the live_hdr
@@ -569,8 +574,9 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
   swizzle_heap->m_ronly_heap[0].m_heap_start          = (char *)(intptr_t)swizzle_heap->m_size; // offset
   swizzle_heap->m_ronly_heap[0].m_ref_count_ptr.m_ptr = NULL;
 
-  for (int i                                   = 1; i < HDR_BUF_RONLY_HEAPS; i++)
+  for (int i = 1; i < HDR_BUF_RONLY_HEAPS; i++) {
     swizzle_heap->m_ronly_heap[i].m_heap_start = NULL;
+  }
 
   // Next order of business is to copy over string heaps
   //   As we are copying over the string heaps, build
@@ -585,7 +591,7 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
     char *str_hdr    = (char *)ats_malloc(sizeof(char) * sizeof(HdrStrHeap));
     if (read_from_core((intptr_t)hdr, sizeof(HdrStrHeap), str_hdr) == -1) {
       printf("Cannot read from core\n");
-      _exit(0);
+      ::exit(0);
     }
 
     char *free_start = (char *)(((HdrStrHeap *)str_hdr)->m_free_start);
@@ -598,7 +604,7 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
 #endif
     if (read_from_core((intptr_t)copy_start, nto_copy, rw_heap) == -1) {
       printf("Cannot read from core\n");
-      _exit(0);
+      ::exit(0);
     }
     // FIX ME - possible offset overflow issues?
     str_xlation[str_heaps].start  = copy_start;
@@ -621,7 +627,7 @@ CoreUtils::load_http_hdr(HTTPHdr *core_hdr, HTTPHdr *live_hdr)
 #endif
       if (read_from_core((intptr_t)heap->m_ronly_heap[i].m_heap_start, heap->m_ronly_heap[i].m_heap_len, ro_heap) == -1) {
         printf("Cannot read from core\n");
-        _exit(0);
+        ::exit(0);
       }
       // Add translation table entry for string heaps
       str_xlation[str_heaps].start  = heap->m_ronly_heap[i].m_heap_start;
@@ -743,8 +749,8 @@ CoreUtils::process_EThread(EThread *eth_test)
   ats_free(buf);
 }
 
-static void
-print_netstate(NetState *n)
+void
+CoreUtils::print_netstate(NetState *n)
 {
   printf("      enabled: %d\n", n->enabled);
   printf("      op: %d  _cont: 0x%p\n", n->vio.op, n->vio._cont);
@@ -811,13 +817,13 @@ process_core(char *fname)
   /* Open the input file */
   if (!(fp = fopen(fname, "r"))) {
     printf("cannot open file\n");
-    _exit(1);
+    ::exit(1);
   }
 
   /* Obtain the .shstrtab data buffer */
   if (fread(&ehdr, sizeof ehdr, 1, fp) != 1) {
     printf("Unable to read ehdr\n");
-    _exit(1);
+    ::exit(1);
   }
   // program header offset
   phoff = ehdr.e_phoff;
@@ -829,12 +835,12 @@ process_core(char *fname)
   for (int i = 0; i < phnum; i++) {
     if (fseek(fp, phoff + i * phentsize, SEEK_SET) == -1) {
       fprintf(stderr, "Unable to seek to Phdr %d\n", i);
-      _exit(1);
+      ::exit(1);
     }
 
     if (fread(&phdr, sizeof phdr, 1, fp) != 1) {
       fprintf(stderr, "Unable to read Phdr %d\n", i);
-      _exit(1);
+      ::exit(1);
     }
     int poffset, psize;
     int pvaddr;
@@ -882,7 +888,7 @@ process_core(char *fname)
               char *offset = (char *)(thdr + 1) + ((thdr->n_namesz + 3) & ~3);
 
               if (len < 0 || len > size) {
-                _exit(1);
+                ::exit(1);
               }
               printf("size=%d, len=%d\n", size, len);
 

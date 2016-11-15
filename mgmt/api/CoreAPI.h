@@ -36,8 +36,6 @@
 TSMgmtError Init(const char *socket_path = NULL, TSInitOptionT options = TS_MGMT_OPT_DEFAULTS);
 TSMgmtError Terminate();
 
-void DiagnosticMessage(TSDiagsT mode, const char *fmt, va_list ap);
-
 /***************************************************************************
  * Control Operations
  ***************************************************************************/
@@ -45,10 +43,11 @@ TSProxyStateT ProxyStateGet();
 TSMgmtError ProxyStateSet(TSProxyStateT state, TSCacheClearT clear);
 TSMgmtError ServerBacktrace(unsigned options, char **trace);
 
-TSMgmtError Reconfigure();                            // TS reread config files
-TSMgmtError Restart(unsigned options);                // restart TM
-TSMgmtError Bounce(unsigned options);                 // restart traffic_server
-TSMgmtError StorageDeviceCmdOffline(const char *dev); // Storage device operation.
+TSMgmtError Reconfigure();                                                         // TS reread config files
+TSMgmtError Restart(unsigned options);                                             // restart TM
+TSMgmtError Bounce(unsigned options);                                              // restart traffic_server
+TSMgmtError StorageDeviceCmdOffline(const char *dev);                              // Storage device operation.
+TSMgmtError LifecycleMessage(char const *tag, void const *data, size_t data_size); // Lifecycle alert to plugins.
 
 /***************************************************************************
  * Record Operations

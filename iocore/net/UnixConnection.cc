@@ -55,7 +55,7 @@ Connection::setup_mc_send(sockaddr const *mc_addr, sockaddr const *my_addr, bool
   int enable_reuseaddr = 1;
   in_addr_t mc_if      = ats_ip4_addr_cast(my_addr);
 
-  if ((res = socketManager.mc_socket(my_addr->sa_family, SOCK_DGRAM, 0, non_blocking)) < 0)
+  if ((res = socketManager.socket(my_addr->sa_family, SOCK_DGRAM, 0)) < 0)
     goto Lerror;
 
   fd = res;
@@ -70,10 +70,8 @@ Connection::setup_mc_send(sockaddr const *mc_addr, sockaddr const *my_addr, bool
 
   ats_ip_copy(&addr, mc_addr);
 
-#ifdef SET_CLOSE_ON_EXEC
-  if ((res = safe_fcntl(fd, F_SETFD, 1)) < 0)
+  if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0)
     goto Lerror;
-#endif
 
   if (non_blocking)
     if ((res = safe_nonblocking(fd)) < 0)
@@ -118,10 +116,8 @@ Connection::setup_mc_receive(sockaddr const *mc_addr, sockaddr const *my_addr, b
 
   fd = res;
 
-#ifdef SET_CLOSE_ON_EXEC
-  if ((res = safe_fcntl(fd, F_SETFD, 1)) < 0)
+  if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0)
     goto Lerror;
-#endif
 
   if ((res = safe_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&enable_reuseaddr, sizeof(enable_reuseaddr)) < 0))
     goto Lerror;
@@ -285,7 +281,7 @@ Connection::open(NetVCOptions const &opt)
       int rbufsz = ROUNDUP(opt.socket_recv_bufsize, 1024);
       while (rbufsz && !socketManager.set_rcvbuf_size(fd, rbufsz))
         rbufsz -= 1024;
-      Debug("socket", "::open: recv_bufsize = %d of %d\n", rbufsz, opt.socket_recv_bufsize);
+      Debug("socket", "::open: recv_bufsize = %d of %d", rbufsz, opt.socket_recv_bufsize);
     }
   }
   if (opt.socket_send_bufsize > 0) {
@@ -294,7 +290,7 @@ Connection::open(NetVCOptions const &opt)
       int sbufsz = ROUNDUP(opt.socket_send_bufsize, 1024);
       while (sbufsz && !socketManager.set_sndbuf_size(fd, sbufsz))
         sbufsz -= 1024;
-      Debug("socket", "::open: send_bufsize = %d of %d\n", sbufsz, opt.socket_send_bufsize);
+      Debug("socket", "::open: send_bufsize = %d of %d", sbufsz, opt.socket_send_bufsize);
     }
   }
 

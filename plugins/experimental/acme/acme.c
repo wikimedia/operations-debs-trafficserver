@@ -264,7 +264,7 @@ acme_hook(TSCont contp ATS_UNUSED, TSEvent event ATS_UNUSED, void *edata)
     const char *path = TSUrlPathGet(reqp, url_loc, &path_len);
 
     /* Short circuit the / path, common case */
-    if (!path || path_len < (strlen(ACME_WK_PATH) + 2) || *path != '.' || memcmp(path, ACME_WK_PATH, strlen(ACME_WK_PATH))) {
+    if (!path || path_len < (int)(strlen(ACME_WK_PATH) + 2) || *path != '.' || memcmp(path, ACME_WK_PATH, strlen(ACME_WK_PATH))) {
       TSDebug(PLUGIN_NAME, "skipping URL path = %.*s", path_len, path);
       goto cleanup;
     }
@@ -307,7 +307,6 @@ TSPluginInit(int argc, const char *argv[])
   };
 
   memset(&gConfig, 0, sizeof(gConfig));
-  optind = 0;
   while (true) {
     int opt = getopt_long(argc, (char *const *)argv, "", longopt, NULL);
 

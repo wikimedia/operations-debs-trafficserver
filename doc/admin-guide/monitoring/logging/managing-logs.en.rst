@@ -33,7 +33,7 @@ By default, Traffic Server writes all event log files in the ``logs``
 directory located in the directory where you installed |TS|. To change this
 location, adjust the value of :ts:cv:`proxy.config.log.logfile_dir` in
 :file:`records.config`. You will need to either restart |TS| or run the
-command :option:`traffic_line -x` for changes to take effect.
+command :option:`traffic_ctl config reload` for changes to take effect.
 
 Controlling Logging Space
 =========================
@@ -66,6 +66,18 @@ partition, where you can run a variety of log analysis scripts. Following
 analysis, either compress the logs and move to an archive location, or simply
 delete them.
 
+|TS| periodically checks the amount of log space used against both
+the log space allocation configured by
+:ts:cv:`proxy.config.log.max_space_mb_for_logs` and the actual
+amount of space available on the disk partition. The used log space
+is calculated by summing the size of all files present in the logging
+directory and is published in the
+:ts:stat:`proxy.process.log.log_files_space_used` metric. The
+:ts:cv:`proxy.config.log.max_space_mb_headroom` configuration
+variable specifies an amount of headroom that is subtracted from
+the log space allocation. This can be tuned to reduce the risk of
+completely filling the disk partition.
+
 Setting Log File Management Options
 -----------------------------------
 
@@ -76,7 +88,7 @@ To set log management options, follow the steps below:
    -  :ts:cv:`proxy.config.log.max_space_mb_for_logs`
    -  :ts:cv:`proxy.config.log.max_space_mb_headroom`
 
-#. Run the command :option:`traffic_line -x` to apply the configuration
+#. Run the command :option:`traffic_ctl config reload` to apply the configuration
    changes.
 
 Rolling Logs
@@ -212,14 +224,14 @@ they reach a certain size, adjust the following settings in
 
     CONFIG proxy.config.log.rolling_interval_sec INT 21600
 
-#. Run the command :option:`traffic_line -x` to apply the configuration
+#. Run the command :option:`traffic_ctl config reload` to apply the configuration
    changes.
 
 You can fine-tune log file rolling settings for a custom log file in the
-:ref:`LogObject` specification in :file:`logs_xml.config`. The custom log file
-uses the rolling settings in its :ref:`LogObject`, which override the default
-settings you specify in Traffic Manager or :file:`records.config` described
-above.
+``log.*`` specification in :file:`logging.config`. The custom log file uses the
+rolling settings provided in the relevant ``log`` function call, which override
+the default settings you specify in Traffic Manager or :file:`records.config`
+described above.
 
 .. _admin-monitoring-logging-host-split:
 

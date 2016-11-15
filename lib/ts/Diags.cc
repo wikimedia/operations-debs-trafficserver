@@ -52,6 +52,23 @@ inkcoreapi Diags *diags = NULL;
 
 static bool setup_diagslog(BaseLogFile *blf);
 
+static bool
+location(const SourceLocation *loc, DiagsShowLocation show, DiagsLevel level)
+{
+  if (loc && loc->valid()) {
+    switch (show) {
+    case SHOW_LOCATION_ALL:
+      return true;
+    case SHOW_LOCATION_DEBUG:
+      return level <= DL_Debug;
+    default:
+      return false;
+    }
+  }
+
+  return false;
+}
+
 template <int Size>
 static void
 vprintline(FILE *fp, char (&buffer)[Size], va_list ap)
@@ -63,39 +80,6 @@ vprintline(FILE *fp, char (&buffer)[Size], va_list ap)
     ink_assert(nbytes < Size);
     putc('\n', fp);
   }
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-//      char *SrcLoc::str(char *buf, int buflen)
-//
-//      This method takes a SrcLoc source location data structure and
-//      converts it to a human-readable representation, in the buffer <buf>
-//      with length <buflen>.  The buffer will always be NUL-terminated, and
-//      must always have a length of at least 1.  The buffer address is
-//      returned on success.  The routine will only fail if the SrcLoc is
-//      not valid, or the buflen is less than 1.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-char *
-SrcLoc::str(char *buf, int buflen) const
-{
-  const char *shortname;
-
-  if (!this->valid() || buflen < 1)
-    return (NULL);
-
-  shortname = strrchr(file, '/');
-  shortname = shortname ? (shortname + 1) : file;
-
-  if (func != NULL) {
-    snprintf(buf, buflen, "%s:%d (%s)", shortname, line, func);
-  } else {
-    snprintf(buf, buflen, "%s:%d", shortname, line);
-  }
-  buf[buflen - 1] = NUL;
-  return (buf);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -116,12 +100,12 @@ SrcLoc::str(char *buf, int buflen) const
 //
 //////////////////////////////////////////////////////////////////////////////
 
-Diags::Diags(const char *bdt, const char *bat, BaseLogFile *_diags_log)
+Diags::Diags(const char *prefix_string, const char *bdt, const char *bat, BaseLogFile *_diags_log)
   : diags_log(NULL),
     stdout_log(NULL),
     stderr_log(NULL),
     magic(DIAGS_MAGIC),
-    show_location(0),
+    show_location(SHOW_LOCATION_NONE),
     base_debug_tags(NULL),
     base_action_tags(NULL)
 {
@@ -144,6 +128,11 @@ Diags::Diags(const char *bdt, const char *bat, BaseLogFile *_diags_log)
   config.enabled[DiagsTagType_Debug]  = (base_debug_tags != NULL);
   config.enabled[DiagsTagType_Action] = (base_action_tags != NULL);
   diags_on_for_plugins                = config.enabled[DiagsTagType_Debug];
+  prefix_str                          = prefix_string;
+
+  // The caller must always provide a non-empty prefix.
+  ink_release_assert(prefix_str);
+  ink_release_assert(*prefix_str);
 
   for (i = 0; i < DiagsLevel_Count; i++) {
     config.outputs[i].to_stdout   = false;
@@ -159,17 +148,12 @@ Diags::Diags(const char *bdt, const char *bat, BaseLogFile *_diags_log)
   stdout_log->open_file(); // should never fail
   stderr_log->open_file(); // should never fail
 
-  if (setup_diagslog(_diags_log)) {
-    diags_log = _diags_log;
-  }
-
   //////////////////////////////////////////////////////////////////
   // start off with empty tag tables, will build in reconfigure() //
   //////////////////////////////////////////////////////////////////
 
   activated_tags[DiagsTagType_Debug]  = NULL;
   activated_tags[DiagsTagType_Action] = NULL;
-  prefix_str                          = "";
 
   outputlog_rolling_enabled  = RollingEnabledValues::NO_ROLLING;
   outputlog_rolling_interval = -1;
@@ -180,6 +164,10 @@ Diags::Diags(const char *bdt, const char *bat, BaseLogFile *_diags_log)
 
   outputlog_time_last_roll = time(0);
   diagslog_time_last_roll  = time(0);
+
+  if (setup_diagslog(_diags_log)) {
+    diags_log = _diags_log;
+  }
 }
 
 Diags::~Diags()
@@ -234,7 +222,8 @@ Diags::~Diags()
 //////////////////////////////////////////////////////////////////////////////
 
 void
-Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SrcLoc *loc, const char *format_string, va_list ap) const
+Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SourceLocation *loc, const char *format_string,
+                va_list ap) const
 {
   struct timeval tp;
   const char *s;
@@ -269,6 +258,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SrcLoc *loc
 
   for (s = level_name(diags_level); *s; *end_of_format++ = *s++)
     ;
+
   *end_of_format++ = ':';
   *end_of_format++ = ' ';
 
@@ -276,7 +266,7 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SrcLoc *loc
   // append location, if any //
   /////////////////////////////
 
-  if (loc && loc->valid()) {
+  if (location(loc, show_location, diags_level)) {
     char *lp, buf[256];
     lp = loc->str(buf, sizeof(buf));
     if (lp) {
@@ -313,19 +303,26 @@ Diags::print_va(const char *debug_tag, DiagsLevel diags_level, const SrcLoc *loc
   tp               = ink_gettimeofday();
   time_t cur_clock = (time_t)tp.tv_sec;
   buffer           = ink_ctime_r(&cur_clock, timestamp_buf);
+
   snprintf(&(timestamp_buf[19]), (sizeof(timestamp_buf) - 20), ".%03d", (int)(tp.tv_usec / 1000));
 
   d    = format_buf_w_ts;
   *d++ = '[';
+
   for (int i = 4; buffer[i]; i++)
     *d++ = buffer[i];
-  *d++   = ']';
-  *d++   = ' ';
+
+  *d++ = ']';
+  *d++ = ' ';
 
   for (int k = 0; prefix_str[k]; k++)
     *d++ = prefix_str[k];
+
+  *d++ = ' ';
+
   for (s = format_buf; *s; *d++ = *s++)
     ;
+
   *d++ = NUL;
 
   //////////////////////////////////////
@@ -439,7 +436,7 @@ Diags::tag_activated(const char *tag, DiagsTagType mode) const
 //
 //      void Diags::activate_taglist(char * taglist, DiagsTagType mode)
 //
-//      This routine adds all tags in the vertical-bar-seperated taglist
+//      This routine adds all tags in the vertical-bar-separated taglist
 //      to the tag table of type <mode>.  Each addition is done under a lock.
 //      If an individual tag is already set, that tag is ignored.  If
 //      <taglist> is NULL, this routine exits immediately.
@@ -541,25 +538,7 @@ Diags::dump(FILE *fp) const
 }
 
 void
-Diags::log(const char *tag, DiagsLevel level, const char *file, const char *func, const int line,
-           const char *format_string...) const
-{
-  if (!on(tag))
-    return;
-
-  va_list ap;
-  va_start(ap, format_string);
-  if (show_location) {
-    SrcLoc lp(file, func, line);
-    print_va(tag, level, &lp, format_string, ap);
-  } else {
-    print_va(tag, level, NULL, format_string, ap);
-  }
-  va_end(ap);
-}
-
-void
-Diags::error_va(DiagsLevel level, const char *file, const char *func, const int line, const char *format_string, va_list ap) const
+Diags::error_va(DiagsLevel level, const SourceLocation *loc, const char *format_string, va_list ap) const
 {
   va_list ap2;
 
@@ -567,12 +546,7 @@ Diags::error_va(DiagsLevel level, const char *file, const char *func, const int 
     va_copy(ap2, ap);
   }
 
-  if (show_location) {
-    SrcLoc lp(file, func, line);
-    print_va(NULL, level, &lp, format_string, ap);
-  } else {
-    print_va(NULL, level, NULL, format_string, ap);
-  }
+  print_va(NULL, level, loc, format_string, ap);
 
   if (DiagsLevel_IsTerminal(level)) {
     if (cleanup_func) {
@@ -638,11 +612,11 @@ Diags::should_roll_diagslog()
 {
   bool ret_val = false;
 
-  log_log_trace("should_roll_diagslog() was called\n");
-  log_log_trace("rolling_enabled = %d, output_rolling_size = %d, output_rolling_interval = %d\n", diagslog_rolling_enabled,
-                diagslog_rolling_size, diagslog_rolling_interval);
-  log_log_trace("RollingEnabledValues::ROLL_ON_TIME = %d\n", RollingEnabledValues::ROLL_ON_TIME);
-  log_log_trace("time(0) - last_roll_time = %d\n", time(0) - diagslog_time_last_roll);
+  log_log_trace("%s was called\n", __func__);
+  log_log_trace("%s: rolling_enabled = %d, output_rolling_size = %d, output_rolling_interval = %d\n", __func__,
+                diagslog_rolling_enabled, diagslog_rolling_size, diagslog_rolling_interval);
+  log_log_trace("%s: RollingEnabledValues::ROLL_ON_TIME = %d\n", __func__, RollingEnabledValues::ROLL_ON_TIME);
+  log_log_trace("%s: time(0) - last_roll_time = %d\n", __func__, time(0) - diagslog_time_last_roll);
 
   // Roll diags_log if necessary
   if (diags_log && diags_log->is_init()) {
@@ -657,11 +631,14 @@ Diags::should_roll_diagslog()
         fflush(diags_log->m_fp);
         if (diags_log->roll()) {
           char *oldname = ats_strdup(diags_log->get_name());
-          log_log_trace("in should_roll_logs() for diags.log, oldname=%s\n", oldname);
+          log_log_trace("in %s for diags.log, oldname=%s\n", __func__, oldname);
           BaseLogFile *n = new BaseLogFile(oldname);
           if (setup_diagslog(n)) {
-            delete diags_log;
+            BaseLogFile *old_diags = diags_log;
+            lock();
             diags_log = n;
+            unlock();
+            delete old_diags;
           }
           ats_free(oldname);
           ret_val = true;
@@ -674,11 +651,14 @@ Diags::should_roll_diagslog()
         if (diags_log->roll()) {
           diagslog_time_last_roll = now;
           char *oldname           = ats_strdup(diags_log->get_name());
-          log_log_trace("in should_roll_logs() for diags.log, oldname=%s\n", oldname);
+          log_log_trace("in %s for diags.log, oldname=%s\n", __func__, oldname);
           BaseLogFile *n = new BaseLogFile(oldname);
           if (setup_diagslog(n)) {
-            delete diags_log;
+            BaseLogFile *old_diags = diags_log;
+            lock();
             diags_log = n;
+            unlock();
+            delete old_diags;
           }
           ats_free(oldname);
           ret_val = true;
@@ -713,14 +693,12 @@ Diags::should_roll_outputlog()
   bool ret_val              = false;
   bool need_consider_stderr = true;
 
-  /*
-  log_log_trace("should_roll_outputlog() was called\n");
-  log_log_trace("rolling_enabled = %d, output_rolling_size = %d, output_rolling_interval = %d\n", outputlog_rolling_enabled,
-                outputlog_rolling_size, outputlog_rolling_interval);
-  log_log_trace("RollingEnabledValues::ROLL_ON_TIME = %d\n", RollingEnabledValues::ROLL_ON_TIME);
-  log_log_trace("time(0) - last_roll_time = %d\n", time(0) - outputlog_time_last_roll);
-  log_log_trace("stdout_log = %p\n", stdout_log);
-  */
+  log_log_trace("%s was called\n", __func__);
+  log_log_trace("%s: rolling_enabled = %d, output_rolling_size = %d, output_rolling_interval = %d\n", __func__,
+                outputlog_rolling_enabled, outputlog_rolling_size, outputlog_rolling_interval);
+  log_log_trace("%s: RollingEnabledValues::ROLL_ON_TIME = %d\n", __func__, RollingEnabledValues::ROLL_ON_TIME);
+  log_log_trace("%s: time(0) - last_roll_time = %d\n", __func__, time(0) - outputlog_time_last_roll);
+  log_log_trace("%s: stdout_log = %p\n", __func__, stdout_log);
 
   // Roll stdout_log if necessary
   if (stdout_log->is_init()) {
@@ -740,7 +718,7 @@ Diags::should_roll_outputlog()
 
         if (stdout_log->roll()) {
           char *oldname = ats_strdup(stdout_log->get_name());
-          log_log_trace("in should_roll_logs(), oldname=%s\n", oldname);
+          log_log_trace("in %s(), oldname=%s\n", __func__, oldname);
           set_stdout_output(oldname);
 
           // if stderr and stdout are redirected to the same place, we should
@@ -766,7 +744,7 @@ Diags::should_roll_outputlog()
         if (stdout_log->roll()) {
           outputlog_time_last_roll = now;
           char *oldname            = ats_strdup(stdout_log->get_name());
-          log_log_trace("in should_roll_logs(), oldname=%s\n", oldname);
+          log_log_trace("in %s, oldname=%s\n", __func__, oldname);
           set_stdout_output(oldname);
 
           // if stderr and stdout are redirected to the same place, we should
@@ -799,7 +777,7 @@ Diags::should_roll_outputlog()
 }
 
 /*
- * Binds stdout to _bind_stdout, provided that _bind_stdout != "".
+ * Binds stdout to stdout_path, provided that stdout_path != "".
  * Also sets up a BaseLogFile for stdout.
  *
  * Returns true on binding and setup, false otherwise
@@ -808,71 +786,97 @@ Diags::should_roll_outputlog()
  * set_stderr_output
  */
 bool
-Diags::set_stdout_output(const char *_bind_stdout)
+Diags::set_stdout_output(const char *stdout_path)
 {
-  if (strcmp(_bind_stdout, "") == 0)
+  if (strcmp(stdout_path, "") == 0)
     return false;
 
-  if (stdout_log) {
-    delete stdout_log;
-    stdout_log = NULL;
-  }
-
-  // create backing BaseLogFile for stdout
-  stdout_log = new BaseLogFile(_bind_stdout);
+  BaseLogFile *old_stdout_log = stdout_log;
+  BaseLogFile *new_stdout_log = new BaseLogFile(stdout_path);
 
   // on any errors we quit
-  if (!stdout_log || stdout_log->open_file() != BaseLogFile::LOG_FILE_NO_ERROR) {
-    fprintf(stderr, "[Warning]: unable to open file=%s to bind stdout to\n", _bind_stdout);
-    delete stdout_log;
+  if (!new_stdout_log || new_stdout_log->open_file() != BaseLogFile::LOG_FILE_NO_ERROR) {
+    log_log_error("[Warning]: unable to open file=%s to bind stdout to\n", stdout_path);
+    log_log_error("[Warning]: stdout is currently not bound to anything\n");
+    delete new_stdout_log;
+    lock();
     stdout_log = NULL;
+    unlock();
     return false;
   }
-  if (!stdout_log->m_fp) {
-    fprintf(stderr, "[Warning]: file pointer for stdout %s = NULL\n", _bind_stdout);
-    delete stdout_log;
+  if (!new_stdout_log->is_open()) {
+    log_log_error("[Warning]: file pointer for stdout %s = NULL\n", stdout_path);
+    log_log_error("[Warning]: stdout is currently not bound to anything\n");
+    delete new_stdout_log;
+    lock();
     stdout_log = NULL;
+    unlock();
     return false;
   }
 
-  return rebind_stdout(fileno(stdout_log->m_fp));
+  // now exchange the stdout_log pointer
+  lock();
+  stdout_log = new_stdout_log;
+  bool ret   = rebind_stdout(fileno(new_stdout_log->m_fp));
+  unlock();
+
+  if (old_stdout_log)
+    delete old_stdout_log;
+
+  // "this should never happen"^{TM}
+  ink_release_assert(ret);
+
+  return ret;
 }
 
 /*
- * Binds stderr to _bind_stderr, provided that _bind_stderr != "".
+ * Binds stderr to stderr_path, provided that stderr_path != "".
  * Also sets up a BaseLogFile for stderr.
  *
  * Returns true on binding and setup, false otherwise
  */
 bool
-Diags::set_stderr_output(const char *_bind_stderr)
+Diags::set_stderr_output(const char *stderr_path)
 {
-  if (strcmp(_bind_stderr, "") == 0)
+  if (strcmp(stderr_path, "") == 0)
     return false;
 
-  if (stderr_log) {
-    delete stderr_log;
-    stderr_log = NULL;
-  }
-
-  // create backing BaseLogFile for stdout
-  stderr_log = new BaseLogFile(_bind_stderr);
+  BaseLogFile *old_stderr_log = stderr_log;
+  BaseLogFile *new_stderr_log = new BaseLogFile(stderr_path);
 
   // on any errors we quit
-  if (!stderr_log || stderr_log->open_file() != BaseLogFile::LOG_FILE_NO_ERROR) {
-    fprintf(stderr, "[Warning]: unable to open file=%s to bind stderr to\n", _bind_stderr);
-    delete stderr_log;
+  if (!new_stderr_log || new_stderr_log->open_file() != BaseLogFile::LOG_FILE_NO_ERROR) {
+    log_log_error("[Warning]: unable to open file=%s to bind stderr to\n", stderr_path);
+    log_log_error("[Warning]: stderr is currently not bound to anything\n");
+    delete new_stderr_log;
+    lock();
     stderr_log = NULL;
+    unlock();
     return false;
   }
-  if (!stderr_log->m_fp) {
-    fprintf(stderr, "[Warning]: file pointer for stderr %s = NULL\n", _bind_stderr);
-    delete stderr_log;
+  if (!new_stderr_log->is_open()) {
+    log_log_error("[Warning]: file pointer for stderr %s = NULL\n", stderr_path);
+    log_log_error("[Warning]: stderr is currently not bound to anything\n");
+    delete new_stderr_log;
+    lock();
     stderr_log = NULL;
+    unlock();
     return false;
   }
 
-  return rebind_stderr(fileno(stderr_log->m_fp));
+  // now exchange the stderr_log pointer
+  lock();
+  stderr_log = new_stderr_log;
+  bool ret   = rebind_stderr(fileno(stderr_log->m_fp));
+  unlock();
+
+  if (old_stderr_log)
+    delete old_stderr_log;
+
+  // "this should never happen"^{TM}
+  ink_release_assert(ret);
+
+  return ret;
 }
 
 /*
@@ -884,7 +888,7 @@ bool
 Diags::rebind_stdout(int new_fd)
 {
   if (new_fd < 0)
-    fprintf(stdout, "[Warning]: TS unable to bind stdout to new file descriptor=%d", new_fd);
+    log_log_error("[Warning]: TS unable to bind stdout to new file descriptor=%d", new_fd);
   else {
     dup2(new_fd, STDOUT_FILENO);
     return true;
@@ -901,7 +905,7 @@ bool
 Diags::rebind_stderr(int new_fd)
 {
   if (new_fd < 0)
-    fprintf(stdout, "[Warning]: TS unable to bind stderr to new file descriptor=%d", new_fd);
+    log_log_error("[Warning]: TS unable to bind stderr to new file descriptor=%d", new_fd);
   else {
     dup2(new_fd, STDERR_FILENO);
     return true;

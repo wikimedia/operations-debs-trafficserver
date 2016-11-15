@@ -30,6 +30,41 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+# plugins.mk: Common automake build variables for Traffic Server plugins.
+
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -106,11 +141,11 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
-	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
 	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/ax_path_generic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
+	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
@@ -120,8 +155,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
@@ -129,6 +164,187 @@ mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/lib/ink_autoconf.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = f=`echo $$p | sed -e 's|^.*/||'`;
+am__install_max = 40
+am__nobase_strip_setup = \
+  srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*|]/\\\\&/g'`
+am__nobase_strip = \
+  for p in $$list; do echo "$$p"; done | sed -e "s|$$srcdirstrip/||"
+am__nobase_list = $(am__nobase_strip_setup); \
+  for p in $$list; do echo "$$p $$p"; done | \
+  sed "s| $$srcdirstrip/| |;"' / .*\//!s/ .*/ ./; s,\( .*\)/[^/]*$$,\1,' | \
+  $(AWK) 'BEGIN { files["."] = "" } { files[$$2] = files[$$2] " " $$1; \
+    if (++n[$$2] == $(am__install_max)) \
+      { print $$2, files[$$2]; n[$$2] = 0; files[$$2] = "" } } \
+    END { for (dir in files) print dir, files[dir] }'
+am__base_list = \
+  sed '$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;$$!N;s/\n/ /g' | \
+  sed '$$!N;$$!N;$$!N;$$!N;s/\n/ /g'
+am__uninstall_files_from_dir = { \
+  test -z "$$files" \
+    || { test ! -d "$$dir" && test ! -f "$$dir" && test ! -r "$$dir"; } \
+    || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
+         $(am__cd) "$$dir" && rm -f $$files; }; \
+  }
+am__installdirs = "$(DESTDIR)$(pkglibdir)"
+LTLIBRARIES = $(noinst_LTLIBRARIES) $(pkglib_LTLIBRARIES)
+AsyncHttpFetch_la_DEPENDENCIES = $(libatscppai)
+am__dirstamp = $(am__leading_dot)dirstamp
+am_AsyncHttpFetch_la_OBJECTS = async_http_fetch/AsyncHttpFetch.lo
+AsyncHttpFetch_la_OBJECTS = $(am_AsyncHttpFetch_la_OBJECTS)
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_AsyncHttpFetch_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_AsyncHttpFetch_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+AsyncHttpFetchStreaming_la_DEPENDENCIES = $(libatscppai)
+am_AsyncHttpFetchStreaming_la_OBJECTS =  \
+	async_http_fetch_streaming/AsyncHttpFetchStreaming.lo
+AsyncHttpFetchStreaming_la_OBJECTS =  \
+	$(am_AsyncHttpFetchStreaming_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_AsyncHttpFetchStreaming_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_AsyncHttpFetchStreaming_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+AsyncTimer_la_DEPENDENCIES = $(libatscppai)
+am_AsyncTimer_la_OBJECTS = async_timer/AsyncTimer.lo
+AsyncTimer_la_OBJECTS = $(am_AsyncTimer_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_AsyncTimer_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_AsyncTimer_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+ClientRedirect_la_DEPENDENCIES = $(libatscppai)
+am_ClientRedirect_la_OBJECTS = clientredirect/ClientRedirect.lo
+ClientRedirect_la_OBJECTS = $(am_ClientRedirect_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_ClientRedirect_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_ClientRedirect_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+ClientRequest_la_DEPENDENCIES = $(libatscppai)
+am_ClientRequest_la_OBJECTS = clientrequest/ClientRequest.lo
+ClientRequest_la_OBJECTS = $(am_ClientRequest_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_ClientRequest_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_ClientRequest_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+CustomErrorRemapPlugin_la_DEPENDENCIES = $(libatscppai)
+am_CustomErrorRemapPlugin_la_OBJECTS =  \
+	custom_error_remap_plugin/CustomErrorRemapPlugin.lo
+CustomErrorRemapPlugin_la_OBJECTS =  \
+	$(am_CustomErrorRemapPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_CustomErrorRemapPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_CustomErrorRemapPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+CustomResponse_la_DEPENDENCIES = $(libatscppai)
+am_CustomResponse_la_OBJECTS = customresponse/CustomResponse.lo
+CustomResponse_la_OBJECTS = $(am_CustomResponse_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_CustomResponse_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_CustomResponse_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+GlobalHookPlugin_la_DEPENDENCIES = $(libatscppai)
+am_GlobalHookPlugin_la_OBJECTS = globalhook/GlobalHookPlugin.lo
+GlobalHookPlugin_la_OBJECTS = $(am_GlobalHookPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_GlobalHookPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_GlobalHookPlugin_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+GzipTransformationPlugin_la_DEPENDENCIES = $(libatscppai)
+am_GzipTransformationPlugin_la_OBJECTS =  \
+	gzip_transformation/GzipTransformationPlugin.lo
+GzipTransformationPlugin_la_OBJECTS =  \
+	$(am_GzipTransformationPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_GzipTransformationPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_GzipTransformationPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+HelloWorldPlugin_la_DEPENDENCIES = $(libatscppai)
+am_HelloWorldPlugin_la_OBJECTS = helloworld/HelloWorldPlugin.lo
+HelloWorldPlugin_la_OBJECTS = $(am_HelloWorldPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_HelloWorldPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_HelloWorldPlugin_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+InternalTransactionHandling_la_DEPENDENCIES = $(libatscppai)
+am_InternalTransactionHandling_la_OBJECTS =  \
+	internal_transaction_handling/InternalTransactionHandling.lo
+InternalTransactionHandling_la_OBJECTS =  \
+	$(am_InternalTransactionHandling_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_InternalTransactionHandling_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_InternalTransactionHandling_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+LoggerExample_la_DEPENDENCIES = $(libatscppai)
+am_LoggerExample_la_OBJECTS = logger_example/LoggerExample.lo
+LoggerExample_la_OBJECTS = $(am_LoggerExample_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_LoggerExample_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_LoggerExample_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+MultipleTransactionHookPlugins_la_DEPENDENCIES = $(libatscppai)
+am_MultipleTransactionHookPlugins_la_OBJECTS =  \
+	multiple_transaction_hooks/MultipleTransactionHookPlugins.lo
+MultipleTransactionHookPlugins_la_OBJECTS =  \
+	$(am_MultipleTransactionHookPlugins_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_MultipleTransactionHookPlugins_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_MultipleTransactionHookPlugins_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+NullTransformationPlugin_la_DEPENDENCIES = $(libatscppai)
+am_NullTransformationPlugin_la_OBJECTS =  \
+	null_transformation_plugin/NullTransformationPlugin.lo
+NullTransformationPlugin_la_OBJECTS =  \
+	$(am_NullTransformationPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_NullTransformationPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_NullTransformationPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+PostBuffer_la_DEPENDENCIES = $(libatscppai)
+am_PostBuffer_la_OBJECTS = post_buffer/PostBuffer.lo
+PostBuffer_la_OBJECTS = $(am_PostBuffer_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_PostBuffer_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_PostBuffer_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+RemapPlugin_la_DEPENDENCIES = $(libatscppai)
+am_RemapPlugin_la_OBJECTS = remap_plugin/RemapPlugin.lo
+RemapPlugin_la_OBJECTS = $(am_RemapPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_RemapPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_RemapPlugin_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+ServerResponse_la_DEPENDENCIES = $(libatscppai)
+am_ServerResponse_la_OBJECTS = serverresponse/ServerResponse.lo
+ServerResponse_la_OBJECTS = $(am_ServerResponse_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_ServerResponse_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_ServerResponse_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+StatExample_la_DEPENDENCIES = $(libatscppai)
+am_StatExample_la_OBJECTS = stat_example/StatExample.lo
+StatExample_la_OBJECTS = $(am_StatExample_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_StatExample_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_StatExample_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+TimeoutExamplePlugin_la_DEPENDENCIES = $(libatscppai)
+am_TimeoutExamplePlugin_la_OBJECTS =  \
+	timeout_example/TimeoutExamplePlugin.lo
+TimeoutExamplePlugin_la_OBJECTS =  \
+	$(am_TimeoutExamplePlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_TimeoutExamplePlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_TimeoutExamplePlugin_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+TransactionHookPlugin_la_DEPENDENCIES = $(libatscppai)
+am_TransactionHookPlugin_la_OBJECTS =  \
+	transactionhook/TransactionHookPlugin.lo
+TransactionHookPlugin_la_OBJECTS =  \
+	$(am_TransactionHookPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_TransactionHookPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_TransactionHookPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+boom_la_DEPENDENCIES = $(libatscppai)
+am_boom_la_OBJECTS = boom/boom.lo
+boom_la_OBJECTS = $(am_boom_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_boom_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_boom_la_rpath = -rpath $(pkglibdir)
+intercept_la_DEPENDENCIES = $(libatscppai)
+am_intercept_la_OBJECTS = intercept/intercept.lo
+intercept_la_OBJECTS = $(am_intercept_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_intercept_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_intercept_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -141,29 +357,66 @@ AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 = 
-SOURCES =
-DIST_SOURCES =
-RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
-	ctags-recursive dvi-recursive html-recursive info-recursive \
-	install-data-recursive install-dvi-recursive \
-	install-exec-recursive install-html-recursive \
-	install-info-recursive install-pdf-recursive \
-	install-ps-recursive install-recursive installcheck-recursive \
-	installdirs-recursive pdf-recursive ps-recursive \
-	tags-recursive uninstall-recursive
+DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib
+depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
+am__depfiles_maybe = depfiles
+am__mv = mv -f
+CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+LTCXXCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+	$(AM_CXXFLAGS) $(CXXFLAGS)
+AM_V_CXX = $(am__v_CXX_@AM_V@)
+am__v_CXX_ = $(am__v_CXX_@AM_DEFAULT_V@)
+am__v_CXX_0 = @echo "  CXX     " $@;
+am__v_CXX_1 = 
+CXXLD = $(CXX)
+CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
+am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
+am__v_CXXLD_0 = @echo "  CXXLD   " $@;
+am__v_CXXLD_1 = 
+SOURCES = $(AsyncHttpFetch_la_SOURCES) \
+	$(AsyncHttpFetchStreaming_la_SOURCES) $(AsyncTimer_la_SOURCES) \
+	$(ClientRedirect_la_SOURCES) $(ClientRequest_la_SOURCES) \
+	$(CustomErrorRemapPlugin_la_SOURCES) \
+	$(CustomResponse_la_SOURCES) $(GlobalHookPlugin_la_SOURCES) \
+	$(GzipTransformationPlugin_la_SOURCES) \
+	$(HelloWorldPlugin_la_SOURCES) \
+	$(InternalTransactionHandling_la_SOURCES) \
+	$(LoggerExample_la_SOURCES) \
+	$(MultipleTransactionHookPlugins_la_SOURCES) \
+	$(NullTransformationPlugin_la_SOURCES) \
+	$(PostBuffer_la_SOURCES) $(RemapPlugin_la_SOURCES) \
+	$(ServerResponse_la_SOURCES) $(StatExample_la_SOURCES) \
+	$(TimeoutExamplePlugin_la_SOURCES) \
+	$(TransactionHookPlugin_la_SOURCES) $(boom_la_SOURCES) \
+	$(intercept_la_SOURCES)
+DIST_SOURCES = $(AsyncHttpFetch_la_SOURCES) \
+	$(AsyncHttpFetchStreaming_la_SOURCES) $(AsyncTimer_la_SOURCES) \
+	$(ClientRedirect_la_SOURCES) $(ClientRequest_la_SOURCES) \
+	$(CustomErrorRemapPlugin_la_SOURCES) \
+	$(CustomResponse_la_SOURCES) $(GlobalHookPlugin_la_SOURCES) \
+	$(GzipTransformationPlugin_la_SOURCES) \
+	$(HelloWorldPlugin_la_SOURCES) \
+	$(InternalTransactionHandling_la_SOURCES) \
+	$(LoggerExample_la_SOURCES) \
+	$(MultipleTransactionHookPlugins_la_SOURCES) \
+	$(NullTransformationPlugin_la_SOURCES) \
+	$(PostBuffer_la_SOURCES) $(RemapPlugin_la_SOURCES) \
+	$(ServerResponse_la_SOURCES) $(StatExample_la_SOURCES) \
+	$(TimeoutExamplePlugin_la_SOURCES) \
+	$(TransactionHookPlugin_la_SOURCES) $(boom_la_SOURCES) \
+	$(intercept_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
-RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
-  distclean-recursive maintainer-clean-recursive
-am__recursive_targets = \
-  $(RECURSIVE_TARGETS) \
-  $(RECURSIVE_CLEAN_TARGETS) \
-  $(am__extra_recursive_targets)
-AM_RECURSIVE_TARGETS = $(am__recursive_targets:-recursive=) TAGS CTAGS \
-	distdir
+am__extra_recursive_targets = tidy-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -183,41 +436,17 @@ am__define_uniq_tagged_files = \
   done | $(am__uniquify_input)`
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = $(SUBDIRS)
-am__DIST_COMMON = $(srcdir)/Makefile.in
+am__DIST_COMMON = $(srcdir)/Makefile.in \
+	$(top_srcdir)/build/_aux/depcomp \
+	$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-am__relativize = \
-  dir0=`pwd`; \
-  sed_first='s,^\([^/]*\)/.*$$,\1,'; \
-  sed_rest='s,^[^/]*/*,,'; \
-  sed_last='s,^.*/\([^/]*\)$$,\1,'; \
-  sed_butlast='s,/*[^/]*$$,,'; \
-  while test -n "$$dir1"; do \
-    first=`echo "$$dir1" | sed -e "$$sed_first"`; \
-    if test "$$first" != "."; then \
-      if test "$$first" = ".."; then \
-        dir2=`echo "$$dir0" | sed -e "$$sed_last"`/"$$dir2"; \
-        dir0=`echo "$$dir0" | sed -e "$$sed_butlast"`; \
-      else \
-        first2=`echo "$$dir2" | sed -e "$$sed_first"`; \
-        if test "$$first2" = "$$first"; then \
-          dir2=`echo "$$dir2" | sed -e "$$sed_rest"`; \
-        else \
-          dir2="../$$dir2"; \
-        fi; \
-        dir0="$$dir0"/"$$first"; \
-      fi; \
-    fi; \
-    dir1=`echo "$$dir1" | sed -e "$$sed_rest"`; \
-  done; \
-  reldir="$$dir2"
 pkgdatadir = @pkgdatadir@
-pkglibdir = @pkglibdir@
+pkglibdir = $(pkglibexecdir)
 pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
-AM_CXXFLAGS = @AM_CXXFLAGS@
+AM_CXXFLAGS = @AM_CXXFLAGS@ -Wno-unused-variable
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -232,12 +461,14 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CFLAGS = @CURL_CFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
 CURL_LIBS = @CURL_LIBS@
-CURSES_LIB = @CURSES_LIB@
+CURSES_CFLAGS = @CURSES_CFLAGS@
+CURSES_LIBS = @CURSES_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -254,14 +485,12 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXPAT_LDFLAGS = @EXPAT_LDFLAGS@
 EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
-HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
 HWLOC_LIBS = @HWLOC_LIBS@
@@ -277,7 +506,6 @@ LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
-LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
@@ -301,11 +529,9 @@ LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
 LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-LUAJIT_LIBS = @LUAJIT_LIBS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LDFLAGS = @LUA_LDFLAGS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -347,8 +573,6 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
-SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
-SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -433,7 +657,6 @@ exp_prefix = @exp_prefix@
 exp_runtimedir = @exp_runtimedir@
 exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
-expath = @expath@
 floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
@@ -445,12 +668,9 @@ has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
-has_spdy = @has_spdy@
-has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
-have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -554,17 +774,18 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 use_cert_cb = @use_cert_cb@
+use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
-use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
+use_sslv3_client = @use_sslv3_client@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -573,34 +794,119 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-SUBDIRS = \
-	helloworld \
-	globalhook \
-	transactionhook \
-	multiple_transaction_hooks \
-	clientrequest \
-	serverresponse \
-	clientredirect \
-	customresponse \
-	null_transformation_plugin \
-	post_buffer \
-	logger_example \
-	boom \
-	stat_example \
-	remap_plugin \
-	custom_error_remap_plugin \
-	async_http_fetch \
-	gzip_transformation \
-	timeout_example \
-	internal_transaction_handling \
-	async_timer \
-	intercept \
-	async_http_fetch_streaming
+TS_PLUGIN_LDFLAGS = \
+  -module \
+  -shared \
+  -avoid-version \
+  -export-symbols-regex '^(TSRemapInit|TSRemapDone|TSRemapDoRemap|TSRemapNewInstance|TSRemapDeleteInstance|TSRemapOSResponse|TSPluginInit)$$'
 
-all: all-recursive
+TS_PLUGIN_CPPFLAGS = \
+  -I$(top_builddir)/proxy/api \
+  -I$(top_srcdir)/proxy/api \
+  -I$(top_srcdir)/lib/atscppapi/src/include \
+  -I$(top_builddir)/lib/atscppapi/src/include \
+  -I$(top_srcdir)/lib
+
+
+# Provide a default AM_CPPFLAGS. Automake handles this correctly, but libtool
+# throws an error if we try to do the same with AM_LDFLAGS. Hence, we provide
+# TS_PLUGIN variables that can be used to construct the necessary automake
+# syntax.
+AM_CPPFLAGS = $(TS_PLUGIN_CPPFLAGS) \
+	-I$(top_srcdir)/$(subdir)/src/include
+Clang_Tidy_Options = -fix -fix-errors
+
+# Sort the filenames to remove duplicates, then filter to retain
+# just the C and C++ sources so we don't pick up lex and yacc files
+# for example.
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+
+#clang-tidy rules. We expect these to be actions with something like
+#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+#is not an automake API, it is an implementation detail, but it ought
+#to be stable enough.
+#
+#All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
+plugins = \
+	AsyncHttpFetch.la \
+	AsyncHttpFetchStreaming.la \
+	AsyncTimer.la \
+	ClientRedirect.la \
+	ClientRequest.la \
+	CustomErrorRemapPlugin.la \
+	CustomResponse.la \
+	GlobalHookPlugin.la \
+	GzipTransformationPlugin.la \
+	HelloWorldPlugin.la \
+	InternalTransactionHandling.la \
+	LoggerExample.la \
+	MultipleTransactionHookPlugins.la \
+	NullTransformationPlugin.la \
+	PostBuffer.la \
+	RemapPlugin.la \
+	ServerResponse.la \
+	StatExample.la \
+	TimeoutExamplePlugin.la \
+	TransactionHookPlugin.la \
+	boom.la \
+	intercept.la
+
+@BUILD_EXAMPLE_PLUGINS_TRUE@pkglib_LTLIBRARIES = $(plugins)
+@BUILD_EXAMPLE_PLUGINS_FALSE@noinst_LTLIBRARIES = $(plugins)
+AM_LDFLAGS = $(TS_PLUGIN_LDFLAGS)
+libatscppai = $(top_builddir)/lib/atscppapi/src/libatscppapi.la
+AsyncHttpFetchStreaming_la_SOURCES = async_http_fetch_streaming/AsyncHttpFetchStreaming.cc
+AsyncHttpFetch_la_SOURCES = async_http_fetch/AsyncHttpFetch.cc
+AsyncTimer_la_SOURCES = async_timer/AsyncTimer.cc
+ClientRedirect_la_SOURCES = clientredirect/ClientRedirect.cc
+ClientRequest_la_SOURCES = clientrequest/ClientRequest.cc
+CustomErrorRemapPlugin_la_SOURCES = custom_error_remap_plugin/CustomErrorRemapPlugin.cc
+CustomResponse_la_SOURCES = customresponse/CustomResponse.cc
+GlobalHookPlugin_la_SOURCES = globalhook/GlobalHookPlugin.cc
+GzipTransformationPlugin_la_SOURCES = gzip_transformation/GzipTransformationPlugin.cc
+HelloWorldPlugin_la_SOURCES = helloworld/HelloWorldPlugin.cc
+InternalTransactionHandling_la_SOURCES = internal_transaction_handling/InternalTransactionHandling.cc
+LoggerExample_la_SOURCES = logger_example/LoggerExample.cc
+MultipleTransactionHookPlugins_la_SOURCES = multiple_transaction_hooks/MultipleTransactionHookPlugins.cc
+NullTransformationPlugin_la_SOURCES = null_transformation_plugin/NullTransformationPlugin.cc
+PostBuffer_la_SOURCES = post_buffer/PostBuffer.cc
+RemapPlugin_la_SOURCES = remap_plugin/RemapPlugin.cc
+ServerResponse_la_SOURCES = serverresponse/ServerResponse.cc
+StatExample_la_SOURCES = stat_example/StatExample.cc
+TimeoutExamplePlugin_la_SOURCES = timeout_example/TimeoutExamplePlugin.cc
+TransactionHookPlugin_la_SOURCES = transactionhook/TransactionHookPlugin.cc
+boom_la_SOURCES = boom/boom.cc
+intercept_la_SOURCES = intercept/intercept.cc
+AsyncHttpFetchStreaming_la_LIBADD = $(libatscppai)
+AsyncHttpFetch_la_LIBADD = $(libatscppai)
+AsyncTimer_la_LIBADD = $(libatscppai)
+ClientRedirect_la_LIBADD = $(libatscppai)
+ClientRequest_la_LIBADD = $(libatscppai)
+CustomErrorRemapPlugin_la_LIBADD = $(libatscppai)
+CustomResponse_la_LIBADD = $(libatscppai)
+GlobalHookPlugin_la_LIBADD = $(libatscppai)
+GzipTransformationPlugin_la_LIBADD = $(libatscppai)
+HelloWorldPlugin_la_LIBADD = $(libatscppai)
+InternalTransactionHandling_la_LIBADD = $(libatscppai)
+LoggerExample_la_LIBADD = $(libatscppai)
+MultipleTransactionHookPlugins_la_LIBADD = $(libatscppai)
+NullTransformationPlugin_la_LIBADD = $(libatscppai)
+PostBuffer_la_LIBADD = $(libatscppai)
+RemapPlugin_la_LIBADD = $(libatscppai)
+ServerResponse_la_LIBADD = $(libatscppai)
+StatExample_la_LIBADD = $(libatscppai)
+TimeoutExamplePlugin_la_LIBADD = $(libatscppai)
+TransactionHookPlugin_la_LIBADD = $(libatscppai)
+boom_la_LIBADD = $(libatscppai)
+intercept_la_LIBADD = $(libatscppai)
+all: all-am
 
 .SUFFIXES:
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+.SUFFIXES: .cc .lo .o .obj
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -620,6 +926,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
 	esac;
+$(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -630,67 +937,435 @@ $(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(am__aclocal_m4_deps):
 
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
+
+install-pkglibLTLIBRARIES: $(pkglib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	@list='$(pkglib_LTLIBRARIES)'; test -n "$(pkglibdir)" || list=; \
+	list2=; for p in $$list; do \
+	  if test -f $$p; then \
+	    list2="$$list2 $$p"; \
+	  else :; fi; \
+	done; \
+	test -z "$$list2" || { \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(pkglibdir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(pkglibdir)" || exit 1; \
+	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 '$(DESTDIR)$(pkglibdir)'"; \
+	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=install $(INSTALL) $(INSTALL_STRIP_FLAG) $$list2 "$(DESTDIR)$(pkglibdir)"; \
+	}
+
+uninstall-pkglibLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(pkglib_LTLIBRARIES)'; test -n "$(pkglibdir)" || list=; \
+	for p in $$list; do \
+	  $(am__strip_dir) \
+	  echo " $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f '$(DESTDIR)$(pkglibdir)/$$f'"; \
+	  $(LIBTOOL) $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=uninstall rm -f "$(DESTDIR)$(pkglibdir)/$$f"; \
+	done
+
+clean-pkglibLTLIBRARIES:
+	-test -z "$(pkglib_LTLIBRARIES)" || rm -f $(pkglib_LTLIBRARIES)
+	@list='$(pkglib_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
+async_http_fetch/$(am__dirstamp):
+	@$(MKDIR_P) async_http_fetch
+	@: > async_http_fetch/$(am__dirstamp)
+async_http_fetch/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) async_http_fetch/$(DEPDIR)
+	@: > async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+async_http_fetch/AsyncHttpFetch.lo: async_http_fetch/$(am__dirstamp) \
+	async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+
+AsyncHttpFetch.la: $(AsyncHttpFetch_la_OBJECTS) $(AsyncHttpFetch_la_DEPENDENCIES) $(EXTRA_AsyncHttpFetch_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_AsyncHttpFetch_la_rpath) $(AsyncHttpFetch_la_OBJECTS) $(AsyncHttpFetch_la_LIBADD) $(LIBS)
+async_http_fetch_streaming/$(am__dirstamp):
+	@$(MKDIR_P) async_http_fetch_streaming
+	@: > async_http_fetch_streaming/$(am__dirstamp)
+async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) async_http_fetch_streaming/$(DEPDIR)
+	@: > async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+async_http_fetch_streaming/AsyncHttpFetchStreaming.lo:  \
+	async_http_fetch_streaming/$(am__dirstamp) \
+	async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+
+AsyncHttpFetchStreaming.la: $(AsyncHttpFetchStreaming_la_OBJECTS) $(AsyncHttpFetchStreaming_la_DEPENDENCIES) $(EXTRA_AsyncHttpFetchStreaming_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_AsyncHttpFetchStreaming_la_rpath) $(AsyncHttpFetchStreaming_la_OBJECTS) $(AsyncHttpFetchStreaming_la_LIBADD) $(LIBS)
+async_timer/$(am__dirstamp):
+	@$(MKDIR_P) async_timer
+	@: > async_timer/$(am__dirstamp)
+async_timer/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) async_timer/$(DEPDIR)
+	@: > async_timer/$(DEPDIR)/$(am__dirstamp)
+async_timer/AsyncTimer.lo: async_timer/$(am__dirstamp) \
+	async_timer/$(DEPDIR)/$(am__dirstamp)
+
+AsyncTimer.la: $(AsyncTimer_la_OBJECTS) $(AsyncTimer_la_DEPENDENCIES) $(EXTRA_AsyncTimer_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_AsyncTimer_la_rpath) $(AsyncTimer_la_OBJECTS) $(AsyncTimer_la_LIBADD) $(LIBS)
+clientredirect/$(am__dirstamp):
+	@$(MKDIR_P) clientredirect
+	@: > clientredirect/$(am__dirstamp)
+clientredirect/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) clientredirect/$(DEPDIR)
+	@: > clientredirect/$(DEPDIR)/$(am__dirstamp)
+clientredirect/ClientRedirect.lo: clientredirect/$(am__dirstamp) \
+	clientredirect/$(DEPDIR)/$(am__dirstamp)
+
+ClientRedirect.la: $(ClientRedirect_la_OBJECTS) $(ClientRedirect_la_DEPENDENCIES) $(EXTRA_ClientRedirect_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_ClientRedirect_la_rpath) $(ClientRedirect_la_OBJECTS) $(ClientRedirect_la_LIBADD) $(LIBS)
+clientrequest/$(am__dirstamp):
+	@$(MKDIR_P) clientrequest
+	@: > clientrequest/$(am__dirstamp)
+clientrequest/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) clientrequest/$(DEPDIR)
+	@: > clientrequest/$(DEPDIR)/$(am__dirstamp)
+clientrequest/ClientRequest.lo: clientrequest/$(am__dirstamp) \
+	clientrequest/$(DEPDIR)/$(am__dirstamp)
+
+ClientRequest.la: $(ClientRequest_la_OBJECTS) $(ClientRequest_la_DEPENDENCIES) $(EXTRA_ClientRequest_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_ClientRequest_la_rpath) $(ClientRequest_la_OBJECTS) $(ClientRequest_la_LIBADD) $(LIBS)
+custom_error_remap_plugin/$(am__dirstamp):
+	@$(MKDIR_P) custom_error_remap_plugin
+	@: > custom_error_remap_plugin/$(am__dirstamp)
+custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) custom_error_remap_plugin/$(DEPDIR)
+	@: > custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+custom_error_remap_plugin/CustomErrorRemapPlugin.lo:  \
+	custom_error_remap_plugin/$(am__dirstamp) \
+	custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+
+CustomErrorRemapPlugin.la: $(CustomErrorRemapPlugin_la_OBJECTS) $(CustomErrorRemapPlugin_la_DEPENDENCIES) $(EXTRA_CustomErrorRemapPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_CustomErrorRemapPlugin_la_rpath) $(CustomErrorRemapPlugin_la_OBJECTS) $(CustomErrorRemapPlugin_la_LIBADD) $(LIBS)
+customresponse/$(am__dirstamp):
+	@$(MKDIR_P) customresponse
+	@: > customresponse/$(am__dirstamp)
+customresponse/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) customresponse/$(DEPDIR)
+	@: > customresponse/$(DEPDIR)/$(am__dirstamp)
+customresponse/CustomResponse.lo: customresponse/$(am__dirstamp) \
+	customresponse/$(DEPDIR)/$(am__dirstamp)
+
+CustomResponse.la: $(CustomResponse_la_OBJECTS) $(CustomResponse_la_DEPENDENCIES) $(EXTRA_CustomResponse_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_CustomResponse_la_rpath) $(CustomResponse_la_OBJECTS) $(CustomResponse_la_LIBADD) $(LIBS)
+globalhook/$(am__dirstamp):
+	@$(MKDIR_P) globalhook
+	@: > globalhook/$(am__dirstamp)
+globalhook/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) globalhook/$(DEPDIR)
+	@: > globalhook/$(DEPDIR)/$(am__dirstamp)
+globalhook/GlobalHookPlugin.lo: globalhook/$(am__dirstamp) \
+	globalhook/$(DEPDIR)/$(am__dirstamp)
+
+GlobalHookPlugin.la: $(GlobalHookPlugin_la_OBJECTS) $(GlobalHookPlugin_la_DEPENDENCIES) $(EXTRA_GlobalHookPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_GlobalHookPlugin_la_rpath) $(GlobalHookPlugin_la_OBJECTS) $(GlobalHookPlugin_la_LIBADD) $(LIBS)
+gzip_transformation/$(am__dirstamp):
+	@$(MKDIR_P) gzip_transformation
+	@: > gzip_transformation/$(am__dirstamp)
+gzip_transformation/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) gzip_transformation/$(DEPDIR)
+	@: > gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+gzip_transformation/GzipTransformationPlugin.lo:  \
+	gzip_transformation/$(am__dirstamp) \
+	gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+
+GzipTransformationPlugin.la: $(GzipTransformationPlugin_la_OBJECTS) $(GzipTransformationPlugin_la_DEPENDENCIES) $(EXTRA_GzipTransformationPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_GzipTransformationPlugin_la_rpath) $(GzipTransformationPlugin_la_OBJECTS) $(GzipTransformationPlugin_la_LIBADD) $(LIBS)
+helloworld/$(am__dirstamp):
+	@$(MKDIR_P) helloworld
+	@: > helloworld/$(am__dirstamp)
+helloworld/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) helloworld/$(DEPDIR)
+	@: > helloworld/$(DEPDIR)/$(am__dirstamp)
+helloworld/HelloWorldPlugin.lo: helloworld/$(am__dirstamp) \
+	helloworld/$(DEPDIR)/$(am__dirstamp)
+
+HelloWorldPlugin.la: $(HelloWorldPlugin_la_OBJECTS) $(HelloWorldPlugin_la_DEPENDENCIES) $(EXTRA_HelloWorldPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_HelloWorldPlugin_la_rpath) $(HelloWorldPlugin_la_OBJECTS) $(HelloWorldPlugin_la_LIBADD) $(LIBS)
+internal_transaction_handling/$(am__dirstamp):
+	@$(MKDIR_P) internal_transaction_handling
+	@: > internal_transaction_handling/$(am__dirstamp)
+internal_transaction_handling/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) internal_transaction_handling/$(DEPDIR)
+	@: > internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+internal_transaction_handling/InternalTransactionHandling.lo:  \
+	internal_transaction_handling/$(am__dirstamp) \
+	internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+
+InternalTransactionHandling.la: $(InternalTransactionHandling_la_OBJECTS) $(InternalTransactionHandling_la_DEPENDENCIES) $(EXTRA_InternalTransactionHandling_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_InternalTransactionHandling_la_rpath) $(InternalTransactionHandling_la_OBJECTS) $(InternalTransactionHandling_la_LIBADD) $(LIBS)
+logger_example/$(am__dirstamp):
+	@$(MKDIR_P) logger_example
+	@: > logger_example/$(am__dirstamp)
+logger_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) logger_example/$(DEPDIR)
+	@: > logger_example/$(DEPDIR)/$(am__dirstamp)
+logger_example/LoggerExample.lo: logger_example/$(am__dirstamp) \
+	logger_example/$(DEPDIR)/$(am__dirstamp)
+
+LoggerExample.la: $(LoggerExample_la_OBJECTS) $(LoggerExample_la_DEPENDENCIES) $(EXTRA_LoggerExample_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_LoggerExample_la_rpath) $(LoggerExample_la_OBJECTS) $(LoggerExample_la_LIBADD) $(LIBS)
+multiple_transaction_hooks/$(am__dirstamp):
+	@$(MKDIR_P) multiple_transaction_hooks
+	@: > multiple_transaction_hooks/$(am__dirstamp)
+multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) multiple_transaction_hooks/$(DEPDIR)
+	@: > multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+multiple_transaction_hooks/MultipleTransactionHookPlugins.lo:  \
+	multiple_transaction_hooks/$(am__dirstamp) \
+	multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+
+MultipleTransactionHookPlugins.la: $(MultipleTransactionHookPlugins_la_OBJECTS) $(MultipleTransactionHookPlugins_la_DEPENDENCIES) $(EXTRA_MultipleTransactionHookPlugins_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_MultipleTransactionHookPlugins_la_rpath) $(MultipleTransactionHookPlugins_la_OBJECTS) $(MultipleTransactionHookPlugins_la_LIBADD) $(LIBS)
+null_transformation_plugin/$(am__dirstamp):
+	@$(MKDIR_P) null_transformation_plugin
+	@: > null_transformation_plugin/$(am__dirstamp)
+null_transformation_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) null_transformation_plugin/$(DEPDIR)
+	@: > null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+null_transformation_plugin/NullTransformationPlugin.lo:  \
+	null_transformation_plugin/$(am__dirstamp) \
+	null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+
+NullTransformationPlugin.la: $(NullTransformationPlugin_la_OBJECTS) $(NullTransformationPlugin_la_DEPENDENCIES) $(EXTRA_NullTransformationPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_NullTransformationPlugin_la_rpath) $(NullTransformationPlugin_la_OBJECTS) $(NullTransformationPlugin_la_LIBADD) $(LIBS)
+post_buffer/$(am__dirstamp):
+	@$(MKDIR_P) post_buffer
+	@: > post_buffer/$(am__dirstamp)
+post_buffer/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) post_buffer/$(DEPDIR)
+	@: > post_buffer/$(DEPDIR)/$(am__dirstamp)
+post_buffer/PostBuffer.lo: post_buffer/$(am__dirstamp) \
+	post_buffer/$(DEPDIR)/$(am__dirstamp)
+
+PostBuffer.la: $(PostBuffer_la_OBJECTS) $(PostBuffer_la_DEPENDENCIES) $(EXTRA_PostBuffer_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_PostBuffer_la_rpath) $(PostBuffer_la_OBJECTS) $(PostBuffer_la_LIBADD) $(LIBS)
+remap_plugin/$(am__dirstamp):
+	@$(MKDIR_P) remap_plugin
+	@: > remap_plugin/$(am__dirstamp)
+remap_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) remap_plugin/$(DEPDIR)
+	@: > remap_plugin/$(DEPDIR)/$(am__dirstamp)
+remap_plugin/RemapPlugin.lo: remap_plugin/$(am__dirstamp) \
+	remap_plugin/$(DEPDIR)/$(am__dirstamp)
+
+RemapPlugin.la: $(RemapPlugin_la_OBJECTS) $(RemapPlugin_la_DEPENDENCIES) $(EXTRA_RemapPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_RemapPlugin_la_rpath) $(RemapPlugin_la_OBJECTS) $(RemapPlugin_la_LIBADD) $(LIBS)
+serverresponse/$(am__dirstamp):
+	@$(MKDIR_P) serverresponse
+	@: > serverresponse/$(am__dirstamp)
+serverresponse/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) serverresponse/$(DEPDIR)
+	@: > serverresponse/$(DEPDIR)/$(am__dirstamp)
+serverresponse/ServerResponse.lo: serverresponse/$(am__dirstamp) \
+	serverresponse/$(DEPDIR)/$(am__dirstamp)
+
+ServerResponse.la: $(ServerResponse_la_OBJECTS) $(ServerResponse_la_DEPENDENCIES) $(EXTRA_ServerResponse_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_ServerResponse_la_rpath) $(ServerResponse_la_OBJECTS) $(ServerResponse_la_LIBADD) $(LIBS)
+stat_example/$(am__dirstamp):
+	@$(MKDIR_P) stat_example
+	@: > stat_example/$(am__dirstamp)
+stat_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) stat_example/$(DEPDIR)
+	@: > stat_example/$(DEPDIR)/$(am__dirstamp)
+stat_example/StatExample.lo: stat_example/$(am__dirstamp) \
+	stat_example/$(DEPDIR)/$(am__dirstamp)
+
+StatExample.la: $(StatExample_la_OBJECTS) $(StatExample_la_DEPENDENCIES) $(EXTRA_StatExample_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_StatExample_la_rpath) $(StatExample_la_OBJECTS) $(StatExample_la_LIBADD) $(LIBS)
+timeout_example/$(am__dirstamp):
+	@$(MKDIR_P) timeout_example
+	@: > timeout_example/$(am__dirstamp)
+timeout_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) timeout_example/$(DEPDIR)
+	@: > timeout_example/$(DEPDIR)/$(am__dirstamp)
+timeout_example/TimeoutExamplePlugin.lo:  \
+	timeout_example/$(am__dirstamp) \
+	timeout_example/$(DEPDIR)/$(am__dirstamp)
+
+TimeoutExamplePlugin.la: $(TimeoutExamplePlugin_la_OBJECTS) $(TimeoutExamplePlugin_la_DEPENDENCIES) $(EXTRA_TimeoutExamplePlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_TimeoutExamplePlugin_la_rpath) $(TimeoutExamplePlugin_la_OBJECTS) $(TimeoutExamplePlugin_la_LIBADD) $(LIBS)
+transactionhook/$(am__dirstamp):
+	@$(MKDIR_P) transactionhook
+	@: > transactionhook/$(am__dirstamp)
+transactionhook/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) transactionhook/$(DEPDIR)
+	@: > transactionhook/$(DEPDIR)/$(am__dirstamp)
+transactionhook/TransactionHookPlugin.lo:  \
+	transactionhook/$(am__dirstamp) \
+	transactionhook/$(DEPDIR)/$(am__dirstamp)
+
+TransactionHookPlugin.la: $(TransactionHookPlugin_la_OBJECTS) $(TransactionHookPlugin_la_DEPENDENCIES) $(EXTRA_TransactionHookPlugin_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_TransactionHookPlugin_la_rpath) $(TransactionHookPlugin_la_OBJECTS) $(TransactionHookPlugin_la_LIBADD) $(LIBS)
+boom/$(am__dirstamp):
+	@$(MKDIR_P) boom
+	@: > boom/$(am__dirstamp)
+boom/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) boom/$(DEPDIR)
+	@: > boom/$(DEPDIR)/$(am__dirstamp)
+boom/boom.lo: boom/$(am__dirstamp) boom/$(DEPDIR)/$(am__dirstamp)
+
+boom.la: $(boom_la_OBJECTS) $(boom_la_DEPENDENCIES) $(EXTRA_boom_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_boom_la_rpath) $(boom_la_OBJECTS) $(boom_la_LIBADD) $(LIBS)
+intercept/$(am__dirstamp):
+	@$(MKDIR_P) intercept
+	@: > intercept/$(am__dirstamp)
+intercept/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) intercept/$(DEPDIR)
+	@: > intercept/$(DEPDIR)/$(am__dirstamp)
+intercept/intercept.lo: intercept/$(am__dirstamp) \
+	intercept/$(DEPDIR)/$(am__dirstamp)
+
+intercept.la: $(intercept_la_OBJECTS) $(intercept_la_DEPENDENCIES) $(EXTRA_intercept_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_intercept_la_rpath) $(intercept_la_OBJECTS) $(intercept_la_LIBADD) $(LIBS)
+
+mostlyclean-compile:
+	-rm -f *.$(OBJEXT)
+	-rm -f async_http_fetch/*.$(OBJEXT)
+	-rm -f async_http_fetch/*.lo
+	-rm -f async_http_fetch_streaming/*.$(OBJEXT)
+	-rm -f async_http_fetch_streaming/*.lo
+	-rm -f async_timer/*.$(OBJEXT)
+	-rm -f async_timer/*.lo
+	-rm -f boom/*.$(OBJEXT)
+	-rm -f boom/*.lo
+	-rm -f clientredirect/*.$(OBJEXT)
+	-rm -f clientredirect/*.lo
+	-rm -f clientrequest/*.$(OBJEXT)
+	-rm -f clientrequest/*.lo
+	-rm -f custom_error_remap_plugin/*.$(OBJEXT)
+	-rm -f custom_error_remap_plugin/*.lo
+	-rm -f customresponse/*.$(OBJEXT)
+	-rm -f customresponse/*.lo
+	-rm -f globalhook/*.$(OBJEXT)
+	-rm -f globalhook/*.lo
+	-rm -f gzip_transformation/*.$(OBJEXT)
+	-rm -f gzip_transformation/*.lo
+	-rm -f helloworld/*.$(OBJEXT)
+	-rm -f helloworld/*.lo
+	-rm -f intercept/*.$(OBJEXT)
+	-rm -f intercept/*.lo
+	-rm -f internal_transaction_handling/*.$(OBJEXT)
+	-rm -f internal_transaction_handling/*.lo
+	-rm -f logger_example/*.$(OBJEXT)
+	-rm -f logger_example/*.lo
+	-rm -f multiple_transaction_hooks/*.$(OBJEXT)
+	-rm -f multiple_transaction_hooks/*.lo
+	-rm -f null_transformation_plugin/*.$(OBJEXT)
+	-rm -f null_transformation_plugin/*.lo
+	-rm -f post_buffer/*.$(OBJEXT)
+	-rm -f post_buffer/*.lo
+	-rm -f remap_plugin/*.$(OBJEXT)
+	-rm -f remap_plugin/*.lo
+	-rm -f serverresponse/*.$(OBJEXT)
+	-rm -f serverresponse/*.lo
+	-rm -f stat_example/*.$(OBJEXT)
+	-rm -f stat_example/*.lo
+	-rm -f timeout_example/*.$(OBJEXT)
+	-rm -f timeout_example/*.lo
+	-rm -f transactionhook/*.$(OBJEXT)
+	-rm -f transactionhook/*.lo
+
+distclean-compile:
+	-rm -f *.tab.c
+
+@AMDEP_TRUE@@am__include@ @am__quote@async_http_fetch/$(DEPDIR)/AsyncHttpFetch.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@async_http_fetch_streaming/$(DEPDIR)/AsyncHttpFetchStreaming.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@async_timer/$(DEPDIR)/AsyncTimer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@boom/$(DEPDIR)/boom.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@clientredirect/$(DEPDIR)/ClientRedirect.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@clientrequest/$(DEPDIR)/ClientRequest.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@custom_error_remap_plugin/$(DEPDIR)/CustomErrorRemapPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@customresponse/$(DEPDIR)/CustomResponse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@globalhook/$(DEPDIR)/GlobalHookPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@gzip_transformation/$(DEPDIR)/GzipTransformationPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@helloworld/$(DEPDIR)/HelloWorldPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@intercept/$(DEPDIR)/intercept.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@internal_transaction_handling/$(DEPDIR)/InternalTransactionHandling.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@logger_example/$(DEPDIR)/LoggerExample.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@multiple_transaction_hooks/$(DEPDIR)/MultipleTransactionHookPlugins.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@null_transformation_plugin/$(DEPDIR)/NullTransformationPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@post_buffer/$(DEPDIR)/PostBuffer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@remap_plugin/$(DEPDIR)/RemapPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@serverresponse/$(DEPDIR)/ServerResponse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@stat_example/$(DEPDIR)/StatExample.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@timeout_example/$(DEPDIR)/TimeoutExamplePlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@transactionhook/$(DEPDIR)/TransactionHookPlugin.Plo@am__quote@
+
+.cc.o:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ $<
+
+.cc.obj:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+.cc.lo:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
+@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
 clean-libtool:
 	-rm -rf .libs _libs
-
-# This directory's subdirectories are mostly independent; you can cd
-# into them and run 'make' without going through this Makefile.
-# To change the values of 'make' variables: instead of editing Makefiles,
-# (1) if the variable is set in 'config.status', edit 'config.status'
-#     (which will cause the Makefiles to be regenerated when you run 'make');
-# (2) otherwise, pass the desired values on the 'make' command line.
-$(am__recursive_targets):
-	@fail=; \
-	if $(am__make_keepgoing); then \
-	  failcom='fail=yes'; \
-	else \
-	  failcom='exit 1'; \
-	fi; \
-	dot_seen=no; \
-	target=`echo $@ | sed s/-recursive//`; \
-	case "$@" in \
-	  distclean-* | maintainer-clean-*) list='$(DIST_SUBDIRS)' ;; \
-	  *) list='$(SUBDIRS)' ;; \
-	esac; \
-	for subdir in $$list; do \
-	  echo "Making $$target in $$subdir"; \
-	  if test "$$subdir" = "."; then \
-	    dot_seen=yes; \
-	    local_target="$$target-am"; \
-	  else \
-	    local_target="$$target"; \
-	  fi; \
-	  ($(am__cd) $$subdir && $(MAKE) $(AM_MAKEFLAGS) $$local_target) \
-	  || eval $$failcom; \
-	done; \
-	if test "$$dot_seen" = "no"; then \
-	  $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
-	fi; test -z "$$fail"
+	-rm -rf async_http_fetch/.libs async_http_fetch/_libs
+	-rm -rf async_http_fetch_streaming/.libs async_http_fetch_streaming/_libs
+	-rm -rf async_timer/.libs async_timer/_libs
+	-rm -rf boom/.libs boom/_libs
+	-rm -rf clientredirect/.libs clientredirect/_libs
+	-rm -rf clientrequest/.libs clientrequest/_libs
+	-rm -rf custom_error_remap_plugin/.libs custom_error_remap_plugin/_libs
+	-rm -rf customresponse/.libs customresponse/_libs
+	-rm -rf globalhook/.libs globalhook/_libs
+	-rm -rf gzip_transformation/.libs gzip_transformation/_libs
+	-rm -rf helloworld/.libs helloworld/_libs
+	-rm -rf intercept/.libs intercept/_libs
+	-rm -rf internal_transaction_handling/.libs internal_transaction_handling/_libs
+	-rm -rf logger_example/.libs logger_example/_libs
+	-rm -rf multiple_transaction_hooks/.libs multiple_transaction_hooks/_libs
+	-rm -rf null_transformation_plugin/.libs null_transformation_plugin/_libs
+	-rm -rf post_buffer/.libs post_buffer/_libs
+	-rm -rf remap_plugin/.libs remap_plugin/_libs
+	-rm -rf serverresponse/.libs serverresponse/_libs
+	-rm -rf stat_example/.libs stat_example/_libs
+	-rm -rf timeout_example/.libs timeout_example/_libs
+	-rm -rf transactionhook/.libs transactionhook/_libs
+tidy-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
-tags: tags-recursive
+tags: tags-am
 TAGS: tags
 
 tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	set x; \
 	here=`pwd`; \
-	if ($(ETAGS) --etags-include --version) >/dev/null 2>&1; then \
-	  include_option=--etags-include; \
-	  empty_fix=.; \
-	else \
-	  include_option=--include; \
-	  empty_fix=; \
-	fi; \
-	list='$(SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    test ! -f $$subdir/TAGS || \
-	      set "$$@" "$$include_option=$$here/$$subdir/TAGS"; \
-	  fi; \
-	done; \
 	$(am__define_uniq_tagged_files); \
 	shift; \
 	if test -z "$(ETAGS_ARGS)$$*$$unique"; then :; else \
@@ -703,7 +1378,7 @@ tags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
 	      $$unique; \
 	  fi; \
 	fi
-ctags: ctags-recursive
+ctags: ctags-am
 
 CTAGS: ctags
 ctags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
@@ -716,7 +1391,7 @@ GTAGS:
 	here=`$(am__cd) $(top_builddir) && pwd` \
 	  && $(am__cd) $(top_srcdir) \
 	  && gtags -i $(GTAGS_ARGS) "$$here"
-cscopelist: cscopelist-recursive
+cscopelist: cscopelist-am
 
 cscopelist-am: $(am__tagged_files)
 	list='$(am__tagged_files)'; \
@@ -765,45 +1440,22 @@ distdir: $(DISTFILES)
 	    || exit 1; \
 	  fi; \
 	done
-	@list='$(DIST_SUBDIRS)'; for subdir in $$list; do \
-	  if test "$$subdir" = .; then :; else \
-	    $(am__make_dryrun) \
-	      || test -d "$(distdir)/$$subdir" \
-	      || $(MKDIR_P) "$(distdir)/$$subdir" \
-	      || exit 1; \
-	    dir1=$$subdir; dir2="$(distdir)/$$subdir"; \
-	    $(am__relativize); \
-	    new_distdir=$$reldir; \
-	    dir1=$$subdir; dir2="$(top_distdir)"; \
-	    $(am__relativize); \
-	    new_top_distdir=$$reldir; \
-	    echo " (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) top_distdir="$$new_top_distdir" distdir="$$new_distdir" \\"; \
-	    echo "     am__remove_distdir=: am__skip_length_check=: am__skip_mode_fix=: distdir)"; \
-	    ($(am__cd) $$subdir && \
-	      $(MAKE) $(AM_MAKEFLAGS) \
-	        top_distdir="$$new_top_distdir" \
-	        distdir="$$new_distdir" \
-		am__remove_distdir=: \
-		am__skip_length_check=: \
-		am__skip_mode_fix=: \
-	        distdir) \
-	      || exit 1; \
-	  fi; \
-	done
 check-am: all-am
-check: check-recursive
-all-am: Makefile
-installdirs: installdirs-recursive
-installdirs-am:
-install: install-recursive
-install-exec: install-exec-recursive
-install-data: install-data-recursive
-uninstall: uninstall-recursive
+check: check-am
+all-am: Makefile $(LTLIBRARIES)
+installdirs:
+	for dir in "$(DESTDIR)$(pkglibdir)"; do \
+	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+	done
+install: install-am
+install-exec: install-exec-am
+install-data: install-data-am
+uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
 
-installcheck: installcheck-recursive
+installcheck: installcheck-am
 install-strip:
 	if test -z '$(STRIP)'; then \
 	  $(MAKE) $(AM_MAKEFLAGS) INSTALL_PROGRAM="$(INSTALL_STRIP_PROGRAM)" \
@@ -821,93 +1473,151 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+	-rm -f async_http_fetch/$(am__dirstamp)
+	-rm -f async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+	-rm -f async_http_fetch_streaming/$(am__dirstamp)
+	-rm -f async_timer/$(DEPDIR)/$(am__dirstamp)
+	-rm -f async_timer/$(am__dirstamp)
+	-rm -f boom/$(DEPDIR)/$(am__dirstamp)
+	-rm -f boom/$(am__dirstamp)
+	-rm -f clientredirect/$(DEPDIR)/$(am__dirstamp)
+	-rm -f clientredirect/$(am__dirstamp)
+	-rm -f clientrequest/$(DEPDIR)/$(am__dirstamp)
+	-rm -f clientrequest/$(am__dirstamp)
+	-rm -f custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f custom_error_remap_plugin/$(am__dirstamp)
+	-rm -f customresponse/$(DEPDIR)/$(am__dirstamp)
+	-rm -f customresponse/$(am__dirstamp)
+	-rm -f globalhook/$(DEPDIR)/$(am__dirstamp)
+	-rm -f globalhook/$(am__dirstamp)
+	-rm -f gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+	-rm -f gzip_transformation/$(am__dirstamp)
+	-rm -f helloworld/$(DEPDIR)/$(am__dirstamp)
+	-rm -f helloworld/$(am__dirstamp)
+	-rm -f intercept/$(DEPDIR)/$(am__dirstamp)
+	-rm -f intercept/$(am__dirstamp)
+	-rm -f internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+	-rm -f internal_transaction_handling/$(am__dirstamp)
+	-rm -f logger_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f logger_example/$(am__dirstamp)
+	-rm -f multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+	-rm -f multiple_transaction_hooks/$(am__dirstamp)
+	-rm -f null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f null_transformation_plugin/$(am__dirstamp)
+	-rm -f post_buffer/$(DEPDIR)/$(am__dirstamp)
+	-rm -f post_buffer/$(am__dirstamp)
+	-rm -f remap_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f remap_plugin/$(am__dirstamp)
+	-rm -f serverresponse/$(DEPDIR)/$(am__dirstamp)
+	-rm -f serverresponse/$(am__dirstamp)
+	-rm -f stat_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f stat_example/$(am__dirstamp)
+	-rm -f timeout_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f timeout_example/$(am__dirstamp)
+	-rm -f transactionhook/$(DEPDIR)/$(am__dirstamp)
+	-rm -f transactionhook/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-clean: clean-recursive
+clean: clean-am
 
-clean-am: clean-generic clean-libtool mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	clean-pkglibLTLIBRARIES mostlyclean-am
 
-distclean: distclean-recursive
+distclean: distclean-am
+	-rm -rf async_http_fetch/$(DEPDIR) async_http_fetch_streaming/$(DEPDIR) async_timer/$(DEPDIR) boom/$(DEPDIR) clientredirect/$(DEPDIR) clientrequest/$(DEPDIR) custom_error_remap_plugin/$(DEPDIR) customresponse/$(DEPDIR) globalhook/$(DEPDIR) gzip_transformation/$(DEPDIR) helloworld/$(DEPDIR) intercept/$(DEPDIR) internal_transaction_handling/$(DEPDIR) logger_example/$(DEPDIR) multiple_transaction_hooks/$(DEPDIR) null_transformation_plugin/$(DEPDIR) post_buffer/$(DEPDIR) remap_plugin/$(DEPDIR) serverresponse/$(DEPDIR) stat_example/$(DEPDIR) timeout_example/$(DEPDIR) transactionhook/$(DEPDIR)
 	-rm -f Makefile
-distclean-am: clean-am distclean-generic distclean-tags
+distclean-am: clean-am distclean-compile distclean-generic \
+	distclean-tags
 
-dvi: dvi-recursive
+dvi: dvi-am
 
 dvi-am:
 
-html: html-recursive
+html: html-am
 
 html-am:
 
-info: info-recursive
+info: info-am
 
 info-am:
 
 install-data-am:
 
-install-dvi: install-dvi-recursive
+install-dvi: install-dvi-am
 
 install-dvi-am:
 
-install-exec-am:
+install-exec-am: install-pkglibLTLIBRARIES
 
-install-html: install-html-recursive
+install-html: install-html-am
 
 install-html-am:
 
-install-info: install-info-recursive
+install-info: install-info-am
 
 install-info-am:
 
 install-man:
 
-install-pdf: install-pdf-recursive
+install-pdf: install-pdf-am
 
 install-pdf-am:
 
-install-ps: install-ps-recursive
+install-ps: install-ps-am
 
 install-ps-am:
 
 installcheck-am:
 
-maintainer-clean: maintainer-clean-recursive
+maintainer-clean: maintainer-clean-am
+	-rm -rf async_http_fetch/$(DEPDIR) async_http_fetch_streaming/$(DEPDIR) async_timer/$(DEPDIR) boom/$(DEPDIR) clientredirect/$(DEPDIR) clientrequest/$(DEPDIR) custom_error_remap_plugin/$(DEPDIR) customresponse/$(DEPDIR) globalhook/$(DEPDIR) gzip_transformation/$(DEPDIR) helloworld/$(DEPDIR) intercept/$(DEPDIR) internal_transaction_handling/$(DEPDIR) logger_example/$(DEPDIR) multiple_transaction_hooks/$(DEPDIR) null_transformation_plugin/$(DEPDIR) post_buffer/$(DEPDIR) remap_plugin/$(DEPDIR) serverresponse/$(DEPDIR) stat_example/$(DEPDIR) timeout_example/$(DEPDIR) transactionhook/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
-mostlyclean: mostlyclean-recursive
+mostlyclean: mostlyclean-am
 
-mostlyclean-am: mostlyclean-generic mostlyclean-libtool
+mostlyclean-am: mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool
 
-pdf: pdf-recursive
+pdf: pdf-am
 
 pdf-am:
 
-ps: ps-recursive
+ps: ps-am
 
 ps-am:
 
-uninstall-am:
+tidy: tidy-am
 
-.MAKE: $(am__recursive_targets) install-am install-strip
+tidy-am: tidy-local
 
-.PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am check \
-	check-am clean clean-generic clean-libtool cscopelist-am ctags \
-	ctags-am distclean distclean-generic distclean-libtool \
-	distclean-tags distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am tags tags-am uninstall uninstall-am
+uninstall-am: uninstall-pkglibLTLIBRARIES
+
+.MAKE: install-am install-strip
+
+.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
+	clean-libtool clean-noinstLTLIBRARIES clean-pkglibLTLIBRARIES \
+	cscopelist-am ctags ctags-am distclean distclean-compile \
+	distclean-generic distclean-libtool distclean-tags distdir dvi \
+	dvi-am html html-am info info-am install install-am \
+	install-data install-data-am install-dvi install-dvi-am \
+	install-exec install-exec-am install-html install-html-am \
+	install-info install-info-am install-man install-pdf \
+	install-pdf-am install-pkglibLTLIBRARIES install-ps \
+	install-ps-am install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am tidy-am \
+	tidy-local uninstall uninstall-am uninstall-pkglibLTLIBRARIES
 
 .PRECIOUS: Makefile
 
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

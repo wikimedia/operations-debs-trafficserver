@@ -53,8 +53,7 @@ ClusterProcessor::~ClusterProcessor()
 int
 ClusterProcessor::internal_invoke_remote(ClusterHandler *ch, int cluster_fn, void *data, int len, int options, void *cmsg)
 {
-  EThread *thread   = this_ethread();
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = this_ethread()->mutex.get();
   //
   // RPC facility for intercluster communication available to other
   //  subsystems.
@@ -239,7 +238,7 @@ ClusterProcessor::open_local(Continuation *cont, ClusterMachine * /* m ATS_UNUSE
     return NULL;
 
   EThread *thread        = this_ethread();
-  ProxyMutex *mutex      = thread->mutex;
+  ProxyMutex *mutex      = thread->mutex.get();
   ClusterVConnection *vc = clusterVCAllocator.alloc();
   vc->new_connect_read   = (options & CLUSTER_OPT_CONN_READ ? 1 : 0);
   vc->start_time         = Thread::get_hrtime();
@@ -309,7 +308,7 @@ ClusterProcessor::connect_local(Continuation *cont, ClusterVCToken *token, int c
     return NULL;
 
   EThread *thread        = this_ethread();
-  ProxyMutex *mutex      = thread->mutex;
+  ProxyMutex *mutex      = thread->mutex.get();
   ClusterVConnection *vc = clusterVCAllocator.alloc();
   vc->new_connect_read   = (options & CLUSTER_OPT_CONN_READ ? 1 : 0);
   vc->start_time         = Thread::get_hrtime();
@@ -621,9 +620,6 @@ ClusterProcessor::init()
   REC_ReadConfigInteger(cluster_packet_tos, "proxy.config.cluster.sock_packet_tos");
   REC_EstablishStaticConfigInt32(RPC_only_CacheCluster, "proxy.config.cluster.rpc_cache_cluster");
 
-  int cluster_type = 0;
-  REC_ReadConfigInteger(cluster_type, "proxy.local.cluster.type");
-
   create_this_cluster_machine();
   // Cluster API Initializations
   clusterAPI_init();
@@ -641,14 +637,9 @@ ClusterProcessor::init()
 
   memset(channel_dummy_output, 0, sizeof(channel_dummy_output));
 
-  if (cluster_type == 1) {
-    cache_clustering_enabled = 1;
-    Note("cache clustering enabled");
-    compute_cluster_mode();
-  } else {
-    cache_clustering_enabled = 0;
-    Note("cache clustering disabled");
-  }
+  cache_clustering_enabled = 0;
+  Note("cache clustering disabled");
+
   return 0;
 }
 

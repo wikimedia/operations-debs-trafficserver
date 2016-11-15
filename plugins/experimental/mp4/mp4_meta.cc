@@ -66,8 +66,9 @@ Mp4Meta::parse_meta(bool body_complete)
     wait_next = 0;
   }
 
-  if (meta_avail < MP4_MIN_BUFFER_SIZE && !body_complete)
+  if (meta_avail < MP4_MIN_BUFFER_SIZE && !body_complete) {
     return 0;
+  }
 
   ret = this->parse_root_atoms();
 
@@ -157,8 +158,9 @@ Mp4Meta::post_process_meta()
     }
 
     if (trak->atoms[MP4_CO64_DATA].buffer) {
-      if (mp4_update_co64_atom(trak) != 0)
+      if (mp4_update_co64_atom(trak) != 0) {
         return -1;
+      }
 
     } else if (mp4_update_stco_atom(trak) != 0) {
       return -1;
@@ -174,8 +176,9 @@ Mp4Meta::post_process_meta()
 
     this->moov_size += trak->size;
 
-    if (start_offset > trak->start_offset)
+    if (start_offset > trak->start_offset) {
       start_offset = trak->start_offset;
+    }
 
     for (j = 0; j <= MP4_LAST_ATOM; j++) {
       if (trak->atoms[j].buffer) {
@@ -221,18 +224,19 @@ int
 Mp4Meta::parse_root_atoms()
 {
   int i, ret, rc;
-  int64_t atom_size, atom_header_size;
+  int64_t atom_size, atom_header_size, copied_size;
   char buf[64];
   char *atom_header, *atom_name;
 
   memset(buf, 0, sizeof(buf));
 
   for (;;) {
-    if (meta_avail < (int64_t)sizeof(uint32_t))
+    if (meta_avail < (int64_t)sizeof(uint32_t)) {
       return 0;
+    }
 
-    IOBufferReaderCopy(meta_reader, buf, sizeof(mp4_atom_header64));
-    atom_size = mp4_get_32value(buf);
+    copied_size = IOBufferReaderCopy(meta_reader, buf, sizeof(mp4_atom_header64));
+    atom_size   = copied_size > 0 ? mp4_get_32value(buf) : 0;
 
     if (atom_size == 0) {
       return 1;
@@ -255,8 +259,9 @@ Mp4Meta::parse_root_atoms()
 
     } else { // regular atom
 
-      if (meta_avail < (int64_t)sizeof(mp4_atom_header)) // not enough for atom header
+      if (meta_avail < (int64_t)sizeof(mp4_atom_header)) { // not enough for atom header
         return 0;
+      }
 
       atom_header_size = sizeof(mp4_atom_header);
     }
@@ -319,19 +324,21 @@ int
 Mp4Meta::mp4_read_atom(mp4_atom_handler *atom, int64_t size)
 {
   int i, ret, rc;
-  int64_t atom_size, atom_header_size;
+  int64_t atom_size, atom_header_size, copied_size;
   char buf[32];
   char *atom_header, *atom_name;
 
-  if (meta_avail < size) // data insufficient, not reasonable for internal atom box.
+  if (meta_avail < size) { // data insufficient, not reasonable for internal atom box.
     return -1;
+  }
 
   while (size > 0) {
-    if (meta_avail < (int64_t)sizeof(uint32_t)) // data insufficient, not reasonable for internal atom box.
+    if (meta_avail < (int64_t)sizeof(uint32_t)) { // data insufficient, not reasonable for internal atom box.
       return -1;
+    }
 
-    IOBufferReaderCopy(meta_reader, buf, sizeof(mp4_atom_header64));
-    atom_size = mp4_get_32value(buf);
+    copied_size = IOBufferReaderCopy(meta_reader, buf, sizeof(mp4_atom_header64));
+    atom_size   = copied_size > 0 ? mp4_get_32value(buf) : 0;
 
     if (atom_size == 0) {
       return 1;
@@ -354,8 +361,9 @@ Mp4Meta::mp4_read_atom(mp4_atom_handler *atom, int64_t size)
 
     } else { // regular atom
 
-      if (meta_avail < (int64_t)sizeof(mp4_atom_header))
+      if (meta_avail < (int64_t)sizeof(mp4_atom_header)) {
         return -1;
+      }
 
       atom_header_size = sizeof(mp4_atom_header);
     }
@@ -368,8 +376,9 @@ Mp4Meta::mp4_read_atom(mp4_atom_handler *atom, int64_t size)
 
     for (i = 0; atom[i].name; i++) {
       if (memcmp(atom_name, atom[i].name, 4) == 0) {
-        if (meta_avail < atom_size)
+        if (meta_avail < atom_size) {
           return -1;
+        }
 
         ret = (this->*atom[i].handler)(atom_header_size, atom_size - atom_header_size); // -1: error, 0: success.
 
@@ -400,8 +409,9 @@ Mp4Meta::mp4_read_ftyp_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int64_t atom_size;
 
-  if (atom_data_size > MP4_MIN_BUFFER_SIZE)
+  if (atom_data_size > MP4_MIN_BUFFER_SIZE) {
     return -1;
+  }
 
   atom_size = atom_header_size + atom_data_size;
 
@@ -427,13 +437,15 @@ Mp4Meta::mp4_read_moov_atom(int64_t atom_header_size, int64_t atom_data_size)
   int64_t atom_size;
   int ret;
 
-  if (mdat_atom.buffer != NULL) // not reasonable for streaming media
+  if (mdat_atom.buffer != NULL) { // not reasonable for streaming media
     return -1;
+  }
 
   atom_size = atom_header_size + atom_data_size;
 
-  if (atom_data_size >= MP4_MAX_BUFFER_SIZE)
+  if (atom_data_size >= MP4_MAX_BUFFER_SIZE) {
     return -1;
+  }
 
   if (meta_avail < atom_size) { // data unsufficient, wait
     return 0;
@@ -458,9 +470,11 @@ Mp4Meta::mp4_read_mvhd_atom(int64_t atom_header_size, int64_t atom_data_size)
   mp4_mvhd_atom *mvhd;
   mp4_mvhd64_atom mvhd64;
 
-  if (sizeof(mp4_mvhd_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_mvhd_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
+  memset(&mvhd64, 0, sizeof(mvhd64));
   IOBufferReaderCopy(meta_reader, &mvhd64, sizeof(mp4_mvhd64_atom));
   mvhd = (mp4_mvhd_atom *)&mvhd64;
 
@@ -490,8 +504,9 @@ Mp4Meta::mp4_read_trak_atom(int64_t atom_header_size, int64_t atom_data_size)
   int rc;
   Mp4Trak *trak;
 
-  if (trak_num >= MP4_MAX_TRAK_NUM - 1)
+  if (trak_num >= MP4_MAX_TRAK_NUM - 1) {
     return -1;
+  }
 
   trak                 = new Mp4Trak();
   trak_vec[trak_num++] = trak;
@@ -559,6 +574,7 @@ Mp4Meta::mp4_read_mdhd_atom(int64_t atom_header_size, int64_t atom_data_size)
   mp4_mdhd_atom *mdhd;
   mp4_mdhd64_atom mdhd64;
 
+  memset(&mdhd64, 0, sizeof(mdhd64));
   IOBufferReaderCopy(meta_reader, &mdhd64, sizeof(mp4_mdhd64_atom));
   mdhd = (mp4_mdhd_atom *)&mdhd64;
 
@@ -726,20 +742,21 @@ int
 Mp4Meta::mp4_read_stts_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_stts_atom stts;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_stts_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_stts_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &stts, sizeof(mp4_stts_atom));
+  copied_size = IOBufferReaderCopy(meta_reader, &stts, sizeof(mp4_stts_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(stts.entries) : 0;
+  esize       = entries * sizeof(mp4_stts_entry);
 
-  entries = mp4_get_32value(stts.entries);
-  esize   = entries * sizeof(mp4_stts_entry);
-
-  if (sizeof(mp4_stts_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_stts_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak                         = trak_vec[trak_num - 1];
   trak->time_to_sample_entries = entries;
@@ -761,19 +778,21 @@ int
 Mp4Meta::mp4_read_stss_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_stss_atom stss;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_stss_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_stss_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &stss, sizeof(mp4_stss_atom));
-  entries = mp4_get_32value(stss.entries);
-  esize   = entries * sizeof(int32_t);
+  copied_size = IOBufferReaderCopy(meta_reader, &stss, sizeof(mp4_stss_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(stss.entries) : 0;
+  esize       = entries * sizeof(int32_t);
 
-  if (sizeof(mp4_stss_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_stss_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak                       = trak_vec[trak_num - 1];
   trak->sync_samples_entries = entries;
@@ -795,19 +814,21 @@ int
 Mp4Meta::mp4_read_ctts_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_ctts_atom ctts;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_ctts_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_ctts_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &ctts, sizeof(mp4_ctts_atom));
-  entries = mp4_get_32value(ctts.entries);
-  esize   = entries * sizeof(mp4_ctts_entry);
+  copied_size = IOBufferReaderCopy(meta_reader, &ctts, sizeof(mp4_ctts_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(ctts.entries) : 0;
+  esize       = entries * sizeof(mp4_ctts_entry);
 
-  if (sizeof(mp4_ctts_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_ctts_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak                             = trak_vec[trak_num - 1];
   trak->composition_offset_entries = entries;
@@ -829,19 +850,21 @@ int
 Mp4Meta::mp4_read_stsc_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_stsc_atom stsc;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_stsc_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_stsc_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &stsc, sizeof(mp4_stsc_atom));
-  entries = mp4_get_32value(stsc.entries);
-  esize   = entries * sizeof(mp4_stsc_entry);
+  copied_size = IOBufferReaderCopy(meta_reader, &stsc, sizeof(mp4_stsc_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(stsc.entries) : 0;
+  esize       = entries * sizeof(mp4_stsc_entry);
 
-  if (sizeof(mp4_stsc_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_stsc_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak                          = trak_vec[trak_num - 1];
   trak->sample_to_chunk_entries = entries;
@@ -863,19 +886,20 @@ int
 Mp4Meta::mp4_read_stsz_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries, size;
-  int64_t esize, atom_size;
+  int64_t esize, atom_size, copied_size;
   mp4_stsz_atom stsz;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_stsz_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_stsz_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &stsz, sizeof(mp4_stsz_atom));
-  entries = mp4_get_32value(stsz.entries);
-  esize   = entries * sizeof(int32_t);
+  copied_size = IOBufferReaderCopy(meta_reader, &stsz, sizeof(mp4_stsz_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(stsz.entries) : 0;
+  esize       = entries * sizeof(int32_t);
 
   trak = trak_vec[trak_num - 1];
-  size = mp4_get_32value(stsz.uniform_size);
+  size = copied_size > 0 ? mp4_get_32value(stsz.uniform_size) : 0;
 
   trak->sample_sizes_entries = entries;
 
@@ -884,8 +908,9 @@ Mp4Meta::mp4_read_stsz_atom(int64_t atom_header_size, int64_t atom_data_size)
   TSIOBufferCopy(trak->atoms[MP4_STSZ_ATOM].buffer, meta_reader, sizeof(mp4_stsz_atom), 0);
 
   if (size == 0) {
-    if (sizeof(mp4_stsz_atom) - 8 + esize > (size_t)atom_data_size)
+    if (sizeof(mp4_stsz_atom) - 8 + esize > (size_t)atom_data_size) {
       return -1;
+    }
 
     trak->atoms[MP4_STSZ_DATA].buffer = TSIOBufferCreate();
     trak->atoms[MP4_STSZ_DATA].reader = TSIOBufferReaderAlloc(trak->atoms[MP4_STSZ_DATA].buffer);
@@ -906,19 +931,21 @@ int
 Mp4Meta::mp4_read_stco_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_stco_atom stco;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_stco_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_stco_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &stco, sizeof(mp4_stco_atom));
-  entries = mp4_get_32value(stco.entries);
-  esize   = entries * sizeof(int32_t);
+  copied_size = IOBufferReaderCopy(meta_reader, &stco, sizeof(mp4_stco_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(stco.entries) : 0;
+  esize       = entries * sizeof(int32_t);
 
-  if (sizeof(mp4_stco_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_stco_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak         = trak_vec[trak_num - 1];
   trak->chunks = entries;
@@ -940,19 +967,21 @@ int
 Mp4Meta::mp4_read_co64_atom(int64_t atom_header_size, int64_t atom_data_size)
 {
   int32_t entries;
-  int64_t esize;
+  int64_t esize, copied_size;
   mp4_co64_atom co64;
   Mp4Trak *trak;
 
-  if (sizeof(mp4_co64_atom) - 8 > (size_t)atom_data_size)
+  if (sizeof(mp4_co64_atom) - 8 > (size_t)atom_data_size) {
     return -1;
+  }
 
-  IOBufferReaderCopy(meta_reader, &co64, sizeof(mp4_co64_atom));
-  entries = mp4_get_32value(co64.entries);
-  esize   = entries * sizeof(int64_t);
+  copied_size = IOBufferReaderCopy(meta_reader, &co64, sizeof(mp4_co64_atom));
+  entries     = copied_size > 0 ? mp4_get_32value(co64.entries) : 0;
+  esize       = entries * sizeof(int64_t);
 
-  if (sizeof(mp4_co64_atom) - 8 + esize > (size_t)atom_data_size)
+  if (sizeof(mp4_co64_atom) - 8 + esize > (size_t)atom_data_size) {
     return -1;
+  }
 
   trak         = trak_vec[trak_num - 1];
   trak->chunks = entries;
@@ -989,8 +1018,9 @@ Mp4Meta::mp4_update_stts_atom(Mp4Trak *trak)
   int64_t atom_size;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STTS_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STTS_DATA].buffer == NULL) {
     return -1;
+  }
 
   sum = start_count = 0;
 
@@ -1077,8 +1107,9 @@ Mp4Meta::mp4_update_stss_atom(Mp4Trak *trak)
   uint32_t i, j, entries, sample, start_sample, left;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STSS_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STSS_DATA].buffer == NULL) {
     return 0;
+  }
 
   readerp = TSIOBufferReaderClone(trak->atoms[MP4_STSS_DATA].reader);
 
@@ -1131,8 +1162,9 @@ Mp4Meta::mp4_update_ctts_atom(Mp4Trak *trak)
   uint32_t count;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_CTTS_DATA].buffer == NULL)
+  if (trak->atoms[MP4_CTTS_DATA].buffer == NULL) {
     return 0;
+  }
 
   readerp = TSIOBufferReaderClone(trak->atoms[MP4_CTTS_DATA].reader);
 
@@ -1193,11 +1225,13 @@ Mp4Meta::mp4_update_stsc_atom(Mp4Trak *trak)
   mp4_stsc_entry *first;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STSC_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STSC_DATA].buffer == NULL) {
     return -1;
+  }
 
-  if (trak->sample_to_chunk_entries == 0)
+  if (trak->sample_to_chunk_entries == 0) {
     return -1;
+  }
 
   start_sample = (uint32_t)trak->start_sample;
 
@@ -1240,8 +1274,9 @@ found:
   TSIOBufferReaderFree(readerp);
 
   entries = trak->sample_to_chunk_entries - i + 1;
-  if (samples == 0)
+  if (samples == 0) {
     return -1;
+  }
 
   readerp = TSIOBufferReaderClone(trak->atoms[MP4_STSC_DATA].reader);
   TSIOBufferReaderConsume(readerp, sizeof(mp4_stsc_entry) * (i - 1));
@@ -1301,11 +1336,13 @@ Mp4Meta::mp4_update_stsz_atom(Mp4Trak *trak)
   uint32_t pass;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STSZ_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STSZ_DATA].buffer == NULL) {
     return 0;
+  }
 
-  if (trak->start_sample > trak->sample_sizes_entries)
+  if (trak->start_sample > trak->sample_sizes_entries) {
     return -1;
+  }
 
   readerp = TSIOBufferReaderClone(trak->atoms[MP4_STSZ_DATA].reader);
   avail   = TSIOBufferReaderAvail(readerp);
@@ -1338,11 +1375,13 @@ Mp4Meta::mp4_update_co64_atom(Mp4Trak *trak)
   int64_t atom_size, avail, pass;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_CO64_DATA].buffer == NULL)
+  if (trak->atoms[MP4_CO64_DATA].buffer == NULL) {
     return -1;
+  }
 
-  if (trak->start_chunk > trak->chunks)
+  if (trak->start_chunk > trak->chunks) {
     return -1;
+  }
 
   readerp = trak->atoms[MP4_CO64_DATA].reader;
   avail   = TSIOBufferReaderAvail(readerp);
@@ -1369,11 +1408,13 @@ Mp4Meta::mp4_update_stco_atom(Mp4Trak *trak)
   uint32_t pass;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STCO_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STCO_DATA].buffer == NULL) {
     return -1;
+  }
 
-  if (trak->start_chunk > trak->chunks)
+  if (trak->start_chunk > trak->chunks) {
     return -1;
+  }
 
   readerp = trak->atoms[MP4_STCO_DATA].reader;
   avail   = TSIOBufferReaderAvail(readerp);
@@ -1516,8 +1557,9 @@ Mp4Meta::mp4_find_key_sample(uint32_t start_sample, Mp4Trak *trak)
   uint32_t sample, prev_sample, entries;
   TSIOBufferReader readerp;
 
-  if (trak->atoms[MP4_STSS_DATA].buffer == NULL)
+  if (trak->atoms[MP4_STSS_DATA].buffer == NULL) {
     return start_sample;
+  }
 
   prev_sample = 1;
   entries     = trak->sync_samples_entries;
@@ -1551,9 +1593,11 @@ Mp4Meta::mp4_update_mvhd_duration()
 
   need = TSIOBufferReaderAvail(mvhd_atom.reader);
 
-  if (need > (int64_t)sizeof(mp4_mvhd64_atom))
+  if (need > (int64_t)sizeof(mp4_mvhd64_atom)) {
     need = sizeof(mp4_mvhd64_atom);
+  }
 
+  memset(&mvhd64, 0, sizeof(mvhd64));
   IOBufferReaderCopy(mvhd_atom.reader, &mvhd64, need);
   mvhd = (mp4_mvhd_atom *)&mvhd64;
 
@@ -1586,9 +1630,11 @@ Mp4Meta::mp4_update_tkhd_duration(Mp4Trak *trak)
 
   need = TSIOBufferReaderAvail(trak->atoms[MP4_TKHD_ATOM].reader);
 
-  if (need > (int64_t)sizeof(mp4_tkhd64_atom))
+  if (need > (int64_t)sizeof(mp4_tkhd64_atom)) {
     need = sizeof(mp4_tkhd64_atom);
+  }
 
+  memset(&tkhd64_atom, 0, sizeof(tkhd64_atom));
   IOBufferReaderCopy(trak->atoms[MP4_TKHD_ATOM].reader, &tkhd64_atom, need);
   tkhd_atom = (mp4_tkhd_atom *)&tkhd64_atom;
 
@@ -1622,8 +1668,9 @@ Mp4Meta::mp4_update_mdhd_duration(Mp4Trak *trak)
 
   need = TSIOBufferReaderAvail(trak->atoms[MP4_MDHD_ATOM].reader);
 
-  if (need > (int64_t)sizeof(mp4_mdhd64_atom))
+  if (need > (int64_t)sizeof(mp4_mdhd64_atom)) {
     need = sizeof(mp4_mdhd64_atom);
+  }
 
   IOBufferReaderCopy(trak->atoms[MP4_MDHD_ATOM].reader, &mdhd64, need);
   mdhd = (mp4_mdhd_atom *)&mdhd64;
@@ -1673,8 +1720,9 @@ mp4_reader_set_32value(TSIOBufferReader readerp, int64_t offset, uint32_t n)
         left--;
       }
 
-      if (pos >= 4)
+      if (pos >= 4) {
         return;
+      }
 
       offset = 0;
     }
@@ -1711,8 +1759,9 @@ mp4_reader_set_64value(TSIOBufferReader readerp, int64_t offset, uint64_t n)
         left--;
       }
 
-      if (pos >= 4)
+      if (pos >= 4) {
         return;
+      }
 
       offset = 0;
     }
@@ -1825,8 +1874,9 @@ IOBufferReaderCopy(TSIOBufferReader readerp, void *buf, int64_t length)
       n += need;
     }
 
-    if (length == 0)
+    if (length == 0) {
       break;
+    }
 
     blk = TSIOBufferBlockNext(blk);
   }

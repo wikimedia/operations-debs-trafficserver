@@ -27,8 +27,9 @@ Statement::append(Statement *stmt)
   Statement *tmp = this;
 
   TSReleaseAssert(stmt->_next == NULL);
-  while (tmp->_next)
-    tmp      = tmp->_next;
+  while (tmp->_next) {
+    tmp = tmp->_next;
+  }
   tmp->_next = stmt;
 }
 
@@ -63,7 +64,7 @@ void
 Statement::initialize_hooks()
 {
   add_allowed_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
-  add_allowed_hook(TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK);
+  add_allowed_hook(TS_HTTP_PRE_REMAP_HOOK);
   add_allowed_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
   add_allowed_hook(TS_HTTP_SEND_REQUEST_HDR_HOOK);
   add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);

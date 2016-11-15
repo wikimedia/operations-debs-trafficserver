@@ -298,11 +298,11 @@ This will return a (scalar) value for this metric or configuration.
 
 =back
 
-=head1 traffic_line
+=head1 traffic_ctl
 
-There is a command line tool included with Apache Traffic Server called traffic_line which overlaps with this module.  traffic_line 
+There is a command line tool included with Apache Traffic Server called traffic_ctl which overlaps with this module.  traffic_ctl 
 can be used to read and write statistics or config settings that this module can.  Hence if you don't want to write a perl one-liner to 
-get to this information, traffic_line is your tool.
+get to this information, traffic_ctl is your tool.
 
 =head1 List of configurations
 
@@ -405,7 +405,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.dns.search_default_domains
  proxy.config.dns.splitDNS.enabled
  proxy.config.dns.splitdns.filename
- proxy.config.dns.url_expansions
  proxy.config.dump_mem_info_frequency
  proxy.config.env_prep
  proxy.config.exec_thread.autoconfig
@@ -430,7 +429,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.hostdb.verify_after
  proxy.config.http.accept_encoding_filter.filename
  proxy.config.http.accept_no_activity_timeout
- proxy.config.http.anonymize_insert_client_ip
+ proxy.config.http.insert_client_ip
  proxy.config.http.anonymize_other_header_list
  proxy.config.http.anonymize_remove_client_ip
  proxy.config.http.anonymize_remove_cookie
@@ -501,7 +500,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.enabled
  proxy.config.http.enable_http_info
  proxy.config.http.enable_http_stats
- proxy.config.http.enable_url_expandomatic
  proxy.config.http.errors.log_error_pages
  proxy.config.http.forward.proxy_auth_to_parent
  proxy.config.http.global_user_agent_header
@@ -580,7 +578,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.log.collation_port
  proxy.config.log.collation_retry_sec
  proxy.config.log.collation_secret
- proxy.config.log.custom_logs_enabled
  proxy.config.log.file_stat_frequency
  proxy.config.log.hostname
  proxy.config.log.hosts_config_file
@@ -600,7 +597,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.log.rolling_size_mb
  proxy.config.log.sampling_frequency
  proxy.config.log.space_used_frequency
- proxy.config.log.xml_config_file
+ proxy.config.log.config.filename
  proxy.config.manager_binary
  proxy.config.net.connections_throttle
  proxy.config.net.listen_backlog
@@ -613,8 +610,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.net.sock_send_buffer_size_out
  proxy.config.net.defer_accept
  proxy.config.output.logfile
- proxy.config.ping.npacks_to_trans
- proxy.config.ping.timeout_sec
  proxy.config.plugin.plugin_dir
  proxy.config.process_manager.enable_mgmt_port
  proxy.config.process_manager.mgmt_port
@@ -657,7 +652,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.client.private_key.path
  proxy.config.ssl.client.verify.server
  proxy.config.ssl.enabled
- proxy.config.ssl.number.threads
  proxy.config.ssl.server.cert_chain.filename
  proxy.config.ssl.server.cert.path
  proxy.config.ssl.server.cipher_suite
@@ -666,13 +660,11 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.ssl.SSLv2
  proxy.config.ssl.SSLv3
  proxy.config.ssl.TLSv1
- proxy.config.ssl.compression
  proxy.config.ssl.server.multicert.filename
  proxy.config.ssl.server.private_key.path
  proxy.config.stat_collector.interval
  proxy.config.stat_collector.port
  proxy.config.syslog_facility
- proxy.config.system.mmap_max
  proxy.config.system.file_max_pct
  proxy.config.thread.default.stacksize
  proxy.config.udp.free_cancelled_pkts_sec
