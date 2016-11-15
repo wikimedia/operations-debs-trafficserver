@@ -65,6 +65,7 @@ public:
   ServerSessionPool();
   /// Handle events from server sessions.
   int eventHandler(int event, void *data);
+  static bool validate_sni(HttpSM *sm, NetVConnection *netvc);
 
 protected:
   /// Interface class for IP map.
@@ -82,11 +83,7 @@ protected:
     static Key
     key(Value const *value)
     {
-      // Might be better to just fetch the comparing address from the
-      // netvc.  That is what the event_handler will be using to
-      // looking elements in the m_ip_pool
-      // return value->get_netvc()->get_remote_addr();
-      return &value->server_ip.sa;
+      return &value->get_server_ip().sa;
     }
     static bool
     equal(Key lhs, Key rhs)
@@ -136,7 +133,7 @@ public:
       @return A pointer to the session or @c NULL if not matching session was found.
   */
   HSMresult_t acquireSession(sockaddr const *addr, INK_MD5 const &host_hash, TSServerSessionSharingMatchType match_style,
-                             HttpServerSession *&server_session);
+                             HttpSM *sm, HttpServerSession *&server_session);
   /** Release a session to to pool.
    */
   void releaseSession(HttpServerSession *ss);

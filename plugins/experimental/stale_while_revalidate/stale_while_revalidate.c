@@ -29,6 +29,7 @@
 #include <search.h>
 #include <getopt.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include "ts/ink_defs.h"
 #include "ts/ts.h"
@@ -62,7 +63,11 @@ typedef struct {
   char *effective_url;
   TSMBuffer buf;
   TSMLoc http_hdr_loc;
-  struct sockaddr *client_addr;
+  union {
+    struct sockaddr sa;
+    struct sockaddr_in sin;
+    struct sockaddr_in6 sin6;
+  } client_addr;
 } RequestInfo;
 
 typedef struct {
@@ -86,6 +91,12 @@ typedef struct {
   time_t txn_start;
   config_t *plugin_config;
 } StateInfo;
+
+static int
+xstrcmp(const void *a, const void *b)
+{
+  return strcmp((const char *)a, (const char *)b);
+}
 
 static ResponseInfo *
 create_response_info(void)
@@ -120,7 +131,10 @@ create_request_info(TSHttpTxn txn)
   TSMBuffer buf;
   TSMLoc loc;
 
+  const struct sockaddr *sa;
+
   req_info = (RequestInfo *)TSmalloc(sizeof(RequestInfo));
+  memset(req_info, 0, sizeof(RequestInfo));
 
   url                     = TSHttpTxnEffectiveUrlStringGet(txn, &url_len);
   req_info->effective_url = TSstrndup(url, url_len);
@@ -131,8 +145,17 @@ create_request_info(TSHttpTxn txn)
   TSHttpHdrClone(req_info->buf, buf, loc, &(req_info->http_hdr_loc));
   TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
 
-  req_info->client_addr = TSmalloc(sizeof(struct sockaddr));
-  memmove((void *)req_info->client_addr, (void *)TSHttpTxnClientAddrGet(txn), sizeof(struct sockaddr));
+  sa = TSHttpTxnClientAddrGet(txn);
+  switch (sa->sa_family) {
+  case AF_INET:
+    memcpy(&req_info->client_addr.sin, sa, sizeof(struct sockaddr_in));
+    break;
+  case AF_INET6:
+    memcpy(&req_info->client_addr.sin6, sa, sizeof(struct sockaddr_in6));
+    break;
+  default:
+    break;
+  }
 
   return req_info;
 }
@@ -143,8 +166,37 @@ free_request_info(RequestInfo *req_info)
   TSfree(req_info->effective_url);
   TSHandleMLocRelease(req_info->buf, TS_NULL_MLOC, req_info->http_hdr_loc);
   TSMBufferDestroy(req_info->buf);
-  TSfree(req_info->client_addr);
   TSfree(req_info);
+}
+
+static void
+free_request_state(StateInfo *state)
+{
+#if defined(DEBUG)
+  int verify = 1;
+#else
+  int verify = TSIsDebugTagSet(PLUGIN_NAME);
+#endif
+
+  // Verify that the effective URL of this state object has been removed before we delete the state.
+  if (verify) {
+    void *ptr;
+
+    TSMutexLock(state->plugin_config->troot_mutex);
+    ptr = tfind(state->req_info->effective_url, &(state->plugin_config->troot), xstrcmp);
+    TSMutexUnlock(state->plugin_config->troot_mutex);
+
+    if (ptr) {
+      TSReleaseAssert(ptr != state->req_info->effective_url);
+    }
+  }
+
+  if (state->resp_info) {
+    free_response_info(state->resp_info);
+  }
+
+  free_request_info(state->req_info);
+  TSfree(state);
 }
 
 static CachedHeaderInfo *
@@ -156,11 +208,8 @@ get_cached_header_info(TSHttpTxn txn)
   int cr_cache_control_count, val_len, i;
   char *value, *ptr;
 
-  chi                         = (CachedHeaderInfo *)TSmalloc(sizeof(CachedHeaderInfo));
-  chi->date                   = 0;
-  chi->max_age                = 0;
-  chi->stale_while_revalidate = 0;
-  chi->stale_on_error         = 0;
+  chi = (CachedHeaderInfo *)TSmalloc(sizeof(CachedHeaderInfo));
+  memset(chi, 0, sizeof(CachedHeaderInfo));
 
   if (TSHttpTxnCachedRespGet(txn, &cr_buf, &cr_hdr_loc) == TS_SUCCESS) {
     cr_date_loc = TSMimeHdrFieldFind(cr_buf, cr_hdr_loc, TS_MIME_FIELD_DATE, TS_MIME_LEN_DATE);
@@ -218,12 +267,6 @@ get_cached_header_info(TSHttpTxn txn)
   }
 
   return chi;
-}
-
-static int
-xstrcmp(const void *a, const void *b)
-{
-  return strcmp((const char *)a, (const char *)b);
 }
 
 static void
@@ -341,15 +384,14 @@ consume_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
       }
       TSHttpTxnReenable(state->txn, TS_EVENT_HTTP_CONTINUE);
     }
-    free_request_info(state->req_info);
-    if (state->resp_info) {
-      free_response_info(state->resp_info);
-    }
+
+    // XXX Free as part of StateInfo.
     TSIOBufferReaderFree(state->req_io_buf_reader);
     TSIOBufferDestroy(state->req_io_buf);
     TSIOBufferReaderFree(state->resp_io_buf_reader);
     TSIOBufferDestroy(state->resp_io_buf);
-    TSfree(state);
+
+    free_request_state(state);
     TSContDestroy(cont);
     break;
   default:
@@ -365,29 +407,30 @@ fetch_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 {
   StateInfo *state;
   TSCont consume_cont;
-  // struct sockaddr_in client_addr;
   TSMLoc connection_hdr_loc, connection_hdr_dup_loc;
 
   state = (StateInfo *)TSContDataGet(cont);
 
   // li = (RequestInfo *) edata;
   if (state->async_req) {
-    TSMutexLock(state->plugin_config->troot_mutex);
+    TSMutex mtx = state->plugin_config->troot_mutex;
+    TSMutexLock(mtx);
+
     // If already doing async lookup lets just close shop and go home
     if (tfind(state->req_info->effective_url, &(state->plugin_config->troot), xstrcmp) != NULL) {
       TSDebug(PLUGIN_NAME, "Looks like an async is already in progress");
-      TSMutexUnlock(state->plugin_config->troot_mutex);
-      free_request_info(state->req_info);
-      TSfree(state);
+      free_request_state(state);
       state = NULL;
+      TSContDataSet(cont, NULL);
     }
     // Otherwise lets do the lookup!
     else {
       // Lock in tree
       TSDebug(PLUGIN_NAME, "Locking URL");
       tsearch(state->req_info->effective_url, &(state->plugin_config->troot), xstrcmp);
-      TSMutexUnlock(state->plugin_config->troot_mutex);
     }
+
+    TSMutexUnlock(mtx);
   }
 
   if (state) {
@@ -443,9 +486,7 @@ fetch_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
     TSHttpHdrPrint(state->req_info->buf, state->req_info->http_hdr_loc, state->req_io_buf);
     TSIOBufferWrite(state->req_io_buf, "\r\n", 2);
 
-    // memmove((void *) &client_addr, (void *) state->req_info->client_addr, sizeof(struct sockaddr));
-    // TSDebug(PLUGIN_NAME, "client_addr: %s:%d", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
-    state->vconn = TSHttpConnect((struct sockaddr const *)state->req_info->client_addr);
+    state->vconn = TSHttpConnectWithPluginId(&state->req_info->client_addr.sa, PLUGIN_NAME, 0);
 
     state->r_vio = TSVConnRead(state->vconn, consume_cont, state->resp_io_buf, INT64_MAX);
     state->w_vio =
@@ -458,50 +499,67 @@ fetch_resource(TSCont cont, TSEvent event ATS_UNUSED, void *edata ATS_UNUSED)
 }
 
 static int
+is_swr_transaction(TSHttpTxn txn)
+{
+  const char *tag = TSHttpTxnPluginTagGet(txn);
+  return tag && strcmp(tag, PLUGIN_NAME) == 0;
+}
+
+static int
 main_plugin(TSCont cont, TSEvent event, void *edata)
 {
   TSHttpTxn txn = (TSHttpTxn)edata;
   int status, lookup_count;
-  CachedHeaderInfo *chi;
   TSCont fetch_cont;
   StateInfo *state;
   TSMBuffer buf;
   TSMLoc loc, warn_loc;
-  TSHttpStatus http_status;
   config_t *plugin_config;
 
   switch (event) {
-  // Is this the proper event?
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
 
-    if (TSHttpTxnIsInternal(txn) != TS_SUCCESS) {
-      TSDebug(PLUGIN_NAME, "External Request");
-      plugin_config        = (config_t *)TSContDataGet(cont);
-      state                = TSmalloc(sizeof(StateInfo));
-      state->plugin_config = plugin_config;
+    if (is_swr_transaction(txn)) {
+      TSHttpTxnHookAdd(txn, TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
+    } else {
+      state = TSmalloc(sizeof(StateInfo));
+      memset(state, 0, sizeof(StateInfo));
+
+      state->plugin_config = (config_t *)TSContDataGet(cont);
+      state->req_info      = create_request_info(txn);
       time(&state->txn_start);
-      state->req_info = create_request_info(txn);
+
       TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, (void *)state);
       TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
-    } else {
-      TSDebug(PLUGIN_NAME, "Internal Request"); // This is insufficient if there are other plugins using TSHttpConnect
-      TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_SERVER_SESSION_SHARING_MATCH, TS_SERVER_SESSION_SHARING_MATCH_NONE);
-      // TSHttpTxnHookAdd(txn, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, cont);
-      TSHttpTxnHookAdd(txn, TS_HTTP_READ_RESPONSE_HDR_HOOK, cont);
-      // This might be needed in 3.2.0 to fix a timeout issue
-      // TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_IN, 5);
-      // TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_TRANSACTION_NO_ACTIVITY_TIMEOUT_OUT, 5);
+
+      TSDebug(PLUGIN_NAME, "tracking state %p from txn %p for %s", state, txn, state->req_info->effective_url);
     }
 
     TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
     break;
+
   case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE:
+
     plugin_config = (config_t *)TSContDataGet(cont);
     state         = (StateInfo *)TSHttpTxnArgGet(txn, plugin_config->txn_slot);
+
+    // NOTE: It is possible to receive the cache lookup
+    // hook more than once if there is contention on the
+    // cache write lock. Just bail if we already nuked
+    // the StateInfo.
+    if (state == NULL) {
+      TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
+      break;
+    }
+
     TSHttpTxnCacheLookupCountGet(txn, &lookup_count);
     if (TSHttpTxnCacheLookupStatusGet(txn, &status) == TS_SUCCESS) {
+      TSDebug(PLUGIN_NAME, "cache status %d, count %d from txn %p state %p", status, lookup_count, txn, state);
+
       // Are we stale?
       if (status == TS_CACHE_LOOKUP_HIT_STALE) {
+        CachedHeaderInfo *chi;
+
         TSDebug(PLUGIN_NAME, "CacheLookupStatus is STALE");
         // Get headers
         chi = get_cached_header_info(txn);
@@ -516,27 +574,24 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
             TSTextLogObjectWrite(state->plugin_config->log_info.object, "stale-while-revalidate: %d - %d < %d + %d %s",
                                  (int)state->txn_start, (int)chi->date, (int)chi->max_age, (int)chi->stale_while_revalidate,
                                  state->req_info->effective_url);
-// lookup async
 
-#if (TS_VERSION_NUMBER >= 3003000)
           TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE, 1);
-#endif
-          // Set warning header
-          TSHttpTxnHookAdd(txn, TS_HTTP_SEND_RESPONSE_HDR_HOOK, cont);
+          TSHttpTxnCacheLookupStatusSet(txn, TS_CACHE_LOOKUP_HIT_FRESH);
 
           TSDebug(PLUGIN_NAME, "set state as async");
           state->async_req = true;
-          TSHttpTxnCacheLookupStatusSet(txn, TS_CACHE_LOOKUP_HIT_FRESH);
-          // TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
+
+          // Set warning header
+          TSHttpTxnHookAdd(txn, TS_HTTP_SEND_RESPONSE_HDR_HOOK, cont);
+
           fetch_cont = TSContCreate(fetch_resource, TSMutexCreate());
           TSContDataSet(fetch_cont, (void *)state);
-          TSContSchedule(fetch_cont, 0, TS_THREAD_POOL_TASK);
+          TSContSchedule(fetch_cont, 0, TS_THREAD_POOL_NET);
           TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
         } else if ((state->txn_start - chi->date) < (chi->max_age + chi->stale_on_error)) {
           TSDebug(PLUGIN_NAME, "Looks like we can return fresh data on 500 error");
-#if (TS_VERSION_NUMBER >= 3003000)
           TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_INSERT_AGE_IN_RESPONSE, 1);
-#endif
+
           // lookup sync
           state->async_req = false;
           state->txn       = txn;
@@ -548,8 +603,9 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
           TSDebug(PLUGIN_NAME, "No love? now: %d date: %d max-age: %d swr: %d soe: %d", (int)state->txn_start, (int)chi->date,
                   (int)chi->max_age, (int)chi->stale_while_revalidate, (int)chi->stale_on_error);
           if (lookup_count == 1) {
-            free_request_info(state->req_info);
-            TSfree(state);
+            TSDebug(PLUGIN_NAME, "freeing state %p from txn %p", state, txn);
+            TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, NULL);
+            free_request_state(state);
           }
           TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
         }
@@ -558,35 +614,48 @@ main_plugin(TSCont cont, TSEvent event, void *edata)
       } else {
         TSDebug(PLUGIN_NAME, "Not Stale!");
         if (lookup_count == 1) {
-          free_request_info(state->req_info);
-          TSfree(state);
+          TSDebug(PLUGIN_NAME, "freeing state %p from txn %p", state, txn);
+          TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, NULL);
+          free_request_state(state);
         }
         TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
       }
     } else {
       TSDebug(PLUGIN_NAME, "Could not get CacheLookupStatus");
       if (lookup_count == 1) {
-        free_request_info(state->req_info);
-        TSfree(state);
+        TSDebug(PLUGIN_NAME, "freeing state %p from txn %p", state, txn);
+        TSHttpTxnArgSet(txn, state->plugin_config->txn_slot, NULL);
+        free_request_state(state);
       }
       TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
     }
     break;
+
   case TS_EVENT_HTTP_READ_RESPONSE_HDR:
+    // In this continuation we only hook responses for background
+    // requests that we issued ourselves. If the origin went away,
+    // we don't want to replace a stale cache object with an error.
+    TSAssert(is_swr_transaction(txn));
+
     if (TS_SUCCESS == TSHttpTxnServerRespGet(txn, &buf, &loc)) {
-      http_status = TSHttpHdrStatusGet(buf, loc);
-      if ((http_status == 500) || ((http_status >= 502) && (http_status <= 504))) { // 500, 502, 503, or 504
-        TSDebug(PLUGIN_NAME, "Set non-cachable");
-#if (TS_VERSION_NUMBER >= 3003000)
+      switch (TSHttpHdrStatusGet(buf, loc)) {
+      case TS_HTTP_STATUS_INTERNAL_SERVER_ERROR:
+      case TS_HTTP_STATUS_BAD_GATEWAY:
+      case TS_HTTP_STATUS_SERVICE_UNAVAILABLE:
+      case TS_HTTP_STATUS_GATEWAY_TIMEOUT:
+        TSDebug(PLUGIN_NAME, "marking background request no-store");
         TSHttpTxnServerRespNoStoreSet(txn, 1);
-#else
-        TSHttpTxnServerRespNoStore(txn);
-#endif
+        break;
+      default:
+        break;
       }
+
       TSHandleMLocRelease(buf, TS_NULL_MLOC, loc);
     }
+
     TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
     break;
+
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
     TSDebug(PLUGIN_NAME, "set warning header");
     TSHttpTxnClientRespGet(txn, &buf, &loc);
@@ -621,7 +690,7 @@ TSPluginInit(int argc, const char *argv[])
 
     return;
   } else {
-    TSDebug(PLUGIN_NAME, "Plugin registration succeeded.\n");
+    TSDebug(PLUGIN_NAME, "Plugin registration succeeded.");
   }
 
   plugin_config = TSmalloc(sizeof(config_t));
@@ -637,7 +706,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (argc > 1) {
     int c;
-    optind                                = 1;
     static const struct option longopts[] = {{"log-all", no_argument, NULL, 'a'},
                                              {"log-stale-while-revalidate", no_argument, NULL, 'r'},
                                              {"log-stale-if-error", no_argument, NULL, 'e'},
@@ -677,5 +745,5 @@ TSPluginInit(int argc, const char *argv[])
   TSContDataSet(main_cont, (void *)plugin_config);
   TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, main_cont);
 
-  TSDebug(PLUGIN_NAME, "Plugin Init Complete.\n");
+  TSDebug(PLUGIN_NAME, "Plugin Init Complete.");
 }

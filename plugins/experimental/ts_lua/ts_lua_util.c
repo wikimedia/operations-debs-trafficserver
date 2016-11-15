@@ -454,7 +454,7 @@ ts_lua_destroy_http_ctx(ts_lua_http_ctx *http_ctx)
 
   ci = &http_ctx->cinfo;
 
-  if (!http_ctx->remap) {
+  if (http_ctx->rri == NULL) {
     if (http_ctx->client_request_bufp) {
       TSHandleMLocRelease(http_ctx->client_request_bufp, TS_NULL_MLOC, http_ctx->client_request_hdrp);
     }
@@ -708,6 +708,14 @@ ts_lua_http_cont_handler(TSCont contp, TSEvent ev, void *edata)
     break;
 
   case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
+
+    // client response can be changed within a transaction
+    // (e.g. due to the follow redirect feature). So, clearing the pointers
+    // to allow API(s) to fetch the pointers again when it re-enters the hook
+    if (http_ctx->client_response_hdrp != NULL) {
+      TSHandleMLocRelease(http_ctx->client_response_bufp, TS_NULL_MLOC, http_ctx->client_response_hdrp);
+      http_ctx->client_response_hdrp = NULL;
+    }
 
     lua_getglobal(L, TS_LUA_FUNCTION_SEND_RESPONSE);
 

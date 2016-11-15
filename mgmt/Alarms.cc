@@ -101,7 +101,7 @@ Alarms::registerCallback(AlarmCallbackFunc func)
 
   ink_mutex_acquire(&mutex);
   snprintf(cb_buf, sizeof(cb_buf), "%d", cur_cb++);
-  Debug("alarm", "[Alarms::registerCallback] Registering Alarms callback\n");
+  Debug("alarm", "[Alarms::registerCallback] Registering Alarms callback");
   ink_hash_table_insert(cblist, cb_buf, (void *)func);
   ink_mutex_release(&mutex);
 } /* End Alarms::registerCallback */
@@ -195,7 +195,7 @@ Alarms::signalAlarm(alarm_t a, const char *desc, const char *ip)
     priority = 1;
     break;
   case MGMT_ALARM_PROXY_PROCESS_BORN:
-    mgmt_log(stderr, "[Alarms::signalAlarm] Server Process born\n");
+    mgmt_log("[Alarms::signalAlarm] Server Process born\n");
     return;
   case MGMT_ALARM_ADD_ALARM:
     priority = 2;
@@ -289,11 +289,12 @@ Alarms::signalAlarm(alarm_t a, const char *desc, const char *ip)
   time(&my_time_t);
   ink_ctime_r(&my_time_t, my_ctime_str);
   char *p = my_ctime_str;
-  while (*p != '\n' && *p != '\0')
+  while (*p != '\n' && *p != '\0') {
     p++;
-  if (*p == '\n')
+  }
+  if (*p == '\n') {
     *p = '\0';
-
+  }
   const size_t sz = sizeof(char) * (strlen(desc) + strlen(my_ctime_str) + 4);
   ats_free(atmp->description);
   atmp->description = (char *)ats_malloc(sz);
@@ -393,6 +394,7 @@ Alarms::constructAlarmMessage(const AppVersionInfo &version, char *ip, char *mes
     if (max >= 1) {
       message[0] = '\0';
     }
+    ink_mutex_release(&mutex);
     return;
   }
 
@@ -472,7 +474,7 @@ Alarms::execAlarmBin(const char *desc)
   if ((pid = fork1()) < 0)
 #endif
   {
-    mgmt_elog(stderr, errno, "[Alarms::execAlarmBin] Unable to fork1 process\n");
+    mgmt_elog(errno, "[Alarms::execAlarmBin] Unable to fork1 process\n");
   } else if (pid > 0) { /* Parent */
     int status;
     bool script_done = false;
@@ -519,8 +521,9 @@ Alarms::execAlarmBin(const char *desc)
 const char *
 Alarms::getAlarmText(alarm_t id)
 {
-  if (id < alarmTextNum)
+  if (id < alarmTextNum) {
     return alarmText[id];
-  else
+  } else {
     return alarmText[0]; // "Unknown Alarm";
+  }
 }

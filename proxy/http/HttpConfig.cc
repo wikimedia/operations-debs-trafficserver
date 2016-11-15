@@ -120,7 +120,6 @@ static const ConfigEnumPair<TSServerSessionSharingPoolType> SessionSharingPoolSt
 ////////////////////////////////////////////////////////////////
 int HttpConfig::m_id = 0;
 HttpConfigParams HttpConfig::m_master;
-HttpUserAgent_RegxEntry *HttpConfig::user_agent_list = NULL;
 
 static volatile int http_config_changes = 1;
 static HttpConfigCont *http_config_cont = NULL;
@@ -174,8 +173,9 @@ http_server_session_sharing_cb(char const *name, RecDataT dtype, RecData data, v
   }
 
   // Signal an update if valid value arrived.
-  if (valid_p)
+  if (valid_p) {
     http_config_cb(name, dtype, data, cookie);
+  }
 
   return REC_ERR_OKAY;
 }
@@ -320,9 +320,6 @@ register_stat_callbacks()
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.throttled_proxy_only", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_throttled_proxy_only_stat, RecRawStatSyncCount);
-
-  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.icp_suggested_lookups", RECD_COUNTER, RECP_PERSISTENT,
-                     (int)http_icp_suggested_lookups_stat, RecRawStatSyncCount);
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.parent_proxy_transaction_time", RECD_INT, RECP_PERSISTENT,
                      (int)http_parent_proxy_transaction_time_stat, RecRawStatSyncSum);
@@ -809,6 +806,8 @@ register_stat_callbacks()
                      (int)https_incoming_requests_stat, RecRawStatSyncCount);
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.https.total_client_connections", RECD_COUNTER, RECP_PERSISTENT,
                      (int)https_total_client_connections_stat, RecRawStatSyncCount);
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.origin_connections_throttled_out", RECD_COUNTER, RECP_PERSISTENT,
+                     (int)http_origin_connections_throttled_stat, RecRawStatSyncCount);
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.post_body_too_large", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_post_body_too_large, RecRawStatSyncCount);
   // milestones
@@ -886,7 +885,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections, "proxy.config.http.origin_max_connections");
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections_queue, "proxy.config.http.origin_max_connections_queue");
   HttpEstablishStaticConfigLongLong(c.origin_min_keep_alive_connections, "proxy.config.http.origin_min_keep_alive_connections");
-  HttpEstablishStaticConfigLongLong(c.oride.attach_server_session_to_client, "proxy.config.http.attach_server_session_to_client");
+  HttpEstablishStaticConfigByte(c.oride.attach_server_session_to_client, "proxy.config.http.attach_server_session_to_client");
 
   // Wank me.
   HttpEstablishStaticConfigByte(c.disable_ssl_parenting, "proxy.local.http.parent_proxy.disable_connect_tunneling");
@@ -899,8 +898,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.use_client_source_port, "proxy.config.http.use_client_source_port");
   HttpEstablishStaticConfigByte(c.oride.maintain_pristine_host_hdr, "proxy.config.url_remap.pristine_host_hdr");
 
-  HttpEstablishStaticConfigByte(c.enable_url_expandomatic, "proxy.config.http.enable_url_expandomatic");
-
   HttpEstablishStaticConfigByte(c.oride.insert_request_via_string, "proxy.config.http.insert_request_via_str");
   HttpEstablishStaticConfigByte(c.oride.insert_response_via_string, "proxy.config.http.insert_response_via_str");
   HttpEstablishStaticConfigLongLong(c.oride.proxy_response_hsts_max_age, "proxy.config.ssl.hsts_max_age");
@@ -911,7 +908,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigStringAlloc(c.proxy_response_via_string, "proxy.config.http.response_via_str");
   c.proxy_response_via_string_len = -1;
 
-  HttpEstablishStaticConfigStringAlloc(c.url_expansions_string, "proxy.config.dns.url_expansions");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_in, "proxy.config.http.keep_alive_enabled_in");
   HttpEstablishStaticConfigByte(c.oride.keep_alive_enabled_out, "proxy.config.http.keep_alive_enabled_out");
   HttpEstablishStaticConfigByte(c.oride.chunking_enabled, "proxy.config.http.chunking_enabled");
@@ -920,6 +916,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.flow_high_water_mark, "proxy.config.http.flow_control.high_water");
   HttpEstablishStaticConfigLongLong(c.oride.flow_low_water_mark, "proxy.config.http.flow_control.low_water");
   HttpEstablishStaticConfigByte(c.oride.post_check_content_length_enabled, "proxy.config.http.post.check.content_length.enabled");
+  HttpEstablishStaticConfigByte(c.strict_uri_parsing, "proxy.config.http.strict_uri_parsing");
 
   // [amc] This is a bit of a mess, need to figure out to make this cleaner.
   RecRegisterConfigUpdateCb("proxy.config.http.server_session_sharing.match", &http_server_session_sharing_cb, &c);
@@ -973,7 +970,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.anonymize_remove_user_agent, "proxy.config.http.anonymize_remove_user_agent");
   HttpEstablishStaticConfigByte(c.oride.anonymize_remove_cookie, "proxy.config.http.anonymize_remove_cookie");
   HttpEstablishStaticConfigByte(c.oride.anonymize_remove_client_ip, "proxy.config.http.anonymize_remove_client_ip");
-  HttpEstablishStaticConfigByte(c.oride.anonymize_insert_client_ip, "proxy.config.http.anonymize_insert_client_ip");
+  HttpEstablishStaticConfigByte(c.oride.anonymize_insert_client_ip, "proxy.config.http.insert_client_ip");
   HttpEstablishStaticConfigStringAlloc(c.anonymize_other_header_list, "proxy.config.http.anonymize_other_header_list");
 
   HttpEstablishStaticConfigStringAlloc(c.oride.global_user_agent_header, "proxy.config.http.global_user_agent_header");
@@ -1001,6 +998,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.cache_guaranteed_max_lifetime, "proxy.config.http.cache.guaranteed_max_lifetime");
 
   HttpEstablishStaticConfigLongLong(c.oride.cache_max_stale_age, "proxy.config.http.cache.max_stale_age");
+  HttpEstablishStaticConfigByte(c.oride.srv_enabled, "proxy.config.srv_enabled");
 
   HttpEstablishStaticConfigLongLong(c.oride.freshness_fuzz_time, "proxy.config.http.cache.fuzz.time");
   HttpEstablishStaticConfigLongLong(c.oride.freshness_fuzz_min_time, "proxy.config.http.cache.fuzz.min_time");
@@ -1039,7 +1037,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.send_100_continue_response, "proxy.config.http.send_100_continue_response");
   HttpEstablishStaticConfigByte(c.disallow_post_100_continue, "proxy.config.http.disallow_post_100_continue");
   HttpEstablishStaticConfigByte(c.parser_allow_non_http, "proxy.config.http.parse.allow_non_http");
-  HttpEstablishStaticConfigLongLong(c.oride.cache_open_write_fail_action, "proxy.config.http.cache.open_write_fail_action");
+  HttpEstablishStaticConfigByte(c.oride.cache_open_write_fail_action, "proxy.config.http.cache.open_write_fail_action");
 
   HttpEstablishStaticConfigByte(c.oride.cache_when_to_revalidate, "proxy.config.http.cache.when_to_revalidate");
   HttpEstablishStaticConfigByte(c.oride.cache_required_headers, "proxy.config.http.cache.required_headers");
@@ -1170,8 +1168,6 @@ HttpConfig::reconfigure()
     params->origin_min_keep_alive_connections = params->oride.origin_max_connections;
   }
 
-  params->enable_url_expandomatic = INT_TO_BOOL(m_master.enable_url_expandomatic);
-
   params->oride.insert_request_via_string   = m_master.oride.insert_request_via_string;
   params->oride.insert_response_via_string  = m_master.oride.insert_response_via_string;
   params->proxy_request_via_string          = ats_strdup(m_master.proxy_request_via_string);
@@ -1180,9 +1176,6 @@ HttpConfig::reconfigure()
   params->proxy_response_via_string_len     = (params->proxy_response_via_string) ? strlen(params->proxy_response_via_string) : 0;
   params->oride.proxy_response_hsts_max_age = m_master.oride.proxy_response_hsts_max_age;
   params->oride.proxy_response_hsts_include_subdomains = m_master.oride.proxy_response_hsts_include_subdomains;
-
-  params->url_expansions_string = ats_strdup(m_master.url_expansions_string);
-  params->url_expansions        = parse_url_expansions(params->url_expansions_string, &params->num_url_expansions);
 
   params->oride.keep_alive_enabled_in       = INT_TO_BOOL(m_master.oride.keep_alive_enabled_in);
   params->oride.keep_alive_enabled_out      = INT_TO_BOOL(m_master.oride.keep_alive_enabled_out);
@@ -1197,10 +1190,12 @@ HttpConfig::reconfigure()
   params->oride.flow_high_water_mark = m_master.oride.flow_high_water_mark;
   params->oride.flow_low_water_mark  = m_master.oride.flow_low_water_mark;
   // If not set (zero) then make values the same.
-  if (params->oride.flow_low_water_mark <= 0)
+  if (params->oride.flow_low_water_mark <= 0) {
     params->oride.flow_low_water_mark = params->oride.flow_high_water_mark;
-  if (params->oride.flow_high_water_mark <= 0)
+  }
+  if (params->oride.flow_high_water_mark <= 0) {
     params->oride.flow_high_water_mark = params->oride.flow_low_water_mark;
+  }
   if (params->oride.flow_high_water_mark < params->oride.flow_low_water_mark) {
     Warning("Flow control low water mark is greater than high water mark, flow control disabled");
     params->oride.flow_control_enabled = 0;
@@ -1282,6 +1277,8 @@ HttpConfig::reconfigure()
   params->cache_vary_default_images = ats_strdup(m_master.cache_vary_default_images);
   params->cache_vary_default_other  = ats_strdup(m_master.cache_vary_default_other);
 
+  params->oride.srv_enabled = m_master.oride.srv_enabled;
+
   // open read failure retries
   params->oride.max_cache_open_read_retries = m_master.oride.max_cache_open_read_retries;
   params->oride.cache_open_read_retry_time  = m_master.oride.cache_open_read_retry_time;
@@ -1347,7 +1344,7 @@ HttpConfig::reconfigure()
   params->referer_filter_enabled  = INT_TO_BOOL(m_master.referer_filter_enabled);
   params->referer_format_redirect = INT_TO_BOOL(m_master.referer_format_redirect);
 
-  params->oride.accept_encoding_filter_enabled = INT_TO_BOOL(m_master.oride.accept_encoding_filter_enabled);
+  params->strict_uri_parsing = INT_TO_BOOL(m_master.strict_uri_parsing);
 
   params->oride.down_server_timeout    = m_master.oride.down_server_timeout;
   params->oride.client_abort_threshold = m_master.oride.client_abort_threshold;
@@ -1419,8 +1416,9 @@ HttpConfig::parse_ports_list(char *ports_string)
 {
   HttpConfigPortRange *ports_list = 0;
 
-  if (!ports_string)
+  if (!ports_string) {
     return (0);
+  }
 
   if (strchr(ports_string, '*')) {
     ports_list       = new HttpConfigPortRange;
@@ -1438,42 +1436,49 @@ HttpConfig::parse_ports_list(char *ports_string)
     start = ports_string;
 
     while (1) { // eat whitespace
-      while ((start[0] != '\0') && ParseRules::is_space(start[0]))
+      while ((start[0] != '\0') && ParseRules::is_space(start[0])) {
         start++;
+      }
 
       // locate the end of the next number
       end = start;
-      while ((end[0] != '\0') && ParseRules::is_digit(end[0]))
+      while ((end[0] != '\0') && ParseRules::is_digit(end[0])) {
         end++;
+      }
 
       // if there is no next number we're done
-      if (start == end)
+      if (start == end) {
         break;
+      }
 
       pr       = new HttpConfigPortRange;
       pr->low  = atoi(start);
       pr->high = pr->low;
       pr->next = NULL;
 
-      if (prev)
+      if (prev) {
         prev->next = pr;
-      else
+      } else {
         ports_list = pr;
-      prev         = pr;
+      }
+      prev = pr;
 
       // if the next character after the current port
       //  number is a dash then we are parsing a range
       if (end[0] == '-') {
         start = end + 1;
-        while ((start[0] != '\0') && ParseRules::is_space(start[0]))
+        while ((start[0] != '\0') && ParseRules::is_space(start[0])) {
           start++;
+        }
 
         end = start;
-        while ((end[0] != '\0') && ParseRules::is_digit(end[0]))
+        while ((end[0] != '\0') && ParseRules::is_digit(end[0])) {
           end++;
+        }
 
-        if (start == end)
+        if (start == end) {
           break;
+        }
 
         pr->high = atoi(start);
       }
@@ -1484,62 +1489,6 @@ HttpConfig::parse_ports_list(char *ports_string)
     }
   }
   return (ports_list);
-}
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpConfig::parse_url_expansions()
-//
-////////////////////////////////////////////////////////////////
-char **
-HttpConfig::parse_url_expansions(char *url_expansions_str, int *num_expansions)
-{
-  char **expansions = NULL;
-  int count         = 0, i;
-
-  if (!url_expansions_str) {
-    *num_expansions = count;
-    return expansions;
-  }
-  // First count the number of URL expansions in the string
-  char *start = url_expansions_str, *end;
-  while (1) {
-    // Skip whitespace
-    while (isspace(*start))
-      start++;
-    if (*start == '\0')
-      break;
-    count++;
-    end = start + 1;
-
-    // Find end of expansion
-    while (!isspace(*end) && *end != '\0')
-      end++;
-    start = end;
-  }
-
-  // Now extract the URL expansions
-  if (count) {
-    expansions = (char **)ats_malloc(count * sizeof(char *));
-    start      = url_expansions_str;
-    for (i = 0; i < count; i++) {
-      // Skip whitespace
-      while (isspace(*start))
-        start++;
-      expansions[i] = start;
-      end           = start + 1;
-
-      // Find end of expansion
-      while (!isspace(*end) && *end != '\0')
-        end++;
-      *end = '\0';
-      if (i < (count - 1))
-        start = end + 1;
-    }
-  }
-
-  *num_expansions = count;
-  return expansions;
 }
 
 ////////////////////////////////////////////////////////////////

@@ -44,8 +44,8 @@
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-MIMEParseResult
-HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof)
+ParseResult
+HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof, bool strict_uri_parsing)
 {
   const char *start;
   const char *tmp;
@@ -55,8 +55,8 @@ HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool 
   ink_assert(valid());
   ink_assert(m_http->m_polarity == HTTP_TYPE_REQUEST);
 
-  MIMEParseResult state = PARSE_CONT;
-  *bytes_used           = 0;
+  ParseResult state = PARSE_RESULT_CONT;
+  *bytes_used       = 0;
 
   do {
     int64_t b_avail = r->block_read_avail();
@@ -71,7 +71,7 @@ HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool 
     int heap_slot = m_heap->attach_block(r->get_current_block(), start);
 
     m_heap->lock_ronly_str_heap(heap_slot);
-    state = http_parser_parse_req(parser, m_heap, m_http, &tmp, end, false, eof);
+    state = http_parser_parse_req(parser, m_heap, m_http, &tmp, end, false, eof, strict_uri_parsing);
     m_heap->set_ronly_str_heap_end(heap_slot, tmp);
     m_heap->unlock_ronly_str_heap(heap_slot);
 
@@ -79,12 +79,12 @@ HTTPHdr::parse_req(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool 
     r->consume(used);
     *bytes_used += used;
 
-  } while (state == PARSE_CONT);
+  } while (state == PARSE_RESULT_CONT);
 
   return state;
 }
 
-MIMEParseResult
+ParseResult
 HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool eof)
 {
   const char *start;
@@ -95,8 +95,8 @@ HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool
   ink_assert(valid());
   ink_assert(m_http->m_polarity == HTTP_TYPE_RESPONSE);
 
-  MIMEParseResult state = PARSE_CONT;
-  *bytes_used           = 0;
+  ParseResult state = PARSE_RESULT_CONT;
+  *bytes_used       = 0;
 
   do {
     int64_t b_avail = r->block_read_avail();
@@ -119,7 +119,7 @@ HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool
     r->consume(used);
     *bytes_used += used;
 
-  } while (state == PARSE_CONT);
+  } while (state == PARSE_RESULT_CONT);
 
   return state;
 }
@@ -171,7 +171,7 @@ RETRY:
       // Add block to heap in this slot
       m_ronly_heap[i].m_heap_start    = (char *)use_start;
       m_ronly_heap[i].m_heap_len      = (int)(b->end() - b->start());
-      m_ronly_heap[i].m_ref_count_ptr = b->data;
+      m_ronly_heap[i].m_ref_count_ptr = b->data.object();
       //          printf("Attaching block at %X for %d in slot %d\n",
       //                 m_ronly_heap[i].m_heap_start,
       //                 m_ronly_heap[i].m_heap_len,

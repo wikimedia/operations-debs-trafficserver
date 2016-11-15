@@ -95,7 +95,7 @@ OperatorSetStatus::initialize_hooks()
   add_allowed_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
   add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
   add_allowed_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
-  add_allowed_hook(TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK);
+  add_allowed_hook(TS_HTTP_PRE_REMAP_HOOK);
   add_allowed_hook(TS_REMAP_PSEUDO_HOOK);
 }
 
@@ -470,7 +470,7 @@ OperatorRMHeader::exec(const Resources &res) const
   TSMLoc field_loc, tmp;
 
   if (res.bufp && res.hdr_loc) {
-    TSDebug(PLUGIN_NAME, "OperatorRMHeader::exec() invoked on header %s", _header.c_str());
+    TSDebug(PLUGIN_NAME, "OperatorRMHeader::exec() invoked on %s", _header.c_str());
     field_loc = TSMimeHdrFieldFind(res.bufp, res.hdr_loc, _header.c_str(), _header.size());
     while (field_loc) {
       TSDebug(PLUGIN_NAME, "   Deleting header %s", _header.c_str());
@@ -511,7 +511,7 @@ OperatorAddHeader::exec(const Resources &res) const
   }
 
   if (res.bufp && res.hdr_loc) {
-    TSDebug(PLUGIN_NAME, "OperatorAddHeader::exec() invoked on header %s: %s", _header.c_str(), value.c_str());
+    TSDebug(PLUGIN_NAME, "OperatorAddHeader::exec() invoked on %s: %s", _header.c_str(), value.c_str());
     TSMLoc field_loc;
 
     if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(res.bufp, res.hdr_loc, _header.c_str(), _header.size(), &field_loc)) {
@@ -540,6 +540,12 @@ OperatorSetHeader::exec(const Resources &res) const
 
   _value.append_value(value, res);
 
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
+
   // Never set an empty header (I don't think that ever makes sense?)
   if (value.empty()) {
     TSDebug(PLUGIN_NAME, "Would set header %s to an empty value, skipping", _header.c_str());
@@ -549,7 +555,7 @@ OperatorSetHeader::exec(const Resources &res) const
   if (res.bufp && res.hdr_loc) {
     TSMLoc field_loc = TSMimeHdrFieldFind(res.bufp, res.hdr_loc, _header.c_str(), _header.size());
 
-    TSDebug(PLUGIN_NAME, "OperatorSetHeader::exec() invoked on header %s: %s", _header.c_str(), value.c_str());
+    TSDebug(PLUGIN_NAME, "OperatorSetHeader::exec() invoked on %s: %s", _header.c_str(), value.c_str());
 
     if (!field_loc) {
       // No existing header, so create one
@@ -612,11 +618,227 @@ void
 OperatorCounter::exec(const Resources & /* ATS_UNUSED res */) const
 {
   // Sanity
-  if (_counter == TS_ERROR)
+  if (_counter == TS_ERROR) {
     return;
+  }
 
-  TSDebug(PLUGIN_NAME, "OperatorCounter::exec() invoked on counter %s", _counter_name.c_str());
+  TSDebug(PLUGIN_NAME, "OperatorCounter::exec() invoked on %s", _counter_name.c_str());
   TSStatIntIncrement(_counter, 1);
+}
+
+// OperatorRMCookie
+void
+OperatorRMCookie::exec(const Resources &res) const
+{
+  if (res.bufp && res.hdr_loc) {
+    TSDebug(PLUGIN_NAME, "OperatorRMCookie::exec() invoked on cookie %s", _cookie.c_str());
+    TSMLoc field_loc;
+
+    // Find Cookie
+    field_loc = TSMimeHdrFieldFind(res.bufp, res.hdr_loc, TS_MIME_FIELD_COOKIE, TS_MIME_LEN_COOKIE);
+    if (NULL == field_loc) {
+      TSDebug(PLUGIN_NAME, "OperatorRMCookie::exec, no cookie");
+      return;
+    }
+
+    int cookies_len     = 0;
+    const char *cookies = TSMimeHdrFieldValueStringGet(res.bufp, res.hdr_loc, field_loc, -1, &cookies_len);
+    std::string updated_cookie;
+    if (CookieHelper::cookieModifyHelper(cookies, cookies_len, updated_cookie, CookieHelper::COOKIE_OP_DEL, _cookie) &&
+        TS_SUCCESS ==
+          TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, updated_cookie.c_str(), updated_cookie.size())) {
+      TSDebug(PLUGIN_NAME, "OperatorRMCookie::exec, updated_cookie = [%s]", updated_cookie.c_str());
+    }
+    TSHandleMLocRelease(res.bufp, res.hdr_loc, field_loc);
+  }
+}
+
+// OperatorAddCookie
+void
+OperatorAddCookie::initialize(Parser &p)
+{
+  OperatorCookies::initialize(p);
+  _value.set_value(p.get_value());
+}
+
+void
+OperatorAddCookie::exec(const Resources &res) const
+{
+  std::string value;
+
+  _value.append_value(value, res);
+
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
+
+  if (res.bufp && res.hdr_loc) {
+    TSDebug(PLUGIN_NAME, "OperatorAddCookie::exec() invoked on cookie %s", _cookie.c_str());
+    TSMLoc field_loc;
+
+    // Find Cookie
+    field_loc = TSMimeHdrFieldFind(res.bufp, res.hdr_loc, TS_MIME_FIELD_COOKIE, TS_MIME_LEN_COOKIE);
+    if (NULL == field_loc) {
+      TSDebug(PLUGIN_NAME, "OperatorAddCookie::exec, no cookie");
+      if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(res.bufp, res.hdr_loc, TS_MIME_FIELD_COOKIE, TS_MIME_LEN_COOKIE, &field_loc)) {
+        value = _cookie + '=' + value;
+        if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, value.c_str(), value.size())) {
+          TSDebug(PLUGIN_NAME, "Adding cookie %s", _cookie.c_str());
+          TSMimeHdrFieldAppend(res.bufp, res.hdr_loc, field_loc);
+        }
+        TSHandleMLocRelease(res.bufp, res.hdr_loc, field_loc);
+      }
+      return;
+    }
+
+    int cookies_len     = 0;
+    const char *cookies = TSMimeHdrFieldValueStringGet(res.bufp, res.hdr_loc, field_loc, -1, &cookies_len);
+    std::string updated_cookie;
+    if (CookieHelper::cookieModifyHelper(cookies, cookies_len, updated_cookie, CookieHelper::COOKIE_OP_ADD, _cookie, value) &&
+        TS_SUCCESS ==
+          TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, updated_cookie.c_str(), updated_cookie.size())) {
+      TSDebug(PLUGIN_NAME, "OperatorAddCookie::exec, updated_cookie = [%s]", updated_cookie.c_str());
+    }
+  }
+}
+
+// OperatorSetCookie
+void
+OperatorSetCookie::initialize(Parser &p)
+{
+  OperatorCookies::initialize(p);
+  _value.set_value(p.get_value());
+}
+
+void
+OperatorSetCookie::exec(const Resources &res) const
+{
+  std::string value;
+
+  _value.append_value(value, res);
+
+  if (_value.need_expansion()) {
+    VariableExpander ve(value);
+
+    value = ve.expand(res);
+  }
+
+  if (res.bufp && res.hdr_loc) {
+    TSDebug(PLUGIN_NAME, "OperatorSetCookie::exec() invoked on cookie %s", _cookie.c_str());
+    TSMLoc field_loc;
+
+    // Find Cookie
+    field_loc = TSMimeHdrFieldFind(res.bufp, res.hdr_loc, TS_MIME_FIELD_COOKIE, TS_MIME_LEN_COOKIE);
+    if (NULL == field_loc) {
+      TSDebug(PLUGIN_NAME, "OperatorSetCookie::exec, no cookie");
+      if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(res.bufp, res.hdr_loc, TS_MIME_FIELD_COOKIE, TS_MIME_LEN_COOKIE, &field_loc)) {
+        value = _cookie + "=" + value;
+        if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, value.c_str(), value.size())) {
+          TSDebug(PLUGIN_NAME, "Adding cookie %s", _cookie.c_str());
+          TSMimeHdrFieldAppend(res.bufp, res.hdr_loc, field_loc);
+        }
+        TSHandleMLocRelease(res.bufp, res.hdr_loc, field_loc);
+      }
+      return;
+    }
+
+    int cookies_len     = 0;
+    const char *cookies = TSMimeHdrFieldValueStringGet(res.bufp, res.hdr_loc, field_loc, -1, &cookies_len);
+    std::string updated_cookie;
+    if (CookieHelper::cookieModifyHelper(cookies, cookies_len, updated_cookie, CookieHelper::COOKIE_OP_SET, _cookie, value) &&
+        TS_SUCCESS ==
+          TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, updated_cookie.c_str(), updated_cookie.size())) {
+      TSDebug(PLUGIN_NAME, "OperatorSetCookie::exec, updated_cookie = [%s]", updated_cookie.c_str());
+    }
+    TSHandleMLocRelease(res.bufp, res.hdr_loc, field_loc);
+  }
+}
+
+bool
+CookieHelper::cookieModifyHelper(const char *cookies, const size_t cookies_len, std::string &updated_cookies,
+                                 const CookieHelper::CookieOp cookie_op, const std::string &cookie_key,
+                                 const std::string &cookie_value)
+{
+  if (0 == cookie_key.size()) {
+    TSDebug(PLUGIN_NAME, "CookieHelper::cookieModifyHelper, empty cookie_key");
+    return false;
+  }
+
+  for (size_t idx = 0; idx < cookies_len;) {
+    // advance any leading spaces
+    for (; idx < cookies_len && std::isspace(cookies[idx]); idx++) {
+      ;
+    }
+    if (0 == strncmp(cookies + idx, cookie_key.c_str(), cookie_key.size())) {
+      size_t key_start_idx = idx;
+      // advance to past the name and any subsequent spaces
+      for (idx += cookie_key.size(); idx < cookies_len && std::isspace(cookies[idx]); idx++) {
+        ;
+      }
+      if (idx < cookies_len && cookies[idx++] == '=') {
+        // cookie_key is found, then we don't need to add it.
+        if (CookieHelper::COOKIE_OP_ADD == cookie_op) {
+          return false;
+        }
+        for (; idx < cookies_len && std::isspace(cookies[idx]); idx++) {
+          ;
+        }
+        size_t value_start_idx = idx;
+        for (; idx < cookies_len && cookies[idx] != ';'; idx++) {
+          ;
+        }
+        // cookie value is found
+        size_t value_end_idx = idx;
+        if (CookieHelper::COOKIE_OP_SET == cookie_op) {
+          updated_cookies.append(cookies, value_start_idx);
+          updated_cookies.append(cookie_value);
+          updated_cookies.append(cookies + value_end_idx, cookies_len - value_end_idx);
+          return true;
+        }
+
+        if (CookieHelper::COOKIE_OP_DEL == cookie_op) {
+          // +1 to skip the semi-colon after the cookie_value
+          updated_cookies.append(cookies, key_start_idx);
+          if (value_end_idx < cookies_len) {
+            updated_cookies.append(cookies + value_end_idx + 1, cookies_len - value_end_idx - 1);
+          }
+          // if the cookie to delete is the last pair,
+          // the semi-colon before this pair needs to be deleted
+          // this handles the case "c = b; key=value", the expected result is "c = b"
+          size_t last_semi_colon = updated_cookies.find_last_of(';');
+          if (last_semi_colon != std::string::npos) {
+            size_t last_equal = updated_cookies.find_last_of('=');
+            if (last_equal != std::string::npos) {
+              if (last_equal < last_semi_colon) {
+                // remove the last semi colon and subsequent chars
+                updated_cookies = updated_cookies.substr(0, last_semi_colon);
+              }
+            } else {
+              // if there is no equal left in cookie, valid cookie value doesn't exist
+              updated_cookies = "";
+            }
+          }
+          return true;
+        }
+      }
+    }
+    // find the next cookie pair followed by semi-colon
+    while (idx < cookies_len && cookies[idx++] != ';') {
+      ;
+    }
+  }
+
+  if (CookieHelper::COOKIE_OP_ADD == cookie_op || CookieHelper::COOKIE_OP_SET == cookie_op) {
+    if (0 == cookies_len) {
+      updated_cookies = cookie_key + '=' + cookie_value;
+    } else {
+      updated_cookies = std::string(cookies, cookies_len) + ';' + cookie_key + '=' + cookie_value;
+    }
+    return true;
+  }
+  return false;
 }
 
 // OperatorSetConnDSCP

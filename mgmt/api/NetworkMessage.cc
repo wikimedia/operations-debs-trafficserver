@@ -59,7 +59,6 @@ static const struct NetCmdOperation requests[] = {
   /* SNAPSHOT_RESTORE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* SNAPSHOT_REMOVE            */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* SNAPSHOT_GET_MLT           */ {1, {MGMT_MARSHALL_INT}},
-  /* DIAGS                      */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* STATS_RESET_NODE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* STATS_RESET_CLUSTER        */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* STORAGE_DEVICE_CMD_OFFLINE */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
@@ -67,6 +66,7 @@ static const struct NetCmdOperation requests[] = {
   /* API_PING                   */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* SERVER_BACKTRACE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* RECORD_DESCRIBE_CONFIG     */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT}},
+  /* LIFECYCLE_MESSAGE          */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_DATA}},
 };
 
 // Responses always begin with a TSMgmtError code, followed by additional fields.
@@ -92,7 +92,6 @@ static const struct NetCmdOperation responses[] = {
   /* SNAPSHOT_RESTORE           */ {1, {MGMT_MARSHALL_INT}},
   /* SNAPSHOT_REMOVE            */ {1, {MGMT_MARSHALL_INT}},
   /* SNAPSHOT_GET_MLT           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* DIAGS                      */ {0, {}}, // no reply
   /* STATS_RESET_NODE           */ {1, {MGMT_MARSHALL_INT}},
   /* STATS_RESET_CLUSTER        */ {1, {MGMT_MARSHALL_INT}},
   /* STORAGE_DEVICE_CMD_OFFLINE */ {1, {MGMT_MARSHALL_INT}},
@@ -108,6 +107,7 @@ static const struct NetCmdOperation responses[] = {
                                      MGMT_MARSHALL_INT /* order */, MGMT_MARSHALL_INT /* access */, MGMT_MARSHALL_INT /* update */,
                                      MGMT_MARSHALL_INT /* updatetype */, MGMT_MARSHALL_INT /* checktype */,
                                      MGMT_MARSHALL_INT /* source */, MGMT_MARSHALL_STRING /* checkexpr */}},
+  /* LIFECYCLE_MESSAGE          */ {1, {MGMT_MARSHALL_INT}},
 };
 
 #define GETCMD(ops, optype, cmd)                                       \
@@ -203,17 +203,18 @@ send_mgmt_error(int fd, OpType optype, TSMgmtError error)
 
   // Switch on operations, grouped by response format.
   switch (optype) {
+  case BOUNCE:
+  case EVENT_RESOLVE:
   case FILE_WRITE:
+  case LIFECYCLE_MESSAGE:
   case PROXY_STATE_SET:
   case RECONFIGURE:
   case RESTART:
-  case BOUNCE:
-  case EVENT_RESOLVE:
-  case SNAPSHOT_TAKE:
-  case SNAPSHOT_RESTORE:
   case SNAPSHOT_REMOVE:
-  case STATS_RESET_NODE:
+  case SNAPSHOT_RESTORE:
+  case SNAPSHOT_TAKE:
   case STATS_RESET_CLUSTER:
+  case STATS_RESET_NODE:
   case STORAGE_DEVICE_CMD_OFFLINE:
     ink_release_assert(responses[optype].nfields == 1);
     return send_mgmt_response(fd, optype, &ecode);
@@ -249,7 +250,6 @@ send_mgmt_error(int fd, OpType optype, TSMgmtError error)
   case EVENT_REG_CALLBACK:
   case EVENT_UNREG_CALLBACK:
   case EVENT_NOTIFY:
-  case DIAGS:
   case API_PING:
     /* no response for these */
     ink_release_assert(responses[optype].nfields == 0);

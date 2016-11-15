@@ -67,7 +67,7 @@ Resources::gather(const ResourceIDs ids, TSHttpHookID hook)
     break;
 
   case TS_HTTP_READ_REQUEST_HDR_HOOK:
-  case TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK:
+  case TS_HTTP_PRE_REMAP_HOOK:
     // Read request from client
     if (ids & RSRC_CLIENT_REQUEST_HEADERS) {
       bufp    = client_bufp;
@@ -110,13 +110,15 @@ void
 Resources::destroy()
 {
   if (bufp) {
-    if (hdr_loc)
+    if (hdr_loc) {
       TSHandleMLocRelease(bufp, TS_NULL_MLOC, hdr_loc);
+    }
   }
 
   if (client_bufp && (client_bufp != bufp)) {
-    if (client_hdr_loc && (client_hdr_loc != hdr_loc)) // TODO: Is this check really necessary?
+    if (client_hdr_loc && (client_hdr_loc != hdr_loc)) { // TODO: Is this check really necessary?
       TSHandleMLocRelease(client_bufp, TS_NULL_MLOC, client_hdr_loc);
+    }
   }
 
   _ready = false;

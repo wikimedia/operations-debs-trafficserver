@@ -28,7 +28,6 @@
 
 #include "ts/ink_platform.h"
 #include "LogField.h"
-#include "InkXml.h"
 
 enum LogFormatType {
   // We start the numbering at 4 to compatibility with Traffic Server 4.x, which used
@@ -51,7 +50,7 @@ enum LogFileFormat {
   which is defined as a set of fields.
   -------------------------------------------------------------------------*/
 
-class LogFormat
+class LogFormat : public RefCountObj
 {
 public:
   LogFormat(const char *name, const char *format_str, unsigned interval_sec = 0);
@@ -61,7 +60,6 @@ public:
   ~LogFormat();
 
   void display(FILE *fd = stdout);
-  void displayAsXML(FILE *fd = stdout);
 
   bool
   valid() const

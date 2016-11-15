@@ -105,17 +105,27 @@ extern "C" {
 
  */
 typedef struct {
-  char *plugin_name;
-  char *vendor_name;
-  char *support_email;
+  const char *plugin_name;
+  const char *vendor_name;
+  const char *support_email;
 } TSPluginRegistrationInfo;
+
+typedef struct {
+  const char *tag;  ///< Message tag (null terminated).
+  void const *data; ///< Message data (payload)
+  size_t data_size; ///< Amount of message data.
+} TSPluginMsg;
 
 /**
     This set of enums are possible values returned by
     TSHttpHdrParseReq() and TSHttpHdrParseResp().
 
  */
-typedef enum { TS_PARSE_ERROR = -1, TS_PARSE_DONE = 0, TS_PARSE_OK = 1, TS_PARSE_CONT = 2 } TSParseResult;
+typedef enum {
+  TS_PARSE_ERROR = -1,
+  TS_PARSE_DONE  = 0,
+  TS_PARSE_CONT  = 1,
+} TSParseResult;
 
 /**
     This set of enums represents the possible HTTP types that
@@ -127,7 +137,11 @@ typedef enum { TS_PARSE_ERROR = -1, TS_PARSE_DONE = 0, TS_PARSE_OK = 1, TS_PARSE
     to obtain the TSHttpType of an HTTP header.
 
  */
-typedef enum { TS_HTTP_TYPE_UNKNOWN, TS_HTTP_TYPE_REQUEST, TS_HTTP_TYPE_RESPONSE } TSHttpType;
+typedef enum {
+  TS_HTTP_TYPE_UNKNOWN,
+  TS_HTTP_TYPE_REQUEST,
+  TS_HTTP_TYPE_RESPONSE,
+} TSHttpType;
 
 /**
     This set of enums represents possible return values from
@@ -277,7 +291,6 @@ typedef enum {
   TS_SSL_LAST_HOOK = TS_SSL_CERT_HOOK,
   TS_HTTP_LAST_HOOK
 } TSHttpHookID;
-#define TS_HTTP_READ_REQUEST_PRE_REMAP_HOOK TS_HTTP_PRE_REMAP_HOOK /* backwards compat */
 
 /** Plugin lifecycle hooks.
 
@@ -313,6 +326,12 @@ typedef enum {
 
       Event: TS_EVENT_LIFECYCLE_CACHE_READY
 
+    TS_LIFECYCLE_MSG_HOOK
+
+      Called in response to an external agent. The data is a pointer to  an instance of TSPluginMsg.
+
+      Event: TS_EVENT_LIFECYCLE_MSG
+
     TS_LIFECYCLE_SERVER_SSL_CTX_INITIALIZED_HOOK
 
       called every time after a server SSL_CTX has finished the initialization.
@@ -340,6 +359,7 @@ typedef enum {
   TS_LIFECYCLE_CACHE_READY_HOOK,
   TS_LIFECYCLE_SERVER_SSL_CTX_INITIALIZED_HOOK,
   TS_LIFECYCLE_CLIENT_SSL_CTX_INITIALIZED_HOOK,
+  TS_LIFECYCLE_MSG_HOOK,
   TS_LIFECYCLE_LAST_HOOK
 } TSLifecycleHookID;
 
@@ -423,10 +443,12 @@ typedef enum {
   TS_EVENT_LIFECYCLE_SERVER_SSL_CTX_INITIALIZED = 60021,
   TS_EVENT_LIFECYCLE_CLIENT_SSL_CTX_INITIALIZED = 60022,
   TS_EVENT_VCONN_PRE_ACCEPT                     = 60023,
+  TS_EVENT_LIFECYCLE_MSG                        = 60024,
   TS_EVENT_MGMT_UPDATE                          = 60100,
   TS_EVENT_INTERNAL_60200                       = 60200,
   TS_EVENT_INTERNAL_60201                       = 60201,
-  TS_EVENT_INTERNAL_60202                       = 60202
+  TS_EVENT_INTERNAL_60202                       = 60202,
+  TS_EVENT_SSL_CERT                             = 60203
 } TSEvent;
 #define TS_EVENT_HTTP_READ_REQUEST_PRE_REMAP TS_EVENT_HTTP_PRE_REMAP /* backwards compat */
 
@@ -447,7 +469,6 @@ typedef enum {
 
 typedef enum {
   TS_LOOKUP_UNDEFINED_LOOKUP,
-  TS_LOOKUP_ICP_SUGGESTED_HOST,
   TS_LOOKUP_PARENT_PROXY,
   TS_LOOKUP_ORIGIN_SERVER,
   TS_LOOKUP_INCOMING_ROUTER,
@@ -461,9 +482,17 @@ typedef enum {
   TS_CACHE_LOOKUP_SKIPPED
 } TSCacheLookupResult;
 
-typedef enum { TS_CACHE_DATA_TYPE_NONE, TS_CACHE_DATA_TYPE_HTTP, TS_CACHE_DATA_TYPE_OTHER } TSCacheDataType;
+typedef enum {
+  TS_CACHE_DATA_TYPE_NONE,
+  TS_CACHE_DATA_TYPE_HTTP,
+  TS_CACHE_DATA_TYPE_OTHER,
+} TSCacheDataType;
 
-typedef enum { TS_CACHE_ERROR_NO_DOC = -20400, TS_CACHE_ERROR_DOC_BUSY = -20401, TS_CACHE_ERROR_NOT_READY = -20407 } TSCacheError;
+typedef enum {
+  TS_CACHE_ERROR_NO_DOC    = -20400,
+  TS_CACHE_ERROR_DOC_BUSY  = -20401,
+  TS_CACHE_ERROR_NOT_READY = -20407,
+} TSCacheError;
 
 typedef enum {
   TS_CACHE_SCAN_RESULT_DONE     = 0,
@@ -485,7 +514,10 @@ typedef enum {
   TS_TXN_INFO_LAST_ENTRY
 } TSHttpTxnInfoKey;
 
-typedef enum { TS_VC_CLOSE_ABORT = -1, TS_VC_CLOSE_NORMAL = 1 } TSVConnCloseFlags;
+typedef enum {
+  TS_VC_CLOSE_ABORT  = -1,
+  TS_VC_CLOSE_NORMAL = 1,
+} TSVConnCloseFlags;
 
 typedef enum {
   TS_IOBUFFER_SIZE_INDEX_128  = 0,
@@ -505,9 +537,16 @@ typedef enum {
   TS_IOBUFFER_SIZE_INDEX_2M   = 14
 } TSIOBufferSizeIndex;
 
-typedef enum { TS_ERROR = -1, TS_SUCCESS = 0 } TSReturnCode;
+typedef enum {
+  TS_ERROR   = -1,
+  TS_SUCCESS = 0,
+} TSReturnCode;
 
-typedef enum { NO_CALLBACK = 0, AFTER_HEADER, AFTER_BODY } TSFetchWakeUpOptions;
+typedef enum {
+  NO_CALLBACK = 0,
+  AFTER_HEADER,
+  AFTER_BODY,
+} TSFetchWakeUpOptions;
 
 #ifndef _HTTP_PROXY_API_ENUMS_H_
 #define _HTTP_PROXY_API_ENUMS_H_
@@ -522,7 +561,10 @@ typedef enum {
 
 /// Server session sharing values - pool
 /// Must be identical to definition in HttpProxyAPIEnums.h
-typedef enum { TS_SERVER_SESSION_SHARING_POOL_GLOBAL, TS_SERVER_SESSION_SHARING_POOL_THREAD } TSServerSessionSharingPoolType;
+typedef enum {
+  TS_SERVER_SESSION_SHARING_POOL_GLOBAL,
+  TS_SERVER_SESSION_SHARING_POOL_THREAD,
+} TSServerSessionSharingPoolType;
 #endif
 
 /* librecords types */
@@ -559,7 +601,11 @@ typedef union {
 } TSRecordData;
 
 /* The values of this enum must match enum RecPersistT in I_RecDefs.h */
-typedef enum { TS_RECORDP_NULL, TS_RECORDP_PERSISTENT, TS_RECORDP_NON_PERSISTENT } TSRecordPersistType;
+typedef enum {
+  TS_RECORDP_NULL,
+  TS_RECORDP_PERSISTENT,
+  TS_RECORDP_NON_PERSISTENT,
+} TSRecordPersistType;
 
 /* The values of this enum must match enum RecUpdateT in I_RecDefs.h */
 typedef enum {
@@ -571,13 +617,27 @@ typedef enum {
 } TSRecordUpdateType;
 
 /* The values of this enum must match enum RecCheckT in I_RecDefs.h */
-typedef enum { TS_RECORDCHECK_NULL, TS_RECORDCHECK_STR, TS_RECORDCHECK_INT, TS_RECORDCHECK_IP } TSRecordCheckType;
+typedef enum {
+  TS_RECORDCHECK_NULL,
+  TS_RECORDCHECK_STR,
+  TS_RECORDCHECK_INT,
+  TS_RECORDCHECK_IP,
+} TSRecordCheckType;
 
 /* The values of this enum must match enum RecModeT in I_RecDefs.h */
-typedef enum { TS_RECORDMODE_NULL, TS_RECORDMODE_CLIENT, TS_RECORDMODE_SERVER, TS_RECORDMODE_STAND_ALONE } TSRecordModeType;
+typedef enum {
+  TS_RECORDMODE_NULL,
+  TS_RECORDMODE_CLIENT,
+  TS_RECORDMODE_SERVER,
+  TS_RECORDMODE_STAND_ALONE,
+} TSRecordModeType;
 
 /* The values of this enum must match enum RecAccessT in I_RecDefs.h */
-typedef enum { TS_RECORDACCESS_NULL, TS_RECORDACCESS_NO_ACCESS, TS_RECORDACCESS_READ_ONLY } TSRecordAccessType;
+typedef enum {
+  TS_RECORDACCESS_NULL,
+  TS_RECORDACCESS_NO_ACCESS,
+  TS_RECORDACCESS_READ_ONLY,
+} TSRecordAccessType;
 
 typedef enum {
   TS_CONFIG_NULL = -1,
@@ -657,7 +717,6 @@ typedef enum {
   TS_CONFIG_HTTP_RESPONSE_HEADER_MAX_SIZE,
   TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_ENABLED,
   TS_CONFIG_HTTP_NEGATIVE_REVALIDATING_LIFETIME,
-  TS_CONFIG_HTTP_ACCEPT_ENCODING_FILTER_ENABLED,
   TS_CONFIG_SSL_HSTS_MAX_AGE,
   TS_CONFIG_SSL_HSTS_INCLUDE_SUBDOMAINS,
   TS_CONFIG_HTTP_CACHE_OPEN_READ_RETRY_TIME,
@@ -681,6 +740,7 @@ typedef enum {
   TS_CONFIG_HTTP_UNCACHEABLE_REQUESTS_BYPASS_PARENT,
   TS_CONFIG_HTTP_PARENT_PROXY_TOTAL_CONNECT_ATTEMPTS,
   TS_CONFIG_HTTP_TRANSACTION_ACTIVE_TIMEOUT_IN,
+  TS_CONFIG_SRV_ENABLED,
   TS_CONFIG_LAST_ENTRY
 } TSOverridableConfigKey;
 
@@ -728,14 +788,6 @@ typedef enum {
   TS_MILESTONE_PLUGIN_TOTAL,
   TS_MILESTONE_LAST_ENTRY
 } TSMilestonesType;
-
-/// Operation requested by asynchronous hooks during SSL processing
-typedef enum {
-  TS_SSL_HOOK_OP_DEFAULT,                        ///< Null / initialization value. Do normal processing.
-  TS_SSL_HOOK_OP_TUNNEL,                         ///< Switch to blind tunnel
-  TS_SSL_HOOK_OP_TERMINATE,                      ///< Termination connection / transaction.
-  TS_SSL_HOOK_OP_LAST = TS_SSL_HOOK_OP_TERMINATE ///< End marker value.
-} TSSslVConnOp;
 
 /* These typedefs are used with the corresponding TSMgmt*Get functions
    for storing the values retrieved by those functions. For example,
@@ -1053,7 +1105,6 @@ extern tsapi const char *TS_HTTP_METHOD_CONNECT;
 extern tsapi const char *TS_HTTP_METHOD_DELETE;
 extern tsapi const char *TS_HTTP_METHOD_GET;
 extern tsapi const char *TS_HTTP_METHOD_HEAD;
-extern tsapi const char *TS_HTTP_METHOD_ICP_QUERY;
 extern tsapi const char *TS_HTTP_METHOD_OPTIONS;
 extern tsapi const char *TS_HTTP_METHOD_POST;
 extern tsapi const char *TS_HTTP_METHOD_PURGE;
@@ -1067,7 +1118,6 @@ extern tsapi int TS_HTTP_LEN_CONNECT;
 extern tsapi int TS_HTTP_LEN_DELETE;
 extern tsapi int TS_HTTP_LEN_GET;
 extern tsapi int TS_HTTP_LEN_HEAD;
-extern tsapi int TS_HTTP_LEN_ICP_QUERY;
 extern tsapi int TS_HTTP_LEN_OPTIONS;
 extern tsapi int TS_HTTP_LEN_POST;
 extern tsapi int TS_HTTP_LEN_PURGE;
@@ -1078,28 +1128,30 @@ extern tsapi int TS_HTTP_LEN_PUSH;
 /* --------------------------------------------------------------------------
    TLS Next Protocol well-known protocol names. */
 
-extern tsapi const char *const TS_NPN_PROTOCOL_HTTP_0_9;
-extern tsapi const char *const TS_NPN_PROTOCOL_HTTP_1_0;
-extern tsapi const char *const TS_NPN_PROTOCOL_HTTP_1_1;
-extern tsapi const char *const TS_NPN_PROTOCOL_HTTP_2_0_14;
-extern tsapi const char *const TS_NPN_PROTOCOL_HTTP_2_0;
-extern tsapi const char *const TS_NPN_PROTOCOL_SPDY_1;
-extern tsapi const char *const TS_NPN_PROTOCOL_SPDY_2;
-extern tsapi const char *const TS_NPN_PROTOCOL_SPDY_3;
-extern tsapi const char *const TS_NPN_PROTOCOL_SPDY_3_1;
+extern tsapi const char *const TS_ALPN_PROTOCOL_HTTP_0_9;
+extern tsapi const char *const TS_ALPN_PROTOCOL_HTTP_1_0;
+extern tsapi const char *const TS_ALPN_PROTOCOL_HTTP_1_1;
+extern tsapi const char *const TS_ALPN_PROTOCOL_HTTP_2_0;
 
-extern tsapi int TS_NPN_PROTOCOL_INDEX_HTTP_0_9;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_HTTP_1_0;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_HTTP_1_1;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_SPDY_1;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_SPDY_2;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_SPDY_3;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_SPDY_3_1;
-extern tsapi int TS_NPN_PROTOCOL_INDEX_HTTP_2_0;
+extern tsapi int TS_ALPN_PROTOCOL_INDEX_HTTP_0_9;
+extern tsapi int TS_ALPN_PROTOCOL_INDEX_HTTP_1_0;
+extern tsapi int TS_ALPN_PROTOCOL_INDEX_HTTP_1_1;
+extern tsapi int TS_ALPN_PROTOCOL_INDEX_HTTP_2_0;
 
-extern tsapi const char *const TS_NPN_PROTOCOL_GROUP_HTTP;
-extern tsapi const char *const TS_NPN_PROTOCOL_GROUP_HTTP2;
-extern tsapi const char *const TS_NPN_PROTOCOL_GROUP_SPDY;
+extern tsapi const char *const TS_ALPN_PROTOCOL_GROUP_HTTP;
+extern tsapi const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2;
+
+extern tsapi const char *const TS_PROTO_TAG_HTTP_1_0;
+extern tsapi const char *const TS_PROTO_TAG_HTTP_1_1;
+extern tsapi const char *const TS_PROTO_TAG_HTTP_2_0;
+extern tsapi const char *const TS_PROTO_TAG_TLS_1_3;
+extern tsapi const char *const TS_PROTO_TAG_TLS_1_2;
+extern tsapi const char *const TS_PROTO_TAG_TLS_1_1;
+extern tsapi const char *const TS_PROTO_TAG_TLS_1_0;
+extern tsapi const char *const TS_PROTO_TAG_TCP;
+extern tsapi const char *const TS_PROTO_TAG_UDP;
+extern tsapi const char *const TS_PROTO_TAG_IPV4;
+extern tsapi const char *const TS_PROTO_TAG_IPV6;
 
 /* --------------------------------------------------------------------------
    MLoc Constants */
@@ -1110,6 +1162,20 @@ extern tsapi const char *const TS_NPN_PROTOCOL_GROUP_SPDY;
 
  */
 extern tsapi const TSMLoc TS_NULL_MLOC;
+
+/* --------------------------------------------------------------------------
+   Interface for the UUID APIs. https://www.ietf.org/rfc/rfc4122.txt. */
+typedef enum {
+  TS_UUID_UNDEFINED = 0,
+  TS_UUID_V1        = 1,
+  TS_UUID_V2,
+  TS_UUID_V3,
+  TS_UUID_V4, /* At this point, this is the only implemented version (or variant) */
+  TS_UUID_V5,
+} TSUuidVersion;
+
+#define TS_UUID_STRING_LEN 36
+typedef struct tsapi_uuid *TSUuid;
 
 #ifdef __cplusplus
 }

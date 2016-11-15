@@ -326,6 +326,15 @@ http2_write_window_update(const uint32_t new_size, const IOVec &iov)
 }
 
 bool
+http2_write_push_promise(const Http2PushPromise &push_promise, const uint8_t *src, size_t length, const IOVec &iov)
+{
+  byte_pointer ptr(iov.iov_base);
+  write_and_advance(ptr, push_promise.promised_streamid);
+  write_and_advance(ptr, src, length);
+  return true;
+}
+
+bool
 http2_parse_headers_parameter(IOVec iov, Http2HeadersParameter &params)
 {
   byte_pointer ptr(iov.iov_base);
@@ -413,7 +422,7 @@ http2_parse_window_update(IOVec iov, uint32_t &size)
   return true;
 }
 
-MIMEParseResult
+ParseResult
 http2_convert_header_from_2_to_1_1(HTTPHdr *headers)
 {
   MIMEField *field;
@@ -428,19 +437,19 @@ http2_convert_header_from_2_to_1_1(HTTPHdr *headers)
     if ((field = headers->field_find(HTTP2_VALUE_SCHEME, HTTP2_LEN_SCHEME)) != NULL && field->value_is_valid()) {
       scheme = field->value_get(&scheme_len);
     } else {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
 
     if ((field = headers->field_find(HTTP2_VALUE_AUTHORITY, HTTP2_LEN_AUTHORITY)) != NULL && field->value_is_valid()) {
       authority = field->value_get(&authority_len);
     } else {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
 
     if ((field = headers->field_find(HTTP2_VALUE_PATH, HTTP2_LEN_PATH)) != NULL && field->value_is_valid()) {
       path = field->value_get(&path_len);
     } else {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
 
     // Parse URL
@@ -463,7 +472,7 @@ http2_convert_header_from_2_to_1_1(HTTPHdr *headers)
       int method_wks_idx = hdrtoken_tokenize(method, method_len);
       http_hdr_method_set(headers->m_heap, headers->m_http, method, method_wks_idx, method_len, 0);
     } else {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
 
     // Combine Cookie headers ([RFC 7540] 8.1.2.5.)
@@ -489,7 +498,7 @@ http2_convert_header_from_2_to_1_1(HTTPHdr *headers)
       status = field->value_get(&status_len);
       headers->status_set(http_parse_status(status, status + status_len));
     } else {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
 
     // Remove HTTP/2 style headers
@@ -500,11 +509,11 @@ http2_convert_header_from_2_to_1_1(HTTPHdr *headers)
   MIMEFieldIter iter;
   for (const MIMEField *field = headers->iter_get_first(&iter); field != NULL; field = headers->iter_get_next(&iter)) {
     if (!field->name_is_valid() || !field->value_is_valid()) {
-      return PARSE_ERROR;
+      return PARSE_RESULT_ERROR;
     }
   }
 
-  return PARSE_DONE;
+  return PARSE_RESULT_DONE;
 }
 
 void
@@ -513,37 +522,77 @@ http2_generate_h2_header_from_1_1(HTTPHdr *headers, HTTPHdr *h2_headers)
   h2_headers->create(http_hdr_type_get(headers->m_http));
 
   if (http_hdr_type_get(headers->m_http) == HTTP_TYPE_RESPONSE) {
+    // Add ':status' header field
     char status_str[HTTP2_LEN_STATUS_VALUE_STR + 1];
     snprintf(status_str, sizeof(status_str), "%d", headers->status_get());
-
-    // Add ':status' header field
     MIMEField *status_field = h2_headers->field_create(HTTP2_VALUE_STATUS, HTTP2_LEN_STATUS);
     status_field->value_set(h2_headers->m_heap, h2_headers->m_mime, status_str, HTTP2_LEN_STATUS_VALUE_STR);
     h2_headers->field_attach(status_field);
 
-    MIMEFieldIter field_iter;
-    for (MIMEField *field = headers->iter_get_first(&field_iter); field != NULL; field = headers->iter_get_next(&field_iter)) {
-      // Intermediaries SHOULD remove connection-specific header fields.
-      const char *name;
-      int name_len;
-      const char *value;
-      int value_len;
-      name = field->name_get(&name_len);
-      if ((name_len == MIME_LEN_CONNECTION && strncasecmp(name, MIME_FIELD_CONNECTION, name_len) == 0) ||
-          (name_len == MIME_LEN_KEEP_ALIVE && strncasecmp(name, MIME_FIELD_KEEP_ALIVE, name_len) == 0) ||
-          (name_len == MIME_LEN_PROXY_CONNECTION && strncasecmp(name, MIME_FIELD_PROXY_CONNECTION, name_len) == 0) ||
-          (name_len == MIME_LEN_TRANSFER_ENCODING && strncasecmp(name, MIME_FIELD_TRANSFER_ENCODING, name_len) == 0) ||
-          (name_len == MIME_LEN_UPGRADE && strncasecmp(name, MIME_FIELD_UPGRADE, name_len) == 0)) {
-        continue;
-      }
+  } else if (http_hdr_type_get(headers->m_http) == HTTP_TYPE_REQUEST) {
+    MIMEField *field;
+    const char *value;
+    int value_len;
 
-      MIMEField *newfield;
-      name     = field->name_get(&name_len);
-      newfield = h2_headers->field_create(name, name_len);
-      value    = field->value_get(&value_len);
-      newfield->value_set(h2_headers->m_heap, h2_headers->m_mime, value, value_len);
-      h2_headers->field_attach(newfield);
+    // Add ':authority' header field
+    field = h2_headers->field_create(HTTP2_VALUE_AUTHORITY, HTTP2_LEN_AUTHORITY);
+    value = headers->host_get(&value_len);
+    if (headers->is_port_in_header()) {
+      int port            = headers->port_get();
+      char *host_and_port = (char *)ats_malloc(value_len + 8);
+      value_len           = snprintf(host_and_port, value_len + 8, "%.*s:%d", value_len, value, port);
+      field->value_set(h2_headers->m_heap, h2_headers->m_mime, host_and_port, value_len);
+      ats_free(host_and_port);
+    } else {
+      field->value_set(h2_headers->m_heap, h2_headers->m_mime, value, value_len);
     }
+    h2_headers->field_attach(field);
+
+    // Add ':method' header field
+    field = h2_headers->field_create(HTTP2_VALUE_METHOD, HTTP2_LEN_METHOD);
+    value = headers->method_get(&value_len);
+    field->value_set(h2_headers->m_heap, h2_headers->m_mime, value, value_len);
+    h2_headers->field_attach(field);
+
+    // Add ':path' header field
+    field      = h2_headers->field_create(HTTP2_VALUE_PATH, HTTP2_LEN_PATH);
+    value      = headers->path_get(&value_len);
+    char *path = (char *)ats_malloc(value_len + 1);
+    path[0]    = '/';
+    memcpy(path + 1, value, value_len);
+    field->value_set(h2_headers->m_heap, h2_headers->m_mime, path, value_len + 1);
+    ats_free(path);
+    h2_headers->field_attach(field);
+
+    // Add ':scheme' header field
+    field = h2_headers->field_create(HTTP2_VALUE_SCHEME, HTTP2_LEN_SCHEME);
+    value = headers->scheme_get(&value_len);
+    field->value_set(h2_headers->m_heap, h2_headers->m_mime, value, value_len);
+    h2_headers->field_attach(field);
+  }
+
+  // Copy headers
+  // Intermediaries SHOULD remove connection-specific header fields.
+  MIMEFieldIter field_iter;
+  for (MIMEField *field = headers->iter_get_first(&field_iter); field != NULL; field = headers->iter_get_next(&field_iter)) {
+    const char *name;
+    int name_len;
+    const char *value;
+    int value_len;
+    name = field->name_get(&name_len);
+    if ((name_len == MIME_LEN_CONNECTION && strncasecmp(name, MIME_FIELD_CONNECTION, name_len) == 0) ||
+        (name_len == MIME_LEN_KEEP_ALIVE && strncasecmp(name, MIME_FIELD_KEEP_ALIVE, name_len) == 0) ||
+        (name_len == MIME_LEN_PROXY_CONNECTION && strncasecmp(name, MIME_FIELD_PROXY_CONNECTION, name_len) == 0) ||
+        (name_len == MIME_LEN_TRANSFER_ENCODING && strncasecmp(name, MIME_FIELD_TRANSFER_ENCODING, name_len) == 0) ||
+        (name_len == MIME_LEN_UPGRADE && strncasecmp(name, MIME_FIELD_UPGRADE, name_len) == 0)) {
+      continue;
+    }
+    MIMEField *newfield;
+    name     = field->name_get(&name_len);
+    newfield = h2_headers->field_create(name, name_len);
+    value    = field->value_get(&value_len);
+    newfield->value_set(h2_headers->m_heap, h2_headers->m_mime, value, value_len);
+    h2_headers->field_attach(newfield);
   }
 }
 
@@ -572,12 +621,15 @@ http2_decode_header_blocks(HTTPHdr *hdr, const uint8_t *buf_start, const uint32_
   const char *value;
   int len;
   bool is_trailing_header = trailing_header;
-  int64_t result          = hpack_decode_header_block(handle, hdr, buf_start, buf_len);
+  int64_t result          = hpack_decode_header_block(handle, hdr, buf_start, buf_len, Http2::max_request_header_size);
 
   if (result < 0) {
     if (result == HPACK_ERROR_COMPRESSION_ERROR) {
       return HTTP2_ERROR_COMPRESSION_ERROR;
+    } else if (result == HPACK_ERROR_SIZE_EXCEEDED_ERROR) {
+      return HTTP2_ERROR_ENHANCE_YOUR_CALM;
     }
+
     return HTTP2_ERROR_PROTOCOL_ERROR;
   }
   if (len_read) {
@@ -646,7 +698,7 @@ http2_decode_header_blocks(HTTPHdr *hdr, const uint8_t *buf_start, const uint32_
   }
 
   if (!is_trailing_header) {
-    // Check psuedo headers
+    // Check pseudo headers
     if (hdr->fields_count() >= 4) {
       if (hdr->field_find(HTTP2_VALUE_SCHEME, HTTP2_LEN_SCHEME) == NULL ||
           hdr->field_find(HTTP2_VALUE_METHOD, HTTP2_LEN_METHOD) == NULL ||
@@ -657,7 +709,7 @@ http2_decode_header_blocks(HTTPHdr *hdr, const uint8_t *buf_start, const uint32_
         return HTTP2_ERROR_PROTOCOL_ERROR;
       }
     } else {
-      // Psuedo headers is insufficient
+      // Pseudo headers is insufficient
       return HTTP2_ERROR_PROTOCOL_ERROR;
     }
   }
@@ -677,7 +729,7 @@ uint32_t Http2::header_table_size          = 4096;
 uint32_t Http2::max_header_list_size       = 4294967295;
 uint32_t Http2::max_request_header_size    = 131072;
 uint32_t Http2::accept_no_activity_timeout = 120;
-uint32_t Http2::no_activity_timeout_in     = 115;
+uint32_t Http2::no_activity_timeout_in     = 120;
 uint32_t Http2::active_timeout_in          = 0;
 
 void

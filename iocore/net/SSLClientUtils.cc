@@ -115,7 +115,7 @@ SSLInitClientContext(const SSLConfigParams *params)
   SSL_CTX_set_options(client_ctx, params->ssl_ctx_options);
   if (!client_ctx) {
     SSLError("cannot create new client context");
-    _exit(1);
+    ::exit(1);
   }
 
   if (params->ssl_client_ctx_protocols) {
@@ -181,6 +181,6 @@ SSLInitClientContext(const SSLConfigParams *params)
   return client_ctx;
 
 fail:
-  SSL_CTX_free(client_ctx);
-  _exit(1);
+  SSLReleaseContext(client_ctx);
+  ::exit(1);
 }

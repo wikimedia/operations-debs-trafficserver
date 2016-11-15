@@ -107,30 +107,32 @@ HdrTest::test_error_page_selection()
     float expected_Q;
     int expected_La;
     int expected_I;
-  } tests[] = {{NULL, NULL, "default", 1, 0, INT_MAX},
-               {"en", NULL, "en", 1, 2, 1},
-               {"ko", NULL, "ko", 1, 2, 1},
-               {"en-us", NULL, "en-us", 1, 5, 1},
-               {"en-US", NULL, "en-us", 1, 5, 1},
-               {"en,ko", NULL, "en", 1, 2, 1},
-               {"ko,en", NULL, "ko", 1, 2, 1},
-               {"en;q=0.7,ko", NULL, "ko", 1, 2, 2},
-               {"en;q=.7,ko", NULL, "ko", 1, 2, 2},
-               {"en;q=.7,ko;q=.7", NULL, "en", 0.7, 2, 1},
-               {"en;q=.7,ko;q=.701", NULL, "ko", 0.701, 2, 2},
-               {"en;q=.7  ,  ko;q=.701", NULL, "ko", 0.701, 2, 2},
-               {"en  ;  q=.7  ,  ko  ;  ;  ;  ; q=.701", NULL, "ko", 0.701, 2, 2},
-               {"en,ko;q=.7", NULL, "en", 1, 2, 1},
-               {"en;q=1,ko;q=.7", NULL, "en", 1, 2, 1},
-               {"en;;;q=1,ko;q=.7", NULL, "en", 1, 2, 1},
-               {"en;;;q=1,,,,ko;q=.7", NULL, "en", 1, 2, 1},
-               {"en;;;q=.7,,,,ko;q=.7", NULL, "en", 0.7, 2, 1},
-               {"en;;;q=.699,,,,ko;q=.7", NULL, "ko", 0.7, 2, 5},
-               {"en;q=0,ko;q=1", NULL, "ko", 1, 2, 2},
-               {"en;q=0, ko;q=1", NULL, "ko", 1, 2, 2},
-               {"en;q=0,ko;q=.5", NULL, "ko", 0.5, 2, 2},
-               {"en;q=0, ko;q=.5", NULL, "ko", 0.5, 2, 2},
-               {"en;q=000000000.00000000000000000000,ko;q=1.0000000000000000000", NULL, "ko", 1, 2, 2}};
+  } tests[] = {
+    {NULL, NULL, "default", 1, 0, INT_MAX},
+    {"en", NULL, "en", 1, 2, 1},
+    {"ko", NULL, "ko", 1, 2, 1},
+    {"en-us", NULL, "en-us", 1, 5, 1},
+    {"en-US", NULL, "en-us", 1, 5, 1},
+    {"en,ko", NULL, "en", 1, 2, 1},
+    {"ko,en", NULL, "ko", 1, 2, 1},
+    {"en;q=0.7,ko", NULL, "ko", 1, 2, 2},
+    {"en;q=.7,ko", NULL, "ko", 1, 2, 2},
+    {"en;q=.7,ko;q=.7", NULL, "en", 0.7, 2, 1},
+    {"en;q=.7,ko;q=.701", NULL, "ko", 0.701, 2, 2},
+    {"en;q=.7  ,  ko;q=.701", NULL, "ko", 0.701, 2, 2},
+    {"en  ;  q=.7  ,  ko  ;  ;  ;  ; q=.701", NULL, "ko", 0.701, 2, 2},
+    {"en,ko;q=.7", NULL, "en", 1, 2, 1},
+    {"en;q=1,ko;q=.7", NULL, "en", 1, 2, 1},
+    {"en;;;q=1,ko;q=.7", NULL, "en", 1, 2, 1},
+    {"en;;;q=1,,,,ko;q=.7", NULL, "en", 1, 2, 1},
+    {"en;;;q=.7,,,,ko;q=.7", NULL, "en", 0.7, 2, 1},
+    {"en;;;q=.699,,,,ko;q=.7", NULL, "ko", 0.7, 2, 5},
+    {"en;q=0,ko;q=1", NULL, "ko", 1, 2, 2},
+    {"en;q=0, ko;q=1", NULL, "ko", 1, 2, 2},
+    {"en;q=0,ko;q=.5", NULL, "ko", 0.5, 2, 2},
+    {"en;q=0, ko;q=.5", NULL, "ko", 0.5, 2, 2},
+    {"en;q=000000000.00000000000000000000,ko;q=1.0000000000000000000", NULL, "ko", 1, 2, 2},
+  };
 
   bri_box("test_error_page_selection");
 
@@ -203,26 +205,28 @@ HdrTest::test_parse_date()
   static struct {
     const char *fast;
     const char *slow;
-  } dates[] = {{"Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-1994 08:49:37 GMT"},
-               {"Mon, 07 Nov 1994 08:49:37 GMT", "Monday, 07-Nov-1994 08:49:37 GMT"},
-               {"Tue, 08 Nov 1994 08:49:37 GMT", "Tuesday, 08-Nov-1994 08:49:37 GMT"},
-               {"Wed, 09 Nov 1994 08:49:37 GMT", "Wednesday, 09-Nov-1994 08:49:37 GMT"},
-               {"Thu, 10 Nov 1994 08:49:37 GMT", "Thursday, 10-Nov-1994 08:49:37 GMT"},
-               {"Fri, 11 Nov 1994 08:49:37 GMT", "Friday, 11-Nov-1994 08:49:37 GMT"},
-               {"Sat, 11 Nov 1994 08:49:37 GMT", "Saturday, 11-Nov-1994 08:49:37 GMT"},
-               {"Sun, 03 Jan 1999 08:49:37 GMT", "Sunday, 03-Jan-1999 08:49:37 GMT"},
-               {"Sun, 07 Feb 1999 08:49:37 GMT", "Sunday, 07-Feb-1999 08:49:37 GMT"},
-               {"Sun, 07 Mar 1999 08:49:37 GMT", "Sunday, 07-Mar-1999 08:49:37 GMT"},
-               {"Sun, 04 Apr 1999 08:49:37 GMT", "Sunday, 04-Apr-1999 08:49:37 GMT"},
-               {"Sun, 02 May 1999 08:49:37 GMT", "Sunday, 02-May-1999 08:49:37 GMT"},
-               {"Sun, 06 Jun 1999 08:49:37 GMT", "Sunday, 06-Jun-1999 08:49:37 GMT"},
-               {"Sun, 04 Jul 1999 08:49:37 GMT", "Sunday, 04-Jul-1999 08:49:37 GMT"},
-               {"Sun, 01 Aug 1999 08:49:37 GMT", "Sunday, 01-Aug-1999 08:49:37 GMT"},
-               {"Sun, 05 Sep 1999 08:49:37 GMT", "Sunday, 05-Sep-1999 08:49:37 GMT"},
-               {"Sun, 03 Oct 1999 08:49:37 GMT", "Sunday, 03-Oct-1999 08:49:37 GMT"},
-               {"Sun, 07 Nov 1999 08:49:37 GMT", "Sunday, 07-Nov-1999 08:49:37 GMT"},
-               {"Sun, 05 Dec 1999 08:49:37 GMT", "Sunday, 05-Dec-1999 08:49:37 GMT"},
-               {NULL, NULL}};
+  } dates[] = {
+    {"Sun, 06 Nov 1994 08:49:37 GMT", "Sunday, 06-Nov-1994 08:49:37 GMT"},
+    {"Mon, 07 Nov 1994 08:49:37 GMT", "Monday, 07-Nov-1994 08:49:37 GMT"},
+    {"Tue, 08 Nov 1994 08:49:37 GMT", "Tuesday, 08-Nov-1994 08:49:37 GMT"},
+    {"Wed, 09 Nov 1994 08:49:37 GMT", "Wednesday, 09-Nov-1994 08:49:37 GMT"},
+    {"Thu, 10 Nov 1994 08:49:37 GMT", "Thursday, 10-Nov-1994 08:49:37 GMT"},
+    {"Fri, 11 Nov 1994 08:49:37 GMT", "Friday, 11-Nov-1994 08:49:37 GMT"},
+    {"Sat, 11 Nov 1994 08:49:37 GMT", "Saturday, 11-Nov-1994 08:49:37 GMT"},
+    {"Sun, 03 Jan 1999 08:49:37 GMT", "Sunday, 03-Jan-1999 08:49:37 GMT"},
+    {"Sun, 07 Feb 1999 08:49:37 GMT", "Sunday, 07-Feb-1999 08:49:37 GMT"},
+    {"Sun, 07 Mar 1999 08:49:37 GMT", "Sunday, 07-Mar-1999 08:49:37 GMT"},
+    {"Sun, 04 Apr 1999 08:49:37 GMT", "Sunday, 04-Apr-1999 08:49:37 GMT"},
+    {"Sun, 02 May 1999 08:49:37 GMT", "Sunday, 02-May-1999 08:49:37 GMT"},
+    {"Sun, 06 Jun 1999 08:49:37 GMT", "Sunday, 06-Jun-1999 08:49:37 GMT"},
+    {"Sun, 04 Jul 1999 08:49:37 GMT", "Sunday, 04-Jul-1999 08:49:37 GMT"},
+    {"Sun, 01 Aug 1999 08:49:37 GMT", "Sunday, 01-Aug-1999 08:49:37 GMT"},
+    {"Sun, 05 Sep 1999 08:49:37 GMT", "Sunday, 05-Sep-1999 08:49:37 GMT"},
+    {"Sun, 03 Oct 1999 08:49:37 GMT", "Sunday, 03-Oct-1999 08:49:37 GMT"},
+    {"Sun, 07 Nov 1999 08:49:37 GMT", "Sunday, 07-Nov-1999 08:49:37 GMT"},
+    {"Sun, 05 Dec 1999 08:49:37 GMT", "Sunday, 05-Dec-1999 08:49:37 GMT"},
+    {NULL, NULL},
+  };
 
   int i;
   int failures = 0;
@@ -249,8 +253,13 @@ HdrTest::test_parse_date()
 int
 HdrTest::test_format_date()
 {
-  static const char *dates[] = {"Sun, 06 Nov 1994 08:49:37 GMT", "Sun, 03 Jan 1999 08:49:37 GMT", "Sun, 05 Dec 1999 08:49:37 GMT",
-                                "Tue, 25 Apr 2000 20:29:53 GMT", NULL};
+  static const char *dates[] = {
+    "Sun, 06 Nov 1994 08:49:37 GMT",
+    "Sun, 03 Jan 1999 08:49:37 GMT",
+    "Sun, 05 Dec 1999 08:49:37 GMT",
+    "Tue, 25 Apr 2000 20:29:53 GMT",
+    NULL,
+  };
 
   bri_box("test_format_date");
 
@@ -362,15 +371,17 @@ HdrTest::test_url()
     "/finance/external/cbsm/*http://cbs.marketwatch.com/archive/19990713/news/current/net.htx?source=blq/yhoo&dist=yhoo",
     "http://a.b.com/xx.jpg?newpath=http://bob.dave.com"};
 
-  static char const *bad[] = {"http://[1:2:3:4:5:6:7:8:9]",
-                              "http://1:2:3:4:5:6:7:8:A:B",
-                              "http://bob.com[::1]",
-                              "http://[::1].com",
-                              "http://foo:bar:baz@bob.com/",
-                              "http://foo:bar:baz@[::1]:8080/",
-                              "http://]",
-                              "http://:",
-                              "http:/"};
+  static char const *bad[] = {
+    "http://[1:2:3:4:5:6:7:8:9]",
+    "http://1:2:3:4:5:6:7:8:A:B",
+    "http://bob.com[::1]",
+    "http://[::1].com",
+    "http://foo:bar:baz@bob.com/",
+    "http://foo:bar:baz@[::1]:8080/",
+    "http://]",
+    "http://:",
+    "http:/",
+  };
 
   int err, failed;
   URL url;
@@ -402,8 +413,9 @@ HdrTest::test_url()
     const char *fail_text = NULL;
 
     if (old_length == new_length) {
-      if (memcmp(print_buf, strs[i], new_length) != 0)
+      if (memcmp(print_buf, strs[i], new_length) != 0) {
         fail_text = "URLS DIFFER";
+      }
     } else if (old_length == new_length - 1) {
       // Check to see if the difference is the trailing
       //   slash we add
@@ -431,7 +443,7 @@ HdrTest::test_url()
     url.create(NULL);
     err = url.parse(x, strlen(x));
     url.destroy();
-    if (err == PARSE_DONE) {
+    if (err == PARSE_RESULT_DONE) {
       failed = 1;
       printf("Successfully parsed invalid url '%s'", x);
       break;
@@ -462,27 +474,29 @@ HdrTest::test_url()
 int
 HdrTest::test_mime()
 {
-  static const char mime[] = {//        "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
-                              "Date: 6 Nov 1994 08:49:37 GMT\r\n"
-                              "Max-Forwards: 65535\r\n"
-                              "Cache-Control: private\r\n"
-                              "accept: foo\r\n"
-                              "accept: bar\n"
-                              ": (null) field name\r\n"
-                              "aCCept: \n"
-                              "ACCEPT\r\n"
-                              "foo: bar\r\n"
-                              "foo: argh\r\n"
-                              "foo: three, four\r\n"
-                              "word word: word \r\n"
-                              "accept: \"fazzle, dazzle\"\r\n"
-                              "accept: 1, 2, 3, 4, 5, 6, 7, 8\r\n"
-                              "continuation: part1\r\n"
-                              " part2\r\n"
-                              "scooby: doo\r\n"
-                              "scooby : doo\r\n"
-                              "bar: foo\r\n"
-                              "\r\n"};
+  static const char mime[] = {
+    //        "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
+    "Date: 6 Nov 1994 08:49:37 GMT\r\n"
+    "Max-Forwards: 65535\r\n"
+    "Cache-Control: private\r\n"
+    "accept: foo\r\n"
+    "accept: bar\n"
+    ": (null) field name\r\n"
+    "aCCept: \n"
+    "ACCEPT\r\n"
+    "foo: bar\r\n"
+    "foo: argh\r\n"
+    "foo: three, four\r\n"
+    "word word: word \r\n"
+    "accept: \"fazzle, dazzle\"\r\n"
+    "accept: 1, 2, 3, 4, 5, 6, 7, 8\r\n"
+    "continuation: part1\r\n"
+    " part2\r\n"
+    "scooby: doo\r\n"
+    "scooby : doo\r\n"
+    "bar: foo\r\n"
+    "\r\n",
+  };
 
   int err;
   MIMEHdr hdr;
@@ -504,8 +518,9 @@ HdrTest::test_mime()
   hdr.create(NULL);
   err = hdr.parse(&parser, &start, end, must_copy_strs, false);
 
-  if (err < 0)
+  if (err < 0) {
     return (failures_to_status("test_mime", 1));
+  }
 
   hdr.field_delete("not_there", 9);
   hdr.field_delete("accept", 6);
@@ -602,27 +617,29 @@ HdrTest::test_http_parser_eos_boundary_cases()
     const char *msg;
     int expected_result;
     int expected_bytes_consumed;
-  } tests[] = {{"GET /index.html HTTP/1.0\r\n", PARSE_DONE, 26},
-               {"GET /index.html HTTP/1.0\r\n\r\n***BODY****", PARSE_DONE, 28},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n\r\n***BODY****", PARSE_DONE, 48},
-               {"GET", PARSE_ERROR, 3},
-               {"GET /index.html", PARSE_ERROR, 15},
-               {"GET /index.html\r\n", PARSE_ERROR, 17},
-               {"GET /index.html HTTP/1.0", PARSE_ERROR, 24},
-               {"GET /index.html HTTP/1.0\r", PARSE_ERROR, 25},
-               {"GET /index.html HTTP/1.0\n", PARSE_DONE, 25},
-               {"GET /index.html HTTP/1.0\n\n", PARSE_DONE, 26},
-               {"GET /index.html HTTP/1.0\r\n\r\n", PARSE_DONE, 28},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar", PARSE_ERROR, 44},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\n", PARSE_DONE, 45},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n", PARSE_DONE, 46},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n\r\n", PARSE_DONE, 48},
-               {"GET /index.html HTTP/1.0\nUser-Agent: foobar\n", PARSE_DONE, 44},
-               {"GET /index.html HTTP/1.0\nUser-Agent: foobar\nBoo: foo\n", PARSE_DONE, 53},
-               {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n", PARSE_DONE, 46},
-               {"GET /index.html HTTP/1.0\r\n", PARSE_DONE, 26},
-               {"", PARSE_ERROR, 0},
-               {NULL, 0, 0}};
+  } tests[] = {
+    {"GET /index.html HTTP/1.0\r\n", PARSE_RESULT_DONE, 26},
+    {"GET /index.html HTTP/1.0\r\n\r\n***BODY****", PARSE_RESULT_DONE, 28},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n\r\n***BODY****", PARSE_RESULT_DONE, 48},
+    {"GET", PARSE_RESULT_ERROR, 3},
+    {"GET /index.html", PARSE_RESULT_ERROR, 15},
+    {"GET /index.html\r\n", PARSE_RESULT_ERROR, 17},
+    {"GET /index.html HTTP/1.0", PARSE_RESULT_ERROR, 24},
+    {"GET /index.html HTTP/1.0\r", PARSE_RESULT_ERROR, 25},
+    {"GET /index.html HTTP/1.0\n", PARSE_RESULT_DONE, 25},
+    {"GET /index.html HTTP/1.0\n\n", PARSE_RESULT_DONE, 26},
+    {"GET /index.html HTTP/1.0\r\n\r\n", PARSE_RESULT_DONE, 28},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar", PARSE_RESULT_ERROR, 44},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\n", PARSE_RESULT_DONE, 45},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n", PARSE_RESULT_DONE, 46},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n\r\n", PARSE_RESULT_DONE, 48},
+    {"GET /index.html HTTP/1.0\nUser-Agent: foobar\n", PARSE_RESULT_DONE, 44},
+    {"GET /index.html HTTP/1.0\nUser-Agent: foobar\nBoo: foo\n", PARSE_RESULT_DONE, 53},
+    {"GET /index.html HTTP/1.0\r\nUser-Agent: foobar\r\n", PARSE_RESULT_DONE, 46},
+    {"GET /index.html HTTP/1.0\r\n", PARSE_RESULT_DONE, 26},
+    {"", PARSE_RESULT_ERROR, 0},
+    {NULL, 0, 0},
+  };
 
   int i, ret, bytes_consumed;
   const char *orig_start;
@@ -697,10 +714,11 @@ HdrTest::test_http_aux(const char *request, const char *response)
   printf("======== parsing\n\n");
   while (1) {
     err = req_hdr.parse_req(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     req_hdr.destroy();
     rsp_hdr.destroy();
     return (failures_to_status("test_http_aux", (status == 0)));
@@ -737,10 +755,11 @@ HdrTest::test_http_aux(const char *request, const char *response)
 
   while (1) {
     err = rsp_hdr.parse_resp(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     req_hdr.destroy();
     rsp_hdr.destroy();
     return (failures_to_status("test_http_aux", (status == 0)));
@@ -777,10 +796,11 @@ HdrTest::test_http_aux(const char *request, const char *response)
       // printf("test_header: tmp = %d  err = %d  bufindex = %d\n", tmp, err, bufindex);
       putchar('{');
       for (i = 0; i < bufindex - last_bufindex; i++) {
-        if (!iscntrl(buf[i]))
+        if (!iscntrl(buf[i])) {
           putchar(buf[i]);
-        else
+        } else {
           printf("\\%o", buf[i]);
+        }
       }
       putchar('}');
     } while (!err);
@@ -805,139 +825,141 @@ HdrTest::test_http_hdr_print_and_copy()
     const char *req_tgt;
     const char *rsp;
     const char *rsp_tgt;
-  } tests[] = {{"GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa\r\n"
-                "\r\n",
-                "GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n"},
-               {"GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
-                "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda \r\n"
-                "\r\n",
-                "GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
-                "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda \r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n"},
-               {"GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
-                "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda kfl; fsdajfl; "
-                "sdjafl;dsajlsjfl;sdafjsdal;fjds al;fdjslaf ;slajdk;f\r\n"
-                "\r\n",
-                "GET http://foo.com/bar.txt HTTP/1.0\r\n"
-                "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
-                "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda kfl; fsdajfl; "
-                "sdjafl;dsajlsjfl;sdafjsdal;fjds al;fdjslaf ;slajdk;f\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "\r\n"},
-               {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: chocolate fribble\r\n", // missing final CRLF
-                "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: chocolate fribble\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "MIME-Version: 1.0\r\n"
-                "Server: WebSTAR/2.1 ID/30013\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 939\r\n"
-                "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n", // missing final CRLF
-                "HTTP/1.0 200 OK\r\n"
-                "MIME-Version: 1.0\r\n"
-                "Server: WebSTAR/2.1 ID/30013\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 939\r\n"
-                "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
-                "\r\n"},
-               {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: \r\n", // missing final CRLF
-                "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: \r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "MIME-Version: 1.0\r\n"
-                "Server: WebSTAR/2.1 ID/30013\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 939\r\n"
-                "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "MIME-Version: 1.0\r\n"
-                "Server: WebSTAR/2.1 ID/30013\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 939\r\n"
-                "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
-                "\r\n"},
-               {"GET http://www.news.com:80/ HTTP/1.0\r\n"
-                "Proxy-Connection: Keep-Alive\r\n"
-                "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
-                "Pragma: no-cache\r\n"
-                "Host: www.news.com\r\n"
-                "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
-                "Accept-Language: en\r\n"
-                "Accept-Charset: iso-8859-1, *, utf-8\r\n"
-                "Client-ip: D1012148\r\n"
-                "Foo: abcdefghijklmnopqrtu\r\n"
-                "\r\n",
-                "GET http://www.news.com:80/ HTTP/1.0\r\n"
-                "Proxy-Connection: Keep-Alive\r\n"
-                "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
-                "Pragma: no-cache\r\n"
-                "Host: www.news.com\r\n"
-                "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
-                "Accept-Language: en\r\n"
-                "Accept-Charset: iso-8859-1, *, utf-8\r\n"
-                "Client-ip: D1012148\r\n"
-                "Foo: abcdefghijklmnopqrtu\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Length: 16428\r\n"
-                "Content-Type: text/html\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Length: 16428\r\n"
-                "Content-Type: text/html\r\n"
-                "\r\n"},
-               {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: http://people.netscape.com/jwz/index.html\r\n"
-                "Proxy-Connection: Keep-Alive\r\n"
-                "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
-                "Pragma: no-cache\r\n"
-                "Host: people.netscape.com\r\n"
-                "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
-                "\r\n",
-                "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                "Referer: http://people.netscape.com/jwz/index.html\r\n"
-                "Proxy-Connection: Keep-Alive\r\n"
-                "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
-                "Pragma: no-cache\r\n"
-                "Host: people.netscape.com\r\n"
-                "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Length: 16428\r\n"
-                "Content-Type: text/html\r\n"
-                "\r\n",
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Length: 16428\r\n"
-                "Content-Type: text/html\r\n"
-                "\r\n"}};
+  } tests[] = {
+    {"GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa\r\n"
+     "\r\n",
+     "GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n"},
+    {"GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
+     "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda \r\n"
+     "\r\n",
+     "GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
+     "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda \r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n"},
+    {"GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
+     "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda kfl; fsdajfl; "
+     "sdjafl;dsajlsjfl;sdafjsdal;fjds al;fdjslaf ;slajdk;f\r\n"
+     "\r\n",
+     "GET http://foo.com/bar.txt HTTP/1.0\r\n"
+     "Accept-Language: fjdfjdslkf dsjkfdj flkdsfjlk sjfdlk ajfdlksa fjfj dslkfjdslk fjsdafkl dsajfkldsa jfkldsafj "
+     "klsafjs lkafjdsalk fsdjakfl sdjaflkdsaj flksdjflsd ;ffd salfdjs lf;sdaf ;dsaf jdsal;fdjsaflkjsda kfl; fsdajfl; "
+     "sdjafl;dsajlsjfl;sdafjsdal;fjds al;fdjslaf ;slajdk;f\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "\r\n"},
+    {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: chocolate fribble\r\n", // missing final CRLF
+     "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: chocolate fribble\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "MIME-Version: 1.0\r\n"
+     "Server: WebSTAR/2.1 ID/30013\r\n"
+     "Content-Type: text/html\r\n"
+     "Content-Length: 939\r\n"
+     "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n", // missing final CRLF
+     "HTTP/1.0 200 OK\r\n"
+     "MIME-Version: 1.0\r\n"
+     "Server: WebSTAR/2.1 ID/30013\r\n"
+     "Content-Type: text/html\r\n"
+     "Content-Length: 939\r\n"
+     "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
+     "\r\n"},
+    {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: \r\n", // missing final CRLF
+     "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: \r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "MIME-Version: 1.0\r\n"
+     "Server: WebSTAR/2.1 ID/30013\r\n"
+     "Content-Type: text/html\r\n"
+     "Content-Length: 939\r\n"
+     "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "MIME-Version: 1.0\r\n"
+     "Server: WebSTAR/2.1 ID/30013\r\n"
+     "Content-Type: text/html\r\n"
+     "Content-Length: 939\r\n"
+     "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
+     "\r\n"},
+    {"GET http://www.news.com:80/ HTTP/1.0\r\n"
+     "Proxy-Connection: Keep-Alive\r\n"
+     "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
+     "Pragma: no-cache\r\n"
+     "Host: www.news.com\r\n"
+     "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
+     "Accept-Language: en\r\n"
+     "Accept-Charset: iso-8859-1, *, utf-8\r\n"
+     "Client-ip: D1012148\r\n"
+     "Foo: abcdefghijklmnopqrtu\r\n"
+     "\r\n",
+     "GET http://www.news.com:80/ HTTP/1.0\r\n"
+     "Proxy-Connection: Keep-Alive\r\n"
+     "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
+     "Pragma: no-cache\r\n"
+     "Host: www.news.com\r\n"
+     "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
+     "Accept-Language: en\r\n"
+     "Accept-Charset: iso-8859-1, *, utf-8\r\n"
+     "Client-ip: D1012148\r\n"
+     "Foo: abcdefghijklmnopqrtu\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "Content-Length: 16428\r\n"
+     "Content-Type: text/html\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "Content-Length: 16428\r\n"
+     "Content-Type: text/html\r\n"
+     "\r\n"},
+    {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: http://people.netscape.com/jwz/index.html\r\n"
+     "Proxy-Connection: Keep-Alive\r\n"
+     "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
+     "Pragma: no-cache\r\n"
+     "Host: people.netscape.com\r\n"
+     "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
+     "\r\n",
+     "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+     "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+     "Referer: http://people.netscape.com/jwz/index.html\r\n"
+     "Proxy-Connection: Keep-Alive\r\n"
+     "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
+     "Pragma: no-cache\r\n"
+     "Host: people.netscape.com\r\n"
+     "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "Content-Length: 16428\r\n"
+     "Content-Type: text/html\r\n"
+     "\r\n",
+     "HTTP/1.0 200 OK\r\n"
+     "Content-Length: 16428\r\n"
+     "Content-Type: text/html\r\n"
+     "\r\n"},
+  };
 
   int ntests = sizeof(tests) / sizeof(tests[0]);
   int i, failures;
@@ -948,19 +970,22 @@ HdrTest::test_http_hdr_print_and_copy()
 
   for (i = 0; i < ntests; i++) {
     int status = test_http_hdr_print_and_copy_aux(i + 1, tests[i].req, tests[i].req_tgt, tests[i].rsp, tests[i].rsp_tgt);
-    if (status == 0)
+    if (status == 0) {
       ++failures;
+    }
 
     // Test for expected failures
     // parse with a '\0' in the header.  Should fail
     status = test_http_hdr_null_char(i + 1, tests[i].req, tests[i].req_tgt);
-    if (status == 0)
+    if (status == 0) {
       ++failures;
+    }
 
     // Parse with a CTL character in the method name.  Should fail
     status = test_http_hdr_ctl_char(i + 1, tests[i].req, tests[i].req_tgt);
-    if (status == 0)
+    if (status == 0) {
       ++failures;
+    }
   }
 
   return (failures_to_status("test_http_hdr_print_and_copy", failures));
@@ -1040,11 +1065,12 @@ HdrTest::test_http_hdr_copy_over_aux(int testnum, const char *request, const cha
 
   while (1) {
     err = req_hdr.parse_req(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) parse error parsing request hdr\n", testnum);
     return (0);
   }
@@ -1061,11 +1087,12 @@ HdrTest::test_http_hdr_copy_over_aux(int testnum, const char *request, const cha
 
   while (1) {
     err = resp_hdr.parse_resp(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) parse error parsing response hdr\n", testnum);
     return (0);
   }
@@ -1074,14 +1101,16 @@ HdrTest::test_http_hdr_copy_over_aux(int testnum, const char *request, const cha
   copy1.create(HTTP_TYPE_REQUEST);
   copy1.copy(&req_hdr);
   comp_str = comp_http_hdr(&req_hdr, &copy1);
-  if (comp_str)
+  if (comp_str) {
     goto done;
+  }
 
   copy2.create(HTTP_TYPE_RESPONSE);
   copy2.copy(&resp_hdr);
   comp_str = comp_http_hdr(&resp_hdr, &copy2);
-  if (comp_str)
+  if (comp_str) {
     goto done;
+  }
 
 // The APIs for copying headers uses memcpy() which can be unsafe for
 // overlapping memory areas. It's unclear to me why these tests were
@@ -1102,13 +1131,15 @@ HdrTest::test_http_hdr_copy_over_aux(int testnum, const char *request, const cha
   /*** (5) Gender bending copying ***/
   copy1.copy(&resp_hdr);
   comp_str = comp_http_hdr(&resp_hdr, &copy1);
-  if (comp_str)
+  if (comp_str) {
     goto done;
+  }
 
   copy2.copy(&req_hdr);
   comp_str = comp_http_hdr(&req_hdr, &copy2);
-  if (comp_str)
+  if (comp_str) {
     goto done;
+  }
 
 done:
   req_hdr.destroy();
@@ -1157,10 +1188,11 @@ HdrTest::test_http_hdr_null_char(int testnum, const char *request, const char * 
 
   while (1) {
     err = hdr.parse_req(&parser, &cpy_buf_ptr, cpy_buf_ptr + length, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
-  if (err != PARSE_ERROR) {
+  if (err != PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) no parse error parsing request with null char\n", testnum);
     return (0);
   }
@@ -1198,11 +1230,12 @@ HdrTest::test_http_hdr_ctl_char(int testnum, const char *request, const char * /
 
   while (1) {
     err = hdr.parse_req(&parser, &cpy_buf_ptr, cpy_buf_ptr + strlen(start), true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
-  if (err != PARSE_ERROR) {
+  if (err != PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) no parse error parsing method with ctl char\n", testnum);
     return (0);
   }
@@ -1244,11 +1277,12 @@ HdrTest::test_http_hdr_print_and_copy_aux(int testnum, const char *request, cons
 
   while (1) {
     err = hdr.parse_req(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) parse error parsing request hdr\n", testnum);
     ats_free(marshal_buf);
     return (0);
@@ -1257,7 +1291,10 @@ HdrTest::test_http_hdr_print_and_copy_aux(int testnum, const char *request, cons
   /*** (2) copy the request header ***/
   HTTPHdr new_hdr, marshal_hdr;
   RefCountObj ref;
-  ref.m_refcount  = 100;
+
+  // Pretend to pin this object with a refcount.
+  ref.refcount_inc();
+
   int marshal_len = hdr.m_heap->marshal(marshal_buf, marshal_bufsize);
   marshal_hdr.create(HTTP_TYPE_REQUEST);
   marshal_hdr.unmarshal(marshal_buf, marshal_len, &ref);
@@ -1314,11 +1351,12 @@ HdrTest::test_http_hdr_print_and_copy_aux(int testnum, const char *request, cons
 
   while (1) {
     err = hdr.parse_resp(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
-  if (err == PARSE_ERROR) {
+  if (err == PARSE_RESULT_ERROR) {
     printf("FAILED: (test #%d) parse error parsing response hdr\n", testnum);
     return (0);
   }
@@ -1379,151 +1417,197 @@ HdrTest::test_http()
 {
   int status = 1;
 
-  static const char request0[] = {"GET http://www.news.com:80/ HTTP/1.0\r\n"
-                                  "Proxy-Connection: Keep-Alive\r\n"
-                                  "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
-                                  "Pragma: no-cache\r\n"
-                                  "Host: www.news.com\r\n"
-                                  "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
-                                  "Accept-Language: en\r\n"
-                                  "Accept-Charset: iso-8859-1, *, utf-8\r\n"
-                                  "Cookie: u_vid_0_0=00031ba3; "
-                                  "s_cur_0_0=0101sisi091314775496e7d3Jx4+POyJakrMybmNOsq6XOn5bVn5Z6a4Ln5crU5M7Rxq2lm5aWpqupo20=; "
-                                  "SC_Cnet001=Sampled; SC_Cnet002=Sampled\r\n"
-                                  "Client-ip: D1012148\r\n"
-                                  "Foo: abcdefghijklmnopqrtu\r\n"
-                                  "\r\n"};
+  static const char request0[] = {
+    "GET http://www.news.com:80/ HTTP/1.0\r\n"
+    "Proxy-Connection: Keep-Alive\r\n"
+    "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
+    "Pragma: no-cache\r\n"
+    "Host: www.news.com\r\n"
+    "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, image/png, */*\r\n"
+    "Accept-Language: en\r\n"
+    "Accept-Charset: iso-8859-1, *, utf-8\r\n"
+    "Cookie: u_vid_0_0=00031ba3; "
+    "s_cur_0_0=0101sisi091314775496e7d3Jx4+POyJakrMybmNOsq6XOn5bVn5Z6a4Ln5crU5M7Rxq2lm5aWpqupo20=; "
+    "SC_Cnet001=Sampled; SC_Cnet002=Sampled\r\n"
+    "Client-ip: D1012148\r\n"
+    "Foo: abcdefghijklmnopqrtu\r\n"
+    "\r\n",
+  };
 
-  static const char request09[] = {"GET /index.html\r\n"
-                                   "\r\n"};
+  static const char request09[] = {
+    "GET /index.html\r\n"
+    "\r\n",
+  };
 
-  static const char request1[] = {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                                  "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                                  "Referer: http://people.netscape.com/jwz/index.html\r\n"
-                                  "Proxy-Connection: Keep-Alive\r\n"
-                                  "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
-                                  "Pragma: no-cache\r\n"
-                                  "Host: people.netscape.com\r\n"
-                                  "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
-                                  "\r\n"};
+  static const char request1[] = {
+    "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+    "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+    "Referer: http://people.netscape.com/jwz/index.html\r\n"
+    "Proxy-Connection: Keep-Alive\r\n"
+    "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
+    "Pragma: no-cache\r\n"
+    "Host: people.netscape.com\r\n"
+    "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
+    "\r\n",
+  };
 
-  static const char request_no_colon[] = {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                                          "If-Modified-Since Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                                          "Referer http://people.netscape.com/jwz/index.html\r\n"
-                                          "Proxy-Connection Keep-Alive\r\n"
-                                          "User-Agent  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
-                                          "Pragma no-cache\r\n"
-                                          "Host people.netscape.com\r\n"
-                                          "Accept image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
-                                          "\r\n"};
+  static const char request_no_colon[] = {
+    "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+    "If-Modified-Since Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+    "Referer http://people.netscape.com/jwz/index.html\r\n"
+    "Proxy-Connection Keep-Alive\r\n"
+    "User-Agent  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
+    "Pragma no-cache\r\n"
+    "Host people.netscape.com\r\n"
+    "Accept image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
+    "\r\n",
+  };
 
-  static const char request_no_val[] = {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                                        "If-Modified-Since:\r\n"
-                                        "Referer:     "
-                                        "Proxy-Connection:\r\n"
-                                        "User-Agent:     \r\n"
-                                        "Host:::\r\n"
-                                        "\r\n"};
+  static const char request_no_val[] = {
+    "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+    "If-Modified-Since:\r\n"
+    "Referer:     "
+    "Proxy-Connection:\r\n"
+    "User-Agent:     \r\n"
+    "Host:::\r\n"
+    "\r\n",
+  };
 
-  static const char request_multi_fblock[] = {"GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
-                                              "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
-                                              "Referer: http://people.netscape.com/jwz/index.html\r\n"
-                                              "Proxy-Connection: Keep-Alive\r\n"
-                                              "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
-                                              "Pragma: no-cache\r\n"
-                                              "Host: people.netscape.com\r\n"
-                                              "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
-                                              "X-1: blah\r\n"
-                                              "X-2: blah\r\n"
-                                              "X-3: blah\r\n"
-                                              "X-4: blah\r\n"
-                                              "X-5: blah\r\n"
-                                              "X-6: blah\r\n"
-                                              "X-7: blah\r\n"
-                                              "X-8: blah\r\n"
-                                              "X-9: blah\r\n"
-                                              "Pragma: no-cache\r\n"
-                                              "X-X-1: blah\r\n"
-                                              "X-X-2: blah\r\n"
-                                              "X-X-3: blah\r\n"
-                                              "X-X-4: blah\r\n"
-                                              "X-X-5: blah\r\n"
-                                              "X-X-6: blah\r\n"
-                                              "X-X-7: blah\r\n"
-                                              "X-X-8: blah\r\n"
-                                              "X-X-9: blah\r\n"
-                                              "\r\n"};
+  static const char request_multi_fblock[] = {
+    "GET http://people.netscape.com/jwz/hacks-1.gif HTTP/1.0\r\n"
+    "If-Modified-Since: Wednesday, 26-Feb-97 06:58:17 GMT; length=842\r\n"
+    "Referer: http://people.netscape.com/jwz/index.html\r\n"
+    "Proxy-Connection: Keep-Alive\r\n"
+    "User-Agent:  Mozilla/3.01 (X11; I; Linux 2.0.28 i586)\r\n"
+    "Pragma: no-cache\r\n"
+    "Host: people.netscape.com\r\n"
+    "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n"
+    "X-1: blah\r\n"
+    "X-2: blah\r\n"
+    "X-3: blah\r\n"
+    "X-4: blah\r\n"
+    "X-5: blah\r\n"
+    "X-6: blah\r\n"
+    "X-7: blah\r\n"
+    "X-8: blah\r\n"
+    "X-9: blah\r\n"
+    "Pragma: no-cache\r\n"
+    "X-X-1: blah\r\n"
+    "X-X-2: blah\r\n"
+    "X-X-3: blah\r\n"
+    "X-X-4: blah\r\n"
+    "X-X-5: blah\r\n"
+    "X-X-6: blah\r\n"
+    "X-X-7: blah\r\n"
+    "X-X-8: blah\r\n"
+    "X-X-9: blah\r\n"
+    "\r\n",
+  };
 
-  static const char request_leading_space[] = {" GET http://www.news.com:80/ HTTP/1.0\r\n"
-                                               "Proxy-Connection: Keep-Alive\r\n"
-                                               "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
-                                               "\r\n"};
+  static const char request_leading_space[] = {
+    " GET http://www.news.com:80/ HTTP/1.0\r\n"
+    "Proxy-Connection: Keep-Alive\r\n"
+    "User-Agent: Mozilla/4.04 [en] (X11; I; Linux 2.0.33 i586)\r\n"
+    "\r\n",
+  };
 
-  static const char request_padding[] = {"GET http://www.padding.com:80/ HTTP/1.0\r\n"
-                                         "X-1: blah1\r\n"
-                                         //       "X-2:  blah2\r\n"
-                                         "X-3:   blah3\r\n"
-                                         //       "X-4:    blah4\r\n"
-                                         "X-5:     blah5\r\n"
-                                         //       "X-6:      blah6\r\n"
-                                         "X-7:       blah7\r\n"
-                                         //       "X-8:        blah8\r\n"
-                                         "X-9:         blah9\r\n"
-                                         "\r\n"};
+  static const char request_padding[] = {
+    "GET http://www.padding.com:80/ HTTP/1.0\r\n"
+    "X-1: blah1\r\n"
+    //       "X-2:  blah2\r\n"
+    "X-3:   blah3\r\n"
+    //       "X-4:    blah4\r\n"
+    "X-5:     blah5\r\n"
+    //       "X-6:      blah6\r\n"
+    "X-7:       blah7\r\n"
+    //       "X-8:        blah8\r\n"
+    "X-9:         blah9\r\n"
+    "\r\n",
+  };
 
-  static const char request_09p[] = {"GET http://www.news09.com/\r\n"
-                                     "\r\n"};
+  static const char request_09p[] = {
+    "GET http://www.news09.com/\r\n"
+    "\r\n",
+  };
 
-  static const char request_09ht[] = {"GET http://www.news09.com/ HT\r\n"
-                                      "\r\n"};
+  static const char request_09ht[] = {
+    "GET http://www.news09.com/ HT\r\n"
+    "\r\n",
+  };
 
-  static const char request_11[] = {"GET http://www.news.com/ HTTP/1.1\r\n"
-                                    "Connection: close\r\n"
-                                    "\r\n"};
+  static const char request_11[] = {
+    "GET http://www.news.com/ HTTP/1.1\r\n"
+    "Connection: close\r\n"
+    "\r\n",
+  };
 
-  static const char request_unterminated[] = {"GET http://www.unterminated.com/ HTTP/1.1"};
+  static const char request_unterminated[] = {
+    "GET http://www.unterminated.com/ HTTP/1.1",
+  };
 
-  static const char request_blank[] = {"\r\n"};
+  static const char request_blank[] = {
+    "\r\n",
+  };
 
-  static const char request_blank2[] = {"\r\n"
-                                        "\r\n"};
+  static const char request_blank2[] = {
+    "\r\n"
+    "\r\n",
+  };
 
-  static const char request_blank3[] = {"     "
-                                        "\r\n"};
+  static const char request_blank3[] = {
+    "     "
+    "\r\n",
+  };
 
   ////////////////////////////////////////////////////
 
-  static const char response0[] = {"HTTP/1.0 200 OK\r\n"
-                                   "MIME-Version: 1.0\r\n"
-                                   "Server: WebSTAR/2.1 ID/30013\r\n"
-                                   "Content-Type: text/html\r\n"
-                                   "Content-Length: 939\r\n"
-                                   "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
-                                   "\r\n"};
+  static const char response0[] = {
+    "HTTP/1.0 200 OK\r\n"
+    "MIME-Version: 1.0\r\n"
+    "Server: WebSTAR/2.1 ID/30013\r\n"
+    "Content-Type: text/html\r\n"
+    "Content-Length: 939\r\n"
+    "Last-Modified: Thursday, 01-Jan-04 05:00:00 GMT\r\n"
+    "\r\n",
+  };
 
-  static const char response1[] = {"HTTP/1.0 200 OK\r\n"
-                                   "Server: Netscape-Communications/1.12\r\n"
-                                   "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
-                                   "Content-Type: text/html\r\n"
-                                   "\r\n"};
+  static const char response1[] = {
+    "HTTP/1.0 200 OK\r\n"
+    "Server: Netscape-Communications/1.12\r\n"
+    "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
+    "Content-Type: text/html\r\n"
+    "\r\n",
+  };
 
-  static const char response_no_colon[] = {"HTTP/1.0 200 OK\r\n"
-                                           "Server Netscape-Communications/1.12\r\n"
-                                           "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
-                                           "Content-Type: text/html\r\n"
-                                           "\r\n"};
+  static const char response_no_colon[] = {
+    "HTTP/1.0 200 OK\r\n"
+    "Server Netscape-Communications/1.12\r\n"
+    "Date: Tuesday, 08-Dec-98 20:32:17 GMT\r\n"
+    "Content-Type: text/html\r\n"
+    "\r\n",
+  };
 
-  static const char response_unterminated[] = {"HTTP/1.0 200 OK"};
+  static const char response_unterminated[] = {
+    "HTTP/1.0 200 OK",
+  };
 
-  static const char response09[] = {""};
+  static const char response09[] = {
+    "",
+  };
 
-  static const char response_blank[] = {"\r\n"};
+  static const char response_blank[] = {
+    "\r\n",
+  };
 
-  static const char response_blank2[] = {"\r\n"
-                                         "\r\n"};
+  static const char response_blank2[] = {
+    "\r\n"
+    "\r\n",
+  };
 
-  static const char response_blank3[] = {"     "
-                                         "\r\n"};
+  static const char response_blank3[] = {
+    "     "
+    "\r\n",
+  };
 
   status = status & test_http_aux(request0, response0);
   status = status & test_http_aux(request09, response09);
@@ -1573,8 +1657,9 @@ HdrTest::test_http_mutation()
 
   while (1) {
     err = resp_hdr.parse_resp(&parser, &start, end, true);
-    if (err != PARSE_CONT)
+    if (err != PARSE_RESULT_CONT) {
       break;
+    }
   }
 
   printf("\n======== before mutation ==========\n\n");
@@ -1716,29 +1801,31 @@ HdrTest::test_accept_language_match()
     float Q;
     int L;
     int I;
-  } test_cases[] = {{"en", "*", 1.0, 1, 1},
-                    {"en", "fr", 0.0, 0, 0},
-                    {"en", "de, fr, en;q=0.7", 0.7, 2, 3},
-                    {"en-cockney", "de, fr, en;q=0.7", 0.7, 2, 3},
-                    {"en-cockney", "de, fr, en-foobar;q=0.8, en;q=0.7", 0.7, 2, 4},
-                    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.7", 0.8, 10, 3},
-                    {"en-cockney", "de, fr, en;q=0.8, en;q=0.7", 0.8, 2, 3},
-                    {"en-cockney", "de, fr, en;q=0.7, en;q=0.8", 0.8, 2, 4},
-                    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8", 0.8, 2, 3},
-                    {"en-cockney", "de, fr, en-cockney;q=0.7, en;q=0.8", 0.7, 10, 3},
-                    {"en-cockney", "de, fr, en;q=0.8, en-cockney;q=0.7", 0.7, 10, 4},
-                    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.8", 0.8, 10, 3},
-                    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.7", 0.8, 10, 3},
-                    {"en-cockney", "de, fr, en-american", 0.0, 0, 0},
-                    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8, *", 0.8, 2, 3},
-                    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.8, 2, 3},
-                    {"en-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.8, 2, 3},
-                    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.9, 1, 5},
-                    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9, *", 1.0, 1, 6},
-                    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *, *;q=0.9", 1.0, 1, 5},
-                    {"fr-belgian", "de, fr;hi-there;q=0.9, fr;q=0.8, en", 0.9, 2, 2},
-                    {"fr-belgian", "de, fr;q=0.8, fr;hi-there;q=0.9, en", 0.9, 2, 3},
-                    {NULL, NULL, 0.0}};
+  } test_cases[] = {
+    {"en", "*", 1.0, 1, 1},
+    {"en", "fr", 0.0, 0, 0},
+    {"en", "de, fr, en;q=0.7", 0.7, 2, 3},
+    {"en-cockney", "de, fr, en;q=0.7", 0.7, 2, 3},
+    {"en-cockney", "de, fr, en-foobar;q=0.8, en;q=0.7", 0.7, 2, 4},
+    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.7", 0.8, 10, 3},
+    {"en-cockney", "de, fr, en;q=0.8, en;q=0.7", 0.8, 2, 3},
+    {"en-cockney", "de, fr, en;q=0.7, en;q=0.8", 0.8, 2, 4},
+    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8", 0.8, 2, 3},
+    {"en-cockney", "de, fr, en-cockney;q=0.7, en;q=0.8", 0.7, 10, 3},
+    {"en-cockney", "de, fr, en;q=0.8, en-cockney;q=0.7", 0.7, 10, 4},
+    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.8", 0.8, 10, 3},
+    {"en-cockney", "de, fr, en-cockney;q=0.8, en;q=0.7", 0.8, 10, 3},
+    {"en-cockney", "de, fr, en-american", 0.0, 0, 0},
+    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8, *", 0.8, 2, 3},
+    {"en-cockney", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.8, 2, 3},
+    {"en-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.8, 2, 3},
+    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9", 0.9, 1, 5},
+    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *;q=0.9, *", 1.0, 1, 6},
+    {"oo-foobar", "de, fr, en;q=0.8, en;q=0.8, *, *;q=0.9", 1.0, 1, 5},
+    {"fr-belgian", "de, fr;hi-there;q=0.9, fr;q=0.8, en", 0.9, 2, 2},
+    {"fr-belgian", "de, fr;q=0.8, fr;hi-there;q=0.9, en", 0.9, 2, 3},
+    {NULL, NULL, 0.0, 0, 0},
+  };
 
   int i, I, L;
   float Q;
@@ -1776,33 +1863,35 @@ HdrTest::test_accept_charset_match()
     const char *accept_charset;
     float Q;
     int I;
-  } test_cases[] = {{"iso-8859-1", "*", 1.0, 1},
-                    {"iso-8859-1", "iso-8859-2", 0.0, 0},
-                    {"iso-8859-1", "iso-8859", 0.0, 0},
-                    {"iso-8859-1", "iso-8859-12", 0.0, 0},
-                    {"iso-8859-1", "koi-8-r", 0.0, 0},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7", 0.7, 3},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7", 0.7, 3},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.8, euc-jp;q=0.7", 0.8, 3},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7, euc-jp;q=0.8", 0.8, 4},
-                    {"euc-jp", "euc-jp;q=0.9, shift_jis, iso-2022-jp, euc-jp;q=0.7, euc-jp;q=0.8", 0.9, 1},
-                    {"EUC-JP", "euc-jp;q=0.9, shift_jis, iso-2022-jp, euc-jp, euc-jp;q=0.8", 1.0, 4},
-                    {"euc-jp", "euc-jp;q=0.9, shift_jis, iso-2022-jp, EUC-JP, euc-jp;q=0.8", 1.0, 4},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar", 0.0, 0},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *", 1.0, 4},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *;q=0.543", 0.543, 4},
-                    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *;q=0.0", 0.0, 4},
-                    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.0, euc-jp-foobar, *;q=0.0", 0.0, 3},
-                    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.0, euc-jp-foobar, *;q=0.5", 0.5, 5},
-                    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.5, euc-jp-foobar, *;q=0.0", 0.5, 3},
-                    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.5, euc-jp-foobar, *, *;q=0.0", 1.0, 5},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there;q=0.5, iso-2022-jp", 0.5, 2},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there;q= 0.5, iso-2022-jp", 0.5, 2},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there;q = 0.5, iso-2022-jp", 0.5, 2},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there ; q = 0.5, iso-2022-jp", 0.5, 2},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there ;; q = 0.5, iso-2022-jp", 0.5, 2},
-                    {"euc-jp", "shift_jis, euc-jp;hi-there ;; Q = 0.5, iso-2022-jp", 0.5, 2},
-                    {NULL, NULL, 0.0, 0}};
+  } test_cases[] = {
+    {"iso-8859-1", "*", 1.0, 1},
+    {"iso-8859-1", "iso-8859-2", 0.0, 0},
+    {"iso-8859-1", "iso-8859", 0.0, 0},
+    {"iso-8859-1", "iso-8859-12", 0.0, 0},
+    {"iso-8859-1", "koi-8-r", 0.0, 0},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7", 0.7, 3},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7", 0.7, 3},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.8, euc-jp;q=0.7", 0.8, 3},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp;q=0.7, euc-jp;q=0.8", 0.8, 4},
+    {"euc-jp", "euc-jp;q=0.9, shift_jis, iso-2022-jp, euc-jp;q=0.7, euc-jp;q=0.8", 0.9, 1},
+    {"EUC-JP", "euc-jp;q=0.9, shift_jis, iso-2022-jp, euc-jp, euc-jp;q=0.8", 1.0, 4},
+    {"euc-jp", "euc-jp;q=0.9, shift_jis, iso-2022-jp, EUC-JP, euc-jp;q=0.8", 1.0, 4},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar", 0.0, 0},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *", 1.0, 4},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *;q=0.543", 0.543, 4},
+    {"euc-jp", "shift_jis, iso-2022-jp, euc-jp-foobar, *;q=0.0", 0.0, 4},
+    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.0, euc-jp-foobar, *;q=0.0", 0.0, 3},
+    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.0, euc-jp-foobar, *;q=0.5", 0.5, 5},
+    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.5, euc-jp-foobar, *;q=0.0", 0.5, 3},
+    {"euc-jp", "shift_jis, iso-2022-jp, *;q=0.5, euc-jp-foobar, *, *;q=0.0", 1.0, 5},
+    {"euc-jp", "shift_jis, euc-jp;hi-there;q=0.5, iso-2022-jp", 0.5, 2},
+    {"euc-jp", "shift_jis, euc-jp;hi-there;q= 0.5, iso-2022-jp", 0.5, 2},
+    {"euc-jp", "shift_jis, euc-jp;hi-there;q = 0.5, iso-2022-jp", 0.5, 2},
+    {"euc-jp", "shift_jis, euc-jp;hi-there ; q = 0.5, iso-2022-jp", 0.5, 2},
+    {"euc-jp", "shift_jis, euc-jp;hi-there ;; q = 0.5, iso-2022-jp", 0.5, 2},
+    {"euc-jp", "shift_jis, euc-jp;hi-there ;; Q = 0.5, iso-2022-jp", 0.5, 2},
+    {NULL, NULL, 0.0, 0},
+  };
 
   int i, I;
   float Q;
@@ -1838,16 +1927,29 @@ HdrTest::test_comma_vals()
       int offset;
       int len;
     } pieces[4];
-  } tests[] = {{",", 2, {{0, 0}, {1, 0}, {-1, 0}, {-1, 0}}},        {"", 1, {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}}},
-               {" ", 1, {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}}},       {", ", 2, {{0, 0}, {1, 0}, {-1, 0}, {-1, 0}}},
-               {",,", 3, {{0, 0}, {1, 0}, {2, 0}, {-1, 0}}},        {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}, {-1, 0}}},
-               {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}, {-1, 0}}},      {"a, ", 2, {{0, 1}, {2, 0}, {-1, 0}, {-1, 0}}},
-               {" a, ", 2, {{1, 1}, {3, 0}, {-1, 0}, {-1, 0}}},     {" ,a", 2, {{0, 0}, {2, 1}, {-1, 0}, {-1, 0}}},
-               {" , a", 2, {{0, 0}, {3, 1}, {-1, 0}, {-1, 0}}},     {"a,a", 2, {{0, 1}, {2, 1}, {-1, 0}, {-1, 0}}},
-               {"foo", 1, {{0, 3}, {-1, 0}, {-1, 0}, {-1, 0}}},     {"foo,", 2, {{0, 3}, {4, 0}, {-1, 0}, {-1, 0}}},
-               {"foo, ", 2, {{0, 3}, {4, 0}, {-1, 0}, {-1, 0}}},    {"foo, bar", 2, {{0, 3}, {5, 3}, {-1, 0}, {-1, 0}}},
-               {"foo, bar,", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}}, {"foo, bar, ", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}},
-               {",foo,bar,", 4, {{0, 0}, {1, 3}, {5, 3}, {9, 0}}}};
+  } tests[] = {
+    {",", 2, {{0, 0}, {1, 0}, {-1, 0}, {-1, 0}}},
+    {"", 1, {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}}},
+    {" ", 1, {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}}},
+    {", ", 2, {{0, 0}, {1, 0}, {-1, 0}, {-1, 0}}},
+    {",,", 3, {{0, 0}, {1, 0}, {2, 0}, {-1, 0}}},
+    {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}, {-1, 0}}},
+    {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}, {-1, 0}}},
+    {"a, ", 2, {{0, 1}, {2, 0}, {-1, 0}, {-1, 0}}},
+    {" a, ", 2, {{1, 1}, {3, 0}, {-1, 0}, {-1, 0}}},
+    {" ,a", 2, {{0, 0}, {2, 1}, {-1, 0}, {-1, 0}}},
+    {" , a", 2, {{0, 0}, {3, 1}, {-1, 0}, {-1, 0}}},
+    {"a,a", 2, {{0, 1}, {2, 1}, {-1, 0}, {-1, 0}}},
+    {"foo", 1, {{0, 3}, {-1, 0}, {-1, 0}, {-1, 0}}},
+    {"foo,", 2, {{0, 3}, {4, 0}, {-1, 0}, {-1, 0}}},
+    {"foo, ", 2, {{0, 3}, {4, 0}, {-1, 0}, {-1, 0}}},
+    {"foo, bar", 2, {{0, 3}, {5, 3}, {-1, 0}, {-1, 0}}},
+    {"foo, bar,", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}},
+    {"foo, bar, ", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}},
+    {
+      ",foo,bar,", 4, {{0, 0}, {1, 3}, {5, 3}, {9, 0}},
+    },
+  };
 
   bri_box("test_comma_vals");
 
@@ -2025,42 +2127,44 @@ HdrTest::test_parse_comma_list()
       int offset;
       int len;
     } pieces[3];
-  } tests[] = {{"", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
-               {",", 2, {{0, 0}, {1, 0}, {-1, 0}}},
-               {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}}},
-               {", ", 2, {{0, 0}, {1, 0}, {-1, 0}}},
-               {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}}},
-               {"abc,", 2, {{0, 3}, {4, 0}, {-1, 0}}},
-               {"abc, ", 2, {{0, 3}, {4, 0}, {-1, 0}}},
-               {"", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
-               {" ", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
-               {"  ", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
-               {"a", 1, {{0, 1}, {-1, 0}, {-1, 0}}},
-               {" a", 1, {{1, 1}, {-1, 0}, {-1, 0}}},
-               {"  a  ", 1, {{2, 1}, {-1, 0}, {-1, 0}}},
-               {"abc,defg", 2, {{0, 3}, {4, 4}, {-1, 0}}},
-               {" abc,defg", 2, {{1, 3}, {5, 4}, {-1, 0}}},
-               {" abc, defg", 2, {{1, 3}, {6, 4}, {-1, 0}}},
-               {" abc , defg", 2, {{1, 3}, {7, 4}, {-1, 0}}},
-               {" abc , defg ", 2, {{1, 3}, {7, 4}, {-1, 0}}},
-               {" abc , defg, ", 3, {{1, 3}, {7, 4}, {12, 0}}},
-               {" abc , defg ,", 3, {{1, 3}, {7, 4}, {13, 0}}},
-               {", abc , defg ", 3, {{0, 0}, {2, 3}, {8, 4}}},
-               {" ,abc , defg ", 3, {{0, 0}, {2, 3}, {8, 4}}},
-               {"a,b", 2, {{0, 1}, {2, 1}, {-1, 0}}},
-               {"a,,b", 3, {{0, 1}, {2, 0}, {3, 1}}},
-               {"a, ,b", 3, {{0, 1}, {2, 0}, {4, 1}}},
-               {"a ,,b", 3, {{0, 1}, {3, 0}, {4, 1}}},
-               {",", 2, {{0, 0}, {1, 0}, {-1, 0}}},
-               {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}}},
-               {", ", 2, {{0, 0}, {1, 0}, {-1, 0}}},
-               {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}}},
-               {"a,b,", 3, {{0, 1}, {2, 1}, {4, 0}}},
-               {"a,b, ", 3, {{0, 1}, {2, 1}, {4, 0}}},
-               {"a,b,  ", 3, {{0, 1}, {2, 1}, {4, 0}}},
-               {"a,b,  c", 3, {{0, 1}, {2, 1}, {6, 1}}},
-               {"a,b,  c ", 3, {{0, 1}, {2, 1}, {6, 1}}},
-               {"a,\"b,c\",d", 3, {{0, 1}, {3, 3}, {8, 1}}}};
+  } tests[] = {
+    {"", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
+    {",", 2, {{0, 0}, {1, 0}, {-1, 0}}},
+    {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}}},
+    {", ", 2, {{0, 0}, {1, 0}, {-1, 0}}},
+    {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}}},
+    {"abc,", 2, {{0, 3}, {4, 0}, {-1, 0}}},
+    {"abc, ", 2, {{0, 3}, {4, 0}, {-1, 0}}},
+    {"", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
+    {" ", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
+    {"  ", 1, {{0, 0}, {-1, 0}, {-1, 0}}},
+    {"a", 1, {{0, 1}, {-1, 0}, {-1, 0}}},
+    {" a", 1, {{1, 1}, {-1, 0}, {-1, 0}}},
+    {"  a  ", 1, {{2, 1}, {-1, 0}, {-1, 0}}},
+    {"abc,defg", 2, {{0, 3}, {4, 4}, {-1, 0}}},
+    {" abc,defg", 2, {{1, 3}, {5, 4}, {-1, 0}}},
+    {" abc, defg", 2, {{1, 3}, {6, 4}, {-1, 0}}},
+    {" abc , defg", 2, {{1, 3}, {7, 4}, {-1, 0}}},
+    {" abc , defg ", 2, {{1, 3}, {7, 4}, {-1, 0}}},
+    {" abc , defg, ", 3, {{1, 3}, {7, 4}, {12, 0}}},
+    {" abc , defg ,", 3, {{1, 3}, {7, 4}, {13, 0}}},
+    {", abc , defg ", 3, {{0, 0}, {2, 3}, {8, 4}}},
+    {" ,abc , defg ", 3, {{0, 0}, {2, 3}, {8, 4}}},
+    {"a,b", 2, {{0, 1}, {2, 1}, {-1, 0}}},
+    {"a,,b", 3, {{0, 1}, {2, 0}, {3, 1}}},
+    {"a, ,b", 3, {{0, 1}, {2, 0}, {4, 1}}},
+    {"a ,,b", 3, {{0, 1}, {3, 0}, {4, 1}}},
+    {",", 2, {{0, 0}, {1, 0}, {-1, 0}}},
+    {" ,", 2, {{0, 0}, {2, 0}, {-1, 0}}},
+    {", ", 2, {{0, 0}, {1, 0}, {-1, 0}}},
+    {" , ", 2, {{0, 0}, {2, 0}, {-1, 0}}},
+    {"a,b,", 3, {{0, 1}, {2, 1}, {4, 0}}},
+    {"a,b, ", 3, {{0, 1}, {2, 1}, {4, 0}}},
+    {"a,b,  ", 3, {{0, 1}, {2, 1}, {4, 0}}},
+    {"a,b,  c", 3, {{0, 1}, {2, 1}, {6, 1}}},
+    {"a,b,  c ", 3, {{0, 1}, {2, 1}, {6, 1}}},
+    {"a,\"b,c\",d", 3, {{0, 1}, {3, 3}, {8, 1}}},
+  };
 
   bri_box("test_parse_comma_list");
 
@@ -2079,8 +2183,9 @@ HdrTest::test_parse_comma_list()
 
     for (j = 0; j < tests[i].count; j++) {
       Str *cell = list.get_idx(j);
-      if (cell != NULL)
+      if (cell != NULL) {
         offset = cell->str - tests[i].value;
+      }
 
       if (tests[i].pieces[j].offset == -1) // should not have a piece
       {
@@ -2117,13 +2222,15 @@ HdrTest::bri_box(const char *s)
 
   len = (int)strlen(s);
   printf("\n+-");
-  for (i = 0; i < len; i++)
+  for (i = 0; i < len; i++) {
     putchar('-');
+  }
   printf("-+\n");
   printf("| %s |\n", s);
   printf("+-");
-  for (i = 0; i < len; i++)
+  for (i = 0; i < len; i++) {
     putchar('-');
+  }
   printf("-+\n\n");
 }
 

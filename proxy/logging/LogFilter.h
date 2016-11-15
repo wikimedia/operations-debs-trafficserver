@@ -26,6 +26,7 @@
 
 #include "ts/ink_platform.h"
 #include "ts/IpMap.h"
+#include "ts/Ptr.h"
 #include "LogAccess.h"
 #include "LogField.h"
 #include "LogFormat.h"
@@ -38,7 +39,7 @@
   function which, given a LogAccess object, returns true if
   the log entry is to be tossed out.
   -------------------------------------------------------------------------*/
-class LogFilter
+class LogFilter : public RefCountObj
 {
 public:
   enum Type {
@@ -54,6 +55,7 @@ public:
     WIPE_FIELD_VALUE,
     N_ACTIONS,
   };
+
   static const char *ACTION_NAME[];
 
   // all operators "positive" (i.e., there is no NOMATCH operator anymore)
@@ -67,6 +69,7 @@ public:
     CASE_INSENSITIVE_CONTAIN,
     N_OPERATORS,
   };
+
   static const char *OPERATOR_NAME[];
 
   LogFilter(const char *name, LogField *field, Action action, Operator oper);
@@ -77,27 +80,24 @@ public:
   {
     return m_name;
   }
+
   Type
   type() const
   {
     return m_type;
   }
+
   size_t
   get_num_values() const
   {
     return m_num_values;
-  };
+  }
 
   virtual bool toss_this_entry(LogAccess *lad) = 0;
   virtual bool wipe_this_entry(LogAccess *lad) = 0;
   virtual void display(FILE *fd = stdout) = 0;
-  virtual void display_as_XML(FILE *fd = stdout) = 0;
 
-  void
-  reverse()
-  {
-    m_action = (m_action == REJECT ? ACCEPT : REJECT);
-  }
+  static LogFilter *parse(const char *name, Action action, const char *condition);
 
 protected:
   char *m_name;
@@ -134,7 +134,6 @@ public:
   bool toss_this_entry(LogAccess *lad);
   bool wipe_this_entry(LogAccess *lad);
   void display(FILE *fd = stdout);
-  void display_as_XML(FILE *fd = stdout);
 
 private:
   char **m_value; // the array of values
@@ -157,7 +156,7 @@ private:
     // this reverse behavior is to conform to the behavior of strcmp
     // which returns 0 if strings match
     return (strstr(s0, s1) == NULL ? 1 : 0);
-  };
+  }
 
   enum LengthCondition {
     DATA_LENGTH_EQUAL = 0,
@@ -193,7 +192,6 @@ public:
   bool toss_this_entry(LogAccess *lad);
   bool wipe_this_entry(LogAccess *lad);
   void display(FILE *fd = stdout);
-  void display_as_XML(FILE *fd = stdout);
 
 private:
   int64_t *m_value; // the array of values
@@ -225,7 +223,6 @@ public:
   virtual bool toss_this_entry(LogAccess *lad);
   virtual bool wipe_this_entry(LogAccess *lad);
   void display(FILE *fd = stdout);
-  void display_as_XML(FILE *fd = stdout);
 
 private:
   IpMap m_map;
@@ -267,26 +264,27 @@ public:
   {
     return m_filter_list.head;
   }
+
   LogFilter *
   next(LogFilter *here) const
   {
     return (here->link).next;
   }
 
-  unsigned count();
+  unsigned count() const;
   void display(FILE *fd = stdout);
-  void display_as_XML(FILE *fd = stdout);
 
   bool
   does_conjunction() const
   {
     return m_does_conjunction;
-  };
+  }
+
   void
   set_conjunction(bool c)
   {
     m_does_conjunction = c;
-  };
+  }
 
 private:
   Queue<LogFilter> m_filter_list;

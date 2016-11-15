@@ -43,7 +43,8 @@ class ProxyClientSession : public VConnection
 public:
   ProxyClientSession();
 
-  virtual void destroy();
+  virtual void destroy() = 0;
+  virtual void free();
   virtual void start() = 0;
 
   virtual void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) = 0;
@@ -175,6 +176,36 @@ public:
   cancel_inactivity_timeout()
   {
   }
+  virtual const char *get_protocol_string() const = 0;
+
+  bool
+  is_client_closed() const
+  {
+    return get_netvc() == NULL;
+  }
+
+  virtual int
+  populate_protocol(char const **result, int size) const
+  {
+    int retval = 0;
+    if (get_netvc()) {
+      retval += this->get_netvc()->populate_protocol(result, size);
+    }
+    return retval;
+  }
+
+  virtual const char *
+  protocol_contains(const char *tag_prefix) const
+  {
+    const char *retval = NULL;
+    if (get_netvc()) {
+      retval = this->get_netvc()->protocol_contains(tag_prefix);
+    }
+    return retval;
+  }
+
+  void set_session_active();
+  void clear_session_active();
 
 protected:
   // XXX Consider using a bitwise flags variable for the following flags, so that we can make the best
@@ -185,6 +216,9 @@ protected:
   bool hooks_on;
 
   int64_t con_id;
+
+  Event *schedule_event;
+  bool in_destroy;
 
 private:
   APIHookScope api_scope;
@@ -197,6 +231,12 @@ private:
   ProxyClientSession &operator=(const ProxyClientSession &); // noncopyable
 
   void handle_api_return(int event);
+
+  // for DI. An active connection is one that a request has
+  // been successfully parsed (PARSE_DONE) and it remains to
+  // be active until the transaction goes through or the client
+  // aborts.
+  bool m_active;
 
   friend void TSHttpSsnDebugSet(TSHttpSsn, int);
 };

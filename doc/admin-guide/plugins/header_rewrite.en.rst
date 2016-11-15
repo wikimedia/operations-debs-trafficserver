@@ -218,11 +218,12 @@ as documented in `URL Parts`_ below.
 GEO
 ~~~
 ::
+
     cond %{GEO:<part>} <operand>
 
 Perform a GeoIP lookup of the client-IP, using a 3rd party library and
 DB. Currently only the MaxMind GeoIP API is supported. The default is to
-do a Country lookup, but the following qualifiers are supported:
+do a Country lookup, but the following qualifiers are supported::
 
     %{GEO:COUNTRY}      The country code (e.g. "US")
     %{GEO:COUNTRY-ISO}  The country ISO code (e.g. 225)
@@ -259,6 +260,27 @@ separated string of the values from every occurrence of the header. Refer to
 
 If you wish to use a client request header, regardless of hook context, you may
 consider using the `CLIENT-HEADER`_ condition instead.
+
+ID
+~~
+::
+
+   cond %{ID:REQUEST} >100
+
+This condition provides access to three identifier values that ATS uses
+internally for things like logging and debugging. Since these are IDs, they
+are mostly useful as a value (operand) to other operators. The three types of
+IDs are
+
+    %{ID:REQUEST}    A unique, sequence number for the transaction
+    %{ID:PROCESS}    A UUID string, generated every time ATS restarts
+    %{ID:UNIQUE}     The combination of the previous two IDs
+
+Now, even though these are conditionals, their primary use are as value
+arguments to another operator. For example::
+
+    set-header ATS-Req-UUID %{ID:UNIQUE}
+
 
 INCOMING-PORT
 ~~~~~~~~~~~~~
@@ -315,7 +337,7 @@ PATH
 
     cond %{PATH} <operand>
 
-The path component of the transaction. This includes the leading ``/`` that
+The path component of the transaction. This does NOT include the leading ``/`` that
 immediately follows the hostname and terminates prior to the ``?`` signifying
 the beginning of query parameters (or the end of the URL, whichever occurs
 first).
@@ -457,6 +479,15 @@ occurs first).
 
 The following operators are available:
 
+add-cookie
+~~~~~~~~~~
+::
+
+  add-cookie <name> <value>
+
+Adds a new ``<name>`` cookie line with the contents ``<value>``. Note that this
+operator will do nothing if a cookie pair with ``<name>`` already exists.
+
 add-header
 ~~~~~~~~~~
 ::
@@ -472,9 +503,6 @@ only be specified once you may prefer to use `set-header`_ instead.
 
 The header's ``<value>`` may be specified as a literal string, or it may take
 advantage of `Variable Expansion`_ to calculate a dynamic value for the header.
-In contrast, `set-header`_ does not support variable expansion for the header
-value. If you wish to use variable expansion and avoid duplicate headers, you
-may consider using an `rm-header`_ operator followed by `add-header`_.
 
 counter
 ~~~~~~~
@@ -510,6 +538,14 @@ rm-header
   rm-header <name>
 
 Removes the header ``<name>``.
+
+rm-cookie
+~~~~~~~~~
+::
+
+  rm-cookie <name>
+
+Removes the cookie ``<name>``.
 
 set-config
 ~~~~~~~~~~
@@ -568,8 +604,8 @@ set-header
 Replaces the value of header ``<name>`` with ``<value>``, creating the header
 if necessary.
 
-Note that, unlike `add-header`_, this operator does not currently support
-variable expansion. Values may only be specified according to `Header Values`_.
+The header's ``<value>`` may be specified according to `Header Value`_ or take
+advantage of `Variable Expansion`_ to calculate a dynamic value for the header.
 
 set-redirect
 ~~~~~~~~~~~~
@@ -625,6 +661,15 @@ When invoked, and when ``<value>`` is any of ``1``, ``true``, or ``TRUE``, this
 operator causes |TS| to abort further request remapping. Any other value and
 the operator will effectively be a no-op.
 
+set-cookie
+~~~~~~~~~~
+::
+
+  set-cookie <name> <value>
+
+Replaces the value of cookie ``<name>`` with ``<value>``, creating the cookie
+if necessary.
+
 Operator Flags
 --------------
 
@@ -646,8 +691,8 @@ QSA    Append the results of the rule to the query string.
 Variable Expansion
 ------------------
 
-Only limited variable expansion is supported in `add-header`_. Supported
-substitutions are currently:
+Only limited variable expansion is supported in `add-header`_ and `set-header`_
+. Supported substitutions are currently:
 
 ============ ==================================================================
 Variable     Description
@@ -739,15 +784,6 @@ them take any operands::
 Because hook conditions must be the first condition in a ruleset, the use of
 one forces the beginning of a new ruleset.
 
-READ_RESPONSE_HDR_HOOK
-~~~~~~~~~~~~~~~~~~~~~~
-
-Rulesets evaluated within this context will process only once the origin server
-response (or cached response) has been read, but prior to |TS| sending that
-response to the client.
-
-This is the default hook condition for all globally-configured rulesets.
-
 READ_REQUEST_HDR_HOOK
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -757,6 +793,8 @@ Conditions and operators which adapt to matching or manipulating request or
 response entities (e.g. headers) depending on their context will all operate on
 the request variants when using this hook, as there is no response data yet.
 
+This hook is not available to remap rules.
+
 READ_REQUEST_PRE_REMAP_HOOK
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -765,25 +803,34 @@ evaluation as soon as the request has been read, but prior to the remapping.
 For all context-adapting conditions and operators, matching will occur against
 the request, as there is no response data available yet.
 
+This hook is not available to remap rules.
+
 REMAP_PSEUDO_HOOK
 ~~~~~~~~~~~~~~~~~
 
-This is the default hook condition for all rulesets configured via remapping
-rules in :file:`remap.config`. Functionally equivalent to
-`READ_RESPONSE_HDR_HOOK`_ in that rulesets will evaluate after responses from
-origin servers have been received (or the object has been retrieved from
-cache), but prior to sending the client response.
+Similar to `READ_REQUEST_HDR_HOOK`_, but only available when used in a remap
+context, evaluates prior to `SEND_REQUEST_HDR_HOOK`_ and allows the rewrite to
+evaluate as part of the remapping.
 
-What sets this hook context apart is that in configuration files shared by both
-the global :file:`plugin.config` and individual remapping entries in
-:file:`remap.config`, this hook condition will force the subsequent ruleset(s)
-to be valid only for remapped transactions.
+Because this hook is valid only within a remapping context, for configuration
+files shared by both the global :file:`plugin.config` and individual remapping
+entries in :file:`remap.config`, this hook condition will force the subsequent
+ruleset(s) to be valid only for remapped transactions.
 
 SEND_REQUEST_HDR_HOOK
 ~~~~~~~~~~~~~~~~~~~~~
 
 Forces evaluation of the ruleset just prior to contacting origin servers (or
 fetching the object from cache), but after any remapping may have occurred.
+
+READ_RESPONSE_HDR_HOOK
+~~~~~~~~~~~~~~~~~~~~~~
+
+Rulesets evaluated within this context will process only once the origin server
+response (or cached response) has been read, but prior to |TS| sending that
+response to the client.
+
+This is the default hook condition for all globally-configured rulesets.
 
 SEND_RESPONSE_HDR_HOOK
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -979,3 +1026,26 @@ two different file paths.::
     cond %{SEND_RESPONSE_HDR_HOOK}
     cond %{PATH} /examplepath2/examplepath3/.*/
     add-header Cache-Control "no-cache" [L]
+
+Redirect when the Origin Server Times Out
+-----------------------------------------
+
+This rule sends a 302 redirect to the client with the requested URI's Path and
+Query string when the Origin server times out or the connection is refused::
+
+    cond %{SEND_RESPONSE_HDR_HOOK}
+    cond %{STATUS} =502 [OR]
+    cond %{STATUS} =504
+    set-redirect 302 http://different_origin.example.com/%{PATH} [QSA]
+
+Check for existence of a header
+-------------------------------
+
+This rule will modify the ``Cache-Control`` header, but only if it is not
+already set to some value, and the status code is a 2xx::
+
+    cond %{READ_RESPONSE_HDR_HOOK} [AND]
+    cond %{HEADER:Cache-Control} ="" [AND]
+    cond %{STATUS} >199 [AND]
+    cond %{STATUS} <300
+    set-header Cache-Control "max-age=600, public"

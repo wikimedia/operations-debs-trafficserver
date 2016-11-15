@@ -68,7 +68,7 @@ Defining Log Objects
 ====================
 
 To perform any logging at all on your |TS| nodes, you must have at least one
-:ref:`LogObject` defined in :file:`logs_xml.config`. These definitions configure
+log defined in :file:`logging.config`. These definitions configure
 what logs will be created, the format they will use (covered in the sections
 :ref:`admin-monitoring-logging-format-standard` and
 :ref:`admin-monitoring-logging-format-custom`), any filters which may be
@@ -77,11 +77,10 @@ applied to events before logging them, and when or how the logs will be rolled.
 Log Filters
 ===========
 
-:ref:`LogFilter` objects, configured in :file:`logs_xml.config` allow you to
-create filters, which may be applied to :ref:`LogObject` definitions, limiting
-the types of entries which will be included in the log output. This may be
-useful if your |TS| nodes receive many events which you have no need to log or
-analyze.
+Filters, configured in :file:`logging.config` allow you to create filters,
+which may be applied to log definitions, limiting the types of entries which
+will be included in the log output. This may be useful if your |TS| nodes
+receive many events which you have no need to log or analyze.
 
 .. _admin-monitoring-logging-format-standard:
 
@@ -94,9 +93,7 @@ variety of off-the-shelf log-analysis packages. You should use one of the
 standard event log formats unless you need information that these formats do
 not provide.
 
-These formats may be used by enabling the :ts:cv:`proxy.config.log.custom_logs_enabled`
-setting in :file:`records.config` and adding appropriate entries to
-:file:`logs_xml.config`.
+These formats may be used by editing :file:`logging.config`.
 
 .. _admin-logging-format-squid:
 
@@ -191,9 +188,9 @@ Field  Symbol    Description
 8      sssc      The origin server response status code.
 9      sshl      The server response transfer length; the body length in the
                  origin server response to |TS|, in bytes.
-10     cqbl      The client request transfer length; the body length in the
+10     cqcl      The client request transfer length; the body length in the
                  client request to |TS|, in bytes.
-11     pqbl      The proxy request transfer length; the body length in the |TS|
+11     pqcl      The proxy request transfer length; the body length in the |TS|
                  request to the origin server.
 12     cqhl      The client request header length; the header length in the
                  client request to |TS|.
@@ -249,39 +246,43 @@ Custom Formats
 Defining a Format
 -----------------
 
-Custom logging formats in |TS| are defined by editing :file:`logs_xml.config`
-and adding new :ref:`LogFormat` entries for each format you wish to define. The
-syntax is fairly simple: every :ref:`LogFormat` element should contain at least
-two child elements (additional elements are used for features such as log
-summarization and are covered elsewhere):
+Custom logging formats in |TS| are defined by editing :file:`logging.config`
+and adding new format entries for each format you wish to define. The syntax is
+fairly simple: every format must contain a ``Format`` attribute, which is the
+string defining the format of each line in the log, and may also contain an
+optional ``Interval`` attribute defining the log aggregation interval for
+any logs which use the format (see :ref:`admin-monitoring-logging-summary-logs`
+for more information).
 
--  A ``<Name>`` which contains an arbitrary string (using only the allowed
-   characters: ``[a-z0-9]``) naming your custom format.
+The return value from the ``format`` function is the log format object which
+may then be supplied to the appropriate ``log.*`` functions that define your
+logging destinations.
 
--  A ``<Format>`` which defines the fields that will populate each entry in the
-   custom logs, as well as the order in which they appear.
+A very simple exampe, which contains only the timestamp of when the event began
+and the canonical URL of the request, would look like:
 
-A very simple example format, which contains only the timestamp of when the
-event began and the canonical URL of the request, and named *myformat* would
-be written as follows::
+.. code:: lua
 
-   <LogFormat>
-     <Name = "myformat"/>
-     <Format = "%<cqtq> %<cauc>"/>
-   </LogFormat>
+   myformat = format {
+     Format = "%<cqtq> %<cauc>"
+   }
 
 You may include as many custom field codes as you wish. The full list of codes
 available can be found in :ref:`custom-logging-fields`. You may also include
 any literal characters in your format. For example, if we wished to separate
 the timestamp and canonical URL in our customer format above with a slash
 instead of a space, or even a slash surrounded by spaces, we could do so by
-just adding the desired characters to the format string::
+just adding the desired characters to the format string:
 
-    %<cqtq> / %<cauc>
+.. code:: lua
+
+   myformat = format {
+     Format = "%<cqtq> / %<cauc>"
+   }
 
 You may define as many custom formats as you wish. To apply changes to custom
-formats, you will need to run the command :option:`traffic_line -x` after
-saving your changes to :file:`logs_xml.config`.
+formats, you will need to run the command :option:`traffic_ctl config reload`
+after saving your changes to :file:`logging.config`.
 
 .. _custom-logging-fields:
 
@@ -379,10 +380,10 @@ The following list describes |TS| custom logging fields.
 ``chp``
     The port number of the client's host machine.
 
-.. _cqbl:
+.. _cqcl:
 
-``cqbl``
-    The client request transfer length; the body length in the client
+``cqcl``
+    The client request content length; the body length in the client
     request to |TS| (in bytes).
 
 .. _cqhl:
@@ -390,6 +391,12 @@ The following list describes |TS| custom logging fields.
 ``cqhl``
     The client request header length; the header length in the client
     request to |TS|.
+
+.. _cqql:
+
+``cqql``
+    The total client request length; the header length and content length of
+    the client request to |TS|.
 
 .. _cqhm:
 
@@ -532,6 +539,18 @@ The following list describes |TS| custom logging fields.
     The client request unmapped URL host. This field records a URL's
     host before it is remapped (reverse proxy mode).
 
+.. crid:
+
+``crid``
+    This is the sequence number of this client request. This starts over at
+    ``0`` on every server restart.
+
+.. cruuid:
+``cruuid``
+    This is a UUID for the client request, uniquely identifying this
+    transaction. This is actually a concatenation of the ``puuid`` and the
+    ``crid``.
+
 .. _cluc:
 
 ``cluc``
@@ -561,14 +580,19 @@ The following list describes |TS| custom logging fields.
 .. _csscl:
 
 ``csscl``
-    The cached response length (in bytes) from origin server to Traffic
+    The cached body length (in bytes) from origin server to Traffic
     Server.
 
 .. _csshl:
 
 ``csshl``
-    The cached header length in the origin server response to Traffic
-    Server (in bytes).
+    The cached header length in the origin server response to |TS| (in bytes).
+
+.. _cssql:
+
+``cssql``
+    The total cached response length; the header length and content
+    length of a cached origin server response.
 
 .. _csshv:
 
@@ -584,7 +608,7 @@ The following list describes |TS| custom logging fields.
 .. _cwr:
 
 ``cwr``
-    The cache write result (``-``, ``WL_MISS``, ``INTR```, ``ERR`` or ``FIN``)
+    The cache write result (``-``, ``WL_MISS``, ``INTR``, ``ERR`` or ``FIN``)
 
 .. _cwtr:
 
@@ -614,6 +638,12 @@ The following list describes |TS| custom logging fields.
     The proxy finish status code; specifies whether the |TS|
     request to the origin server was successfully completed (``FIN``),
     interrupted (``INTR``) or timed out (``TIMEOUT``).
+
+.. puuid:
+
+``puuid``
+    A UUID unique for the currently running :program:`traffic_server`
+    process. This is generated on every server startup.
 
 .. _phn:
 
@@ -649,10 +679,10 @@ The following list describes |TS| custom logging fields.
    The plugin tag for the transaction. This is set for plugin driven
    transactions via :c:func:`TSHttpConnectWithPluginId`.
 
-.. _pqbl:
+.. _pqcl:
 
-``pqbl``
-    The proxy request transfer length; the body length in Traffic
+``pqcl``
+    The proxy request content length; the body length in Traffic
     Server's request to the origin server.
 
 .. _pqhl:
@@ -661,10 +691,22 @@ The following list describes |TS| custom logging fields.
     The proxy request header length; the header length in Traffic
     Server's request to the origin server.
 
+.. _pqql:
+
+``pqql``
+    The total proxy request length; the header length and content length
+    of Traffic Server's request to the origin server.
+
 .. _pqsi:
 
 ``pqsi``
     The proxy request server IP address (0 on cache hits and parent-ip
+    for requests to parent proxies).
+
+.. _pqsp:
+
+``pqsp``
+    The proxy request server port (0 on cache hits and parent port
     for requests to parent proxies).
 
 .. _pqsn:
@@ -733,12 +775,18 @@ The following list describes |TS| custom logging fields.
 .. _sscl:
 
 ``sscl``
-    The response length (in bytes) from origin server to |TS|.
+    The body length (in bytes) from origin server to |TS|.
 
 .. _sshl:
 
 ``sshl``
     The header length (in bytes) in the origin server response to |TS|.
+
+.. _ssql:
+
+``ssql``
+    The total server response length; the header length and content length
+    of the origin server response to |TS|.
 
 .. _sshv:
 
@@ -901,8 +949,8 @@ s1                `pssc`_
 c1                `pscl`_
 s2                `sssc`_
 c2                `sscl`_
-b1                `cqbl`_
-b2                `pqbl`_
+b1                `cqcl`_
+b2                `pqcl`_
 h1                `cqhl`_
 h2                `pshl`_
 h3                `pqhl`_
@@ -915,7 +963,7 @@ This is the equivalent XML configuration for the log above::
     <LogFormat>
       <Name = "extended"/>
       <Format = "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl>
-         %<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts>"/>
+         %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts>"/>
     </LogFormat>
 
 .. _admin-log-formats-netscape-extended2:
@@ -937,8 +985,8 @@ Netscape Extended-2 Field Symbols
 ``c1``              ``pscl``
 ``s2``              ``sssc``
 ``c2``              ``sscl``
-``b1``              ``cqbl``
-``b2``              ``pqbl``
+``b1``              ``cqcl``
+``b2``              ``pqcl``
 ``h1``              ``cqhl``
 ``h2``              ``pshl``
 ``h3``              ``pqhl``
@@ -955,7 +1003,7 @@ This is the equivalent XML configuration for the log above::
     <LogFormat>
       <Name = "extended2"/>
       <Format = "%<chi> - %<caun> [%<cqtn>] \"%<cqtx>\" %<pssc> %<pscl>
-                 %<sssc> %<sscl> %<cqbl> %<pqbl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>"/>
+                 %<sssc> %<sscl> %<cqcl> %<pqcl> %<cqhl> %<pshl> %<pqhl> %<sshl> %<tts> %<phr> %<cfsc> %<pfsc> %<crc>"/>
     </LogFormat>
 
 .. _log-field-slicing:

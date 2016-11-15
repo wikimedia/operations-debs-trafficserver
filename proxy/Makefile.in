@@ -32,6 +32,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 
 
 VPATH = @srcdir@
@@ -106,29 +122,22 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = traffic_server$(EXEEXT) traffic_logcat$(EXEEXT) \
-	traffic_logstats$(EXEEXT) traffic_sac$(EXEEXT)
-noinst_PROGRAMS = test_xml_parser$(EXEEXT)
-TESTS = tests/test_logstats_json tests/test_logstats_summary \
-	test_xml_parser$(EXEEXT)
+	traffic_logstats$(EXEEXT)
 @BUILD_TESTS_TRUE@am__append_1 = \
 @BUILD_TESTS_TRUE@  InkAPITest.cc  \
 @BUILD_TESTS_TRUE@  RegressionSM.h \
 @BUILD_TESTS_TRUE@  RegressionSM.cc
 
-@BUILD_STATIC_PROXY_TRUE@am__append_2 = -all-static
-@BUILD_LUAJIT_TRUE@am__append_3 = $(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
-@BUILD_LUAJIT_TRUE@am__append_4 = $(LUAJIT_LDFLAGS)
-@BUILD_TESTS_TRUE@am__append_5 = RegressionSM.cc
 subdir = proxy
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
-	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
 	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/ax_path_generic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
+	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
@@ -138,8 +147,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(noinst_HEADERS) \
@@ -150,80 +159,38 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 am__installdirs = "$(DESTDIR)$(bindir)"
-PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
-am_test_xml_parser_OBJECTS = test_xml_parser.$(OBJEXT)
-test_xml_parser_OBJECTS = $(am_test_xml_parser_OBJECTS)
-test_xml_parser_DEPENDENCIES = $(top_builddir)/mgmt/libmgmt_p.la \
-	$(top_builddir)/lib/records/librecords_p.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/lib/ts/libtsutil.la shared/libxml.a
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
+PROGRAMS = $(bin_PROGRAMS)
 am_traffic_logcat_OBJECTS = logcat.$(OBJEXT)
 traffic_logcat_OBJECTS = $(am_traffic_logcat_OBJECTS)
 traffic_logcat_DEPENDENCIES = logging/liblogging.a \
 	shared/libdiagsconfig.a shared/libUglyLogStubs.a \
-	shared/libxml.a $(top_builddir)/mgmt/libmgmt_p.la \
+	$(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/lib/ts/libtsutil.la
+	$(top_builddir)/lib/ts/libtsutil.la \
+	$(top_builddir)/lib/bindings/libbindings.la \
+	$(top_builddir)/lib/luajit/src/libluajit.a
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
 am_traffic_logstats_OBJECTS = logstats.$(OBJEXT)
 traffic_logstats_OBJECTS = $(am_traffic_logstats_OBJECTS)
 traffic_logstats_DEPENDENCIES = logging/liblogging.a \
 	shared/libdiagsconfig.a shared/libUglyLogStubs.a \
-	shared/libxml.a $(top_builddir)/mgmt/libmgmt_p.la \
-	$(top_builddir)/lib/records/librecords_p.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(top_builddir)/lib/ts/libtsutil.la
-am__traffic_sac_SOURCES_DIST = sac.cc ICP.cc ICPConfig.cc \
-	ICPProcessor.cc ICPStats.cc IPAllow.cc ParentConsistentHash.cc \
-	ParentRoundRobin.cc ParentSelection.cc ControlBase.cc \
-	ControlMatcher.cc CacheControl.cc ReverseProxy.cc EventName.cc \
-	StatPages.cc PluginVC.cc AbstractBuffer.cc Transform.cc \
-	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
-	ProxyClientSession.cc ProxyClientSession.h \
-	ProxyClientTransaction.cc ProxyClientTransaction.h Plugin.cc \
-	InkAPI.cc FetchSM.cc InkIOCoreAPI.cc RegressionSM.cc
-@BUILD_TESTS_TRUE@am__objects_1 = RegressionSM.$(OBJEXT)
-am_traffic_sac_OBJECTS = sac.$(OBJEXT) ICP.$(OBJEXT) \
-	ICPConfig.$(OBJEXT) ICPProcessor.$(OBJEXT) ICPStats.$(OBJEXT) \
-	IPAllow.$(OBJEXT) ParentConsistentHash.$(OBJEXT) \
-	ParentRoundRobin.$(OBJEXT) ParentSelection.$(OBJEXT) \
-	ControlBase.$(OBJEXT) ControlMatcher.$(OBJEXT) \
-	CacheControl.$(OBJEXT) ReverseProxy.$(OBJEXT) \
-	EventName.$(OBJEXT) StatPages.$(OBJEXT) PluginVC.$(OBJEXT) \
-	AbstractBuffer.$(OBJEXT) Transform.$(OBJEXT) \
-	ProtocolProbeSessionAccept.$(OBJEXT) \
-	ProxyClientSession.$(OBJEXT) ProxyClientTransaction.$(OBJEXT) \
-	Plugin.$(OBJEXT) InkAPI.$(OBJEXT) FetchSM.$(OBJEXT) \
-	InkIOCoreAPI.$(OBJEXT) $(am__objects_1)
-traffic_sac_OBJECTS = $(am_traffic_sac_OBJECTS)
-traffic_sac_DEPENDENCIES = http/libhttp.a http2/libhttp2.a \
-	spdy/libspdy.a shared/libdiagsconfig.a \
-	http/remap/libhttp_remap.a congest/libCongestionControl.a \
-	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
-	shared/liberror.a shared/libxml.a \
 	$(top_builddir)/mgmt/libmgmt_p.la \
-	$(top_builddir)/iocore/cluster/libinkcluster.a \
-	$(top_builddir)/iocore/dns/libinkdns.a \
-	$(top_builddir)/iocore/hostdb/libinkhostdb.a \
-	$(top_builddir)/iocore/cluster/libinkcluster.a \
-	$(top_builddir)/iocore/cache/libinkcache.a \
-	$(top_builddir)/iocore/utils/libinkutils.a \
-	$(top_builddir)/iocore/aio/libinkaio.a \
-	$(top_builddir)/iocore/net/libinknet.a \
-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/records/librecords_p.a \
-	$(top_builddir)/lib/ts/libtsutil.la
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/lib/ts/libtsutil.la \
+	$(top_builddir)/lib/bindings/libbindings.la \
+	$(top_builddir)/lib/luajit/src/libluajit.a
 am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
 	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
 	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-	Crash.cc EventName.cc FetchSM.cc HttpTransStats.h ICP.cc ICP.h \
-	ICPConfig.cc ICPProcessor.cc ICPProcessor.h ICPStats.cc \
-	ICPevents.h ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc \
-	InkAPIInternal.h InkIOCoreAPI.cc Main.cc Main.h Milestones.h \
+	Crash.cc EventName.cc FetchSM.cc ICP.cc ICP.h ICPConfig.cc \
+	ICPProcessor.cc ICPProcessor.h ICPStats.cc ICPevents.h \
+	ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc InkAPIInternal.h \
+	InkIOCoreAPI.cc Main.cc Main.h Milestones.h \
 	ParentConsistentHash.cc ParentConsistentHash.h \
 	ParentRoundRobin.cc ParentRoundRobin.h ParentSelection.cc \
 	ParentSelection.h Plugin.cc Plugin.h PluginVC.cc PluginVC.h \
@@ -233,7 +200,7 @@ am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
 	ReverseProxy.cc ReverseProxy.h SocksProxy.cc StatPages.cc \
 	StatPages.h Transform.cc Transform.h TransformInternal.h \
 	InkAPITest.cc RegressionSM.h RegressionSM.cc
-@BUILD_TESTS_TRUE@am__objects_2 = InkAPITest.$(OBJEXT) \
+@BUILD_TESTS_TRUE@am__objects_1 = InkAPITest.$(OBJEXT) \
 @BUILD_TESTS_TRUE@	RegressionSM.$(OBJEXT)
 am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
 	CacheControl.$(OBJEXT) ControlBase.$(OBJEXT) \
@@ -247,14 +214,12 @@ am_traffic_server_OBJECTS = AbstractBuffer.$(OBJEXT) \
 	ProtocolProbeSessionAccept.$(OBJEXT) \
 	ProxyClientSession.$(OBJEXT) ProxyClientTransaction.$(OBJEXT) \
 	ReverseProxy.$(OBJEXT) SocksProxy.$(OBJEXT) \
-	StatPages.$(OBJEXT) Transform.$(OBJEXT) $(am__objects_2)
+	StatPages.$(OBJEXT) Transform.$(OBJEXT) $(am__objects_1)
 traffic_server_OBJECTS = $(am_traffic_server_OBJECTS)
 traffic_server_DEPENDENCIES = http/libhttp.a http2/libhttp2.a \
-	spdy/libspdy.a http/remap/libhttp_remap.a \
-	congest/libCongestionControl.a logging/liblogging.a \
-	logging/liblogcollation.a hdrs/libhdrs.a shared/liberror.a \
-	shared/libdiagsconfig.a shared/libxml.a \
-	$(top_builddir)/mgmt/libmgmt_p.la \
+	http/remap/libhttp_remap.a congest/libCongestionControl.a \
+	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
+	shared/libdiagsconfig.a $(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/iocore/utils/libinkutils.a \
 	$(top_builddir)/iocore/cluster/libinkcluster.a \
 	$(top_builddir)/iocore/dns/libinkdns.a \
@@ -264,11 +229,13 @@ traffic_server_DEPENDENCIES = http/libhttp.a http2/libhttp2.a \
 	$(top_builddir)/iocore/cache/libinkcache.a \
 	$(top_builddir)/iocore/aio/libinkaio.a \
 	$(top_builddir)/lib/ts/libtsutil.la \
+	$(top_builddir)/lib/bindings/libbindings.la \
+	$(top_builddir)/lib/luajit/src/libluajit.a \
 	$(top_builddir)/iocore/net/libinknet.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
-	$(am__append_3)
+	$(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
 traffic_server_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_server_LDFLAGS) \
@@ -286,7 +253,7 @@ am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 = 
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib
-depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
+depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -325,11 +292,9 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(test_xml_parser_SOURCES) $(traffic_logcat_SOURCES) \
-	$(traffic_logstats_SOURCES) $(traffic_sac_SOURCES) \
+SOURCES = $(traffic_logcat_SOURCES) $(traffic_logstats_SOURCES) \
 	$(traffic_server_SOURCES)
-DIST_SOURCES = $(test_xml_parser_SOURCES) $(traffic_logcat_SOURCES) \
-	$(traffic_logstats_SOURCES) $(am__traffic_sac_SOURCES_DIST) \
+DIST_SOURCES = $(traffic_logcat_SOURCES) $(traffic_logstats_SOURCES) \
 	$(am__traffic_server_SOURCES_DIST)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
@@ -353,6 +318,7 @@ am__recursive_targets = \
   $(am__extra_recursive_targets)
 AM_RECURSIVE_TARGETS = $(am__recursive_targets:-recursive=) TAGS CTAGS \
 	check recheck distdir
+am__extra_recursive_targets = tidy-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -557,7 +523,7 @@ am__set_TESTS_bases = \
 RECHECK_LOGS = $(TEST_LOGS)
 TEST_SUITE_LOG = test-suite.log
 TEST_EXTENSIONS = @EXEEXT@ .test
-LOG_DRIVER = $(SHELL) $(top_srcdir)/build/aux/test-driver
+LOG_DRIVER = $(SHELL) $(top_srcdir)/build/_aux/test-driver
 LOG_COMPILE = $(LOG_COMPILER) $(AM_LOG_FLAGS) $(LOG_FLAGS)
 am__set_b = \
   case '$@' in \
@@ -572,13 +538,14 @@ am__set_b = \
 am__test_logs1 = $(TESTS:=.log)
 am__test_logs2 = $(am__test_logs1:@EXEEXT@.log=.log)
 TEST_LOGS = $(am__test_logs2:.test.log=.log)
-TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/build/aux/test-driver
+TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/build/_aux/test-driver
 TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in \
-	$(top_srcdir)/build/aux/depcomp \
-	$(top_srcdir)/build/aux/test-driver
+	$(top_srcdir)/build/_aux/depcomp \
+	$(top_srcdir)/build/_aux/test-driver \
+	$(top_srcdir)/build/tidy.mk
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
   dir0=`pwd`; \
@@ -626,12 +593,14 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CFLAGS = @CURL_CFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
 CURL_LIBS = @CURL_LIBS@
-CURSES_LIB = @CURSES_LIB@
+CURSES_CFLAGS = @CURSES_CFLAGS@
+CURSES_LIBS = @CURSES_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -648,14 +617,12 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXPAT_LDFLAGS = @EXPAT_LDFLAGS@
 EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
-HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
 HWLOC_LIBS = @HWLOC_LIBS@
@@ -671,7 +638,6 @@ LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
-LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
@@ -695,11 +661,9 @@ LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
 LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-LUAJIT_LIBS = @LUAJIT_LIBS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LDFLAGS = @LUA_LDFLAGS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -741,8 +705,6 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
-SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
-SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -827,7 +789,6 @@ exp_prefix = @exp_prefix@
 exp_runtimedir = @exp_runtimedir@
 exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
-expath = @expath@
 floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
@@ -839,12 +800,9 @@ has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
-has_spdy = @has_spdy@
-has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
-have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -948,17 +906,18 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 use_cert_cb = @use_cert_cb@
+use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
-use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
+use_sslv3_client = @use_sslv3_client@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -967,16 +926,35 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
+Clang_Tidy_Options = -fix -fix-errors
+
+# Sort the filenames to remove duplicates, then filter to retain
+# just the C and C++ sources so we don't pick up lex and yacc files
+# for example.
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+
+#clang-tidy rules. We expect these to be actions with something like
+#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+#is not an automake API, it is an implementation detail, but it ought
+#to be stable enough.
+#
+#All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
 
 # Note that hdrs is targeted from ../Makefile.am
-SUBDIRS = congest http http2 spdy logging config
+SUBDIRS = congest http http2 logging config
 noinst_LIBRARIES = 
+TESTS = \
+  tests/test_logstats_json \
+  tests/test_logstats_summary
+
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
   -I$(top_srcdir)/lib/records \
   -I$(srcdir)/http \
   -I$(srcdir)/http2 \
-  -I$(srcdir)/spdy \
   -I$(srcdir)/logging \
   -I$(srcdir)/http/remap  \
   -I$(srcdir)/hdrs \
@@ -991,12 +969,12 @@ AM_CPPFLAGS = \
 # NOTE: it is safe to use AM_LDFLAGS here because we are only building executables. If we start
 # building libtool archives, change these to only apply to the executables.
 AM_LDFLAGS = \
+  $(LUAJIT_LDFLAGS) \
   @EXTRA_CXX_LDFLAGS@ \
   @LIBTOOL_LINK_FLAGS@ \
   @OPENSSL_LDFLAGS@
 
 noinst_HEADERS = \
-  ConfigParse.h \
   Show.h
 
 
@@ -1073,10 +1051,10 @@ EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
 traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
 	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
 	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-	Crash.cc EventName.cc FetchSM.cc HttpTransStats.h ICP.cc ICP.h \
-	ICPConfig.cc ICPProcessor.cc ICPProcessor.h ICPStats.cc \
-	ICPevents.h ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc \
-	InkAPIInternal.h InkIOCoreAPI.cc Main.cc Main.h Milestones.h \
+	Crash.cc EventName.cc FetchSM.cc ICP.cc ICP.h ICPConfig.cc \
+	ICPProcessor.cc ICPProcessor.h ICPStats.cc ICPevents.h \
+	ICPlog.h IPAllow.cc IPAllow.h InkAPI.cc InkAPIInternal.h \
+	InkIOCoreAPI.cc Main.cc Main.h Milestones.h \
 	ParentConsistentHash.cc ParentConsistentHash.h \
 	ParentRoundRobin.cc ParentRoundRobin.h ParentSelection.cc \
 	ParentSelection.h Plugin.cc Plugin.h PluginVC.cc PluginVC.h \
@@ -1086,12 +1064,11 @@ traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
 	ReverseProxy.cc ReverseProxy.h SocksProxy.cc StatPages.cc \
 	StatPages.h Transform.cc Transform.h TransformInternal.h \
 	$(am__append_1)
-traffic_server_LDFLAGS = $(AM_LDFLAGS) $(am__append_2) $(am__append_4)
-traffic_server_LDADD = http/libhttp.a http2/libhttp2.a spdy/libspdy.a \
+traffic_server_LDFLAGS = $(AM_LDFLAGS)
+traffic_server_LDADD = http/libhttp.a http2/libhttp2.a \
 	http/remap/libhttp_remap.a congest/libCongestionControl.a \
 	logging/liblogging.a logging/liblogcollation.a hdrs/libhdrs.a \
-	shared/liberror.a shared/libdiagsconfig.a shared/libxml.a \
-	$(top_builddir)/mgmt/libmgmt_p.la \
+	shared/libdiagsconfig.a $(top_builddir)/mgmt/libmgmt_p.la \
 	$(top_builddir)/iocore/utils/libinkutils.a \
 	$(top_builddir)/iocore/cluster/libinkcluster.a \
 	$(top_builddir)/iocore/dns/libinkdns.a \
@@ -1101,99 +1078,49 @@ traffic_server_LDADD = http/libhttp.a http2/libhttp2.a spdy/libspdy.a \
 	$(top_builddir)/iocore/cache/libinkcache.a \
 	$(top_builddir)/iocore/aio/libinkaio.a \
 	$(top_builddir)/lib/ts/libtsutil.la \
+	$(top_builddir)/lib/bindings/libbindings.la \
+	$(top_builddir)/lib/luajit/src/libluajit.a \
 	$(top_builddir)/iocore/net/libinknet.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/lib/records/librecords_p.a \
 	$(top_builddir)/iocore/eventsystem/libinkevent.a @HWLOC_LIBS@ \
-	@LIBPCRE@ @LIBTCL@ @LIBEXPAT@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ \
-	@LIBLZMA@ @LIBPROFILER@ @SPDYLAY_LIBS@ @OPENSSL_LIBS@ -lm \
-	$(am__append_3)
+	@LIBPCRE@ @LIBTCL@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ @LIBLZMA@ \
+	@LIBPROFILER@ @OPENSSL_LIBS@ -lm \
+	$(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
 traffic_logcat_SOURCES = logcat.cc
 traffic_logcat_LDADD = \
   logging/liblogging.a \
   shared/libdiagsconfig.a \
   shared/libUglyLogStubs.a \
-  shared/libxml.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
+  $(top_builddir)/lib/bindings/libbindings.la \
+  $(top_builddir)/lib/luajit/src/libluajit.a \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
-  @LIBEXPAT@ @LIBPROFILER@ -lm
+  @LIBPROFILER@ -lm
 
 traffic_logstats_SOURCES = logstats.cc
 traffic_logstats_LDADD = \
   logging/liblogging.a \
   shared/libdiagsconfig.a \
   shared/libUglyLogStubs.a \
-  shared/libxml.a \
   $(top_builddir)/mgmt/libmgmt_p.la \
   $(top_builddir)/lib/records/librecords_p.a \
   $(top_builddir)/iocore/eventsystem/libinkevent.a \
   $(top_builddir)/lib/ts/libtsutil.la \
+  $(top_builddir)/lib/bindings/libbindings.la \
+  $(top_builddir)/lib/luajit/src/libluajit.a \
   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
-  @LIBEXPAT@ @LIBPROFILER@ -lm
-
-traffic_sac_SOURCES = sac.cc ICP.cc ICPConfig.cc ICPProcessor.cc \
-	ICPStats.cc IPAllow.cc ParentConsistentHash.cc \
-	ParentRoundRobin.cc ParentSelection.cc ControlBase.cc \
-	ControlMatcher.cc CacheControl.cc ReverseProxy.cc EventName.cc \
-	StatPages.cc PluginVC.cc AbstractBuffer.cc Transform.cc \
-	ProtocolProbeSessionAccept.cc ProtocolProbeSessionAccept.h \
-	ProxyClientSession.cc ProxyClientSession.h \
-	ProxyClientTransaction.cc ProxyClientTransaction.h Plugin.cc \
-	InkAPI.cc FetchSM.cc InkIOCoreAPI.cc $(am__append_5)
-traffic_sac_LDADD = \
-  http/libhttp.a \
-  http2/libhttp2.a \
-  spdy/libspdy.a \
-  shared/libdiagsconfig.a \
-  http/remap/libhttp_remap.a \
-  congest/libCongestionControl.a \
-  logging/liblogging.a \
-  logging/liblogcollation.a \
-  hdrs/libhdrs.a \
-  shared/liberror.a \
-  shared/libxml.a \
-  $(top_builddir)/mgmt/libmgmt_p.la \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/dns/libinkdns.a \
-  $(top_builddir)/iocore/hostdb/libinkhostdb.a \
-  $(top_builddir)/iocore/cluster/libinkcluster.a \
-  $(top_builddir)/iocore/cache/libinkcache.a \
-  $(top_builddir)/iocore/utils/libinkutils.a \
-  $(top_builddir)/iocore/aio/libinkaio.a \
-  $(top_builddir)/iocore/net/libinknet.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/records/librecords_p.a \
-  $(top_builddir)/lib/ts/libtsutil.la \
-  @LIBRESOLV@ \
-  @LIBPCRE@ \
-  @LIBTCL@ \
-  @HWLOC_LIBS@ \
-  @LIBEXPAT@ \
-  @LIBZ@ \
-  @LIBLZMA@ \
-  @LIBPROFILER@ \
-  @SPDYLAY_LIBS@ \
-  @OPENSSL_LIBS@ \
-  -lm
-
-test_xml_parser_SOURCES = test_xml_parser.cc
-test_xml_parser_LDADD = \
-  $(top_builddir)/mgmt/libmgmt_p.la \
-  $(top_builddir)/lib/records/librecords_p.a \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
-  $(top_builddir)/lib/ts/libtsutil.la \
-  shared/libxml.a \
-  @LIBTCL@
+  @LIBPROFILER@ -lm
 
 versiondir = $(pkgsysconfdir)
 all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1213,6 +1140,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
 	esac;
+$(top_srcdir)/build/tidy.mk $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -1275,19 +1203,6 @@ clean-binPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
-clean-noinstPROGRAMS:
-	@list='$(noinst_PROGRAMS)'; test -n "$$list" || exit 0; \
-	echo " rm -f" $$list; \
-	rm -f $$list || exit $$?; \
-	test -n "$(EXEEXT)" || exit 0; \
-	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
-	echo " rm -f" $$list; \
-	rm -f $$list
-
-test_xml_parser$(EXEEXT): $(test_xml_parser_OBJECTS) $(test_xml_parser_DEPENDENCIES) $(EXTRA_test_xml_parser_DEPENDENCIES) 
-	@rm -f test_xml_parser$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(test_xml_parser_OBJECTS) $(test_xml_parser_LDADD) $(LIBS)
-
 traffic_logcat$(EXEEXT): $(traffic_logcat_OBJECTS) $(traffic_logcat_DEPENDENCIES) $(EXTRA_traffic_logcat_DEPENDENCIES) 
 	@rm -f traffic_logcat$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(traffic_logcat_OBJECTS) $(traffic_logcat_LDADD) $(LIBS)
@@ -1295,10 +1210,6 @@ traffic_logcat$(EXEEXT): $(traffic_logcat_OBJECTS) $(traffic_logcat_DEPENDENCIES
 traffic_logstats$(EXEEXT): $(traffic_logstats_OBJECTS) $(traffic_logstats_DEPENDENCIES) $(EXTRA_traffic_logstats_DEPENDENCIES) 
 	@rm -f traffic_logstats$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(traffic_logstats_OBJECTS) $(traffic_logstats_LDADD) $(LIBS)
-
-traffic_sac$(EXEEXT): $(traffic_sac_OBJECTS) $(traffic_sac_DEPENDENCIES) $(EXTRA_traffic_sac_DEPENDENCIES) 
-	@rm -f traffic_sac$(EXEEXT)
-	$(AM_V_CXXLD)$(CXXLINK) $(traffic_sac_OBJECTS) $(traffic_sac_LDADD) $(LIBS)
 
 traffic_server$(EXEEXT): $(traffic_server_OBJECTS) $(traffic_server_DEPENDENCIES) $(EXTRA_traffic_server_DEPENDENCIES) 
 	@rm -f traffic_server$(EXEEXT)
@@ -1342,8 +1253,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Transform.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logcat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logstats.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sac.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_xml_parser.Po@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -1408,6 +1317,7 @@ $(am__recursive_targets):
 	if test "$$dot_seen" = "no"; then \
 	  $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
 	fi; test -z "$$fail"
+tidy-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -1629,13 +1539,6 @@ tests/test_logstats_summary.log: tests/test_logstats_summary
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_xml_parser.log: test_xml_parser$(EXEEXT)
-	@p='test_xml_parser$(EXEEXT)'; \
-	b='test_xml_parser'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1751,7 +1654,7 @@ maintainer-clean-generic:
 clean: clean-recursive
 
 clean-am: clean-binPROGRAMS clean-generic clean-libtool \
-	clean-noinstLIBRARIES clean-noinstPROGRAMS mostlyclean-am
+	clean-noinstLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -rf ./$(DEPDIR)
@@ -1818,6 +1721,10 @@ ps: ps-recursive
 
 ps-am:
 
+tidy: tidy-recursive
+
+tidy-am: tidy-local
+
 uninstall-am: uninstall-binPROGRAMS
 
 .MAKE: $(am__recursive_targets) check-am install-am install-data-am \
@@ -1825,26 +1732,26 @@ uninstall-am: uninstall-binPROGRAMS
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am check \
 	check-TESTS check-am clean clean-binPROGRAMS clean-generic \
-	clean-libtool clean-noinstLIBRARIES clean-noinstPROGRAMS \
-	cscopelist-am ctags ctags-am distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-binPROGRAMS install-data install-data-am \
-	install-data-hook install-data-local install-dvi \
-	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am recheck tags tags-am \
-	uninstall uninstall-am uninstall-binPROGRAMS
+	clean-libtool clean-noinstLIBRARIES cscopelist-am ctags \
+	ctags-am distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-binPROGRAMS \
+	install-data install-data-am install-data-hook \
+	install-data-local install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	recheck tags tags-am tidy-am tidy-local uninstall uninstall-am \
+	uninstall-binPROGRAMS
 
 .PRECIOUS: Makefile
 
 
-@BUILD_LUAJIT_TRUE@  # On Darwin LuaJIT requires magic link options, otherwise it will crash in luaL_openlibs() at startup. See
-@BUILD_LUAJIT_TRUE@  # http://luajit.org/install.html.
+tidy-local: $(noinst_HEADERS) $(traffic_server_SOURCES)
+	$(CXX_Clang_Tidy)
 
 install-data-local:
 	if [ `id -un` != "root" ]; then \

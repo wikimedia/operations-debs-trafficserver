@@ -85,6 +85,8 @@ static const RecordElement RecordsConfig[] =
   ,                             // needed by traffic_cop
   {RECT_CONFIG, "proxy.config.cop.init_sleep_time", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, "[0-900]", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.cop.active_health_checks", RECD_INT, "3", RECU_NULL, RR_NULL, RECC_NULL, "[0-3]", RECA_NULL}
+  ,
   //# 0 = disable (seconds)
   {RECT_CONFIG, "proxy.config.dump_mem_info_frequency", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -108,12 +110,11 @@ static const RecordElement RecordsConfig[] =
   //# 0 = disable
   {RECT_CONFIG, "proxy.config.res_track_memory", RECD_INT, "0", RECU_NULL, RR_REQUIRED, RECC_NULL,  "[0-2]", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.memory.max_usage", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_STR, "^-?[0-9]+$", RECA_NULL}
+  ,
   //##############################################################################
   //# Traffic Server system settings
   //##############################################################################
-  // The maximum number of chunks to allocate with mmap. Setting this to zero disables all use of mmap. (Unix only)
-  {RECT_CONFIG, "proxy.config.system.mmap_max", RECD_INT, "2097152", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_READ_ONLY}
-  ,
   // The percent of the /proc/sys/fs/file-max value to set the RLIMIT_NOFILE cur/max to
   {RECT_CONFIG, "proxy.config.system.file_max_pct", RECD_FLOAT, "0.9", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_READ_ONLY}
   ,
@@ -141,7 +142,7 @@ static const RecordElement RecordsConfig[] =
   //# Support for SRV records
   //#
   //##############################################################################
-  {RECT_CONFIG, "proxy.config.srv_enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.srv_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
 
   //##############################################################################
@@ -215,13 +216,13 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.diags.output.warning", RECD_STRING, "L", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.diags.output.error", RECD_STRING, "SL", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.diags.output.error", RECD_STRING, "L", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.diags.output.fatal", RECD_STRING, "SL", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.diags.output.fatal", RECD_STRING, "L", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.diags.output.alert", RECD_STRING, "L", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.diags.output.emergency", RECD_STRING, "SL", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.diags.output.emergency", RECD_STRING, "L", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   // diags.log rotation, default is 0 (aka rolling turned off) to preserve compatibility
   {RECT_CONFIG, "proxy.config.diags.logfile.rolling_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
@@ -316,10 +317,6 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.vmap.down_up_timeout", RECD_INT, "10", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.ping.npacks_to_trans", RECD_INT, "5", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.ping.timeout_sec", RECD_INT, "1", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
 
   //##############################################################################
   //#
@@ -389,7 +386,7 @@ static const RecordElement RecordsConfig[] =
   //       #
   {RECT_CONFIG, "proxy.config.http.enabled", RECD_INT, "1", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.server_ports", RECD_STRING, "8080", RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.server_ports", RECD_STRING, "8080 8080:ipv6", RECU_RESTART_TM, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.wait_for_cache", RECD_INT, "0", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-3]", RECA_NULL}
   ,
@@ -409,8 +406,6 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.http.response_server_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, "[0-2]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.response_server_str", RECD_STRING, "ATS/" PACKAGE_VERSION, RECU_DYNAMIC, RR_NULL, RECC_NULL, ".*", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.http.enable_url_expandomatic", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.no_dns_just_forward_to_parent", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
@@ -439,6 +434,8 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.http.flow_control.low_water", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.post.check.content_length.enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.http.strict_uri_parsing", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   //       # Send http11 requests
   //       #
@@ -533,7 +530,7 @@ static const RecordElement RecordsConfig[] =
   //       # out: proxy -> os connection
   //       # in : ua -> proxy connection
   //       #
-  {RECT_CONFIG, "proxy.config.http.keep_alive_no_activity_timeout_in", RECD_INT, "115", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.keep_alive_no_activity_timeout_in", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.keep_alive_no_activity_timeout_out", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
@@ -595,7 +592,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.http.anonymize_remove_client_ip", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.anonymize_insert_client_ip", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.insert_client_ip", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.anonymize_other_header_list", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_STR, ".*", RECA_NULL}
   ,
@@ -715,11 +712,11 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.http.cache.guaranteed_max_lifetime", RECD_INT, "31536000", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.cache.fuzz.time", RECD_INT, "240", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.fuzz.time", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http.cache.fuzz.min_time", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http.cache.fuzz.probability", RECD_FLOAT, "0.005", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http.cache.fuzz.probability", RECD_FLOAT, "0.0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
 
   //        #########################################
@@ -1021,8 +1018,6 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.dns.splitdns.filename", RECD_STRING, "splitdns.config", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.dns.url_expansions", RECD_STRING, NULL, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.dns.nameservers", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.dns.local_ipv6", RECD_STRING, NULL, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -1046,14 +1041,16 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.hostdb", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
   ,
   //       # up to 511 characters, may not be changed while running
-  {RECT_CONFIG, "proxy.config.hostdb.filename", RECD_STRING, "host.db", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.filename", RECD_STRING, "host.db", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //       # in entries, may not be changed while running
-  {RECT_CONFIG, "proxy.config.hostdb.size", RECD_INT, "120000", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.max_count", RECD_INT, "-1", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.hostdb.storage_path", RECD_STRING, TS_BUILD_CACHEDIR, RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.storage_path", RECD_STRING, TS_BUILD_CACHEDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.hostdb.storage_size", RECD_INT, "45375488", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.max_size", RECD_INT, "10M", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.hostdb.partitions", RECD_INT, "64", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //       # in minutes (all three)
   //       #  0 = obey, 1 = ignore, 2 = min(X,ttl), 3 = max(X,ttl)
@@ -1061,7 +1058,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.hostdb.lookup_timeout", RECD_INT, "30", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.hostdb.timeout", RECD_INT, "1440", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.hostdb.timeout", RECD_INT, "86400", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.hostdb.verify_after", RECD_INT, "720", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1087,13 +1084,13 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.hostdb.timed_round_robin", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   //       # how often should the hostdb be synced (seconds)
-  {RECT_CONFIG, "proxy.config.cache.hostdb.sync_frequency", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.cache.hostdb.sync_frequency", RECD_INT, "120", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.hostdb.host_file.path", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.hostdb.host_file.interval", RECD_INT, "86400", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.disable_configuration_modification", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.disable_configuration_modification", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
   ,
   //##########################################################################
   //#
@@ -1116,12 +1113,6 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.remote_sync_interval_ms", RECD_INT, "5000", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  //        #########
-  //        # Stats #
-  //        #########
-  {RECT_CONFIG, "proxy.config.stats.enable_lua", RECD_INT, "0", RECU_RESTART_TM, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-
   //        ###########
   //        # Parsing #
   //        ###########
@@ -1152,9 +1143,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.log.logfile_perm", RECD_STRING, "rw-r--r--", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.log.custom_logs_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.log.xml_config_file", RECD_STRING, "logs_xml.config", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.log.config.filename", RECD_STRING, "logging.config", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.hosts_config_file", RECD_STRING, "log_hosts.config", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1171,6 +1160,10 @@ static const RecordElement RecordsConfig[] =
   {RECT_CONFIG, "proxy.config.log.collation_max_send_buffers", RECD_INT, "16", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.collation_preproc_threads", RECD_INT, "1", RECU_DYNAMIC, RR_REQUIRED, RECC_INT, "[1-128]", RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.log.collation_host_timeout", RECD_INT, "86390", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  ,
+  {RECT_CONFIG, "proxy.config.log.collation_client_timeout", RECD_INT, "86400", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.log.rolling_enabled", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-4]", RECA_NULL}
   ,
@@ -1217,9 +1210,7 @@ static const RecordElement RecordsConfig[] =
   //##############################################################################
   {RECT_CONFIG, "proxy.config.ssl.enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.ssl.SSLv2", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.ssl.SSLv3", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.ssl.server.session_ticket.enable", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.TLSv1", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
@@ -1230,20 +1221,15 @@ static const RecordElement RecordsConfig[] =
   ,
 
   // Client SSL protocols
-  {RECT_CONFIG, "proxy.config.ssl.client.SSLv2", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+#if TS_USE_SSLV3_CLIENT
+  {RECT_CONFIG, "proxy.config.ssl.client.SSLv3", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.ssl.client.SSLv3", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
+#endif
   {RECT_CONFIG, "proxy.config.ssl.client.TLSv1", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.client.TLSv1_1", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.client.TLSv1_2", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-
-  {RECT_CONFIG, "proxy.config.ssl.compression", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.ssl.number.threads", RECD_INT, "-1", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.cipher_suite", RECD_STRING, "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-DSS-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-DSS-AES256-SHA:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA", RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1261,7 +1247,7 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.multicert.exit_on_load_fail", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_NULL, "[0-1]", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.ssl.server.ticket_key.filename", RECD_STRING, "ssl_ticket.key", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
+  {RECT_CONFIG, "proxy.config.ssl.server.ticket_key.filename", RECD_STRING, NULL, RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.ssl.server.private_key.path", RECD_STRING, TS_BUILD_SYSCONFDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
@@ -1315,6 +1301,9 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.ssl.wire_trace_server_name", RECD_STRING, NULL , RECU_DYNAMIC, RR_NULL, RECC_STR, ".*", RECA_NULL}
   ,
+  {RECT_CONFIG, "proxy.config.ssl.cert.load_elevated", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_READ_ONLY}
+  ,
+
   //##############################################################################
   //#
   //# OCSP (Online Certificate Status Protocol) Stapling Configuration
@@ -1331,35 +1320,6 @@ static const RecordElement RecordsConfig[] =
   ,
   //        # Update period for stapling caches. 60s (1 min) by default.
   {RECT_CONFIG, "proxy.config.ssl.ocsp.update_period", RECD_INT, "60", RECU_DYNAMIC, RR_NULL, RECC_NULL, "^[0-9]+$", RECA_NULL}
-  ,
-  //##############################################################################
-  //# ICP Configuration
-  //##############################################################################
-  //#       enabled=0 ICP disabled
-  //#       enabled=1 Allow receive of ICP queries
-  //#       enabled=2 Allow send/receive of ICP queries
-  //##############################################################################
-  {RECT_CONFIG, "proxy.config.icp.enabled", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-2]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.stale_icp_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.icp_interface", RECD_STRING, NULL, RECU_RESTART_TS, RR_REQUIRED, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.icp_port", RECD_INT, "3130", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-65535]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.multicast_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.query_timeout", RECD_INT, "2", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.icp_configuration", RECD_STRING, "icp.config", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.lookup_local", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.reply_to_unknown_peer", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.icp.default_reply_port", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.ssl.cert.load_elevated", RECD_INT, "0", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_READ_ONLY}
   ,
 
   //############################################################################
@@ -1392,8 +1352,6 @@ static const RecordElement RecordsConfig[] =
   //#
   //# Add NODE       Records Here
   //##############################################################################
-  {RECT_NODE, "proxy.node.num_processes", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
   {RECT_NODE, "proxy.node.hostname_FQ", RECD_STRING, NULL, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
   ,
   {RECT_NODE, "proxy.node.hostname", RECD_STRING, NULL, RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
@@ -1430,522 +1388,6 @@ static const RecordElement RecordsConfig[] =
   ,
 
   //#
-  //# Dash Board Stats
-  //#
-  //# Valid Per Node - Can Not Sum For Cluster Stats
-  //#
-  {RECT_NODE, "proxy.node.bandwidth_hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.bandwidth_hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.proxy_running", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.percent_free", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_ratio_avg_10s_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_mem_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_mem_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_mem_ratio_avg_10s_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.bandwidth_hit_ratio_avg_10s_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //#
-  //# Node page 5 minute average stats
-  //# Valid Per Node - Can Not Sum For Cluster Stats
-  //#
-  {RECT_NODE, "proxy.node.bandwidth_hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_hit_fresh_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_hit_mem_fresh_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_hit_revalidated_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_hit_ims_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_hit_stale_served_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_miss_cold_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_miss_changed_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_miss_not_cacheable_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_miss_client_no_cache_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_miss_ims_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_read_error_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_hits_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_hits_mem_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_misses_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_hit_mem_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.total_lookups_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.total_hits_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //# Protocol Stats
-  //#
-  //# Valid Per Node - Can Not Sum For Cluster Stats
-  //#
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.hit_fresh", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.hit_revalidated", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.miss_cold", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.miss_not_cacheable", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.miss_changed", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.miss_client_no_cache", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.connect_failed", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.aborts", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.possible_aborts", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.pre_accept_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.early_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.empty_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.errors.other", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_counts_avg_10s.other.unclassified", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.hit_fresh", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.hit_revalidated", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_cold", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_not_cacheable", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_changed", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_client_no_cache", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.connect_failed", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.aborts", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.possible_aborts", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.pre_accept_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.early_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.empty_hangups", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.other", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.other.unclassified", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.hit_fresh_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.hit_revalidated_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_cold_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_not_cacheable_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_changed_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.miss_client_no_cache_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.connect_failed_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.aborts_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.possible_aborts_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.pre_accept_hangups_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.early_hangups_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.empty_hangups_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.errors.other_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_frac_avg_10s.other.unclassified_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.hit_fresh", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.hit_revalidated", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.miss_cold", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.miss_not_cacheable", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.miss_changed", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.miss_client_no_cache", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.connect_failed", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.aborts", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.possible_aborts", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.pre_accept_hangups", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.early_hangups", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.empty_hangups", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.errors.other", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.transaction_msec_avg_10s.other.unclassified", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //#
-  //# Can Sum For Cluster Stats
-  //#
-  //
-  //# HTTP
-  {RECT_NODE, "proxy.node.http.throughput", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agent_xacts_per_second", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agent_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agent_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agent_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agents_total_transactions_count", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.user_agents_total_documents_served", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.origin_server_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.origin_server_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.origin_server_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.parent_proxy_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.parent_proxy_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.origin_server_total_transactions_count", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.cache_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.http.current_parent_proxy_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# Cache
-  {RECT_NODE, "proxy.node.cache.contents.num_docs", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.bytes_total", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.bytes_total_mb", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.bytes_free", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.bytes_free_mb", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache.percent_free_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_hits", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_hits_mem", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.cache_total_misses", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.current_cache_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# DNS
-  {RECT_NODE, "proxy.node.dns.lookups_per_second", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.dns.lookup_avg_time_ms", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.dns.total_dns_lookups", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# HostDB
-  {RECT_NODE, "proxy.node.hostdb.total_lookups", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.hostdb.total_hits", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# Cluster
-  {RECT_NODE, "proxy.node.cluster.nodes", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# Overall
-  {RECT_NODE, "proxy.node.client_throughput_out", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.client_throughput_out_kbit", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.current_client_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.current_server_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.user_agent_total_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.origin_server_total_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.user_agent_total_bytes_avg_10s", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.origin_server_total_bytes_avg_10s", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.user_agent_xacts_per_second", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.user_agents_total_documents_served", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //
-  //#
-  //# Logging stats on NODE
-  //#
-  {RECT_NODE, "proxy.node.log.event_log_error_ok", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_error_skip", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_error_aggr", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_error_full", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_error_fail", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_access_ok", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_access_skip", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_access_aggr", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_access_full", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.event_log_access_fail", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.num_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.num_lost_before_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.num_received_from_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.num_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.num_lost_before_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_lost_before_preproc", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_lost_before_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_sent_to_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_received_from_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_received_from_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_lost_before_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_written_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_NODE, "proxy.node.log.bytes_lost_before_written_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  // Compatibility note. When we make changes to stats.config.xml, package installers don't generally re[lace the
-  // current file with the .default. This means that we can be running an older config file and a newer traffic_manager.
-  // Since the stats processor never creates metrics, we need to leave the old name for this behind or it will be a
-  // fatal error at startup.
-  {RECT_PROCESS, "proxy.process.ssl.total_success_handshake_count_in", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL},
-
-  {RECT_PROCESS, "proxy.process.ssl.total_success_handshake_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //#
-  //# Add CLUSTER    Records Here
-  //#
-  //# For Node page
-  {RECT_CLUSTER, "proxy.cluster.user_agent_total_bytes_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.origin_server_total_bytes_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.bandwidth_hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.bandwidth_hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.bandwidth_hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# HTTP
-  {RECT_CLUSTER, "proxy.cluster.http.throughput", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agent_xacts_per_second", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agent_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agent_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agent_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agents_total_transactions_count", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.user_agents_total_documents_served", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.origin_server_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.origin_server_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.origin_server_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.origin_server_total_transactions_count", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.cache_current_connections_count", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.current_parent_proxy_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.parent_proxy_total_request_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.http.parent_proxy_total_response_bytes", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# Cache
-  {RECT_CLUSTER, "proxy.cluster.cache.contents.num_docs", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache.bytes_free", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache.bytes_free_mb", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache.percent_free", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache.percent_free_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_mem_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_mem_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_hits", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_hits_mem", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_misses", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.current_cache_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_hits_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_hits_mem_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_total_misses_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.cache_hit_mem_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# DNS
-  {RECT_CLUSTER, "proxy.cluster.dns.lookups_per_second", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.dns.total_dns_lookups", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# HostDB
-  {RECT_CLUSTER, "proxy.cluster.hostdb.hit_ratio", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.hostdb.hit_ratio_int_pct", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.hostdb.total_lookups_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.hostdb.total_hits_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.hostdb.hit_ratio_avg_10s", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  //# Overall
-  {RECT_CLUSTER, "proxy.cluster.user_agent_xacts_per_second", RECD_FLOAT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.client_throughput_out", RECD_FLOAT, "0.0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.client_throughput_out_kbit", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.current_client_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.current_server_connections", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //
-  //#
-  //# Logging stats on CLUSTER
-  //#
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_ok", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_skip", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_aggr", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_full", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_error_fail", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_ok", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_skip", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_aggr", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_full", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.event_log_access_fail", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.num_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.num_lost_before_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.num_received_from_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.num_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.num_lost_before_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_preproc", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_sent_to_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_sent_to_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_received_from_network", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_received_from_network_avg_10s", RECD_INT, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_flush_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_written_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-  {RECT_CLUSTER, "proxy.cluster.log.bytes_lost_before_written_to_disk", RECD_COUNTER, "0", RECU_NULL, RR_NULL, RECC_NULL, NULL, RECA_NULL}
-  ,
-
-  //#
   //# SSL parent proxying info
   //#
   //# Set the value of this variable to 1 if this node
@@ -1959,25 +1401,9 @@ static const RecordElement RecordsConfig[] =
 
   //############
   //#
-  //# SPDY global configuration.
-  //#
-  //############
-  {RECT_CONFIG, "proxy.config.spdy.max_concurrent_streams_in", RECD_INT, "100", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.spdy.no_activity_timeout_in", RECD_INT, "115", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.spdy.initial_window_size_in", RECD_INT, "1048576", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
-  ,
-  {RECT_CONFIG, "proxy.config.spdy.accept_no_activity_timeout", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
-  ,
-
-  //############
-  //#
   //# HTTP/2 global configuration.
   //#
   //############
-  {RECT_CONFIG, "proxy.config.http2.enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
-  ,
   {RECT_CONFIG, "proxy.config.http2.stream_priority_enabled", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
   ,
   {RECT_CONFIG, "proxy.config.http2.max_concurrent_streams_in", RECD_INT, "100", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
@@ -1996,9 +1422,9 @@ static const RecordElement RecordsConfig[] =
   ,
   {RECT_CONFIG, "proxy.config.http2.accept_no_activity_timeout", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http2.no_activity_timeout_in", RECD_INT, "115", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http2.no_activity_timeout_in", RECD_INT, "120", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
-  {RECT_CONFIG, "proxy.config.http2.active_timeout_in", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
+  {RECT_CONFIG, "proxy.config.http2.active_timeout_in", RECD_INT, "900", RECU_DYNAMIC, RR_NULL, RECC_STR, "^[0-9]+$", RECA_NULL}
   ,
 
   //# Add LOCAL Records Here

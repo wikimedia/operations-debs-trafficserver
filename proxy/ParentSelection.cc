@@ -26,14 +26,9 @@
 #include "ParentRoundRobin.h"
 #include "ControlMatcher.h"
 #include "Main.h"
-#include "Error.h"
 #include "ProxyConfig.h"
 #include "HTTP.h"
 #include "HttpTransact.h"
-
-#define PARENT_RegisterConfigUpdateFunc REC_RegisterConfigUpdateFunc
-#define PARENT_ReadConfigInteger REC_ReadConfigInteger
-#define PARENT_ReadConfigStringAlloc REC_ReadConfigStringAlloc
 
 #define MAX_SIMPLE_RETRIES 5
 #define MAX_UNAVAILABLE_SERVER_RETRIES 5
@@ -45,12 +40,11 @@ static const char modulePrefix[]                             = "[ParentSelection
 static ConfigUpdateHandler<ParentConfig> *parentConfigUpdate = NULL;
 
 // Config var names
-static const char *file_var            = "proxy.config.http.parent_proxy.file";
-static const char *default_var         = "proxy.config.http.parent_proxies";
-static const char *retry_var           = "proxy.config.http.parent_proxy.retry_time";
-static const char *enable_var          = "proxy.config.http.parent_proxy_routing_enable";
-static const char *threshold_var       = "proxy.config.http.parent_proxy.fail_threshold";
-static const char *dns_parent_only_var = "proxy.config.http.no_dns_just_forward_to_parent";
+static const char *file_var      = "proxy.config.http.parent_proxy.file";
+static const char *default_var   = "proxy.config.http.parent_proxies";
+static const char *retry_var     = "proxy.config.http.parent_proxy.retry_time";
+static const char *enable_var    = "proxy.config.http.parent_proxy_routing_enable";
+static const char *threshold_var = "proxy.config.http.parent_proxy.fail_threshold";
 
 static const char *ParentResultStr[] = {"PARENT_UNDEFINED", "PARENT_DIRECT", "PARENT_SPECIFIED", "PARENT_AGENT", "PARENT_FAIL"};
 
@@ -68,26 +62,21 @@ enum ParentCB_t {
 
 ParentSelectionPolicy::ParentSelectionPolicy()
 {
-  bool enable             = false;
-  int32_t retry_time      = 0;
-  int32_t fail_threshold  = 0;
-  int32_t dns_parent_only = 0;
+  bool enable            = false;
+  int32_t retry_time     = 0;
+  int32_t fail_threshold = 0;
 
   // Handle parent timeout
-  PARENT_ReadConfigInteger(retry_time, retry_var);
+  REC_ReadConfigInteger(retry_time, retry_var);
   ParentRetryTime = retry_time;
 
   // Handle parent enable
-  PARENT_ReadConfigInteger(enable, enable_var);
+  REC_ReadConfigInteger(enable, enable_var);
   ParentEnable = enable;
 
   // Handle the fail threshold
-  PARENT_ReadConfigInteger(fail_threshold, threshold_var);
+  REC_ReadConfigInteger(fail_threshold, threshold_var);
   FailThreshold = fail_threshold;
-
-  // Handle dns parent only
-  PARENT_ReadConfigInteger(dns_parent_only, dns_parent_only_var);
-  DNS_ParentOnly = dns_parent_only;
 }
 
 ParentConfigParams::ParentConfigParams(P_table *_parent_table) : parent_table(_parent_table), DefaultParent(NULL), policy()
@@ -95,7 +84,7 @@ ParentConfigParams::ParentConfigParams(P_table *_parent_table) : parent_table(_p
   char *default_val = NULL;
 
   // Handle default parent
-  PARENT_ReadConfigStringAlloc(default_val, default_var);
+  REC_ReadConfigStringAlloc(default_val, default_var);
   DefaultParent = createDefaultParent(default_val);
   ats_free(default_val);
 }
@@ -132,7 +121,6 @@ ParentConfigParams::findParent(HttpRequestData *rdata, ParentResult *result)
     result->hostname     = rdata->api_info->parent_proxy_name;
     result->port         = rdata->api_info->parent_proxy_port;
     result->rec          = extApiRecord;
-    result->epoch        = NULL;
     result->start_parent = 0;
     result->last_parent  = 0;
 
@@ -189,8 +177,7 @@ ParentConfigParams::nextParent(HttpRequestData *rdata, ParentResult *result)
 {
   P_table *tablePtr = parent_table;
 
-  Debug("parent_select", "ParentConfigParams::nextParent(): parent_table: %p, result->rec: %p, result->epoch: %p", parent_table,
-        result->rec, result->epoch);
+  Debug("parent_select", "ParentConfigParams::nextParent(): parent_table: %p, result->rec: %p", parent_table, result->rec);
 
   //  Make sure that we are being called back with a
   //   result structure with a parent
@@ -206,8 +193,7 @@ ParentConfigParams::nextParent(HttpRequestData *rdata, ParentResult *result)
     result->result = PARENT_FAIL;
     return;
   }
-  Debug("parent_select", "ParentConfigParams::nextParent(): result->result: %d, tablePtr: %p, result->epoch: %p", result->result,
-        tablePtr, result->epoch);
+  Debug("parent_select", "ParentConfigParams::nextParent(): result->r: %d, tablePtr: %p", result->result, tablePtr);
 
   // Find the next parent in the array
   Debug("parent_select", "Calling selectParent() from nextParent");
@@ -274,9 +260,6 @@ ParentConfig::startup()
 
   //   Fail Threshold
   parentConfigUpdate->attach(threshold_var);
-
-  //   DNS Parent Only
-  parentConfigUpdate->attach(dns_parent_only_var);
 }
 
 void
@@ -307,8 +290,7 @@ ParentConfig::print()
   ParentConfigParams *params = ParentConfig::acquire();
 
   printf("Parent Selection Config\n");
-  printf("\tEnabled %d\tRetryTime %d\tParent DNS Only %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime,
-         params->policy.DNS_ParentOnly);
+  printf("\tEnabled %d\tRetryTime %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime);
   if (params->DefaultParent == NULL) {
     printf("\tNo Default Parent\n");
   } else {
@@ -334,8 +316,9 @@ UnavailableServerResponseCodes::UnavailableServerResponseCodes(char *val)
   numTok = pTok.Initialize(val, SHARE_TOKS);
   if (numTok == 0) {
     c = atoi(val);
-    if (c > 500 && c < 600)
+    if (c > 500 && c < 600) {
       codes.push_back(HTTP_STATUS_SERVICE_UNAVAILABLE);
+    }
   }
   for (int i = 0; i < numTok; i++) {
     c = atoi(pTok[i]);
@@ -425,10 +408,12 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
     } else {
       scan = tmp + 1;
     }
-    for (; *scan != '\0' && (ParseRules::is_digit(*scan) || *scan == '.'); scan++)
+    for (; *scan != '\0' && (ParseRules::is_digit(*scan) || *scan == '.'); scan++) {
       ;
-    for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++)
+    }
+    for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++) {
       ;
+    }
     if (*scan != '\0') {
       errPtr = "Garbage trailing entry or invalid separator";
       goto MERROR;
@@ -448,6 +433,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->parents[i].hostname[tmp - current] = '\0';
       this->parents[i].port                    = port;
       this->parents[i].failedAt                = 0;
+      this->parents[i].failCount               = 0;
       this->parents[i].scheme                  = scheme;
       this->parents[i].idx                     = i;
       this->parents[i].name                    = this->parents[i].hostname;
@@ -458,6 +444,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].hostname[tmp - current] = '\0';
       this->secondary_parents[i].port                    = port;
       this->secondary_parents[i].failedAt                = 0;
+      this->secondary_parents[i].failCount               = 0;
       this->secondary_parents[i].scheme                  = scheme;
       this->secondary_parents[i].idx                     = i;
       this->secondary_parents[i].name                    = this->secondary_parents[i].hostname;
@@ -727,6 +714,7 @@ ParentRecord::UpdateMatch(ParentResult *result, RequestData *rdata)
 ParentRecord::~ParentRecord()
 {
   ats_free(parents);
+  ats_free(secondary_parents);
   delete selection_strategy;
   delete unavailable_server_retry_responses;
 }
@@ -828,17 +816,19 @@ SocksServerConfig::reconfigure()
   ink_assert(params != NULL);
 
   // Handle default parent
-  PARENT_ReadConfigStringAlloc(default_val, "proxy.config.socks.default_servers");
+  REC_ReadConfigStringAlloc(default_val, "proxy.config.socks.default_servers");
   params->DefaultParent = createDefaultParent(default_val);
   ats_free(default_val);
 
-  if (params->DefaultParent)
+  if (params->DefaultParent) {
     setup_socks_servers(params->DefaultParent, 1);
-  if (params->parent_table->ipMatch)
+  }
+  if (params->parent_table->ipMatch) {
     setup_socks_servers(params->parent_table->ipMatch->data_array, params->parent_table->ipMatch->array_len);
+  }
 
   // Handle parent timeout
-  PARENT_ReadConfigInteger(retry_time, "proxy.config.socks.server_retry_time");
+  REC_ReadConfigInteger(retry_time, "proxy.config.socks.server_retry_time");
   params->policy.ParentRetryTime = retry_time;
 
   // Handle parent enable
@@ -846,12 +836,8 @@ SocksServerConfig::reconfigure()
   params->policy.ParentEnable = 1;
 
   // Handle the fail threshold
-  PARENT_ReadConfigInteger(fail_threshold, "proxy.config.socks.server_fail_threshold");
+  REC_ReadConfigInteger(fail_threshold, "proxy.config.socks.server_fail_threshold");
   params->policy.FailThreshold = fail_threshold;
-
-  // Handle dns parent only
-  // PARENT_ReadConfigInteger(dns_parent_only, dns_parent_only_var);
-  params->policy.DNS_ParentOnly = 0;
 
   m_id = configProcessor.set(m_id, params);
 
@@ -866,8 +852,7 @@ SocksServerConfig::print()
   ParentConfigParams *params = SocksServerConfig::acquire();
 
   printf("Parent Selection Config for Socks Server\n");
-  printf("\tEnabled %d\tRetryTime %d\tParent DNS Only %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime,
-         params->policy.DNS_ParentOnly);
+  printf("\tEnabled %d\tRetryTime %d\n", params->policy.ParentEnable, params->policy.ParentRetryTime);
   if (params->DefaultParent == NULL) {
     printf("\tNo Default Parent\n");
   } else {
@@ -1309,8 +1294,9 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
 int
 verify(ParentResult *r, ParentResultType e, const char *h, int p)
 {
-  if (is_debug_tag_set("parent_select"))
+  if (is_debug_tag_set("parent_select")) {
     show_result(r);
+  }
   return (r->result != e) ? 0 : ((e != PARENT_SPECIFIED) ? 1 : (strcmp(r->hostname, h) ? 0 : ((r->port == p) ? 1 : 0)));
 }
 

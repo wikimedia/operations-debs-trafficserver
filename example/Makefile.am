@@ -32,20 +32,23 @@ plugins = \
   lifecycle-plugin.la \
   null-transform.la \
   output-header.la \
+  protocol-stack.la \
   protocol.la \
   psi.la \
   query-remap.la \
   remap.la \
+  remap_header_add.la \
   replace-header.la \
   response-header-1.la \
   secure-link.la \
   server-transform.la \
   ssl-preaccept.la \
-  remap_header_add.la \
-  ssl-sni.la \
   ssl-sni-whitelist.la \
+  ssl-sni.la \
+  statistic.la \
   thread-1.la \
   txn-data-sink.la \
+  server-push.la \
   version.la
 
 if BUILD_EXAMPLE_PLUGINS
@@ -68,22 +71,31 @@ lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
 null_transform_la_SOURCES = null-transform/null-transform.c
 output_header_la_SOURCES = output-header/output-header.c
 protocol_la_SOURCES = protocol/Protocol.c protocol/TxnSM.c
+protocol_stack_la_SOURCES = protocol-stack/protocol-stack.cc
+psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
 query_remap_la_SOURCES = query-remap/query-remap.c
+remap_header_add_la_SOURCES = remap_header_add/remap_header_add.cc
 remap_la_SOURCES = remap/remap.cc
 replace_header_la_SOURCES = replace-header/replace-header.c
-remap_header_add_la_SOURCES = remap_header_add/remap_header_add.cc
 response_header_1_la_SOURCES = response-header-1/response-header-1.c
+secure_link_la_SOURCES = secure-link/secure-link.c
 server_transform_la_SOURCES = server-transform/server-transform.c
+ssl_preaccept_la_SOURCES = ssl-preaccept/ssl-preaccept.cc
+ssl_sni_la_SOURCES = ssl-sni/ssl-sni.cc
+ssl_sni_whitelist_la_SOURCES = ssl-sni-whitelist/ssl-sni-whitelist.cc
+statistic_la_SOURCES = statistic/statistic.cc
 thread_1_la_SOURCES = thread-1/thread-1.c
 txn_data_sink_la_SOURCES = txn-data-sink/txn-data-sink.c
-psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
 version_la_SOURCES = version/version.c
-secure_link_la_SOURCES = secure-link/secure-link.c
-ssl_preaccept_la_SOURCES = ssl-preaccept/ssl-preaccept.cc 
-ssl_sni_la_SOURCES = ssl-sni/ssl-sni.cc 
-ssl_sni_whitelist_la_SOURCES = ssl-sni-whitelist/ssl-sni-whitelist.cc 
+server_push_la_SOURCES = server-push/server-push.c
 
 # The following examples do not build:
 #
 # redirect_1_la_SOURCES = redirect-1/redirect-1.c
 # session_1_la_SOURCES = session-1/session-1.c
+
+include $(top_srcdir)/build/tidy.mk
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)
+	$(CC_Clang_Tidy)

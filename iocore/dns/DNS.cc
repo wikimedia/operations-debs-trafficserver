@@ -244,21 +244,21 @@ void
 DNSProcessor::dns_init()
 {
   gethostname(try_server_names[0], 255);
-  Debug("dns", "localhost=%s\n", try_server_names[0]);
-  Debug("dns", "Round-robin nameservers = %d\n", dns_ns_rr);
+  Debug("dns", "localhost=%s", try_server_names[0]);
+  Debug("dns", "Round-robin nameservers = %d", dns_ns_rr);
 
   IpEndpoint nameserver[MAX_NAMED];
   size_t nserv = 0;
 
   if (dns_ns_list) {
-    Debug("dns", "Nameserver list specified \"%s\"\n", dns_ns_list);
+    Debug("dns", "Nameserver list specified \"%s\"", dns_ns_list);
     int i;
     char *last;
     char *ns_list = ats_strdup(dns_ns_list);
     char *ns      = (char *)strtok_r(ns_list, " ,;\t\r", &last);
 
     for (i = 0, nserv = 0; (i < MAX_NAMED) && ns; ++i) {
-      Debug("dns", "Nameserver list - parsing \"%s\"\n", ns);
+      Debug("dns", "Nameserver list - parsing \"%s\"", ns);
       bool err    = false;
       int prt     = DOMAIN_SERVICE_PORT;
       char *colon = 0; // where the port colon is.
@@ -479,7 +479,7 @@ DNSHandler::startEvent(int /* event ATS_UNUSED */, Event *e)
 {
   //
   // If this is for the default server, get it
-  Debug("dns", "DNSHandler::startEvent: on thread %d\n", e->ethread->id);
+  Debug("dns", "DNSHandler::startEvent: on thread %d", e->ethread->id);
 
   this->validate_ip();
 
@@ -525,7 +525,7 @@ DNSHandler::startEvent(int /* event ATS_UNUSED */, Event *e)
 int
 DNSHandler::startEvent_sdns(int /* event ATS_UNUSED */, Event *e)
 {
-  Debug("dns", "DNSHandler::startEvent_sdns: on thread %d\n", e->ethread->id);
+  Debug("dns", "DNSHandler::startEvent_sdns: on thread %d", e->ethread->id);
   this->validate_ip();
 
   SET_HANDLER(&DNSHandler::mainEvent);
@@ -874,7 +874,7 @@ get_entry(DNSHandler *h, char *qname, int qtype)
 static void
 write_dns(DNSHandler *h)
 {
-  ProxyMutex *mutex = h->mutex;
+  ProxyMutex *mutex = h->mutex.get();
   DNS_INCREMENT_DYN_STAT(dns_total_lookups_stat);
   int max_nscount = h->m_res->nscount;
   if (max_nscount > MAX_NAMED)
@@ -955,7 +955,7 @@ DNSHandler::get_query_id()
 static bool
 write_dns_event(DNSHandler *h, DNSEntry *e)
 {
-  ProxyMutex *mutex = h->mutex;
+  ProxyMutex *mutex = h->mutex.get();
   union {
     HEADER _h;
     char _b[MAX_DNS_PACKET_LEN];
@@ -1070,7 +1070,7 @@ DNSEntry::mainEvent(int event, Event *e)
     Debug("dns", "timeout for query %s", qname);
     if (dnsH->txn_lookup_timeout) {
       timeout = NULL;
-      dns_result(dnsH, this, result_ent, false); // do not retry -- we are over TXN timeout on DNS alone!
+      dns_result(dnsH, this, result_ent.get(), false); // do not retry -- we are over TXN timeout on DNS alone!
       return EVENT_DONE;
     }
     if (written_flag) {
@@ -1080,7 +1080,7 @@ DNSEntry::mainEvent(int event, Event *e)
       DNS_DECREMENT_DYN_STAT(dns_in_flight_stat);
     }
     timeout = NULL;
-    dns_result(dnsH, this, result_ent, true);
+    dns_result(dnsH, this, result_ent.get(), true);
     return EVENT_DONE;
   }
 }
@@ -1110,7 +1110,7 @@ DNSProcessor::getby(const char *x, int len, int type, Continuation *cont, Option
 static void
 dns_result(DNSHandler *h, DNSEntry *e, HostEnt *ent, bool retry)
 {
-  ProxyMutex *mutex = h->mutex;
+  ProxyMutex *mutex = h->mutex.get();
   bool cancelled    = (e->action.cancelled ? true : false);
 
   if (!ent && !cancelled) {
@@ -1266,7 +1266,7 @@ DNSEntry::postEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
   if (!action.cancelled) {
     Debug("dns", "called back continuation for %s", qname);
-    action.continuation->handleEvent(DNS_EVENT_LOOKUP, result_ent);
+    action.continuation->handleEvent(DNS_EVENT_LOOKUP, result_ent.get());
   }
   result_ent   = NULL;
   action.mutex = NULL;
@@ -1279,7 +1279,7 @@ DNSEntry::postEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 static bool
 dns_process(DNSHandler *handler, HostEnt *buf, int len)
 {
-  ProxyMutex *mutex = handler->mutex;
+  ProxyMutex *mutex = handler->mutex.get();
   HEADER *h         = (HEADER *)(buf->buf);
   DNSEntry *e       = get_dns(handler, (uint16_t)ntohs(h->id));
   bool retry        = false;
@@ -1514,24 +1514,24 @@ dns_process(DNSHandler *handler, HostEnt *buf, int len)
         cp += dn_skipname(cp, eom);
         here     = cp; /* hack */
         SRV *srv = &buf->srv_hosts.hosts[num_srv];
-        int r    = ink_ns_name_ntop(srv_off + SRV_SERVER, srv->host, MAXDNAME);
-        if (r <= 0) {
-          /* FIXME: is this really an error? or just a continue; */
+
+        // expand the name
+        n = ink_dn_expand((u_char *)h, eom, srv_off + SRV_SERVER, (u_char *)srv->host, MAXDNAME);
+        if (n < 0) {
           ++error;
-          goto Lerror;
+          break;
         }
         Debug("dns_srv", "Discovered SRV record [from NS lookup] with cost:%d weight:%d port:%d with host:%s",
               ink_get16(srv_off + SRV_COST), ink_get16(srv_off + SRV_WEIGHT), ink_get16(srv_off + SRV_PORT), srv->host);
 
-        srv->port        = ink_get16(srv_off + SRV_PORT);
-        srv->priority    = ink_get16(srv_off + SRV_COST);
-        srv->weight      = ink_get16(srv_off + SRV_WEIGHT);
-        srv->host_len    = r;
-        srv->host[r - 1] = '\0';
-        srv->key         = makeHostHash(srv->host);
+        srv->port     = ink_get16(srv_off + SRV_PORT);
+        srv->priority = ink_get16(srv_off + SRV_COST);
+        srv->weight   = ink_get16(srv_off + SRV_WEIGHT);
+        srv->host_len = ::strlen(srv->host) + 1;
+        srv->key      = makeHostHash(srv->host);
 
         if (srv->host[0] != '\0')
-          buf->srv_hosts.srv_hosts_length += r;
+          buf->srv_hosts.srv_hosts_length += srv->host_len;
         else
           continue;
         ++num_srv;

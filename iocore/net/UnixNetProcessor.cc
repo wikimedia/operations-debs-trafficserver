@@ -85,16 +85,12 @@ Action *
 UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions const &opt)
 {
   EventType upgraded_etype = opt.etype; // setEtype requires non-const ref.
-  EThread *thread          = this_ethread();
-  ProxyMutex *mutex        = thread->mutex;
+  ProxyMutex *mutex        = this_ethread()->mutex.get();
   int accept_threads       = opt.accept_threads; // might be changed.
   IpEndpoint accept_ip;                          // local binding address.
   char thr_name[MAX_THREAD_NAME_LENGTH];
 
   NetAccept *na = createNetAccept();
-
-  // Potentially upgrade to SSL.
-  upgradeEtype(upgraded_etype);
 
   // Fill in accept thread from configuration if necessary.
   if (opt.accept_threads < 0) {
@@ -181,6 +177,7 @@ UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions cons
     setsockopt(na->server.fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &should_filter_int, sizeof(int));
   }
 #endif
+
 #ifdef TCP_INIT_CWND
   int tcp_init_cwnd = 0;
   REC_ReadConfigInteger(tcp_init_cwnd, "proxy.config.http.server_tcp_init_cwnd");
@@ -191,23 +188,20 @@ UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions cons
     }
   }
 #endif
-  return na->action_;
+
+  return na->action_.get();
 }
 
 Action *
 UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target, NetVCOptions *opt)
 {
-  ProxyMutex *mutex      = cont->mutex;
-  EThread *t             = mutex->thread_holding;
+  EThread *t             = cont->mutex->thread_holding;
   UnixNetVConnection *vc = (UnixNetVConnection *)this->allocate_vc(t);
 
   if (opt)
     vc->options = *opt;
   else
     opt = &vc->options;
-
-  // virtual function used to upgrade etype to ET_SSL for SSLNetProcessor.
-  upgradeEtype(opt->etype);
 
   bool using_socks = (socks_conf_stuff->socks_needed && opt->socks_support != NO_SOCKS
 #ifdef SOCKS_WITH_TS
@@ -231,7 +225,7 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
 
   if (using_socks) {
     char buff[INET6_ADDRPORTSTRLEN];
-    Debug("Socks", "Using Socks ip: %s\n", ats_ip_nptop(target, buff, sizeof(buff)));
+    Debug("Socks", "Using Socks ip: %s", ats_ip_nptop(target, buff, sizeof(buff)));
     socksEntry = socksAllocator.alloc();
     socksEntry->init(cont->mutex, vc, opt->socks_support, opt->socks_version); /*XXXX remove last two args */
     socksEntry->action_ = cont;
@@ -245,7 +239,7 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
     result      = &socksEntry->action_;
     vc->action_ = socksEntry;
   } else {
-    Debug("Socks", "Not Using Socks %d \n", socks_conf_stuff->socks_needed);
+    Debug("Socks", "Not Using Socks %d ", socks_conf_stuff->socks_needed);
     vc->action_ = cont;
   }
 
@@ -364,7 +358,7 @@ struct CheckConnect : public Continuation {
     }
   }
 
-  CheckConnect(ProxyMutex *m = NULL) : Continuation(m), connect_status(-1), recursion(0), timeout(0)
+  explicit CheckConnect(Ptr<ProxyMutex> &m) : Continuation(m.get()), vc(NULL), connect_status(-1), recursion(0), timeout(0)
   {
     SET_HANDLER(&CheckConnect::handle_connect);
     buf    = new_empty_MIOBuffer(1);
@@ -397,10 +391,6 @@ UnixNetProcessor::start(int, size_t)
 
   netHandler_offset = eventProcessor.allocate(sizeof(NetHandler));
   pollCont_offset   = eventProcessor.allocate(sizeof(PollCont));
-
-  // etype is ET_NET for netProcessor
-  // and      ET_SSL for sslNetProcessor
-  upgradeEtype(etype);
 
   n_netthreads = eventProcessor.n_threads_for_type[etype];
   netthreads   = eventProcessor.eventthread[etype];

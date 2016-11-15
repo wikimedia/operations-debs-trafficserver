@@ -161,6 +161,9 @@ ink_aio_init(ModuleVersion v)
   ink_mutex_init(&insert_mutex, NULL);
 #endif
   REC_ReadConfigInteger(cache_config_threads_per_disk, "proxy.config.cache.threads_per_disk");
+#if TS_USE_LINUX_NATIVE_AIO
+  Warning("Running with Linux AIO, there are known issues with this feature");
+#endif
 }
 
 int
@@ -186,6 +189,10 @@ struct AIOThreadInfo : public Continuation {
   {
     (void)event;
     (void)e;
+#if TS_USE_HWLOC
+    hwloc_set_membind_nodeset(ink_get_topology(), hwloc_topology_get_topology_nodeset(ink_get_topology()), HWLOC_MEMBIND_INTERLEAVE,
+                              HWLOC_MEMBIND_THREAD);
+#endif
     aio_thread_main(this);
     delete this;
     return EVENT_DONE;
@@ -323,8 +330,7 @@ aio_queue_req(AIOCallbackInternal *op, int fromAPI = 0)
   int thread_ndx = 1;
   AIO_Reqs *req  = op->aio_req;
   op->link.next  = NULL;
-  ;
-  op->link.prev = NULL;
+  op->link.prev  = NULL;
 #ifdef AIO_STATS
   ink_atomic_increment((int *)&data->num_req, 1);
 #endif

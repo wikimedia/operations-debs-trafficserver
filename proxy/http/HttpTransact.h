@@ -246,9 +246,7 @@ struct HttpApiInfo {
   }
 };
 
-enum {
-  HTTP_UNDEFINED_CL = -1,
-};
+const int32_t HTTP_UNDEFINED_CL = -1;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -350,12 +348,6 @@ public:
     HTTP_TRANSACT_MAGIC_ALIVE     = 0x00001234,
     HTTP_TRANSACT_MAGIC_DEAD      = 0xDEAD1234,
     HTTP_TRANSACT_MAGIC_SEPARATOR = 0x12345678
-  };
-
-  enum ParentOriginRetry_t {
-    PARENT_ORIGIN_UNDEFINED_RETRY          = 0x0,
-    PARENT_ORIGIN_SIMPLE_RETRY             = 0x1,
-    PARENT_ORIGIN_UNAVAILABLE_SERVER_RETRY = 0x2
   };
 
   enum LookingUp_t {
@@ -720,7 +712,7 @@ public:
     unsigned attempts;
     unsigned simple_retry_attempts;
     unsigned unavailable_server_retry_attempts;
-    ParentOriginRetry_t retry_type;
+    ParentRetry_t retry_type;
 
     _CurrentInfo()
       : mode(UNDEFINED_MODE),
@@ -731,7 +723,7 @@ public:
         attempts(1),
         simple_retry_attempts(0),
         unavailable_server_retry_attempts(0),
-        retry_type(PARENT_ORIGIN_UNDEFINED_RETRY){};
+        retry_type(PARENT_RETRY_NONE){};
   } CurrentInfo;
 
   typedef struct _DNSLookupInfo {
@@ -838,10 +830,10 @@ public:
     HttpConfigParams *http_config_param;
     CacheLookupInfo cache_info;
     DNSLookupInfo dns_info;
-    bool force_dns;
     RedirectInfo redirect_info;
     unsigned int updated_server_version;
-    unsigned int cache_open_write_fail_action;
+    bool force_dns;
+    MgmtByte cache_open_write_fail_action;
     bool is_revalidation_necessary; // Added to check if revalidation is necessary - YTS Team, yamsat
     bool request_will_not_selfloop; // To determine if process done - YTS Team, yamsat
     ConnectionAttributes client_info;
@@ -905,8 +897,9 @@ public:
     int next_hop_scheme; // out
     int orig_scheme;     // pre-mapped scheme
     int method;
-    int cause_of_death_errno; // in
-    HostDBInfo host_db_info;  // in
+    int cause_of_death_errno;     // in
+    Ptr<HostDBInfo> hostdb_entry; // Pointer to the entry we are referencing in hostdb-- to keep our ref
+    HostDBInfo host_db_info;      // in
 
     ink_time_t client_request_time;    // internal
     ink_time_t request_sent_time;      // internal
@@ -925,8 +918,6 @@ public:
 
     // for negative caching
     bool negative_caching;
-    // for srv_lookup
-    bool srv_lookup;
     // for authenticated content caching
     CacheAuth_t www_auth_content;
 
@@ -1007,8 +998,8 @@ public:
       : m_magic(HTTP_TRANSACT_MAGIC_ALIVE),
         state_machine(NULL),
         http_config_param(NULL),
-        force_dns(false),
         updated_server_version(HostDBApplicationInfo::HTTP_VERSION_UNDEFINED),
+        force_dns(false),
         cache_open_write_fail_action(0),
         is_revalidation_necessary(false),
         request_will_not_selfloop(false), // YTS Team, yamsat
@@ -1051,7 +1042,6 @@ public:
         client_connection_enabled(true),
         acl_filtering_performed(false),
         negative_caching(false),
-        srv_lookup(false),
         www_auth_content(CACHE_AUTH_NONE),
         remap_plugin_instance(0),
         fp_tsremap_os_response(NULL),
@@ -1120,7 +1110,7 @@ public:
       via_string[MAX_VIA_INDICES]              = '\0';
 
       memset(user_args, 0, sizeof(user_args));
-      memset(&host_db_info, 0, sizeof(host_db_info));
+      memset((void *)&host_db_info, 0, sizeof(host_db_info));
     }
 
     void
@@ -1158,6 +1148,7 @@ public:
       url_map.clear();
       arena.reset();
       pristine_url.clear();
+      hostdb_entry.clear();
 
       delete[] ranges;
       ranges      = NULL;

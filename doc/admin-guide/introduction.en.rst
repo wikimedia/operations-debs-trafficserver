@@ -92,9 +92,6 @@ caches. In a hierarchy of proxy servers, Traffic Server can act either
 as a parent or a child cache to other Traffic Server systems or to
 similar caching products.
 
-Traffic Server supports ICP (Internet Cache Protocol) peering.
-Hierarchical caching is described in more detail in :ref:`admin-hierarchical-caching`.
-
 Deployment Limitations
 ----------------------
 
@@ -220,13 +217,11 @@ Traffic Server offers the following administration options:
 
 -  The :program:`traffic_ctl` command-line interface is a
    text-based interface from which you can monitor Traffic Server performance
-   and network traffic, as well as configure the Traffic Server system. From
-   Traffic Line, you can execute individual commands or script a series of
-   commands in a shell.
+   and network traffic, as well as configure the Traffic Server system.
 
 -  Various configuration files enable you to configure Traffic Server
    through a simple file-editing and signal-handling interface. Any
-   changes you make through Traffic Line is
+   changes you make through :program:`traffic_ctl` are
    automatically made to the configuration files as well.
 
 -  Finally, there is a clean C API which can be put to good use from a

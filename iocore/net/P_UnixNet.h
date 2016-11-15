@@ -124,6 +124,7 @@ extern ink_hrtime last_throttle_warning;
 extern ink_hrtime last_shedding_warning;
 extern ink_hrtime emergency_throttle_time;
 extern int net_connections_throttle;
+extern bool net_memory_throttle;
 extern int fds_throttle;
 extern int fds_limit;
 extern ink_hrtime last_transient_accept_error;
@@ -141,7 +142,6 @@ extern int http_accept_port_number;
 #define TRANSIENT_ACCEPT_ERROR_MESSAGE_EVERY HRTIME_HOURS(24)
 
 // also the 'throttle connect headroom'
-#define THROTTLE_AT_ONCE 5
 #define EMERGENCY_THROTTLE 16
 #define HYPER_EMERGENCY_THROTTLE 6
 
@@ -160,8 +160,8 @@ struct PollCont : public Continuation {
   PollDescriptor *nextPollDescriptor;
   int poll_timeout;
 
-  PollCont(ProxyMutex *m, int pt = net_config_poll_timeout);
-  PollCont(ProxyMutex *m, NetHandler *nh, int pt = net_config_poll_timeout);
+  PollCont(Ptr<ProxyMutex> &m, int pt = net_config_poll_timeout);
+  PollCont(Ptr<ProxyMutex> &m, NetHandler *nh, int pt = net_config_poll_timeout);
   ~PollCont();
   int pollEvent(int event, Event *e);
 };
@@ -195,9 +195,6 @@ public:
   uint32_t inactive_threashold_in;
   uint32_t transaction_no_activity_timeout_in;
   uint32_t keep_alive_no_activity_timeout_in;
-
-  time_t sec;
-  int cycles;
 
   int startNetEvent(int event, Event *data);
   int mainNetEvent(int event, Event *data);

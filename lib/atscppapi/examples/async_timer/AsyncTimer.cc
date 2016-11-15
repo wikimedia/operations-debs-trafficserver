@@ -34,7 +34,7 @@ public:
     : max_instances_(max_instances), instance_count_(0), type_(type), cancel_(cancel)
   {
     timer_ = new AsyncTimer(type, period_in_ms, initial_period_in_ms);
-    Async::execute<AsyncTimer>(this, timer_, shared_ptr<Mutex>()); // letting the system create the mutex
+    Async::execute<AsyncTimer>(this, timer_, std::shared_ptr<Mutex>()); // letting the system create the mutex
   }
 
   void
@@ -84,4 +84,10 @@ TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
     new TimerEventReceiver(AsyncTimer::TYPE_PERIODIC, period_in_ms, initial_period_in_ms, max_instances, true /* cancel */);
   TS_DEBUG(TAG, "Created canceling timer %p with initial period %d, regular period %d and max instances %d", timer5,
            initial_period_in_ms, period_in_ms, max_instances);
+
+  (void)timer1;
+  (void)timer2;
+  (void)timer3;
+  (void)timer4;
+  (void)timer5;
 }

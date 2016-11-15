@@ -20,16 +20,18 @@
  * @file Transaction.cc
  */
 
-#include "atscppapi/Transaction.h"
+#include <memory>
 #include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
+
+#include "atscppapi/Transaction.h"
 #include "ts/ink_memory.h"
-#include "atscppapi/shared_ptr.h"
 #include "logging_internal.h"
 #include "utils_internal.h"
 #include "atscppapi/noncopyable.h"
+
 using std::map;
 using std::string;
 using namespace atscppapi;
@@ -39,6 +41,7 @@ using namespace atscppapi;
  */
 struct atscppapi::TransactionState : noncopyable {
   TSHttpTxn txn_;
+  TSEvent event_; ///< Current event being dispatched.
   std::list<TransactionPlugin *> plugins_;
   TSMBuffer client_request_hdr_buf_;
   TSMLoc client_request_hdr_loc_;
@@ -58,10 +61,11 @@ struct atscppapi::TransactionState : noncopyable {
   TSMBuffer cached_request_hdr_buf_;
   TSMLoc cached_request_hdr_loc_;
   Request cached_request_;
-  map<string, shared_ptr<Transaction::ContextValue>> context_values_;
+  map<string, std::shared_ptr<Transaction::ContextValue>> context_values_;
 
   TransactionState(TSHttpTxn txn, TSMBuffer client_request_hdr_buf, TSMLoc client_request_hdr_loc)
     : txn_(txn),
+      event_(TS_EVENT_NONE),
       client_request_hdr_buf_(client_request_hdr_buf),
       client_request_hdr_loc_(client_request_hdr_loc),
       client_request_(txn, client_request_hdr_buf, client_request_hdr_loc),
@@ -96,6 +100,12 @@ Transaction::~Transaction()
 {
   LOG_DEBUG("Transaction tshttptxn=%p destroying Transaction object %p", state_->txn_, this);
   delete state_;
+}
+
+void
+Transaction::setEvent(TSEvent event)
+{
+  state_->event_ = event;
 }
 
 bool
@@ -194,7 +204,7 @@ Transaction::setStatusCode(HttpStatus code)
 bool
 Transaction::isInternalRequest() const
 {
-  return TSHttpTxnIsInternal(state_->txn_) == TS_SUCCESS;
+  return (0 != TSHttpTxnIsInternal(state_->txn_));
 }
 
 void *
@@ -216,11 +226,11 @@ Transaction::addPlugin(TransactionPlugin *plugin)
   state_->plugins_.push_back(plugin);
 }
 
-shared_ptr<Transaction::ContextValue>
+std::shared_ptr<Transaction::ContextValue>
 Transaction::getContextValue(const std::string &key)
 {
-  shared_ptr<Transaction::ContextValue> return_context_value;
-  map<string, shared_ptr<Transaction::ContextValue>>::iterator iter = state_->context_values_.find(key);
+  std::shared_ptr<Transaction::ContextValue> return_context_value;
+  map<string, std::shared_ptr<Transaction::ContextValue>>::iterator iter = state_->context_values_.find(key);
   if (iter != state_->context_values_.end()) {
     return_context_value = iter->second;
   }
@@ -229,7 +239,7 @@ Transaction::getContextValue(const std::string &key)
 }
 
 void
-Transaction::setContextValue(const std::string &key, shared_ptr<Transaction::ContextValue> value)
+Transaction::setContextValue(const std::string &key, std::shared_ptr<Transaction::ContextValue> value)
 {
   state_->context_values_[key] = value;
 }
@@ -238,36 +248,7 @@ ClientRequest &
 Transaction::getClientRequest()
 {
   return state_->client_request_;
-}
-
-Request &
-Transaction::getServerRequest()
-{
-  return state_->server_request_;
-}
-
-Response &
-Transaction::getServerResponse()
-{
-  return state_->server_response_;
-}
-
-Response &
-Transaction::getClientResponse()
-{
-  return state_->client_response_;
-}
-
-Request &
-Transaction::getCachedRequest()
-{
-  return state_->cached_request_;
-}
-
-Response &
-Transaction::getCachedResponse()
-{
-  return state_->cached_response_;
+  ;
 }
 
 string
@@ -454,58 +435,91 @@ private:
 
 } // anonymous namespace
 
-void
-Transaction::initServerRequest(TSEvent event)
+Request &
+Transaction::getServerRequest()
 {
   static initializeHandles initializeServerRequestHandles(TSHttpTxnServerReqGet);
-  initializeServerRequestHandles(state_->txn_, state_->server_request_hdr_buf_, state_->server_request_hdr_loc_, "server request");
-  LOG_DEBUG("Initializing server request, event %d", event);
-  state_->server_request_.init(state_->server_request_hdr_buf_, state_->server_request_hdr_loc_);
+  if (NULL == state_->server_request_hdr_buf_) {
+    initializeServerRequestHandles(state_->txn_, state_->server_request_hdr_buf_, state_->server_request_hdr_loc_,
+                                   "server request");
+    LOG_DEBUG("Initializing server request, event %d", state_->event_);
+    state_->server_request_.init(state_->server_request_hdr_buf_, state_->server_request_hdr_loc_);
+  }
+  return state_->server_request_;
 }
 
-void
-Transaction::initServerResponse(TSEvent event)
+Response &
+Transaction::getServerResponse()
 {
   static initializeHandles initializeServerResponseHandles(TSHttpTxnServerRespGet);
-  initializeServerResponseHandles(state_->txn_, state_->server_response_hdr_buf_, state_->server_response_hdr_loc_,
-                                  "server response");
-  LOG_DEBUG("Initializing server response, event %d", event);
-  state_->server_response_.init(state_->server_response_hdr_buf_, state_->server_response_hdr_loc_);
+  if (NULL == state_->server_response_hdr_buf_) {
+    initializeServerResponseHandles(state_->txn_, state_->server_response_hdr_buf_, state_->server_response_hdr_loc_,
+                                    "server response");
+    LOG_DEBUG("Initializing server response, event %d", state_->event_);
+    state_->server_response_.init(state_->server_response_hdr_buf_, state_->server_response_hdr_loc_);
+  }
+  return state_->server_response_;
 }
 
-void
-Transaction::initClientResponse(TSEvent event)
+Response &
+Transaction::getClientResponse()
 {
   static initializeHandles initializeClientResponseHandles(TSHttpTxnClientRespGet);
-  initializeClientResponseHandles(state_->txn_, state_->client_response_hdr_buf_, state_->client_response_hdr_loc_,
-                                  "client response");
-  LOG_DEBUG("Initializing client response, event %d", event);
-  state_->client_response_.init(state_->client_response_hdr_buf_, state_->client_response_hdr_loc_);
+  if (NULL == state_->client_response_hdr_buf_) {
+    initializeClientResponseHandles(state_->txn_, state_->client_response_hdr_buf_, state_->client_response_hdr_loc_,
+                                    "client response");
+    LOG_DEBUG("Initializing client response, event %d", state_->event_);
+    state_->client_response_.init(state_->client_response_hdr_buf_, state_->client_response_hdr_loc_);
+  }
+  return state_->client_response_;
 }
 
-void
-Transaction::initCachedRequest(TSEvent event)
+Request &
+Transaction::getCachedRequest()
 {
   static initializeHandles initializeCachedRequestHandles(TSHttpTxnCachedReqGet);
 
-  if (event == TS_EVENT_HTTP_TXN_CLOSE) {
+  if (state_->event_ == TS_EVENT_HTTP_TXN_CLOSE) {
     // CachedRequest is destroyed in tunnel_handler_cache_read
     state_->cached_request_.reset();
-    LOG_DEBUG("Reset cached request, event %d", event);
-    return;
+    LOG_DEBUG("Reset cached request, event %d", state_->event_);
+  } else {
+    if (NULL == state_->cached_request_hdr_buf_) {
+      initializeCachedRequestHandles(state_->txn_, state_->cached_request_hdr_buf_, state_->cached_request_hdr_loc_,
+                                     "cached request");
+      LOG_DEBUG("Initializing cached request, event %d", state_->event_);
+      state_->cached_request_.init(state_->cached_request_hdr_buf_, state_->cached_request_hdr_loc_);
+    }
   }
+  return state_->cached_request_;
+}
 
-  initializeCachedRequestHandles(state_->txn_, state_->cached_request_hdr_buf_, state_->cached_request_hdr_loc_, "cached request");
-  LOG_DEBUG("Initializing cached request, event %d", event);
-  state_->cached_request_.init(state_->cached_request_hdr_buf_, state_->cached_request_hdr_loc_);
+Response &
+Transaction::getCachedResponse()
+{
+  static initializeHandles initializeCachedResponseHandles(TSHttpTxnCachedRespGet);
+  if (NULL == state_->cached_response_hdr_buf_) {
+    initializeCachedResponseHandles(state_->txn_, state_->cached_response_hdr_buf_, state_->cached_response_hdr_loc_,
+                                    "cached response");
+    LOG_DEBUG("Initializing cached response, event %d", state_->event_);
+    state_->cached_response_.init(state_->cached_response_hdr_buf_, state_->cached_response_hdr_loc_);
+  }
+  return state_->cached_response_;
 }
 
 void
-Transaction::initCachedResponse(TSEvent event)
+Transaction::resetHandles()
 {
-  static initializeHandles initializeCachedResponseHandles(TSHttpTxnCachedRespGet);
-  initializeCachedResponseHandles(state_->txn_, state_->cached_response_hdr_buf_, state_->cached_response_hdr_loc_,
-                                  "cached response");
-  LOG_DEBUG("Initializing cached response, event %d", event);
-  state_->cached_response_.init(state_->cached_response_hdr_buf_, state_->cached_response_hdr_loc_);
+  state_->cached_request_hdr_buf_  = NULL;
+  state_->cached_request_hdr_loc_  = NULL;
+  state_->cached_response_hdr_buf_ = NULL;
+  state_->cached_response_hdr_loc_ = NULL;
+
+  state_->client_response_hdr_buf_ = NULL;
+  state_->client_response_hdr_loc_ = NULL;
+
+  state_->server_request_hdr_buf_  = NULL;
+  state_->server_request_hdr_loc_  = NULL;
+  state_->server_response_hdr_buf_ = NULL;
+  state_->server_response_hdr_loc_ = NULL;
 }

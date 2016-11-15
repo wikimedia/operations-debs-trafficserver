@@ -263,6 +263,10 @@ public:
   bool is_private();
   bool is_redirect_required();
 
+  int populate_client_protocol(const char **result, int n) const;
+  const char *client_protocol_contains(const char *tag_prefix) const;
+  const char *find_proto_string(HTTPVersion version) const;
+
   int64_t sm_id;
   unsigned int magic;
 
@@ -335,7 +339,6 @@ protected:
 
   HttpSMHandler default_handler;
   Action *pending_action;
-  Action *historical_action;
   Continuation *schedule_cont;
 
   HTTPParser http_parser;
@@ -409,6 +412,7 @@ protected:
   void do_hostdb_reverse_lookup();
   void do_cache_lookup_and_read();
   void do_http_server_open(bool raw = false);
+  void send_origin_throttled_response();
   void do_setup_post_tunnel(HttpVC_t to_vc_type);
   void do_cache_prepare_write();
   void do_cache_prepare_write_transform();
@@ -495,6 +499,7 @@ public:
   // Info about client's SSL connection.
   bool client_ssl_reused;
   bool client_connection_is_ssl;
+  const char *client_protocol;
   const char *client_sec_protocol;
   const char *client_cipher_suite;
   int server_transact_count;

@@ -16,12 +16,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+include $(top_srcdir)/build/tidy.mk
+
 # Note that hdrs is targeted from ../Makefile.am
 noinst_LIBRARIES = \
-  liberror.a \
   libdiagsconfig.a \
-  libUglyLogStubs.a \
-  libxml.a
+  libUglyLogStubs.a
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
@@ -38,8 +38,7 @@ AM_CPPFLAGS = \
   -I$(top_srcdir)/proxy/logging \
   -I$(top_srcdir)/lib
 
-liberror_a_SOURCES = \
-  Error.cc
+
 
 libdiagsconfig_a_SOURCES = \
   DiagsConfig.cc
@@ -47,6 +46,5 @@ libdiagsconfig_a_SOURCES = \
 libUglyLogStubs_a_SOURCES = \
   UglyLogStubs.cc
 
-libxml_a_SOURCES = \
-  InkXml.cc \
-  InkXml.h
+tidy-local: $(libdiagsconfig_a_SOURCES) $(libUglyLogStubs_a_SOURCES)
+	$(CXX_Clang_Tidy)

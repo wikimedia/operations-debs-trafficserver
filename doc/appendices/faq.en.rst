@@ -262,7 +262,6 @@ cache-type character value is one of
 Value             Meaning
 ===== ==========================
 C     cache
-I     icp
 L     cluster, (not used)
 P     parent
 S     server
@@ -284,19 +283,6 @@ N     conditional hit (client sent conditional, doc fresh in cache, returned 304
 S     cache hit, but expired
 U     cache hit, but client forces revalidate (e.g. Pragma: no-cache)
 blank no cache lookup
-===== ==========================
-
-i icp-conn-info
-^^^^^^^^^^^^^^^^^^^^^
-
-ICP status
-
-===== ==========================
-Value             Meaning
-===== ==========================
-F     connection open failed
-S     connection opened successfully
-blank no icp
 ===== ==========================
 
 p parent-proxy
@@ -361,10 +347,10 @@ attributed to the last 10-second interval, although it can take several
 minutes to transfer the object. This inaccuracy is more noticeable with
 a light load. A heavier load yields a more accurate statistic.
 
-You are unable to execute Traffic Line commands
+You are unable to execute Traffic Control commands
 -----------------------------------------------
 
-Traffic Line commands do not execute under the following conditions:
+:program:`traffic_ctl` commands do not execute under the following conditions:
 
 **When the traffic_manager process is not running**
     Check to see if the :program:`traffic_manager` process is running by entering the
@@ -386,10 +372,10 @@ Traffic Line commands do not execute under the following conditions:
 
 **When you are not executing the command from $TSHome/bin**
     If the Traffic Server ``bin`` directory is not in your path, then prepend the
-    Traffic Line commands with ``./`` (for example, ``./traffic_ctl -h``).
+    Traffic Control commands with ``./`` (for example, ``./traffic_ctl -h``).
 
 **When multiple Traffic Server installations are present and you are not
-executing the Traffic Line command from the active Traffic Server path
+executing the Traffic Control command from the active Traffic Server path
 specified in ``/etc/trafficserver``**
 
 

@@ -32,6 +32,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+#  Licensed to the Apache Software Foundation (ASF) under one
+#  or more contributor license agreements.  See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.  The ASF licenses this file
+#  to you under the Apache License, Version 2.0 (the
+#  "License"); you may not use this file except in compliance
+#  with the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 
 
 VPATH = @srcdir@
@@ -106,21 +122,20 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 noinst_PROGRAMS = mkdfa$(EXEEXT) CompileParseRules$(EXEEXT)
-check_PROGRAMS = test_arena$(EXEEXT) test_atomic$(EXEEXT) \
-	test_freelist$(EXEEXT) test_geometry$(EXEEXT) \
-	test_List$(EXEEXT) test_Map$(EXEEXT) test_Regex$(EXEEXT) \
-	test_PriorityQueue$(EXEEXT) test_Vec$(EXEEXT) \
-	test_X509HostnameValidator$(EXEEXT)
+check_PROGRAMS = test_tsutil$(EXEEXT) test_arena$(EXEEXT) \
+	test_atomic$(EXEEXT) test_freelist$(EXEEXT) \
+	test_geometry$(EXEEXT) test_List$(EXEEXT) test_Map$(EXEEXT) \
+	test_Vec$(EXEEXT) test_X509HostnameValidator$(EXEEXT)
 subdir = lib/ts
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_compare_version.m4 \
 	$(top_srcdir)/build/ax_compiler_vendor.m4 \
-	$(top_srcdir)/build/ax_cxx_compile_stdcxx_11.m4 \
 	$(top_srcdir)/build/ax_lib_curl.m4 \
 	$(top_srcdir)/build/ax_lib_readline.m4 \
 	$(top_srcdir)/build/ax_path_generic.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
+	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
 	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
 	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
@@ -130,8 +145,8 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/xml.m4 \
-	$(top_srcdir)/build/zlib.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(library_include_HEADERS) \
@@ -172,20 +187,20 @@ am__installdirs = "$(DESTDIR)$(libdir)" \
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libtsutil_la_DEPENDENCIES = @LIBOBJS@
 am_libtsutil_la_OBJECTS = Arena.lo BaseLogFile.lo Bitops.lo \
-	ConsistentHash.lo ContFlags.lo Diags.lo EventNotify.lo Hash.lo \
-	HashFNV.lo HashMD5.lo HashSip.lo HostLookup.lo IpMap.lo \
-	IpMapConf.lo Layout.lo MMH.lo MatcherUtils.lo ParseRules.lo \
-	RawHashTable.lo RbTree.lo Regex.lo Regression.lo TextBuffer.lo \
-	Tokenizer.lo Vec.lo Version.lo fastlz.lo hugepages.lo \
-	ink_args.lo ink_assert.lo ink_base64.lo ink_cap.lo ink_code.lo \
-	ink_defs.lo ink_error.lo ink_file.lo ink_hash_table.lo \
-	ink_hrtime.lo ink_inet.lo ink_memory.lo ink_mutex.lo \
-	ink_queue.lo ink_queue_utils.lo ink_rand.lo ink_res_init.lo \
-	ink_res_mkquery.lo ink_resource.lo ink_rwlock.lo ink_sock.lo \
-	ink_sprintf.lo ink_stack_trace.lo ink_string++.lo \
-	ink_string.lo ink_sys_control.lo ink_syslog.lo ink_thread.lo \
-	ink_time.lo llqueue.lo lockfile.lo signals.lo \
-	X509HostnameValidator.lo
+	ConsistentHash.lo ContFlags.lo Diags.lo SourceLocation.lo \
+	EventNotify.lo Hash.lo HashFNV.lo HashMD5.lo HashSip.lo \
+	HostLookup.lo InkErrno.lo IpMap.lo IpMapConf.lo Layout.lo \
+	MMH.lo MatcherUtils.lo ParseRules.lo RawHashTable.lo RbTree.lo \
+	Regex.lo Regression.lo TextBuffer.lo Tokenizer.lo Vec.lo \
+	Version.lo fastlz.lo hugepages.lo ink_args.lo ink_assert.lo \
+	ink_base64.lo ink_cap.lo ink_code.lo ink_defs.lo ink_error.lo \
+	ink_file.lo ink_hash_table.lo ink_hrtime.lo ink_inet.lo \
+	ink_memory.lo ink_mutex.lo ink_queue.lo ink_queue_utils.lo \
+	ink_rand.lo ink_res_init.lo ink_res_mkquery.lo ink_resource.lo \
+	ink_rwlock.lo ink_sock.lo ink_sprintf.lo ink_stack_trace.lo \
+	ink_string++.lo ink_string.lo ink_sys_control.lo ink_syslog.lo \
+	ink_thread.lo ink_time.lo ink_uuid.lo llqueue.lo lockfile.lo \
+	signals.lo X509HostnameValidator.lo
 libtsutil_la_OBJECTS = $(am_libtsutil_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -210,19 +225,6 @@ test_Map_DEPENDENCIES = libtsutil.la
 test_Map_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(test_Map_LDFLAGS) $(LDFLAGS) -o $@
-am_test_PriorityQueue_OBJECTS = test_PriorityQueue.$(OBJEXT)
-test_PriorityQueue_OBJECTS = $(am_test_PriorityQueue_OBJECTS)
-test_PriorityQueue_DEPENDENCIES = libtsutil.la
-test_PriorityQueue_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_PriorityQueue_LDFLAGS) \
-	$(LDFLAGS) -o $@
-am_test_Regex_OBJECTS = test_Regex.$(OBJEXT)
-test_Regex_OBJECTS = $(am_test_Regex_OBJECTS)
-test_Regex_DEPENDENCIES = libtsutil.la
-test_Regex_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_Regex_LDFLAGS) $(LDFLAGS) -o $@
 am_test_Vec_OBJECTS = test_Vec.$(OBJEXT)
 test_Vec_OBJECTS = $(am_test_Vec_OBJECTS)
 test_Vec_DEPENDENCIES = libtsutil.la
@@ -264,6 +266,13 @@ test_geometry_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_geometry_LDFLAGS) $(LDFLAGS) \
 	-o $@
+am_test_tsutil_OBJECTS = test_PriorityQueue.$(OBJEXT) \
+	test_Ptr.$(OBJEXT) test_Regex.$(OBJEXT) tests.$(OBJEXT)
+test_tsutil_OBJECTS = $(am_test_tsutil_OBJECTS)
+test_tsutil_DEPENDENCIES = libtsutil.la
+test_tsutil_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(CXXFLAGS) $(test_tsutil_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -277,7 +286,7 @@ am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 = 
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/lib
-depcomp = $(SHELL) $(top_srcdir)/build/aux/depcomp
+depcomp = $(SHELL) $(top_srcdir)/build/_aux/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -318,22 +327,23 @@ am__v_CXXLD_0 = @echo "  CXXLD   " $@;
 am__v_CXXLD_1 = 
 SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
-	$(test_PriorityQueue_SOURCES) $(test_Regex_SOURCES) \
 	$(test_Vec_SOURCES) $(test_X509HostnameValidator_SOURCES) \
 	$(test_arena_SOURCES) $(test_atomic_SOURCES) \
-	$(test_freelist_SOURCES) $(test_geometry_SOURCES)
+	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
+	$(test_tsutil_SOURCES)
 DIST_SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
-	$(test_PriorityQueue_SOURCES) $(test_Regex_SOURCES) \
 	$(test_Vec_SOURCES) $(test_X509HostnameValidator_SOURCES) \
 	$(test_arena_SOURCES) $(test_atomic_SOURCES) \
-	$(test_freelist_SOURCES) $(test_geometry_SOURCES)
+	$(test_freelist_SOURCES) $(test_geometry_SOURCES) \
+	$(test_tsutil_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
 HEADERS = $(library_include_HEADERS)
+am__extra_recursive_targets = tidy-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -512,7 +522,7 @@ RECHECK_LOGS = $(TEST_LOGS)
 AM_RECURSIVE_TARGETS = check recheck
 TEST_SUITE_LOG = test-suite.log
 TEST_EXTENSIONS = @EXEEXT@ .test
-LOG_DRIVER = $(SHELL) $(top_srcdir)/build/aux/test-driver
+LOG_DRIVER = $(SHELL) $(top_srcdir)/build/_aux/test-driver
 LOG_COMPILE = $(LOG_COMPILER) $(AM_LOG_FLAGS) $(LOG_FLAGS)
 am__set_b = \
   case '$@' in \
@@ -527,12 +537,13 @@ am__set_b = \
 am__test_logs1 = $(TESTS:=.log)
 am__test_logs2 = $(am__test_logs1:@EXEEXT@.log=.log)
 TEST_LOGS = $(am__test_logs2:.test.log=.log)
-TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/build/aux/test-driver
+TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/build/_aux/test-driver
 TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/apidefs.h.in \
-	$(srcdir)/ink_config.h.in $(top_srcdir)/build/aux/depcomp \
-	$(top_srcdir)/build/aux/test-driver
+	$(srcdir)/ink_config.h.in $(top_srcdir)/build/_aux/depcomp \
+	$(top_srcdir)/build/_aux/test-driver \
+	$(top_srcdir)/build/tidy.mk
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 pkgdatadir = @pkgdatadir@
 pkglibdir = @pkglibdir@
@@ -555,12 +566,14 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CFLAGS = @CURL_CFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
 CURL_LIBS = @CURL_LIBS@
-CURSES_LIB = @CURSES_LIB@
+CURSES_CFLAGS = @CURSES_CFLAGS@
+CURSES_LIBS = @CURSES_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
@@ -577,14 +590,12 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXPAT_LDFLAGS = @EXPAT_LDFLAGS@
 EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
 EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
 GREP = @GREP@
-HAVE_CXX11 = @HAVE_CXX11@
 HOST_GUESS = @HOST_GUESS@
 HWLOC_CFLAGS = @HWLOC_CFLAGS@
 HWLOC_LIBS = @HWLOC_LIBS@
@@ -600,7 +611,6 @@ LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
 LIBCAP = @LIBCAP@
 LIBCRYPT = @LIBCRYPT@
-LIBEXPAT = @LIBEXPAT@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
@@ -624,11 +634,9 @@ LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
 LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
-LUAJIT_LIBS = @LUAJIT_LIBS@
-LUA_CFLAGS = @LUA_CFLAGS@
-LUA_LDFLAGS = @LUA_LDFLAGS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -670,8 +678,6 @@ SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
 SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
 SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
-SPDYLAY_CFLAGS = @SPDYLAY_CFLAGS@
-SPDYLAY_LIBS = @SPDYLAY_LIBS@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
 STRIP = @STRIP@
@@ -756,7 +762,6 @@ exp_prefix = @exp_prefix@
 exp_runtimedir = @exp_runtimedir@
 exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
-expath = @expath@
 floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
@@ -768,12 +773,9 @@ has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
 has_so_peercred = @has_so_peercred@
-has_spdy = @has_spdy@
-has_static_proxy = @has_static_proxy@
 has_tcmalloc = @has_tcmalloc@
 has_tests = @has_tests@
 has_wccp = @has_wccp@
-have_std_shared_ptr = @have_std_shared_ptr@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -877,17 +879,18 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 use_cert_cb = @use_cert_cb@
+use_dh_get_2048_256 = @use_dh_get_2048_256@
 use_diags = @use_diags@
 use_epoll = @use_epoll@
 use_fast_sdk = @use_fast_sdk@
 use_hwloc = @use_hwloc@
 use_kqueue = @use_kqueue@
 use_linux_native_aio = @use_linux_native_aio@
-use_luajit = @use_luajit@
 use_port = @use_port@
 use_posix_cap = @use_posix_cap@
 use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
+use_sslv3_client = @use_sslv3_client@
 use_tls_alpn = @use_tls_alpn@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
@@ -896,6 +899,22 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
+Clang_Tidy_Options = -fix -fix-errors
+
+# Sort the filenames to remove duplicates, then filter to retain
+# just the C and C++ sources so we don't pick up lex and yacc files
+# for example.
+Clang_Tidy_CC_Files = $(filter %.c, $(sort $(1)))
+Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
+
+#clang-tidy rules. We expect these to be actions with something like
+#$(DIST_SOURCES) as the dependencies.rules. Note that $DIST_SOURCES
+#is not an automake API, it is an implementation detail, but it ought
+#to be stable enough.
+#
+#All this clearly requires GNU make.
+CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
+CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
 library_includedir = $(includedir)/ts
 library_include_HEADERS = apidefs.h
 TESTS = $(check_PROGRAMS)
@@ -926,6 +945,8 @@ libtsutil_la_SOURCES = \
   ContFlags.h \
   Diags.cc \
   Diags.h \
+  SourceLocation.h \
+  SourceLocation.cc \
   DynArray.h \
   EventNotify.cc \
   EventNotify.h \
@@ -943,6 +964,7 @@ libtsutil_la_SOURCES = \
   I_Layout.h \
   I_Version.h \
   InkErrno.h \
+  InkErrno.cc \
   IntrusiveDList.h \
   IpMap.cc \
   IpMap.h \
@@ -1048,6 +1070,8 @@ libtsutil_la_SOURCES = \
   ink_thread.h \
   ink_time.cc \
   ink_time.h \
+  ink_uuid.cc \
+  ink_uuid.h \
   llqueue.cc \
   lockfile.cc \
   signals.cc \
@@ -1069,12 +1093,6 @@ test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-test_Regex_SOURCES = test_Regex.cc
-test_Regex_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Regex_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
-test_PriorityQueue_SOURCES = test_PriorityQueue.cc
-test_PriorityQueue_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_PriorityQueue_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
@@ -1084,12 +1102,20 @@ test_geometry_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_X509HostnameValidator_SOURCES = test_X509HostnameValidator.cc
 test_X509HostnameValidator_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@ @OPENSSL_LIBS@
 test_X509HostnameValidator_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+test_tsutil_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
+test_tsutil_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
+test_tsutil_SOURCES = \
+	test_PriorityQueue.cc \
+	test_Ptr.cc \
+	test_Regex.cc \
+	tests.cc
+
 CompileParseRules_SOURCES = CompileParseRules.cc
 all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
-$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -1109,6 +1135,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe);; \
 	esac;
+$(top_srcdir)/build/tidy.mk $(am__empty):
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
@@ -1195,14 +1222,6 @@ test_Map$(EXEEXT): $(test_Map_OBJECTS) $(test_Map_DEPENDENCIES) $(EXTRA_test_Map
 	@rm -f test_Map$(EXEEXT)
 	$(AM_V_CXXLD)$(test_Map_LINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
 
-test_PriorityQueue$(EXEEXT): $(test_PriorityQueue_OBJECTS) $(test_PriorityQueue_DEPENDENCIES) $(EXTRA_test_PriorityQueue_DEPENDENCIES) 
-	@rm -f test_PriorityQueue$(EXEEXT)
-	$(AM_V_CXXLD)$(test_PriorityQueue_LINK) $(test_PriorityQueue_OBJECTS) $(test_PriorityQueue_LDADD) $(LIBS)
-
-test_Regex$(EXEEXT): $(test_Regex_OBJECTS) $(test_Regex_DEPENDENCIES) $(EXTRA_test_Regex_DEPENDENCIES) 
-	@rm -f test_Regex$(EXEEXT)
-	$(AM_V_CXXLD)$(test_Regex_LINK) $(test_Regex_OBJECTS) $(test_Regex_LDADD) $(LIBS)
-
 test_Vec$(EXEEXT): $(test_Vec_OBJECTS) $(test_Vec_DEPENDENCIES) $(EXTRA_test_Vec_DEPENDENCIES) 
 	@rm -f test_Vec$(EXEEXT)
 	$(AM_V_CXXLD)$(test_Vec_LINK) $(test_Vec_OBJECTS) $(test_Vec_LDADD) $(LIBS)
@@ -1227,6 +1246,10 @@ test_geometry$(EXEEXT): $(test_geometry_OBJECTS) $(test_geometry_DEPENDENCIES) $
 	@rm -f test_geometry$(EXEEXT)
 	$(AM_V_CXXLD)$(test_geometry_LINK) $(test_geometry_OBJECTS) $(test_geometry_LDADD) $(LIBS)
 
+test_tsutil$(EXEEXT): $(test_tsutil_OBJECTS) $(test_tsutil_DEPENDENCIES) $(EXTRA_test_tsutil_DEPENDENCIES) 
+	@rm -f test_tsutil$(EXEEXT)
+	$(AM_V_CXXLD)$(test_tsutil_LINK) $(test_tsutil_OBJECTS) $(test_tsutil_LDADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -1246,6 +1269,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashMD5.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HashSip.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HostLookup.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/InkErrno.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/IpMapConf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Layout.Plo@am__quote@
@@ -1256,6 +1280,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RbTree.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Regression.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/SourceLocation.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/TextBuffer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Tokenizer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Vec.Plo@am__quote@
@@ -1292,6 +1317,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_syslog.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_thread.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_time.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ink_uuid.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/llqueue.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lockfile.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mkdfa.Po@am__quote@
@@ -1299,6 +1325,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_List.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Map.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_PriorityQueue.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Ptr.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Regex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Vec.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_X509HostnameValidator.Po@am__quote@
@@ -1306,6 +1333,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_atomic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_freelist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_geometry.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tests.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -1381,6 +1409,7 @@ uninstall-library_includeHEADERS:
 	@list='$(library_include_HEADERS)'; test -n "$(library_includedir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	dir='$(DESTDIR)$(library_includedir)'; $(am__uninstall_files_from_dir)
+tidy-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -1575,6 +1604,13 @@ recheck: all $(check_PROGRAMS)
 	        am__force_recheck=am--force-recheck \
 	        TEST_LOGS="$$log_list"; \
 	exit $$?
+test_tsutil.log: test_tsutil$(EXEEXT)
+	@p='test_tsutil$(EXEEXT)'; \
+	b='test_tsutil'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_arena.log: test_arena$(EXEEXT)
 	@p='test_arena$(EXEEXT)'; \
 	b='test_arena'; \
@@ -1613,20 +1649,6 @@ test_List.log: test_List$(EXEEXT)
 test_Map.log: test_Map$(EXEEXT)
 	@p='test_Map$(EXEEXT)'; \
 	b='test_Map'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_Regex.log: test_Regex$(EXEEXT)
-	@p='test_Regex$(EXEEXT)'; \
-	b='test_Regex'; \
-	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
-	--log-file $$b.log --trs-file $$b.trs \
-	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
-	"$$tst" $(AM_TESTS_FD_REDIRECT)
-test_PriorityQueue.log: test_PriorityQueue$(EXEEXT)
-	@p='test_PriorityQueue$(EXEEXT)'; \
-	b='test_PriorityQueue'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
@@ -1801,6 +1823,10 @@ ps: ps-am
 
 ps-am:
 
+tidy: tidy-am
+
+tidy-am: tidy-local
+
 uninstall-am: uninstall-libLTLIBRARIES \
 	uninstall-library_includeHEADERS
 
@@ -1820,7 +1846,7 @@ uninstall-am: uninstall-libLTLIBRARIES \
 	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	recheck tags tags-am uninstall uninstall-am \
+	recheck tags tags-am tidy-am tidy-local uninstall uninstall-am \
 	uninstall-libLTLIBRARIES uninstall-library_includeHEADERS
 
 .PRECIOUS: Makefile
@@ -1838,13 +1864,11 @@ $(srcdir)/ParseRules.cc: ParseRulesCType
 ParseRulesCType: CompileParseRules
 	./CompileParseRules
 
-test:: $(TESTS)
-	for f in $(TESTS) ; do $$f ; done
-
-#$(foreach F, $(TESTS), $(shell $F))
-
 clean-local:
 	rm -f ParseRulesCType ParseRulesCTypeToLower ParseRulesCTypeToUpper
+
+tidy-local: $(DIST_SOURCES)
+	$(CXX_Clang_Tidy)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

@@ -23,6 +23,7 @@
 #include "ts/ink_platform.h"
 #include "ts/ink_sock.h"
 #include "MgmtUtils.h"
+#include "MgmtSocket.h"
 #include "ts/Diags.h"
 
 #include "LocalManager.h"
@@ -52,11 +53,12 @@ mgmt_use_syslog()
 int
 mgmt_readline(int soc, char *buf, int maxlen)
 {
-  int n, rc;
+  int n = 0, rc;
   char c;
 
-  for (n = 1; n < maxlen; n++) {
-    if ((rc = read_socket(soc, &c, 1)) == 1) {
+  for (; n < maxlen; n++) {
+    rc = read_socket(soc, &c, 1);
+    if (rc == 1) {
       *buf++ = c;
       if (c == '\n') {
         --buf;
@@ -74,9 +76,19 @@ mgmt_readline(int soc, char *buf, int maxlen)
         break;
       }
     } else { /* Error */
+      if (errno == ECONNRESET || errno == EPIPE) {
+        return n ? n : 0;
+      }
+
+      if (mgmt_transient_error()) {
+        mgmt_sleep_msec(1);
+        continue;
+      }
+
       return -1;
     }
   }
+
   return n;
 } /* End mgmt_readline */
 
@@ -132,30 +144,30 @@ mgmt_read_pipe(int fd, char *buf, int bytes_to_read)
   int err        = 0;
   char *p        = buf;
   int bytes_read = 0;
+
   while (bytes_to_read > 0) {
     err = read_socket(fd, p, bytes_to_read);
     if (err == 0) {
       return err;
     } else if (err < 0) {
-      switch (errno) {
-      case EINTR:
-      case EAGAIN:
-#if defined(hpux)
-      case EWOULDBLOCK:
-#endif
+      // Turn ECONNRESET into EOF.
+      if (errno == ECONNRESET || errno == EPIPE) {
+        return bytes_read ? bytes_read : 0;
+      }
+
+      if (mgmt_transient_error()) {
         mgmt_sleep_msec(1);
         continue;
-      default:
-        return -errno;
       }
+
+      return -errno;
     }
+
     bytes_to_read -= err;
     bytes_read += err;
     p += err;
   }
-  /*
-     Ldone:
-   */
+
   return bytes_read;
 }
 
@@ -174,30 +186,25 @@ mgmt_write_pipe(int fd, char *buf, int bytes_to_write)
   int err           = 0;
   char *p           = buf;
   int bytes_written = 0;
+
   while (bytes_to_write > 0) {
     err = write_socket(fd, p, bytes_to_write);
     if (err == 0) {
       return err;
     } else if (err < 0) {
-      switch (errno) {
-      case EINTR:
-      case EAGAIN:
-#if defined(hpux)
-      case EWOULDBLOCK:
-#endif
+      if (mgmt_transient_error()) {
         mgmt_sleep_msec(1);
         continue;
-      default:
-        return -errno;
       }
+
+      return -errno;
     }
+
     bytes_to_write -= err;
     bytes_written += err;
     p += err;
   }
-  /*
-     Ldone:
-   */
+
   return bytes_written;
 }
 
@@ -214,38 +221,6 @@ mgmt_blockAllSigs()
 #endif
 }
 
-/*
- * mgmt_log(...)
- *   Really just a print wrapper, function takes a string and outputs the
- * result to log. Written so that we could turn off all output or at least
- * better control it.
- */
-void
-mgmt_log(FILE *log, const char *message_format, ...)
-{
-  va_list ap;
-  char extended_format[4096], message[4096];
-
-  va_start(ap, message_format);
-
-  if (diags) {
-    diags->print_va(NULL, DL_Note, NULL, message_format, ap);
-  } else {
-    if (use_syslog) {
-      snprintf(extended_format, sizeof(extended_format), "log ==> %s", message_format);
-      vsprintf(message, extended_format, ap);
-      syslog(LOG_WARNING, "%s", message);
-    } else {
-      snprintf(extended_format, sizeof(extended_format), "[E. Mgmt] log ==> %s", message_format);
-      vsprintf(message, extended_format, ap);
-      ink_assert(fwrite(message, strlen(message), 1, log) == 1);
-    }
-  }
-
-  va_end(ap);
-  return;
-} /* End mgmt_log */
-
 void
 mgmt_log(const char *message_format, ...)
 {
@@ -254,7 +229,7 @@ mgmt_log(const char *message_format, ...)
 
   va_start(ap, message_format);
   if (diags) {
-    diags->print_va(NULL, DL_Note, NULL, message_format, ap);
+    NoteV(message_format, ap);
   } else {
     if (use_syslog) {
       snprintf(extended_format, sizeof(extended_format), "log ==> %s", message_format);
@@ -271,46 +246,6 @@ mgmt_log(const char *message_format, ...)
   return;
 } /* End mgmt_log */
 
-/*
- * mgmt_log(...)
- *   Same as above, but intended for errors.
- */
-void
-mgmt_elog(FILE *log, const int lerrno, const char *message_format, ...)
-{
-  va_list ap;
-  char extended_format[4096], message[4096];
-
-  va_start(ap, message_format);
-
-  if (diags) {
-    diags->print_va(NULL, DL_Error, NULL, message_format, ap);
-    if (lerrno != 0) {
-      diags->print(NULL, DTA(DL_Error), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    }
-  } else {
-    if (use_syslog) {
-      snprintf(extended_format, sizeof(extended_format), "ERROR ==> %s", message_format);
-      vsprintf(message, extended_format, ap);
-      syslog(LOG_ERR, "%s", message);
-      if (lerrno != 0) {
-        syslog(LOG_ERR, " (last system error %d: %s)", lerrno, strerror(lerrno));
-      }
-    } else {
-      snprintf(extended_format, sizeof(extended_format), "[E. Mgmt] ERROR ==> %s", message_format);
-      vsprintf(message, extended_format, ap);
-      ink_assert(fwrite(message, strlen(message), 1, log) == 1);
-      if (lerrno != 0) {
-        snprintf(message, sizeof(message), "(last system error %d: %s)", lerrno, strerror(lerrno));
-        ink_assert(fwrite(message, strlen(message), 1, log) == 1);
-      }
-    }
-  }
-  va_end(ap);
-
-  return;
-} /* End mgmt_elog */
-
 void
 mgmt_elog(const int lerrno, const char *message_format, ...)
 {
@@ -320,9 +255,9 @@ mgmt_elog(const int lerrno, const char *message_format, ...)
   va_start(ap, message_format);
 
   if (diags) {
-    diags->print_va(NULL, DL_Error, NULL, message_format, ap);
+    ErrorV(message_format, ap);
     if (lerrno != 0) {
-      diags->print(NULL, DTA(DL_Error), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
+      Error("last system error %d: %s", lerrno, strerror(lerrno));
     }
   } else {
     if (use_syslog) {
@@ -346,48 +281,6 @@ mgmt_elog(const int lerrno, const char *message_format, ...)
   return;
 } /* End mgmt_elog */
 
-/*
- * mgmt_fatal(...)
- *   Same as above, but for fatal errors. Logs error, calls perror, and
- * asserts false.
- */
-void
-mgmt_fatal(FILE *log, const int lerrno, const char *message_format, ...)
-{
-  va_list ap;
-  char extended_format[4096], message[4096];
-
-  va_start(ap, message_format);
-
-  if (diags) {
-    diags->print_va(NULL, DL_Fatal, NULL, message_format, ap);
-    if (lerrno != 0) {
-      diags->print(NULL, DTA(DL_Fatal), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
-    }
-  } else {
-    snprintf(extended_format, sizeof(extended_format), "FATAL ==> %s", message_format);
-    vsprintf(message, extended_format, ap);
-
-    ink_assert(fwrite(message, strlen(message), 1, log) == 1);
-
-    if (use_syslog) {
-      syslog(LOG_ERR, "%s", message);
-    }
-
-    if (lerrno != 0) {
-      fprintf(stderr, "[E. Mgmt] last system error %d: %s", lerrno, strerror(lerrno));
-      if (use_syslog) {
-        syslog(LOG_ERR, " (last system error %d: %s)", lerrno, strerror(lerrno));
-      }
-    }
-  }
-
-  va_end(ap);
-
-  mgmt_cleanup();
-  _exit(1);
-} /* End mgmt_fatal */
-
 void
 mgmt_fatal(const int lerrno, const char *message_format, ...)
 {
@@ -397,10 +290,11 @@ mgmt_fatal(const int lerrno, const char *message_format, ...)
   va_start(ap, message_format);
 
   if (diags) {
-    diags->print_va(NULL, DL_Fatal, NULL, message_format, ap);
     if (lerrno != 0) {
-      diags->print(NULL, DTA(DL_Fatal), " (last system error %d: %s)\n", lerrno, strerror(lerrno));
+      Error("last system error %d: %s", lerrno, strerror(lerrno));
     }
+
+    FatalV(message_format, ap);
   } else {
     snprintf(extended_format, sizeof(extended_format), "FATAL ==> %s", message_format);
     vsprintf(message, extended_format, ap);
@@ -423,23 +317,24 @@ mgmt_fatal(const int lerrno, const char *message_format, ...)
   va_end(ap);
 
   mgmt_cleanup();
-  _exit(1);
+  ::exit(1);
 } /* End mgmt_fatal */
 
 static inline int
 get_interface_mtu(int sock_fd, struct ifreq *ifr)
 {
   if (ioctl(sock_fd, SIOCGIFMTU, ifr) < 0) {
-    mgmt_log(stderr, "[getAddrForIntr] Unable to obtain MTU for "
-                     "interface '%s'",
+    mgmt_log("[getAddrForIntr] Unable to obtain MTU for "
+             "interface '%s'",
              ifr->ifr_name);
     return 0;
-  } else
+  } else {
 #if defined(solaris) || defined(hpux)
     return ifr->ifr_metric;
 #else
     return ifr->ifr_mtu;
 #endif
+  }
 }
 
 bool
@@ -462,7 +357,7 @@ mgmt_getAddrForIntr(char *intrName, sockaddr *addr, int *mtu)
   memset(addr, 0, sizeof(struct in_addr));
 
   if ((fakeSocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-    mgmt_fatal(stderr, errno, "[getAddrForIntr] Unable to create socket\n");
+    mgmt_fatal(errno, "[getAddrForIntr] Unable to create socket\n");
   }
   // INKqa06739
   // Fetch the list of network interfaces
@@ -477,7 +372,7 @@ mgmt_getAddrForIntr(char *intrName, sockaddr *addr, int *mtu)
     ifc.ifc_buf = ifbuf;
     if (ioctl(fakeSocket, SIOCGIFCONF, &ifc) < 0) {
       if (errno != EINVAL || lastlen != 0) {
-        mgmt_fatal(stderr, errno, "[getAddrForIntr] Unable to read network interface configuration\n");
+        mgmt_fatal(errno, "[getAddrForIntr] Unable to read network interface configuration\n");
       }
     } else {
       if (ifc.ifc_len == lastlen) {
@@ -496,19 +391,20 @@ mgmt_getAddrForIntr(char *intrName, sockaddr *addr, int *mtu)
     if (ifr->ifr_addr.sa_family == AF_INET && strcmp(ifr->ifr_name, intrName) == 0) {
       // Get the address of the interface
       if (ioctl(fakeSocket, SIOCGIFADDR, (char *)ifr) < 0) {
-        mgmt_log(stderr, "[getAddrForIntr] Unable obtain address for network interface %s\n", intrName);
+        mgmt_log("[getAddrForIntr] Unable obtain address for network interface %s\n", intrName);
       } else {
         // Only look at the address if it an internet address
         if (ifr->ifr_ifru.ifru_addr.sa_family == AF_INET) {
           ats_ip_copy(addr, &ifr->ifr_ifru.ifru_addr);
           found = true;
 
-          if (mtu)
+          if (mtu) {
             *mtu = get_interface_mtu(fakeSocket, ifr);
+          }
 
           break;
         } else {
-          mgmt_log(stderr, "[getAddrForIntr] Interface %s is not configured for IP.\n", intrName);
+          mgmt_log("[getAddrForIntr] Interface %s is not configured for IP.\n", intrName);
         }
       }
     }
@@ -552,7 +448,6 @@ mgmt_sleep_sec(int seconds)
 {
   sleep(seconds);
 }
-
 void
 mgmt_sleep_msec(int msec)
 {

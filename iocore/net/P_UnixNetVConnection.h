@@ -88,7 +88,7 @@ struct OOB_callback : public Continuation {
   Continuation *server_cont;
   int retry_OOB_send(int, Event *);
 
-  OOB_callback(ProxyMutex *m, NetVConnection *vc, Continuation *cont, char *buf, int len)
+  OOB_callback(Ptr<ProxyMutex> &m, NetVConnection *vc, Continuation *cont, char *buf, int len)
     : Continuation(m), data(buf), length(len), trigger(0)
   {
     server_vc   = (UnixNetVConnection *)vc;
@@ -170,6 +170,36 @@ public:
   /////////////////////////////////////////////////////////////////
   UnixNetVConnection();
 
+  int
+  populate_protocol(char const **results, int n) const
+  {
+    int retval = 0;
+    if (n > 0) {
+      results[retval++] = options.get_proto_string();
+      if (n > 1) {
+        results[retval++] = options.get_family_string();
+      }
+    }
+    return retval;
+  }
+
+  const char *
+  protocol_contains(const char *tag) const
+  {
+    const char *retval   = NULL;
+    unsigned int tag_len = strlen(tag);
+    const char *test_tag = options.get_proto_string();
+    if (strncmp(tag, test_tag, tag_len) == 0) {
+      retval = test_tag;
+    } else {
+      test_tag = options.get_family_string();
+      if (strncmp(tag, test_tag, tag_len) == 0) {
+        retval = test_tag;
+      }
+    }
+    return retval;
+  }
+
 private:
   UnixNetVConnection(const NetVConnection &);
   UnixNetVConnection &operator=(const NetVConnection &);
@@ -192,24 +222,27 @@ public:
     (void)err;
     return EVENT_ERROR;
   }
+
   virtual bool
-  getSSLHandShakeComplete()
+  getSSLHandShakeComplete() const
   {
     return (true);
   }
+
   virtual bool
-  getSSLClientConnection()
+  getSSLClientConnection() const
   {
     return (false);
   }
+
   virtual void
   setSSLClientConnection(bool state)
   {
     (void)state;
   }
+
   virtual void net_read_io(NetHandler *nh, EThread *lthread);
-  virtual int64_t load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_written, MIOBufferAccessor &buf,
-                                        int &needs);
+  virtual int64_t load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf, int64_t &total_written, int &needs);
   void readDisable(NetHandler *nh);
   void readSignalError(NetHandler *nh, int err);
   int readSignalDone(int event, NetHandler *nh);
@@ -346,10 +379,10 @@ UnixNetVConnection::get_inactivity_timeout()
 }
 
 TS_INLINE void
-UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
+UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout_in)
 {
-  Debug("socket", "Set inactive timeout=%" PRId64 ", for NetVC=%p", timeout, this);
-  inactivity_timeout_in = timeout;
+  Debug("socket", "Set inactive timeout=%" PRId64 ", for NetVC=%p", timeout_in, this);
+  inactivity_timeout_in = timeout_in;
 #ifdef INACTIVITY_TIMEOUT
 
   if (inactivity_timeout)
@@ -372,8 +405,8 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
   } else
     inactivity_timeout = 0;
 #else
-  if (timeout) {
-    next_inactivity_timeout_at = Thread::get_hrtime() + timeout;
+  if (timeout_in) {
+    next_inactivity_timeout_at = Thread::get_hrtime() + timeout_in;
   } else {
     next_inactivity_timeout_at = 0;
   }
@@ -381,10 +414,10 @@ UnixNetVConnection::set_inactivity_timeout(ink_hrtime timeout)
 }
 
 TS_INLINE void
-UnixNetVConnection::set_active_timeout(ink_hrtime timeout)
+UnixNetVConnection::set_active_timeout(ink_hrtime timeout_in)
 {
-  Debug("socket", "Set active timeout=%" PRId64 ", NetVC=%p", timeout, this);
-  active_timeout_in = timeout;
+  Debug("socket", "Set active timeout=%" PRId64 ", NetVC=%p", timeout_in, this);
+  active_timeout_in = timeout_in;
 #ifdef INACTIVITY_TIMEOUT
   if (active_timeout)
     active_timeout->cancel_action(this);
@@ -406,7 +439,7 @@ UnixNetVConnection::set_active_timeout(ink_hrtime timeout)
   } else
     active_timeout = 0;
 #else
-  next_activity_timeout_at   = Thread::get_hrtime() + timeout;
+  next_activity_timeout_at   = Thread::get_hrtime() + timeout_in;
 #endif
 }
 

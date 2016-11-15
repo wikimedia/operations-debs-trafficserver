@@ -109,9 +109,6 @@ HTTP Connection
    :type: counter
    :unit: bytes
 
-.. ts:stat:: global proxy.process.http.icp_suggested_lookups integer
-   :type: counter
-
 .. ts:stat:: global proxy.process.http.incoming_requests integer
    :type: counter
 
@@ -139,3 +136,7 @@ HTTP Connection
 .. ts:stat:: global proxy.process.http.total_server_connections integer
    :type: counter
 
+.. ts:stat:: global proxy.process.http.origin_connections_throttled_out integer
+   :type: counter
+
+This tracks the number of origin connections denied due to being over the :ts:cv`proxy.config.http.origin_max_connections` limit.

@@ -40,16 +40,11 @@ public:
   Action *connect_re_internal(Continuation *cont, sockaddr const *target, NetVCOptions *options = NULL);
   Action *connect(Continuation *cont, UnixNetVConnection **vc, sockaddr const *target, NetVCOptions *opt = NULL);
 
-  // Virtual function allows etype to be upgraded to ET_SSL for SSLNetProcessor.  Does
-  // nothing for NetProcessor
-  virtual void upgradeEtype(EventType & /* etype ATS_UNUSED */){};
-
   virtual NetAccept *createNetAccept();
   virtual NetVConnection *allocate_vc(EThread *t);
 
   virtual int start(int number_of_net_threads, size_t stacksize);
 
-  char *throttle_error_message;
   Event *accept_thread_event;
 
   // offsets for per thread data structures

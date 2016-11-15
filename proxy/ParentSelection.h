@@ -262,7 +262,6 @@ private:
   // Internal use only
   //   Not to be modified by HTTP
   int line_number;
-  P_table *epoch; // A pointer to the table used.
   ParentRecord *rec;
   uint32_t last_parent;
   uint32_t start_parent;
@@ -281,7 +280,6 @@ struct ParentSelectionPolicy {
   int32_t ParentRetryTime;
   int32_t ParentEnable;
   int32_t FailThreshold;
-  int32_t DNS_ParentOnly;
   ParentSelectionPolicy();
 };
 

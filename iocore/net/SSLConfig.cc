@@ -72,8 +72,8 @@ SSLConfigParams::SSLConfigParams()
 
   clientCertLevel = client_verify_depth = verify_depth = clientVerify = 0;
 
-  ssl_ctx_options               = 0;
-  ssl_client_ctx_protocols      = 0;
+  ssl_ctx_options               = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+  ssl_client_ctx_protocols      = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
   ssl_session_cache             = SSL_SESSION_CACHE_MODE_SERVER_ATS_IMPL;
   ssl_session_cache_size        = 1024 * 100;
   ssl_session_cache_num_buckets = 1024; // Sessions per bucket is ceil(ssl_session_cache_size / ssl_session_cache_num_buckets)
@@ -160,23 +160,16 @@ SSLConfigParams::initialize()
   dhparamsFile = RecConfigReadConfigPath("proxy.config.ssl.server.dhparams_file");
 
   int options;
-  int client_ssl_options;
-  REC_ReadConfigInteger(options, "proxy.config.ssl.SSLv2");
-  if (!options)
-    ssl_ctx_options |= SSL_OP_NO_SSLv2;
-  REC_ReadConfigInteger(options, "proxy.config.ssl.SSLv3");
-  if (!options)
-    ssl_ctx_options |= SSL_OP_NO_SSLv3;
+  int client_ssl_options = 0;
   REC_ReadConfigInteger(options, "proxy.config.ssl.TLSv1");
   if (!options)
     ssl_ctx_options |= SSL_OP_NO_TLSv1;
 
-  REC_ReadConfigInteger(client_ssl_options, "proxy.config.ssl.client.SSLv2");
-  if (!client_ssl_options)
-    ssl_client_ctx_protocols |= SSL_OP_NO_SSLv2;
+#if TS_USE_SSLV3_CLIENT
   REC_ReadConfigInteger(client_ssl_options, "proxy.config.ssl.client.SSLv3");
-  if (!client_ssl_options)
-    ssl_client_ctx_protocols |= SSL_OP_NO_SSLv3;
+  if (client_ssl_options)
+    ssl_client_ctx_protocols &= ~SSL_OP_NO_SSLv3;
+#endif
   REC_ReadConfigInteger(client_ssl_options, "proxy.config.ssl.client.TLSv1");
   if (!client_ssl_options)
     ssl_client_ctx_protocols |= SSL_OP_NO_TLSv1;
@@ -207,15 +200,12 @@ SSLConfigParams::initialize()
     ssl_ctx_options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 #endif
 
-  REC_ReadConfigInteger(options, "proxy.config.ssl.compression");
-  if (!options) {
 #ifdef SSL_OP_NO_COMPRESSION
-    /* OpenSSL >= 1.0 only */
-    ssl_ctx_options |= SSL_OP_NO_COMPRESSION;
+  /* OpenSSL >= 1.0 only */
+  ssl_ctx_options |= SSL_OP_NO_COMPRESSION;
 #elif OPENSSL_VERSION_NUMBER >= 0x00908000L
-    sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
+  sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
 #endif
-  }
 
 // Enable ephemeral DH parameters for the case where we use a cipher with DH forward security.
 #ifdef SSL_OP_SINGLE_DH_USE
@@ -364,14 +354,15 @@ SSLCertificateConfig::startup()
   sslCertUpdate->attach("proxy.config.ssl.server.cert.path");
   sslCertUpdate->attach("proxy.config.ssl.server.private_key.path");
   sslCertUpdate->attach("proxy.config.ssl.server.cert_chain.filename");
+  sslCertUpdate->attach("proxy.config.ssl.server.session_ticket.enable");
 
   // Exit if there are problems on the certificate loading and the
   // proxy.config.ssl.server.multicert.exit_on_load_fail is true
   SSLConfig::scoped_config params;
   if (!reconfigure() && params->configExitOnLoadError) {
-    Error("Problems loading ssl certificate file, %s.  Exiting.", params->configFilePath);
-    _exit(1);
+    Fatal("failed to load SSL certificate file, %s", params->configFilePath);
   }
+
   return true;
 }
 

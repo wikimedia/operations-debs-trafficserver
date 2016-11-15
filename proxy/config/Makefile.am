@@ -31,10 +31,9 @@ dist_sysconf_DATA =	\
   cluster.config.default \
   congestion.config.default \
   hosting.config.default \
-  icp.config.default \
   ip_allow.config.default \
   log_hosts.config.default \
-  logs_xml.config.default \
+  logging.config.default \
   metrics.config.default \
   parent.config.default \
   plugin.config.default \
@@ -42,7 +41,6 @@ dist_sysconf_DATA =	\
   socks.config.default \
   splitdns.config.default \
   ssl_multicert.config.default \
-  stats.config.xml.default \
   vaddrs.config.default \
   volume.config.default
 

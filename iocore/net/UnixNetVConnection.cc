@@ -29,11 +29,6 @@
 #define STATE_VIO_OFFSET ((uintptr_t) & ((NetState *)0)->vio)
 #define STATE_FROM_VIO(_x) ((NetState *)(((char *)(_x)) - STATE_VIO_OFFSET))
 
-#define disable_read(_vc) (_vc)->read.enabled   = 0
-#define disable_write(_vc) (_vc)->write.enabled = 0
-#define enable_read(_vc) (_vc)->read.enabled    = 1
-#define enable_write(_vc) (_vc)->write.enabled  = 1
-
 #ifndef UIO_MAXIOV
 #define NET_MAX_IOV 16 // UIO_MAXIOV shall be at least 16 1003.1g (5.4.1.1)
 #else
@@ -253,7 +248,7 @@ static void
 read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 {
   NetState *s       = &vc->read;
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
   int64_t r         = 0;
 
   MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, thread, s->vio._cont);
@@ -291,7 +286,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 
   // read data
   int64_t rattempted = 0, total_read = 0;
-  int niov = 0;
+  unsigned niov = 0;
   IOVec tiovec[NET_MAX_IOV];
   if (toread) {
     IOBufferBlock *b = buf.writer()->first_write_block();
@@ -311,14 +306,13 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
           if (a >= togo)
             break;
         }
-        b = b->next;
+        b = b->next.get();
       }
 
-      if (niov == 1) {
-        r = socketManager.read(vc->con.fd, tiovec[0].iov_base, tiovec[0].iov_len);
-      } else {
-        r = socketManager.readv(vc->con.fd, &tiovec[0], niov);
-      }
+      ink_assert(niov > 0);
+      ink_assert(niov <= countof(tiovec));
+      r = socketManager.readv(vc->con.fd, &tiovec[0], niov);
+
       NET_INCREMENT_DYN_STAT(net_calls_to_read_stat);
 
       if (vc->origin_trace) {
@@ -390,10 +384,12 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
       Debug("iocore_net", "read_from_net, read finished - signal done");
       return;
     } else {
-      if (read_signal_and_update(VC_EVENT_READ_READY, vc) != EVENT_CONT)
+      if (read_signal_and_update(VC_EVENT_READ_READY, vc) != EVENT_CONT) {
         return;
+      }
+
       // change of lock... don't look at shared variables!
-      if (lock.get_mutex() != s->vio.mutex.m_ptr) {
+      if (lock.get_mutex() != s->vio.mutex.get()) {
         read_reschedule(nh, vc);
         return;
       }
@@ -415,7 +411,7 @@ read_from_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 void
 write_to_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 {
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
 
   NET_INCREMENT_DYN_STAT(net_calls_to_writetonet_stat);
   NET_INCREMENT_DYN_STAT(net_calls_to_writetonet_afterpoll_stat);
@@ -427,11 +423,11 @@ void
 write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
 {
   NetState *s       = &vc->write;
-  ProxyMutex *mutex = thread->mutex;
+  ProxyMutex *mutex = thread->mutex.get();
 
   MUTEX_TRY_LOCK_FOR(lock, s->vio.mutex, thread, s->vio._cont);
 
-  if (!lock.is_locked() || lock.get_mutex() != s->vio.mutex.m_ptr) {
+  if (!lock.is_locked() || lock.get_mutex() != s->vio.mutex.get()) {
     write_reschedule(nh, vc);
     return;
   }
@@ -509,17 +505,15 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     return;
   }
 
-  int64_t total_written = 0, wattempted = 0;
-  int needs = 0;
-  int64_t r = vc->load_buffer_and_write(towrite, wattempted, total_written, buf, needs);
+  int needs             = 0;
+  int64_t total_written = 0;
+  int64_t r             = vc->load_buffer_and_write(towrite, buf, total_written, needs);
 
-  // if we have already moved some bytes successfully, summarize in r
-  if (total_written != wattempted) {
-    if (r <= 0)
-      r = total_written - wattempted;
-    else
-      r = total_written - wattempted + r;
+  if (total_written > 0) {
+    NET_SUM_DYN_STAT(net_write_bytes_stat, total_written);
+    s->vio.ndone += total_written;
   }
+
   // check for errors
   if (r <= 0) { // if the socket was not ready,add to WaitList
     if (r == -EAGAIN || r == -ENOTCONN) {
@@ -542,18 +536,10 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
       return;
     }
     vc->write.triggered = 0;
-    write_signal_error(nh, vc, (int)-r);
+    write_signal_error(nh, vc, (int)-total_written);
     return;
-  } else {
+  } else {                                        // Wrote data.  Finished without error
     int wbe_event = vc->write_buffer_empty_event; // save so we can clear if needed.
-
-    NET_SUM_DYN_STAT(net_write_bytes_stat, r);
-
-    // Remove data from the buffer and signal continuation.
-    ink_assert(buf.reader()->read_avail() >= r);
-    buf.reader()->consume(r);
-    ink_assert(buf.reader()->read_avail() >= 0);
-    s->vio.ndone += r;
 
     // If the empty write buffer trap is set, clear it.
     if (!(buf.reader()->is_read_avail_more_than(0)))
@@ -565,31 +551,38 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
     if (s->vio.ntodo() <= 0) {
       write_signal_done(VC_EVENT_WRITE_COMPLETE, nh, vc);
       return;
-    } else if (signalled && (wbe_event != vc->write_buffer_empty_event)) {
+    }
+    int e = 0;
+    if (!signalled) {
+      e = VC_EVENT_WRITE_READY;
+    } else if (wbe_event != vc->write_buffer_empty_event) {
       // @a signalled means we won't send an event, and the event values differing means we
       // had a write buffer trap and cleared it, so we need to send it now.
-      if (write_signal_and_update(wbe_event, vc) != EVENT_CONT)
-        return;
-    } else if (!signalled) {
-      if (write_signal_and_update(VC_EVENT_WRITE_READY, vc) != EVENT_CONT) {
+      e = wbe_event;
+    }
+    if (e) {
+      if (write_signal_and_update(e, vc) != EVENT_CONT) {
         return;
       }
+
       // change of lock... don't look at shared variables!
-      if (lock.get_mutex() != s->vio.mutex.m_ptr) {
+      if (lock.get_mutex() != s->vio.mutex.get()) {
         write_reschedule(nh, vc);
         return;
       }
     }
-    if (!buf.reader()->read_avail()) {
+
+    if ((needs & EVENTIO_READ) == EVENTIO_READ) {
+      read_reschedule(nh, vc);
+    }
+
+    if (!(buf.reader()->is_read_avail_more_than(0))) {
       write_disable(nh, vc);
       return;
     }
 
     if ((needs & EVENTIO_WRITE) == EVENTIO_WRITE) {
       write_reschedule(nh, vc);
-    }
-    if ((needs & EVENTIO_READ) == EVENTIO_READ) {
-      read_reschedule(nh, vc);
     }
     return;
   }
@@ -624,8 +617,7 @@ UnixNetVConnection::get_data(int id, void *data)
 VIO *
 UnixNetVConnection::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
 {
-  ink_assert(c || 0 == nbytes);
-  if (closed) {
+  if (closed && !(c == NULL && nbytes == 0 && buf == NULL)) {
     Error("do_io_read invoked on closed vc %p, cont %p, nbytes %" PRId64 ", buf %p", this, c, nbytes, buf);
     return NULL;
   }
@@ -641,7 +633,7 @@ UnixNetVConnection::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
       read.vio.reenable();
   } else {
     read.vio.buffer.clear();
-    disable_read(this);
+    read.enabled = 0;
   }
   return &read.vio;
 }
@@ -649,7 +641,7 @@ UnixNetVConnection::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf)
 VIO *
 UnixNetVConnection::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *reader, bool owner)
 {
-  if (closed) {
+  if (closed && !(c == NULL && nbytes == 0 && reader == NULL)) {
     Error("do_io_write invoked on closed vc %p, cont %p, nbytes %" PRId64 ", reader %p", this, c, nbytes, reader);
     return NULL;
   }
@@ -665,7 +657,7 @@ UnixNetVConnection::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
     if (nbytes && !write.enabled)
       write.vio.reenable();
   } else {
-    disable_write(this);
+    write.enabled = 0;
   }
   return &write.vio;
 }
@@ -673,8 +665,8 @@ UnixNetVConnection::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
 void
 UnixNetVConnection::do_io_close(int alerrno /* = -1 */)
 {
-  disable_read(this);
-  disable_write(this);
+  read.enabled  = 0;
+  write.enabled = 0;
   read.vio.buffer.clear();
   read.vio.nbytes = 0;
   read.vio.op     = VIO::NONE;
@@ -705,22 +697,22 @@ UnixNetVConnection::do_io_shutdown(ShutdownHowTo_t howto)
   switch (howto) {
   case IO_SHUTDOWN_READ:
     socketManager.shutdown(((UnixNetVConnection *)this)->con.fd, 0);
-    disable_read(this);
+    read.enabled = 0;
     read.vio.buffer.clear();
     read.vio.nbytes = 0;
     f.shutdown      = NET_VC_SHUTDOWN_READ;
     break;
   case IO_SHUTDOWN_WRITE:
     socketManager.shutdown(((UnixNetVConnection *)this)->con.fd, 1);
-    disable_write(this);
+    write.enabled = 0;
     write.vio.buffer.clear();
     write.vio.nbytes = 0;
     f.shutdown       = NET_VC_SHUTDOWN_WRITE;
     break;
   case IO_SHUTDOWN_READWRITE:
     socketManager.shutdown(((UnixNetVConnection *)this)->con.fd, 2);
-    disable_read(this);
-    disable_write(this);
+    read.enabled  = 0;
+    write.enabled = 0;
     read.vio.buffer.clear();
     read.vio.nbytes = 0;
     write.vio.buffer.clear();
@@ -803,7 +795,7 @@ UnixNetVConnection::reenable(VIO *vio)
     return;
   EThread *t = vio->mutex->thread_holding;
   ink_assert(t == this_ethread());
-  ink_assert(!closed);
+  ink_release_assert(!closed);
   if (nh->mutex->thread_holding == t) {
     if (vio == &read.vio) {
       ep.modify(EVENTIO_READ);
@@ -917,7 +909,7 @@ void
 UnixNetVConnection::set_enabled(VIO *vio)
 {
   ink_assert(vio->mutex->thread_holding == this_ethread() && thread);
-  ink_assert(!closed);
+  ink_release_assert(!closed);
   STATE_FROM_VIO(vio)->enabled = 1;
 #ifdef INACTIVITY_TIMEOUT
   if (!inactivity_timeout && inactivity_timeout_in) {
@@ -943,48 +935,44 @@ UnixNetVConnection::net_read_io(NetHandler *nh, EThread *lthread)
 // (SSL read does not support overlapped i/o)
 // without duplicating all the code in write_to_net.
 int64_t
-UnixNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, int64_t &total_written, MIOBufferAccessor &buf,
-                                          int &needs)
+UnixNetVConnection::load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf, int64_t &total_written, int &needs)
 {
-  int64_t r = 0;
-
-  // XXX Rather than dealing with the block directly, we should use the IOBufferReader API.
-  int64_t offset   = buf.reader()->start_offset;
-  IOBufferBlock *b = buf.reader()->block;
+  int64_t r                  = 0;
+  int64_t try_to_write       = 0;
+  IOBufferReader *tmp_reader = buf.reader()->clone();
 
   do {
     IOVec tiovec[NET_MAX_IOV];
-    int niov                   = 0;
-    int64_t total_written_last = total_written;
-    while (b && niov < NET_MAX_IOV) {
+    unsigned niov = 0;
+    try_to_write  = 0;
+    while (niov < NET_MAX_IOV) {
       // check if we have done this block
-      int64_t l = b->read_avail();
-      l -= offset;
-      if (l <= 0) {
-        offset = -l;
-        b      = b->next;
-        continue;
-      }
+      int64_t l = tmp_reader->block_read_avail();
+      if (l <= 0)
+        break;
+      char *current_block = tmp_reader->start();
+
       // check if to amount to write exceeds that in this buffer
       int64_t wavail = towrite - total_written;
-      if (l > wavail)
+      if (l > wavail) {
         l = wavail;
-      if (!l)
+      }
+
+      if (!l) {
         break;
-      total_written += l;
+      }
+
       // build an iov entry
-      tiovec[niov].iov_len  = l;
-      tiovec[niov].iov_base = b->start() + offset;
+      tiovec[niov].iov_len = l;
+      try_to_write += l;
+      tiovec[niov].iov_base = current_block;
       niov++;
-      // on to the next block
-      offset = 0;
-      b      = b->next;
+      tmp_reader->consume(l);
     }
-    wattempted = total_written - total_written_last;
-    if (niov == 1)
-      r = socketManager.write(con.fd, tiovec[0].iov_base, tiovec[0].iov_len);
-    else
-      r = socketManager.writev(con.fd, &tiovec[0], niov);
+
+    ink_assert(niov > 0);
+    ink_assert(niov <= countof(tiovec));
+    r = socketManager.writev(con.fd, &tiovec[0], niov);
 
     if (origin_trace) {
       char origin_trace_ip[INET6_ADDRSTRLEN];
@@ -1002,14 +990,20 @@ UnixNetVConnection::load_buffer_and_write(int64_t towrite, int64_t &wattempted, 
                  strerror(errno));
       }
     }
+    if (r > 0) {
+      buf.reader()->consume(r);
+      total_written += r;
+    }
 
-    ProxyMutex *mutex = thread->mutex;
+    ProxyMutex *mutex = thread->mutex.get();
     NET_INCREMENT_DYN_STAT(net_calls_to_write_stat);
-  } while (r == wattempted && total_written < towrite);
+  } while (r == try_to_write && total_written < towrite);
+
+  tmp_reader->dealloc();
 
   needs |= EVENTIO_WRITE;
 
-  return (r);
+  return r;
 }
 
 void
@@ -1098,7 +1092,7 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
   nh                 = get_NetHandler(thread);
   PollDescriptor *pd = get_PollDescriptor(thread);
   if (ep.start(pd, this, EVENTIO_READ | EVENTIO_WRITE) < 0) {
-    Debug("iocore_net", "acceptEvent : failed EventIO::start\n");
+    Debug("iocore_net", "acceptEvent : failed EventIO::start");
     close_UnixNetVConnection(this, e->ethread);
     return EVENT_DONE;
   }
@@ -1136,15 +1130,16 @@ UnixNetVConnection::mainEvent(int event, Event *e)
   ink_assert(thread == this_ethread());
 
   MUTEX_TRY_LOCK(hlock, get_NetHandler(thread)->mutex, e->ethread);
-  MUTEX_TRY_LOCK(rlock, read.vio.mutex ? (ProxyMutex *)read.vio.mutex : (ProxyMutex *)e->ethread->mutex, e->ethread);
-  MUTEX_TRY_LOCK(wlock, write.vio.mutex ? (ProxyMutex *)write.vio.mutex : (ProxyMutex *)e->ethread->mutex, e->ethread);
+  MUTEX_TRY_LOCK(rlock, read.vio.mutex ? read.vio.mutex : e->ethread->mutex, e->ethread);
+  MUTEX_TRY_LOCK(wlock, write.vio.mutex ? write.vio.mutex : e->ethread->mutex, e->ethread);
+
   if (!hlock.is_locked() || !rlock.is_locked() || !wlock.is_locked() ||
-      (read.vio.mutex.m_ptr && rlock.get_mutex() != read.vio.mutex.m_ptr) ||
-      (write.vio.mutex.m_ptr && wlock.get_mutex() != write.vio.mutex.m_ptr)) {
+      (read.vio.mutex && rlock.get_mutex() != read.vio.mutex.get()) ||
+      (write.vio.mutex && wlock.get_mutex() != write.vio.mutex.get())) {
 #ifdef INACTIVITY_TIMEOUT
     if (e == active_timeout)
-#endif
       e->schedule_in(HRTIME_MSECONDS(net_retry_delay));
+#endif
     return EVENT_CONT;
   }
 
@@ -1217,7 +1212,7 @@ UnixNetVConnection::populate(Connection &con_in, Continuation *c, void *arg)
   if (ep.start(get_PollDescriptor(t), this, EVENTIO_READ | EVENTIO_WRITE) < 0) {
     // EEXIST should be ok, though it should have been cleared before we got back here
     if (errno != EEXIST) {
-      Debug("iocore_net", "populate : Failed to add to epoll list\n");
+      Debug("iocore_net", "populate : Failed to add to epoll list");
       return EVENT_ERROR;
     }
   }
@@ -1259,7 +1254,7 @@ UnixNetVConnection::connectUp(EThread *t, int fd)
   //
   if (is_debug_tag_set("iocore_net")) {
     char addrbuf[INET6_ADDRSTRLEN];
-    Debug("iocore_net", "connectUp:: local_addr=%s:%d [%s]\n",
+    Debug("iocore_net", "connectUp:: local_addr=%s:%d [%s]",
           options.local_ip.isValid() ? options.local_ip.toString(addrbuf, sizeof(addrbuf)) : "*", options.local_port,
           NetVCOptions::toString(options.addr_binding));
   }
@@ -1288,7 +1283,7 @@ UnixNetVConnection::connectUp(EThread *t, int fd)
   // when edge triggering is used.
   if (ep.start(get_PollDescriptor(t), this, EVENTIO_READ | EVENTIO_WRITE) < 0) {
     lerrno = errno;
-    Debug("iocore_net", "connectUp : Failed to add to epoll list\n");
+    Debug("iocore_net", "connectUp : Failed to add to epoll list");
     action_.continuation->handleEvent(NET_EVENT_OPEN_FAILED, (void *)0); // 0 == res
     free(t);
     return CONNECT_FAILURE;

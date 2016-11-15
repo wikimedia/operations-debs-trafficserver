@@ -33,7 +33,7 @@ class Http1ClientTransaction : public ProxyClientTransaction
 public:
   typedef ProxyClientTransaction super;
 
-  Http1ClientTransaction() : super() {}
+  Http1ClientTransaction() : super(), outbound_port(0), outbound_transparent(false) {}
   // Implement VConnection interface.
   virtual VIO *
   do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0)
@@ -55,10 +55,7 @@ public:
 
   // Don't destroy your elements.  Rely on the Http1ClientSession to clean up the
   // Http1ClientTransaction class as necessary
-  virtual void
-  destroy()
-  {
-  }
+  virtual void destroy();
 
   // Clean up the transaction elements when the ClientSession shuts down
   void
@@ -93,11 +90,6 @@ public:
   allow_half_open() const
   {
     return true;
-  }
-  virtual const char *
-  get_protocol_string() const
-  {
-    return "http";
   }
 
   void set_parent(ProxyClientSession *new_parent);
@@ -169,6 +161,7 @@ public:
     if (parent)
       parent->cancel_inactivity_timeout();
   }
+  void transaction_done();
 
 protected:
   uint16_t outbound_port;

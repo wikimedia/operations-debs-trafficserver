@@ -27,6 +27,7 @@ ink_hrtime last_throttle_warning;
 ink_hrtime last_shedding_warning;
 ink_hrtime emergency_throttle_time;
 int net_connections_throttle;
+bool net_memory_throttle = false;
 int fds_throttle;
 int fds_limit = 8000;
 ink_hrtime last_transient_accept_error;
@@ -42,7 +43,7 @@ int update_cop_config(const char *name, RecDataT data_type, RecData data, void *
 class InactivityCop : public Continuation
 {
 public:
-  InactivityCop(ProxyMutex *m) : Continuation(m), default_inactivity_timeout(0)
+  explicit InactivityCop(Ptr<ProxyMutex> &m) : Continuation(m.get()), default_inactivity_timeout(0)
   {
     SET_HANDLER(&InactivityCop::check_inactivity);
     REC_ReadConfigInteger(default_inactivity_timeout, "proxy.config.net.default_inactivity_timeout");
@@ -138,14 +139,15 @@ update_cop_config(const char *name, RecDataT data_type ATS_UNUSED, RecData data,
 
 #endif
 
-PollCont::PollCont(ProxyMutex *m, int pt) : Continuation(m), net_handler(NULL), nextPollDescriptor(NULL), poll_timeout(pt)
+PollCont::PollCont(Ptr<ProxyMutex> &m, int pt)
+  : Continuation(m.get()), net_handler(NULL), nextPollDescriptor(NULL), poll_timeout(pt)
 {
   pollDescriptor = new PollDescriptor();
   SET_HANDLER(&PollCont::pollEvent);
 }
 
-PollCont::PollCont(ProxyMutex *m, NetHandler *nh, int pt)
-  : Continuation(m), net_handler(nh), nextPollDescriptor(NULL), poll_timeout(pt)
+PollCont::PollCont(Ptr<ProxyMutex> &m, NetHandler *nh, int pt)
+  : Continuation(m.get()), net_handler(nh), nextPollDescriptor(NULL), poll_timeout(pt)
 {
   pollDescriptor = new PollDescriptor();
   SET_HANDLER(&PollCont::pollEvent);
@@ -193,7 +195,7 @@ PollCont::pollEvent(int event, Event *e)
   tv.tv_nsec = 1000000 * (poll_timeout % 1000);
   pollDescriptor->result =
     kevent(pollDescriptor->kqueue_fd, NULL, 0, pollDescriptor->kq_Triggered_Events, POLL_DESCRIPTOR_SIZE, &tv);
-  NetDebug("iocore_net_poll", "[PollCont::pollEvent] kueue_fd: %d, timeout: %d, results: %d", pollDescriptor->kqueue_fd,
+  NetDebug("iocore_net_poll", "[PollCont::pollEvent] kqueue_fd: %d, timeout: %d, results: %d", pollDescriptor->kqueue_fd,
            poll_timeout, pollDescriptor->result);
 #elif TS_USE_PORT
   int retval;
@@ -288,7 +290,18 @@ initialize_thread_for_net(EThread *thread)
 
 // NetHandler method definitions
 
-NetHandler::NetHandler() : Continuation(NULL), trigger_event(0), keep_alive_queue_size(0), active_queue_size(0)
+NetHandler::NetHandler()
+  : Continuation(NULL),
+    trigger_event(0),
+    keep_alive_queue_size(0),
+    active_queue_size(0),
+    max_connections_per_thread_in(0),
+    max_connections_active_per_thread_in(0),
+    max_connections_in(0),
+    max_connections_active_in(0),
+    inactive_threashold_in(0),
+    transaction_no_activity_timeout_in(0),
+    keep_alive_no_activity_timeout_in(0)
 {
   SET_HANDLER((NetContHandler)&NetHandler::startNetEvent);
 }
@@ -607,8 +620,7 @@ void
 NetHandler::configure_per_thread()
 {
   // figure out the number of threads and calculate the number of connections per thread
-  int threads = eventProcessor.n_threads_for_type[ET_NET];
-  threads += (ET_NET == SSLNetProcessor::ET_SSL) ? 0 : eventProcessor.n_threads_for_type[SSLNetProcessor::ET_SSL];
+  int threads                          = eventProcessor.n_threads_for_type[ET_NET];
   max_connections_per_thread_in        = max_connections_in / threads;
   max_connections_active_per_thread_in = max_connections_active_in / threads;
   Debug("net_queue", "max_connections_per_thread_in updated to %d threads: %d", max_connections_per_thread_in, threads);
@@ -646,7 +658,7 @@ NetHandler::manage_keep_alive_queue()
   }
 
   if (total_idle_count > 0) {
-    Debug("net_queue", "max cons: %d active: %d idle: %d already closed: %d, close event: %d mean idle: %d\n",
+    Debug("net_queue", "max cons: %d active: %d idle: %d already closed: %d, close event: %d mean idle: %d",
           max_connections_per_thread_in, total_connections_in, keep_alive_queue_size, closed, handle_event,
           total_idle_time / total_idle_count);
   }
@@ -681,8 +693,9 @@ NetHandler::_close_vc(UnixNetVConnection *vc, ink_hrtime now, int &handle_event,
     // create a dummy event
     Event event;
     event.ethread = this_ethread();
-    vc->handleEvent(EVENT_IMMEDIATE, &event);
-    ++handle_event;
+    if (vc->handleEvent(EVENT_IMMEDIATE, &event) == EVENT_DONE) {
+      ++handle_event;
+    }
   }
 }
 

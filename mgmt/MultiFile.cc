@@ -105,7 +105,7 @@ MultiFile::WalkFiles(ExpandingArray *fileList)
   fileEntry *fileListEntry;
 
   if ((dir = opendir(managedDir)) == NULL) {
-    mgmt_log(stderr, "[MultiFile::WalkFiles] Unable to open %s directory: %s: %s\n", dirDescript, managedDir, strerror(errno));
+    mgmt_log("[MultiFile::WalkFiles] Unable to open %s directory: %s: %s\n", dirDescript, managedDir, strerror(errno));
     return MF_NO_DIR;
   }
   // The fun of Solaris - readdir_r requires a buffer passed into it
@@ -115,13 +115,14 @@ MultiFile::WalkFiles(ExpandingArray *fileList)
 
   struct dirent *result;
   while (readdir_r(dir, dirEntry, &result) == 0) {
-    if (!result)
+    if (!result) {
       break;
+    }
     fileName                = dirEntry->d_name;
     filePath                = newPathString(managedDir, fileName);
     records_config_filePath = newPathString(filePath, "records.config");
     if (stat(filePath, &fileInfo) < 0) {
-      mgmt_log(stderr, "[MultiFile::WalkFiles] Stat of a %s failed %s: %s\n", dirDescript, fileName, strerror(errno));
+      mgmt_log("[MultiFile::WalkFiles] Stat of a %s failed %s: %s\n", dirDescript, fileName, strerror(errno));
     } else {
       if (stat(records_config_filePath, &records_config_fileInfo) < 0) {
         delete[] filePath;
@@ -217,8 +218,9 @@ MultiFile::newPathString(const char *s1, const char *s2)
   int addLen; // maximum total path length
 
   // Treat null as an empty path.
-  if (!s2)
-    s2   = "";
+  if (!s2) {
+    s2 = "";
+  }
   addLen = strlen(s2) + 1;
   if (*s2 == '/') {
     // If addpath is rooted, then rootpath is unused.
@@ -237,8 +239,9 @@ MultiFile::newPathString(const char *s1, const char *s2)
   ink_assert(newStr != NULL);
 
   ink_strlcpy(newStr, s1, addLen);
-  if (newStr[srcLen - 1] != '/')
+  if (newStr[srcLen - 1] != '/') {
     newStr[srcLen++] = '/';
+  }
   ink_strlcpy(&newStr[srcLen], s2, addLen - srcLen);
 
   return newStr;

@@ -102,9 +102,9 @@ file_filter = locale/<lang>/LC_MESSAGES/admin-guide/files/log_hosts.config.en.po
 source_file = _build/locale/pot/admin-guide/files/log_hosts.config.en.pot
 source_lang = en
 
-[apache-traffic-server-6x.admin-guide--files--logs_xml_config_en]
-file_filter = locale/<lang>/LC_MESSAGES/admin-guide/files/logs_xml.config.en.po
-source_file = _build/locale/pot/admin-guide/files/logs_xml.config.en.pot
+[apache-traffic-server-6x.admin-guide--files--logging.config_en]
+file_filter = locale/<lang>/LC_MESSAGES/admin-guide/files/logging.config.en.po
+source_file = _build/locale/pot/admin-guide/files/logging.config.en.pot
 source_lang = en
 
 [apache-traffic-server-6x.admin-guide--files--parent_config_en]
@@ -397,11 +397,6 @@ file_filter = locale/<lang>/LC_MESSAGES/admin-guide/plugins/cachekey.en.po
 source_file = _build/locale/pot/admin-guide/plugins/cachekey.en.pot
 source_lang = en
 
-[apache-traffic-server-6x.admin-guide--plugins--cacheurl_en]
-file_filter = locale/<lang>/LC_MESSAGES/admin-guide/plugins/cacheurl.en.po
-source_file = _build/locale/pot/admin-guide/plugins/cacheurl.en.pot
-source_lang = en
-
 [apache-traffic-server-6x.admin-guide--plugins--combo_handler_en]
 file_filter = locale/<lang>/LC_MESSAGES/admin-guide/plugins/combo_handler.en.po
 source_file = _build/locale/pot/admin-guide/plugins/combo_handler.en.pot
@@ -590,11 +585,6 @@ source_lang = en
 [apache-traffic-server-6x.appendices--command-line--traffic_ctl_en]
 file_filter = locale/<lang>/LC_MESSAGES/appendices/command-line/traffic_ctl.en.po
 source_file = _build/locale/pot/appendices/command-line/traffic_ctl.en.pot
-source_lang = en
-
-[apache-traffic-server-6x.appendices--command-line--traffic_line_en]
-file_filter = locale/<lang>/LC_MESSAGES/appendices/command-line/traffic_line.en.po
-source_file = _build/locale/pot/appendices/command-line/traffic_line.en.pot
 source_lang = en
 
 [apache-traffic-server-6x.appendices--command-line--traffic_logcat_en]

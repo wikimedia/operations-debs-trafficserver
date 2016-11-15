@@ -30,6 +30,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 /***************************************************************************
  * System Specific Items
@@ -144,25 +145,10 @@ typedef enum {
 
 /* used when starting Traffic Server process */
 typedef enum {
-  TS_CACHE_CLEAR_ON,     /* run TS in  "clear entire cache" mode */
-  TS_CACHE_CLEAR_HOSTDB, /* run TS in "only clear the host db cache" mode */
-  TS_CACHE_CLEAR_OFF     /* starts TS in regualr mode w/o any options */
+  TS_CACHE_CLEAR_NONE   = 0,        /* starts TS in regular mode w/o any options */
+  TS_CACHE_CLEAR_CACHE  = (1 << 0), /* run TS in  "clear cache" mode */
+  TS_CACHE_CLEAR_HOSTDB = (1 << 1), /* run TS in "clear the host db cache" mode */
 } TSCacheClearT;
-
-/*--- diagnostic output operations ----------------------------------------*/
-
-typedef enum {
-  TS_DIAG_DIAG,
-  TS_DIAG_DEBUG,
-  TS_DIAG_STATUS,
-  TS_DIAG_NOTE,
-  TS_DIAG_WARNING,
-  TS_DIAG_ERROR,
-  TS_DIAG_FATAL, /* >= FATAL severity causes process termination */
-  TS_DIAG_ALERT,
-  TS_DIAG_EMERGENCY,
-  TS_DIAG_UNDEFINED
-} TSDiagsT;
 
 /*--- event operations ----------------------------------------------------*/
 typedef enum {
@@ -233,24 +219,6 @@ typedef enum               /* multicast time to live options */
   TS_MC_TTL_MULT_SUBNET,   /* deliver multicast to more than one subnet */
   TS_MC_TTL_UNDEFINED } TSMcTtlT;
 
-typedef enum /* tells Traffic Server to accept or reject records satisfying filter condition */
-{ TS_LOG_FILT_ACCEPT,
-  TS_LOG_FILT_REJECT,
-  TS_LOG_FILT_UNDEFINED } TSLogFilterActionT;
-
-typedef enum         /* possible conditional operators used in filters */
-{ TS_LOG_COND_MATCH, /* true if filter's field and value are idential; case-sensitive */
-  TS_LOG_COND_CASE_INSENSITIVE_MATCH,
-  TS_LOG_COND_CONTAIN, /* true if field contains the value; case-sensitive */
-  TS_LOG_COND_CASE_INSENSITIVE_CONTAIN,
-  TS_LOG_COND_UNDEFINED } TSLogConditionOpT;
-
-typedef enum /* valid logging modes for LogObject's */
-{ TS_LOG_MODE_ASCII,
-  TS_LOG_MODE_BINARY,
-  TS_LOG_ASCII_PIPE,
-  TS_LOG_MODE_UNDEFINED } TSLogModeT;
-
 typedef enum              /* methods of specifying groups of clients */
 { TS_CLIENT_GRP_IP,       /* ip range */
   TS_CLIENT_GRP_DOMAIN,   /* domain */
@@ -308,7 +276,6 @@ typedef enum {
   TS_FNAME_HOSTING,         /* hosting.config */
   TS_FNAME_ICP_PEER,        /* icp.config */
   TS_FNAME_IP_ALLOW,        /* ip_allow.config */
-  TS_FNAME_LOGS_XML,        /* logs_xml.config */
   TS_FNAME_PARENT_PROXY,    /* parent.config */
   TS_FNAME_VOLUME,          /* volume.config */
   TS_FNAME_PLUGIN,          /* plugin.config */
@@ -341,10 +308,7 @@ typedef enum {
   TS_HOSTING,    /* hosting.config */
   TS_ICP,        /* icp.config */
   TS_IP_ALLOW,   /* ip_allow.config */
-  TS_LOG_FILTER, /* logs_xml.config */
-  TS_LOG_OBJECT,
-  TS_LOG_FORMAT,
-  TS_PP_PARENT, /* parent.config */
+  TS_PP_PARENT,  /* parent.config */
   TS_PP_GO_DIRECT,
   TS_VOLUME,    /* volume.config */
   TS_PLUGIN,    /* plugin.config */
@@ -573,35 +537,6 @@ typedef struct {
   TSIpAllowT action;
 } TSIpAllowEle;
 
-/* logs_xml.config */
-typedef struct {
-  TSCfgEle cfg_ele;
-  TSLogFilterActionT action; /* accept or reject records satisfying filter condition */
-  char *filter_name;
-  char *log_field; /* possible choices listed on p.250 */
-  TSLogConditionOpT compare_op;
-  char *compare_str; /* the comparison value can be any string or integer */
-  int compare_int;   /* if int, then all the TSLogConditionOpT operations mean "equal" */
-} TSLogFilterEle;
-
-typedef struct {
-  TSCfgEle cfg_ele;
-  char *name; /* must be unique; can't be a pre-defined format */
-  char *format;
-  int aggregate_interval_secs; /* (optional) use if format contains aggregate ops */
-} TSLogFormatEle;
-
-typedef struct {
-  TSCfgEle cfg_ele;
-  char *format_name;
-  char *file_name;
-  TSLogModeT log_mode;
-  TSDomainList collation_hosts; /* list of hosts (by name or IP addr) */
-  TSStringList filters;         /* list of filter names that already exist */
-  TSStringList protocols;       /* list of protocols, eg. http, nttp, icp */
-  TSStringList server_hosts;    /* list of host names */
-} TSLogObjectEle;
-
 /* parent.config */
 typedef struct {
   TSCfgEle cfg_ele;
@@ -823,12 +758,6 @@ tsapi TSIcpEle *TSIcpEleCreate();
 tsapi void TSIcpEleDestroy(TSIcpEle *ele);
 tsapi TSIpAllowEle *TSIpAllowEleCreate();
 tsapi void TSIpAllowEleDestroy(TSIpAllowEle *ele);
-tsapi TSLogFilterEle *TSLogFilterEleCreate();
-tsapi void TSLogFilterEleDestroy(TSLogFilterEle *ele);
-tsapi TSLogFormatEle *TSLogFormatEleCreate();
-tsapi void TSLogFormatEleDestroy(TSLogFormatEle *ele);
-tsapi TSLogObjectEle *TSLogObjectEleCreate();
-tsapi void TSLogObjectEleDestroy(TSLogObjectEle *ele);
 tsapi TSParentProxyEle *TSParentProxyEleCreate(TSRuleTypeT type);
 tsapi void TSParentProxyEleDestroy(TSParentProxyEle *ele);
 tsapi TSVolumeEle *TSVolumeEleCreate();
@@ -900,12 +829,13 @@ tsapi TSProxyStateT TSProxyStateGet();
 
 /* TSProxyStateSet: set the proxy state (on/off)
  * Input:  proxy_state - set to on/off
- *         clear - specifies if want to start TS with clear_cache or
- *                 clear_cache_hostdb option, or just run TS with no options;
- *                  only applies when turning proxy on
+ *         clear - a TSCacheClearT bitmask,
+ *            specifies if want to start TS with clear_cache or
+ *            clear_cache_hostdb option, or just run TS with no options;
+ *            only applies when turning proxy on
  * Output: TSMgmtError
  */
-tsapi TSMgmtError TSProxyStateSet(TSProxyStateT proxy_state, TSCacheClearT clear);
+tsapi TSMgmtError TSProxyStateSet(TSProxyStateT proxy_state, unsigned clear);
 
 /* TSProxyBacktraceGet: get a backtrace of the proxy
  * Input:  unsigned options - stack trace options
@@ -944,27 +874,17 @@ tsapi TSMgmtError TSBounce(unsigned options);
  */
 tsapi TSMgmtError TSStorageDeviceCmdOffline(char const *dev);
 
-/*--- diags output operations ---------------------------------------------*/
-/* TSDiags: enables users to manipulate run-time diagnostics, and print
- *           user-formatted notices, warnings and errors
- * Input:  mode - diags mode
- *         fmt  - printf style format
- * Output: <none>
+/* TSLifecycleMessage: Send a lifecycle message to the plugins.
+ * @arg tag Alert tag string (null-terminated)
+ * @return Success
  */
-tsapi void TSDiags(TSDiagsT mode, const char *fmt, ...);
+tsapi TSMgmtError TSLifecycleMessage(char const *tag, void const *data, size_t data_size);
 
 /* TSGetErrorMessage: convert error id to error message
  * Input:  error id (defined in TSMgmtError)
  * Output: corresponding error message (allocated memory)
  */
 char *TSGetErrorMessage(TSMgmtError error_id);
-
-/*--- password operations -------------------------------------------------*/
-/* TSEncryptPassword: encrypts a password
- * Input: passwd - a password string to encrypt (can be NULL)
- * Output: e_passwd - an encrypted passwd (ats_malloc's memory)
- */
-tsapi TSMgmtError TSEncryptPassword(char *passwd, char **e_passwd);
 
 /*--- direct file operations ----------------------------------------------*/
 /* TSConfigFileRead: reads a config file into a buffer

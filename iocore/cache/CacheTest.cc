@@ -29,8 +29,10 @@
 
 using namespace std;
 
-CacheTestSM::CacheTestSM(RegressionTest *t)
+CacheTestSM::CacheTestSM(RegressionTest *t, const char *name)
   : RegressionSM(t),
+    start_memcpy_on_clone(0),
+    cache_test_name(name),
     timeout(0),
     cache_action(0),
     start_time(0),
@@ -38,13 +40,23 @@ CacheTestSM::CacheTestSM(RegressionTest *t)
     cvio(0),
     buffer(0),
     buffer_reader(0),
+    total_size(0),
     nbytes(-1),
     repeat_count(0),
     expect_event(EVENT_NONE),
     expect_initial_event(EVENT_NONE),
     initial_event(EVENT_NONE),
-    content_salt(0)
+    content_salt(0),
+    end_memcpy_on_clone(0)
 {
+  SET_HANDLER(&CacheTestSM::event_handler);
+}
+
+CacheTestSM::CacheTestSM(const CacheTestSM &ao) : RegressionSM(ao)
+{
+  int o = (int)(((char *)&start_memcpy_on_clone) - ((char *)this));
+  int s = (int)(((char *)&end_memcpy_on_clone) - ((char *)&start_memcpy_on_clone));
+  memcpy(((char *)this) + o, ((char *)&ao) + o, s);
   SET_HANDLER(&CacheTestSM::event_handler);
 }
 
@@ -282,14 +294,6 @@ CacheTestSM::complete(int event)
   return EVENT_DONE;
 }
 
-CacheTestSM::CacheTestSM(const CacheTestSM &ao) : RegressionSM(ao)
-{
-  int o = (int)(((char *)&start_memcpy_on_clone) - ((char *)this));
-  int s = (int)(((char *)&end_memcpy_on_clone) - ((char *)&start_memcpy_on_clone));
-  memcpy(((char *)this) + o, ((char *)&ao) + o, s);
-  SET_HANDLER(&CacheTestSM::event_handler);
-}
-
 EXCLUSIVE_REGRESSION_TEST(cache)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {
   if (cacheProcessor.IsCacheEnabled() != CACHE_INITIALIZED) {
@@ -397,10 +401,24 @@ EXCLUSIVE_REGRESSION_TEST(cache)(RegressionTest *t, int /* atype ATS_UNUSED */, 
   pread_test.nbytes               = 100;
   pread_test.key                  = large_write_test.key;
 
-  r_sequential(t, write_test.clone(), lookup_test.clone(), r_sequential(t, 10, read_test.clone()), remove_test.clone(),
-               lookup_fail_test.clone(), read_fail_test.clone(), remove_fail_test.clone(), replace_write_test.clone(),
-               replace_test.clone(), replace_read_test.clone(), large_write_test.clone(), pread_test.clone(), NULL_PTR)
-    ->run(pstatus);
+  // clang-format off
+  r_sequential(t,
+      write_test.clone(),
+      lookup_test.clone(),
+      r_sequential(t, 10, read_test.clone()) /* run read_test 10 times */,
+      remove_test.clone(),
+      lookup_fail_test.clone(),
+      read_fail_test.clone(),
+      remove_fail_test.clone(),
+      replace_write_test.clone(),
+      replace_test.clone(),
+      replace_read_test.clone(),
+      large_write_test.clone(),
+      pread_test.clone(),
+      NULL_PTR)
+  ->run(pstatus);
+  // clang-format on
+
   return;
 }
 
@@ -540,7 +558,7 @@ test_RamCache(RegressionTest *t, RamCache *cache, const char *name, int64_t cach
       data.push_back(make_ptr(d));
       md5.u64[0] = ((uint64_t)i << 32) + i;
       md5.u64[1] = ((uint64_t)i << 32) + i;
-      cache->put(&md5, data[i], 1 << 15);
+      cache->put(&md5, data[i].get(), 1 << 15);
       // More hits for the first 10.
       for (int j = 0; j <= i && j < 10; j++) {
         Ptr<IOBufferData> data;
@@ -582,7 +600,7 @@ test_RamCache(RegressionTest *t, RamCache *cache, const char *name, int64_t cach
       IOBufferData *d = THREAD_ALLOC(ioDataAllocator, this_thread());
       d->alloc(BUFFER_SIZE_INDEX_16K);
       data.push_back(make_ptr(d));
-      cache->put(&md5, data.back(), 1 << 15);
+      cache->put(&md5, data.back().get(), 1 << 15);
       if (i >= sample_size / 2)
         misses++; // Sample last half of the gets.
     }
@@ -601,7 +619,7 @@ test_RamCache(RegressionTest *t, RamCache *cache, const char *name, int64_t cach
       IOBufferData *d = THREAD_ALLOC(ioDataAllocator, this_thread());
       d->alloc(BUFFER_SIZE_INDEX_8K + (r[i] % 3));
       data.push_back(make_ptr(d));
-      cache->put(&md5, data.back(), d->block_size());
+      cache->put(&md5, data.back().get(), d->block_size());
       if (i >= sample_size / 2)
         misses++; // Sample last half of the gets.
     }

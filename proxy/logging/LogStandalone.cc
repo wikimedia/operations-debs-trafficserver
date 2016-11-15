@@ -34,7 +34,6 @@
 #include "DiagsConfig.h"
 #include "Main.h"
 
-#include "Error.h"
 #include "P_EventSystem.h"
 #include "P_RecProcess.h"
 
@@ -152,7 +151,7 @@ check_lockfile()
   if (access(Layout::get()->runtimedir, R_OK | W_OK) == -1) {
     fprintf(stderr, "unable to access() dir'%s': %d, %s\n", Layout::get()->runtimedir, errno, strerror(errno));
     fprintf(stderr, " please set correct path in env variable TS_ROOT \n");
-    _exit(1);
+    ::exit(1);
   }
   lockfile = Layout::relative_to(Layout::get()->runtimedir, SERVER_LOCK);
 
@@ -176,7 +175,7 @@ check_lockfile()
     } else {
       fprintf(stderr, "\n");
     }
-    _exit(1);
+    ::exit(1);
   }
   ats_free(lockfile);
 }
@@ -210,7 +209,7 @@ init_log_standalone(const char *pgm_name, bool one_copy)
 
   init_system(true);
   initialize_process_manager();
-  diagsConfig = new DiagsConfig(logfile, error_tags, action_tags);
+  diagsConfig = new DiagsConfig(pgm_name, logfile, error_tags, action_tags);
   diags       = diagsConfig->diags;
 }
 
@@ -238,7 +237,7 @@ init_log_standalone_basic(const char *pgm_name)
 
   init_system(false);
   const bool use_records = false;
-  diagsConfig            = new DiagsConfig(logfile, error_tags, action_tags, use_records);
+  diagsConfig            = new DiagsConfig(pgm_name, logfile, error_tags, action_tags, use_records);
   diags                  = diagsConfig->diags;
   // set stdin/stdout to be unbuffered
   //

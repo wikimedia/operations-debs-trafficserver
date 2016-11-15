@@ -106,7 +106,7 @@ CacheVC::updateVector(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       alternate_index = write_vector->insert(&alternate, alternate_index);
     }
 
-    if (od->move_resident_alt && first_buf._ptr() && !od->has_multiple_writers()) {
+    if (od->move_resident_alt && first_buf.get() && !od->has_multiple_writers()) {
       Doc *doc         = (Doc *)first_buf->data();
       int small_doc    = (int64_t)doc->data_len() < (int64_t)cache_config_alt_rewrite_max_size;
       int have_res_alt = doc->key == od->single_doc_key;
@@ -224,7 +224,7 @@ iobufferblock_memcpy(char *p, int len, IOBufferBlock *ab, int offset)
     max_bytes -= offset;
     if (max_bytes <= 0) {
       offset = -max_bytes;
-      b      = b->next;
+      b      = b->next.get();
       continue;
     }
     int bytes = len;
@@ -233,7 +233,7 @@ iobufferblock_memcpy(char *p, int len, IOBufferBlock *ab, int offset)
     ::memcpy(p, start + offset, bytes);
     p += bytes;
     len -= bytes;
-    b      = b->next;
+    b      = b->next.get();
     offset = 0;
   }
   return p;
@@ -315,7 +315,7 @@ Vol::aggWriteDone(int event, Event *e)
     header->last_write_pos = header->write_pos;
     header->write_pos += io.aiocb.aio_nbytes;
     ink_assert(header->write_pos >= start);
-    DDebug("cache_agg", "Dir %s, Write: %" PRIu64 ", last Write: %" PRIu64 "\n", hash_text.get(), header->write_pos,
+    DDebug("cache_agg", "Dir %s, Write: %" PRIu64 ", last Write: %" PRIu64 "", hash_text.get(), header->write_pos,
            header->last_write_pos);
     ink_assert(header->write_pos == header->agg_pos);
     if (header->write_pos + EVACUATION_SIZE > scan_pos)
@@ -364,7 +364,7 @@ CacheVC *
 new_DocEvacuator(int nbytes, Vol *vol)
 {
   CacheVC *c        = new_CacheVC(vol);
-  ProxyMutex *mutex = vol->mutex;
+  ProxyMutex *mutex = vol->mutex.get();
   c->base_stat      = cache_evacuate_active_stat;
   CACHE_INCREMENT_DYN_STAT(c->base_stat + CACHE_STAT_ACTIVE);
   c->buf          = new_IOBufferData(iobuffer_size_to_index(nbytes, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
@@ -802,7 +802,7 @@ agg_copy(char *p, CacheVC *vc)
     // move data
     if (vc->write_len) {
       {
-        ProxyMutex *mutex ATS_UNUSED = vc->vol->mutex;
+        ProxyMutex *mutex ATS_UNUSED = vc->vol->mutex.get();
         ink_assert(mutex->thread_holding == this_ethread());
         CACHE_DEBUG_SUM_DYN_STAT(cache_write_bytes_stat, vc->write_len);
       }
@@ -811,7 +811,7 @@ agg_copy(char *p, CacheVC *vc)
         iobufferblock_memcpy(doc->data(), vc->write_len, res_alt_blk, 0);
       else
 #endif
-        iobufferblock_memcpy(doc->data(), vc->write_len, vc->blocks, vc->offset);
+        iobufferblock_memcpy(doc->data(), vc->write_len, vc->blocks.get(), vc->offset);
 #ifdef VERIFY_JTEST_DATA
       if (f.use_first_key && header_len) {
         int ib = 0, xd = 0;
@@ -841,7 +841,7 @@ agg_copy(char *p, CacheVC *vc)
     Doc *doc = (Doc *)vc->buf->data();
     int l    = vc->vol->round_to_approx_size(doc->len);
     {
-      ProxyMutex *mutex ATS_UNUSED = vc->vol->mutex;
+      ProxyMutex *mutex ATS_UNUSED = vc->vol->mutex.get();
       ink_assert(mutex->thread_holding == this_ethread());
       CACHE_DEBUG_INCREMENT_DYN_STAT(cache_gc_frags_evacuated_stat);
       CACHE_DEBUG_SUM_DYN_STAT(cache_gc_bytes_evacuated_stat, l);
@@ -1073,14 +1073,14 @@ CacheVC::openWriteCloseDir(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED *
   if (is_debug_tag_set("cache_update")) {
     if (f.update && closed > 0) {
       if (!total_len && alternate_index != CACHE_ALT_REMOVED) {
-        Debug("cache_update", "header only %d (%" PRIu64 ", %" PRIu64 ")\n", DIR_MASK_TAG(first_key.slice32(2)), update_key.b[0],
+        Debug("cache_update", "header only %d (%" PRIu64 ", %" PRIu64 ")", DIR_MASK_TAG(first_key.slice32(2)), update_key.b[0],
               update_key.b[1]);
 
       } else if (total_len && alternate_index != CACHE_ALT_REMOVED) {
-        Debug("cache_update", "header body, %d, (%" PRIu64 ", %" PRIu64 "), (%" PRIu64 ", %" PRIu64 ")\n",
+        Debug("cache_update", "header body, %d, (%" PRIu64 ", %" PRIu64 "), (%" PRIu64 ", %" PRIu64 ")",
               DIR_MASK_TAG(first_key.slice32(2)), update_key.b[0], update_key.b[1], earliest_key.b[0], earliest_key.b[1]);
       } else if (!total_len && alternate_index == CACHE_ALT_REMOVED) {
-        Debug("cache_update", "alt delete, %d, (%" PRIu64 ", %" PRIu64 ")\n", DIR_MASK_TAG(first_key.slice32(2)), update_key.b[0],
+        Debug("cache_update", "alt delete, %d, (%" PRIu64 ", %" PRIu64 ")", DIR_MASK_TAG(first_key.slice32(2)), update_key.b[0],
               update_key.b[1]);
       }
     }
@@ -1218,7 +1218,7 @@ CacheVC::openWriteCloseDataDone(int event, Event *e)
     fragment++;
     write_pos += write_len;
     dir_insert(&key, vol, &dir);
-    blocks = iobufferblock_skip(blocks, &offset, &length, write_len);
+    blocks = iobufferblock_skip(blocks.get(), &offset, &length, write_len);
     next_CacheKey(&key, &key);
     if (length) {
       write_len = length;
@@ -1315,7 +1315,7 @@ CacheVC::openWriteWriteDone(int event, Event *e)
     write_pos += write_len;
     dir_insert(&key, vol, &dir);
     DDebug("cache_insert", "WriteDone: %X, %X, %d", key.slice32(0), first_key.slice32(0), write_len);
-    blocks = iobufferblock_skip(blocks, &offset, &length, write_len);
+    blocks = iobufferblock_skip(blocks.get(), &offset, &length, write_len);
     next_CacheKey(&key, &key);
   }
   if (closed)
@@ -1480,7 +1480,7 @@ CacheVC::openWriteStartDone(int event, Event *e)
       if (!(doc->first_key == first_key))
         goto Lcollision;
 
-      if (doc->magic != DOC_MAGIC || !doc->hlen || this->load_http_info(write_vector, doc, buf) != doc->hlen) {
+      if (doc->magic != DOC_MAGIC || !doc->hlen || this->load_http_info(write_vector, doc, buf.object()) != doc->hlen) {
         err = ECACHE_BAD_META_DATA;
         goto Lfailure;
       }
@@ -1583,7 +1583,7 @@ Cache::open_write(Continuation *cont, const CacheKey *key, CacheFragType frag_ty
 
   intptr_t res      = 0;
   CacheVC *c        = new_CacheVC(cont);
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   SCOPED_MUTEX_LOCK(lock, c->mutex, this_ethread());
   c->vio.op    = VIO::WRITE;
   c->base_stat = cache_write_active_stat;
@@ -1651,7 +1651,7 @@ Cache::open_write(Continuation *cont, const CacheKey *key, CacheHTTPInfo *info, 
   intptr_t err      = 0;
   int if_writers    = (uintptr_t)info == CACHE_ALLOW_MULTIPLE_WRITES;
   CacheVC *c        = new_CacheVC(cont);
-  ProxyMutex *mutex = cont->mutex;
+  ProxyMutex *mutex = cont->mutex.get();
   c->vio.op         = VIO::WRITE;
   c->first_key      = *key;
   /*

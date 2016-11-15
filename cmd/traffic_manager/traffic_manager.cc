@@ -29,6 +29,8 @@
 #include "ts/ink_syslog.h"
 
 #include "WebMgmtUtils.h"
+#include "WebOverview.h"
+#include "MgmtUtils.h"
 #include "NetworkUtilsRemote.h"
 #include "ClusterCom.h"
 #include "VMap.h"
@@ -48,13 +50,10 @@
 // Needs LibRecordsConfigInit()
 #include "RecordsConfig.h"
 
-#include "StatProcessor.h"
 #include "P_RecLocal.h"
 
-#if TS_USE_LUAJIT
 #include "bindings/bindings.h"
 #include "bindings/metrics.h"
-#endif
 
 #include "metrics.h"
 
@@ -77,13 +76,12 @@ static void runAsUser(const char *userName);
 extern "C" int getpwnam_r(const char *name, struct passwd *result, char *buffer, size_t buflen, struct passwd **resptr);
 #endif
 
-static StatProcessor *statProcessor;  // Statistics Processors
 static AppVersionInfo appVersionInfo; // Build info for this application
 
 static inkcoreapi DiagsConfig *diagsConfig;
 static char debug_tags[1024]  = "";
 static char action_tags[1024] = "";
-static bool proxy_off         = false;
+static int proxy_off          = false;
 static char bind_stdout[512]  = "";
 static char bind_stderr[512]  = "";
 
@@ -138,12 +136,14 @@ rotateLogs()
     // synced across processes
     mgmt_log("Sending SIGUSR2 to TS");
     pid_t tspid = lmgmt->watched_process_pid;
-    if (tspid <= 0)
+    if (tspid <= 0) {
       return;
-    if (kill(tspid, SIGUSR2) != 0)
+    }
+    if (kill(tspid, SIGUSR2) != 0) {
       mgmt_log("Could not send SIGUSR2 to TS: %s", strerror(errno));
-    else
+    } else {
       mgmt_log("Succesfully sent SIGUSR2 to TS!");
+    }
   }
 }
 
@@ -184,16 +184,11 @@ check_lockfile()
   } else {
     char *reason = strerror(-err);
     if (err == 0) {
-// TODO: Add PID_FMT_T instead duplicating code just for printing
-#if defined(solaris)
-      fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, (int)holding_pid);
-#else
-      fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
-#endif
-      mgmt_elog(stderr, 0, "FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
+      fprintf(stderr, "FATAL: Lockfile '%s' says server already running as PID %ld\n", lockfile, (long)holding_pid);
+      mgmt_log("FATAL: Lockfile '%s' says server already running as PID %d\n", lockfile, holding_pid);
     } else {
       fprintf(stderr, "FATAL: Can't open server lockfile '%s' (%s)\n", lockfile, (reason ? reason : "Unknown Reason"));
-      mgmt_elog(stderr, 0, "FATAL: Can't open server lockfile '%s' (%s)\n", lockfile, (reason ? reason : "Unknown Reason"));
+      mgmt_log("FATAL: Can't open server lockfile '%s' (%s)\n", lockfile, (reason ? reason : "Unknown Reason"));
     }
     exit(1);
   }
@@ -207,17 +202,13 @@ check_lockfile()
   if (err != 1) {
     char *reason = strerror(-err);
     fprintf(stderr, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
-    mgmt_elog(stderr, 0, "FATAL: Can't acquire manager lockfile '%s'", lockfile);
+    mgmt_log("FATAL: Can't acquire manager lockfile '%s'", lockfile);
     if (err == 0) {
-#if defined(solaris)
-      fprintf(stderr, " (Lock file held by process ID %d)\n", (int)holding_pid);
-#else
-      fprintf(stderr, " (Lock file held by process ID %d)\n", holding_pid);
-#endif
-      mgmt_elog(stderr, 0, " (Lock file held by process ID %d)\n", holding_pid);
+      fprintf(stderr, " (Lock file held by process ID %ld)\n", (long)holding_pid);
+      mgmt_log(" (Lock file held by process ID %d)\n", holding_pid);
     } else if (reason) {
       fprintf(stderr, " (%s)\n", reason);
-      mgmt_elog(stderr, 0, " (%s)\n", reason);
+      mgmt_log(" (%s)\n", reason);
     } else {
       fprintf(stderr, "\n");
     }
@@ -319,13 +310,13 @@ init_dirs()
   if (access(sysconfdir, R_OK) == -1) {
     mgmt_elog(0, "unable to access() config directory '%s': %d, %s\n", (const char *)sysconfdir, errno, strerror(errno));
     mgmt_elog(0, "please set the 'TS_ROOT' environment variable\n");
-    _exit(1);
+    ::exit(1);
   }
 
   if (access(rundir, R_OK) == -1) {
     mgmt_elog(0, "unable to access() local state directory '%s': %d, %s\n", (const char *)rundir, errno, strerror(errno));
     mgmt_elog(0, "please set 'proxy.config.local_state_dir'\n");
-    _exit(1);
+    ::exit(1);
   }
 }
 
@@ -445,8 +436,7 @@ main(int argc, const char **argv)
   char *proxy_port   = 0;
   int proxy_backdoor = -1;
   char *group_addr = NULL, *tsArgs = NULL;
-  bool disable_syslog = false;
-  RecBool enable_lua  = false;
+  int disable_syslog = false;
   char userToRunAs[MAX_LOGIN + 1];
   RecInt fds_throttle = -1;
   time_t ticker;
@@ -486,11 +476,13 @@ main(int argc, const char **argv)
   // Line buffer standard output & standard error
   int status;
   status = setvbuf(stdout, NULL, _IOLBF, 0);
-  if (status != 0)
+  if (status != 0) {
     perror("WARNING: can't line buffer stdout");
+  }
   status = setvbuf(stderr, NULL, _IOLBF, 0);
-  if (status != 0)
+  if (status != 0) {
     perror("WARNING: can't line buffer stderr");
+  }
 
   initSignalHandlers();
 
@@ -504,11 +496,10 @@ main(int argc, const char **argv)
 
   // Bootstrap the Diags facility so that we can use it while starting
   //  up the manager
-  diagsConfig = new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
+  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, false);
   diags       = diagsConfig->diags;
   diags->set_stdout_output(bind_stdout);
   diags->set_stderr_output(bind_stderr);
-  diags->prefix_str = "Manager ";
 
   RecLocalInit();
   LibRecordsConfigInit();
@@ -517,11 +508,10 @@ main(int argc, const char **argv)
 
   if (RecGetRecordString("proxy.config.admin.user_id", userToRunAs, sizeof(userToRunAs)) != TS_ERR_OKAY ||
       strlen(userToRunAs) == 0) {
-    mgmt_fatal(stderr, 0, "proxy.config.admin.user_id is not set\n");
+    mgmt_fatal(0, "proxy.config.admin.user_id is not set\n");
   }
 
   RecGetRecordInt("proxy.config.net.connections_throttle", &fds_throttle);
-  RecGetRecordBool("proxy.config.stats.enable_lua", &enable_lua);
 
   set_process_limits(fds_throttle); // as root
 
@@ -551,15 +541,15 @@ main(int argc, const char **argv)
   }
   // INKqa11968: need to set up callbacks and diags data structures
   // using configuration in records.config
-  diagsConfig = new DiagsConfig(DIAGS_LOG_FILENAME, debug_tags, action_tags, true);
+  diagsConfig = new DiagsConfig("Manager", DIAGS_LOG_FILENAME, debug_tags, action_tags, true);
   diags       = diagsConfig->diags;
   RecSetDiags(diags);
-  diags->prefix_str = "Manager ";
   diags->set_stdout_output(bind_stdout);
   diags->set_stderr_output(bind_stderr);
 
-  if (is_debug_tag_set("diags"))
+  if (is_debug_tag_set("diags")) {
     diags->dump();
+  }
   diags->cleanup_func = mgmt_cleanup;
 
   // Setup the exported manager version records.
@@ -623,7 +613,7 @@ main(int argc, const char **argv)
   if (tsArgs) { /* Passed command line args for proxy */
     ats_free(lmgmt->proxy_options);
     lmgmt->proxy_options = tsArgs;
-    mgmt_log(stderr, "[main] Traffic Server Args: '%s'\n", lmgmt->proxy_options);
+    mgmt_log("[main] Traffic Server Args: '%s'\n", lmgmt->proxy_options);
   }
 
   // we must pass in bind_stdout and bind_stderr values to TS
@@ -713,14 +703,14 @@ main(int argc, const char **argv)
 
   mgmtapiFD = bind_unix_domain_socket(apisock, newmode);
   if (mgmtapiFD == -1) {
-    mgmt_log(stderr, "[WebIntrMain] Unable to set up socket for handling management API calls. API socket path = %s\n",
+    mgmt_log("[WebIntrMain] Unable to set up socket for handling management API calls. API socket path = %s\n",
              (const char *)apisock);
     lmgmt->alarm_keeper->signalAlarm(MGMT_ALARM_WEB_ERROR, mgmtapiFailMsg);
   }
 
   eventapiFD = bind_unix_domain_socket(eventsock, newmode);
   if (eventapiFD == -1) {
-    mgmt_log(stderr, "[WebIntrMain] Unable to set up so for handling management API event calls. Event Socket path: %s\n",
+    mgmt_log("[WebIntrMain] Unable to set up so for handling management API event calls. Event Socket path: %s\n",
              (const char *)eventsock);
   }
 
@@ -731,8 +721,6 @@ main(int argc, const char **argv)
   ticker = time(NULL);
   mgmt_log("[TrafficManager] Setup complete\n");
 
-  statProcessor = new StatProcessor(configFiles);
-
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.reconfigure_time", time(NULL), RECP_NON_PERSISTENT);
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.reconfigure_required", 0, RECP_NON_PERSISTENT);
 
@@ -740,22 +728,8 @@ main(int argc, const char **argv)
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.restart_required.manager", 0, RECP_NON_PERSISTENT);
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.restart_required.cop", 0, RECP_NON_PERSISTENT);
 
-#if !TS_USE_LUAJIT
-  if (enable_lua) {
-    static bool warned = false;
-    enable_lua         = false;
-
-    if (!warned) {
-      Warning("missing Lua support, disabling Lua derived metrics");
-      warned = true;
-    }
-  }
-#endif
-
-  if (enable_lua) {
-    binding = new BindingInstance;
-    metrics_binding_initialize(*binding);
-  }
+  binding = new BindingInstance;
+  metrics_binding_initialize(*binding);
 
   int sleep_time = 0; // sleep_time given in sec
 
@@ -763,15 +737,13 @@ main(int argc, const char **argv)
     lmgmt->processEventQueue();
     lmgmt->pollMgmtProcessServer();
 
-    if (enable_lua) {
-      if (binding_version != metrics_version) {
-        metrics_binding_destroy(*binding);
-        delete binding;
+    if (binding_version != metrics_version) {
+      metrics_binding_destroy(*binding);
+      delete binding;
 
-        binding = new BindingInstance;
-        metrics_binding_initialize(*binding);
-        binding_version = metrics_version;
-      }
+      binding = new BindingInstance;
+      metrics_binding_initialize(*binding);
+      binding_version = metrics_version;
     }
 
     // Handle rotation of output log (aka traffic.out) as well as DIAGS_LOG_FILENAME (aka manager.log)
@@ -779,10 +751,10 @@ main(int argc, const char **argv)
 
     // Check for a SIGHUP
     if (sigHupNotifier != 0) {
-      mgmt_log(stderr, "[main] Reading Configuration Files due to SIGHUP\n");
+      mgmt_log("[main] Reading Configuration Files due to SIGHUP\n");
       Reconfigure();
       sigHupNotifier = 0;
-      mgmt_log(stderr, "[main] Reading Configuration Files Reread\n");
+      mgmt_log("[main] Reading Configuration Files Reread\n");
     }
 
     lmgmt->ccom->generateClusterDelta();
@@ -803,13 +775,7 @@ main(int argc, const char **argv)
     lmgmt->ccom->checkPeers(&ticker);
     overviewGenerator->checkForUpdates();
 
-    if (enable_lua) {
-      metrics_binding_evaluate(*binding);
-    } else {
-      if (statProcessor) {
-        statProcessor->processStat();
-      }
-    }
+    metrics_binding_evaluate(*binding);
 
     if (lmgmt->mgmt_shutdown_outstanding != MGMT_PENDING_NONE) {
       Debug("lm", "pending shutdown %d", lmgmt->mgmt_shutdown_outstanding);
@@ -817,12 +783,12 @@ main(int argc, const char **argv)
     switch (lmgmt->mgmt_shutdown_outstanding) {
     case MGMT_PENDING_RESTART:
       lmgmt->mgmtShutdown();
-      _exit(0);
+      ::exit(0);
       break;
     case MGMT_PENDING_IDLE_RESTART:
       if (is_server_idle()) {
         lmgmt->mgmtShutdown();
-        _exit(0);
+        ::exit(0);
       }
       break;
     case MGMT_PENDING_BOUNCE:
@@ -841,7 +807,7 @@ main(int argc, const char **argv)
 
     if (lmgmt->run_proxy && !lmgmt->processRunning()) { /* Make sure we still have a proxy up */
       if (sleep_time) {
-        mgmt_log(stderr, "Relaunching proxy after %d sec...", sleep_time);
+        mgmt_log("Relaunching proxy after %d sec...", sleep_time);
         millisleep(1000 * sleep_time); // we use millisleep instead of sleep because it doesnt interfere with signals
         sleep_time = (sleep_time > 30) ? 60 : sleep_time * 2;
       } else {
@@ -868,24 +834,19 @@ main(int argc, const char **argv)
         if (WIFSIGNALED(res)) {
           int sig = WTERMSIG(res);
 #ifdef NEED_PSIGNAL
-          mgmt_log(stderr, "[main] Proxy terminated due to Sig %d. Relaunching after %d sec...\n", sig, sleep_time);
+          mgmt_log("[main] Proxy terminated due to Sig %d. Relaunching after %d sec...\n", sig, sleep_time);
 #else
-          mgmt_log(stderr, "[main] Proxy terminated due to Sig %d: %s. Relaunching after %d sec...\n", sig, strsignal(sig),
-                   sleep_time);
+          mgmt_log("[main] Proxy terminated due to Sig %d: %s. Relaunching after %d sec...\n", sig, strsignal(sig), sleep_time);
 #endif /* NEED_PSIGNAL */
         }
       }
-      mgmt_log(stderr, "[main] Proxy launch failed, retrying after %d sec...\n", sleep_time);
+      mgmt_log("[main] Proxy launch failed, retrying after %d sec...\n", sleep_time);
     }
   }
 
   if (binding) {
     metrics_binding_destroy(*binding);
     delete binding;
-  }
-
-  if (statProcessor) {
-    delete statProcessor;
   }
 
 #ifndef MGMT_SERVICE
@@ -903,21 +864,17 @@ SignalAlrmHandler(int /* sig ATS_UNUSED */)
 #endif
 {
 /*
-   fprintf(stderr, "[TrafficManager] ==> SIGALRM received\n");
-   mgmt_elog(stderr, 0, "[TrafficManager] ==> SIGALRM received\n");
+   fprintf("[TrafficManager] ==> SIGALRM received\n");
+   mgmt_elog(0, "[TrafficManager] ==> SIGALRM received\n");
  */
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
   if (t) {
     if (t->si_code <= 0) {
-#if defined(solaris)
-      fprintf(stderr, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", (int)t->si_pid, t->si_uid);
-#else
-      fprintf(stderr, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
-#endif
-      mgmt_elog(stderr, 0, "[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
+      fprintf(stderr, "[TrafficManager] ==> User Alarm from pid: %ld uid: %d\n", (long)t->si_pid, t->si_uid);
+      mgmt_log("[TrafficManager] ==> User Alarm from pid: %d uid: %d\n", t->si_pid, t->si_uid);
     } else {
       fprintf(stderr, "[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
-      mgmt_elog(stderr, 0, "[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
+      mgmt_log("[TrafficManager] ==> Kernel Alarm Reason: %d\n", t->si_code);
     }
   }
 #endif
@@ -939,15 +896,11 @@ SignalHandler(int sig)
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
   if (t) {
     if (t->si_code <= 0) {
-#if defined(solaris)
-      fprintf(stderr, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, (int)t->si_pid, t->si_uid);
-#else
-      fprintf(stderr, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, t->si_pid, t->si_uid);
-#endif
-      mgmt_elog(stderr, 0, "[TrafficManager] ==> User Sig %d from pid: %d uid: %d\n", sig, t->si_pid, t->si_uid);
+      fprintf(stderr, "[TrafficManager] ==> User Sig %d from pid: %ld uid: %d\n", sig, (long)t->si_pid, t->si_uid);
+      mgmt_log("[TrafficManager] ==> User Sig %d from pid: %ld uid: %d\n", sig, (long)t->si_pid, t->si_uid);
     } else {
       fprintf(stderr, "[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
-      mgmt_elog(stderr, 0, "[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
+      mgmt_log("[TrafficManager] ==> Kernel Sig %d; Reason: %d\n", sig, t->si_code);
     }
   }
 #endif
@@ -958,7 +911,7 @@ SignalHandler(int sig)
   }
 
   fprintf(stderr, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
-  mgmt_elog(stderr, 0, "[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
+  mgmt_log("[TrafficManager] ==> Cleaning up and reissuing signal #%d\n", sig);
 
   if (lmgmt && !clean) {
     clean = 1;
@@ -987,12 +940,12 @@ SignalHandler(int sig)
     abort();
   default:
     fprintf(stderr, "[TrafficManager] ==> signal #%d\n", sig);
-    mgmt_elog(stderr, 0, "[TrafficManager] ==> signal #%d\n", sig);
-    _exit(sig);
+    mgmt_log("[TrafficManager] ==> signal #%d\n", sig);
+    ::exit(sig);
   }
   fprintf(stderr, "[TrafficManager] ==> signal2 #%d\n", sig);
-  mgmt_elog(stderr, 0, "[TrafficManager] ==> signal2 #%d\n", sig);
-  _exit(sig);
+  mgmt_log("[TrafficManager] ==> signal2 #%d\n", sig);
+  ::exit(sig);
 } /* End SignalHandler */
 
 // void SigChldHandler(int sig)
@@ -1032,17 +985,17 @@ fileUpdated(char *fname, bool incVersion)
   } else if (strcmp(fname, "ip_allow.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.ip_allow.filename");
   } else if (strcmp(fname, "vaddrs.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] vaddrs.config updated\n");
+    mgmt_log("[fileUpdated] vaddrs.config updated\n");
     lmgmt->virt_map->lt_readAListFile(fname);
 
   } else if (strcmp(fname, "storage.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] storage.config changed, need restart auto-rebuild mode\n");
+    mgmt_log("[fileUpdated] storage.config changed, need restart auto-rebuild mode\n");
 
   } else if (strcmp(fname, "icp.config") == 0) {
     lmgmt->signalFileChange("proxy.config.icp.icp_configuration");
 
   } else if (strcmp(fname, "volume.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] volume.config changed, need restart\n");
+    mgmt_log("[fileUpdated] volume.config changed, need restart\n");
 
   } else if (strcmp(fname, "hosting.config") == 0) {
     lmgmt->signalFileChange("proxy.config.cache.hosting_filename");
@@ -1050,14 +1003,14 @@ fileUpdated(char *fname, bool incVersion)
   } else if (strcmp(fname, "log_hosts.config") == 0) {
     lmgmt->signalFileChange("proxy.config.log.hosts_config_file");
 
-  } else if (strcmp(fname, "logs_xml.config") == 0) {
-    lmgmt->signalFileChange("proxy.config.log.xml_config_file");
+  } else if (strcmp(fname, "logging.config") == 0) {
+    lmgmt->signalFileChange("proxy.config.log.config.filename");
 
   } else if (strcmp(fname, "splitdns.config") == 0) {
     lmgmt->signalFileChange("proxy.config.dns.splitdns.filename");
 
   } else if (strcmp(fname, "plugin.config") == 0) {
-    mgmt_log(stderr, "[fileUpdated] plugin.config file has been modified\n");
+    mgmt_log("[fileUpdated] plugin.config file has been modified\n");
 
   } else if (strcmp(fname, "ssl_multicert.config") == 0) {
     lmgmt->signalFileChange("proxy.config.ssl.server.multicert.filename");
@@ -1065,18 +1018,13 @@ fileUpdated(char *fname, bool incVersion)
   } else if (strcmp(fname, "proxy.config.body_factory.template_sets_dir") == 0) {
     lmgmt->signalFileChange("proxy.config.body_factory.template_sets_dir");
 
-  } else if (strcmp(fname, "stats.config.xml") == 0) {
-    if (statProcessor) {
-      statProcessor->rereadConfig(configFiles);
-    }
-    mgmt_log(stderr, "[fileUpdated] stats.config.xml file has been modified\n");
   } else if (strcmp(fname, "metrics.config") == 0) {
     ink_atomic_increment(&metrics_version, 1);
-    mgmt_log(stderr, "[fileUpdated] metrics.config file has been modified\n");
+    mgmt_log("[fileUpdated] metrics.config file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
   } else {
-    mgmt_elog(stderr, 0, "[fileUpdated] Unknown config file updated '%s'\n", fname);
+    mgmt_log("[fileUpdated] Unknown config file updated '%s'\n", fname);
   }
   return;
 } /* End fileUpdate */
@@ -1135,7 +1083,7 @@ runAsUser(const char *userName)
 
 #if TS_USE_POSIX_CAP
     if (0 != restoreCapabilities()) {
-      mgmt_elog(stderr, 0, "[runAsUser] Error: Failed to restore capabilities after switch to user %s.\n", userName);
+      mgmt_log("[runAsUser] Error: Failed to restore capabilities after switch to user %s.\n", userName);
     }
 #endif
   }

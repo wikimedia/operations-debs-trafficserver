@@ -98,10 +98,13 @@ get_effective_host(TSHttpTxn txn)
   TSMBuffer buf;
   TSMLoc url_loc;
 
-  effective_url = TSHttpTxnEffectiveUrlStringGet(txn, &len);
-  buf           = TSMBufferCreate();
-  TSUrlCreate(buf, &url_loc);
-  tmp = effective_url;
+  buf = TSMBufferCreate();
+  if (TS_SUCCESS != TSUrlCreate(buf, &url_loc)) {
+    TSDebug(DEBUG_TAG, "unable to create url");
+    TSMBufferDestroy(buf);
+    return NULL;
+  }
+  tmp = effective_url = TSHttpTxnEffectiveUrlStringGet(txn, &len);
   TSUrlParse(buf, url_loc, (const char **)(&tmp), (const char *)(effective_url + len));
   TSfree(effective_url);
   host = TSUrlHostGet(buf, url_loc, &len);
@@ -251,7 +254,6 @@ TSPluginInit(int argc, const char *argv[])
 
   if (argc > 1) {
     int c;
-    optind                                = 1;
     static const struct option longopts[] = {
       {"post-remap-host", no_argument, NULL, 'P'}, {"persistent", no_argument, NULL, 'p'}, {NULL, 0, NULL, 0}};
 

@@ -45,22 +45,32 @@ public:
       header_blocks(NULL),
       header_blocks_length(0),
       request_header_length(0),
-      end_stream(false),
+      recv_end_stream(false),
+      send_end_stream(false),
+      sent_request_header(false),
+      response_header_done(false),
+      request_sent(false),
+      is_first_transaction_flag(false),
       response_reader(NULL),
       request_reader(NULL),
       request_buffer(CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX),
       priority_node(NULL),
+      _start_time(0),
+      _thread(NULL),
       _id(sid),
       _state(HTTP2_STREAM_STATE_IDLE),
       trailing_header(false),
       body_done(false),
-      data_length(0),
       closed(false),
       sent_delete(false),
-      bytes_sent(0),
       chunked(false),
+      data_length(0),
+      bytes_sent(0),
       cross_thread_event(NULL),
+      active_timeout(0),
       active_event(NULL),
+      inactive_timeout(0),
+      inactive_timeout_at(0),
       inactive_event(NULL),
       read_event(NULL),
       write_event(NULL)
@@ -94,6 +104,7 @@ public:
   {
     return body_done;
   }
+
   void
   mark_body_done()
   {
@@ -101,7 +112,7 @@ public:
   }
 
   void
-  update_sent_count(int num_bytes)
+  update_sent_count(unsigned num_bytes)
   {
     bytes_sent += num_bytes;
   }
@@ -111,11 +122,13 @@ public:
   {
     return _id;
   }
+
   const Http2StreamState
   get_state() const
   {
     return _state;
   }
+
   bool change_state(uint8_t type, uint8_t flags);
 
   void
@@ -123,6 +136,7 @@ public:
   {
     _id = sid;
   }
+
   void
   update_initial_rwnd(Http2WindowSize new_size)
   {
@@ -135,11 +149,10 @@ public:
     return trailing_header;
   }
 
-  Http2ErrorCode
-  decode_header_blocks(HpackHandle &hpack_handle)
+  void
+  set_request_headers(HTTPHdr &h2_headers)
   {
-    return http2_decode_header_blocks(&_req_header, (const uint8_t *)header_blocks, header_blocks_length, NULL, hpack_handle,
-                                      trailing_header);
+    _req_header.copy(&h2_headers);
   }
 
   // Check entire DATA payload length if content-length: header is exist
@@ -148,6 +161,7 @@ public:
   {
     data_length += length;
   }
+
   bool
   payload_length_is_valid() const
   {
@@ -155,6 +169,7 @@ public:
     return content_length == 0 || content_length == data_length;
   }
 
+  Http2ErrorCode decode_header_blocks(HpackHandle &hpack_handle);
   void send_request(Http2ConnectionState &cstate);
   VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf);
   VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuffer, bool owner = false);
@@ -164,7 +179,9 @@ public:
   void update_read_request(int64_t read_len, bool send_update);
   bool update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
   void reenable(VIO *vio);
+  virtual void transaction_done();
   void send_response_body();
+  void push_promise(URL &url);
 
   // Stream level window size
   ssize_t client_rwnd, server_rwnd;
@@ -176,11 +193,13 @@ public:
                                   // Padding or other fields)
   uint32_t request_header_length; // total length of payload (include Padding
                                   // and other fields)
-  bool end_stream;
+  bool recv_end_stream;
+  bool send_end_stream;
 
   bool sent_request_header;
   bool response_header_done;
   bool request_sent;
+  bool is_first_transaction_flag;
 
   HTTPHdr response_header;
   IOBufferReader *response_reader;
@@ -200,27 +219,13 @@ public:
   {
     return chunked;
   }
-  bool response_initialize_data_handling();
-  bool response_process_data();
-  bool response_is_data_available() const;
-  // For Http2 releasing the transaction should go ahead and delete it
-  void
-  release(IOBufferReader *r)
-  {
-    current_reader = NULL; // State machine is on its own way down.
-    this->do_io_close();
-  }
+
+  void release(IOBufferReader *r);
 
   virtual bool
   allow_half_open() const
   {
     return false;
-  }
-
-  virtual const char *
-  get_protocol_string() const
-  {
-    return "http/2";
   }
 
   virtual void set_active_timeout(ink_hrtime timeout_in);
@@ -230,8 +235,29 @@ public:
   void clear_active_timer();
   void clear_timers();
   void clear_io_events();
+  bool
+  is_client_state_writeable() const
+  {
+    return _state == HTTP2_STREAM_STATE_OPEN || _state == HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE ||
+           HTTP2_STREAM_STATE_RESERVED_LOCAL;
+  }
+
+  bool
+  is_closed() const
+  {
+    return closed;
+  }
+
+  bool
+  is_first_transaction() const
+  {
+    return is_first_transaction_flag;
+  }
 
 private:
+  void response_initialize_data_handling(bool &is_done);
+  void response_process_data(bool &is_done);
+  bool response_is_data_available() const;
   Event *send_tracked_event(Event *event, int send_event, VIO *vio);
   HTTPParser http_parser;
   ink_hrtime _start_time;
@@ -243,14 +269,17 @@ private:
   HTTPHdr _req_header;
   VIO read_vio;
   VIO write_vio;
+
   bool trailing_header;
   bool body_done;
-  uint64_t data_length;
   bool closed;
   bool sent_delete;
-  int bytes_sent;
-  ChunkedHandler chunked_handler;
   bool chunked;
+
+  uint64_t data_length;
+  uint64_t bytes_sent;
+
+  ChunkedHandler chunked_handler;
   Event *cross_thread_event;
 
   // Support stream-specific timeouts

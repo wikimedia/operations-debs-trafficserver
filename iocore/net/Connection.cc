@@ -39,10 +39,6 @@
 
 #define ROUNDUP(x, y) ((((x) + ((y)-1)) / (y)) * (y))
 
-#ifndef FD_CLOEXEC
-#define FD_CLOEXEC 1
-#endif
-
 int
 get_listen_backlog(void)
 {
@@ -77,31 +73,21 @@ Server::accept(Connection *c)
   int res      = 0;
   socklen_t sz = sizeof(c->addr);
 
-  res = socketManager.accept(fd, &c->addr.sa, &sz);
+  res = socketManager.accept4(fd, &c->addr.sa, &sz, SOCK_NONBLOCK | SOCK_CLOEXEC);
   if (res < 0)
     return res;
   c->fd = res;
   if (is_debug_tag_set("iocore_net_server")) {
     ip_port_text_buffer ipb1, ipb2;
-    Debug("iocore_net_server", "Connection accepted [Server]. %s -> %s\n", ats_ip_nptop(&c->addr, ipb2, sizeof(ipb2)),
+    Debug("iocore_net_server", "Connection accepted [Server]. %s -> %s", ats_ip_nptop(&c->addr, ipb2, sizeof(ipb2)),
           ats_ip_nptop(&addr, ipb1, sizeof(ipb1)));
   }
 
-#ifdef SET_CLOSE_ON_EXEC
-  if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0)
-    goto Lerror;
-#endif
-  if ((res = safe_nonblocking(c->fd)) < 0)
-    goto Lerror;
 #ifdef SEND_BUF_SIZE
   socketManager.set_sndbuf_size(c->fd, SEND_BUF_SIZE);
 #endif
 
   return 0;
-
-Lerror:
-  c->close();
-  return res;
 }
 
 int
@@ -210,11 +196,9 @@ Server::setup_fd_for_listen(bool non_blocking, int recv_bufsize, int send_bufsiz
     }
   }
 
-#ifdef SET_CLOSE_ON_EXEC
   if ((res = safe_fcntl(fd, F_SETFD, FD_CLOEXEC)) < 0) {
     goto Lerror;
   }
-#endif
 
   {
     struct linger l;
@@ -254,10 +238,9 @@ Server::setup_fd_for_listen(bool non_blocking, int recv_bufsize, int send_bufsiz
 
   if (transparent) {
 #if TS_USE_TPROXY
-    Debug("http_tproxy", "Listen port inbound transparency enabled.\n");
+    Debug("http_tproxy", "Listen port inbound transparency enabled.");
     if (safe_setsockopt(fd, SOL_IP, TS_IP_TRANSPARENT, SOCKOPT_ON, sizeof(int)) < 0) {
-      Error("[Server::listen] Unable to set transparent socket option [%d] %s\n", errno, strerror(errno));
-      _exit(1);
+      Fatal("[Server::listen] Unable to set transparent socket option [%d] %s\n", errno, strerror(errno));
     }
 #else
     Error("[Server::listen] Transparency requested but TPROXY not configured\n");

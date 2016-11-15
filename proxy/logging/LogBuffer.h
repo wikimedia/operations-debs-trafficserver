@@ -25,6 +25,7 @@
 #define LOG_BUFFER_H
 
 #include "ts/ink_platform.h"
+#include "ts/Diags.h"
 #include "LogFormat.h"
 #include "LogLimits.h"
 #include "LogAccess.h"
@@ -153,12 +154,13 @@ public:
   void force_full();
 
   LogBufferHeader *
-  header()
+  header() const
   {
     return m_header;
   }
+
   long
-  expiration_time()
+  expiration_time() const
   {
     return m_expiration_time;
   }
@@ -167,10 +169,11 @@ public:
   void update_header_data();
 
   uint32_t
-  get_id()
+  get_id() const
   {
     return m_id;
   }
+
   LogObject *
   get_owner() const
   {
@@ -178,7 +181,6 @@ public:
   }
 
   LINK(LogBuffer, link);
-  ;
 
   // static variables
   static vint32 M_ID;

@@ -40,7 +40,7 @@ typedef enum {
   TS_FETCH_EVENT_EXT_HEAD_READY = -1,
   TS_FETCH_EVENT_EXT_HEAD_DONE  = -2,
   TS_FETCH_EVENT_EXT_BODY_READY = -3,
-  TS_FETCH_EVENT_EXT_BODY_DONE  = -4,
+  TS_FETCH_EVENT_EXT_BODY_DONE  = -4
 } TSFetchEventExt;
 
 typedef enum {
@@ -95,13 +95,6 @@ tsapi TSReturnCode TSHttpTxnCntl(TSHttpTxn txnp, TSHttpCntlType cntl, void *data
 
 /* Protocols APIs */
 tsapi void TSVConnCacheHttpInfoSet(TSVConn connp, TSCacheHttpInfo infop);
-
-/* ICP freshness functions */
-typedef int (*TSPluginFreshnessCalcFunc)(TSCont contp);
-tsapi void TSICPFreshnessFuncSet(TSPluginFreshnessCalcFunc funcp);
-
-tsapi TSReturnCode TSICPCachedReqGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj);
-tsapi TSReturnCode TSICPCachedRespGet(TSCont contp, TSMBuffer *bufp, TSMLoc *obj);
 
 /* The rest is from the old "froze" private API include, we should consider
    moving some of these over to ts/ts.h as well. TODO */
@@ -198,9 +191,6 @@ tsapi void TSCacheHttpInfoDestroy(TSCacheHttpInfo infop);
 */
 tsapi TSReturnCode TSHttpTxnInfoIntGet(TSHttpTxn txnp, TSHttpTxnInfoKey key, TSMgmtInt *value);
 
-/* =====  ICP =====  */
-tsapi void TSHttpIcpDynamicSet(int value);
-
 /****************************************************************************
  *  TSHttpTxnCacheLookupCountGet
  *  Return: TS_SUCESS/TS_ERROR
@@ -238,6 +228,8 @@ tsapi TSReturnCode TSHttpTxnUpdateCachedObject(TSHttpTxn txnp);
  *  TODO: This returns a LookingUp_t value, we need to SDK'ify it.
  ****************************************************************************/
 tsapi int TSHttpTxnLookingUpTypeGet(TSHttpTxn txnp);
+
+tsapi void TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len);
 
 /**
    Attempt to attach the contp continuation to sockets that have already been

@@ -166,14 +166,11 @@ SslHdrExpand(SSL *ssl, const SslHdrInstance::expansion_list &expansions, TSMBuff
 static SslHdrInstance *
 SslHdrParseOptions(int argc, const char **argv)
 {
-  static const struct option longopt[] = {{const_cast<char *>("attach"), required_argument, 0, 'a'}, {0, 0, 0, 0}};
+  static const struct option longopt[] = {
+    {const_cast<char *>("attach"), required_argument, 0, 'a'}, {0, 0, 0, 0},
+  };
 
   ats_scoped_obj<SslHdrInstance> hdr(new SslHdrInstance());
-
-  // We might parse arguments multiple times if we are loaded as a global
-  // plugin and a remap plugin. Reset optind so that getopt_long() does the
-  // right thing (ie. work instead of crash).
-  optind = 0;
 
   for (;;) {
     int opt;
