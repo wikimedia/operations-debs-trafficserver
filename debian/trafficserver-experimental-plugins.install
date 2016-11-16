@@ -28,3 +28,4 @@ usr/lib/trafficserver/modules/stream_editor.so
 usr/lib/trafficserver/modules/tslua.so
 usr/lib/trafficserver/modules/tsmemcache.so
 usr/lib/trafficserver/modules/url_sig.so
+usr/lib/trafficserver/modules/WebpTransform.so
