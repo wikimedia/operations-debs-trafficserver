@@ -1,0 +1,18 @@
+Description: Fix FTBFS for mips64el
+Author: Dejan Latinovic <Dejan.Latinovic@imgtec.com>
+Origin: other, https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=830856
+Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2016-11-18
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/lib/ts/ink_queue.h
++++ b/lib/ts/ink_queue.h
+@@ -133,7 +133,7 @@ typedef union {
+ #define SET_FREELIST_POINTER_VERSION(_x, _p, _v) \
+   (_x).s.pointer = _p;                           \
+   (_x).s.version = _v
+-#elif defined(__x86_64__) || defined(__ia64__) || defined(__powerpc64__) || defined(__aarch64__)
++#elif defined(__x86_64__) || defined(__ia64__) || defined(__powerpc64__) || defined(__aarch64__) || defined(__mips64)
+ #define FREELIST_POINTER(_x) \
+   ((void *)(((((intptr_t)(_x).data) << 16) >> 16) | (((~((((intptr_t)(_x).data) << 16 >> 63) - 1)) >> 48) << 48))) // sign extend
+ #define FREELIST_VERSION(_x) (((intptr_t)(_x).data) >> 48)
