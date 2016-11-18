@@ -1,0 +1,22 @@
+Description: make the build reproducible
+Author: Reiner Herrmann <reiner@reiner-h.de>
+Origin: other, https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833176
+Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2016-11-18
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/configure.ac
++++ b/configure.ac
+@@ -144,9 +144,9 @@ AC_ARG_WITH([build-number],
+ #
+ # Build environment
+ #
+-build_person="`id -nu | sed -e 's/\\\\/\\\\\\\\/g'`"
+-build_group="`id -ng | sed -e 's/\\\\/\\\\\\\\/g'`"
+-build_machine="`uname -n | sed -e 's/\\\\/\\\\\\\\/g'`"
++build_person="root"
++build_group="root"
++build_machine="localhost"
+ AC_SUBST([build_machine])
+ AC_SUBST([build_person])
+ AC_SUBST([build_group])
