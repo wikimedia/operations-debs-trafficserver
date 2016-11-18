@@ -1,10 +1,23 @@
-trafficserver (6.2.0-2) UNRELEASED; urgency=medium
+trafficserver (7.0.0-1) unstable; urgency=medium
 
+  [ Arno Töll ]
   * Remove myself as maintainer. Thanks to Aron and Jean Baptiste for stepping
     in on my place and keeping the package up to date. It makes the confident
     the package is in good hands now.
 
- -- Arno Töll <arno@debian.org>  Sun, 21 Aug 2016 15:26:49 +0200
+  [ Jean Baptiste Favre ]
+  * New upstream release 7.0.0
+  * Patches refresh for 7.0.0
+  * Update plugins list
+  * Update build dependencies
+  * Add pkgconfig .pc file in trafficserver-dev package
+  * Enable experimental plugins webp_transform
+  * Enable traffic_top build (Closes: #836126)
+  * Remove Linux AIO support (Closes: #803661, #836124)
+  * Fix FTBFS for mips64el (Closes: #830856)
+  * Add patch to make the build reproductible (Closes: #833176)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 16 Nov 2016 09:48:10 +0100
 
 trafficserver (6.2.0-1) unstable; urgency=medium
 
