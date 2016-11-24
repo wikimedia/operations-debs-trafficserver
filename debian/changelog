@@ -17,6 +17,10 @@ trafficserver (7.0.0-1) unstable; urgency=medium
   * Fix FTBFS for mips64el (Closes: #830856)
   * Add patch to make the build reproductible (Closes: #833176)
 
+  [ Aron Xu ]
+  * Set myself as Maintainer at the moment
+  * Build-Depends on default-libmysqlclient-dev
+
  -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 16 Nov 2016 09:48:10 +0100
 
 trafficserver (6.2.0-1) unstable; urgency=medium
