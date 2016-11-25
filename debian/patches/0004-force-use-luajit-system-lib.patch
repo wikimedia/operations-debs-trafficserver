@@ -1,0 +1,93 @@
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -25,26 +25,3 @@ endif
+ if BUILD_WCCP
+ SUBDIRS += wccp
+ endif
+-
+-# Some special hacks around building the luajit.
+-#
+-#  - Copy the luajit source tree if we're doing out-of-source builds
+-#  - Upon clean, remove the luajit tree from the out-of-source build tree
+-#
+-# Note: The LUAJIT_LDFLAGS is a bit of a hack, since LuaJIT on OmniOS needs
+-#       the -m64 flag. See configure.ac.
+-#
+-all-local:
+-	@echo "Making all in luajit"
+-	test -d "$(top_builddir)/$(subdir)/luajit/src" || cp -rf "$(srcdir)/luajit" "$(top_builddir)/$(subdir)/"
+-	cd luajit && $(MAKE) $(AM_MAKEFLAGS) \
+-		BUILDMODE="static" \
+-		PREFIX="$(prefix)" \
+-		CC="$(CC)" \
+-		CFLAGS="$(LUAJIT_CFLAGS)" \
+-		XCFLAGS="" \
+-		LDFLAGS="$(LUAJIT_LDFLAGS)"
+-
+-clean-local:
+-	test "$(top_srcdir)" != "$(top_builddir)" || (cd "$(top_builddir)/$(subdir)/luajit" && $(MAKE) clean)
+-	test "$(top_srcdir)" = "$(top_builddir)" || rm -rf "$(top_builddir)/$(subdir)/luajit"
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -906,29 +906,6 @@ uninstall-am:
+ .PRECIOUS: Makefile
+ 
+ 
+-# Some special hacks around building the luajit.
+-#
+-#  - Copy the luajit source tree if we're doing out-of-source builds
+-#  - Upon clean, remove the luajit tree from the out-of-source build tree
+-#
+-# Note: The LUAJIT_LDFLAGS is a bit of a hack, since LuaJIT on OmniOS needs
+-#       the -m64 flag. See configure.ac.
+-#
+-all-local:
+-	@echo "Making all in luajit"
+-	test -d "$(top_builddir)/$(subdir)/luajit/src" || cp -rf "$(srcdir)/luajit" "$(top_builddir)/$(subdir)/"
+-	cd luajit && $(MAKE) $(AM_MAKEFLAGS) \
+-		BUILDMODE="static" \
+-		PREFIX="$(prefix)" \
+-		CC="$(CC)" \
+-		CFLAGS="$(LUAJIT_CFLAGS)" \
+-		XCFLAGS="" \
+-		LDFLAGS="$(LUAJIT_LDFLAGS)"
+-
+-clean-local:
+-	test "$(top_srcdir)" != "$(top_builddir)" || (cd "$(top_builddir)/$(subdir)/luajit" && $(MAKE) clean)
+-	test "$(top_srcdir)" = "$(top_builddir)" || rm -rf "$(top_builddir)/$(subdir)/luajit"
+-
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+--- a/lib/bindings/Makefile.am
++++ b/lib/bindings/Makefile.am
+@@ -21,7 +21,8 @@ include $(top_srcdir)/build/tidy.mk
+ AM_CPPFLAGS = \
+   $(LUAJIT_CPPFLAGS) \
+   -I$(top_srcdir)/lib \
+-  -I$(top_srcdir)/lib/records
++  -I$(top_srcdir)/lib/records \
++  -I/usr/include/luajit-2.0
+ 
+ noinst_LTLIBRARIES = libbindings.la
+ 
+--- a/lib/bindings/Makefile.in
++++ b/lib/bindings/Makefile.in
+@@ -545,6 +545,7 @@ rel_prefix = @rel_prefix@
+ rel_runtimedir = @rel_runtimedir@
+ rel_sbindir = @rel_sbindir@
+ rel_sysconfdir = @rel_sysconfdir@
++runstatedir = @runstatedir@
+ runtimedir = @runtimedir@
+ sbindir = @sbindir@
+ schedh = @schedh@
+@@ -610,7 +611,8 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
+ AM_CPPFLAGS = \
+   $(LUAJIT_CPPFLAGS) \
+   -I$(top_srcdir)/lib \
+-  -I$(top_srcdir)/lib/records
++  -I$(top_srcdir)/lib/records \
++  -I/usr/include/luajit-2.0
+ 
+ noinst_LTLIBRARIES = libbindings.la
+ libbindings_la_SOURCES = \

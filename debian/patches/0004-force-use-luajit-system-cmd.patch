@@ -1,0 +1,70 @@
+diff --git a/cmd/traffic_manager/Makefile.am b/cmd/traffic_manager/Makefile.am
+index 8feddb7..1cda5aa 100644
+--- a/cmd/traffic_manager/Makefile.am
++++ b/cmd/traffic_manager/Makefile.am
+@@ -29,7 +29,7 @@ AM_CPPFLAGS = \
+   -I$(top_srcdir)/mgmt/cluster \
+   -I$(top_srcdir)/mgmt/utils \
+   -I$(top_srcdir)/lib \
+-  -I$(top_srcdir)/lib/luajit/src
++  -I/usr/include/luajit-2.0
+ 
+ AM_LDFLAGS = \
+   @EXTRA_CXX_LDFLAGS@ \
+@@ -61,13 +61,12 @@ traffic_manager_SOURCES += \
+   metrics.cc
+ 
+ traffic_manager_LDADD += \
+-  $(top_builddir)/lib/bindings/libbindings.la \
+-  $(top_builddir)/lib/luajit/src/libluajit.a
++  $(top_builddir)/lib/bindings/libbindings.la
+ 
+ traffic_manager_LDADD +=\
+   $(LIBUNWIND_LIBS) \
+   @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
+-  -lm
++  -lm -lluajit-5.1
+ 
+ # Must do it this way or the dependencies aren't detected.
+ if BUILD_WCCP
+diff --git a/cmd/traffic_manager/Makefile.in b/cmd/traffic_manager/Makefile.in
+index 197af2d..f3ca316 100644
+--- a/cmd/traffic_manager/Makefile.in
++++ b/cmd/traffic_manager/Makefile.in
+@@ -173,7 +173,6 @@ traffic_manager_DEPENDENCIES =  \
+ 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
+ 	$(top_builddir)/lib/bindings/libbindings.la \
+-	$(top_builddir)/lib/luajit/src/libluajit.a \
+ 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
+ AM_V_lt = $(am__v_lt_@AM_V@)
+ am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+@@ -569,6 +568,7 @@ rel_prefix = @rel_prefix@
+ rel_runtimedir = @rel_runtimedir@
+ rel_sbindir = @rel_sbindir@
+ rel_sysconfdir = @rel_sysconfdir@
++runstatedir = @runstatedir@
+ runtimedir = @runtimedir@
+ sbindir = @sbindir@
+ schedh = @schedh@
+@@ -627,7 +627,7 @@ AM_CPPFLAGS = \
+   -I$(top_srcdir)/mgmt/cluster \
+   -I$(top_srcdir)/mgmt/utils \
+   -I$(top_srcdir)/lib \
+-  -I$(top_srcdir)/lib/luajit/src
++  -I/usr/include/luajit-2.0
+ 
+ AM_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
+ 	@OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
+@@ -641,9 +641,8 @@ traffic_manager_LDADD = $(top_builddir)/mgmt/api/libmgmtapilocal.la \
+ 	$(top_builddir)/lib/ts/libtsutil.la \
+ 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/proxy/shared/libdiagsconfig.a \
+-	$(top_builddir)/lib/bindings/libbindings.la \
+-	$(top_builddir)/lib/luajit/src/libluajit.a $(LIBUNWIND_LIBS) \
+-	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ -lm \
++	$(top_builddir)/lib/bindings/libbindings.la $(LIBUNWIND_LIBS) \
++	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ -lm -lluajit-5.1 \
+ 	$(am__append_1)
+ Clang_Tidy_Options = -fix -fix-errors
+ 
