@@ -25,10 +25,6 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	configure_flags += --enable-wccp
 endif
 
-ifneq (,$(findstring $(DEB_BUILD_ARCH),arm64 mips mipsel mipsn32 mipsn32el mips64 mips64el ppc64el))
-	configure_flags += --disable-luajit
-endif
-
 %:
 	dh $@ --parallel --with autoreconf
 
@@ -49,9 +45,6 @@ ifneq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 override_dh_install:
-ifneq (,$(findstring $(DEB_BUILD_ARCH),arm64 mips mipsel mipsn32 mipsn32el mips64 mips64el ppc64el))
-	sed -i '/\/tslua\.so$$/d' $(CURDIR)/debian/trafficserver-experimental-plugins.install
-endif
 	dh_install --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
 
