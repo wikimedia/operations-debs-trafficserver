@@ -67,27 +67,19 @@
    -I$(top_srcdir)/lib \
 -  -I$(top_srcdir)/lib/records
 +  -I$(top_srcdir)/lib/records \
-+  -I/usr/include/luajit-2.0
++  $(LUAJIT_CPPFLAGS)
  
  noinst_LTLIBRARIES = libbindings.la
  
 --- a/lib/bindings/Makefile.in
 +++ b/lib/bindings/Makefile.in
-@@ -545,6 +545,7 @@ rel_prefix = @rel_prefix@
- rel_runtimedir = @rel_runtimedir@
- rel_sbindir = @rel_sbindir@
- rel_sysconfdir = @rel_sysconfdir@
-+runstatedir = @runstatedir@
- runtimedir = @runtimedir@
- sbindir = @sbindir@
- schedh = @schedh@
-@@ -610,7 +611,8 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
+@@ -610,7 +610,8 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
  AM_CPPFLAGS = \
    $(LUAJIT_CPPFLAGS) \
    -I$(top_srcdir)/lib \
 -  -I$(top_srcdir)/lib/records
 +  -I$(top_srcdir)/lib/records \
-+  -I/usr/include/luajit-2.0
++  $(LUAJIT_CPPFLAGS)
  
  noinst_LTLIBRARIES = libbindings.la
  libbindings_la_SOURCES = \

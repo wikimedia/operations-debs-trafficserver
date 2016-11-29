@@ -1,5 +1,3 @@
-diff --git a/proxy/Makefile.am b/proxy/Makefile.am
-index 4469207..72bd574 100644
 --- a/proxy/Makefile.am
 +++ b/proxy/Makefile.am
 @@ -56,75 +56,6 @@ AM_LDFLAGS = \
@@ -87,46 +85,43 @@ index 4469207..72bd574 100644
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/records/librecords_p.a \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
-+  -lluajit-5.1 \
++  $(LUAJIT_LIBS) \
    @HWLOC_LIBS@ \
    @LIBPCRE@ \
    @LIBTCL@ \
-@@ -227,7 +158,7 @@ traffic_server_LDADD = \
+@@ -227,7 +158,6 @@ traffic_server_LDADD = \
    @OPENSSL_LIBS@ \
    -lm
  
 -traffic_server_LDADD += $(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
-+traffic_server_LDADD += $(LUAJIT:%=/usr/include/luajit-2.0%)
  
  traffic_logcat_SOURCES = logcat.cc
  traffic_logcat_LDADD = \
-@@ -239,9 +170,8 @@ traffic_logcat_LDADD = \
+@@ -239,9 +169,8 @@ traffic_logcat_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
 -  $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
 -  @LIBPROFILER@ -lm
-+  @LIBPROFILER@ -lm -lluajit-5.1
++  @LIBPROFILER@ $(LUAJIT_LIBS) -lm
  
  traffic_logstats_SOURCES = logstats.cc
  traffic_logstats_LDADD = \
-@@ -253,9 +183,8 @@ traffic_logstats_LDADD = \
+@@ -253,9 +182,8 @@ traffic_logstats_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
 -  $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
 -  @LIBPROFILER@ -lm
-+  @LIBPROFILER@ -lm -lluajit-5.1
++  @LIBPROFILER@ $(LUAJIT_LIBS) -lm
  
  versiondir = $(pkgsysconfdir)
  
-diff --git a/proxy/Makefile.in b/proxy/Makefile.in
-index 9efdfbc..2b8a99c 100644
 --- a/proxy/Makefile.in
 +++ b/proxy/Makefile.in
-@@ -168,8 +168,7 @@ traffic_logcat_DEPENDENCIES = logging/liblogging.a \
+@@ -168,8 +168,7 @@ traffic_logcat_DEPENDENCIES = logging/li
  	$(top_builddir)/lib/records/librecords_p.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
@@ -136,7 +131,7 @@ index 9efdfbc..2b8a99c 100644
  AM_V_lt = $(am__v_lt_@AM_V@)
  am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
  am__v_lt_0 = --silent
-@@ -182,8 +181,7 @@ traffic_logstats_DEPENDENCIES = logging/liblogging.a \
+@@ -182,8 +181,7 @@ traffic_logstats_DEPENDENCIES = logging/
  	$(top_builddir)/lib/records/librecords_p.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
@@ -146,7 +141,7 @@ index 9efdfbc..2b8a99c 100644
  am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
  	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
  	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-@@ -230,12 +228,11 @@ traffic_server_DEPENDENCIES = http/libhttp.a http2/libhttp2.a \
+@@ -230,12 +228,10 @@ traffic_server_DEPENDENCIES = http/libht
  	$(top_builddir)/iocore/aio/libinkaio.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -154,13 +149,13 @@ index 9efdfbc..2b8a99c 100644
  	$(top_builddir)/iocore/net/libinknet.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/records/librecords_p.a \
- 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 -	$(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
-+	$(LUAJIT:%=/usr/include/luajit-2.0%)
++	$(top_builddir)/iocore/eventsystem/libinkevent.a
  traffic_server_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
  	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
  	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_server_LDFLAGS) \
-@@ -978,75 +975,6 @@ noinst_HEADERS = \
+@@ -978,75 +974,6 @@ noinst_HEADERS = \
    Show.h
  
  
@@ -236,37 +231,34 @@ index 9efdfbc..2b8a99c 100644
  EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
  traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
  	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
-@@ -1085,8 +1013,8 @@ traffic_server_LDADD = http/libhttp.a http2/libhttp2.a \
+@@ -1085,8 +1012,7 @@ traffic_server_LDADD = http/libhttp.a ht
  	$(top_builddir)/lib/records/librecords_p.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a @HWLOC_LIBS@ \
  	@LIBPCRE@ @LIBTCL@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ @LIBLZMA@ \
 -	@LIBPROFILER@ @OPENSSL_LIBS@ -lm \
 -	$(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
-+	@LIBPROFILER@ @OPENSSL_LIBS@ -lluajit-5.1 -lm \
-+	$(LUAJIT:%=/usr/include/luajit-2.0%)
++	@LIBPROFILER@ @OPENSSL_LIBS@ $(LUAJIT_LIBS) -lm
  traffic_logcat_SOURCES = logcat.cc
  traffic_logcat_LDADD = \
    logging/liblogging.a \
-@@ -1099,7 +1027,7 @@ traffic_logcat_LDADD = \
+@@ -1099,7 +1025,7 @@ traffic_logcat_LDADD = \
    $(top_builddir)/lib/bindings/libbindings.la \
    $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
 -  @LIBPROFILER@ -lm
-+  @LIBPROFILER@ -lm -lluajit-5.1
++  @LIBPROFILER@ $(LIBLUAJIT_LIBS) -lm
  
  traffic_logstats_SOURCES = logstats.cc
  traffic_logstats_LDADD = \
-@@ -1113,7 +1041,7 @@ traffic_logstats_LDADD = \
+@@ -1113,7 +1039,7 @@ traffic_logstats_LDADD = \
    $(top_builddir)/lib/bindings/libbindings.la \
    $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
 -  @LIBPROFILER@ -lm
-+  @LIBPROFILER@ -lm -lluajit-5.1
++  @LIBPROFILER@ $(LUAJIT_LIBS) -lm
  
  versiondir = $(pkgsysconfdir)
  all: all-recursive
-diff --git a/proxy/logging/Makefile.am b/proxy/logging/Makefile.am
-index ea2c0d4..2b64055 100644
 --- a/proxy/logging/Makefile.am
 +++ b/proxy/logging/Makefile.am
 @@ -21,7 +21,6 @@ include $(top_srcdir)/build/tidy.mk
@@ -283,15 +275,13 @@ index ea2c0d4..2b64055 100644
    -I$(top_srcdir)/mgmt \
 -  -I$(top_srcdir)/mgmt/utils
 +  -I$(top_srcdir)/mgmt/utils \
-+  -I/usr/include/luajit-2.0
++  $(LUAJIT_CPPFLAGS)
  
  EXTRA_DIST = LogStandalone.cc
  
-diff --git a/proxy/logging/Makefile.in b/proxy/logging/Makefile.in
-index 26a04f5..93c1cca 100644
 --- a/proxy/logging/Makefile.in
 +++ b/proxy/logging/Makefile.in
-@@ -841,7 +841,6 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$
+@@ -841,7 +841,6 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
  AM_CPPFLAGS = \
    $(iocore_include_dirs) \
    -I$(top_srcdir)/lib \
@@ -305,7 +295,7 @@ index 26a04f5..93c1cca 100644
    -I$(top_srcdir)/mgmt \
 -  -I$(top_srcdir)/mgmt/utils
 +  -I$(top_srcdir)/mgmt/utils \
-+  -I/usr/include/luajit-2.0
++  $(LUAJIT_CPPFLAGS)
  
  EXTRA_DIST = LogStandalone.cc
  noinst_LIBRARIES = liblogging.a liblogcollation.a
