@@ -1,3 +1,13 @@
+trafficserver (7.0.0-3) unstable; urgency=medium
+
+  * Update luajit patch.
+    - Remove hardcoded value
+    - Add luajit dynamic detection
+  * Update build dependencies
+    - Remove liblua5.1-0-dev
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 29 Nov 2016 16:10:43 +0100
+
 trafficserver (7.0.0-2) unstable; urgency=medium
 
   * Add patches to use system luajit and not the internal one any more
