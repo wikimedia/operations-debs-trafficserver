@@ -1,3 +1,10 @@
+trafficserver (7.0.0-4) unstable; urgency=medium
+
+  * Update LuaJIT patches serie to fallback using Lua if LuaJIT not found
+  * Update build dependencies to add liblua5.1-0-dev as second choice
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 12 Dec 2016 00:27:31 +0100
+
 trafficserver (7.0.0-3) unstable; urgency=medium
 
   * Update luajit patch.
