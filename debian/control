@@ -6,7 +6,7 @@ Uploaders: Jean Baptiste Favre <debian@jbfavre.org>
 Build-Depends: debhelper (>= 9), libssl1.0-dev | libssl-dev (>= 1.0.2j-1~), tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config,
-  libgeoip-dev, libluajit-5.1-dev, dh-autoreconf, libboost-dev, python-sphinx,
+  libgeoip-dev, libluajit-5.1-dev | liblua5.1-0-dev, dh-autoreconf, libboost-dev, python-sphinx,
   libhwloc-dev, default-libmysqlclient-dev | libmysqlclient-dev | libmariadbclient-dev,
   libxml2-dev, libunwind8-dev [i386 amd64 ppc64el armhf arm64], libmagick++-dev,
   libncurses5-dev, libcurl4-openssl-dev
