@@ -1,5 +1,14 @@
 --- a/configure.ac
 +++ b/configure.ac
+@@ -587,7 +587,7 @@ case $host_os in
+       *amd64*)
+         TS_ADDTO(CFLAGS, [-m64])
+         TS_ADDTO(CXXFLAGS, [-m64])
+-        TS_ADDTO(LUAJIT_LDFLAGS, [-m64])
++        TS_ADDTO(LUA_LDFLAGS, [-m64])
+         ;;
+     esac
+     ;;
 @@ -768,7 +768,6 @@ case $host_os_def in
        debug_opt="-ggdb3 $common_opt -Qunused-arguments"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
@@ -24,21 +33,19 @@
      ])
  
      AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
-@@ -1092,6 +1089,13 @@ TS_CHECK_ZLIB
+@@ -1092,6 +1089,11 @@ TS_CHECK_ZLIB
  TS_CHECK_LZMA
  
  #
 +# Check for luajit presence and usability
-+TS_CHECK_LUAJIT
-+AC_SUBST([LUAJIT_LIBS])
-+AC_SUBST([LUAJIT_CPPFLAGS],[$LUAJIT_CFLAGS])
-+TS_ADDTO(CPPFLAGS, [$LUAJIT_CFLAGS])
++TS_CHECK_LUA
++TS_ADDTO(CPPFLAGS, [$LUA_CFLAGS])
 +
 +#
  # Tcl macros provided by build/tcl.m4
  #
  # this will error out if tclConfig.sh is not found
-@@ -1391,18 +1395,6 @@ TS_CHECK_TCMALLOC
+@@ -1391,18 +1393,6 @@ TS_CHECK_TCMALLOC
  # Check for libreadline/libedit
  AX_LIB_READLINE
  
@@ -57,7 +64,7 @@
  # We should be able to build http_load if epoll(2) is available.
  AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
  
-@@ -1807,20 +1799,6 @@ iocore_include_dirs="\
+@@ -1807,20 +1797,6 @@ iocore_include_dirs="\
  -I\$(top_srcdir)/iocore/utils \
  -I\$(top_srcdir)/iocore/dns"
  
@@ -78,16 +85,71 @@
  AC_SUBST([CC])
  AC_SUBST([CFLAGS])
  AC_SUBST([CXX])
-@@ -1975,6 +1953,7 @@ AC_MSG_NOTICE([Build option summary:
+@@ -1975,9 +1951,10 @@ AC_MSG_NOTICE([Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
-+    LUAJIT_LIBS:        $LUAJIT_LIBS
-     LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
-     LUAJIT_CPPFLAGS:	$LUAJIT_CPPFLAGS
-     LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
+-    LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
+-    LUAJIT_CPPFLAGS:	$LUAJIT_CPPFLAGS
+-    LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
++    LUA_LIBS:           $LUA_LIBS
++    LUA_CFLAGS:         $LUA_CFLAGS
++    LUA_CPPFLAGS:	$LUA_CPPFLAGS
++    LUA_LDFLAGS:        $LUA_LDFLAGS
+     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
+     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
+     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
 --- a/configure
 +++ b/configure
+@@ -645,7 +645,7 @@ iocore_include_dirs
+ LIBTOOL_LINK_FLAGS
+ EXTRA_CXX_LDFLAGS
+ EXTRA_CC_LDFLAGS
+-LUAJIT_CFLAGS
++LUA_CFLAGS
+ BUILD_REMAP_STATS_PLUGIN_FALSE
+ BUILD_REMAP_STATS_PLUGIN_TRUE
+ has_in6_is_addr_unspecified
+@@ -706,8 +706,8 @@ has_mysql
+ LIB_MYSQLCLIENT
+ BUILD_HTTP_LOAD_FALSE
+ BUILD_HTTP_LOAD_TRUE
+-LUAJIT_CPPFLAGS
+-LUAJIT_LDFLAGS
++LUA_CPPFLAGS
++LUA_LDFLAGS
+ LIBREADLINE
+ has_tcmalloc
+ jemalloch
+@@ -7785,22 +7785,22 @@ case $host_os in
+   fi
+ 
+ 
+-  if test "x$LUAJIT_LDFLAGS" = "x"; then
+-    test "x$verbose" = "xyes" && echo "  setting LUAJIT_LDFLAGS to \"-m64\""
+-    LUAJIT_LDFLAGS="-m64"
++  if test "x$LUA_LDFLAGS" = "x"; then
++    test "x$verbose" = "xyes" && echo "  setting LUA_LDFLAGS to \"-m64\""
++    LUA_LDFLAGS="-m64"
+   else
+     ats_addto_bugger="-m64"
+     for i in $ats_addto_bugger; do
+       ats_addto_duplicate="0"
+-      for j in $LUAJIT_LDFLAGS; do
++      for j in $LUA_LDFLAGS; do
+         if test "x$i" = "x$j"; then
+           ats_addto_duplicate="1"
+           break
+         fi
+       done
+       if test $ats_addto_duplicate = "0"; then
+-        test "x$verbose" = "xyes" && echo "  adding \"$i\" to LUAJIT_LDFLAGS"
+-        LUAJIT_LDFLAGS="$LUAJIT_LDFLAGS $i"
++        test "x$verbose" = "xyes" && echo "  adding \"$i\" to LUA_LDFLAGS"
++        LUA_LDFLAGS="$LUA_LDFLAGS $i"
+       fi
+     done
+   fi
 @@ -20350,7 +20350,6 @@ fi
        debug_opt="-ggdb3 $common_opt -Qunused-arguments"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
@@ -132,9 +194,223 @@
  # We should be able to build http_load if epoll(2) is available.
   if test x"$ac_cv_func_epoll_ctl" = x"yes"; then
    BUILD_HTTP_LOAD_TRUE=
+@@ -27905,22 +27889,22 @@ iocore_include_dirs="\
+ # can strip the coverage flags from Lua while keeping them by
+ # default everywhere else.
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"; then
+-    test "x$verbose" = "xyes" && echo "  setting LUAJIT_CFLAGS to \"$CFLAGS $luajit_cflags\""
+-    LUAJIT_CFLAGS="$CFLAGS $luajit_cflags"
++  if test "x$LUA_CFLAGS" = "x"; then
++    test "x$verbose" = "xyes" && echo "  setting LUA_CFLAGS to \"$CFLAGS $luajit_cflags\""
++    LUA_CFLAGS="$CFLAGS $luajit_cflags"
+   else
+     ats_addto_bugger="$CFLAGS $luajit_cflags"
+     for i in $ats_addto_bugger; do
+       ats_addto_duplicate="0"
+-      for j in $LUAJIT_CFLAGS; do
++      for j in $LUA_CFLAGS; do
+         if test "x$i" = "x$j"; then
+           ats_addto_duplicate="1"
+           break
+         fi
+       done
+       if test $ats_addto_duplicate = "0"; then
+-        test "x$verbose" = "xyes" && echo "  adding \"$i\" to LUAJIT_CFLAGS"
+-        LUAJIT_CFLAGS="$LUAJIT_CFLAGS $i"
++        test "x$verbose" = "xyes" && echo "  adding \"$i\" to LUA_CFLAGS"
++        LUA_CFLAGS="$LUA_CFLAGS $i"
+       fi
+     done
+   fi
+@@ -27928,13 +27912,13 @@ iocore_include_dirs="\
+ 
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"-fsanitize=address""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"-fsanitize=address""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"-fsanitize=address""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -27942,19 +27926,19 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=address"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=address"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"-fsanitize=thread""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"-fsanitize=thread""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"-fsanitize=thread""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -27962,19 +27946,19 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=thread"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=thread"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"-fsanitize=memory""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"-fsanitize=memory""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"-fsanitize=memory""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -27982,19 +27966,19 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=memory"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""-fsanitize=memory"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"-fprofile-instr-generate""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"-fprofile-instr-generate""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"-fprofile-instr-generate""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -28002,19 +27986,19 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""-fprofile-instr-generate"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""-fprofile-instr-generate"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"-fcoverage-mapping""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"-fcoverage-mapping""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"-fcoverage-mapping""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -28022,19 +28006,19 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""-fcoverage-mapping"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""-fcoverage-mapping"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+ 
+-  if test "x$LUAJIT_CFLAGS" = "x"--coverage""; then
+-    test "x$verbose" = "xyes" && echo "  nulling LUAJIT_CFLAGS"
+-    LUAJIT_CFLAGS=""
++  if test "x$LUA_CFLAGS" = "x"--coverage""; then
++    test "x$verbose" = "xyes" && echo "  nulling LUA_CFLAGS"
++    LUA_CFLAGS=""
+   else
+     ats_new_bugger=""
+     ats_removed=0
+-    for i in $LUAJIT_CFLAGS; do
++    for i in $LUA_CFLAGS; do
+       if test "x$i" != "x"--coverage""; then
+         ats_new_bugger="$ats_new_bugger $i"
+       else
+@@ -28042,8 +28026,8 @@ iocore_include_dirs="\
+       fi
+     done
+     if test $ats_removed = "1"; then
+-      test "x$verbose" = "xyes" && echo "  removed \""--coverage"\" from LUAJIT_CFLAGS"
+-      LUAJIT_CFLAGS=$ats_new_bugger
++      test "x$verbose" = "xyes" && echo "  removed \""--coverage"\" from LUA_CFLAGS"
++      LUA_CFLAGS=$ats_new_bugger
+     fi
+   fi
+ 
+@@ -30873,9 +30857,9 @@ fi
+     SHARED_LDFLAGS:     $SHARED_LDFLAGS
+     OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
+     OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
+-    LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
+-    LUAJIT_CPPFLAGS:	$LUAJIT_CPPFLAGS
+-    LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
++    LUA_CFLAGS:      $LUA_CFLAGS
++    LUA_CPPFLAGS:	$LUA_CPPFLAGS
++    LUA_LDFLAGS:     $LUA_LDFLAGS
+     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
+     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
+     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
+@@ -30894,9 +30878,9 @@ $as_echo "$as_me: Build option summary:
+     SHARED_LDFLAGS:     $SHARED_LDFLAGS
+     OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
+     OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
+-    LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
+-    LUAJIT_CPPFLAGS:	$LUAJIT_CPPFLAGS
+-    LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
++    LUA_CFLAGS:		$LUA_CFLAGS
++    LUA_CPPFLAGS:	$LUA_CPPFLAGS
++    LUA_LDFLAGS:	$LUA_LDFLAGS
+     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
+     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
+     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
 --- /dev/null
 +++ b/build/luajit.m4
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,48 @@
 +dnl -------------------------------------------------------- -*- autoconf -*-
 +dnl Licensed to the Apache Software Foundation (ASF) under one or more
 +dnl contributor license agreements.  See the NOTICE file distributed with
@@ -156,15 +432,105 @@
 +dnl
 +
 +dnl
-+dnl TS_CHECK_LUAJIT: look for LuaJIT libraries and headers
++dnl TS_CHECK_LUA: look for LuaJIT libraries and headers. Fallback on Lua if LuaJIt not found
 +dnl
-+AC_DEFUN([TS_CHECK_LUAJIT], [
++AC_DEFUN([TS_CHECK_LUA], [
 +  PKG_CHECK_MODULES([LUAJIT], [luajit], [have_luajit=yes], [have_luajit=no])
++  PKG_CHECK_MODULES([LUALIB], [lua5.1], [have_lua=yes], [have_lua=no])
 +  AS_IF(
 +    [ test "x${have_luajit}" = "xyes" ],
-+    [],
-+    [AC_MSG_ERROR([LuaJIT package not available])]
++    [
++      AC_SUBST([LUA_LIBS],[$LUAJIT_LIBS])
++      AC_SUBST([LUA_CFLAGS],[$LUAJIT_CFLAGS])
++      AC_SUBST([LUA_CPPFLAGS],[$LUAJIT_CFLAGS])
++      AC_SUBST([LUA_LDFLAGS],[$LUAJIT_LDFLAGS])
++    ],
++    [
++      AS_IF(
++        [ test "x${have_lua}" = "xyes" ],
++        [
++          AC_SUBST([LUA_LIBS],[$LUALIB_LIBS])
++          AC_SUBST([LUA_CFLAGS],[$LUALIB_CFLAGS])
++          AC_SUBST([LUA_CPPFLAGS],[$LUALIB_CFLAGS])
++          AC_SUBST([LUA_LDFLAGS],[$LUALIB_LDFLAGS])
++        ],
++        [ AC_MSG_ERROR([Neither LuaJIT nor Lua package available]) ]
++      )
++    ]
 +  )
 +])
-+AC_SUBST([LUAJIT_CFLAGS])
-+AC_SUBST([LUAJIT_LIBS])
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -334,9 +334,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/rc/Makefile.in
++++ b/rc/Makefile.in
+@@ -277,9 +277,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/doc/Makefile.in
++++ b/doc/Makefile.in
+@@ -273,9 +273,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/example/Makefile.in
++++ b/example/Makefile.in
+@@ -579,9 +579,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/tools/Makefile.in
++++ b/tools/Makefile.in
+@@ -361,9 +361,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@

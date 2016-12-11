@@ -1,8 +1,11 @@
 0001-Use-mcx16-on-x86-platforms-only.patch
 0002-add-mips64-support.patch
 0003-reproductible-build.patch
+0004-force-use-luajit-system.patch
 0004-force-use-luajit-system-cmd.patch
 0004-force-use-luajit-system-lib.patch
-0004-force-use-luajit-system.patch
 0004-force-use-luajit-system-proxy.patch
+0004-force-use-luajit-system-plugins.patch
+0004-force-use-luajit-system-mgmt.patch
+0004-force-use-luajit-system-iocore.patch
 0004-force-use-luajit-system-remove-lib-luajit.patch

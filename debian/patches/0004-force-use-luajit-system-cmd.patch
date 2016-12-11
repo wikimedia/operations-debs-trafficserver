@@ -1,15 +1,31 @@
 --- a/cmd/traffic_manager/Makefile.am
 +++ b/cmd/traffic_manager/Makefile.am
+@@ -18,7 +18,7 @@
+ bin_PROGRAMS = traffic_manager
+ 
+ AM_CPPFLAGS = \
+-  $(LUAJIT_CPPFLAGS) \
++  $(LUA_CPPFLAGS) \
+   $(iocore_include_dirs) \
+   -I$(top_srcdir)/lib/records \
+   -I$(top_srcdir)/proxy/hdrs \
 @@ -29,7 +29,7 @@ AM_CPPFLAGS = \
    -I$(top_srcdir)/mgmt/cluster \
    -I$(top_srcdir)/mgmt/utils \
    -I$(top_srcdir)/lib \
 -  -I$(top_srcdir)/lib/luajit/src
-+  $(LUAJIT_CPPFLAGS)
++  $(LUA_CPPFLAGS)
  
  AM_LDFLAGS = \
    @EXTRA_CXX_LDFLAGS@ \
-@@ -61,11 +61,10 @@ traffic_manager_SOURCES += \
+@@ -55,17 +55,16 @@ traffic_manager_LDADD = \
+   $(top_builddir)/proxy/shared/libdiagsconfig.a
+ 
+ AM_LDFLAGS += \
+-  $(LUAJIT_LDFLAGS)
++  $(LUA_LDFLAGS)
+ 
+ traffic_manager_SOURCES += \
    metrics.cc
  
  traffic_manager_LDADD += \
@@ -19,7 +35,7 @@
  
  traffic_manager_LDADD +=\
 -  $(LIBUNWIND_LIBS) \
-+  $(LIBUNWIND_LIBS) $(LUAJIT_LIBS) \
++  $(LIBUNWIND_LIBS) $(LUA_LIBS) \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
    -lm
  
@@ -33,15 +49,41 @@
  	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
  AM_V_lt = $(am__v_lt_@AM_V@)
  am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-@@ -627,7 +626,7 @@ AM_CPPFLAGS = \
+@@ -350,9 +349,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+@@ -616,7 +615,7 @@ valuesh = @valuesh@
+ waith = @waith@
+ zlibh = @zlibh@
+ AM_CPPFLAGS = \
+-  $(LUAJIT_CPPFLAGS) \
++  $(LUA_CPPFLAGS) \
+   $(iocore_include_dirs) \
+   -I$(top_srcdir)/lib/records \
+   -I$(top_srcdir)/proxy/hdrs \
+@@ -627,10 +626,10 @@ AM_CPPFLAGS = \
    -I$(top_srcdir)/mgmt/cluster \
    -I$(top_srcdir)/mgmt/utils \
    -I$(top_srcdir)/lib \
 -  -I$(top_srcdir)/lib/luajit/src
-+  $(LUAJIT_CPPFLAGS)
++  $(LUA_CPPFLAGS)
  
  AM_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
- 	@OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
+-	@OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
++	@OPENSSL_LDFLAGS@ $(LUA_LDFLAGS)
+ traffic_manager_SOURCES = AddConfigFilesHere.cc MgmtHandlers.cc \
+ 	MgmtHandlers.h WebOverview.cc WebOverview.h metrics.h \
+ 	traffic_manager.cc metrics.cc
 @@ -641,9 +640,8 @@ traffic_manager_LDADD = $(top_builddir)/
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
@@ -50,7 +92,127 @@
 -	$(top_builddir)/lib/luajit/src/libluajit.a $(LIBUNWIND_LIBS) \
 -	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ -lm \
 +	$(top_builddir)/lib/bindings/libbindings.la $(LIBUNWIND_LIBS) \
-+	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ $(LUAJIT_LIBS) -lm \
++	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ $(LUA_LIBS) -lm \
  	$(am__append_1)
  Clang_Tidy_Options = -fix -fix-errors
  
+--- a/cmd/Makefile.in
++++ b/cmd/Makefile.in
+@@ -303,9 +303,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_cop/Makefile.in
++++ b/cmd/traffic_cop/Makefile.in
+@@ -314,9 +314,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_crashlog/Makefile.in
++++ b/cmd/traffic_crashlog/Makefile.in
+@@ -334,9 +334,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_ctl/Makefile.in
++++ b/cmd/traffic_ctl/Makefile.in
+@@ -317,9 +317,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_layout/Makefile.in
++++ b/cmd/traffic_layout/Makefile.in
+@@ -314,9 +314,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_top/Makefile.in
++++ b/cmd/traffic_top/Makefile.in
+@@ -314,9 +314,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_via/Makefile.in
++++ b/cmd/traffic_via/Makefile.in
+@@ -517,9 +517,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
+--- a/cmd/traffic_wccp/Makefile.in
++++ b/cmd/traffic_wccp/Makefile.in
+@@ -314,9 +314,9 @@ LIPO = @LIPO@
+ LN_S = @LN_S@
+ LTLIBOBJS = @LTLIBOBJS@
+ LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
+-LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
+-LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+-LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
++LUA_CFLAGS = @LUA_CFLAGS@
++LUA_CPPFLAGS = @LUA_CPPFLAGS@
++LUA_LDFLAGS = @LUA_LDFLAGS@
+ MAINT = @MAINT@
+ MAKEINFO = @MAKEINFO@
+ MANIFEST_TOOL = @MANIFEST_TOOL@
