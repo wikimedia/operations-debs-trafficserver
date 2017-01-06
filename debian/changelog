@@ -1,13 +1,10 @@
-trafficserver (7.0.0-3) UNRELEASED; urgency=medium
+trafficserver (7.0.0-3) unstable; urgency=medium
 
   * Fix documentation build for  docutils >= 0.13 (Closes: #848800)
   * Update LuaJIT patches serie to fallback using Lua if LuaJIT not found
-  * Update build dependencies to add liblua5.1-0-dev as second choice
   * Update luajit patch.
     - Remove hardcoded value
     - Add luajit dynamic detection
-  * Update build dependencies
-    - Remove liblua5.1-0-dev
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 04 Jan 2017 15:13:43 +0100
 
