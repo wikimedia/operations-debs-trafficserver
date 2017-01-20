@@ -1,3 +1,9 @@
+trafficserver (7.0.0-4) unstable; urgency=medium
+
+  * Add Conflicts for file overwrites (Closes: #850775)
+
+ -- Aron Xu <aron@debian.org>  Wed, 11 Jan 2017 14:49:15 +0800
+
 trafficserver (7.0.0-3) unstable; urgency=medium
 
   * Fix documentation build for  docutils >= 0.13 (Closes: #848800)
