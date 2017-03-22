@@ -1,0 +1,24 @@
+--- a/cmd/traffic_crashlog/Makefile.am
++++ b/cmd/traffic_crashlog/Makefile.am
+@@ -38,8 +38,8 @@ traffic_crashlog_SOURCES = \
+ traffic_crashlog_LDADD = \
+   $(top_builddir)/lib/records/librecords_p.a \
+   $(top_builddir)/mgmt/libmgmt_p.la \
+-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/proxy/shared/libUglyLogStubs.a \
++  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/mgmt/api/libtsmgmt.la \
+   $(top_builddir)/lib/ts/libtsutil.la \
+   @LIBTCL@ @HWLOC_LIBS@
+--- a/cmd/traffic_layout/Makefile.am
++++ b/cmd/traffic_layout/Makefile.am
+@@ -35,8 +35,8 @@ traffic_layout_SOURCES = \
+ traffic_layout_LDADD = \
+   $(top_builddir)/lib/records/librecords_p.a \
+   $(top_builddir)/mgmt/libmgmt_p.la \
+-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/proxy/shared/libUglyLogStubs.a \
++  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/lib/ts/libtsutil.la \
+   @LIBTCL@ @HWLOC_LIBS@
+ 

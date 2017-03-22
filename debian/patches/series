@@ -10,3 +10,4 @@
 0004-force-use-luajit-system-iocore.patch
 0004-force-use-luajit-system-remove-lib-luajit.patch
 0005-fix_documentation_build.patch
+0006-fix_arm_build.patch
