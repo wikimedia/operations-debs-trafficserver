@@ -1,6 +1,6 @@
 trafficserver (7.0.0-5) unstable; urgency=medium
 
-  * Add patch to fix arm* build. Closes #857389
+  * Add patch to fix arm* build. (Closes: #857389)
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 22 Mar 2017 09:31:14 +0100
 
