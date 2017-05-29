@@ -1,3 +1,11 @@
+trafficserver (7.0.0-6) UNRELEASED; urgency=medium
+
+  * Update d/rules to reflect healthcheck being managed as a stable plugin
+  * Add a patch to fix kfreebsd build
+  * Add a patch to fix arm build
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 29 May 2017 14:45:52 +0200
+
 trafficserver (7.0.0-5) unstable; urgency=medium
 
   * Add patch to fix arm* build. (Closes: #857389)
