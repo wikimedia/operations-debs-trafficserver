@@ -16,6 +16,7 @@ usr/lib/trafficserver/modules/hipes.so
 usr/lib/trafficserver/modules/hook-trace.so
 usr/lib/trafficserver/modules/inliner.so
 usr/lib/trafficserver/modules/metalink.so
+usr/lib/trafficserver/modules/money_trace.so
 usr/lib/trafficserver/modules/mp4.so
 usr/lib/trafficserver/modules/multiplexer.so
 usr/lib/trafficserver/modules/mysql_remap.so
