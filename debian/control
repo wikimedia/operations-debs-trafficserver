@@ -11,7 +11,7 @@ Build-Depends: debhelper (>= 9), libssl1.0-dev | libssl-dev (>= 1.0.2j-1~), tcl-
   libhwloc-dev, default-libmysqlclient-dev | libmysqlclient-dev | libmariadbclient-dev,
   libxml2-dev, libunwind8-dev [i386 amd64 ppc64el armhf arm64], libmagick++-dev,
   libncurses5-dev, libcurl4-openssl-dev
-Standards-Version: 3.9.8
+Standards-Version: 4.0.0
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
