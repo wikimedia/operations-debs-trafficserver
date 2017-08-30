@@ -1,21 +1,23 @@
 trafficserver (6.0.0-3) unstable; urgency=medium
 
-  * If you are using 32-bits package, please not that upstream has
-    discontinued 32-bit support.
-    32-bits Debian package will still be built, but is subject to removal
-    whenever 32-bit fails.
+  If you are using 32-bits package, please not that upstream has
+  discontinued 32-bit support.
+  32-bits Debian package will still be built, but is subject to removal
+  whenever 32-bit fails.
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 14 Dec 2015 10:29:12 +0100
 
 trafficserver (3.0.0-1) unstable; urgency=low
 
-  * If you are upgrading from v2.1.8 or earlier to ATS 3.0 you need to migrate
-    to the new `records.config' configuration file. If possible, let Debian
-    overwrite your `records.config' configuration file.
-  * Moreover you should clear all caches after upgrading (e.g. do "traffic_server
-    -Cclear").
-  * The host.db data abse isn't required anymore. Therefore you can delete
-    `/etc/trafficserver/internal/hostdb.config' and `/var/cache/trafficserver/
-    host.db'.
+  If you are upgrading from v2.1.8 or earlier to ATS 3.0 you need to migrate
+  to the new `records.config' configuration file. If possible, let Debian
+  overwrite your `records.config' configuration file.
+
+  Moreover you should clear all caches after upgrading (e.g. do "traffic_server
+  -Cclear").
+
+  The host.db data abse isn't required anymore. Therefore you can delete
+  `/etc/trafficserver/internal/hostdb.config' and `/var/cache/trafficserver/
+  host.db'.
 
  -- Arno Töll <debian@toell.net>  Wed, 15 Jun 2011 16:23:13 +0200
