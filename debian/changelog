@@ -1,4 +1,4 @@
-trafficserver (7.1.0-1) unstable; urgency=medium
+trafficserver (7.1.0-1) UNRELEASED; urgency=medium
 
   * Update d/rules to reflect healthcheck being managed as a stable plugin
   * Add a patch to fix kfreebsd build
