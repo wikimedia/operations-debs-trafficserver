@@ -29,7 +29,10 @@ export CCACHE_BASEDIR
 # proxy/api/ts has to be built first, since so much of libraries and "core
 # depends on the generates ts/ts.h include file.
 
-SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy cmd plugins tools example rc doc
+SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy cmd plugins tools example rc
+if BUILD_DOCS
+SUBDIRS += doc
+endif
 
 
 DIST_BUILD_USER=`id -nu`
@@ -39,7 +42,7 @@ DISTCHECK_CONFIGURE_FLAGS=--with-user=${DIST_BUILD_USER} --with-group=${DIST_BUI
 EXTRA_DIST=CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
 
 # Default value when creating release candidates
-RC = 1
+RC = 0
 
 # igalic can't remember if this is make check or make test and neither should you.
 test: check
@@ -54,8 +57,7 @@ doxygen:
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
 
 changelog:
-	./tools/changelog.pl $(VERSION) > CHANGELOG-$(VERSION)
-	-git add CHANGELOG-$(VERSION) && git commit -m "Adding CHANGELOG-$(VERSION)"
+	./tools/changelog.pl apache trafficserver $(VERSION) > CHANGELOG-$(VERSION)
 
 asf-dist: asf-distdir
 	tardir=$(distdir) && $(am__tar) --mtime=./configure.ac | bzip2 -9 -c >$(distdir).tar.bz2
@@ -99,6 +101,9 @@ install-data-hook:
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.11-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
 
+autopep8:
+	@autopep8 -i -r $(top_srcdir)
+
 #
 # These are rules to make clang-format easy and fast to run. Run it with e.g.
 #    make -j clang-format
@@ -121,7 +126,7 @@ clang-format-iocore:
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/iocore
 
 clang-format-lib:
-	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/atscppapi
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/cppapi
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/bindings
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/raft
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/records
@@ -160,3 +165,4 @@ help:
 	@echo 'rel-candidate    recreate a signed relelease candidate source package and a signed git tag'
 	@echo 'release          recreate a signed release source package and a signed git tag'
 	@echo 'tidy             run clang-tidy in fix-it mode'
+	@echo 'autopep8         run autopep8 over python files'

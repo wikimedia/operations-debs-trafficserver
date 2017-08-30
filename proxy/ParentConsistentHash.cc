@@ -47,7 +47,7 @@ ParentConsistentHash::ParentConsistentHash(ParentRecord *parent_record)
                                (ATSHash64 *)&hash[SECONDARY]);
     }
   } else {
-    chash[SECONDARY] = NULL;
+    chash[SECONDARY] = nullptr;
   }
   Debug("parent_select", "Using a consistent hash parent selection strategy.");
 }
@@ -61,23 +61,39 @@ ParentConsistentHash::~ParentConsistentHash()
 uint64_t
 ParentConsistentHash::getPathHash(HttpRequestData *hrdata, ATSHash64 *h)
 {
-  const char *tmp = NULL;
+  const char *url_string_ref = nullptr;
   int len;
   URL *url = hrdata->hdr->url_get();
+
+  // Use over-ride URL from HttpTransact::State's cache_info.parent_selection_url, if present.
+  URL *ps_url = nullptr;
+  if (hrdata->cache_info_parent_selection_url) {
+    ps_url = *(hrdata->cache_info_parent_selection_url);
+    if (ps_url) {
+      url_string_ref = ps_url->string_get_ref(&len);
+      if (url_string_ref && len > 0) {
+        // Print the over-ride URL
+        Debug("parent_select", "Using Over-Ride String='%.*s'.", len, url_string_ref);
+        h->update(url_string_ref, len);
+        h->final();
+        return h->get();
+      }
+    }
+  }
 
   // Always hash on '/' because paths returned by ATS are always stripped of it
   h->update("/", 1);
 
-  tmp = url->path_get(&len);
-  if (tmp) {
-    h->update(tmp, len);
+  url_string_ref = url->path_get(&len);
+  if (url_string_ref) {
+    h->update(url_string_ref, len);
   }
 
   if (!ignore_query) {
-    tmp = url->query_get(&len);
-    if (tmp) {
+    url_string_ref = url->query_get(&len);
+    if (url_string_ref) {
       h->update("?", 1);
-      h->update(tmp, len);
+      h->update(url_string_ref, len);
     }
   }
 
@@ -87,7 +103,8 @@ ParentConsistentHash::getPathHash(HttpRequestData *hrdata, ATSHash64 *h)
 }
 
 void
-ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool first_call, ParentResult *result, RequestData *rdata)
+ParentConsistentHash::selectParent(bool first_call, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
+                                   unsigned int retry_time)
 {
   ATSHash64Sip24 hash;
   ATSConsistentHash *fhash;
@@ -97,19 +114,19 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
   bool wrap_around[2]           = {false, false};
   uint64_t path_hash            = 0;
   uint32_t last_lookup;
-  pRecord *prtmp = NULL, *pRec = NULL;
+  pRecord *prtmp = nullptr, *pRec = nullptr;
 
   Debug("parent_select", "ParentConsistentHash::%s(): Using a consistent hash parent selection strategy.", __func__);
   ink_assert(numParents(result) > 0 || result->rec->go_direct == true);
 
   // Should only get into this state if we are supposed to go direct.
-  if (parents[PRIMARY] == NULL && parents[SECONDARY] == NULL) {
+  if (parents[PRIMARY] == nullptr && parents[SECONDARY] == nullptr) {
     if (result->rec->go_direct == true && result->rec->parent_is_proxy == true) {
       result->result = PARENT_DIRECT;
     } else {
       result->result = PARENT_FAIL;
     }
-    result->hostname = NULL;
+    result->hostname = nullptr;
     result->port     = 0;
     return;
   }
@@ -127,7 +144,7 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
     }
     // else called by nextParent().
   } else {
-    if (chash[SECONDARY] != NULL) {
+    if (chash[SECONDARY] != nullptr) {
       last_lookup = SECONDARY;
       fhash       = chash[SECONDARY];
       path_hash   = getPathHash(request_info, (ATSHash64 *)&hash);
@@ -139,11 +156,11 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
       last_lookup = PRIMARY;
       fhash       = chash[PRIMARY];
       do { // search until we've selected a different parent.
-        prtmp = (pRecord *)fhash->lookup(NULL, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash);
+        prtmp = (pRecord *)fhash->lookup(nullptr, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash);
         if (prtmp) {
           pRec = (parents[last_lookup] + prtmp->idx);
         } else {
-          pRec = NULL;
+          pRec = nullptr;
         }
       } while (prtmp && strcmp(prtmp->hostname, result->hostname) == 0);
     }
@@ -154,8 +171,8 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
     do {
       if (pRec && !pRec->available) {
         Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", (unsigned int)pRec->failedAt,
-              (unsigned int)policy->ParentRetryTime, (unsigned int)request_info->xact_start);
-        if ((pRec->failedAt + policy->ParentRetryTime) < request_info->xact_start) {
+              (unsigned int)retry_time, (unsigned int)request_info->xact_start);
+        if ((pRec->failedAt + retry_time) < request_info->xact_start) {
           parentRetry = true;
           // make sure that the proper state is recorded in the result structure
           result->last_parent = pRec->idx;
@@ -167,9 +184,9 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
         }
       }
       Debug("parent_select", "wrap_around[PRIMARY]: %d, wrap_around[SECONDARY]: %d", wrap_around[PRIMARY], wrap_around[SECONDARY]);
-      if (!wrap_around[PRIMARY] || (chash[SECONDARY] != NULL)) {
+      if (!wrap_around[PRIMARY] || (chash[SECONDARY] != nullptr)) {
         Debug("parent_select", "Selected parent %s is not available, looking up another parent.", pRec ? pRec->hostname : "[NULL]");
-        if (chash[SECONDARY] != NULL && !wrap_around[SECONDARY]) {
+        if (chash[SECONDARY] != nullptr && !wrap_around[SECONDARY]) {
           fhash       = chash[SECONDARY];
           last_lookup = SECONDARY;
         } else {
@@ -180,21 +197,21 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
           prtmp     = (pRecord *)fhash->lookup_by_hashval(path_hash, &result->chashIter[last_lookup], &wrap_around[last_lookup]);
           firstCall = false;
         } else {
-          prtmp = (pRecord *)fhash->lookup(NULL, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash);
+          prtmp = (pRecord *)fhash->lookup(nullptr, &result->chashIter[last_lookup], &wrap_around[last_lookup], &hash);
         }
 
         if (prtmp) {
           pRec = (parents[last_lookup] + prtmp->idx);
           Debug("parent_select", "Selected a new parent: %s.", pRec->hostname);
         } else {
-          pRec = NULL;
+          pRec = nullptr;
         }
       }
-      if (wrap_around[PRIMARY] && chash[SECONDARY] == NULL) {
+      if (wrap_around[PRIMARY] && chash[SECONDARY] == nullptr) {
         Debug("parent_select", "No available parents.");
         break;
       }
-      if (wrap_around[PRIMARY] && chash[SECONDARY] != NULL && wrap_around[SECONDARY]) {
+      if (wrap_around[PRIMARY] && chash[SECONDARY] != nullptr && wrap_around[SECONDARY]) {
         Debug("parent_select", "No available parents.");
         break;
       }
@@ -209,7 +226,7 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
     result->last_parent = pRec->idx;
     result->last_lookup = last_lookup;
     result->retry       = parentRetry;
-    ink_assert(result->hostname != NULL);
+    ink_assert(result->hostname != nullptr);
     ink_assert(result->port != 0);
     Debug("parent_select", "Chosen parent: %s.%d", result->hostname, result->port);
   } else {
@@ -218,7 +235,7 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
     } else {
       result->result = PARENT_FAIL;
     }
-    result->hostname = NULL;
+    result->hostname = nullptr;
     result->port     = 0;
     result->retry    = false;
   }
@@ -227,7 +244,7 @@ ParentConsistentHash::selectParent(const ParentSelectionPolicy *policy, bool fir
 }
 
 void
-ParentConsistentHash::markParentDown(const ParentSelectionPolicy *policy, ParentResult *result)
+ParentConsistentHash::markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time)
 {
   time_t now;
   pRecord *pRec;
@@ -261,9 +278,9 @@ ParentConsistentHash::markParentDown(const ParentSelectionPolicy *policy, Parent
   if (pRec->failedAt == 0 || result->retry == true) {
     // Reread the current time.  We want this to be accurate since
     //   it relates to how long the parent has been down.
-    now = time(NULL);
+    now = time(nullptr);
 
-    // Mark the parent as down
+    // Mark the parent failure time.
     ink_atomic_swap(&pRec->failedAt, now);
 
     // If this is clean mark down and not a failed retry, we
@@ -275,14 +292,25 @@ ParentConsistentHash::markParentDown(const ParentSelectionPolicy *policy, Parent
     Note("Parent %s marked as down %s:%d", (result->retry) ? "retry" : "initially", pRec->hostname, pRec->port);
 
   } else {
-    int old_count = ink_atomic_increment(&pRec->failCount, 1);
+    int old_count = 0;
+    now           = time(nullptr);
+
+    // if the last failure was outside the retry window, set the failcount to 1
+    // and failedAt to now.
+    if ((pRec->failedAt + retry_time) < now) {
+      ink_atomic_swap(&pRec->failCount, 1);
+      ink_atomic_swap(&pRec->failedAt, now);
+    } else {
+      old_count = ink_atomic_increment(&pRec->failCount, 1);
+    }
 
     Debug("parent_select", "Parent fail count increased to %d for %s:%d", old_count + 1, pRec->hostname, pRec->port);
     new_fail_count = old_count + 1;
   }
 
-  if (new_fail_count > 0 && new_fail_count >= policy->FailThreshold) {
-    Note("Failure threshold met, http parent proxy %s:%d marked down", pRec->hostname, pRec->port);
+  if (new_fail_count > 0 && new_fail_count >= static_cast<int>(fail_threshold)) {
+    Note("Failure threshold met failcount:%d >= threshold:%d, http parent proxy %s:%d marked down", new_fail_count, fail_threshold,
+         pRec->hostname, pRec->port);
     ink_atomic_swap(&pRec->available, false);
     Debug("parent_select", "Parent %s:%d marked unavailable, pRec->available=%d", pRec->hostname, pRec->port, pRec->available);
   }

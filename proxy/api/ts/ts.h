@@ -1194,7 +1194,7 @@ tsapi TSReturnCode TSMgmtIntGet(const char *var_name, TSMgmtInt *result);
 tsapi TSReturnCode TSMgmtCounterGet(const char *var_name, TSMgmtCounter *result);
 tsapi TSReturnCode TSMgmtFloatGet(const char *var_name, TSMgmtFloat *result);
 tsapi TSReturnCode TSMgmtStringGet(const char *var_name, TSMgmtString *result);
-
+tsapi TSReturnCode TSMgmtSourceGet(const char *var_name, TSMgmtSource *source);
 /* --------------------------------------------------------------------------
    Continuations */
 tsapi TSCont TSContCreate(TSEventFunc funcp, TSMutex mutexp);
@@ -1235,6 +1235,13 @@ tsapi TSSslContext TSSslContextFindByAddr(struct sockaddr const *);
 // Create a new SSL context based on the settings in records.config
 tsapi TSSslContext TSSslServerContextCreate(void);
 tsapi void TSSslContextDestroy(TSSslContext ctx);
+tsapi TSNextProtocolSet TSUnregisterProtocol(TSNextProtocolSet protoset, const char *protocol);
+TSAcceptor TSAcceptorGet(TSVConn sslp);
+TSNextProtocolSet TSGetcloneProtoSet(TSAcceptor tna);
+TSAcceptor TSAcceptorGetbyID(int ID);
+void TSRegisterProtocolSet(TSVConn sslp, TSNextProtocolSet ps);
+int TSAcceptorCount();
+int TSAcceptorIDGet(TSAcceptor acceptor);
 
 // Returns 1 if the sslp argument refers to a SSL connection
 tsapi int TSVConnIsSsl(TSVConn sslp);
@@ -1481,6 +1488,9 @@ tsapi TSReturnCode TSHttpTxnParentProxyGet(TSHttpTxn txnp, const char **hostname
  */
 tsapi void TSHttpTxnParentProxySet(TSHttpTxn txnp, const char *hostname, int port);
 
+tsapi TSReturnCode TSHttpTxnParentSelectionUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
+tsapi TSReturnCode TSHttpTxnParentSelectionUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
+
 tsapi void TSHttpTxnUntransformedRespCache(TSHttpTxn txnp, int on);
 tsapi void TSHttpTxnTransformedRespCache(TSHttpTxn txnp, int on);
 
@@ -1642,7 +1652,7 @@ tsapi void TSHttpTxnServerIntercept(TSCont contp, TSHttpTxn txnp);
     @param tag A logging tag that can be accessed via the pitag field. May be @c NULL.
     @param id A logging id that can be access via the piid field.
  */
-tsapi TSVConn TSHttpConnectWithPluginId(struct sockaddr const *addr, char const *tag, int64_t id);
+tsapi TSVConn TSHttpConnectWithPluginId(struct sockaddr const *addr, const char *tag, int64_t id);
 
 /** Backwards compatible version.
     This provides a @a tag of "plugin" and an @a id of 0.
@@ -1708,7 +1718,6 @@ tsapi TSVConn TSTransformOutputVConnGet(TSVConn connp);
 
 /* --------------------------------------------------------------------------
    Net VConnections */
-
 tsapi struct sockaddr const *TSNetVConnRemoteAddrGet(TSVConn vc);
 
 /**
@@ -2331,6 +2340,7 @@ tsapi TSReturnCode TSHttpTxnCacheLookupUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TS
 tsapi TSReturnCode TSHttpTxnCacheLookupUrlSet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj);
 tsapi TSReturnCode TSHttpTxnPrivateSessionSet(TSHttpTxn txnp, int private_session);
 tsapi int TSHttpTxnBackgroundFillStarted(TSHttpTxn txnp);
+tsapi int TSHttpTxnIsWebsocket(TSHttpTxn txnp);
 
 /* Get the Txn's (HttpSM's) unique identifier, which is a sequence number since server start) */
 tsapi uint64_t TSHttpTxnIdGet(TSHttpTxn txnp);
@@ -2405,9 +2415,10 @@ tsapi TSReturnCode TSUuidCopy(TSUuid dest, const TSUuid src);
 tsapi const char *TSUuidStringGet(const TSUuid uuid);
 tsapi TSUuidVersion TSUuidVersionGet(const TSUuid uuid);
 tsapi TSReturnCode TSUuidStringParse(TSUuid uuid, const char *uuid_str);
+tsapi TSReturnCode TSClientRequestUuidGet(TSHttpTxn txnp, char *uuid_str);
 
 /* Get the process global UUID, resets on every startup */
-tsapi const TSUuid TSProcessUuidGet(void);
+tsapi TSUuid TSProcessUuidGet(void);
 
 /**
    Returns the plugin_tag.
@@ -2417,12 +2428,12 @@ tsapi const char *TSHttpTxnPluginTagGet(TSHttpTxn txnp);
 /*
  * Return information about the client protocols
  */
-tsapi TSReturnCode TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int n, char const **result, int *actual);
-tsapi TSReturnCode TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int n, char const **result, int *actual);
-tsapi char const *TSHttpTxnClientProtocolStackContains(TSHttpTxn txnp, char const *tag);
-tsapi char const *TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char const *tag);
-tsapi char const *TSNormalizedProtocolTag(char const *tag);
-tsapi char const *TSRegisterProtocolTag(char const *tag);
+tsapi TSReturnCode TSHttpTxnClientProtocolStackGet(TSHttpTxn txnp, int n, const char **result, int *actual);
+tsapi TSReturnCode TSHttpSsnClientProtocolStackGet(TSHttpSsn ssnp, int n, const char **result, int *actual);
+tsapi const char *TSHttpTxnClientProtocolStackContains(TSHttpTxn txnp, char const *tag);
+tsapi const char *TSHttpSsnClientProtocolStackContains(TSHttpSsn ssnp, char const *tag);
+tsapi const char *TSNormalizedProtocolTag(char const *tag);
+tsapi const char *TSRegisterProtocolTag(char const *tag);
 
 #ifdef __cplusplus
 }

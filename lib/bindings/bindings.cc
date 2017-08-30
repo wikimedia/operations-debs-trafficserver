@@ -32,7 +32,7 @@ is_indexable(lua_State *L, int index)
   return lua_istable(L, index) || lua_isuserdata(L, index);
 }
 
-BindingInstance::BindingInstance() : lua(NULL)
+BindingInstance::BindingInstance() : lua(nullptr)
 {
 }
 
@@ -53,7 +53,7 @@ void *
 BindingInstance::retrieve_ptr(const char *name)
 {
   auto ptr = this->attachments.find(name);
-  return (ptr == this->attachments.end()) ? NULL : ptr->second;
+  return (ptr == this->attachments.end()) ? nullptr : ptr->second;
 }
 
 bool
@@ -221,13 +221,25 @@ BindingInstance::bind_value(const char *name, int value)
 bool
 BindingInstance::construct()
 {
-  ink_release_assert(this->lua == NULL);
+  ink_release_assert(this->lua == nullptr);
 
   if ((this->lua = luaL_newstate())) {
     luaL_openlibs(this->lua);
 
     // Push a pointer to ourself into the well-known registry key.
-    lua_pushlightuserdata(this->lua, this);
+
+    // We do not use lightuserdata here because BindingInstance variables
+    // are often declared on stack which would make "this" a stack variable.
+    // While this might seem fine and actually work on many platforms, those
+    // 64bit platforms with split VA space where heap and stack may live in
+    // a separate 47bit VA will violate internal assumptions that luajit
+    // places on lightuserdata. Plain userdata will provide luajit-happy
+    // address in which we have the full 64bits to store our pointer to this.
+    // see: https://www.circonus.com/2016/07/luajit-illumos-vm/
+
+    BindingInstance **lua_surrogate;
+    lua_surrogate  = (BindingInstance **)lua_newuserdata(this->lua, sizeof(BindingInstance *));
+    *lua_surrogate = this;
     lua_setfield(this->lua, LUA_REGISTRYINDEX, selfkey);
 
     ink_release_assert(BindingInstance::self(this->lua) == this);
@@ -239,7 +251,7 @@ BindingInstance::construct()
 bool
 BindingInstance::require(const char *path)
 {
-  ink_release_assert(this->lua != NULL);
+  ink_release_assert(this->lua != nullptr);
 
   if (luaL_dofile(this->lua, path) != 0) {
     Warning("%s", lua_tostring(this->lua, -1));
@@ -253,7 +265,7 @@ BindingInstance::require(const char *path)
 bool
 BindingInstance::eval(const char *chunk)
 {
-  ink_release_assert(this->lua != NULL);
+  ink_release_assert(this->lua != nullptr);
 
   if (luaL_dostring(this->lua, chunk) != 0) {
     const char *w = lua_tostring(this->lua, -1);
@@ -268,16 +280,17 @@ BindingInstance::eval(const char *chunk)
 BindingInstance *
 BindingInstance::self(lua_State *lua)
 {
-  BindingInstance *binding;
+  BindingInstance **binding;
 
   lua_getfield(lua, LUA_REGISTRYINDEX, selfkey);
-  binding = (BindingInstance *)lua_touserdata(lua, -1);
+  binding = (BindingInstance **)lua_touserdata(lua, -1);
 
-  ink_release_assert(binding != NULL);
-  ink_release_assert(binding->lua == lua);
+  ink_release_assert(binding != nullptr);
+  ink_release_assert(*binding != nullptr);
+  ink_release_assert((*binding)->lua == lua);
 
   lua_pop(lua, 1);
-  return binding;
+  return *binding;
 }
 
 void
@@ -323,7 +336,7 @@ BindingInstance::register_metatable(lua_State *lua, const char *name, const luaL
   // Pop one of those copies and assign it to __index field on the 1st metatable
   lua_setfield(lua, -2, "__index");
   // register functions in the metatable
-  luaL_register(lua, NULL, metatable);
+  luaL_register(lua, nullptr, metatable);
 
   lua_pop(lua, 1); /* drop metatable */
 

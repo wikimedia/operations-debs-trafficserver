@@ -27,8 +27,8 @@
 
 using namespace EsiLib;
 
-ComponentBase::Debug Utils::DEBUG_LOG(0);
-ComponentBase::Error Utils::ERROR_LOG(0);
+ComponentBase::Debug Utils::DEBUG_LOG(nullptr);
+ComponentBase::Error Utils::ERROR_LOG(nullptr);
 
 #define DEBUG_TAG "EsiUtils"
 
@@ -115,8 +115,8 @@ Utils::parseKeyValueConfig(const std::list<string> &lines, KeyValueMap &kvMap, H
 {
   string key, value;
   std::istringstream iss;
-  for (std::list<string>::const_iterator list_iter = lines.begin(); list_iter != lines.end(); ++list_iter) {
-    const string &conf_line = *list_iter; // handy reference
+  for (const auto &conf_line : lines) {
+    // handy reference
     if (!conf_line.size() || (conf_line[0] == '#')) {
       continue;
     }
@@ -158,7 +158,7 @@ Utils::parseAttributes(const char *data, int data_len, AttributeList &attr_list,
     ;
   }
   attr.name  = data + i;
-  attr.value = 0;
+  attr.value = nullptr;
   for (; i <= data_len; ++i) {
     end_of_attribute = false;
     if (i == data_len) {
@@ -187,7 +187,7 @@ Utils::parseAttributes(const char *data, int data_len, AttributeList &attr_list,
         ;
       }
       attr.name     = data + i;
-      attr.value    = 0;
+      attr.value    = nullptr;
       inside_quotes = false;
     } else if (data[i] == '"') {
       if (!escape_on) {

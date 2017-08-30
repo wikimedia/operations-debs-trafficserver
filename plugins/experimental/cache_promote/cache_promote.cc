@@ -16,12 +16,12 @@
   limitations under the License.
 */
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <unistd.h>
 #include <getopt.h>
-#include <stdlib.h>
-#include <time.h>
+#include <cstdlib>
+#include <ctime>
 #include <openssl/sha.h>
 
 #include <string>
@@ -41,14 +41,14 @@ TSCont gNocacheCont;
 // Note that all options for all policies has to go here. Not particularly pretty...
 //
 static const struct option longopt[] = {
-  {const_cast<char *>("policy"), required_argument, NULL, 'p'},
+  {const_cast<char *>("policy"), required_argument, nullptr, 'p'},
   // This is for both Chance and LRU (optional) policy
-  {const_cast<char *>("sample"), required_argument, NULL, 's'},
+  {const_cast<char *>("sample"), required_argument, nullptr, 's'},
   // For the LRU policy
-  {const_cast<char *>("buckets"), required_argument, NULL, 'b'},
-  {const_cast<char *>("hits"), required_argument, NULL, 'h'},
+  {const_cast<char *>("buckets"), required_argument, nullptr, 'b'},
+  {const_cast<char *>("hits"), required_argument, nullptr, 'h'},
   // EOF
-  {NULL, no_argument, NULL, '\0'},
+  {nullptr, no_argument, nullptr, '\0'},
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,13 +61,13 @@ public:
   {
     // This doesn't have to be perfect, since this is just chance sampling.
     // coverity[dont_call]
-    srand48((long)time(NULL));
+    srand48((long)time(nullptr));
   }
 
   void
   setSample(char *s)
   {
-    _sample = strtof(s, NULL) / 100.0;
+    _sample = strtof(s, nullptr) / 100.0;
   }
 
   float
@@ -117,20 +117,20 @@ private:
 class ChancePolicy : public PromotionPolicy
 {
 public:
-  bool doPromote(TSHttpTxn /* txnp ATS_UNUSED */)
+  bool doPromote(TSHttpTxn /* txnp ATS_UNUSED */) override
   {
     TSDebug(PLUGIN_NAME, "ChancePolicy::doPromote(%f)", getSample());
     return true;
   }
 
   void
-  usage() const
+  usage() const override
   {
     TSError("[%s] Usage: @plugin=%s.so @pparam=--policy=chance @pparam=--sample=<x>%%", PLUGIN_NAME, PLUGIN_NAME);
   }
 
   const char *
-  policyName() const
+  policyName() const override
   {
     return "chance";
   }
@@ -153,7 +153,9 @@ public:
   operator=(const LRUHash &h)
   {
     TSDebug(PLUGIN_NAME, "copying an LRUHash object");
-    memcpy(_hash, h._hash, sizeof(_hash));
+    if (this != &h) {
+      memcpy(_hash, h._hash, sizeof(_hash));
+    }
     return *this;
   }
 
@@ -186,7 +188,7 @@ struct LRUHashHasher {
 };
 
 typedef std::pair<LRUHash, unsigned> LRUEntry;
-typedef std::list<LRUEntry> LRUList;
+using LRUList = std::list<LRUEntry>;
 typedef std::unordered_map<const LRUHash *, LRUList::iterator, LRUHashHasher, LRUHashHasher> LRUMap;
 
 static LRUEntry NULL_LRU_ENTRY; // Used to create an "empty" new LRUEntry
@@ -194,26 +196,28 @@ static LRUEntry NULL_LRU_ENTRY; // Used to create an "empty" new LRUEntry
 class LRUPolicy : public PromotionPolicy
 {
 public:
-  LRUPolicy() : PromotionPolicy(), _buckets(1000), _hits(10), _lock(TSMutexCreate()) {}
-  ~LRUPolicy()
+  LRUPolicy() : PromotionPolicy(), _buckets(1000), _hits(10), _lock(TSMutexCreate()), _list_size(0), _freelist_size(0) {}
+  ~LRUPolicy() override
   {
     TSDebug(PLUGIN_NAME, "deleting LRUPolicy object");
     TSMutexLock(_lock);
 
     _map.clear();
     _list.clear();
+    _list_size = 0;
     _freelist.clear();
+    _freelist_size = 0;
 
     TSMutexUnlock(_lock);
     TSMutexDestroy(_lock);
   }
 
   bool
-  parseOption(int opt, char *optarg)
+  parseOption(int opt, char *optarg) override
   {
     switch (opt) {
     case 'b':
-      _buckets = static_cast<unsigned>(strtol(optarg, NULL, 10));
+      _buckets = static_cast<unsigned>(strtol(optarg, nullptr, 10));
       if (_buckets < MINIMUM_BUCKET_SIZE) {
         TSError("%s: Enforcing minimum LRU bucket size of %d", PLUGIN_NAME, MINIMUM_BUCKET_SIZE);
         TSDebug(PLUGIN_NAME, "Enforcing minimum bucket size of %d", MINIMUM_BUCKET_SIZE);
@@ -221,7 +225,7 @@ public:
       }
       break;
     case 'h':
-      _hits = static_cast<unsigned>(strtol(optarg, NULL, 10));
+      _hits = static_cast<unsigned>(strtol(optarg, nullptr, 10));
       break;
     default:
       // All other options are unsupported for this policy
@@ -230,17 +234,17 @@ public:
 
     // This doesn't have to be perfect, since this is just chance sampling.
     // coverity[dont_call]
-    srand48((long)time(NULL) ^ (long)getpid() ^ (long)getppid());
+    srand48((long)time(nullptr) ^ (long)getpid() ^ (long)getppid());
 
     return true;
   }
 
   bool
-  doPromote(TSHttpTxn txnp)
+  doPromote(TSHttpTxn txnp) override
   {
     LRUHash hash;
     LRUMap::iterator map_it;
-    char *url   = NULL;
+    char *url   = nullptr;
     int url_len = 0;
     bool ret    = false;
     TSMBuffer request;
@@ -275,11 +279,13 @@ public:
     map_it = _map.find(&hash);
     if (_map.end() != map_it) {
       // We have an entry in the LRU
-      TSAssert(_list.size() > 0); // mismatch in the LRUs hash and list, shouldn't happen
+      TSAssert(_list_size > 0); // mismatch in the LRUs hash and list, shouldn't happen
       if (++(map_it->second->second) >= _hits) {
         // Promoted! Cleanup the LRU, and signal success. Save the promoted entry on the freelist.
         TSDebug(PLUGIN_NAME, "saving the LRUEntry to the freelist");
         _freelist.splice(_freelist.begin(), _list, map_it->second);
+        ++_freelist_size;
+        --_list_size;
         _map.erase(map_it->first);
         ret = true;
       } else {
@@ -289,16 +295,19 @@ public:
       }
     } else {
       // New LRU entry for the URL, try to repurpose the list entry as much as possible
-      if (_list.size() >= _buckets) {
+      if (_list_size >= _buckets) {
         TSDebug(PLUGIN_NAME, "repurposing last LRUHash entry");
         _list.splice(_list.begin(), _list, --_list.end());
         _map.erase(&(_list.begin()->first));
-      } else if (_freelist.size() > 0) {
+      } else if (_freelist_size > 0) {
         TSDebug(PLUGIN_NAME, "reusing LRUEntry from freelist");
         _list.splice(_list.begin(), _freelist, _freelist.begin());
+        --_freelist_size;
+        ++_list_size;
       } else {
         TSDebug(PLUGIN_NAME, "creating new LRUEntry");
         _list.push_front(NULL_LRU_ENTRY);
+        ++_list_size;
       }
       // Update the "new" LRUEntry and add it to the hash
       _list.begin()->first          = hash;
@@ -312,14 +321,14 @@ public:
   }
 
   void
-  usage() const
+  usage() const override
   {
     TSError("[%s] Usage: @plugin=%s.so @pparam=--policy=lru @pparam=--buckets=<n> --hits=<m> --sample=<x>", PLUGIN_NAME,
             PLUGIN_NAME);
   }
 
   const char *
-  policyName() const
+  policyName() const override
   {
     return "LRU";
   }
@@ -327,10 +336,12 @@ public:
 private:
   unsigned _buckets;
   unsigned _hits;
-  // For the LRU
+  // For the LRU. Note that we keep track of the List sizes, because some versions fo STL have broken
+  // implementations of size(), making them obsessively slow on calling ::size().
   TSMutex _lock;
   LRUMap _map;
   LRUList _list, _freelist;
+  size_t _list_size, _freelist_size;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -339,7 +350,7 @@ private:
 class PromotionConfig
 {
 public:
-  PromotionConfig() : _policy(NULL) {}
+  PromotionConfig() : _policy(nullptr) {}
   ~PromotionConfig() { delete _policy; }
   PromotionPolicy *
   getPolicy() const
@@ -352,7 +363,7 @@ public:
   factory(int argc, char *argv[])
   {
     while (true) {
-      int opt = getopt_long(argc, (char *const *)argv, "psbh", longopt, NULL);
+      int opt = getopt_long(argc, (char *const *)argv, "psbh", longopt, nullptr);
 
       if (opt == -1) {
         break;
@@ -377,7 +388,7 @@ public:
             if (!_policy->parseOption(opt, optarg)) {
               TSError("[%s] The specified policy (%s) does not support the -%c option", PLUGIN_NAME, _policy->policyName(), opt);
               delete _policy;
-              _policy = NULL;
+              _policy = nullptr;
               return false;
             }
           }
@@ -479,7 +490,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
 
-  gNocacheCont = TSContCreate(cont_nocache_response, NULL);
+  gNocacheCont = TSContCreate(cont_nocache_response, nullptr);
 
   TSDebug(PLUGIN_NAME, "remap plugin is successfully initialized");
   return TS_SUCCESS; /* success */
@@ -493,7 +504,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /* errbuf */, int /
   --argc;
   ++argv;
   if (config->factory(argc, argv)) {
-    TSCont contp = TSContCreate(cont_handle_policy, NULL);
+    TSCont contp = TSContCreate(cont_handle_policy, nullptr);
 
     TSContDataSet(contp, static_cast<void *>(config));
     *ih = static_cast<void *>(contp);
@@ -521,7 +532,7 @@ TSRemapDeleteInstance(void *ih)
 TSRemapStatus
 TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo * /* ATS_UNUSED rri */)
 {
-  if (NULL == ih) {
+  if (nullptr == ih) {
     TSDebug(PLUGIN_NAME, "No promotion rules configured, this is probably a plugin bug");
   } else {
     TSCont contp = static_cast<TSCont>(ih);

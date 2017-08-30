@@ -83,7 +83,7 @@ spawn_thread_internal(void *a)
   else
     p->me->execute();
   ats_free(a);
-  return NULL;
+  return nullptr;
 }
 
 ink_thread
@@ -96,6 +96,9 @@ Thread::start(const char *name, size_t stacksize, ThreadFunction f, void *a, voi
   p->me = this;
   memset(p->name, 0, MAX_THREAD_NAME_LENGTH);
   ink_strlcpy(p->name, name, MAX_THREAD_NAME_LENGTH);
+  if (stacksize == 0) {
+    stacksize = DEFAULT_STACKSIZE;
+  }
   tid = ink_thread_create(spawn_thread_internal, (void *)p, 0, stacksize, stack);
 
   return tid;

@@ -18,8 +18,8 @@
 
 #include "sslheaders.h"
 #include <ts/TestBox.h>
-#include <stdio.h>
-#include <stdarg.h>
+#include <cstdio>
+#include <cstdarg>
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -206,9 +206,9 @@ REGRESSION_TEST(ParseX509Fields)(RegressionTest *t, int /* atype ATS_UNUSED */, 
 
   BIO *exp   = BIO_new(BIO_s_mem());
   BIO *bio   = BIO_new_mem_buf((void *)test_certificate, -1);
-  X509 *x509 = PEM_read_bio_X509(bio, NULL, 0, NULL);
+  X509 *x509 = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
 
-  box.check(x509 != NULL, "failed to load the test certificate");
+  box.check(x509 != nullptr, "failed to load the test certificate");
 
 #define EXPECT_FIELD(_field, _value)                                                                                    \
   do {                                                                                                                  \

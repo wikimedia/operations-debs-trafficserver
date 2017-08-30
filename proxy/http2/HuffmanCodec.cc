@@ -82,8 +82,8 @@ static Node *
 make_huffman_tree_node()
 {
   Node *n       = static_cast<Node *>(ats_malloc(sizeof(Node)));
-  n->left       = NULL;
-  n->right      = NULL;
+  n->left       = nullptr;
+  n->right      = nullptr;
   n->ascii_code = '\0';
   n->leaf_node  = false;
   return n;
@@ -151,21 +151,26 @@ hpack_huffman_fin()
 int64_t
 huffman_decode(char *dst_start, const uint8_t *src, uint32_t src_len)
 {
-  char *dst_end = dst_start;
-  uint8_t shift = 7;
-  Node *current = HUFFMAN_TREE_ROOT;
+  char *dst_end             = dst_start;
+  uint8_t shift             = 7;
+  Node *current             = HUFFMAN_TREE_ROOT;
+  int byte_boundary_crossed = 0;
+  bool includes_zero        = false;
 
   while (src_len) {
     if (*src & (1 << shift)) {
       current = current->right;
     } else {
-      current = current->left;
+      current       = current->left;
+      includes_zero = true;
     }
 
     if (current->leaf_node == true) {
       *dst_end = current->ascii_code;
       ++dst_end;
-      current = HUFFMAN_TREE_ROOT;
+      current               = HUFFMAN_TREE_ROOT;
+      byte_boundary_crossed = 0;
+      includes_zero         = false;
     }
     if (shift) {
       --shift;
@@ -173,7 +178,17 @@ huffman_decode(char *dst_start, const uint8_t *src, uint32_t src_len)
       shift = 7;
       ++src;
       --src_len;
+      ++byte_boundary_crossed;
     }
+    if (byte_boundary_crossed > 3) {
+      return -1;
+    }
+  }
+  if (byte_boundary_crossed > 1) {
+    return -1;
+  }
+  if (includes_zero) {
+    return -1;
   }
 
   return dst_end - dst_start;

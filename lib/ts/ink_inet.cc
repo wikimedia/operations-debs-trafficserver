@@ -40,6 +40,19 @@ struct hostent *gethostbyaddr_r(const char *name, size_t size, int type, struct 
 
 IpAddr const IpAddr::INVALID;
 
+const ts::StringView IP_PROTO_TAG_IPV4("ipv4", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_IPV6("ipv6", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_UDP("udp", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_TCP("tcp", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_TLS_1_0("tls/1.0", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_TLS_1_1("tls/1.1", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_TLS_1_2("tls/1.2", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_TLS_1_3("tls/1.3", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_HTTP_0_9("http/0.9", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_HTTP_1_0("http/1.0", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_HTTP_1_1("http/1.1", ts::StringView::literal);
+const ts::StringView IP_PROTO_TAG_HTTP_2_0("h2", ts::StringView::literal); // HTTP/2 over TLS
+
 struct hostent *
 ink_gethostbyname_r(char *hostname, ink_gethostbyname_r_data *data)
 {
@@ -52,9 +65,9 @@ ink_gethostbyname_r(char *hostname, ink_gethostbyname_r_data *data)
 #else // RENTRENT_GETHOSTBYNAME
 #if GETHOSTBYNAME_R_GLIBC2
 
-  struct hostent *addrp = NULL;
+  struct hostent *addrp = nullptr;
   int res               = gethostbyname_r(hostname, &data->ent, data->buf, INK_GETHOSTBYNAME_R_DATA_SIZE, &addrp, &data->herrno);
-  struct hostent *r     = NULL;
+  struct hostent *r     = nullptr;
   if (!res && addrp)
     r               = addrp;
 
@@ -69,8 +82,8 @@ struct hostent *
 ink_gethostbyaddr_r(char *ip, int len, int type, ink_gethostbyaddr_r_data *data)
 {
 #if GETHOSTBYNAME_R_GLIBC2
-  struct hostent *r     = NULL;
-  struct hostent *addrp = NULL;
+  struct hostent *r     = nullptr;
+  struct hostent *addrp = nullptr;
   int res = gethostbyaddr_r((char *)ip, len, type, &data->ent, data->buf, INK_GETHOSTBYNAME_R_DATA_SIZE, &addrp, &data->herrno);
   if (!res && addrp)
     r = addrp;
@@ -93,7 +106,7 @@ ink_inet_addr(const char *s)
   int n         = 0;
   uint32_t base = 10;
 
-  if (NULL == s) {
+  if (nullptr == s) {
     return htonl((uint32_t)-1);
   }
 
@@ -155,7 +168,7 @@ ink_inet_addr(const char *s)
 const char *
 ats_ip_ntop(const struct sockaddr *addr, char *dst, size_t size)
 {
-  char const *zret = 0;
+  const char *zret = nullptr;
 
   switch (addr->sa_family) {
   case AF_INET:
@@ -172,13 +185,14 @@ ats_ip_ntop(const struct sockaddr *addr, char *dst, size_t size)
   return zret;
 }
 
-char const *
+ts::StringView
 ats_ip_family_name(int family)
 {
-  return AF_INET == family ? "IPv4" : AF_INET6 == family ? "IPv6" : "Unspec";
+  static const ts::StringView UNSPEC("Unspec", ts::StringView::literal);
+  return AF_INET == family ? IP_PROTO_TAG_IPV4 : AF_INET6 == family ? IP_PROTO_TAG_IPV6 : UNSPEC;
 }
 
-char const *
+const char *
 ats_ip_nptop(sockaddr const *addr, char *dst, size_t size)
 {
   char buff[INET6_ADDRPORTSTRLEN];
@@ -332,7 +346,7 @@ ats_ip_to_hex(sockaddr const *src, char *dst, size_t len)
 {
   int zret = 0;
   ink_assert(len);
-  char const *dst_limit = dst + len - 1; // reserve null space.
+  const char *dst_limit = dst + len - 1; // reserve null space.
   if (ats_is_ip(src)) {
     uint8_t const *data = ats_ip_addr8_cast(src);
     for (uint8_t const *src_limit = data + ats_ip_addr_size(src); data < src_limit && dst + 1 < dst_limit; ++data, zret += 2) {
@@ -360,7 +374,7 @@ ats_ip_set(sockaddr *dst, IpAddr const &addr, uint16_t port)
 }
 
 int
-IpAddr::load(char const *text)
+IpAddr::load(const char *text)
 {
   IpEndpoint ip;
   int zret = ats_ip_pton(text, &ip);
@@ -464,7 +478,7 @@ IpAddr::cmp(self const &that) const
 }
 
 int
-ats_ip_getbestaddrinfo(char const *host, IpEndpoint *ip4, IpEndpoint *ip6)
+ats_ip_getbestaddrinfo(const char *host, IpEndpoint *ip4, IpEndpoint *ip6)
 {
   int zret = -1;
   int port = 0; // port value to assign if we find an address.
@@ -489,7 +503,7 @@ ats_ip_getbestaddrinfo(char const *host, IpEndpoint *ip4, IpEndpoint *ip6)
     ink_zero(ai_hints);
     ai_hints.ai_family = AF_UNSPEC;
     ai_hints.ai_flags  = AI_ADDRCONFIG;
-    zret               = getaddrinfo(addr_text.data(), 0, &ai_hints, &ai_result);
+    zret               = getaddrinfo(addr_text.data(), nullptr, &ai_hints, &ai_result);
 
     if (0 == zret) {
       // Walk the returned addresses and pick the "best".
@@ -502,8 +516,8 @@ ats_ip_getbestaddrinfo(char const *host, IpEndpoint *ip4, IpEndpoint *ip6)
         GL  // Global.
       } spot_type = NA,
         ip4_type = NA, ip6_type = NA;
-      sockaddr const *ip4_src = 0;
-      sockaddr const *ip6_src = 0;
+      sockaddr const *ip4_src = nullptr;
+      sockaddr const *ip6_src = nullptr;
 
       for (addrinfo *ai_spot = ai_result; ai_spot; ai_spot = ai_spot->ai_next) {
         sockaddr const *ai_ip = ai_spot->ai_addr;
@@ -564,7 +578,7 @@ ats_ip_check_characters(ts::ConstBuffer text)
 {
   bool found_colon = false;
   bool found_hex   = false;
-  for (char const *p = text.data(), *limit = p + text.size(); p < limit; ++p)
+  for (const char *p = text.data(), *limit = p + text.size(); p < limit; ++p)
     if (':' == *p)
       found_colon = true;
     else if ('.' == *p || isdigit(*p)) /* empty */
@@ -579,10 +593,10 @@ ats_ip_check_characters(ts::ConstBuffer text)
 
 // Need to declare this type globally so gcc 4.4 can use it in the countof() template ...
 struct ip_parse_spec {
-  char const *hostspec;
-  char const *host;
-  char const *port;
-  char const *rest;
+  const char *hostspec;
+  const char *host;
+  const char *port;
+  const char *rest;
 };
 
 REGRESSION_TEST(Ink_Inet)(RegressionTest *t, int /* atype */, int *pstatus)
@@ -595,18 +609,20 @@ REGRESSION_TEST(Ink_Inet)(RegressionTest *t, int /* atype */, int *pstatus)
 
   // Test ats_ip_parse() ...
   {
-    struct ip_parse_spec names[] = {{"::", "::", NULL, NULL},
-                                    {"[::1]:99", "::1", "99", NULL},
-                                    {"127.0.0.1:8080", "127.0.0.1", "8080", NULL},
-                                    {"127.0.0.1:8080-Bob", "127.0.0.1", "8080", "-Bob"},
-                                    {"127.0.0.1:", "127.0.0.1", NULL, ":"},
-                                    {"foo.example.com", "foo.example.com", NULL, NULL},
-                                    {"foo.example.com:99", "foo.example.com", "99", NULL},
-                                    {"ffee::24c3:3349:3cee:0143", "ffee::24c3:3349:3cee:0143", NULL, NULL},
-                                    {"fe80:88b5:4a:20c:29ff:feae:1c33:8080", "fe80:88b5:4a:20c:29ff:feae:1c33:8080", NULL, NULL},
-                                    {"[ffee::24c3:3349:3cee:0143]", "ffee::24c3:3349:3cee:0143", NULL, NULL},
-                                    {"[ffee::24c3:3349:3cee:0143]:80", "ffee::24c3:3349:3cee:0143", "80", NULL},
-                                    {"[ffee::24c3:3349:3cee:0143]:8080x", "ffee::24c3:3349:3cee:0143", "8080", "x"}};
+    struct ip_parse_spec names[] = {
+      {"::", "::", nullptr, nullptr},
+      {"[::1]:99", "::1", "99", nullptr},
+      {"127.0.0.1:8080", "127.0.0.1", "8080", nullptr},
+      {"127.0.0.1:8080-Bob", "127.0.0.1", "8080", "-Bob"},
+      {"127.0.0.1:", "127.0.0.1", nullptr, ":"},
+      {"foo.example.com", "foo.example.com", nullptr, nullptr},
+      {"foo.example.com:99", "foo.example.com", "99", nullptr},
+      {"ffee::24c3:3349:3cee:0143", "ffee::24c3:3349:3cee:0143", nullptr, nullptr},
+      {"fe80:88b5:4a:20c:29ff:feae:1c33:8080", "fe80:88b5:4a:20c:29ff:feae:1c33:8080", nullptr, nullptr},
+      {"[ffee::24c3:3349:3cee:0143]", "ffee::24c3:3349:3cee:0143", nullptr, nullptr},
+      {"[ffee::24c3:3349:3cee:0143]:80", "ffee::24c3:3349:3cee:0143", "80", nullptr},
+      {"[ffee::24c3:3349:3cee:0143]:8080x", "ffee::24c3:3349:3cee:0143", "8080", "x"},
+    };
 
     for (unsigned i = 0; i < countof(names); ++i) {
       ip_parse_spec const &s = names[i];
@@ -664,7 +680,8 @@ ats_tcp_somaxconn()
 
 /* Darwin version ... */
 #if HAVE_SYSCTLBYNAME
-  if (sysctlbyname("kern.ipc.somaxconn", NULL, NULL, &value, sizeof(value)) == 0) {
+  size_t value_size = sizeof(value);
+  if (sysctlbyname("kern.ipc.somaxconn", &value, &value_size, nullptr, 0) == 0) {
     return value;
   }
 #endif
@@ -674,7 +691,7 @@ ats_tcp_somaxconn()
     textBuffer text(0);
     text.slurp(fd);
     if (!text.empty()) {
-      value = strtoul(text.bufPtr(), NULL, 10);
+      value = strtoul(text.bufPtr(), nullptr, 10);
     }
     close(fd);
   }

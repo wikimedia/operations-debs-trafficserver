@@ -115,13 +115,13 @@ struct CacheProcessor : public Processor {
 
       @note This is what is called if a disk is disabled due to I/O errors.
   */
-  bool mark_storage_offline(CacheDisk *d);
+  bool mark_storage_offline(CacheDisk *d, bool admin = false);
 
   /** Find the storage for a @a path.
       If @a len is 0 then @a path is presumed null terminated.
-      @return @c NULL if the path does not match any defined storage.
+      @return @c nullptr if the path does not match any defined storage.
    */
-  CacheDisk *find_by_path(char const *path, int len = 0);
+  CacheDisk *find_by_path(const char *path, int len = 0);
 
   /** Check if there are any online storage devices.
       If this returns @c false then the cache should be disabled as there is no storage available.

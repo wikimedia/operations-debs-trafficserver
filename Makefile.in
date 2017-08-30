@@ -103,6 +103,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@BUILD_DOCS_TRUE@am__append_1 = doc
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
@@ -190,7 +191,8 @@ am__define_uniq_tagged_files = \
 ETAGS = etags
 CTAGS = ctags
 CSCOPE = cscope
-DIST_SUBDIRS = $(SUBDIRS)
+DIST_SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt \
+	proxy cmd plugins tools example rc doc
 am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(top_srcdir)/build/_aux/ar-lib \
 	$(top_srcdir)/build/_aux/compile \
@@ -328,6 +330,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -466,6 +469,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -609,14 +613,15 @@ ACLOCAL_AMFLAGS = -I build
 
 # proxy/api/ts has to be built first, since so much of libraries and "core
 # depends on the generates ts/ts.h include file.
-SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy cmd plugins tools example rc doc
+SUBDIRS = proxy/api/ts iocore lib proxy/hdrs proxy/shared mgmt proxy \
+	cmd plugins tools example rc $(am__append_1)
 DIST_BUILD_USER = `id -nu`
 DIST_BUILD_USER_GROUP = `id -ng`
 DISTCHECK_CONFIGURE_FLAGS = --with-user=${DIST_BUILD_USER} --with-group=${DIST_BUILD_USER_GROUP}
 EXTRA_DIST = CHANGES INSTALL STATUS NOTICE LAYOUT LICENSE example contrib README-EC2 REVIEWERS
 
 # Default value when creating release candidates
-RC = 1
+RC = 0
 all: all-recursive
 
 .SUFFIXES:
@@ -837,7 +842,7 @@ distdir: $(DISTFILES)
 	  ! -type d ! -perm -444 -exec $(install_sh) -c -m a+r {} {} \; \
 	|| chmod -R a+r "$(distdir)"
 dist-gzip: distdir
-	tardir=$(distdir) && $(am__tar) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).tar.gz
+	tardir=$(distdir) && $(am__tar) | eval GZIP= gzip $(GZIP_ENV) -c >$(distdir).tar.gz
 	$(am__post_remove_distdir)
 
 dist-bzip2: distdir
@@ -863,7 +868,7 @@ dist-shar: distdir
 	@echo WARNING: "Support for shar distribution archives is" \
 	               "deprecated." >&2
 	@echo WARNING: "It will be removed altogether in Automake 2.0" >&2
-	shar $(distdir) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).shar.gz
+	shar $(distdir) | eval GZIP= gzip $(GZIP_ENV) -c >$(distdir).shar.gz
 	$(am__post_remove_distdir)
 
 dist-zip: distdir
@@ -881,7 +886,7 @@ dist dist-all:
 distcheck: dist
 	case '$(DIST_ARCHIVES)' in \
 	*.tar.gz*) \
-	  GZIP=$(GZIP_ENV) gzip -dc $(distdir).tar.gz | $(am__untar) ;;\
+	  eval GZIP= gzip $(GZIP_ENV) -dc $(distdir).tar.gz | $(am__untar) ;;\
 	*.tar.bz2*) \
 	  bzip2 -dc $(distdir).tar.bz2 | $(am__untar) ;;\
 	*.tar.lz*) \
@@ -891,7 +896,7 @@ distcheck: dist
 	*.tar.Z*) \
 	  uncompress -c $(distdir).tar.Z | $(am__untar) ;;\
 	*.shar.gz*) \
-	  GZIP=$(GZIP_ENV) gzip -dc $(distdir).shar.gz | unshar ;;\
+	  eval GZIP= gzip $(GZIP_ENV) -dc $(distdir).shar.gz | unshar ;;\
 	*.zip*) \
 	  unzip $(distdir).zip ;;\
 	esac
@@ -1109,8 +1114,7 @@ doxygen:
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) $@
 
 changelog:
-	./tools/changelog.pl $(VERSION) > CHANGELOG-$(VERSION)
-	-git add CHANGELOG-$(VERSION) && git commit -m "Adding CHANGELOG-$(VERSION)"
+	./tools/changelog.pl apache trafficserver $(VERSION) > CHANGELOG-$(VERSION)
 
 asf-dist: asf-distdir
 	tardir=$(distdir) && $(am__tar) --mtime=./configure.ac | bzip2 -9 -c >$(distdir).tar.bz2
@@ -1154,6 +1158,9 @@ install-data-hook:
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.11-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
 
+autopep8:
+	@autopep8 -i -r $(top_srcdir)
+
 #
 # These are rules to make clang-format easy and fast to run. Run it with e.g.
 #    make -j clang-format
@@ -1176,7 +1183,7 @@ clang-format-iocore:
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/iocore
 
 clang-format-lib:
-	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/atscppapi
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/cppapi
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/bindings
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/raft
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/records
@@ -1215,6 +1222,7 @@ help:
 	@echo 'rel-candidate    recreate a signed relelease candidate source package and a signed git tag'
 	@echo 'release          recreate a signed release source package and a signed git tag'
 	@echo 'tidy             run clang-tidy in fix-it mode'
+	@echo 'autopep8         run autopep8 over python files'
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

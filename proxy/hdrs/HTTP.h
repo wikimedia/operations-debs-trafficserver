@@ -59,6 +59,7 @@ enum HTTPStatus {
   HTTP_STATUS_NOT_MODIFIED       = 304,
   HTTP_STATUS_USE_PROXY          = 305,
   HTTP_STATUS_TEMPORARY_REDIRECT = 307,
+  HTTP_STATUS_PERMANENT_REDIRECT = 308,
 
   HTTP_STATUS_BAD_REQUEST                   = 400,
   HTTP_STATUS_UNAUTHORIZED                  = 401,
@@ -495,6 +496,7 @@ public:
   mutable int m_port;           ///< Target port.
   mutable bool m_target_cached; ///< Whether host name and port are cached.
   mutable bool m_target_in_url; ///< Whether host name and port are in the URL.
+  mutable bool m_100_continue_required;
   /// Set if the port was effectively specified in the header.
   /// @c true if the target (in the URL or the HOST field) also specified
   /// a port. That is, @c true if whatever source had the target host
@@ -564,7 +566,7 @@ public:
       This is a reference, not allocated.
       @return A pointer to the path or @c NULL if there is no valid URL.
   */
-  char const *path_get(int *length ///< Storage for path length.
+  const char *path_get(int *length ///< Storage for path length.
                        );
 
   /** Get the target host name.
@@ -572,7 +574,7 @@ public:
       @note The results are cached so this is fast after the first call.
       @return A pointer to the host name.
   */
-  char const *host_get(int *length = 0);
+  const char *host_get(int *length = 0);
 
   /** Get the target port.
       If the target port is not found then it is adjusted to the
@@ -586,7 +588,7 @@ public:
       This is a reference, not allocated.
       @return A pointer to the scheme or @c NULL if there is no valid URL.
   */
-  char const *scheme_get(int *length ///< Storage for path length.
+  const char *scheme_get(int *length ///< Storage for path length.
                          );
   void url_set(URL *url);
   void url_set_as_server_url(URL *url);
@@ -760,7 +762,7 @@ HTTPVersion::operator<=(const HTTPVersion &hv) const
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline HTTPHdr::HTTPHdr() : MIMEHdr(), m_http(NULL), m_url_cached(), m_target_cached(false)
+inline HTTPHdr::HTTPHdr() : MIMEHdr(), m_http(NULL), m_url_cached(), m_target_cached(false), m_100_continue_required(false)
 {
 }
 
@@ -881,7 +883,7 @@ HTTPHdr::_test_and_fill_target_cache() const
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline char const *
+inline const char *
 HTTPHdr::host_get(int *length)
 {
   this->_test_and_fill_target_cache();
@@ -1286,14 +1288,14 @@ HTTPHdr::url_string_get_ref(int *length)
   return this->url_string_get(USE_HDR_HEAP_MAGIC, length);
 }
 
-inline char const *
+inline const char *
 HTTPHdr::path_get(int *length)
 {
   URL *url = this->url_get();
   return url ? url->path_get(length) : 0;
 }
 
-inline char const *
+inline const char *
 HTTPHdr::scheme_get(int *length)
 {
   URL *url = this->url_get();

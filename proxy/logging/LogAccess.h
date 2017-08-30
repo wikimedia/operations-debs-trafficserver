@@ -276,8 +276,8 @@ public:
   inkcoreapi virtual int marshal_process_uuid(char *);        // STR
 
   // These two are special, in that they are shared for all log types / implementations
-  inkcoreapi int marshal_entry_type(char *);             // INT
-  inkcoreapi int marshal_cache_lookup_url_canon(char *); // STR
+  inkcoreapi int marshal_entry_type(char *);                     // INT
+  inkcoreapi virtual int marshal_cache_lookup_url_canon(char *); // STR
 
   // named fields from within a http header
   //
@@ -341,7 +341,7 @@ public:
   // so that there are no alignment problems with the int values.
   //
   static int round_strlen(int len);
-  static int strlen(char const *str);
+  static int strlen(const char *str);
 
 public:
   inkcoreapi static void marshal_int(char *dest, int64_t source);
@@ -371,7 +371,7 @@ LogAccess::round_strlen(int len)
   -------------------------------------------------------------------------*/
 
 inline int
-LogAccess::strlen(char const *str)
+LogAccess::strlen(const char *str)
 {
   if (str == NULL || str[0] == 0) {
     return round_strlen(sizeof(DEFAULT_STR));

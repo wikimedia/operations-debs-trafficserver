@@ -49,10 +49,8 @@ struct OCSPContinuation : public Continuation {
 #endif /* HAVE_OPENSSL_OCSP_STAPLING */
 
 void
-SSLNetProcessor::cleanup(void)
+SSLNetProcessor::cleanup()
 {
-  SSLReleaseContext(client_ctx);
-  client_ctx = NULL;
 }
 
 int
@@ -65,16 +63,10 @@ SSLNetProcessor::start(int, size_t stacksize)
   if (!SSLCertificateConfig::startup())
     return -1;
 
-  // Acquire a SSLConfigParams instance *after* we start SSL up.
-  SSLConfig::scoped_config params;
+  SSLTicketKeyConfig::startup();
 
-  // Enable client regardless of config file settings as remap file
-  // can cause HTTP layer to connect using SSL. But only if SSL
-  // initialization hasn't failed already.
-  client_ctx = SSLInitClientContext(params);
-  if (!client_ctx) {
-    SSLError("Can't initialize the SSL client, HTTPS in remap rules will not function");
-  }
+  // Acquire a SSLConfigParams instance *after* we start SSL up.
+  // SSLConfig::scoped_config params;
 
   // Initialize SSL statistics. This depends on an initial set of certificates being loaded above.
   SSLInitializeStatistics();
@@ -92,9 +84,9 @@ SSLNetProcessor::start(int, size_t stacksize)
 }
 
 NetAccept *
-SSLNetProcessor::createNetAccept()
+SSLNetProcessor::createNetAccept(const NetProcessor::AcceptOptions &opt)
 {
-  return (NetAccept *)new SSLNetAccept;
+  return (NetAccept *)new SSLNetAccept(opt);
 }
 
 NetVConnection *
@@ -113,7 +105,7 @@ SSLNetProcessor::allocate_vc(EThread *t)
   return vc;
 }
 
-SSLNetProcessor::SSLNetProcessor() : client_ctx(NULL)
+SSLNetProcessor::SSLNetProcessor()
 {
 }
 

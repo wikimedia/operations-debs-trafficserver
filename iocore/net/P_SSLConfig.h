@@ -34,9 +34,11 @@
 #include "ProxyConfig.h"
 #include "SSLSessionCache.h"
 #include "ts/ink_inet.h"
+#include <openssl/rand.h>
+#include "P_SSLCertLookup.h"
 
 struct SSLCertLookup;
-
+struct ssl_ticket_key_block;
 /////////////////////////////////////////////////////////////
 //
 // struct SSLConfigParams
@@ -67,6 +69,7 @@ struct SSLConfigParams : public ConfigInfo {
   char *dhparamsFile;
   char *cipherSuite;
   char *client_cipherSuite;
+  char *ticket_key_filename;
   int configExitOnLoadError;
   int clientCertLevel;
   int verify_depth;
@@ -109,8 +112,22 @@ struct SSLConfigParams : public ConfigInfo {
   static init_ssl_ctx_func init_ssl_ctx_cb;
   static load_ssl_file_func load_ssl_file_cb;
 
+  SSL_CTX *client_ctx;
+
+  mutable HashMap<cchar *, class StringHashFns, SSL_CTX *> ctx_map;
+  mutable ink_mutex ctxMapLock;
+
+  SSL_CTX *getCTX(cchar *client_cert) const;
+  void deleteKey(cchar *key) const;
+  void freeCTXmap() const;
+  void printCTXmap();
+  bool InsertCTX(cchar *client_cert, SSL_CTX *cctx) const;
+  SSL_CTX *getClientSSL_CTX(void) const;
+  SSL_CTX *getNewCTX(char *client_cert) const;
+
   void initialize();
   void cleanup();
+  void reset();
 };
 
 /////////////////////////////////////////////////////////////
@@ -124,7 +141,6 @@ struct SSLConfig {
   static void reconfigure();
   static SSLConfigParams *acquire();
   static void release(SSLConfigParams *params);
-
   typedef ConfigProcessor::scoped_config<SSLConfig, SSLConfigParams> scoped_config;
 
 private:
@@ -138,6 +154,37 @@ struct SSLCertificateConfig {
   static void release(SSLCertLookup *params);
 
   typedef ConfigProcessor::scoped_config<SSLCertificateConfig, SSLCertLookup> scoped_config;
+
+private:
+  static int configid;
+};
+
+struct SSLTicketParams : public ConfigInfo {
+  ssl_ticket_key_block *default_global_keyblock;
+  char *ticket_key_filename;
+  void LoadTicket();
+  void cleanup();
+
+  ~SSLTicketParams() { cleanup(); }
+};
+
+struct SSLTicketKeyConfig {
+  static void startup();
+  static bool reconfigure();
+
+  static SSLTicketParams *
+  acquire()
+  {
+    return static_cast<SSLTicketParams *>(configProcessor.get(configid));
+  }
+
+  static void
+  release(SSLTicketParams *params)
+  {
+    configProcessor.release(configid, params);
+  }
+
+  typedef ConfigProcessor::scoped_config<SSLTicketKeyConfig, SSLTicketParams> scoped_config;
 
 private:
   static int configid;

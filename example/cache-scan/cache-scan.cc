@@ -25,10 +25,10 @@
  * cache_scan.cc:  use TSCacheScan to print URLs and headers for objects in
  *                 the cache when endpoint /show-cache is requested
  */
-#include <stdio.h>
-#include <string.h>
-#include <limits.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <climits>
+#include <cstdlib>
 
 #include "ts/ts.h"
 #include "ts/experimental.h"
@@ -57,7 +57,7 @@ struct cache_scan_state_t {
   bool write_pending;
 };
 
-typedef struct cache_scan_state_t cache_scan_state;
+using cache_scan_state = struct cache_scan_state_t;
 
 //----------------------------------------------------------------------------
 static int
@@ -147,7 +147,7 @@ handle_scan(TSCont contp, TSEvent event, void *edata)
 
     cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, s2, sizeof(s2) - 1);
     if (!cstate->write_pending) {
-      cstate->write_pending = 1;
+      cstate->write_pending = true;
       TSVIOReenable(cstate->write_vio);
     }
 
@@ -166,7 +166,7 @@ handle_scan(TSCont contp, TSEvent event, void *edata)
     cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, s, s_len);
     TSVIONBytesSet(cstate->write_vio, cstate->total_bytes);
     if (!cstate->write_pending) {
-      cstate->write_pending = 1;
+      cstate->write_pending = true;
       TSVIOReenable(cstate->write_vio);
     }
     return TS_CACHE_SCAN_RESULT_DONE;
@@ -227,19 +227,19 @@ cleanup(TSCont contp)
 
     if (cstate->req_buffer) {
       TSIOBufferDestroy(cstate->req_buffer);
-      cstate->req_buffer = NULL;
+      cstate->req_buffer = nullptr;
     }
 
     if (cstate->key_to_delete) {
       if (TSCacheKeyDestroy(cstate->key_to_delete) == TS_ERROR) {
         TSError("[cache-scan] Failed to destroy cache key");
       }
-      cstate->key_to_delete = NULL;
+      cstate->key_to_delete = nullptr;
     }
 
     if (cstate->resp_buffer) {
       TSIOBufferDestroy(cstate->resp_buffer);
-      cstate->resp_buffer = NULL;
+      cstate->resp_buffer = nullptr;
     }
 
     TSVConnClose(cstate->net_vc);
@@ -272,7 +272,7 @@ handle_io(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
       char head[] = "<h3>Cache Contents:</h3>\n<p><pre>\n";
       cstate->total_bytes += TSIOBufferWrite(cstate->resp_buffer, head, sizeof(head) - 1);
       // start scan
-      TSAction actionp = TSCacheScan(contp, 0, 512000);
+      TSAction actionp = TSCacheScan(contp, nullptr, 512000);
       if (!TSActionDone(actionp)) {
         cstate->pending_action = actionp;
       }
@@ -282,7 +282,7 @@ handle_io(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
   }
   case TS_EVENT_VCONN_WRITE_READY: {
     TSDebug("cache_iter", "ndone: %" PRId64 " total_bytes: % " PRId64, TSVIONDoneGet(cstate->write_vio), cstate->total_bytes);
-    cstate->write_pending = 0;
+    cstate->write_pending = false;
     // the cache scan handler should call vio reenable when there is
     // available data
     // TSVIOReenable(cstate->write_vio);
@@ -352,7 +352,7 @@ unescapifyStr(char *buffer)
     if (*read == '%' && *(read + 1) != '\0' && *(read + 2) != '\0') {
       subStr[0] = *(++read);
       subStr[1] = *(++read);
-      *write    = (char)strtol(subStr, (char **)NULL, 16);
+      *write    = (char)strtol(subStr, (char **)nullptr, 16);
       read++;
       write++;
     } else if (*read == '+') {
@@ -425,7 +425,7 @@ setup_request(TSCont contp, TSHttpTxn txnp)
       start = strstr(querybuf, "remove_url=");
       if (start && (start == querybuf || *(start - 1) == '&')) {
         start += 11;
-        if ((end = strstr(start, "&")) != NULL) {
+        if ((end = strstr(start, "&")) != nullptr) {
           *end = '\0';
         }
         del_url_len = unescapifyStr(start);
@@ -443,10 +443,10 @@ setup_request(TSCont contp, TSHttpTxn txnp)
           TSError("[cache-scan] CacheKeyDigestFromUrlSet failed");
           TSCacheKeyDestroy(cstate->key_to_delete);
           TSfree(cstate);
-          TSHandleMLocRelease(urlBuf, NULL, urlLoc);
+          TSHandleMLocRelease(urlBuf, nullptr, urlLoc);
           goto Ldone;
         }
-        TSHandleMLocRelease(urlBuf, NULL, urlLoc);
+        TSHandleMLocRelease(urlBuf, nullptr, urlLoc);
       }
     }
 

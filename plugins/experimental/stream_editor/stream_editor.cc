@@ -88,21 +88,21 @@
 #define MAX_RX_MATCH 10
 #define WHITESPACE " \t\r\n"
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <vector>
 #include <set>
 #include <regex.h>
-#include <ctype.h>
-#include <assert.h>
-#include <string.h>
+#include <cctype>
+#include <cassert>
+#include <cstring>
 #include <string>
-#include <stdio.h>
+#include <cstdio>
 #include "ts/ts.h"
 
 struct edit_t;
-typedef std::set<edit_t> editset_t;
-typedef editset_t::const_iterator edit_p;
+using editset_t = std::set<edit_t>;
+using edit_p    = editset_t::const_iterator;
 
 struct edit_t {
   const size_t start;
@@ -207,11 +207,11 @@ class rxscope : public scope_t
 {
 private:
   regex_t rx;
-  virtual bool
+  bool
 
-  match(const char *str) const
+  match(const char *str) const override
   {
-    return (regexec(&rx, str, 0, NULL, 0) == 0) ? true : false;
+    return (regexec(&rx, str, 0, nullptr, 0) == 0) ? true : false;
   }
 
 public:
@@ -228,7 +228,7 @@ public:
     TSfree(str);
   }
 
-  virtual ~rxscope() { regfree(&rx); }
+  ~rxscope() override { regfree(&rx); }
 };
 
 class strscope : public scope_t
@@ -236,16 +236,16 @@ class strscope : public scope_t
 private:
   const bool icase;
   char *str;
-  virtual bool
+  bool
 
-  match(const char *p) const
+  match(const char *p) const override
   {
     return ((icase ? strncasecmp : strncmp)(str, p, strlen(str)) == 0) ? true : false;
   }
 
 public:
   strscope(const bool u, const bool i, const char *pattern, int len) : scope_t(u), icase(i) { str = TSstrndup(pattern, len); }
-  virtual ~strscope()
+  ~strscope() override
   {
     if (str) {
       TSfree(str);
@@ -268,8 +268,8 @@ class strmatch : public match_t
   const size_t slen;
 
 public:
-  virtual bool
-  find(const char *buf, size_t len, size_t &found, size_t &found_len, const char *to, std::string &repl) const
+  bool
+  find(const char *buf, size_t len, size_t &found, size_t &found_len, const char *to, std::string &repl) const override
   {
     const char *match = icase ? strcasestr(buf, str) : strstr(buf, str);
     if (match) {
@@ -283,15 +283,15 @@ public:
   }
 
   strmatch(const bool i, const char *pattern, int len) : icase(i), slen(len) { str = TSstrndup(pattern, len); }
-  virtual ~strmatch()
+  ~strmatch() override
   {
     if (str) {
       TSfree(str);
     }
   }
 
-  virtual size_t
-  cont_size() const
+  size_t
+  cont_size() const override
   {
     return slen;
   }
@@ -303,8 +303,8 @@ class rxmatch : public match_t
   regex_t rx;
 
 public:
-  virtual bool
-  find(const char *buf, size_t len, size_t &found, size_t &found_len, const char *tmpl, std::string &repl) const
+  bool
+  find(const char *buf, size_t len, size_t &found, size_t &found_len, const char *tmpl, std::string &repl) const override
   {
     regmatch_t pmatch[MAX_RX_MATCH];
     if (regexec(&rx, buf, MAX_RX_MATCH, pmatch, REG_NOTEOL) == 0) {
@@ -343,8 +343,8 @@ public:
     }
   }
 
-  virtual size_t
-  cont_size() const
+  size_t
+  cont_size() const override
   {
     return match_len;
   }
@@ -362,7 +362,7 @@ public:
     TSfree(str);
   }
 
-  virtual ~rxmatch() { regfree(&rx); }
+  ~rxmatch() override { regfree(&rx); }
 };
 
 #define PARSE_VERIFY(line, x, str) \
@@ -382,7 +382,7 @@ private:
   int *refcount;
 
 public:
-  rule_t(const char *line) : scope(NULL), priority(5), from(NULL), to(NULL), refcount(NULL)
+  rule_t(const char *line) : scope(nullptr), priority(5), from(nullptr), to(nullptr), refcount(nullptr)
   {
     const char *scope_spec = strcasestr(line, "scope:");
     const char *from_spec  = strcasestr(line, "from:");
@@ -547,8 +547,8 @@ public:
     }
   }
 };
-typedef std::vector<rule_t> ruleset_t;
-typedef ruleset_t::const_iterator rule_p;
+using ruleset_t = std::vector<rule_t>;
+using rule_p    = ruleset_t::const_iterator;
 
 typedef struct contdata_t {
   TSCont cont;
@@ -561,7 +561,7 @@ typedef struct contdata_t {
   int64_t bytes_in;
   int64_t bytes_out;
   /* Use new/delete so destructor does cleanup for us */
-  contdata_t() : cont(NULL), out_buf(NULL), out_rd(NULL), out_vio(NULL), contbuf_sz(0), bytes_in(0), bytes_out(0) {}
+  contdata_t() : cont(nullptr), out_buf(nullptr), out_rd(nullptr), out_vio(nullptr), contbuf_sz(0), bytes_in(0), bytes_out(0) {}
   ~contdata_t()
   {
     if (out_rd) {
@@ -593,7 +593,7 @@ process_block(contdata_t *contdata, TSIOBufferReader reader)
   const char *buf;
   TSIOBufferBlock block;
 
-  if (reader == NULL) { // We're just flushing anything we have buffered
+  if (reader == nullptr) { // We're just flushing anything we have buffered
     keep   = 0;
     buf    = contdata->contbuf.c_str();
     buflen = contdata->contbuf.length();
@@ -676,7 +676,7 @@ streamedit_process(TSCont contp)
   TSVIO input_vio           = TSVConnWriteVIOGet(contp);
   TSIOBufferReader input_rd = TSVIOReaderGet(input_vio);
 
-  if (contdata->out_buf == NULL) {
+  if (contdata->out_buf == nullptr) {
     contdata->out_buf = TSIOBufferCreate();
     contdata->out_rd  = TSIOBufferReaderAlloc(contdata->out_buf);
     contdata->out_vio = TSVConnWrite(TSTransformOutputVConnGet(contp), contp, contdata->out_rd, INT64_MAX);
@@ -684,8 +684,8 @@ streamedit_process(TSCont contp)
 
   TSIOBuffer in_buf = TSVIOBufferGet(input_vio);
   /* Test for EOS */
-  if (in_buf == NULL) {
-    process_block(contdata, NULL); // flush any buffered data
+  if (in_buf == nullptr) {
+    process_block(contdata, nullptr); // flush any buffered data
     TSVIONBytesSet(contdata->out_vio, contdata->bytes_out);
     TSVIOReenable(contdata->out_vio);
     return;
@@ -761,14 +761,14 @@ streamedit_setup(TSCont contp, TSEvent event, void *edata)
 {
   TSHttpTxn txn        = (TSHttpTxn)edata;
   ruleset_t *rules_in  = (ruleset_t *)TSContDataGet(contp);
-  contdata_t *contdata = NULL;
+  contdata_t *contdata = nullptr;
 
   assert((event == TS_EVENT_HTTP_READ_RESPONSE_HDR) || (event == TS_EVENT_HTTP_READ_REQUEST_HDR));
 
   /* make a new list comprising those rules that are in scope */
   for (rule_p r = rules_in->begin(); r != rules_in->end(); ++r) {
     if (r->in_scope(txn)) {
-      if (contdata == NULL) {
+      if (contdata == nullptr) {
         contdata = new contdata_t();
       }
       contdata->rules.push_back(*r);
@@ -776,7 +776,7 @@ streamedit_setup(TSCont contp, TSEvent event, void *edata)
     }
   }
 
-  if (contdata == NULL) {
+  if (contdata == nullptr) {
     /* Nothing to do */
     return TS_SUCCESS;
   }
@@ -802,19 +802,19 @@ read_conf(const char *filename, ruleset_t *&in, ruleset_t *&out)
   char buf[MAX_CONFIG_LINE];
   FILE *file = fopen(filename, "r");
 
-  if (file == NULL) {
+  if (file == nullptr) {
     TSError("[stream-editor] Failed to open %s", filename);
     return;
   }
-  while (fgets(buf, MAX_CONFIG_LINE, file) != NULL) {
+  while (fgets(buf, MAX_CONFIG_LINE, file) != nullptr) {
     try {
       if (!strncasecmp(buf, "[in]", 4)) {
-        if (in == NULL) {
+        if (in == nullptr) {
           in = new ruleset_t();
         }
         in->push_back(rule_t(buf));
       } else if (!strncasecmp(buf, "[out]", 5)) {
-        if (out == NULL) {
+        if (out == nullptr) {
           out = new ruleset_t();
         }
         out->push_back(rule_t(buf));
@@ -831,8 +831,8 @@ TSPluginInit(int argc, const char *argv[])
 {
   TSPluginRegistrationInfo info;
   TSCont inputcont, outputcont;
-  ruleset_t *rewrites_in  = NULL;
-  ruleset_t *rewrites_out = NULL;
+  ruleset_t *rewrites_in  = nullptr;
+  ruleset_t *rewrites_out = nullptr;
 
   info.plugin_name   = (char *)"stream-editor";
   info.vendor_name   = (char *)"Apache Software Foundation";
@@ -848,10 +848,10 @@ TSPluginInit(int argc, const char *argv[])
     read_conf(*++argv, rewrites_in, rewrites_out);
   }
 
-  if (rewrites_in != NULL) {
+  if (rewrites_in != nullptr) {
     TSDebug("[stream-editor]", "initialising input filtering");
-    inputcont = TSContCreate(streamedit_setup, NULL);
-    if (inputcont == NULL) {
+    inputcont = TSContCreate(streamedit_setup, nullptr);
+    if (inputcont == nullptr) {
       TSError("[stream-editor] failed to initialise input filtering!");
     } else {
       TSContDataSet(inputcont, rewrites_in);
@@ -861,10 +861,10 @@ TSPluginInit(int argc, const char *argv[])
     TSDebug("[stream-editor]", "no input filter rules, skipping filter");
   }
 
-  if (rewrites_out != NULL) {
+  if (rewrites_out != nullptr) {
     TSDebug("[stream-editor]", "initialising output filtering");
-    outputcont = TSContCreate(streamedit_setup, NULL);
-    if (outputcont == NULL) {
+    outputcont = TSContCreate(streamedit_setup, nullptr);
+    if (outputcont == nullptr) {
       TSError("[stream-editor] failed to initialise output filtering!");
     } else {
       TSContDataSet(outputcont, rewrites_out);

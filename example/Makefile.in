@@ -239,6 +239,176 @@ cache_scan_la_OBJECTS = $(am_cache_scan_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_cache_scan_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_cache_scan_la_rpath = -rpath \
 @BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_AsyncHttpFetch_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_AsyncHttpFetch_la_OBJECTS =  \
+	cppapi/async_http_fetch/AsyncHttpFetch.lo
+cppapi_AsyncHttpFetch_la_OBJECTS =  \
+	$(am_cppapi_AsyncHttpFetch_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_AsyncHttpFetch_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_AsyncHttpFetch_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_AsyncHttpFetchStreaming_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_AsyncHttpFetchStreaming_la_OBJECTS =  \
+	cppapi/async_http_fetch_streaming/AsyncHttpFetchStreaming.lo
+cppapi_AsyncHttpFetchStreaming_la_OBJECTS =  \
+	$(am_cppapi_AsyncHttpFetchStreaming_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_AsyncHttpFetchStreaming_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_AsyncHttpFetchStreaming_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_AsyncTimer_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_AsyncTimer_la_OBJECTS = cppapi/async_timer/AsyncTimer.lo
+cppapi_AsyncTimer_la_OBJECTS = $(am_cppapi_AsyncTimer_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_AsyncTimer_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_AsyncTimer_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_ClientRedirect_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_ClientRedirect_la_OBJECTS =  \
+	cppapi/clientredirect/ClientRedirect.lo
+cppapi_ClientRedirect_la_OBJECTS =  \
+	$(am_cppapi_ClientRedirect_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_ClientRedirect_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_ClientRedirect_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_ClientRequest_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_ClientRequest_la_OBJECTS =  \
+	cppapi/clientrequest/ClientRequest.lo
+cppapi_ClientRequest_la_OBJECTS =  \
+	$(am_cppapi_ClientRequest_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_ClientRequest_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_ClientRequest_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_CustomErrorRemapPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_CustomErrorRemapPlugin_la_OBJECTS =  \
+	cppapi/custom_error_remap_plugin/CustomErrorRemapPlugin.lo
+cppapi_CustomErrorRemapPlugin_la_OBJECTS =  \
+	$(am_cppapi_CustomErrorRemapPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_CustomErrorRemapPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_CustomErrorRemapPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_CustomResponse_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_CustomResponse_la_OBJECTS =  \
+	cppapi/customresponse/CustomResponse.lo
+cppapi_CustomResponse_la_OBJECTS =  \
+	$(am_cppapi_CustomResponse_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_CustomResponse_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_CustomResponse_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_GlobalHookPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_GlobalHookPlugin_la_OBJECTS =  \
+	cppapi/globalhook/GlobalHookPlugin.lo
+cppapi_GlobalHookPlugin_la_OBJECTS =  \
+	$(am_cppapi_GlobalHookPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_GlobalHookPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_GlobalHookPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_GzipTransformationPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_GzipTransformationPlugin_la_OBJECTS =  \
+	cppapi/gzip_transformation/GzipTransformationPlugin.lo
+cppapi_GzipTransformationPlugin_la_OBJECTS =  \
+	$(am_cppapi_GzipTransformationPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_GzipTransformationPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_GzipTransformationPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_HelloWorldPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_HelloWorldPlugin_la_OBJECTS =  \
+	cppapi/helloworld/HelloWorldPlugin.lo
+cppapi_HelloWorldPlugin_la_OBJECTS =  \
+	$(am_cppapi_HelloWorldPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_HelloWorldPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_HelloWorldPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_InternalTransactionHandling_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_InternalTransactionHandling_la_OBJECTS = cppapi/internal_transaction_handling/InternalTransactionHandling.lo
+cppapi_InternalTransactionHandling_la_OBJECTS =  \
+	$(am_cppapi_InternalTransactionHandling_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_InternalTransactionHandling_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_InternalTransactionHandling_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_LoggerExample_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_LoggerExample_la_OBJECTS =  \
+	cppapi/logger_example/LoggerExample.lo
+cppapi_LoggerExample_la_OBJECTS =  \
+	$(am_cppapi_LoggerExample_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_LoggerExample_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_LoggerExample_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_MultipleTransactionHookPlugins_la_DEPENDENCIES =  \
+	$(libatscppai)
+am_cppapi_MultipleTransactionHookPlugins_la_OBJECTS = cppapi/multiple_transaction_hooks/MultipleTransactionHookPlugins.lo
+cppapi_MultipleTransactionHookPlugins_la_OBJECTS =  \
+	$(am_cppapi_MultipleTransactionHookPlugins_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_MultipleTransactionHookPlugins_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_MultipleTransactionHookPlugins_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_NullTransformationPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_NullTransformationPlugin_la_OBJECTS =  \
+	cppapi/null_transformation_plugin/NullTransformationPlugin.lo
+cppapi_NullTransformationPlugin_la_OBJECTS =  \
+	$(am_cppapi_NullTransformationPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_NullTransformationPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_NullTransformationPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_PostBuffer_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_PostBuffer_la_OBJECTS = cppapi/post_buffer/PostBuffer.lo
+cppapi_PostBuffer_la_OBJECTS = $(am_cppapi_PostBuffer_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_PostBuffer_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_PostBuffer_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_RemapPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_RemapPlugin_la_OBJECTS = cppapi/remap_plugin/RemapPlugin.lo
+cppapi_RemapPlugin_la_OBJECTS = $(am_cppapi_RemapPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_RemapPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_RemapPlugin_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_ServerResponse_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_ServerResponse_la_OBJECTS =  \
+	cppapi/serverresponse/ServerResponse.lo
+cppapi_ServerResponse_la_OBJECTS =  \
+	$(am_cppapi_ServerResponse_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_ServerResponse_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_ServerResponse_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_StatExample_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_StatExample_la_OBJECTS = cppapi/stat_example/StatExample.lo
+cppapi_StatExample_la_OBJECTS = $(am_cppapi_StatExample_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_StatExample_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_StatExample_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_TimeoutExamplePlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_TimeoutExamplePlugin_la_OBJECTS =  \
+	cppapi/timeout_example/TimeoutExamplePlugin.lo
+cppapi_TimeoutExamplePlugin_la_OBJECTS =  \
+	$(am_cppapi_TimeoutExamplePlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_TimeoutExamplePlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_TimeoutExamplePlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_TransactionHookPlugin_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_TransactionHookPlugin_la_OBJECTS =  \
+	cppapi/transactionhook/TransactionHookPlugin.lo
+cppapi_TransactionHookPlugin_la_OBJECTS =  \
+	$(am_cppapi_TransactionHookPlugin_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_TransactionHookPlugin_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_TransactionHookPlugin_la_rpath =  \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	-rpath $(pkglibdir)
+cppapi_WebSocket_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_WebSocket_la_OBJECTS = cppapi/websocket/WebSocket.lo \
+	cppapi/websocket/WSBuffer.lo
+cppapi_WebSocket_la_OBJECTS = $(am_cppapi_WebSocket_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_WebSocket_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_WebSocket_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_boom_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_boom_la_OBJECTS = cppapi/boom/boom.lo
+cppapi_boom_la_OBJECTS = $(am_cppapi_boom_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_boom_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_boom_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+cppapi_intercept_la_DEPENDENCIES = $(libatscppai)
+am_cppapi_intercept_la_OBJECTS = cppapi/intercept/intercept.lo
+cppapi_intercept_la_OBJECTS = $(am_cppapi_intercept_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_cppapi_intercept_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_cppapi_intercept_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 file_1_la_LIBADD =
 am_file_1_la_OBJECTS = file-1/file-1.lo
 file_1_la_OBJECTS = $(am_file_1_la_OBJECTS)
@@ -273,6 +443,11 @@ output_header_la_OBJECTS = $(am_output_header_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_output_header_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_output_header_la_rpath = -rpath \
 @BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+passthru_la_LIBADD =
+am_passthru_la_OBJECTS = passthru/passthru.lo
+passthru_la_OBJECTS = $(am_passthru_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_passthru_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_passthru_la_rpath = -rpath $(pkglibdir)
 protocol_stack_la_LIBADD =
 am_protocol_stack_la_OBJECTS = protocol-stack/protocol-stack.lo
 protocol_stack_la_OBJECTS = $(am_protocol_stack_la_OBJECTS)
@@ -311,6 +486,12 @@ am_replace_header_la_OBJECTS = replace-header/replace-header.lo
 replace_header_la_OBJECTS = $(am_replace_header_la_OBJECTS)
 @BUILD_EXAMPLE_PLUGINS_FALSE@am_replace_header_la_rpath =
 @BUILD_EXAMPLE_PLUGINS_TRUE@am_replace_header_la_rpath = -rpath \
+@BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
+replace_protoset_la_LIBADD =
+am_replace_protoset_la_OBJECTS = replace-protoset/replace-protoset.lo
+replace_protoset_la_OBJECTS = $(am_replace_protoset_la_OBJECTS)
+@BUILD_EXAMPLE_PLUGINS_FALSE@am_replace_protoset_la_rpath =
+@BUILD_EXAMPLE_PLUGINS_TRUE@am_replace_protoset_la_rpath = -rpath \
 @BUILD_EXAMPLE_PLUGINS_TRUE@	$(pkglibdir)
 response_header_1_la_LIBADD =
 am_response_header_1_la_OBJECTS =  \
@@ -432,13 +613,35 @@ am__v_CXXLD_1 =
 SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(basic_auth_la_SOURCES) $(blacklist_0_la_SOURCES) \
 	$(blacklist_1_la_SOURCES) $(bnull_transform_la_SOURCES) \
-	$(cache_scan_la_SOURCES) $(file_1_la_SOURCES) \
+	$(cache_scan_la_SOURCES) $(cppapi_AsyncHttpFetch_la_SOURCES) \
+	$(cppapi_AsyncHttpFetchStreaming_la_SOURCES) \
+	$(cppapi_AsyncTimer_la_SOURCES) \
+	$(cppapi_ClientRedirect_la_SOURCES) \
+	$(cppapi_ClientRequest_la_SOURCES) \
+	$(cppapi_CustomErrorRemapPlugin_la_SOURCES) \
+	$(cppapi_CustomResponse_la_SOURCES) \
+	$(cppapi_GlobalHookPlugin_la_SOURCES) \
+	$(cppapi_GzipTransformationPlugin_la_SOURCES) \
+	$(cppapi_HelloWorldPlugin_la_SOURCES) \
+	$(cppapi_InternalTransactionHandling_la_SOURCES) \
+	$(cppapi_LoggerExample_la_SOURCES) \
+	$(cppapi_MultipleTransactionHookPlugins_la_SOURCES) \
+	$(cppapi_NullTransformationPlugin_la_SOURCES) \
+	$(cppapi_PostBuffer_la_SOURCES) \
+	$(cppapi_RemapPlugin_la_SOURCES) \
+	$(cppapi_ServerResponse_la_SOURCES) \
+	$(cppapi_StatExample_la_SOURCES) \
+	$(cppapi_TimeoutExamplePlugin_la_SOURCES) \
+	$(cppapi_TransactionHookPlugin_la_SOURCES) \
+	$(cppapi_WebSocket_la_SOURCES) $(cppapi_boom_la_SOURCES) \
+	$(cppapi_intercept_la_SOURCES) $(file_1_la_SOURCES) \
 	$(hello_la_SOURCES) $(intercept_la_SOURCES) \
 	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
-	$(output_header_la_SOURCES) $(protocol_stack_la_SOURCES) \
-	$(protocol_la_SOURCES) $(psi_la_SOURCES) \
-	$(query_remap_la_SOURCES) $(remap_la_SOURCES) \
-	$(remap_header_add_la_SOURCES) $(replace_header_la_SOURCES) \
+	$(output_header_la_SOURCES) $(passthru_la_SOURCES) \
+	$(protocol_stack_la_SOURCES) $(protocol_la_SOURCES) \
+	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
+	$(remap_la_SOURCES) $(remap_header_add_la_SOURCES) \
+	$(replace_header_la_SOURCES) $(replace_protoset_la_SOURCES) \
 	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
 	$(server_push_la_SOURCES) $(server_transform_la_SOURCES) \
 	$(ssl_preaccept_la_SOURCES) $(ssl_sni_whitelist_la_SOURCES) \
@@ -448,13 +651,35 @@ SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 DIST_SOURCES = $(add_header_la_SOURCES) $(append_transform_la_SOURCES) \
 	$(basic_auth_la_SOURCES) $(blacklist_0_la_SOURCES) \
 	$(blacklist_1_la_SOURCES) $(bnull_transform_la_SOURCES) \
-	$(cache_scan_la_SOURCES) $(file_1_la_SOURCES) \
+	$(cache_scan_la_SOURCES) $(cppapi_AsyncHttpFetch_la_SOURCES) \
+	$(cppapi_AsyncHttpFetchStreaming_la_SOURCES) \
+	$(cppapi_AsyncTimer_la_SOURCES) \
+	$(cppapi_ClientRedirect_la_SOURCES) \
+	$(cppapi_ClientRequest_la_SOURCES) \
+	$(cppapi_CustomErrorRemapPlugin_la_SOURCES) \
+	$(cppapi_CustomResponse_la_SOURCES) \
+	$(cppapi_GlobalHookPlugin_la_SOURCES) \
+	$(cppapi_GzipTransformationPlugin_la_SOURCES) \
+	$(cppapi_HelloWorldPlugin_la_SOURCES) \
+	$(cppapi_InternalTransactionHandling_la_SOURCES) \
+	$(cppapi_LoggerExample_la_SOURCES) \
+	$(cppapi_MultipleTransactionHookPlugins_la_SOURCES) \
+	$(cppapi_NullTransformationPlugin_la_SOURCES) \
+	$(cppapi_PostBuffer_la_SOURCES) \
+	$(cppapi_RemapPlugin_la_SOURCES) \
+	$(cppapi_ServerResponse_la_SOURCES) \
+	$(cppapi_StatExample_la_SOURCES) \
+	$(cppapi_TimeoutExamplePlugin_la_SOURCES) \
+	$(cppapi_TransactionHookPlugin_la_SOURCES) \
+	$(cppapi_WebSocket_la_SOURCES) $(cppapi_boom_la_SOURCES) \
+	$(cppapi_intercept_la_SOURCES) $(file_1_la_SOURCES) \
 	$(hello_la_SOURCES) $(intercept_la_SOURCES) \
 	$(lifecycle_plugin_la_SOURCES) $(null_transform_la_SOURCES) \
-	$(output_header_la_SOURCES) $(protocol_stack_la_SOURCES) \
-	$(protocol_la_SOURCES) $(psi_la_SOURCES) \
-	$(query_remap_la_SOURCES) $(remap_la_SOURCES) \
-	$(remap_header_add_la_SOURCES) $(replace_header_la_SOURCES) \
+	$(output_header_la_SOURCES) $(passthru_la_SOURCES) \
+	$(protocol_stack_la_SOURCES) $(protocol_la_SOURCES) \
+	$(psi_la_SOURCES) $(query_remap_la_SOURCES) \
+	$(remap_la_SOURCES) $(remap_header_add_la_SOURCES) \
+	$(replace_header_la_SOURCES) $(replace_protoset_la_SOURCES) \
 	$(response_header_1_la_SOURCES) $(secure_link_la_SOURCES) \
 	$(server_push_la_SOURCES) $(server_transform_la_SOURCES) \
 	$(ssl_preaccept_la_SOURCES) $(ssl_sni_whitelist_la_SOURCES) \
@@ -496,7 +721,7 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
-AM_CXXFLAGS = @AM_CXXFLAGS@
+AM_CXXFLAGS = @AM_CXXFLAGS@ -Wno-unused-variable
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 ASCPP = @ASCPP@
@@ -573,6 +798,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -711,6 +937,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -844,18 +1071,21 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-TS_PLUGIN_LDFLAGS = \
+
+# Default plugin LDFLAGS. We don't use TS_PLUGIN_LDFLAGS because
+# that is an automake canonical variable name.
+TS_PLUGIN_LD_FLAGS = \
   -module \
   -shared \
   -avoid-version \
   -export-symbols-regex '^(TSRemapInit|TSRemapDone|TSRemapDoRemap|TSRemapNewInstance|TSRemapDeleteInstance|TSRemapOSResponse|TSPluginInit)$$'
 
 TS_PLUGIN_CPPFLAGS = \
-  -I$(top_builddir)/proxy/api \
-  -I$(top_srcdir)/proxy/api \
-  -I$(top_srcdir)/lib/atscppapi/src/include \
-  -I$(top_builddir)/lib/atscppapi/src/include \
-  -I$(top_srcdir)/lib
+  -I$(abs_top_builddir)/proxy/api \
+  -I$(abs_top_srcdir)/proxy/api \
+  -I$(abs_top_srcdir)/lib/cppapi/include \
+  -I$(abs_top_builddir)/lib/cppapi/include \
+  -I$(abs_top_srcdir)/lib
 
 
 # Provide a default AM_CPPFLAGS. Automake handles this correctly, but libtool
@@ -863,73 +1093,6 @@ TS_PLUGIN_CPPFLAGS = \
 # TS_PLUGIN variables that can be used to construct the necessary automake
 # syntax.
 AM_CPPFLAGS = $(TS_PLUGIN_CPPFLAGS)
-AM_LDFLAGS = $(TS_PLUGIN_LDFLAGS)
-plugins = \
-  add-header.la \
-  append-transform.la \
-  basic-auth.la \
-  blacklist-0.la \
-  blacklist-1.la \
-  bnull-transform.la \
-  cache-scan.la \
-  file-1.la \
-  hello.la \
-  intercept.la \
-  lifecycle-plugin.la \
-  null-transform.la \
-  output-header.la \
-  protocol-stack.la \
-  protocol.la \
-  psi.la \
-  query-remap.la \
-  remap.la \
-  remap_header_add.la \
-  replace-header.la \
-  response-header-1.la \
-  secure-link.la \
-  server-transform.la \
-  ssl-preaccept.la \
-  ssl-sni-whitelist.la \
-  ssl-sni.la \
-  statistic.la \
-  thread-1.la \
-  txn-data-sink.la \
-  server-push.la \
-  version.la
-
-@BUILD_EXAMPLE_PLUGINS_TRUE@pkglib_LTLIBRARIES = $(plugins)
-@BUILD_EXAMPLE_PLUGINS_FALSE@noinst_LTLIBRARIES = $(plugins)
-add_header_la_SOURCES = add-header/add-header.c
-append_transform_la_SOURCES = append-transform/append-transform.c
-basic_auth_la_SOURCES = basic-auth/basic-auth.c
-blacklist_0_la_SOURCES = blacklist-0/blacklist-0.c
-blacklist_1_la_SOURCES = blacklist-1/blacklist-1.c
-bnull_transform_la_SOURCES = bnull-transform/bnull-transform.c
-cache_scan_la_SOURCES = cache-scan/cache-scan.cc
-file_1_la_SOURCES = file-1/file-1.c
-hello_la_SOURCES = hello/hello.c
-intercept_la_SOURCES = intercept/intercept.cc
-lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
-null_transform_la_SOURCES = null-transform/null-transform.c
-output_header_la_SOURCES = output-header/output-header.c
-protocol_la_SOURCES = protocol/Protocol.c protocol/TxnSM.c
-protocol_stack_la_SOURCES = protocol-stack/protocol-stack.cc
-psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
-query_remap_la_SOURCES = query-remap/query-remap.c
-remap_header_add_la_SOURCES = remap_header_add/remap_header_add.cc
-remap_la_SOURCES = remap/remap.cc
-replace_header_la_SOURCES = replace-header/replace-header.c
-response_header_1_la_SOURCES = response-header-1/response-header-1.c
-secure_link_la_SOURCES = secure-link/secure-link.c
-server_transform_la_SOURCES = server-transform/server-transform.c
-ssl_preaccept_la_SOURCES = ssl-preaccept/ssl-preaccept.cc
-ssl_sni_la_SOURCES = ssl-sni/ssl-sni.cc
-ssl_sni_whitelist_la_SOURCES = ssl-sni-whitelist/ssl-sni-whitelist.cc
-statistic_la_SOURCES = statistic/statistic.cc
-thread_1_la_SOURCES = thread-1/thread-1.c
-txn_data_sink_la_SOURCES = txn-data-sink/txn-data-sink.c
-version_la_SOURCES = version/version.c
-server_push_la_SOURCES = server-push/server-push.c
 Clang_Tidy_Options = -fix -fix-errors
 
 # Sort the filenames to remove duplicates, then filter to retain
@@ -946,6 +1109,115 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
 #All this clearly requires GNU make.
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
+AM_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
+libatscppai = $(top_builddir)/lib/cppapi/libatscppapi.la
+example_Plugins = add-header.la append-transform.la basic-auth.la \
+	blacklist-0.la blacklist-1.la bnull-transform.la cache-scan.la \
+	file-1.la hello.la intercept.la lifecycle-plugin.la \
+	null-transform.la output-header.la passthru.la \
+	protocol-stack.la protocol.la psi.la query-remap.la remap.la \
+	remap_header_add.la replace-header.la response-header-1.la \
+	secure-link.la server-push.la server-transform.la \
+	ssl-preaccept.la ssl-sni-whitelist.la ssl-sni.la statistic.la \
+	thread-1.la txn-data-sink.la version.la replace-protoset.la \
+	cppapi/AsyncHttpFetch.la cppapi/AsyncHttpFetchStreaming.la \
+	cppapi/AsyncTimer.la cppapi/ClientRedirect.la \
+	cppapi/ClientRequest.la cppapi/CustomErrorRemapPlugin.la \
+	cppapi/CustomResponse.la cppapi/GlobalHookPlugin.la \
+	cppapi/GzipTransformationPlugin.la cppapi/HelloWorldPlugin.la \
+	cppapi/InternalTransactionHandling.la cppapi/LoggerExample.la \
+	cppapi/MultipleTransactionHookPlugins.la \
+	cppapi/NullTransformationPlugin.la cppapi/PostBuffer.la \
+	cppapi/RemapPlugin.la cppapi/ServerResponse.la \
+	cppapi/StatExample.la cppapi/TimeoutExamplePlugin.la \
+	cppapi/TransactionHookPlugin.la cppapi/WebSocket.la \
+	cppapi/boom.la cppapi/intercept.la
+@BUILD_EXAMPLE_PLUGINS_TRUE@pkglib_LTLIBRARIES = $(example_Plugins)
+@BUILD_EXAMPLE_PLUGINS_FALSE@noinst_LTLIBRARIES = $(example_Plugins)
+add_header_la_SOURCES = add-header/add-header.c
+append_transform_la_SOURCES = append-transform/append-transform.c
+basic_auth_la_SOURCES = basic-auth/basic-auth.c
+blacklist_0_la_SOURCES = blacklist-0/blacklist-0.c
+blacklist_1_la_SOURCES = blacklist-1/blacklist-1.c
+bnull_transform_la_SOURCES = bnull-transform/bnull-transform.c
+cache_scan_la_SOURCES = cache-scan/cache-scan.cc
+file_1_la_SOURCES = file-1/file-1.c
+hello_la_SOURCES = hello/hello.c
+intercept_la_SOURCES = intercept/intercept.cc
+lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
+null_transform_la_SOURCES = null-transform/null-transform.c
+output_header_la_SOURCES = output-header/output-header.c
+passthru_la_SOURCES = passthru/passthru.cc
+protocol_la_SOURCES = protocol/Protocol.c protocol/TxnSM.c
+protocol_stack_la_SOURCES = protocol-stack/protocol-stack.cc
+psi_la_SOURCES = thread-pool/psi.c thread-pool/thread.c
+query_remap_la_SOURCES = query-remap/query-remap.c
+remap_header_add_la_SOURCES = remap_header_add/remap_header_add.cc
+remap_la_SOURCES = remap/remap.cc
+replace_header_la_SOURCES = replace-header/replace-header.c
+response_header_1_la_SOURCES = response-header-1/response-header-1.c
+secure_link_la_SOURCES = secure-link/secure-link.c
+server_push_la_SOURCES = server-push/server-push.c
+server_transform_la_SOURCES = server-transform/server-transform.c
+ssl_preaccept_la_SOURCES = ssl-preaccept/ssl-preaccept.cc
+ssl_sni_la_SOURCES = ssl-sni/ssl-sni.cc
+ssl_sni_whitelist_la_SOURCES = ssl-sni-whitelist/ssl-sni-whitelist.cc
+replace_protoset_la_SOURCES = replace-protoset/replace-protoset.cc
+statistic_la_SOURCES = statistic/statistic.cc
+thread_1_la_SOURCES = thread-1/thread-1.c
+txn_data_sink_la_SOURCES = txn-data-sink/txn-data-sink.c
+version_la_SOURCES = version/version.c
+
+# The following examples do not build:
+#
+# redirect_1_la_SOURCES = redirect-1/redirect-1.c
+# session_1_la_SOURCES = session-1/session-1.c
+cppapi_AsyncHttpFetchStreaming_la_SOURCES = cppapi/async_http_fetch_streaming/AsyncHttpFetchStreaming.cc
+cppapi_AsyncHttpFetch_la_SOURCES = cppapi/async_http_fetch/AsyncHttpFetch.cc
+cppapi_AsyncTimer_la_SOURCES = cppapi/async_timer/AsyncTimer.cc
+cppapi_ClientRedirect_la_SOURCES = cppapi/clientredirect/ClientRedirect.cc
+cppapi_ClientRequest_la_SOURCES = cppapi/clientrequest/ClientRequest.cc
+cppapi_CustomErrorRemapPlugin_la_SOURCES = cppapi/custom_error_remap_plugin/CustomErrorRemapPlugin.cc
+cppapi_CustomResponse_la_SOURCES = cppapi/customresponse/CustomResponse.cc
+cppapi_GlobalHookPlugin_la_SOURCES = cppapi/globalhook/GlobalHookPlugin.cc
+cppapi_GzipTransformationPlugin_la_SOURCES = cppapi/gzip_transformation/GzipTransformationPlugin.cc
+cppapi_HelloWorldPlugin_la_SOURCES = cppapi/helloworld/HelloWorldPlugin.cc
+cppapi_InternalTransactionHandling_la_SOURCES = cppapi/internal_transaction_handling/InternalTransactionHandling.cc
+cppapi_LoggerExample_la_SOURCES = cppapi/logger_example/LoggerExample.cc
+cppapi_MultipleTransactionHookPlugins_la_SOURCES = cppapi/multiple_transaction_hooks/MultipleTransactionHookPlugins.cc
+cppapi_NullTransformationPlugin_la_SOURCES = cppapi/null_transformation_plugin/NullTransformationPlugin.cc
+cppapi_PostBuffer_la_SOURCES = cppapi/post_buffer/PostBuffer.cc
+cppapi_RemapPlugin_la_SOURCES = cppapi/remap_plugin/RemapPlugin.cc
+cppapi_ServerResponse_la_SOURCES = cppapi/serverresponse/ServerResponse.cc
+cppapi_StatExample_la_SOURCES = cppapi/stat_example/StatExample.cc
+cppapi_TimeoutExamplePlugin_la_SOURCES = cppapi/timeout_example/TimeoutExamplePlugin.cc
+cppapi_TransactionHookPlugin_la_SOURCES = cppapi/transactionhook/TransactionHookPlugin.cc
+cppapi_WebSocket_la_SOURCES = cppapi/websocket/WebSocket.cc cppapi/websocket/WSBuffer.cc
+cppapi_boom_la_SOURCES = cppapi/boom/boom.cc
+cppapi_intercept_la_SOURCES = cppapi/intercept/intercept.cc
+cppapi_AsyncHttpFetchStreaming_la_LIBADD = $(libatscppai)
+cppapi_AsyncHttpFetch_la_LIBADD = $(libatscppai)
+cppapi_AsyncTimer_la_LIBADD = $(libatscppai)
+cppapi_ClientRedirect_la_LIBADD = $(libatscppai)
+cppapi_ClientRequest_la_LIBADD = $(libatscppai)
+cppapi_CustomErrorRemapPlugin_la_LIBADD = $(libatscppai)
+cppapi_CustomResponse_la_LIBADD = $(libatscppai)
+cppapi_GlobalHookPlugin_la_LIBADD = $(libatscppai)
+cppapi_GzipTransformationPlugin_la_LIBADD = $(libatscppai)
+cppapi_HelloWorldPlugin_la_LIBADD = $(libatscppai)
+cppapi_InternalTransactionHandling_la_LIBADD = $(libatscppai)
+cppapi_LoggerExample_la_LIBADD = $(libatscppai)
+cppapi_MultipleTransactionHookPlugins_la_LIBADD = $(libatscppai)
+cppapi_NullTransformationPlugin_la_LIBADD = $(libatscppai)
+cppapi_PostBuffer_la_LIBADD = $(libatscppai)
+cppapi_RemapPlugin_la_LIBADD = $(libatscppai)
+cppapi_ServerResponse_la_LIBADD = $(libatscppai)
+cppapi_StatExample_la_LIBADD = $(libatscppai)
+cppapi_TimeoutExamplePlugin_la_LIBADD = $(libatscppai)
+cppapi_TransactionHookPlugin_la_LIBADD = $(libatscppai)
+cppapi_WebSocket_la_LIBADD = $(libatscppai)
+cppapi_boom_la_LIBADD = $(libatscppai)
+cppapi_intercept_la_LIBADD = $(libatscppai)
 all: all-am
 
 .SUFFIXES:
@@ -1104,6 +1376,282 @@ cache-scan/cache-scan.lo: cache-scan/$(am__dirstamp) \
 
 cache-scan.la: $(cache_scan_la_OBJECTS) $(cache_scan_la_DEPENDENCIES) $(EXTRA_cache_scan_la_DEPENDENCIES) 
 	$(AM_V_CXXLD)$(CXXLINK) $(am_cache_scan_la_rpath) $(cache_scan_la_OBJECTS) $(cache_scan_la_LIBADD) $(LIBS)
+cppapi/async_http_fetch/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_http_fetch
+	@: > cppapi/async_http_fetch/$(am__dirstamp)
+cppapi/async_http_fetch/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_http_fetch/$(DEPDIR)
+	@: > cppapi/async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+cppapi/async_http_fetch/AsyncHttpFetch.lo:  \
+	cppapi/async_http_fetch/$(am__dirstamp) \
+	cppapi/async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+cppapi/$(am__dirstamp):
+	@$(MKDIR_P) cppapi
+	@: > cppapi/$(am__dirstamp)
+
+cppapi/AsyncHttpFetch.la: $(cppapi_AsyncHttpFetch_la_OBJECTS) $(cppapi_AsyncHttpFetch_la_DEPENDENCIES) $(EXTRA_cppapi_AsyncHttpFetch_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_AsyncHttpFetch_la_rpath) $(cppapi_AsyncHttpFetch_la_OBJECTS) $(cppapi_AsyncHttpFetch_la_LIBADD) $(LIBS)
+cppapi/async_http_fetch_streaming/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_http_fetch_streaming
+	@: > cppapi/async_http_fetch_streaming/$(am__dirstamp)
+cppapi/async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_http_fetch_streaming/$(DEPDIR)
+	@: > cppapi/async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+cppapi/async_http_fetch_streaming/AsyncHttpFetchStreaming.lo:  \
+	cppapi/async_http_fetch_streaming/$(am__dirstamp) \
+	cppapi/async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/AsyncHttpFetchStreaming.la: $(cppapi_AsyncHttpFetchStreaming_la_OBJECTS) $(cppapi_AsyncHttpFetchStreaming_la_DEPENDENCIES) $(EXTRA_cppapi_AsyncHttpFetchStreaming_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_AsyncHttpFetchStreaming_la_rpath) $(cppapi_AsyncHttpFetchStreaming_la_OBJECTS) $(cppapi_AsyncHttpFetchStreaming_la_LIBADD) $(LIBS)
+cppapi/async_timer/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_timer
+	@: > cppapi/async_timer/$(am__dirstamp)
+cppapi/async_timer/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/async_timer/$(DEPDIR)
+	@: > cppapi/async_timer/$(DEPDIR)/$(am__dirstamp)
+cppapi/async_timer/AsyncTimer.lo: cppapi/async_timer/$(am__dirstamp) \
+	cppapi/async_timer/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/AsyncTimer.la: $(cppapi_AsyncTimer_la_OBJECTS) $(cppapi_AsyncTimer_la_DEPENDENCIES) $(EXTRA_cppapi_AsyncTimer_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_AsyncTimer_la_rpath) $(cppapi_AsyncTimer_la_OBJECTS) $(cppapi_AsyncTimer_la_LIBADD) $(LIBS)
+cppapi/clientredirect/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/clientredirect
+	@: > cppapi/clientredirect/$(am__dirstamp)
+cppapi/clientredirect/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/clientredirect/$(DEPDIR)
+	@: > cppapi/clientredirect/$(DEPDIR)/$(am__dirstamp)
+cppapi/clientredirect/ClientRedirect.lo:  \
+	cppapi/clientredirect/$(am__dirstamp) \
+	cppapi/clientredirect/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/ClientRedirect.la: $(cppapi_ClientRedirect_la_OBJECTS) $(cppapi_ClientRedirect_la_DEPENDENCIES) $(EXTRA_cppapi_ClientRedirect_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_ClientRedirect_la_rpath) $(cppapi_ClientRedirect_la_OBJECTS) $(cppapi_ClientRedirect_la_LIBADD) $(LIBS)
+cppapi/clientrequest/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/clientrequest
+	@: > cppapi/clientrequest/$(am__dirstamp)
+cppapi/clientrequest/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/clientrequest/$(DEPDIR)
+	@: > cppapi/clientrequest/$(DEPDIR)/$(am__dirstamp)
+cppapi/clientrequest/ClientRequest.lo:  \
+	cppapi/clientrequest/$(am__dirstamp) \
+	cppapi/clientrequest/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/ClientRequest.la: $(cppapi_ClientRequest_la_OBJECTS) $(cppapi_ClientRequest_la_DEPENDENCIES) $(EXTRA_cppapi_ClientRequest_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_ClientRequest_la_rpath) $(cppapi_ClientRequest_la_OBJECTS) $(cppapi_ClientRequest_la_LIBADD) $(LIBS)
+cppapi/custom_error_remap_plugin/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/custom_error_remap_plugin
+	@: > cppapi/custom_error_remap_plugin/$(am__dirstamp)
+cppapi/custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/custom_error_remap_plugin/$(DEPDIR)
+	@: > cppapi/custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+cppapi/custom_error_remap_plugin/CustomErrorRemapPlugin.lo:  \
+	cppapi/custom_error_remap_plugin/$(am__dirstamp) \
+	cppapi/custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/CustomErrorRemapPlugin.la: $(cppapi_CustomErrorRemapPlugin_la_OBJECTS) $(cppapi_CustomErrorRemapPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_CustomErrorRemapPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_CustomErrorRemapPlugin_la_rpath) $(cppapi_CustomErrorRemapPlugin_la_OBJECTS) $(cppapi_CustomErrorRemapPlugin_la_LIBADD) $(LIBS)
+cppapi/customresponse/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/customresponse
+	@: > cppapi/customresponse/$(am__dirstamp)
+cppapi/customresponse/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/customresponse/$(DEPDIR)
+	@: > cppapi/customresponse/$(DEPDIR)/$(am__dirstamp)
+cppapi/customresponse/CustomResponse.lo:  \
+	cppapi/customresponse/$(am__dirstamp) \
+	cppapi/customresponse/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/CustomResponse.la: $(cppapi_CustomResponse_la_OBJECTS) $(cppapi_CustomResponse_la_DEPENDENCIES) $(EXTRA_cppapi_CustomResponse_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_CustomResponse_la_rpath) $(cppapi_CustomResponse_la_OBJECTS) $(cppapi_CustomResponse_la_LIBADD) $(LIBS)
+cppapi/globalhook/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/globalhook
+	@: > cppapi/globalhook/$(am__dirstamp)
+cppapi/globalhook/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/globalhook/$(DEPDIR)
+	@: > cppapi/globalhook/$(DEPDIR)/$(am__dirstamp)
+cppapi/globalhook/GlobalHookPlugin.lo:  \
+	cppapi/globalhook/$(am__dirstamp) \
+	cppapi/globalhook/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/GlobalHookPlugin.la: $(cppapi_GlobalHookPlugin_la_OBJECTS) $(cppapi_GlobalHookPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_GlobalHookPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_GlobalHookPlugin_la_rpath) $(cppapi_GlobalHookPlugin_la_OBJECTS) $(cppapi_GlobalHookPlugin_la_LIBADD) $(LIBS)
+cppapi/gzip_transformation/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/gzip_transformation
+	@: > cppapi/gzip_transformation/$(am__dirstamp)
+cppapi/gzip_transformation/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/gzip_transformation/$(DEPDIR)
+	@: > cppapi/gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+cppapi/gzip_transformation/GzipTransformationPlugin.lo:  \
+	cppapi/gzip_transformation/$(am__dirstamp) \
+	cppapi/gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/GzipTransformationPlugin.la: $(cppapi_GzipTransformationPlugin_la_OBJECTS) $(cppapi_GzipTransformationPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_GzipTransformationPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_GzipTransformationPlugin_la_rpath) $(cppapi_GzipTransformationPlugin_la_OBJECTS) $(cppapi_GzipTransformationPlugin_la_LIBADD) $(LIBS)
+cppapi/helloworld/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/helloworld
+	@: > cppapi/helloworld/$(am__dirstamp)
+cppapi/helloworld/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/helloworld/$(DEPDIR)
+	@: > cppapi/helloworld/$(DEPDIR)/$(am__dirstamp)
+cppapi/helloworld/HelloWorldPlugin.lo:  \
+	cppapi/helloworld/$(am__dirstamp) \
+	cppapi/helloworld/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/HelloWorldPlugin.la: $(cppapi_HelloWorldPlugin_la_OBJECTS) $(cppapi_HelloWorldPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_HelloWorldPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_HelloWorldPlugin_la_rpath) $(cppapi_HelloWorldPlugin_la_OBJECTS) $(cppapi_HelloWorldPlugin_la_LIBADD) $(LIBS)
+cppapi/internal_transaction_handling/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/internal_transaction_handling
+	@: > cppapi/internal_transaction_handling/$(am__dirstamp)
+cppapi/internal_transaction_handling/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/internal_transaction_handling/$(DEPDIR)
+	@: > cppapi/internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+cppapi/internal_transaction_handling/InternalTransactionHandling.lo:  \
+	cppapi/internal_transaction_handling/$(am__dirstamp) \
+	cppapi/internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/InternalTransactionHandling.la: $(cppapi_InternalTransactionHandling_la_OBJECTS) $(cppapi_InternalTransactionHandling_la_DEPENDENCIES) $(EXTRA_cppapi_InternalTransactionHandling_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_InternalTransactionHandling_la_rpath) $(cppapi_InternalTransactionHandling_la_OBJECTS) $(cppapi_InternalTransactionHandling_la_LIBADD) $(LIBS)
+cppapi/logger_example/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/logger_example
+	@: > cppapi/logger_example/$(am__dirstamp)
+cppapi/logger_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/logger_example/$(DEPDIR)
+	@: > cppapi/logger_example/$(DEPDIR)/$(am__dirstamp)
+cppapi/logger_example/LoggerExample.lo:  \
+	cppapi/logger_example/$(am__dirstamp) \
+	cppapi/logger_example/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/LoggerExample.la: $(cppapi_LoggerExample_la_OBJECTS) $(cppapi_LoggerExample_la_DEPENDENCIES) $(EXTRA_cppapi_LoggerExample_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_LoggerExample_la_rpath) $(cppapi_LoggerExample_la_OBJECTS) $(cppapi_LoggerExample_la_LIBADD) $(LIBS)
+cppapi/multiple_transaction_hooks/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/multiple_transaction_hooks
+	@: > cppapi/multiple_transaction_hooks/$(am__dirstamp)
+cppapi/multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/multiple_transaction_hooks/$(DEPDIR)
+	@: > cppapi/multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+cppapi/multiple_transaction_hooks/MultipleTransactionHookPlugins.lo:  \
+	cppapi/multiple_transaction_hooks/$(am__dirstamp) \
+	cppapi/multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/MultipleTransactionHookPlugins.la: $(cppapi_MultipleTransactionHookPlugins_la_OBJECTS) $(cppapi_MultipleTransactionHookPlugins_la_DEPENDENCIES) $(EXTRA_cppapi_MultipleTransactionHookPlugins_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_MultipleTransactionHookPlugins_la_rpath) $(cppapi_MultipleTransactionHookPlugins_la_OBJECTS) $(cppapi_MultipleTransactionHookPlugins_la_LIBADD) $(LIBS)
+cppapi/null_transformation_plugin/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/null_transformation_plugin
+	@: > cppapi/null_transformation_plugin/$(am__dirstamp)
+cppapi/null_transformation_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/null_transformation_plugin/$(DEPDIR)
+	@: > cppapi/null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+cppapi/null_transformation_plugin/NullTransformationPlugin.lo:  \
+	cppapi/null_transformation_plugin/$(am__dirstamp) \
+	cppapi/null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/NullTransformationPlugin.la: $(cppapi_NullTransformationPlugin_la_OBJECTS) $(cppapi_NullTransformationPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_NullTransformationPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_NullTransformationPlugin_la_rpath) $(cppapi_NullTransformationPlugin_la_OBJECTS) $(cppapi_NullTransformationPlugin_la_LIBADD) $(LIBS)
+cppapi/post_buffer/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/post_buffer
+	@: > cppapi/post_buffer/$(am__dirstamp)
+cppapi/post_buffer/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/post_buffer/$(DEPDIR)
+	@: > cppapi/post_buffer/$(DEPDIR)/$(am__dirstamp)
+cppapi/post_buffer/PostBuffer.lo: cppapi/post_buffer/$(am__dirstamp) \
+	cppapi/post_buffer/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/PostBuffer.la: $(cppapi_PostBuffer_la_OBJECTS) $(cppapi_PostBuffer_la_DEPENDENCIES) $(EXTRA_cppapi_PostBuffer_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_PostBuffer_la_rpath) $(cppapi_PostBuffer_la_OBJECTS) $(cppapi_PostBuffer_la_LIBADD) $(LIBS)
+cppapi/remap_plugin/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/remap_plugin
+	@: > cppapi/remap_plugin/$(am__dirstamp)
+cppapi/remap_plugin/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/remap_plugin/$(DEPDIR)
+	@: > cppapi/remap_plugin/$(DEPDIR)/$(am__dirstamp)
+cppapi/remap_plugin/RemapPlugin.lo:  \
+	cppapi/remap_plugin/$(am__dirstamp) \
+	cppapi/remap_plugin/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/RemapPlugin.la: $(cppapi_RemapPlugin_la_OBJECTS) $(cppapi_RemapPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_RemapPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_RemapPlugin_la_rpath) $(cppapi_RemapPlugin_la_OBJECTS) $(cppapi_RemapPlugin_la_LIBADD) $(LIBS)
+cppapi/serverresponse/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/serverresponse
+	@: > cppapi/serverresponse/$(am__dirstamp)
+cppapi/serverresponse/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/serverresponse/$(DEPDIR)
+	@: > cppapi/serverresponse/$(DEPDIR)/$(am__dirstamp)
+cppapi/serverresponse/ServerResponse.lo:  \
+	cppapi/serverresponse/$(am__dirstamp) \
+	cppapi/serverresponse/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/ServerResponse.la: $(cppapi_ServerResponse_la_OBJECTS) $(cppapi_ServerResponse_la_DEPENDENCIES) $(EXTRA_cppapi_ServerResponse_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_ServerResponse_la_rpath) $(cppapi_ServerResponse_la_OBJECTS) $(cppapi_ServerResponse_la_LIBADD) $(LIBS)
+cppapi/stat_example/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/stat_example
+	@: > cppapi/stat_example/$(am__dirstamp)
+cppapi/stat_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/stat_example/$(DEPDIR)
+	@: > cppapi/stat_example/$(DEPDIR)/$(am__dirstamp)
+cppapi/stat_example/StatExample.lo:  \
+	cppapi/stat_example/$(am__dirstamp) \
+	cppapi/stat_example/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/StatExample.la: $(cppapi_StatExample_la_OBJECTS) $(cppapi_StatExample_la_DEPENDENCIES) $(EXTRA_cppapi_StatExample_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_StatExample_la_rpath) $(cppapi_StatExample_la_OBJECTS) $(cppapi_StatExample_la_LIBADD) $(LIBS)
+cppapi/timeout_example/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/timeout_example
+	@: > cppapi/timeout_example/$(am__dirstamp)
+cppapi/timeout_example/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/timeout_example/$(DEPDIR)
+	@: > cppapi/timeout_example/$(DEPDIR)/$(am__dirstamp)
+cppapi/timeout_example/TimeoutExamplePlugin.lo:  \
+	cppapi/timeout_example/$(am__dirstamp) \
+	cppapi/timeout_example/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/TimeoutExamplePlugin.la: $(cppapi_TimeoutExamplePlugin_la_OBJECTS) $(cppapi_TimeoutExamplePlugin_la_DEPENDENCIES) $(EXTRA_cppapi_TimeoutExamplePlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_TimeoutExamplePlugin_la_rpath) $(cppapi_TimeoutExamplePlugin_la_OBJECTS) $(cppapi_TimeoutExamplePlugin_la_LIBADD) $(LIBS)
+cppapi/transactionhook/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/transactionhook
+	@: > cppapi/transactionhook/$(am__dirstamp)
+cppapi/transactionhook/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/transactionhook/$(DEPDIR)
+	@: > cppapi/transactionhook/$(DEPDIR)/$(am__dirstamp)
+cppapi/transactionhook/TransactionHookPlugin.lo:  \
+	cppapi/transactionhook/$(am__dirstamp) \
+	cppapi/transactionhook/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/TransactionHookPlugin.la: $(cppapi_TransactionHookPlugin_la_OBJECTS) $(cppapi_TransactionHookPlugin_la_DEPENDENCIES) $(EXTRA_cppapi_TransactionHookPlugin_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_TransactionHookPlugin_la_rpath) $(cppapi_TransactionHookPlugin_la_OBJECTS) $(cppapi_TransactionHookPlugin_la_LIBADD) $(LIBS)
+cppapi/websocket/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/websocket
+	@: > cppapi/websocket/$(am__dirstamp)
+cppapi/websocket/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/websocket/$(DEPDIR)
+	@: > cppapi/websocket/$(DEPDIR)/$(am__dirstamp)
+cppapi/websocket/WebSocket.lo: cppapi/websocket/$(am__dirstamp) \
+	cppapi/websocket/$(DEPDIR)/$(am__dirstamp)
+cppapi/websocket/WSBuffer.lo: cppapi/websocket/$(am__dirstamp) \
+	cppapi/websocket/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/WebSocket.la: $(cppapi_WebSocket_la_OBJECTS) $(cppapi_WebSocket_la_DEPENDENCIES) $(EXTRA_cppapi_WebSocket_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_WebSocket_la_rpath) $(cppapi_WebSocket_la_OBJECTS) $(cppapi_WebSocket_la_LIBADD) $(LIBS)
+cppapi/boom/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/boom
+	@: > cppapi/boom/$(am__dirstamp)
+cppapi/boom/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/boom/$(DEPDIR)
+	@: > cppapi/boom/$(DEPDIR)/$(am__dirstamp)
+cppapi/boom/boom.lo: cppapi/boom/$(am__dirstamp) \
+	cppapi/boom/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/boom.la: $(cppapi_boom_la_OBJECTS) $(cppapi_boom_la_DEPENDENCIES) $(EXTRA_cppapi_boom_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_boom_la_rpath) $(cppapi_boom_la_OBJECTS) $(cppapi_boom_la_LIBADD) $(LIBS)
+cppapi/intercept/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/intercept
+	@: > cppapi/intercept/$(am__dirstamp)
+cppapi/intercept/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) cppapi/intercept/$(DEPDIR)
+	@: > cppapi/intercept/$(DEPDIR)/$(am__dirstamp)
+cppapi/intercept/intercept.lo: cppapi/intercept/$(am__dirstamp) \
+	cppapi/intercept/$(DEPDIR)/$(am__dirstamp)
+
+cppapi/intercept.la: $(cppapi_intercept_la_OBJECTS) $(cppapi_intercept_la_DEPENDENCIES) $(EXTRA_cppapi_intercept_la_DEPENDENCIES) cppapi/$(am__dirstamp)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_cppapi_intercept_la_rpath) $(cppapi_intercept_la_OBJECTS) $(cppapi_intercept_la_LIBADD) $(LIBS)
 file-1/$(am__dirstamp):
 	@$(MKDIR_P) file-1
 	@: > file-1/$(am__dirstamp)
@@ -1170,6 +1718,17 @@ output-header/output-header.lo: output-header/$(am__dirstamp) \
 
 output-header.la: $(output_header_la_OBJECTS) $(output_header_la_DEPENDENCIES) $(EXTRA_output_header_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_output_header_la_rpath) $(output_header_la_OBJECTS) $(output_header_la_LIBADD) $(LIBS)
+passthru/$(am__dirstamp):
+	@$(MKDIR_P) passthru
+	@: > passthru/$(am__dirstamp)
+passthru/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) passthru/$(DEPDIR)
+	@: > passthru/$(DEPDIR)/$(am__dirstamp)
+passthru/passthru.lo: passthru/$(am__dirstamp) \
+	passthru/$(DEPDIR)/$(am__dirstamp)
+
+passthru.la: $(passthru_la_OBJECTS) $(passthru_la_DEPENDENCIES) $(EXTRA_passthru_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_passthru_la_rpath) $(passthru_la_OBJECTS) $(passthru_la_LIBADD) $(LIBS)
 protocol-stack/$(am__dirstamp):
 	@$(MKDIR_P) protocol-stack
 	@: > protocol-stack/$(am__dirstamp)
@@ -1251,6 +1810,18 @@ replace-header/replace-header.lo: replace-header/$(am__dirstamp) \
 
 replace-header.la: $(replace_header_la_OBJECTS) $(replace_header_la_DEPENDENCIES) $(EXTRA_replace_header_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_replace_header_la_rpath) $(replace_header_la_OBJECTS) $(replace_header_la_LIBADD) $(LIBS)
+replace-protoset/$(am__dirstamp):
+	@$(MKDIR_P) replace-protoset
+	@: > replace-protoset/$(am__dirstamp)
+replace-protoset/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) replace-protoset/$(DEPDIR)
+	@: > replace-protoset/$(DEPDIR)/$(am__dirstamp)
+replace-protoset/replace-protoset.lo:  \
+	replace-protoset/$(am__dirstamp) \
+	replace-protoset/$(DEPDIR)/$(am__dirstamp)
+
+replace-protoset.la: $(replace_protoset_la_OBJECTS) $(replace_protoset_la_DEPENDENCIES) $(EXTRA_replace_protoset_la_DEPENDENCIES) 
+	$(AM_V_CXXLD)$(CXXLINK) $(am_replace_protoset_la_rpath) $(replace_protoset_la_OBJECTS) $(replace_protoset_la_LIBADD) $(LIBS)
 response-header-1/$(am__dirstamp):
 	@$(MKDIR_P) response-header-1
 	@: > response-header-1/$(am__dirstamp)
@@ -1392,6 +1963,52 @@ mostlyclean-compile:
 	-rm -f bnull-transform/*.lo
 	-rm -f cache-scan/*.$(OBJEXT)
 	-rm -f cache-scan/*.lo
+	-rm -f cppapi/async_http_fetch/*.$(OBJEXT)
+	-rm -f cppapi/async_http_fetch/*.lo
+	-rm -f cppapi/async_http_fetch_streaming/*.$(OBJEXT)
+	-rm -f cppapi/async_http_fetch_streaming/*.lo
+	-rm -f cppapi/async_timer/*.$(OBJEXT)
+	-rm -f cppapi/async_timer/*.lo
+	-rm -f cppapi/boom/*.$(OBJEXT)
+	-rm -f cppapi/boom/*.lo
+	-rm -f cppapi/clientredirect/*.$(OBJEXT)
+	-rm -f cppapi/clientredirect/*.lo
+	-rm -f cppapi/clientrequest/*.$(OBJEXT)
+	-rm -f cppapi/clientrequest/*.lo
+	-rm -f cppapi/custom_error_remap_plugin/*.$(OBJEXT)
+	-rm -f cppapi/custom_error_remap_plugin/*.lo
+	-rm -f cppapi/customresponse/*.$(OBJEXT)
+	-rm -f cppapi/customresponse/*.lo
+	-rm -f cppapi/globalhook/*.$(OBJEXT)
+	-rm -f cppapi/globalhook/*.lo
+	-rm -f cppapi/gzip_transformation/*.$(OBJEXT)
+	-rm -f cppapi/gzip_transformation/*.lo
+	-rm -f cppapi/helloworld/*.$(OBJEXT)
+	-rm -f cppapi/helloworld/*.lo
+	-rm -f cppapi/intercept/*.$(OBJEXT)
+	-rm -f cppapi/intercept/*.lo
+	-rm -f cppapi/internal_transaction_handling/*.$(OBJEXT)
+	-rm -f cppapi/internal_transaction_handling/*.lo
+	-rm -f cppapi/logger_example/*.$(OBJEXT)
+	-rm -f cppapi/logger_example/*.lo
+	-rm -f cppapi/multiple_transaction_hooks/*.$(OBJEXT)
+	-rm -f cppapi/multiple_transaction_hooks/*.lo
+	-rm -f cppapi/null_transformation_plugin/*.$(OBJEXT)
+	-rm -f cppapi/null_transformation_plugin/*.lo
+	-rm -f cppapi/post_buffer/*.$(OBJEXT)
+	-rm -f cppapi/post_buffer/*.lo
+	-rm -f cppapi/remap_plugin/*.$(OBJEXT)
+	-rm -f cppapi/remap_plugin/*.lo
+	-rm -f cppapi/serverresponse/*.$(OBJEXT)
+	-rm -f cppapi/serverresponse/*.lo
+	-rm -f cppapi/stat_example/*.$(OBJEXT)
+	-rm -f cppapi/stat_example/*.lo
+	-rm -f cppapi/timeout_example/*.$(OBJEXT)
+	-rm -f cppapi/timeout_example/*.lo
+	-rm -f cppapi/transactionhook/*.$(OBJEXT)
+	-rm -f cppapi/transactionhook/*.lo
+	-rm -f cppapi/websocket/*.$(OBJEXT)
+	-rm -f cppapi/websocket/*.lo
 	-rm -f file-1/*.$(OBJEXT)
 	-rm -f file-1/*.lo
 	-rm -f hello/*.$(OBJEXT)
@@ -1404,6 +2021,8 @@ mostlyclean-compile:
 	-rm -f null-transform/*.lo
 	-rm -f output-header/*.$(OBJEXT)
 	-rm -f output-header/*.lo
+	-rm -f passthru/*.$(OBJEXT)
+	-rm -f passthru/*.lo
 	-rm -f protocol-stack/*.$(OBJEXT)
 	-rm -f protocol-stack/*.lo
 	-rm -f protocol/*.$(OBJEXT)
@@ -1416,6 +2035,8 @@ mostlyclean-compile:
 	-rm -f remap_header_add/*.lo
 	-rm -f replace-header/*.$(OBJEXT)
 	-rm -f replace-header/*.lo
+	-rm -f replace-protoset/*.$(OBJEXT)
+	-rm -f replace-protoset/*.lo
 	-rm -f response-header-1/*.$(OBJEXT)
 	-rm -f response-header-1/*.lo
 	-rm -f secure-link/*.$(OBJEXT)
@@ -1451,12 +2072,37 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@blacklist-1/$(DEPDIR)/blacklist-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@bnull-transform/$(DEPDIR)/bnull-transform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cache-scan/$(DEPDIR)/cache-scan.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/async_http_fetch/$(DEPDIR)/AsyncHttpFetch.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/async_http_fetch_streaming/$(DEPDIR)/AsyncHttpFetchStreaming.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/async_timer/$(DEPDIR)/AsyncTimer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/boom/$(DEPDIR)/boom.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/clientredirect/$(DEPDIR)/ClientRedirect.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/clientrequest/$(DEPDIR)/ClientRequest.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/custom_error_remap_plugin/$(DEPDIR)/CustomErrorRemapPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/customresponse/$(DEPDIR)/CustomResponse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/globalhook/$(DEPDIR)/GlobalHookPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/gzip_transformation/$(DEPDIR)/GzipTransformationPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/helloworld/$(DEPDIR)/HelloWorldPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/intercept/$(DEPDIR)/intercept.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/internal_transaction_handling/$(DEPDIR)/InternalTransactionHandling.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/logger_example/$(DEPDIR)/LoggerExample.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/multiple_transaction_hooks/$(DEPDIR)/MultipleTransactionHookPlugins.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/null_transformation_plugin/$(DEPDIR)/NullTransformationPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/post_buffer/$(DEPDIR)/PostBuffer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/remap_plugin/$(DEPDIR)/RemapPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/serverresponse/$(DEPDIR)/ServerResponse.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/stat_example/$(DEPDIR)/StatExample.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/timeout_example/$(DEPDIR)/TimeoutExamplePlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/transactionhook/$(DEPDIR)/TransactionHookPlugin.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/websocket/$(DEPDIR)/WSBuffer.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cppapi/websocket/$(DEPDIR)/WebSocket.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@file-1/$(DEPDIR)/file-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@hello/$(DEPDIR)/hello.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@intercept/$(DEPDIR)/intercept.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@lifecycle-plugin/$(DEPDIR)/lifecycle-plugin.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@null-transform/$(DEPDIR)/null-transform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@output-header/$(DEPDIR)/output-header.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@passthru/$(DEPDIR)/passthru.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@protocol-stack/$(DEPDIR)/protocol-stack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@protocol/$(DEPDIR)/Protocol.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@protocol/$(DEPDIR)/TxnSM.Plo@am__quote@
@@ -1464,6 +2110,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@remap/$(DEPDIR)/remap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@remap_header_add/$(DEPDIR)/remap_header_add.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@replace-header/$(DEPDIR)/replace-header.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@replace-protoset/$(DEPDIR)/replace-protoset.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@response-header-1/$(DEPDIR)/response-header-1.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@secure-link/$(DEPDIR)/secure-link.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@server-push/$(DEPDIR)/server-push.Plo@am__quote@
@@ -1538,18 +2185,44 @@ clean-libtool:
 	-rm -rf blacklist-1/.libs blacklist-1/_libs
 	-rm -rf bnull-transform/.libs bnull-transform/_libs
 	-rm -rf cache-scan/.libs cache-scan/_libs
+	-rm -rf cppapi/.libs cppapi/_libs
+	-rm -rf cppapi/async_http_fetch/.libs cppapi/async_http_fetch/_libs
+	-rm -rf cppapi/async_http_fetch_streaming/.libs cppapi/async_http_fetch_streaming/_libs
+	-rm -rf cppapi/async_timer/.libs cppapi/async_timer/_libs
+	-rm -rf cppapi/boom/.libs cppapi/boom/_libs
+	-rm -rf cppapi/clientredirect/.libs cppapi/clientredirect/_libs
+	-rm -rf cppapi/clientrequest/.libs cppapi/clientrequest/_libs
+	-rm -rf cppapi/custom_error_remap_plugin/.libs cppapi/custom_error_remap_plugin/_libs
+	-rm -rf cppapi/customresponse/.libs cppapi/customresponse/_libs
+	-rm -rf cppapi/globalhook/.libs cppapi/globalhook/_libs
+	-rm -rf cppapi/gzip_transformation/.libs cppapi/gzip_transformation/_libs
+	-rm -rf cppapi/helloworld/.libs cppapi/helloworld/_libs
+	-rm -rf cppapi/intercept/.libs cppapi/intercept/_libs
+	-rm -rf cppapi/internal_transaction_handling/.libs cppapi/internal_transaction_handling/_libs
+	-rm -rf cppapi/logger_example/.libs cppapi/logger_example/_libs
+	-rm -rf cppapi/multiple_transaction_hooks/.libs cppapi/multiple_transaction_hooks/_libs
+	-rm -rf cppapi/null_transformation_plugin/.libs cppapi/null_transformation_plugin/_libs
+	-rm -rf cppapi/post_buffer/.libs cppapi/post_buffer/_libs
+	-rm -rf cppapi/remap_plugin/.libs cppapi/remap_plugin/_libs
+	-rm -rf cppapi/serverresponse/.libs cppapi/serverresponse/_libs
+	-rm -rf cppapi/stat_example/.libs cppapi/stat_example/_libs
+	-rm -rf cppapi/timeout_example/.libs cppapi/timeout_example/_libs
+	-rm -rf cppapi/transactionhook/.libs cppapi/transactionhook/_libs
+	-rm -rf cppapi/websocket/.libs cppapi/websocket/_libs
 	-rm -rf file-1/.libs file-1/_libs
 	-rm -rf hello/.libs hello/_libs
 	-rm -rf intercept/.libs intercept/_libs
 	-rm -rf lifecycle-plugin/.libs lifecycle-plugin/_libs
 	-rm -rf null-transform/.libs null-transform/_libs
 	-rm -rf output-header/.libs output-header/_libs
+	-rm -rf passthru/.libs passthru/_libs
 	-rm -rf protocol/.libs protocol/_libs
 	-rm -rf protocol-stack/.libs protocol-stack/_libs
 	-rm -rf query-remap/.libs query-remap/_libs
 	-rm -rf remap/.libs remap/_libs
 	-rm -rf remap_header_add/.libs remap_header_add/_libs
 	-rm -rf replace-header/.libs replace-header/_libs
+	-rm -rf replace-protoset/.libs replace-protoset/_libs
 	-rm -rf response-header-1/.libs response-header-1/_libs
 	-rm -rf secure-link/.libs secure-link/_libs
 	-rm -rf server-push/.libs server-push/_libs
@@ -1693,6 +2366,53 @@ distclean-generic:
 	-rm -f bnull-transform/$(am__dirstamp)
 	-rm -f cache-scan/$(DEPDIR)/$(am__dirstamp)
 	-rm -f cache-scan/$(am__dirstamp)
+	-rm -f cppapi/$(am__dirstamp)
+	-rm -f cppapi/async_http_fetch/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/async_http_fetch/$(am__dirstamp)
+	-rm -f cppapi/async_http_fetch_streaming/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/async_http_fetch_streaming/$(am__dirstamp)
+	-rm -f cppapi/async_timer/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/async_timer/$(am__dirstamp)
+	-rm -f cppapi/boom/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/boom/$(am__dirstamp)
+	-rm -f cppapi/clientredirect/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/clientredirect/$(am__dirstamp)
+	-rm -f cppapi/clientrequest/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/clientrequest/$(am__dirstamp)
+	-rm -f cppapi/custom_error_remap_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/custom_error_remap_plugin/$(am__dirstamp)
+	-rm -f cppapi/customresponse/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/customresponse/$(am__dirstamp)
+	-rm -f cppapi/globalhook/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/globalhook/$(am__dirstamp)
+	-rm -f cppapi/gzip_transformation/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/gzip_transformation/$(am__dirstamp)
+	-rm -f cppapi/helloworld/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/helloworld/$(am__dirstamp)
+	-rm -f cppapi/intercept/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/intercept/$(am__dirstamp)
+	-rm -f cppapi/internal_transaction_handling/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/internal_transaction_handling/$(am__dirstamp)
+	-rm -f cppapi/logger_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/logger_example/$(am__dirstamp)
+	-rm -f cppapi/multiple_transaction_hooks/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/multiple_transaction_hooks/$(am__dirstamp)
+	-rm -f cppapi/null_transformation_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/null_transformation_plugin/$(am__dirstamp)
+	-rm -f cppapi/post_buffer/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/post_buffer/$(am__dirstamp)
+	-rm -f cppapi/remap_plugin/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/remap_plugin/$(am__dirstamp)
+	-rm -f cppapi/serverresponse/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/serverresponse/$(am__dirstamp)
+	-rm -f cppapi/stat_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/stat_example/$(am__dirstamp)
+	-rm -f cppapi/timeout_example/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/timeout_example/$(am__dirstamp)
+	-rm -f cppapi/transactionhook/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/transactionhook/$(am__dirstamp)
+	-rm -f cppapi/websocket/$(DEPDIR)/$(am__dirstamp)
+	-rm -f cppapi/websocket/$(am__dirstamp)
 	-rm -f file-1/$(DEPDIR)/$(am__dirstamp)
 	-rm -f file-1/$(am__dirstamp)
 	-rm -f hello/$(DEPDIR)/$(am__dirstamp)
@@ -1705,6 +2425,8 @@ distclean-generic:
 	-rm -f null-transform/$(am__dirstamp)
 	-rm -f output-header/$(DEPDIR)/$(am__dirstamp)
 	-rm -f output-header/$(am__dirstamp)
+	-rm -f passthru/$(DEPDIR)/$(am__dirstamp)
+	-rm -f passthru/$(am__dirstamp)
 	-rm -f protocol-stack/$(DEPDIR)/$(am__dirstamp)
 	-rm -f protocol-stack/$(am__dirstamp)
 	-rm -f protocol/$(DEPDIR)/$(am__dirstamp)
@@ -1717,6 +2439,8 @@ distclean-generic:
 	-rm -f remap_header_add/$(am__dirstamp)
 	-rm -f replace-header/$(DEPDIR)/$(am__dirstamp)
 	-rm -f replace-header/$(am__dirstamp)
+	-rm -f replace-protoset/$(DEPDIR)/$(am__dirstamp)
+	-rm -f replace-protoset/$(am__dirstamp)
 	-rm -f response-header-1/$(DEPDIR)/$(am__dirstamp)
 	-rm -f response-header-1/$(am__dirstamp)
 	-rm -f secure-link/$(DEPDIR)/$(am__dirstamp)
@@ -1751,7 +2475,7 @@ clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
 	clean-pkglibLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol-stack/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-push/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) statistic/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) txn-data-sink/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) cppapi/async_http_fetch/$(DEPDIR) cppapi/async_http_fetch_streaming/$(DEPDIR) cppapi/async_timer/$(DEPDIR) cppapi/boom/$(DEPDIR) cppapi/clientredirect/$(DEPDIR) cppapi/clientrequest/$(DEPDIR) cppapi/custom_error_remap_plugin/$(DEPDIR) cppapi/customresponse/$(DEPDIR) cppapi/globalhook/$(DEPDIR) cppapi/gzip_transformation/$(DEPDIR) cppapi/helloworld/$(DEPDIR) cppapi/intercept/$(DEPDIR) cppapi/internal_transaction_handling/$(DEPDIR) cppapi/logger_example/$(DEPDIR) cppapi/multiple_transaction_hooks/$(DEPDIR) cppapi/null_transformation_plugin/$(DEPDIR) cppapi/post_buffer/$(DEPDIR) cppapi/remap_plugin/$(DEPDIR) cppapi/serverresponse/$(DEPDIR) cppapi/stat_example/$(DEPDIR) cppapi/timeout_example/$(DEPDIR) cppapi/transactionhook/$(DEPDIR) cppapi/websocket/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) passthru/$(DEPDIR) protocol-stack/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) replace-protoset/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-push/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) statistic/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) txn-data-sink/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -1797,7 +2521,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) protocol-stack/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-push/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) statistic/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) txn-data-sink/$(DEPDIR) version/$(DEPDIR)
+	-rm -rf add-header/$(DEPDIR) append-transform/$(DEPDIR) basic-auth/$(DEPDIR) blacklist-0/$(DEPDIR) blacklist-1/$(DEPDIR) bnull-transform/$(DEPDIR) cache-scan/$(DEPDIR) cppapi/async_http_fetch/$(DEPDIR) cppapi/async_http_fetch_streaming/$(DEPDIR) cppapi/async_timer/$(DEPDIR) cppapi/boom/$(DEPDIR) cppapi/clientredirect/$(DEPDIR) cppapi/clientrequest/$(DEPDIR) cppapi/custom_error_remap_plugin/$(DEPDIR) cppapi/customresponse/$(DEPDIR) cppapi/globalhook/$(DEPDIR) cppapi/gzip_transformation/$(DEPDIR) cppapi/helloworld/$(DEPDIR) cppapi/intercept/$(DEPDIR) cppapi/internal_transaction_handling/$(DEPDIR) cppapi/logger_example/$(DEPDIR) cppapi/multiple_transaction_hooks/$(DEPDIR) cppapi/null_transformation_plugin/$(DEPDIR) cppapi/post_buffer/$(DEPDIR) cppapi/remap_plugin/$(DEPDIR) cppapi/serverresponse/$(DEPDIR) cppapi/stat_example/$(DEPDIR) cppapi/timeout_example/$(DEPDIR) cppapi/transactionhook/$(DEPDIR) cppapi/websocket/$(DEPDIR) file-1/$(DEPDIR) hello/$(DEPDIR) intercept/$(DEPDIR) lifecycle-plugin/$(DEPDIR) null-transform/$(DEPDIR) output-header/$(DEPDIR) passthru/$(DEPDIR) protocol-stack/$(DEPDIR) protocol/$(DEPDIR) query-remap/$(DEPDIR) remap/$(DEPDIR) remap_header_add/$(DEPDIR) replace-header/$(DEPDIR) replace-protoset/$(DEPDIR) response-header-1/$(DEPDIR) secure-link/$(DEPDIR) server-push/$(DEPDIR) server-transform/$(DEPDIR) ssl-preaccept/$(DEPDIR) ssl-sni-whitelist/$(DEPDIR) ssl-sni/$(DEPDIR) statistic/$(DEPDIR) thread-1/$(DEPDIR) thread-pool/$(DEPDIR) txn-data-sink/$(DEPDIR) version/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -1839,11 +2563,6 @@ uninstall-am: uninstall-pkglibLTLIBRARIES
 
 .PRECIOUS: Makefile
 
-
-# The following examples do not build:
-#
-# redirect_1_la_SOURCES = redirect-1/redirect-1.c
-# session_1_la_SOURCES = session-1/session-1.c
 
 tidy-local: $(DIST_SOURCES)
 	$(CXX_Clang_Tidy)

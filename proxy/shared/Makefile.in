@@ -313,6 +313,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -451,6 +452,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -608,18 +610,18 @@ noinst_LIBRARIES = \
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/api \
-  -I$(top_srcdir)/mgmt/api/include \
-  -I$(top_srcdir)/mgmt/utils \
-  -I$(top_srcdir) \
-  -I$(top_srcdir)/proxy/api/ts \
-  -I$(top_srcdir)/proxy \
-  -I$(top_srcdir)/proxy/http \
-  -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_srcdir)/proxy/logging \
-  -I$(top_srcdir)/lib
+  -I$(abs_top_srcdir)/lib/records \
+  -I$(abs_top_srcdir)/mgmt \
+  -I$(abs_top_srcdir)/mgmt/api \
+  -I$(abs_top_srcdir)/mgmt/api/include \
+  -I$(abs_top_srcdir)/mgmt/utils \
+  -I$(abs_top_srcdir) \
+  -I$(abs_top_srcdir)/proxy/api/ts \
+  -I$(abs_top_srcdir)/proxy \
+  -I$(abs_top_srcdir)/proxy/http \
+  -I$(abs_top_srcdir)/proxy/hdrs \
+  -I$(abs_top_srcdir)/proxy/logging \
+  -I$(abs_top_srcdir)/lib
 
 libdiagsconfig_a_SOURCES = \
   DiagsConfig.cc

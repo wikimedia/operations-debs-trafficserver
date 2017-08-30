@@ -21,8 +21,8 @@
  * @brief Cache key manipulation.
  */
 
-#include <string.h> /* strlen() */
-#include <sstream>  /* istringstream */
+#include <cstring> /* strlen() */
+#include <sstream> /* istringstream */
 #include "cachekey.h"
 
 static void
@@ -108,7 +108,7 @@ getKeyQuery(const char *query, int length, const ConfigQuery &config)
   T container;
 
   while (std::getline(istr, token, '&')) {
-    String::size_type pos(token.find_first_of("="));
+    String::size_type pos(token.find_first_of('='));
     String param(token.substr(0, pos == String::npos ? token.size() : pos));
 
     if (config.toBeAdded(param)) {
@@ -235,7 +235,7 @@ getUri(TSMBuffer buf, TSMLoc url)
   String uri;
   int uriLen;
   const char *uriPtr = TSUrlStringGet(buf, url, &uriLen);
-  if (NULL != uriPtr && 0 != uriLen) {
+  if (nullptr != uriPtr && 0 != uriLen) {
     uri.assign(uriPtr, uriLen);
     TSfree((void *)uriPtr);
   } else {
@@ -268,7 +268,7 @@ CacheKey::appendPrefix(const String &prefix, Pattern &prefixCapture, Pattern &pr
 
   int hostLen;
   const char *hostPtr = TSUrlHostGet(_buf, _url, &hostLen);
-  if (NULL != hostPtr && 0 != hostLen) {
+  if (nullptr != hostPtr && 0 != hostLen) {
     host.assign(hostPtr, hostLen);
   } else {
     CacheKeyError("failed to get host");
@@ -284,8 +284,8 @@ CacheKey::appendPrefix(const String &prefix, Pattern &prefixCapture, Pattern &pr
 
     StringVector captures;
     if (prefixCapture.process(hostAndPort, captures)) {
-      for (StringVector::iterator it = captures.begin(); it != captures.end(); it++) {
-        append(*it);
+      for (auto &capture : captures) {
+        append(capture);
       }
       CacheKeyDebug("added host:port capture prefix, key: '%s'", _key.c_str());
     }
@@ -298,8 +298,8 @@ CacheKey::appendPrefix(const String &prefix, Pattern &prefixCapture, Pattern &pr
     if (!uri.empty()) {
       StringVector captures;
       if (prefixCaptureUri.process(uri, captures)) {
-        for (StringVector::iterator it = captures.begin(); it != captures.end(); it++) {
-          append(*it);
+        for (auto &capture : captures) {
+          append(capture);
         }
         CacheKeyDebug("added URI capture prefix, key: '%s'", _key.c_str());
       }
@@ -330,7 +330,7 @@ CacheKey::appendPath(Pattern &pathCapture, Pattern &pathCaptureUri)
 
   int pathLen;
   const char *pathPtr = TSUrlPathGet(_buf, _url, &pathLen);
-  if (NULL != pathPtr && 0 != pathLen) {
+  if (nullptr != pathPtr && 0 != pathLen) {
     path.assign(pathPtr, pathLen);
   }
 
@@ -341,8 +341,8 @@ CacheKey::appendPath(Pattern &pathCapture, Pattern &pathCaptureUri)
     if (!uri.empty()) {
       StringVector captures;
       if (pathCaptureUri.process(uri, captures)) {
-        for (StringVector::iterator it = captures.begin(); it != captures.end(); it++) {
-          append(*it);
+        for (auto &capture : captures) {
+          append(capture);
         }
         CacheKeyDebug("added URI capture (path), key: '%s'", _key.c_str());
       }
@@ -356,8 +356,8 @@ CacheKey::appendPath(Pattern &pathCapture, Pattern &pathCaptureUri)
     if (!path.empty()) {
       StringVector captures;
       if (pathCapture.process(path, captures)) {
-        for (StringVector::iterator it = captures.begin(); it != captures.end(); it++) {
-          append(*it);
+        for (auto &capture : captures) {
+          append(capture);
         }
         CacheKeyDebug("added path capture, key: '%s'", _key.c_str());
       }
@@ -399,7 +399,7 @@ CacheKey::appendHeaders(const ConfigHeaders &config)
 
       for (int i = 0; i < count; ++i) {
         value = TSMimeHdrFieldValueStringGet(_buf, _hdrs, field, i, &vlen);
-        if (value == NULL || vlen == 0) {
+        if (value == nullptr || vlen == 0) {
           CacheKeyDebug("missing value %d for header %s", i, name_s.c_str());
           continue;
         }
@@ -448,7 +448,7 @@ CacheKey::appendCookies(const ConfigCookies &config)
       int len;
 
       value = TSMimeHdrFieldValueStringGet(_buf, _hdrs, field, i, &len);
-      if (value == NULL || len == 0) {
+      if (value == nullptr || len == 0) {
         continue;
       }
 
@@ -458,7 +458,7 @@ CacheKey::appendCookies(const ConfigCookies &config)
       while (std::getline(istr, cookie, ';')) {
         ::ltrim(cookie); // Trim leading spaces.
 
-        String::size_type pos(cookie.find_first_of("="));
+        String::size_type pos(cookie.find_first_of('='));
         String name(cookie.substr(0, pos == String::npos ? cookie.size() : pos));
 
         /* We only add it to the cache key it is in the cookie set. */
@@ -494,7 +494,7 @@ CacheKey::appendQuery(const ConfigQuery &config)
   int length;
 
   query = TSUrlHttpQueryGet(_buf, _url, &length);
-  if (query == NULL || length == 0) {
+  if (query == nullptr || length == 0) {
     return;
   }
 
@@ -554,8 +554,8 @@ CacheKey::appendUaCaptures(Pattern &config)
     StringVector captures;
 
     if (config.process(val, captures)) {
-      for (StringVector::iterator it = captures.begin(); it != captures.end(); it++) {
-        append(*it);
+      for (auto &capture : captures) {
+        append(capture);
       }
     }
   }

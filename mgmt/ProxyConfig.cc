@@ -32,21 +32,21 @@ void *
 config_int_cb(void *data, void *value)
 {
   *(int *)data = *(int64_t *)value;
-  return NULL;
+  return nullptr;
 }
 
 void *
 config_float_cb(void *data, void *value)
 {
   *(float *)data = *(float *)value;
-  return NULL;
+  return nullptr;
 }
 
 void *
 config_long_long_cb(void *data, void *value)
 {
   *(int64_t *)data = *(int64_t *)value;
-  return NULL;
+  return nullptr;
 }
 
 /////////////////////////////////////////////////////////////
@@ -66,7 +66,7 @@ void *
 config_string_alloc_cb(void *data, void *value)
 {
   char *_ss        = (char *)value;
-  char *_new_value = 0;
+  char *_new_value = nullptr;
 
 //#define DEBUG_CONFIG_STRING_UPDATE
 #if defined(DEBUG_CONFIG_STRING_UPDATE)
@@ -83,11 +83,11 @@ config_string_alloc_cb(void *data, void *value)
   *(char **)data = _new_value;
 
   // free old data
-  if (_temp2 != 0) {
+  if (_temp2 != nullptr) {
     new_Freer(_temp2, HRTIME_DAY);
   }
 
-  return NULL;
+  return nullptr;
 }
 
 class ConfigInfoReleaser : public Continuation
@@ -116,7 +116,7 @@ ConfigProcessor::ConfigProcessor() : ninfos(0)
   int i;
 
   for (i = 0; i < MAX_CONFIGS; i++) {
-    infos[i] = NULL;
+    infos[i] = nullptr;
   }
 }
 
@@ -173,7 +173,7 @@ ConfigProcessor::get(unsigned int id)
 
   if (id == 0 || id > MAX_CONFIGS) {
     // return NULL, because we of an invalid index
-    return NULL;
+    return nullptr;
   }
 
   idx  = id - 1;
@@ -190,12 +190,9 @@ ConfigProcessor::release(unsigned int id, ConfigInfo *info)
 {
   int idx;
 
-  ink_assert(id != 0);
-  ink_assert(id <= MAX_CONFIGS);
-
   if (id == 0 || id > MAX_CONFIGS) {
     // nothing to delete since we have an invalid index
-    return;
+    ink_abort("released an invalid id '%u'", id);
   }
 
   idx = id - 1;
@@ -257,7 +254,7 @@ struct RegressionConfig : public ConfigInfo {
     ink_atomic_increment(&nobjects, 1);
   }
 
-  ~RegressionConfig()
+  ~RegressionConfig() override
   {
     TestBox box(this->test, this->pstatus);
 
@@ -284,7 +281,7 @@ volatile int RegressionConfig::nobjects = 0;
 struct ProxyConfig_Set_Completion {
   ProxyConfig_Set_Completion(int _id, RegressionConfig *_c) : configid(_id), config(_c) {}
   void
-  operator()(void) const
+  operator()() const
   {
     // Push one more RegressionConfig to force the LAST-tagged one to get destroyed.
     rprintf(config->test, "setting LAST config object %p\n", config);
@@ -318,7 +315,7 @@ EXCLUSIVE_REGRESSION_TEST(ProxyConfig_Set)(RegressionTest *test, int /* atype AT
 struct ProxyConfig_Release_Completion {
   ProxyConfig_Release_Completion(int _id, RegressionConfig *_c) : configid(_id), config(_c) {}
   void
-  operator()(void) const
+  operator()() const
   {
     // Release the reference count. Since we were keeping this alive, it should be the last to die.
     configProcessor.release(configid, config);

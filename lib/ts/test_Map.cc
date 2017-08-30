@@ -20,18 +20,19 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 */
-#include <stdint.h>
+#include <cstdint>
 #include "ts/Map.h"
+#include <list>
 
-typedef const char cchar;
+using cchar = const char;
 
 struct Item {
   LINK(Item, m_link);
   struct Hash {
-    typedef uint32_t ID;
-    typedef uint32_t Key;
-    typedef Item Value;
-    typedef DList(Item, m_link) ListHead;
+    using ID       = uint32_t;
+    using Key      = uint32_t;
+    using Value    = Item;
+    using ListHead = DLL<Item, Item::Link_m_link>;
 
     static ID
     hash(Key key)
@@ -60,20 +61,21 @@ Item::Hash::equal(Key lhs, Key rhs)
   return lhs == rhs;
 }
 
-typedef TSHashTable<Item::Hash> Table;
+using Table = TSHashTable<Item::Hash>;
 
 void
 test_TSHashTable()
 {
   static uint32_t const N = 270;
   Table t;
-  Item *item;
+  Item *item = nullptr;
   Table::Location loc;
+  std::list<Item *> to_delete;
 
-  item = new Item(1);
-  t.insert(item);
-  for (uint32_t i = 2; i <= N; ++i) {
-    t.insert(new Item(i));
+  for (uint32_t i = 1; i <= N; ++i) {
+    item = new Item(i);
+    t.insert(item);
+    to_delete.push_back(item);
   }
 
   for (uint32_t i = 1; i <= N; ++i) {
@@ -114,6 +116,10 @@ test_TSHashTable()
     ink_assert((spot->_value & 1) == 0);
   }
   ink_assert(n == N / 2);
+
+  for (auto it : to_delete) {
+    delete it;
+  }
 }
 
 int
@@ -147,20 +153,20 @@ main(int /* argc ATS_UNUSED */, char ** /*argv ATS_UNUSED */)
   ink_assert(h.put(hum) == hum);
   ink_assert(h.put(hhi) == hi);
   ink_assert(h.get(hhi) == hi && h.get(hi) == hi && h.get(ho) == ho);
-  ink_assert(h.get("he") == 0 && h.get("hee") == 0);
+  ink_assert(h.get("he") == nullptr && h.get("hee") == nullptr);
   h.del(ho);
-  ink_assert(h.get(ho) == 0);
+  ink_assert(h.get(ho) == nullptr);
 
   StringBlockHash hh;
   hh.put(hi);
   hh.put(ho);
-  ink_assert(hh.put(hum) == 0);
+  ink_assert(hh.put(hum) == nullptr);
   ink_assert(hh.put(hhi) == hi);
   ink_assert(hh.get(hhi) == hi && hh.get(hi) == hi && hh.get(ho) == ho);
-  ink_assert(hh.get("he") == 0 && hh.get("hee") == 0);
+  ink_assert(hh.get("he") == nullptr && hh.get("hee") == nullptr);
   hh.del(hi);
-  ink_assert(hh.get(hhi) == 0);
-  ink_assert(hh.get(hi) == 0);
+  ink_assert(hh.get(hhi) == nullptr);
+  ink_assert(hh.get(hi) == nullptr);
 
   HashMap<cchar *, StringHashFns, int> sh;
   sh.put(hi, 1);

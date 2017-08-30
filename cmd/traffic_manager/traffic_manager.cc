@@ -37,6 +37,7 @@
 #include "FileManager.h"
 #include "ts/I_Layout.h"
 #include "ts/I_Version.h"
+#include "ts/TextBuffer.h"
 #include "DiagsConfig.h"
 #include "HTTP.h"
 #include "CoreAPI.h"
@@ -52,9 +53,6 @@
 
 #include "P_RecLocal.h"
 
-#include "bindings/bindings.h"
-#include "bindings/metrics.h"
-
 #include "metrics.h"
 
 #if TS_USE_POSIX_CAP
@@ -66,7 +64,7 @@
 #define DIAGS_LOG_FILENAME "manager.log"
 
 // These globals are still referenced directly by management API.
-LocalManager *lmgmt = NULL;
+LocalManager *lmgmt = nullptr;
 FileManager *configFiles;
 
 static void fileUpdated(char *fname, bool incVersion);
@@ -85,7 +83,7 @@ static int proxy_off          = false;
 static char bind_stdout[512]  = "";
 static char bind_stderr[512]  = "";
 
-static const char *mgmt_path = NULL;
+static const char *mgmt_path = nullptr;
 
 // By default, set the current directory as base
 static const char *recs_conf = "records.config";
@@ -227,7 +225,7 @@ initSignalHandlers()
 
 // Set up the signal handler
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-  sigHandler.sa_handler   = NULL;
+  sigHandler.sa_handler   = nullptr;
   sigHandler.sa_sigaction = SignalHandler;
 #else
   sigHandler.sa_handler     = SignalHandler;
@@ -240,8 +238,8 @@ initSignalHandlers()
   //  after the signal since not all calls are wrapped
   //  to check errno for EINTR
   sigHandler.sa_flags = SA_RESTART;
-  sigaction(SIGHUP, &sigHandler, NULL);
-  sigaction(SIGUSR2, &sigHandler, NULL);
+  sigaction(SIGHUP, &sigHandler, nullptr);
+  sigaction(SIGUSR2, &sigHandler, nullptr);
 
 // Don't block the signal on entry to the signal
 //   handler so we can reissue it and get a core
@@ -251,15 +249,15 @@ initSignalHandlers()
 #else
   sigHandler.sa_flags       = SA_RESETHAND;
 #endif
-  sigaction(SIGINT, &sigHandler, NULL);
-  sigaction(SIGQUIT, &sigHandler, NULL);
-  sigaction(SIGILL, &sigHandler, NULL);
-  sigaction(SIGBUS, &sigHandler, NULL);
-  sigaction(SIGSEGV, &sigHandler, NULL);
-  sigaction(SIGTERM, &sigHandler, NULL);
+  sigaction(SIGINT, &sigHandler, nullptr);
+  sigaction(SIGQUIT, &sigHandler, nullptr);
+  sigaction(SIGILL, &sigHandler, nullptr);
+  sigaction(SIGBUS, &sigHandler, nullptr);
+  sigaction(SIGSEGV, &sigHandler, nullptr);
+  sigaction(SIGTERM, &sigHandler, nullptr);
 
 #if !defined(linux) && !defined(freebsd) && !defined(darwin)
-  sigAlrmHandler.sa_handler   = NULL;
+  sigAlrmHandler.sa_handler   = nullptr;
   sigAlrmHandler.sa_sigaction = SignalAlrmHandler;
 #else
   sigAlrmHandler.sa_handler = SignalAlrmHandler;
@@ -271,7 +269,7 @@ initSignalHandlers()
 #else
   sigAlrmHandler.sa_flags   = 0;
 #endif
-  sigaction(SIGALRM, &sigAlrmHandler, NULL);
+  sigaction(SIGALRM, &sigAlrmHandler, nullptr);
 
   // Block the delivery of any signals we are not catching
   //
@@ -290,7 +288,7 @@ initSignalHandlers()
   sigdelset(&sigsToBlock, SIGSEGV);
   sigdelset(&sigsToBlock, SIGTERM);
   sigdelset(&sigsToBlock, SIGALRM);
-  ink_thread_sigsetmask(SIG_SETMASK, &sigsToBlock, NULL);
+  ink_thread_sigsetmask(SIG_SETMASK, &sigsToBlock, nullptr);
 
   // Set up the SIGCHLD handler so we do not get into
   //   a problem with Solaris 2.6 and strange waitpid()
@@ -298,7 +296,7 @@ initSignalHandlers()
   sigChldHandler.sa_handler = SigChldHandler;
   sigChldHandler.sa_flags   = SA_RESTART;
   sigemptyset(&sigChldHandler.sa_mask);
-  sigaction(SIGCHLD, &sigChldHandler, NULL);
+  sigaction(SIGCHLD, &sigChldHandler, nullptr);
 }
 
 static void
@@ -413,7 +411,7 @@ millisleep(int ms)
 
   ts.tv_sec  = ms / 1000;
   ts.tv_nsec = (ms - ts.tv_sec * 1000) * 1000 * 1000;
-  nanosleep(&ts, NULL); // we use nanosleep instead of sleep because it does not interact with signals
+  nanosleep(&ts, nullptr); // we use nanosleep instead of sleep because it does not interact with signals
 }
 
 int
@@ -433,9 +431,9 @@ main(int argc, const char **argv)
   int cluster_mcport = -1, cluster_rsport = -1;
   // TODO: This seems completely incomplete, disabled for now
   //  int dump_config = 0, dump_process = 0, dump_node = 0, dump_cluster = 0, dump_local = 0;
-  char *proxy_port   = 0;
+  char *proxy_port   = nullptr;
   int proxy_backdoor = -1;
-  char *group_addr = NULL, *tsArgs = NULL;
+  char *group_addr = nullptr, *tsArgs = nullptr;
   int disable_syslog = false;
   char userToRunAs[MAX_LOGIN + 1];
   RecInt fds_throttle = -1;
@@ -443,26 +441,26 @@ main(int argc, const char **argv)
   ink_thread synthThrId;
 
   int binding_version      = 0;
-  BindingInstance *binding = NULL;
+  BindingInstance *binding = nullptr;
 
   ArgumentDescription argument_descriptions[] = {
-    {"proxyOff", '-', "Disable proxy", "F", &proxy_off, NULL, NULL},
-    {"aconfPort", '-', "Autoconf port", "I", &aconf_port_arg, "MGMT_ACONF_PORT", NULL},
-    {"clusterMCPort", '-', "Cluster multicast port", "I", &cluster_mcport, "MGMT_CLUSTER_MC_PORT", NULL},
-    {"clusterRSPort", '-', "Cluster reliable service port", "I", &cluster_rsport, "MGMT_CLUSTER_RS_PORT", NULL},
-    {"groupAddr", '-', "Multicast group address", "S*", &group_addr, "MGMT_GROUP_ADDR", NULL},
-    {"path", '-', "Path to the management socket", "S*", &mgmt_path, NULL, NULL},
-    {"recordsConf", '-', "Path to records.config", "S*", &recs_conf, NULL, NULL},
-    {"tsArgs", '-', "Additional arguments for traffic_server", "S*", &tsArgs, NULL, NULL},
-    {"proxyPort", '-', "HTTP port descriptor", "S*", &proxy_port, NULL, NULL},
-    {"proxyBackDoor", '-', "Management port", "I", &proxy_backdoor, NULL, NULL},
-    {TM_OPT_BIND_STDOUT, '-', "Regular file to bind stdout to", "S512", &bind_stdout, "PROXY_BIND_STDOUT", NULL},
-    {TM_OPT_BIND_STDERR, '-', "Regular file to bind stderr to", "S512", &bind_stderr, "PROXY_BIND_STDERR", NULL},
+    {"proxyOff", '-', "Disable proxy", "F", &proxy_off, nullptr, nullptr},
+    {"aconfPort", '-', "Autoconf port", "I", &aconf_port_arg, "MGMT_ACONF_PORT", nullptr},
+    {"clusterMCPort", '-', "Cluster multicast port", "I", &cluster_mcport, "MGMT_CLUSTER_MC_PORT", nullptr},
+    {"clusterRSPort", '-', "Cluster reliable service port", "I", &cluster_rsport, "MGMT_CLUSTER_RS_PORT", nullptr},
+    {"groupAddr", '-', "Multicast group address", "S*", &group_addr, "MGMT_GROUP_ADDR", nullptr},
+    {"path", '-', "Path to the management socket", "S*", &mgmt_path, nullptr, nullptr},
+    {"recordsConf", '-', "Path to records.config", "S*", &recs_conf, nullptr, nullptr},
+    {"tsArgs", '-', "Additional arguments for traffic_server", "S*", &tsArgs, nullptr, nullptr},
+    {"proxyPort", '-', "HTTP port descriptor", "S*", &proxy_port, nullptr, nullptr},
+    {"proxyBackDoor", '-', "Management port", "I", &proxy_backdoor, nullptr, nullptr},
+    {TM_OPT_BIND_STDOUT, '-', "Regular file to bind stdout to", "S512", &bind_stdout, "PROXY_BIND_STDOUT", nullptr},
+    {TM_OPT_BIND_STDERR, '-', "Regular file to bind stderr to", "S512", &bind_stderr, "PROXY_BIND_STDERR", nullptr},
 #if TS_USE_DIAGS
-    {"debug", 'T', "Vertical-bar-separated Debug Tags", "S1023", debug_tags, NULL, NULL},
-    {"action", 'B', "Vertical-bar-separated Behavior Tags", "S1023", action_tags, NULL, NULL},
+    {"debug", 'T', "Vertical-bar-separated Debug Tags", "S1023", debug_tags, nullptr, nullptr},
+    {"action", 'B', "Vertical-bar-separated Behavior Tags", "S1023", action_tags, nullptr, nullptr},
 #endif
-    {"nosyslog", '-', "Do not log to syslog", "F", &disable_syslog, NULL, NULL},
+    {"nosyslog", '-', "Do not log to syslog", "F", &disable_syslog, nullptr, nullptr},
     HELP_ARGUMENT_DESCRIPTION(),
     VERSION_ARGUMENT_DESCRIPTION()
   };
@@ -475,11 +473,11 @@ main(int argc, const char **argv)
 
   // Line buffer standard output & standard error
   int status;
-  status = setvbuf(stdout, NULL, _IOLBF, 0);
+  status = setvbuf(stdout, nullptr, _IOLBF, 0);
   if (status != 0) {
     perror("WARNING: can't line buffer stdout");
   }
-  status = setvbuf(stderr, NULL, _IOLBF, 0);
+  status = setvbuf(stderr, nullptr, _IOLBF, 0);
   if (status != 0) {
     perror("WARNING: can't line buffer stderr");
   }
@@ -563,7 +561,7 @@ main(int argc, const char **argv)
 
   if (!disable_syslog) {
     char sys_var[]     = "proxy.config.syslog_facility";
-    char *facility_str = NULL;
+    char *facility_str = nullptr;
     int facility_int;
 
     facility_str = REC_readString(sys_var, &found);
@@ -581,8 +579,7 @@ main(int argc, const char **argv)
       }
     }
 
-    // NOTE: do NOT call closelog() here.  Solaris gets confused
-    //   and some how it hoses later calls to readdir_r.
+    // NOTE: do NOT call closelog() here.  Solaris gets confused.
     openlog("traffic_manager", LOG_PID | LOG_NDELAY | LOG_NOWAIT, facility_int);
 
     lmgmt->syslog_facility = facility_int;
@@ -611,32 +608,26 @@ main(int argc, const char **argv)
 
   /* Update cmd line overrides/environmental overrides/etc */
   if (tsArgs) { /* Passed command line args for proxy */
-    ats_free(lmgmt->proxy_options);
-    lmgmt->proxy_options = tsArgs;
-    mgmt_log("[main] Traffic Server Args: '%s'\n", lmgmt->proxy_options);
+    lmgmt->proxy_options = ats_strdup(tsArgs);
   }
 
-  // we must pass in bind_stdout and bind_stderr values to TS
-  // we do it so TS is able to create BaseLogFiles for each value
-  if (*bind_stdout != 0) {
-    size_t l = strlen(lmgmt->proxy_options);
-    size_t n = 3                            /* " --" */
-               + sizeof(TM_OPT_BIND_STDOUT) /* nul accounted for here */
-               + 1                          /* space */
-               + strlen(bind_stdout);
-    lmgmt->proxy_options = static_cast<char *>(ats_realloc(lmgmt->proxy_options, n + l));
-    snprintf(lmgmt->proxy_options + l, n, " --%s %s", TM_OPT_BIND_STDOUT, bind_stdout);
+  // TS needs to be started up with the same outputlog bindings each time,
+  // so we append the outputlog location to the persistent proxy options
+  //
+  // TS needs them to be able to create BaseLogFiles for each value
+  textBuffer args(1024);
+
+  if (*bind_stdout) {
+    const char *space = args.empty() ? "" : " ";
+    args.format("%s%s %s", space, "--" TM_OPT_BIND_STDOUT, bind_stdout);
   }
 
-  if (*bind_stderr != 0) {
-    size_t l = strlen(lmgmt->proxy_options);
-    size_t n = 3                            /* space dash dash */
-               + sizeof(TM_OPT_BIND_STDERR) /* nul accounted for here */
-               + 1                          /* space */
-               + strlen(bind_stderr);
-    lmgmt->proxy_options = static_cast<char *>(ats_realloc(lmgmt->proxy_options, n + l));
-    snprintf(lmgmt->proxy_options + l, n, " --%s %s", TM_OPT_BIND_STDERR, bind_stderr);
+  if (*bind_stderr) {
+    const char *space = args.empty() ? "" : " ";
+    args.format("%s%s %s", space, "--" TM_OPT_BIND_STDERR, bind_stderr);
   }
+
+  lmgmt->proxy_options = args.release();
 
   if (proxy_port) {
     HttpProxyPort::loadValue(lmgmt->m_proxy_ports, proxy_port);
@@ -686,7 +677,7 @@ main(int argc, const char **argv)
   // can keep a consistent euid when create mgmtapi/eventapi unix
   // sockets in mgmt_synthetic_main thread.
   //
-  synthThrId = ink_thread_create(mgmt_synthetic_main, NULL); /* Spin web agent thread */
+  synthThrId = ink_thread_create(mgmt_synthetic_main, nullptr, 0, 0, nullptr); /* Spin web agent thread */
   Debug("lm", "Created Web Agent thread (%" PRId64 ")", (int64_t)synthThrId);
 
   // Setup the API and event sockets
@@ -715,13 +706,13 @@ main(int argc, const char **argv)
   }
 
   umask(oldmask);
-  ink_thread_create(ts_ctrl_main, &mgmtapiFD);
-  ink_thread_create(event_callback_main, &eventapiFD);
+  ink_thread_create(ts_ctrl_main, &mgmtapiFD, 0, 0, nullptr);
+  ink_thread_create(event_callback_main, &eventapiFD, 0, 0, nullptr);
 
-  ticker = time(NULL);
+  ticker = time(nullptr);
   mgmt_log("[TrafficManager] Setup complete\n");
 
-  RecRegisterStatInt(RECT_NODE, "proxy.node.config.reconfigure_time", time(NULL), RECP_NON_PERSISTENT);
+  RecRegisterStatInt(RECT_NODE, "proxy.node.config.reconfigure_time", time(nullptr), RECP_NON_PERSISTENT);
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.reconfigure_required", 0, RECP_NON_PERSISTENT);
 
   RecRegisterStatInt(RECT_NODE, "proxy.node.config.restart_required.proxy", 0, RECP_NON_PERSISTENT);
@@ -730,6 +721,7 @@ main(int argc, const char **argv)
 
   binding = new BindingInstance;
   metrics_binding_initialize(*binding);
+  metrics_binding_configure(*binding);
 
   int sleep_time = 0; // sleep_time given in sec
 
@@ -743,6 +735,8 @@ main(int argc, const char **argv)
 
       binding = new BindingInstance;
       metrics_binding_initialize(*binding);
+      metrics_binding_configure(*binding);
+
       binding_version = metrics_version;
     }
 
@@ -805,7 +799,7 @@ main(int argc, const char **argv)
       break;
     }
 
-    if (lmgmt->run_proxy && !lmgmt->processRunning()) { /* Make sure we still have a proxy up */
+    if (lmgmt->run_proxy && !lmgmt->processRunning() && lmgmt->proxy_recoverable) { /* Make sure we still have a proxy up */
       if (sleep_time) {
         mgmt_log("Relaunching proxy after %d sec...", sleep_time);
         millisleep(1000 * sleep_time); // we use millisleep instead of sleep because it doesnt interfere with signals
@@ -813,13 +807,17 @@ main(int argc, const char **argv)
       } else {
         sleep_time = 1;
       }
-      if (lmgmt->startProxy()) {
+      if (ProxyStateSet(TS_PROXY_ON, TS_CACHE_CLEAR_NONE) == TS_ERR_OKAY) {
         just_started = 0;
         sleep_time   = 0;
       } else {
         just_started++;
       }
     } else { /* Give the proxy a chance to fire up */
+      if (!lmgmt->proxy_recoverable) {
+        mgmt_log("[main] Proxy is un-recoverable. Proxy will not be relaunched.\n");
+      }
+
       just_started++;
     }
 
@@ -1023,6 +1021,8 @@ fileUpdated(char *fname, bool incVersion)
     mgmt_log("[fileUpdated] metrics.config file has been modified\n");
   } else if (strcmp(fname, "congestion.config") == 0) {
     lmgmt->signalFileChange("proxy.config.http.congestion_control.filename");
+  } else if (strcmp(fname, "proxy.config.ssl.server.ticket_key.filename") == 0) {
+    lmgmt->signalFileChange("proxy.config.ssl.server.ticket_key.filename");
   } else {
     mgmt_log("[fileUpdated] Unknown config file updated '%s'\n", fname);
   }

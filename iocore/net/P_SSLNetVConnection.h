@@ -37,6 +37,7 @@
 #include "P_UnixNetVConnection.h"
 #include "P_UnixNet.h"
 #include "ts/apidefs.h"
+#include <ts/MemView.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -66,6 +67,7 @@
 #define SSL_DEF_TLS_RECORD_MSEC_THRESHOLD 1000
 
 class SSLNextProtocolSet;
+class SSLNextProtocolAccept;
 struct SSLCertLookup;
 
 typedef enum {
@@ -87,8 +89,8 @@ class SSLNetVConnection : public UnixNetVConnection
   typedef UnixNetVConnection super; ///< Parent type.
 
 public:
-  virtual int sslStartHandShake(int event, int &err);
-  virtual void free(EThread *t);
+  int sslStartHandShake(int event, int &err) override;
+  void free(EThread *t) override;
 
   virtual void
   enableRead()
@@ -97,8 +99,8 @@ public:
     write.enabled = 1;
   }
 
-  virtual bool
-  getSSLHandShakeComplete() const
+  bool
+  getSSLHandShakeComplete() const override
   {
     return sslHandShakeComplete;
   }
@@ -107,18 +109,6 @@ public:
   setSSLHandShakeComplete(bool state)
   {
     sslHandShakeComplete = state;
-  }
-
-  virtual bool
-  getSSLClientConnection() const
-  {
-    return sslClientConnection;
-  }
-
-  virtual void
-  setSSLClientConnection(bool state)
-  {
-    sslClientConnection = state;
   }
 
   void
@@ -135,10 +125,10 @@ public:
 
   int sslServerHandShakeEvent(int &err);
   int sslClientHandShakeEvent(int &err);
-  virtual void net_read_io(NetHandler *nh, EThread *lthread);
-  virtual int64_t load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf, int64_t &total_written, int &needs);
+  void net_read_io(NetHandler *nh, EThread *lthread) override;
+  int64_t load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf, int64_t &total_written, int &needs) override;
   void registerNextProtocolSet(const SSLNextProtocolSet *);
-  virtual void do_io_close(int lerrno = -1);
+  void do_io_close(int lerrno = -1) override;
 
   ////////////////////////////////////////////////////////////
   // Instances of NetVConnection should be allocated        //
@@ -214,9 +204,9 @@ public:
     if (this->handShakeBuffer) {
       free_MIOBuffer(this->handShakeBuffer);
     }
-    this->handShakeReader    = NULL;
-    this->handShakeHolder    = NULL;
-    this->handShakeBuffer    = NULL;
+    this->handShakeReader    = nullptr;
+    this->handShakeHolder    = nullptr;
+    this->handShakeBuffer    = nullptr;
     this->handShakeBioStored = 0;
   }
 
@@ -243,24 +233,24 @@ public:
   const char *
   getSSLProtocol(void) const
   {
-    return ssl ? SSL_get_version(ssl) : NULL;
+    return ssl ? SSL_get_version(ssl) : nullptr;
   }
 
   const char *
   getSSLCipherSuite(void) const
   {
-    return ssl ? SSL_get_cipher_name(ssl) : NULL;
+    return ssl ? SSL_get_cipher_name(ssl) : nullptr;
   }
 
-  int populate_protocol(char const **results, int n) const;
-  const char *protocol_contains(const char *tag) const;
+  int populate_protocol(ts::StringView *results, int n) const override;
+  const char *protocol_contains(ts::StringView tag) const override;
 
   /**
    * Populate the current object based on the socket information in in the
    * con parameter and the ssl object in the arg parameter
    * This is logic is invoked when the NetVC object is created in a new thread context
    */
-  virtual int populate(Connection &con, Continuation *c, void *arg);
+  int populate(Connection &con, Continuation *c, void *arg) override;
 
   SSL *ssl;
   ink_hrtime sslHandshakeBeginTime;
@@ -274,10 +264,10 @@ private:
   SSLNetVConnection(const SSLNetVConnection &);
   SSLNetVConnection &operator=(const SSLNetVConnection &);
 
-  const char *map_tls_protocol_to_tag(char const *proto_string) const;
+  ts::StringView map_tls_protocol_to_tag(const char *proto_string) const;
+  bool update_rbio(bool move_to_socket);
 
   bool sslHandShakeComplete;
-  bool sslClientConnection;
   bool sslClientRenegotiationAbort;
   bool sslSessionCacheHit;
   MIOBuffer *handShakeBuffer;

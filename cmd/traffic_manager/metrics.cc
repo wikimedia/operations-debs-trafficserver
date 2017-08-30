@@ -21,6 +21,8 @@
  *  limitations under the License.
  */
 
+#include <cmath>
+
 #include "ts/ink_config.h"
 #include "ts/ink_memory.h"
 #include "ts/Ptr.h"
@@ -35,12 +37,10 @@
 #include "metrics.h"
 
 struct Evaluator {
-  Evaluator() : rec_name(NULL), data_type(RECD_NULL), ref(-1) {}
-  ~Evaluator()
-  {
-    ats_free(this->rec_name);
-    ink_release_assert(this->ref == -1);
-  }
+  Evaluator() : rec_name(nullptr), data_type(RECD_NULL), ref(LUA_NOREF) {}
+  ~Evaluator() { ink_release_assert(this->ref == LUA_NOREF); }
+  Evaluator(const Evaluator &) = delete;
+  Evaluator &operator=(const Evaluator &) = delete;
 
   bool
   bind(lua_State *L, const char *metric, const char *expression)
@@ -66,6 +66,20 @@ struct Evaluator {
     this->ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     return true;
+  }
+
+  void
+  unbind(lua_State *L)
+  {
+    if (this->ref != LUA_NOREF) {
+      luaL_unref(L, LUA_REGISTRYINDEX, this->ref);
+    }
+
+    ats_free(this->rec_name);
+
+    this->ref       = LUA_NOREF;
+    this->rec_name  = nullptr;
+    this->data_type = RECD_NULL;
   }
 
   void
@@ -102,7 +116,7 @@ struct Evaluator {
       case RECD_FLOAT:
         // Lua will eval 0/0 to NaN rather than 0.
         rec_value.rec_float = lua_tonumber(L, -1);
-        if (isnan(rec_value.rec_float)) {
+        if (std::isnan(rec_value.rec_float)) {
           rec_value.rec_float = 0.0;
         }
         break;
@@ -110,7 +124,7 @@ struct Evaluator {
         goto done;
       }
 
-      RecSetRecord(RECT_NULL, this->rec_name, this->data_type, &rec_value, NULL, REC_SOURCE_EXPLICIT);
+      RecSetRecord(RECT_NULL, this->rec_name, this->data_type, &rec_value, nullptr, REC_SOURCE_EXPLICIT);
     }
 
   done:
@@ -129,8 +143,13 @@ struct EvaluatorList {
   EvaluatorList() : update(true), passes(0) {}
   ~EvaluatorList()
   {
-    forv_Vec(Evaluator, e, this->evaluators) { delete e; }
+    forv_Vec (Evaluator, e, this->evaluators) {
+      delete e;
+    }
   }
+
+  EvaluatorList(const EvaluatorList &) = delete;
+  EvaluatorList &operator=(const EvaluatorList &) = delete;
 
   void
   push_back(Evaluator *e)
@@ -139,12 +158,23 @@ struct EvaluatorList {
   }
 
   void
+  unbind(lua_State *L) const
+  {
+    forv_Vec (Evaluator, e, this->evaluators) {
+      e->unbind(L);
+    }
+  }
+
+  void
   evaluate(lua_State *L) const
   {
     ink_hrtime start = ink_get_hrtime_internal();
     ink_hrtime elapsed;
 
-    forv_Vec(Evaluator, e, this->evaluators) { e->eval(L); }
+    forv_Vec (Evaluator, e, this->evaluators) {
+      e->eval(L);
+    }
+
     elapsed = ink_hrtime_diff(ink_get_hrtime_internal(), start);
     Debug("lua", "evaluated %u metrics in %fmsec", evaluators.length(), ink_hrtime_to_usec(elapsed) / 1000.0);
   }
@@ -190,7 +220,7 @@ metrics_register_evaluator(lua_State *L)
   binding    = BindingInstance::self(L);
   evaluators = (EvaluatorList *)binding->retrieve_ptr("evaluators");
 
-  ink_release_assert(evaluators != NULL);
+  ink_release_assert(evaluators != nullptr);
 
   eval = new Evaluator();
   eval->bind(L, metric, chunk);
@@ -318,9 +348,6 @@ metrics_cluster_sum(lua_State *L)
 bool
 metrics_binding_initialize(BindingInstance &binding)
 {
-  ats_scoped_str sysconfdir(RecConfigReadConfigDir());
-  ats_scoped_str config(Layout::get()->relative_to(sysconfdir, "metrics.config"));
-
   if (!binding.construct()) {
     mgmt_fatal(0, "failed to initialize Lua runtime\n");
   }
@@ -341,12 +368,7 @@ metrics_binding_initialize(BindingInstance &binding)
   // Stash a backpointer to the evaluators.
   binding.attach_ptr("evaluators", new EvaluatorList());
 
-  // Finally, execute the config file.
-  if (binding.require(config.get())) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 void
@@ -355,8 +377,19 @@ metrics_binding_destroy(BindingInstance &binding)
   EvaluatorList *evaluators;
 
   evaluators = (EvaluatorList *)binding.retrieve_ptr("evaluators");
-  binding.attach_ptr("evaluators", NULL);
+  binding.attach_ptr("evaluators", nullptr);
+
+  evaluators->unbind(binding.lua);
   delete evaluators;
+}
+
+bool
+metrics_binding_configure(BindingInstance &binding)
+{
+  ats_scoped_str sysconfdir(RecConfigReadConfigDir());
+  ats_scoped_str config(Layout::get()->relative_to(sysconfdir, "metrics.config"));
+
+  return binding.require(config.get());
 }
 
 void
@@ -365,7 +398,7 @@ metrics_binding_evaluate(BindingInstance &binding)
   EvaluatorList *evaluators;
 
   evaluators = (EvaluatorList *)binding.retrieve_ptr("evaluators");
-  ink_release_assert(evaluators != NULL);
+  ink_release_assert(evaluators != nullptr);
 
   // Keep updating the namespace until it settles (ie. we make 0 updates).
   if (evaluators->update) {

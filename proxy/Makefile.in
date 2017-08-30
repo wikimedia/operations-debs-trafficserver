@@ -655,6 +655,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -793,6 +794,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -952,17 +954,17 @@ TESTS = \
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib/records \
-  -I$(srcdir)/http \
-  -I$(srcdir)/http2 \
-  -I$(srcdir)/logging \
-  -I$(srcdir)/http/remap  \
-  -I$(srcdir)/hdrs \
-  -I$(srcdir)/shared \
-  -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/utils \
-  -I$(top_srcdir)/proxy/api/ts \
-  -I$(top_srcdir)/lib \
+  -I$(abs_top_srcdir)/lib/records \
+  -I$(abs_srcdir)/http \
+  -I$(abs_srcdir)/http2 \
+  -I$(abs_srcdir)/logging \
+  -I$(abs_srcdir)/http/remap  \
+  -I$(abs_srcdir)/hdrs \
+  -I$(abs_srcdir)/shared \
+  -I$(abs_top_srcdir)/mgmt \
+  -I$(abs_top_srcdir)/mgmt/utils \
+  -I$(abs_top_srcdir)/proxy/api/ts \
+  -I$(abs_top_srcdir)/lib \
   @OPENSSL_INCLUDES@
 
 

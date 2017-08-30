@@ -23,11 +23,13 @@ library_includedir=$(includedir)/ts
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator
+check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator test_MemView
+
+TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 
 TESTS = $(check_PROGRAMS)
 
-AM_CPPFLAGS = -I$(top_srcdir)/lib
+AM_CPPFLAGS = -I$(abs_top_srcdir)/lib
 
 lib_LTLIBRARIES = libtsutil.la
 
@@ -83,6 +85,7 @@ libtsutil_la_SOURCES = \
   IpMapConf.h \
   Layout.cc \
   List.h \
+  MemView.h MemView.cc \
   MMH.cc \
   MMH.h \
   Map.h \
@@ -233,6 +236,9 @@ test_X509HostnameValidator_SOURCES = test_X509HostnameValidator.cc
 test_X509HostnameValidator_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@ @OPENSSL_LIBS@
 test_X509HostnameValidator_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
+test_MemView_SOURCES = test_MemView.cc
+test_MemView_LDADD = libtsutil.la
+
 test_tsutil_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
 test_tsutil_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_tsutil_SOURCES = \
@@ -248,4 +254,3 @@ clean-local:
 
 tidy-local: $(DIST_SOURCES)
 	$(CXX_Clang_Tidy)
-

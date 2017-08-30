@@ -5,8 +5,41 @@
 #define _ink_autoconf_h
 
 
+/* Added in OpenSSL 1.1 */
+#undef ASN1_STRING_get0_data
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_get_data
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_get_shutdown
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_meth_get_create
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_meth_get_ctrl
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_meth_get_destroy
+
+/* Added in OpenSSL 1.1 */
+#undef BIO_set_data
+
+/* Renamed in OpenSSL 1.1 */
+#undef EVP_MD_CTX_free
+
+/* Renamed in OpenSSL 1.1 */
+#undef EVP_MD_CTX_new
+
+/* Renamed in OpenSSL 1.1 */
+#undef EVP_MD_CTX_reset
+
 /* Define if gethostbyname_r has the glibc style */
 #undef GETHOSTBYNAME_R_GLIBC2
+
+/* Define if libcurl >= 7.19. */
+#undef HAS_CURL
 
 /* Define to 1 if you have the `accept4' function. */
 #undef HAVE_ACCEPT4
@@ -23,11 +56,23 @@
 /* Define to 1 if you have the <arpa/nameser.h> header file. */
 #undef HAVE_ARPA_NAMESER_H
 
+/* Define to 1 if you have the `BIO_meth_new' function. */
+#undef HAVE_BIO_METH_NEW
+
+/* Define to 1 if you have the `BIO_sock_non_fatal_error' function. */
+#undef HAVE_BIO_SOCK_NON_FATAL_ERROR
+
+/* Define to 1 if you have the <brotli/encode.h> header file. */
+#undef HAVE_BROTLI_ENCODE_H
+
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <cpio.h> header file. */
 #undef HAVE_CPIO_H
+
+/* Define to 1 if you have the `CRYPTO_set_mem_functions' function. */
+#undef HAVE_CRYPTO_SET_MEM_FUNCTIONS
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
@@ -101,6 +146,9 @@
 /* Define to 1 if you have the <history.h> header file. */
 #undef HAVE_HISTORY_H
 
+/* Define to 1 if you have the `HMAC_CTX_new' function. */
+#undef HAVE_HMAC_CTX_NEW
+
 /* Define to 1 if you have the `hsearch_r' function. */
 #undef HAVE_HSEARCH_R
 
@@ -160,9 +208,6 @@
 
 /* Define to 1 if you have the `malloc_usable_size' function. */
 #undef HAVE_MALLOC_USABLE_SIZE
-
-/* Define to 1 if you have the <math.h> header file. */
-#undef HAVE_MATH_H
 
 /* Define to 1 if you have the <mcheck.h> header file. */
 #undef HAVE_MCHECK_H
@@ -461,6 +506,9 @@
 
 /* Define to 1 if you have the <wait.h> header file. */
 #undef HAVE_WAIT_H
+
+/* Define to 1 if you have the `X509_get0_signature' function. */
+#undef HAVE_X509_GET0_SIGNATURE
 
 /* Define to 1 if you have the <zlib.h> header file. */
 #undef HAVE_ZLIB_H

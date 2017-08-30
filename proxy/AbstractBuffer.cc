@@ -22,8 +22,8 @@
  */
 
 #include "ts/ink_config.h"
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 #include "AbstractBuffer.h"
 /* #include "CacheAtomic.h" */
 #include "ts/ink_align.h"
@@ -284,7 +284,7 @@ AbstractBuffer::clear()
   if (unaligned_buffer) {
     delete[] unaligned_buffer;
   }
-  unaligned_buffer = buffer = NULL;
+  unaligned_buffer = buffer = nullptr;
 
   vs_history[AB_STATE_UNUSED] = vs;
 

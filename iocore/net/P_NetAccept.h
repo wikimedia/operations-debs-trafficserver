@@ -44,6 +44,7 @@
 
 struct NetAccept;
 class Event;
+class SSLNextProtocolAccept;
 //
 // Default accept function
 //   Accepts as many connections as possible, returning the number accepted
@@ -60,7 +61,7 @@ struct NetAcceptAction : public Action, public RefCountObj {
   Server *server;
 
   void
-  cancel(Continuation *cont = NULL)
+  cancel(Continuation *cont = nullptr)
   {
     Action::cancel(cont);
     server->close();
@@ -80,39 +81,36 @@ struct NetAcceptAction : public Action, public RefCountObj {
 // Handles accepting connections.
 //
 struct NetAccept : public Continuation {
-  ink_hrtime period;
+  ink_hrtime period = 0;
   Server server;
-  AcceptFunctionPtr accept_fn;
-  int ifd;
-  bool callback_on_open;
-  bool backdoor;
+  AcceptFunctionPtr accept_fn = nullptr;
+  int ifd                     = NO_FD;
+  int id                      = -1;
   Ptr<NetAcceptAction> action_;
-  int recv_bufsize;
-  int send_bufsize;
-  uint32_t sockopt_flags;
-  uint32_t packet_mark;
-  uint32_t packet_tos;
-  EventType etype;
-  UnixNetVConnection *epoll_vc; // only storage for epoll events
+  SSLNextProtocolAccept *snpa = nullptr;
   EventIO ep;
+
+  HttpProxyPort *proxyPort = nullptr;
+  NetProcessor::AcceptOptions opt;
 
   virtual NetProcessor *getNetProcessor() const;
 
   void init_accept_loop(const char *);
-  virtual void init_accept(EThread *t = NULL, bool isTransparent = false);
-  virtual void init_accept_per_thread(bool isTransparent);
+  virtual void init_accept(EThread *t = nullptr);
+  virtual void init_accept_per_thread();
   virtual NetAccept *clone() const;
-  // 0 == success
-  int do_listen(bool non_blocking, bool transparent = false);
 
+  // 0 == success
+  int do_listen(bool non_blocking);
   int do_blocking_accept(EThread *t);
+
   virtual int acceptEvent(int event, void *e);
   virtual int acceptFastEvent(int event, void *e);
   int acceptLoopEvent(int event, Event *e);
   void cancel();
 
-  NetAccept();
-  virtual ~NetAccept() { action_ = NULL; };
+  explicit NetAccept(const NetProcessor::AcceptOptions &);
+  virtual ~NetAccept() { action_ = nullptr; }
 };
 
 #endif

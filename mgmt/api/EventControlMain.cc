@@ -61,8 +61,8 @@ new_event_client()
   EventClientT *ele = (EventClientT *)ats_malloc(sizeof(EventClientT));
 
   // now set the alarms registered section
-  for (int i = 0; i < NUM_EVENTS; i++) {
-    ele->events_registered[i] = 0;
+  for (bool &i : ele->events_registered) {
+    i = false;
   }
 
   ele->adr = (struct sockaddr *)ats_malloc(sizeof(struct sockaddr));
@@ -254,12 +254,12 @@ event_callback_main(void *arg)
   // initialize queue for accepted con
   accepted_clients = ink_hash_table_create(InkHashTableKeyType_Word);
   if (!accepted_clients) {
-    return NULL;
+    return nullptr;
   }
   // initialize queue for holding mgmt events
   if ((ret = init_mgmt_events()) != TS_ERR_OKAY) {
     ink_hash_table_destroy(accepted_clients);
-    return NULL;
+    return nullptr;
   }
   // register callback with alarms processor
   lmgmt->alarm_keeper->registerCallback(apiEventCallback);
@@ -274,7 +274,7 @@ event_callback_main(void *arg)
   int fds_ready;                       // return value for select go here
   struct timeval timeout;
 
-  while (1) {
+  while (true) {
     // LINUX fix: to prevent hard-spin reset timeout on each loop
     timeout.tv_sec  = 1;
     timeout.tv_usec = 0;
@@ -298,7 +298,7 @@ event_callback_main(void *arg)
     }
 
     // select call - timeout is set so we can check events at regular intervals
-    fds_ready = mgmt_select(FD_SETSIZE, &selectFDs, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+    fds_ready = mgmt_select(FD_SETSIZE, &selectFDs, (fd_set *)nullptr, (fd_set *)nullptr, &timeout);
 
     // check return
     if (fds_ready > 0) {
@@ -391,11 +391,11 @@ event_callback_main(void *arg)
       while (con_entry) {
         client_entry = (EventClientT *)ink_hash_table_entry_value(accepted_clients, con_entry);
         if (client_entry->events_registered[event->id]) {
-          MgmtMarshallInt optype  = EVENT_NOTIFY;
+          OpType optype           = OpType::EVENT_NOTIFY;
           MgmtMarshallString name = event->name;
           MgmtMarshallString desc = event->description;
 
-          ret = send_mgmt_request(client_entry->fd, EVENT_NOTIFY, &optype, &name, &desc);
+          ret = send_mgmt_request(client_entry->fd, OpType::EVENT_NOTIFY, &optype, &name, &desc);
           if (ret != TS_ERR_OKAY) {
             Debug("event", "sending even notification to fd [%d] failed.", client_entry->fd);
           }
@@ -428,8 +428,8 @@ event_callback_main(void *arg)
   // all entries should be removed and freed already
   ink_hash_table_destroy(accepted_clients);
 
-  ink_thread_exit(NULL);
-  return NULL;
+  ink_thread_exit(nullptr);
+  return nullptr;
 }
 
 /*-------------------------------------------------------------------------
@@ -449,18 +449,18 @@ static TSMgmtError
 handle_event_reg_callback(EventClientT *client, void *req, size_t reqlen)
 {
   MgmtMarshallInt optype;
-  MgmtMarshallString name = NULL;
+  MgmtMarshallString name = nullptr;
   TSMgmtError ret;
 
-  ret = recv_mgmt_request(req, reqlen, EVENT_REG_CALLBACK, &optype, &name);
+  ret = recv_mgmt_request(req, reqlen, OpType::EVENT_REG_CALLBACK, &optype, &name);
   if (ret != TS_ERR_OKAY) {
     goto done;
   }
 
   // mark the specified alarm as "wanting to be notified" in the client's alarm_registered list
   if (strlen(name) == 0) { // mark all alarms
-    for (int i = 0; i < NUM_EVENTS; i++) {
-      client->events_registered[i] = true;
+    for (bool &i : client->events_registered) {
+      i = true;
     }
   } else {
     int id = get_event_id(name);
@@ -492,18 +492,18 @@ static TSMgmtError
 handle_event_unreg_callback(EventClientT *client, void *req, size_t reqlen)
 {
   MgmtMarshallInt optype;
-  MgmtMarshallString name = NULL;
+  MgmtMarshallString name = nullptr;
   TSMgmtError ret;
 
-  ret = recv_mgmt_request(req, reqlen, EVENT_UNREG_CALLBACK, &optype, &name);
+  ret = recv_mgmt_request(req, reqlen, OpType::EVENT_UNREG_CALLBACK, &optype, &name);
   if (ret != TS_ERR_OKAY) {
     goto done;
   }
 
   // mark the specified alarm as "wanting to be notified" in the client's alarm_registered list
   if (strlen(name) == 0) { // mark all alarms
-    for (int i = 0; i < NUM_EVENTS; i++) {
-      client->events_registered[i] = false;
+    for (bool &i : client->events_registered) {
+      i = false;
     }
   } else {
     int id = get_event_id(name);
@@ -522,34 +522,34 @@ done:
   return ret;
 }
 
-typedef TSMgmtError (*event_message_handler)(EventClientT *, void *, size_t);
+using event_message_handler = TSMgmtError (*)(EventClientT *, void *, size_t);
 
 static const event_message_handler handlers[] = {
-  NULL,                        // FILE_READ
-  NULL,                        // FILE_WRITE
-  NULL,                        // RECORD_SET
-  NULL,                        // RECORD_GET
-  NULL,                        // PROXY_STATE_GET
-  NULL,                        // PROXY_STATE_SET
-  NULL,                        // RECONFIGURE
-  NULL,                        // RESTART
-  NULL,                        // BOUNCE
-  NULL,                        // EVENT_RESOLVE
-  NULL,                        // EVENT_GET_MLT
-  NULL,                        // EVENT_ACTIVE
+  nullptr,                     // FILE_READ
+  nullptr,                     // FILE_WRITE
+  nullptr,                     // RECORD_SET
+  nullptr,                     // RECORD_GET
+  nullptr,                     // PROXY_STATE_GET
+  nullptr,                     // PROXY_STATE_SET
+  nullptr,                     // RECONFIGURE
+  nullptr,                     // RESTART
+  nullptr,                     // BOUNCE
+  nullptr,                     // EVENT_RESOLVE
+  nullptr,                     // EVENT_GET_MLT
+  nullptr,                     // EVENT_ACTIVE
   handle_event_reg_callback,   // EVENT_REG_CALLBACK
   handle_event_unreg_callback, // EVENT_UNREG_CALLBACK
-  NULL,                        // EVENT_NOTIFY
-  NULL,                        // SNAPSHOT_TAKE
-  NULL,                        // SNAPSHOT_RESTORE
-  NULL,                        // SNAPSHOT_REMOVE
-  NULL,                        // SNAPSHOT_GET_MLT
-  NULL,                        // DIAGS
-  NULL,                        // STATS_RESET_NODE
-  NULL,                        // STATS_RESET_CLUSTER
-  NULL,                        // STORAGE_DEVICE_CMD_OFFLINE
-  NULL,                        // RECORD_MATCH_GET
-  NULL,                        // LIFECYCLE_MESSAGE
+  nullptr,                     // EVENT_NOTIFY
+  nullptr,                     // SNAPSHOT_TAKE
+  nullptr,                     // SNAPSHOT_RESTORE
+  nullptr,                     // SNAPSHOT_REMOVE
+  nullptr,                     // SNAPSHOT_GET_MLT
+  nullptr,                     // DIAGS
+  nullptr,                     // STATS_RESET_NODE
+  nullptr,                     // STATS_RESET_CLUSTER
+  nullptr,                     // STORAGE_DEVICE_CMD_OFFLINE
+  nullptr,                     // RECORD_MATCH_GET
+  nullptr,                     // LIFECYCLE_MESSAGE
 };
 
 static TSMgmtError
@@ -557,11 +557,11 @@ handle_event_message(EventClientT *client, void *req, size_t reqlen)
 {
   OpType optype = extract_mgmt_request_optype(req, reqlen);
 
-  if (optype < 0 || static_cast<unsigned>(optype) >= countof(handlers)) {
+  if (static_cast<unsigned>(optype) >= countof(handlers)) {
     goto fail;
   }
 
-  if (handlers[optype] == NULL) {
+  if (handlers[static_cast<unsigned>(optype)] == nullptr) {
     goto fail;
   }
 
@@ -576,7 +576,7 @@ handle_event_message(EventClientT *client, void *req, size_t reqlen)
     }
   }
 
-  return handlers[optype](client, req, reqlen);
+  return handlers[static_cast<unsigned>(optype)](client, req, reqlen);
 
 fail:
   mgmt_elog(0, "%s: missing handler for type %d event message\n", __func__, (int)optype);

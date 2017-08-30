@@ -27,8 +27,8 @@
 
 # include <TsErrataUtil.h>
 # include <sys/stat.h>
-# include <stdio.h>
-# include <stdlib.h>
+# include <cstdio>
+# include <cstdlib>
 
 # if !defined(_MSC_VER)
 # define _fileno fileno
@@ -40,7 +40,7 @@ namespace ts { namespace config {
 Buffer const detail::NULL_BUFFER;
 ConstBuffer const detail::NULL_CONST_BUFFER;
 detail::ValueItem detail::ValueTableImpl::NULL_ITEM(VoidValue);
-detail::PseudoBool::Type const detail::PseudoBool::FALSE = 0;
+detail::PseudoBool::Type const detail::PseudoBool::FALSE = nullptr;
 detail::PseudoBool::Type const detail::PseudoBool::TRUE = &detail::PseudoBool::operator !;
 // This should not be called, it is used only as a pointer value.
 bool detail::PseudoBool::operator ! () const { return false; }
@@ -55,8 +55,8 @@ unsigned int const detail::Type_Property[N_VALUE_TYPES] = {
 // ---------------------------------------------------------------------------
 detail::ValueTableImpl::ValueTableImpl() : _generation(0) { }
 detail::ValueTableImpl::~ValueTableImpl() {
-  for ( BufferGroup::iterator spot(_buffers.begin()), limit(_buffers.end()) ; spot != limit ; ++spot)
-    free(spot->_ptr);
+  for (auto & _buffer : _buffers)
+    free(_buffer._ptr);
 }
 // ---------------------------------------------------------------------------
 detail::ValueTable::ImplType*
@@ -135,9 +135,9 @@ Value::operator [] (ConstBuffer const& name) const {
   Value zret;
   detail::ValueItem const* item = this->item();
   if (item) {
-    for ( detail::ValueItem::ChildGroup::const_iterator spot = item->_children.begin(), limit = item->_children.end(); spot != limit; ++spot ) {
-      if (_config._table[*spot]._name == name) {
-        zret = Value(_config, *spot);
+    for (const auto & spot : item->_children) {
+      if (_config._table[spot]._name == name) {
+        zret = Value(_config, spot);
         if (PathValue == zret.getType()) zret = _config.getRoot().find(_config._table[zret._vidx]._path);
         break;
       }
@@ -300,7 +300,7 @@ Path::Parser::parse(ConstBuffer *cbuff) {
   if (!zret.isOK()) {
     zret = ERROR;
     if (cbuff) cbuff->set(_c - 1, 1);
-    _c = 0;
+    _c = nullptr;
     _input.reset();
   } else if (S_INIT == state) {
     zret = EOP;

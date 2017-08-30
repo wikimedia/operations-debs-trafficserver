@@ -22,9 +22,9 @@
     limitations under the License.
 */
 
-#include <stdio.h>
+#include <cstdio>
 #include <memory.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <ts/ts.h>
 #include <tsconfig/TsValue.h>
 #include <openssl/ssl.h>
@@ -64,7 +64,7 @@ typedef enum {
 class SslEntry
 {
 public:
-  SslEntry() : ctx(NULL), op(SSL_HOOK_OP_DEFAULT) { this->mutex = TSMutexCreate(); }
+  SslEntry() : ctx(nullptr), op(SSL_HOOK_OP_DEFAULT) { this->mutex = TSMutexCreate(); }
   ~SslEntry() {}
   SSL_CTX *ctx;
   SslVConnOp op;
@@ -78,7 +78,7 @@ public:
 
 std::string ConfigPath;
 typedef std::pair<IpAddr, IpAddr> IpRange;
-typedef std::deque<IpRange> IpRangeQueue;
+using IpRangeQueue = std::deque<IpRange>;
 
 Configuration Config; // global configuration
 
@@ -88,7 +88,7 @@ Parse_Addr_String(ts::ConstBuffer const &text, IpRange &range)
   IpAddr newAddr;
   std::string textstr(text._ptr, text._size);
   // Is there a hyphen?
-  size_t hyphen_pos = textstr.find("-");
+  size_t hyphen_pos = textstr.find('-');
 
   if (hyphen_pos != std::string::npos) {
     std::string addr1 = textstr.substr(0, hyphen_pos);
@@ -158,30 +158,30 @@ SSL_CTX *
 Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
 {
   SSL_CTX *retval = SSL_CTX_new(SSLv23_client_method());
-  X509 *cert      = NULL;
+  X509 *cert      = nullptr;
 
   if (entry->certFileName.length() > 0) {
     // Must load the cert file to fetch the names out later
     BIO *cert_bio = BIO_new_file(entry->certFileName.c_str(), "r");
-    cert          = PEM_read_bio_X509_AUX(cert_bio, NULL, NULL, NULL);
+    cert          = PEM_read_bio_X509_AUX(cert_bio, nullptr, nullptr, nullptr);
     BIO_free(cert_bio);
 
     if (SSL_CTX_use_certificate(retval, cert) < 1) {
       TSDebug(PN, "Failed to load cert file %s", entry->certFileName.c_str());
       SSL_CTX_free(retval);
-      return NULL;
+      return nullptr;
     }
   }
   if (entry->keyFileName.length() > 0) {
     if (!SSL_CTX_use_PrivateKey_file(retval, entry->keyFileName.c_str(), SSL_FILETYPE_PEM)) {
       TSDebug(PN, "Failed to load priv key file %s", entry->keyFileName.c_str());
       SSL_CTX_free(retval);
-      return NULL;
+      return nullptr;
     }
   }
 
   // Fetch out the names associated with the certificate
-  if (cert != NULL) {
+  if (cert != nullptr) {
     X509_NAME *name = X509_get_subject_name(cert);
     char subjectCn[256];
 
@@ -190,7 +190,7 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
       names.push_back(tmp_name);
     }
     // Look for alt names
-    GENERAL_NAMES *alt_names = (GENERAL_NAMES *)X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
+    GENERAL_NAMES *alt_names = (GENERAL_NAMES *)X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr);
     if (alt_names) {
       unsigned count = sk_GENERAL_NAME_num(alt_names);
       for (unsigned i = 0; i < count; i++) {
@@ -198,7 +198,7 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
 
         if (alt_name->type == GEN_DNS) {
           // Current name is a DNS name, let's check it
-          char *name_ptr = (char *)ASN1_STRING_data(alt_name->d.dNSName);
+          char *name_ptr = (char *)ASN1_STRING_get0_data(alt_name->d.dNSName);
           std::string tmp_name(name_ptr);
           names.push_back(tmp_name);
         }
@@ -218,7 +218,7 @@ Load_Certificate(SslEntry const *entry, std::deque<std::string> &names)
 SslEntry *
 Load_Certificate_Entry(ParsedSslValues const &values, std::deque<std::string> &names)
 {
-  SslEntry *retval = NULL;
+  SslEntry *retval = nullptr;
   std::string cert_file_path;
   std::string priv_file_path;
 
@@ -301,19 +301,19 @@ Parse_Config(Value &parent, ParsedSslValues &orig_values)
       Lookup.tree.insert(cur_values.server_name, entry, Parse_order++);
     }
     if (cur_values.server_ips.size() > 0) {
-      for (size_t i = 0; i < cur_values.server_ips.size(); i++) {
+      for (auto &server_ip : cur_values.server_ips) {
         IpEndpoint first, second;
-        first.assign(cur_values.server_ips[i].first);
-        second.assign(cur_values.server_ips[i].second);
+        first.assign(server_ip.first);
+        second.assign(server_ip.second);
         Lookup.ipmap.fill(&first, &second, entry);
         char val1[256], val2[256];
-        cur_values.server_ips[i].first.toString(val1, sizeof(val1));
-        cur_values.server_ips[i].second.toString(val2, sizeof(val2));
+        server_ip.first.toString(val1, sizeof(val1));
+        server_ip.second.toString(val2, sizeof(val2));
       }
     }
-    if (entry != NULL) {
-      for (size_t i = 0; i < cert_names.size(); i++) {
-        Lookup.tree.insert(cert_names[i], entry, Parse_order++);
+    if (entry != nullptr) {
+      for (const auto &cert_name : cert_names) {
+        Lookup.tree.insert(cert_name, entry, Parse_order++);
       }
     }
   }
@@ -334,7 +334,7 @@ Load_Certificate_Thread(void *arg)
   SslEntry *entry = reinterpret_cast<SslEntry *>(arg);
 
   TSMutexLock(entry->mutex);
-  if (entry->ctx == NULL) {
+  if (entry->ctx == nullptr) {
     // Must load certificate
     std::deque<std::string> cert_names;
 
@@ -348,8 +348,8 @@ Load_Certificate_Thread(void *arg)
       TSVConnReenable(vc);
     }
     TSMutexUnlock(entry->mutex);
-    for (size_t i = 0; i < cert_names.size(); i++) {
-      Lookup.tree.insert(cert_names[i], entry, Parse_order++);
+    for (const auto &cert_name : cert_names) {
+      Lookup.tree.insert(cert_name, entry, Parse_order++);
     }
   } else {
     TSMutexUnlock(entry->mutex);
@@ -399,7 +399,7 @@ CB_Pre_Accept(TSCont /*contp*/, TSEvent event, void *edata)
       }
       TSMutexUnlock(entry->mutex);
     } else {
-      if (entry->ctx == NULL) {
+      if (entry->ctx == nullptr) {
         if (entry->waitingVConns.begin() == entry->waitingVConns.end()) {
           entry->waitingVConns.push_back(ssl_vc);
           TSMutexUnlock(entry->mutex);
@@ -434,10 +434,10 @@ CB_servername(TSCont /*contp*/, TSEvent /*event*/, void *edata)
   const char *servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 
   TSDebug(PN, "SNI callback %s", servername);
-  if (servername != NULL) {
+  if (servername != nullptr) {
     // Is there a certificated loaded up for this name
     DomainNameTree::DomainNameNode *node = Lookup.tree.findFirstMatch(servername);
-    if (node != NULL && node->payload != NULL) {
+    if (node != nullptr && node->payload != nullptr) {
       SslEntry *entry = reinterpret_cast<SslEntry *>(node->payload);
       if (entry->op == SSL_HOOK_OP_TUNNEL || entry->op == SSL_HOOK_OP_TERMINATE) {
         // Push everything to blind tunnel
@@ -449,7 +449,7 @@ CB_servername(TSCont /*contp*/, TSEvent /*event*/, void *edata)
         return TS_SUCCESS;
       }
       TSMutexLock(entry->mutex);
-      if (entry->ctx == NULL) {
+      if (entry->ctx == nullptr) {
         // Spawn off a thread to load a potentially expensive certificate
         if (entry->waitingVConns.begin() == entry->waitingVConns.end()) {
           entry->waitingVConns.push_back(ssl_vc);
@@ -482,11 +482,11 @@ TSPluginInit(int argc, const char *argv[])
 {
   bool success = false;
   TSPluginRegistrationInfo info;
-  TSCont cb_pa                         = 0; // pre-accept callback continuation
-  TSCont cb_lc                         = 0; // life cycle callback continuuation
-  TSCont cb_sni                        = 0; // SNI callback continuuation
+  TSCont cb_pa                         = nullptr; // pre-accept callback continuation
+  TSCont cb_lc                         = nullptr; // life cycle callback continuuation
+  TSCont cb_sni                        = nullptr; // SNI callback continuuation
   static const struct option longopt[] = {
-    {const_cast<char *>("config"), required_argument, NULL, 'c'}, {NULL, no_argument, NULL, '\0'},
+    {const_cast<char *>("config"), required_argument, nullptr, 'c'}, {nullptr, no_argument, nullptr, '\0'},
   };
 
   info.plugin_name   = const_cast<char *>("SSL Certificate Loader");
@@ -495,7 +495,7 @@ TSPluginInit(int argc, const char *argv[])
 
   int opt = 0;
   while (opt >= 0) {
-    opt = getopt_long(argc, (char *const *)argv, "c:", longopt, NULL);
+    opt = getopt_long(argc, (char *const *)argv, "c:", longopt, nullptr);
     switch (opt) {
     case 'c':
       ConfigPath = optarg;
@@ -504,7 +504,7 @@ TSPluginInit(int argc, const char *argv[])
     }
   }
   if (ConfigPath.length() == 0) {
-    static char const *const DEFAULT_CONFIG_PATH = "ssl_start.cfg";
+    static const char *const DEFAULT_CONFIG_PATH = "ssl_start.cfg";
     ConfigPath                                   = std::string(TSConfigDirGet()) + '/' + std::string(DEFAULT_CONFIG_PATH);
     TSDebug(PN, "No config path set in arguments, using default: %s", DEFAULT_CONFIG_PATH);
   }
@@ -513,11 +513,11 @@ TSPluginInit(int argc, const char *argv[])
     TSError(PCP "registration failed.");
   } else if (TSTrafficServerVersionGetMajor() < 5) {
     TSError(PCP "requires Traffic Server 5.0 or later.");
-  } else if (0 == (cb_pa = TSContCreate(&CB_Pre_Accept, TSMutexCreate()))) {
+  } else if (nullptr == (cb_pa = TSContCreate(&CB_Pre_Accept, TSMutexCreate()))) {
     TSError(PCP "Failed to pre-accept callback.");
-  } else if (0 == (cb_lc = TSContCreate(&CB_Life_Cycle, TSMutexCreate()))) {
+  } else if (nullptr == (cb_lc = TSContCreate(&CB_Life_Cycle, TSMutexCreate()))) {
     TSError(PCP "Failed to lifecycle callback.");
-  } else if (0 == (cb_sni = TSContCreate(&CB_servername, TSMutexCreate()))) {
+  } else if (nullptr == (cb_sni = TSContCreate(&CB_servername, TSMutexCreate()))) {
     TSError(PCP "Failed to create SNI callback.");
   } else {
     TSLifecycleHookAdd(TS_LIFECYCLE_PORTS_INITIALIZED_HOOK, cb_lc);

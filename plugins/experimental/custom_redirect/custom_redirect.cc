@@ -24,17 +24,17 @@
 /* custom_redirect.cc: Allows read header set by origin for internal redirects
  */
 
-#include <stdio.h>
+#include <cstdio>
 #include <string>
 #include <iostream>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <ts/ts.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstring>
+#include <cstdlib>
 
-static char *redirect_url_header   = NULL;
+static char *redirect_url_header   = nullptr;
 static int redirect_url_header_len = 0;
 static int return_code             = TS_HTTP_STATUS_NONE;
 
@@ -155,6 +155,6 @@ TSPluginInit(int argc, const char *argv[])
     TSError("[custom_redirect] Plugin registration failed.");
   }
   TSError("[custom_redirect] Plugin registered successfully.");
-  TSCont mainCont = TSContCreate(plugin_main_handler, NULL);
+  TSCont mainCont = TSContCreate(plugin_main_handler, nullptr);
   TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, mainCont);
 }

@@ -35,7 +35,7 @@
 /*
  * Global ProcessManager
  */
-inkcoreapi ProcessManager *pmgmt = NULL;
+inkcoreapi ProcessManager *pmgmt = nullptr;
 
 /*
  * startProcessManager(...)
@@ -54,9 +54,12 @@ startProcessManager(void *arg)
     pmgmt->initLMConnection();
   }
 
+  if (pmgmt->init)
+    pmgmt->init();
+
   for (;;) {
     if (unlikely(shutdown_event_system == true)) {
-      return NULL;
+      return nullptr;
     }
     if (pmgmt->require_lm) {
       pmgmt->pollLMConnection();
@@ -68,7 +71,8 @@ startProcessManager(void *arg)
   return ret;
 } /* End startProcessManager */
 
-ProcessManager::ProcessManager(bool rlm) : BaseManager(), require_lm(rlm), local_manager_sockfd(0), cbtable(NULL), max_msgs_in_a_row(1)
+ProcessManager::ProcessManager(bool rlm)
+  : BaseManager(), require_lm(rlm), local_manager_sockfd(0), cbtable(nullptr), max_msgs_in_a_row(1)
 {
   mgmt_signal_queue = create_queue();
 
@@ -84,7 +88,7 @@ ProcessManager::reconfigure()
 {
   bool found;
   max_msgs_in_a_row = MAX_MSGS_IN_A_ROW;
-  timeout = REC_readInteger("proxy.config.process_manager.timeout", &found);
+  timeout           = REC_readInteger("proxy.config.process_manager.timeout", &found);
   ink_assert(found);
 
   return;
@@ -138,7 +142,7 @@ ProcessManager::processEventQueue()
     if (mh->data_len > 0) {
       executeMgmtCallback(mh->msg_id, (char *)mh + sizeof(MgmtMessageHdr), mh->data_len);
     } else {
-      executeMgmtCallback(mh->msg_id, NULL, 0);
+      executeMgmtCallback(mh->msg_id, nullptr, 0);
     }
     if (mh->msg_id == MGMT_EVENT_SHUTDOWN) {
       mgmt_fatal(0, "[ProcessManager::processEventQueue] Shutdown msg received, exiting\n");
@@ -256,7 +260,9 @@ ProcessManager::pollLMConnection()
       // handle EOF
       if (res == 0) {
         close_socket(local_manager_sockfd);
-        mgmt_fatal(0, "[ProcessManager::pollLMConnection] Lost Manager EOF!");
+        if (!shutdown_event_system) {
+          mgmt_fatal(0, "[ProcessManager::pollLMConnection] Lost Manager EOF!");
+        }
       }
     } else if (num < 0) { /* Error */
       mgmt_log("[ProcessManager::pollLMConnection] select failed or was interrupted (%d)\n", errno);
@@ -285,7 +291,7 @@ ProcessManager::handleMgmtMsgFromLM(MgmtMessageHdr *mh)
     signalMgmtEntity(MGMT_EVENT_ROLL_LOG_FILES);
     break;
   case MGMT_EVENT_PLUGIN_CONFIG_UPDATE:
-    if (data_raw != NULL && data_raw[0] != '\0' && this->cbtable) {
+    if (data_raw != nullptr && data_raw[0] != '\0' && this->cbtable) {
       this->cbtable->invoke(data_raw);
     }
     break;

@@ -46,7 +46,7 @@ unpackString(const char *&packed_data, const char *&item, int32_t &item_len)
 {
   item_len = *(reinterpret_cast<const int32_t *>(packed_data));
   packed_data += sizeof(int32_t);
-  item = item_len ? packed_data : 0;
+  item = item_len ? packed_data : nullptr;
   packed_data += item_len;
 }
 
@@ -68,9 +68,9 @@ DocNode::pack(string &buffer) const
   packString(data, data_len, buffer);
   int32_t n_elements = attr_list.size();
   buffer.append(reinterpret_cast<const char *>(&n_elements), sizeof(n_elements));
-  for (AttributeList::const_iterator iter = attr_list.begin(); iter != attr_list.end(); ++iter) {
-    packString(iter->name, iter->name_len, buffer);
-    packString(iter->value, iter->value_len, buffer);
+  for (const auto &iter : attr_list) {
+    packString(iter.name, iter.name_len, buffer);
+    packString(iter.value, iter.value_len, buffer);
   }
   child_nodes.packToBuffer(buffer);
   *(reinterpret_cast<int32_t *>(&buffer[orig_buf_size + 1])) = buffer.size() - orig_buf_size;
@@ -126,8 +126,8 @@ DocNodeList::packToBuffer(string &buffer) const
 {
   int32_t n_elements = size();
   buffer.append(reinterpret_cast<const char *>(&n_elements), sizeof(n_elements));
-  for (DocNodeList::const_iterator iter = begin(); iter != end(); ++iter) {
-    iter->pack(buffer);
+  for (const auto &iter : *this) {
+    iter.pack(buffer);
   }
 }
 

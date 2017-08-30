@@ -59,15 +59,15 @@ send_connection_event(Continuation *cont, int event, void *edata)
 }
 
 Http2ClientSession::Http2ClientSession()
-  : con_id(0),
-    total_write_len(0),
-    client_vc(NULL),
-    read_buffer(NULL),
-    sm_reader(NULL),
-    write_buffer(NULL),
-    sm_writer(NULL),
+  : total_write_len(0),
+    client_vc(nullptr),
+    read_buffer(nullptr),
+    sm_reader(nullptr),
+    write_buffer(nullptr),
+    sm_writer(nullptr),
     upgrade_context(),
     kill_me(false),
+    half_close_local(false),
     recursion(0)
 {
 }
@@ -89,7 +89,7 @@ Http2ClientSession::free()
   if (client_vc) {
     release_netvc();
     client_vc->do_io_close();
-    client_vc = NULL;
+    client_vc = nullptr;
   }
 
   // Make sure the we are at the bottom of the stack
@@ -128,7 +128,7 @@ Http2ClientSession::free()
     break;
   }
 
-  ink_release_assert(this->client_vc == NULL);
+  ink_release_assert(this->client_vc == nullptr);
 
   this->connection_state.destroy();
 
@@ -177,13 +177,15 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
   this->con_id    = ProxyClientSession::next_connection_id();
   this->client_vc = new_vc;
   client_vc->set_inactivity_timeout(HRTIME_SECONDS(Http2::accept_no_activity_timeout));
-  this->schedule_event = NULL;
+  this->schedule_event = nullptr;
   this->mutex          = new_vc->mutex;
   this->in_destroy     = false;
 
   this->connection_state.mutex = new_ProxyMutex();
 
   DebugHttp2Ssn("session born, netvc %p", this->client_vc);
+
+  this->client_vc->set_tcp_congestion_control(CLIENT_SIDE);
 
   this->read_buffer             = iobuf ? iobuf : new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
   this->read_buffer->water_mark = connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE);
@@ -202,7 +204,7 @@ Http2ClientSession::set_upgrade_context(HTTPHdr *h)
   upgrade_context.req_header->copy(h);
 
   MIMEField *settings = upgrade_context.req_header->field_find(MIME_FIELD_HTTP2_SETTINGS, MIME_LEN_HTTP2_SETTINGS);
-  ink_release_assert(settings != NULL);
+  ink_release_assert(settings != nullptr);
   int svlen;
   const char *sv = settings->value_get(&svlen);
 
@@ -269,15 +271,24 @@ Http2ClientSession::do_io_close(int alerrno)
   if (client_vc) {
     this->release_netvc();
     client_vc->do_io_close();
-    client_vc = NULL;
+    client_vc = nullptr;
   }
-  this->connection_state.release_stream(NULL);
+  this->connection_state.release_stream(nullptr);
 }
 
 void
 Http2ClientSession::reenable(VIO *vio)
 {
   this->client_vc->reenable(vio);
+}
+
+void
+Http2ClientSession::set_half_close_local_flag(bool flag)
+{
+  if (!half_close_local && flag) {
+    DebugHttp2Ssn("session half-close local");
+  }
+  half_close_local = flag;
 }
 
 int
@@ -290,7 +301,7 @@ Http2ClientSession::main_event_handler(int event, void *edata)
 
   Event *e = static_cast<Event *>(edata);
   if (e == schedule_event) {
-    schedule_event = NULL;
+    schedule_event = nullptr;
   }
 
   switch (event) {
@@ -397,7 +408,7 @@ Http2ClientSession::state_start_frame_read(int event, void *edata)
 int
 Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
 {
-  ret_error = HTTP2_ERROR_NO_ERROR;
+  ret_error = Http2ErrorCode::HTTP2_ERROR_NO_ERROR;
   ink_release_assert(this->sm_reader->read_avail() >= (int64_t)HTTP2_FRAME_HEADER_LEN);
 
   uint8_t buf[HTTP2_FRAME_HEADER_LEN];
@@ -418,19 +429,13 @@ Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
   this->sm_reader->consume(nbytes);
 
   if (!http2_frame_header_is_valid(this->current_hdr, this->connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE))) {
-    ret_error = HTTP2_ERROR_PROTOCOL_ERROR;
+    ret_error = Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR;
     return -1;
   }
 
   // If we know up front that the payload is too long, nuke this connection.
   if (this->current_hdr.length > this->connection_state.server_settings.get(HTTP2_SETTINGS_MAX_FRAME_SIZE)) {
-    ret_error = HTTP2_ERROR_FRAME_SIZE_ERROR;
-    return -1;
-  }
-
-  // Allow only stream id = 0 or streams started by client.
-  if (this->current_hdr.streamid != 0 && !http2_is_client_streamid(this->current_hdr.streamid)) {
-    ret_error = HTTP2_ERROR_PROTOCOL_ERROR;
+    ret_error = Http2ErrorCode::HTTP2_ERROR_FRAME_SIZE_ERROR;
     return -1;
   }
 
@@ -439,7 +444,7 @@ Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
 
   if (continued_stream_id != 0 &&
       (continued_stream_id != this->current_hdr.streamid || this->current_hdr.type != HTTP2_FRAME_TYPE_CONTINUATION)) {
-    ret_error = HTTP2_ERROR_PROTOCOL_ERROR;
+    ret_error = Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR;
     return -1;
   }
   return 0;
@@ -488,10 +493,12 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
     Http2ErrorCode err;
     if (do_start_frame_read(err) < 0) {
       // send an error if specified.  Otherwise, just go away
-      if (err > HTTP2_ERROR_NO_ERROR) {
+      if (err > Http2ErrorCode::HTTP2_ERROR_NO_ERROR) {
         SCOPED_MUTEX_LOCK(lock, this->connection_state.mutex, this_ethread());
         if (!this->connection_state.is_state_closed()) {
-          this->connection_state.send_goaway_frame(this->current_hdr.streamid, err);
+          this->connection_state.send_goaway_frame(this->connection_state.get_latest_stream_id_in(), err);
+          this->set_half_close_local_flag(true);
+          this->do_io_close();
         }
       }
       return 0;
