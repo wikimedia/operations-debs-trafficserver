@@ -12,3 +12,4 @@
 0005-fix_documentation_build.patch
 0006-fix_arm_build.patch
 0007-fix_build_kfreebsd.patch
+0008-fix_build_lua.patch
