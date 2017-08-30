@@ -13,8 +13,8 @@ Build-Depends: debhelper (>= 9), libssl1.0-dev | libssl-dev (>= 1.0.2j-1~), tcl-
   libncurses5-dev, libcurl4-openssl-dev
 Standards-Version: 4.0.0
 Homepage: http://trafficserver.apache.org/
-Vcs-Git: git://anonscm.debian.org/collab-maint/trafficserver.git
-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
+Vcs-Git: https://anonscm.debian.org/git/collab-maint/trafficserver.git
+Vcs-Browser: https://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
 
 Package: trafficserver
 Architecture: any
