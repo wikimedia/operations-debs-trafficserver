@@ -32,44 +32,13 @@ License: Apache-2.0
 
 Files: lib/ts/ink_rand.*
 Copyright: 1997 - 2002, Makoto Matsumoto and Takuji Nishimura
-License:
- Mersenne Twister definitions adapted for Traffic Server
- .
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions
- are met:
- .
-  1. Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
- .
-  2. Redistributions in binary form must reproduce the above copyright
-     notice, this list of conditions and the following disclaimer in the
-     documentation and/or other materials provided with the distribution.
- .
-  3. The names of its contributors may not be used to endorse or promote
-     products derived from this software without specific prior written
-     permission.
- .
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- .
- Any feedback is very welcome.
- http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html
- email: m-mat @ math.sci.hiroshima-u.ac.jp (remove space)
-
+License: BSD-3-clause
 
 Files: lib/ts/ink_resolver.h lib/ts/ink_res_init.cc lib/ts/ink_res_mkquery.cc
 Copyright:  1983, 1987, 1989  The Regents of the University of California
-License:
+License: BSD-3-clause
+
+License: BSD-3-clause
  For the University of California part:
  .
  Redistribution and use in source and binary forms, with or without
@@ -119,7 +88,7 @@ License:
 Files: lib/ts/ink_string.cc
 Comment: For the strlcat, strlcpy in inktomi++/ink_string.cc
 Copyright:  1998 Todd C. Miller <Todd.Miller@courtesan.com>
-License:
+License: ISC
  Permission to use, copy, modify, and distribute this software for any
  purpose with or without fee is hereby granted, provided that the above
  copyright notice and this permission notice appear in all copies.
@@ -134,7 +103,7 @@ License:
 
 Files: lib/ts/fastlz.*
 Copyright: 2005-2007 Ariya Hidayat (ariya@kde.org)
-License:
+License: Expat
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
  in the Software without restriction, including without limitation the rights
