@@ -188,7 +188,7 @@ am__define_uniq_tagged_files = \
   done | $(am__uniquify_input)`
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = ts records tsconfig bindings atscppapi perl wccp
+DIST_SUBDIRS = ts records tsconfig bindings cppapi perl wccp
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/ink_autoconf.h.in
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 am__relativize = \
@@ -299,6 +299,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -437,6 +438,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -570,8 +572,13 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-SUBDIRS = ts records tsconfig bindings atscppapi $(am__append_1) \
+SUBDIRS = ts records tsconfig bindings cppapi $(am__append_1) \
 	$(am__append_2)
+
+# Support verbose LuaJIT builds with "make V=1".
+luajit__v_ = $(luajit__v_$(AM_DEFAULT_VERBOSITY))
+luajit__v_0 = @
+luajit__v_1 = 
 all: ink_autoconf.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -923,7 +930,8 @@ all-local:
 		CC="$(CC)" \
 		CFLAGS="$(LUAJIT_CFLAGS)" \
 		XCFLAGS="" \
-		LDFLAGS="$(LUAJIT_LDFLAGS)"
+		LDFLAGS="$(LUAJIT_LDFLAGS)" \
+		Q=$(luajit__v_$(V))
 
 clean-local:
 	test "$(top_srcdir)" != "$(top_builddir)" || (cd "$(top_builddir)/$(subdir)/luajit" && $(MAKE) clean)

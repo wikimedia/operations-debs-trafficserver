@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "ts/ts.h"
 #include "ts/ink_defs.h"
@@ -32,7 +32,7 @@ static int
 proto_stack_cb(TSCont contp ATS_UNUSED, TSEvent event, void *edata)
 {
   TSHttpTxn txnp = (TSHttpTxn)edata;
-  char const *results[10];
+  const char *results[10];
   int count = 0;
   TSDebug(DEBUG_TAG, "Protocols:");
   TSHttpTxnClientProtocolStackGet(txnp, 10, results, &count);
@@ -40,7 +40,7 @@ proto_stack_cb(TSCont contp ATS_UNUSED, TSEvent event, void *edata)
     TSDebug(DEBUG_TAG, "\t%d: %s", i, results[i]);
   }
   const char *ret_tag = TSHttpTxnClientProtocolStackContains(txnp, "h2");
-  TSDebug(DEBUG_TAG, "Stack %s HTTP/2", ret_tag != NULL ? "contains" : "does not contain");
+  TSDebug(DEBUG_TAG, "Stack %s HTTP/2", ret_tag != nullptr ? "contains" : "does not contain");
   TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
   return 0;
 }
@@ -58,5 +58,5 @@ TSPluginInit(int argc ATS_UNUSED, const char *argv[] ATS_UNUSED)
     TSError("[protocol-stack] Plugin registration failed.");
   }
 
-  TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, TSContCreate(proto_stack_cb, NULL));
+  TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, TSContCreate(proto_stack_cb, nullptr));
 }

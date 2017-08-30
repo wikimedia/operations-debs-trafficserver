@@ -47,7 +47,7 @@
 
 // Global Ptrs
 static Ptr<ProxyMutex> reconfig_mutex;
-UrlRewrite *rewrite_table = NULL;
+UrlRewrite *rewrite_table = nullptr;
 remap_plugin_info *remap_pi_list; // We never reload the remap plugins, just append to 'em.
 
 // Tokens for the Callback function
@@ -68,7 +68,7 @@ int url_remap_mode;
 int
 init_reverse_proxy()
 {
-  ink_assert(rewrite_table == NULL);
+  ink_assert(rewrite_table == nullptr);
   reconfig_mutex = new_ProxyMutex();
   rewrite_table  = new UrlRewrite();
 
@@ -119,7 +119,7 @@ response_url_remap(HTTPHdr *response_header)
 
 /** Used to read the remap.config file after the manager signals a change. */
 struct UR_UpdateContinuation;
-typedef int (UR_UpdateContinuation::*UR_UpdContHandler)(int, void *);
+using UR_UpdContHandler = int (UR_UpdateContinuation::*)(int, void *);
 struct UR_UpdateContinuation : public Continuation {
   int
   file_update_handler(int /* etype ATS_UNUSED */, void * /* data ATS_UNUSED */)
@@ -149,8 +149,10 @@ reloadUrlRewrite()
   newTable = new UrlRewrite();
   if (newTable->is_valid()) {
     new_Deleter(rewrite_table, URL_REWRITE_TIMEOUT);
-    Debug("url_rewrite", "remap.config done reloading!");
+    static const char *msg = "remap.config done reloading!";
     ink_atomic_swap(&rewrite_table, newTable);
+    Debug("url_rewrite", "%s", msg);
+    Note("%s", msg);
     return true;
   } else {
     static const char *msg = "failed to reload remap.config, not replacing!";

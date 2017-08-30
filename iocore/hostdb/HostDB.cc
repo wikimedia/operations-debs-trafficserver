@@ -29,6 +29,7 @@
 #include "Show.h"
 #include "ts/Tokenizer.h"
 
+#include <utility>
 #include <vector>
 #include <algorithm>
 
@@ -75,13 +76,13 @@ ClassAllocator<HostDBContinuation> hostDBContAllocator("hostDBContAllocator");
 
 HostDBCache hostDB;
 
-void ParseHostFile(char const *path, unsigned int interval);
+void ParseHostFile(const char *path, unsigned int interval);
 
 char *
 HostDBInfo::srvname(HostDBRoundRobin *rr) const
 {
   if (!is_srv || !data.srv.srv_offset)
-    return NULL;
+    return nullptr;
   return (char *)rr + data.srv.srv_offset;
 }
 
@@ -127,8 +128,8 @@ hostdb_cont_free(HostDBContinuation *cont)
 {
   if (cont->pending_action)
     cont->pending_action->cancel();
-  cont->mutex        = 0;
-  cont->action.mutex = 0;
+  cont->mutex        = nullptr;
+  cont->action.mutex = nullptr;
   hostDBContAllocator.free(cont);
 }
 
@@ -149,10 +150,10 @@ check_for_retry(HostDBMark &mark, HostResStyle style)
   return zret;
 }
 
-char const *
+const char *
 string_for(HostDBMark mark)
 {
-  static char const *STRING[] = {"Generic", "IPv4", "IPv6", "SRV"};
+  static const char *STRING[] = {"Generic", "IPv4", "IPv6", "SRV"};
   return STRING[mark];
 }
 
@@ -162,7 +163,7 @@ string_for(HostDBMark mark)
 static Action *register_ShowHostDB(Continuation *c, HTTPHdr *h);
 
 HostDBMD5 &
-HostDBMD5::set_host(char const *name, int len)
+HostDBMD5::set_host(const char *name, int len)
 {
   host_name = name;
   host_len  = len;
@@ -181,7 +182,7 @@ HostDBMD5::set_host(char const *name, int len)
         dns_server = static_cast<DNSServer *>(pSD->getDNSRecord(host_name));
       }
     } else {
-      dns_server = 0;
+      dns_server = nullptr;
     }
   }
 #endif // SPLIT_DNS
@@ -194,7 +195,7 @@ HostDBMD5::refresh()
   MD5Context ctx;
 
   if (host_name) {
-    char const *server_line = dns_server ? dns_server->x_dns_ip_line : 0;
+    const char *server_line = dns_server ? dns_server->x_dns_ip_line : nullptr;
     uint8_t m               = static_cast<uint8_t>(db_mark); // be sure of the type.
 
     ctx.update(host_name, host_len);
@@ -216,7 +217,7 @@ HostDBMD5::refresh()
   ctx.finalize(hash);
 }
 
-HostDBMD5::HostDBMD5() : host_name(0), host_len(0), port(0), dns_server(0), pSD(0), db_mark(HOSTDB_MARK_GENERIC)
+HostDBMD5::HostDBMD5() : host_name(nullptr), host_len(0), port(0), dns_server(nullptr), pSD(nullptr), db_mark(HOSTDB_MARK_GENERIC)
 {
 }
 
@@ -226,7 +227,7 @@ HostDBMD5::~HostDBMD5()
     SplitDNSConfig::release(pSD);
 }
 
-HostDBCache::HostDBCache() : refcountcache(NULL), pending_dns(NULL), remoteHostDBQueue(NULL)
+HostDBCache::HostDBCache() : refcountcache(nullptr), pending_dns(nullptr), remoteHostDBQueue(nullptr)
 {
   hosts_file_ptr = new RefCountedHostsFileMap();
 }
@@ -269,15 +270,15 @@ struct HostDBSync : public HostDBBackgroundTask {
   std::string storage_path;
   std::string full_path;
   HostDBSync(int frequency, std::string storage_path, std::string full_path)
-    : HostDBBackgroundTask(frequency), storage_path(storage_path), full_path(full_path){};
+    : HostDBBackgroundTask(frequency), storage_path(std::move(storage_path)), full_path(std::move(full_path)){};
   int
-  sync_event(int, void *)
+  sync_event(int, void *) override
   {
     SET_HANDLER(&HostDBSync::wait_event);
     start_time = Thread::get_hrtime();
 
-    new RefCountCacheSerializer<RefCountCache<HostDBInfo>>(this, hostDBProcessor.cache()->refcountcache, this->frequency,
-                                                           this->storage_path, this->full_path);
+    new RefCountCacheSerializer<HostDBInfo>(this, hostDBProcessor.cache()->refcountcache, this->frequency, this->storage_path,
+                                            this->full_path);
     return EVENT_DONE;
   }
 };
@@ -312,39 +313,41 @@ HostDBCache::start(int flags)
     Fatal("proxy.config.hostdb.max_size must be a non-zero number");
   }
 
-  // If proxy.config.hostdb.storage_path is not set, use the local state dir. If it is set to
-  // a relative path, make it relative to the prefix.
-  if (storage_path[0] == '\0') {
-    ats_scoped_str rundir(RecConfigReadRuntimeDir());
-    ink_strlcpy(storage_path, rundir, sizeof(storage_path));
-  } else if (storage_path[0] != '/') {
-    Layout::relative_to(storage_path, sizeof(storage_path), Layout::get()->prefix, storage_path);
-  }
-
-  Debug("hostdb", "Storage path is %s", storage_path);
-
-  if (access(storage_path, W_OK | R_OK) == -1) {
-    Warning("Unable to access() directory '%s': %d, %s", storage_path, errno, strerror(errno));
-    Warning("Please set 'proxy.config.hostdb.storage_path' or 'proxy.config.local_state_dir'");
-  }
-
-  // Combine the path and name
-  char full_path[2 * PATH_NAME_MAX];
-  ink_filepath_make(full_path, 2 * PATH_NAME_MAX, storage_path, hostdb_filename);
-
-  Debug("hostdb", "Opening %s, partitions=%d storage_size=%" PRIu64 " items=%d", full_path, hostdb_partitions, hostdb_max_size,
-        hostdb_max_count);
+  // Setup the ref-counted cache (this must be done regardless of syncing or not).
   this->refcountcache = new RefCountCache<HostDBInfo>(hostdb_partitions, hostdb_max_size, hostdb_max_count, HostDBInfo::version(),
                                                       "proxy.process.hostdb.cache.");
-  int load_ret = LoadRefCountCacheFromPath<HostDBInfo>(*this->refcountcache, storage_path, full_path, HostDBInfo::unmarshall);
-  if (load_ret != 0) {
-    Warning("Error loading cache from %s: %d", full_path, load_ret);
-  }
 
   //
-  // Sync HostDB, if we've asked for it.
+  // Load and sync HostDB, if we've asked for it.
   //
   if (hostdb_sync_frequency > 0) {
+    // If proxy.config.hostdb.storage_path is not set, use the local state dir. If it is set to
+    // a relative path, make it relative to the prefix.
+    if (storage_path[0] == '\0') {
+      ats_scoped_str rundir(RecConfigReadRuntimeDir());
+      ink_strlcpy(storage_path, rundir, sizeof(storage_path));
+    } else if (storage_path[0] != '/') {
+      Layout::relative_to(storage_path, sizeof(storage_path), Layout::get()->prefix, storage_path);
+    }
+
+    Debug("hostdb", "Storage path is %s", storage_path);
+
+    if (access(storage_path, W_OK | R_OK) == -1) {
+      Warning("Unable to access() directory '%s': %d, %s", storage_path, errno, strerror(errno));
+      Warning("Please set 'proxy.config.hostdb.storage_path' or 'proxy.config.local_state_dir'");
+    }
+
+    // Combine the path and name
+    char full_path[2 * PATH_NAME_MAX];
+    ink_filepath_make(full_path, 2 * PATH_NAME_MAX, storage_path, hostdb_filename);
+
+    Debug("hostdb", "Opening %s, partitions=%d storage_size=%" PRIu64 " items=%d", full_path, hostdb_partitions, hostdb_max_size,
+          hostdb_max_count);
+    int load_ret = LoadRefCountCacheFromPath<HostDBInfo>(*this->refcountcache, storage_path, full_path, HostDBInfo::unmarshall);
+    if (load_ret != 0) {
+      Warning("Error loading cache from %s: %d", full_path, load_ret);
+    }
+
     eventProcessor.schedule_imm(new HostDBSync(hostdb_sync_frequency, storage_path, full_path), ET_TASK);
   }
 
@@ -443,15 +446,15 @@ HostDBContinuation::refresh_MD5()
 static bool
 reply_to_cont(Continuation *cont, HostDBInfo *r, bool is_srv = false)
 {
-  if (r == NULL || r->is_srv != is_srv || r->is_failed()) {
-    cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, NULL);
+  if (r == nullptr || r->is_srv != is_srv || r->is_failed()) {
+    cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, nullptr);
     return false;
   }
 
   if (r->reverse_dns) {
     if (!r->hostname()) {
       ink_assert(!"missing hostname");
-      cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, NULL);
+      cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, nullptr);
       Warning("bogus entry deleted from HostDB: missing hostname");
       hostDB.refcountcache->erase(r->key);
       return false;
@@ -462,7 +465,7 @@ reply_to_cont(Continuation *cont, HostDBInfo *r, bool is_srv = false)
   if (!r->is_srv && r->round_robin) {
     if (!r->rr()) {
       ink_assert(!"missing round-robin");
-      cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, NULL);
+      cont->handleEvent(is_srv ? EVENT_SRV_LOOKUP : EVENT_HOST_DB_LOOKUP, nullptr);
       Warning("bogus entry deleted from HostDB: missing round-robin");
       hostDB.refcountcache->erase(r->key);
       return false;
@@ -526,17 +529,17 @@ probe(ProxyMutex *mutex, HostDBMD5 const &md5, bool ignore_timeout)
   // get the item from cache
   Ptr<HostDBInfo> r = hostDB.refcountcache->get(folded_md5);
   // If there was nothing in the cache-- this is a miss
-  if (r.get() == NULL) {
+  if (r.get() == nullptr) {
     return r;
   }
 
   // If the dns response was failed, and we've hit the failed timeout, lets stop returning it
   if (r->is_failed() && r->is_ip_fail_timeout()) {
-    return make_ptr((HostDBInfo *)NULL);
+    return make_ptr((HostDBInfo *)nullptr);
     // if we aren't ignoring timeouts, and we are past it-- then remove the item
   } else if (!ignore_timeout && r->is_ip_timeout() && !r->serve_stale_but_revalidate()) {
     HOSTDB_INCREMENT_DYN_STAT(hostdb_ttl_expires_stat);
-    return make_ptr((HostDBInfo *)NULL);
+    return make_ptr((HostDBInfo *)nullptr);
   }
 
   // If the record is stale, but we want to revalidate-- lets start that up
@@ -594,7 +597,7 @@ HostDBProcessor::getby(Continuation *cont, const char *hostname, int len, sockad
     MUTEX_TRY_LOCK(lock, cont->mutex, thread);
     if (!lock.is_locked())
       goto Lretry;
-    cont->handleEvent(EVENT_HOST_DB_LOOKUP, NULL);
+    cont->handleEvent(EVENT_HOST_DB_LOOKUP, nullptr);
     return ACTION_RESULT_DONE;
   }
 
@@ -680,7 +683,7 @@ HostDBProcessor::getbyname_re(Continuation *cont, const char *ahostname, int len
     if (force_dns)
       HOSTDB_INCREMENT_DYN_STAT(hostdb_re_dns_on_reload_stat);
   }
-  return getby(cont, ahostname, len, 0, force_dns, opt.host_res_style, opt.timeout);
+  return getby(cont, ahostname, len, nullptr, force_dns, opt.host_res_style, opt.timeout);
 }
 
 Action *
@@ -725,7 +728,7 @@ HostDBProcessor::getSRVbyname_imm(Continuation *cont, process_srv_info_pfn proce
   HOSTDB_INCREMENT_DYN_STAT(hostdb_total_lookups_stat);
 
   if (!hostdb_enable || !*hostname) {
-    (cont->*process_srv_info)(NULL);
+    (cont->*process_srv_info)(nullptr);
     return ACTION_RESULT_DONE;
   }
 
@@ -797,7 +800,7 @@ HostDBProcessor::getbyname_imm(Continuation *cont, process_hostdb_info_pfn proce
   HOSTDB_INCREMENT_DYN_STAT(hostdb_total_lookups_stat);
 
   if (!hostdb_enable || !*hostname) {
-    (cont->*process_hostdb_info)(NULL);
+    (cont->*process_hostdb_info)(nullptr);
     return ACTION_RESULT_DONE;
   }
 
@@ -1028,7 +1031,7 @@ HostDBContinuation::removeEvent(int /* event ATS_UNUSED */, Event *e)
 {
   Continuation *cont = action.continuation;
 
-  MUTEX_TRY_LOCK(lock, cont ? cont->mutex.get() : (ProxyMutex *)NULL, e->ethread);
+  MUTEX_TRY_LOCK(lock, cont ? cont->mutex.get() : (ProxyMutex *)nullptr, e->ethread);
   if (!lock.is_locked()) {
     e->schedule_in(HOST_DB_RETRY_PERIOD);
     return EVENT_CONT;
@@ -1036,12 +1039,12 @@ HostDBContinuation::removeEvent(int /* event ATS_UNUSED */, Event *e)
   if (!action.cancelled) {
     if (!hostdb_enable) {
       if (cont)
-        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, (void *)NULL);
+        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, (void *)nullptr);
     } else {
       Ptr<HostDBInfo> r = probe(mutex.get(), md5, false);
       bool res          = remove_round_robin(r.get(), md5.host_name, md5.ip);
       if (cont)
-        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, res ? static_cast<void *>(&md5.ip) : static_cast<void *>(NULL));
+        cont->handleEvent(EVENT_HOST_DB_IP_REMOVED, res ? static_cast<void *>(&md5.ip) : static_cast<void *>(nullptr));
     }
   }
   hostdb_cont_free(this);
@@ -1053,7 +1056,7 @@ HostDBContinuation::removeEvent(int /* event ATS_UNUSED */, Event *e)
 // NOTE: if "i" exists it means we already allocated the space etc, just return
 //
 HostDBInfo *
-HostDBContinuation::lookup_done(IpAddr const &ip, char const *aname, bool around_robin, unsigned int ttl_seconds, SRVHosts *srv,
+HostDBContinuation::lookup_done(IpAddr const &ip, const char *aname, bool around_robin, unsigned int ttl_seconds, SRVHosts *srv,
                                 HostDBInfo *r)
 {
   ink_assert(this_ethread() == hostDB.refcountcache->lock_for_key(md5.hash.fold())->thread_holding);
@@ -1066,7 +1069,7 @@ HostDBContinuation::lookup_done(IpAddr const &ip, char const *aname, bool around
       ip_text_buffer b;
       Debug("hostdb", "failed for %s", md5.ip.toString(b, sizeof b));
     }
-    if (r == NULL) {
+    if (r == nullptr) {
       r = insert(hostdb_ip_fail_timeout_interval); // currently ... 0
     } else {
       ttl_seconds = hostdb_ip_fail_timeout_interval;
@@ -1105,7 +1108,7 @@ HostDBContinuation::lookup_done(IpAddr const &ip, char const *aname, bool around
     if (0 == ttl_seconds)
       ttl_seconds = 1;
 
-    if (r == NULL) {
+    if (r == nullptr) {
       r = insert(hostdb_ip_fail_timeout_interval); // currently ... 0
     }
     r->round_robin_elt = false; // only true for elements explicitly added as RR elements.
@@ -1159,7 +1162,7 @@ HostDBContinuation::dnsPendingEvent(int event, Event *e)
   ink_assert(this_ethread() == hostDB.refcountcache->lock_for_key(md5.hash.fold())->thread_holding);
   if (timeout) {
     timeout->cancel(this);
-    timeout = NULL;
+    timeout = nullptr;
   }
   if (event == EVENT_INTERVAL) {
     // we timed out, return a failure to the user
@@ -1169,13 +1172,13 @@ HostDBContinuation::dnsPendingEvent(int event, Event *e)
       return EVENT_CONT;
     }
     if (!action.cancelled && action.continuation)
-      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, NULL);
+      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, nullptr);
     hostDB.pending_dns_for_hash(md5.hash).remove(this);
     hostdb_cont_free(this);
     return EVENT_DONE;
   } else {
     SET_HANDLER((HostDBContHandler)&HostDBContinuation::probeEvent);
-    return probeEvent(EVENT_INTERVAL, NULL);
+    return probeEvent(EVENT_INTERVAL, nullptr);
   }
 }
 
@@ -1205,7 +1208,7 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
   ink_assert(this_ethread() == hostDB.refcountcache->lock_for_key(md5.hash.fold())->thread_holding);
   if (timeout) {
     timeout->cancel(this);
-    timeout = NULL;
+    timeout = nullptr;
   }
   EThread *thread = mutex->thread_holding;
   if (event == EVENT_INTERVAL) {
@@ -1225,8 +1228,8 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
     // a server issue that won't be fixed by asking for a different
     // address family.
     if (!action.cancelled && action.continuation)
-      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, NULL);
-    action = NULL;
+      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, nullptr);
+    action = nullptr;
     // do not exit yet, wait to see if we can insert into DB
     timeout = thread->schedule_in(this, HRTIME_SECONDS(hostdb_insert_timeout));
     return EVENT_DONE;
@@ -1234,12 +1237,12 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
     bool failed = !e;
 
     bool is_rr     = false;
-    pending_action = NULL;
+    pending_action = nullptr;
 
     if (is_srv()) {
       is_rr = !failed && (e->srv_hosts.srv_host_count > 0);
     } else if (!failed) {
-      is_rr = 0 != e->ent.h_addr_list[1];
+      is_rr = nullptr != e->ent.h_addr_list[1];
     } else {
     }
 
@@ -1250,9 +1253,9 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
     HostDBInfo old_info;
     if (old_r)
       old_info                    = *old_r.get();
-    HostDBRoundRobin *old_rr_data = old_r ? old_r->rr() : NULL;
+    HostDBRoundRobin *old_rr_data = old_r ? old_r->rr() : nullptr;
     int valid_records             = 0;
-    void *first_record            = 0;
+    void *first_record            = nullptr;
     uint8_t af                    = e ? e->ent.h_addrtype : AF_UNSPEC; // address family
     // if this is an RR response, we need to find the first record, as well as the
     // total number of records
@@ -1261,7 +1264,8 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
         valid_records = e->srv_hosts.srv_host_count;
       } else {
         void *ptr; // tmp for current entry.
-        for (int total_records = 0; total_records < HOST_DB_MAX_ROUND_ROBIN_INFO && 0 != (ptr = e->ent.h_addr_list[total_records]);
+        for (int total_records = 0;
+             total_records < HOST_DB_MAX_ROUND_ROBIN_INFO && nullptr != (ptr = e->ent.h_addr_list[total_records]);
              ++total_records) {
           if (is_addr_valid(af, ptr)) {
             if (!first_record) {
@@ -1317,7 +1321,7 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
     } else if (is_byname()) {
       if (first_record)
         ip_addr_set(tip, af, first_record);
-      r = lookup_done(tip, md5.host_name, is_rr, ttl_seconds, failed ? 0 : &e->srv_hosts, r);
+      r = lookup_done(tip, md5.host_name, is_rr, ttl_seconds, failed ? nullptr : &e->srv_hosts, r);
     } else if (is_srv()) {
       if (!failed)
         tip._family = AF_INET;         // force the tip valid, or else the srv will fail
@@ -1325,9 +1329,9 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
                       md5.host_name,   /* hostname */
                       is_rr,           /* is round robin, doesnt matter for SRV since we recheck getCount() inside lookup_done() */
                       ttl_seconds,     /* ttl in seconds */
-                      failed ? 0 : &e->srv_hosts, r);
+                      failed ? nullptr : &e->srv_hosts, r);
     } else if (failed) {
-      r = lookup_done(tip, md5.host_name, false, ttl_seconds, 0, r);
+      r = lookup_done(tip, md5.host_name, false, ttl_seconds, nullptr, r);
     } else {
       r = lookup_done(md5.ip, e->ent.h_name, false, ttl_seconds, &e->srv_hosts, r);
     }
@@ -1426,7 +1430,7 @@ HostDBContinuation::dnsEvent(int event, HostEnt *e)
     ClusterMachine *m = cluster_machine_at_depth(master_hash(md5.hash));
 
     if (m)
-      do_put_response(m, r, NULL);
+      do_put_response(m, r, nullptr);
 
     // try to callback the user
     //
@@ -1504,7 +1508,7 @@ HostDBContinuation::do_get_response(Event * /* e ATS_UNUSED */)
 
   // find an appropriate Machine
   //
-  ClusterMachine *m = NULL;
+  ClusterMachine *m = nullptr;
 
   if (hostdb_migrate_on_demand) {
     m = cluster_machine_at_depth(master_hash(md5.hash), &probe_depth, past_probes);
@@ -1637,7 +1641,7 @@ HostDBContinuation::iterateEvent(int event, Event *e)
   } else {
     Debug("hostdb", "iterateEvent event=%d eventp=%p: completed FINAL iteration %ld", event, e, current_iterate_pos);
     // if there are no more buckets, then we're done.
-    action.continuation->handleEvent(EVENT_DONE, NULL);
+    action.continuation->handleEvent(EVENT_DONE, nullptr);
     hostdb_cont_free(this);
   }
 
@@ -1683,9 +1687,9 @@ HostDBContinuation::probeEvent(int /* event ATS_UNUSED */, Event *e)
 
   if (!hostdb_enable || (!*md5.host_name && !md5.ip.isValid())) {
     if (action.continuation)
-      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, NULL);
+      action.continuation->handleEvent(EVENT_HOST_DB_LOOKUP, nullptr);
     if (from)
-      do_put_response(from, 0, from_cont);
+      do_put_response(from, nullptr, from_cont);
     hostdb_cont_free(this);
     return EVENT_DONE;
   }
@@ -1756,7 +1760,7 @@ HostDBContinuation::remove_trigger_pending_dns()
     c = n;
   }
   while ((c = qq.dequeue()))
-    c->handleEvent(EVENT_IMMEDIATE, NULL);
+    c->handleEvent(EVENT_IMMEDIATE, nullptr);
 }
 
 //
@@ -1772,7 +1776,7 @@ HostDBContinuation::do_dns()
     if (0 == tip.load(md5.host_name)) {
       // check 127.0.0.1 format // What the heck does that mean? - AMC
       if (action.continuation) {
-        HostDBInfo *r = lookup_done(tip, md5.host_name, false, HOST_DB_MAX_TTL, NULL);
+        HostDBInfo *r = lookup_done(tip, md5.host_name, false, HOST_DB_MAX_TTL, nullptr);
 
         reply_to_cont(action.continuation, r);
       }
@@ -1785,8 +1789,8 @@ HostDBContinuation::do_dns()
     if (find_result != current_host_file_map->hosts_file_map.end()) {
       if (action.continuation) {
         // Set the TTL based on how much time remains until the next sync
-        HostDBInfo *r =
-          lookup_done(IpAddr(find_result->second), md5.host_name, false, current_host_file_map->next_sync_time - ink_time(), NULL);
+        HostDBInfo *r = lookup_done(IpAddr(find_result->second), md5.host_name, false,
+                                    current_host_file_map->next_sync_time - ink_time(), nullptr);
         reply_to_cont(action.continuation, r);
       }
       hostdb_cont_free(this);
@@ -1796,7 +1800,7 @@ HostDBContinuation::do_dns()
   if (hostdb_lookup_timeout) {
     timeout = mutex->thread_holding->schedule_in(this, HRTIME_SECONDS(hostdb_lookup_timeout));
   } else {
-    timeout = NULL;
+    timeout = nullptr;
   }
   if (set_check_pending_dns()) {
     DNSProcessor::Options opt;
@@ -1836,7 +1840,7 @@ HostDBContinuation::clusterResponseEvent(int /*  event ATS_UNUSED */, Event *e)
     //
     if (c) {
       action    = c;
-      from_cont = 0;
+      from_cont = nullptr;
       MUTEX_TRY_LOCK(lock, c->mutex, e->ethread);
       MUTEX_TRY_LOCK(lock2, c->action.mutex, e->ethread);
       if (!lock.is_locked() || !lock2.is_locked()) {
@@ -1844,13 +1848,13 @@ HostDBContinuation::clusterResponseEvent(int /*  event ATS_UNUSED */, Event *e)
         return EVENT_CONT;
       }
       bool failed = missing || (round_robin && !hostdb_cluster_round_robin);
-      action.continuation->handleEvent(EVENT_HOST_DB_GET_RESPONSE, failed ? 0 : this);
+      action.continuation->handleEvent(EVENT_HOST_DB_GET_RESPONSE, failed ? nullptr : this);
     }
   } else {
-    action = 0;
+    action = nullptr;
     // just a remote fill
     ink_assert(!missing);
-    lookup_done(md5.ip, md5.host_name, false, ttl, NULL);
+    lookup_done(md5.ip, md5.host_name, false, ttl, nullptr);
   }
   hostdb_cont_free(this);
   return EVENT_DONE;
@@ -1877,11 +1881,11 @@ HostDBContinuation::clusterEvent(int event, Event *e)
   case EVENT_HOST_DB_GET_RESPONSE:
     if (timeout) {
       timeout->cancel(this);
-      timeout = NULL;
+      timeout = nullptr;
     }
     if (e) {
       HostDBContinuation *c         = (HostDBContinuation *)e;
-      HostDBInfo *r                 = lookup_done(md5.ip, c->md5.host_name, false, c->ttl, NULL);
+      HostDBInfo *r                 = lookup_done(md5.ip, c->md5.host_name, false, c->ttl, nullptr);
       r->app.allotment.application1 = c->app.allotment.application1;
       r->app.allotment.application2 = c->app.allotment.application2;
 
@@ -1895,7 +1899,7 @@ HostDBContinuation::clusterEvent(int event, Event *e)
           if (hostdb_migrate_on_demand) {
             ClusterMachine *m = cluster_machine_at_depth(master_hash(md5.hash));
             if (m && m != c->from)
-              do_put_response(m, r, NULL);
+              do_put_response(m, r, nullptr);
           }
         }
       }
@@ -1948,12 +1952,12 @@ get_hostinfo_ClusterFunction(ClusterHandler *ch, void *data, int /* len ATS_UNUS
   md5.hash    = msg->md5;
   md5.db_mark = db_mark_for(&msg->ip.sa);
 #ifdef SPLIT_DNS
-  SplitDNS *pSD  = 0;
+  SplitDNS *pSD  = nullptr;
   char *hostname = msg->name;
   if (hostname && SplitDNSConfig::isSplitDNSEnabled()) {
     pSD = SplitDNSConfig::acquire();
 
-    if (0 != pSD) {
+    if (nullptr != pSD) {
       md5.dns_server = static_cast<DNSServer *>(pSD->getDNSRecord(hostname));
     }
     SplitDNSConfig::release(pSD);
@@ -2063,7 +2067,7 @@ char *
 HostDBInfo::hostname() const
 {
   if (!reverse_dns)
-    return NULL;
+    return nullptr;
 
   return (char *)this + data.hostname_offset;
 }
@@ -2075,7 +2079,7 @@ char *
 HostDBInfo::perm_hostname() const
 {
   if (hostname_offset == 0)
-    return NULL;
+    return nullptr;
 
   return (char *)this + hostname_offset;
 }
@@ -2084,7 +2088,7 @@ HostDBRoundRobin *
 HostDBInfo::rr()
 {
   if (!round_robin)
-    return NULL;
+    return nullptr;
 
   return (HostDBRoundRobin *)((char *)this + this->app.rr.offset);
 }
@@ -2096,7 +2100,7 @@ HostDBContinuation::master_machine(ClusterConfiguration *cc)
 }
 
 struct ShowHostDB;
-typedef int (ShowHostDB::*ShowHostDBEventHandler)(int event, Event *data);
+using ShowHostDBEventHandler = int (ShowHostDB::*)(int, Event *);
 struct ShowHostDB : public ShowCont {
   char *name;
   uint16_t port;
@@ -2213,7 +2217,7 @@ struct ShowHostDB : public ShowCont {
   }
 
   int
-  showOne(HostDBInfo *r, bool rr, int event, Event *e, HostDBRoundRobin *hostdb_rr = NULL)
+  showOne(HostDBInfo *r, bool rr, int event, Event *e, HostDBRoundRobin *hostdb_rr = nullptr)
   {
     ip_text_buffer b;
     if (!output_json) {
@@ -2316,7 +2320,8 @@ struct ShowHostDB : public ShowCont {
     return complete(event, e);
   }
 
-  ShowHostDB(Continuation *c, HTTPHdr *h) : ShowCont(c, h), name(0), port(0), force(0), output_json(false), records_seen(0)
+  ShowHostDB(Continuation *c, HTTPHdr *h)
+    : ShowCont(c, h), name(nullptr), port(0), force(false), output_json(false), records_seen(0)
   {
     ats_ip_invalidate(&ip);
     SET_HANDLER(&ShowHostDB::showMain);
@@ -2338,7 +2343,7 @@ register_ShowHostDB(Continuation *c, HTTPHdr *h)
     int query_len;
     const char *query = h->url_get()->query_get(&query_len);
     s->sarg           = ats_strndup(query, query_len);
-    char *gn          = NULL;
+    char *gn          = nullptr;
     if (s->sarg)
       gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
     if (gn) {
@@ -2350,13 +2355,13 @@ register_ShowHostDB(Continuation *c, HTTPHdr *h)
     int query_len;
     const char *query = h->url_get()->query_get(&query_len);
     s->sarg           = ats_strndup(query, query_len);
-    char *gn          = NULL;
+    char *gn          = nullptr;
     if (s->sarg)
       gn = (char *)memchr(s->sarg, '=', strlen(s->sarg));
     if (gn) {
       s->name   = gn + 1;
       char *pos = strstr(s->name, "%3A");
-      if (pos != NULL) {
+      if (pos != nullptr) {
         s->port = atoi(pos + 3);
         *pos    = '\0'; // Null terminate name
       } else {
@@ -2381,7 +2386,7 @@ register_ShowHostDB(Continuation *c, HTTPHdr *h)
 #define HOSTDB_TEST_LENGTH 100000
 
 struct HostDBTestReverse;
-typedef int (HostDBTestReverse::*HostDBTestReverseHandler)(int, void *);
+using HostDBTestReverseHandler = int (HostDBTestReverse::*)(int, void *);
 struct HostDBTestReverse : public Continuation {
   RegressionTest *test;
   int type;
@@ -2431,9 +2436,9 @@ struct HostDBTestReverse : public Continuation {
   {
     SET_HANDLER((HostDBTestReverseHandler)&HostDBTestReverse::mainEvent);
 #if HAVE_SRAND48_R
-    srand48_r(time(NULL), &dr);
+    srand48_r(time(nullptr), &dr);
 #else
-    srand48(time(NULL));
+    srand48(time(nullptr));
 #endif
   }
 };
@@ -2485,22 +2490,22 @@ ink_hostdb_init(ModuleVersion v)
 
 /// Pair of IP address and host name from a host file.
 struct HostFilePair {
-  typedef HostFilePair self;
+  using self = HostFilePair;
   IpAddr ip;
-  char const *name;
+  const char *name;
 };
 
 struct HostDBFileContinuation : public Continuation {
-  typedef HostDBFileContinuation self;
+  using self = HostDBFileContinuation;
 
   int idx;          ///< Working index.
-  char const *name; ///< Host name (just for debugging)
+  const char *name; ///< Host name (just for debugging)
   INK_MD5 md5;      ///< Key for entry.
-  typedef std::vector<INK_MD5> Keys;
+  using Keys = std::vector<INK_MD5>;
   Keys *keys;          ///< Entries from file.
   ats_scoped_str path; ///< Used to keep the host file name around.
 
-  HostDBFileContinuation() : Continuation(0) {}
+  HostDBFileContinuation() : Continuation(nullptr) {}
   /// Finish update
   static void finish(Keys *keys ///< Valid keys from update.
                      );
@@ -2545,7 +2550,7 @@ ParseHostLine(Ptr<RefCountedHostsFileMap> &map, char *l)
 }
 
 void
-ParseHostFile(char const *path, unsigned int hostdb_hostfile_check_interval)
+ParseHostFile(const char *path, unsigned int hostdb_hostfile_check_interval)
 {
   Ptr<RefCountedHostsFileMap> parsed_hosts_file_ptr;
 
@@ -2583,7 +2588,7 @@ ParseHostFile(char const *path, unsigned int hostdb_hostfile_check_interval)
             char *spot = strchr(base, '\n');
 
             // terminate the line.
-            if (0 == spot)
+            if (nullptr == spot)
               spot = limit; // no trailing EOL, grab remaining
             else
               *spot = 0;
@@ -2602,7 +2607,8 @@ ParseHostFile(char const *path, unsigned int hostdb_hostfile_check_interval)
   }
 
   // Swap the pointer
-  hostDB.hosts_file_ptr = parsed_hosts_file_ptr;
+  if (parsed_hosts_file_ptr != nullptr)
+    hostDB.hosts_file_ptr = parsed_hosts_file_ptr;
   // Mark this one as completed, so we can allow another update to happen
   HostDBFileUpdateActive = 0;
 }
@@ -2636,7 +2642,7 @@ struct HostDBRegressionContinuation : public Continuation {
     }
     if (event == EVENT_HOST_DB_LOOKUP) {
       --outstanding;
-      // since this is a lookup done, data is either hostdbInfo or NULL
+      // since this is a lookup done, data is either hostdbInfo or nullptr
       if (r) {
         rprintf(test, "hostdbinfo r=%x\n", r);
         rprintf(test, "hostdbinfo hostname=%s\n", r->perm_hostname());

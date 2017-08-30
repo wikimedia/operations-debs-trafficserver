@@ -41,6 +41,7 @@
 #include "ts/ink_sock.h"
 
 #include "ts/ink_apidefs.h"
+#include <functional>
 
 class ConfigUpdateCbTable;
 
@@ -59,10 +60,15 @@ public:
     ats_free(mgmt_signal_queue);
   }
 
+  /** Start a thread for the process manager.
+
+      If @a cb is set then it is called after the thread is started and before any messages are processed.
+  */
   void
-  start()
+  start(std::function<void()> const &cb = std::function<void()>())
   {
-    ink_thread_create(startProcessManager, 0);
+    init = cb;
+    ink_thread_create(startProcessManager, NULL, 0, 0, NULL);
   }
 
   void
@@ -96,6 +102,10 @@ public:
   LLQ *mgmt_signal_queue;
 
   pid_t pid;
+
+  /// Thread initialization callback.
+  /// This allows @c traffic_server and @c traffic_manager to perform different initialization in the thread.
+  std::function<void()> init;
 
   int local_manager_sockfd;
 

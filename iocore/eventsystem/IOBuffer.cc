@@ -43,14 +43,9 @@ int64_t max_iobuffer_size           = DEFAULT_BUFFER_SIZES - 1;
 // Initialization
 //
 void
-init_buffer_allocators()
+init_buffer_allocators(int iobuffer_advice)
 {
   char *name;
-  int advice = 0;
-
-#ifdef MADV_DONTDUMP // This should only exist on Linux 3.4 and higher.
-  advice = MADV_DONTDUMP;
-#endif
 
   for (int i = 0; i < DEFAULT_BUFFER_SIZES; i++) {
     int64_t s = DEFAULT_BUFFER_BASE_SIZE * (((int64_t)1) << i);
@@ -61,7 +56,7 @@ init_buffer_allocators()
 
     name = new char[64];
     snprintf(name, 64, "ioBufAllocator[%d]", i);
-    ioBufAllocator[i].re_init(name, s, n, a, advice);
+    ioBufAllocator[i].re_init(name, s, n, a, iobuffer_advice);
   }
 }
 
@@ -81,7 +76,7 @@ MIOBuffer::remove_append(IOBufferReader *r)
     l += b->read_avail();
     append_block(b.get());
   }
-  r->mbuf->_writer = NULL;
+  r->mbuf->_writer = nullptr;
   return l;
 }
 
@@ -193,19 +188,20 @@ MIOBuffer::puts(char *s, int64_t len)
 int64_t
 IOBufferReader::read(void *ab, int64_t len)
 {
-  char *b           = (char *)ab;
-  int64_t max_bytes = read_avail();
-  int64_t bytes     = len <= max_bytes ? len : max_bytes;
-  int64_t n         = bytes;
+  char *b       = (char *)ab;
+  int64_t n     = len;
+  int64_t l     = block_read_avail();
+  int64_t bytes = 0;
 
-  while (n) {
-    int64_t l = block_read_avail();
+  while (n && l) {
     if (n < l)
       l = n;
     ::memcpy(b, start(), l);
     consume(l);
     b += l;
     n -= l;
+    bytes += l;
+    l = block_read_avail();
   }
   return bytes;
 }

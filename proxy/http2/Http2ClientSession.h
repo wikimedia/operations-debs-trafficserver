@@ -28,6 +28,8 @@
 #include "Plugin.h"
 #include "ProxyClientSession.h"
 #include "Http2ConnectionState.h"
+#include <ts/MemView.h>
+#include <ts/ink_inet.h>
 
 // Name                       Edata                 Description
 // HTTP2_SESSION_EVENT_INIT   Http2ClientSession *  HTTP/2 session is born
@@ -152,15 +154,15 @@ class Http2ClientSession : public ProxyClientSession
 {
 public:
   typedef ProxyClientSession super; ///< Parent type.
-  Http2ClientSession();
-
   typedef int (Http2ClientSession::*SessionHandler)(int, void *);
 
+  Http2ClientSession();
+
   // Implement ProxyClientSession interface.
-  void start();
-  virtual void destroy();
-  virtual void free();
-  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor);
+  void start() override;
+  void destroy() override;
+  void free() override;
+  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
 
   bool
   ready_to_free() const
@@ -169,18 +171,20 @@ public:
   }
 
   // Implement VConnection interface.
-  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0);
-  VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false);
-  void do_io_close(int lerrno = -1);
-  void do_io_shutdown(ShutdownHowTo_t howto);
-  void reenable(VIO *vio);
-  virtual NetVConnection *
-  get_netvc() const
+  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0) override;
+  VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false) override;
+  void do_io_close(int lerrno = -1) override;
+  void do_io_shutdown(ShutdownHowTo_t howto) override;
+  void reenable(VIO *vio) override;
+
+  NetVConnection *
+  get_netvc() const override
   {
     return client_vc;
-  };
-  virtual void
-  release_netvc()
+  }
+
+  void
+  release_netvc() override
   {
     // Make sure the vio's are also released to avoid later surprises in inactivity timeout
     if (client_vc) {
@@ -203,19 +207,21 @@ public:
   }
 
   void set_upgrade_context(HTTPHdr *h);
+
   const Http2UpgradeContext &
   get_upgrade_context() const
   {
     return upgrade_context;
   }
 
-  virtual int
-  get_transact_count() const
+  int
+  get_transact_count() const override
   {
     return connection_state.get_stream_requests();
   }
-  virtual void
-  release(ProxyClientTransaction *trans)
+
+  void
+  release(ProxyClientTransaction *trans) override
   {
   }
 
@@ -225,48 +231,56 @@ public:
   {
     dying_event = event;
   }
+
   int
   get_dying_event() const
   {
     return dying_event;
   }
+
   bool
   is_recursing() const
   {
     return recursion > 0;
   }
 
-  virtual const char *
-  get_protocol_string() const
+  const char *
+  get_protocol_string() const override
   {
     return "http/2";
   }
 
   virtual int
-  populate_protocol(char const **result, int size) const
+  populate_protocol(ts::StringView *result, int size) const override
   {
     int retval = 0;
-    if (size > 0) {
-      result[0] = TS_PROTO_TAG_HTTP_2_0;
-      retval    = 1;
-      if (size > 1) {
-        retval += super::populate_protocol(result + 1, size - 1);
+    if (size > retval) {
+      result[retval++] = IP_PROTO_TAG_HTTP_2_0;
+      if (size > retval) {
+        retval += super::populate_protocol(result + retval, size - retval);
       }
     }
     return retval;
   }
 
   virtual const char *
-  protocol_contains(const char *tag_prefix) const
+  protocol_contains(ts::StringView prefix) const override
   {
-    const char *retval   = NULL;
-    unsigned int tag_len = strlen(tag_prefix);
-    if (tag_len <= strlen(TS_PROTO_TAG_HTTP_2_0) && strncmp(tag_prefix, TS_PROTO_TAG_HTTP_2_0, tag_len) == 0) {
-      retval = TS_PROTO_TAG_HTTP_2_0;
+    const char *retval = nullptr;
+
+    if (prefix.size() <= IP_PROTO_TAG_HTTP_2_0.size() && strncmp(IP_PROTO_TAG_HTTP_2_0.ptr(), prefix.ptr(), prefix.size()) == 0) {
+      retval = IP_PROTO_TAG_HTTP_2_0.ptr();
     } else {
-      retval = super::protocol_contains(tag_prefix);
+      retval = super::protocol_contains(prefix);
     }
     return retval;
+  }
+
+  void set_half_close_local_flag(bool flag);
+  bool
+  get_half_close_local_flag() const
+  {
+    return half_close_local;
   }
 
 private:
@@ -285,7 +299,6 @@ private:
   // if there are multiple frames ready on the wire
   int state_process_frame_read(int event, VIO *vio, bool inside_frame);
 
-  int64_t con_id;
   int64_t total_write_len;
   SessionHandler session_handler;
   NetVConnection *client_vc;
@@ -301,6 +314,7 @@ private:
   VIO *write_vio;
   int dying_event;
   bool kill_me;
+  bool half_close_local;
   int recursion;
 };
 

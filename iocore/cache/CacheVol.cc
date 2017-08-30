@@ -31,12 +31,12 @@ Cache::scan(Continuation *cont, const char *hostname, int host_len, int KB_per_s
 {
   Debug("cache_scan_truss", "inside scan");
   if (!CacheProcessor::IsCacheReady(CACHE_FRAG_TYPE_HTTP)) {
-    cont->handleEvent(CACHE_EVENT_SCAN_FAILED, 0);
+    cont->handleEvent(CACHE_EVENT_SCAN_FAILED, nullptr);
     return ACTION_RESULT_DONE;
   }
 
   CacheVC *c = new_CacheVC(cont);
-  c->vol     = NULL;
+  c->vol     = nullptr;
   /* do we need to make a copy */
   c->hostname        = const_cast<char *>(hostname);
   c->host_len        = host_len;
@@ -81,7 +81,7 @@ Lcont:
   eventProcessor.schedule_in(this, HRTIME_MSECONDS(scan_msec_delay));
   return EVENT_CONT;
 Ldone:
-  _action.continuation->handleEvent(CACHE_EVENT_SCAN_DONE, NULL);
+  _action.continuation->handleEvent(CACHE_EVENT_SCAN_DONE, nullptr);
   return free_CacheVC(this);
 }
 
@@ -154,8 +154,8 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
   Debug("cache_scan_truss", "inside %p:scanObject", this);
 
-  Doc *doc     = NULL;
-  void *result = NULL;
+  Doc *doc     = nullptr;
+  void *result = nullptr;
 #ifdef HTTP_CACHE
   int hlen = 0;
   char hname[500];
@@ -222,8 +222,8 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     if (doc->doc_type != CACHE_FRAG_TYPE_HTTP || !doc->hlen)
       goto Lskip;
 
-    last_collision = NULL;
-    while (1) {
+    last_collision = nullptr;
+    while (true) {
       if (!dir_probe(&doc->first_key, vol, &dir, &last_collision))
         goto Lskip;
       if (!dir_agg_valid(vol, &dir) || !dir_head(&dir) ||
@@ -251,7 +251,7 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     if (this->load_http_info(&vector, doc) != doc->hlen)
       goto Lskip;
     changed         = false;
-    hostinfo_copied = 0;
+    hostinfo_copied = false;
     for (i = 0; i < vector.count(); i++) {
       if (!vector.get(i)->valid())
         goto Lskip;
@@ -259,13 +259,13 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
         memccpy(hname, vector.get(i)->request_get()->host_get(&hlen), 0, 500);
         hname[hlen] = 0;
         Debug("cache_scan", "hostname = '%s', hostlen = %d", hname, hlen);
-        hostinfo_copied = 1;
+        hostinfo_copied = true;
       }
       vector.get(i)->object_key_get(&key);
       alternate_index = i;
       // verify that the earliest block exists, reducing 'false hit' callbacks
       if (!(key == doc->key)) {
-        last_collision = NULL;
+        last_collision = nullptr;
         if (!dir_probe(&key, vol, &earliest_dir, &last_collision))
           continue;
       }
@@ -316,7 +316,7 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
         earliest_key      = zero_key;
         writer_lock_retry = 0;
         SET_HANDLER(&CacheVC::scanOpenWrite);
-        return scanOpenWrite(EVENT_NONE, 0);
+        return scanOpenWrite(EVENT_NONE, nullptr);
       }
     }
     continue;
@@ -381,7 +381,7 @@ CacheVC::scanRemoveDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   alternate.destroy();
 #endif
   SET_HANDLER(&CacheVC::scanObject);
-  return handleEvent(EVENT_IMMEDIATE, 0);
+  return handleEvent(EVENT_IMMEDIATE, nullptr);
 }
 
 int
@@ -391,7 +391,7 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   cancel_trigger();
   // get volume lock
   if (writer_lock_retry > SCAN_WRITER_LOCK_MAX_RETRY) {
-    int r = _action.continuation->handleEvent(CACHE_EVENT_SCAN_OPERATION_BLOCKED, 0);
+    int r = _action.continuation->handleEvent(CACHE_EVENT_SCAN_OPERATION_BLOCKED, nullptr);
     Debug("cache_scan", "still havent got the writer lock, asking user..");
     switch (r) {
     case CACHE_SCAN_RESULT_RETRY:
@@ -399,7 +399,7 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       break;
     case CACHE_SCAN_RESULT_CONTINUE:
       SET_HANDLER(&CacheVC::scanObject);
-      return scanObject(EVENT_IMMEDIATE, 0);
+      return scanObject(EVENT_IMMEDIATE, nullptr);
     }
   }
   int ret = 0;
@@ -424,12 +424,12 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     for (int i = 0; i < alt_count; i++) {
       write_vector->insert(vector.get(i));
     }
-    od->writing_vec = 1;
+    od->writing_vec = true;
     vector.clear(false);
     // check that the directory entry was not overwritten
     // if so return failure
     Debug("cache_scan", "got writer lock");
-    Dir *l = NULL;
+    Dir *l = nullptr;
     Dir d;
     Doc *doc = (Doc *)(buf->data() + offset);
     offset   = (char *)doc - buf->data() + vol->round_to_approx_size(doc->len);
@@ -441,15 +441,15 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       dir_assign(&od->single_doc_dir, &dir);
       dir_set_tag(&od->single_doc_dir, doc->key.slice32(2));
       od->single_doc_key    = doc->key;
-      od->move_resident_alt = 1;
+      od->move_resident_alt = true;
     }
 
-    while (1) {
+    while (true) {
       if (!dir_probe(&first_key, vol, &d, &l)) {
         vol->close_write(this);
-        _action.continuation->handleEvent(CACHE_EVENT_SCAN_OPERATION_FAILED, 0);
+        _action.continuation->handleEvent(CACHE_EVENT_SCAN_OPERATION_FAILED, nullptr);
         SET_HANDLER(&CacheVC::scanObject);
-        return handleEvent(EVENT_IMMEDIATE, 0);
+        return handleEvent(EVENT_IMMEDIATE, nullptr);
       }
       if (memcmp(&dir, &d, SIZEOF_DIR)) {
         Debug("cache_scan", "dir entry has changed");
@@ -467,7 +467,7 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     ret = do_write_call();
   }
   if (ret == EVENT_RETURN)
-    return handleEvent(AIO_EVENT_DONE, 0);
+    return handleEvent(AIO_EVENT_DONE, nullptr);
   return ret;
 }
 
@@ -488,7 +488,7 @@ CacheVC::scanUpdateDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     ink_assert(this->od);
     vol->close_write(this);
     SET_HANDLER(&CacheVC::scanObject);
-    return handleEvent(EVENT_IMMEDIATE, 0);
+    return handleEvent(EVENT_IMMEDIATE, nullptr);
   } else {
     mutex->thread_holding->schedule_in_local(this, HRTIME_MSECONDS(cache_config_mutex_retry_delay));
     return EVENT_CONT;

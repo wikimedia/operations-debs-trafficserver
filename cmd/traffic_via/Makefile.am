@@ -19,8 +19,8 @@
 
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib \
-  -I$(top_srcdir)/mgmt/api/include
+  -I$(abs_top_srcdir)/lib \
+  -I$(abs_top_srcdir)/mgmt/api/include
 
 AM_LDFLAGS = \
   @EXTRA_CXX_LDFLAGS@ \
@@ -34,6 +34,7 @@ traffic_via_SOURCES = \
 
 traffic_via_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
+  @LIBPCRE@ \
   @LIBTCL@
 
 TESTS = \

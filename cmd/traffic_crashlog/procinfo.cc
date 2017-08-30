@@ -43,7 +43,7 @@ procfd_readlink(pid_t pid, const char *fname)
   nbytes = readlink(path, resolved, MAXPATHLEN);
   if (nbytes == -1) {
     Note("readlink failed with %s", strerror(errno));
-    return NULL;
+    return nullptr;
   }
 
   resolved[nbytes] = '\0';
@@ -144,7 +144,7 @@ crashlog_write_datime(FILE *fp, const crashlog_target &target)
 bool
 crashlog_write_backtrace(FILE *fp, const crashlog_target &)
 {
-  TSString trace = NULL;
+  TSString trace = nullptr;
   TSMgmtError mgmterr;
 
   // NOTE: sometimes we can't get a backtrace because the ptrace attach will fail with
@@ -256,7 +256,7 @@ crashlog_write_siginfo(FILE *fp, const crashlog_target &target)
     return true;
   }
 
-  if (target.siginfo.si_signo == SIGSEGV) {
+  if (target.siginfo.si_signo == SIGBUS) {
     const char *msg = "Unknown error";
 
     switch (target.siginfo.si_code) {
@@ -292,15 +292,19 @@ crashlog_write_registers(FILE *fp, const crashlog_target &target)
 #if defined(__i386__)
 #define REGFMT "0x%08" PRIx32
 #define REGCAST(x) ((uint32_t)(x))
-  static const char *names[NGREG] = {"GS",  "FS",  "ES",     "DS",  "EDI", "ESI", "EBP", "ESP",  "EBX", "EDX",
-                                     "ECX", "EAX", "TRAPNO", "ERR", "EIP", "CS",  "EFL", "UESP", "SS"};
+  static const char *names[NGREG] = {
+    "GS",  "FS",  "ES",     "DS",  "EDI", "ESI", "EBP", "ESP",  "EBX", "EDX",
+    "ECX", "EAX", "TRAPNO", "ERR", "EIP", "CS",  "EFL", "UESP", "SS",
+  };
 #endif
 
 #if defined(__x86_64__)
 #define REGFMT "0x%016" PRIx64
 #define REGCAST(x) ((uint64_t)(x))
-  static const char *names[NGREG] = {"R8",  "R9",  "R10", "R11", "R12", "R13", "R14",    "R15", "RDI",    "RSI",     "RBP", "RBX",
-                                     "RDX", "RAX", "RCX", "RSP", "RIP", "EFL", "CSGSFS", "ERR", "TRAPNO", "OLDMASK", "CR2"};
+  static const char *names[NGREG] = {
+    "R8",  "R9",  "R10", "R11", "R12", "R13", "R14",    "R15", "RDI",    "RSI",     "RBP", "RBX",
+    "RDX", "RAX", "RCX", "RSP", "RIP", "EFL", "CSGSFS", "ERR", "TRAPNO", "OLDMASK", "CR2",
+  };
 #endif
 
   fprintf(fp, "CPU Registers:\n");

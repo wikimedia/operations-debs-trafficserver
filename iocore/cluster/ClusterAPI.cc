@@ -72,7 +72,7 @@ typedef struct RPCHandle {
 #define RPC_HANDLE_MAGIC 0x12345678
 
 class MachineStatusSM;
-typedef int (MachineStatusSM::*MachineStatusSMHandler)(int, void *);
+using MachineStatusSMHandler = int (MachineStatusSM::*)(int, void *);
 class MachineStatusSM : public Continuation
 {
 public:
@@ -94,7 +94,7 @@ public:
   {
     SET_HANDLER((MachineStatusSMHandler)&MachineStatusSM::MachineStatusSMEvent);
   }
-  ~MachineStatusSM() {}
+  ~MachineStatusSM() override {}
   int MachineStatusSMEvent(Event *e, void *d);
 
 private:
@@ -189,15 +189,15 @@ MachineStatusSM::MachineStatusSMEvent(Event * /* e ATS_UNUSED */, void * /* d AT
 }
 
 class ClusterAPIPeriodicSM;
-typedef int (ClusterAPIPeriodicSM::*ClusterAPIPeriodicSMHandler)(int, void *);
+using ClusterAPIPeriodicSMHandler = int (ClusterAPIPeriodicSM::*)(int, void *);
 class ClusterAPIPeriodicSM : public Continuation
 {
 public:
-  ClusterAPIPeriodicSM(ProxyMutex *m) : Continuation(m), _active_msmp(0)
+  ClusterAPIPeriodicSM(ProxyMutex *m) : Continuation(m), _active_msmp(nullptr)
   {
     SET_HANDLER((ClusterAPIPeriodicSMHandler)&ClusterAPIPeriodicSM::ClusterAPIPeriodicSMEvent);
   }
-  ~ClusterAPIPeriodicSM() {}
+  ~ClusterAPIPeriodicSM() override {}
   int ClusterAPIPeriodicSMEvent(int, void *);
   MachineStatusSM *GetNextSM();
 
@@ -214,14 +214,14 @@ ClusterAPIPeriodicSM::GetNextSM()
   MachineStatusSM *msmp;
   MachineStatusSM *msmp_next;
 
-  while (1) {
+  while (true) {
     msmp = status_callout_q.pop();
     if (!msmp) {
       msmp = (MachineStatusSM *)ink_atomiclist_popall(&status_callout_atomic_q);
       if (msmp) {
         while (msmp) {
           msmp_next       = (MachineStatusSM *)msmp->link.next;
-          msmp->link.next = 0;
+          msmp->link.next = nullptr;
           status_callout_q.push(msmp);
           msmp = msmp_next;
         }
@@ -242,7 +242,7 @@ ClusterAPIPeriodicSM::ClusterAPIPeriodicSMEvent(int e, void *d)
   // Maintain node status event order by serializing the processing.
   int ret;
 
-  while (1) {
+  while (true) {
     if (_active_msmp) {
       ret = _active_msmp->handleEvent(e, d);
       if (ret != EVENT_DONE) {
@@ -260,7 +260,7 @@ ClusterAPIPeriodicSM::ClusterAPIPeriodicSMEvent(int e, void *d)
 void
 clusterAPI_init()
 {
-  MachineStatusSM *mssmp = 0;
+  MachineStatusSM *mssmp = nullptr;
   ink_atomiclist_init(&status_callout_atomic_q, "cluster API status_callout_q", (char *)&mssmp->link.next - (char *)mssmp);
   ClusterAPI_mutex = new_ProxyMutex();
   MUTEX_TRY_LOCK(lock, ClusterAPI_mutex, this_ethread());
@@ -319,8 +319,8 @@ TSDeleteClusterStatusFunction(TSClusterStatusHandle_t *h)
   Debug("cluster_api", "TSDeleteClusterStatusFunction: n %d", n);
 
   MUTEX_TAKE_LOCK(ClusterAPI_mutex, e);
-  status_callouts[n].mutex = 0;
-  status_callouts[n].func  = (TSClusterStatusFunction)0;
+  status_callouts[n].mutex = nullptr;
+  status_callouts[n].func  = (TSClusterStatusFunction) nullptr;
   status_callouts[n].state = NE_STATE_FREE;
   MUTEX_UNTAKE_LOCK(ClusterAPI_mutex, e);
 
@@ -452,7 +452,7 @@ TSDeleteClusterRPCFunction(TSClusterRPCHandle_t *rpch)
   Debug("cluster_api", "TSDeleteClusterRPCFunction: n %d", h->u.internal.cluster_function);
 
   MUTEX_TAKE_LOCK(ClusterAPI_mutex, e);
-  RPC_Functions[h->u.internal.cluster_function] = 0;
+  RPC_Functions[h->u.internal.cluster_function] = nullptr;
   MUTEX_UNTAKE_LOCK(ClusterAPI_mutex, e);
   return 0;
 }
@@ -503,7 +503,7 @@ TSAllocClusterRPCMsg(TSClusterRPCHandle_t *h, int data_size)
   ink_assert(data_size >= 4);
   if (data_size < 4) {
     /* Message must be at least 4 bytes in length */
-    return (TSClusterRPCMsg_t *)0;
+    return (TSClusterRPCMsg_t *)nullptr;
   }
 
   TSClusterRPCMsg_t *rpcm;

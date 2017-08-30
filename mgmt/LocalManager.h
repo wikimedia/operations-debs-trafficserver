@@ -74,7 +74,7 @@ public:
   void signalAlarm(int alarm_id, const char *desc = NULL, const char *ip = NULL);
 
   void processEventQueue();
-  bool startProxy();
+  bool startProxy(const char *onetime_options);
   void listenForProxy();
   void bindProxyPort(HttpProxyPort &);
   void closeProxyPorts();
@@ -91,6 +91,7 @@ public:
   bool clusterOk();
 
   volatile bool run_proxy;
+  volatile bool proxy_recoverable; // false if traffic_server cannot recover with a reboot
   volatile time_t manager_started_at;
   volatile time_t proxy_started_at;
   volatile int proxy_launch_count;
@@ -108,7 +109,7 @@ public:
   char *absolute_proxy_binary;
   char *proxy_name;
   char *proxy_binary;
-  char *proxy_options;
+  char *proxy_options; // These options should persist across proxy reboots
   char *env_prep;
 
   int process_server_sockfd;

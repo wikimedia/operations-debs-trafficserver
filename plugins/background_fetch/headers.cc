@@ -21,7 +21,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "configs.h"
 #include "headers.h"
@@ -71,7 +71,7 @@ set_header(TSMBuffer bufp, TSMLoc hdr_loc, const char *header, int len, const ch
       TSHandleMLocRelease(bufp, hdr_loc, field_loc);
     }
   } else {
-    TSMLoc tmp = NULL;
+    TSMLoc tmp = nullptr;
     bool first = true;
 
     while (field_loc) {

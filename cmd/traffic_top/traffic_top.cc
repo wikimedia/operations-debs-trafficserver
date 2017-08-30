@@ -25,10 +25,10 @@
 #include <map>
 #include <list>
 #include <string>
-#include <string.h>
+#include <cstring>
 #include <iostream>
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 #include <unistd.h>
 #include <getopt.h>
 
@@ -54,7 +54,9 @@
 #include "stats.h"
 
 using namespace std;
+#if HAS_CURL
 char curl_error[CURL_ERROR_SIZE];
+#endif
 string response;
 
 namespace colorPair
@@ -128,12 +130,12 @@ makeTable(const int x, const int y, const list<string> &items, Stats &stats)
 {
   int my_y = y;
 
-  for (list<string>::const_iterator it = items.begin(); it != items.end(); ++it) {
+  for (const auto &item : items) {
     string prettyName;
     double value = 0;
     int type;
 
-    stats.getStat(*it, value, prettyName, type);
+    stats.getStat(item, value, prettyName, type);
     mvprintw(my_y, x, prettyName.c_str());
     prettyPrint(x + 10, my_y++, value, type);
   }
@@ -219,9 +221,9 @@ help(const string &host, const string &version)
 {
   timeout(1000);
 
-  while (1) {
+  while (true) {
     clear();
-    time_t now       = time(NULL);
+    time_t now       = time(nullptr);
     struct tm *nowtm = localtime(&now);
     char timeBuf[32];
     strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", nowtm);
@@ -263,7 +265,11 @@ help(const string &host, const string &version)
 static void
 usage()
 {
+#if HAS_CURL
   fprintf(stderr, "Usage: traffic_top [-s seconds] [URL|hostname|hostname:port]\n");
+#else
+  fprintf(stderr, "Usage: traffic_top [-s seconds]\n");
+#endif
   exit(1);
 }
 
@@ -400,9 +406,17 @@ main(int argc, char **argv)
   }
 
   string url = "";
+#if HAS_CURL
   if (optind >= argc) {
-    if (TS_ERR_OKAY != TSInit(NULL, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS))) {
+#else
+  if (1) {
+#endif
+    if (TS_ERR_OKAY != TSInit(nullptr, static_cast<TSInitOptionT>(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS))) {
+#if HAS_CURL
       fprintf(stderr, "Error: missing URL on command line or error connecting to the local manager\n");
+#else
+      fprintf(stderr, "Error: error connecting to the local manager\n");
+#endif
       usage();
     }
   } else {
@@ -424,7 +438,7 @@ main(int argc, char **argv)
   init_pair(colorPair::blue, COLOR_BLUE, COLOR_BLACK);
   init_pair(colorPair::cyan, COLOR_CYAN, COLOR_BLACK);
   init_pair(colorPair::border, COLOR_WHITE, COLOR_BLUE);
-  //  mvchgat(0, 0, -1, A_BLINK, 1, NULL);
+  //  mvchgat(0, 0, -1, A_BLINK, 1, nullptr);
 
   enum Page {
     MAIN_PAGE,
@@ -433,12 +447,12 @@ main(int argc, char **argv)
   Page page       = MAIN_PAGE;
   string page_alt = "(r)esponse";
 
-  while (1) {
+  while (true) {
     attron(COLOR_PAIR(colorPair::border));
     attron(A_BOLD);
 
     string version;
-    time_t now       = time(NULL);
+    time_t now       = time(nullptr);
     struct tm *nowtm = localtime(&now);
     char timeBuf[32];
     strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", nowtm);

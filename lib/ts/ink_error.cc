@@ -27,7 +27,7 @@
 #include "ts/ink_stack_trace.h"
 
 #include <syslog.h>
-#include <signal.h> /* MAGIC_EDITING_TAG */
+#include <csignal> /* MAGIC_EDITING_TAG */
 
 /**
   This routine prints/logs an error message given the printf format
@@ -35,12 +35,12 @@
 
 */
 static void
-fatal_va(const char *fmt, va_list ap)
+fatal_va(const char *hdr, const char *fmt, va_list ap)
 {
   char msg[1024];
-  const size_t len = sizeof("FATAL: ") - 1;
+  const size_t len = strlen(hdr);
 
-  strncpy(msg, "FATAL: ", sizeof(msg));
+  strncpy(msg, hdr, sizeof(msg));
   vsnprintf(msg + len, sizeof(msg) - len, fmt, ap);
   msg[sizeof(msg) - 1] = 0;
 
@@ -51,7 +51,7 @@ fatal_va(const char *fmt, va_list ap)
 void
 ink_fatal_va(const char *fmt, va_list ap)
 {
-  fatal_va(fmt, ap);
+  fatal_va("Fatal: ", fmt, ap);
   ::exit(70); // 70 corresponds to EX_SOFTWARE in BSD's sysexits. As good a status as any.
 }
 
@@ -61,10 +61,30 @@ ink_fatal(const char *message_format, ...)
   va_list ap;
 
   va_start(ap, message_format);
-  fatal_va(message_format, ap);
+  fatal_va("Fatal: ", message_format, ap);
   va_end(ap);
 
   ::exit(70); // 70 corresponds to EX_SOFTWARE in BSD's sysexits. As good a status as any.
+}
+
+void
+ink_emergency_va(const char *fmt, va_list ap)
+{
+  fatal_va("Emergency: ", fmt, ap);
+  ::exit(UNRECOVERABLE_EXIT);
+}
+
+void
+ink_emergency(const char *message_format, ...)
+{
+  va_list ap;
+
+  va_start(ap, message_format);
+  ink_emergency_va(message_format, ap);
+  // Should never reach here since ink_emergency_va calls exit()
+  va_end(ap);
+
+  ::exit(UNRECOVERABLE_EXIT);
 }
 
 void
@@ -73,7 +93,7 @@ ink_abort(const char *message_format, ...)
   va_list ap;
 
   va_start(ap, message_format);
-  fatal_va(message_format, ap);
+  fatal_va("Fatal: ", message_format, ap);
   va_end(ap);
 
   abort();
@@ -115,7 +135,7 @@ ink_pwarning(const char *message_format, ...)
   va_start(ap, message_format);
   errno_string = strerror(errno);
   snprintf(extended_format, sizeof(extended_format) - 1, "WARNING: %s <last errno = %d (%s)>", message_format, errno,
-           (errno_string == NULL ? "unknown" : errno_string));
+           (errno_string == nullptr ? "unknown" : errno_string));
   extended_format[sizeof(extended_format) - 1] = 0;
   vsnprintf(message, sizeof(message) - 1, extended_format, ap);
   message[sizeof(message) - 1] = 0;

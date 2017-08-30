@@ -57,10 +57,10 @@ static short int const CACHE_DB_MAJOR_VERSION_COMPATIBLE = 21;
 // Configuration
 
 int64_t cache_config_ram_cache_size            = AUTO_SIZE_RAM_CACHE;
-int cache_config_ram_cache_algorithm           = 0;
+int cache_config_ram_cache_algorithm           = 1;
 int cache_config_ram_cache_compress            = 0;
 int cache_config_ram_cache_compress_percent    = 90;
-int cache_config_ram_cache_use_seen_filter     = 0;
+int cache_config_ram_cache_use_seen_filter     = 1;
 int cache_config_http_max_alts                 = 3;
 int cache_config_dir_sync_frequency            = 60;
 int cache_config_permit_pinning                = 0;
@@ -89,14 +89,14 @@ int cache_config_compatibility_4_2_0_fixup = 1;
 
 // Globals
 
-RecRawStatBlock *cache_rsb          = NULL;
-Cache *theStreamCache               = 0;
-Cache *theCache                     = 0;
-CacheDisk **gdisks                  = NULL;
+RecRawStatBlock *cache_rsb          = nullptr;
+Cache *theStreamCache               = nullptr;
+Cache *theCache                     = nullptr;
+CacheDisk **gdisks                  = nullptr;
 int gndisks                         = 0;
 static volatile int initialize_disk = 0;
-Cache *caches[NUM_CACHE_FRAG_TYPES] = {0};
-CacheSync *cacheDirSync             = 0;
+Cache *caches[NUM_CACHE_FRAG_TYPES] = {nullptr};
+CacheSync *cacheDirSync             = nullptr;
 Store theCacheStore;
 volatile int CacheProcessor::initialized      = CACHE_INITIALIZING;
 volatile uint32_t CacheProcessor::cache_ready = 0;
@@ -107,7 +107,7 @@ bool CacheProcessor::check                    = false;
 int CacheProcessor::start_internal_flags      = 0;
 int CacheProcessor::auto_clear_flag           = 0;
 CacheProcessor cacheProcessor;
-Vol **gvol         = NULL;
+Vol **gvol         = nullptr;
 volatile int gnvol = 0;
 ClassAllocator<CacheVC> cacheVConnectionAllocator("cacheVConnection");
 ClassAllocator<EvacuationBlock> evacuationBlockAllocator("evacuationBlock");
@@ -130,9 +130,9 @@ struct VolInitInfo {
 
   ~VolInitInfo()
   {
-    for (int i = 0; i < 4; i++) {
-      vol_aio[i].action = NULL;
-      vol_aio[i].mutex.clear();
+    for (auto &i : vol_aio) {
+      i.action = nullptr;
+      i.mutex.clear();
     }
     free(vol_h_f);
   }
@@ -231,9 +231,9 @@ cache_stats_bytes_used_cb(const char *name, RecDataT data_type, RecData *data, R
 
   // Well, there's no way to pass along the volume ID, so extracting it from the stat name.
   p = strstr((char *)name, "volume_");
-  if (p != NULL) {
+  if (p != nullptr) {
     // I'm counting on the compiler to optimize out strlen("volume_").
-    volume = strtol(p + strlen("volume_"), NULL, 10);
+    volume = strtol(p + strlen("volume_"), nullptr, 10);
   }
 
   if (cacheProcessor.initialized == CACHE_INITIALIZED) {
@@ -305,7 +305,7 @@ update_cache_config(const char * /* name ATS_UNUSED */, RecDataT /* data_type AT
 
 CacheVC::CacheVC() : alternate_index(CACHE_ALT_INDEX_DEFAULT)
 {
-  size_to_init = sizeof(CacheVC) - (size_t) & ((CacheVC *)0)->vio;
+  size_to_init = sizeof(CacheVC) - (size_t) & ((CacheVC *)nullptr)->vio;
   memset((void *)&vio, 0, size_to_init);
 }
 
@@ -314,7 +314,7 @@ HTTPInfo::FragOffset *
 CacheVC::get_frag_table()
 {
   ink_assert(alternate.valid());
-  return alternate.valid() ? alternate.get_frag_table() : 0;
+  return alternate.valid() ? alternate.get_frag_table() : nullptr;
 }
 #endif
 
@@ -412,7 +412,7 @@ CacheVC::reenable_re(VIO *avio)
 #endif
   if (!trigger) {
     if (!is_io_in_progress() && !recursive) {
-      handleEvent(EVENT_NONE, (void *)0);
+      handleEvent(EVENT_NONE, (void *)nullptr);
     } else
       trigger = avio->mutex->thread_holding->schedule_imm_local(this);
   }
@@ -784,7 +784,7 @@ CacheProcessor::diskInitialized()
       if ((gndisks - bad_disks) > 0)
         p_good_disks = (CacheDisk **)ats_malloc((gndisks - bad_disks) * sizeof(CacheDisk *));
       else
-        p_good_disks = 0;
+        p_good_disks = nullptr;
 
       int insert_at = 0;
       for (i = 0; i < gndisks; i++) {
@@ -792,7 +792,7 @@ CacheProcessor::diskInitialized()
           delete gdisks[i];
           continue;
         }
-        if (p_good_disks != NULL) {
+        if (p_good_disks != nullptr) {
           p_good_disks[insert_at++] = gdisks[i];
         }
       }
@@ -800,6 +800,11 @@ CacheProcessor::diskInitialized()
       gdisks  = p_good_disks;
       gndisks = gndisks - bad_disks;
     }
+
+    /* Practically just took all bad_disks offline so update the stats. */
+    RecSetGlobalRawStatSum(cache_rsb, cache_span_offline_stat, bad_disks);
+    RecIncrGlobalRawStat(cache_rsb, cache_span_failing_stat, -bad_disks);
+    RecSetGlobalRawStatSum(cache_rsb, cache_span_online_stat, gndisks);
 
     /* create the cachevol list only if num volumes are greater
        than 0. */
@@ -1130,8 +1135,8 @@ CacheProcessor::open_read(Continuation *cont, const CacheKey *key, bool cluster_
     hkey.hash     = *key;
     hkey.hostname = hostname;
     hkey.hostlen  = hostlen;
-    return open_read_internal(CACHE_OPEN_READ, cont, (MIOBuffer *)0, &hkey, (CacheHTTPHdr *)0, (CacheLookupHttpConfig *)0, 0,
-                              frag_type);
+    return open_read_internal(CACHE_OPEN_READ, cont, (MIOBuffer *)nullptr, &hkey, (CacheHTTPHdr *)nullptr,
+                              (CacheLookupHttpConfig *)nullptr, 0, frag_type);
   }
 #endif
   return caches[frag_type]->open_read(cont, key, frag_type, hostname, hostlen);
@@ -1145,8 +1150,8 @@ CacheProcessor::open_write(Continuation *cont, CacheKey *key, bool cluster_cache
   if (cache_clustering_enabled > 0 && !cluster_cache_local) {
     ClusterMachine *m = cluster_machine_at_depth(cache_hash(*key));
     if (m)
-      return Cluster_write(cont, expected_size, (MIOBuffer *)0, m, key, frag_type, options, pin_in_cache, CACHE_OPEN_WRITE,
-                           (CacheHTTPHdr *)0, (CacheHTTPInfo *)0, hostname, host_len);
+      return Cluster_write(cont, expected_size, (MIOBuffer *)nullptr, m, key, frag_type, options, pin_in_cache, CACHE_OPEN_WRITE,
+                           (CacheHTTPHdr *)nullptr, (CacheHTTPInfo *)nullptr, hostname, host_len);
   }
 #endif
   return caches[frag_type]->open_write(cont, key, frag_type, options, pin_in_cache, hostname, host_len);
@@ -1231,7 +1236,7 @@ bool
 CacheProcessor::IsCacheReady(CacheFragType type)
 {
   if (IsCacheEnabled() != CACHE_INITIALIZED)
-    return 0;
+    return false;
   return (bool)(cache_ready & (1 << type));
 }
 
@@ -1301,7 +1306,7 @@ vol_clear_init(Vol *d)
   d->header->last_write_pos                               = d->header->write_pos;
   d->header->phase                                        = 0;
   d->header->cycle                                        = 0;
-  d->header->create_time                                  = time(NULL);
+  d->header->create_time                                  = time(nullptr);
   d->header->dirty                                        = 0;
   d->sector_size = d->header->sector_size = d->disk->hw_sector_size;
   *d->footer                              = *d->header;
@@ -1334,7 +1339,7 @@ Vol::clear_dir()
   io.aiocb.aio_offset = skip;
   io.action           = this;
   io.thread           = AIO_CALLBACK_THREAD_ANY;
-  io.then             = 0;
+  io.then             = nullptr;
   ink_assert(ink_aio_write(&io));
   return 0;
 }
@@ -1373,10 +1378,10 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
   Debug("cache_init", "allocating %zu directory bytes for a %lld byte volume (%lf%%)", vol_dirlen(this), (long long)this->len,
         (double)vol_dirlen(this) / (double)this->len * 100.0);
 
-  raw_dir = NULL;
+  raw_dir = nullptr;
   if (ats_hugepage_enabled())
     raw_dir = (char *)ats_alloc_hugepage(vol_dirlen(this));
-  if (raw_dir == NULL)
+  if (raw_dir == nullptr)
     raw_dir = (char *)ats_memalign(ats_pagesize(), vol_dirlen(this));
 
   dir    = (Dir *)(raw_dir + vol_headerlen(this));
@@ -1409,7 +1414,7 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
     aio->aiocb.aio_nbytes = footerlen;
     aio->action           = this;
     aio->thread           = AIO_CALLBACK_THREAD_ANY;
-    aio->then             = (i < 3) ? &(init_info->vol_aio[i + 1]) : 0;
+    aio->then             = (i < 3) ? &(init_info->vol_aio[i + 1]) : nullptr;
   }
 #if AIO_MODE == AIO_MODE_NATIVE
   ink_assert(ink_aio_readv(init_info->vol_aio));
@@ -1429,6 +1434,7 @@ Vol::handle_dir_clear(int event, void *data)
     op = (AIOCallback *)data;
     if ((size_t)op->aio_result != (size_t)op->aiocb.aio_nbytes) {
       Warning("unable to clear cache directory '%s'", hash_text.get());
+      disk->incrErrors(op);
       fd = -1;
     }
 
@@ -1443,7 +1449,7 @@ Vol::handle_dir_clear(int event, void *data)
     }
     set_io_not_in_progress();
     SET_HANDLER(&Vol::dir_init_done);
-    dir_init_done(EVENT_IMMEDIATE, 0);
+    dir_init_done(EVENT_IMMEDIATE, nullptr);
     /* mark the volume as bad */
   }
   return EVENT_DONE;
@@ -1481,7 +1487,7 @@ int
 Vol::recover_data()
 {
   SET_HANDLER(&Vol::handle_recover_from_data);
-  return handle_recover_from_data(EVENT_IMMEDIATE, 0);
+  return handle_recover_from_data(EVENT_IMMEDIATE, nullptr);
 }
 
 /*
@@ -1528,17 +1534,17 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
   char *s, *e;
   if (event == EVENT_IMMEDIATE) {
     if (header->sync_serial == 0) {
-      io.aiocb.aio_buf = NULL;
+      io.aiocb.aio_buf = nullptr;
       SET_HANDLER(&Vol::handle_recover_write_dir);
-      return handle_recover_write_dir(EVENT_IMMEDIATE, 0);
+      return handle_recover_write_dir(EVENT_IMMEDIATE, nullptr);
     }
     // initialize
-    recover_wrapped   = 0;
+    recover_wrapped   = false;
     last_sync_serial  = 0;
     last_write_serial = 0;
     recover_pos       = header->last_write_pos;
     if (recover_pos >= skip + len) {
-      recover_wrapped = 1;
+      recover_wrapped = true;
       recover_pos     = start;
     }
     io.aiocb.aio_buf    = (char *)ats_memalign(ats_pagesize(), RECOVERY_SIZE);
@@ -1548,6 +1554,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
   } else if (event == AIO_EVENT_DONE) {
     if ((size_t)io.aiocb.aio_nbytes != (size_t)io.aio_result) {
       Warning("disk read error on recover '%s', clearing", hash_text.get());
+      disk->incrErrors(&io);
       goto Lclear;
     }
     if (io.aiocb.aio_offset == header->last_write_pos) {
@@ -1585,7 +1592,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
   }
   // examine what we got
   if (got_len) {
-    Doc *doc = NULL;
+    Doc *doc = nullptr;
 
     if (recover_wrapped && start == io.aiocb.aio_offset) {
       doc = (Doc *)s;
@@ -1640,7 +1647,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
           // (doc->sync_serial > header->sync_serial + 1).
           // if we are too close to the end, wrap around
           else if (recover_pos - (e - s) > (skip + len) - AGG_SIZE) {
-            recover_wrapped     = 1;
+            recover_wrapped     = true;
             recover_pos         = start;
             io.aiocb.aio_nbytes = RECOVERY_SIZE;
 
@@ -1655,7 +1662,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
           // from the end, then wrap around
           recover_pos -= e - s;
           if (recover_pos > (skip + len) - AGG_SIZE) {
-            recover_wrapped     = 1;
+            recover_wrapped     = true;
             recover_pos         = start;
             io.aiocb.aio_nbytes = RECOVERY_SIZE;
 
@@ -1679,7 +1686,7 @@ Vol::handle_recover_from_data(int event, void * /* data ATS_UNUSED */)
         s -= round_to_approx_size(doc->len);
       recover_pos -= e - s;
       if (recover_pos >= skip + len) {
-        recover_wrapped = 1;
+        recover_wrapped = true;
         recover_pos     = start;
       }
       io.aiocb.aio_nbytes = RECOVERY_SIZE;
@@ -1700,7 +1707,7 @@ Ldone : {
     SET_HANDLER(&Vol::handle_recover_write_dir);
     if (is_debug_tag_set("cache_init"))
       Note("recovery wrapped around. nothing to clear\n");
-    return handle_recover_write_dir(EVENT_IMMEDIATE, 0);
+    return handle_recover_write_dir(EVENT_IMMEDIATE, nullptr);
   }
 
   recover_pos += EVACUATION_SIZE; // safely cover the max write size
@@ -1736,7 +1743,7 @@ Ldone : {
     aio->aiocb.aio_fildes = fd;
     aio->action           = this;
     aio->thread           = AIO_CALLBACK_THREAD_ANY;
-    aio->then             = (i < 2) ? &(init_info->vol_aio[i + 1]) : 0;
+    aio->then             = (i < 2) ? &(init_info->vol_aio[i + 1]) : nullptr;
   }
   int footerlen = ROUND_TO_STORE_BLOCK(sizeof(VolHeaderFooter));
   size_t dirlen = vol_dirlen(this);
@@ -1765,7 +1772,7 @@ Ldone : {
 Lclear:
   free((char *)io.aiocb.aio_buf);
   delete init_info;
-  init_info = 0;
+  init_info = nullptr;
   clear_dir();
   return EVENT_CONT;
 }
@@ -1776,12 +1783,12 @@ Vol::handle_recover_write_dir(int /* event ATS_UNUSED */, void * /* data ATS_UNU
   if (io.aiocb.aio_buf)
     free((char *)io.aiocb.aio_buf);
   delete init_info;
-  init_info = 0;
+  init_info = nullptr;
   set_io_not_in_progress();
   scan_pos = header->write_pos;
   periodic_scan();
   SET_HANDLER(&Vol::dir_init_done);
-  return dir_init_done(EVENT_IMMEDIATE, 0);
+  return dir_init_done(EVENT_IMMEDIATE, nullptr);
 }
 
 int
@@ -1792,9 +1799,9 @@ Vol::handle_header_read(int event, void *data)
   switch (event) {
   case AIO_EVENT_DONE:
     op = (AIOCallback *)data;
-    for (int i = 0; i < 4; i++) {
-      ink_assert(op != 0);
-      hf[i] = (VolHeaderFooter *)(op->aiocb.aio_buf);
+    for (auto &i : hf) {
+      ink_assert(op != nullptr);
+      i = (VolHeaderFooter *)(op->aiocb.aio_buf);
       if ((size_t)op->aio_result != (size_t)op->aiocb.aio_nbytes) {
         clear_dir();
         return EVENT_DONE;
@@ -1807,7 +1814,7 @@ Vol::handle_header_read(int event, void *data)
     io.aiocb.aio_buf    = raw_dir;
     io.action           = this;
     io.thread           = AIO_CALLBACK_THREAD_ANY;
-    io.then             = 0;
+    io.then             = nullptr;
 
     if (hf[0]->sync_serial == hf[1]->sync_serial &&
         (hf[0]->sync_serial >= hf[2]->sync_serial || hf[2]->sync_serial != hf[3]->sync_serial)) {
@@ -1828,7 +1835,7 @@ Vol::handle_header_read(int event, void *data)
       Note("no good directory, clearing '%s'", hash_text.get());
       clear_dir();
       delete init_info;
-      init_info = 0;
+      init_info = nullptr;
     }
     return EVENT_DONE;
   default:
@@ -1849,9 +1856,9 @@ Vol::dir_init_done(int /* event ATS_UNUSED */, void * /* data ATS_UNUSED */)
     gvol[vol_no] = this;
     SET_HANDLER(&Vol::aggWrite);
     if (fd == -1)
-      cache->vol_initialized(0);
+      cache->vol_initialized(false);
     else
-      cache->vol_initialized(1);
+      cache->vol_initialized(true);
     return EVENT_DONE;
   }
 }
@@ -1907,7 +1914,7 @@ build_vol_hash_table(CacheHostRecord *cp)
     if (cp->vol_hash_table) {
       new_Freer(cp->vol_hash_table, CACHE_MEM_FREE_TIMEOUT);
     }
-    cp->vol_hash_table = NULL;
+    cp->vol_hash_table = nullptr;
     ats_free(mapping);
     ats_free(p);
     return;
@@ -1968,7 +1975,7 @@ build_vol_hash_table(CacheHostRecord *cp)
     Debug("cache_init", "build_vol_hash_table index %d mapped to %d requested %d got %d", i, mapping[i], forvol[i], gotvol[i]);
   }
   // install new table
-  if (0 != (old_table = ink_atomic_swap(&(cp->vol_hash_table), ttable)))
+  if (nullptr != (old_table = ink_atomic_swap(&(cp->vol_hash_table), ttable)))
     new_Freer(old_table, CACHE_MEM_FREE_TIMEOUT);
   ats_free(mapping);
   ats_free(p);
@@ -1991,8 +1998,8 @@ Cache::vol_initialized(bool result)
 /** Set the state of a disk programmatically.
 */
 bool
-CacheProcessor::mark_storage_offline(CacheDisk *d ///< Target disk
-                                     )
+CacheProcessor::mark_storage_offline(CacheDisk *d, ///< Target disk
+                                     bool admin)
 {
   bool zret; // indicates whether there's any online storage left.
   int p;
@@ -2021,6 +2028,11 @@ CacheProcessor::mark_storage_offline(CacheDisk *d ///< Target disk
   RecIncrGlobalRawStat(cache_rsb, cache_bytes_total_stat, -total_bytes_delete);
   RecIncrGlobalRawStat(cache_rsb, cache_direntries_total_stat, -total_dir_delete);
   RecIncrGlobalRawStat(cache_rsb, cache_direntries_used_stat, -used_dir_delete);
+
+  /* Update the span metrics, if failing then move the span from "failing" to "offline" bucket
+   * if operator took it offline, move it from "online" to "offline" bucket */
+  RecIncrGlobalRawStat(cache_rsb, admin ? cache_span_online_stat : cache_span_failing_stat, -1);
+  RecIncrGlobalRawStat(cache_rsb, cache_span_offline_stat, 1);
 
   if (theCache) {
     rebuild_host_table(theCache);
@@ -2079,7 +2091,7 @@ AIO_Callback_handler::handle_disk_failure(int /* event ATS_UNUSED */, void *data
 
     if (d->fd == cb->aiocb.aio_fildes) {
       char message[256];
-      d->num_errors++;
+      d->incrErrors(cb);
 
       if (!DISK_BAD(d)) {
         snprintf(message, sizeof(message), "Error accessing Disk %s [%d/%d]", d->path, d->num_errors, cache_config_max_disk_errors);
@@ -2314,7 +2326,7 @@ CacheVC::handleReadDone(int event, Event *e)
   cancel_trigger();
   ink_assert(this_ethread() == mutex->thread_holding);
 
-  Doc *doc = NULL;
+  Doc *doc = nullptr;
   if (event == AIO_EVENT_DONE)
     set_io_not_in_progress();
   else if (is_io_in_progress())
@@ -2442,7 +2454,7 @@ CacheVC::handleReadDone(int event, Event *e)
   }
 Ldone:
   POP_HANDLER;
-  return handleEvent(AIO_EVENT_DONE, 0);
+  return handleEvent(AIO_EVENT_DONE, nullptr);
 }
 
 int
@@ -2509,10 +2521,10 @@ LmemHit:
 }
 
 Action *
-Cache::lookup(Continuation *cont, const CacheKey *key, CacheFragType type, char const *hostname, int host_len)
+Cache::lookup(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int host_len)
 {
   if (!CacheProcessor::IsCacheReady(type)) {
-    cont->handleEvent(CACHE_EVENT_LOOKUP_FAILED, 0);
+    cont->handleEvent(CACHE_EVENT_LOOKUP_FAILED, nullptr);
     return ACTION_RESULT_DONE;
   }
 
@@ -2527,9 +2539,9 @@ Cache::lookup(Continuation *cont, const CacheKey *key, CacheFragType type, char 
   c->frag_type          = type;
   c->f.lookup           = 1;
   c->vol                = vol;
-  c->last_collision     = NULL;
+  c->last_collision     = nullptr;
 
-  if (c->handleEvent(EVENT_INTERVAL, 0) == EVENT_CONT)
+  if (c->handleEvent(EVENT_INTERVAL, nullptr) == EVENT_CONT)
     return &c->_action;
   else
     return ACTION_RESULT_DONE;
@@ -2547,7 +2559,7 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     if (_action.cancelled) {
       if (od) {
         vol->close_write(this);
-        od = 0;
+        od = nullptr;
       }
       goto Lfree;
     }
@@ -2555,10 +2567,10 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       if (vol->open_write(this, true, 1)) {
         // writer  exists
         ink_release_assert(od = vol->open_read(&key));
-        od->dont_update_directory = 1;
-        od                        = NULL;
+        od->dont_update_directory = true;
+        od                        = nullptr;
       } else {
-        od->dont_update_directory = 1;
+        od->dont_update_directory = true;
       }
       f.remove_aborted_writers = 1;
     }
@@ -2567,7 +2579,7 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     if (!buf)
       goto Lcollision;
     if (!dir_valid(vol, &dir)) {
-      last_collision = NULL;
+      last_collision = nullptr;
       goto Lcollision;
     }
     // check read completed correct FIXME: remove bad vols
@@ -2582,7 +2594,7 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
         if (dir_delete(&key, vol, &dir) > 0) {
           if (od)
             vol->close_write(this);
-          od = NULL;
+          od = nullptr;
           goto Lremoved;
         }
         goto Ldone;
@@ -2605,7 +2617,7 @@ CacheVC::removeEvent(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   _action.continuation->handleEvent(CACHE_EVENT_REMOVE_FAILED, (void *)-ECACHE_NO_DOC);
   goto Lfree;
 Lremoved:
-  _action.continuation->handleEvent(CACHE_EVENT_REMOVE, 0);
+  _action.continuation->handleEvent(CACHE_EVENT_REMOVE, nullptr);
 Lfree:
   return free_CacheVC(this);
 }
@@ -2615,7 +2627,7 @@ Cache::remove(Continuation *cont, const CacheKey *key, CacheFragType type, const
 {
   if (!CacheProcessor::IsCacheReady(type)) {
     if (cont)
-      cont->handleEvent(CACHE_EVENT_REMOVE_FAILED, 0);
+      cont->handleEvent(CACHE_EVENT_REMOVE_FAILED, nullptr);
     return ACTION_RESULT_DONE;
   }
 
@@ -2642,7 +2654,7 @@ Cache::remove(Continuation *cont, const CacheKey *key, CacheFragType type, const
   c->f.remove           = 1;
 
   SET_CONTINUATION_HANDLER(c, &CacheVC::removeEvent);
-  int ret = c->removeEvent(EVENT_IMMEDIATE, 0);
+  int ret = c->removeEvent(EVENT_IMMEDIATE, nullptr);
   if (ret == EVENT_DONE)
     return ACTION_RESULT_DONE;
   else
@@ -2650,7 +2662,7 @@ Cache::remove(Continuation *cont, const CacheKey *key, CacheFragType type, const
 }
 // CacheVConnection
 
-CacheVConnection::CacheVConnection() : VConnection(NULL)
+CacheVConnection::CacheVConnection() : VConnection(nullptr)
 {
 }
 
@@ -2717,12 +2729,12 @@ cplist_update()
                 config_vol->cachep = cp;
               } else {
                 cp->disk_vols[d_no]->disk->delete_volume(cp->vol_number);
-                cp->disk_vols[d_no] = NULL;
+                cp->disk_vols[d_no] = nullptr;
               }
             }
           }
           if (clearCV) {
-            config_vol = NULL;
+            config_vol = nullptr;
           }
         }
         break;
@@ -3084,9 +3096,9 @@ rebuild_host_table(Cache *cache)
   }
 }
 
-// if generic_host_rec.vols == NULL, what do we do???
+// if generic_host_rec.vols == nullptr, what do we do???
 Vol *
-Cache::key_to_vol(const CacheKey *key, char const *hostname, int host_len)
+Cache::key_to_vol(const CacheKey *key, const char *hostname, int host_len)
 {
   uint32_t h                 = (key->slice32(2) >> DIR_TAG_WIDTH) % VOL_HASH_TABLE_SIZE;
   unsigned short *hash_table = hosttable->gen_host_rec.vol_hash_table;
@@ -3182,6 +3194,11 @@ register_cache_stats(RecRawStatBlock *rsb, const char *prefix)
   REG_INT("sync.count", cache_directory_sync_count_stat);
   REG_INT("sync.bytes", cache_directory_sync_bytes_stat);
   REG_INT("sync.time", cache_directory_sync_time_stat);
+  REG_INT("span.errors.read", cache_span_errors_read_stat);
+  REG_INT("span.errors.write", cache_span_errors_write_stat);
+  REG_INT("span.failing", cache_span_failing_stat);
+  REG_INT("span.offline", cache_span_offline_stat);
+  REG_INT("span.online", cache_span_online_stat);
 }
 
 void
@@ -3261,14 +3278,14 @@ ink_cache_init(ModuleVersion v)
 
   REC_EstablishStaticConfigInt32(cache_config_read_while_writer, "proxy.config.cache.enable_read_while_writer");
   cache_config_read_while_writer = validate_rww(cache_config_read_while_writer);
-  REC_RegisterConfigUpdateFunc("proxy.config.cache.enable_read_while_writer", update_cache_config, NULL);
+  REC_RegisterConfigUpdateFunc("proxy.config.cache.enable_read_while_writer", update_cache_config, nullptr);
   Debug("cache_init", "proxy.config.cache.enable_read_while_writer = %d", cache_config_read_while_writer);
 
   register_cache_stats(cache_rsb, "proxy.process.cache");
 
   REC_ReadConfigInteger(cacheProcessor.wait_for_cache, "proxy.config.http.wait_for_cache");
 
-  const char *err = NULL;
+  const char *err = nullptr;
   if ((err = theCacheStore.read_config())) {
     printf("Failed to read cache storage configuration - %s\n", err);
     exit(1);
@@ -3282,7 +3299,7 @@ CacheProcessor::open_read(Continuation *cont, const HttpCacheKey *key, bool clus
 {
 #ifdef CLUSTER_CACHE
   if (cache_clustering_enabled > 0 && !cluster_cache_local) {
-    return open_read_internal(CACHE_OPEN_READ_LONG, cont, (MIOBuffer *)0, key, request, params, pin_in_cache, type);
+    return open_read_internal(CACHE_OPEN_READ_LONG, cont, (MIOBuffer *)nullptr, key, request, params, pin_in_cache, type);
   }
 #endif
 
@@ -3300,12 +3317,12 @@ CacheProcessor::open_write(Continuation *cont, int expected_size, const HttpCach
 
     if (m) {
       // Do remote open_write()
-      return Cluster_write(cont, expected_size, (MIOBuffer *)0, m, &key->hash, type, false, pin_in_cache, CACHE_OPEN_WRITE_LONG,
-                           request, old_info, key->hostname, key->hostlen);
+      return Cluster_write(cont, expected_size, (MIOBuffer *)nullptr, m, &key->hash, type, false, pin_in_cache,
+                           CACHE_OPEN_WRITE_LONG, request, old_info, key->hostname, key->hostlen);
     }
   }
 #endif
-  return caches[type]->open_write(cont, &key->hash, old_info, pin_in_cache, NULL /* key1 */, type, key->hostname, key->hostlen);
+  return caches[type]->open_write(cont, &key->hash, old_info, pin_in_cache, nullptr /* key1 */, type, key->hostname, key->hostlen);
 }
 
 //----------------------------------------------------------------------------
@@ -3326,7 +3343,7 @@ CacheProcessor::remove(Continuation *cont, const HttpCacheKey *key, bool cluster
 }
 
 CacheDisk *
-CacheProcessor::find_by_path(char const *path, int len)
+CacheProcessor::find_by_path(const char *path, int len)
 {
   if (CACHE_INITIALIZED == initialized) {
     // If no length is passed in, assume it's null terminated.
@@ -3339,7 +3356,7 @@ CacheProcessor::find_by_path(char const *path, int len)
     }
   }
 
-  return 0;
+  return nullptr;
 }
 
 // ----------------------------
@@ -3410,7 +3427,7 @@ HTTPInfo_v21::copy_and_upgrade_unmarshalled_to_v23(char *&dst, char *&src, size_
     }
   } else {
     d_alt->m_frag_offset_count = 0;
-    d_alt->m_frag_offsets      = 0;
+    d_alt->m_frag_offsets      = nullptr;
     ink_zero(d_alt->m_integral_frag_offsets);
   }
 

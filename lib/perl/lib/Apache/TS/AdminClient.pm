@@ -184,6 +184,16 @@ sub _do_read {
 
     while ($self->{_select}->can_read($timeout)) {
         my $rc = $self->{_socket}->sysread($res, 1024, length($res));
+
+        # If the server dies we get into a infinite loop because
+        # IO::Select::can_read keeps returning true
+        # In this condition sysread returns 0 or undef
+        # Also, we want to return an undef rather than a partial response
+        # to avoid unmarshalling errors in the callers
+        if (!defined($rc) || ($rc == 0)) {
+            $res = undef;
+            last;
+        }
     }
 
     return $res || undef;
@@ -611,7 +621,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.net.defer_accept
  proxy.config.output.logfile
  proxy.config.plugin.plugin_dir
- proxy.config.process_manager.enable_mgmt_port
  proxy.config.process_manager.mgmt_port
  proxy.config.process_manager.timeout
  proxy.config.product_company

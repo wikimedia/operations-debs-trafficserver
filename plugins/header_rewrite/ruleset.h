@@ -49,6 +49,7 @@ public:
   void append(RuleSet *rule);
   bool add_condition(Parser &p, const char *filename, int lineno);
   bool add_operator(Parser &p, const char *filename, int lineno);
+  ResourceIDs get_all_resource_ids() const;
 
   bool
   has_operator() const
@@ -68,14 +69,14 @@ public:
     _hook = hook;
   }
 
-  const TSHttpHookID
+  TSHttpHookID
   get_hook() const
   {
     return _hook;
   }
 
-  const ResourceIDs
-  get_all_resource_ids() const
+  ResourceIDs
+  get_resource_ids() const
   {
     return _ids;
   }

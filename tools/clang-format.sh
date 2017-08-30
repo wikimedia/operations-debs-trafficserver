@@ -20,12 +20,13 @@
 
 set -e # exit on error
 
+PKGDATE="20160415"
 DIR=${1:-.}
-ROOT=${ROOT:-$(cd $(dirname $0) && git rev-parse --show-toplevel)/.git/fmt}
-PACKAGE="clang-format-20160415.tar.bz2"
+ROOT=${ROOT:-$(cd $(dirname $0) && git rev-parse --show-toplevel)/.git/fmt/${PKGDATE}}
+PACKAGE="clang-format-${PKGDATE}.tar.bz2"
 VERSION="clang-format version 3.9.0 (trunk 265913)"
 
-URL=${URL:-https://bintray.com/artifact/download/apache/trafficserver/${PACKAGE}}
+URL=${URL:-https://ci.trafficserver.apache.org/bintray/${PACKAGE}}
 
 TAR=${TAR:-tar}
 CURL=${CURL:-curl}
@@ -61,6 +62,7 @@ if [ ! -e ${FORMAT} -o ! -e ${ROOT}/${PACKAGE} ] ; then
 d5558924377a6ad5799956cec5b37d4e421e2156  ${ARCHIVE}
 EOF
   ${SHASUM} -c ${ROOT}/sha1
+  chmod +x ${FORMAT}
 fi
 
 

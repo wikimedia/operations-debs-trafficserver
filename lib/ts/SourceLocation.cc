@@ -23,8 +23,8 @@
 
 #include "SourceLocation.h"
 #include "ink_defs.h"
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 // This method takes a SourceLocation source location data structure and
 // converts it to a human-readable representation, in the buffer <buf>
@@ -39,12 +39,12 @@ SourceLocation::str(char *buf, int buflen) const
   const char *shortname;
 
   if (!this->valid() || buflen < 1)
-    return (NULL);
+    return (nullptr);
 
   shortname = strrchr(file, '/');
   shortname = shortname ? (shortname + 1) : file;
 
-  if (func != NULL) {
+  if (func != nullptr) {
     snprintf(buf, buflen, "%s:%d (%s)", shortname, line, func);
   } else {
     snprintf(buf, buflen, "%s:%d", shortname, line);

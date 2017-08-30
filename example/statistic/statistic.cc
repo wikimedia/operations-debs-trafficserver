@@ -28,8 +28,8 @@
 // doc/developer-guide/plugins/adding-statistics.en.rst
 
 #include <ts/ts.h>
-#include <inttypes.h>
-#include <time.h>
+#include <cinttypes>
+#include <ctime>
 
 #define PLUGIN_NAME "statistics"
 
@@ -60,7 +60,7 @@ TSPluginInit(int /* argc */, const char * /* argv */ [])
 #endif
 
   // Set an initial value for our statistic.
-  TSStatIntSet(id, time(NULL));
+  TSStatIntSet(id, time(nullptr));
 
   // Increment the statistic as time passes.
   TSStatIntIncrement(id, 1);

@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include <stdio.h>
+#include <cstdio>
 #include "ts/ink_platform.h"
 #include "ts/ink_file.h"
 #include "ts/ParseRules.h"
@@ -32,9 +32,11 @@
 #include "Plugin.h"
 #include "ts/ink_cap.h"
 
+#define MAX_PLUGIN_ARGS 64
+
 static const char *plugin_dir = ".";
 
-typedef void (*init_func_t)(int argc, char *argv[]);
+using init_func_t = void (*)(int, char **);
 
 // Plugin registration vars
 //
@@ -48,10 +50,10 @@ typedef void (*init_func_t)(int argc, char *argv[]);
 //      global pointer
 //
 DLL<PluginRegInfo> plugin_reg_list;
-PluginRegInfo *plugin_reg_current = NULL;
+PluginRegInfo *plugin_reg_current = nullptr;
 
 PluginRegInfo::PluginRegInfo()
-  : plugin_registered(false), plugin_path(NULL), plugin_name(NULL), vendor_name(NULL), support_email(NULL), dlh(NULL)
+  : plugin_registered(false), plugin_path(nullptr), plugin_name(nullptr), vendor_name(nullptr), support_email(nullptr), dlh(nullptr)
 {
 }
 
@@ -60,7 +62,7 @@ PluginRegInfo::~PluginRegInfo()
   // We don't support unloading plugins once they are successfully loaded, so assert
   // that we don't accidentally attempt this.
   ink_release_assert(this->plugin_registered == false);
-  ink_release_assert(this->link.prev == NULL);
+  ink_release_assert(this->link.prev == nullptr);
 
   ats_free(this->plugin_path);
   ats_free(this->plugin_name);
@@ -84,7 +86,7 @@ plugin_load(int argc, char *argv[], bool validateOnly)
 
   Note("loading plugin '%s'", path);
 
-  for (PluginRegInfo *plugin_reg_temp = plugin_reg_list.head; plugin_reg_temp != NULL;
+  for (PluginRegInfo *plugin_reg_temp = plugin_reg_list.head; plugin_reg_temp != nullptr;
        plugin_reg_temp                = (plugin_reg_temp->link).next) {
     if (strcmp(plugin_reg_temp->plugin_path, path) == 0) {
       Warning("multiple loading of plugin %s", path);
@@ -109,7 +111,7 @@ plugin_load(int argc, char *argv[], bool validateOnly)
 
     // Allocate a new registration structure for the
     //    plugin we're starting up
-    ink_assert(plugin_reg_current == NULL);
+    ink_assert(plugin_reg_current == nullptr);
     plugin_reg_current              = new PluginRegInfo;
     plugin_reg_current->plugin_path = ats_strdup(path);
     plugin_reg_current->dlh         = handle;
@@ -133,7 +135,7 @@ plugin_load(int argc, char *argv[], bool validateOnly)
     optind = 1;
 #endif
     opterr = 0;
-    optarg = NULL;
+    optarg = nullptr;
     init(argc, argv);
   } // done elevating access
 
@@ -144,7 +146,7 @@ plugin_load(int argc, char *argv[], bool validateOnly)
     return false; // this line won't get called since Fatal brings down ATS
   }
 
-  plugin_reg_current = NULL;
+  plugin_reg_current = nullptr;
 
   return true;
 }
@@ -153,10 +155,10 @@ static char *
 plugin_expand(char *arg)
 {
   RecDataT data_type;
-  char *str = NULL;
+  char *str = nullptr;
 
   if (*arg != '$') {
-    return (char *)NULL;
+    return (char *)nullptr;
   }
   // skip the $ character
   arg += 1;
@@ -211,7 +213,7 @@ plugin_expand(char *arg)
 
 not_found:
   Warning("plugin.config: unable to find parameter %s", arg);
-  return NULL;
+  return nullptr;
 }
 
 bool
@@ -219,8 +221,8 @@ plugin_init(bool validateOnly)
 {
   ats_scoped_str path;
   char line[1024], *p;
-  char *argv[64];
-  char *vars[64];
+  char *argv[MAX_PLUGIN_ARGS];
+  char *vars[MAX_PLUGIN_ARGS];
   int argc;
   int fd;
   int i;
@@ -234,7 +236,7 @@ plugin_init(bool validateOnly)
     INIT_ONCE  = false;
   }
 
-  path = RecConfigReadConfigPath(NULL, "plugin.config");
+  path = RecConfigReadConfigPath(nullptr, "plugin.config");
   fd   = open(path, O_RDONLY);
   if (fd < 0) {
     Warning("unable to open plugin config file '%s': %d, %s", (const char *)path, errno, strerror(errno));
@@ -254,7 +256,12 @@ plugin_init(bool validateOnly)
     }
 
     // not comment or blank, so rip line into tokens
-    while (1) {
+    while (true) {
+      if (argc >= MAX_PLUGIN_ARGS) {
+        Warning("Exceeded max number of args (%d) for plugin: [%s]", MAX_PLUGIN_ARGS, argc > 0 ? argv[0] : "???");
+        break;
+      }
+
       while (*p && ParseRules::is_wslfcr(*p)) {
         ++p;
       }
@@ -293,6 +300,7 @@ plugin_init(bool validateOnly)
         argv[i] = vars[i];
       }
     }
+    argv[argc] = nullptr;
 
     retVal = plugin_load(argc, argv, validateOnly);
 

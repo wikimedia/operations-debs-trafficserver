@@ -24,10 +24,13 @@
 #include "P_Net.h"
 #include "ts/InkErrno.h"
 #include "ts/ink_sock.h"
+#include "P_SSLNextProtocolAccept.h"
 
 // For Stat Pages
 #include "StatPages.h"
 
+volatile int net_accept_number = 0;
+extern std::vector<NetAccept *> naVec;
 NetProcessor::AcceptOptions const NetProcessor::DEFAULT_ACCEPT_OPTIONS;
 
 NetProcessor::AcceptOptions &
@@ -47,6 +50,7 @@ NetProcessor::AcceptOptions::reset()
   sockopt_flags         = 0;
   packet_mark           = 0;
   packet_tos            = 0;
+  tfo_queue_length      = 0;
   f_inbound_transparent = false;
   return *this;
 }
@@ -84,13 +88,14 @@ NetProcessor::main_accept(Continuation *cont, SOCKET fd, AcceptOptions const &op
 Action *
 UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions const &opt)
 {
-  EventType upgraded_etype = opt.etype; // setEtype requires non-const ref.
-  ProxyMutex *mutex        = this_ethread()->mutex.get();
-  int accept_threads       = opt.accept_threads; // might be changed.
-  IpEndpoint accept_ip;                          // local binding address.
+  ProxyMutex *mutex  = this_ethread()->mutex.get();
+  int accept_threads = opt.accept_threads; // might be changed.
+  IpEndpoint accept_ip;                    // local binding address.
   char thr_name[MAX_THREAD_NAME_LENGTH];
 
-  NetAccept *na = createNetAccept();
+  NetAccept *na = createNetAccept(opt);
+  na->id        = ink_atomic_increment(&net_accept_number, 1);
+  Debug("iocore_net_accept", "creating new net accept number %d", na->id);
 
   // Fill in accept thread from configuration if necessary.
   if (opt.accept_threads < 0) {
@@ -114,9 +119,9 @@ UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions cons
   na->accept_fn = net_accept; // All callers used this.
   na->server.fd = fd;
   ats_ip_copy(&na->server.accept_addr, &accept_ip);
-  na->server.f_inbound_transparent = opt.f_inbound_transparent;
+
   if (opt.f_inbound_transparent) {
-    Debug("http_tproxy", "Marking accept server %p on port %d as inbound transparent", na, opt.local_port);
+    Debug("http_tproxy", "Marked accept server %p on port %d as inbound transparent", na, opt.local_port);
   }
 
   int should_filter_int         = 0;
@@ -125,25 +130,23 @@ UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions cons
   if (should_filter_int > 0 && opt.etype == ET_NET)
     na->server.http_accept_filter = true;
 
-  na->action_          = new NetAcceptAction();
-  *na->action_         = cont;
-  na->action_->server  = &na->server;
-  na->callback_on_open = opt.f_callback_on_open;
-  na->recv_bufsize     = opt.recv_bufsize;
-  na->send_bufsize     = opt.send_bufsize;
-  na->sockopt_flags    = opt.sockopt_flags;
-  na->packet_mark      = opt.packet_mark;
-  na->packet_tos       = opt.packet_tos;
-  na->etype            = upgraded_etype;
-  na->backdoor         = opt.backdoor;
-  if (na->callback_on_open)
+  SessionAccept *sa = dynamic_cast<SessionAccept *>(cont);
+  na->proxyPort     = sa ? sa->proxyPort : nullptr;
+  na->snpa          = dynamic_cast<SSLNextProtocolAccept *>(cont);
+
+  na->action_         = new NetAcceptAction();
+  *na->action_        = cont;
+  na->action_->server = &na->server;
+
+  if (na->opt.f_callback_on_open) {
     na->mutex = cont->mutex;
+  }
+
   if (opt.frequent_accept) { // true
     if (accept_threads > 0) {
-      if (0 == na->do_listen(BLOCKING, opt.f_inbound_transparent)) {
+      if (0 == na->do_listen(BLOCKING)) {
         for (int i = 1; i < accept_threads; ++i) {
           NetAccept *a = na->clone();
-
           snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ACCEPT %d:%d]", i - 1, ats_ip_port_host_order(&accept_ip));
           a->init_accept_loop(thr_name);
           Debug("iocore_net_accept", "Created accept thread #%d for port %d", i, ats_ip_port_host_order(&accept_ip));
@@ -164,12 +167,12 @@ UnixNetProcessor::accept_internal(Continuation *cont, int fd, AcceptOptions cons
 #endif // TS_USE_POSIX_CAP
       }
     } else {
-      na->init_accept_per_thread(opt.f_inbound_transparent);
+      na->init_accept_per_thread();
     }
   } else {
-    na->init_accept(NULL, opt.f_inbound_transparent);
+    na->init_accept(nullptr);
   }
-
+  naVec.push_back(na);
 #ifdef TCP_DEFER_ACCEPT
   // set tcp defer accept timeout if it is configured, this will not trigger an accept until there is
   // data on the socket ready to be read
@@ -203,6 +206,7 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
   else
     opt = &vc->options;
 
+  vc->set_context(NET_VCONNECTION_OUT);
   bool using_socks = (socks_conf_stuff->socks_needed && opt->socks_support != NO_SOCKS
 #ifdef SOCKS_WITH_TS
                       && (opt->socks_version != SOCKS_DEFAULT_VERSION ||
@@ -213,20 +217,23 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
                           !socks_conf_stuff->ip_map.contains(target))
 #endif
                         );
-  SocksEntry *socksEntry = NULL;
+  SocksEntry *socksEntry = nullptr;
 
   NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
   vc->id          = net_next_connection_number();
   vc->submit_time = Thread::get_hrtime();
-  vc->setSSLClientConnection(true);
-  ats_ip_copy(&vc->server_addr, target);
-  vc->mutex      = cont->mutex;
-  Action *result = &vc->action_;
+  vc->mutex       = cont->mutex;
+  Action *result  = &vc->action_;
+  // Copy target to con.addr,
+  //   then con.addr will copy to vc->remote_addr by set_remote_addr()
+  vc->con.setRemote(target);
 
   if (using_socks) {
     char buff[INET6_ADDRPORTSTRLEN];
     Debug("Socks", "Using Socks ip: %s", ats_ip_nptop(target, buff, sizeof(buff)));
     socksEntry = socksAllocator.alloc();
+    // The socksEntry->init() will get the origin server addr by vc->get_remote_addr(),
+    //   and save it to socksEntry->req_data.dest_ip.
     socksEntry->init(cont->mutex, vc, opt->socks_support, opt->socks_version); /*XXXX remove last two args */
     socksEntry->action_ = cont;
     cont                = socksEntry;
@@ -235,7 +242,9 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
       socksEntry->free();
       return ACTION_RESULT_DONE;
     }
-    ats_ip_copy(&vc->server_addr, &socksEntry->server_addr);
+    // At the end of socksEntry->init(), a socks server will be selected and saved to socksEntry->server_addr.
+    // Therefore, we should set the remote to socks server in order to establish a connection with socks server.
+    vc->con.setRemote(&socksEntry->server_addr.sa);
     result      = &socksEntry->action_;
     vc->action_ = socksEntry;
   } else {
@@ -257,7 +266,12 @@ UnixNetProcessor::connect_re_internal(Continuation *cont, sockaddr const *target
       }
     }
   }
-  t->schedule_imm(vc);
+  // Try to stay on the current thread if it is the right type
+  if (t->is_event_type(opt->etype)) {
+    t->schedule_imm(vc);
+  } else { // Otherwise, pass along to another thread of the right type
+    eventProcessor.schedule_imm(vc, opt->etype);
+  }
   if (using_socks) {
     return &socksEntry->action_;
   } else
@@ -358,14 +372,14 @@ struct CheckConnect : public Continuation {
     }
   }
 
-  explicit CheckConnect(Ptr<ProxyMutex> &m) : Continuation(m.get()), vc(NULL), connect_status(-1), recursion(0), timeout(0)
+  explicit CheckConnect(Ptr<ProxyMutex> &m) : Continuation(m.get()), vc(nullptr), connect_status(-1), recursion(0), timeout(0)
   {
     SET_HANDLER(&CheckConnect::handle_connect);
     buf    = new_empty_MIOBuffer(1);
     reader = buf->alloc_reader();
   }
 
-  ~CheckConnect()
+  ~CheckConnect() override
   {
     buf->dealloc_all_readers();
     buf->clear();
@@ -402,7 +416,7 @@ UnixNetProcessor::start(int, size_t)
 
   RecData d;
   d.rec_int = 0;
-  change_net_connections_throttle(NULL, RECD_INT, d, NULL);
+  change_net_connections_throttle(nullptr, RECD_INT, d, nullptr);
 
   // Socks
   if (!netProcessor.socks_conf_stuff) {
@@ -438,9 +452,9 @@ UnixNetProcessor::start(int, size_t)
 // Virtual function allows creation of an
 // SSLNetAccept or NetAccept transparent to NetProcessor.
 NetAccept *
-UnixNetProcessor::createNetAccept()
+UnixNetProcessor::createNetAccept(const NetProcessor::AcceptOptions &opt)
 {
-  return new NetAccept;
+  return new NetAccept(opt);
 }
 
 NetVConnection *
@@ -459,7 +473,7 @@ UnixNetProcessor::allocate_vc(EThread *t)
   return vc;
 }
 
-struct socks_conf_struct *NetProcessor::socks_conf_stuff = NULL;
+struct socks_conf_struct *NetProcessor::socks_conf_stuff = nullptr;
 int NetProcessor::accept_mss                             = 0;
 
 UnixNetProcessor unix_netProcessor;

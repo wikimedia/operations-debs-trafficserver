@@ -37,7 +37,7 @@
 HttpSMListBucket HttpSMList[HTTP_LIST_BUCKETS];
 
 HttpPagesHandler::HttpPagesHandler(Continuation *cont, HTTPHdr *header)
-  : BaseStatPagesHandler(new_ProxyMutex()), request(NULL), list_bucket(0), state(HP_INIT), sm_id(0)
+  : BaseStatPagesHandler(new_ProxyMutex()), request(nullptr), list_bucket(0), state(HP_INIT), sm_id(0)
 {
   action = cont;
 
@@ -119,33 +119,33 @@ HttpPagesHandler::dump_tunnel_info(HttpSM *sm)
 
   resp_add("<p> Producers </p>");
   resp_begin_table(1, 4, 60);
-  for (int i = 0; i < MAX_PRODUCERS; i++) {
-    if (t->producers[i].vc != NULL) {
+  for (auto &producer : t->producers) {
+    if (producer.vc != nullptr) {
       resp_begin_row();
 
       // Col 1 - name
       resp_begin_column();
-      resp_add(t->producers[i].name);
+      resp_add(producer.name);
       resp_end_column();
 
       // Col 2 - alive
       resp_begin_column();
-      resp_add("%d", t->producers[i].alive);
+      resp_add("%d", producer.alive);
       resp_end_column();
 
       // Col 3 - ndone
       resp_begin_column();
-      if (t->producers[i].alive && t->producers[i].read_vio) {
-        resp_add("%d", t->producers[i].read_vio->ndone);
+      if (producer.alive && producer.read_vio) {
+        resp_add("%d", producer.read_vio->ndone);
       } else {
-        resp_add("%d", t->producers[i].bytes_read);
+        resp_add("%d", producer.bytes_read);
       }
       resp_end_column();
 
       // Col 4 - nbytes
       resp_begin_column();
-      if (t->producers[i].alive && t->producers[i].read_vio) {
-        resp_add("%d", t->producers[i].read_vio->nbytes);
+      if (producer.alive && producer.read_vio) {
+        resp_add("%d", producer.read_vio->nbytes);
       } else {
         resp_add("-");
       }
@@ -158,33 +158,33 @@ HttpPagesHandler::dump_tunnel_info(HttpSM *sm)
 
   resp_add("<p> Consumers </p>");
   resp_begin_table(1, 5, 60);
-  for (int j = 0; j < MAX_CONSUMERS; j++) {
-    if (t->consumers[j].vc != NULL) {
+  for (auto &consumer : t->consumers) {
+    if (consumer.vc != nullptr) {
       resp_begin_row();
 
       // Col 1 - name
       resp_begin_column();
-      resp_add(t->consumers[j].name);
+      resp_add(consumer.name);
       resp_end_column();
 
       // Col 2 - alive
       resp_begin_column();
-      resp_add("%d", t->consumers[j].alive);
+      resp_add("%d", consumer.alive);
       resp_end_column();
 
       // Col 3 - ndone
       resp_begin_column();
-      if (t->consumers[j].alive && t->consumers[j].write_vio) {
-        resp_add("%d", t->consumers[j].write_vio->ndone);
+      if (consumer.alive && consumer.write_vio) {
+        resp_add("%d", consumer.write_vio->ndone);
       } else {
-        resp_add("%d", t->consumers[j].bytes_written);
+        resp_add("%d", consumer.bytes_written);
       }
       resp_end_column();
 
       // Col 4 - nbytes
       resp_begin_column();
-      if (t->consumers[j].alive && t->consumers[j].write_vio) {
-        resp_add("%d", t->consumers[j].write_vio->nbytes);
+      if (consumer.alive && consumer.write_vio) {
+        resp_add("%d", consumer.write_vio->nbytes);
       } else {
         resp_add("-");
       }
@@ -192,8 +192,8 @@ HttpPagesHandler::dump_tunnel_info(HttpSM *sm)
 
       // Col 5 - read avail
       resp_begin_column();
-      if (t->consumers[j].alive && t->consumers[j].buffer_reader) {
-        resp_add("%d", t->consumers[j].buffer_reader->read_avail());
+      if (consumer.alive && consumer.buffer_reader) {
+        resp_add("%d", consumer.buffer_reader->read_avail());
       } else {
         resp_add("-");
       }
@@ -267,7 +267,7 @@ int
 HttpPagesHandler::handle_smdetails(int event, void * /* data ATS_UNUSED */)
 {
   EThread *ethread = this_ethread();
-  HttpSM *sm       = NULL;
+  HttpSM *sm       = nullptr;
 
   switch (event) {
   case EVENT_NONE:
@@ -290,7 +290,7 @@ HttpPagesHandler::handle_smdetails(int event, void * /* data ATS_UNUSED */)
       resp_begin("Http Pages Error");
       resp_add("<b>Unable to extract id</b>\n");
       resp_end();
-      return handle_callback(EVENT_NONE, NULL);
+      return handle_callback(EVENT_NONE, nullptr);
     }
 
     resp_begin("Http:SM Details");
@@ -309,7 +309,7 @@ HttpPagesHandler::handle_smdetails(int event, void * /* data ATS_UNUSED */)
 
     sm = HttpSMList[list_bucket].sm_list.head;
 
-    while (sm != NULL) {
+    while (sm != nullptr) {
       if (sm->sm_id == sm_id) {
         // In this block we try to get the lock of the
         //   state machine
@@ -318,7 +318,7 @@ HttpPagesHandler::handle_smdetails(int event, void * /* data ATS_UNUSED */)
           if (sm_lock.is_locked()) {
             dump_sm(sm);
             resp_end();
-            return handle_callback(EVENT_NONE, NULL);
+            return handle_callback(EVENT_NONE, nullptr);
           } else {
             // We missed the lock so retry
             eventProcessor.schedule_in(this, HTTP_LIST_RETRY, ET_CALL);
@@ -334,7 +334,7 @@ HttpPagesHandler::handle_smdetails(int event, void * /* data ATS_UNUSED */)
   // If we got here, we did not find our state machine
   resp_add("<h2>Id %" PRId64 " not found</h2>", sm_id);
   resp_end();
-  return handle_callback(EVENT_NONE, NULL);
+  return handle_callback(EVENT_NONE, nullptr);
 }
 
 int
@@ -368,11 +368,11 @@ HttpPagesHandler::handle_smlist(int event, void * /* data ATS_UNUSED */)
 
     sm = HttpSMList[list_bucket].sm_list.head;
 
-    while (sm != NULL) {
-      char *url          = NULL;
-      const char *method = NULL;
+    while (sm != nullptr) {
+      char *url          = nullptr;
+      const char *method = nullptr;
       int method_len;
-      const char *sm_state = NULL;
+      const char *sm_state = nullptr;
 
       // In this block we try to get the lock of the
       //   state machine
@@ -390,7 +390,7 @@ HttpPagesHandler::handle_smlist(int event, void * /* data ATS_UNUSED */)
             }
           }
 
-          if (url == NULL) {
+          if (url == nullptr) {
             url      = arena.str_store("-", 1);
             sm_state = "READ_REQUEST";
           }
@@ -411,7 +411,7 @@ HttpPagesHandler::handle_smlist(int event, void * /* data ATS_UNUSED */)
   }
 
   resp_end();
-  handle_callback(EVENT_NONE, NULL);
+  handle_callback(EVENT_NONE, nullptr);
 
   return EVENT_DONE;
 }
@@ -433,11 +433,11 @@ HttpPagesHandler::handle_callback(int /* event ATS_UNUSED */, void * /* edata AT
       data.data   = response;
       data.type   = ats_strdup("text/html");
       data.length = response_length;
-      response    = NULL;
+      response    = nullptr;
 
       action.continuation->handleEvent(STAT_PAGE_SUCCESS, &data);
     } else {
-      action.continuation->handleEvent(STAT_PAGE_FAILURE, NULL);
+      action.continuation->handleEvent(STAT_PAGE_FAILURE, nullptr);
     }
   }
 
@@ -462,7 +462,7 @@ http_pages_init()
   statPagesManager.register_http("http", http_pages_callback);
 
   // Create the mutexes for http list protection
-  for (int i = 0; i < HTTP_LIST_BUCKETS; i++) {
-    HttpSMList[i].mutex = new_ProxyMutex();
+  for (auto &i : HttpSMList) {
+    i.mutex = new_ProxyMutex();
   }
 }

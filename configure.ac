@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[7.0.0])
-m4_define([TS_VERSION_N],[7000000])
+m4_define([TS_VERSION_S],[7.1.0])
+m4_define([TS_VERSION_N],[7001000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -167,6 +167,14 @@ AC_ARG_ENABLE([debug],
 )
 AC_MSG_RESULT([$enable_debug])
 
+AC_MSG_CHECKING([whether to enable mime sanity check])
+AC_ARG_ENABLE([mime-sanity-check],
+  [AS_HELP_STRING([--enable-mime-sanity-check],[turn on mime sanity check])],
+  [],
+  [enable_mime_sanity_check=no]
+)
+AC_MSG_RESULT([$enable_mime_sanity_check])
+
 # Enable code coverage instrumentation only if requested by the user.
 AC_MSG_CHECKING([whether to code coverage])
 AC_ARG_ENABLE([coverage],
@@ -188,6 +196,23 @@ AC_ARG_ENABLE([werror],
 )
 AC_MSG_RESULT([$enable_werror])
 
+# Enable ASAN for the builds
+AC_MSG_CHECKING([whether to enable asan])
+AC_ARG_ENABLE([asan],
+  [AS_HELP_STRING([--enable-asan],[enable Address Sanitizer])],
+  [],
+  [enable_asan=no]
+)
+AC_MSG_RESULT([$enable_asan])
+
+# Enable TSAN for the builds
+AC_MSG_CHECKING([whether to enable tsan])
+AC_ARG_ENABLE([tsan],
+  [AS_HELP_STRING([--enable-tsan],[turn on Thread Sanitizer])],
+  [],
+  [enable_tsan=no]
+)
+AC_MSG_RESULT([$enable_tsan])
 
 #
 # Fast SDK APIs, this disables the parameter checks (assert)
@@ -202,6 +227,19 @@ AC_ARG_ENABLE([fast-sdk],
 )
 AC_MSG_RESULT([$enable_fast_sdk])
 TS_ARG_ENABLE_VAR([use], [fast-sdk])
+
+# Curl support for traffic_top
+AC_MSG_CHECKING([whether to enable CURL])
+AC_ARG_ENABLE([curl],
+  [AS_HELP_STRING([--disable-curl],[turn off CURL support for traffic_top])],
+  [],
+  [enable_curl=yes]
+)
+AC_MSG_RESULT([$enable_curl])
+
+if test "x${enable_curl}" = "xyes"; then
+AX_LIB_CURL([7.19], [AC_DEFINE([HAS_CURL], [1], [Define if libcurl >= 7.19.])])
+fi
 
 #
 # Diags
@@ -229,6 +267,19 @@ AC_ARG_ENABLE([tests],
 AC_MSG_RESULT([$enable_tests])
 TS_ARG_ENABLE_VAR([has], [tests])
 AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
+
+#
+# Build documentation?
+#
+
+AC_MSG_CHECKING([whether to build documentation])
+AC_ARG_ENABLE([docs],
+  [AS_HELP_STRING([--enable-docs],[enable documentation building])],
+  [],
+  [enable_doc_build=no]
+)
+AC_MSG_RESULT([$enable_doc_build])
+AM_CONDITIONAL([BUILD_DOCS], [test "xyes" = "x$enable_doc_build"])
 
 #
 # Remote Coverity Prevent commit
@@ -392,6 +443,12 @@ AC_ARG_WITH([max-threads-per-type],
   [max_threads_per_type=3072]
 )
 AC_SUBST(max_threads_per_type)
+
+# Check Brotli
+AC_CHECK_HEADERS([brotli/encode.h], [has_brotli=1],[has_brotli=0])
+AC_CHECK_LIB([brotlienc],[BrotliEncoderCreateInstance],[AC_SUBST([LIB_BROTLIENC],["-lbrotlienc"])],[has_brotli=0])
+AC_SUBST(has_brotli)
+AM_CONDITIONAL([HAS_BROTLI], [ test "x${has_brotli}" = "x1" ])
 
 #
 # Experimental plugins
@@ -740,24 +797,10 @@ AS_IF([test "x${has_optimizer_flags}" = "xno"],
 case $host_os_def in
   linux)
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xintel"], [
-      # -Wall goes crazy, so turned these specific checks off for now:
+      # -Wall is overzealous for us, so need to turn this off for now:
       #
-      #  111 is "statement is unreachable"
-      #  279 is "controlling expression is constant", triggered by our asserts
-      #  383 is "value copied to temporary, reference to temporary used"
-      #  444 is "destructor for base class is not virtual"
-      #  522 is "function "xyz" redeclared "inline" after being called
-      #  873 is "has no corresponding operator delete". ToDo: we should fix.
-      #  981 is "operands are evaluated in unspecified order"
-      # 1418 is "external function definition with no prior declaration"
-      # 1419 is "external declaration in primary source file"
-      # 1572 is "floating-point equality and inequality comparisons are unreliable"
-      # 1720 is "operator new" has no corresponding member operator delete"
-      # 2256 is "non-pointer conversion from "int" to "unsigned char" "
-      # 2259 is "non-pointer conversion from "int" to "unsigned char" "
-      #
-      # TODO: We should try to eliminate more of these -wd exclusions.
-      common_opt="-pipe -Wall -wd111 -wd279 -wd383 -wd522 -wd444 -wd873 -wd981 -wd1418 -wd1419 -wd1572 -wd1720 -wd2256 -wd2259"
+      #  #873 is "has no corresponding operator delete"
+      common_opt="-pipe -Wall -wd873"
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimization_flags -axsse4.2 -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
@@ -768,7 +811,7 @@ case $host_os_def in
       debug_opt="-ggdb3 $common_opt -Qunused-arguments"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -analyzer-disable-all-checks"
+      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -analyzer-disable-all-checks -Wno-varargs"
     ])
 
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
@@ -790,7 +833,7 @@ case $host_os_def in
       debug_opt="-g $common_opt"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare"
+      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -Wno-varargs"
     ], [
       AC_MSG_WARN([clang is the only supported compiler on Darwin])
     ])
@@ -811,7 +854,7 @@ case $host_os_def in
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare"
+      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -Wno-varargs"
     ])
 
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
@@ -898,9 +941,27 @@ if test "x${enable_debug}" = "xyes"; then
   TS_ADDTO(CFLAGS, [${cc_oflag_dbg}])
   TS_ADDTO(CXXFLAGS, [${cxx_oflag_dbg}])
   TS_ADDTO(CPPFLAGS, [-DDEBUG -D_DEBUG])
+  if test "x${enable_mime_sanity_check}" = "xyes"; then
+    TS_ADDTO(CPPFLAGS, [-DENABLE_MIME_SANITY_CHECK])
+  fi
 else
   TS_ADDTO(CFLAGS, [${cc_oflag_opt}])
   TS_ADDTO(CXXFLAGS, [${cxx_oflag_opt}])
+fi
+
+# Flags for ASAN
+if test "x${enable_asan}" = "xyes"; then
+  if test "x${enable_tsan}" = "xyes"; then
+    AC_ERROR([Cannot have ASAN and TSAN options at the same time, pick one])
+  fi
+  TS_ADDTO(CFLAGS, [-fno-omit-frame-pointer -fsanitize=address])
+  TS_ADDTO(CXXFLAGS, [-fno-omit-frame-pointer -fsanitize=address])
+fi
+
+# Flags for TSAN
+if test "x${enable_tsan}" = "xyes"; then
+  TS_ADDTO(CFLAGS, [-fsanitize=thread])
+  TS_ADDTO(CXXFLAGS, [-fsanitize=thread])
 fi
 
 # Checks for pointer size.
@@ -1046,13 +1107,6 @@ TS_REMOVEFROM(CFLAGS, -Werror)
 AX_WITH_CURSES
 CFLAGS="$__saved_CFLAGS"
 
-AX_LIB_CURL([7.19], [
-    AM_CONDITIONAL([BUILD_TRAFFIC_TOP], [test "x$ax_cv_curses" = "xyes"])
-  ], [
-    AM_CONDITIONAL([BUILD_TRAFFIC_TOP], [false])
-  ]
-)
-
 #
 # Check for SSL presence and usability
 TS_CHECK_CRYPTO
@@ -1077,11 +1131,47 @@ TS_CHECK_CRYPTO_SNI
 TS_CHECK_CRYPTO_CERT_CB
 
 #
-# Check for SSL_set_rbio call
+# Check for SSL_set0_rbio call
 TS_CHECK_CRYPTO_SET_RBIO
 
 # Check for DH_get_2048_256
 TS_CHECK_CRYPTO_DH_GET_2048_256
+
+saved_LIBS="$LIBS"
+TS_ADDTO([LIBS], ["$OPENSSL_LIBS"])
+
+AC_CHECK_FUNCS([ \
+  BIO_meth_new \
+  BIO_sock_non_fatal_error \
+  CRYPTO_set_mem_functions \
+  HMAC_CTX_new \
+  X509_get0_signature \
+])
+
+AC_CHECK_FUNC([ASN1_STRING_get0_data], [],
+              [AC_DEFINE([ASN1_STRING_get0_data], [ASN1_STRING_data], [Added in OpenSSL 1.1])])
+
+AC_CHECK_FUNC([BIO_set_data], [],
+              [AC_DEFINE([BIO_set_data(a, _ptr)], [((a)->ptr = (_ptr))], [Added in OpenSSL 1.1])])
+AC_CHECK_FUNC([BIO_get_data], [],
+              [AC_DEFINE([BIO_get_data(a)], [((a)->ptr)], [Added in OpenSSL 1.1])])
+AC_CHECK_FUNC([BIO_get_shutdown], [],
+              [AC_DEFINE([BIO_get_shutdown(a)], [((a)->shutdown)], [Added in OpenSSL 1.1])])
+AC_CHECK_FUNC([BIO_meth_get_ctrl], [],
+              [AC_DEFINE([BIO_meth_get_ctrl(biom)], [((biom)->ctrl)], [Added in OpenSSL 1.1])])
+AC_CHECK_FUNC([BIO_meth_get_create], [],
+              [AC_DEFINE([BIO_meth_get_create(biom)], [((biom)->create)], [Added in OpenSSL 1.1])])
+AC_CHECK_FUNC([BIO_meth_get_destroy], [],
+              [AC_DEFINE([BIO_meth_get_destroy(biom)], [((biom)->destroy)], [Added in OpenSSL 1.1])])
+
+AC_CHECK_FUNC([EVP_MD_CTX_new], [],
+              [AC_DEFINE([EVP_MD_CTX_new], [EVP_MD_CTX_create], [Renamed in OpenSSL 1.1])])
+AC_CHECK_FUNC([EVP_MD_CTX_reset], [],
+              [AC_DEFINE([EVP_MD_CTX_reset], [EVP_MD_CTX_cleanup], [Renamed in OpenSSL 1.1])])
+AC_CHECK_FUNC([EVP_MD_CTX_free], [],
+              [AC_DEFINE([EVP_MD_CTX_free], [EVP_MD_CTX_destroy], [Renamed in OpenSSL 1.1])])
+
+LIBS="$saved_LIBS"
 
 #
 # Check for zlib presence and usability
@@ -1225,7 +1315,7 @@ AC_SUBST(use_port)
 # Profiler support
 has_profiler=0
 if test "x${with_profiler}" = "xyes"; then
-  AC_SEARCH_LIBS([ProfilerStart], [profiler],
+  AC_CHECK_LIB([profiler], [ProfilerStart],
     [AC_SUBST([LIBPROFILER], ["-lprofiler"])
      has_profiler=1
     ],
@@ -1253,7 +1343,7 @@ TS_TRY_COMPILE_NO_WARNING([],[
     has_128bit_cas=1
   ], [
     dnl If 128bit CAS fails, try again with the -mcx16 option. GCC needs this;
-    dnl clang doesn't; icc is unknown but presumed sane.
+    dnl clang doesn't; icc does not support -mcx16 (but gives a non-fatal warning).
     TS_ADDTO(CXXFLAGS, [-mcx16])
     TS_ADDTO(CFLAGS, [-mcx16])
     TS_TRY_COMPILE_NO_WARNING([],[
@@ -1273,15 +1363,17 @@ AC_LANG_POP
 AC_SUBST(has_128bit_cas)
 
 AS_IF([test "x$has_128bit_cas" = "x1"], [
-  TS_ADDTO(CFLAGS, [-mcx16])
-  TS_ADDTO(CXXFLAGS, [-mcx16])
+  AS_IF([test "x$ax_cv_c_compiler_vendor" != "xintel"], [
+    TS_ADDTO(CFLAGS, [-mcx16])
+    TS_ADDTO(CXXFLAGS, [-mcx16])
+  ])
 ])
 
 # Check for POSIX capabilities library.
 # If we don't find it, disable checking for header.
 use_posix_cap=0
 AS_IF([test "x$enable_posix_cap" != "xno"],
-  AC_SEARCH_LIBS([cap_set_proc],[cap],
+  AC_CHECK_LIB([cap], [cap_set_proc],
     [AC_SUBST([LIBCAP], ["-lcap"])
      use_posix_cap=1
     ],[
@@ -1398,10 +1490,13 @@ esac
 
 # Flags for building and linking against our internal copy of LuaJIT.
 AC_SUBST([LUAJIT_LDFLAGS])
-AC_SUBST([LUAJIT_CPPFLAGS], ['-I$(top_srcdir)/lib/luajit/src'])
+AC_SUBST([LUAJIT_CPPFLAGS], ['-I$(abs_top_srcdir)/lib/luajit/src'])
 
 # We should be able to build http_load if epoll(2) is available.
 AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
+
+# We should only build traffic_top if we have curses
+AM_CONDITIONAL([BUILD_TRAFFIC_TOP], [test "x$ax_cv_curses" = "xyes"])
 
 AC_CHECK_HEADERS([mysql/mysql.h], [has_mysql=1],[has_mysql=0])
 AC_CHECK_LIB([mysqlclient],[mysql_info],[AC_SUBST([LIB_MYSQLCLIENT],["-lmysqlclient"])],[has_mysql=0])
@@ -1461,7 +1556,6 @@ AC_CHECK_HEADERS([sys/types.h \
                   stropts.h \
                   sys/param.h \
                   sys/sysmacros.h \
-                  math.h \
                   stdint.h \
                   stdbool.h \
                   sysexits.h \
@@ -1795,14 +1889,14 @@ AM_CONDITIONAL([BUILD_REMAP_STATS_PLUGIN],
 # use modular IOCORE
 #
 iocore_include_dirs="\
--I\$(top_srcdir)/iocore/eventsystem \
--I\$(top_srcdir)/iocore/net \
--I\$(top_srcdir)/iocore/aio \
--I\$(top_srcdir)/iocore/hostdb \
--I\$(top_srcdir)/iocore/cache \
--I\$(top_srcdir)/iocore/cluster \
--I\$(top_srcdir)/iocore/utils \
--I\$(top_srcdir)/iocore/dns"
+-I\$(abs_top_srcdir)/iocore/eventsystem \
+-I\$(abs_top_srcdir)/iocore/net \
+-I\$(abs_top_srcdir)/iocore/aio \
+-I\$(abs_top_srcdir)/iocore/hostdb \
+-I\$(abs_top_srcdir)/iocore/cache \
+-I\$(abs_top_srcdir)/iocore/cluster \
+-I\$(abs_top_srcdir)/iocore/utils \
+-I\$(abs_top_srcdir)/iocore/dns"
 
 # Flags for buildit LuaJIT itself. We take the latest version
 # of the generic flags, plus any Lua-specific flags so that we
@@ -1862,9 +1956,7 @@ AC_CONFIG_FILES([
   iocore/net/Makefile
   iocore/utils/Makefile
   lib/Makefile
-  lib/atscppapi/Makefile
-  lib/atscppapi/examples/Makefile
-  lib/atscppapi/src/Makefile
+  lib/cppapi/Makefile
   lib/bindings/Makefile
   lib/perl/Makefile
   lib/perl/lib/Apache/TS.pm
@@ -1880,55 +1972,6 @@ AC_CONFIG_FILES([
   mgmt/cluster/Makefile
   mgmt/utils/Makefile
   plugins/Makefile
-  plugins/authproxy/Makefile
-  plugins/background_fetch/Makefile
-  plugins/conf_remap/Makefile
-  plugins/esi/Makefile
-  plugins/generator/Makefile
-  plugins/gzip/Makefile
-  plugins/header_rewrite/Makefile
-  plugins/healthchecks/Makefile
-  plugins/libloader/Makefile
-  plugins/regex_remap/Makefile
-  plugins/regex_revalidate/Makefile
-  plugins/s3_auth/Makefile
-  plugins/stats_over_http/Makefile
-  plugins/tcpinfo/Makefile
-  plugins/xdebug/Makefile
-  plugins/experimental/Makefile
-  plugins/experimental/acme/Makefile
-  plugins/experimental/balancer/Makefile
-  plugins/experimental/buffer_upload/Makefile
-  plugins/experimental/cache_key_genid/Makefile
-  plugins/experimental/cache_promote/Makefile
-  plugins/experimental/cache_range_requests/Makefile
-  plugins/experimental/cachekey/Makefile
-  plugins/experimental/collapsed_connection/Makefile
-  plugins/experimental/collapsed_forwarding/Makefile
-  plugins/experimental/custom_redirect/Makefile
-  plugins/experimental/epic/Makefile
-  plugins/experimental/escalate/Makefile
-  plugins/experimental/geoip_acl/Makefile
-  plugins/experimental/header_freq/Makefile
-  plugins/experimental/header_normalize/Makefile
-  plugins/experimental/hipes/Makefile
-  plugins/experimental/hook-trace/Makefile
-  plugins/experimental/inliner/Makefile
-  plugins/experimental/memcache/Makefile
-  plugins/experimental/memcached_remap/Makefile
-  plugins/experimental/metalink/Makefile
-  plugins/experimental/mp4/Makefile
-  plugins/experimental/multiplexer/Makefile
-  plugins/experimental/mysql_remap/Makefile
-  plugins/experimental/remap_purge/Makefile
-  plugins/experimental/remap_stats/Makefile
-  plugins/experimental/ssl_cert_loader/Makefile
-  plugins/experimental/sslheaders/Makefile
-  plugins/experimental/stale_while_revalidate/Makefile
-  plugins/experimental/stream_editor/Makefile
-  plugins/experimental/ts_lua/Makefile
-  plugins/experimental/url_sig/Makefile
-  plugins/experimental/webp_transform/Makefile
   proxy/Makefile
   proxy/api/ts/Makefile
   proxy/config/Makefile

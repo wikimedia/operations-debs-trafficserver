@@ -296,6 +296,12 @@ HpackIndexingTable::add_header_field(const MIMEField *field)
 }
 
 uint32_t
+HpackIndexingTable::maximum_size() const
+{
+  return _dynamic_table->maximum_size();
+}
+
+uint32_t
 HpackIndexingTable::size() const
 {
   return _dynamic_table->size();
@@ -349,6 +355,12 @@ HpackDynamicTable::add_header_field(const MIMEField *field)
     // XXX Because entire Vec instance is copied, Its too expensive!
     _headers.insert(0, new_field);
   }
+}
+
+uint32_t
+HpackDynamicTable::maximum_size() const
+{
+  return _maximum_size;
 }
 
 uint32_t
@@ -429,14 +441,14 @@ encode_string(uint8_t *buf_start, const uint8_t *buf_end, const char *value, siz
 {
   uint8_t *p       = buf_start;
   bool use_huffman = true;
-  char *data       = NULL;
+  char *data       = nullptr;
   int64_t data_len = 0;
 
   // TODO Choose whether to use Huffman encoding wisely
 
   if (use_huffman && value_len) {
     data = static_cast<char *>(ats_malloc(value_len * 4));
-    if (data == NULL) {
+    if (data == nullptr) {
       return -1;
     }
     data_len = huffman_encode(reinterpret_cast<uint8_t *>(data), reinterpret_cast<const uint8_t *>(value), value_len);
@@ -619,6 +631,18 @@ encode_literal_header_field_with_new_name(uint8_t *buf_start, const uint8_t *buf
   return p - buf_start;
 }
 
+int64_t
+encode_dynamic_table_size_update(uint8_t *buf_start, const uint8_t *buf_end, uint32_t size)
+{
+  const int64_t len = encode_integer(buf_start, buf_end, size, 5);
+  if (len == -1) {
+    return -1;
+  }
+  buf_start[0] |= 0x20;
+
+  return len;
+}
+
 //
 // [RFC 7541] 5.1. Integer representation
 //
@@ -684,7 +708,7 @@ decode_string(Arena &arena, char **str, uint32_t &str_length, const uint8_t *buf
     *str = arena.str_alloc(encoded_string_len * 2);
 
     len = huffman_decode(*str, p, encoded_string_len);
-    if (len == HPACK_ERROR_COMPRESSION_ERROR) {
+    if (len < 0) {
       return HPACK_ERROR_COMPRESSION_ERROR;
     }
     str_length = len;
@@ -769,7 +793,7 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
   if (index) {
     indexing_table.get_header_field(index, header);
   } else {
-    char *name_str        = NULL;
+    char *name_str        = nullptr;
     uint32_t name_str_len = 0;
 
     len = decode_string(arena, &name_str, name_str_len, p, buf_end);
@@ -791,7 +815,7 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
   }
 
   // Decode header field value
-  char *value_str        = NULL;
+  char *value_str        = nullptr;
   uint32_t value_str_len = 0;
 
   len = decode_string(arena, &value_str, value_str_len, p, buf_end);
@@ -830,7 +854,8 @@ decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, 
 // [RFC 7541] 6.3. Dynamic Table Size Update
 //
 int64_t
-update_dynamic_table_size(const uint8_t *buf_start, const uint8_t *buf_end, HpackIndexingTable &indexing_table)
+update_dynamic_table_size(const uint8_t *buf_start, const uint8_t *buf_end, HpackIndexingTable &indexing_table,
+                          uint32_t maximum_table_size)
 {
   if (buf_start == buf_end) {
     return HPACK_ERROR_COMPRESSION_ERROR;
@@ -843,6 +868,10 @@ update_dynamic_table_size(const uint8_t *buf_start, const uint8_t *buf_end, Hpac
     return HPACK_ERROR_COMPRESSION_ERROR;
   }
 
+  if (size > maximum_table_size) {
+    return HPACK_ERROR_COMPRESSION_ERROR;
+  }
+
   if (indexing_table.update_maximum_size(size) == false) {
     return HPACK_ERROR_COMPRESSION_ERROR;
   }
@@ -852,7 +881,7 @@ update_dynamic_table_size(const uint8_t *buf_start, const uint8_t *buf_end, Hpac
 
 int64_t
 hpack_decode_header_block(HpackIndexingTable &indexing_table, HTTPHdr *hdr, const uint8_t *in_buf, const size_t in_buf_len,
-                          uint32_t max_header_size)
+                          uint32_t max_header_size, uint32_t maximum_table_size)
 {
   const uint8_t *cursor           = in_buf;
   const uint8_t *const in_buf_end = in_buf + in_buf_len;
@@ -897,7 +926,7 @@ hpack_decode_header_block(HpackIndexingTable &indexing_table, HTTPHdr *hdr, cons
       if (header_field_started) {
         return HPACK_ERROR_COMPRESSION_ERROR;
       }
-      read_bytes = update_dynamic_table_size(cursor, in_buf_end, indexing_table);
+      read_bytes = update_dynamic_table_size(cursor, in_buf_end, indexing_table, maximum_table_size);
       if (read_bytes == HPACK_ERROR_COMPRESSION_ERROR) {
         return HPACK_ERROR_COMPRESSION_ERROR;
       }
@@ -917,7 +946,7 @@ hpack_decode_header_block(HpackIndexingTable &indexing_table, HTTPHdr *hdr, cons
     }
 
     // Store to HdrHeap
-    mime_hdr_field_attach(hh->m_fields_impl, field, 1, NULL);
+    mime_hdr_field_attach(hh->m_fields_impl, field, 1, nullptr);
   }
   // Parsing all headers is done
   if (has_http2_violation) {
@@ -928,7 +957,8 @@ hpack_decode_header_block(HpackIndexingTable &indexing_table, HTTPHdr *hdr, cons
 }
 
 int64_t
-hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, const size_t out_buf_len, HTTPHdr *hdr)
+hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, const size_t out_buf_len, HTTPHdr *hdr,
+                          int32_t maximum_table_size)
 {
   uint8_t *cursor                  = out_buf;
   const uint8_t *const out_buf_end = out_buf + out_buf_len;
@@ -936,8 +966,18 @@ hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, 
 
   ink_assert(http_hdr_type_get(hdr->m_http) != HTTP_TYPE_UNKNOWN);
 
+  // Update dynamic table size
+  if (maximum_table_size >= 0) {
+    indexing_table.update_maximum_size(maximum_table_size);
+    written = encode_dynamic_table_size_update(cursor, out_buf_end, maximum_table_size);
+    if (written == HPACK_ERROR_COMPRESSION_ERROR) {
+      return HPACK_ERROR_COMPRESSION_ERROR;
+    }
+    cursor += written;
+  }
+
   MIMEFieldIter field_iter;
-  for (MIMEField *field = hdr->iter_get_first(&field_iter); field != NULL; field = hdr->iter_get_next(&field_iter)) {
+  for (MIMEField *field = hdr->iter_get_first(&field_iter); field != nullptr; field = hdr->iter_get_next(&field_iter)) {
     HpackFieldType field_type;
     MIMEFieldWrapper header(field, hdr->m_heap, hdr->m_http->m_fields_impl);
     int name_len;
@@ -976,4 +1016,10 @@ hpack_encode_header_block(HpackIndexingTable &indexing_table, uint8_t *out_buf, 
     cursor += written;
   }
   return cursor - out_buf;
+}
+
+int32_t
+hpack_get_maximum_table_size(HpackIndexingTable &indexing_table)
+{
+  return indexing_table.maximum_size();
 }

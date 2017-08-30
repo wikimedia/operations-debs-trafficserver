@@ -23,7 +23,7 @@
 
 #include "ink_autoconf.h"
 #include "bindings.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 #if HAVE_READLINE_H
 #include <readline.h>
@@ -37,7 +37,7 @@ repl(BindingInstance &binding)
     char *line;
 
     line = readline("> ");
-    if (line == NULL) {
+    if (line == nullptr) {
       exit(0);
     }
 

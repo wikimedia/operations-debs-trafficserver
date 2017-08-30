@@ -604,7 +604,7 @@ set-header
 Replaces the value of header ``<name>`` with ``<value>``, creating the header
 if necessary.
 
-The header's ``<value>`` may be specified according to `Header Value`_ or take
+The header's ``<value>`` may be specified according to `Header Values`_ or take
 advantage of `Variable Expansion`_ to calculate a dynamic value for the header.
 
 set-redirect
@@ -702,7 +702,8 @@ Variable     Description
 %<chi>       Client IP
 %<cqhl>      Client request length
 %<cqhm>      Client HTTP method
-%<cquup>     Client unmapped URI
+%<cque>      Client effective URI
+%<cquup>     Client unmapped URI path
 ============ ==================================================================
 
 Header Values

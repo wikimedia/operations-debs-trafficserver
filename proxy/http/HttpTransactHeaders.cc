@@ -27,8 +27,12 @@
 #include "HTTP.h"
 #include "HdrUtils.h"
 #include "HttpCompat.h"
+#include "HttpSM.h"
 
 #include "I_Machine.h"
+
+#include <array>
+#include <ts/MemView.h>
 
 bool
 HttpTransactHeaders::is_method_cacheable(const HttpConfigParams *http_config_param, const int method)
@@ -71,6 +75,19 @@ HttpTransactHeaders::is_this_method_supported(int the_scheme, int the_method)
   } else {
     return false;
   }
+}
+
+bool
+HttpTransactHeaders::is_method_safe(int method)
+{
+  return (method == HTTP_WKSIDX_GET || method == HTTP_WKSIDX_OPTIONS || method == HTTP_WKSIDX_HEAD || method == HTTP_WKSIDX_TRACE);
+}
+
+bool
+HttpTransactHeaders::is_method_idempotent(int method)
+{
+  return (method == HTTP_WKSIDX_CONNECT || method == HTTP_WKSIDX_DELETE || method == HTTP_WKSIDX_GET ||
+          method == HTTP_WKSIDX_HEAD || method == HTTP_WKSIDX_PUT || method == HTTP_WKSIDX_OPTIONS || method == HTTP_WKSIDX_TRACE);
 }
 
 void
@@ -120,7 +137,7 @@ HttpTransactHeaders::insert_supported_methods_in_response(HTTPHdr *response, int
   }
   // step 3: get a big enough buffer
   if (bytes <= sizeof(inline_buffer)) {
-    alloced_buffer = NULL;
+    alloced_buffer = nullptr;
     value_buffer   = inline_buffer;
   } else {
     alloced_buffer = (char *)ats_malloc(bytes);
@@ -198,7 +215,7 @@ HttpTransactHeaders::copy_header_fields(HTTPHdr *src_hdr, HTTPHdr *new_hdr, bool
   //         is changed for example by dechunking, the transfer encoding
   //         should be modified when when the decision is made to dechunk it
 
-  for (field = new_hdr->iter_get_first(&field_iter); field != NULL; field = new_hdr->iter_get_next(&field_iter)) {
+  for (field = new_hdr->iter_get_first(&field_iter); field != nullptr; field = new_hdr->iter_get_next(&field_iter)) {
     if (field->m_wks_idx == -1) {
       continue;
     }
@@ -430,7 +447,7 @@ HttpTransactHeaders::calculate_document_age(ink_time_t request_time, ink_time_t 
 bool
 HttpTransactHeaders::does_server_allow_response_to_be_stored(HTTPHdr *resp)
 {
-  uint32_t cc_mask = (MIME_COOKED_MASK_CC_NO_CACHE | MIME_COOKED_MASK_CC_NO_STORE | MIME_COOKED_MASK_CC_PRIVATE);
+  uint32_t cc_mask = (MIME_COOKED_MASK_CC_NO_STORE | MIME_COOKED_MASK_CC_PRIVATE);
 
   if ((resp->get_cooked_cc_mask() & cc_mask) || (resp->get_cooked_pragma_no_cache())) {
     return false;
@@ -488,7 +505,7 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
     int reason_len;
     const char *reason = header->reason_get(&reason_len);
 
-    if (reason != NULL && reason_len >= 24 && reason[0] == '!' && reason[1] == SQUID_HIT_RESERVED) {
+    if (reason != nullptr && reason_len >= 24 && reason[0] == '!' && reason[1] == SQUID_HIT_RESERVED) {
       hit_miss_code = SQUID_HIT_RESERVED;
       // its a miss in the cache. find out why.
     } else if (via_string[VIA_DETAIL_CACHE_LOOKUP] == VIA_DETAIL_MISS_EXPIRED) {
@@ -634,7 +651,7 @@ HttpTransactHeaders::insert_warning_header(HttpConfigParams *http_config_param, 
   // + 23 for 20 possible digits of warning code (long long max
   //  digits) & 2 spaces & the string terminator
   bufsize = http_config_param->proxy_response_via_string_len + 23;
-  if (warn_text != NULL) {
+  if (warn_text != nullptr) {
     bufsize += warn_text_len;
   } else {
     warn_text_len = 0; // Make sure it's really zero
@@ -669,6 +686,54 @@ HttpTransactHeaders::insert_server_header_in_response(const char *server_tag, in
   if (likely(server_tag && server_tag_size > 0 && h)) {
     h->set_server(server_tag, server_tag_size);
   }
+}
+
+/// write the protocol stack to the @a via_string.
+/// If @a detailed then do the full stack, otherwise just the "top level" protocol.
+size_t
+write_via_protocol_stack(char *via_string, size_t len, bool detailed, ts::StringView *proto_buf, int n_proto)
+{
+  char *via   = via_string; // keep original pointer for size computation later.
+  char *limit = via_string + len;
+  static constexpr ts::StringView tls_prefix{"tls/", ts::StringView::literal};
+
+  if (n_proto <= 0 || via == nullptr || len <= 0) {
+    // nothing
+  } else if (detailed) {
+    for (ts::StringView *v = proto_buf, *v_limit = proto_buf + n_proto; v < v_limit && (via + v->size() + 1) < limit; ++v) {
+      if (v != proto_buf) {
+        *via++ = ' ';
+      }
+      memcpy(via, v->ptr(), v->size());
+      via += v->size();
+    }
+  } else {
+    ts::StringView *proto_end = proto_buf + n_proto;
+    bool http_1_0_p           = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_0) != proto_end;
+    bool http_1_1_p           = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_1) != proto_end;
+
+    if ((http_1_0_p || http_1_1_p) && via + 10 < limit) {
+      bool tls_p = std::find_if(proto_buf, proto_end, [](ts::StringView tag) { return tls_prefix.isPrefixOf(tag); }) != proto_end;
+      bool http_2_p = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_2_0) != proto_end;
+
+      memcpy(via, "http", 4);
+      via += 4;
+      if (tls_p)
+        *via++ = 's';
+      *via++   = '/';
+      if (http_2_p) {
+        *via++ = '2';
+      } else if (http_1_0_p) {
+        memcpy(via, "1.0", 3);
+        via += 3;
+      } else if (http_1_1_p) {
+        memcpy(via, "1.1", 3);
+        via += 3;
+      }
+      *via++ = ' ';
+    }
+  }
+  return via - via_string;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -720,6 +785,7 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
 {
   char new_via_string[1024]; // 512-bytes for hostname+via string, 512-bytes for the debug info
   char *via_string = new_via_string;
+  char *via_limit  = via_string + sizeof(new_via_string);
 
   if ((s->http_config_param->proxy_hostname_len + s->http_config_param->proxy_request_via_string_len) > 512) {
     header->value_append(MIME_FIELD_VIA, MIME_LEN_VIA, "TrafficServer", 13, true);
@@ -727,26 +793,10 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
   }
 
   char *incoming_via = s->via_string;
-  int scheme         = s->orig_scheme;
-  ink_assert(scheme >= 0);
+  std::array<ts::StringView, 10> proto_buf; // 10 seems like a reasonable number of protos to print
+  int n_proto = s->state_machine->populate_client_protocol(proto_buf.data(), proto_buf.size());
 
-  int scheme_len   = hdrtoken_index_to_length(scheme);
-  int32_t hversion = header->version_get().m_version;
-
-  memcpy(via_string, hdrtoken_index_to_wks(scheme), scheme_len);
-  via_string += scheme_len;
-
-  // Common case (I hope?)
-  if ((HTTP_MAJOR(hversion) == 1) && HTTP_MINOR(hversion) == 1) {
-    memcpy(via_string, "/1.1 ", 5);
-    via_string += 5;
-  } else {
-    *via_string++ = '/';
-    *via_string++ = '0' + HTTP_MAJOR(hversion);
-    *via_string++ = '.';
-    *via_string++ = '0' + HTTP_MINOR(hversion);
-    *via_string++ = ' ';
-  }
+  via_string += write_via_protocol_stack(via_string, via_limit - via_string, false, proto_buf.data(), n_proto);
   via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
 
   *via_string++ = '[';
@@ -771,6 +821,14 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
       via_string += VIA_SERVER - VIA_CLIENT;
     }
     *via_string++ = ']';
+
+    // reserve 4 for " []" and 3 for "])".
+    if (via_limit - via_string > 4 && s->txn_conf->insert_request_via_string > 3) { // Ultra highest verbosity
+      *via_string++ = ' ';
+      *via_string++ = '[';
+      via_string += write_via_protocol_stack(via_string, via_limit - via_string - 3, true, proto_buf.data(), n_proto);
+      *via_string++ = ']';
+    }
   }
 
   *via_string++ = ')';
@@ -805,6 +863,7 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
 {
   char new_via_string[1024]; // 512-bytes for hostname+via string, 512-bytes for the debug info
   char *via_string = new_via_string;
+  char *via_limit  = via_string + sizeof(new_via_string);
 
   if ((s->http_config_param->proxy_hostname_len + s->http_config_param->proxy_response_via_string_len) > 512) {
     header->value_append(MIME_FIELD_VIA, MIME_LEN_VIA, "TrafficServer", 13, true);
@@ -812,26 +871,18 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
   }
 
   char *incoming_via = s->via_string;
-  int scheme         = s->next_hop_scheme;
+  std::array<ts::StringView, 10> proto_buf; // 10 seems like a reasonable number of protos to print
+  int n_proto = 0;
 
-  ink_assert(scheme >= 0);
-  int scheme_len   = hdrtoken_index_to_length(scheme);
-  int32_t hversion = header->version_get().m_version;
+  // Should suffice - if we're adding a response VIA, the connection is HTTP and only 1.0 and 1.1 are supported outbound.
+  proto_buf[n_proto++] = HTTP_MINOR(header->version_get().m_version) == 0 ? IP_PROTO_TAG_HTTP_1_0 : IP_PROTO_TAG_HTTP_1_1;
 
-  memcpy(via_string, hdrtoken_index_to_wks(scheme), scheme_len);
-  via_string += scheme_len;
-
-  // Common case (I hope?)
-  if ((HTTP_MAJOR(hversion) == 1) && HTTP_MINOR(hversion) == 1) {
-    memcpy(via_string, "/1.1 ", 5);
-    via_string += 5;
-  } else {
-    *via_string++ = '/';
-    *via_string++ = '0' + HTTP_MAJOR(hversion);
-    *via_string++ = '.';
-    *via_string++ = '0' + HTTP_MINOR(hversion);
-    *via_string++ = ' ';
+  auto ss = s->state_machine->get_server_session();
+  if (ss) {
+    n_proto += ss->populate_protocol(proto_buf.data() + n_proto, proto_buf.size() - n_proto);
   }
+  via_string += write_via_protocol_stack(via_string, via_limit - via_string, false, proto_buf.data(), n_proto);
+
   via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
   *via_string++ = ' ';
   *via_string++ = '(';
@@ -851,6 +902,13 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
       via_string += VIA_PROXY - VIA_CACHE;
     }
     *via_string++ = ']';
+
+    if (via_limit - via_string > 4 && s->txn_conf->insert_response_via_string > 3) { // Ultra highest verbosity
+      *via_string++ = ' ';
+      *via_string++ = '[';
+      via_string += write_via_protocol_stack(via_string, via_limit - via_string - 3, true, proto_buf.data(), n_proto);
+      *via_string++ = ']';
+    }
   }
 
   *via_string++ = ')';
@@ -929,8 +987,8 @@ HttpTransactHeaders::add_global_user_agent_header_to_request(OverridableHttpConf
     MIMEField *ua_field;
 
     Debug("http_trans", "Adding User-Agent: %s", http_txn_conf->global_user_agent_header);
-    if ((ua_field = header->field_find(MIME_FIELD_USER_AGENT, MIME_LEN_USER_AGENT)) == NULL) {
-      if (likely((ua_field = header->field_create(MIME_FIELD_USER_AGENT, MIME_LEN_USER_AGENT)) != NULL)) {
+    if ((ua_field = header->field_find(MIME_FIELD_USER_AGENT, MIME_LEN_USER_AGENT)) == nullptr) {
+      if (likely((ua_field = header->field_create(MIME_FIELD_USER_AGENT, MIME_LEN_USER_AGENT)) != nullptr)) {
         header->field_attach(ua_field);
       }
     }
@@ -948,8 +1006,8 @@ HttpTransactHeaders::add_server_header_to_response(OverridableHttpConfigParams *
     MIMEField *ua_field;
     bool do_add = true;
 
-    if ((ua_field = header->field_find(MIME_FIELD_SERVER, MIME_LEN_SERVER)) == NULL) {
-      if (likely((ua_field = header->field_create(MIME_FIELD_SERVER, MIME_LEN_SERVER)) != NULL)) {
+    if ((ua_field = header->field_find(MIME_FIELD_SERVER, MIME_LEN_SERVER)) == nullptr) {
+      if (likely((ua_field = header->field_create(MIME_FIELD_SERVER, MIME_LEN_SERVER)) != nullptr)) {
         header->field_attach(ua_field);
       }
     } else {
@@ -1013,7 +1071,7 @@ HttpTransactHeaders::remove_privacy_headers_from_request(HttpConfigParams *http_
     anon_string = http_config_param->anonymize_other_header_list;
     Debug("anon", "removing other headers (%s)", anon_string);
     HttpCompat::parse_comma_list(&anon_list, anon_string);
-    for (field = anon_list.head; field != NULL; field = field->next) {
+    for (field = anon_list.head; field != nullptr; field = field->next) {
       Debug("anon", "removing '%s' headers", field->str);
       header->field_delete(field->str, field->len);
     }

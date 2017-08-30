@@ -22,9 +22,9 @@
  */
 
 #include <iostream>
-#include <assert.h>
+#include <cassert>
 #include <string>
-#include <string.h>
+#include <cstring>
 
 #include "print_funcs.h"
 #include "Utils.h"
@@ -41,7 +41,7 @@ pthread_key_t threadKey;
 int
 main()
 {
-  pthread_key_create(&threadKey, NULL);
+  pthread_key_create(&threadKey, nullptr);
   Utils::init(&Debug, &Error);
 
   {

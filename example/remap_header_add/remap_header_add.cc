@@ -27,9 +27,9 @@
     map /foo http://127.0.0.1/ @plugin=remap_header_add.so @pparam=foo:"x" @pparam=@test:"c" @pparam=a:"b"
 
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "ts/ts.h"
 #include "ts/remap.h"
@@ -52,9 +52,9 @@ ParseArgIntoNv(const char *arg, char **n, char **v)
 {
   const char *colon_pos = strchr(arg, ':');
 
-  if (colon_pos == NULL) {
-    *n = NULL;
-    *v = NULL;
+  if (colon_pos == nullptr) {
+    *n = nullptr;
+    *v = nullptr;
     TSDebug(TAG, "No name value pair since it was malformed");
     return;
   }
@@ -88,7 +88,7 @@ TSRemapInit(NOWARN_UNUSED TSRemapInterface *api_info, NOWARN_UNUSED char *errbuf
 TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, NOWARN_UNUSED char *errbuf, NOWARN_UNUSED int errbuf_size)
 {
-  remap_line *rl = NULL;
+  remap_line *rl = nullptr;
 
   TSDebug(TAG, "TSRemapNewInstance()");
 
@@ -156,7 +156,7 @@ TSRemapDoRemap(void *ih, NOWARN_UNUSED TSHttpTxn txn, NOWARN_UNUSED TSRemapReque
   }
 
   for (int i = 0; i < rl->nvc; ++i) {
-    TSDebug(TAG, "Attaching header \"%s\" with value \"%s\".", rl->name[i], rl->val[i]);
+    TSDebug(TAG, R"(Attaching header "%s" with value "%s".)", rl->name[i], rl->val[i]);
 
     TSMLoc field_loc;
     if (TSMimeHdrFieldCreate(req_bufp, req_loc, &field_loc) == TS_SUCCESS) {

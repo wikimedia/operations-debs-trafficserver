@@ -95,9 +95,9 @@
 
 #include "ts/ink_config.h"
 #include "ts/ink_defs.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 #include <strings.h>
 #include "ts/ink_string.h"
 
@@ -697,7 +697,7 @@ print_split_dns_ele(TSSplitDnsEle *ele)
   char buf[MAX_BUF_SIZE];
   bzero(buf, MAX_BUF_SIZE);
 
-  char *pd_name = 0;
+  char *pd_name = nullptr;
   switch (ele->pd_type) {
   case TS_PD_DOMAIN:
     pd_name = ats_strdup("dest_domain");
@@ -874,7 +874,7 @@ start_TS(char *tsArgs)
   char *args;
 
   strtok(tsArgs, ":");
-  args = strtok(NULL, ":");
+  args = strtok(nullptr, ":");
   if (args) {
     if (strcmp(args, "all\n") == 0) {
       clear = TS_CACHE_CLEAR_CACHE;
@@ -939,7 +939,7 @@ reconfigure()
  * tests if correct action need is returned when requested record is set
  */
 void
-test_action_need(void)
+test_action_need()
 {
   TSActionNeedT action;
 
@@ -1080,7 +1080,7 @@ test_records()
     printf("[TSRecordGetString] proxy.config.proxy_name=%s\n", rec_value);
   }
   TSfree(rec_value);
-  rec_value = NULL;
+  rec_value = nullptr;
 
   // test RecordSet
   err = TSRecordSetString("proxy.config.proxy_name", (TSString)new_str, &action);
@@ -1235,7 +1235,7 @@ test_rec_get(char *rec_name)
  * get list of records
  */
 void
-test_record_get_mlt(void)
+test_record_get_mlt()
 {
   TSRecordEle *rec_ele;
   TSStringList name_list;
@@ -1323,7 +1323,7 @@ test_record_get_mlt(void)
  * Also checks to make sure correct action_need type is set.
  */
 void
-test_record_set_mlt(void)
+test_record_set_mlt()
 {
   TSList list;
   TSRecordEle *ele1, *ele2, *ele3, *ele4, *ele5;
@@ -1384,9 +1384,9 @@ test_record_set_mlt(void)
 void
 test_read_url(bool valid)
 {
-  char *header = NULL;
+  char *header = nullptr;
   int headerSize;
-  char *body = NULL;
+  char *body = nullptr;
   int bodySize;
   TSMgmtError err;
 
@@ -1470,7 +1470,7 @@ test_read_url(bool valid)
 void
 test_read_file()
 {
-  char *f_text = NULL;
+  char *f_text = nullptr;
   int f_size   = -1;
   int f_ver    = -1;
 
@@ -1492,7 +1492,7 @@ test_read_file()
 void
 test_write_file()
 {
-  char *f_text      = NULL;
+  char *f_text      = nullptr;
   int f_size        = -1;
   int f_ver         = -1;
   char new_f_text[] = "blah, blah blah\n I hope this works. please!!!   \n";
@@ -1530,7 +1530,7 @@ test_cfg_context_get(char *args)
   char *filename;
 
   strtok(args, ":");
-  filename = strtok(NULL, ":");
+  filename = strtok(nullptr, ":");
   fprintf(stderr, "modify file: %s\n", filename);
   char *name = TSstrdup(filename);
 
@@ -1598,7 +1598,7 @@ test_cfg_context_move(char *args)
   char *filename;
 
   strtok(args, ":");
-  filename = strtok(NULL, ":");
+  filename = strtok(nullptr, ":");
   fprintf(stderr, "modify file: %s\n", filename);
   char *name = TSstrdup(filename);
 
@@ -1662,7 +1662,7 @@ test_cfg_context_move(char *args)
   }
 
   // clean up; commit change
-  TSCfgContextCommit(ctx, NULL, NULL);
+  TSCfgContextCommit(ctx, nullptr, nullptr);
 
 END:
   TSCfgContextDestroy(ctx);
@@ -1780,7 +1780,7 @@ test_cfg_context_ops()
   // print_VirtIpAddr_ele_list(ctx);
 
   // commit change
-  TSCfgContextCommit(ctx, NULL, NULL);
+  TSCfgContextCommit(ctx, nullptr, nullptr);
 
   printf("\nAFTER CHANGE:\n");
 // print_VirtIpAddr_ele_list(ctx);
@@ -1834,7 +1834,7 @@ test_cfg_plugin()
   TSCfgContextAppendEle(ctx, (TSCfgEle *)ele);
 
   // commit change
-  TSCfgContextCommit(ctx, NULL, NULL);
+  TSCfgContextCommit(ctx, nullptr, nullptr);
 
   TSCfgContextDestroy(ctx);
 }
@@ -1909,7 +1909,7 @@ test_cfg_socks()
   }
 
   // commit change
-  TSCfgContextCommit(ctx, NULL, NULL);
+  TSCfgContextCommit(ctx, nullptr, nullptr);
 
   TSCfgContextDestroy(ctx);
 }
@@ -2025,12 +2025,12 @@ eventCallbackFn(char *name, char *msg, int /* pri ATS_UNUSED */, void * /* data 
  * that for any event that's signalled, the callback fn will also be called
  */
 void
-register_event_callback(void)
+register_event_callback()
 {
   TSMgmtError err;
 
   printf("\n[register_event_callback] \n");
-  err = TSEventSignalCbRegister(NULL, eventCallbackFn, NULL);
+  err = TSEventSignalCbRegister(nullptr, eventCallbackFn, nullptr);
   print_err("TSEventSignalCbRegister", err);
 }
 
@@ -2042,12 +2042,12 @@ register_event_callback(void)
  * event called, the eventCallbackFn will NOT be called
  */
 void
-unregister_event_callback(void)
+unregister_event_callback()
 {
   TSMgmtError err;
 
   printf("\n[unregister_event_callback]\n");
-  err = TSEventSignalCbUnregister(NULL, eventCallbackFn);
+  err = TSEventSignalCbUnregister(nullptr, eventCallbackFn);
   print_err("TSEventSignalCbUnregister", err);
 }
 
@@ -2088,7 +2088,7 @@ add_snapshot(char *args)
   char *snap_name;
 
   strtok(args, ":");
-  snap_name = strtok(NULL, ":");
+  snap_name = strtok(nullptr, ":");
   fprintf(stderr, "add snapshot: %s\n", snap_name);
   char *name = TSstrdup(snap_name);
 
@@ -2104,7 +2104,7 @@ remove_snapshot(char *args)
   char *snap_name;
 
   strtok(args, ":");
-  snap_name = strtok(NULL, ":");
+  snap_name = strtok(nullptr, ":");
   fprintf(stderr, "remove snapshot: %s\n", snap_name);
   char *name = TSstrdup(snap_name);
 
@@ -2120,7 +2120,7 @@ restore_snapshot(char *args)
   char *snap_name;
 
   strtok(args, ":");
-  snap_name = strtok(NULL, ":");
+  snap_name = strtok(nullptr, ":");
   fprintf(stderr, "resotre snapshot: %s\n", snap_name);
   char *name = TSstrdup(snap_name);
 
@@ -2249,7 +2249,7 @@ print_stats()
 void
 reset_stats()
 {
-  TSMgmtError err = TSStatsReset(false, NULL);
+  TSMgmtError err = TSStatsReset(false, nullptr);
   print_err("TSStatsReset", err);
   return;
 }
@@ -2292,7 +2292,7 @@ runInteractive()
   char buf[512]; // holds request from interactive prompt
 
   // process input from command line
-  while (1) {
+  while (true) {
     // Display a prompt
     printf("api_cli-> ");
 
@@ -2397,7 +2397,7 @@ main(int /* argc ATS_UNUSED */, char ** /* argv ATS_UNUSED */)
 {
   TSMgmtError ret;
 
-  if ((ret = TSInit(NULL, TS_MGMT_OPT_DEFAULTS)) == TS_ERR_OKAY) {
+  if ((ret = TSInit(nullptr, TS_MGMT_OPT_DEFAULTS)) == TS_ERR_OKAY) {
     runInteractive();
     TSTerminate();
     printf("END REMOTE API TEST\n");

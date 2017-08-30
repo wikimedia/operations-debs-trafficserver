@@ -167,13 +167,14 @@ am__v_AR_0 = @echo "  AR      " $@;
 am__v_AR_1 = 
 libinknet_a_AR = $(AR) $(ARFLAGS)
 libinknet_a_LIBADD =
-am__libinknet_a_SOURCES_DIST = Connection.cc I_Net.h I_NetProcessor.h \
-	I_NetVConnection.h I_Socks.h I_UDPConnection.h I_UDPNet.h \
-	I_UDPPacket.h Inline.cc I_SessionAccept.h SessionAccept.cc \
-	Net.cc NetVConnection.cc P_CompletionUtil.h P_Connection.h \
-	P_InkBulkIO.h P_LibBulkIO.h P_Net.h P_NetAccept.h \
-	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
-	P_SSLNetAccept.h P_SSLNetProcessor.h P_SSLNetVConnection.h \
+am__libinknet_a_SOURCES_DIST = BIO_fastopen.cc BIO_fastopen.h \
+	Connection.cc I_Net.h I_NetProcessor.h I_NetVConnection.h \
+	I_Socks.h I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Inline.cc \
+	I_SessionAccept.h SessionAccept.cc Net.cc NetVConnection.cc \
+	P_CompletionUtil.h P_Connection.h P_InkBulkIO.h P_LibBulkIO.h \
+	P_Net.h P_NetAccept.h P_NetVConnection.h P_Socks.h \
+	P_SSLCertLookup.h P_SSLConfig.h P_SSLNetAccept.h \
+	P_SSLNetProcessor.h P_SSLNetVConnection.h \
 	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLUtils.h \
 	P_SSLClientUtils.h P_OCSPStapling.h P_UDPConnection.h \
 	P_UDPIOEvent.h P_UDPNet.h P_UDPPacket.h P_UnixCompletionUtil.h \
@@ -188,20 +189,20 @@ am__libinknet_a_SOURCES_DIST = Connection.cc I_Net.h I_NetProcessor.h \
 	UnixNetProcessor.cc UnixNetVConnection.cc UnixUDPConnection.cc \
 	UnixUDPNet.cc SSLDynlock.cc NetVCTest.cc P_NetVCTest.h
 @BUILD_TESTS_TRUE@am__objects_1 = NetVCTest.$(OBJEXT)
-am_libinknet_a_OBJECTS = Connection.$(OBJEXT) Inline.$(OBJEXT) \
-	SessionAccept.$(OBJEXT) Net.$(OBJEXT) NetVConnection.$(OBJEXT) \
-	Socks.$(OBJEXT) SSLCertLookup.$(OBJEXT) \
-	SSLSessionCache.$(OBJEXT) SSLConfig.$(OBJEXT) \
-	SSLInternal.$(OBJEXT) SSLNetAccept.$(OBJEXT) \
-	SSLNetProcessor.$(OBJEXT) SSLNetVConnection.$(OBJEXT) \
-	SSLNextProtocolAccept.$(OBJEXT) SSLNextProtocolSet.$(OBJEXT) \
-	SSLUtils.$(OBJEXT) SSLClientUtils.$(OBJEXT) \
-	OCSPStapling.$(OBJEXT) Socks.$(OBJEXT) UDPIOEvent.$(OBJEXT) \
-	UnixConnection.$(OBJEXT) UnixNet.$(OBJEXT) \
-	UnixNetAccept.$(OBJEXT) UnixNetPages.$(OBJEXT) \
-	UnixNetProcessor.$(OBJEXT) UnixNetVConnection.$(OBJEXT) \
-	UnixUDPConnection.$(OBJEXT) UnixUDPNet.$(OBJEXT) \
-	SSLDynlock.$(OBJEXT) $(am__objects_1)
+am_libinknet_a_OBJECTS = BIO_fastopen.$(OBJEXT) Connection.$(OBJEXT) \
+	Inline.$(OBJEXT) SessionAccept.$(OBJEXT) Net.$(OBJEXT) \
+	NetVConnection.$(OBJEXT) Socks.$(OBJEXT) \
+	SSLCertLookup.$(OBJEXT) SSLSessionCache.$(OBJEXT) \
+	SSLConfig.$(OBJEXT) SSLInternal.$(OBJEXT) \
+	SSLNetAccept.$(OBJEXT) SSLNetProcessor.$(OBJEXT) \
+	SSLNetVConnection.$(OBJEXT) SSLNextProtocolAccept.$(OBJEXT) \
+	SSLNextProtocolSet.$(OBJEXT) SSLUtils.$(OBJEXT) \
+	SSLClientUtils.$(OBJEXT) OCSPStapling.$(OBJEXT) \
+	Socks.$(OBJEXT) UDPIOEvent.$(OBJEXT) UnixConnection.$(OBJEXT) \
+	UnixNet.$(OBJEXT) UnixNetAccept.$(OBJEXT) \
+	UnixNetPages.$(OBJEXT) UnixNetProcessor.$(OBJEXT) \
+	UnixNetVConnection.$(OBJEXT) UnixUDPConnection.$(OBJEXT) \
+	UnixUDPNet.$(OBJEXT) SSLDynlock.$(OBJEXT) $(am__objects_1)
 libinknet_a_OBJECTS = $(am_libinknet_a_OBJECTS)
 am_test_certlookup_OBJECTS = test_certlookup.$(OBJEXT) \
 	SSLCertLookup.$(OBJEXT)
@@ -588,6 +589,7 @@ LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
+LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -726,6 +728,7 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
+has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -861,16 +864,16 @@ waith = @waith@
 zlibh = @zlibh@
 AM_CPPFLAGS = \
   $(iocore_include_dirs) \
-  -I$(top_srcdir)/lib \
-  -I$(top_srcdir)/lib/records \
-  -I$(top_srcdir)/proxy \
-  -I$(top_srcdir)/proxy/hdrs \
-  -I$(top_srcdir)/proxy/shared \
-  -I$(top_srcdir)/proxy/logging \
-  -I$(top_srcdir)/mgmt \
-  -I$(top_srcdir)/mgmt/utils \
-  -I$(top_srcdir)/proxy/api/ts \
-  -I$(top_srcdir)/proxy/http \
+  -I$(abs_top_srcdir)/lib \
+  -I$(abs_top_srcdir)/lib/records \
+  -I$(abs_top_srcdir)/proxy \
+  -I$(abs_top_srcdir)/proxy/hdrs \
+  -I$(abs_top_srcdir)/proxy/shared \
+  -I$(abs_top_srcdir)/proxy/logging \
+  -I$(abs_top_srcdir)/mgmt \
+  -I$(abs_top_srcdir)/mgmt/utils \
+  -I$(abs_top_srcdir)/proxy/api/ts \
+  -I$(abs_top_srcdir)/proxy/http \
   @OPENSSL_INCLUDES@
 
 TESTS = $(check_PROGRAMS)
@@ -889,13 +892,14 @@ test_certlookup_LDADD = \
   $(top_builddir)/lib/ts/libtsutil.la \
   $(top_builddir)/iocore/eventsystem/libinkevent.a
 
-libinknet_a_SOURCES = Connection.cc I_Net.h I_NetProcessor.h \
-	I_NetVConnection.h I_Socks.h I_UDPConnection.h I_UDPNet.h \
-	I_UDPPacket.h Inline.cc I_SessionAccept.h SessionAccept.cc \
-	Net.cc NetVConnection.cc P_CompletionUtil.h P_Connection.h \
-	P_InkBulkIO.h P_LibBulkIO.h P_Net.h P_NetAccept.h \
-	P_NetVConnection.h P_Socks.h P_SSLCertLookup.h P_SSLConfig.h \
-	P_SSLNetAccept.h P_SSLNetProcessor.h P_SSLNetVConnection.h \
+libinknet_a_SOURCES = BIO_fastopen.cc BIO_fastopen.h Connection.cc \
+	I_Net.h I_NetProcessor.h I_NetVConnection.h I_Socks.h \
+	I_UDPConnection.h I_UDPNet.h I_UDPPacket.h Inline.cc \
+	I_SessionAccept.h SessionAccept.cc Net.cc NetVConnection.cc \
+	P_CompletionUtil.h P_Connection.h P_InkBulkIO.h P_LibBulkIO.h \
+	P_Net.h P_NetAccept.h P_NetVConnection.h P_Socks.h \
+	P_SSLCertLookup.h P_SSLConfig.h P_SSLNetAccept.h \
+	P_SSLNetProcessor.h P_SSLNetVConnection.h \
 	P_SSLNextProtocolAccept.h P_SSLNextProtocolSet.h P_SSLUtils.h \
 	P_SSLClientUtils.h P_OCSPStapling.h P_Socks.h \
 	P_UDPConnection.h P_UDPIOEvent.h P_UDPNet.h P_UDPPacket.h \
@@ -987,6 +991,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/BIO_fastopen.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Connection.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Inline.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Net.Po@am__quote@
