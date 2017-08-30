@@ -11,7 +11,7 @@
  by a transaction. A high water and low water mark are set in terms of bytes
 --- a/doc/admin-guide/files/records.config.en.rst
 +++ b/doc/admin-guide/files/records.config.en.rst
-@@ -1073,7 +1073,7 @@ ip-resolve
+@@ -1112,7 +1112,7 @@ ip-resolve
           performed. The result is cached (if allowed otherwise). This option is
           vulnerable to cache poisoning if an incorrect ``Host`` header is
           specified, so this option should be used with extreme caution.  See
@@ -22,46 +22,65 @@
     If all of these conditions are met, then the origin server IP address is
 --- a/doc/conf.py
 +++ b/doc/conf.py
-@@ -161,44 +161,9 @@ pygments_style = 'sphinx'
- nitpicky=1
+@@ -168,63 +168,9 @@ nitpicky = 1
  
- # Autolink issue references
+ # Autolink issue references.
+ # See Customizing the Parser in the docutils.parsers.rst module.
 -
 -from docutils import nodes
 -from docutils.parsers.rst import states
+-from docutils.utils import punctuation_chars
 -from docutils.utils import unescape
 -
 -# Customize parser.inliner in the only way that Sphinx supports.
 -# docutils.parsers.rst.Parser takes an instance of states.Inliner or a
--# subclass but Sphinx initializes it from
--# SphinxStandaloneReader.set_parser('restructuredtext') which is called
--# from Publisher.set_components() and initializes the parser without
--# arguments.
+-# subclass, but Sphinx initializes the parser without any arguments,
+-# in SphinxStandaloneReader.set_parser('restructuredtext'),
+-# which is called from Publisher.set_components().
 -
+-# states.Inliner isn't a new-style class, so super() isn't an option.
 -BaseInliner = states.Inliner
--class Inliner(BaseInliner):
--  def __init__(self):
--    BaseInliner.__init__(self)
 -
--    issue_pattern = re.compile(u'''
+-
+-class Inliner(states.Inliner):
+-    def init_customizations(self, settings):
+-        self.__class__ = BaseInliner
+-        BaseInliner.init_customizations(self, settings)
+-        self.__class__ = Inliner
+-
+-        # Copied from states.Inliner.init_customizations().
+-        # In Docutils 0.13 these are locals.
+-        if not hasattr(self, 'start_string_prefix'):
+-            self.start_string_prefix = (u'(^|(?<=\\s|[%s%s]))' %
+-                                        (punctuation_chars.openers,
+-                                         punctuation_chars.delimiters))
+-        if not hasattr(self, 'end_string_suffix'):
+-            self.end_string_suffix = (u'($|(?=\\s|[\x00%s%s%s]))' %
+-                                      (punctuation_chars.closing_delimiters,
+-                                       punctuation_chars.delimiters,
+-                                       punctuation_chars.closers))
+-
+-        issue = re.compile(
+-            ur'''
 -      {start_string_prefix}
 -      TS-\d+
 -      {end_string_suffix}'''.format(
--        start_string_prefix=self.start_string_prefix,
--        end_string_suffix=self.end_string_suffix),
--      re.VERBOSE | re.UNICODE)
+-                start_string_prefix=self.start_string_prefix,
+-                end_string_suffix=self.end_string_suffix),
+-            re.VERBOSE | re.UNICODE)
 -
--    self.implicit_dispatch.append((issue_pattern, self.issue_reference))
+-        self.implicit_dispatch.append((issue, self.issue_reference))
 -
--  def issue_reference(self, match, lineno):
--    text = match.group(0)
+-    def issue_reference(self, match, lineno):
+-        text = match.group(0)
 -
--    rawsource = unescape(text, True)
--    text = unescape(text, False)
+-        rawsource = unescape(text, True)
+-        text = unescape(text, False)
 -
--    refuri = 'https://issues.apache.org/jira/browse/' + text
+-        refuri = 'https://issues.apache.org/jira/browse/' + text
 -
--    return [nodes.reference(rawsource, text, refuri=refuri)]
+-        return [nodes.reference(rawsource, text, refuri=refuri)]
+-
 -
 -states.Inliner = Inliner
 +# moved into traffic_server Sphinx extension
@@ -70,7 +89,7 @@
  
  # -- Options for HTML output ---------------------------------------------------
  
-@@ -347,6 +312,8 @@ latex_documents = [
+@@ -373,6 +319,8 @@ latex_documents = [
  # documents and includes the same brief description in both the HTML
  # and manual page outputs.
  
@@ -113,7 +132,7 @@
 +   :ts:cv:`proxy.config.net.sock_packet_tos_out` and :ts:jira:`1090`
 --- a/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst
 +++ b/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst
-@@ -130,7 +130,7 @@ History
+@@ -162,7 +162,7 @@ History
  =======
  
  Lifecycle hooks were introduced to solve process initialization ordering issues
@@ -163,9 +182,9 @@
  from docutils.parsers import rst
  from docutils.parsers.rst import directives
  from sphinx.domains import Domain, ObjType, std
-@@ -34,6 +35,102 @@ from sphinx.roles import XRefRole
- from sphinx.locale import l_, _
+@@ -35,6 +36,102 @@ from sphinx.locale import l_, _
  import sphinx
+ 
  
 +# Autolink for Trafficserver issues
 +# Moved from doc/conf.py, now integrated into TS domain
@@ -266,9 +285,9 @@
  class TSConfVar(std.Target):
      """
      Description of a traffic server configuration variable.
-@@ -262,6 +359,10 @@ class TSStatRef(XRefRole):
-     def process_link(self, env, ref_node, explicit_title_p, title, target):
+@@ -279,6 +376,10 @@ class TSStatRef(XRefRole):
          return title, target
+ 
  
 +class TSIssueRef(XRefRole):
 +    def process_link(self, env, ref_node, explicit_title_p, title, target):
@@ -277,7 +296,7 @@
  class TrafficServerDomain(Domain):
      """
      Apache Traffic Server Documentation.
-@@ -273,7 +374,8 @@ class TrafficServerDomain(Domain):
+@@ -290,7 +391,8 @@ class TrafficServerDomain(Domain):
  
      object_types = {
          'cv': ObjType(l_('configuration variable'), 'cv'),
@@ -287,32 +306,32 @@
      }
  
      directives = {
-@@ -283,17 +385,21 @@ class TrafficServerDomain(Domain):
+@@ -300,17 +402,21 @@ class TrafficServerDomain(Domain):
  
      roles = {
-         'cv' : TSConfVarRef(),
--        'stat' : TSStatRef()
-+        'stat' : TSStatRef(),
-+        'jira' : ts_jira_role,
-+        'github' : ts_github_role
+         'cv': TSConfVarRef(),
+-        'stat': TSStatRef()
++        'stat': TSStatRef(),
++        'jira': ts_jira_role,
++        'github': ts_github_role
      }
  
      initial_data = {
-         'cv' : {}, # full name -> docname
--        'stat' : {}
-+        'stat' : {},
-+        'issue' : {}
+         'cv': {},  # full name -> docname
+-        'stat': {}
++        'stat': {},
++        'issue': {}
      }
  
      dangling_warnings = {
-         'cv' : "No definition found for configuration variable '%(target)s'",
--        'stat' : "No definition found for statistic '%(target)s'"
-+        'stat' : "No definition found for statistic '%(target)s'",
-+        'issue' : "No definition found for issue '%(target)s'"
+         'cv': "No definition found for configuration variable '%(target)s'",
+-        'stat': "No definition found for statistic '%(target)s'"
++        'stat': "No definition found for statistic '%(target)s'",
++        'issue': "No definition found for issue '%(target)s'"
      }
  
      def clear_doc(self, docname):
-@@ -305,6 +411,10 @@ class TrafficServerDomain(Domain):
+@@ -322,6 +428,10 @@ class TrafficServerDomain(Domain):
          for var, doc in stat_list.items():
              if doc == docname:
                  del stat_list[var]
@@ -323,16 +342,16 @@
  
      def find_doc(self, key, obj_type):
          zret = None
-@@ -313,6 +423,8 @@ class TrafficServerDomain(Domain):
+@@ -330,6 +440,8 @@ class TrafficServerDomain(Domain):
              obj_list = self.data['cv']
-         elif obj_type == 'stat' :
+         elif obj_type == 'stat':
              obj_list = self.data['stat']
 +        elif obj_type == 'issue' :
 +            obj_list = self.data['issue']
          else:
              obj_list = None
  
-@@ -322,15 +434,20 @@ class TrafficServerDomain(Domain):
+@@ -339,15 +451,20 @@ class TrafficServerDomain(Domain):
          return zret
  
      def resolve_xref(self, env, src_doc, builder, obj_type, target, node, cont_node):
@@ -354,9 +373,9 @@
 +        for var, doc in self.data['issue'].iteritems():
 +            yield var, var, 'issue', doc, var, 1
  
+ 
  # These types are ignored as missing references for the C++ domain.
- # We really need to do better with this. Editing this file for each of
-@@ -369,6 +486,8 @@ def setup(app):
+@@ -393,6 +510,8 @@ def setup(app):
      rst.roles.register_generic_role('const', nodes.literal)
  
      app.add_domain(TrafficServerDomain)

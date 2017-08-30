@@ -17,7 +17,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
 --- a/proxy/Plugin.cc
 +++ b/proxy/Plugin.cc
-@@ -124,7 +124,7 @@ plugin_load(int argc, char *argv[], bool validateOnly)
+@@ -126,7 +126,7 @@ plugin_load(int argc, char *argv[], bool
        return false; // this line won't get called since Fatal brings down ATS
      }
  
@@ -28,8 +28,8 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  #if defined(__GLIBC__)
 --- a/proxy/http/remap/RemapConfig.cc
 +++ b/proxy/http/remap/RemapConfig.cc
-@@ -902,7 +902,7 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
-   void *ih         = NULL;
+@@ -919,7 +919,7 @@ remap_load_plugin(const char **argv, int
+   void *ih         = nullptr;
    TSReturnCode res = TS_SUCCESS;
    if (pi->fp_tsremap_new_instance) {
 -#if defined(freebsd) || defined(darwin)

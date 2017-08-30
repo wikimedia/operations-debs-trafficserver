@@ -9,83 +9,7 @@
    @EXTRA_CXX_LDFLAGS@ \
    @LIBTOOL_LINK_FLAGS@ \
    @OPENSSL_LDFLAGS@
-@@ -56,75 +56,6 @@ AM_LDFLAGS = \
- noinst_HEADERS = \
-   Show.h
- 
--# These are currently built separate, as part of building the lib/ tree, using
--# the normal LuaJIT build system. We are using the .o's directly, instead of the
--# luajit.a to avoid the linker from optimizing symbols away. We could maybe
--# switch to using the luajit.so, but that involves making sure it installs safely
--# and cleanly.
--LUAJIT = \
--  lib_aux.o \
--  lib_base.o \
--  lib_bit.o \
--  lib_debug.o \
--  lib_ffi.o \
--  lib_init.o \
--  lib_io.o \
--  lib_jit.o \
--  lib_math.o \
--  lib_os.o \
--  lib_package.o \
--  lib_string.o \
--  lib_table.o \
--  lj_alloc.o \
--  lj_api.o \
--  lj_asm.o \
--  lj_bc.o \
--  lj_bcread.o \
--  lj_bcwrite.o \
--  lj_carith.o \
--  lj_ccall.o \
--  lj_ccallback.o \
--  lj_cconv.o \
--  lj_cdata.o \
--  lj_char.o \
--  lj_clib.o \
--  lj_cparse.o \
--  lj_crecord.o \
--  lj_ctype.o \
--  lj_debug.o \
--  lj_dispatch.o \
--  lj_err.o \
--  lj_ffrecord.o \
--  lj_func.o \
--  lj_gc.o \
--  lj_gdbjit.o \
--  lj_ir.o \
--  lj_lex.o \
--  lj_lib.o \
--  lj_load.o \
--  lj_mcode.o \
--  lj_meta.o \
--  lj_obj.o \
--  lj_opt_dce.o \
--  lj_opt_fold.o \
--  lj_opt_loop.o \
--  lj_opt_mem.o \
--  lj_opt_narrow.o \
--  lj_opt_sink.o \
--  lj_opt_split.o \
--  lj_parse.o \
--  lj_record.o \
--  lj_snap.o \
--  lj_state.o \
--  lj_str.o \
--  lj_strscan.o \
--  lj_tab.o \
--  lj_trace.o \
--  lj_udata.o \
--  lj_vm.o \
--  lj_vmevent.o \
--  lj_vmmath.o
--
- EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
- 
- traffic_server_SOURCES = \
-@@ -211,11 +142,11 @@ traffic_server_LDADD = \
+@@ -211,11 +211,11 @@ traffic_server_LDADD = \
    $(top_builddir)/iocore/aio/libinkaio.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -98,7 +22,7 @@
    @HWLOC_LIBS@ \
    @LIBPCRE@ \
    @LIBTCL@ \
-@@ -227,7 +158,6 @@ traffic_server_LDADD = \
+@@ -227,7 +227,6 @@ traffic_server_LDADD = \
    @OPENSSL_LIBS@ \
    -lm
  
@@ -106,7 +30,7 @@
  
  traffic_logcat_SOURCES = logcat.cc
  traffic_logcat_LDADD = \
-@@ -239,9 +169,8 @@ traffic_logcat_LDADD = \
+@@ -239,9 +238,8 @@ traffic_logcat_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -117,7 +41,7 @@
  
  traffic_logstats_SOURCES = logstats.cc
  traffic_logstats_LDADD = \
-@@ -253,9 +182,8 @@ traffic_logstats_LDADD = \
+@@ -253,9 +251,8 @@ traffic_logstats_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -164,7 +88,7 @@
  traffic_server_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
  	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
  	$(AM_CXXFLAGS) $(CXXFLAGS) $(traffic_server_LDFLAGS) \
-@@ -661,9 +657,9 @@ LIPO = @LIPO@
+@@ -662,9 +658,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -177,7 +101,7 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -969,7 +965,7 @@ AM_CPPFLAGS = \
+@@ -971,7 +967,7 @@ AM_CPPFLAGS = \
  # NOTE: it is safe to use AM_LDFLAGS here because we are only building executables. If we start
  # building libtool archives, change these to only apply to the executables.
  AM_LDFLAGS = \
@@ -186,7 +110,7 @@
    @EXTRA_CXX_LDFLAGS@ \
    @LIBTOOL_LINK_FLAGS@ \
    @OPENSSL_LDFLAGS@
-@@ -978,75 +974,6 @@ noinst_HEADERS = \
+@@ -980,75 +976,6 @@ noinst_HEADERS = \
    Show.h
  
  
@@ -262,9 +186,16 @@
  EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
  traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
  	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
-@@ -1085,8 +1012,7 @@ traffic_server_LDADD = http/libhttp.a ht
+@@ -1081,14 +1008,12 @@ traffic_server_LDADD = http/libhttp.a ht
+ 	$(top_builddir)/iocore/aio/libinkaio.a \
+ 	$(top_builddir)/lib/ts/libtsutil.la \
+ 	$(top_builddir)/lib/bindings/libbindings.la \
+-	$(top_builddir)/lib/luajit/src/libluajit.a \
+ 	$(top_builddir)/iocore/net/libinknet.a \
+ 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/records/librecords_p.a \
- 	$(top_builddir)/iocore/eventsystem/libinkevent.a @HWLOC_LIBS@ \
+-	$(top_builddir)/iocore/eventsystem/libinkevent.a @HWLOC_LIBS@ \
++	$(top_builddir)/iocore/eventsystem/libinkevent.a $(LUA_LIBS) @HWLOC_LIBS@ \
  	@LIBPCRE@ @LIBTCL@ @LIBCAP@ @LIBRESOLV@ @LIBZ@ @LIBLZMA@ \
 -	@LIBPROFILER@ @OPENSSL_LIBS@ -lm \
 -	$(LUAJIT:%=$(top_builddir)/lib/luajit/src/%)
@@ -272,18 +203,22 @@
  traffic_logcat_SOURCES = logcat.cc
  traffic_logcat_LDADD = \
    logging/liblogging.a \
-@@ -1099,7 +1025,7 @@ traffic_logcat_LDADD = \
+@@ -1099,9 +1024,8 @@ traffic_logcat_LDADD = \
+   $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
-   $(top_builddir)/lib/luajit/src/libluajit.a \
+-  $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@\
 -  @LIBPROFILER@ -lm
-+  @LIBPROFILER@ $(LIBLUA_LIBS) -lm
++  @LIBPROFILER@ $(LUA_LIBS) -lm
  
  traffic_logstats_SOURCES = logstats.cc
  traffic_logstats_LDADD = \
-@@ -1113,7 +1039,7 @@ traffic_logstats_LDADD = \
+@@ -1113,9 +1037,8 @@ traffic_logstats_LDADD = \
+   $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
-   $(top_builddir)/lib/luajit/src/libluajit.a \
+-  $(top_builddir)/lib/luajit/src/libluajit.a \
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @HWLOC_LIBS@ \
 -  @LIBPROFILER@ -lm
 +  @LIBPROFILER@ $(LUA_LIBS) -lm
@@ -295,24 +230,24 @@
 @@ -21,7 +21,6 @@ include $(top_srcdir)/build/tidy.mk
  AM_CPPFLAGS = \
    $(iocore_include_dirs) \
-   -I$(top_srcdir)/lib \
--  -I$(top_srcdir)/lib/luajit/src \
-   -I$(top_srcdir)/lib/records \
-   -I$(top_srcdir)/proxy/api/ts \
-   -I$(top_srcdir)/proxy \
+   -I$(abs_top_srcdir)/lib \
+-  -I$(abs_top_srcdir)/lib/luajit/src \
+   -I$(abs_top_srcdir)/lib/records \
+   -I$(abs_top_srcdir)/proxy/api/ts \
+   -I$(abs_top_srcdir)/proxy \
 @@ -30,7 +29,8 @@ AM_CPPFLAGS = \
-   -I$(top_srcdir)/proxy/hdrs \
-   -I$(top_srcdir)/proxy/shared \
-   -I$(top_srcdir)/mgmt \
--  -I$(top_srcdir)/mgmt/utils
-+  -I$(top_srcdir)/mgmt/utils \
+   -I$(abs_top_srcdir)/proxy/hdrs \
+   -I$(abs_top_srcdir)/proxy/shared \
+   -I$(abs_top_srcdir)/mgmt \
+-  -I$(abs_top_srcdir)/mgmt/utils
++  -I$(abs_top_srcdir)/mgmt/utils \
 +  $(LUA_CPPFLAGS)
  
  EXTRA_DIST = LogStandalone.cc
  
 --- a/proxy/logging/Makefile.in
 +++ b/proxy/logging/Makefile.in
-@@ -557,9 +557,9 @@ LIPO = @LIPO@
+@@ -558,9 +558,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -325,27 +260,27 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -841,7 +841,6 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
+@@ -843,7 +843,6 @@ CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Ti
  AM_CPPFLAGS = \
    $(iocore_include_dirs) \
-   -I$(top_srcdir)/lib \
--  -I$(top_srcdir)/lib/luajit/src \
-   -I$(top_srcdir)/lib/records \
-   -I$(top_srcdir)/proxy/api/ts \
-   -I$(top_srcdir)/proxy \
-@@ -850,7 +849,8 @@ AM_CPPFLAGS = \
-   -I$(top_srcdir)/proxy/hdrs \
-   -I$(top_srcdir)/proxy/shared \
-   -I$(top_srcdir)/mgmt \
--  -I$(top_srcdir)/mgmt/utils
-+  -I$(top_srcdir)/mgmt/utils \
+   -I$(abs_top_srcdir)/lib \
+-  -I$(abs_top_srcdir)/lib/luajit/src \
+   -I$(abs_top_srcdir)/lib/records \
+   -I$(abs_top_srcdir)/proxy/api/ts \
+   -I$(abs_top_srcdir)/proxy \
+@@ -852,7 +851,8 @@ AM_CPPFLAGS = \
+   -I$(abs_top_srcdir)/proxy/hdrs \
+   -I$(abs_top_srcdir)/proxy/shared \
+   -I$(abs_top_srcdir)/mgmt \
+-  -I$(abs_top_srcdir)/mgmt/utils
++  -I$(abs_top_srcdir)/mgmt/utils \
 +  $(LUA_CPPFLAGS)
  
  EXTRA_DIST = LogStandalone.cc
  noinst_LIBRARIES = liblogging.a liblogcollation.a
 --- a/proxy/api/ts/Makefile.in
 +++ b/proxy/api/ts/Makefile.in
-@@ -291,9 +291,9 @@ LIPO = @LIPO@
+@@ -292,9 +292,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -360,7 +295,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/Makefile.in
 +++ b/proxy/config/Makefile.in
-@@ -335,9 +335,9 @@ LIPO = @LIPO@
+@@ -336,9 +336,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -375,7 +310,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/body_factory/Makefile.in
 +++ b/proxy/config/body_factory/Makefile.in
-@@ -303,9 +303,9 @@ LIPO = @LIPO@
+@@ -304,9 +304,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -390,7 +325,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/body_factory/default/Makefile.in
 +++ b/proxy/config/body_factory/default/Makefile.in
-@@ -273,9 +273,9 @@ LIPO = @LIPO@
+@@ -274,9 +274,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -405,7 +340,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/congest/Makefile.in
 +++ b/proxy/congest/Makefile.in
-@@ -323,9 +323,9 @@ LIPO = @LIPO@
+@@ -324,9 +324,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -420,7 +355,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/hdrs/Makefile.in
 +++ b/proxy/hdrs/Makefile.in
-@@ -572,9 +572,9 @@ LIPO = @LIPO@
+@@ -573,9 +573,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -435,7 +370,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http/Makefile.in
 +++ b/proxy/http/Makefile.in
-@@ -405,9 +405,9 @@ LIPO = @LIPO@
+@@ -406,9 +406,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -450,7 +385,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http/remap/Makefile.in
 +++ b/proxy/http/remap/Makefile.in
-@@ -336,9 +336,9 @@ LIPO = @LIPO@
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -465,7 +400,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http2/Makefile.in
 +++ b/proxy/http2/Makefile.in
-@@ -580,9 +580,9 @@ LIPO = @LIPO@
+@@ -581,9 +581,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -480,7 +415,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/shared/Makefile.in
 +++ b/proxy/shared/Makefile.in
-@@ -319,9 +319,9 @@ LIPO = @LIPO@
+@@ -320,9 +320,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
