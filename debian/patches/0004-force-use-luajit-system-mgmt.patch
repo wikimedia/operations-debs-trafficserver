@@ -1,6 +1,6 @@
 --- a/mgmt/Makefile.in
 +++ b/mgmt/Makefile.in
-@@ -384,9 +384,9 @@ LIPO = @LIPO@
+@@ -389,9 +389,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -15,7 +15,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/api/Makefile.in
 +++ b/mgmt/api/Makefile.in
-@@ -425,9 +425,9 @@ LIPO = @LIPO@
+@@ -429,9 +429,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -30,7 +30,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/api/include/Makefile.in
 +++ b/mgmt/api/include/Makefile.in
-@@ -292,9 +292,9 @@ LIPO = @LIPO@
+@@ -291,9 +291,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -45,7 +45,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/cluster/Makefile.in
 +++ b/mgmt/cluster/Makefile.in
-@@ -328,9 +328,9 @@ LIPO = @LIPO@
+@@ -329,9 +329,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -60,7 +60,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/utils/Makefile.in
 +++ b/mgmt/utils/Makefile.in
-@@ -550,9 +550,9 @@ LIPO = @LIPO@
+@@ -554,9 +554,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

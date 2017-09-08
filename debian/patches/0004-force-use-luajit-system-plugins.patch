@@ -1,6 +1,6 @@
 --- a/plugins/Makefile.in
 +++ b/plugins/Makefile.in
-@@ -2168,9 +2168,9 @@ LIPO = @LIPO@
+@@ -2176,9 +2176,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

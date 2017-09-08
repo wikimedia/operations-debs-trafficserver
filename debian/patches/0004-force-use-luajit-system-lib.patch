@@ -1,6 +1,6 @@
 --- a/lib/Makefile.in
 +++ b/lib/Makefile.in
-@@ -306,9 +306,9 @@ LIPO = @LIPO@
+@@ -305,9 +305,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -13,7 +13,7 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -913,29 +913,6 @@ uninstall-am:
+@@ -912,29 +912,6 @@ uninstall-am:
  .PRECIOUS: Makefile
  
  
@@ -48,7 +48,7 @@
 @@ -19,9 +19,10 @@
  include $(top_srcdir)/build/tidy.mk
  
- AM_CPPFLAGS = \
+ AM_CPPFLAGS += \
 -  $(LUAJIT_CPPFLAGS) \
 +  $(LUA_CPPFLAGS) \
    -I$(abs_top_srcdir)/lib \
@@ -60,6 +60,15 @@
  
 --- a/lib/bindings/Makefile.in
 +++ b/lib/bindings/Makefile.in
+@@ -243,7 +243,7 @@ pkglibexecdir = @pkglibexecdir@
+ ACLOCAL = @ACLOCAL@
+ AMTAR = @AMTAR@
+ AM_CFLAGS = @AM_CFLAGS@
+-AM_CPPFLAGS = @AM_CPPFLAGS@ $(LUAJIT_CPPFLAGS) -I$(abs_top_srcdir)/lib \
++AM_CPPFLAGS = @AM_CPPFLAGS@ $(LUA_CPPFLAGS) -I$(abs_top_srcdir)/lib \
+ 	-I$(abs_top_srcdir)/lib/records
+ AM_CXXFLAGS = @AM_CXXFLAGS@
+ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 @@ -327,9 +327,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
@@ -73,22 +82,9 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -610,9 +610,10 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(
- CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
- CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
- AM_CPPFLAGS = \
--  $(LUAJIT_CPPFLAGS) \
-+  $(LUA_CPPFLAGS) \
-   -I$(abs_top_srcdir)/lib \
--  -I$(abs_top_srcdir)/lib/records
-+  -I$(abs_top_srcdir)/lib/records \
-+  $(LUA_CPPFLAGS)
- 
- noinst_LTLIBRARIES = libbindings.la
- libbindings_la_SOURCES = \
 --- a/lib/perl/Makefile.in
 +++ b/lib/perl/Makefile.in
-@@ -243,9 +243,9 @@ LIPO = @LIPO@
+@@ -242,9 +242,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -103,7 +99,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/records/Makefile.in
 +++ b/lib/records/Makefile.in
-@@ -348,9 +348,9 @@ LIPO = @LIPO@
+@@ -350,9 +350,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -118,7 +114,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/ts/Makefile.in
 +++ b/lib/ts/Makefile.in
-@@ -640,9 +640,9 @@ LIPO = @LIPO@
+@@ -619,9 +619,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -133,7 +129,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/tsconfig/Makefile.in
 +++ b/lib/tsconfig/Makefile.in
-@@ -400,9 +400,9 @@ LIPO = @LIPO@
+@@ -399,9 +399,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

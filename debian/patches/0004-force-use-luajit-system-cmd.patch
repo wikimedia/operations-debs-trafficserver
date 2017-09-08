@@ -3,22 +3,22 @@
 @@ -21,7 +21,7 @@ check_PROGRAMS = test_metrics
  TESTS = $(check_PROGRAMS)
  
- AM_CPPFLAGS = \
+ AM_CPPFLAGS += \
 -  $(LUAJIT_CPPFLAGS) \
 +  $(LUA_CPPFLAGS) \
    $(iocore_include_dirs) \
    -I$(abs_top_srcdir)/lib/records \
    -I$(abs_top_srcdir)/proxy/hdrs \
-@@ -32,7 +32,7 @@ AM_CPPFLAGS = \
+@@ -32,7 +32,7 @@ AM_CPPFLAGS += \
    -I$(abs_top_srcdir)/mgmt/cluster \
    -I$(abs_top_srcdir)/mgmt/utils \
    -I$(abs_top_srcdir)/lib \
 -  -I$(abs_top_srcdir)/lib/luajit/src
 +  $(LUA_CPPFLAGS)
  
- AM_LDFLAGS = \
-   @EXTRA_CXX_LDFLAGS@ \
-@@ -58,17 +58,16 @@ traffic_manager_LDADD = \
+ AM_LDFLAGS += \
+   @OPENSSL_LDFLAGS@
+@@ -56,17 +56,16 @@ traffic_manager_LDADD = \
    $(top_builddir)/proxy/shared/libdiagsconfig.a
  
  AM_LDFLAGS += \
@@ -39,7 +39,7 @@
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
    -lm
  
-@@ -85,9 +84,9 @@ test_metrics_LDADD = \
+@@ -83,9 +82,9 @@ test_metrics_LDADD = \
    $(top_builddir)/mgmt/libmgmt_lm.la \
    $(top_builddir)/lib/records/librecords_lm.a \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -68,7 +68,28 @@
  	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
-@@ -567,9 +565,9 @@ LIPO = @LIPO@
+@@ -483,17 +481,16 @@ pkglibexecdir = @pkglibexecdir@
+ ACLOCAL = @ACLOCAL@
+ AMTAR = @AMTAR@
+ AM_CFLAGS = @AM_CFLAGS@
+-AM_CPPFLAGS = @AM_CPPFLAGS@ $(LUAJIT_CPPFLAGS) $(iocore_include_dirs) \
++AM_CPPFLAGS = @AM_CPPFLAGS@ $(LUA_CPPFLAGS) $(iocore_include_dirs) \
+ 	-I$(abs_top_srcdir)/lib/records -I$(abs_top_srcdir)/proxy/hdrs \
+ 	-I$(abs_top_srcdir)/proxy/shared -I$(abs_top_srcdir)/mgmt \
+ 	-I$(abs_top_srcdir)/mgmt/api \
+ 	-I$(abs_top_srcdir)/mgmt/api/include \
+ 	-I$(abs_top_srcdir)/mgmt/cluster \
+-	-I$(abs_top_srcdir)/mgmt/utils -I$(abs_top_srcdir)/lib \
+-	-I$(abs_top_srcdir)/lib/luajit/src
++	-I$(abs_top_srcdir)/mgmt/utils -I$(abs_top_srcdir)/lib
+ AM_CXXFLAGS = @AM_CXXFLAGS@
+ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+-AM_LDFLAGS = @AM_LDFLAGS@ @OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
++AM_LDFLAGS = @AM_LDFLAGS@ @OPENSSL_LDFLAGS@ $(LUA_LDFLAGS)
+ AR = @AR@
+ ASCPP = @ASCPP@
+ AUTOCONF = @AUTOCONF@
+@@ -573,9 +570,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -81,29 +102,7 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -835,7 +833,7 @@ waith = @waith@
- zlibh = @zlibh@
- TESTS = $(check_PROGRAMS)
- AM_CPPFLAGS = \
--  $(LUAJIT_CPPFLAGS) \
-+  $(LUA_CPPFLAGS) \
-   $(iocore_include_dirs) \
-   -I$(abs_top_srcdir)/lib/records \
-   -I$(abs_top_srcdir)/proxy/hdrs \
-@@ -846,10 +844,10 @@ AM_CPPFLAGS = \
-   -I$(abs_top_srcdir)/mgmt/cluster \
-   -I$(abs_top_srcdir)/mgmt/utils \
-   -I$(abs_top_srcdir)/lib \
--  -I$(abs_top_srcdir)/lib/luajit/src
-+  $(LUA_CPPFLAGS)
- 
- AM_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
--	@OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
-+	@OPENSSL_LDFLAGS@ $(LUA_LDFLAGS)
- traffic_manager_SOURCES = AddConfigFilesHere.cc MgmtHandlers.cc \
- 	MgmtHandlers.h WebOverview.cc WebOverview.h metrics.h \
- 	traffic_manager.cc metrics.cc
-@@ -860,18 +858,17 @@ traffic_manager_LDADD = $(top_builddir)/
+@@ -850,18 +847,17 @@ traffic_manager_LDADD = $(top_builddir)/
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
@@ -127,7 +126,7 @@
  Clang_Tidy_Options = -fix -fix-errors
 --- a/cmd/Makefile.in
 +++ b/cmd/Makefile.in
-@@ -507,9 +507,9 @@ LIPO = @LIPO@
+@@ -506,9 +506,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -142,7 +141,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_cop/Makefile.in
 +++ b/cmd/traffic_cop/Makefile.in
-@@ -315,9 +315,9 @@ LIPO = @LIPO@
+@@ -317,9 +317,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -157,7 +156,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_crashlog/Makefile.in
 +++ b/cmd/traffic_crashlog/Makefile.in
-@@ -335,9 +335,9 @@ LIPO = @LIPO@
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -172,7 +171,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_ctl/Makefile.in
 +++ b/cmd/traffic_ctl/Makefile.in
-@@ -318,9 +318,9 @@ LIPO = @LIPO@
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -187,7 +186,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_layout/Makefile.in
 +++ b/cmd/traffic_layout/Makefile.in
-@@ -315,9 +315,9 @@ LIPO = @LIPO@
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -202,7 +201,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_top/Makefile.in
 +++ b/cmd/traffic_top/Makefile.in
-@@ -315,9 +315,9 @@ LIPO = @LIPO@
+@@ -326,9 +326,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -232,7 +231,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_wccp/Makefile.in
 +++ b/cmd/traffic_wccp/Makefile.in
-@@ -315,9 +315,9 @@ LIPO = @LIPO@
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

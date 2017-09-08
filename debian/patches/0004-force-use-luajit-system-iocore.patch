@@ -1,6 +1,6 @@
 --- a/iocore/Makefile.in
 +++ b/iocore/Makefile.in
-@@ -319,9 +319,9 @@ LIPO = @LIPO@
+@@ -318,9 +318,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -30,7 +30,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/cache/Makefile.in
 +++ b/iocore/cache/Makefile.in
-@@ -350,9 +350,9 @@ LIPO = @LIPO@
+@@ -355,9 +355,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -45,7 +45,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/cluster/Makefile.in
 +++ b/iocore/cluster/Makefile.in
-@@ -339,9 +339,9 @@ LIPO = @LIPO@
+@@ -342,9 +342,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -60,7 +60,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/dns/Makefile.in
 +++ b/iocore/dns/Makefile.in
-@@ -334,9 +334,9 @@ LIPO = @LIPO@
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -90,7 +90,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/hostdb/Makefile.in
 +++ b/iocore/hostdb/Makefile.in
-@@ -554,9 +554,9 @@ LIPO = @LIPO@
+@@ -557,9 +557,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -105,7 +105,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/net/Makefile.in
 +++ b/iocore/net/Makefile.in
-@@ -596,9 +596,9 @@ LIPO = @LIPO@
+@@ -602,9 +602,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -120,7 +120,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/iocore/utils/Makefile.in
 +++ b/iocore/utils/Makefile.in
-@@ -334,9 +334,9 @@ LIPO = @LIPO@
+@@ -335,9 +335,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

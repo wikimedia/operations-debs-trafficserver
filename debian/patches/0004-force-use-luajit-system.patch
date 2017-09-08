@@ -2,8 +2,8 @@
 +++ b/configure.ac
 @@ -644,7 +644,7 @@ case $host_os in
        *amd64*)
-         TS_ADDTO(CFLAGS, [-m64])
-         TS_ADDTO(CXXFLAGS, [-m64])
+         TS_ADDTO(AM_CFLAGS, [-m64])
+         TS_ADDTO(AM_CXXFLAGS, [-m64])
 -        TS_ADDTO(LUAJIT_LDFLAGS, [-m64])
 +        TS_ADDTO(LUA_LDFLAGS, [-m64])
          ;;
@@ -33,7 +33,7 @@
      ])
  
      AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
-@@ -1182,6 +1179,11 @@ TS_CHECK_ZLIB
+@@ -1174,6 +1171,11 @@ TS_CHECK_ZLIB
  TS_CHECK_LZMA
  
  #
@@ -45,7 +45,7 @@
  # Tcl macros provided by build/tcl.m4
  #
  # this will error out if tclConfig.sh is not found
-@@ -1483,18 +1485,6 @@ TS_CHECK_TCMALLOC
+@@ -1475,18 +1477,6 @@ TS_CHECK_TCMALLOC
  # Check for libreadline/libedit
  AX_LIB_READLINE
  
@@ -64,7 +64,7 @@
  # We should be able to build http_load if epoll(2) is available.
  AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
  
-@@ -1901,20 +1891,6 @@ iocore_include_dirs="\
+@@ -1893,20 +1883,6 @@ iocore_include_dirs="\
  -I\$(abs_top_srcdir)/iocore/utils \
  -I\$(abs_top_srcdir)/iocore/dns"
  
@@ -82,10 +82,10 @@
 -TS_REMOVEFROM(LUAJIT_CFLAGS, "-fcoverage-mapping")
 -TS_REMOVEFROM(LUAJIT_CFLAGS, "--coverage")
 -
- AC_SUBST([CC])
- AC_SUBST([CFLAGS])
- AC_SUBST([CXX])
-@@ -2018,9 +1994,10 @@ AC_MSG_NOTICE([Build option summary:
+ AC_SUBST([AM_CPPFLAGS])
+ AC_SUBST([AM_CFLAGS])
+ AC_SUBST([AM_CXXFLAGS])
+@@ -2006,7 +1982,8 @@ AC_MSG_NOTICE([Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -96,21 +96,19 @@
 +    LUA_CFLAGS:         $LUA_CFLAGS
 +    LUA_CPPFLAGS:	$LUA_CPPFLAGS
 +    LUA_LDFLAGS:        $LUA_LDFLAGS
-     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
-     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
-     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
+ ])
 --- a/configure
 +++ b/configure
-@@ -645,7 +645,7 @@ iocore_include_dirs
- LIBTOOL_LINK_FLAGS
- EXTRA_CXX_LDFLAGS
- EXTRA_CC_LDFLAGS
+@@ -646,7 +646,7 @@ AM_LDFLAGS
+ AM_CXXFLAGS
+ AM_CFLAGS
+ AM_CPPFLAGS
 -LUAJIT_CFLAGS
 +LUA_CFLAGS
  BUILD_REMAP_STATS_PLUGIN_FALSE
  BUILD_REMAP_STATS_PLUGIN_TRUE
  has_in6_is_addr_unspecified
-@@ -708,8 +708,8 @@ BUILD_TRAFFIC_TOP_FALSE
+@@ -709,8 +709,8 @@ BUILD_TRAFFIC_TOP_FALSE
  BUILD_TRAFFIC_TOP_TRUE
  BUILD_HTTP_LOAD_FALSE
  BUILD_HTTP_LOAD_TRUE
@@ -121,7 +119,7 @@
  LIBREADLINE
  has_tcmalloc
  jemalloch
-@@ -9360,22 +9360,22 @@ case $host_os in
+@@ -9359,22 +9359,22 @@ case $host_os in
    fi
  
  
@@ -150,7 +148,7 @@
        fi
      done
    fi
-@@ -21651,7 +21651,6 @@ fi
+@@ -21650,7 +21650,6 @@ fi
        debug_opt="-ggdb3 $common_opt -Qunused-arguments"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
        cxx_opt="-Wno-invalid-offsetof"
@@ -158,7 +156,7 @@
  
  fi
  
-@@ -21677,7 +21676,6 @@ fi
+@@ -21676,7 +21675,6 @@ fi
        debug_opt="-g $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -166,7 +164,7 @@
  
  else
  
-@@ -21747,7 +21745,6 @@ fi
+@@ -21746,7 +21744,6 @@ fi
        debug_opt="-ggdb3 $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -174,7 +172,7 @@
  
  fi
  
-@@ -27943,19 +27940,6 @@ done
+@@ -27914,19 +27911,6 @@ done
    fi
  
  
@@ -194,7 +192,7 @@
  # We should be able to build http_load if epoll(2) is available.
   if test x"$ac_cv_func_epoll_ctl" = x"yes"; then
    BUILD_HTTP_LOAD_TRUE=
-@@ -29120,22 +29104,22 @@ iocore_include_dirs="\
+@@ -29091,22 +29075,22 @@ iocore_include_dirs="\
  # can strip the coverage flags from Lua while keeping them by
  # default everywhere else.
  
@@ -223,7 +221,7 @@
        fi
      done
    fi
-@@ -29143,13 +29127,13 @@ iocore_include_dirs="\
+@@ -29114,13 +29098,13 @@ iocore_include_dirs="\
  
  
  
@@ -241,7 +239,7 @@
        if test "x$i" != "x"-fsanitize=address""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29157,19 +29141,19 @@ iocore_include_dirs="\
+@@ -29128,19 +29112,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -267,7 +265,7 @@
        if test "x$i" != "x"-fsanitize=thread""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29177,19 +29161,19 @@ iocore_include_dirs="\
+@@ -29148,19 +29132,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -293,7 +291,7 @@
        if test "x$i" != "x"-fsanitize=memory""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29197,19 +29181,19 @@ iocore_include_dirs="\
+@@ -29168,19 +29152,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -319,7 +317,7 @@
        if test "x$i" != "x"-fprofile-instr-generate""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29217,19 +29201,19 @@ iocore_include_dirs="\
+@@ -29188,19 +29172,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -345,7 +343,7 @@
        if test "x$i" != "x"-fcoverage-mapping""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29237,19 +29221,19 @@ iocore_include_dirs="\
+@@ -29208,19 +29192,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -371,7 +369,7 @@
        if test "x$i" != "x"--coverage""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -29257,8 +29241,8 @@ iocore_include_dirs="\
+@@ -29228,8 +29212,8 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -382,7 +380,7 @@
      fi
    fi
  
-@@ -32033,9 +32017,9 @@ fi
+@@ -32000,9 +31984,9 @@ fi
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -392,10 +390,10 @@
 +    LUA_CFLAGS:                $LUA_CFLAGS
 +    LUA_CPPFLAGS:      $LUA_CPPFLAGS
 +    LUA_LDFLAGS:       $LUA_LDFLAGS
-     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
-     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
-     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
-@@ -32054,9 +32038,9 @@ $as_echo "$as_me: Build option summary:
+ " >&5
+ $as_echo "$as_me: Build option summary:
+     CC:                 $CC
+@@ -32018,7 +32002,7 @@ $as_echo "$as_me: Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -405,9 +403,7 @@
 +    LUA_CFLAGS:      $LUA_CFLAGS
 +    LUA_CPPFLAGS:	$LUA_CPPFLAGS
 +    LUA_LDFLAGS:     $LUA_LDFLAGS
-     EXTRA_CC_LDFLAGS:   $EXTRA_CC_LDFLAGS
-     EXTRA_CXX_LDFLAGS:  $EXTRA_CXX_LDFLAGS
-     LIBTOOL_LINK_FLAGS: $LIBTOOL_LINK_FLAGS
+ " >&6;}
 --- /dev/null
 +++ b/build/luajit.m4
 @@ -0,0 +1,48 @@
@@ -461,7 +457,7 @@
 +])
 --- a/Makefile.in
 +++ b/Makefile.in
-@@ -337,9 +337,9 @@ LIPO = @LIPO@
+@@ -336,9 +336,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -476,7 +472,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/rc/Makefile.in
 +++ b/rc/Makefile.in
-@@ -278,9 +278,9 @@ LIPO = @LIPO@
+@@ -280,9 +280,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -491,7 +487,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/doc/Makefile.in
 +++ b/doc/Makefile.in
-@@ -274,9 +274,9 @@ LIPO = @LIPO@
+@@ -273,9 +273,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -506,7 +502,7 @@
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/example/Makefile.in
 +++ b/example/Makefile.in
-@@ -805,9 +805,9 @@ LIPO = @LIPO@
+@@ -809,9 +809,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
