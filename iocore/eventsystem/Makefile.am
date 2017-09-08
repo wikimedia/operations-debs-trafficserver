@@ -16,7 +16,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-AM_CPPFLAGS = \
+AM_CPPFLAGS += \
   -I$(abs_top_srcdir)/lib \
   -I$(abs_top_srcdir)/lib/records
 
@@ -71,8 +71,7 @@ libinkevent_a_SOURCES = \
 check_PROGRAMS = test_Buffer test_Event
 
 test_LD_FLAGS = \
-  @EXTRA_CXX_LDFLAGS@ \
-  @LIBTOOL_LINK_FLAGS@ \
+  @AM_LDFLAGS@ \
   @OPENSSL_LDFLAGS@
 
 test_CPP_FLAGS = \

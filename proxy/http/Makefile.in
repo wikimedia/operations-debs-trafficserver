@@ -322,8 +322,18 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@ $(iocore_include_dirs) \
+	-I$(abs_top_srcdir)/proxy/api/ts -I$(abs_top_srcdir)/proxy \
+	-I$(abs_top_srcdir)/lib -I$(abs_top_srcdir)/lib/records \
+	-I$(abs_top_srcdir)/mgmt -I$(abs_top_srcdir)/mgmt/utils \
+	-I$(abs_top_srcdir)/proxy/hdrs \
+	-I$(abs_top_srcdir)/proxy/shared \
+	-I$(abs_top_srcdir)/proxy/http/remap \
+	-I$(abs_top_srcdir)/proxy/logging \
+	-I$(abs_top_srcdir)/proxy/http2
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -361,8 +371,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -395,7 +403,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -689,20 +696,6 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
 SUBDIRS = remap
-AM_CPPFLAGS = \
-  $(iocore_include_dirs) \
-  -I$(abs_top_srcdir)/proxy/api/ts \
-  -I$(abs_top_srcdir)/proxy \
-  -I$(abs_top_srcdir)/lib \
-  -I$(abs_top_srcdir)/lib/records \
-  -I$(abs_top_srcdir)/mgmt \
-  -I$(abs_top_srcdir)/mgmt/utils \
-  -I$(abs_top_srcdir)/proxy/hdrs \
-  -I$(abs_top_srcdir)/proxy/shared \
-  -I$(abs_top_srcdir)/proxy/http/remap \
-  -I$(abs_top_srcdir)/proxy/logging \
-  -I$(abs_top_srcdir)/proxy/http2
-
 noinst_HEADERS = HttpProxyServerMain.h
 noinst_LIBRARIES = libhttp.a
 libhttp_a_SOURCES = HttpSessionAccept.cc HttpSessionAccept.h \

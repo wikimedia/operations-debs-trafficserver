@@ -119,6 +119,7 @@ SocksEntry::findServer()
 
   default:
     ink_assert(!"Unexpected event");
+  // fallthrough
   case PARENT_DIRECT:
   case PARENT_FAIL:
     memset(&server_addr, 0, sizeof(server_addr));
@@ -417,9 +418,9 @@ SocksEntry::mainEvent(int event, void *data)
      This is server_connect_timeout. So we treat this as server being
      down.
      Should cancel any pending connect() action. Important on windows
+  */
+  // fallthrough
 
-     fall through
-   */
   case VC_EVENT_ERROR:
     /*This is mostly ECONNREFUSED on Unix */
     SET_HANDLER(&SocksEntry::startEvent);

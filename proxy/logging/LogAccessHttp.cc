@@ -423,6 +423,24 @@ LogAccessHttp::marshal_client_req_text(char *buf)
   -------------------------------------------------------------------------*/
 
 int
+LogAccessHttp::marshal_client_req_timestamp_sec(char *buf)
+{
+  return marshal_milestone_fmt_sec(TS_MILESTONE_UA_BEGIN, buf);
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessHttp::marshal_client_req_timestamp_ms(char *buf)
+{
+  return marshal_milestone_fmt_ms(TS_MILESTONE_UA_BEGIN, buf);
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
 LogAccessHttp::marshal_client_req_http_method(char *buf)
 {
   char *str = nullptr;
@@ -1670,6 +1688,26 @@ LogAccessHttp::marshal_milestone(TSMilestonesType ms, char *buf)
   if (buf) {
     int64_t val = ink_hrtime_to_msec(m_http_sm->milestones[ms]);
     marshal_int(buf, val);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_milestone_fmt_sec(TSMilestonesType type, char *buf)
+{
+  if (buf) {
+    ink_hrtime tsec = ink_hrtime_to_sec(m_http_sm->milestones[type]);
+    marshal_int(buf, tsec);
+  }
+  return INK_MIN_ALIGN;
+}
+
+int
+LogAccessHttp::marshal_milestone_fmt_ms(TSMilestonesType type, char *buf)
+{
+  if (buf) {
+    ink_hrtime tmsec = ink_hrtime_to_msec(m_http_sm->milestones[type]);
+    marshal_int(buf, tmsec);
   }
   return INK_MIN_ALIGN;
 }

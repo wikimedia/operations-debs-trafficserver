@@ -925,7 +925,8 @@ host_triplet = @host@
 check_PROGRAMS = esi/docnode_test$(EXEEXT) esi/parser_test$(EXEEXT) \
 	esi/processor_test$(EXEEXT) esi/utils_test$(EXEEXT) \
 	esi/vars_test$(EXEEXT) esi/gzip_test$(EXEEXT) \
-	header_rewrite/header_rewrite_test$(EXEEXT) $(am__EXEEXT_1)
+	header_rewrite/header_rewrite_test$(EXEEXT) \
+	test_s3auth$(EXEEXT) $(am__EXEEXT_1)
 @BUILD_HEALTHCHECK_PLUGIN_TRUE@am__append_1 = healthchecks/healthchecks.la
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am__append_2 =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/acme/acme.la \
@@ -1049,8 +1050,8 @@ am_esi_combo_handler_la_OBJECTS =  \
 esi_combo_handler_la_OBJECTS = $(am_esi_combo_handler_la_OBJECTS)
 esi_combo_handler_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(esi_combo_handler_la_CXXFLAGS) $(CXXFLAGS) \
-	$(esi_combo_handler_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(esi_combo_handler_la_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
+	$(LDFLAGS) -o $@
 esi_esi_la_DEPENDENCIES = esi/libesicore.la
 am_esi_esi_la_OBJECTS = esi/esi_esi_la-esi.lo \
 	esi/fetcher/esi_esi_la-HttpDataFetcherImpl.lo \
@@ -1059,7 +1060,7 @@ am_esi_esi_la_OBJECTS = esi/esi_esi_la-esi.lo \
 esi_esi_la_OBJECTS = $(am_esi_esi_la_OBJECTS)
 esi_esi_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(esi_esi_la_CXXFLAGS) \
-	$(CXXFLAGS) $(esi_esi_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 esi_libesicore_la_LIBADD =
 am_esi_libesicore_la_OBJECTS = esi/lib/esi_libesicore_la-DocNode.lo \
 	esi/lib/esi_libesicore_la-EsiGunzip.lo \
@@ -1390,11 +1391,6 @@ am__experimental_sslheaders_sslheaders_la_SOURCES_DIST =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_sslheaders_sslheaders_la_OBJECTS = experimental/sslheaders/experimental_sslheaders_sslheaders_la-sslheaders.lo
 experimental_sslheaders_sslheaders_la_OBJECTS =  \
 	$(am_experimental_sslheaders_sslheaders_la_OBJECTS)
-experimental_sslheaders_sslheaders_la_LINK = $(LIBTOOL) $(AM_V_lt) \
-	--tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
-	$(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) \
-	$(experimental_sslheaders_sslheaders_la_LDFLAGS) $(LDFLAGS) -o \
-	$@
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@am_experimental_sslheaders_sslheaders_la_rpath =  \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	-rpath $(pkglibdir)
 experimental_stale_while_revalidate_stale_while_revalidate_la_LIBADD =
@@ -1622,6 +1618,12 @@ header_rewrite_header_rewrite_test_OBJECTS =  \
 	$(am_header_rewrite_header_rewrite_test_OBJECTS)
 header_rewrite_header_rewrite_test_DEPENDENCIES =  \
 	header_rewrite/parser.la
+am_test_s3auth_OBJECTS =  \
+	s3_auth/unit-tests/test_s3auth-main.$(OBJEXT) \
+	s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.$(OBJEXT) \
+	s3_auth/test_s3auth-aws_auth_v4.$(OBJEXT)
+test_s3auth_OBJECTS = $(am_test_s3auth_OBJECTS)
+test_s3auth_DEPENDENCIES = $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -1728,7 +1730,8 @@ SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(esi_parser_test_SOURCES) $(esi_processor_test_SOURCES) \
 	$(esi_utils_test_SOURCES) $(esi_vars_test_SOURCES) \
 	$(experimental_sslheaders_test_sslheaders_SOURCES) \
-	$(header_rewrite_header_rewrite_test_SOURCES)
+	$(header_rewrite_header_rewrite_test_SOURCES) \
+	$(test_s3auth_SOURCES)
 DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(background_fetch_background_fetch_la_SOURCES) \
 	$(conf_remap_conf_remap_la_SOURCES) \
@@ -1783,7 +1786,8 @@ DIST_SOURCES = $(authproxy_authproxy_la_SOURCES) \
 	$(esi_parser_test_SOURCES) $(esi_processor_test_SOURCES) \
 	$(esi_utils_test_SOURCES) $(esi_vars_test_SOURCES) \
 	$(am__experimental_sslheaders_test_sslheaders_SOURCES_DIST) \
-	$(header_rewrite_header_rewrite_test_SOURCES)
+	$(header_rewrite_header_rewrite_test_SOURCES) \
+	$(test_s3auth_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -2084,8 +2088,15 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+
+# Provide a default AM_CPPFLAGS. Automake handles this correctly, but libtool
+# throws an error if we try to do the same with AM_LDFLAGS. Hence, we provide
+# TS_PLUGIN variables that can be used to construct the necessary automake
+# syntax.
+AM_CPPFLAGS = @AM_CPPFLAGS@ $(TS_PLUGIN_CPPFLAGS)
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -2123,8 +2134,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -2157,7 +2166,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -2450,12 +2458,6 @@ TS_PLUGIN_CPPFLAGS = \
   -I$(abs_top_builddir)/lib/cppapi/include \
   -I$(abs_top_srcdir)/lib
 
-
-# Provide a default AM_CPPFLAGS. Automake handles this correctly, but libtool
-# throws an error if we try to do the same with AM_LDFLAGS. Hence, we provide
-# TS_PLUGIN variables that can be used to construct the necessary automake
-# syntax.
-AM_CPPFLAGS = $(TS_PLUGIN_CPPFLAGS)
 Clang_Tidy_Options = -fix -fix-errors
 
 # Sort the filenames to remove duplicates, then filter to retain
@@ -2485,7 +2487,6 @@ pkglib_LTLIBRARIES = authproxy/authproxy.la \
 	$(am__append_6) $(am__append_7) $(am__append_8) \
 	$(am__append_9)
 SUBDIRS = 
-AM_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
 authproxy_authproxy_la_SOURCES = \
 	authproxy/authproxy.cc \
 	authproxy/utils.cc \
@@ -2506,7 +2507,7 @@ ESI_CPPFLAGS = \
 	-I$(srcdir)/esi/lib \
 	-I$(srcdir)/esi/fetcher \
 	-I$(srcdir)/esi/test \
-	$(TS_PLUGIN_CPPFLAGS)
+	$(AM_CPPFLAGS)
 
 
 # Add -Wno-deprecated because ESI uses ext/hash_map.
@@ -2569,7 +2570,6 @@ esi_esi_la_SOURCES = \
 
 esi_esi_la_CPPFLAGS = $(ESI_CPPFLAGS)
 esi_esi_la_CXXFLAGS = $(ESI_CXXFLAGS)
-esi_esi_la_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
 esi_esi_la_LIBADD = esi/libesicore.la
 esi_combo_handler_la_SOURCES = \
 	esi/combo_handler.cc \
@@ -2578,7 +2578,6 @@ esi_combo_handler_la_SOURCES = \
 
 esi_combo_handler_la_CPPFLAGS = $(ESI_CPPFLAGS)
 esi_combo_handler_la_CXXFLAGS = $(ESI_CXXFLAGS)
-esi_combo_handler_la_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
 esi_combo_handler_la_LIBADD = esi/libesicore.la
 esi_docnode_test_CPPFLAGS = $(ESI_CPPFLAGS)
 esi_docnode_test_CXXFLAGS = $(ESI_CXXFLAGS)
@@ -2657,6 +2656,13 @@ libloader_libloader_la_SOURCES = \
 regex_remap_regex_remap_la_SOURCES = regex_remap/regex_remap.cc
 regex_revalidate_regex_revalidate_la_SOURCES = regex_revalidate/regex_revalidate.c
 s3_auth_s3_auth_la_SOURCES = s3_auth/s3_auth.cc s3_auth/aws_auth_v4.cc
+test_s3auth_CPPFLAGS = $(AM_CPPFLAGS) -I$(abs_top_srcdir)/tests/include -DAWS_AUTH_V4_UNIT_TEST
+test_s3auth_LDADD = $(OPENSSL_LIBS)
+test_s3auth_SOURCES = \
+    s3_auth/unit-tests/main.cpp \
+    s3_auth/unit-tests/test_aws_auth_v4.cc \
+    s3_auth/aws_auth_v4.cc
+
 stats_over_http_stats_over_http_la_SOURCES = stats_over_http/stats_over_http.c
 tcpinfo_tcpinfo_la_SOURCES = tcpinfo/tcpinfo.cc
 xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
@@ -2796,9 +2802,6 @@ xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(AM_CPPFLAGS) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@OPENSSL_INCLUDES@
 
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_sslheaders_la_LDFLAGS = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@        $(TS_PLUGIN_LD_FLAGS)
-
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_sslheaders_la_LIBADD = \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@        experimental/sslheaders/libsslhdr.la
 
@@ -2813,7 +2816,7 @@ xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_LDFLAGS = @OPENSSL_LDFLAGS@
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@experimental_sslheaders_test_sslheaders_LDADD = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@LIBTOOL_LINK_FLAGS@ \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@AM_LDFLAGS@ \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	experimental/sslheaders/libsslhdr.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	$(abs_top_builddir)/lib/ts/libtsutil.la \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@	@OPENSSL_LIBS@
@@ -2869,7 +2872,7 @@ xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@  experimental/cache_key_genid/cache_key_genid.c
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@experimental_cache_key_genid_cache_key_genid_la_LDFLAGS = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@    $(TS_PLUGIN_LD_FLAGS) $(LIB_KYOTOCABINET)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_KYOTOCABINET_TRUE@    $(AM_LDFLAGS) $(LIB_KYOTOCABINET)
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@experimental_webp_transform_WebpTransform_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBMAGICKCPP_CFLAGS)
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@experimental_webp_transform_WebpTransform_la_CXXFLAGS = $(AM_CXXFLAGS) -Wno-unused-variable
@@ -2877,7 +2880,7 @@ xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@  experimental/webp_transform/ImageTransform.cc
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@experimental_webp_transform_WebpTransform_la_LDFLAGS = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@  $(TS_PLUGIN_LD_FLAGS) \
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@  $(AM_LDFLAGS) \
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@  -L$(top_builddir)/lib/cppapi
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@BUILD_WEBP_TRANSFORM_PLUGIN_TRUE@experimental_webp_transform_WebpTransform_la_LIBADD = \
@@ -2892,14 +2895,14 @@ xdebug_xdebug_la_SOURCES = xdebug/xdebug.cc
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	experimental/mysql_remap/lib/iniparser.h
 
 @BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@experimental_mysql_remap_mysql_remap_la_LDFLAGS = \
-@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	$(TS_PLUGIN_LD_FLAGS) $(LIB_MYSQLCLIENT)
+@BUILD_EXPERIMENTAL_PLUGINS_TRUE@@HAS_MYSQL_TRUE@	$(AM_LDFLAGS) $(LIB_MYSQLCLIENT)
 
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 TESTS = $(check_PROGRAMS)
 all: all-recursive
 
 .SUFFIXES:
-.SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
+.SUFFIXES: .c .cc .cpp .lo .log .o .obj .test .test$(EXEEXT) .trs
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/plugins.mk $(top_srcdir)/build/tidy.mk $(srcdir)/authproxy/Makefile.inc $(srcdir)/background_fetch/Makefile.inc $(srcdir)/conf_remap/Makefile.inc $(srcdir)/esi/Makefile.inc $(srcdir)/generator/Makefile.inc $(srcdir)/gzip/Makefile.inc $(srcdir)/header_rewrite/Makefile.inc $(srcdir)/healthchecks/Makefile.inc $(srcdir)/libloader/Makefile.inc $(srcdir)/regex_remap/Makefile.inc $(srcdir)/regex_revalidate/Makefile.inc $(srcdir)/s3_auth/Makefile.inc $(srcdir)/stats_over_http/Makefile.inc $(srcdir)/tcpinfo/Makefile.inc $(srcdir)/xdebug/Makefile.inc $(srcdir)/experimental/acme/Makefile.inc $(srcdir)/experimental/balancer/Makefile.inc $(srcdir)/experimental/buffer_upload/Makefile.inc $(srcdir)/experimental/cache_promote/Makefile.inc $(srcdir)/experimental/cache_range_requests/Makefile.inc $(srcdir)/experimental/cachekey/Makefile.inc $(srcdir)/experimental/collapsed_connection/Makefile.inc $(srcdir)/experimental/collapsed_forwarding/Makefile.inc $(srcdir)/experimental/custom_redirect/Makefile.inc $(srcdir)/experimental/epic/Makefile.inc $(srcdir)/experimental/escalate/Makefile.inc $(srcdir)/experimental/geoip_acl/Makefile.inc $(srcdir)/experimental/header_freq/Makefile.inc $(srcdir)/experimental/header_normalize/Makefile.inc $(srcdir)/experimental/hipes/Makefile.inc $(srcdir)/experimental/hook-trace/Makefile.inc $(srcdir)/experimental/inliner/Makefile.inc $(srcdir)/experimental/memcache/Makefile.inc $(srcdir)/experimental/metalink/Makefile.inc $(srcdir)/experimental/money_trace/Makefile.inc $(srcdir)/experimental/mp4/Makefile.inc $(srcdir)/experimental/multiplexer/Makefile.inc $(srcdir)/experimental/remap_purge/Makefile.inc $(srcdir)/experimental/ssl_cert_loader/Makefile.inc $(srcdir)/experimental/sslheaders/Makefile.inc $(srcdir)/experimental/stale_while_revalidate/Makefile.inc $(srcdir)/experimental/stream_editor/Makefile.inc $(srcdir)/experimental/ts_lua/Makefile.inc $(srcdir)/experimental/url_sig/Makefile.inc $(srcdir)/experimental/memcached_remap/Makefile.inc $(srcdir)/experimental/remap_stats/Makefile.inc $(srcdir)/experimental/cache_key_genid/Makefile.inc $(srcdir)/experimental/webp_transform/Makefile.inc $(srcdir)/experimental/mysql_remap/Makefile.inc $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -3527,7 +3530,7 @@ experimental/sslheaders/experimental_sslheaders_sslheaders_la-sslheaders.lo:  \
 	experimental/sslheaders/$(DEPDIR)/$(am__dirstamp)
 
 experimental/sslheaders/sslheaders.la: $(experimental_sslheaders_sslheaders_la_OBJECTS) $(experimental_sslheaders_sslheaders_la_DEPENDENCIES) $(EXTRA_experimental_sslheaders_sslheaders_la_DEPENDENCIES) experimental/sslheaders/$(am__dirstamp)
-	$(AM_V_CXXLD)$(experimental_sslheaders_sslheaders_la_LINK) $(am_experimental_sslheaders_sslheaders_la_rpath) $(experimental_sslheaders_sslheaders_la_OBJECTS) $(experimental_sslheaders_sslheaders_la_LIBADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(am_experimental_sslheaders_sslheaders_la_rpath) $(experimental_sslheaders_sslheaders_la_OBJECTS) $(experimental_sslheaders_sslheaders_la_LIBADD) $(LIBS)
 experimental/stale_while_revalidate/$(am__dirstamp):
 	@$(MKDIR_P) experimental/stale_while_revalidate
 	@: > experimental/stale_while_revalidate/$(am__dirstamp)
@@ -3877,6 +3880,24 @@ header_rewrite/header_rewrite_test.$(OBJEXT):  \
 header_rewrite/header_rewrite_test$(EXEEXT): $(header_rewrite_header_rewrite_test_OBJECTS) $(header_rewrite_header_rewrite_test_DEPENDENCIES) $(EXTRA_header_rewrite_header_rewrite_test_DEPENDENCIES) header_rewrite/$(am__dirstamp)
 	@rm -f header_rewrite/header_rewrite_test$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(header_rewrite_header_rewrite_test_OBJECTS) $(header_rewrite_header_rewrite_test_LDADD) $(LIBS)
+s3_auth/unit-tests/$(am__dirstamp):
+	@$(MKDIR_P) s3_auth/unit-tests
+	@: > s3_auth/unit-tests/$(am__dirstamp)
+s3_auth/unit-tests/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) s3_auth/unit-tests/$(DEPDIR)
+	@: > s3_auth/unit-tests/$(DEPDIR)/$(am__dirstamp)
+s3_auth/unit-tests/test_s3auth-main.$(OBJEXT):  \
+	s3_auth/unit-tests/$(am__dirstamp) \
+	s3_auth/unit-tests/$(DEPDIR)/$(am__dirstamp)
+s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.$(OBJEXT):  \
+	s3_auth/unit-tests/$(am__dirstamp) \
+	s3_auth/unit-tests/$(DEPDIR)/$(am__dirstamp)
+s3_auth/test_s3auth-aws_auth_v4.$(OBJEXT): s3_auth/$(am__dirstamp) \
+	s3_auth/$(DEPDIR)/$(am__dirstamp)
+
+test_s3auth$(EXEEXT): $(test_s3auth_OBJECTS) $(test_s3auth_DEPENDENCIES) $(EXTRA_test_s3auth_DEPENDENCIES) 
+	@rm -f test_s3auth$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_s3auth_OBJECTS) $(test_s3auth_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -3980,6 +4001,7 @@ mostlyclean-compile:
 	-rm -f regex_revalidate/*.lo
 	-rm -f s3_auth/*.$(OBJEXT)
 	-rm -f s3_auth/*.lo
+	-rm -f s3_auth/unit-tests/*.$(OBJEXT)
 	-rm -f stats_over_http/*.$(OBJEXT)
 	-rm -f stats_over_http/*.lo
 	-rm -f tcpinfo/*.$(OBJEXT)
@@ -4136,6 +4158,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@regex_revalidate/$(DEPDIR)/regex_revalidate.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@s3_auth/$(DEPDIR)/aws_auth_v4.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@s3_auth/$(DEPDIR)/s3_auth.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@stats_over_http/$(DEPDIR)/stats_over_http.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tcpinfo/$(DEPDIR)/tcpinfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@xdebug/$(DEPDIR)/xdebug.Plo@am__quote@
@@ -4762,6 +4787,72 @@ experimental/sslheaders/experimental_sslheaders_test_sslheaders-test_sslheaders.
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_sslheaders_test_sslheaders_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o experimental/sslheaders/experimental_sslheaders_test_sslheaders-test_sslheaders.obj `if test -f 'experimental/sslheaders/test_sslheaders.cc'; then $(CYGPATH_W) 'experimental/sslheaders/test_sslheaders.cc'; else $(CYGPATH_W) '$(srcdir)/experimental/sslheaders/test_sslheaders.cc'; fi`
 
+s3_auth/unit-tests/test_s3auth-main.o: s3_auth/unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/unit-tests/test_s3auth-main.o -MD -MP -MF s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Tpo -c -o s3_auth/unit-tests/test_s3auth-main.o `test -f 's3_auth/unit-tests/main.cpp' || echo '$(srcdir)/'`s3_auth/unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Tpo s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/unit-tests/main.cpp' object='s3_auth/unit-tests/test_s3auth-main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/unit-tests/test_s3auth-main.o `test -f 's3_auth/unit-tests/main.cpp' || echo '$(srcdir)/'`s3_auth/unit-tests/main.cpp
+
+s3_auth/unit-tests/test_s3auth-main.obj: s3_auth/unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/unit-tests/test_s3auth-main.obj -MD -MP -MF s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Tpo -c -o s3_auth/unit-tests/test_s3auth-main.obj `if test -f 's3_auth/unit-tests/main.cpp'; then $(CYGPATH_W) 's3_auth/unit-tests/main.cpp'; else $(CYGPATH_W) '$(srcdir)/s3_auth/unit-tests/main.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Tpo s3_auth/unit-tests/$(DEPDIR)/test_s3auth-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/unit-tests/main.cpp' object='s3_auth/unit-tests/test_s3auth-main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/unit-tests/test_s3auth-main.obj `if test -f 's3_auth/unit-tests/main.cpp'; then $(CYGPATH_W) 's3_auth/unit-tests/main.cpp'; else $(CYGPATH_W) '$(srcdir)/s3_auth/unit-tests/main.cpp'; fi`
+
+s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.o: s3_auth/unit-tests/test_aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.o -MD -MP -MF s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo -c -o s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.o `test -f 's3_auth/unit-tests/test_aws_auth_v4.cc' || echo '$(srcdir)/'`s3_auth/unit-tests/test_aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/unit-tests/test_aws_auth_v4.cc' object='s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.o `test -f 's3_auth/unit-tests/test_aws_auth_v4.cc' || echo '$(srcdir)/'`s3_auth/unit-tests/test_aws_auth_v4.cc
+
+s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.obj: s3_auth/unit-tests/test_aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.obj -MD -MP -MF s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo -c -o s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.obj `if test -f 's3_auth/unit-tests/test_aws_auth_v4.cc'; then $(CYGPATH_W) 's3_auth/unit-tests/test_aws_auth_v4.cc'; else $(CYGPATH_W) '$(srcdir)/s3_auth/unit-tests/test_aws_auth_v4.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Tpo s3_auth/unit-tests/$(DEPDIR)/test_s3auth-test_aws_auth_v4.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/unit-tests/test_aws_auth_v4.cc' object='s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/unit-tests/test_s3auth-test_aws_auth_v4.obj `if test -f 's3_auth/unit-tests/test_aws_auth_v4.cc'; then $(CYGPATH_W) 's3_auth/unit-tests/test_aws_auth_v4.cc'; else $(CYGPATH_W) '$(srcdir)/s3_auth/unit-tests/test_aws_auth_v4.cc'; fi`
+
+s3_auth/test_s3auth-aws_auth_v4.o: s3_auth/aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/test_s3auth-aws_auth_v4.o -MD -MP -MF s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Tpo -c -o s3_auth/test_s3auth-aws_auth_v4.o `test -f 's3_auth/aws_auth_v4.cc' || echo '$(srcdir)/'`s3_auth/aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Tpo s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/aws_auth_v4.cc' object='s3_auth/test_s3auth-aws_auth_v4.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/test_s3auth-aws_auth_v4.o `test -f 's3_auth/aws_auth_v4.cc' || echo '$(srcdir)/'`s3_auth/aws_auth_v4.cc
+
+s3_auth/test_s3auth-aws_auth_v4.obj: s3_auth/aws_auth_v4.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT s3_auth/test_s3auth-aws_auth_v4.obj -MD -MP -MF s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Tpo -c -o s3_auth/test_s3auth-aws_auth_v4.obj `if test -f 's3_auth/aws_auth_v4.cc'; then $(CYGPATH_W) 's3_auth/aws_auth_v4.cc'; else $(CYGPATH_W) '$(srcdir)/s3_auth/aws_auth_v4.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Tpo s3_auth/$(DEPDIR)/test_s3auth-aws_auth_v4.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='s3_auth/aws_auth_v4.cc' object='s3_auth/test_s3auth-aws_auth_v4.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_s3auth_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o s3_auth/test_s3auth-aws_auth_v4.obj `if test -f 's3_auth/aws_auth_v4.cc'; then $(CYGPATH_W) 's3_auth/aws_auth_v4.cc'; else $(CYGPATH_W) '$(srcdir)/s3_auth/aws_auth_v4.cc'; fi`
+
+.cpp.o:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ $<
+
+.cpp.obj:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+.cpp.lo:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
+@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
@@ -5111,6 +5202,13 @@ header_rewrite/header_rewrite_test.log: header_rewrite/header_rewrite_test$(EXEE
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_s3auth.log: test_s3auth$(EXEEXT)
+	@p='test_s3auth$(EXEEXT)'; \
+	b='test_s3auth'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 experimental/sslheaders/test_sslheaders.log: experimental/sslheaders/test_sslheaders$(EXEEXT)
 	@p='experimental/sslheaders/test_sslheaders$(EXEEXT)'; \
 	b='experimental/sslheaders/test_sslheaders'; \
@@ -5327,6 +5425,8 @@ distclean-generic:
 	-rm -f regex_revalidate/$(am__dirstamp)
 	-rm -f s3_auth/$(DEPDIR)/$(am__dirstamp)
 	-rm -f s3_auth/$(am__dirstamp)
+	-rm -f s3_auth/unit-tests/$(DEPDIR)/$(am__dirstamp)
+	-rm -f s3_auth/unit-tests/$(am__dirstamp)
 	-rm -f stats_over_http/$(DEPDIR)/$(am__dirstamp)
 	-rm -f stats_over_http/$(am__dirstamp)
 	-rm -f tcpinfo/$(DEPDIR)/$(am__dirstamp)
@@ -5343,7 +5443,7 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
 	clean-noinstLTLIBRARIES clean-pkglibLTLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
-	-rm -rf authproxy/$(DEPDIR) background_fetch/$(DEPDIR) conf_remap/$(DEPDIR) esi/$(DEPDIR) esi/fetcher/$(DEPDIR) esi/lib/$(DEPDIR) esi/test/$(DEPDIR) experimental/acme/$(DEPDIR) experimental/balancer/$(DEPDIR) experimental/buffer_upload/$(DEPDIR) experimental/cache_key_genid/$(DEPDIR) experimental/cache_promote/$(DEPDIR) experimental/cache_range_requests/$(DEPDIR) experimental/cachekey/$(DEPDIR) experimental/collapsed_connection/$(DEPDIR) experimental/collapsed_forwarding/$(DEPDIR) experimental/custom_redirect/$(DEPDIR) experimental/epic/$(DEPDIR) experimental/escalate/$(DEPDIR) experimental/geoip_acl/$(DEPDIR) experimental/header_freq/$(DEPDIR) experimental/header_normalize/$(DEPDIR) experimental/hipes/$(DEPDIR) experimental/hook-trace/$(DEPDIR) experimental/inliner/$(DEPDIR) experimental/memcache/$(DEPDIR) experimental/memcached_remap/$(DEPDIR) experimental/metalink/$(DEPDIR) experimental/money_trace/$(DEPDIR) experimental/mp4/$(DEPDIR) experimental/multiplexer/$(DEPDIR) experimental/mysql_remap/$(DEPDIR) experimental/mysql_remap/lib/$(DEPDIR) experimental/remap_purge/$(DEPDIR) experimental/remap_stats/$(DEPDIR) experimental/ssl_cert_loader/$(DEPDIR) experimental/sslheaders/$(DEPDIR) experimental/stale_while_revalidate/$(DEPDIR) experimental/stream_editor/$(DEPDIR) experimental/ts_lua/$(DEPDIR) experimental/url_sig/$(DEPDIR) experimental/webp_transform/$(DEPDIR) generator/$(DEPDIR) gzip/$(DEPDIR) header_rewrite/$(DEPDIR) healthchecks/$(DEPDIR) libloader/$(DEPDIR) regex_remap/$(DEPDIR) regex_revalidate/$(DEPDIR) s3_auth/$(DEPDIR) stats_over_http/$(DEPDIR) tcpinfo/$(DEPDIR) xdebug/$(DEPDIR)
+	-rm -rf authproxy/$(DEPDIR) background_fetch/$(DEPDIR) conf_remap/$(DEPDIR) esi/$(DEPDIR) esi/fetcher/$(DEPDIR) esi/lib/$(DEPDIR) esi/test/$(DEPDIR) experimental/acme/$(DEPDIR) experimental/balancer/$(DEPDIR) experimental/buffer_upload/$(DEPDIR) experimental/cache_key_genid/$(DEPDIR) experimental/cache_promote/$(DEPDIR) experimental/cache_range_requests/$(DEPDIR) experimental/cachekey/$(DEPDIR) experimental/collapsed_connection/$(DEPDIR) experimental/collapsed_forwarding/$(DEPDIR) experimental/custom_redirect/$(DEPDIR) experimental/epic/$(DEPDIR) experimental/escalate/$(DEPDIR) experimental/geoip_acl/$(DEPDIR) experimental/header_freq/$(DEPDIR) experimental/header_normalize/$(DEPDIR) experimental/hipes/$(DEPDIR) experimental/hook-trace/$(DEPDIR) experimental/inliner/$(DEPDIR) experimental/memcache/$(DEPDIR) experimental/memcached_remap/$(DEPDIR) experimental/metalink/$(DEPDIR) experimental/money_trace/$(DEPDIR) experimental/mp4/$(DEPDIR) experimental/multiplexer/$(DEPDIR) experimental/mysql_remap/$(DEPDIR) experimental/mysql_remap/lib/$(DEPDIR) experimental/remap_purge/$(DEPDIR) experimental/remap_stats/$(DEPDIR) experimental/ssl_cert_loader/$(DEPDIR) experimental/sslheaders/$(DEPDIR) experimental/stale_while_revalidate/$(DEPDIR) experimental/stream_editor/$(DEPDIR) experimental/ts_lua/$(DEPDIR) experimental/url_sig/$(DEPDIR) experimental/webp_transform/$(DEPDIR) generator/$(DEPDIR) gzip/$(DEPDIR) header_rewrite/$(DEPDIR) healthchecks/$(DEPDIR) libloader/$(DEPDIR) regex_remap/$(DEPDIR) regex_revalidate/$(DEPDIR) s3_auth/$(DEPDIR) s3_auth/unit-tests/$(DEPDIR) stats_over_http/$(DEPDIR) tcpinfo/$(DEPDIR) xdebug/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -5389,7 +5489,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-recursive
-	-rm -rf authproxy/$(DEPDIR) background_fetch/$(DEPDIR) conf_remap/$(DEPDIR) esi/$(DEPDIR) esi/fetcher/$(DEPDIR) esi/lib/$(DEPDIR) esi/test/$(DEPDIR) experimental/acme/$(DEPDIR) experimental/balancer/$(DEPDIR) experimental/buffer_upload/$(DEPDIR) experimental/cache_key_genid/$(DEPDIR) experimental/cache_promote/$(DEPDIR) experimental/cache_range_requests/$(DEPDIR) experimental/cachekey/$(DEPDIR) experimental/collapsed_connection/$(DEPDIR) experimental/collapsed_forwarding/$(DEPDIR) experimental/custom_redirect/$(DEPDIR) experimental/epic/$(DEPDIR) experimental/escalate/$(DEPDIR) experimental/geoip_acl/$(DEPDIR) experimental/header_freq/$(DEPDIR) experimental/header_normalize/$(DEPDIR) experimental/hipes/$(DEPDIR) experimental/hook-trace/$(DEPDIR) experimental/inliner/$(DEPDIR) experimental/memcache/$(DEPDIR) experimental/memcached_remap/$(DEPDIR) experimental/metalink/$(DEPDIR) experimental/money_trace/$(DEPDIR) experimental/mp4/$(DEPDIR) experimental/multiplexer/$(DEPDIR) experimental/mysql_remap/$(DEPDIR) experimental/mysql_remap/lib/$(DEPDIR) experimental/remap_purge/$(DEPDIR) experimental/remap_stats/$(DEPDIR) experimental/ssl_cert_loader/$(DEPDIR) experimental/sslheaders/$(DEPDIR) experimental/stale_while_revalidate/$(DEPDIR) experimental/stream_editor/$(DEPDIR) experimental/ts_lua/$(DEPDIR) experimental/url_sig/$(DEPDIR) experimental/webp_transform/$(DEPDIR) generator/$(DEPDIR) gzip/$(DEPDIR) header_rewrite/$(DEPDIR) healthchecks/$(DEPDIR) libloader/$(DEPDIR) regex_remap/$(DEPDIR) regex_revalidate/$(DEPDIR) s3_auth/$(DEPDIR) stats_over_http/$(DEPDIR) tcpinfo/$(DEPDIR) xdebug/$(DEPDIR)
+	-rm -rf authproxy/$(DEPDIR) background_fetch/$(DEPDIR) conf_remap/$(DEPDIR) esi/$(DEPDIR) esi/fetcher/$(DEPDIR) esi/lib/$(DEPDIR) esi/test/$(DEPDIR) experimental/acme/$(DEPDIR) experimental/balancer/$(DEPDIR) experimental/buffer_upload/$(DEPDIR) experimental/cache_key_genid/$(DEPDIR) experimental/cache_promote/$(DEPDIR) experimental/cache_range_requests/$(DEPDIR) experimental/cachekey/$(DEPDIR) experimental/collapsed_connection/$(DEPDIR) experimental/collapsed_forwarding/$(DEPDIR) experimental/custom_redirect/$(DEPDIR) experimental/epic/$(DEPDIR) experimental/escalate/$(DEPDIR) experimental/geoip_acl/$(DEPDIR) experimental/header_freq/$(DEPDIR) experimental/header_normalize/$(DEPDIR) experimental/hipes/$(DEPDIR) experimental/hook-trace/$(DEPDIR) experimental/inliner/$(DEPDIR) experimental/memcache/$(DEPDIR) experimental/memcached_remap/$(DEPDIR) experimental/metalink/$(DEPDIR) experimental/money_trace/$(DEPDIR) experimental/mp4/$(DEPDIR) experimental/multiplexer/$(DEPDIR) experimental/mysql_remap/$(DEPDIR) experimental/mysql_remap/lib/$(DEPDIR) experimental/remap_purge/$(DEPDIR) experimental/remap_stats/$(DEPDIR) experimental/ssl_cert_loader/$(DEPDIR) experimental/sslheaders/$(DEPDIR) experimental/stale_while_revalidate/$(DEPDIR) experimental/stream_editor/$(DEPDIR) experimental/ts_lua/$(DEPDIR) experimental/url_sig/$(DEPDIR) experimental/webp_transform/$(DEPDIR) generator/$(DEPDIR) gzip/$(DEPDIR) header_rewrite/$(DEPDIR) healthchecks/$(DEPDIR) libloader/$(DEPDIR) regex_remap/$(DEPDIR) regex_revalidate/$(DEPDIR) s3_auth/$(DEPDIR) s3_auth/unit-tests/$(DEPDIR) stats_over_http/$(DEPDIR) tcpinfo/$(DEPDIR) xdebug/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

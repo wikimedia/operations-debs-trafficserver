@@ -549,6 +549,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       }
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case READ_DATA: {
       ink_release_assert(_recursion_depth == 0);
@@ -595,6 +596,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       }
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case READ_DATA_DONE: {
       // Convert ICP message from network to host format
@@ -621,6 +623,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
     }
       ink_release_assert(0); // Should never happen
 
+    // fallthrough
     case PROCESS_READ_DATA:
     case ADD_PEER: {
       ink_release_assert(_recursion_depth == 0);
@@ -750,6 +753,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
     }
       ink_release_assert(0); // Should never happen
 
+    // fallthrough
     case AWAITING_CACHE_LOOKUP_RESPONSE: {
       int status  = 0;
       void *data  = s->_rICPmsg->un.query.URL;
@@ -791,6 +795,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
     }
       ink_release_assert(0); // Should never happen
 
+    // fallthrough
     case SEND_REPLY: {
       ink_release_assert(_recursion_depth == 0);
       //
@@ -823,6 +828,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       }
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case WRITE_DONE: {
       s->_peer->writeAction = nullptr;
@@ -850,6 +856,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       }
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case GET_ICP_REQUEST: {
       ink_release_assert(_recursion_depth == 0);
@@ -875,6 +882,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       break; // move to next_state
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case GET_ICP_REQUEST_MUTEX: {
       ink_release_assert(_recursion_depth == 0);
@@ -927,6 +935,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       break; // move to next_state
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case READ_NOT_ACTIVE:
     case READ_NOT_ACTIVE_EXIT: {
@@ -953,6 +962,7 @@ ICPPeerReadCont::PeerReadStateMachine(PeerReadData *s, Event *e)
       }
     }
       ink_release_assert(0); // Should never happen
+    // fallthrough
 
     case READ_PROCESSING_COMPLETE:
     default:
@@ -1103,6 +1113,7 @@ ICPRequestCont::ICPRequestEvent(int event, Event *e)
     }
   }
     ink_release_assert(0); // should never happen
+  // fallthrough
 
   case ICP_DONE:
   default:
@@ -1183,6 +1194,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       }
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_OFF_TERMINATE: {
       if (!MUTEX_TAKE_TRY_LOCK_FOR(mutex, this_ethread(), _cont)) {
@@ -1200,6 +1212,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       return EVENT_DONE;
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_QUEUE_REQUEST: {
       // Place ICP request on the pending request queue
@@ -1271,6 +1284,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       return EVENT_DONE;
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_AWAITING_RESPONSE: {
       Debug("icp", "[ICP_AWAITING_RESPONSE] Id=%d", _sequence_number);
@@ -1299,6 +1313,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       }
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_DEQUEUE_REQUEST: {
       // Remove ICP request from active queue
@@ -1310,6 +1325,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       break; // move to next_state
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_POST_COMPLETION: {
       if (!MUTEX_TAKE_TRY_LOCK_FOR(mutex, this_ethread(), _cont)) {
@@ -1328,6 +1344,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       break; // move to next_state
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
     case ICP_WAIT_SEND_COMPLETE: {
       // wait for all the sends to complete.
       if (npending_actions > 0) {
@@ -1339,6 +1356,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       }
     } break;
       ink_release_assert(0); // should never happen
+    // fallthrough
     case ICP_REQUEST_NOT_ACTIVE: {
       Debug("icp", "[ICP_REQUEST_NOT_ACTIVE] Id=%d", _sequence_number);
       _sequence_number = 0;
@@ -1354,6 +1372,7 @@ ICPRequestCont::ICPStateMachine(int event, void *d)
       return EVENT_DONE;
     }
       ink_release_assert(0); // should never happen
+    // fallthrough
 
     case ICP_DONE:
     default:

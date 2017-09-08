@@ -126,7 +126,7 @@ check_PROGRAMS = test_tsutil$(EXEEXT) test_arena$(EXEEXT) \
 	test_atomic$(EXEEXT) test_freelist$(EXEEXT) \
 	test_geometry$(EXEEXT) test_List$(EXEEXT) test_Map$(EXEEXT) \
 	test_Vec$(EXEEXT) test_X509HostnameValidator$(EXEEXT) \
-	test_MemView$(EXEEXT)
+	test_MemView$(EXEEXT) test_tslib$(EXEEXT)
 subdir = lib/ts
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
@@ -224,60 +224,38 @@ test_List_LDADD = $(LDADD)
 am_test_Map_OBJECTS = test_Map.$(OBJEXT)
 test_Map_OBJECTS = $(am_test_Map_OBJECTS)
 test_Map_DEPENDENCIES = libtsutil.la
-test_Map_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_Map_LDFLAGS) $(LDFLAGS) -o $@
 am_test_MemView_OBJECTS = test_MemView.$(OBJEXT)
 test_MemView_OBJECTS = $(am_test_MemView_OBJECTS)
 test_MemView_DEPENDENCIES = libtsutil.la
 am_test_Vec_OBJECTS = test_Vec.$(OBJEXT)
 test_Vec_OBJECTS = $(am_test_Vec_OBJECTS)
 test_Vec_DEPENDENCIES = libtsutil.la
-test_Vec_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_Vec_LDFLAGS) $(LDFLAGS) -o $@
 am_test_X509HostnameValidator_OBJECTS =  \
 	test_X509HostnameValidator.$(OBJEXT)
 test_X509HostnameValidator_OBJECTS =  \
 	$(am_test_X509HostnameValidator_OBJECTS)
 test_X509HostnameValidator_DEPENDENCIES = libtsutil.la
-test_X509HostnameValidator_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) \
-	$(test_X509HostnameValidator_LDFLAGS) $(LDFLAGS) -o $@
 am_test_arena_OBJECTS = test_arena.$(OBJEXT)
 test_arena_OBJECTS = $(am_test_arena_OBJECTS)
 test_arena_DEPENDENCIES = libtsutil.la
-test_arena_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_arena_LDFLAGS) $(LDFLAGS) -o $@
 am_test_atomic_OBJECTS = test_atomic.$(OBJEXT)
 test_atomic_OBJECTS = $(am_test_atomic_OBJECTS)
 test_atomic_DEPENDENCIES = libtsutil.la
-test_atomic_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_atomic_LDFLAGS) $(LDFLAGS) -o $@
 am_test_freelist_OBJECTS = test_freelist.$(OBJEXT)
 test_freelist_OBJECTS = $(am_test_freelist_OBJECTS)
 test_freelist_DEPENDENCIES = libtsutil.la
-test_freelist_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_freelist_LDFLAGS) $(LDFLAGS) \
-	-o $@
 am_test_geometry_OBJECTS = test_geometry.$(OBJEXT)
 test_geometry_OBJECTS = $(am_test_geometry_OBJECTS)
 test_geometry_DEPENDENCIES = libtsutil.la
-test_geometry_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX \
-	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
-	$(AM_CXXFLAGS) $(CXXFLAGS) $(test_geometry_LDFLAGS) $(LDFLAGS) \
-	-o $@
+am__dirstamp = $(am__leading_dot)dirstamp
+am_test_tslib_OBJECTS = unit-tests/test_tslib-main.$(OBJEXT) \
+	unit-tests/test_tslib-string_view.$(OBJEXT)
+test_tslib_OBJECTS = $(am_test_tslib_OBJECTS)
+test_tslib_DEPENDENCIES = libtsutil.la
 am_test_tsutil_OBJECTS = test_PriorityQueue.$(OBJEXT) \
 	test_Ptr.$(OBJEXT) test_Regex.$(OBJEXT) tests.$(OBJEXT)
 test_tsutil_OBJECTS = $(am_test_tsutil_OBJECTS)
 test_tsutil_DEPENDENCIES = libtsutil.la
-test_tsutil_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
-	$(CXXFLAGS) $(test_tsutil_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -335,13 +313,15 @@ SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(test_MemView_SOURCES) $(test_Vec_SOURCES) \
 	$(test_X509HostnameValidator_SOURCES) $(test_arena_SOURCES) \
 	$(test_atomic_SOURCES) $(test_freelist_SOURCES) \
-	$(test_geometry_SOURCES) $(test_tsutil_SOURCES)
+	$(test_geometry_SOURCES) $(test_tslib_SOURCES) \
+	$(test_tsutil_SOURCES)
 DIST_SOURCES = $(libtsutil_la_SOURCES) $(CompileParseRules_SOURCES) \
 	$(mkdfa_SOURCES) $(test_List_SOURCES) $(test_Map_SOURCES) \
 	$(test_MemView_SOURCES) $(test_Vec_SOURCES) \
 	$(test_X509HostnameValidator_SOURCES) $(test_arena_SOURCES) \
 	$(test_atomic_SOURCES) $(test_freelist_SOURCES) \
-	$(test_geometry_SOURCES) $(test_tsutil_SOURCES)
+	$(test_geometry_SOURCES) $(test_tslib_SOURCES) \
+	$(test_tsutil_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -556,8 +536,10 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@ -I$(abs_top_srcdir)/lib
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -595,8 +577,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -629,7 +609,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -926,7 +905,6 @@ library_includedir = $(includedir)/ts
 library_include_HEADERS = apidefs.h
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 TESTS = $(check_PROGRAMS)
-AM_CPPFLAGS = -I$(abs_top_srcdir)/lib
 lib_LTLIBRARIES = libtsutil.la
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
 libtsutil_la_LIBADD = \
@@ -1085,47 +1063,50 @@ libtsutil_la_SOURCES = \
   lockfile.cc \
   signals.cc \
   signals.h \
+  string_view.h \
   X509HostnameValidator.cc \
   X509HostnameValidator.h
 
 mkdfa_SOURCES = mkdfa.c
 test_atomic_SOURCES = test_atomic.cc
 test_atomic_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_freelist_SOURCES = test_freelist.cc
 test_freelist_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_arena_SOURCES = test_arena.cc
 test_arena_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_geometry_SOURCES = test_geometry.cc
 test_geometry_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_geometry_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_X509HostnameValidator_SOURCES = test_X509HostnameValidator.cc
 test_X509HostnameValidator_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@ @OPENSSL_LIBS@
-test_X509HostnameValidator_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_MemView_SOURCES = test_MemView.cc
 test_MemView_LDADD = libtsutil.la
 test_tsutil_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_tsutil_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_tsutil_SOURCES = \
 	test_PriorityQueue.cc \
 	test_Ptr.cc \
 	test_Regex.cc \
 	tests.cc
 
+test_tslib_CPPFLAGS = $(AM_CPPFLAGS)\
+	-I$(abs_top_srcdir)/tests/include
+
+
+# add you catch based test file here for tslib
+test_tslib_LDADD = libtsutil.la
+test_tslib_SOURCES = \
+	unit-tests/main.cpp \
+	unit-tests/string_view.cpp
+
 CompileParseRules_SOURCES = CompileParseRules.cc
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .cc .lo .log .o .obj .test .test$(EXEEXT) .trs
+.SUFFIXES: .c .cc .cpp .lo .log .o .obj .test .test$(EXEEXT) .trs
 $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am $(top_srcdir)/build/tidy.mk $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -1231,7 +1212,7 @@ test_List$(EXEEXT): $(test_List_OBJECTS) $(test_List_DEPENDENCIES) $(EXTRA_test_
 
 test_Map$(EXEEXT): $(test_Map_OBJECTS) $(test_Map_DEPENDENCIES) $(EXTRA_test_Map_DEPENDENCIES) 
 	@rm -f test_Map$(EXEEXT)
-	$(AM_V_CXXLD)$(test_Map_LINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_Map_OBJECTS) $(test_Map_LDADD) $(LIBS)
 
 test_MemView$(EXEEXT): $(test_MemView_OBJECTS) $(test_MemView_DEPENDENCIES) $(EXTRA_test_MemView_DEPENDENCIES) 
 	@rm -f test_MemView$(EXEEXT)
@@ -1239,34 +1220,50 @@ test_MemView$(EXEEXT): $(test_MemView_OBJECTS) $(test_MemView_DEPENDENCIES) $(EX
 
 test_Vec$(EXEEXT): $(test_Vec_OBJECTS) $(test_Vec_DEPENDENCIES) $(EXTRA_test_Vec_DEPENDENCIES) 
 	@rm -f test_Vec$(EXEEXT)
-	$(AM_V_CXXLD)$(test_Vec_LINK) $(test_Vec_OBJECTS) $(test_Vec_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_Vec_OBJECTS) $(test_Vec_LDADD) $(LIBS)
 
 test_X509HostnameValidator$(EXEEXT): $(test_X509HostnameValidator_OBJECTS) $(test_X509HostnameValidator_DEPENDENCIES) $(EXTRA_test_X509HostnameValidator_DEPENDENCIES) 
 	@rm -f test_X509HostnameValidator$(EXEEXT)
-	$(AM_V_CXXLD)$(test_X509HostnameValidator_LINK) $(test_X509HostnameValidator_OBJECTS) $(test_X509HostnameValidator_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_X509HostnameValidator_OBJECTS) $(test_X509HostnameValidator_LDADD) $(LIBS)
 
 test_arena$(EXEEXT): $(test_arena_OBJECTS) $(test_arena_DEPENDENCIES) $(EXTRA_test_arena_DEPENDENCIES) 
 	@rm -f test_arena$(EXEEXT)
-	$(AM_V_CXXLD)$(test_arena_LINK) $(test_arena_OBJECTS) $(test_arena_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_arena_OBJECTS) $(test_arena_LDADD) $(LIBS)
 
 test_atomic$(EXEEXT): $(test_atomic_OBJECTS) $(test_atomic_DEPENDENCIES) $(EXTRA_test_atomic_DEPENDENCIES) 
 	@rm -f test_atomic$(EXEEXT)
-	$(AM_V_CXXLD)$(test_atomic_LINK) $(test_atomic_OBJECTS) $(test_atomic_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_atomic_OBJECTS) $(test_atomic_LDADD) $(LIBS)
 
 test_freelist$(EXEEXT): $(test_freelist_OBJECTS) $(test_freelist_DEPENDENCIES) $(EXTRA_test_freelist_DEPENDENCIES) 
 	@rm -f test_freelist$(EXEEXT)
-	$(AM_V_CXXLD)$(test_freelist_LINK) $(test_freelist_OBJECTS) $(test_freelist_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_freelist_OBJECTS) $(test_freelist_LDADD) $(LIBS)
 
 test_geometry$(EXEEXT): $(test_geometry_OBJECTS) $(test_geometry_DEPENDENCIES) $(EXTRA_test_geometry_DEPENDENCIES) 
 	@rm -f test_geometry$(EXEEXT)
-	$(AM_V_CXXLD)$(test_geometry_LINK) $(test_geometry_OBJECTS) $(test_geometry_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_geometry_OBJECTS) $(test_geometry_LDADD) $(LIBS)
+unit-tests/$(am__dirstamp):
+	@$(MKDIR_P) unit-tests
+	@: > unit-tests/$(am__dirstamp)
+unit-tests/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) unit-tests/$(DEPDIR)
+	@: > unit-tests/$(DEPDIR)/$(am__dirstamp)
+unit-tests/test_tslib-main.$(OBJEXT): unit-tests/$(am__dirstamp) \
+	unit-tests/$(DEPDIR)/$(am__dirstamp)
+unit-tests/test_tslib-string_view.$(OBJEXT):  \
+	unit-tests/$(am__dirstamp) \
+	unit-tests/$(DEPDIR)/$(am__dirstamp)
+
+test_tslib$(EXEEXT): $(test_tslib_OBJECTS) $(test_tslib_DEPENDENCIES) $(EXTRA_test_tslib_DEPENDENCIES) 
+	@rm -f test_tslib$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_tslib_OBJECTS) $(test_tslib_LDADD) $(LIBS)
 
 test_tsutil$(EXEEXT): $(test_tsutil_OBJECTS) $(test_tsutil_DEPENDENCIES) $(EXTRA_test_tsutil_DEPENDENCIES) 
 	@rm -f test_tsutil$(EXEEXT)
-	$(AM_V_CXXLD)$(test_tsutil_LINK) $(test_tsutil_OBJECTS) $(test_tsutil_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_tsutil_OBJECTS) $(test_tsutil_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f unit-tests/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
@@ -1351,6 +1348,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_freelist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_geometry.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tests.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_tslib-main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@unit-tests/$(DEPDIR)/test_tslib-string_view.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -1393,6 +1392,58 @@ distclean-compile:
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
 .cc.lo:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
+@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LTCXXCOMPILE) -c -o $@ $<
+
+unit-tests/test_tslib-main.o: unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_tslib-main.o -MD -MP -MF unit-tests/$(DEPDIR)/test_tslib-main.Tpo -c -o unit-tests/test_tslib-main.o `test -f 'unit-tests/main.cpp' || echo '$(srcdir)/'`unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_tslib-main.Tpo unit-tests/$(DEPDIR)/test_tslib-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/main.cpp' object='unit-tests/test_tslib-main.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_tslib-main.o `test -f 'unit-tests/main.cpp' || echo '$(srcdir)/'`unit-tests/main.cpp
+
+unit-tests/test_tslib-main.obj: unit-tests/main.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_tslib-main.obj -MD -MP -MF unit-tests/$(DEPDIR)/test_tslib-main.Tpo -c -o unit-tests/test_tslib-main.obj `if test -f 'unit-tests/main.cpp'; then $(CYGPATH_W) 'unit-tests/main.cpp'; else $(CYGPATH_W) '$(srcdir)/unit-tests/main.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_tslib-main.Tpo unit-tests/$(DEPDIR)/test_tslib-main.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/main.cpp' object='unit-tests/test_tslib-main.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_tslib-main.obj `if test -f 'unit-tests/main.cpp'; then $(CYGPATH_W) 'unit-tests/main.cpp'; else $(CYGPATH_W) '$(srcdir)/unit-tests/main.cpp'; fi`
+
+unit-tests/test_tslib-string_view.o: unit-tests/string_view.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_tslib-string_view.o -MD -MP -MF unit-tests/$(DEPDIR)/test_tslib-string_view.Tpo -c -o unit-tests/test_tslib-string_view.o `test -f 'unit-tests/string_view.cpp' || echo '$(srcdir)/'`unit-tests/string_view.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_tslib-string_view.Tpo unit-tests/$(DEPDIR)/test_tslib-string_view.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/string_view.cpp' object='unit-tests/test_tslib-string_view.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_tslib-string_view.o `test -f 'unit-tests/string_view.cpp' || echo '$(srcdir)/'`unit-tests/string_view.cpp
+
+unit-tests/test_tslib-string_view.obj: unit-tests/string_view.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit-tests/test_tslib-string_view.obj -MD -MP -MF unit-tests/$(DEPDIR)/test_tslib-string_view.Tpo -c -o unit-tests/test_tslib-string_view.obj `if test -f 'unit-tests/string_view.cpp'; then $(CYGPATH_W) 'unit-tests/string_view.cpp'; else $(CYGPATH_W) '$(srcdir)/unit-tests/string_view.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit-tests/$(DEPDIR)/test_tslib-string_view.Tpo unit-tests/$(DEPDIR)/test_tslib-string_view.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit-tests/string_view.cpp' object='unit-tests/test_tslib-string_view.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_tslib_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit-tests/test_tslib-string_view.obj `if test -f 'unit-tests/string_view.cpp'; then $(CYGPATH_W) 'unit-tests/string_view.cpp'; else $(CYGPATH_W) '$(srcdir)/unit-tests/string_view.cpp'; fi`
+
+.cpp.o:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ $<
+
+.cpp.obj:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+.cpp.lo:
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.lo$$||'`;\
 @am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
 @am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Plo
@@ -1691,6 +1742,13 @@ test_MemView.log: test_MemView$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_tslib.log: test_tslib$(EXEEXT)
+	@p='test_tslib$(EXEEXT)'; \
+	b='test_tslib'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 .test.log:
 	@p='$<'; \
 	$(am__set_b); \
@@ -1774,6 +1832,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f unit-tests/$(DEPDIR)/$(am__dirstamp)
+	-rm -f unit-tests/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -1784,7 +1844,7 @@ clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
 	clean-libtool clean-local clean-noinstPROGRAMS mostlyclean-am
 
 distclean: distclean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR) unit-tests/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -1830,7 +1890,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-	-rm -rf ./$(DEPDIR)
+	-rm -rf ./$(DEPDIR) unit-tests/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

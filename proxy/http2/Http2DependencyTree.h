@@ -175,12 +175,20 @@ Http2DependencyTree<T>::add(uint32_t parent_id, uint32_t id, uint32_t weight, bo
 
   if (exclusive) {
     while (Node *child = parent->children.pop()) {
+      if (child->queued) {
+        parent->queue->erase(child->entry);
+        node->queue->push(child->entry);
+      }
       node->children.push(child);
       child->parent = node;
     }
   }
 
   parent->children.push(node);
+  if (!node->queue->empty()) {
+    parent->queue->push(node->entry);
+    node->queued = true;
+  }
 
   ++_node_count;
   return node;
@@ -316,9 +324,7 @@ Http2DependencyTree<T>::deactivate(Node *node, uint32_t sent)
   node->active = false;
 
   while (node->queue->empty() && node->parent != NULL) {
-    ink_assert(node->parent->queue->top() == node->entry);
-
-    node->parent->queue->pop();
+    node->parent->queue->erase(node->entry);
     node->queued = false;
 
     node = node->parent;

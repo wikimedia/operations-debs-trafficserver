@@ -264,8 +264,13 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@ -I$(abs_top_srcdir)/iocore/eventsystem \
+	-I$(abs_top_srcdir)/iocore/utils -I$(abs_top_srcdir)/mgmt \
+	-I$(abs_top_srcdir)/mgmt/api/include \
+	-I$(abs_top_srcdir)/mgmt/utils -I$(abs_top_srcdir)/lib
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = @AM_LDFLAGS@
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -303,8 +308,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -337,7 +340,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -630,14 +632,6 @@ Clang_Tidy_CXX_Files = $(filter %.cc, $(sort $(1)))
 #All this clearly requires GNU make.
 CXX_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CXX_Files,$^) -- $(CXXCOMPILE) -x c++
 CC_Clang_Tidy = $(CLANG_TIDY) $(Clang_Tidy_Options) $(call Clang_Tidy_CC_Files,$^) -- $(COMPILE) -x c
-AM_CPPFLAGS = \
-  -I$(abs_top_srcdir)/iocore/eventsystem \
-  -I$(abs_top_srcdir)/iocore/utils \
-  -I$(abs_top_srcdir)/mgmt \
-  -I$(abs_top_srcdir)/mgmt/api/include \
-  -I$(abs_top_srcdir)/mgmt/utils \
-  -I$(abs_top_srcdir)/lib
-
 noinst_LIBRARIES = librecords_lm.a librecords_p.a librecords_cop.a
 librecords_COMMON = \
   I_RecAlarms.h \
