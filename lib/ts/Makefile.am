@@ -23,15 +23,15 @@ library_includedir=$(includedir)/ts
 library_include_HEADERS = apidefs.h
 
 noinst_PROGRAMS = mkdfa CompileParseRules
-check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator test_MemView
+check_PROGRAMS = test_tsutil test_arena test_atomic test_freelist test_geometry test_List test_Map test_Vec test_X509HostnameValidator test_MemView test_tslib
 
 TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 
 TESTS = $(check_PROGRAMS)
 
-AM_CPPFLAGS = -I$(abs_top_srcdir)/lib
-
 lib_LTLIBRARIES = libtsutil.la
+
+AM_CPPFLAGS += -I$(abs_top_srcdir)/lib 
 
 libtsutil_la_LDFLAGS = -no-undefined -version-info @TS_LIBTOOL_VERSION@
 libtsutil_la_LIBADD = \
@@ -190,6 +190,7 @@ libtsutil_la_SOURCES = \
   lockfile.cc \
   signals.cc \
   signals.h \
+  string_view.h \
   X509HostnameValidator.cc \
   X509HostnameValidator.h
 
@@ -209,43 +210,44 @@ mkdfa_SOURCES = mkdfa.c
 
 test_atomic_SOURCES = test_atomic.cc
 test_atomic_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_atomic_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_freelist_SOURCES = test_freelist.cc
 test_freelist_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_freelist_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_arena_SOURCES = test_arena.cc
 test_arena_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_arena_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_List_SOURCES = test_List.cc
 test_Map_SOURCES = test_Map.cc
 test_Map_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Map_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_Vec_SOURCES = test_Vec.cc
 test_Vec_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_Vec_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_geometry_SOURCES = test_geometry.cc
 test_geometry_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_geometry_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_X509HostnameValidator_SOURCES = test_X509HostnameValidator.cc
 test_X509HostnameValidator_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@ @OPENSSL_LIBS@
-test_X509HostnameValidator_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 
 test_MemView_SOURCES = test_MemView.cc
 test_MemView_LDADD = libtsutil.la
 
 test_tsutil_LDADD = libtsutil.la @LIBTCL@ @LIBPCRE@
-test_tsutil_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@
 test_tsutil_SOURCES = \
 	test_PriorityQueue.cc \
 	test_Ptr.cc \
 	test_Regex.cc \
 	tests.cc
+
+test_tslib_CPPFLAGS = $(AM_CPPFLAGS)\
+	-I$(abs_top_srcdir)/tests/include
+
+# add you catch based test file here for tslib
+test_tslib_LDADD = libtsutil.la
+test_tslib_SOURCES = \
+	unit-tests/main.cpp \
+	unit-tests/string_view.cpp
 
 CompileParseRules_SOURCES = CompileParseRules.cc
 

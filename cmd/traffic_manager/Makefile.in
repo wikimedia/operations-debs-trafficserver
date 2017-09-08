@@ -483,8 +483,17 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@ $(LUAJIT_CPPFLAGS) $(iocore_include_dirs) \
+	-I$(abs_top_srcdir)/lib/records -I$(abs_top_srcdir)/proxy/hdrs \
+	-I$(abs_top_srcdir)/proxy/shared -I$(abs_top_srcdir)/mgmt \
+	-I$(abs_top_srcdir)/mgmt/api \
+	-I$(abs_top_srcdir)/mgmt/api/include \
+	-I$(abs_top_srcdir)/mgmt/cluster \
+	-I$(abs_top_srcdir)/mgmt/utils -I$(abs_top_srcdir)/lib \
+	-I$(abs_top_srcdir)/lib/luajit/src
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = @AM_LDFLAGS@ @OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -522,8 +531,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -556,7 +563,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -834,22 +840,6 @@ valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
 TESTS = $(check_PROGRAMS)
-AM_CPPFLAGS = \
-  $(LUAJIT_CPPFLAGS) \
-  $(iocore_include_dirs) \
-  -I$(abs_top_srcdir)/lib/records \
-  -I$(abs_top_srcdir)/proxy/hdrs \
-  -I$(abs_top_srcdir)/proxy/shared \
-  -I$(abs_top_srcdir)/mgmt \
-  -I$(abs_top_srcdir)/mgmt/api \
-  -I$(abs_top_srcdir)/mgmt/api/include \
-  -I$(abs_top_srcdir)/mgmt/cluster \
-  -I$(abs_top_srcdir)/mgmt/utils \
-  -I$(abs_top_srcdir)/lib \
-  -I$(abs_top_srcdir)/lib/luajit/src
-
-AM_LDFLAGS = @EXTRA_CXX_LDFLAGS@ @LIBTOOL_LINK_FLAGS@ \
-	@OPENSSL_LDFLAGS@ $(LUAJIT_LDFLAGS)
 traffic_manager_SOURCES = AddConfigFilesHere.cc MgmtHandlers.cc \
 	MgmtHandlers.h WebOverview.cc WebOverview.h metrics.h \
 	traffic_manager.cc metrics.cc

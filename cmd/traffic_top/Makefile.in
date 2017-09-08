@@ -118,6 +118,18 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+
+# We only build traffic_top if libcurses and libcurl are available.
+@BUILD_TRAFFIC_TOP_TRUE@am__append_1 = \
+@BUILD_TRAFFIC_TOP_TRUE@  $(iocore_include_dirs) \
+@BUILD_TRAFFIC_TOP_TRUE@  -I$(abs_top_srcdir)/lib \
+@BUILD_TRAFFIC_TOP_TRUE@  -I$(abs_top_srcdir)/mgmt/api/include \
+@BUILD_TRAFFIC_TOP_TRUE@  @CURL_CFLAGS@ \
+@BUILD_TRAFFIC_TOP_TRUE@  @CURSES_CFLAGS@
+
+@BUILD_TRAFFIC_TOP_TRUE@am__append_2 = \
+@BUILD_TRAFFIC_TOP_TRUE@  @OPENSSL_LDFLAGS@
+
 @BUILD_TRAFFIC_TOP_TRUE@bin_PROGRAMS = traffic_top$(EXEEXT)
 subdir = cmd/traffic_top
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -231,8 +243,10 @@ pkglibexecdir = @pkglibexecdir@
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_CFLAGS = @AM_CFLAGS@
+AM_CPPFLAGS = @AM_CPPFLAGS@ $(am__append_1)
 AM_CXXFLAGS = @AM_CXXFLAGS@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
+AM_LDFLAGS = @AM_LDFLAGS@ $(am__append_2)
 AR = @AR@
 ASCPP = @ASCPP@
 AUTOCONF = @AUTOCONF@
@@ -270,8 +284,6 @@ ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
 EXEEXT = @EXEEXT@
-EXTRA_CC_LDFLAGS = @EXTRA_CC_LDFLAGS@
-EXTRA_CXX_LDFLAGS = @EXTRA_CXX_LDFLAGS@
 FGREP = @FGREP@
 FLEX_CFLAGS = @FLEX_CFLAGS@
 GEO_LIBS = @GEO_LIBS@
@@ -304,7 +316,6 @@ LIBRESOLV = @LIBRESOLV@
 LIBS = @LIBS@
 LIBTCL = @LIBTCL@
 LIBTOOL = @LIBTOOL@
-LIBTOOL_LINK_FLAGS = @LIBTOOL_LINK_FLAGS@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
@@ -581,20 +592,6 @@ use_tproxy = @use_tproxy@
 valuesh = @valuesh@
 waith = @waith@
 zlibh = @zlibh@
-
-# We only build traffic_top if libcurses and libcurl are available.
-@BUILD_TRAFFIC_TOP_TRUE@AM_CPPFLAGS = \
-@BUILD_TRAFFIC_TOP_TRUE@  $(iocore_include_dirs) \
-@BUILD_TRAFFIC_TOP_TRUE@  -I$(abs_top_srcdir)/lib \
-@BUILD_TRAFFIC_TOP_TRUE@  -I$(abs_top_srcdir)/mgmt/api/include \
-@BUILD_TRAFFIC_TOP_TRUE@  @CURL_CFLAGS@ \
-@BUILD_TRAFFIC_TOP_TRUE@  @CURSES_CFLAGS@
-
-@BUILD_TRAFFIC_TOP_TRUE@AM_LDFLAGS = \
-@BUILD_TRAFFIC_TOP_TRUE@  @EXTRA_CXX_LDFLAGS@ \
-@BUILD_TRAFFIC_TOP_TRUE@  @LIBTOOL_LINK_FLAGS@ \
-@BUILD_TRAFFIC_TOP_TRUE@  @OPENSSL_LDFLAGS@
-
 @BUILD_TRAFFIC_TOP_TRUE@traffic_top_SOURCES = traffic_top.cc
 @BUILD_TRAFFIC_TOP_TRUE@traffic_top_LDADD = \
 @BUILD_TRAFFIC_TOP_TRUE@  $(top_builddir)/mgmt/api/libtsmgmt.la \

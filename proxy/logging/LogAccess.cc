@@ -213,6 +213,12 @@ LOG_ACCESS_DEFAULT_FIELD(marshal_client_req_uuid, DEFAULT_STR_FIELD)
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
+LOG_ACCESS_DEFAULT_FIELD(marshal_client_req_timestamp_sec, DEFAULT_INT_FIELD)
+LOG_ACCESS_DEFAULT_FIELD(marshal_client_req_timestamp_ms, DEFAULT_INT_FIELD)
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
 LOG_ACCESS_DEFAULT_FIELD(marshal_proxy_resp_content_type, DEFAULT_STR_FIELD)
 
 /*-------------------------------------------------------------------------
@@ -454,14 +460,6 @@ LOG_ACCESS_DEFAULT_FIELD(marshal_proxy_host_port, DEFAULT_INT_FIELD)
   -------------------------------------------------------------------------*/
 
 /*-------------------------------------------------------------------------
-  LogAccess::marshal_client_req_timestamp_sec
-
-  This does nothing because the timestamp is already in the LogEntryHeader.
-  -------------------------------------------------------------------------*/
-
-LOG_ACCESS_DEFAULT_FIELD(marshal_client_req_timestamp_sec, DEFAULT_INT_FIELD)
-
-/*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 int
@@ -524,6 +522,51 @@ int
 LogAccess::marshal_milestone(TSMilestonesType ms, char *buf)
 {
   DEFAULT_INT_FIELD;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccess::marshal_milestone_fmt_sec(TSMilestonesType ms, char *buf)
+{
+  DEFAULT_INT_FIELD;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccess::marshal_milestone_fmt_squid(TSMilestonesType ms, char *buf)
+{
+  DEFAULT_STR_FIELD;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccess::marshal_milestone_fmt_netscape(TSMilestonesType ms, char *buf)
+{
+  DEFAULT_STR_FIELD;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccess::marshal_milestone_fmt_date(TSMilestonesType ms, char *buf)
+{
+  DEFAULT_STR_FIELD;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccess::marshal_milestone_fmt_time(TSMilestonesType ms, char *buf)
+{
+  DEFAULT_STR_FIELD;
 }
 
 /*-------------------------------------------------------------------------
@@ -975,9 +1018,54 @@ LogAccess::unmarshal_ttmsf(char **buf, char *dest, int len)
   ink_assert(dest != nullptr);
 
   int64_t val = unmarshal_int(buf);
-  float secs  = (float)val / 1000;
+  double secs = (double)val / 1000;
   int val_len = snprintf(dest, len, "%.3f", secs);
   return val_len;
+}
+
+int
+LogAccess::unmarshal_int_to_date_str(char **buf, char *dest, int len)
+{
+  ink_assert(buf != nullptr);
+  ink_assert(*buf != nullptr);
+  ink_assert(dest != nullptr);
+
+  int64_t value = unmarshal_int(buf);
+  char *strval  = LogUtils::timestamp_to_date_str(value);
+  int strlen    = LogAccess::strlen(strval);
+
+  memcpy(dest, strval, strlen);
+  return strlen;
+}
+
+int
+LogAccess::unmarshal_int_to_time_str(char **buf, char *dest, int len)
+{
+  ink_assert(buf != nullptr);
+  ink_assert(*buf != nullptr);
+  ink_assert(dest != nullptr);
+
+  int64_t value = unmarshal_int(buf);
+  char *strval  = LogUtils::timestamp_to_time_str(value);
+  int strlen    = LogAccess::strlen(strval);
+
+  memcpy(dest, strval, strlen);
+  return strlen;
+}
+
+int
+LogAccess::unmarshal_int_to_netscape_str(char **buf, char *dest, int len)
+{
+  ink_assert(buf != nullptr);
+  ink_assert(*buf != nullptr);
+  ink_assert(dest != nullptr);
+
+  int64_t value = unmarshal_int(buf);
+  char *strval  = LogUtils::timestamp_to_netscape_str(value);
+  int strlen    = LogAccess::strlen(strval);
+
+  memcpy(dest, strval, strlen);
+  return strlen;
 }
 
 /*-------------------------------------------------------------------------

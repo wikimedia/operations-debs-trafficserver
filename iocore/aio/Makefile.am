@@ -16,7 +16,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-AM_CPPFLAGS = \
+AM_CPPFLAGS += \
   -I$(abs_top_srcdir)/iocore/eventsystem \
   -I$(abs_top_srcdir)/lib \
   -I$(abs_top_srcdir)/lib/records
@@ -33,8 +33,7 @@ libinkaio_a_SOURCES = \
   P_AIO.h
 
 test_AIO_LDFLAGS = \
-  @EXTRA_CXX_LDFLAGS@ \
-  @LIBTOOL_LINK_FLAGS@ \
+  @AM_LDFLAGS@ \
   @OPENSSL_LDFLAGS@
 
 test_AIO_SOURCES = \

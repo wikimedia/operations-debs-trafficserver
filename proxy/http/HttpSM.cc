@@ -1608,11 +1608,13 @@ HttpSM::handle_api_return()
   case HttpTransact::SM_ACTION_API_POST_REMAP:
   case HttpTransact::SM_ACTION_API_READ_REQUEST_HDR:
   case HttpTransact::SM_ACTION_API_OS_DNS:
-  case HttpTransact::SM_ACTION_API_READ_CACHE_HDR:
   case HttpTransact::SM_ACTION_API_READ_RESPONSE_HDR:
+    call_transact_and_set_next_state(nullptr);
+    return;
+
   case HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE:
-    if (t_state.api_next_action == HttpTransact::SM_ACTION_API_CACHE_LOOKUP_COMPLETE && t_state.api_cleanup_cache_read &&
-        t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
+  case HttpTransact::SM_ACTION_API_READ_CACHE_HDR:
+    if (t_state.api_cleanup_cache_read && t_state.api_update_cached_object != HttpTransact::UPDATE_CACHED_OBJECT_PREPARE) {
       t_state.api_cleanup_cache_read = false;
       t_state.cache_info.object_read = nullptr;
       t_state.request_sent_time      = UNDEFINED_TIME;
@@ -1620,6 +1622,7 @@ HttpSM::handle_api_return()
       cache_sm.close_read();
       transform_cache_sm.close_read();
     }
+
     call_transact_and_set_next_state(nullptr);
     return;
   case HttpTransact::SM_ACTION_API_SEND_REQUEST_HDR:
@@ -1946,6 +1949,8 @@ HttpSM::state_read_server_response_header(int event, void *data)
     }
     // FALLTHROUGH (since we are allowing the parse error)
   }
+  // fallthrough
+
   case PARSE_RESULT_DONE:
     DebugSM("http_seq", "Done parsing server response header");
 
@@ -2075,7 +2080,9 @@ HttpSM::state_send_server_request_header(int event, void *data)
      } */
 
   // Nothing in the buffer
-  //  FALLTHROUGH to error
+  // proceed to error
+  // fallthrough
+
   case VC_EVENT_ERROR:
   case VC_EVENT_ACTIVE_TIMEOUT:
   case VC_EVENT_INACTIVITY_TIMEOUT:
@@ -3436,6 +3443,8 @@ HttpSM::tunnel_handler_cache_read(int event, HttpTunnelProducer *p)
       // fall through for the case INT64_MAX read with VC_EVENT_EOS
       // callback (read successful)
     }
+  // fallthrough
+
   case VC_EVENT_READ_COMPLETE:
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
   case HTTP_TUNNEL_EVENT_CONSUMER_DETACH:
@@ -7733,6 +7742,7 @@ HttpSM::set_next_state()
 
   case HttpTransact::SM_ACTION_CONTINUE: {
     ink_release_assert(!"Not implemented");
+    break;
   }
 
   default: {
