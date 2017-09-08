@@ -1,4 +1,4 @@
-trafficserver (7.1.0-1) UNRELEASED; urgency=medium
+trafficserver (7.1.1-1) unstable; urgency=medium
 
   * Update d/rules to reflect healthcheck being managed as a stable plugin
   * Add a patch to fix kfreebsd build
@@ -13,8 +13,11 @@ trafficserver (7.1.0-1) UNRELEASED; urgency=medium
   * Lintian fix for d/NEWS
   * Add new build option to use system luajit
   * Update build dependencies (Closes: #859750)
+  * Fix lintian warning in d/copyright
+  * New upstream version 7.1.1
+  * Patches refresh for 7.1.1
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 30 Aug 2017 14:45:43 +0200
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 08 Sep 2017 17:01:18 +0200
 
 trafficserver (7.0.0-5) unstable; urgency=medium
 
