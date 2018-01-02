@@ -9,8 +9,7 @@ export DEB_CFLAGS_MAINT_APPEND = -O3
 export DEB_CXXFLAGS_MAINT_APPEND = -O3
 
 # Get build architecture. ./configure is different on Linux
-DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
-DEB_BUILD_ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
+include /usr/share/dpkg/architecture.mk
 
 configure_flags = \
 	--enable-layout=Debian \
