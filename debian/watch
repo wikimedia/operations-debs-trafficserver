@@ -1,2 +1,2 @@
 version=3
-opts=pgpsigurlmangle=s/$/.asc/ http://www.apache.org/dist//trafficserver/trafficserver-(\d+\.\d+.\d+)\.tar\.bz2 debian uupdate
+opts=pgpsigurlmangle=s/$/.asc/ https://www.apache.org/dist/trafficserver/trafficserver-(\d+\.\d+.\d+)\.tar\.bz2 debian uupdate
