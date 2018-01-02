@@ -1,3 +1,13 @@
+trafficserver (7.1.1-2) unstable; urgency=medium
+
+  * Fix d/gbp.conf. Remove duplicate filter option
+  * Update standards version in d/control
+  * Fix debian-rules-sets-dpkg-architecture-variable lintian warning
+  * Fix debian-watch-uses-insecure-uri lintian info
+  * Update d/patches
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 02 Jan 2018 13:30:43 +0100
+
 trafficserver (7.1.1-1) unstable; urgency=medium
 
   * Update d/rules to reflect healthcheck being managed as a stable plugin
