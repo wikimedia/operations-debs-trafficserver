@@ -1,15 +1,10 @@
-trafficserver (7.1.1-2) unstable; urgency=medium
+trafficserver (7.1.1-1) unstable; urgency=medium
 
   * Fix d/gbp.conf. Remove duplicate filter option
   * Update standards version in d/control
   * Fix debian-rules-sets-dpkg-architecture-variable lintian warning
   * Fix debian-watch-uses-insecure-uri lintian info
   * Update d/patches
-
- -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 02 Jan 2018 13:30:43 +0100
-
-trafficserver (7.1.1-1) unstable; urgency=medium
-
   * Update d/rules to reflect healthcheck being managed as a stable plugin
   * Add a patch to fix kfreebsd build
   * Add a patch to fix arm build
@@ -27,7 +22,7 @@ trafficserver (7.1.1-1) unstable; urgency=medium
   * New upstream version 7.1.1
   * Patches refresh for 7.1.1
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 08 Sep 2017 17:01:18 +0200
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 02 Jan 2018 13:30:43 +0100
 
 trafficserver (7.0.0-5) unstable; urgency=medium
 
