@@ -1,5 +1,6 @@
 trafficserver (7.1.1-1) unstable; urgency=medium
 
+  * Fix trafficserver-dev dependencies. (Closes: #877457)
   * Fix d/gbp.conf. Remove duplicate filter option
   * Update standards version in d/control
   * Fix debian-rules-sets-dpkg-architecture-variable lintian warning
