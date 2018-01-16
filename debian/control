@@ -52,8 +52,7 @@ Description: experimental plugins for Apache Traffic Server
 
 Package: trafficserver-dev
 Architecture: any
-Depends: ${misc:Depends}
-Suggests: trafficserver (= ${binary:Version})
+Depends: ${misc:Depends}, trafficserver (= ${binary:Version})
 Description: Apache Traffic Server Software Developers Kit (SDK)
  This package provides the Apache Traffic Server Software  Developers Kit.
  This is a collection of development header and bindings for the C programming
