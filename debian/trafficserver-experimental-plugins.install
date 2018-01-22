@@ -1,9 +1,10 @@
 usr/lib/trafficserver/modules/acme.so
 usr/lib/trafficserver/modules/balancer.so
 usr/lib/trafficserver/modules/buffer_upload.so
-usr/lib/trafficserver/modules/cachekey.so
+usr/lib/trafficserver/modules/cache_key_genid.so
 usr/lib/trafficserver/modules/cache_promote.so
 usr/lib/trafficserver/modules/cache_range_requests.so
+usr/lib/trafficserver/modules/cachekey.so
 usr/lib/trafficserver/modules/collapsed_connection.so
 usr/lib/trafficserver/modules/collapsed_forwarding.so
 usr/lib/trafficserver/modules/custom_redirect.so
@@ -15,6 +16,8 @@ usr/lib/trafficserver/modules/header_normalize.so
 usr/lib/trafficserver/modules/hipes.so
 usr/lib/trafficserver/modules/hook-trace.so
 usr/lib/trafficserver/modules/inliner.so
+usr/lib/trafficserver/modules/tsmemcache.so
+usr/lib/trafficserver/modules/memcached_remap.so
 usr/lib/trafficserver/modules/metalink.so
 usr/lib/trafficserver/modules/money_trace.so
 usr/lib/trafficserver/modules/mp4.so
@@ -27,6 +30,5 @@ usr/lib/trafficserver/modules/sslheaders.so
 usr/lib/trafficserver/modules/stale_while_revalidate.so
 usr/lib/trafficserver/modules/stream_editor.so
 usr/lib/trafficserver/modules/tslua.so
-usr/lib/trafficserver/modules/tsmemcache.so
 usr/lib/trafficserver/modules/url_sig.so
 usr/lib/trafficserver/modules/WebpTransform.so
