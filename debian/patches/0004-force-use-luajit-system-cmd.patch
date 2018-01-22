@@ -1,6 +1,8 @@
---- a/cmd/traffic_manager/Makefile.am
-+++ b/cmd/traffic_manager/Makefile.am
-@@ -21,7 +21,7 @@ check_PROGRAMS = test_metrics
+Index: trafficserver/cmd/traffic_manager/Makefile.am
+===================================================================
+--- trafficserver.orig/cmd/traffic_manager/Makefile.am	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_manager/Makefile.am	2018-01-21 13:07:23.373374711 +0100
+@@ -21,7 +21,7 @@
  TESTS = $(check_PROGRAMS)
  
  AM_CPPFLAGS += \
@@ -9,7 +11,7 @@
    $(iocore_include_dirs) \
    -I$(abs_top_srcdir)/lib/records \
    -I$(abs_top_srcdir)/proxy/hdrs \
-@@ -32,7 +32,7 @@ AM_CPPFLAGS += \
+@@ -32,7 +32,7 @@
    -I$(abs_top_srcdir)/mgmt/cluster \
    -I$(abs_top_srcdir)/mgmt/utils \
    -I$(abs_top_srcdir)/lib \
@@ -18,7 +20,7 @@
  
  AM_LDFLAGS += \
    @OPENSSL_LDFLAGS@
-@@ -56,17 +56,16 @@ traffic_manager_LDADD = \
+@@ -56,17 +56,16 @@
    $(top_builddir)/proxy/shared/libdiagsconfig.a
  
  AM_LDFLAGS += \
@@ -39,36 +41,38 @@
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
    -lm
  
-@@ -83,9 +82,9 @@ test_metrics_LDADD = \
+@@ -75,9 +74,9 @@
    $(top_builddir)/mgmt/libmgmt_lm.la \
    $(top_builddir)/lib/records/librecords_lm.a \
    $(top_builddir)/lib/bindings/libbindings.la \
 -  $(top_builddir)/lib/luajit/src/libluajit.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
-+  $(LUA_CPPFLAGS) \
++  $(LUA_LIBS) \
    @LIBTCL@ @LIBPCRE@
  
- include $(top_srcdir)/build/tidy.mk
---- a/cmd/traffic_manager/Makefile.in
-+++ b/cmd/traffic_manager/Makefile.in
-@@ -163,7 +163,6 @@ test_metrics_OBJECTS = $(am_test_metrics
+ # Must do it this way or the dependencies aren't detected.
+Index: trafficserver/cmd/traffic_manager/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_manager/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_manager/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -171,7 +171,6 @@
  test_metrics_DEPENDENCIES = $(top_builddir)/mgmt/libmgmt_lm.la \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
 -	$(top_builddir)/lib/luajit/src/libluajit.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
- 	$(top_builddir)/iocore/eventsystem/libinkevent.a
- AM_V_lt = $(am__v_lt_@AM_V@)
-@@ -187,7 +186,6 @@ traffic_manager_DEPENDENCIES =  \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(am__DEPENDENCIES_1)
+@@ -193,7 +192,6 @@
+ 	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
 -	$(top_builddir)/lib/luajit/src/libluajit.a \
- 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
+ 	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_1)
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
-@@ -483,17 +481,16 @@ pkglibexecdir = @pkglibexecdir@
+@@ -489,17 +487,16 @@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -89,7 +93,7 @@
  AR = @AR@
  ASCPP = @ASCPP@
  AUTOCONF = @AUTOCONF@
-@@ -573,9 +570,9 @@ LIPO = @LIPO@
+@@ -579,9 +576,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -102,9 +106,9 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -850,18 +847,17 @@ traffic_manager_LDADD = $(top_builddir)/
- 	$(top_builddir)/lib/ts/libtsutil.la \
+@@ -856,18 +853,16 @@
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
 -	$(top_builddir)/lib/bindings/libbindings.la \
 -	$(top_builddir)/lib/luajit/src/libluajit.a $(LIBUNWIND_LIBS) \
@@ -113,20 +117,23 @@
 +	@LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ $(LUA_LIBS) -lm \
  	$(am__append_1)
  test_metrics_SOURCES = test_metrics.cc metrics.cc WebOverview.cc
- test_metrics_LDADD = \
-   $(top_builddir)/mgmt/libmgmt_lm.la \
-   $(top_builddir)/lib/records/librecords_lm.a \
-   $(top_builddir)/lib/bindings/libbindings.la \
--  $(top_builddir)/lib/luajit/src/libluajit.a \
-   $(top_builddir)/lib/ts/libtsutil.la \
-   $(top_builddir)/iocore/eventsystem/libinkevent.a \
-+  $(LUA_CPPFLAGS)
-   @LIBTCL@ @LIBPCRE@
- 
+ test_metrics_LDADD = $(top_builddir)/mgmt/libmgmt_lm.la \
+ 	$(top_builddir)/lib/records/librecords_lm.a \
+ 	$(top_builddir)/lib/bindings/libbindings.la \
+-	$(top_builddir)/lib/luajit/src/libluajit.a \
+ 	$(top_builddir)/lib/ts/libtsutil.la \
+-	$(top_builddir)/iocore/eventsystem/libinkevent.a @LIBTCL@ \
+-	@LIBPCRE@ $(am__append_2)
++	$(top_builddir)/iocore/eventsystem/libinkevent.a $(LUA_CPPFLAGS) \
++ 	@LIBTCL@ @LIBPCRE@ $(am__append_2)
  Clang_Tidy_Options = -fix -fix-errors
---- a/cmd/Makefile.in
-+++ b/cmd/Makefile.in
-@@ -506,9 +506,9 @@ LIPO = @LIPO@
+ 
+ # Sort the filenames to remove duplicates, then filter to retain
+Index: trafficserver/cmd/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -506,9 +506,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -139,9 +146,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_cop/Makefile.in
-+++ b/cmd/traffic_cop/Makefile.in
-@@ -317,9 +317,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_cop/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_cop/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_cop/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -317,9 +317,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -154,9 +163,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_crashlog/Makefile.in
-+++ b/cmd/traffic_crashlog/Makefile.in
-@@ -337,9 +337,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_crashlog/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_crashlog/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_crashlog/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -337,9 +337,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -169,9 +180,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_ctl/Makefile.in
-+++ b/cmd/traffic_ctl/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_ctl/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_ctl/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_ctl/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -316,9 +316,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -184,9 +197,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_layout/Makefile.in
-+++ b/cmd/traffic_layout/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_layout/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_layout/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_layout/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -316,9 +316,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -199,9 +214,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_top/Makefile.in
-+++ b/cmd/traffic_top/Makefile.in
-@@ -326,9 +326,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_top/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_top/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_top/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -326,9 +326,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -214,9 +231,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_via/Makefile.in
-+++ b/cmd/traffic_via/Makefile.in
-@@ -518,9 +518,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_via/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_via/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_via/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -518,9 +518,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -229,9 +248,11 @@
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
---- a/cmd/traffic_wccp/Makefile.in
-+++ b/cmd/traffic_wccp/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+Index: trafficserver/cmd/traffic_wccp/Makefile.in
+===================================================================
+--- trafficserver.orig/cmd/traffic_wccp/Makefile.in	2018-01-21 13:07:23.377374724 +0100
++++ trafficserver/cmd/traffic_wccp/Makefile.in	2018-01-21 13:07:23.373374711 +0100
+@@ -316,9 +316,9 @@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

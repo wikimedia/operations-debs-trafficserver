@@ -4,8 +4,10 @@ Origin: other
 Last-Update: 2017-03-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/lib/ts/ink_memory.cc
-+++ b/lib/ts/ink_memory.cc
+Index: trafficserver/lib/ts/ink_memory.cc
+===================================================================
+--- trafficserver.orig/lib/ts/ink_memory.cc	2018-01-21 13:07:25.445381242 +0100
++++ trafficserver/lib/ts/ink_memory.cc	2018-01-21 13:07:25.441381229 +0100
 @@ -27,7 +27,7 @@
  #include "ts/Diags.h"
  #include "ts/ink_atomic.h"
@@ -15,9 +17,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  #include <malloc_np.h> // for malloc_usable_size
  #endif
  
---- a/proxy/Plugin.cc
-+++ b/proxy/Plugin.cc
-@@ -126,7 +126,7 @@ plugin_load(int argc, char *argv[], bool
+Index: trafficserver/proxy/Plugin.cc
+===================================================================
+--- trafficserver.orig/proxy/Plugin.cc	2018-01-21 13:07:25.445381242 +0100
++++ trafficserver/proxy/Plugin.cc	2018-01-21 13:07:25.441381229 +0100
+@@ -126,7 +126,7 @@
        return false; // this line won't get called since Fatal brings down ATS
      }
  
@@ -26,9 +30,11 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
      optreset = 1;
  #endif
  #if defined(__GLIBC__)
---- a/proxy/http/remap/RemapConfig.cc
-+++ b/proxy/http/remap/RemapConfig.cc
-@@ -919,7 +919,7 @@ remap_load_plugin(const char **argv, int
+Index: trafficserver/proxy/http/remap/RemapConfig.cc
+===================================================================
+--- trafficserver.orig/proxy/http/remap/RemapConfig.cc	2018-01-21 13:07:25.445381242 +0100
++++ trafficserver/proxy/http/remap/RemapConfig.cc	2018-01-21 13:07:25.441381229 +0100
+@@ -919,7 +919,7 @@
    void *ih         = nullptr;
    TSReturnCode res = TS_SUCCESS;
    if (pi->fp_tsremap_new_instance) {

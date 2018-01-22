@@ -1,6 +1,8 @@
---- a/doc/admin-guide/configuration/cache-basics.en.rst
-+++ b/doc/admin-guide/configuration/cache-basics.en.rst
-@@ -683,7 +683,7 @@ cases the content will be buffered in ra
+Index: trafficserver/doc/admin-guide/configuration/cache-basics.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/configuration/cache-basics.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/admin-guide/configuration/cache-basics.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -683,7 +683,7 @@
  client. This could potentially also happen for ``POST`` requests if the client
  connection is fast and the origin server connection slow. If very large objects
  are being used this can cause the memory usage of Traffic Server to become
@@ -9,9 +11,11 @@
  
  This problem can be ameliorated by controlling the amount of buffer space used
  by a transaction. A high water and low water mark are set in terms of bytes
---- a/doc/admin-guide/files/records.config.en.rst
-+++ b/doc/admin-guide/files/records.config.en.rst
-@@ -1112,7 +1112,7 @@ ip-resolve
+Index: trafficserver/doc/admin-guide/files/records.config.en.rst
+===================================================================
+--- trafficserver.orig/doc/admin-guide/files/records.config.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/admin-guide/files/records.config.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -1112,7 +1112,7 @@
           performed. The result is cached (if allowed otherwise). This option is
           vulnerable to cache poisoning if an incorrect ``Host`` header is
           specified, so this option should be used with extreme caution.  See
@@ -20,9 +24,11 @@
     ===== ======================================================================
  
     If all of these conditions are met, then the origin server IP address is
---- a/doc/conf.py
-+++ b/doc/conf.py
-@@ -168,63 +168,9 @@ nitpicky = 1
+Index: trafficserver/doc/conf.py
+===================================================================
+--- trafficserver.orig/doc/conf.py	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/conf.py	2018-01-21 13:07:24.961379719 +0100
+@@ -168,63 +168,9 @@
  
  # Autolink issue references.
  # See Customizing the Parser in the docutils.parsers.rst module.
@@ -89,7 +95,7 @@
  
  # -- Options for HTML output ---------------------------------------------------
  
-@@ -373,6 +319,8 @@ latex_documents = [
+@@ -373,6 +319,8 @@
  # documents and includes the same brief description in both the HTML
  # and manual page outputs.
  
@@ -98,41 +104,51 @@
  from docutils.transforms import frontmatter
  from sphinx.writers import manpage
  
---- a/doc/developer-guide/api/functions/TSHttpTxnClientPacketMarkSet.en.rst
-+++ b/doc/developer-guide/api/functions/TSHttpTxnClientPacketMarkSet.en.rst
-@@ -41,4 +41,4 @@ See Also
+Index: trafficserver/doc/developer-guide/api/functions/TSHttpTxnClientPacketMarkSet.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/api/functions/TSHttpTxnClientPacketMarkSet.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/api/functions/TSHttpTxnClientPacketMarkSet.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -41,4 +41,4 @@
  
  .. _Traffic Shaping:
                   https://cwiki.apache.org/confluence/display/TS/Traffic+Shaping
 -   :ts:cv:`proxy.config.net.sock_packet_mark_in` and TS-1090
 +   :ts:cv:`proxy.config.net.sock_packet_mark_in` and :ts:jira:`1090`
---- a/doc/developer-guide/api/functions/TSHttpTxnClientPacketTosSet.en.rst
-+++ b/doc/developer-guide/api/functions/TSHttpTxnClientPacketTosSet.en.rst
-@@ -47,4 +47,4 @@ See Also
+Index: trafficserver/doc/developer-guide/api/functions/TSHttpTxnClientPacketTosSet.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/api/functions/TSHttpTxnClientPacketTosSet.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/api/functions/TSHttpTxnClientPacketTosSet.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -47,4 +47,4 @@
  
  .. _Traffic Shaping:
                   https://cwiki.apache.org/confluence/display/TS/Traffic+Shaping
 -   :ts:cv:`proxy.config.net.sock_packet_tos_in` and TS-1090
 +   :ts:cv:`proxy.config.net.sock_packet_tos_in` and :ts:jira:`1090`
---- a/doc/developer-guide/api/functions/TSHttpTxnServerPacketMarkSet.en.rst
-+++ b/doc/developer-guide/api/functions/TSHttpTxnServerPacketMarkSet.en.rst
-@@ -45,4 +45,4 @@ See Also
+Index: trafficserver/doc/developer-guide/api/functions/TSHttpTxnServerPacketMarkSet.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/api/functions/TSHttpTxnServerPacketMarkSet.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/api/functions/TSHttpTxnServerPacketMarkSet.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -45,4 +45,4 @@
  
  .. _Traffic Shaping:
                   https://cwiki.apache.org/confluence/display/TS/Traffic+Shaping
 -   :ts:cv:`proxy.config.net.sock_packet_mark_out` and TS-1090
 +   :ts:cv:`proxy.config.net.sock_packet_mark_out` and :ts:jira:`1090`
---- a/doc/developer-guide/api/functions/TSHttpTxnServerPacketTosSet.en.rst
-+++ b/doc/developer-guide/api/functions/TSHttpTxnServerPacketTosSet.en.rst
-@@ -49,4 +49,4 @@ See Also
+Index: trafficserver/doc/developer-guide/api/functions/TSHttpTxnServerPacketTosSet.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/api/functions/TSHttpTxnServerPacketTosSet.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/api/functions/TSHttpTxnServerPacketTosSet.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -49,4 +49,4 @@
  
  .. _Traffic Shaping:
                   https://cwiki.apache.org/confluence/display/TS/Traffic+Shaping
 -   :ts:cv:`proxy.config.net.sock_packet_tos_out` and TS-1090
 +   :ts:cv:`proxy.config.net.sock_packet_tos_out` and :ts:jira:`1090`
---- a/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst
-+++ b/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst
-@@ -162,7 +162,7 @@ History
+Index: trafficserver/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/api/functions/TSLifecycleHookAdd.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -162,7 +162,7 @@
  =======
  
  Lifecycle hooks were introduced to solve process initialization ordering issues
@@ -141,9 +157,11 @@
  initialized for the call to work, but others did not work that late in
  initialization, which was problematic because all of them could effectively
  only be called from :func:`TSPluginInit` . The solution was to move
---- a/doc/developer-guide/architecture/architecture.en.rst
-+++ b/doc/developer-guide/architecture/architecture.en.rst
-@@ -1147,12 +1147,12 @@ including the size of each stripe.
+Index: trafficserver/doc/developer-guide/architecture/architecture.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/architecture/architecture.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/architecture/architecture.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -1147,12 +1147,12 @@
  
  .. [#store-disk-array]
  
@@ -159,9 +177,11 @@
 -   `TS-1869 <https://issues.apache.org/jira/browse/TS-1869>`_.
 +   :ts:jira:`1869`.
  
---- a/doc/developer-guide/architecture/consistency.en.rst
-+++ b/doc/developer-guide/architecture/consistency.en.rst
-@@ -59,7 +59,7 @@ Volume Tagging
+Index: trafficserver/doc/developer-guide/architecture/consistency.en.rst
+===================================================================
+--- trafficserver.orig/doc/developer-guide/architecture/consistency.en.rst	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/developer-guide/architecture/consistency.en.rst	2018-01-21 13:07:24.961379719 +0100
+@@ -59,7 +59,7 @@
  ~~~~~~~~~~~~~~
  
  Currently, :term:`cache volumes <cache volume>` are allocated somewhat
@@ -170,8 +190,10 @@
  allows :file:`storage.config` to assign :term:`storage units <storage unit>` to
  specific :term:`volumes <cache volume>` although the volumes must still be
  listed in :file:`volume.config` in general and in particular to map domains to
---- a/doc/ext/traffic-server.py
-+++ b/doc/ext/traffic-server.py
+Index: trafficserver/doc/ext/traffic-server.py
+===================================================================
+--- trafficserver.orig/doc/ext/traffic-server.py	2018-01-21 13:07:24.965379732 +0100
++++ trafficserver/doc/ext/traffic-server.py	2018-01-21 13:07:24.961379719 +0100
 @@ -26,7 +26,8 @@
      :license: Apache
  """
@@ -182,7 +204,7 @@
  from docutils.parsers import rst
  from docutils.parsers.rst import directives
  from sphinx.domains import Domain, ObjType, std
-@@ -35,6 +36,102 @@ from sphinx.locale import l_, _
+@@ -35,6 +36,102 @@
  import sphinx
  
  
@@ -285,7 +307,7 @@
  class TSConfVar(std.Target):
      """
      Description of a traffic server configuration variable.
-@@ -279,6 +376,10 @@ class TSStatRef(XRefRole):
+@@ -279,6 +376,10 @@
          return title, target
  
  
@@ -296,7 +318,7 @@
  class TrafficServerDomain(Domain):
      """
      Apache Traffic Server Documentation.
-@@ -290,7 +391,8 @@ class TrafficServerDomain(Domain):
+@@ -290,7 +391,8 @@
  
      object_types = {
          'cv': ObjType(l_('configuration variable'), 'cv'),
@@ -306,7 +328,7 @@
      }
  
      directives = {
-@@ -300,17 +402,21 @@ class TrafficServerDomain(Domain):
+@@ -300,17 +402,21 @@
  
      roles = {
          'cv': TSConfVarRef(),
@@ -331,7 +353,7 @@
      }
  
      def clear_doc(self, docname):
-@@ -322,6 +428,10 @@ class TrafficServerDomain(Domain):
+@@ -322,6 +428,10 @@
          for var, doc in stat_list.items():
              if doc == docname:
                  del stat_list[var]
@@ -342,7 +364,7 @@
  
      def find_doc(self, key, obj_type):
          zret = None
-@@ -330,6 +440,8 @@ class TrafficServerDomain(Domain):
+@@ -330,6 +440,8 @@
              obj_list = self.data['cv']
          elif obj_type == 'stat':
              obj_list = self.data['stat']
@@ -351,7 +373,7 @@
          else:
              obj_list = None
  
-@@ -339,15 +451,20 @@ class TrafficServerDomain(Domain):
+@@ -339,15 +451,20 @@
          return zret
  
      def resolve_xref(self, env, src_doc, builder, obj_type, target, node, cont_node):
@@ -375,7 +397,7 @@
  
  
  # These types are ignored as missing references for the C++ domain.
-@@ -393,6 +510,8 @@ def setup(app):
+@@ -393,6 +510,8 @@
      rst.roles.register_generic_role('const', nodes.literal)
  
      app.add_domain(TrafficServerDomain)

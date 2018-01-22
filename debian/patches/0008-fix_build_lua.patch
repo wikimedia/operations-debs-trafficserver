@@ -1,6 +1,8 @@
---- a/lib/bindings/bindings.h
-+++ b/lib/bindings/bindings.h
-@@ -62,7 +62,7 @@ struct BindingInstance {
+Index: trafficserver/lib/bindings/bindings.h
+===================================================================
+--- trafficserver.orig/lib/bindings/bindings.h	2018-01-21 13:07:25.657381909 +0100
++++ trafficserver/lib/bindings/bindings.h	2018-01-21 13:07:25.653381896 +0100
+@@ -62,7 +62,7 @@
    static BindingInstance *self(lua_State *);
  
    // Register a Lua metatable for a custom type.
@@ -9,9 +11,11 @@
  
    lua_State *lua;
  
---- a/lib/bindings/metrics.cc
-+++ b/lib/bindings/metrics.cc
-@@ -196,7 +196,7 @@ lua_metrics_new(const char *prefix, lua_
+Index: trafficserver/lib/bindings/metrics.cc
+===================================================================
+--- trafficserver.orig/lib/bindings/metrics.cc	2018-01-21 13:07:25.657381909 +0100
++++ trafficserver/lib/bindings/metrics.cc	2018-01-21 13:07:25.653381896 +0100
+@@ -196,7 +196,7 @@
  void
  lua_metrics_register(lua_State *L)
  {
@@ -20,9 +24,11 @@
      {"__gc", metrics_gc}, {"__index", metrics_index}, {"__newindex", metrics_newindex}, {nullptr, nullptr},
    };
  
---- a/lib/bindings/bindings.cc
-+++ b/lib/bindings/bindings.cc
-@@ -327,7 +327,7 @@ BindingInstance::typecheck(lua_State *lu
+Index: trafficserver/lib/bindings/bindings.cc
+===================================================================
+--- trafficserver.orig/lib/bindings/bindings.cc	2018-01-21 13:07:25.657381909 +0100
++++ trafficserver/lib/bindings/bindings.cc	2018-01-21 13:07:25.653381896 +0100
+@@ -327,7 +327,7 @@
  }
  
  void
@@ -31,9 +37,11 @@
  {
    // Create a metatable, adding it to the Lua registry.
    luaL_newmetatable(lua, name);
---- a/proxy/logging/LogBindings.cc
-+++ b/proxy/logging/LogBindings.cc
-@@ -179,7 +179,7 @@ log_object_add_hosts(lua_State *L, LogOb
+Index: trafficserver/proxy/logging/LogBindings.cc
+===================================================================
+--- trafficserver.orig/proxy/logging/LogBindings.cc	2018-01-21 13:07:25.657381909 +0100
++++ trafficserver/proxy/logging/LogBindings.cc	2018-01-21 13:07:25.653381896 +0100
+@@ -179,7 +179,7 @@
    if (lua_istable(L, value)) {
      lua_scoped_stack saved(L);
  
@@ -42,7 +50,7 @@
      LogHost *lh = nullptr;
  
      saved.push_value(value); // Push the table to -1.
-@@ -257,7 +257,7 @@ log_object_add_filters(lua_State *L, Log
+@@ -257,7 +257,7 @@
    if (lua_istable(L, value)) {
      lua_scoped_stack saved(L);
      LogFilter *filter;
@@ -51,7 +59,7 @@
  
      saved.push_value(value); // Push the table to -1.
  
-@@ -391,7 +391,7 @@ create_pipe_log_object(lua_State *L)
+@@ -391,7 +391,7 @@
  bool
  MakeLogBindings(BindingInstance &binding, LogConfig *conf)
  {
