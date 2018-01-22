@@ -1,3 +1,13 @@
+trafficserver (7.1.2+ds-1) unstable; urgency=medium
+
+  * New upstream version 7.1.2+ds
+  * Update d/patches for 7.1.2+ds
+  * Update build dependencies
+  * Update compilation flags
+  * Enable experimental plugin cache_key_genid
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Tue, 16 Jan 2018 18:18:40 +0100
+
 trafficserver (7.1.1-1) unstable; urgency=medium
 
   * Fix trafficserver-dev dependencies. (Closes: #877457)
