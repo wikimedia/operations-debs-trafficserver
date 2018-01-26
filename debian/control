@@ -3,7 +3,7 @@ Section: web
 Priority: optional
 Maintainer: Aron Xu <aron@debian.org>
 Uploaders: Jean Baptiste Favre <debian@jbfavre.org>
-Build-Depends: debhelper (>= 10), libssl-dev, tcl-dev, libexpat1-dev,
+Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config, libgeoip-dev,
   libluajit-5.1-dev [amd64 arm64 armel armhf hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386 mips mips64el mipsel powerpc ppc64 ppc64el],
@@ -47,7 +47,7 @@ Description: experimental plugins for Apache Traffic Server
  proxy server which may operate as forward proxy as well.
  .
  This package provides experimental plugins: authproxy, channel stats,
- combo handler, custom_redirect, esi, geoip acl, healthchecks, lua, metalink,
+ combo handler, custom_redirect, esi, geoip acl, healthchecks, Lua, metalink,
  rfc5861, spdy and tcp info.
 
 Package: trafficserver-dev

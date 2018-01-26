@@ -18,6 +18,7 @@ configure_flags = \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
 	--enable-mime-sanity-check --enable-system-luajit \
+	--enable-docs \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
@@ -44,16 +45,30 @@ ifneq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 override_dh_install:
-	dh_install --list-missing
+	dh_install
+	dh_missing --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
+	# Lintian fixes
+	mkdir -p debian/trafficserver/usr/share/doc/trafficserver
+	cat CHANGELOG-* >> debian/trafficserver/usr/share/doc/trafficserver/changelog
+	#rm debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/ssl_preaccept.config
+	#(cd debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/; \
+	#ln -s ssl_preaccept.config ssl_sni.config)
 
 override_dh_fixperms:
-	dh_fixperms -X etc/trafficserver -X var/lib/trafficserver \
-		-X var/log/trafficserver -X /var/cache/trafficserver \
-		-X var/run/trafficserver
+	dh_fixperms -Xetc/trafficserver \
+		    -Xvar/lib/trafficserver \
+		    -Xvar/log/trafficserver \
+		    -Xvar/cache/trafficserver \
+		    -Xvar/run/trafficserver
+	# Fix lintian warning
+	chmod -x debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/remap_header_add/build.txt
 
 override_dh_installexamples:
-	dh_installexamples -X Makefile -X.deps -X.la -X.lo
+	dh_installexamples -XMakefile -X.deps -X.la -X.lo
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xdebian/tmp/usr/lib/trafficserver
+
+override_dh_auto_test:
+	-dh_auto_test
