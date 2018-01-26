@@ -1,3 +1,17 @@
+trafficserver (7.1.2+ds-2) unstable; urgency=medium
+
+  * Drop patch for lua source code removal (Handled with repack)
+  * Drop patch for documentation build (merged upstream)
+  * Add a patch to make man pages being built
+  * Update d/compat
+  * Fix lintian warnings
+  * Update d/rule to fix lintian warning.
+  * Disable auto_test (again)
+  * Install CHANGELOG file in /usr/share/doc
+  * Enable documentation built (if not, man pages aren't either)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 25 Jan 2018 23:38:51 +0100
+
 trafficserver (7.1.2+ds-1) unstable; urgency=medium
 
   * New upstream version 7.1.2+ds
@@ -438,7 +452,7 @@ trafficserver (3.0.1-2) unstable; urgency=low
     architectures. Thanks Konstantinos Margaritis for the hint (Closes: #636338)
   * Remove IA64 from the list of supported architectures. The upgrade to the gcc
     4.6 toolchain disclosed portability issues with it, which caused the resul-
-    ting binary package to produce no-op code in some functions. 
+    ting binary package to produce no-op code in some functions.
 
  -- Arno Töll <debian@toell.net>  Tue, 02 Aug 2011 22:58:37 +0200
 
@@ -540,6 +554,6 @@ trafficserver (2.1.5-unstable-1) unstable; urgency=low
   * Differences to upstream version:
     + Ship some documentation. Well, really a few hints
     + Split source into three packages (core, plug-in, SDK)
-    + Ship our own init script 
+    + Ship our own init script
 
  -- Arno Toell <debian@toell.net>  Tue, 13 Jan 2011 11:49:18 +0100
