@@ -8,7 +8,7 @@
 0004-force-use-luajit-system-plugins.patch
 0004-force-use-luajit-system-mgmt.patch
 0004-force-use-luajit-system-iocore.patch
-0005-fix_documentation_build.patch
+0005-fix_documentation_build_option.patch
 0006-fix_arm_build.patch
 0007-fix_build_kfreebsd.patch
 0008-fix_build_lua.patch

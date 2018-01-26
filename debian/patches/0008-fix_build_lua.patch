@@ -1,8 +1,12 @@
-Index: trafficserver/lib/bindings/bindings.h
-===================================================================
---- trafficserver.orig/lib/bindings/bindings.h	2018-01-21 13:07:25.657381909 +0100
-+++ trafficserver/lib/bindings/bindings.h	2018-01-21 13:07:25.653381896 +0100
-@@ -62,7 +62,7 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Fix build against LuaJIT 2.1
+Last-Update: 2018-01-25
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/lib/bindings/bindings.h
++++ b/lib/bindings/bindings.h
+@@ -62,7 +62,7 @@ struct BindingInstance {
    static BindingInstance *self(lua_State *);
  
    // Register a Lua metatable for a custom type.
@@ -11,11 +15,9 @@ Index: trafficserver/lib/bindings/bindings.h
  
    lua_State *lua;
  
-Index: trafficserver/lib/bindings/metrics.cc
-===================================================================
---- trafficserver.orig/lib/bindings/metrics.cc	2018-01-21 13:07:25.657381909 +0100
-+++ trafficserver/lib/bindings/metrics.cc	2018-01-21 13:07:25.653381896 +0100
-@@ -196,7 +196,7 @@
+--- a/lib/bindings/metrics.cc
++++ b/lib/bindings/metrics.cc
+@@ -196,7 +196,7 @@ lua_metrics_new(const char *prefix, lua_
  void
  lua_metrics_register(lua_State *L)
  {
@@ -24,11 +26,9 @@ Index: trafficserver/lib/bindings/metrics.cc
      {"__gc", metrics_gc}, {"__index", metrics_index}, {"__newindex", metrics_newindex}, {nullptr, nullptr},
    };
  
-Index: trafficserver/lib/bindings/bindings.cc
-===================================================================
---- trafficserver.orig/lib/bindings/bindings.cc	2018-01-21 13:07:25.657381909 +0100
-+++ trafficserver/lib/bindings/bindings.cc	2018-01-21 13:07:25.653381896 +0100
-@@ -327,7 +327,7 @@
+--- a/lib/bindings/bindings.cc
++++ b/lib/bindings/bindings.cc
+@@ -327,7 +327,7 @@ BindingInstance::typecheck(lua_State *lu
  }
  
  void
@@ -37,11 +37,9 @@ Index: trafficserver/lib/bindings/bindings.cc
  {
    // Create a metatable, adding it to the Lua registry.
    luaL_newmetatable(lua, name);
-Index: trafficserver/proxy/logging/LogBindings.cc
-===================================================================
---- trafficserver.orig/proxy/logging/LogBindings.cc	2018-01-21 13:07:25.657381909 +0100
-+++ trafficserver/proxy/logging/LogBindings.cc	2018-01-21 13:07:25.653381896 +0100
-@@ -179,7 +179,7 @@
+--- a/proxy/logging/LogBindings.cc
++++ b/proxy/logging/LogBindings.cc
+@@ -179,7 +179,7 @@ log_object_add_hosts(lua_State *L, LogOb
    if (lua_istable(L, value)) {
      lua_scoped_stack saved(L);
  
@@ -50,7 +48,7 @@ Index: trafficserver/proxy/logging/LogBindings.cc
      LogHost *lh = nullptr;
  
      saved.push_value(value); // Push the table to -1.
-@@ -257,7 +257,7 @@
+@@ -257,7 +257,7 @@ log_object_add_filters(lua_State *L, Log
    if (lua_istable(L, value)) {
      lua_scoped_stack saved(L);
      LogFilter *filter;
@@ -59,7 +57,7 @@ Index: trafficserver/proxy/logging/LogBindings.cc
  
      saved.push_value(value); // Push the table to -1.
  
-@@ -391,7 +391,7 @@
+@@ -391,7 +391,7 @@ create_pipe_log_object(lua_State *L)
  bool
  MakeLogBindings(BindingInstance &binding, LogConfig *conf)
  {

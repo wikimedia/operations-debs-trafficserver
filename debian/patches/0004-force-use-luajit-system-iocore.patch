@@ -1,8 +1,12 @@
-Index: trafficserver/iocore/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/Makefile.in	2018-01-21 13:07:24.697378887 +0100
-@@ -318,9 +318,9 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Use system luajit or liblua
+Last-Update: 2018-01-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/iocore/Makefile.in
++++ b/iocore/Makefile.in
+@@ -318,9 +318,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -15,11 +19,9 @@ Index: trafficserver/iocore/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/aio/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/aio/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/aio/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -551,9 +551,9 @@
+--- a/iocore/aio/Makefile.in
++++ b/iocore/aio/Makefile.in
+@@ -551,9 +551,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -32,11 +34,9 @@ Index: trafficserver/iocore/aio/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/cache/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/cache/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/cache/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -355,9 +355,9 @@
+--- a/iocore/cache/Makefile.in
++++ b/iocore/cache/Makefile.in
+@@ -355,9 +355,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -49,11 +49,9 @@ Index: trafficserver/iocore/cache/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/cluster/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/cluster/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/cluster/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -342,9 +342,9 @@
+--- a/iocore/cluster/Makefile.in
++++ b/iocore/cluster/Makefile.in
+@@ -342,9 +342,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -66,11 +64,9 @@ Index: trafficserver/iocore/cluster/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/dns/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/dns/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/dns/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -337,9 +337,9 @@
+--- a/iocore/dns/Makefile.in
++++ b/iocore/dns/Makefile.in
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -83,11 +79,9 @@ Index: trafficserver/iocore/dns/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/eventsystem/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/eventsystem/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/eventsystem/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -565,9 +565,9 @@
+--- a/iocore/eventsystem/Makefile.in
++++ b/iocore/eventsystem/Makefile.in
+@@ -565,9 +565,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -100,11 +94,9 @@ Index: trafficserver/iocore/eventsystem/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/hostdb/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/hostdb/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/hostdb/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -557,9 +557,9 @@
+--- a/iocore/hostdb/Makefile.in
++++ b/iocore/hostdb/Makefile.in
+@@ -557,9 +557,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -117,11 +109,9 @@ Index: trafficserver/iocore/hostdb/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/net/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/net/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/net/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -602,9 +602,9 @@
+--- a/iocore/net/Makefile.in
++++ b/iocore/net/Makefile.in
+@@ -602,9 +602,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -134,11 +124,9 @@ Index: trafficserver/iocore/net/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/iocore/utils/Makefile.in
-===================================================================
---- trafficserver.orig/iocore/utils/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-+++ trafficserver/iocore/utils/Makefile.in	2018-01-21 13:07:24.701378900 +0100
-@@ -335,9 +335,9 @@
+--- a/iocore/utils/Makefile.in
++++ b/iocore/utils/Makefile.in
+@@ -335,9 +335,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

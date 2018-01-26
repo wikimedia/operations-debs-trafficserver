@@ -1,8 +1,12 @@
-Index: trafficserver/cmd/traffic_manager/Makefile.am
-===================================================================
---- trafficserver.orig/cmd/traffic_manager/Makefile.am	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_manager/Makefile.am	2018-01-21 13:07:23.373374711 +0100
-@@ -21,7 +21,7 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Use system luajit or liblua
+Last-Update: 2018-01-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/cmd/traffic_manager/Makefile.am
++++ b/cmd/traffic_manager/Makefile.am
+@@ -21,7 +21,7 @@ check_PROGRAMS = test_metrics
  TESTS = $(check_PROGRAMS)
  
  AM_CPPFLAGS += \
@@ -11,7 +15,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.am
    $(iocore_include_dirs) \
    -I$(abs_top_srcdir)/lib/records \
    -I$(abs_top_srcdir)/proxy/hdrs \
-@@ -32,7 +32,7 @@
+@@ -32,7 +32,7 @@ AM_CPPFLAGS += \
    -I$(abs_top_srcdir)/mgmt/cluster \
    -I$(abs_top_srcdir)/mgmt/utils \
    -I$(abs_top_srcdir)/lib \
@@ -20,7 +24,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.am
  
  AM_LDFLAGS += \
    @OPENSSL_LDFLAGS@
-@@ -56,17 +56,16 @@
+@@ -56,17 +56,16 @@ traffic_manager_LDADD = \
    $(top_builddir)/proxy/shared/libdiagsconfig.a
  
  AM_LDFLAGS += \
@@ -41,7 +45,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.am
    @LIBRESOLV@ @LIBPCRE@ @LIBTCL@ @LIBCAP@ @HWLOC_LIBS@ \
    -lm
  
-@@ -75,9 +74,9 @@
+@@ -75,9 +74,9 @@ test_metrics_LDADD = \
    $(top_builddir)/mgmt/libmgmt_lm.la \
    $(top_builddir)/lib/records/librecords_lm.a \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -52,11 +56,9 @@ Index: trafficserver/cmd/traffic_manager/Makefile.am
    @LIBTCL@ @LIBPCRE@
  
  # Must do it this way or the dependencies aren't detected.
-Index: trafficserver/cmd/traffic_manager/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_manager/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_manager/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -171,7 +171,6 @@
+--- a/cmd/traffic_manager/Makefile.in
++++ b/cmd/traffic_manager/Makefile.in
+@@ -171,7 +171,6 @@ test_metrics_OBJECTS = $(am_test_metrics
  test_metrics_DEPENDENCIES = $(top_builddir)/mgmt/libmgmt_lm.la \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -64,7 +66,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.in
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(am__DEPENDENCIES_1)
-@@ -193,7 +192,6 @@
+@@ -193,7 +192,6 @@ traffic_manager_DEPENDENCIES =  \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -72,7 +74,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.in
  	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_1)
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
-@@ -489,17 +487,16 @@
+@@ -489,17 +487,16 @@ pkglibexecdir = @pkglibexecdir@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -93,7 +95,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.in
  AR = @AR@
  ASCPP = @ASCPP@
  AUTOCONF = @AUTOCONF@
-@@ -579,9 +576,9 @@
+@@ -579,9 +576,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -106,7 +108,7 @@ Index: trafficserver/cmd/traffic_manager/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -856,18 +853,16 @@
+@@ -856,18 +853,16 @@ traffic_manager_LDADD = $(top_builddir)/
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
@@ -129,11 +131,9 @@ Index: trafficserver/cmd/traffic_manager/Makefile.in
  Clang_Tidy_Options = -fix -fix-errors
  
  # Sort the filenames to remove duplicates, then filter to retain
-Index: trafficserver/cmd/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -506,9 +506,9 @@
+--- a/cmd/Makefile.in
++++ b/cmd/Makefile.in
+@@ -506,9 +506,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -146,11 +146,9 @@ Index: trafficserver/cmd/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_cop/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_cop/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_cop/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -317,9 +317,9 @@
+--- a/cmd/traffic_cop/Makefile.in
++++ b/cmd/traffic_cop/Makefile.in
+@@ -317,9 +317,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -163,11 +161,9 @@ Index: trafficserver/cmd/traffic_cop/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_crashlog/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_crashlog/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_crashlog/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -337,9 +337,9 @@
+--- a/cmd/traffic_crashlog/Makefile.in
++++ b/cmd/traffic_crashlog/Makefile.in
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -180,11 +176,9 @@ Index: trafficserver/cmd/traffic_crashlog/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_ctl/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_ctl/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_ctl/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -316,9 +316,9 @@
+--- a/cmd/traffic_ctl/Makefile.in
++++ b/cmd/traffic_ctl/Makefile.in
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -197,11 +191,9 @@ Index: trafficserver/cmd/traffic_ctl/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_layout/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_layout/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_layout/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -316,9 +316,9 @@
+--- a/cmd/traffic_layout/Makefile.in
++++ b/cmd/traffic_layout/Makefile.in
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -214,11 +206,9 @@ Index: trafficserver/cmd/traffic_layout/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_top/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_top/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_top/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -326,9 +326,9 @@
+--- a/cmd/traffic_top/Makefile.in
++++ b/cmd/traffic_top/Makefile.in
+@@ -326,9 +326,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -231,11 +221,9 @@ Index: trafficserver/cmd/traffic_top/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_via/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_via/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_via/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -518,9 +518,9 @@
+--- a/cmd/traffic_via/Makefile.in
++++ b/cmd/traffic_via/Makefile.in
+@@ -518,9 +518,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -248,11 +236,9 @@ Index: trafficserver/cmd/traffic_via/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/cmd/traffic_wccp/Makefile.in
-===================================================================
---- trafficserver.orig/cmd/traffic_wccp/Makefile.in	2018-01-21 13:07:23.377374724 +0100
-+++ trafficserver/cmd/traffic_wccp/Makefile.in	2018-01-21 13:07:23.373374711 +0100
-@@ -316,9 +316,9 @@
+--- a/cmd/traffic_wccp/Makefile.in
++++ b/cmd/traffic_wccp/Makefile.in
+@@ -316,9 +316,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

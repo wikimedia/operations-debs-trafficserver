@@ -1,8 +1,12 @@
-Index: trafficserver/lib/Makefile.in
-===================================================================
---- trafficserver.orig/lib/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/Makefile.in	2018-01-21 13:07:23.657375608 +0100
-@@ -305,9 +305,9 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Use system luajit or liblua
+Last-Update: 2018-01-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -305,9 +305,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -15,7 +19,7 @@ Index: trafficserver/lib/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -912,29 +912,6 @@
+@@ -912,29 +912,6 @@ uninstall-am:
  .PRECIOUS: Makefile
  
  
@@ -45,10 +49,8 @@ Index: trafficserver/lib/Makefile.in
  
  # Tell versions [3.59,3.63) of GNU make to not export all variables.
  # Otherwise a system limit (for SysV at least) may be exceeded.
-Index: trafficserver/lib/bindings/Makefile.am
-===================================================================
---- trafficserver.orig/lib/bindings/Makefile.am	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/bindings/Makefile.am	2018-01-21 13:07:23.657375608 +0100
+--- a/lib/bindings/Makefile.am
++++ b/lib/bindings/Makefile.am
 @@ -19,9 +19,10 @@
  include $(top_srcdir)/build/tidy.mk
  
@@ -62,11 +64,9 @@ Index: trafficserver/lib/bindings/Makefile.am
  
  noinst_LTLIBRARIES = libbindings.la
  
-Index: trafficserver/lib/bindings/Makefile.in
-===================================================================
---- trafficserver.orig/lib/bindings/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/bindings/Makefile.in	2018-01-21 13:07:23.657375608 +0100
-@@ -243,7 +243,7 @@
+--- a/lib/bindings/Makefile.in
++++ b/lib/bindings/Makefile.in
+@@ -243,7 +243,7 @@ pkglibexecdir = @pkglibexecdir@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -75,7 +75,7 @@ Index: trafficserver/lib/bindings/Makefile.in
  	-I$(abs_top_srcdir)/lib/records
  AM_CXXFLAGS = @AM_CXXFLAGS@
  AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-@@ -327,9 +327,9 @@
+@@ -327,9 +327,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -88,11 +88,9 @@ Index: trafficserver/lib/bindings/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/perl/Makefile.in
-===================================================================
---- trafficserver.orig/lib/perl/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/perl/Makefile.in	2018-01-21 13:07:23.657375608 +0100
-@@ -242,9 +242,9 @@
+--- a/lib/perl/Makefile.in
++++ b/lib/perl/Makefile.in
+@@ -242,9 +242,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -105,11 +103,9 @@ Index: trafficserver/lib/perl/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/records/Makefile.in
-===================================================================
---- trafficserver.orig/lib/records/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/records/Makefile.in	2018-01-21 13:07:23.661375620 +0100
-@@ -350,9 +350,9 @@
+--- a/lib/records/Makefile.in
++++ b/lib/records/Makefile.in
+@@ -350,9 +350,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -122,11 +118,9 @@ Index: trafficserver/lib/records/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/ts/Makefile.in
-===================================================================
---- trafficserver.orig/lib/ts/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/ts/Makefile.in	2018-01-21 13:07:23.661375620 +0100
-@@ -622,9 +622,9 @@
+--- a/lib/ts/Makefile.in
++++ b/lib/ts/Makefile.in
+@@ -622,9 +622,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -139,11 +133,9 @@ Index: trafficserver/lib/ts/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/tsconfig/Makefile.in
-===================================================================
---- trafficserver.orig/lib/tsconfig/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/tsconfig/Makefile.in	2018-01-21 13:07:23.661375620 +0100
-@@ -399,9 +399,9 @@
+--- a/lib/tsconfig/Makefile.in
++++ b/lib/tsconfig/Makefile.in
+@@ -399,9 +399,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -156,11 +148,9 @@ Index: trafficserver/lib/tsconfig/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/wccp/Makefile.in
-===================================================================
---- trafficserver.orig/lib/wccp/Makefile.in	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/wccp/Makefile.in	2018-01-21 13:07:23.661375620 +0100
-@@ -335,9 +335,9 @@
+--- a/lib/wccp/Makefile.in
++++ b/lib/wccp/Makefile.in
+@@ -335,9 +335,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -173,11 +163,9 @@ Index: trafficserver/lib/wccp/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/lib/Makefile.am
-===================================================================
---- trafficserver.orig/lib/Makefile.am	2018-01-21 13:07:23.665375633 +0100
-+++ trafficserver/lib/Makefile.am	2018-01-21 13:07:23.661375620 +0100
-@@ -25,32 +25,3 @@
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -25,32 +25,3 @@ endif
  if BUILD_WCCP
  SUBDIRS += wccp
  endif

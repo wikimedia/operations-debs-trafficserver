@@ -1,8 +1,12 @@
-Index: trafficserver/configure.ac
-===================================================================
---- trafficserver.orig/configure.ac	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/configure.ac	2018-01-21 13:07:23.109373878 +0100
-@@ -638,7 +638,7 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Use system luajit or liblua
+Last-Update: 2018-01-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/configure.ac
++++ b/configure.ac
+@@ -638,7 +638,7 @@ case $host_os in
        *amd64*)
          TS_ADDTO(AM_CFLAGS, [-m64])
          TS_ADDTO(AM_CXXFLAGS, [-m64])
@@ -11,7 +15,7 @@ Index: trafficserver/configure.ac
          ;;
      esac
      ;;
-@@ -805,7 +805,6 @@
+@@ -805,7 +805,6 @@ case $host_os_def in
        debug_opt="-ggdb3 $common_opt -Qunused-arguments"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
        cxx_opt="-Wno-invalid-offsetof"
@@ -19,7 +23,7 @@ Index: trafficserver/configure.ac
      ])
  
      AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
-@@ -827,7 +826,6 @@
+@@ -827,7 +826,6 @@ case $host_os_def in
        debug_opt="-g $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -27,7 +31,7 @@ Index: trafficserver/configure.ac
      ], [
        AC_MSG_WARN([clang is the only supported compiler on Darwin])
      ])
-@@ -848,7 +846,6 @@
+@@ -848,7 +846,6 @@ case $host_os_def in
        debug_opt="-ggdb3 $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -35,7 +39,7 @@ Index: trafficserver/configure.ac
      ])
  
      AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
-@@ -1168,6 +1165,11 @@
+@@ -1168,6 +1165,11 @@ TS_CHECK_ZLIB
  TS_CHECK_LZMA
  
  #
@@ -47,7 +51,7 @@ Index: trafficserver/configure.ac
  # Tcl macros provided by build/tcl.m4
  #
  # this will error out if tclConfig.sh is not found
-@@ -1475,18 +1477,6 @@
+@@ -1475,18 +1477,6 @@ TS_CHECK_TCMALLOC
  # Check for libreadline/libedit
  AX_LIB_READLINE
  
@@ -66,7 +70,7 @@ Index: trafficserver/configure.ac
  # We should be able to build http_load if epoll(2) is available.
  AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
  
-@@ -1893,20 +1883,6 @@
+@@ -1893,20 +1883,6 @@ iocore_include_dirs="\
  -I\$(abs_top_srcdir)/iocore/utils \
  -I\$(abs_top_srcdir)/iocore/dns"
  
@@ -87,7 +91,7 @@ Index: trafficserver/configure.ac
  AC_SUBST([AM_CPPFLAGS])
  AC_SUBST([AM_CFLAGS])
  AC_SUBST([AM_CXXFLAGS])
-@@ -2006,7 +1982,8 @@
+@@ -2006,7 +1982,8 @@ AC_MSG_NOTICE([Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -99,11 +103,9 @@ Index: trafficserver/configure.ac
 +    LUA_CPPFLAGS:	$LUA_CPPFLAGS
 +    LUA_LDFLAGS:        $LUA_LDFLAGS
  ])
-Index: trafficserver/configure
-===================================================================
---- trafficserver.orig/configure	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/configure	2018-01-21 13:07:23.113373890 +0100
-@@ -646,7 +646,7 @@
+--- a/configure
++++ b/configure
+@@ -646,7 +646,7 @@ AM_LDFLAGS
  AM_CXXFLAGS
  AM_CFLAGS
  AM_CPPFLAGS
@@ -112,7 +114,7 @@ Index: trafficserver/configure
  BUILD_REMAP_STATS_PLUGIN_FALSE
  BUILD_REMAP_STATS_PLUGIN_TRUE
  has_in6_is_addr_unspecified
-@@ -709,8 +709,8 @@
+@@ -709,8 +709,8 @@ BUILD_TRAFFIC_TOP_FALSE
  BUILD_TRAFFIC_TOP_TRUE
  BUILD_HTTP_LOAD_FALSE
  BUILD_HTTP_LOAD_TRUE
@@ -123,7 +125,7 @@ Index: trafficserver/configure
  LIBREADLINE
  has_tcmalloc
  jemalloch
-@@ -8168,22 +8168,22 @@
+@@ -8168,22 +8168,22 @@ case $host_os in
    fi
  
  
@@ -152,7 +154,7 @@ Index: trafficserver/configure
        fi
      done
    fi
-@@ -20719,7 +20719,6 @@
+@@ -20719,7 +20719,6 @@ fi
        debug_opt="-ggdb3 $common_opt -Qunused-arguments"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
        cxx_opt="-Wno-invalid-offsetof"
@@ -160,7 +162,7 @@ Index: trafficserver/configure
  
  fi
  
-@@ -20745,7 +20744,6 @@
+@@ -20745,7 +20744,6 @@ fi
        debug_opt="-g $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -168,7 +170,7 @@ Index: trafficserver/configure
  
  else
  
-@@ -20815,7 +20813,6 @@
+@@ -20815,7 +20813,6 @@ fi
        debug_opt="-ggdb3 $common_opt"
        release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
        cxx_opt="-Wno-invalid-offsetof"
@@ -176,7 +178,7 @@ Index: trafficserver/configure
  
  fi
  
-@@ -27051,19 +27048,6 @@
+@@ -27051,19 +27048,6 @@ done
    fi
  
  
@@ -196,7 +198,7 @@ Index: trafficserver/configure
  # We should be able to build http_load if epoll(2) is available.
   if test x"$ac_cv_func_epoll_ctl" = x"yes"; then
    BUILD_HTTP_LOAD_TRUE=
-@@ -28228,22 +28212,22 @@
+@@ -28228,22 +28212,22 @@ iocore_include_dirs="\
  # can strip the coverage flags from Lua while keeping them by
  # default everywhere else.
  
@@ -225,7 +227,7 @@ Index: trafficserver/configure
        fi
      done
    fi
-@@ -28251,13 +28235,13 @@
+@@ -28251,13 +28235,13 @@ iocore_include_dirs="\
  
  
  
@@ -243,7 +245,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"-fsanitize=address""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28265,19 +28249,19 @@
+@@ -28265,19 +28249,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -269,7 +271,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"-fsanitize=thread""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28285,19 +28269,19 @@
+@@ -28285,19 +28269,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -295,7 +297,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"-fsanitize=memory""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28305,19 +28289,19 @@
+@@ -28305,19 +28289,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -321,7 +323,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"-fprofile-instr-generate""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28325,19 +28309,19 @@
+@@ -28325,19 +28309,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -347,7 +349,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"-fcoverage-mapping""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28345,19 +28329,19 @@
+@@ -28345,19 +28329,19 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -373,7 +375,7 @@ Index: trafficserver/configure
        if test "x$i" != "x"--coverage""; then
          ats_new_bugger="$ats_new_bugger $i"
        else
-@@ -28365,8 +28349,8 @@
+@@ -28365,8 +28349,8 @@ iocore_include_dirs="\
        fi
      done
      if test $ats_removed = "1"; then
@@ -384,7 +386,7 @@ Index: trafficserver/configure
      fi
    fi
  
-@@ -31133,9 +31117,9 @@
+@@ -31133,9 +31117,9 @@ fi
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -397,7 +399,7 @@ Index: trafficserver/configure
  " >&5
  $as_echo "$as_me: Build option summary:
      CC:                 $CC
-@@ -31151,7 +31135,7 @@
+@@ -31151,7 +31135,7 @@ $as_echo "$as_me: Build option summary:
      SHARED_LDFLAGS:     $SHARED_LDFLAGS
      OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
      OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
@@ -408,10 +410,8 @@ Index: trafficserver/configure
 +    LUA_CPPFLAGS:	$LUA_CPPFLAGS
 +    LUA_LDFLAGS:     $LUA_LDFLAGS
  " >&6;}
-Index: trafficserver/build/luajit.m4
-===================================================================
---- /dev/null	1970-01-01 00:00:00.000000000 +0000
-+++ trafficserver/build/luajit.m4	2018-01-21 13:07:23.113373890 +0100
+--- /dev/null
++++ b/build/luajit.m4
 @@ -0,0 +1,48 @@
 +dnl -------------------------------------------------------- -*- autoconf -*-
 +dnl Licensed to the Apache Software Foundation (ASF) under one or more
@@ -461,11 +461,9 @@ Index: trafficserver/build/luajit.m4
 +    ]
 +  )
 +])
-Index: trafficserver/Makefile.in
-===================================================================
---- trafficserver.orig/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/Makefile.in	2018-01-21 13:07:23.113373890 +0100
-@@ -336,9 +336,9 @@
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -336,9 +336,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -478,11 +476,9 @@ Index: trafficserver/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/rc/Makefile.in
-===================================================================
---- trafficserver.orig/rc/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/rc/Makefile.in	2018-01-21 13:07:23.113373890 +0100
-@@ -280,9 +280,9 @@
+--- a/rc/Makefile.in
++++ b/rc/Makefile.in
+@@ -280,9 +280,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -495,11 +491,9 @@ Index: trafficserver/rc/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/doc/Makefile.in
-===================================================================
---- trafficserver.orig/doc/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/doc/Makefile.in	2018-01-21 13:07:23.113373890 +0100
-@@ -273,9 +273,9 @@
+--- a/doc/Makefile.in
++++ b/doc/Makefile.in
+@@ -273,9 +273,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -512,11 +506,9 @@ Index: trafficserver/doc/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/example/Makefile.in
-===================================================================
---- trafficserver.orig/example/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/example/Makefile.in	2018-01-21 13:07:23.113373890 +0100
-@@ -809,9 +809,9 @@
+--- a/example/Makefile.in
++++ b/example/Makefile.in
+@@ -809,9 +809,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -529,11 +521,9 @@ Index: trafficserver/example/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/tools/Makefile.in
-===================================================================
---- trafficserver.orig/tools/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-+++ trafficserver/tools/Makefile.in	2018-01-21 13:07:23.117373902 +0100
-@@ -362,9 +362,9 @@
+--- a/tools/Makefile.in
++++ b/tools/Makefile.in
+@@ -362,9 +362,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

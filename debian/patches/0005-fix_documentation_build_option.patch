@@ -1,0 +1,28 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Fix man pages build
+Last-Update: 2018-01-25
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/configure.ac
++++ b/configure.ac
+@@ -275,7 +275,7 @@ AM_CONDITIONAL([BUILD_TESTS], [test 0 -n
+ AC_MSG_CHECKING([whether to build documentation])
+ AC_ARG_ENABLE([docs],
+   [AS_HELP_STRING([--enable-docs],[enable documentation building])],
+-  [],
++  [enable_doc_build=yes],
+   [enable_doc_build=no]
+ )
+ AC_MSG_RESULT([$enable_doc_build])
+--- a/doc/manpages.py
++++ b/doc/manpages.py
+@@ -20,7 +20,7 @@ import os
+ man_pages = [
+     # Add all files in the reference/api directory to the list of manual
+     # pages
+-    ('developer-guide/api/functions/' + filename[:-4], filename.split('.', 1)[0], '', None, '3ts') for filename in os.listdir('developer-guide/api/functions/') if filename != 'index.en.rst' and filename.endswith('.rst')] + [
++    ('developer-guide/api/functions/' + filename[:-4], filename.split('.', 1)[0], filename.split('.', 1)[0] + ' API function', None, '3ts') for filename in os.listdir('developer-guide/api/functions/') if filename != 'index.en.rst' and filename.endswith('.rst')] + [
+ 
+     ('appendices/command-line/traffic_cop.en', 'traffic_cop', u'Traffic Server watchdog', None, '8'),
+     ('appendices/command-line/traffic_ctl.en', 'traffic_ctl', u'Traffic Server command line tool', None, '8'),

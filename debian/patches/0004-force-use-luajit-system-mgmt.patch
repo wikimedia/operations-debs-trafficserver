@@ -1,8 +1,12 @@
-Index: trafficserver/mgmt/Makefile.in
-===================================================================
---- trafficserver.orig/mgmt/Makefile.in	2018-01-21 13:07:24.469378169 +0100
-+++ trafficserver/mgmt/Makefile.in	2018-01-21 13:07:24.461378144 +0100
-@@ -389,9 +389,9 @@
+From: Jean Baptiste Favre <debian@jbfavre.org>
+Date: Fri Nov 25 17:49:34 2016 +0100
+Subject: Use system luajit or liblua
+Last-Update: 2018-01-22
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/mgmt/Makefile.in
++++ b/mgmt/Makefile.in
+@@ -389,9 +389,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -15,11 +19,9 @@ Index: trafficserver/mgmt/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/mgmt/api/Makefile.in
-===================================================================
---- trafficserver.orig/mgmt/api/Makefile.in	2018-01-21 13:07:24.469378169 +0100
-+++ trafficserver/mgmt/api/Makefile.in	2018-01-21 13:07:24.461378144 +0100
-@@ -429,9 +429,9 @@
+--- a/mgmt/api/Makefile.in
++++ b/mgmt/api/Makefile.in
+@@ -429,9 +429,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -32,11 +34,9 @@ Index: trafficserver/mgmt/api/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/mgmt/api/include/Makefile.in
-===================================================================
---- trafficserver.orig/mgmt/api/include/Makefile.in	2018-01-21 13:07:24.469378169 +0100
-+++ trafficserver/mgmt/api/include/Makefile.in	2018-01-21 13:07:24.461378144 +0100
-@@ -291,9 +291,9 @@
+--- a/mgmt/api/include/Makefile.in
++++ b/mgmt/api/include/Makefile.in
+@@ -291,9 +291,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -49,11 +49,9 @@ Index: trafficserver/mgmt/api/include/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/mgmt/cluster/Makefile.in
-===================================================================
---- trafficserver.orig/mgmt/cluster/Makefile.in	2018-01-21 13:07:24.469378169 +0100
-+++ trafficserver/mgmt/cluster/Makefile.in	2018-01-21 13:07:24.461378144 +0100
-@@ -329,9 +329,9 @@
+--- a/mgmt/cluster/Makefile.in
++++ b/mgmt/cluster/Makefile.in
+@@ -329,9 +329,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -66,11 +64,9 @@ Index: trafficserver/mgmt/cluster/Makefile.in
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-Index: trafficserver/mgmt/utils/Makefile.in
-===================================================================
---- trafficserver.orig/mgmt/utils/Makefile.in	2018-01-21 13:07:24.469378169 +0100
-+++ trafficserver/mgmt/utils/Makefile.in	2018-01-21 13:07:24.461378144 +0100
-@@ -554,9 +554,9 @@
+--- a/mgmt/utils/Makefile.in
++++ b/mgmt/utils/Makefile.in
+@@ -554,9 +554,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
