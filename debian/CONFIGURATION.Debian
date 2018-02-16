@@ -91,9 +91,9 @@ is especially true for comments which are not kept when using `traffic_line'
   for that purpose.
 
 
-[1] http://trafficserver.apache.org/docs/v2/admin/configure.htm
-[2] https://cwiki.apache.org/TS/squidconfigtranslation.html
-[3] http://trafficserver.apache.org/docs/v2/admin/files.htm#records.config
-[4] http://trafficserver.apache.org/docs/v2/admin/intro.htm
+[1] https://docs.trafficserver.apache.org/en/latest/admin-guide/configuring-traffic-server.en.html
+[2] https://cwiki.apache.org/confluence/display/TS/SquidConfigTranslation
+[3] https://docs.trafficserver.apache.org/en/latest/admin-guide/files/records.config.en.html
+[4] https://docs.trafficserver.apache.org/en/latest/admin-guide/introduction.en.html
 
  -- Arno Töll <debian@toell.net>  Wed, 21 Mar 2012 14:10:21 +0100
