@@ -49,8 +49,8 @@ override_dh_install:
 	dh_missing --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
 	# Lintian fixes
-	mkdir -p debian/trafficserver/usr/share/doc/trafficserver
-	cat CHANGELOG-* >> debian/trafficserver/usr/share/doc/trafficserver/changelog
+	mkdir -p debian/trafficserver-dev/usr/share/doc/trafficserver-dev
+	cat CHANGELOG-* >> debian/trafficserver-dev/usr/share/doc/trafficserver-dev/changelog
 	#rm debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/ssl_preaccept.config
 	#(cd debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/; \
 	#ln -s ssl_preaccept.config ssl_sni.config)
@@ -65,7 +65,7 @@ override_dh_fixperms:
 	chmod -x debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/remap_header_add/build.txt
 
 override_dh_installexamples:
-	dh_installexamples -XMakefile -X.deps -X.la -X.lo
+	dh_installexamples -XMakefile -X.libs -X.dirstamp -X.deps -X.la -X.lo
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xdebian/tmp/usr/lib/trafficserver
