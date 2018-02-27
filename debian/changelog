@@ -1,3 +1,12 @@
+trafficserver (7.1.2+ds-3) unstable; urgency=medium
+
+  * Add upstream changelog file to trafficserver package
+  * Add systemd units file
+  * Fix documentation. Update links
+  * Update d/rules to remove examples binary files from package
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 16 Feb 2018 15:05:07 +0100
+
 trafficserver (7.1.2+ds-2) unstable; urgency=medium
 
   * Drop patch for lua source code removal (Handled with repack)
