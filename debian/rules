@@ -26,7 +26,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 
 %:
-	dh $@ --parallel --with autoreconf
+	dh $@ --with autoreconf
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(configure_flags)
@@ -49,8 +49,8 @@ override_dh_install:
 	dh_missing --list-missing
 	./debian/change_config.pl debian/trafficserver/etc/trafficserver/records.config
 	# Lintian fixes
-	mkdir -p debian/trafficserver-dev/usr/share/doc/trafficserver-dev
-	cat CHANGELOG-* >> debian/trafficserver-dev/usr/share/doc/trafficserver-dev/changelog
+	mkdir -p debian/trafficserver/usr/share/doc/trafficserver
+	cat CHANGELOG-* >> debian/trafficserver/usr/share/doc/trafficserver/changelog
 	#rm debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/ssl_preaccept.config
 	#(cd debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/; \
 	#ln -s ssl_preaccept.config ssl_sni.config)
