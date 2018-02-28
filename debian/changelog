@@ -1,3 +1,12 @@
+trafficserver (7.0.0-5.1) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload by the Security Team.
+  * Add patch for CVE-2017-5660
+  * Add patch for CVE-2017-7671
+  * Update d/gbp.conf
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 28 Feb 2018 15:30:18 +0100
+
 trafficserver (7.0.0-5) unstable; urgency=medium
 
   * Add patch to fix arm* build. (Closes: #857389)
