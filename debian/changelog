@@ -1,4 +1,4 @@
-trafficserver (7.0.0-5.1) UNRELEASED; urgency=medium
+trafficserver (7.0.0-6+deb9u1) stretch-security; urgency=high
 
   * Non-maintainer upload by the Security Team.
   * Add patch for CVE-2017-5660
