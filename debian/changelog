@@ -1,3 +1,9 @@
+trafficserver (7.0.0-6+deb9u2) stable; urgency=medium
+
+  * Fixes trafficserver-dev dependencies. Closes: #877457
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 21 Mar 2018 13:54:59 +0100
+
 trafficserver (7.0.0-6+deb9u1) stretch-security; urgency=high
 
   * Non-maintainer upload by the Security Team.
