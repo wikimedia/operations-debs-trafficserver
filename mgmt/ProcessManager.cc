@@ -178,8 +178,8 @@ ProcessManager::processSignalQueue()
 void
 ProcessManager::initLMConnection()
 {
-  ats_scoped_str rundir(RecConfigReadRuntimeDir());
-  ats_scoped_str sockpath(Layout::relative_to(rundir, LM_CONNECTION_SERVER));
+  std::string rundir(RecConfigReadRuntimeDir());
+  std::string sockpath(Layout::relative_to(rundir, LM_CONNECTION_SERVER));
 
   MgmtMessageHdr *mh_full;
   int data_len;
@@ -191,7 +191,7 @@ ProcessManager::initLMConnection()
   memset((char *)&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sun_family = AF_UNIX;
 
-  ink_strlcpy(serv_addr.sun_path, sockpath, sizeof(serv_addr.sun_path));
+  ink_strlcpy(serv_addr.sun_path, sockpath.c_str(), sizeof(serv_addr.sun_path));
 #if defined(darwin) || defined(freebsd)
   servlen = sizeof(sockaddr_un);
 #else
@@ -206,7 +206,8 @@ ProcessManager::initLMConnection()
   }
 
   if ((connect(local_manager_sockfd, (struct sockaddr *)&serv_addr, servlen)) < 0) {
-    mgmt_fatal(errno, "[ProcessManager::initLMConnection] failed to connect management socket '%s'\n", (const char *)sockpath);
+    mgmt_fatal(errno, "[ProcessManager::initLMConnection] failed to connect management socket '%s'\n",
+               (const char *)sockpath.c_str());
   }
 
   data_len          = sizeof(pid_t);
