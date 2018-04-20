@@ -1686,6 +1686,22 @@ Security
    post body larger than this limit the response will be terminated with
    413 - Request Entity Too Large and logged accordingly.
 
+.. ts:cv:: CONFIG proxy.config.http.allow_multi_range INT 1
+   :reloadable:
+   :overridable:
+
+   This option allows the administrator to configure different behavior and
+   handling of requests with multiple ranges in the ``Range`` header.
+
+   ===== ======================================================================
+   Value Description
+   ===== ======================================================================
+   ``0`` Do not allow multiple ranges, effectively ignoring the ``Range`` header
+   ``1`` Allows multiple ranges. This can be potentially dangerous since well
+         formed requests can cause excessive resource consumption on the server.
+   ``2`` Similar to 0, except return a 416 error code and no response body.
+   ===== ======================================================================
+
 Cache Control
 =============
 
@@ -2989,6 +3005,10 @@ SSL Termination
 
    ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-DSS-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA256:DHE-RSA-AES128-SHA256:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA:DHE-DSS-AES256-SHA:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA:AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-SHA256:AES128-SHA256:AES256-SHA:AES128-SHA:DES-CBC3-SHA:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA
 
+.. ts:cv:: CONFIG proxy.config.ssl.client.cipher_suite STRING <See notes under proxy.config.ssl.server.cipher_suite.>
+
+   Configures the cipher_suite which |TS| will use for SSL connections to origin or next hop.
+
 .. ts:cv:: CONFIG proxy.config.ssl.TLSv1 INT 1
 
    Enables (``1``) or disables (``0``) TLSv1.
@@ -3253,6 +3273,23 @@ Client-Related Configuration
 
    Specifies the location of the certificate authority file against
    which the origin server will be verified.
+
+.. ts:cv:: CONFIG proxy.config.ssl.client.SSLv3 INT 0
+
+   Enables (``1``) or disables (``0``) SSLv3 in the ATS client context. Disabled by default
+
+.. ts:cv:: CONFIG proxy.config.ssl.client.TLSv1 INT 1
+
+   Enables (``1``) or disables (``0``) TLSv1 in the ATS client context. If not specified, enabled by default
+
+.. ts:cv:: CONFIG proxy.config.ssl.client.TLSv1_1 INT 1
+
+   Enables (``1``) or disables (``0``) TLSv1_1 in the ATS client context. If not specified, enabled by default
+
+.. ts:cv:: CONFIG proxy.config.ssl.client.TLSv1_2 INT 1
+
+   Enables (``1``) or disables (``0``) TLSv1_2 in the ATS client context. If not specified, enabled by default
+
 
 OCSP Stapling Configuration
 ===========================

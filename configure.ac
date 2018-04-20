@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[7.1.2])
-m4_define([TS_VERSION_N],[7001002])
+m4_define([TS_VERSION_S],[7.1.3])
+m4_define([TS_VERSION_N],[7001003])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -275,7 +275,7 @@ AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 AC_MSG_CHECKING([whether to build documentation])
 AC_ARG_ENABLE([docs],
   [AS_HELP_STRING([--enable-docs],[enable documentation building])],
-  [],
+  [enable_doc_build=yes],
   [enable_doc_build=no]
 )
 AC_MSG_RESULT([$enable_doc_build])
@@ -794,7 +794,8 @@ case $host_os_def in
       # -Wall is overzealous for us, so need to turn this off for now:
       #
       #  #873 is "has no corresponding operator delete"
-      common_opt="-pipe -Wall -wd873"
+      #  #279 is "controlling expression is constant" (which is e.g. TSReleaseAssert(!"Unexpected Event");
+      common_opt="-pipe -Wall -wd873 -wd279"
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimization_flags -axsse4.2 -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
@@ -1187,7 +1188,7 @@ if test "x${TCL_INCLUDE_SPEC}" != "x-I/usr/include"; then
    TS_ADDTO(AM_CPPFLAGS, [$TCL_INCLUDE_SPEC])
 fi
 
-AC_CHECK_FUNCS([clock_gettime kqueue epoll_ctl posix_memalign posix_fadvise posix_madvise posix_fallocate inotify_init])
+AC_CHECK_FUNCS([clock_gettime kqueue epoll_ctl posix_fadvise posix_madvise posix_fallocate inotify_init])
 AC_CHECK_FUNCS([lrand48_r srand48_r port_create strlcpy strlcat sysconf sysctlbyname getpagesize])
 AC_CHECK_FUNCS([getreuid getresuid getresgid setreuid setresuid getpeereid getpeerucred])
 AC_CHECK_FUNCS([strsignal psignal psiginfo accept4])
@@ -1220,11 +1221,8 @@ if test "x${enable_pcre}" != "xyes"; then
   AC_MSG_ERROR([Cannot find pcre library. Configure --with-pcre=DIR])
 fi
 
-# Check Brotli
-AC_CHECK_HEADERS([brotli/encode.h], [has_brotli=1],[has_brotli=0])
-AC_CHECK_LIB([brotlienc],[BrotliEncoderCreateInstance],[AC_SUBST([LIB_BROTLIENC],["-lbrotlienc"])],[has_brotli=0])
-AC_SUBST(has_brotli)
-AM_CONDITIONAL([HAS_BROTLI], [ test "x${has_brotli}" = "x1" ])
+# Check for optional brotli library
+TS_CHECK_BROTLI
 
 # Check for backtrace() support
 has_backtrace=0
@@ -1993,6 +1991,7 @@ AC_MSG_NOTICE([Build option summary:
     CC:                 $CC
     CXX:                $CXX
     CPP:                $CPP
+    CPPFLAGS:           $CPPFLAGS
     AM@&t@_CFLAGS:          $AM_CFLAGS
     AM@&t@_CXXFLAGS:        $AM_CXXFLAGS
     AM@&t@_CPPFLAGS:        $AM_CPPFLAGS
@@ -2004,6 +2003,6 @@ AC_MSG_NOTICE([Build option summary:
     OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
     OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
     LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
-    LUAJIT_CPPFLAGS:	$LUAJIT_CPPFLAGS
+    LUAJIT_CPPFLAGS:    $LUAJIT_CPPFLAGS
     LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
 ])

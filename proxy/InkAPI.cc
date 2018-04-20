@@ -1763,21 +1763,22 @@ TShrtime()
 const char *
 TSInstallDirGet(void)
 {
-  return Layout::get()->prefix;
+  static std::string prefix = Layout::get()->prefix;
+  return prefix.c_str();
 }
 
 const char *
 TSConfigDirGet(void)
 {
-  static const char *sysconfdir = RecConfigReadConfigDir();
-  return sysconfdir;
+  static std::string sysconfdir = RecConfigReadConfigDir();
+  return sysconfdir.c_str();
 }
 
 const char *
 TSRuntimeDirGet(void)
 {
-  static const char *runtimedir = RecConfigReadRuntimeDir();
-  return runtimedir;
+  static std::string runtimedir = RecConfigReadRuntimeDir();
+  return runtimedir.c_str();
 }
 
 const char *
@@ -1805,8 +1806,8 @@ TSTrafficServerVersionGetPatch()
 const char *
 TSPluginDirGet(void)
 {
-  static const char *path = RecConfigReadPrefixPath("proxy.config.plugin.plugin_dir");
-  return path;
+  static std::string path = RecConfigReadPluginDir();
+  return path.c_str();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -7686,8 +7687,9 @@ TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
   HttpSM *sm          = reinterpret_cast<HttpSM *>(txnp);
   Http2Stream *stream = dynamic_cast<Http2Stream *>(sm->ua_session);
   if (stream) {
-    Http2ClientSession *parent = static_cast<Http2ClientSession *>(stream->get_parent());
-    if (!parent->is_url_pushed(url, url_len)) {
+    Http2ClientSession *ua_session = static_cast<Http2ClientSession *>(stream->get_parent());
+    SCOPED_MUTEX_LOCK(lock, ua_session->mutex, this_ethread());
+    if (!ua_session->connection_state.is_state_closed() && !ua_session->is_url_pushed(url, url_len)) {
       HTTPHdr *hptr = &(sm->t_state.hdr_info.client_request);
       TSMLoc obj    = reinterpret_cast<TSMLoc>(hptr->m_http);
 
@@ -7695,7 +7697,7 @@ TSHttpTxnServerPush(TSHttpTxn txnp, const char *url, int url_len)
       MIMEField *f    = mime_hdr_field_find(mh, MIME_FIELD_ACCEPT_ENCODING, MIME_LEN_ACCEPT_ENCODING);
       stream->push_promise(url_obj, f);
 
-      parent->add_url_to_pushed_table(url, url_len);
+      ua_session->add_url_to_pushed_table(url, url_len);
     }
   }
   url_obj.destroy();
@@ -8201,6 +8203,9 @@ _conf_to_memberp(TSOverridableConfigKey conf, OverridableHttpConfigParams *overr
     typ = OVERRIDABLE_TYPE_INT;
     ret = &overridableHttpConfig->parent_connect_timeout;
     break;
+  case TS_CONFIG_HTTP_ALLOW_MULTI_RANGE:
+    ret = &overridableHttpConfig->allow_multi_range;
+    break;
   // This helps avoiding compiler warnings, yet detect unhandled enum members.
   case TS_CONFIG_NULL:
   case TS_CONFIG_LAST_ENTRY:
@@ -8470,6 +8475,8 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
     case 'e':
       if (!strncmp(name, "proxy.config.http.cache.range.write", length)) {
         cnf = TS_CONFIG_HTTP_CACHE_RANGE_WRITE;
+      } else if (!strncmp(name, "proxy.config.http.allow_multi_range", length)) {
+        cnf = TS_CONFIG_HTTP_ALLOW_MULTI_RANGE;
       }
       break;
     case 'p':
