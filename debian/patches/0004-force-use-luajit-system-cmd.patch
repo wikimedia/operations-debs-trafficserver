@@ -58,7 +58,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  # Must do it this way or the dependencies aren't detected.
 --- a/cmd/traffic_manager/Makefile.in
 +++ b/cmd/traffic_manager/Makefile.in
-@@ -171,7 +171,6 @@ test_metrics_OBJECTS = $(am_test_metrics
+@@ -172,7 +172,6 @@ test_metrics_OBJECTS = $(am_test_metrics
  test_metrics_DEPENDENCIES = $(top_builddir)/mgmt/libmgmt_lm.la \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -66,7 +66,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(am__DEPENDENCIES_1)
-@@ -193,7 +192,6 @@ traffic_manager_DEPENDENCIES =  \
+@@ -194,7 +193,6 @@ traffic_manager_DEPENDENCIES =  \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -74,7 +74,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_1)
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
-@@ -489,17 +487,16 @@ pkglibexecdir = @pkglibexecdir@
+@@ -490,17 +488,16 @@ pkglibexecdir = @pkglibexecdir@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -95,7 +95,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AR = @AR@
  ASCPP = @ASCPP@
  AUTOCONF = @AUTOCONF@
-@@ -579,9 +576,9 @@ LIPO = @LIPO@
+@@ -581,9 +578,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -108,7 +108,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -856,18 +853,16 @@ traffic_manager_LDADD = $(top_builddir)/
+@@ -859,18 +856,16 @@ traffic_manager_LDADD = $(top_builddir)/
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/records/librecords_lm.a \
  	$(top_builddir)/proxy/shared/libdiagsconfig.a \
@@ -133,7 +133,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  # Sort the filenames to remove duplicates, then filter to retain
 --- a/cmd/Makefile.in
 +++ b/cmd/Makefile.in
-@@ -506,9 +506,9 @@ LIPO = @LIPO@
+@@ -508,9 +508,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -148,7 +148,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_cop/Makefile.in
 +++ b/cmd/traffic_cop/Makefile.in
-@@ -317,9 +317,9 @@ LIPO = @LIPO@
+@@ -319,9 +319,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -163,7 +163,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_crashlog/Makefile.in
 +++ b/cmd/traffic_crashlog/Makefile.in
-@@ -337,9 +337,9 @@ LIPO = @LIPO@
+@@ -339,9 +339,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -178,7 +178,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_ctl/Makefile.in
 +++ b/cmd/traffic_ctl/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+@@ -322,9 +322,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -193,7 +193,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_layout/Makefile.in
 +++ b/cmd/traffic_layout/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+@@ -318,9 +318,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -208,7 +208,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_top/Makefile.in
 +++ b/cmd/traffic_top/Makefile.in
-@@ -326,9 +326,9 @@ LIPO = @LIPO@
+@@ -333,9 +333,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -223,7 +223,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_via/Makefile.in
 +++ b/cmd/traffic_via/Makefile.in
-@@ -518,9 +518,9 @@ LIPO = @LIPO@
+@@ -520,9 +520,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -238,7 +238,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/cmd/traffic_wccp/Makefile.in
 +++ b/cmd/traffic_wccp/Makefile.in
-@@ -316,9 +316,9 @@ LIPO = @LIPO@
+@@ -318,9 +318,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

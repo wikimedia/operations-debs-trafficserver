@@ -6,7 +6,7 @@ Last-Update: 2018-01-22
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/plugins/Makefile.in
 +++ b/plugins/Makefile.in
-@@ -2174,9 +2174,9 @@ LIPO = @LIPO@
+@@ -2176,9 +2176,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

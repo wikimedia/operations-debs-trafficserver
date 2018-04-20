@@ -133,7 +133,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
 --- a/proxy/Makefile.in
 +++ b/proxy/Makefile.in
-@@ -168,8 +168,7 @@ traffic_logcat_DEPENDENCIES = logging/li
+@@ -169,8 +169,7 @@ traffic_logcat_DEPENDENCIES = logging/li
  	$(top_builddir)/lib/records/librecords_p.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
@@ -143,7 +143,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AM_V_lt = $(am__v_lt_@AM_V@)
  am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
  am__v_lt_0 = --silent
-@@ -182,8 +181,7 @@ traffic_logstats_DEPENDENCIES = logging/
+@@ -183,8 +182,7 @@ traffic_logstats_DEPENDENCIES = logging/
  	$(top_builddir)/lib/records/librecords_p.a \
  	$(top_builddir)/iocore/eventsystem/libinkevent.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
@@ -153,7 +153,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  am__traffic_server_SOURCES_DIST = AbstractBuffer.cc AbstractBuffer.h \
  	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
  	ControlMatcher.cc ControlMatcher.h CoreUtils.cc CoreUtils.h \
-@@ -230,12 +228,10 @@ traffic_server_DEPENDENCIES = http/libht
+@@ -231,12 +229,10 @@ traffic_server_DEPENDENCIES = http/libht
  	$(top_builddir)/iocore/aio/libinkaio.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -167,7 +167,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AM_V_P = $(am__v_P_@AM_V@)
  am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
  am__v_P_0 = false
-@@ -587,7 +583,7 @@ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBO
+@@ -588,7 +584,7 @@ AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBO
  
  # NOTE: it is safe to use AM_LDFLAGS here because we are only building executables. If we start
  # building libtool archives, change these to only apply to the executables.
@@ -176,7 +176,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AR = @AR@
  ASCPP = @ASCPP@
  AUTOCONF = @AUTOCONF@
-@@ -667,9 +663,9 @@ LIPO = @LIPO@
+@@ -669,9 +665,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -189,7 +189,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -961,75 +957,6 @@ noinst_HEADERS = \
+@@ -964,75 +960,6 @@ noinst_HEADERS = \
    Show.h
  
  
@@ -265,7 +265,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  EXTRA_DIST = InkAPITestTool.cc example_alarm_bin.sh example_prep.sh
  traffic_server_SOURCES = AbstractBuffer.cc AbstractBuffer.h \
  	CacheControl.cc CacheControl.h ControlBase.cc ControlBase.h \
-@@ -1061,14 +988,12 @@ traffic_server_LDADD = http/libhttp.a ht
+@@ -1064,14 +991,12 @@ traffic_server_LDADD = http/libhttp.a ht
  	$(top_builddir)/iocore/aio/libinkaio.a \
  	$(top_builddir)/lib/ts/libtsutil.la \
  	$(top_builddir)/lib/bindings/libbindings.la \
@@ -282,7 +282,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  traffic_logcat_SOURCES = logcat.cc
  traffic_logcat_LDADD = \
    logging/liblogging.a \
-@@ -1079,9 +1004,8 @@ traffic_logcat_LDADD = \
+@@ -1082,9 +1007,8 @@ traffic_logcat_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -293,7 +293,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  traffic_logstats_SOURCES = logstats.cc
  traffic_logstats_LDADD = \
-@@ -1093,9 +1017,8 @@ traffic_logstats_LDADD = \
+@@ -1096,9 +1020,8 @@ traffic_logstats_LDADD = \
    $(top_builddir)/iocore/eventsystem/libinkevent.a \
    $(top_builddir)/lib/ts/libtsutil.la \
    $(top_builddir)/lib/bindings/libbindings.la \
@@ -326,7 +326,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
 --- a/proxy/logging/Makefile.in
 +++ b/proxy/logging/Makefile.in
-@@ -475,14 +475,14 @@ ACLOCAL = @ACLOCAL@
+@@ -476,14 +476,14 @@ ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
  AM_CPPFLAGS = @AM_CPPFLAGS@ $(iocore_include_dirs) \
@@ -343,7 +343,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  AM_CXXFLAGS = @AM_CXXFLAGS@
  AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
  AM_LDFLAGS = @AM_LDFLAGS@
-@@ -565,9 +565,9 @@ LIPO = @LIPO@
+@@ -567,9 +567,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -358,7 +358,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/api/ts/Makefile.in
 +++ b/proxy/api/ts/Makefile.in
-@@ -291,9 +291,9 @@ LIPO = @LIPO@
+@@ -293,9 +293,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -373,7 +373,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/Makefile.in
 +++ b/proxy/config/Makefile.in
-@@ -335,9 +335,9 @@ LIPO = @LIPO@
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -388,7 +388,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/body_factory/Makefile.in
 +++ b/proxy/config/body_factory/Makefile.in
-@@ -303,9 +303,9 @@ LIPO = @LIPO@
+@@ -305,9 +305,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -403,7 +403,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/config/body_factory/default/Makefile.in
 +++ b/proxy/config/body_factory/default/Makefile.in
-@@ -273,9 +273,9 @@ LIPO = @LIPO@
+@@ -275,9 +275,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -418,7 +418,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/congest/Makefile.in
 +++ b/proxy/congest/Makefile.in
-@@ -328,9 +328,9 @@ LIPO = @LIPO@
+@@ -330,9 +330,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -433,7 +433,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/hdrs/Makefile.in
 +++ b/proxy/hdrs/Makefile.in
-@@ -566,9 +566,9 @@ LIPO = @LIPO@
+@@ -568,9 +568,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -448,7 +448,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http/Makefile.in
 +++ b/proxy/http/Makefile.in
-@@ -413,9 +413,9 @@ LIPO = @LIPO@
+@@ -415,9 +415,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -463,7 +463,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http/remap/Makefile.in
 +++ b/proxy/http/remap/Makefile.in
-@@ -342,9 +342,9 @@ LIPO = @LIPO@
+@@ -344,9 +344,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -478,7 +478,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/http2/Makefile.in
 +++ b/proxy/http2/Makefile.in
-@@ -586,9 +586,9 @@ LIPO = @LIPO@
+@@ -588,9 +588,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -493,7 +493,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/proxy/shared/Makefile.in
 +++ b/proxy/shared/Makefile.in
-@@ -326,9 +326,9 @@ LIPO = @LIPO@
+@@ -328,9 +328,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

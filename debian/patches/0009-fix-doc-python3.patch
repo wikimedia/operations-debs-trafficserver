@@ -4,42 +4,6 @@ Subject: Make documentation build compatible with both Python 2 and 3
 Last-Update: 2018-03-14
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/doc/ext/traffic-server.py
-+++ b/doc/ext/traffic-server.py
-@@ -34,6 +34,15 @@ from sphinx.roles import XRefRole
- from sphinx.locale import l_, _
- import sphinx
- 
-+# 2/3 compat logic
-+try:
-+    basestring
-+
-+    def is_string_type(s):
-+        return isinstance(s, basestring)
-+except NameError:
-+    def is_string_type(s):
-+        return isinstance(s, str)
- 
- class TSConfVar(std.Target):
-     """
-@@ -63,7 +72,7 @@ class TSConfVar(std.Target):
-         field = nodes.field()
-         field.append(nodes.field_name(text=tag))
-         body = nodes.field_body()
--        if (isinstance(value, basestring)):
-+        if is_string_type(value):
-             body.append(sphinx.addnodes.compact_paragraph(text=value))
-         else:
-             body.append(value)
-@@ -190,7 +199,7 @@ class TSStat(std.Target):
-         field = nodes.field()
-         field.append(nodes.field_name(text=tag))
-         body = nodes.field_body()
--        if (isinstance(value, basestring)):
-+        if is_string_type(value):
-             body.append(sphinx.addnodes.compact_paragraph(text=value))
-         else:
-             body.append(value)
 --- a/doc/manpages.py
 +++ b/doc/manpages.py
 @@ -66,4 +66,4 @@ if __name__ == '__main__':

@@ -6,7 +6,7 @@ Last-Update: 2018-01-22
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/lib/Makefile.in
 +++ b/lib/Makefile.in
-@@ -305,9 +305,9 @@ LIPO = @LIPO@
+@@ -307,9 +307,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -19,7 +19,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MAINT = @MAINT@
  MAKEINFO = @MAKEINFO@
  MANIFEST_TOOL = @MANIFEST_TOOL@
-@@ -912,29 +912,6 @@ uninstall-am:
+@@ -915,29 +915,6 @@ uninstall-am:
  .PRECIOUS: Makefile
  
  
@@ -66,7 +66,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
 --- a/lib/bindings/Makefile.in
 +++ b/lib/bindings/Makefile.in
-@@ -243,7 +243,7 @@ pkglibexecdir = @pkglibexecdir@
+@@ -244,7 +244,7 @@ pkglibexecdir = @pkglibexecdir@
  ACLOCAL = @ACLOCAL@
  AMTAR = @AMTAR@
  AM_CFLAGS = @AM_CFLAGS@
@@ -75,7 +75,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  	-I$(abs_top_srcdir)/lib/records
  AM_CXXFLAGS = @AM_CXXFLAGS@
  AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
-@@ -327,9 +327,9 @@ LIPO = @LIPO@
+@@ -329,9 +329,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -90,7 +90,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/perl/Makefile.in
 +++ b/lib/perl/Makefile.in
-@@ -242,9 +242,9 @@ LIPO = @LIPO@
+@@ -244,9 +244,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -105,7 +105,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/records/Makefile.in
 +++ b/lib/records/Makefile.in
-@@ -350,9 +350,9 @@ LIPO = @LIPO@
+@@ -352,9 +352,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -120,7 +120,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/ts/Makefile.in
 +++ b/lib/ts/Makefile.in
-@@ -622,9 +622,9 @@ LIPO = @LIPO@
+@@ -624,9 +624,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -135,7 +135,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/tsconfig/Makefile.in
 +++ b/lib/tsconfig/Makefile.in
-@@ -399,9 +399,9 @@ LIPO = @LIPO@
+@@ -401,9 +401,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -150,7 +150,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/lib/wccp/Makefile.in
 +++ b/lib/wccp/Makefile.in
-@@ -335,9 +335,9 @@ LIPO = @LIPO@
+@@ -337,9 +337,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@

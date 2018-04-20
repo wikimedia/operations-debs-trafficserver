@@ -6,7 +6,7 @@ Last-Update: 2018-01-22
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/mgmt/Makefile.in
 +++ b/mgmt/Makefile.in
-@@ -389,9 +389,9 @@ LIPO = @LIPO@
+@@ -391,9 +391,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -21,7 +21,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/api/Makefile.in
 +++ b/mgmt/api/Makefile.in
-@@ -429,9 +429,9 @@ LIPO = @LIPO@
+@@ -431,9 +431,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -36,7 +36,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/api/include/Makefile.in
 +++ b/mgmt/api/include/Makefile.in
-@@ -291,9 +291,9 @@ LIPO = @LIPO@
+@@ -293,9 +293,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -51,7 +51,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/cluster/Makefile.in
 +++ b/mgmt/cluster/Makefile.in
-@@ -329,9 +329,9 @@ LIPO = @LIPO@
+@@ -331,9 +331,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
@@ -66,7 +66,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  MANIFEST_TOOL = @MANIFEST_TOOL@
 --- a/mgmt/utils/Makefile.in
 +++ b/mgmt/utils/Makefile.in
-@@ -554,9 +554,9 @@ LIPO = @LIPO@
+@@ -556,9 +556,9 @@ LIPO = @LIPO@
  LN_S = @LN_S@
  LTLIBOBJS = @LTLIBOBJS@
  LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
