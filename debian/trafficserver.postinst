@@ -71,11 +71,6 @@ configure)
 			dpkg-statoverride --update --add "$USER" adm 0750 /var/log/trafficserver
 		fi
 
-
-		find /etc/trafficserver -not -user "$USER" -exec \
-			chown -h $USER:$GROUP {} \;
-
-
 		if [ -d /var/cache/trafficserver ] && [ "x$OWNER_CACHE_DIR" = "xroot" ] ; then
 			if ! dpkg-statoverride --list /var/cache/trafficserver  >/dev/null 2>&1; then
 				dpkg-statoverride --update --add "$USER" adm 0750 /var/cache/trafficserver
