@@ -12,8 +12,8 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libncurses5-dev, libcurl4-openssl-dev, libkyotocabinet-dev, libmemcached-dev, libbrotli-dev
 Standards-Version: 4.1.4
 Homepage: http://trafficserver.apache.org/
-Vcs-Git: https://anonscm.debian.org/git/collab-maint/trafficserver.git
-Vcs-Browser: https://anonscm.debian.org/gitweb/?p=collab-maint/trafficserver.git;a=summary
+Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
+Vcs-Browser: https://salsa.debian.org/debian/trafficserver
 
 Package: trafficserver
 Architecture: any
