@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libluajit-5.1-dev [amd64 arm64 armel armhf hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386 mips mips64el mipsel powerpc ppc64 ppc64el],
   libboost-dev, python3-sphinx, libhwloc-dev, default-libmysqlclient-dev,
   libxml2-dev, libunwind-dev [i386 amd64 ppc64el armhf arm64], libmagick++-dev,
-  libncurses5-dev, libcurl4-openssl-dev, libkyotocabinet-dev, libmemcached-dev, libbrotli-dev
+  libncurses-dev, libcurl4-openssl-dev, libkyotocabinet-dev, libmemcached-dev, libbrotli-dev
 Standards-Version: 4.1.4
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
