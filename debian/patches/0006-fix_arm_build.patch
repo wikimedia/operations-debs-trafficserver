@@ -28,3 +28,27 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
    $(top_builddir)/lib/ts/libtsutil.la \
    @LIBTCL@ @HWLOC_LIBS@
  
+--- a/cmd/traffic_ctl/Makefile.am
++++ b/cmd/traffic_ctl/Makefile.am
+@@ -38,8 +38,8 @@ traffic_ctl_SOURCES = \
+ traffic_ctl_LDADD = \
+   $(top_builddir)/lib/records/librecords_p.a \
+   $(top_builddir)/mgmt/libmgmt_p.la \
+-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/proxy/shared/libUglyLogStubs.a \
++  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/mgmt/api/libtsmgmt.la \
+   $(top_builddir)/lib/ts/libtsutil.la \
+   @LIBTCL@ @HWLOC_LIBS@
+--- a/cmd/traffic_top/Makefile.am
++++ b/cmd/traffic_top/Makefile.am
+@@ -37,8 +37,8 @@ traffic_top_SOURCES = traffic_top.cc
+ traffic_top_LDADD = \
+   $(top_builddir)/lib/records/librecords_p.a \
+   $(top_builddir)/mgmt/libmgmt_p.la \
+-  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/proxy/shared/libUglyLogStubs.a \
++  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+   $(top_builddir)/mgmt/api/libtsmgmt.la \
+   $(top_builddir)/lib/ts/libtsutil.la \
+   @CURL_LIBS@ \
