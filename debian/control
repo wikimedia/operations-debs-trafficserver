@@ -6,8 +6,8 @@ Uploaders: Jean Baptiste Favre <debian@jbfavre.org>
 Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libpcre3-dev, libtool, libcap-dev [linux-any],
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config, libgeoip-dev,
-  libluajit-5.1-dev [amd64 arm64 armel armhf hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386 mips mips64el mipsel powerpc ppc64 ppc64el],
-  libboost-dev, python3-sphinx, libhwloc-dev, default-libmysqlclient-dev,
+  libluajit-5.1-dev, libboost-dev, libhwloc-dev, default-libmysqlclient-dev,
+  python3-sphinx [!kfreebsd-any], python-sphinx [kfreebsd-any],
   libxml2-dev, libunwind-dev [i386 amd64 ppc64el armhf arm64], libmagick++-dev,
   libncurses-dev, libcurl4-openssl-dev, libkyotocabinet-dev, libmemcached-dev, libbrotli-dev
 Standards-Version: 4.1.4
