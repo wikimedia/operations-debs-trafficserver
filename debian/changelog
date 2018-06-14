@@ -1,3 +1,10 @@
+trafficserver (7.1.3+ds-3) unstable; urgency=medium
+
+  * Add systemd tmpfile support (LP: #1756207)
+  * Update Build-Depends (Closes: #887503)
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 13 Jun 2018 22:39:58 +0200
+
 trafficserver (7.1.3+ds-2) unstable; urgency=medium
 
   * Update build-deps to libncurses6
