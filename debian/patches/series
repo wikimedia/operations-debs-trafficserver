@@ -14,3 +14,4 @@
 0008-fix_build_lua.patch
 0009-fix-doc-python3.patch
 0009-fix-doc-git.patch
+0010-Remove-custom-memory-barriers-from-header_rewrite-an.patch

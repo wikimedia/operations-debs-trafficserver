@@ -1,0 +1,72 @@
+From 2c0e048c8445a4d6dc70d3b93133aeae5ae0f539 Mon Sep 17 00:00:00 2001
+From: Phil Sorber <sorber@apache.org>
+Date: Thu, 5 Oct 2017 13:36:43 -0600
+Subject: Remove custom memory barriers from header_rewrite and replace with
+ std::atomic
+
+---
+ plugins/header_rewrite/conditions.cc |  3 ++-
+ plugins/header_rewrite/lulu.h        | 33 ---------------------------------
+ 2 files changed, 2 insertions(+), 34 deletions(-)
+
+--- a/plugins/header_rewrite/conditions.cc
++++ b/plugins/header_rewrite/conditions.cc
+@@ -24,6 +24,7 @@
+ #include <arpa/inet.h>
+ #include <cctype>
+ #include <sstream>
++#include <atomic>
+ 
+ #include "ts/ts.h"
+ 
+@@ -174,7 +175,7 @@ ConditionAccess::eval(const Resources &
+     bool check = !access(_qualifier.c_str(), R_OK);
+ 
+     tv.tv_sec += 2;
+-    mb();
++    std::atomic_thread_fence(std::memory_order_seq_cst);
+     _next = tv.tv_sec; // I hope this is an atomic "set"...
+     _last = check;     // This sure ought to be
+   }
+--- a/plugins/header_rewrite/lulu.h
++++ b/plugins/header_rewrite/lulu.h
+@@ -34,39 +34,6 @@ std::string getIP(sockaddr const *s_sock
+ char *getIP(sockaddr const *s_sockaddr, char res[INET6_ADDRSTRLEN]);
+ uint16_t getPort(sockaddr const *s_sockaddr);
+ 
+-// Memory barriers
+-#if defined(__i386__)
+-#define mb() __asm__ __volatile__("lock; addl $0,0(%%esp)" : : : "memory")
+-#define rmb() __asm__ __volatile__("lock; addl $0,0(%%esp)" : : : "memory")
+-#define wmb() __asm__ __volatile__("" : : : "memory")
+-#elif defined(__x86_64__)
+-#define mb() __asm__ __volatile__("mfence" : : : "memory")
+-#define rmb() __asm__ __volatile__("lfence" : : : "memory")
+-#define wmb() __asm__ __volatile__("" : : : "memory")
+-#elif defined(__mips__)
+-#define mb() __asm__ __volatile__("sync" : : : "memory")
+-#define rmb() __asm__ __volatile__("sync" : : : "memory")
+-#define wmb() __asm__ __volatile__("" : : : "memory")
+-#elif defined(__arm__)
+-#define mb() __asm__ __volatile__("dmb" : : : "memory")
+-#define rmb() __asm__ __volatile__("dmb" : : : "memory")
+-#define wmb() __asm__ __volatile__("" : : : "memory")
+-#elif defined(__mips__)
+-#define mb() __asm__ __volatile__("sync" : : : "memory")
+-#define rmb() __asm__ __volatile__("sync" : : : "memory")
+-#define wmb() __asm__ __volatile__("" : : : "memory")
+-#elif defined(__powerpc64__)
+-#define mb() __asm__ __volatile__("sync" : : : "memory")
+-#define rmb() __asm__ __volatile__("sync" : : : "memory")
+-#define wmb() __asm__ __volatile__("sync" : : : "memory")
+-#elif defined(__aarch64__)
+-#define mb() __asm__ __volatile__("dsb sy" : : : "memory")
+-#define rmb() __asm__ __volatile__("dsb ld" : : : "memory")
+-#define wmb() __asm__ __volatile__("dsb st" : : : "memory")
+-#else
+-#error "Define barriers"
+-#endif
+-
+ extern const char PLUGIN_NAME[];
+ extern const char PLUGIN_NAME_DBG[];
+ 
