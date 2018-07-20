@@ -1,0 +1,30 @@
+Repository layout
+-----------------
+
+This repository uses the default branching scheme used by gbp-import-orig(1):
+
+- master: WMF Debian packaging
+
+  Based on https://salsa.debian.org/debian/trafficserver/tree/master
+
+- upstream: upstream sources
+
+  Based on https://salsa.debian.org/debian/trafficserver/tree/upstream
+
+- pristine-tar: pristine-tar data
+
+  Use pristine-tar with the contents of this branch when generating the
+  upstream tarball if it doesn't exist.
+
+  Based on https://salsa.debian.org/debian/trafficserver/tree/pristine-tar
+
+Building
+--------
+
+The initial WMF packaging of ATS (July 2018) targets Debian Stretch. A few
+packages available only in stretch-backports are required to compile properly.
+
+Build as follows on a build server (boron.eqiad.wmnet at the time of this
+writing):
+
+  ARCH=amd64 DIST=stretch WIKIMEDIA=yes BACKPORTS=yes GIT_PBUILDER_AUTOCONF=no gbp buildpackage -jauto -us -uc -sa --git-builder=git-pbuilder
