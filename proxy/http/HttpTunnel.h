@@ -253,26 +253,6 @@ struct HttpTunnelProducer {
                         );
 };
 
-class PostDataBuffers
-{
-public:
-  PostDataBuffers()
-    : postdata_producer_buffer(NULL),
-      postdata_copy_buffer(NULL),
-      postdata_producer_reader(NULL),
-      postdata_copy_buffer_start(NULL),
-      ua_buffer_reader(NULL)
-  {
-    Debug("http_redirect", "[PostDataBuffers::PostDataBuffers]");
-  }
-
-  MIOBuffer *postdata_producer_buffer;
-  MIOBuffer *postdata_copy_buffer;
-  IOBufferReader *postdata_producer_reader;
-  IOBufferReader *postdata_copy_buffer_start;
-  IOBufferReader *ua_buffer_reader;
-};
-
 class HttpTunnel : public Continuation
 {
   friend class HttpPagesHandler;
@@ -310,12 +290,6 @@ public:
   }
   bool is_tunnel_alive() const;
   bool has_cache_writer() const;
-
-  // YTS Team, yamsat Plugin
-  void copy_partial_post_data();
-  void allocate_redirect_postdata_producer_buffer();
-  void allocate_redirect_postdata_buffers(IOBufferReader *ua_reader);
-  void deallocate_redirect_postdata_buffers();
 
   HttpTunnelProducer *add_producer(VConnection *vc, int64_t nbytes, IOBufferReader *reader_start, HttpProducerHandler sm_handler,
                                    HttpTunnelType_t vc_type, const char *name);
@@ -373,23 +347,20 @@ private:
   HttpTunnelProducer *alloc_producer();
   HttpTunnelConsumer *alloc_consumer();
 
-  int num_producers;
-  int num_consumers;
+  int num_producers = 0;
+  int num_consumers = 0;
   HttpTunnelConsumer consumers[MAX_CONSUMERS];
   HttpTunnelProducer producers[MAX_PRODUCERS];
-  HttpSM *sm;
+  HttpSM *sm = nullptr;
 
-  bool active;
+  bool active = false;
 
   /// State data about flow control.
   FlowControl flow_state;
 
-public:
-  PostDataBuffers *postbuf;
-
 private:
-  int reentrancy_count;
-  bool call_sm;
+  int reentrancy_count = 0;
+  bool call_sm         = false;
 };
 
 // void HttpTunnel::abort_cache_write_finish_others
@@ -475,12 +446,32 @@ HttpTunnel::get_producer(HttpTunnelType_t type)
 inline HttpTunnelConsumer *
 HttpTunnel::get_consumer(VConnection *vc)
 {
-  for (int i = 0; i < MAX_CONSUMERS; i++) {
-    if (consumers[i].vc == vc) {
-      return consumers + i;
+  /** Rare but persistent problem in which a @c INKVConnInternal is used by a consumer, released,
+      and then re-allocated for a different consumer. This causes two consumers to have the same VC
+      pointer resulting in this method returning the wrong consumer. Note this is a not a bad use of
+      the tunnel, but an unfortunate interaction with the FIFO free lists.
+
+      It's not correct to check for the consumer being alive - at a minimum `HTTP_TUNNEL_EVENT_DONE`
+      is dispatched against a consumer after the consumer is not alive. Instead if a non-alive
+      consumer matches it is stored as a candidate and returned if no other match is found. If a
+      live matching consumer is found, it is immediately returned. It is never valid to have the
+      same VC in more than one active consumer. This should avoid a performance impact because in
+      the usual case the consumer will be alive.
+
+      In the case of a deliberate dispatch of an event to a dead consumer that has a duplicate vc
+      address, this will select the last consumer which will be correct as the consumers are added
+      in order therefore the latter consumer will be the most recent / appropriate target.
+  */
+  HttpTunnelConsumer *zret = nullptr;
+  for (HttpTunnelConsumer &c : consumers) {
+    if (c.vc == vc) {
+      zret = &c;
+      if (c.alive) { // a match that's alive is always the best.
+        break;
+      }
     }
   }
-  return NULL;
+  return zret;
 }
 
 inline HttpTunnelProducer *
@@ -499,7 +490,7 @@ HttpTunnel::get_consumer(VIO *vio)
 {
   if (vio) {
     for (int i = 0; i < MAX_CONSUMERS; i++) {
-      if (consumers[i].write_vio == vio || consumers[i].vc == vio->vc_server) {
+      if (consumers[i].alive && (consumers[i].write_vio == vio || consumers[i].vc == vio->vc_server)) {
         return consumers + i;
       }
     }

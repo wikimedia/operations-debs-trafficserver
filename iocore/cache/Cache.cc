@@ -328,9 +328,9 @@ CacheVC::do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *abuf)
   vio.nbytes    = nbytes;
   vio.vc_server = this;
 #ifdef DEBUG
-  ink_assert(c->mutex->thread_holding);
+  ink_assert(!c || c->mutex->thread_holding);
 #endif
-  if (!trigger && !recursive)
+  if (c && !trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
 }
@@ -364,9 +364,9 @@ CacheVC::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuf, bool
   vio.nbytes    = nbytes;
   vio.vc_server = this;
 #ifdef DEBUG
-  ink_assert(c->mutex->thread_holding);
+  ink_assert(!c || c->mutex->thread_holding);
 #endif
-  if (!trigger && !recursive)
+  if (c && !trigger && !recursive)
     trigger = c->mutex->thread_holding->schedule_imm_local(this);
   return &vio;
 }
@@ -622,7 +622,6 @@ CacheProcessor::start_internal(int flags)
   fix                  = !!(flags & PROCESSOR_FIX);
   check                = (flags & PROCESSOR_CHECK) != 0;
   start_done           = 0;
-  int diskok           = 1;
   Span *sd;
 
   /* read the config file and create the data structures corresponding
@@ -666,22 +665,22 @@ CacheProcessor::start_internal(int flags)
       fd = open(path, DEFAULT_CACHE_OPTIONS | O_CREAT, 0644);
 
     if (fd >= 0) {
+      bool diskok = true;
       if (!sd->file_pathname) {
         if (!check) {
           if (ftruncate(fd, blocks * STORE_BLOCK_SIZE) < 0) {
             Warning("unable to truncate cache file '%s' to %" PRId64 " blocks", path, blocks);
-            diskok = 0;
+            diskok = false;
           }
         } else { // read-only mode checks
           struct stat sbuf;
-          diskok = 0;
           if (-1 == fstat(fd, &sbuf)) {
             fprintf(stderr, "Failed to stat cache file for directory %s\n", path);
+            diskok = false;
           } else if (blocks != sbuf.st_size / STORE_BLOCK_SIZE) {
             fprintf(stderr, "Cache file for directory %s is %" PRId64 " bytes, expected %" PRId64 "\n", path, sbuf.st_size,
                     blocks * static_cast<int64_t>(STORE_BLOCK_SIZE));
-          } else {
-            diskok = 1;
+            diskok = false;
           }
         }
       }
@@ -1398,8 +1397,8 @@ Vol::init(char *s, off_t blocks, off_t dir_skip, bool clear)
   off_t footer_offset = vol_dirlen(this) - footerlen;
   // try A
   off_t as = skip;
-  if (is_debug_tag_set("cache_init"))
-    Note("reading directory '%s'", hash_text.get());
+
+  Debug("cache_init", "reading directory '%s'", hash_text.get());
   SET_HANDLER(&Vol::handle_header_read);
   init_info->vol_aio[0].aiocb.aio_offset = as;
   init_info->vol_aio[1].aiocb.aio_offset = as + footer_offset;
@@ -1470,6 +1469,10 @@ Vol::handle_dir_read(int event, void *data)
   if (!(header->magic == VOL_MAGIC && footer->magic == VOL_MAGIC &&
         CACHE_DB_MAJOR_VERSION_COMPATIBLE <= header->version.ink_major && header->version.ink_major <= CACHE_DB_MAJOR_VERSION)) {
     Warning("bad footer in cache directory for '%s', clearing", hash_text.get());
+    Note("VOL_MAGIC %d\n header magic: %d\n footer_magic %d\n CACHE_DB_MAJOR_VERSION_COMPATIBLE %d\n major version %d\n"
+         "CACHE_DB_MAJOR_VERSION %d\n",
+         VOL_MAGIC, header->magic, footer->magic, CACHE_DB_MAJOR_VERSION_COMPATIBLE, header->version.ink_major,
+         CACHE_DB_MAJOR_VERSION);
     Note("clearing cache directory '%s'", hash_text.get());
     clear_dir();
     return EVENT_DONE;
@@ -1733,9 +1736,10 @@ Ldone : {
     dir_clear_range(clear_end, DIR_OFFSET_MAX, this);
     dir_clear_range(1, clear_start, this);
   }
-  if (is_debug_tag_set("cache_init"))
-    Note("recovery clearing offsets [%" PRIu64 ", %" PRIu64 "] sync_serial %d next %d\n", header->write_pos, recover_pos,
-         header->sync_serial, next_sync_serial);
+
+  Note("recovery clearing offsets of Vol %s : [%" PRIu64 ", %" PRIu64 "] sync_serial %d next %d\n", hash_text.get(),
+       header->write_pos, recover_pos, header->sync_serial, next_sync_serial);
+
   footer->sync_serial = header->sync_serial = next_sync_serial;
 
   for (int i = 0; i < 3; i++) {
@@ -1832,7 +1836,9 @@ Vol::handle_header_read(int event, void *data)
       io.aiocb.aio_offset = skip + vol_dirlen(this);
       ink_assert(ink_aio_read(&io));
     } else {
-      Note("no good directory, clearing '%s'", hash_text.get());
+      Note("no good directory, clearing '%s' since sync_serials on both A and B copies are invalid", hash_text.get());
+      Note("Header A: %d\nFooter A: %d\n Header B: %d\n Footer B %d\n", hf[0]->sync_serial, hf[1]->sync_serial, hf[2]->sync_serial,
+           hf[3]->sync_serial);
       clear_dir();
       delete init_info;
       init_info = nullptr;

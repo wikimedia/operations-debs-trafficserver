@@ -90,7 +90,7 @@ public:
   ~Http2Stream() { this->destroy(); }
   int main_event_handler(int event, void *edata);
 
-  void destroy();
+  void destroy() override;
 
   bool
   is_body_done() const
@@ -102,6 +102,11 @@ public:
   mark_body_done()
   {
     body_done = true;
+    if (response_is_chunked()) {
+      ink_assert(chunked_handler.state == ChunkedHandler::CHUNK_READ_DONE ||
+                 chunked_handler.state == ChunkedHandler::CHUNK_READ_ERROR);
+      this->write_vio.nbytes = response_header.length_get() + chunked_handler.dechunked_size;
+    }
   }
 
   void
@@ -113,6 +118,12 @@ public:
 
   Http2StreamId
   get_id() const
+  {
+    return _id;
+  }
+
+  int
+  get_transaction_id() const override
   {
     return _id;
   }
@@ -165,17 +176,19 @@ public:
 
   Http2ErrorCode decode_header_blocks(HpackHandle &hpack_handle, uint32_t maximum_table_size);
   void send_request(Http2ConnectionState &cstate);
-  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf);
-  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuffer, bool owner = false);
-  void do_io_close(int lerrno = -1);
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override;
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *abuffer, bool owner = false) override;
+  void do_io_close(int lerrno = -1) override;
   void initiating_close();
   void terminate_if_possible();
-  void do_io_shutdown(ShutdownHowTo_t) {}
+  void do_io_shutdown(ShutdownHowTo_t) override {}
   void update_read_request(int64_t read_len, bool send_update);
-  bool update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
-  void reenable(VIO *vio);
-  virtual void transaction_done();
-  void send_response_body();
+  void update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
+  void signal_write_event(bool call_update);
+  void reenable(VIO *vio) override;
+  virtual void transaction_done() override;
+
+  void restart_sending();
   void push_promise(URL &url, const MIMEField *accept_encoding);
 
   // Stream level window size
@@ -213,17 +226,17 @@ public:
     return chunked;
   }
 
-  void release(IOBufferReader *r);
+  void release(IOBufferReader *r) override;
 
   virtual bool
-  allow_half_open() const
+  allow_half_open() const override
   {
     return false;
   }
 
-  virtual void set_active_timeout(ink_hrtime timeout_in);
-  virtual void set_inactivity_timeout(ink_hrtime timeout_in);
-  virtual void cancel_inactivity_timeout();
+  virtual void set_active_timeout(ink_hrtime timeout_in) override;
+  virtual void set_inactivity_timeout(ink_hrtime timeout_in) override;
+  virtual void cancel_inactivity_timeout() override;
   void clear_inactive_timer();
   void clear_active_timer();
   void clear_timers();
@@ -243,7 +256,7 @@ public:
   }
 
   bool
-  is_first_transaction() const
+  is_first_transaction() const override
   {
     return is_first_transaction_flag;
   }
@@ -253,6 +266,7 @@ private:
   void response_process_data(bool &is_done);
   bool response_is_data_available() const;
   Event *send_tracked_event(Event *event, int send_event, VIO *vio);
+  void send_response_body(bool call_update);
 
   HTTPParser http_parser;
   ink_hrtime _start_time;
@@ -260,7 +274,6 @@ private:
   Http2StreamId _id;
   Http2StreamState _state;
 
-  MIOBuffer response_buffer;
   HTTPHdr _req_header;
   VIO read_vio;
   VIO write_vio;

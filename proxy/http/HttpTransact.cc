@@ -797,6 +797,8 @@ HttpTransact::EndRemapRequest(State *s)
     switch (s->http_return_code) {
     case HTTP_STATUS_MOVED_PERMANENTLY:
     case HTTP_STATUS_PERMANENT_REDIRECT:
+    case HTTP_STATUS_SEE_OTHER:
+    case HTTP_STATUS_USE_PROXY:
       error_body_type = "redirect#moved_permanently";
       break;
     case HTTP_STATUS_MOVED_TEMPORARILY:
@@ -1675,6 +1677,14 @@ HttpTransact::OSDNSLookup(State *s)
 
   DebugTxn("http_trans", "[HttpTransact::OSDNSLookup] This was attempt %d", s->dns_info.attempts);
   ++s->dns_info.attempts;
+
+  // It's never valid to connect *to* INADDR_ANY, so let's reject the request now.
+  if (ats_is_ip_any(s->host_db_info.ip())) {
+    DebugTxn("http_trans", "[OSDNSLookup] Invalid request IP: INADDR_ANY");
+    build_error_response(s, HTTP_STATUS_BAD_REQUEST, "Bad Destination Address", "request#syntax_error", nullptr);
+    SET_VIA_STRING(VIA_DETAIL_TUNNEL, VIA_DETAIL_TUNNEL_NO_FORWARD);
+    TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, nullptr);
+  }
 
   // detect whether we are about to self loop. the client may have
   // specified the proxy as the origin server (badness).
@@ -6861,7 +6871,7 @@ HttpTransact::handle_content_length_header(State *s, HTTPHdr *header, HTTPHdr *b
     }
     DebugTxn("http_trans", "[handle_content_length_header] RESPONSE cont len in hdr is %" PRId64, header->get_content_length());
   } else {
-    // No content length header
+    // No content length header.
     if (s->source == SOURCE_CACHE) {
       // If there is no content-length header, we can
       //   insert one since the cache knows definately
@@ -6883,6 +6893,12 @@ HttpTransact::handle_content_length_header(State *s, HTTPHdr *header, HTTPHdr *b
         header->set_content_length(cl);
         s->hdr_info.trust_response_cl = true;
       }
+    } else if (s->source == SOURCE_HTTP_ORIGIN_SERVER && s->hdr_info.server_response.status_get() == HTTP_STATUS_NOT_MODIFIED &&
+               s->range_setup == RANGE_NOT_TRANSFORM_REQUESTED) {
+      // In this case, we had a cached object, possibly chunked encoded (so we don't have a CL: header), but the origin did a
+      // 304 Not Modified response. We can still turn this into a proper Range response from the cached object.
+      change_response_header_because_of_range_request(s, header);
+      s->hdr_info.trust_response_cl = true;
     } else {
       // Check to see if there is no content length
       //  header because the response precludes a
@@ -8095,7 +8111,8 @@ HttpTransact::build_response(State *s, HTTPHdr *base_response, HTTPHdr *outgoing
   }
 
   // Add HSTS header (Strict-Transport-Security) if max-age is set and the request was https
-  if (s->orig_scheme == URL_WKSIDX_HTTPS && s->txn_conf->proxy_response_hsts_max_age >= 0) {
+  // and the incoming request was remapped correctly
+  if (s->orig_scheme == URL_WKSIDX_HTTPS && s->txn_conf->proxy_response_hsts_max_age >= 0 && s->url_remap_success == true) {
     DebugTxn("http_hdrs", "hsts max-age=%" PRId64, s->txn_conf->proxy_response_hsts_max_age);
     HttpTransactHeaders::insert_hsts_header_in_response(s, outgoing_response);
   }
@@ -8199,6 +8216,11 @@ HttpTransact::build_error_response(State *s, HTTPStatus status_code, const char 
   if ((s->state_machine->ua_session && s->state_machine->ua_session->is_outbound_transparent()) &&
       (status_code == HTTP_STATUS_INTERNAL_SERVER_ERROR || status_code == HTTP_STATUS_GATEWAY_TIMEOUT ||
        status_code == HTTP_STATUS_BAD_GATEWAY || status_code == HTTP_STATUS_SERVICE_UNAVAILABLE)) {
+    s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
+  }
+
+  // If there is a parse error on reading the request it can leave reading the request stream in an undetermined state
+  if (status_code == HTTP_STATUS_BAD_REQUEST) {
     s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
   }
 

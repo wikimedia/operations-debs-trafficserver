@@ -716,7 +716,7 @@ rcv_window_update_frame(Http2ConnectionState &cstate, const Http2Frame &frame)
     ssize_t wnd = std::min(cstate.client_rwnd, stream->client_rwnd);
 
     if (!stream->is_closed() && stream->get_state() == Http2StreamState::HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE && wnd > 0) {
-      stream->send_response_body();
+      stream->restart_sending();
     }
   }
 
@@ -836,6 +836,9 @@ static const http2_frame_dispatch frame_handlers[HTTP2_FRAME_TYPE_MAX] = {
 int
 Http2ConnectionState::main_event_handler(int event, void *edata)
 {
+  if (edata == fini_event) {
+    fini_event = nullptr;
+  }
   ++recursion;
   switch (event) {
   // Initialize HTTP/2 Connection
@@ -910,7 +913,9 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
         }
         this->send_goaway_frame(this->latest_streamid_in, error.code);
         this->ua_session->set_half_close_local_flag(true);
-        this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+        if (fini_event == nullptr) {
+          fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+        }
 
         // The streams will be cleaned up by the HTTP2_SESSION_EVENT_FINI event
         // The Http2ClientSession will shutdown because connection_state.is_state_closed() will be true
@@ -934,9 +939,12 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
   --recursion;
   if (recursion == 0 && ua_session && !ua_session->is_recursing()) {
     if (this->ua_session->ready_to_free()) {
-      this->ua_session->free();
-      // After the free, the Http2ConnectionState object is also freed.
-      // The Http2ConnectionState object is allocted within the Http2ClientSession object
+      MUTEX_TRY_LOCK(lock, this->ua_session->mutex, this_ethread());
+      if (lock.is_locked()) {
+        this->ua_session->free();
+        // After the free, the Http2ConnectionState object is also freed.
+        // The Http2ConnectionState object is allocted within the Http2ClientSession object
+      }
     }
   }
 
@@ -944,8 +952,11 @@ Http2ConnectionState::main_event_handler(int event, void *edata)
 }
 
 int
-Http2ConnectionState::state_closed(int /* event */, void * /* edata */)
+Http2ConnectionState::state_closed(int /* event */, void *edata)
 {
+  if (edata == fini_event) {
+    fini_event = nullptr;
+  }
   return 0;
 }
 
@@ -1061,14 +1072,14 @@ Http2ConnectionState::restart_streams()
       Http2Stream *next = static_cast<Http2Stream *>(s->link.next ? s->link.next : stream_list.head);
       if (!s->is_closed() && s->get_state() == Http2StreamState::HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE &&
           std::min(this->client_rwnd, s->client_rwnd) > 0) {
-        s->send_response_body();
+        s->restart_sending();
       }
       ink_assert(s != next);
       s = next;
     }
     if (!s->is_closed() && s->get_state() == Http2StreamState::HTTP2_STREAM_STATE_HALF_CLOSED_REMOTE &&
         std::min(this->client_rwnd, s->client_rwnd) > 0) {
-      s->send_response_body();
+      s->restart_sending();
     }
 
     ++starting_point;
@@ -1126,6 +1137,16 @@ Http2ConnectionState::delete_stream(Http2Stream *stream)
   }
 
   stream_list.remove(stream);
+  if (http2_is_client_streamid(stream->get_id())) {
+    ink_assert(client_streams_in_count > 0);
+    --client_streams_in_count;
+  } else {
+    ink_assert(client_streams_out_count > 0);
+    --client_streams_out_count;
+  }
+  // total_client_streams_count will be decremented in release_stream(), because it's a counter include streams in the process of
+  // shutting down.
+
   stream->initiating_close();
 
   return true;
@@ -1134,16 +1155,10 @@ Http2ConnectionState::delete_stream(Http2Stream *stream)
 void
 Http2ConnectionState::release_stream(Http2Stream *stream)
 {
-  // Update stream counts
   if (stream) {
+    // Decrement total_client_streams_count here, because it's a counter include streams in the process of shutting down.
+    // Other counters (client_streams_in_count/client_streams_out_count) are already decremented in delete_stream().
     --total_client_streams_count;
-    if (http2_is_client_streamid(stream->get_id())) {
-      ink_assert(client_streams_in_count > 0);
-      --client_streams_in_count;
-    } else {
-      ink_assert(client_streams_out_count > 0);
-      --client_streams_out_count;
-    }
   }
 
   if (ua_session) {
@@ -1161,8 +1176,13 @@ Http2ConnectionState::release_stream(Http2Stream *stream)
 
     if (fini_received && total_client_streams_count == 0) {
       // We were shutting down, go ahead and terminate the session
+      // this is a member of Http2ConnectionState and will be freed
+      // when ua_session is destroyed
       ua_session->destroy();
-      ua_session = nullptr;
+
+      // Can't do this because we just destroyed right here ^,
+      // or we can use a local variable to do it.
+      // ua_session = nullptr;
     }
   }
 }
@@ -1219,6 +1239,9 @@ Http2ConnectionState::send_data_frames_depends_on_priority()
       dependency_tree->deactivate(node, len);
     } else {
       dependency_tree->update(node, len);
+
+      SCOPED_MUTEX_LOCK(stream_lock, stream->mutex, this_ethread());
+      stream->signal_write_event(true);
     }
     break;
   }
@@ -1398,7 +1421,9 @@ Http2ConnectionState::send_headers_frame(Http2Stream *stream)
   if (!stream->change_state(HTTP2_FRAME_TYPE_HEADERS, flags)) {
     this->send_goaway_frame(this->latest_streamid_in, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR);
     this->ua_session->set_half_close_local_flag(true);
-    this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+    if (fini_event == nullptr) {
+      fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+    }
 
     h2_hdr.destroy();
     ats_free(buf);
@@ -1575,7 +1600,9 @@ Http2ConnectionState::send_rst_stream_frame(Http2StreamId id, Http2ErrorCode ec)
     if (!stream->change_state(HTTP2_FRAME_TYPE_RST_STREAM, 0)) {
       this->send_goaway_frame(this->latest_streamid_in, Http2ErrorCode::HTTP2_ERROR_PROTOCOL_ERROR);
       this->ua_session->set_half_close_local_flag(true);
-      this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+      if (fini_event == nullptr) {
+        fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+      }
 
       return;
     }
@@ -1611,7 +1638,9 @@ Http2ConnectionState::send_settings_frame(const Http2ConnectionSettings &new_set
       if (!http2_write_settings(param, iov)) {
         this->send_goaway_frame(this->latest_streamid_in, Http2ErrorCode::HTTP2_ERROR_INTERNAL_ERROR);
         this->ua_session->set_half_close_local_flag(true);
-        this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+        if (fini_event == nullptr) {
+          fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+        }
 
         return;
       }

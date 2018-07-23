@@ -393,7 +393,7 @@ public:
     TOTAL_RESPONSE_ERROR_TYPES
   };
 
-  // Please do not forget to fix TSServerState (ts/ts.h)
+  // Please do not forget to fix TSServerState (ts/apidefs.h.in)
   // in case of any modifications in ServerState_t
   enum ServerState_t {
     STATE_UNDEFINED = 0,
@@ -471,10 +471,6 @@ public:
     SM_ACTION_INTERNAL_100_RESPONSE,
     SM_ACTION_INTERNAL_REQUEST,
     SM_ACTION_SEND_ERROR_CACHE_NOOP,
-
-#ifdef PROXY_DRAIN
-    SM_ACTION_DRAIN_REQUEST_BODY,
-#endif /* PROXY_DRAIN */
 
     SM_ACTION_SERVE_FROM_CACHE,
     SM_ACTION_SERVER_READ,

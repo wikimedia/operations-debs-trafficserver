@@ -130,8 +130,9 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ax_perl_modules.m4 \
 	$(top_srcdir)/build/ax_require_defined.m4 \
 	$(top_srcdir)/build/ax_with_curses.m4 \
-	$(top_srcdir)/build/common.m4 $(top_srcdir)/build/crypto.m4 \
-	$(top_srcdir)/build/jemalloc.m4 $(top_srcdir)/build/libtool.m4 \
+	$(top_srcdir)/build/brotli.m4 $(top_srcdir)/build/common.m4 \
+	$(top_srcdir)/build/crypto.m4 $(top_srcdir)/build/jemalloc.m4 \
+	$(top_srcdir)/build/libtool.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
@@ -284,6 +285,7 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CFLAGS_BROTLIENC = @CFLAGS_BROTLIENC@
 CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -482,7 +484,6 @@ floath = @floath@
 gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
-has_brotli = @has_brotli@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
@@ -507,6 +508,8 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 jemalloch = @jemalloch@
+libbrotlienc_CFLAGS = @libbrotlienc_CFLAGS@
+libbrotlienc_LIBS = @libbrotlienc_LIBS@
 libdir = @libdir@
 libexecdir = @libexecdir@
 libgenh = @libgenh@
