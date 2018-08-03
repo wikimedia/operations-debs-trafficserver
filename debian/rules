@@ -55,6 +55,9 @@ override_dh_install:
 	#(cd debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/; \
 	#ln -s ssl_preaccept.config ssl_sni.config)
 
+override_dh_installinit:
+	dh_installinit --no-start
+
 override_dh_fixperms:
 	dh_fixperms -Xetc/trafficserver \
 		    -Xvar/lib/trafficserver \
