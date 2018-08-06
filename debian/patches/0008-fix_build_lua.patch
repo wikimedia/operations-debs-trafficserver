@@ -6,7 +6,7 @@ Last-Update: 2018-01-25
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/lib/bindings/bindings.h
 +++ b/lib/bindings/bindings.h
-@@ -62,7 +62,7 @@ struct BindingInstance {
+@@ -61,7 +61,7 @@ struct BindingInstance {
    static BindingInstance *self(lua_State *);
  
    // Register a Lua metatable for a custom type.

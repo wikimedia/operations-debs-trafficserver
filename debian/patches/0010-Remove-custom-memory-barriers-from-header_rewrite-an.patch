@@ -30,7 +30,7 @@ Subject: Remove custom memory barriers from header_rewrite and replace with
    }
 --- a/plugins/header_rewrite/lulu.h
 +++ b/plugins/header_rewrite/lulu.h
-@@ -34,39 +34,6 @@ std::string getIP(sockaddr const *s_sock
+@@ -33,39 +33,6 @@ std::string getIP(sockaddr const *s_sock
  char *getIP(sockaddr const *s_sockaddr, char res[INET6_ADDRSTRLEN]);
  uint16_t getPort(sockaddr const *s_sockaddr);
  

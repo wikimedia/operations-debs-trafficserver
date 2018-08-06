@@ -8,7 +8,7 @@ Subject: Use -mcx16 on x86 platforms only
 
 --- a/configure.ac
 +++ b/configure.ac
-@@ -1352,12 +1352,15 @@ CFLAGS="${__saved_CFLAGS}"
+@@ -1370,12 +1370,15 @@ CFLAGS="${__saved_CFLAGS}"
  AC_LANG_POP
  AC_SUBST(has_128bit_cas)
  
