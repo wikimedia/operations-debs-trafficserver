@@ -1496,11 +1496,11 @@ generator_generator_la_LIBADD =
 am_generator_generator_la_OBJECTS = generator/generator.lo
 generator_generator_la_OBJECTS = $(am_generator_generator_la_OBJECTS)
 gzip_gzip_la_LIBADD =
-am_gzip_gzip_la_OBJECTS = gzip/gzip.lo gzip/configuration.lo \
-	gzip/misc.lo
+am_gzip_gzip_la_OBJECTS = gzip/gzip_gzip_la-gzip.lo \
+	gzip/gzip_gzip_la-configuration.lo gzip/gzip_gzip_la-misc.lo
 gzip_gzip_la_OBJECTS = $(am_gzip_gzip_la_OBJECTS)
 gzip_gzip_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
-	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(gzip_gzip_la_CXXFLAGS) \
 	$(CXXFLAGS) $(gzip_gzip_la_LDFLAGS) $(LDFLAGS) -o $@
 header_rewrite_header_rewrite_la_DEPENDENCIES =  \
 	header_rewrite/parser.la $(am__DEPENDENCIES_1)
@@ -2609,7 +2609,7 @@ gzip_gzip_la_SOURCES = gzip/gzip.cc gzip/configuration.cc gzip/misc.cc
 gzip_gzip_la_LDFLAGS = \
   $(AM_LDFLAGS) $(LIB_BROTLIENC)
 
-gzip_gzip_la_CFLAGS = $(AM_CFLAGS) $(CFLAGS_BROTLIENC)
+gzip_gzip_la_CXXFLAGS = $(AM_CXXFLAGS) $(CFLAGS_BROTLIENC)
 header_rewrite_header_rewrite_la_SOURCES = \
 	header_rewrite/condition.cc \
 	header_rewrite/condition.h \
@@ -3686,10 +3686,12 @@ gzip/$(am__dirstamp):
 gzip/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) gzip/$(DEPDIR)
 	@: > gzip/$(DEPDIR)/$(am__dirstamp)
-gzip/gzip.lo: gzip/$(am__dirstamp) gzip/$(DEPDIR)/$(am__dirstamp)
-gzip/configuration.lo: gzip/$(am__dirstamp) \
+gzip/gzip_gzip_la-gzip.lo: gzip/$(am__dirstamp) \
 	gzip/$(DEPDIR)/$(am__dirstamp)
-gzip/misc.lo: gzip/$(am__dirstamp) gzip/$(DEPDIR)/$(am__dirstamp)
+gzip/gzip_gzip_la-configuration.lo: gzip/$(am__dirstamp) \
+	gzip/$(DEPDIR)/$(am__dirstamp)
+gzip/gzip_gzip_la-misc.lo: gzip/$(am__dirstamp) \
+	gzip/$(DEPDIR)/$(am__dirstamp)
 
 gzip/gzip.la: $(gzip_gzip_la_OBJECTS) $(gzip_gzip_la_DEPENDENCIES) $(EXTRA_gzip_gzip_la_DEPENDENCIES) gzip/$(am__dirstamp)
 	$(AM_V_CXXLD)$(gzip_gzip_la_LINK) -rpath $(pkglibdir) $(gzip_gzip_la_OBJECTS) $(gzip_gzip_la_LIBADD) $(LIBS)
@@ -4133,9 +4135,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/url_sig/$(DEPDIR)/url_sig.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@experimental/webp_transform/$(DEPDIR)/experimental_webp_transform_WebpTransform_la-ImageTransform.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@generator/$(DEPDIR)/generator.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/configuration.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/gzip.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/misc.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/gzip_gzip_la-configuration.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/gzip_gzip_la-gzip.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@gzip/$(DEPDIR)/gzip_gzip_la-misc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/condition.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/conditions.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@header_rewrite/$(DEPDIR)/expander.Plo@am__quote@
@@ -4685,6 +4687,27 @@ experimental/webp_transform/experimental_webp_transform_WebpTransform_la-ImageTr
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='experimental/webp_transform/ImageTransform.cc' object='experimental/webp_transform/experimental_webp_transform_WebpTransform_la-ImageTransform.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(experimental_webp_transform_WebpTransform_la_CPPFLAGS) $(CPPFLAGS) $(experimental_webp_transform_WebpTransform_la_CXXFLAGS) $(CXXFLAGS) -c -o experimental/webp_transform/experimental_webp_transform_WebpTransform_la-ImageTransform.lo `test -f 'experimental/webp_transform/ImageTransform.cc' || echo '$(srcdir)/'`experimental/webp_transform/ImageTransform.cc
+
+gzip/gzip_gzip_la-gzip.lo: gzip/gzip.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -MT gzip/gzip_gzip_la-gzip.lo -MD -MP -MF gzip/$(DEPDIR)/gzip_gzip_la-gzip.Tpo -c -o gzip/gzip_gzip_la-gzip.lo `test -f 'gzip/gzip.cc' || echo '$(srcdir)/'`gzip/gzip.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) gzip/$(DEPDIR)/gzip_gzip_la-gzip.Tpo gzip/$(DEPDIR)/gzip_gzip_la-gzip.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='gzip/gzip.cc' object='gzip/gzip_gzip_la-gzip.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -c -o gzip/gzip_gzip_la-gzip.lo `test -f 'gzip/gzip.cc' || echo '$(srcdir)/'`gzip/gzip.cc
+
+gzip/gzip_gzip_la-configuration.lo: gzip/configuration.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -MT gzip/gzip_gzip_la-configuration.lo -MD -MP -MF gzip/$(DEPDIR)/gzip_gzip_la-configuration.Tpo -c -o gzip/gzip_gzip_la-configuration.lo `test -f 'gzip/configuration.cc' || echo '$(srcdir)/'`gzip/configuration.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) gzip/$(DEPDIR)/gzip_gzip_la-configuration.Tpo gzip/$(DEPDIR)/gzip_gzip_la-configuration.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='gzip/configuration.cc' object='gzip/gzip_gzip_la-configuration.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -c -o gzip/gzip_gzip_la-configuration.lo `test -f 'gzip/configuration.cc' || echo '$(srcdir)/'`gzip/configuration.cc
+
+gzip/gzip_gzip_la-misc.lo: gzip/misc.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -MT gzip/gzip_gzip_la-misc.lo -MD -MP -MF gzip/$(DEPDIR)/gzip_gzip_la-misc.Tpo -c -o gzip/gzip_gzip_la-misc.lo `test -f 'gzip/misc.cc' || echo '$(srcdir)/'`gzip/misc.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) gzip/$(DEPDIR)/gzip_gzip_la-misc.Tpo gzip/$(DEPDIR)/gzip_gzip_la-misc.Plo
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='gzip/misc.cc' object='gzip/gzip_gzip_la-misc.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(gzip_gzip_la_CXXFLAGS) $(CXXFLAGS) -c -o gzip/gzip_gzip_la-misc.lo `test -f 'gzip/misc.cc' || echo '$(srcdir)/'`gzip/misc.cc
 
 esi/test/esi_docnode_test-docnode_test.o: esi/test/docnode_test.cc
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(esi_docnode_test_CPPFLAGS) $(CPPFLAGS) $(esi_docnode_test_CXXFLAGS) $(CXXFLAGS) -MT esi/test/esi_docnode_test-docnode_test.o -MD -MP -MF esi/test/$(DEPDIR)/esi_docnode_test-docnode_test.Tpo -c -o esi/test/esi_docnode_test-docnode_test.o `test -f 'esi/test/docnode_test.cc' || echo '$(srcdir)/'`esi/test/docnode_test.cc

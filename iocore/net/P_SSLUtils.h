@@ -19,8 +19,7 @@
   limitations under the License.
  */
 
-#ifndef __P_SSLUTILS_H__
-#define __P_SSLUTILS_H__
+#pragma once
 
 #include "ts/ink_config.h"
 #include "ts/Diags.h"
@@ -74,6 +73,7 @@ enum SSL_Stats {
   ssl_total_tickets_renewed_stat,
   ssl_total_dyn_def_tls_record_count,
   ssl_total_dyn_max_tls_record_count,
+  ssl_total_dyn_redo_tls_record_count,
   ssl_session_cache_hit,
   ssl_session_cache_miss,
   ssl_session_cache_eviction,
@@ -217,5 +217,3 @@ namespace detail
 
 typedef ats_scoped_resource<ssl::detail::SCOPED_X509_TRAITS> scoped_X509;
 typedef ats_scoped_resource<ssl::detail::SCOPED_BIO_TRAITS> scoped_BIO;
-
-#endif /* __P_SSLUTILS_H__ */

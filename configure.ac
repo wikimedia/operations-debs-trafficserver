@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[7.1.3])
-m4_define([TS_VERSION_N],[7001003])
+m4_define([TS_VERSION_S],[7.1.4])
+m4_define([TS_VERSION_N],[7001004])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -204,6 +204,15 @@ AC_ARG_ENABLE([asan],
   [enable_asan=no]
 )
 AC_MSG_RESULT([$enable_asan])
+
+# Enable LSAN in stand-alone mode for the builds
+AC_MSG_CHECKING([whether to enable lsan])
+AC_ARG_ENABLE([lsan],
+  [AS_HELP_STRING([--enable-lsan],[enable stand-alone Leak Sanitizer])],
+  [],
+  [enable_lsan=no]
+)
+AC_MSG_RESULT([$enable_lsan])
 
 # Enable TSAN for the builds
 AC_MSG_CHECKING([whether to enable tsan])
@@ -812,7 +821,7 @@ case $host_os_def in
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
       # This is useful for finding odd conversions
       #    common_opt="-pipe -Wall -Wconversion -Wno-sign-conversion -Wno-format-truncation"
-      common_opt="-pipe -Wall -Wextra -Wno-ignored-qualifiers -Wno-unused-parameter -Wno-format-truncation"
+      common_opt="-pipe -Wall -Wextra -Wno-ignored-qualifiers -Wno-unused-parameter -Wno-format-truncation -Wno-cast-function-type -Wno-stringop-overflow"
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
@@ -943,6 +952,15 @@ if test "x${enable_asan}" = "xyes"; then
   fi
   TS_ADDTO(AM_CFLAGS, [-fno-omit-frame-pointer -fsanitize=address])
   TS_ADDTO(AM_CXXFLAGS, [-fno-omit-frame-pointer -fsanitize=address])
+fi
+
+# Flags for LSAN stand-alone mode
+if test "x${enable_lsan}" = "xyes"; then
+  if test "x${enable_asan}" = "xyes"; then
+    AC_ERROR([ASAN already specified, --enable-lsan is meant only for lsan stand-alone mode])
+  fi
+  TS_ADDTO(AM_CFLAGS, [-fno-omit-frame-pointer -fsanitize=leak])
+  TS_ADDTO(AM_CXXFLAGS, [-fno-omit-frame-pointer -fsanitize=leak])
 fi
 
 # Flags for TSAN

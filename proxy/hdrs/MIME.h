@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef __MIME_H__
-#define __MIME_H__
+#pragma once
 
 #include <sys/time.h>
 
@@ -1398,6 +1397,9 @@ MIMEHdr::value_append_or_set(const char *name, const int name_length, char *valu
   MIMEField *field = nullptr;
 
   if ((field = field_find(name, name_length)) != nullptr) {
+    while (field->m_next_dup) {
+      field = field->m_next_dup;
+    }
     field_value_append(field, value, value_length, true);
   } else {
     value_set(name, name_length, value, value_length);
@@ -1737,5 +1739,3 @@ MIMEHdr::set_server(const char *server_id_tag, int server_id_tag_size)
 {
   value_set(MIME_FIELD_SERVER, MIME_LEN_SERVER, server_id_tag, server_id_tag_size);
 }
-
-#endif /* __MIME_H__ */

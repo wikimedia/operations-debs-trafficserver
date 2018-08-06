@@ -25,8 +25,7 @@
   P_HostDBProcessor.h
  ****************************************************************************/
 
-#ifndef _P_HostDBProcessor_h_
-#define _P_HostDBProcessor_h_
+#pragma once
 
 #include "I_HostDBProcessor.h"
 
@@ -296,7 +295,7 @@ HostDBRoundRobin::select_best_http(sockaddr const *client_ip, ink_time_t now, in
       timed_rr_ctime = now;
     }
     for (int i = 0; i < good; i++) {
-      best_any = current++ % good;
+      best_any = (current + i) % good;
       if (info(best_any).is_alive(now, fail_window)) {
         best_up = best_any;
         break;
@@ -374,7 +373,7 @@ HostDBRoundRobin::select_best_srv(char *target, InkRand *rand, ink_time_t now, i
     result = &info(current++ % len);
   } else {
     uint32_t xx = rand->random() % weight;
-    for (i = 0; i < len && xx >= infos[i]->data.srv.srv_weight; ++i)
+    for (i = 0; i < len - 1 && xx >= infos[i]->data.srv.srv_weight; ++i)
       xx -= infos[i]->data.srv.srv_weight;
 
     result = infos[i];
@@ -555,5 +554,3 @@ HostDBContinuation::key_partition()
 {
   return hostDB.refcountcache->partition_for_key(md5.hash.fold());
 }
-
-#endif /* _P_HostDBProcessor_h_ */
