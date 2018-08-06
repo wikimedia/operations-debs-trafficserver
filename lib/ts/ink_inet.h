@@ -22,8 +22,7 @@
 
  */
 
-#if !defined(_ink_inet_h_)
-#define _ink_inet_h_
+#pragma once
 
 #include <netinet/in.h>
 #include <netdb.h>
@@ -760,10 +759,12 @@ ats_ip_copy(sockaddr *dst,      ///< Destination object.
     }
   }
   if (n) {
-    memcpy(dst, src, n);
+    if (src != dst) {
+      memcpy(dst, src, n);
 #if HAVE_STRUCT_SOCKADDR_SA_LEN
-    dst->sa_len = n;
+      dst->sa_len = n;
 #endif
+    }
   } else {
     ats_ip_invalidate(dst);
   }
@@ -1581,5 +1582,3 @@ IpEndpoint::setToLoopback(int family)
   }
   return *this;
 }
-
-#endif // _ink_inet.h

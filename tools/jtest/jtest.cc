@@ -489,7 +489,8 @@ append_string(char *dest, const char *src, int *offset_ptr, int max_len)
   if (*offset_ptr + num > max_len) {
     num = max_len - *offset_ptr;
   }
-  strncpy(dest + *offset_ptr, src, num + 1);
+  memcpy(dest + *offset_ptr, src, num);
+  dest[*offset_ptr + num] = '\0';
   (*offset_ptr) += num;
 }
 
@@ -3229,7 +3230,7 @@ main(int argc __attribute__((unused)), const char *argv[])
   setvbuf(stdout, (char *)NULL, _IOLBF, 0);
 
   fd = (FD *)malloc(MAXFDS * sizeof(FD));
-  memset(fd, 0, MAXFDS * sizeof(FD));
+  memset(static_cast<void *>(fd), 0, MAXFDS * sizeof(FD));
   process_args(&appVersionInfo, argument_descriptions, n_argument_descriptions, argv);
 
   if (!drand_seed) {
@@ -3892,7 +3893,7 @@ ink_web_canonicalize_url(const char *base_url, const char *emb_url, char *dest_u
 
           /* append emb_path */
 
-          sprintf(temp2, "%s%s", temp2, emb.path);
+          strcat(temp2, emb.path);
 
           /* remove "." and ".." */
 

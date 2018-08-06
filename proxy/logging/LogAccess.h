@@ -26,8 +26,7 @@
 
 
  ***************************************************************************/
-#ifndef LOG_ACCESS_H
-#define LOG_ACCESS_H
+#pragma once
 #include "ts/ink_platform.h"
 #include "ts/ink_inet.h"
 #include "ts/ink_align.h"
@@ -220,6 +219,8 @@ public:
   inkcoreapi virtual int marshal_proxy_req_server_ip(char *);   // INT
   inkcoreapi virtual int marshal_proxy_req_server_port(char *); // INT
   inkcoreapi virtual int marshal_proxy_hierarchy_route(char *); // INT
+  inkcoreapi virtual int marshal_next_hop_ip(char *);           // STR
+  inkcoreapi virtual int marshal_next_hop_port(char *);         // INT
   inkcoreapi virtual int marshal_proxy_host_name(char *);       // STR
   inkcoreapi virtual int marshal_proxy_host_ip(char *);         // STR
   inkcoreapi virtual int marshal_proxy_req_is_ssl(char *);      // INT
@@ -405,5 +406,3 @@ LogAccess::marshal_int(char *dest, int64_t source)
   -------------------------------------------------------------------------*/
 
 char *resolve_logfield_string(LogAccess *context, const char *format_str);
-
-#endif

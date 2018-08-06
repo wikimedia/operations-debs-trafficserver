@@ -1,0 +1,47 @@
+Changes with Apache Traffic Server 7.1.4
+  #1967 - gitignore .vscode/
+  #3362 - Issue 3350: traffic_server using 100% CPU
+  #3446 - Fix #pragma once error in WCCP.
+  #3459 - Fix cache_read_busy_success_stat
+  #3476 - Fixes a build issue with latest XCode / clang
+  #3486 - Separate mutex of Http2ClientSession and Http2Stream
+  #3487 - Use #pragma once
+  #3495 - Fix test to support fix in autest 1.5.0
+  #3506 - Acquire mutex lock of Http2Stream before starting new transaction
+  #3521 - Log actual SSL error string on failure opening connection
+  #3550 - Corrects marshaling of source ip and port
+  #3560 - Option to enable stand-alone Leak Sanitizer
+  #3562 - Downgrade 'previously indexed' cert warning to debug
+  #3563 - Parent Selection -- Balance treatment of primary and secondary parent…
+  #3566 - Fix parsing of runroot from ink_args of 7.1.x
+  #3576 - Coverity ID 1390803: Fixes unreachable code in OCSP
+  #3588 - clang6 fix in DNS.cc
+  #3590 - Fixes uninitialized argument value use in HttpTransact::issue_revalidate
+  #3612 - Fixed off-by-one error in select_best_srv.
+  #3628 - Added a first cut of this share file for Visual Code users
+  #3688 - Adds a couple of more include dirs to vscode
+  #3727 - Fixes compiler flags used for gzip plugin
+  #3731 - Changes to compile on Fedora 28 with gcc 8.1.1
+  #3738 - Removes stray debug message on environments with getpeerid
+  #3757 - Allow disable throttling.
+  #3766 - HostDB timed RR fix
+  #3781 - Clarifies error when failing to load ticket key
+  #3792 - Change MIMEHdr::value_append_or_set to handle duplicate headers
+  #3799 - Add gcc 8 support for 7.1.x
+  #3814 - Redirection_tries should not be incremented twice
+  #3820 - TS-2365: Fix crash in tls dynamic record size
+  #3823 - Fix off-by-one access in header_rewrite config parser
+  #3844 - 7.1.x: Fix WCCP for gcc 8.
+  #3845 - 7.1.x: Fix string_view test for gcc 8.
+  #3852 - Fix method call on null object for background_fetch
+  #3860 - Move %<pqsn> logic to %<shn> for 7.x
+  #3863 - background_fetch heap-buffer-overflow fix
+  #3865 - Set verify locations in the initializer function only
+  #3869 - background_fetch heap-buffer-overflow fix (7.1.x)
+  #3878 - Only increment currently_open if socket connects
+  #3886 - Fix hostdb.ip_resolve's documentation for none/only option
+  #3891 - Fixed logic error with client ip
+  #3926 - Restrict access to request headers for ESI variables
+  #3928 - Fixes OCSP warnings when cert has no OCSP URI attached to it
+  #3985 - Disables the support for multi-range request by default
+  #3999 - Adds new log tags: nhi and nhp

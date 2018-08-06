@@ -1359,8 +1359,11 @@ UnixNetVConnection::connectUp(EThread *t, int fd)
     }
   }
 
-  // start up next round immediately
+  // Did not fail, increment connection count
+  NET_SUM_GLOBAL_DYN_STAT(net_connections_currently_open_stat, 1);
+  ink_release_assert(con.fd != NO_FD);
 
+  // start up next round immediately
   SET_HANDLER(&UnixNetVConnection::mainEvent);
 
   nh = get_NetHandler(t);

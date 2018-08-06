@@ -22,8 +22,7 @@
     limitations under the License.
 */
 
-#ifndef RULES_H_E39522EE_1258_49B4_8FA4_7DAB7A6FC4DA
-#define RULES_H_E39522EE_1258_49B4_8FA4_7DAB7A6FC4DA
+#pragma once
 
 #include <stdlib.h>
 #include <netinet/in.h>
@@ -59,12 +58,10 @@ public:
 
   // Main evaluation entry point.
   bool bgFetchAllowed(TSHttpTxn txnp) const;
+  bool check_field_configured(TSHttpTxn txnp) const;
 
-private:
   bool _exclude;
   const char *_field;
   const char *_value;
   BgFetchRule *_next; // For the linked list
 };
-
-#endif /* RULES_H_E39522EE_1258_49B4_8FA4_7DAB7A6FC4DA */
