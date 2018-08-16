@@ -30,12 +30,9 @@
 
 static vec_info default_vec_info;
 
-#ifdef HTTP_CACHE
 static CacheHTTPInfo default_http_info;
 
-CacheHTTPInfoVector::CacheHTTPInfoVector() : magic(nullptr), data(&default_vec_info, 4), xcount(0)
-{
-}
+CacheHTTPInfoVector::CacheHTTPInfoVector() : magic(nullptr), data(&default_vec_info, 4), xcount(0) {}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -57,8 +54,9 @@ CacheHTTPInfoVector::~CacheHTTPInfoVector()
 int
 CacheHTTPInfoVector::insert(CacheHTTPInfo *info, int index)
 {
-  if (index == CACHE_ALT_INDEX_DEFAULT)
+  if (index == CACHE_ALT_INDEX_DEFAULT) {
     index = xcount++;
+  }
 
   data(index).alternate.copy_shallow(info);
   return index;
@@ -91,11 +89,13 @@ CacheHTTPInfoVector::detach(int idx, CacheHTTPInfo *r)
 void
 CacheHTTPInfoVector::remove(int idx, bool destroy)
 {
-  if (destroy)
+  if (destroy) {
     data[idx].alternate.destroy();
+  }
 
-  for (; idx < (xcount - 1); idx++)
+  for (; idx < (xcount - 1); idx++) {
     data[idx] = data[idx + 1];
+  }
 
   xcount--;
 }
@@ -124,7 +124,7 @@ CacheHTTPInfoVector::clear(bool destroy)
 void
 CacheHTTPInfoVector::print(char *buffer, size_t buf_size, bool temps)
 {
-  char buf[33], *p;
+  char buf[CRYPTO_HEX_SIZE], *p;
   int purl;
   int i, tmp;
 
@@ -248,100 +248,3 @@ CacheHTTPInfoVector::get_handles(const char *buf, int length, RefCountObj *block
 
   return ((caddr_t)buf - (caddr_t)start);
 }
-
-#else // HTTP_CACHE
-
-CacheHTTPInfoVector::CacheHTTPInfoVector() : data(&default_vec_info, 4), xcount(0)
-{
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-CacheHTTPInfoVector::~CacheHTTPInfoVector()
-{
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-CacheHTTPInfoVector::insert(CacheHTTPInfo * /* info ATS_UNUSED */, int index)
-{
-  ink_assert(0);
-  return index;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-void
-CacheHTTPInfoVector::detach(int /* idx ATS_UNUSED */, CacheHTTPInfo * /* r ATS_UNUSED */)
-{
-  ink_assert(0);
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-void
-CacheHTTPInfoVector::remove(int /* idx ATS_UNUSED */, bool /* destroy ATS_UNUSED */)
-{
-  ink_assert(0);
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-void
-CacheHTTPInfoVector::clear(bool /* destroy ATS_UNUSED */)
-{
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-void
-CacheHTTPInfoVector::print(char * /* buffer ATS_UNUSED */, size_t /* buf_size ATS_UNUSED */, bool /* temps ATS_UNUSED */)
-{
-  ink_assert(0);
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-
-int
-CacheHTTPInfoVector::marshal_length()
-{
-  ink_assert(0);
-  return 0;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-int
-CacheHTTPInfoVector::marshal(char * /* buf ATS_UNUSED */, int length)
-{
-  ink_assert(0);
-  return length;
-}
-
-int
-CacheHTTPInfoVector::unmarshal(const char * /* buf ATS_UNUSED */, int /* length ATS_UNUSED */,
-                               RefCountObj * /* block_ptr ATS_UNUSED */)
-{
-  ink_assert(0);
-  return 0;
-}
-
-/*-------------------------------------------------------------------------
-  -------------------------------------------------------------------------*/
-uint32_t
-CacheHTTPInfoVector::get_handles(const char * /* buf ATS_UNUSED */, int /* length ATS_UNUSED */,
-                                 RefCountObj * /* block_ptr ATS_UNUSED */)
-{
-  ink_assert(0);
-  return 0;
-}
-
-#endif // HTTP_CACHE

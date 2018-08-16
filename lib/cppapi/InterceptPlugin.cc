@@ -42,7 +42,7 @@ using std::string;
  */
 struct InterceptPlugin::State {
   TSCont cont_;
-  TSVConn net_vc_;
+  TSVConn net_vc_ = nullptr;
 
   struct IoHandle {
     TSVIO vio_;
@@ -66,36 +66,25 @@ struct InterceptPlugin::State {
   /** the API doesn't recognize end of input; so we have to explicitly
    * figure out when to continue reading and when to stop */
   TSHttpParser http_parser_;
-  int expected_body_size_;
-  int num_body_bytes_read_;
-  bool hdr_parsed_;
+  int expected_body_size_  = 0;
+  int num_body_bytes_read_ = 0;
+  bool hdr_parsed_         = false;
 
-  TSMBuffer hdr_buf_;
-  TSMLoc hdr_loc_;
-  int num_bytes_written_;
+  TSMBuffer hdr_buf_     = nullptr;
+  TSMLoc hdr_loc_        = nullptr;
+  int num_bytes_written_ = 0;
   std::shared_ptr<Mutex> plugin_mutex_;
-  InterceptPlugin *plugin_;
+  InterceptPlugin *plugin_ = nullptr;
   Headers request_headers_;
 
   /** these two fields to be used by the continuation callback only */
-  TSEvent saved_event_;
-  void *saved_edata_;
+  TSEvent saved_event_ = TS_EVENT_NONE;
+  void *saved_edata_   = nullptr;
 
-  TSAction timeout_action_;
-  bool plugin_io_done_;
+  TSAction timeout_action_ = nullptr;
+  bool plugin_io_done_     = false;
 
-  State(TSCont cont, InterceptPlugin *plugin)
-    : cont_(cont),
-      net_vc_(nullptr),
-      expected_body_size_(0),
-      num_body_bytes_read_(0),
-      hdr_parsed_(false),
-      hdr_buf_(nullptr),
-      hdr_loc_(nullptr),
-      num_bytes_written_(0),
-      plugin_(plugin),
-      timeout_action_(nullptr),
-      plugin_io_done_(false)
+  State(TSCont cont, InterceptPlugin *plugin) : cont_(cont), plugin_(plugin)
   {
     plugin_mutex_ = plugin->getMutex();
     http_parser_  = TSHttpParserCreate();
@@ -117,7 +106,7 @@ namespace
 {
 int handleEvents(TSCont cont, TSEvent event, void *edata);
 void destroyCont(InterceptPlugin::State *state);
-}
+} // namespace
 
 InterceptPlugin::InterceptPlugin(Transaction &transaction, InterceptPlugin::Type type) : TransactionPlugin(transaction)
 {
@@ -146,7 +135,7 @@ InterceptPlugin::~InterceptPlugin()
 bool
 InterceptPlugin::produce(const void *data, int data_size)
 {
-  ScopedSharedMutexLock lock(getMutex());
+  std::lock_guard<Mutex> lock(*getMutex());
   if (!state_->net_vc_) {
     LOG_ERROR("Intercept not operational");
     return false;
@@ -170,7 +159,7 @@ InterceptPlugin::produce(const void *data, int data_size)
 bool
 InterceptPlugin::setOutputComplete()
 {
-  ScopedSharedMutexLock scopedLock(getMutex());
+  std::lock_guard<Mutex> scopedLock(*getMutex());
   if (!state_->net_vc_) {
     LOG_ERROR("Intercept not operational");
     return false;
@@ -305,7 +294,7 @@ InterceptPlugin::handleEvent(int abstract_event, void *edata)
     }
     // else fall through into the next shut down cases
     LOG_ERROR("Error while reading request!");
-  // fallthrough
+    // fallthrough
 
   case TS_EVENT_VCONN_READ_COMPLETE: // fall throughs intentional
   case TS_EVENT_VCONN_WRITE_COMPLETE:
@@ -328,6 +317,29 @@ InterceptPlugin::handleEvent(int abstract_event, void *edata)
 
 namespace
 {
+class TryLockGuard
+{
+public:
+  TryLockGuard(Mutex &m) : _m(m), _isLocked(m.try_lock()) {}
+
+  bool
+  isLocked() const
+  {
+    return _isLocked;
+  }
+
+  ~TryLockGuard()
+  {
+    if (_isLocked) {
+      _m.unlock();
+    }
+  }
+
+private:
+  std::recursive_mutex &_m;
+  const bool _isLocked;
+};
+
 int
 handleEvents(TSCont cont, TSEvent pristine_event, void *pristine_edata)
 {
@@ -340,8 +352,8 @@ handleEvents(TSCont cont, TSEvent pristine_event, void *pristine_edata)
     return 0;
   }
 
-  ScopedSharedMutexTryLock scopedTryLock(state->plugin_mutex_);
-  if (!scopedTryLock.hasLock()) {
+  TryLockGuard scopedTryLock(*(state->plugin_mutex_));
+  if (!scopedTryLock.isLocked()) {
     LOG_ERROR("Couldn't get plugin lock. Will retry");
     if (event != TS_EVENT_TIMEOUT) { // save only "non-retry" info
       state->saved_event_ = event;
@@ -362,8 +374,7 @@ handleEvents(TSCont cont, TSEvent pristine_event, void *pristine_edata)
   }
   if (state->plugin_) {
     utils::internal::dispatchInterceptEvent(state->plugin_, event, edata);
-  } else if (state->timeout_action_) { // we had scheduled a timeout on ourselves; let's wait for it
-  } else {                             // plugin was destroyed before intercept was completed; cleaning up here
+  } else { // plugin was destroyed before intercept was completed; cleaning up here
     LOG_DEBUG("Cleaning up as intercept plugin is already destroyed");
     destroyCont(state);
     TSContDataSet(cont, nullptr);
@@ -380,9 +391,14 @@ destroyCont(InterceptPlugin::State *state)
     TSVConnClose(state->net_vc_);
     state->net_vc_ = nullptr;
   }
-  if (!state->timeout_action_) {
+
+  if (state->cont_) {
+    if (state->timeout_action_) {
+      TSActionCancel(state->timeout_action_);
+      state->timeout_action_ = nullptr;
+    }
     TSContDestroy(state->cont_);
     state->cont_ = nullptr;
   }
 }
-}
+} // namespace

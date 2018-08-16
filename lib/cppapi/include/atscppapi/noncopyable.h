@@ -23,8 +23,6 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_NONCOPYABLE_H_
-#define ATSCPPAPI_NONCOPYABLE_H_
 
 namespace atscppapi
 {
@@ -53,11 +51,9 @@ class noncopyable
 protected:
   noncopyable() {}
   ~noncopyable() {}
-private:
-  noncopyable(const noncopyable &);
-  const noncopyable &operator=(const noncopyable &);
+
+  noncopyable(const noncopyable &) = delete;
+  const noncopyable &operator=(const noncopyable &) = delete;
 };
 
-} /* atscppapi */
-
-#endif /* ATSCPPAPI_NONCOPYABLE_H_ */
+} // namespace atscppapi

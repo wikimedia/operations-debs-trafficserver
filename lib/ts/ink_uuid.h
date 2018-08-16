@@ -21,7 +21,9 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-#include <stdio.h>
+#pragma once
+
+#include <cstdio>
 
 #include "ts/apidefs.h"
 #include "ts/ink_memory.h"
@@ -45,7 +47,7 @@ public:
   const char *
   getString() const
   {
-    return valid() ? _string : NULL;
+    return valid() ? _string : nullptr;
   }
 
   const char *

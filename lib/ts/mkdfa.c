@@ -381,7 +381,9 @@ mkprefix(state_t *state, char *prefix, int length)
   transition_t *transitions;
 
   prefixtbl[state->num] = (char *)malloc(sizeof(char) * (length + 1));
-  strncpy(prefixtbl[state->num], prefix, length);
+  if (length > 0) {
+    strncpy(prefixtbl[state->num], prefix, length);
+  }
   prefixtbl[state->num][length] = '\0';
 
   transitions = state->transitions;
@@ -449,7 +451,7 @@ mktables(state_t *state, const char *defvalue, int useprefix)
 
   /* make the character map */
   map = (int *)malloc(sizeof(int) * 256);
-  for (i   = 0; i < 256; i++)
+  for (i = 0; i < 256; i++)
     map[i] = 0;
 
   char_count = mkmap(state);
@@ -459,7 +461,7 @@ mktables(state_t *state, const char *defvalue, int useprefix)
 
   /* make the accept state table */
   accepttbl = (const char **)malloc(sizeof(const char *) * state_count);
-  for (i         = 0; i < state_count; i++)
+  for (i = 0; i < state_count; i++)
     accepttbl[i] = NULL;
 
   mkaccept(state, defvalue);
@@ -476,7 +478,7 @@ mktables(state_t *state, const char *defvalue, int useprefix)
   /* make the prefix table */
   if (useprefix) {
     prefixtbl = (char **)malloc(sizeof(char *) * state_count);
-    for (i         = 0; i < state_count; i++)
+    for (i = 0; i < state_count; i++)
       prefixtbl[i] = NULL;
 
     mkprefix(state, prefix, 0);
@@ -557,7 +559,7 @@ mkdfa(info_t *infos, int ninfos, int useprefix, int debug)
 
   start = mkstate();
 
-  for (i             = 0; i < (ninfos - 1); i++)
+  for (i = 0; i < (ninfos - 1); i++)
     infos[i].namelen = strlen(infos[i].name);
 
   for (i = 0; i < (ninfos - 1); i++)

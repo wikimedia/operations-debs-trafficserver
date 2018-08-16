@@ -35,9 +35,6 @@
 /* Renamed in OpenSSL 1.1 */
 #undef EVP_MD_CTX_reset
 
-/* Define if gethostbyname_r has the glibc style */
-#undef GETHOSTBYNAME_R_GLIBC2
-
 /* Define if libcurl >= 7.19. */
 #undef HAS_CURL
 
@@ -56,6 +53,9 @@
 /* Define to 1 if you have the <arpa/nameser.h> header file. */
 #undef HAVE_ARPA_NAMESER_H
 
+/* Define to 1 if you have the `ASYNC_init_thread' function. */
+#undef HAVE_ASYNC_INIT_THREAD
+
 /* Define to 1 if you have the `BIO_meth_new' function. */
 #undef HAVE_BIO_METH_NEW
 
@@ -64,6 +64,9 @@
 
 /* Define to 1 if you have the <brotli/encode.h> header file. */
 #undef HAVE_BROTLI_ENCODE_H
+
+/* Define to 1 if you have the <cjose/cjose.h> header file. */
+#undef HAVE_CJOSE_CJOSE_H
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
@@ -164,6 +167,9 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
+/* Define to 1 if you have the <jansson.h> header file. */
+#undef HAVE_JANSSON_H
+
 /* Define to 1 if you have the <jemalloc/jemalloc.h> header file. */
 #undef HAVE_JEMALLOC_JEMALLOC_H
 
@@ -199,6 +205,9 @@
 
 /* Define to 1 if you have the `lrand48_r' function. */
 #undef HAVE_LRAND48_R
+
+/* Define to 1 if you have the <luajit.h> header file. */
+#undef HAVE_LUAJIT_H
 
 /* Define to 1 if you have the <lzma.h> header file. */
 #undef HAVE_LZMA_H
@@ -263,8 +272,20 @@
 /* Define to 1 if you have the <net/ppp_defs.h> header file. */
 #undef HAVE_NET_PPP_DEFS_H
 
+/* Define to 1 if you have the `OCSP_REQ_CTX_add1_header' function. */
+#undef HAVE_OCSP_REQ_CTX_ADD1_HEADER
+
+/* Define to 1 if you have the `OCSP_REQ_CTX_set1_req' function. */
+#undef HAVE_OCSP_REQ_CTX_SET1_REQ
+
+/* Define to 1 if you have the `OCSP_sendreq_new' function. */
+#undef HAVE_OCSP_SENDREQ_NEW
+
 /* Define to 1 if you have the <openssl/ec.h> header file. */
 #undef HAVE_OPENSSL_EC_H
+
+/* Define to 1 if you have the <openssl/ocsp.h> header file. */
+#undef HAVE_OPENSSL_OCSP_H
 
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #undef HAVE_OPENSSL_SSL_H
@@ -301,6 +322,9 @@
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
+
+/* Define to 1 if you have the `pthread_mutexattr_settype' function. */
+#undef HAVE_PTHREAD_MUTEXATTR_SETTYPE
 
 /* Define to 1 if you have the <pthread_np.h> header file. */
 #undef HAVE_PTHREAD_NP_H
@@ -363,8 +387,8 @@
 /* Define to 1 if you have the `SSL_get0_next_proto_negotiated' function. */
 #undef HAVE_SSL_GET0_NEXT_PROTO_NEGOTIATED
 
-/* Define to 1 if you have the `SSL_get_servername' function. */
-#undef HAVE_SSL_GET_SERVERNAME
+/* Define to 1 if you have the `SSL_get_all_async_fds' function. */
+#undef HAVE_SSL_GET_ALL_ASYNC_FDS
 
 /* Define to 1 if you have the `SSL_select_next_proto' function. */
 #undef HAVE_SSL_SELECT_NEXT_PROTO
@@ -438,6 +462,9 @@
 /* Define to 1 if you have the <sys/disk.h> header file. */
 #undef HAVE_SYS_DISK_H
 
+/* Define to 1 if you have the <sys/endian.h> header file. */
+#undef HAVE_SYS_ENDIAN_H
+
 /* Define to 1 if you have the <sys/epoll.h> header file. */
 #undef HAVE_SYS_EPOLL_H
 
@@ -503,9 +530,6 @@
 
 /* Define to 1 if you have the <values.h> header file. */
 #undef HAVE_VALUES_H
-
-/* Define to 1 if you have the <wait.h> header file. */
-#undef HAVE_WAIT_H
 
 /* Define to 1 if you have the `X509_get0_signature' function. */
 #undef HAVE_X509_GET0_SIGNATURE

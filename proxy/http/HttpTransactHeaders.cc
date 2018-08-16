@@ -20,7 +20,14 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#include "ts/ink_platform.h"
+
+#include <bitset>
+#include <algorithm>
+#include <array>
+#include <string_view>
+
+#include <ts/ink_platform.h>
+#include <ts/BufferWriter.h>
 
 #include "HttpTransact.h"
 #include "HttpTransactHeaders.h"
@@ -31,8 +38,7 @@
 
 #include "I_Machine.h"
 
-#include <array>
-#include <ts/MemView.h>
+using namespace std::literals;
 
 bool
 HttpTransactHeaders::is_method_cacheable(const HttpConfigParams *http_config_param, const int method)
@@ -95,7 +101,7 @@ HttpTransactHeaders::insert_supported_methods_in_response(HTTPHdr *response, int
 {
   int method_output_lengths[32];
   const char *methods[] = {
-    HTTP_METHOD_CONNECT, HTTP_METHOD_DELETE, HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_ICP_QUERY, HTTP_METHOD_OPTIONS,
+    HTTP_METHOD_CONNECT, HTTP_METHOD_DELETE, HTTP_METHOD_GET, HTTP_METHOD_HEAD, HTTP_METHOD_OPTIONS,
     HTTP_METHOD_POST,    HTTP_METHOD_PURGE,  HTTP_METHOD_PUT, HTTP_METHOD_PUSH, HTTP_METHOD_TRACE,
   };
   char inline_buffer[64];
@@ -485,9 +491,9 @@ HttpTransactHeaders::downgrade_request(bool *origin_server_keep_alive, HTTPHdr *
 void
 HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_string, HttpTransact::SquidLogInfo *squid_codes)
 {
-  SquidLogCode log_code;
-  SquidHierarchyCode hier_code;
-  SquidHitMissCode hit_miss_code;
+  SquidLogCode log_code          = SQUID_LOG_EMPTY;
+  SquidHierarchyCode hier_code   = SQUID_HIER_EMPTY;
+  SquidHitMissCode hit_miss_code = SQUID_HIT_RESERVED;
 
   /////////////////////////////
   // First the Hit-Miss Code //
@@ -573,8 +579,6 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
   ////////////////////////
   if ((via_string[VIA_CACHE_RESULT] == VIA_IN_CACHE_FRESH) || (via_string[VIA_CACHE_RESULT] == VIA_IN_RAM_CACHE_FRESH)) {
     hier_code = SQUID_HIER_NONE;
-  } else if (via_string[VIA_DETAIL_ICP_CONNECT] == VIA_DETAIL_ICP_SUCCESS) {
-    hier_code = SQUID_HIER_SIBLING_HIT;
   } else if (via_string[VIA_DETAIL_PP_CONNECT] == VIA_DETAIL_PP_SUCCESS) {
     hier_code = SQUID_HIER_PARENT_HIT;
   } else if (via_string[VIA_DETAIL_CACHE_TYPE] == VIA_DETAIL_PARENT) {
@@ -617,9 +621,7 @@ HttpTransactHeaders::generate_and_set_squid_codes(HTTPHdr *header, char *via_str
     if (log_code == SQUID_LOG_TCP_MISS || log_code == SQUID_LOG_TCP_IMS_MISS) {
       log_code = SQUID_LOG_ERR_READ_TIMEOUT;
     }
-    if (hier_code == SQUID_HIER_SIBLING_HIT) {
-      hier_code = SQUID_HIER_TIMEOUT_SIBLING_HIT;
-    } else if (hier_code == SQUID_HIER_PARENT_HIT) {
+    if (hier_code == SQUID_HIER_PARENT_HIT) {
       hier_code = SQUID_HIER_TIMEOUT_PARENT_HIT;
     } else {
       hier_code = SQUID_HIER_TIMEOUT_DIRECT;
@@ -690,50 +692,56 @@ HttpTransactHeaders::insert_server_header_in_response(const char *server_tag, in
 
 /// write the protocol stack to the @a via_string.
 /// If @a detailed then do the full stack, otherwise just the "top level" protocol.
-size_t
-write_via_protocol_stack(char *via_string, size_t len, bool detailed, ts::StringView *proto_buf, int n_proto)
+/// Returns the number of characters appended to hdr_string (no nul appended).
+int
+HttpTransactHeaders::write_hdr_protocol_stack(char *hdr_string, size_t len, ProtocolStackDetail pSDetail,
+                                              std::string_view *proto_buf, int n_proto, char separator)
 {
-  char *via   = via_string; // keep original pointer for size computation later.
-  char *limit = via_string + len;
-  static constexpr ts::StringView tls_prefix{"tls/", ts::StringView::literal};
+  char *hdr   = hdr_string; // keep original pointer for size computation later.
+  char *limit = hdr_string + len;
 
-  if (n_proto <= 0 || via == nullptr || len <= 0) {
+  if (n_proto <= 0 || hdr == nullptr || len <= 0) {
     // nothing
-  } else if (detailed) {
-    for (ts::StringView *v = proto_buf, *v_limit = proto_buf + n_proto; v < v_limit && (via + v->size() + 1) < limit; ++v) {
+  } else if (ProtocolStackDetail::Full == pSDetail) {
+    for (std::string_view *v = proto_buf, *v_limit = proto_buf + n_proto; v < v_limit && (hdr + v->size() + 1) < limit; ++v) {
       if (v != proto_buf) {
-        *via++ = ' ';
+        *hdr++ = separator;
       }
-      memcpy(via, v->ptr(), v->size());
-      via += v->size();
+      memcpy(hdr, v->data(), v->size());
+      hdr += v->size();
     }
   } else {
-    ts::StringView *proto_end = proto_buf + n_proto;
-    bool http_1_0_p           = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_0) != proto_end;
-    bool http_1_1_p           = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_1) != proto_end;
+    std::string_view *proto_end = proto_buf + n_proto;
+    bool http_1_0_p             = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_0) != proto_end;
+    bool http_1_1_p             = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_1_1) != proto_end;
 
-    if ((http_1_0_p || http_1_1_p) && via + 10 < limit) {
-      bool tls_p = std::find_if(proto_buf, proto_end, [](ts::StringView tag) { return tls_prefix.isPrefixOf(tag); }) != proto_end;
-      bool http_2_p = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_2_0) != proto_end;
+    if ((http_1_0_p || http_1_1_p) && hdr + 10 < limit) {
+      bool tls_p = std::find_if(proto_buf, proto_end, [](std::string_view tag) { return IsPrefixOf("tls/"sv, tag); }) != proto_end;
 
-      memcpy(via, "http", 4);
-      via += 4;
-      if (tls_p)
-        *via++ = 's';
-      *via++   = '/';
-      if (http_2_p) {
-        *via++ = '2';
-      } else if (http_1_0_p) {
-        memcpy(via, "1.0", 3);
-        via += 3;
-      } else if (http_1_1_p) {
-        memcpy(via, "1.1", 3);
-        via += 3;
+      memcpy(hdr, "http", 4);
+      hdr += 4;
+      if (tls_p) {
+        *hdr++ = 's';
       }
-      *via++ = ' ';
+
+      // If detail level is compact (RFC 7239 compliant "proto" value for Forwarded field), stop here.
+
+      if (ProtocolStackDetail::Standard == pSDetail) {
+        *hdr++        = '/';
+        bool http_2_p = std::find(proto_buf, proto_end, IP_PROTO_TAG_HTTP_2_0) != proto_end;
+        if (http_2_p) {
+          *hdr++ = '2';
+        } else if (http_1_0_p) {
+          memcpy(hdr, "1.0", 3);
+          hdr += 3;
+        } else if (http_1_1_p) {
+          memcpy(hdr, "1.1", 3);
+          hdr += 3;
+        }
+      }
     }
   }
-  return via - via_string;
+  return hdr - hdr_string;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -793,10 +801,13 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
   }
 
   char *incoming_via = s->via_string;
-  std::array<ts::StringView, 10> proto_buf; // 10 seems like a reasonable number of protos to print
+  std::array<std::string_view, 10> proto_buf; // 10 seems like a reasonable number of protos to print
   int n_proto = s->state_machine->populate_client_protocol(proto_buf.data(), proto_buf.size());
 
-  via_string += write_via_protocol_stack(via_string, via_limit - via_string, false, proto_buf.data(), n_proto);
+  via_string +=
+    write_hdr_protocol_stack(via_string, via_limit - via_string, ProtocolStackDetail::Standard, proto_buf.data(), n_proto);
+  *via_string++ = ' ';
+
   via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
 
   *via_string++ = '[';
@@ -826,7 +837,8 @@ HttpTransactHeaders::insert_via_header_in_request(HttpTransact::State *s, HTTPHd
     if (via_limit - via_string > 4 && s->txn_conf->insert_request_via_string > 3) { // Ultra highest verbosity
       *via_string++ = ' ';
       *via_string++ = '[';
-      via_string += write_via_protocol_stack(via_string, via_limit - via_string - 3, true, proto_buf.data(), n_proto);
+      via_string +=
+        write_hdr_protocol_stack(via_string, via_limit - via_string - 3, ProtocolStackDetail::Full, proto_buf.data(), n_proto);
       *via_string++ = ']';
     }
   }
@@ -871,7 +883,7 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
   }
 
   char *incoming_via = s->via_string;
-  std::array<ts::StringView, 10> proto_buf; // 10 seems like a reasonable number of protos to print
+  std::array<std::string_view, 10> proto_buf; // 10 seems like a reasonable number of protos to print
   int n_proto = 0;
 
   // Should suffice - if we're adding a response VIA, the connection is HTTP and only 1.0 and 1.1 are supported outbound.
@@ -881,7 +893,9 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
   if (ss) {
     n_proto += ss->populate_protocol(proto_buf.data() + n_proto, proto_buf.size() - n_proto);
   }
-  via_string += write_via_protocol_stack(via_string, via_limit - via_string, false, proto_buf.data(), n_proto);
+  via_string +=
+    write_hdr_protocol_stack(via_string, via_limit - via_string, ProtocolStackDetail::Standard, proto_buf.data(), n_proto);
+  *via_string++ = ' ';
 
   via_string += nstrcpy(via_string, s->http_config_param->proxy_hostname);
   *via_string++ = ' ';
@@ -906,7 +920,8 @@ HttpTransactHeaders::insert_via_header_in_response(HttpTransact::State *s, HTTPH
     if (via_limit - via_string > 4 && s->txn_conf->insert_response_via_string > 3) { // Ultra highest verbosity
       *via_string++ = ' ';
       *via_string++ = '[';
-      via_string += write_via_protocol_stack(via_string, via_limit - via_string - 3, true, proto_buf.data(), n_proto);
+      via_string +=
+        write_hdr_protocol_stack(via_string, via_limit - via_string - 3, ProtocolStackDetail::Full, proto_buf.data(), n_proto);
       *via_string++ = ']';
     }
   }
@@ -1000,6 +1015,191 @@ HttpTransactHeaders::add_global_user_agent_header_to_request(OverridableHttpConf
 }
 
 void
+HttpTransactHeaders::add_forwarded_field_to_request(HttpTransact::State *s, HTTPHdr *request)
+{
+  HttpForwarded::OptionBitSet optSet = s->txn_conf->insert_forwarded;
+
+  if (optSet.any()) { // One or more Forwarded parameters enabled, so insert/append to Forwarded header.
+
+    ts::LocalBufferWriter<1024> hdr;
+
+    if (optSet[HttpForwarded::FOR] and ats_is_ip(&s->client_info.src_addr.sa)) {
+      // NOTE:  The logic within this if statement assumes that hdr is empty at this point.
+
+      hdr << "for=";
+
+      bool is_ipv6 = ats_is_ip6(&s->client_info.src_addr.sa);
+
+      if (is_ipv6) {
+        hdr << "\"[";
+      }
+
+      if (ats_ip_ntop(&s->client_info.src_addr.sa, hdr.auxBuffer(), hdr.remaining()) == nullptr) {
+        Debug("http_trans", "[add_forwarded_field_to_outgoing_request] ats_ip_ntop() call failed");
+        return;
+      }
+
+      // Fail-safe.
+      hdr.auxBuffer()[hdr.remaining() - 1] = '\0';
+
+      hdr.fill(strlen(hdr.auxBuffer()));
+
+      if (is_ipv6) {
+        hdr << "]\"";
+      }
+    }
+
+    if (optSet[HttpForwarded::BY_UNKNOWN]) {
+      if (hdr.size()) {
+        hdr << ';';
+      }
+
+      hdr << "by=unknown";
+    }
+
+    if (optSet[HttpForwarded::BY_SERVER_NAME]) {
+      if (hdr.size()) {
+        hdr << ';';
+      }
+
+      hdr << "by=" << s->http_config_param->proxy_hostname;
+    }
+
+    const Machine &m = *Machine::instance();
+
+    if (optSet[HttpForwarded::BY_UUID] and m.uuid.valid()) {
+      if (hdr.size()) {
+        hdr << ';';
+      }
+
+      hdr << "by=_" << m.uuid.getString();
+    }
+
+    if (optSet[HttpForwarded::BY_IP] and (m.ip_string_len > 0)) {
+      if (hdr.size()) {
+        hdr << ';';
+      }
+
+      hdr << "by=";
+
+      bool is_ipv6 = ats_is_ip6(&s->client_info.dst_addr.sa);
+
+      if (is_ipv6) {
+        hdr << "\"[";
+      }
+
+      if (ats_ip_ntop(&s->client_info.dst_addr.sa, hdr.auxBuffer(), hdr.remaining()) == nullptr) {
+        Debug("http_trans", "[add_forwarded_field_to_outgoing_request] ats_ip_ntop() call failed");
+        return;
+      }
+
+      // Fail-safe.
+      hdr.auxBuffer()[hdr.remaining() - 1] = '\0';
+
+      hdr.fill(strlen(hdr.auxBuffer()));
+
+      if (is_ipv6) {
+        hdr << "]\"";
+      }
+    }
+
+    std::array<std::string_view, 10> protoBuf; // 10 seems like a reasonable number of protos to print
+    int n_proto = 0;                           // Indulge clang's incorrect claim that this need to be initialized.
+
+    static const HttpForwarded::OptionBitSet OptionsNeedingProtocol = HttpForwarded::OptionBitSet()
+                                                                        .set(HttpForwarded::PROTO)
+                                                                        .set(HttpForwarded::CONNECTION_COMPACT)
+                                                                        .set(HttpForwarded::CONNECTION_STD)
+                                                                        .set(HttpForwarded::CONNECTION_FULL);
+
+    if ((optSet bitand OptionsNeedingProtocol).any()) {
+      n_proto = s->state_machine->populate_client_protocol(protoBuf.data(), protoBuf.size());
+    }
+
+    if (optSet[HttpForwarded::PROTO] and (n_proto > 0)) {
+      if (hdr.size()) {
+        hdr << ';';
+      }
+
+      hdr << "proto=";
+
+      int numChars = HttpTransactHeaders::write_hdr_protocol_stack(hdr.auxBuffer(), hdr.remaining(), ProtocolStackDetail::Compact,
+                                                                   protoBuf.data(), n_proto, '-');
+      if (numChars > 0) {
+        hdr.fill(size_t(numChars));
+      }
+    }
+
+    if (optSet[HttpForwarded::HOST]) {
+      const MIMEField *hostField = s->hdr_info.client_request.field_find(MIME_FIELD_HOST, MIME_LEN_HOST);
+
+      if (hostField and hostField->m_len_value) {
+        std::string_view hSV{hostField->m_ptr_value, hostField->m_len_value};
+
+        bool needsDoubleQuotes = hSV.find(':') != std::string_view::npos;
+
+        if (hdr.size()) {
+          hdr << ';';
+        }
+
+        hdr << "host=";
+        if (needsDoubleQuotes) {
+          hdr << '"';
+        }
+        hdr << hSV;
+        if (needsDoubleQuotes) {
+          hdr << '"';
+        }
+      }
+    }
+
+    if (n_proto > 0) {
+      auto Conn = [&](HttpForwarded::Option opt, HttpTransactHeaders::ProtocolStackDetail detail) -> void {
+        if (optSet[opt]) {
+          int revert = hdr.size();
+
+          if (hdr.size()) {
+            hdr << ';';
+          }
+
+          hdr << "connection=";
+
+          int numChars =
+            HttpTransactHeaders::write_hdr_protocol_stack(hdr.auxBuffer(), hdr.remaining(), detail, protoBuf.data(), n_proto, '-');
+          if (numChars > 0) {
+            hdr.fill(size_t(numChars));
+          }
+
+          if ((numChars <= 0) or (hdr.size() >= hdr.capacity())) {
+            // Remove parameter with potentially incomplete value.
+            //
+            hdr.reduce(revert);
+          }
+        }
+      };
+
+      Conn(HttpForwarded::CONNECTION_COMPACT, HttpTransactHeaders::ProtocolStackDetail::Compact);
+      Conn(HttpForwarded::CONNECTION_STD, HttpTransactHeaders::ProtocolStackDetail::Standard);
+      Conn(HttpForwarded::CONNECTION_FULL, HttpTransactHeaders::ProtocolStackDetail::Full);
+    }
+
+    // Add or append to the Forwarded header.  As a fail-safe against corrupting the MIME header, don't add Forwarded if
+    // it's size is exactly the capacity of the buffer.
+    //
+    if (hdr.size() and !hdr.error() and (hdr.size() < hdr.capacity())) {
+      std::string_view sV = hdr.view();
+
+      request->value_append(MIME_FIELD_FORWARDED, MIME_LEN_FORWARDED, sV.data(), sV.size(), true, ','); // true => separator must
+                                                                                                        // be inserted
+
+      Debug("http_trans", "[add_forwarded_field_to_outgoing_request] Forwarded header (%.*s) added", static_cast<int>(hdr.size()),
+            hdr.data());
+    }
+  }
+
+} // end HttpTransact::add_forwarded_field_to_outgoing_request()
+
+void
 HttpTransactHeaders::add_server_header_to_response(OverridableHttpConfigParams *http_txn_conf, HTTPHdr *header)
 {
   if (http_txn_conf->proxy_response_server_enabled && http_txn_conf->proxy_response_server_string) {
@@ -1076,4 +1276,57 @@ HttpTransactHeaders::remove_privacy_headers_from_request(HttpConfigParams *http_
       header->field_delete(field->str, field->len);
     }
   }
+}
+
+void
+HttpTransactHeaders::normalize_accept_encoding(const OverridableHttpConfigParams *ohcp, HTTPHdr *header)
+{
+  int normalize_ae = ohcp->normalize_ae;
+
+  if (normalize_ae) {
+    MIMEField *ae_field = header->field_find(MIME_FIELD_ACCEPT_ENCODING, MIME_LEN_ACCEPT_ENCODING);
+
+    if (ae_field) {
+      if (normalize_ae == 1) {
+        // Force Accept-Encoding header to gzip or no header.
+        if (HttpTransactCache::match_content_encoding(ae_field, "gzip")) {
+          header->field_value_set(ae_field, "gzip", 4);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to gzip");
+        } else {
+          header->field_delete(ae_field);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] removed non-gzip Accept-Encoding");
+        }
+      } else if (normalize_ae == 2) {
+        // Force Accept-Encoding header to br (Brotli) or no header.
+        if (HttpTransactCache::match_content_encoding(ae_field, "br")) {
+          header->field_value_set(ae_field, "br", 2);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to br");
+        } else if (HttpTransactCache::match_content_encoding(ae_field, "gzip")) {
+          header->field_value_set(ae_field, "gzip", 4);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] normalized Accept-Encoding to gzip");
+        } else {
+          header->field_delete(ae_field);
+          Debug("http_trans", "[Headers::normalize_accept_encoding] removed non-br Accept-Encoding");
+        }
+      } else {
+        static bool logged = false;
+
+        if (!logged) {
+          Error("proxy.config.http.normalize_ae value out of range");
+          logged = true;
+        }
+      }
+    }
+  }
+}
+
+void
+HttpTransactHeaders::add_connection_close(HTTPHdr *header)
+{
+  MIMEField *field = header->field_find(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
+  if (!field) {
+    field = header->field_create(MIME_FIELD_CONNECTION, MIME_LEN_CONNECTION);
+    header->field_attach(field);
+  }
+  header->field_value_set(field, HTTP_VALUE_CLOSE, HTTP_LEN_CLOSE);
 }

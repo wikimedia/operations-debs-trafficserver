@@ -26,8 +26,7 @@
 
 **************************************************************************/
 
-#ifndef _INK_THREAD_H
-#define _INK_THREAD_H
+#pragma once
 
 #include "ts/ink_hrtime.h"
 #include "ts/ink_defs.h"
@@ -41,7 +40,7 @@
 
 #if defined(POSIX_THREAD)
 #include <pthread.h>
-#include <signal.h>
+#include <csignal>
 #include <semaphore.h>
 
 #if HAVE_PTHREAD_NP_H
@@ -92,7 +91,7 @@ typedef struct timespec ink_timestruc;
 typedef timestruc_t ink_timestruc;
 #endif
 
-#include <errno.h>
+#include <cerrno>
 #include "ts/ink_mutex.h"
 #include "ts/ink_assert.h"
 
@@ -127,12 +126,16 @@ ink_thread_key_delete(ink_thread_key key)
   ink_assert(!pthread_key_delete(key));
 }
 
-static inline ink_thread
-ink_thread_create(void *(*f)(void *), void *a, int detached, size_t stacksize, void *stack)
+static inline void
+ink_thread_create(ink_thread *tid, void *(*f)(void *), void *a, int detached, size_t stacksize, void *stack)
 {
   ink_thread t;
   int ret;
   pthread_attr_t attr;
+
+  if (tid == nullptr) {
+    tid = &t;
+  }
 
   pthread_attr_init(&attr);
   pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
@@ -149,13 +152,11 @@ ink_thread_create(void *(*f)(void *), void *a, int detached, size_t stacksize, v
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
   }
 
-  ret = pthread_create(&t, &attr, f, a);
+  ret = pthread_create(tid, &attr, f, a);
   if (ret != 0) {
     ink_abort("pthread_create() failed: %s (%d)", strerror(ret), ret);
   }
   pthread_attr_destroy(&attr);
-
-  return t;
 }
 
 static inline void
@@ -213,6 +214,12 @@ ink_thread_sigsetmask(int how, const sigset_t *set, sigset_t *oset)
   return (pthread_sigmask(how, set, oset));
 }
 
+static inline int
+ink_thread_kill(ink_thread t, int sig)
+{
+  return pthread_kill(t, sig);
+}
+
 /*******************************************************************
  * Posix Semaphores
  ******************************************************************/
@@ -244,6 +251,7 @@ ink_cond_wait(ink_cond *cp, ink_mutex *mp)
 {
   ink_assert(pthread_cond_wait(cp, mp) == 0);
 }
+
 static inline int
 ink_cond_timedwait(ink_cond *cp, ink_mutex *mp, ink_timestruc *t)
 {
@@ -300,5 +308,3 @@ ink_set_thread_name(const char *name ATS_UNUSED)
 }
 
 #endif /* #if defined(POSIX_THREAD) */
-
-#endif /*_INK_THREAD_H*/

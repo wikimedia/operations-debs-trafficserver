@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef __TS_REMAP_H__
-#define __TS_REMAP_H__
+#pragma once
 
 #ifndef tsapi
 #define tsapi
@@ -89,6 +88,14 @@ typedef enum {
 */
 tsapi TSReturnCode TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size);
 
+/* This gets called everytime remap.config is reloaded. This is complementary
+   to TSRemapInit() which gets called when the plugin is first loaded. You can
+   not fail, or cause reload to stop here, it's merely a notification.
+   Optional function.
+   Return: none
+*/
+tsapi void TSRemapConfigReload(void);
+
 /* Remap new request
    Mandatory interface function.
    Remap API plugin can/should use SDK API function calls inside this function!
@@ -122,4 +129,3 @@ tsapi void TSRemapOSResponse(void *ih, TSHttpTxn rh, int os_response_type);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* #ifndef __TS_REMAP_H__ */

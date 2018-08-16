@@ -34,20 +34,18 @@
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
 
+#define SM_REMEMBER(sm, e, r)                          \
+  {                                                    \
+    sm->history.push_back(MakeSourceLocation(), e, r); \
+  }
+
 #define STATE_ENTER(state_name, event)                                                                                   \
   {                                                                                                                      \
-    REMEMBER(event, -1);                                                                                                 \
+    SM_REMEMBER(master_sm, event, NO_REENTRANT);                                                                         \
     Debug("http_cache", "[%" PRId64 "] [%s, %s]", master_sm->sm_id, #state_name, HttpDebugNames::get_event_name(event)); \
   }
 
-#define __REMEMBER(x) #x
-#define _REMEMBER(x) __REMEMBER(x)
-
-#define REMEMBER(e, r) master_sm->add_history_entry(__FILE__ ":" _REMEMBER(__LINE__), e, r);
-
-HttpCacheAction::HttpCacheAction() : sm(nullptr)
-{
-}
+HttpCacheAction::HttpCacheAction() : sm(nullptr) {}
 
 void
 HttpCacheAction::cancel(Continuation *c)
@@ -75,7 +73,7 @@ HttpCacheSM::HttpCacheSM()
     open_write_cb(false),
     open_read_tries(0),
     read_request_hdr(nullptr),
-    read_config(nullptr),
+    http_params(nullptr),
     read_pin_in_cache(0),
     retry_write(true),
     open_write_tries(0),
@@ -157,8 +155,9 @@ HttpCacheSM::state_cache_open_read(int event, void *data)
     // than or equal to the max number of open read retries,
     // else treat as a cache miss.
     ink_assert(open_read_tries <= master_sm->t_state.txn_conf->max_cache_open_read_retries || write_locked);
-    Debug("http_cache", "[%" PRId64 "] [state_cache_open_read] cache open read failure %d. "
-                        "retrying cache open read...",
+    Debug("http_cache",
+          "[%" PRId64 "] [state_cache_open_read] cache open read failure %d. "
+          "retrying cache open read...",
           master_sm->sm_id, open_read_tries);
 
     do_cache_open_read(cache_key);
@@ -195,8 +194,9 @@ HttpCacheSM::state_cache_open_write(int event, void *data)
     } else {
       // The cache is hosed or full or something.
       // Forward the failure to the main sm
-      Debug("http_cache", "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. "
-                          "done retrying...",
+      Debug("http_cache",
+            "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. "
+            "done retrying...",
             master_sm->sm_id, open_write_tries);
       open_write_cb = true;
       master_sm->handleEvent(event, data);
@@ -207,8 +207,9 @@ HttpCacheSM::state_cache_open_write(int event, void *data)
     // Retry the cache open write if the number retries is less
     // than or equal to the max number of open write retries
     ink_assert(open_write_tries <= master_sm->t_state.txn_conf->max_cache_open_write_retries);
-    Debug("http_cache", "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. "
-                        "retrying cache open write...",
+    Debug("http_cache",
+          "[%" PRId64 "] [state_cache_open_write] cache open write failure %d. "
+          "retrying cache open write...",
           master_sm->sm_id, open_write_tries);
 
     open_write(
@@ -250,8 +251,7 @@ HttpCacheSM::do_cache_open_read(const HttpCacheKey &key)
   }
   // Initialising read-while-write-inprogress flag
   this->readwhilewrite_inprogress = false;
-  Action *action_handle           = cacheProcessor.open_read(this, &key, master_sm->t_state.cache_control.cluster_cache_local,
-                                                   this->read_request_hdr, this->read_config, this->read_pin_in_cache);
+  Action *action_handle = cacheProcessor.open_read(this, &key, this->read_request_hdr, this->http_params, this->read_pin_in_cache);
 
   if (action_handle != ACTION_RESULT_DONE) {
     pending_action = action_handle;
@@ -269,14 +269,14 @@ HttpCacheSM::do_cache_open_read(const HttpCacheKey &key)
 }
 
 Action *
-HttpCacheSM::open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, CacheLookupHttpConfig *params, time_t pin_in_cache)
+HttpCacheSM::open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, OverridableHttpConfigParams *params, time_t pin_in_cache)
 {
   Action *act_return;
 
   cache_key         = *key;
   lookup_url        = url;
   read_request_hdr  = hdr;
-  read_config       = params;
+  http_params       = params;
   read_pin_in_cache = pin_in_cache;
   ink_assert(pending_action == nullptr);
   SET_HANDLER(&HttpCacheSM::state_cache_open_read);
@@ -340,7 +340,7 @@ HttpCacheSM::open_write(const HttpCacheKey *key, URL *url, HTTPHdr *request, Cac
   }
 
   Action *action_handle =
-    cacheProcessor.open_write(this, 0, key, master_sm->t_state.cache_control.cluster_cache_local, request,
+    cacheProcessor.open_write(this, 0, key, request,
                               // INKqa11166
                               allow_multiple ? (CacheHTTPInfo *)CACHE_ALLOW_MULTIPLE_WRITES : old_info, pin_in_cache);
 

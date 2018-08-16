@@ -114,7 +114,7 @@ OperatorSetStatus::exec(const Resources &res) const
     }
     break;
   default:
-    TSHttpTxnSetHttpRetStatus(res.txnp, (TSHttpStatus)_status.get_int_value());
+    TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
     break;
   }
 
@@ -292,6 +292,64 @@ OperatorSetRedirect::initialize(Parser &p)
 }
 
 void
+EditRedirectResponse(TSHttpTxn txnp, std::string const &location, int const &size, TSHttpStatus status, TSMBuffer bufp,
+                     TSMLoc hdr_loc)
+{
+  // Set new location.
+  TSMLoc field_loc;
+  static std::string header("Location");
+  if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(bufp, hdr_loc, header.c_str(), header.size(), &field_loc)) {
+    if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(bufp, hdr_loc, field_loc, -1, location.c_str(), size)) {
+      TSDebug(PLUGIN_NAME, "   Adding header %s", header.c_str());
+      TSMimeHdrFieldAppend(bufp, hdr_loc, field_loc);
+    }
+    const char *reason = TSHttpHdrReasonLookup(status);
+    size_t len         = strlen(reason);
+    TSHttpHdrReasonSet(bufp, hdr_loc, reason, len);
+    TSHandleMLocRelease(bufp, hdr_loc, field_loc);
+  }
+
+  // Set the body.
+  static std::string msg = "<HTML>\n<HEAD>\n<TITLE>Document Has Moved</TITLE>\n</HEAD>\n"
+                           "<BODY BGCOLOR=\"white\" FGCOLOR=\"black\">\n"
+                           "<H1>Document Has Moved</H1>\n<HR>\n<FONT FACE=\"Helvetica,Arial\"><B>\n"
+                           "Description: The document you requested has moved to a new location."
+                           " The new location is \"" +
+                           location + "\".\n</B></FONT>\n<HR>\n</BODY>\n";
+  TSHttpTxnErrorBodySet(txnp, TSstrdup(msg.c_str()), msg.length(), TSstrdup("text/html"));
+}
+
+static int
+cont_add_location(TSCont contp, TSEvent event, void *edata)
+{
+  TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
+
+  OperatorSetRedirect *osd = static_cast<OperatorSetRedirect *>(TSContDataGet(contp));
+  // Set the new status code and reason.
+  TSHttpStatus status = osd->get_status();
+  switch (event) {
+  case TS_EVENT_HTTP_SEND_RESPONSE_HDR: {
+    int size;
+    TSMBuffer bufp;
+    TSMLoc hdr_loc;
+    if (TSHttpTxnClientRespGet(txnp, &bufp, &hdr_loc) == TS_SUCCESS) {
+      EditRedirectResponse(txnp, osd->get_location(size), size, status, bufp, hdr_loc);
+    } else {
+      TSDebug(PLUGIN_NAME, "Could not retrieve the response header");
+    }
+
+  } break;
+
+  case TS_EVENT_HTTP_TXN_CLOSE:
+    TSContDestroy(contp);
+    break;
+  default:
+    break;
+  }
+  return 0;
+}
+
+void
 OperatorSetRedirect::exec(const Resources &res) const
 {
   if (res.bufp && res.hdr_loc && res.client_bufp && res.client_hdr_loc) {
@@ -357,38 +415,28 @@ OperatorSetRedirect::exec(const Resources &res) const
       // Set new location.
       TSUrlParse(bufp, url_loc, &start, end);
       // Set the new status.
-      TSHttpTxnSetHttpRetStatus(res.txnp, (TSHttpStatus)_status.get_int_value());
+      TSHttpTxnStatusSet(res.txnp, (TSHttpStatus)_status.get_int_value());
       const_cast<Resources &>(res).changed_url = true;
       res._rri->redirect                       = 1;
     } else {
-      // Set new location.
-      TSMLoc field_loc;
-      std::string header("Location");
-      if (TS_SUCCESS == TSMimeHdrFieldCreateNamed(res.bufp, res.hdr_loc, header.c_str(), header.size(), &field_loc)) {
-        if (TS_SUCCESS == TSMimeHdrFieldValueStringSet(res.bufp, res.hdr_loc, field_loc, -1, value.c_str(), value.size())) {
-          TSDebug(PLUGIN_NAME, "   Adding header %s", header.c_str());
-          TSMimeHdrFieldAppend(res.bufp, res.hdr_loc, field_loc);
-        }
-        TSHandleMLocRelease(res.bufp, res.hdr_loc, field_loc);
-      }
-
       // Set the new status code and reason.
       TSHttpStatus status = (TSHttpStatus)_status.get_int_value();
-      const char *reason  = TSHttpHdrReasonLookup(status);
-      size_t len          = strlen(reason);
+      switch (get_hook()) {
+      case TS_HTTP_PRE_REMAP_HOOK: {
+        TSHttpTxnStatusSet(res.txnp, status);
+        TSCont contp = TSContCreate(cont_add_location, nullptr);
+        TSContDataSet(contp, const_cast<OperatorSetRedirect *>(this));
+        TSHttpTxnHookAdd(res.txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
+        TSHttpTxnHookAdd(res.txnp, TS_HTTP_TXN_CLOSE_HOOK, contp);
+        TSHttpTxnReenable(res.txnp, TS_EVENT_HTTP_CONTINUE);
+        return;
+      } break;
+      default:
+        break;
+      }
       TSHttpHdrStatusSet(res.bufp, res.hdr_loc, status);
-      TSHttpHdrReasonSet(res.bufp, res.hdr_loc, reason, len);
-
-      // Set the body.
-      std::string msg = "<HTML>\n<HEAD>\n<TITLE>Document Has Moved</TITLE>\n</HEAD>\n"
-                        "<BODY BGCOLOR=\"white\" FGCOLOR=\"black\">\n"
-                        "<H1>Document Has Moved</H1>\n<HR>\n<FONT FACE=\"Helvetica,Arial\"><B>\n"
-                        "Description: The document you requested has moved to a new location."
-                        " The new location is \"" +
-                        value + "\".\n</B></FONT>\n<HR>\n</BODY>\n";
-      TSHttpTxnErrorBodySet(res.txnp, TSstrdup(msg.c_str()), msg.length(), TSstrdup("text/html"));
+      EditRedirectResponse(res.txnp, value, value.size(), status, res.bufp, res.hdr_loc);
     }
-
     TSDebug(PLUGIN_NAME, "OperatorSetRedirect::exec() invoked with destination=%s and status code=%d", value.c_str(),
             _status.get_int_value());
   }
@@ -877,6 +925,32 @@ OperatorSetConnDSCP::exec(const Resources &res) const
   }
 }
 
+// OperatorSetConnMark
+void
+OperatorSetConnMark::initialize(Parser &p)
+{
+  Operator::initialize(p);
+
+  _ds_value.set_value(p.get_arg());
+}
+
+void
+OperatorSetConnMark::initialize_hooks()
+{
+  add_allowed_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
+  add_allowed_hook(TS_HTTP_SEND_RESPONSE_HDR_HOOK);
+  add_allowed_hook(TS_REMAP_PSEUDO_HOOK);
+}
+
+void
+OperatorSetConnMark::exec(const Resources &res) const
+{
+  if (res.txnp) {
+    TSHttpTxnClientPacketMarkSet(res.txnp, _ds_value.get_int_value());
+    TSDebug(PLUGIN_NAME, "   Setting MARK to %d", _ds_value.get_int_value());
+  }
+}
+
 // OperatorSetDebug
 void
 OperatorSetDebug::initialize(Parser &p)
@@ -888,6 +962,8 @@ void
 OperatorSetDebug::initialize_hooks()
 {
   add_allowed_hook(TS_HTTP_READ_REQUEST_HDR_HOOK);
+  add_allowed_hook(TS_HTTP_READ_RESPONSE_HDR_HOOK);
+  add_allowed_hook(TS_REMAP_PSEUDO_HOOK);
 }
 
 void

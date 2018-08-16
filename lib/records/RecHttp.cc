@@ -26,9 +26,9 @@
 #include <ts/ink_defs.h>
 #include <ts/ink_hash_table.h>
 #include <ts/Tokenizer.h>
-#include <ts/MemView.h>
 #include <strings.h>
 #include <ts/ink_inet.h>
+#include <string_view>
 
 SessionProtocolNameRegistry globalSessionProtocolNameRegistry;
 
@@ -36,10 +36,10 @@ SessionProtocolNameRegistry globalSessionProtocolNameRegistry;
    These are also used for NPN setup.
 */
 
-const char *const TS_ALPN_PROTOCOL_HTTP_0_9 = IP_PROTO_TAG_HTTP_0_9.ptr();
-const char *const TS_ALPN_PROTOCOL_HTTP_1_0 = IP_PROTO_TAG_HTTP_1_0.ptr();
-const char *const TS_ALPN_PROTOCOL_HTTP_1_1 = IP_PROTO_TAG_HTTP_1_1.ptr();
-const char *const TS_ALPN_PROTOCOL_HTTP_2_0 = IP_PROTO_TAG_HTTP_2_0.ptr();
+const char *const TS_ALPN_PROTOCOL_HTTP_0_9 = IP_PROTO_TAG_HTTP_0_9.data();
+const char *const TS_ALPN_PROTOCOL_HTTP_1_0 = IP_PROTO_TAG_HTTP_1_0.data();
+const char *const TS_ALPN_PROTOCOL_HTTP_1_1 = IP_PROTO_TAG_HTTP_1_1.data();
+const char *const TS_ALPN_PROTOCOL_HTTP_2_0 = IP_PROTO_TAG_HTTP_2_0.data();
 
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP  = "http";
 const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2 = "http2";
@@ -47,14 +47,14 @@ const char *const TS_ALPN_PROTOCOL_GROUP_HTTP2 = "http2";
 const char *const TS_PROTO_TAG_HTTP_1_0 = TS_ALPN_PROTOCOL_HTTP_1_0;
 const char *const TS_PROTO_TAG_HTTP_1_1 = TS_ALPN_PROTOCOL_HTTP_1_1;
 const char *const TS_PROTO_TAG_HTTP_2_0 = TS_ALPN_PROTOCOL_HTTP_2_0;
-const char *const TS_PROTO_TAG_TLS_1_3  = IP_PROTO_TAG_TLS_1_3.ptr();
-const char *const TS_PROTO_TAG_TLS_1_2  = IP_PROTO_TAG_TLS_1_2.ptr();
-const char *const TS_PROTO_TAG_TLS_1_1  = IP_PROTO_TAG_TLS_1_1.ptr();
-const char *const TS_PROTO_TAG_TLS_1_0  = IP_PROTO_TAG_TLS_1_0.ptr();
-const char *const TS_PROTO_TAG_TCP      = IP_PROTO_TAG_TCP.ptr();
-const char *const TS_PROTO_TAG_UDP      = IP_PROTO_TAG_UDP.ptr();
-const char *const TS_PROTO_TAG_IPV4     = IP_PROTO_TAG_IPV4.ptr();
-const char *const TS_PROTO_TAG_IPV6     = IP_PROTO_TAG_IPV6.ptr();
+const char *const TS_PROTO_TAG_TLS_1_3  = IP_PROTO_TAG_TLS_1_3.data();
+const char *const TS_PROTO_TAG_TLS_1_2  = IP_PROTO_TAG_TLS_1_2.data();
+const char *const TS_PROTO_TAG_TLS_1_1  = IP_PROTO_TAG_TLS_1_1.data();
+const char *const TS_PROTO_TAG_TLS_1_0  = IP_PROTO_TAG_TLS_1_0.data();
+const char *const TS_PROTO_TAG_TCP      = IP_PROTO_TAG_TCP.data();
+const char *const TS_PROTO_TAG_UDP      = IP_PROTO_TAG_UDP.data();
+const char *const TS_PROTO_TAG_IPV4     = IP_PROTO_TAG_IPV4.data();
+const char *const TS_PROTO_TAG_IPV6     = IP_PROTO_TAG_IPV6.data();
 
 InkHashTable *TSProtoTags;
 
@@ -140,7 +140,7 @@ size_t const OPT_OUTBOUND_IP_PREFIX_LEN = strlen(HttpProxyPort::OPT_OUTBOUND_IP_
 size_t const OPT_INBOUND_IP_PREFIX_LEN  = strlen(HttpProxyPort::OPT_INBOUND_IP_PREFIX);
 size_t const OPT_HOST_RES_PREFIX_LEN    = strlen(HttpProxyPort::OPT_HOST_RES_PREFIX);
 size_t const OPT_PROTO_PREFIX_LEN       = strlen(HttpProxyPort::OPT_PROTO_PREFIX);
-}
+} // namespace
 
 namespace
 {
@@ -150,7 +150,7 @@ namespace
 // reference. Might be a problem with Vec<> creating a fixed array
 // rather than allocating on first use (compared to std::vector<>).
 HttpProxyPort::Group GLOBAL_DATA;
-}
+} // namespace
 HttpProxyPort::Group &HttpProxyPort::m_global = GLOBAL_DATA;
 
 HttpProxyPort::HttpProxyPort()
@@ -168,26 +168,20 @@ HttpProxyPort::HttpProxyPort()
 bool
 HttpProxyPort::hasSSL(Group const &ports)
 {
-  bool zret = false;
-  for (int i = 0, n = ports.length(); i < n && !zret; ++i) {
-    if (ports[i].isSSL()) {
-      zret = true;
-    }
-  }
-  return zret;
+  return std::any_of(ports.begin(), ports.end(), [](HttpProxyPort const &port) { return port.isSSL(); });
 }
 
-HttpProxyPort *
+const HttpProxyPort *
 HttpProxyPort::findHttp(Group const &ports, uint16_t family)
 {
   bool check_family_p = ats_is_ip(family);
-  self *zret          = nullptr;
-  for (int i = 0, n = ports.length(); i < n && !zret; ++i) {
-    HttpProxyPort &p = ports[i];
+  const self *zret    = nullptr;
+  for (int i = 0, n = ports.size(); i < n && !zret; ++i) {
+    const self &p = ports[i];
     if (p.m_port &&                               // has a valid port
         TRANSPORT_DEFAULT == p.m_type &&          // is normal HTTP
         (!check_family_p || p.m_family == family) // right address family
-        ) {
+    ) {
       zret = &p;
     };
   }
@@ -209,7 +203,7 @@ HttpProxyPort::checkPrefix(const char *src, char const *prefix, size_t prefix_le
 }
 
 bool
-HttpProxyPort::loadConfig(Vec<self> &entries)
+HttpProxyPort::loadConfig(std::vector<self> &entries)
 {
   char *text;
   bool found_p;
@@ -220,23 +214,23 @@ HttpProxyPort::loadConfig(Vec<self> &entries)
   }
   ats_free(text);
 
-  return 0 < entries.length();
+  return 0 < entries.size();
 }
 
 bool
 HttpProxyPort::loadDefaultIfEmpty(Group &ports)
 {
-  if (0 == ports.length()) {
+  if (0 == ports.size()) {
     self::loadValue(ports, DEFAULT_VALUE);
   }
 
-  return 0 < ports.length();
+  return 0 < ports.size();
 }
 
 bool
-HttpProxyPort::loadValue(Vec<self> &ports, const char *text)
+HttpProxyPort::loadValue(std::vector<self> &ports, const char *text)
 {
-  unsigned old_port_length = ports.length(); // remember this.
+  unsigned old_port_length = ports.size(); // remember this.
   if (text && *text) {
     Tokenizer tokens(", ");
     int n_ports = tokens.Initialize(text);
@@ -252,7 +246,7 @@ HttpProxyPort::loadValue(Vec<self> &ports, const char *text)
       }
     }
   }
-  return ports.length() > old_port_length; // we added at least one port.
+  return ports.size() > old_port_length; // we added at least one port.
 }
 
 bool
@@ -265,7 +259,7 @@ HttpProxyPort::processOptions(const char *opts)
   bool bracket_p      = false; // found an open bracket in the input?
   const char *value;           // Temp holder for value of a prefix option.
   IpAddr ip;                   // temp for loading IP addresses.
-  Vec<char *> values;          // Pointers to single option values.
+  std::vector<char *> values;  // Pointers to single option values.
 
   // Make a copy we can modify safely.
   size_t opts_len = strlen(opts) + 1;
@@ -297,8 +291,7 @@ HttpProxyPort::processOptions(const char *opts)
     return zret;
   }
 
-  for (int i = 0, n_items = values.length(); i < n_items; ++i) {
-    const char *item = values[i];
+  for (auto item : values) {
     if (isdigit(item[0])) { // leading digit -> port value
       char *ptr;
       int port = strtoul(item, &ptr, 10);
@@ -378,7 +371,7 @@ HttpProxyPort::processOptions(const char *opts)
       this->processSessionProtocolPreference(value);
       sp_set_p = true;
     } else {
-      Warning("Invalid option '%s' in proxy port configuration '%s'", item, opts);
+      Warning("Invalid option '%s' in proxy port descriptor '%s'", item, opts);
     }
   }
 
@@ -386,9 +379,11 @@ HttpProxyPort::processOptions(const char *opts)
 
   if (af_set_p) {
     if (in_ip_set_p && m_family != m_inbound_ip.family()) {
-      Warning(
-        "Invalid port descriptor '%s' - the inbound adddress family [%s] is not the same type as the explicit family value [%s]",
-        opts, ats_ip_family_name(m_inbound_ip.family()).ptr(), ats_ip_family_name(m_family).ptr());
+      std::string_view iname{ats_ip_family_name(m_inbound_ip.family())};
+      std::string_view fname{ats_ip_family_name(m_family)};
+      Warning("Invalid port descriptor '%s' - the inbound adddress family [%.*s] is not the same type as the explicit family value "
+              "[%.*s]",
+              opts, static_cast<int>(iname.size()), iname.data(), static_cast<int>(fname.size()), fname.data());
       zret = false;
     }
   } else if (in_ip_set_p) {

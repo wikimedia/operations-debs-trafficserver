@@ -602,7 +602,7 @@ StateUnauthorized(AuthRequestContext *auth, void *)
 {
   static const char msg[] = "authorization denied\n";
 
-  TSHttpTxnSetHttpRetStatus(auth->txn, TS_HTTP_STATUS_FORBIDDEN);
+  TSHttpTxnStatusSet(auth->txn, TS_HTTP_STATUS_FORBIDDEN);
   TSHttpTxnErrorBodySet(auth->txn, TSstrdup(msg), sizeof(msg) - 1, TSstrdup("text/plain"));
 
   TSHttpTxnReenable(auth->txn, TS_EVENT_HTTP_ERROR);
@@ -668,7 +668,7 @@ AuthProxyGlobalHook(TSCont /* cont ATS_UNUSED */, TSEvent event, void *edata)
       auth->txn   = txn;
       return AuthRequestContext::dispatch(auth->cont, event, edata);
     }
-  // fallthru
+    // fallthru
 
   default:
     return TS_EVENT_NONE;
@@ -748,7 +748,7 @@ TSPluginInit(int argc, const char *argv[])
     AuthLogError("plugin registration failed");
   }
 
-  TSReleaseAssert(TSHttpArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
+  TSReleaseAssert(TSHttpTxnArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
 
   AuthOsDnsContinuation = TSContCreate(AuthProxyGlobalHook, nullptr);
   AuthGlobalOptions     = AuthParseOptions(argc, argv);
@@ -761,7 +761,7 @@ TSPluginInit(int argc, const char *argv[])
 TSReturnCode
 TSRemapInit(TSRemapInterface * /* api ATS_UNUSED */, char * /* err ATS_UNUSED */, int /* errsz ATS_UNUSED */)
 {
-  TSReleaseAssert(TSHttpArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
+  TSReleaseAssert(TSHttpTxnArgIndexReserve("AuthProxy", "AuthProxy authorization tag", &AuthTaggedRequestArg) == TS_SUCCESS);
 
   AuthOsDnsContinuation = TSContCreate(AuthProxyGlobalHook, nullptr);
   return TS_SUCCESS;

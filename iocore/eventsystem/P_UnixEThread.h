@@ -28,8 +28,7 @@
 
 
 *****************************************************************************/
-#ifndef _P_UnixEThread_h_
-#define _P_UnixEThread_h_
+#pragma once
 
 #include "I_EThread.h"
 #include "I_EventProcessor.h"
@@ -78,7 +77,11 @@ EThread::schedule_every(Continuation *cont, ink_hrtime t, int callback_event, vo
   Event *e          = ::eventAllocator.alloc();
   e->callback_event = callback_event;
   e->cookie         = cookie;
-  return schedule(e->init(cont, get_hrtime() + t, t));
+  if (t < 0) {
+    return schedule(e->init(cont, t, t));
+  } else {
+    return schedule(e->init(cont, get_hrtime() + t, t));
+  }
 }
 
 TS_INLINE Event *
@@ -86,10 +89,11 @@ EThread::schedule(Event *e, bool fast_signal)
 {
   e->ethread = this;
   ink_assert(tt == REGULAR);
-  if (e->continuation->mutex)
+  if (e->continuation->mutex) {
     e->mutex = e->continuation->mutex;
-  else
+  } else {
     e->mutex = e->continuation->mutex = e->ethread->mutex;
+  }
   ink_assert(e->mutex.get());
   EventQueueExternal.enqueue(e, fast_signal);
   return e;
@@ -128,7 +132,11 @@ EThread::schedule_every_local(Continuation *cont, ink_hrtime t, int callback_eve
   Event *e          = EVENT_ALLOC(eventAllocator, this);
   e->callback_event = callback_event;
   e->cookie         = cookie;
-  return schedule_local(e->init(cont, get_hrtime() + t, t));
+  if (t < 0) {
+    return schedule(e->init(cont, t, t));
+  } else {
+    return schedule(e->init(cont, get_hrtime() + t, t));
+  }
 }
 
 TS_INLINE Event *
@@ -153,8 +161,9 @@ TS_INLINE Event *
 EThread::schedule_spawn(Continuation *c, int ev, void *cookie)
 {
   ink_assert(this != this_ethread()); // really broken to call this from the same thread.
-  if (start_event)
+  if (start_event) {
     free_event(start_event);
+  }
   start_event          = EVENT_ALLOC(eventAllocator, this);
   start_event->ethread = this;
   start_event->mutex   = this->mutex;
@@ -183,5 +192,3 @@ EThread::set_tail_handler(LoopTailHandler *handler)
 {
   ink_atomic_swap(&tail_cb, handler);
 }
-
-#endif /*_EThread_h_*/

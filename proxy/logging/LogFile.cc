@@ -193,14 +193,6 @@ LogFile::open_file()
     }
   }
 
-  int e = do_filesystem_checks();
-  if (e != 0) {
-    m_fd = -1; // reset to error condition
-    delete m_log;
-    m_log = nullptr;
-    return LOG_FILE_FILESYSTEM_CHECKS_FAILED;
-  }
-
   //
   // If we've opened the file and it didn't already exist, then this is a
   // "new" file and we need to make some initializations.  This is the
@@ -416,8 +408,9 @@ LogFile::write_ascii_logbuffer(LogBufferHeader *buffer_header, int fd, const cha
 int
 LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_format)
 {
-  Debug("log-file", "entering LogFile::write_ascii_logbuffer3 for %s "
-                    "(this=%p)",
+  Debug("log-file",
+        "entering LogFile::write_ascii_logbuffer3 for %s "
+        "(this=%p)",
         m_name, this);
   ink_assert(buffer_header != nullptr);
 

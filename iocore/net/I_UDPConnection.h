@@ -29,8 +29,7 @@
 
  ****************************************************************************/
 
-#ifndef __I_UDPCONNECTION_H_
-#define __I_UDPCONNECTION_H_
+#pragma once
 
 #include "I_EventSystem.h"
 #define INK_ETHERNET_MTU_SIZE 1472
@@ -45,10 +44,11 @@ class UDPPacket;
 class UDPConnection : public Continuation
 {
 public:
-  virtual ~UDPConnection(){};
+  ~UDPConnection() override{};
 
   SOCKET getFd();
   void setBinding(struct sockaddr const *);
+  void setBinding(const IpAddr &, in_port_t);
   inkcoreapi int getBinding(struct sockaddr *);
 
   void destroy();
@@ -105,4 +105,3 @@ public:
 };
 
 extern UDPConnection *new_UDPConnection(int fd);
-#endif //__I_UDPCONNECTION_H_

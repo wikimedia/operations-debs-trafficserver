@@ -21,8 +21,6 @@
  * @brief Contains an enumeration and printable strings for Http Methods.
  */
 #pragma once
-#ifndef ATSCPPAPI_HTTP_METHOD_H_
-#define ATSCPPAPI_HTTP_METHOD_H_
 
 #include <string>
 
@@ -38,7 +36,6 @@ enum HttpMethod {
   HTTP_METHOD_HEAD,
   HTTP_METHOD_CONNECT,
   HTTP_METHOD_DELETE,
-  HTTP_METHOD_ICP_QUERY,
   HTTP_METHOD_OPTIONS,
   HTTP_METHOD_PURGE,
   HTTP_METHOD_PUT,
@@ -53,6 +50,4 @@ enum HttpMethod {
  * \endcode
  */
 extern const std::string HTTP_METHOD_STRINGS[];
-}
-
-#endif
+} // namespace atscppapi

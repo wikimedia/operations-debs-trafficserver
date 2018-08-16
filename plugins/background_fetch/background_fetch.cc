@@ -382,7 +382,7 @@ cont_bg_fetch(TSCont contp, TSEvent event, void * /* edata ATS_UNUSED */)
 
     // Setup the NetVC for background fetch
     TSAssert(nullptr == data->vc);
-    if ((data->vc = TSHttpConnect((sockaddr *)&data->client_ip)) != nullptr) {
+    if ((data->vc = TSHttpConnectWithPluginId((sockaddr *)&data->client_ip, PLUGIN_NAME, 0)) != nullptr) {
       TSHttpHdrPrint(data->mbuf, data->hdr_loc, data->req_io_buf);
       // We never send a body with the request. ToDo: Do we ever need to support that ?
       TSIOBufferWrite(data->req_io_buf, "\r\n", 2);
@@ -509,7 +509,7 @@ cont_handle_response(TSCont contp, TSEvent event, void *edata)
   } else {
     switch (event) {
     case TS_EVENT_HTTP_READ_RESPONSE_HDR:
-      if (config->getRules()->bgFetchAllowed(txnp)) {
+      if (config->bgFetchAllowed(txnp)) {
         TSMBuffer response;
         TSMLoc resp_hdr;
 
@@ -560,7 +560,7 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
   if (TS_SUCCESS != TSPluginRegister(&info)) {
-    TSError("[%s] Plugin registration failed.", PLUGIN_NAME);
+    TSError("[%s] Plugin registration failed", PLUGIN_NAME);
   }
 
   TSCont cont = TSContCreate(cont_handle_response, nullptr);
@@ -576,7 +576,7 @@ TSPluginInit(int argc, const char *argv[])
       BgFetchState::getInstance().createLog(optarg);
       break;
     case 'c':
-      TSDebug(PLUGIN_NAME, "config file %s..", optarg);
+      TSDebug(PLUGIN_NAME, "config file '%s'", optarg);
       gConfig->readConfig(optarg);
       break;
     }
@@ -605,7 +605,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   }
 
   if (api_info->tsremap_version < TSREMAP_VERSION) {
-    snprintf(errbuf, errbuf_size - 1, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
              (api_info->tsremap_version & 0xffff));
     return TS_ERROR;
   }
@@ -667,7 +667,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo * /* rri */)
       TSHttpTxnHookAdd(txnp, TS_HTTP_READ_RESPONSE_HDR_HOOK, config->getCont());
       TSHttpTxnHookAdd(txnp, TS_HTTP_TXN_CLOSE_HOOK, config->getCont());
 
-      TSDebug(PLUGIN_NAME, "background fetch TSRemapDoRemap...");
+      TSDebug(PLUGIN_NAME, "background fetch TSRemapDoRemap");
       TSHandleMLocRelease(bufp, req_hdrs, field_loc);
     }
     TSHandleMLocRelease(bufp, TS_NULL_MLOC, req_hdrs);

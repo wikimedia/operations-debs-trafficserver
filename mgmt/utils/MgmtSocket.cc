@@ -23,6 +23,7 @@
 
 #include "ts/ink_platform.h"
 #include "ts/ink_assert.h"
+#include "ts/ink_cap.h"
 #include "MgmtSocket.h"
 
 #if HAVE_UCRED_H
@@ -154,6 +155,25 @@ mgmt_open_mode(const char *path, int oflag, mode_t mode)
 }
 
 //-------------------------------------------------------------------------
+// mgmt_open_mode_elevate
+//-------------------------------------------------------------------------
+
+int
+mgmt_open_mode_elevate(const char *path, int oflag, mode_t mode, bool elevate_p)
+{
+  int r, retries;
+  for (retries = 0; retries < MGMT_MAX_TRANSIENT_ERRORS; retries++) {
+    r = elevate_p ? elevating_open(path, oflag, mode) : ::open(path, oflag, mode);
+    if (r >= 0) {
+      return r;
+    }
+    if (!mgmt_transient_error()) {
+      break;
+    }
+  }
+  return r;
+}
+//-------------------------------------------------------------------------
 // mgmt_select
 //-------------------------------------------------------------------------
 
@@ -173,10 +193,12 @@ mgmt_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struc
   int r, retries;
   for (retries = 0; retries < MGMT_MAX_TRANSIENT_ERRORS; retries++) {
     r = ::select(nfds, readfds, writefds, errorfds, timeout);
-    if (r >= 0)
+    if (r >= 0) {
       return r;
-    if (!mgmt_transient_error())
+    }
+    if (!mgmt_transient_error()) {
       break;
+    }
   }
   return r;
 #else
@@ -315,9 +337,7 @@ mgmt_get_peereid(int fd, uid_t *euid, gid_t *egid)
   *egid = -1;
 
 #if HAVE_GETPEEREID
-  int err = getpeereid(fd, euid, egid);
-  fprintf(stderr, "getpeereid -> %d (%d, %s)", err, errno, strerror(errno));
-  return err;
+  return getpeereid(fd, euid, egid);
 #elif HAVE_GETPEERUCRED
   ucred_t *ucred;
 

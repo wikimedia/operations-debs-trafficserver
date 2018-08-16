@@ -79,9 +79,10 @@ public:
   template <typename ClassType, typename ConfigType> struct scoped_config {
     scoped_config() : ptr(ClassType::acquire()) {}
     ~scoped_config() { ClassType::release(ptr); }
-    operator bool() const { return ptr != 0; }
+    operator bool() const { return ptr != nullptr; }
     operator const ConfigType *() const { return ptr; }
     const ConfigType *operator->() const { return ptr; }
+
   private:
     ConfigType *ptr;
   };

@@ -44,7 +44,7 @@ struct atscppapi::LoggerState : noncopyable {
   std::string filename_;
   bool add_timestamp_;
   bool rename_file_;
-  volatile Logger::LogLevel level_;
+  Logger::LogLevel level_;
   bool rolling_enabled_;
   int rolling_interval_seconds_;
   TSTextLogObject text_log_obj_;
@@ -66,7 +66,7 @@ namespace
 // Since the TSTextLog API doesn't support override the log file sizes (I will add this to TS api at some point)
 // we will use the roll size specified by default in records.config.
 const int ROLL_ON_TIME = 1; // See RollingEnabledValues in LogConfig.h
-}
+} // namespace
 
 /*
  * These have default values specified for add_timestamp and rename_file in Logger.h

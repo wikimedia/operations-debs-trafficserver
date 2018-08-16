@@ -42,7 +42,7 @@ Http1ClientTransaction::release(IOBufferReader *r)
   if (r != sm_reader) {
     this->do_io_close();
   } else {
-    super::release(r);
+    super_type::release(r);
   }
 }
 
@@ -57,7 +57,7 @@ Http1ClientTransaction::set_parent(ProxyClientSession *new_parent)
     outbound_ip6         = http1_parent->outbound_ip6;
     outbound_transparent = http1_parent->f_outbound_transparent;
   }
-  super::set_parent(new_parent);
+  super_type::set_parent(new_parent);
 }
 
 void
@@ -66,4 +66,10 @@ Http1ClientTransaction::transaction_done()
   if (parent) {
     static_cast<Http1ClientSession *>(parent)->release_transaction();
   }
+}
+
+bool
+Http1ClientTransaction::allow_half_open() const
+{
+  return current_reader ? current_reader->t_state.txn_conf->allow_half_open > 0 : true;
 }

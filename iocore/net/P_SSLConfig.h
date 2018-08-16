@@ -28,8 +28,7 @@
    Description:
    SSL Configurations
  ****************************************************************************/
-#ifndef __P_SSLCONFIG_H__
-#define __P_SSLCONFIG_H__
+#pragma once
 
 #include "ProxyConfig.h"
 #include "SSLSessionCache.h"
@@ -58,7 +57,7 @@ struct SSLConfigParams : public ConfigInfo {
   };
 
   SSLConfigParams();
-  virtual ~SSLConfigParams();
+  ~SSLConfigParams() override;
 
   char *serverCertPathOnly;
   char *serverCertChainFilename;
@@ -69,7 +68,6 @@ struct SSLConfigParams : public ConfigInfo {
   char *dhparamsFile;
   char *cipherSuite;
   char *client_cipherSuite;
-  char *ticket_key_filename;
   int configExitOnLoadError;
   int clientCertLevel;
   int verify_depth;
@@ -84,7 +82,7 @@ struct SSLConfigParams : public ConfigInfo {
   char *clientKeyPath;
   char *clientCACertFilename;
   char *clientCACertPath;
-  int clientVerify;
+  int8_t clientVerify;
   int client_verify_depth;
   long ssl_ctx_options;
   long ssl_client_ctx_options;
@@ -101,6 +99,7 @@ struct SSLConfigParams : public ConfigInfo {
   static size_t session_cache_number_buckets;
   static size_t session_cache_max_bucket_size;
   static bool session_cache_skip_on_lock_contention;
+  static bool sni_map_enable;
 
   // TS-3435 Wiretracing for SSL Connections
   static int ssl_wire_trace_enabled;
@@ -112,6 +111,9 @@ struct SSLConfigParams : public ConfigInfo {
   static init_ssl_ctx_func init_ssl_ctx_cb;
   static load_ssl_file_func load_ssl_file_cb;
 
+  static int async_handshake_enabled;
+  static char *engine_conf_file;
+
   SSL_CTX *client_ctx;
 
   mutable HashMap<cchar *, class StringHashFns, SSL_CTX *> ctx_map;
@@ -120,10 +122,10 @@ struct SSLConfigParams : public ConfigInfo {
   SSL_CTX *getCTX(cchar *client_cert) const;
   void deleteKey(cchar *key) const;
   void freeCTXmap() const;
-  void printCTXmap();
+  void printCTXmap() const;
   bool InsertCTX(cchar *client_cert, SSL_CTX *cctx) const;
   SSL_CTX *getClientSSL_CTX(void) const;
-  SSL_CTX *getNewCTX(char *client_cert) const;
+  SSL_CTX *getNewCTX(cchar *client_cert) const;
 
   void initialize();
   void cleanup();
@@ -160,17 +162,20 @@ private:
 };
 
 struct SSLTicketParams : public ConfigInfo {
-  ssl_ticket_key_block *default_global_keyblock;
+  ssl_ticket_key_block *default_global_keyblock = nullptr;
+  time_t load_time                              = 0;
   char *ticket_key_filename;
   bool LoadTicket();
+  void LoadTicketData(char *ticket_data, int ticket_data_len);
   void cleanup();
 
-  ~SSLTicketParams() { cleanup(); }
+  ~SSLTicketParams() override { cleanup(); }
 };
 
 struct SSLTicketKeyConfig {
   static void startup();
   static bool reconfigure();
+  static bool reconfigure_data(char *ticket_data, int ticket_data_len);
 
   static SSLTicketParams *
   acquire()
@@ -181,7 +186,9 @@ struct SSLTicketKeyConfig {
   static void
   release(SSLTicketParams *params)
   {
-    configProcessor.release(configid, params);
+    if (configid > 0) {
+      configProcessor.release(configid, params);
+    }
   }
 
   typedef ConfigProcessor::scoped_config<SSLTicketKeyConfig, SSLTicketParams> scoped_config;
@@ -191,5 +198,3 @@ private:
 };
 
 extern SSLSessionCache *session_cache;
-
-#endif

@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _TEST_HTTP_DATA_FETCHER_H
-#define _TEST_HTTP_DATA_FETCHER_H
+#pragma once
 
 #include <string>
 
@@ -33,7 +32,7 @@ class TestHttpDataFetcher : public HttpDataFetcher
 public:
   TestHttpDataFetcher() : _n_pending_requests(0), _return_data(true) {}
   bool
-  addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = 0)
+  addFetchRequest(const std::string &url, FetchedDataProcessor *callback_obj = nullptr)
   {
     ++_n_pending_requests;
     return true;
@@ -89,5 +88,3 @@ private:
   std::string _data;
   bool _return_data;
 };
-
-#endif

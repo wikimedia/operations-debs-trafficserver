@@ -20,16 +20,15 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef _ink_memory_h_
-#define _ink_memory_h_
+#pragma once
 
-#include <ctype.h>
-#include <string.h>
+#include <cctype>
+#include <cstring>
 #include <strings.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <string>
+#include <string_view>
 
-#include "ts/string_view.h"
 #include "ts/ink_config.h"
 
 #if HAVE_UNISTD_H
@@ -80,7 +79,18 @@
 extern "C" {
 #endif /* __cplusplus */
 
-typedef struct iovec IOVec;
+struct IOVec : public iovec {
+  IOVec()
+  {
+    iov_base = nullptr;
+    iov_len  = 0;
+  }
+  IOVec(void *base, size_t len)
+  {
+    iov_base = base;
+    iov_len  = len;
+  }
+};
 
 void *ats_malloc(size_t size);
 void *ats_calloc(size_t nelem, size_t elsize);
@@ -123,15 +133,6 @@ char *_xstrdup(const char *str, int length, const char *path);
 
 #define ats_strdup(p) _xstrdup((p), -1, nullptr)
 
-// this is to help with migration to a std::string issue with older code that
-// expects char* being copied. As more code moves to std::string, this can be
-// removed to avoid these extra copies.
-inline char *
-ats_stringdup(std::string const &p)
-{
-  return p.empty() ? nullptr : _xstrdup(p.c_str(), p.size(), nullptr);
-}
-
 #define ats_strndup(p, n) _xstrdup((p), n, nullptr)
 
 #ifdef __cplusplus
@@ -139,6 +140,21 @@ ats_stringdup(std::string const &p)
 #endif
 
 #ifdef __cplusplus
+
+// this is to help with migration to a std::string issue with older code that
+// expects char* being copied. As more code moves to std::string, this can be
+// removed to avoid these extra copies.
+inline char *
+ats_stringdup(std::string const &p)
+{
+  return p.empty() ? nullptr : _xstrdup(p.data(), p.size(), nullptr);
+}
+
+inline char *
+ats_stringdup(std::string_view const &p)
+{
+  return p.empty() ? nullptr : _xstrdup(p.data(), p.size(), nullptr);
+}
 
 template <typename PtrType, typename SizeType>
 static inline IOVec
@@ -185,7 +201,7 @@ template <typename T>
 inline void
 ink_zero(T &t)
 {
-  memset(&t, 0, sizeof(t));
+  memset(static_cast<void *>(&t), 0, sizeof(t));
 }
 
 /** Scoped resources.
@@ -340,8 +356,8 @@ public:
 protected:
   value_type _r; ///< Resource.
 private:
-  ats_scoped_resource(self const &); ///< Copy constructor not permitted.
-  self &operator=(self const &);     ///< Self assignment not permitted.
+  ats_scoped_resource(self const &) = delete; ///< Copy constructor not permitted.
+  self &operator=(self const &) = delete;     ///< Self assignment not permitted.
 };
 
 namespace detail
@@ -366,27 +382,39 @@ struct SCOPED_FD_TRAITS {
     close(fd);
   }
 };
-}
+} // namespace detail
 /** File descriptor as a scoped resource.
  */
 class ats_scoped_fd : public ats_scoped_resource<detail::SCOPED_FD_TRAITS>
 {
 public:
-  typedef ats_scoped_resource<detail::SCOPED_FD_TRAITS> super; ///< Super type.
-  typedef ats_scoped_fd self;                                  ///< Self reference type.
+  typedef ats_scoped_resource<detail::SCOPED_FD_TRAITS> super_type; ///< Super type.
+  typedef ats_scoped_fd self_type;                                  ///< Self reference type.
 
   /// Default constructor - an empty container.
-  ats_scoped_fd() : super() {}
+  ats_scoped_fd() : super_type() {}
   /// Construct with contained resource.
-  explicit ats_scoped_fd(value_type rt) : super(rt) {}
+  explicit ats_scoped_fd(value_type rt) : super_type(rt) {}
+  /// Move ownership constructor.
+  ats_scoped_fd(self_type &&that) : super_type(that.release()) {}
   /** Place a new resource @a rt in the container.
       Any resource currently contained is destroyed.
       This object becomes the owner of @a rt.
   */
-  self &
+  self_type &
   operator=(value_type rt)
   {
-    super::operator=(rt);
+    super_type::operator=(rt);
+    return *this;
+  }
+  /** Move the resource from @a that to @a this.
+      If @a this has a resource, that resource is destroyed.
+      This object becomes the owner of the resource in @a that.
+  */
+  self_type &
+  operator=(self_type &&that)
+  {
+    super_type::operator=(that.release());
     return *this;
   }
 };
@@ -407,7 +435,7 @@ struct SCOPED_MALLOC_TRAITS {
   static bool
   isValid(T *t)
   {
-    return 0 != t;
+    return nullptr != t;
   }
   static void
   destroy(T *t)
@@ -429,7 +457,7 @@ struct SCOPED_OBJECT_TRAITS {
   static bool
   isValid(T *t)
   {
-    return 0 != t;
+    return nullptr != t;
   }
   static void
   destroy(T *t)
@@ -437,7 +465,7 @@ struct SCOPED_OBJECT_TRAITS {
     delete t;
   }
 };
-}
+} // namespace detail
 
 /** Specialization of @c ats_scoped_resource for strings.
     This contains an allocated string that is cleaned up if not explicitly released.
@@ -463,7 +491,7 @@ public:
       _r = strdup(s.c_str());
   }
   // constructor with string_view
-  explicit ats_scoped_str(const ts::string_view &s)
+  explicit ats_scoped_str(const std::string_view &s)
   {
     if (s.empty())
       _r = nullptr;
@@ -489,7 +517,7 @@ public:
   }
   // string_view case
   self &
-  operator=(const ts::string_view &s)
+  operator=(const std::string_view &s)
   {
     if (s.empty())
       _r = nullptr;
@@ -570,5 +598,3 @@ path_join(ats_scoped_str const &lhs, ats_scoped_str const &rhs)
   return x.release();
 }
 #endif /* __cplusplus */
-
-#endif

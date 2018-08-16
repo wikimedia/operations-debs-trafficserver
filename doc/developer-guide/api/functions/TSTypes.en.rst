@@ -16,6 +16,10 @@
 
 .. include:: ../../../common.defs
 
+.. Many types are here simply to avoid build errors in the documentation. It is reasonable to,
+   when providing additional documentation on the type, to move it from here to a more appropriate
+   file.
+
 .. default-domain:: c
 
 TSAPI Types
@@ -36,6 +40,18 @@ more widely. Those are described on this page.
 
 .. type:: ink_hrtime
 
+.. type:: INK_MD5
+
+   Buffer type sufficient to contain an MD5 hash value.
+   
+.. cpp:class:: INK_MD5
+
+   See :type:`INK_MD5`.
+   
+.. cpp:class:: RecRawStatBlock
+
+   A data block intended to contain |TS| statistics.
+
 .. type:: TSAction
 
 .. type:: TSCacheKey
@@ -53,6 +69,8 @@ more widely. Those are described on this page.
 .. type:: TSFile
 
 .. type:: TSHostLookupResult
+
+   A type representing the result of a call to :func:`TSHostLookup`. Use with :func:`TSHostLookupResultAddrGet`.
 
 .. type:: TSHRTime
 
@@ -118,6 +136,10 @@ more widely. Those are described on this page.
 
 .. type:: TSRemapRequestInfo
 
+.. type:: TSSslX509
+
+    This type represents the :code:`X509` object created from an SSL certificate.
+
 .. type:: TSTextLogObject
 
    This type represents a custom log file that you create with
@@ -155,15 +177,31 @@ more widely. Those are described on this page.
 .. type:: ModuleVersion
 
     A module version.
-
+    
 .. cpp:type:: ModuleVersion
 
     A module version.
-
+    
 .. cpp:class:: template<typename T> DLL
 
     An anchor for a double linked instrusive list of instance of :arg:`T`.
 
+.. cpp:class:: template<typename T> Queue
+
 .. type:: TSAcceptor
 
 .. type:: TSNextProtocolSet
+
+.. cpp:class:: template <typename T> LINK
+
+.. cpp:class:: VersionNumber
+
+   A two part version number, defined in :ts:git:`lib/ts/I_Version.h`.
+
+   .. cpp:member:: short int ink_major
+
+      Major version number.
+
+   .. cpp:member:: short int ink_minor
+
+      Minor version number.

@@ -19,17 +19,16 @@
   limitations under the License.
  */
 
-#ifndef __HASH_H__
-#define __HASH_H__
+#pragma once
 
 #include <cstddef>
-#include <stdint.h>
-#include <ctype.h>
+#include <cstdint>
+#include <cctype>
 
 struct ATSHashBase {
   virtual void update(const void *, size_t) = 0;
-  virtual void final(void) = 0;
-  virtual void clear(void) = 0;
+  virtual void final(void)                  = 0;
+  virtual void clear(void)                  = 0;
   virtual ~ATSHashBase();
 };
 
@@ -64,5 +63,3 @@ struct ATSHash64 : ATSHashBase {
   virtual uint64_t get(void) const = 0;
   virtual bool operator==(const ATSHash64 &) const;
 };
-
-#endif

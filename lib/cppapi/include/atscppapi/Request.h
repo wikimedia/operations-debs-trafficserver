@@ -20,8 +20,6 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_REQUEST_H_
-#define ATSCPPAPI_REQUEST_H_
 
 #include <atscppapi/Headers.h>
 #include <atscppapi/HttpVersion.h>
@@ -31,6 +29,11 @@
 
 namespace atscppapi
 {
+namespace utils
+{
+  class internal;
+}
+
 class Transaction;
 struct RequestState;
 
@@ -80,7 +83,6 @@ private:
   void reset();
   friend class Transaction;
   friend class ClientRequest;
+  friend class utils::internal;
 };
-}
-
-#endif
+} // namespace atscppapi

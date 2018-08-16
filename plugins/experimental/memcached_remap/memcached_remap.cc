@@ -118,7 +118,7 @@ not_found:
   // lets build up a nice 404 message for someone
   if (!ret_val) {
     TSHttpHdrStatusSet(reqp, hdr_loc, TS_HTTP_STATUS_NOT_FOUND);
-    TSHttpTxnSetHttpRetStatus(txnp, TS_HTTP_STATUS_NOT_FOUND);
+    TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_NOT_FOUND);
   }
 free_stuff:
 #if (TS_VERSION_NUMBER < 2001005)
@@ -128,14 +128,17 @@ free_stuff:
     TSHandleStringRelease(reqp, hdr_loc, request_scheme);
 #endif
 release_field:
-  if (field_loc)
+  if (field_loc) {
     TSHandleMLocRelease(reqp, hdr_loc, field_loc);
+  }
 release_url:
-  if (url_loc)
+  if (url_loc) {
     TSHandleMLocRelease(reqp, hdr_loc, url_loc);
+  }
 release_hdr:
-  if (hdr_loc)
+  if (hdr_loc) {
     TSHandleMLocRelease(reqp, TS_NULL_MLOC, hdr_loc);
+  }
 
   return ret_val;
 }
@@ -172,7 +175,7 @@ TSPluginInit(int argc, const char *argv[])
 
   TSDebug(PLUGIN_NAME, "about to init memcached");
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[memcached_remap] Plugin registration failed.");
+    TSError("[memcached_remap] Plugin registration failed");
     return;
   }
 

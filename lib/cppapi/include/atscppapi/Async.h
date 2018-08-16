@@ -22,15 +22,22 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_ASYNC_H_
-#define ATSCPPAPI_ASYNC_H_
+
 #include <list>
 #include <memory>
-#include <atscppapi/Mutex.h>
+#include <mutex>
+
 #include <atscppapi/noncopyable.h>
 
 namespace atscppapi
 {
+#if !defined(ATSCPPAPI_MUTEX_DEFINED_)
+#define ATSCPPAPI_MUTEX_DEFINED_
+
+using Mutex = std::recursive_mutex;
+
+#endif
+
 /**
  * @private
  *
@@ -85,6 +92,7 @@ public:
   }
 
   virtual ~AsyncProvider() {}
+
 protected:
   std::shared_ptr<AsyncDispatchControllerBase>
   getDispatchController()
@@ -114,10 +122,10 @@ class AsyncDispatchController : public AsyncDispatchControllerBase
 {
 public:
   bool
-  dispatch()
+  dispatch() override
   {
     bool ret = false;
-    ScopedSharedMutexLock scopedLock(dispatch_mutex_);
+    std::lock_guard<Mutex> scopedLock(*dispatch_mutex_);
     if (event_receiver_) {
       event_receiver_->handleAsyncComplete(static_cast<AsyncProviderType &>(*provider_));
       ret = true;
@@ -126,14 +134,14 @@ public:
   }
 
   void
-  disable()
+  disable() override
   {
-    ScopedSharedMutexLock scopedLock(dispatch_mutex_);
+    std::lock_guard<Mutex> scopedLock(*dispatch_mutex_);
     event_receiver_ = nullptr;
   }
 
   bool
-  isEnabled()
+  isEnabled() override
   {
     return (event_receiver_ != nullptr);
   }
@@ -150,7 +158,8 @@ public:
   {
   }
 
-  virtual ~AsyncDispatchController() {}
+  ~AsyncDispatchController() override {}
+
 public:
   AsyncEventReceiverType *event_receiver_;
   std::shared_ptr<Mutex> dispatch_mutex_;
@@ -176,7 +185,7 @@ public:
 
   ~AsyncReceiverPromise()
   {
-    ScopedSharedMutexLock scopedLock(dispatch_controller_->dispatch_mutex_);
+    std::lock_guard<Mutex> scopedLock(*(dispatch_controller_->dispatch_mutex_));
     dispatch_controller_->event_receiver_ = nullptr;
   }
 
@@ -200,6 +209,7 @@ public:
    */
   virtual void handleAsyncComplete(AsyncProviderType &provider) = 0;
   virtual ~AsyncReceiver() {}
+
 protected:
   AsyncReceiver() {}
   friend class Async;
@@ -230,7 +240,7 @@ public:
   execute(AsyncReceiver<AsyncProviderType> *event_receiver, AsyncProviderType *provider, std::shared_ptr<Mutex> mutex)
   {
     if (!mutex.get()) {
-      mutex.reset(new Mutex(Mutex::TYPE_RECURSIVE));
+      mutex.reset(new Mutex);
     }
     std::shared_ptr<AsyncDispatchController<AsyncReceiver<AsyncProviderType>, AsyncProviderType>> dispatcher(
       new AsyncDispatchController<AsyncReceiver<AsyncProviderType>, AsyncProviderType>(event_receiver, provider, mutex));
@@ -240,6 +250,5 @@ public:
     provider->doRun(dispatcher);
   }
 };
-}
 
-#endif /* ATSCPPAPI_ASYNC_H_ */
+} // end namespace atscppapi

@@ -29,12 +29,12 @@
 
  ****************************************************************************/
 
-#ifndef _ink_string_h_
-#define _ink_string_h_
+#pragma once
 
-#include <stdio.h>
+#include <cstdio>
 #include <memory.h>
 #include <strings.h>
+#include <string_view>
 
 #include "ts/ink_assert.h"
 #include "ts/ink_error.h"
@@ -385,4 +385,18 @@ ink_fast_ltoa(int64_t val, char *buf, int buf_len)
   return ink_small_itoa((int)val, buf, buf_len);
 }
 
-#endif
+/// Check for prefix.
+/// @return @c true if @a lhs is a prefix (ignoring case) of @a rhs.
+inline bool
+IsNoCasePrefixOf(std::string_view const &lhs, std::string_view const &rhs)
+{
+  return lhs.size() <= rhs.size() && 0 == strncasecmp(lhs.data(), rhs.data(), lhs.size());
+}
+
+/// Check for prefix.
+/// @return @c true if @a lhs is a prefix of @a rhs.
+inline bool
+IsPrefixOf(std::string_view const &lhs, std::string_view const &rhs)
+{
+  return lhs.size() <= rhs.size() && 0 == memcmp(lhs.data(), rhs.data(), lhs.size());
+}

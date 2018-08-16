@@ -28,8 +28,7 @@
  *
  ****************************************************************************/
 
-#ifndef _P_SPLIT_DNSProcessor_H_
-#define _P_SPLIT_DNSProcessor_H_
+#pragma once
 
 /*
 #include "P_DNS.h"
@@ -90,7 +89,7 @@ struct SplitDNSResult {
    -------------------------------------------------------------- */
 struct SplitDNS : public ConfigInfo {
   SplitDNS();
-  ~SplitDNS();
+  ~SplitDNS() override;
 
   void *getDNSRecord(const char *hostname);
   void findServer(RequestData *rdata, SplitDNSResult *result);
@@ -145,9 +144,7 @@ public:
    DNSRequestData::get_string()
    -------------------------------------------------------------- */
 TS_INLINE
-DNSRequestData::DNSRequestData() : m_pHost(0)
-{
-}
+DNSRequestData::DNSRequestData() : m_pHost(nullptr) {}
 
 /* --------------------------------------------------------------
    DNSRequestData::get_string()
@@ -196,7 +193,7 @@ public:
   SplitDNSRecord();
   ~SplitDNSRecord();
 
-  config_parse_error Init(matcher_line *line_info);
+  Result Init(matcher_line *line_info);
 
   const char *ProcessDNSHosts(char *val);
   const char *ProcessDomainSrchList(char *val);
@@ -214,16 +211,12 @@ public:
    SplitDNSRecord::SplitDNSRecord()
    -------------------------------------------------------------- */
 TS_INLINE
-SplitDNSRecord::SplitDNSRecord() : m_dnsSrvr_cnt(0), m_domain_srch_list(0)
-{
-}
+SplitDNSRecord::SplitDNSRecord() : m_dnsSrvr_cnt(0), m_domain_srch_list(0) {}
 
 /* --------------------------------------------------------------
    SplitDNSRecord::~SplitDNSRecord()
    -------------------------------------------------------------- */
-TS_INLINE SplitDNSRecord::~SplitDNSRecord()
-{
-}
+TS_INLINE SplitDNSRecord::~SplitDNSRecord() {}
 
 /* ------------------
    Helper Functions
@@ -232,5 +225,3 @@ TS_INLINE SplitDNSRecord::~SplitDNSRecord()
 SplitDNSRecord *createDefaultServer();
 void reloadDefaultParent(char *val);
 void reloadParentFile();
-
-#endif

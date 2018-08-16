@@ -22,13 +22,12 @@
 
  */
 
-#ifndef BASE_LOG_FILE_H
-#define BASE_LOG_FILE_H
+#pragma once
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <cstdarg>
+#include <cstdio>
 #include <sys/time.h>
-#include <stdint.h>
+#include <cstdint>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -44,8 +43,9 @@
 #define LOGFILE_SEPARATOR_STRING "_"
 #define LOGFILE_DEFAULT_PERMS (0644)
 #define LOGFILE_ROLL_MAXPATHLEN 4096
-#define BASELOGFILE_DEBUG_MODE 0 // change this to 1 to enable debug messages
-                                 // TODO find a way to enable this from autotools
+#define BASELOGFILE_DEBUG_MODE \
+  0 // change this to 1 to enable debug messages
+    // TODO find a way to enable this from autotools
 
 typedef enum {
   LL_Debug = 0, // process does not die
@@ -166,6 +166,8 @@ class BaseLogFile
 {
 public:
   // member functions
+  BaseLogFile()        = delete;
+  BaseLogFile &operator=(const BaseLogFile &) = delete;
   BaseLogFile(const char *name);
   BaseLogFile(const char *name, uint64_t sig);
   BaseLogFile(const BaseLogFile &);
@@ -217,27 +219,21 @@ public:
     LOG_FILE_COULD_NOT_OPEN_FILE,
   };
 
-  FILE *m_fp;
-  long m_start_time;
-  long m_end_time;
-  volatile uint64_t m_bytes_written;
+  FILE *m_fp               = nullptr;
+  long m_start_time        = time(nullptr);
+  long m_end_time          = 0L;
+  uint64_t m_bytes_written = 0;
 
 private:
-  void init(const char *name);
-  // member functions not allowed
-  BaseLogFile();
-  BaseLogFile &operator=(const BaseLogFile &);
-
   // member functions
   int timestamp_to_str(long timestamp, char *buf, int size);
 
   // member variables
-  uint64_t m_signature;
-  bool m_has_signature;
   ats_scoped_str m_name;
   ats_scoped_str m_hostname;
-  bool m_is_regfile;
-  bool m_is_init;
-  BaseMetaInfo *m_meta_info;
+  bool m_is_regfile         = false;
+  bool m_is_init            = false;
+  BaseMetaInfo *m_meta_info = nullptr;
+  uint64_t m_signature      = 0;
+  bool m_has_signature      = false;
 };
-#endif

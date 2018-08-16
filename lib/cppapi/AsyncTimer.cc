@@ -26,21 +26,16 @@
 using namespace atscppapi;
 
 struct atscppapi::AsyncTimerState {
-  TSCont cont_;
+  TSCont cont_ = nullptr;
   AsyncTimer::Type type_;
   int period_in_ms_;
   int initial_period_in_ms_;
-  TSAction initial_timer_action_;
-  TSAction periodic_timer_action_;
-  AsyncTimer *timer_;
-  std::shared_ptr<AsyncDispatchControllerBase> dispatch_controller_;
+  TSAction initial_timer_action_  = nullptr;
+  TSAction periodic_timer_action_ = nullptr;
+  AsyncTimer *timer_              = nullptr;
+  std::shared_ptr<AsyncDispatchControllerBase> dispatch_controller_{};
   AsyncTimerState(AsyncTimer::Type type, int period_in_ms, int initial_period_in_ms, AsyncTimer *timer)
-    : type_(type),
-      period_in_ms_(period_in_ms),
-      initial_period_in_ms_(initial_period_in_ms),
-      initial_timer_action_(nullptr),
-      periodic_timer_action_(nullptr),
-      timer_(timer)
+    : type_(type), period_in_ms_(period_in_ms), initial_period_in_ms_(initial_period_in_ms), timer_(timer)
   {
   }
 };
@@ -65,7 +60,7 @@ handleTimerEvent(TSCont cont, TSEvent event, void *edata)
   }
   return 0;
 }
-}
+} // namespace
 
 AsyncTimer::AsyncTimer(Type type, int period_in_ms, int initial_period_in_ms)
 {
@@ -98,11 +93,17 @@ AsyncTimer::run()
 void
 AsyncTimer::cancel()
 {
-  if (!state_->cont_) {
+  // Assume this object is locked and the state isn't being updated elsewhere.
+  // Note that is not the same as the contained continuation being locked.
+  TSCont contp{state_->cont_}; // save this
+  if (!contp) {
     LOG_DEBUG("Already canceled");
     return;
   }
-  TSMutexLock(TSContMutexGet(state_->cont_)); // mutex will be unlocked in destroy
+
+  auto mutex{TSContMutexGet(contp)};
+  TSMutexLock(mutex); // prevent event dispatch for the continuation during this cancel.
+
   if (state_->initial_timer_action_) {
     LOG_DEBUG("Canceling initial timer action");
     TSActionCancel(state_->initial_timer_action_);
@@ -111,9 +112,12 @@ AsyncTimer::cancel()
     LOG_DEBUG("Canceling periodic timer action");
     TSActionCancel(state_->periodic_timer_action_);
   }
-  LOG_DEBUG("Destroying cont");
-  TSContDestroy(state_->cont_);
   state_->cont_ = nullptr;
+
+  TSMutexUnlock(mutex);
+
+  LOG_DEBUG("Destroying cont");
+  TSContDestroy(contp);
 }
 
 AsyncTimer::~AsyncTimer()

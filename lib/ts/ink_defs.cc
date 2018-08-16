@@ -33,7 +33,6 @@
 #if defined(linux) || defined(freebsd) || defined(darwin)
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/sysctl.h>
 #endif
 #if defined(linux)
 #include <sys/utsname.h>
@@ -94,18 +93,21 @@ ink_sys_name_release(char *name, int namelen, char *release, int releaselen)
   struct utsname buf;
   int n;
 
-  if (uname(&buf))
+  if (uname(&buf)) {
     return -1;
+  }
 
   n = strlen(buf.sysname);
-  if (namelen <= n)
+  if (namelen <= n) {
     n = namelen - 1;
+  }
   memcpy(name, buf.sysname, n);
   name[n] = 0;
 
   n = strlen(buf.release);
-  if (releaselen <= n)
+  if (releaselen <= n) {
     n = releaselen - 1;
+  }
   memcpy(release, buf.release, n);
   release[n] = 0;
 

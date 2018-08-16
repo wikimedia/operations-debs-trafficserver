@@ -71,9 +71,7 @@ span_file_typename(mode_t st_mode)
 }
 
 Ptr<ProxyMutex> tmp_p;
-Store::Store() : n_disks_in_config(0), n_disks(0), disk(nullptr)
-{
-}
+Store::Store() : n_disks_in_config(0), n_disks(0), disk(nullptr) {}
 
 void
 Store::add(Span *ds)
@@ -101,14 +99,17 @@ Store::free(Store &s)
 {
   for (unsigned i = 0; i < s.n_disks; i++) {
     for (Span *sd = s.disk[i]; sd; sd = sd->link.next) {
-      for (unsigned j = 0; j < n_disks; j++)
-        for (Span *d = disk[j]; d; d = d->link.next)
+      for (unsigned j = 0; j < n_disks; j++) {
+        for (Span *d = disk[j]; d; d = d->link.next) {
           if (!strcmp(sd->pathname, d->pathname)) {
-            if (sd->offset < d->offset)
+            if (sd->offset < d->offset) {
               d->offset = sd->offset;
+            }
             d->blocks += sd->blocks;
             goto Lfound;
           }
+        }
+      }
       ink_release_assert(!"Store::free failed");
     Lfound:;
     }
@@ -178,8 +179,9 @@ Store::sort()
         if (!sd->file_pathname) {
           sd->blocks += next->blocks;
         } else if (next->offset <= sd->end()) {
-          if (next->end() >= sd->end())
+          if (next->end() >= sd->end()) {
             sd->blocks += (next->end() - sd->end());
+          }
         } else {
           sd = next;
           continue;
@@ -187,8 +189,9 @@ Store::sort()
         sd->link.next = next->link.next;
         delete next;
         sd = sd->link.next;
-      } else
+      } else {
         sd = next;
+      }
     }
   }
 }
@@ -221,8 +224,9 @@ Span::path(char *filename, int64_t *aoffset, char *buf, int buflen)
   ink_assert(!aoffset);
   Span *ds = this;
 
-  if ((strlen(ds->pathname) + strlen(filename) + 2) > (size_t)buflen)
+  if ((strlen(ds->pathname) + strlen(filename) + 2) > (size_t)buflen) {
     return -1;
+  }
   if (!ds->file_pathname) {
     ink_filepath_make(buf, buflen, ds->pathname, filename);
   } else {
@@ -248,8 +252,9 @@ void
 Store::delete_all()
 {
   for (unsigned i = 0; i < n_disks; i++) {
-    if (disk[i])
+    if (disk[i]) {
       delete disk[i];
+    }
   }
   n_disks = 0;
   ats_free(disk);
@@ -263,16 +268,18 @@ Store::~Store()
 
 Span::~Span()
 {
-  if (link.next)
+  if (link.next) {
     delete link.next;
+  }
 }
 
 static int
 get_int64(int fd, int64_t &data)
 {
   char buf[PATH_NAME_MAX];
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
@@ -292,10 +299,11 @@ Lagain:
     for (Span *sd = disk[i]; sd; sd = sd->link.next) {
       if (!strcmp(n, sd->pathname)) {
         found = true;
-        if (p)
+        if (p) {
           p->link.next = sd->link.next;
-        else
-          disk[i]     = sd->link.next;
+        } else {
+          disk[i] = sd->link.next;
+        }
         sd->link.next = nullptr;
         delete sd;
         goto Lagain;
@@ -306,7 +314,7 @@ Lagain:
   return found ? 0 : -1;
 }
 
-const char *
+Result
 Store::read_config()
 {
   int n_dsstore   = 0;
@@ -321,8 +329,7 @@ Store::read_config()
   Debug("cache_init", "Store::read_config, fd = -1, \"%s\"", (const char *)storage_path);
   fd = ::open(storage_path, O_RDONLY);
   if (fd < 0) {
-    err = "error on open";
-    goto Lfail;
+    return Result::failure("open %s: %s", (const char *)storage_path, strerror(errno));
   }
 
   // For each line
@@ -337,16 +344,18 @@ Store::read_config()
     ++ln;
 
     // Because the SimpleTokenizer is a bit too simple, we have to normalize whitespace.
-    for (char *spot = line, *limit = line + len; spot < limit; ++spot)
-      if (ParseRules::is_space(*spot))
+    for (char *spot = line, *limit = line + len; spot < limit; ++spot) {
+      if (ParseRules::is_space(*spot)) {
         *spot = ' '; // force whitespace to literal space.
-
+      }
+    }
     SimpleTokenizer tokens(line, ' ', SimpleTokenizer::OVERWRITE_INPUT_STRING);
 
     // skip comments and blank lines
     path = tokens.getNext();
-    if (nullptr == path || '#' == path[0])
+    if (nullptr == path || '#' == path[0]) {
       continue;
+    }
 
     // parse
     Debug("cache_init", "Store::read_config: \"%s\"", path);
@@ -358,22 +367,25 @@ Store::read_config()
     while (nullptr != (e = tokens.getNext())) {
       if (ParseRules::is_digit(*e)) {
         if ((size = ink_atoi64(e)) <= 0) {
-          err = "error parsing size";
-          goto Lfail;
+          delete sd;
+          return Result::failure("failed to parse size '%s'", e);
         }
       } else if (0 == strncasecmp(HASH_BASE_STRING_KEY, e, sizeof(HASH_BASE_STRING_KEY) - 1)) {
         e += sizeof(HASH_BASE_STRING_KEY) - 1;
-        if ('=' == *e)
+        if ('=' == *e) {
           ++e;
-        if (*e && !ParseRules::is_space(*e))
+        }
+        if (*e && !ParseRules::is_space(*e)) {
           seed = e;
+        }
       } else if (0 == strncasecmp(VOLUME_KEY, e, sizeof(VOLUME_KEY) - 1)) {
         e += sizeof(VOLUME_KEY) - 1;
-        if ('=' == *e)
+        if ('=' == *e) {
           ++e;
+        }
         if (!*e || !ParseRules::is_digit(*e) || 0 >= (volume_num = ink_atoi(e))) {
-          err = "error parsing volume number";
-          goto Lfail;
+          delete sd;
+          return Result::failure("failed to parse volume number '%s'", e);
         }
       }
     }
@@ -393,19 +405,22 @@ Store::read_config()
     n_dsstore++;
 
     // Set side values if present.
-    if (seed)
+    if (seed) {
       ns->hash_base_string_set(seed);
-    if (volume_num > 0)
+    }
+    if (volume_num > 0) {
       ns->volume_number_set(volume_num);
+    }
 
     // new Span
     {
       Span *prev = cur;
       cur        = ns;
-      if (!sd)
+      if (!sd) {
         sd = cur;
-      else
+      } else {
         prev->link.next = cur;
+      }
     }
   }
 
@@ -420,26 +435,22 @@ Store::read_config()
   }
   sd = nullptr; // these are all used.
   sort();
-  return nullptr;
 
-Lfail:
-  // Do clean up.
-  if (sd)
-    delete sd;
-
-  return err;
+  return Result::ok();
 }
 
 int
 Store::write_config_data(int fd) const
 {
-  for (unsigned i = 0; i < n_disks; i++)
+  for (unsigned i = 0; i < n_disks; i++) {
     for (Span *sd = disk[i]; sd; sd = sd->link.next) {
       char buf[PATH_NAME_MAX + 64];
       snprintf(buf, sizeof(buf), "%s %" PRId64 "\n", sd->pathname.get(), (int64_t)sd->blocks * (int64_t)STORE_BLOCK_SIZE);
-      if (ink_file_fd_writestring(fd, buf) == -1)
+      if (ink_file_fd_writestring(fd, buf) == -1) {
         return (-1);
+      }
     }
+  }
   return 0;
 }
 
@@ -587,8 +598,9 @@ Store::normalize()
 {
   unsigned ndisks = 0;
   for (unsigned i = 0; i < n_disks; i++) {
-    if (disk[i])
+    if (disk[i]) {
       disk[ndisks++] = disk[i];
+    }
   }
   n_disks = ndisks;
 }
@@ -601,27 +613,31 @@ try_alloc(Store &target, Span *source, unsigned int start_blocks, bool one_only 
   while (source && blocks) {
     if (source->blocks) {
       unsigned int a; // allocated
-      if (blocks > source->blocks)
+      if (blocks > source->blocks) {
         a = source->blocks;
-      else
-        a     = blocks;
+      } else {
+        a = blocks;
+      }
       Span *d = new Span(*source);
 
       d->blocks    = a;
       d->link.next = ds;
 
-      if (d->file_pathname)
+      if (d->file_pathname) {
         source->offset += a;
+      }
       source->blocks -= a;
       ds = d;
       blocks -= a;
-      if (one_only)
+      if (one_only) {
         break;
+      }
     }
     source = source->link.next;
   }
-  if (ds)
+  if (ds) {
     target.add(ds);
+  }
   return start_blocks - blocks;
 }
 
@@ -652,8 +668,9 @@ Store::spread_alloc(Store &s, unsigned int blocks, bool mmapable)
   for (unsigned i = 0; blocks && disks_left && i < n_disks; i++) {
     if (!(mmapable && !disk[i]->is_mmapable())) {
       unsigned int target = blocks / disks_left;
-      if (blocks - target > total_blocks(i + 1))
+      if (blocks - target > total_blocks(i + 1)) {
         target = blocks - total_blocks(i + 1);
+      }
       blocks -= try_alloc(s, disk[i], target);
       disks_left--;
     }
@@ -666,8 +683,8 @@ Store::try_realloc(Store &s, Store &diff)
   for (unsigned i = 0; i < s.n_disks; i++) {
     Span *prev = nullptr;
     for (Span *sd = s.disk[i]; sd;) {
-      for (unsigned j = 0; j < n_disks; j++)
-        for (Span *d = disk[j]; d; d = d->link.next)
+      for (unsigned j = 0; j < n_disks; j++) {
+        for (Span *d = disk[j]; d; d = d->link.next) {
           if (!strcmp(sd->pathname, d->pathname)) {
             if (sd->offset >= d->offset && (sd->end() <= d->end())) {
               if (!sd->file_pathname || (sd->end() == d->end())) {
@@ -689,11 +706,14 @@ Store::try_realloc(Store &s, Store &diff)
               }
             }
           }
+        }
+      }
       {
-        if (!prev)
+        if (!prev) {
           s.disk[i] = s.disk[i]->link.next;
-        else
+        } else {
           prev->link.next = sd->link.next;
+        }
         diff.extend(i + 1);
         sd->link.next = diff.disk[i];
         diff.disk[i]  = sd;
@@ -720,8 +740,9 @@ Store::alloc(Store &s, unsigned int blocks, bool one_only, bool mmapable)
   for (unsigned i = 0; blocks && i < n_disks; i++) {
     if (!(mmapable && !disk[i]->is_mmapable())) {
       blocks -= try_alloc(s, disk[i], blocks, one_only);
-      if (one_only && oblocks != blocks)
+      if (one_only && oblocks != blocks) {
         break;
+      }
     }
   }
 }
@@ -731,26 +752,32 @@ Span::write(int fd) const
 {
   char buf[32];
 
-  if (ink_file_fd_writestring(fd, (pathname ? pathname.get() : ")")) == -1)
+  if (ink_file_fd_writestring(fd, (pathname ? pathname.get() : ")")) == -1) {
     return (-1);
-  if (ink_file_fd_writestring(fd, "\n") == -1)
+  }
+  if (ink_file_fd_writestring(fd, "\n") == -1) {
     return (-1);
+  }
 
   snprintf(buf, sizeof(buf), "%" PRId64 "\n", blocks);
-  if (ink_file_fd_writestring(fd, buf) == -1)
+  if (ink_file_fd_writestring(fd, buf) == -1) {
     return (-1);
+  }
 
   snprintf(buf, sizeof(buf), "%d\n", file_pathname);
-  if (ink_file_fd_writestring(fd, buf) == -1)
+  if (ink_file_fd_writestring(fd, buf) == -1) {
     return (-1);
+  }
 
   snprintf(buf, sizeof(buf), "%" PRId64 "\n", offset);
-  if (ink_file_fd_writestring(fd, buf) == -1)
+  if (ink_file_fd_writestring(fd, buf) == -1) {
     return (-1);
+  }
 
   snprintf(buf, sizeof(buf), "%d\n", (int)is_mmapable());
-  if (ink_file_fd_writestring(fd, buf) == -1)
+  if (ink_file_fd_writestring(fd, buf) == -1) {
     return (-1);
+  }
 
   return 0;
 }
@@ -760,14 +787,17 @@ Store::write(int fd, const char *name) const
 {
   char buf[32];
 
-  if (ink_file_fd_writestring(fd, name) == -1)
+  if (ink_file_fd_writestring(fd, name) == -1) {
     return (-1);
-  if (ink_file_fd_writestring(fd, "\n") == -1)
+  }
+  if (ink_file_fd_writestring(fd, "\n") == -1) {
     return (-1);
+  }
 
   snprintf(buf, sizeof(buf), "%d\n", n_disks);
-  if (ink_file_fd_writestring(fd, buf) == -1)
+  if (ink_file_fd_writestring(fd, buf) == -1) {
     return (-1);
+  }
 
   for (unsigned i = 0; i < n_disks; i++) {
     int n    = 0;
@@ -777,12 +807,14 @@ Store::write(int fd, const char *name) const
     }
 
     snprintf(buf, sizeof(buf), "%d\n", n);
-    if (ink_file_fd_writestring(fd, buf) == -1)
+    if (ink_file_fd_writestring(fd, buf) == -1) {
       return (-1);
+    }
 
     for (sd = disk[i]; sd; sd = sd->link.next) {
-      if (sd->write(fd))
+      if (sd->write(fd)) {
         return -1;
+      }
     }
   }
   return 0;
@@ -793,8 +825,9 @@ Span::read(int fd)
 {
   char buf[PATH_NAME_MAX], p[PATH_NAME_MAX];
 
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
@@ -807,13 +840,15 @@ Span::read(int fd)
   }
 
   int b = 0;
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
-  if (sscanf(buf, "%d", &b) != 1)
+  if (sscanf(buf, "%d", &b) != 1) {
     return (-1);
+  }
   file_pathname = (b ? true : false);
 
   if (get_int64(fd, offset) < 0) {
@@ -821,13 +856,15 @@ Span::read(int fd)
   }
 
   int tmp;
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
-  if (sscanf(buf, "%d", &tmp) != 1)
+  if (sscanf(buf, "%d", &tmp) != 1) {
     return (-1);
+  }
   set_mmapable(tmp != 0);
 
   return (0);
@@ -839,58 +876,69 @@ Store::read(int fd, char *aname)
   char *name = aname;
   char tname[PATH_NAME_MAX];
   char buf[PATH_NAME_MAX];
-  if (!aname)
+  if (!aname) {
     name = tname;
+  }
 
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
-  if (sscanf(buf, "%s\n", name) != 1)
+  if (sscanf(buf, "%s\n", name) != 1) {
     return (-1);
+  }
 
-  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+  if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
     return (-1);
+  }
   // the above line will guarantee buf to be no longer than PATH_NAME_MAX
   // so the next statement should be a safe use of sscanf
   // coverity[secure_coding]
-  if (sscanf(buf, "%d\n", &n_disks) != 1)
+  if (sscanf(buf, "%d\n", &n_disks) != 1) {
     return (-1);
+  }
 
   disk = (Span **)ats_malloc(sizeof(Span *) * n_disks);
-  if (!disk)
+  if (!disk) {
     return -1;
+  }
   memset(disk, 0, sizeof(Span *) * n_disks);
   for (unsigned i = 0; i < n_disks; i++) {
     int n = 0;
 
-    if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0)
+    if (ink_file_fd_readline(fd, PATH_NAME_MAX, buf) <= 0) {
       return (-1);
+    }
     // the above line will guarantee buf to be no longer than PATH_NAME_MAX
     // so the next statement should be a safe use of sscanf
     // coverity[secure_coding]
-    if (sscanf(buf, "%d\n", &n) != 1)
+    if (sscanf(buf, "%d\n", &n) != 1) {
       return (-1);
+    }
 
     Span *sd = nullptr;
     while (n--) {
       Span *last = sd;
       sd         = new Span;
 
-      if (!last)
+      if (!last) {
         disk[i] = sd;
-      else
+      } else {
         last->link.next = sd;
-      if (sd->read(fd))
+      }
+      if (sd->read(fd)) {
         goto Lbail;
+      }
     }
   }
   return 0;
 Lbail:
   for (unsigned i = 0; i < n_disks; i++) {
-    if (disk[i])
+    if (disk[i]) {
       delete disk[i];
+    }
   }
   return -1;
 }
@@ -899,8 +947,9 @@ Span *
 Span::dup()
 {
   Span *ds = new Span(*this);
-  if (this->link.next)
+  if (this->link.next) {
     ds->link.next = this->link.next->dup();
+  }
   return ds;
 }
 
@@ -924,19 +973,23 @@ Store::clear(char *filename, bool clear_dirs)
     for (unsigned j = 0; j < disk[i]->paths(); j++) {
       char path[PATH_NAME_MAX];
       Span *d = ds->nth(j);
-      if (!clear_dirs && !d->file_pathname)
+      if (!clear_dirs && !d->file_pathname) {
         continue;
+      }
       int r = d->path(filename, nullptr, path, PATH_NAME_MAX);
-      if (r < 0)
+      if (r < 0) {
         return -1;
+      }
       int fd = ::open(path, O_RDWR | O_CREAT, 0644);
-      if (fd < 0)
+      if (fd < 0) {
         return -1;
-      for (int b = 0; d->blocks; b++)
+      }
+      for (int b = 0; d->blocks; b++) {
         if (socketManager.pwrite(fd, z, STORE_BLOCK_SIZE, d->offset + (b * STORE_BLOCK_SIZE)) < 0) {
           close(fd);
           return -1;
         }
+      }
       close(fd);
     }
   }

@@ -37,22 +37,6 @@
 #include "ts/MatcherUtils.h"
 #include "ts/Tokenizer.h"
 
-config_parse_error::config_parse_error(const char *fmt, ...)
-{
-  va_list ap;
-  int num;
-
-  va_start(ap, fmt);
-  num = vsnprintf(nullptr, 0, fmt, ap);
-  va_end(ap);
-
-  this->msg = (char *)ats_malloc(num + 1);
-
-  va_start(ap, fmt);
-  vsnprintf(&this->msg[0], num + 1, fmt, ap);
-  va_end(ap);
-}
-
 // char* readIntoBuffer(const char* file_path, const char* module_name,
 //                          int* read_size_ptr)
 //
@@ -67,8 +51,9 @@ readIntoBuffer(const char *file_path, const char *module_name, int *read_size_pt
 {
   int fd;
   struct stat file_info;
-  char *file_buf;
+  char *file_buf, *buf;
   int read_size = 0;
+  int file_size;
 
   if (read_size_ptr != nullptr) {
     *read_size_ptr = 0;
@@ -86,30 +71,49 @@ readIntoBuffer(const char *file_path, const char *module_name, int *read_size_pt
     return nullptr;
   }
 
-  if (file_info.st_size < 0) {
+  file_size = file_info.st_size; // number of bytes in file
+
+  if (file_size < 0) {
     Error("%s Can not get correct file size for %s file : %" PRId64 "", module_name, file_path, (int64_t)file_info.st_size);
     close(fd);
     return nullptr;
   }
+
+  ink_assert(file_size >= 0);
+
   // Allocate a buffer large enough to hold the entire file
   //   File size should be small and this makes it easy to
   //   do two passes on the file
-  file_buf = (char *)ats_malloc(file_info.st_size + 1);
+  file_buf = (char *)ats_malloc(file_size + 1);
   // Null terminate the buffer so that string operations will work
-  file_buf[file_info.st_size] = '\0';
+  file_buf[file_size] = '\0';
 
-  read_size = (file_info.st_size > 0) ? read(fd, file_buf, file_info.st_size) : 0;
+  int ret = 0;
+  buf     = file_buf; // working pointer
+
+  // loop over read, trying to read in as much as we can each time.
+  while (file_size > read_size) {
+    ret = read(fd, buf, file_size - read_size);
+    if (ret <= 0) {
+      break;
+    }
+
+    buf += ret;
+    read_size += ret;
+  }
+
+  buf = nullptr; // done with. don't want to accidentally use this instead of file_buf.
 
   // Check to make sure that we got the whole file
-  if (read_size < 0) {
+  if (ret < 0) {
     Error("%s Read of %s file failed : %s", module_name, file_path, strerror(errno));
     ats_free(file_buf);
     file_buf = nullptr;
-  } else if (read_size < file_info.st_size) {
+  } else if (read_size < file_size) {
     // Didn't get the whole file, drop everything. We don't want to return
     //   something partially read because, ie. with configs, the behaviour
     //   is undefined.
-    Error("%s Only able to read %d bytes out %d for %s file", module_name, read_size, (int)file_info.st_size, file_path);
+    Error("%s Only able to read %d bytes out %d for %s file", module_name, read_size, file_size, file_path);
     ats_free(file_buf);
     file_buf = nullptr;
   }
@@ -165,10 +169,12 @@ ExtractIpRange(char *match_str, in_addr_t *min, in_addr_t *max)
   const char *zret = ExtractIpRange(match_str, &ip_min.sa, &ip_max.sa);
   if (nullptr == zret) { // success
     if (ats_is_ip4(&ip_min) && ats_is_ip4(&ip_max)) {
-      if (min)
+      if (min) {
         *min = ntohl(ats_ip4_addr_cast(&ip_min));
-      if (max)
+      }
+      if (max) {
         *max = ntohl(ats_ip4_addr_cast(&ip_max));
+      }
     } else {
       zret = "The addresses were not IPv4 addresses.";
     }

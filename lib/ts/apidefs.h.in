@@ -28,8 +28,7 @@
 
  */
 
-#ifndef __TS_APIDEFS_H__
-#define __TS_APIDEFS_H__
+#pragma once
 
 /*
  * ATS Plugin just needs to include <ts/ts.h>,
@@ -92,8 +91,6 @@ extern "C" {
 #define TS_RES_PATH(x) x __FILE__ ":" _TS_RES_PATH(__LINE__)
 #define TS_RES_MEM_PATH TS_RES_PATH("memory/")
 #endif
-
-#define TS_MAX_USER_NAME_LEN 256
 
 #ifndef TS_DEPRECATED
 #define TS_DEPRECATED __attribute__((deprecated))
@@ -226,7 +223,6 @@ typedef enum {
     The following hooks can ONLY be added globally:
      - TS_HTTP_SELECT_ALT_HOOK
      - TS_HTTP_SSN_START_HOOK
-     - TS_HTTP_SSN_CLOSE_HOOK
 
     TSHttpSsnHookAdd: adds a transaction hook to each transaction
     within a session. You can only use transaction hooks with this call:
@@ -241,6 +237,7 @@ typedef enum {
      - TS_HTTP_RESPONSE_CLIENT_HOOK
      - TS_HTTP_TXN_START_HOOK
      - TS_HTTP_TXN_CLOSE_HOOK
+     - TS_HTTP_SSN_CLOSE_HOOK
 
     TSHttpTxnHookAdd: adds a callback at a specific point within
     an HTTP transaction. The following hooks can be used with this
@@ -257,9 +254,9 @@ typedef enum {
 
     The two transform hooks can ONLY be added as transaction hooks.
 
-    TS_VCONN_PRE_ACCEPT_HOOK - Called before the SSL hand
-    shake starts.  No handshake data has been read or sent (from the
-    proxy) at this point
+    TS_VCONN_START_HOOK - called just after the connection is created,
+    before other activity such as I/O or TLS handshakes  No handshake
+    data has been read or sent (from the proxy) at this point
 
     TS_HTTP_LAST_HOOK _must_ be the last element. Only right place
     to insert a new element is just before TS_HTTP_LAST_HOOK.
@@ -286,11 +283,17 @@ typedef enum {
   // Putting the SSL hooks in the same enum space
   // So both sets of hooks can be set by the same Hook function
   TS_SSL_FIRST_HOOK,
-  TS_VCONN_PRE_ACCEPT_HOOK = TS_SSL_FIRST_HOOK,
+  TS_VCONN_START_HOOK = TS_SSL_FIRST_HOOK,
+  TS_VCONN_PRE_ACCEPT_HOOK = TS_VCONN_START_HOOK, // Deprecated but compatible for now.
+  TS_VCONN_CLOSE_HOOK,
   TS_SSL_SNI_HOOK,
   TS_SSL_CERT_HOOK = TS_SSL_SNI_HOOK,
   TS_SSL_SERVERNAME_HOOK,
-  TS_SSL_LAST_HOOK = TS_SSL_SERVERNAME_HOOK,
+  TS_SSL_SERVER_VERIFY_HOOK,
+  TS_SSL_VERIFY_CLIENT_HOOK,
+  TS_SSL_SESSION_HOOK,
+  TS_SSL_LAST_HOOK = TS_SSL_SESSION_HOOK,
+  TS_HTTP_REQUEST_BUFFER_READ_COMPLETE_HOOK = 24,
   TS_HTTP_LAST_HOOK
 } TSHttpHookID;
 
@@ -420,6 +423,9 @@ typedef enum {
   TS_EVENT_CACHE_READ_READY                     = 1134,
   TS_EVENT_CACHE_READ_COMPLETE                  = 1135,
   TS_EVENT_INTERNAL_1200                        = 1200,
+  TS_EVENT_SSL_SESSION_GET                      = 2000,
+  TS_EVENT_SSL_SESSION_NEW                      = 2001,
+  TS_EVENT_SSL_SESSION_REMOVE                   = 2002,
   TS_AIO_EVENT_DONE                             = 3900,
   TS_EVENT_HTTP_CONTINUE                        = 60000,
   TS_EVENT_HTTP_ERROR                           = 60001,
@@ -444,14 +450,19 @@ typedef enum {
   TS_EVENT_LIFECYCLE_CACHE_READY                = 60020,
   TS_EVENT_LIFECYCLE_SERVER_SSL_CTX_INITIALIZED = 60021,
   TS_EVENT_LIFECYCLE_CLIENT_SSL_CTX_INITIALIZED = 60022,
-  TS_EVENT_VCONN_PRE_ACCEPT                     = 60023,
+  TS_EVENT_VCONN_START                          = 60023,
+  TS_EVENT_VCONN_PRE_ACCEPT                     = TS_EVENT_VCONN_START, // Deprecated but still compatible
+  TS_EVENT_VCONN_CLOSE                          = 60026,
   TS_EVENT_LIFECYCLE_MSG                        = 60024,
+  TS_EVENT_HTTP_REQUEST_BUFFER_COMPLETE         = 60025,
   TS_EVENT_MGMT_UPDATE                          = 60100,
   TS_EVENT_INTERNAL_60200                       = 60200,
   TS_EVENT_INTERNAL_60201                       = 60201,
   TS_EVENT_INTERNAL_60202                       = 60202,
   TS_EVENT_SSL_CERT                             = 60203,
-  TS_EVENT_SSL_SERVERNAME                       = 60204
+  TS_EVENT_SSL_SERVERNAME                       = 60204,
+  TS_EVENT_SSL_SERVER_VERIFY_HOOK               = 60205,
+  TS_EVENT_SSL_VERIFY_CLIENT                    = 60206
 } TSEvent;
 #define TS_EVENT_HTTP_READ_REQUEST_PRE_REMAP TS_EVENT_HTTP_PRE_REMAP /* backwards compat */
 
@@ -466,8 +477,6 @@ typedef enum {
   TS_SRVSTATE_OPEN_RAW_ERROR,
   TS_SRVSTATE_PARSE_ERROR,
   TS_SRVSTATE_TRANSACTION_COMPLETE,
-  TS_SRVSTATE_CONGEST_CONTROL_CONGESTED_ON_F,
-  TS_SRVSTATE_CONGEST_CONTROL_CONGESTED_ON_M,
   TS_SRVSTATE_PARENT_RETRY
 } TSServerState;
 
@@ -579,7 +588,6 @@ typedef enum {
   TS_RECORDTYPE_CONFIG  = 0x01,
   TS_RECORDTYPE_PROCESS = 0x02,
   TS_RECORDTYPE_NODE    = 0x04,
-  TS_RECORDTYPE_CLUSTER = 0x08,
   TS_RECORDTYPE_LOCAL   = 0x10,
   TS_RECORDTYPE_PLUGIN  = 0x20,
   TS_RECORDTYPE_ALL     = 0x3F
@@ -617,7 +625,6 @@ typedef enum {
   TS_RECORDUPDATE_DYNAMIC,
   TS_RECORDUPDATE_RESTART_TS,
   TS_RECORDUPDATE_RESTART_TM,
-  TS_RECORDUPDATE_RESTART_TC
 } TSRecordUpdateType;
 
 /* The values of this enum must match enum RecCheckT in I_RecDefs.h */
@@ -669,7 +676,6 @@ typedef enum {
   TS_CONFIG_HTTP_SERVER_TCP_INIT_CWND,
   TS_CONFIG_HTTP_SEND_HTTP11_REQUESTS,
   TS_CONFIG_HTTP_CACHE_HTTP,
-  TS_CONFIG_HTTP_CACHE_CLUSTER_CACHE_LOCAL,
   TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_NO_CACHE,
   TS_CONFIG_HTTP_CACHE_IGNORE_CLIENT_CC_MAX_AGE,
   TS_CONFIG_HTTP_CACHE_IMS_ON_CLIENT_NO_CACHE,
@@ -698,13 +704,10 @@ typedef enum {
   TS_CONFIG_HTTP_POST_CONNECT_ATTEMPTS_TIMEOUT,
   TS_CONFIG_HTTP_DOWN_SERVER_CACHE_TIME,
   TS_CONFIG_HTTP_DOWN_SERVER_ABORT_THRESHOLD,
-  TS_CONFIG_HTTP_CACHE_FUZZ_TIME,
-  TS_CONFIG_HTTP_CACHE_FUZZ_MIN_TIME,
   TS_CONFIG_HTTP_DOC_IN_CACHE_SKIP_DNS,
   TS_CONFIG_HTTP_BACKGROUND_FILL_ACTIVE_TIMEOUT,
   TS_CONFIG_HTTP_RESPONSE_SERVER_STR,
   TS_CONFIG_HTTP_CACHE_HEURISTIC_LM_FACTOR,
-  TS_CONFIG_HTTP_CACHE_FUZZ_PROBABILITY,
   TS_CONFIG_HTTP_BACKGROUND_FILL_COMPLETED_THRESHOLD,
   TS_CONFIG_NET_SOCK_PACKET_MARK_OUT,
   TS_CONFIG_NET_SOCK_PACKET_TOS_OUT,
@@ -714,7 +717,6 @@ typedef enum {
   TS_CONFIG_HTTP_FLOW_CONTROL_LOW_WATER_MARK,
   TS_CONFIG_HTTP_FLOW_CONTROL_HIGH_WATER_MARK,
   TS_CONFIG_HTTP_CACHE_RANGE_LOOKUP,
-  TS_CONFIG_HTTP_NORMALIZE_AE_GZIP,
   TS_CONFIG_HTTP_DEFAULT_BUFFER_SIZE,
   TS_CONFIG_HTTP_DEFAULT_BUFFER_WATER_MARK,
   TS_CONFIG_HTTP_REQUEST_HEADER_MAX_SIZE,
@@ -733,12 +735,10 @@ typedef enum {
   TS_CONFIG_HTTP_CACHE_GENERATION,
   TS_CONFIG_BODY_FACTORY_TEMPLATE_BASE,
   TS_CONFIG_HTTP_CACHE_OPEN_WRITE_FAIL_ACTION,
-  TS_CONFIG_HTTP_ENABLE_REDIRECTION,
   TS_CONFIG_HTTP_NUMBER_OF_REDIRECTIONS,
   TS_CONFIG_HTTP_CACHE_MAX_OPEN_WRITE_RETRIES,
   TS_CONFIG_HTTP_REDIRECT_USE_ORIG_CACHE_KEY,
   TS_CONFIG_HTTP_ATTACH_SERVER_SESSION_TO_CLIENT,
-  TS_CONFIG_HTTP_SAFE_REQUESTS_RETRYABLE,
   TS_CONFIG_HTTP_ORIGIN_MAX_CONNECTIONS_QUEUE,
   TS_CONFIG_WEBSOCKET_NO_ACTIVITY_TIMEOUT,
   TS_CONFIG_WEBSOCKET_ACTIVE_TIMEOUT,
@@ -750,12 +750,24 @@ typedef enum {
   TS_CONFIG_SSL_CERT_FILENAME,
   TS_CONFIG_SSL_CERT_FILEPATH,
   TS_CONFIG_PARENT_FAILURES_UPDATE_HOSTDB,
+  TS_CONFIG_SSL_CLIENT_VERIFY_SERVER,
+  TS_CONFIG_HTTP_CACHE_ENABLE_DEFAULT_VARY_HEADER,
+  TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_TEXT,
+  TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_IMAGES,
+  TS_CONFIG_HTTP_CACHE_VARY_DEFAULT_OTHER,
+  TS_CONFIG_HTTP_CACHE_IGNORE_ACCEPT_MISMATCH,
+  TS_CONFIG_HTTP_CACHE_IGNORE_ACCEPT_LANGUAGE_MISMATCH,
+  TS_CONFIG_HTTP_CACHE_IGNORE_ACCEPT_ENCODING_MISMATCH,
+  TS_CONFIG_HTTP_CACHE_IGNORE_ACCEPT_CHARSET_MISMATCH,
   TS_CONFIG_HTTP_PARENT_PROXY_FAIL_THRESHOLD,
   TS_CONFIG_HTTP_PARENT_PROXY_RETRY_TIME,
   TS_CONFIG_HTTP_PER_PARENT_CONNECT_ATTEMPTS,
   TS_CONFIG_HTTP_PARENT_CONNECT_ATTEMPT_TIMEOUT,
-  TS_CONFIG_SSL_CLIENT_VERIFY_SERVER,
+  TS_CONFIG_HTTP_NORMALIZE_AE,
+  TS_CONFIG_HTTP_INSERT_FORWARDED,
   TS_CONFIG_HTTP_ALLOW_MULTI_RANGE,
+  TS_CONFIG_HTTP_REQUEST_BUFFER_ENABLED,
+  TS_CONFIG_HTTP_ALLOW_HALF_OPEN,
   TS_CONFIG_LAST_ENTRY
 } TSOverridableConfigKey;
 
@@ -769,7 +781,6 @@ typedef enum {
   TS_THREAD_POOL_SSL,
   TS_THREAD_POOL_DNS,
   TS_THREAD_POOL_REMAP,
-  TS_THREAD_POOL_CLUSTER,
   TS_THREAD_POOL_UDP
 } TSThreadPool;
 
@@ -801,6 +812,8 @@ typedef enum {
   TS_MILESTONE_SM_FINISH,
   TS_MILESTONE_PLUGIN_ACTIVE,
   TS_MILESTONE_PLUGIN_TOTAL,
+  TS_MILESTONE_TLS_HANDSHAKE_START,
+  TS_MILESTONE_TLS_HANDSHAKE_END,
   TS_MILESTONE_LAST_ENTRY
 } TSMilestonesType;
 
@@ -817,7 +830,7 @@ typedef enum {
   TS_MGMT_SOURCE_NULL,     ///< No source / value not found.
   TS_MGMT_SOURCE_DEFAULT,  ///< Built in core default.
   TS_MGMT_SOURCE_PLUGIN,   ///< Plugin supplied default.
-  TS_MGMT_SOURCE_EXPLICIT, ///< Set by administrator (config file, external API, cluster, etc.)
+  TS_MGMT_SOURCE_EXPLICIT, ///< Set by administrator (config file, external API, etc.)
   TS_MGMT_SOURCE_ENV       ///< Process environment variable.
 } TSMgmtSource;
 
@@ -828,6 +841,7 @@ typedef struct tsapi_mbuffer *TSMBuffer;
 typedef struct tsapi_httpssn *TSHttpSsn;
 typedef struct tsapi_httptxn *TSHttpTxn;
 typedef struct tsapi_ssl_obj *TSSslConnection;
+typedef struct tsapi_ssl_session *TSSslSession;
 typedef struct tsapi_httpaltinfo *TSHttpAltInfo;
 typedef struct tsapi_mimeparser *TSMimeParser;
 typedef struct tsapi_httpparser *TSHttpParser;
@@ -838,6 +852,7 @@ typedef struct tsapi_cachetxn *TSCacheTxn;
 typedef struct tsapi_port *TSPortDescriptor;
 typedef struct tsapi_vio *TSVIO;
 typedef struct tsapi_thread *TSThread;
+typedef struct tsapi_x509 *TSSslX509;
 typedef struct tsapi_mutex *TSMutex;
 typedef struct tsapi_config *TSConfig;
 typedef struct tsapi_cont *TSCont;
@@ -873,6 +888,16 @@ typedef struct TSFetchUrlParams {
   TSFetchWakeUpOptions options;
   struct TSFetchUrlParams *next;
 } TSFetchUrlParams_t;
+
+// This is a duplicate of the SSL_MAX_SSL_SESSION_ID_LENGTH constant
+// Redefining here so we don't include the openssl/ssl.h file here
+#define TS_SSL_MAX_SSL_SESSION_ID_LENGTH 32
+
+// This mirrors the internal data structure SSLSessionID
+typedef struct TSSslSessionID_s {
+  size_t len;
+  char bytes[TS_SSL_MAX_SSL_SESSION_ID_LENGTH];
+} TSSslSessionID;
 
 /* --------------------------------------------------------------------------
    Init */
@@ -1007,6 +1032,7 @@ extern tsapi const char *TS_MIME_FIELD_WARNING;
 extern tsapi const char *TS_MIME_FIELD_WWW_AUTHENTICATE;
 extern tsapi const char *TS_MIME_FIELD_XREF;
 extern tsapi const char *TS_MIME_FIELD_X_FORWARDED_FOR;
+extern tsapi const char *TS_MIME_FIELD_FORWARDED;
 
 /* --------------------------------------------------------------------------
    MIME fields string lengths */
@@ -1082,6 +1108,7 @@ extern tsapi int TS_MIME_LEN_WARNING;
 extern tsapi int TS_MIME_LEN_WWW_AUTHENTICATE;
 extern tsapi int TS_MIME_LEN_XREF;
 extern tsapi int TS_MIME_LEN_X_FORWARDED_FOR;
+extern tsapi int TS_MIME_LEN_FORWARDED;
 
 /* --------------------------------------------------------------------------
    HTTP values */
@@ -1205,11 +1232,9 @@ typedef enum {
 } TSUuidVersion;
 
 #define TS_UUID_STRING_LEN 36
-#define TS_CRUUID_STRING_LEN (TS_UUID_STRING_LEN + 20 + 1) /* UUID-len + len(int64_t) + '-' */
+#define TS_CRUUID_STRING_LEN (TS_UUID_STRING_LEN + 19 + 1) /* UUID-len + len(uint64_t) + '-' */
 typedef struct tsapi_uuid *TSUuid;
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* __TS_APIDEFS_H__ */

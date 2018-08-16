@@ -1,4 +1,5 @@
 #include "ts/IpMap.h"
+#include "ink_inet.h"
 
 /** @file
     IP address map support.
@@ -134,9 +135,9 @@ namespace detail
   struct IpMapBase {
     friend class ::IpMap;
 
-    using self    = IpMapBase<N>;        ///< Self reference type.
-    using ArgType = typename N::ArgType; ///< Import type.
-    using Metric  = typename N::Metric;  ///< Import type.g482
+    using self_type = IpMapBase<N>;        ///< Self reference type.
+    using ArgType   = typename N::ArgType; ///< Import type.
+    using Metric    = typename N::Metric;  ///< Import type.g482
 
     IpMapBase() : _root(nullptr) {}
     ~IpMapBase() { this->clear(); }
@@ -144,10 +145,10 @@ namespace detail
         All addresses in the range [ @a min , @a max ] are marked with @a data.
         @return This object.
     */
-    self &mark(ArgType min,         ///< Minimum value in range.
-               ArgType max,         ///< Maximum value in range.
-               void *data = nullptr ///< Client data payload.
-               );
+    self_type &mark(ArgType min,         ///< Minimum value in range.
+                    ArgType max,         ///< Maximum value in range.
+                    void *data = nullptr ///< Client data payload.
+    );
     /** Unmark addresses.
 
         All addresses in the range [ @a min , @a max ] are cleared
@@ -155,7 +156,7 @@ namespace detail
 
         @return This object.
     */
-    self &unmark(ArgType min, ArgType max);
+    self_type &unmark(ArgType min, ArgType max);
 
     /** Fill addresses.
 
@@ -167,7 +168,7 @@ namespace detail
 
         @return This object.
     */
-    self &fill(ArgType min, ArgType max, void *data = nullptr);
+    self_type &fill(ArgType min, ArgType max, void *data = nullptr);
 
     /** Test for membership.
 
@@ -186,7 +187,7 @@ namespace detail
 
         @return This object.
     */
-    self &clear();
+    self_type &clear();
 
     /** Lower bound for @a target.  @return The node whose minimum value
         is the largest that is not greater than @a target, or @c nullptr if
@@ -200,21 +201,21 @@ namespace detail
     */
     void insertAfter(N *spot, ///< Node in list.
                      N *n     ///< Node to insert.
-                     );
+    );
     /** Insert @a n before @a spot.
         Caller is responsible for ensuring that @a spot is in this container
         and the proper location for @a n.
     */
     void insertBefore(N *spot, ///< Node in list.
                       N *n     ///< Node to insert.
-                      );
+    );
     /// Add node @a n as the first node.
     void prepend(N *n);
     /// Add node @a n as the last node.
     void append(N *n);
     /// Remove a node.
     void remove(N *n ///< Node to remove.
-                );
+    );
 
     /** Validate internal data structures.
         @note Intended for debugging, not general client use.
@@ -226,7 +227,7 @@ namespace detail
 
     /// Print all spans.
     /// @return This map.
-    self &print();
+    self_type &print();
 
     // Helper methods.
     N *
@@ -282,14 +283,15 @@ namespace detail
     N *n    = _root;   // current node to test.
     N *zret = nullptr; // best node so far.
     while (n) {
-      if (target < n->_min)
+      if (target < n->_min) {
         n = left(n);
-      else {
+      } else {
         zret = n; // this is a better candidate.
-        if (n->_max < target)
+        if (n->_max < target) {
           n = right(n);
-        else
+        } else {
           break;
+        }
       }
     }
     return zret;
@@ -413,8 +415,9 @@ namespace detail
               y->decrementMax();
               this->insertBefore(n, y);
             }
-            if (max <= n->_max) // nothing past node
+            if (max <= n->_max) { // nothing past node
               return *this;
+            }
             min = n->_max;
             N::inc(min);
             n = next(n);
@@ -489,17 +492,20 @@ namespace detail
         // min_1 is safe here because n->_min < min so min is not zero.
         x = n;
         // If the existing span covers the requested span, we're done.
-        if (x->_max >= max)
+        if (x->_max >= max) {
           return *this;
+        }
         x->setMax(max);
       } else if (n->_max <= max) {
         // Can only have left skew overlap, otherwise disjoint.
         // Clip if overlap.
-        if (n->_max >= min)
+        if (n->_max >= min) {
           n->setMax(min_1);
-        else if (next(n) && n->_max <= max) {
-          // request region covers next span so we can re-use that node.
-          x = next(n);
+        } else if (nullptr != (y = next(n)) && y->_max <= max) {
+          // because @a n was selected as the minimum it must be the case that
+          // y->min >= min (or y would have been selected). Therefore in this
+          // case the request covers the next node therefore it can be reused.
+          x = y;
           x->setMin(min).setMax(max).setData(payload);
           n = x; // this gets bumped again, which is correct.
         }
@@ -518,21 +524,23 @@ namespace detail
       n = next(n); // lower bound span handled, move on.
       if (!x) {
         x = new N(min, max, payload);
-        if (n)
+        if (n) {
           this->insertBefore(n, x);
-        else
+        } else {
           this->append(x); // note that since n == 0 we'll just return.
+        }
       }
     } else if (nullptr != (n = this->getHead()) &&     // at least one node in tree.
                n->_data == payload &&                  // payload matches
                (n->_max <= max || n->_min <= max_plus) // overlap or adj.
-               ) {
+    ) {
       // Same payload with overlap, re-use.
       x = n;
       n = next(n);
       x->setMin(min);
-      if (x->_max < max)
+      if (x->_max < max) {
         x->setMax(max);
+      }
     } else {
       x = new N(min, max, payload);
       this->prepend(x);
@@ -605,10 +613,11 @@ namespace detail
   IpMapBase<N>::insertAfter(N *spot, N *n)
   {
     N *c = right(spot);
-    if (!c)
+    if (!c) {
       spot->setChild(n, N::RIGHT);
-    else
+    } else {
       spot->_next->setChild(n, N::LEFT);
+    }
 
     _list.insertAfter(spot, n);
     _root = static_cast<N *>(n->rebalanceAfterInsert());
@@ -619,10 +628,11 @@ namespace detail
   IpMapBase<N>::insertBefore(N *spot, N *n)
   {
     N *c = left(spot);
-    if (!c)
+    if (!c) {
       spot->setChild(n, N::LEFT);
-    else
+    } else {
       spot->_prev->setChild(n, N::RIGHT);
+    }
 
     _list.insertBefore(spot, n);
     _root = static_cast<N *>(n->rebalanceAfterInsert());
@@ -632,10 +642,11 @@ namespace detail
   void
   IpMapBase<N>::prepend(N *n)
   {
-    if (!_root)
+    if (!_root) {
       _root = n;
-    else
+    } else {
       _root = static_cast<N *>(_list.getHead()->setChild(n, N::LEFT)->rebalanceAfterInsert());
+    }
     _list.prepend(n);
   }
 
@@ -643,10 +654,11 @@ namespace detail
   void
   IpMapBase<N>::append(N *n)
   {
-    if (!_root)
+    if (!_root) {
       _root = n;
-    else
+    } else {
       _root = static_cast<N *>(_list.getTail()->setChild(n, N::RIGHT)->rebalanceAfterInsert());
+    }
     _list.append(n);
   }
 
@@ -666,14 +678,15 @@ namespace detail
     bool zret = false;
     N *n      = _root; // current node to test.
     while (n) {
-      if (x < n->_min)
+      if (x < n->_min) {
         n = left(n);
-      else if (n->_max < x)
+      } else if (n->_max < x) {
         n = right(n);
-      else {
-        if (ptr)
+      } else {
+        if (ptr) {
           *ptr = n->_data;
-        zret   = true;
+        }
+        zret = true;
         break;
       }
     }
@@ -735,14 +748,14 @@ namespace detail
     friend struct IpMapBase<Ip4Node>;
 
   public:
-    using self = ts::detail::Ip4Node; ///< Self reference type.
+    using self_type = ts::detail::Ip4Node; ///< Self reference type.
 
     /// Construct with values.
     Ip4Node(ArgType min, ///< Minimum address (host order).
             ArgType max, ///< Maximum address (host order).
             void *data   ///< Client data.
             )
-      : Node(data), Ip4Span(min, max)
+      : Node(data), Ip4Span(min, max), _sa()
     {
       ats_ip4_set(ats_ip_sa_cast(&_sa._min), htonl(min));
       ats_ip4_set(ats_ip_sa_cast(&_sa._max), htonl(max));
@@ -760,7 +773,7 @@ namespace detail
       return ats_ip_sa_cast(&_sa._max);
     }
     /// Set the client data.
-    self &
+    self_type &
     setData(void *data ///< Client data.
             ) override
     {
@@ -771,9 +784,9 @@ namespace detail
   protected:
     /// Set the minimum value of the interval.
     /// @return This interval.
-    self &
+    self_type &
     setMin(ArgType min ///< Minimum value (host order).
-           )
+    )
     {
       _min                     = min;
       _sa._min.sin_addr.s_addr = htonl(min);
@@ -782,9 +795,9 @@ namespace detail
 
     /// Set the maximum value of the interval.
     /// @return This interval.
-    self &
+    self_type &
     setMax(ArgType max ///< Maximum value (host order).
-           )
+    )
     {
       _max                     = max;
       _sa._max.sin_addr.s_addr = htonl(max);
@@ -794,25 +807,25 @@ namespace detail
     /** Set the maximum value to one less than @a max.
         @return This object.
     */
-    self &
+    self_type &
     setMaxMinusOne(ArgType max ///< One more than maximum value.
-                   )
+    )
     {
       return this->setMax(max - 1);
     }
     /** Set the minimum value to one more than @a min.
         @return This object.
     */
-    self &
+    self_type &
     setMinPlusOne(ArgType min ///< One less than minimum value.
-                  )
+    )
     {
       return this->setMin(min + 1);
     }
     /** Decremement the maximum value in place.
         @return This object.
     */
-    self &
+    self_type &
     decrementMax()
     {
       this->setMax(_max - 1);
@@ -821,7 +834,7 @@ namespace detail
     /** Increment the minimum value in place.
         @return This object.
     */
-    self &
+    self_type &
     incrementMin()
     {
       this->setMin(_min + 1);
@@ -831,7 +844,7 @@ namespace detail
     /// Increment a metric.
     static void
     inc(Metric &m ///< Incremented in place.
-        )
+    )
     {
       ++m;
     }
@@ -839,7 +852,7 @@ namespace detail
     /// Decrement a metric.
     static void
     dec(Metric &m ///< Decremented in place.
-        )
+    )
     {
       --m;
     }
@@ -847,7 +860,7 @@ namespace detail
     /// @return Dereferenced @a addr.
     static Metric
     deref(ArgType addr ///< Argument to dereference.
-          )
+    )
     {
       return addr;
     }
@@ -874,13 +887,13 @@ namespace detail
   using Ip6Span = Interval<sockaddr_in6>;
 
   /** Node for IPv6 map.
-  */
+   */
   class Ip6Node : public IpMap::Node, protected Ip6Span
   {
     friend struct IpMapBase<Ip6Node>;
 
   public:
-    using self = ts::detail::Ip6Node; ///< Self reference type.
+    using self_type = ts::detail::Ip6Node; ///< Self reference type.
     /// Override @c ArgType from @c Interval because the convention
     /// is to use a pointer, not a reference.
     using ArgType = const ts::detail::Interval<sockaddr_in6, const sockaddr_in6 &>::Metric *;
@@ -914,7 +927,7 @@ namespace detail
       return ats_ip_sa_cast(&_max);
     }
     /// Set the client data.
-    self &
+    self_type &
     setData(void *data ///< Client data.
             ) override
     {
@@ -925,9 +938,9 @@ namespace detail
   protected:
     /// Set the minimum value of the interval.
     /// @return This interval.
-    self &
+    self_type &
     setMin(ArgType min ///< Minimum value (host order).
-           )
+    )
     {
       ats_ip_copy(ats_ip_sa_cast(&_min), ats_ip_sa_cast(min));
       return *this;
@@ -936,18 +949,18 @@ namespace detail
     /// Set the minimum value of the interval.
     /// @note Convenience overload.
     /// @return This interval.
-    self &
+    self_type &
     setMin(Metric const &min ///< Minimum value (host order).
-           )
+    )
     {
       return this->setMin(&min);
     }
 
     /// Set the maximum value of the interval.
     /// @return This interval.
-    self &
+    self_type &
     setMax(ArgType max ///< Maximum value (host order).
-           )
+    )
     {
       ats_ip_copy(ats_ip_sa_cast(&_max), ats_ip_sa_cast(max));
       return *this;
@@ -955,18 +968,18 @@ namespace detail
     /// Set the maximum value of the interval.
     /// @note Convenience overload.
     /// @return This interval.
-    self &
+    self_type &
     setMax(Metric const &max ///< Maximum value (host order).
-           )
+    )
     {
       return this->setMax(&max);
     }
     /** Set the maximum value to one less than @a max.
         @return This object.
     */
-    self &
+    self_type &
     setMaxMinusOne(Metric const &max ///< One more than maximum value.
-                   )
+    )
     {
       this->setMax(max);
       dec(_max);
@@ -975,9 +988,9 @@ namespace detail
     /** Set the minimum value to one more than @a min.
         @return This object.
     */
-    self &
+    self_type &
     setMinPlusOne(Metric const &min ///< One less than minimum value.
-                  )
+    )
     {
       this->setMin(min);
       inc(_min);
@@ -986,7 +999,7 @@ namespace detail
     /** Decremement the maximum value in place.
         @return This object.
     */
-    self &
+    self_type &
     decrementMax()
     {
       dec(_max);
@@ -995,7 +1008,7 @@ namespace detail
     /** Increment the mininimum value in place.
         @return This object.
     */
-    self &
+    self_type &
     incrementMin()
     {
       inc(_min);
@@ -1005,7 +1018,7 @@ namespace detail
     /// Increment a metric.
     static void
     inc(Metric &m ///< Incremented in place.
-        )
+    )
     {
       uint8_t *addr = m.sin6_addr.s6_addr;
       uint8_t *b    = addr + TS_IP6_SIZE;
@@ -1019,7 +1032,7 @@ namespace detail
     /// Decrement a metric.
     static void
     dec(Metric &m ///< Decremented in place.
-        )
+    )
     {
       uint8_t *addr = m.sin6_addr.s6_addr;
       uint8_t *b    = addr + TS_IP6_SIZE;
@@ -1032,7 +1045,7 @@ namespace detail
     /// @return Dereferenced @a addr.
     static Metric const &
     deref(ArgType addr ///< Argument to dereference.
-          )
+    )
     {
       return *addr;
     }
@@ -1052,8 +1065,8 @@ namespace detail
   {
     friend class ::IpMap;
   };
-}
-} // end ts::detail
+} // namespace detail
+} // namespace ts
 //----------------------------------------------------------------------------
 IpMap::~IpMap()
 {
@@ -1064,16 +1077,18 @@ IpMap::~IpMap()
 inline ts::detail::Ip4Map *
 IpMap::force4()
 {
-  if (!_m4)
+  if (!_m4) {
     _m4 = new ts::detail::Ip4Map;
+  }
   return _m4;
 }
 
 inline ts::detail::Ip6Map *
 IpMap::force6()
 {
-  if (!_m6)
+  if (!_m6) {
     _m6 = new ts::detail::Ip6Map;
+  }
   return _m6;
 }
 
@@ -1119,11 +1134,13 @@ IpMap::unmark(sockaddr const *min, sockaddr const *max)
 {
   ink_assert(min->sa_family == max->sa_family);
   if (AF_INET == min->sa_family) {
-    if (_m4)
+    if (_m4) {
       _m4->unmark(ntohl(ats_ip4_addr_cast(min)), ntohl(ats_ip4_addr_cast(max)));
+    }
   } else if (AF_INET6 == min->sa_family) {
-    if (_m6)
+    if (_m6) {
       _m6->unmark(ats_ip6_cast(min), ats_ip6_cast(max));
+    }
   }
   return *this;
 }
@@ -1131,8 +1148,9 @@ IpMap::unmark(sockaddr const *min, sockaddr const *max)
 IpMap &
 IpMap::unmark(in_addr_t min, in_addr_t max)
 {
-  if (_m4)
+  if (_m4) {
     _m4->unmark(ntohl(min), ntohl(max));
+  }
   return *this;
 }
 
@@ -1159,20 +1177,24 @@ size_t
 IpMap::getCount() const
 {
   size_t zret = 0;
-  if (_m4)
+  if (_m4) {
     zret += _m4->getCount();
-  if (_m6)
+  }
+  if (_m6) {
     zret += _m6->getCount();
+  }
   return zret;
 }
 
 IpMap &
 IpMap::clear()
 {
-  if (_m4)
+  if (_m4) {
     _m4->clear();
-  if (_m6)
+  }
+  if (_m6) {
     _m6->clear();
+  }
   return *this;
 }
 
@@ -1180,41 +1202,49 @@ IpMap::iterator
 IpMap::begin() const
 {
   Node *x = nullptr;
-  if (_m4)
+  if (_m4) {
     x = _m4->getHead();
-  if (!x && _m6)
+  }
+  if (!x && _m6) {
     x = _m6->getHead();
+  }
   return iterator(this, x);
 }
 
-IpMap::iterator &IpMap::iterator::operator++()
+IpMap::iterator &
+IpMap::iterator::operator++()
 {
   if (_node) {
     // If we go past the end of the list see if it was the v4 list
     // and if so, move to the v6 list (if it's there).
     Node *x = static_cast<Node *>(_node->_next);
-    if (!x && _tree->_m4 && _tree->_m6 && _node == _tree->_m4->getTail())
-      x   = _tree->_m6->getHead();
+    if (!x && _tree->_m4 && _tree->_m6 && _node == _tree->_m4->getTail()) {
+      x = _tree->_m6->getHead();
+    }
     _node = x;
   }
   return *this;
 }
 
-inline IpMap::iterator &IpMap::iterator::operator--()
+inline IpMap::iterator &
+IpMap::iterator::operator--()
 {
   if (_node) {
     // At a node, try to back up. Handle the case where we back over the
     // start of the v6 addresses and switch to the v4, if there are any.
     Node *x = static_cast<Node *>(_node->_prev);
-    if (!x && _tree->_m4 && _tree->_m6 && _node == _tree->_m6->getHead())
-      x   = _tree->_m4->getTail();
+    if (!x && _tree->_m4 && _tree->_m6 && _node == _tree->_m6->getHead()) {
+      x = _tree->_m4->getTail();
+    }
     _node = x;
   } else if (_tree) {
     // We were at the end. Back up to v6 if possible, v4 if not.
-    if (_tree->_m6)
+    if (_tree->_m6) {
       _node = _tree->_m6->getTail();
-    if (!_node && _tree->_m4)
+    }
+    if (!_node && _tree->_m4) {
       _node = _tree->_m4->getTail();
+    }
   }
   return *this;
 }

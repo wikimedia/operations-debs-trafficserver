@@ -45,7 +45,6 @@
 #include "P_Net.h"
 #include "P_Cache.h"
 #include "P_SplitDNS.h"
-#include "congest/Congestion.h"
 
 /****************************************************************
  *   Place all template instantiations at the bottom of the file
@@ -87,54 +86,52 @@ HttpRequestData::get_client_ip()
  *   Begin class HostMatcher
  *************************************************************/
 
-template <class Data, class Result>
-HostMatcher<Data, Result>::HostMatcher(const char *name, const char *filename)
-  : data_array(nullptr), array_len(-1), num_el(-1), matcher_name(name), file_name(filename)
+template <class Data, class MatchResult>
+HostMatcher<Data, MatchResult>::HostMatcher(const char *name, const char *filename) : BaseMatcher<Data>(name, filename)
 {
   host_lookup = new HostLookup(name);
 }
 
-template <class Data, class Result> HostMatcher<Data, Result>::~HostMatcher()
+template <class Data, class MatchResult> HostMatcher<Data, MatchResult>::~HostMatcher()
 {
   delete host_lookup;
-  delete[] data_array;
 }
 
 //
-// template <class Data,class Result>
-// void HostMatcher<Data,Result>::Print()
+// template <class Data,class MatchResult>
+// void HostMatcher<Data,MatchResult>::Print()
 //
 //  Debugging Method
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-HostMatcher<Data, Result>::Print()
+HostMatcher<Data, MatchResult>::Print()
 {
   printf("\tHost/Domain Matcher with %d elements\n", num_el);
   host_lookup->Print(PrintFunc);
 }
 
 //
-// template <class Data,class Result>
-// void HostMatcher<Data,Result>::PrintFunc(void* opaque_data)
+// template <class Data,class MatchResult>
+// void HostMatcher<Data,MatchResult>::PrintFunc(void* opaque_data)
 //
 //  Debugging Method
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-HostMatcher<Data, Result>::PrintFunc(void *opaque_data)
+HostMatcher<Data, MatchResult>::PrintFunc(void *opaque_data)
 {
   Data *d = (Data *)opaque_data;
   d->Print();
 }
 
-// void HostMatcher<Data,Result>::AllocateSpace(int num_entries)
+// void HostMatcher<Data,MatchResult>::AllocateSpace(int num_entries)
 //
 //  Allocates the the HostLeaf and Data arrays
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-HostMatcher<Data, Result>::AllocateSpace(int num_entries)
+HostMatcher<Data, MatchResult>::AllocateSpace(int num_entries)
 {
   // Should not have been allocated before
   ink_assert(array_len == -1);
@@ -142,19 +139,18 @@ HostMatcher<Data, Result>::AllocateSpace(int num_entries)
   host_lookup->AllocateSpace(num_entries);
 
   data_array = new Data[num_entries];
-
-  array_len = num_entries;
-  num_el    = 0;
+  array_len  = num_entries;
+  num_el     = 0;
 }
 
-// void HostMatcher<Data,Result>::Match(RequestData* rdata, Result* result)
+// void HostMatcher<Data,MatchResult>::Match(RequestData* rdata, MatchResult* result)
 //
 //  Searches our tree and updates argresult for each element matching
 //    arg hostname
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-HostMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
+HostMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   void *opaque_ptr;
   Data *data_ptr;
@@ -180,7 +176,7 @@ HostMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 }
 
 //
-// config_parse_error HostMatcher<Data,Result>::NewEntry(bool domain_record,
+// Result HostMatcher<Data,MatchResult>::NewEntry(bool domain_record,
 //          char* match_data, char* match_info, int line_num)
 //
 //   Creates a new host/domain record
@@ -189,12 +185,12 @@ HostMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 //   If not, returns a pointer to malloc allocated error string
 //     that the caller MUST DEALLOCATE
 //
-template <class Data, class Result>
-config_parse_error
-HostMatcher<Data, Result>::NewEntry(matcher_line *line_info)
+template <class Data, class MatchResult>
+Result
+HostMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 {
   Data *cur_d;
-  config_parse_error error = config_parse_error::ok();
+  Result error = Result::ok();
   char *match_data;
 
   // Make sure space has been allocated
@@ -217,7 +213,7 @@ HostMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   // Fill in the parameter info
   cur_d = data_array + num_el;
   error = cur_d->Init(line_info);
-  if (error) {
+  if (error.failed()) {
     // There was a problem so undo the effects this function
     new (cur_d) Data(); // reconstruct
   } else {
@@ -234,26 +230,18 @@ HostMatcher<Data, Result>::NewEntry(matcher_line *line_info)
  *************************************************************/
 
 //
-// UrlMatcher<Data,Result>::UrlMatcher()
+// UrlMatcher<Data,MatchResult>::UrlMatcher()
 //
-template <class Data, class Result>
-UrlMatcher<Data, Result>::UrlMatcher(const char *name, const char *filename)
-  : url_ht(nullptr),
-    url_str(nullptr),
-    url_value(nullptr),
-    data_array(nullptr),
-    array_len(0),
-    num_el(-1),
-    matcher_name(name),
-    file_name(filename)
+template <class Data, class MatchResult>
+UrlMatcher<Data, MatchResult>::UrlMatcher(const char *name, const char *filename) : BaseMatcher<Data>(name, filename)
 {
   url_ht = ink_hash_table_create(InkHashTableKeyType_String);
 }
 
 //
-// UrlMatcher<Data,Result>::~UrlMatcher()
+// UrlMatcher<Data,MatchResult>::~UrlMatcher()
 //
-template <class Data, class Result> UrlMatcher<Data, Result>::~UrlMatcher()
+template <class Data, class MatchResult> UrlMatcher<Data, MatchResult>::~UrlMatcher()
 {
   ink_hash_table_destroy(url_ht);
   for (int i = 0; i < num_el; i++) {
@@ -261,17 +249,16 @@ template <class Data, class Result> UrlMatcher<Data, Result>::~UrlMatcher()
   }
   delete[] url_str;
   delete[] url_value;
-  delete[] data_array;
 }
 
 //
-// void UrlMatcher<Data,Result>::Print()
+// void UrlMatcher<Data,MatchResult>::Print()
 //
 //   Debugging function
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-UrlMatcher<Data, Result>::Print()
+UrlMatcher<Data, MatchResult>::Print()
 {
   printf("\tUrl Matcher with %d elements\n", num_el);
   for (int i = 0; i < num_el; i++) {
@@ -281,11 +268,11 @@ UrlMatcher<Data, Result>::Print()
 }
 
 //
-// void UrlMatcher<Data,Result>::AllocateSpace(int num_entries)
+// void UrlMatcher<Data,MatchResult>::AllocateSpace(int num_entries)
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-UrlMatcher<Data, Result>::AllocateSpace(int num_entries)
+UrlMatcher<Data, MatchResult>::AllocateSpace(int num_entries)
 {
   // Should not have been allocated before
   ink_assert(array_len == -1);
@@ -299,16 +286,16 @@ UrlMatcher<Data, Result>::AllocateSpace(int num_entries)
 }
 
 //
-// config_parse_error UrlMatcher<Data,Result>::NewEntry(matcher_line* line_info)
+// Result UrlMatcher<Data,MatchResult>::NewEntry(matcher_line* line_info)
 //
-template <class Data, class Result>
-config_parse_error
-UrlMatcher<Data, Result>::NewEntry(matcher_line *line_info)
+template <class Data, class MatchResult>
+Result
+UrlMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 {
   Data *cur_d;
   char *pattern;
   int *value;
-  config_parse_error error = config_parse_error::ok();
+  Result error = Result::ok();
 
   // Make sure space has been allocated
   ink_assert(num_el >= 0);
@@ -323,7 +310,7 @@ UrlMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   ink_assert(pattern != nullptr);
 
   if (ink_hash_table_lookup(url_ht, pattern, (void **)&value)) {
-    return config_parse_error("%s url expression error (have exist) at line %d position", matcher_name, line_info->line_num);
+    return Result::failure("%s url expression error (have exist) at line %d position", matcher_name, line_info->line_num);
   }
 
   // Remove our consumed label from the parsed line
@@ -333,7 +320,7 @@ UrlMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   // Fill in the parameter info
   cur_d = data_array + num_el;
   error = cur_d->Init(line_info);
-  if (error) {
+  if (error.failed()) {
     url_str[num_el]   = ats_strdup(pattern);
     url_value[num_el] = num_el;
     ink_hash_table_insert(url_ht, url_str[num_el], (void *)&url_value[num_el]);
@@ -344,14 +331,14 @@ UrlMatcher<Data, Result>::NewEntry(matcher_line *line_info)
 }
 
 //
-// void UrlMatcher<Data,Result>::Match(RD* rdata, Result* result)
+// void UrlMatcher<Data,MatchResult>::Match(RD* rdata, MatchResult* result)
 //
 //   Coduncts a linear search through the regex array and
 //     updates arg result for each regex that matches arg URL
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-UrlMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
+UrlMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   char *url_str;
   int *value;
@@ -379,18 +366,17 @@ UrlMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 }
 
 //
-// RegexMatcher<Data,Result>::RegexMatcher()
+// RegexMatcher<Data,MatchResult>::RegexMatcher()
 //
-template <class Data, class Result>
-RegexMatcher<Data, Result>::RegexMatcher(const char *name, const char *filename)
-  : re_array(nullptr), re_str(nullptr), data_array(nullptr), array_len(-1), num_el(-1), matcher_name(name), file_name(filename)
+template <class Data, class MatchResult>
+RegexMatcher<Data, MatchResult>::RegexMatcher(const char *name, const char *filename) : BaseMatcher<Data>(name, filename)
 {
 }
 
 //
-// RegexMatcher<Data,Result>::~RegexMatcher()
+// RegexMatcher<Data,MatchResult>::~RegexMatcher()
 //
-template <class Data, class Result> RegexMatcher<Data, Result>::~RegexMatcher()
+template <class Data, class MatchResult> RegexMatcher<Data, MatchResult>::~RegexMatcher()
 {
   for (int i = 0; i < num_el; i++) {
     pcre_free(re_array[i]);
@@ -398,17 +384,16 @@ template <class Data, class Result> RegexMatcher<Data, Result>::~RegexMatcher()
   }
   delete[] re_str;
   ats_free(re_array);
-  delete[] data_array;
 }
 
 //
-// void RegexMatcher<Data,Result>::Print()
+// void RegexMatcher<Data,MatchResult>::Print()
 //
 //   Debugging function
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-RegexMatcher<Data, Result>::Print()
+RegexMatcher<Data, MatchResult>::Print()
 {
   printf("\tRegex Matcher with %d elements\n", num_el);
   for (int i = 0; i < num_el; i++) {
@@ -418,11 +403,11 @@ RegexMatcher<Data, Result>::Print()
 }
 
 //
-// void RegexMatcher<Data,Result>::AllocateSpace(int num_entries)
+// void RegexMatcher<Data,MatchResult>::AllocateSpace(int num_entries)
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-RegexMatcher<Data, Result>::AllocateSpace(int num_entries)
+RegexMatcher<Data, MatchResult>::AllocateSpace(int num_entries)
 {
   // Should not have been allocated before
   ink_assert(array_len == -1);
@@ -440,17 +425,17 @@ RegexMatcher<Data, Result>::AllocateSpace(int num_entries)
 }
 
 //
-// config_parse_error RegexMatcher<Data,Result>::NewEntry(matcher_line* line_info)
+// Result RegexMatcher<Data,MatchResult>::NewEntry(matcher_line* line_info)
 //
-template <class Data, class Result>
-config_parse_error
-RegexMatcher<Data, Result>::NewEntry(matcher_line *line_info)
+template <class Data, class MatchResult>
+Result
+RegexMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 {
   Data *cur_d;
   char *pattern;
   const char *errptr;
   int erroffset;
-  config_parse_error error = config_parse_error::ok();
+  Result error = Result::ok();
 
   // Make sure space has been allocated
   ink_assert(num_el >= 0);
@@ -467,8 +452,8 @@ RegexMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   // Create the compiled regular expression
   re_array[num_el] = pcre_compile(pattern, 0, &errptr, &erroffset, nullptr);
   if (!re_array[num_el]) {
-    return config_parse_error("%s regular expression error at line %d position %d : %s", matcher_name, line_info->line_num,
-                              erroffset, errptr);
+    return Result::failure("%s regular expression error at line %d position %d : %s", matcher_name, line_info->line_num, erroffset,
+                           errptr);
   }
   re_str[num_el] = ats_strdup(pattern);
 
@@ -480,7 +465,7 @@ RegexMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   cur_d = data_array + num_el;
   error = cur_d->Init(line_info);
 
-  if (error) {
+  if (error.failed()) {
     // There was a problem so undo the effects this function
     ats_free(re_str[num_el]);
     re_str[num_el] = nullptr;
@@ -494,14 +479,14 @@ RegexMatcher<Data, Result>::NewEntry(matcher_line *line_info)
 }
 
 //
-// void RegexMatcher<Data,Result>::Match(RequestData* rdata, Result* result)
+// void RegexMatcher<Data,MatchResult>::Match(RequestData* rdata, MatchResult* result)
 //
 //   Coduncts a linear search through the regex array and
 //     updates arg result for each regex that matches arg URL
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-RegexMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
+RegexMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   char *url_str;
   int r;
@@ -538,23 +523,23 @@ RegexMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 }
 
 //
-// HostRegexMatcher<Data,Result>::HostRegexMatcher()
+// HostRegexMatcher<Data,MatchResult>::HostRegexMatcher()
 //
-template <class Data, class Result>
-HostRegexMatcher<Data, Result>::HostRegexMatcher(const char *name, const char *filename)
-  : RegexMatcher<Data, Result>(name, filename)
+template <class Data, class MatchResult>
+HostRegexMatcher<Data, MatchResult>::HostRegexMatcher(const char *name, const char *filename)
+  : RegexMatcher<Data, MatchResult>(name, filename)
 {
 }
 
 //
-// void HostRegexMatcher<Data,Result>::Match(RequestData* rdata, Result* result)
+// void HostRegexMatcher<Data,MatchResult>::Match(RequestData* rdata, MatchResult* result)
 //
 //   Conducts a linear search through the regex array and
 //     updates arg result for each regex that matches arg host_regex
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-HostRegexMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
+HostRegexMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   const char *url_str;
   int r;
@@ -586,28 +571,19 @@ HostRegexMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 }
 
 //
-// IpMatcher<Data,Result>::IpMatcher()
+// IpMatcher<Data,MatchResult>::IpMatcher()
 //
-template <class Data, class Result>
-IpMatcher<Data, Result>::IpMatcher(const char *name, const char *filename)
-  : data_array(nullptr), array_len(-1), num_el(-1), matcher_name(name), file_name(filename)
+template <class Data, class MatchResult>
+IpMatcher<Data, MatchResult>::IpMatcher(const char *name, const char *filename) : BaseMatcher<Data>(name, filename)
 {
 }
 
 //
-// IpMatcher<Data,Result>::~IpMatcher()
+// void IpMatcher<Data,MatchResult>::AllocateSpace(int num_entries)
 //
-template <class Data, class Result> IpMatcher<Data, Result>::~IpMatcher()
-{
-  delete[] data_array;
-}
-
-//
-// void IpMatcher<Data,Result>::AllocateSpace(int num_entries)
-//
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-IpMatcher<Data, Result>::AllocateSpace(int num_entries)
+IpMatcher<Data, MatchResult>::AllocateSpace(int num_entries)
 {
   // Should not have been allocated before
   ink_assert(array_len == -1);
@@ -619,7 +595,7 @@ IpMatcher<Data, Result>::AllocateSpace(int num_entries)
 }
 
 //
-// config_parse_error IpMatcher<Data,Result>::NewEntry(matcher_line* line_info)
+// Result IpMatcher<Data,MatchResult>::NewEntry(matcher_line* line_info)
 //
 //    Inserts a range the ip lookup table.
 //        Creates new table levels as needed
@@ -628,15 +604,15 @@ IpMatcher<Data, Result>::AllocateSpace(int num_entries)
 //     allocated error string which the CALLEE is responsible
 //     for deallocating
 //
-template <class Data, class Result>
-config_parse_error
-IpMatcher<Data, Result>::NewEntry(matcher_line *line_info)
+template <class Data, class MatchResult>
+Result
+IpMatcher<Data, MatchResult>::NewEntry(matcher_line *line_info)
 {
   Data *cur_d;
   const char *errptr;
   char *match_data;
   IpEndpoint addr1, addr2;
-  config_parse_error error = config_parse_error::ok();
+  Result error = Result::ok();
 
   // Make sure space has been allocated
   ink_assert(num_el >= 0);
@@ -654,7 +630,7 @@ IpMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   // Extract the IP range
   errptr = ExtractIpRange(match_data, &addr1.sa, &addr2.sa);
   if (errptr != nullptr) {
-    return config_parse_error("%s %s at %s line %d", matcher_name, errptr, file_name, line_info->line_num);
+    return Result::failure("%s %s at %s line %d", matcher_name, errptr, file_name, line_info->line_num);
   }
 
   // Remove our consumed label from the parsed line
@@ -664,7 +640,7 @@ IpMatcher<Data, Result>::NewEntry(matcher_line *line_info)
   // Fill in the parameter info
   cur_d = data_array + num_el;
   error = cur_d->Init(line_info);
-  if (!error) {
+  if (!error.failed()) {
     ip_map.mark(&addr1.sa, &addr2.sa, cur_d);
     ++num_el;
   }
@@ -673,11 +649,11 @@ IpMatcher<Data, Result>::NewEntry(matcher_line *line_info)
 }
 
 //
-// void IpMatcherData,Result>::Match(in_addr_t addr, RequestData* rdata, Result* result)
+// void IpMatcherData,MatchResult>::Match(in_addr_t addr, RequestData* rdata, MatchResult* result)
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-IpMatcher<Data, Result>::Match(sockaddr const *addr, RequestData *rdata, Result *result)
+IpMatcher<Data, MatchResult>::Match(sockaddr const *addr, RequestData *rdata, MatchResult *result)
 {
   void *raw;
   if (ip_map.contains(addr, &raw)) {
@@ -687,9 +663,9 @@ IpMatcher<Data, Result>::Match(sockaddr const *addr, RequestData *rdata, Result 
   }
 }
 
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-IpMatcher<Data, Result>::Print()
+IpMatcher<Data, MatchResult>::Print()
 {
   printf("\tIp Matcher with %d elements, %zu ranges.\n", num_el, ip_map.getCount());
   for (IpMap::iterator spot(ip_map.begin()), limit(ip_map.end()); spot != limit; ++spot) {
@@ -699,8 +675,8 @@ IpMatcher<Data, Result>::Print()
   }
 }
 
-template <class Data, class Result>
-ControlMatcher<Data, Result>::ControlMatcher(const char *file_var, const char *name, const matcher_tags *tags, int flags_in)
+template <class Data, class MatchResult>
+ControlMatcher<Data, MatchResult>::ControlMatcher(const char *file_var, const char *name, const matcher_tags *tags, int flags_in)
 {
   flags = flags_in;
   ink_assert(flags & (ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_URL_TABLE | ALLOW_IP_TABLE));
@@ -731,7 +707,7 @@ ControlMatcher<Data, Result>::ControlMatcher(const char *file_var, const char *n
   }
 }
 
-template <class Data, class Result> ControlMatcher<Data, Result>::~ControlMatcher()
+template <class Data, class MatchResult> ControlMatcher<Data, MatchResult>::~ControlMatcher()
 {
   delete reMatch;
   delete urlMatch;
@@ -740,13 +716,13 @@ template <class Data, class Result> ControlMatcher<Data, Result>::~ControlMatche
   delete hrMatch;
 }
 
-// void ControlMatcher<Data, Result>::Print()
+// void ControlMatcher<Data, MatchResult>::Print()
 //
 //   Debugging method
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-ControlMatcher<Data, Result>::Print()
+ControlMatcher<Data, MatchResult>::Print()
 {
   printf("Control Matcher Table: %s\n", matcher_name);
   if (hostMatch != nullptr) {
@@ -766,14 +742,14 @@ ControlMatcher<Data, Result>::Print()
   }
 }
 
-// void ControlMatcher<Data, Result>::Match(RequestData* rdata
-//                                          Result* result)
+// void ControlMatcher<Data, MatchResult>::Match(RequestData* rdata
+//                                          MatchResult* result)
 //
-//   Queries each table for the Result*
+//   Queries each table for the MatchResult*
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 void
-ControlMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
+ControlMatcher<Data, MatchResult>::Match(RequestData *rdata, MatchResult *result)
 {
   if (hostMatch != nullptr) {
     hostMatch->Match(rdata, result);
@@ -797,9 +773,9 @@ ControlMatcher<Data, Result>::Match(RequestData *rdata, Result *result)
 //    Reads the cache.config file and build the records array
 //      from it
 //
-template <class Data, class Result>
+template <class Data, class MatchResult>
 int
-ControlMatcher<Data, Result>::BuildTableFromString(char *file_buf)
+ControlMatcher<Data, MatchResult>::BuildTableFromString(char *file_buf)
 {
   // Table build locals
   Tokenizer bufTok("\n");
@@ -842,8 +818,9 @@ ControlMatcher<Data, Result>::BuildTableFromString(char *file_buf)
 
       if (errptr != nullptr) {
         if (config_tags != &socks_server_tags) {
-          config_parse_error error("%s discarding %s entry at line %d : %s", matcher_name, config_file_path, line_num, errptr);
-          SignalError(error.get(), alarmAlready);
+          Result error =
+            Result::failure("%s discarding %s entry at line %d : %s", matcher_name, config_file_path, line_num, errptr);
+          SignalError(error.message(), alarmAlready);
         }
         ats_free(current);
       } else {
@@ -893,33 +870,33 @@ ControlMatcher<Data, Result>::BuildTableFromString(char *file_buf)
   }
   // Now allocate space for the record pointers
   if ((flags & ALLOW_REGEX_TABLE) && regex > 0) {
-    reMatch = new RegexMatcher<Data, Result>(matcher_name, config_file_path);
+    reMatch = new RegexMatcher<Data, MatchResult>(matcher_name, config_file_path);
     reMatch->AllocateSpace(regex);
   }
 
   if ((flags & ALLOW_URL_TABLE) && url > 0) {
-    urlMatch = new UrlMatcher<Data, Result>(matcher_name, config_file_path);
+    urlMatch = new UrlMatcher<Data, MatchResult>(matcher_name, config_file_path);
     urlMatch->AllocateSpace(url);
   }
 
   if ((flags & ALLOW_HOST_TABLE) && hostDomain > 0) {
-    hostMatch = new HostMatcher<Data, Result>(matcher_name, config_file_path);
+    hostMatch = new HostMatcher<Data, MatchResult>(matcher_name, config_file_path);
     hostMatch->AllocateSpace(hostDomain);
   }
 
   if ((flags & ALLOW_IP_TABLE) && ip > 0) {
-    ipMatch = new IpMatcher<Data, Result>(matcher_name, config_file_path);
+    ipMatch = new IpMatcher<Data, MatchResult>(matcher_name, config_file_path);
     ipMatch->AllocateSpace(ip);
   }
 
   if ((flags & ALLOW_HOST_REGEX_TABLE) && hostregex > 0) {
-    hrMatch = new HostRegexMatcher<Data, Result>(matcher_name, config_file_path);
+    hrMatch = new HostRegexMatcher<Data, MatchResult>(matcher_name, config_file_path);
     hrMatch->AllocateSpace(hostregex);
   }
   // Traverse the list and build the records table
   current = first;
   while (current != nullptr) {
-    config_parse_error error = config_parse_error::ok();
+    Result error = Result::ok();
 
     second_pass++;
     if ((flags & ALLOW_HOST_TABLE) && current->type == MATCH_DOMAIN) {
@@ -935,14 +912,14 @@ ControlMatcher<Data, Result>::BuildTableFromString(char *file_buf)
     } else if ((flags & ALLOW_HOST_REGEX_TABLE) && current->type == MATCH_HOST_REGEX) {
       error = hrMatch->NewEntry(current);
     } else {
-      error = config_parse_error("%s discarding %s entry with unknown type at line %d", matcher_name, config_file_path,
-                                 current->line_num);
+      error =
+        Result::failure("%s discarding %s entry with unknown type at line %d", matcher_name, config_file_path, current->line_num);
     }
 
     // Check to see if there was an error in creating
     //   the NewEntry
-    if (error) {
-      SignalError(error.get(), alarmAlready);
+    if (error.failed()) {
+      SignalError(error.message(), alarmAlready);
     }
 
     // Deallocate the parsing structure
@@ -959,9 +936,9 @@ ControlMatcher<Data, Result>::BuildTableFromString(char *file_buf)
   return numEntries;
 }
 
-template <class Data, class Result>
+template <class Data, class MatchResult>
 int
-ControlMatcher<Data, Result>::BuildTable()
+ControlMatcher<Data, MatchResult>::BuildTable()
 {
   // File I/O Locals
   char *file_buf;
@@ -1026,10 +1003,3 @@ template class HostMatcher<CacheControlRecord, CacheControlResult>;
 template class RegexMatcher<CacheControlRecord, CacheControlResult>;
 template class UrlMatcher<CacheControlRecord, CacheControlResult>;
 template class IpMatcher<CacheControlRecord, CacheControlResult>;
-
-template class ControlMatcher<CongestionControlRecord, CongestionControlRule>;
-template class HostMatcher<CongestionControlRecord, CongestionControlRule>;
-template class HostRegexMatcher<CongestionControlRecord, CongestionControlRule>;
-template class RegexMatcher<CongestionControlRecord, CongestionControlRule>;
-template class UrlMatcher<CongestionControlRecord, CongestionControlRule>;
-template class IpMatcher<CongestionControlRecord, CongestionControlRule>;

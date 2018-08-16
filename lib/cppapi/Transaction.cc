@@ -144,10 +144,11 @@ Transaction::configStringGet(TSOverridableConfigKey conf, std::string &value)
   const char *svalue;
   int length;
   bool zret = TS_SUCCESS == TSHttpTxnConfigStringGet(state_->txn_, conf, &svalue, &length);
-  if (zret)
+  if (zret) {
     value.assign(svalue, length);
-  else
+  } else {
     value.clear();
+  }
   return zret;
 }
 
@@ -199,7 +200,7 @@ void
 Transaction::setStatusCode(HttpStatus code)
 {
   LOG_DEBUG("Transaction tshttptxn=%p setting status code: %d", state_->txn_, code);
-  TSHttpTxnSetHttpRetStatus(state_->txn_, static_cast<TSHttpStatus>(code));
+  TSHttpTxnStatusSet(state_->txn_, static_cast<TSHttpStatus>(code));
 }
 
 bool
@@ -262,8 +263,9 @@ Transaction::getEffectiveUrl()
     ret_val.assign(buf, length);
   }
 
-  if (buf)
+  if (buf) {
     TSfree(buf);
+  }
 
   return ret_val;
 }

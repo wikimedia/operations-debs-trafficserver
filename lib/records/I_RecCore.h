@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _I_REC_CORE_H_
-#define _I_REC_CORE_H_
+#pragma once
 
 #include "ts/Diags.h"
 
@@ -53,9 +52,6 @@ std::string RecConfigReadConfigDir();
 
 // Return a copy of the system's local state directory, taking proxy.config.local_state_dir into account. The
 std::string RecConfigReadRuntimeDir();
-
-// Return a copy of the system's snapshot directory, taking proxy.config.snapshot_dir into account. The caller
-std::string RecConfigReadSnapshotDir();
 
 // Return a copy of the system's log directory, taking proxy.config.log.logfile_dir into account. The caller
 std::string RecConfigReadLogDir();
@@ -315,5 +311,3 @@ RecErrT RecSetSyncRequired(char *name, bool lock = true);
 //------------------------------------------------------------------------
 typedef void *(*RecManagerCb)(void *opaque_cb_data, char *data_raw, int data_len);
 int RecRegisterManagerCb(int _signal, RecManagerCb _fn, void *_data = nullptr);
-
-#endif

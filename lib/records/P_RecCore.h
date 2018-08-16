@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _P_REC_CORE_H_
-#define _P_REC_CORE_H_
+#pragma once
 
 #include "ts/ink_thread.h"
 #include "ts/ink_hash_table.h"
@@ -80,8 +79,8 @@ RecErrT RecGetRecord_Xmalloc(const char *name, RecDataT data_type, RecData *data
 RecErrT RecReadStatsFile();
 RecErrT RecSyncStatsFile();
 RecErrT RecReadConfigFile(bool inc_version);
-RecErrT RecWriteConfigFile(textBuffer *tb);
-RecErrT RecSyncConfigToTB(textBuffer *tb, bool *inc_version = nullptr);
+RecErrT RecWriteConfigFile(TextBuffer *tb);
+RecErrT RecSyncConfigToTB(TextBuffer *tb, bool *inc_version = nullptr);
 
 //-------------------------------------------------------------------------
 // Misc
@@ -97,5 +96,3 @@ RecUpdateT RecExecConfigUpdateCbs(unsigned int update_required_type);
 void RecDumpRecordsHt(RecT rec_type = RECT_NULL);
 
 void RecDumpRecords(RecT rec_type, RecDumpEntryCb callback, void *edata);
-
-#endif

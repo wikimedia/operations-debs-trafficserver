@@ -38,7 +38,9 @@ using namespace atscppapi;
 void
 TSPluginInit(int argc, const char *argv[])
 {
-  RegisterGlobalPlugin("CPP_Example_WebSocket", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_WebSocket", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   plugin = new WebSocketInstaller(); // We keep a pointer to this so that clang-analyzer doesn't think it's a leak
 }
 
@@ -90,8 +92,9 @@ WebSocket::consume(const std::string &data, InterceptPlugin::RequestDataType typ
     ws_buf_.buffer(data);
     while (ws_buf_.read_buffered_message(message, code)) {
       ws_receive(message, code);
-      if (code == WS_FRAME_CLOSE)
+      if (code == WS_FRAME_CLOSE) {
         break;
+      }
     }
   } else {
     body_ += data;

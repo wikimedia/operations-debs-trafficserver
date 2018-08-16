@@ -19,8 +19,7 @@
 //
 // Declarations for all conditionals / conditional values we support.
 //
-#ifndef __CONDITIONS_H__
-#define __CONDITIONS_H__ 1
+#pragma once
 
 #include <string>
 #include <cstring>
@@ -44,14 +43,14 @@ class ConditionTrue : public Condition
 public:
   ConditionTrue() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionTrue"); }
   void
-  append_value(std::string &s, const Resources & /* res ATS_UNUSED */)
+  append_value(std::string &s, const Resources & /* res ATS_UNUSED */) override
   {
     s += "TRUE";
   }
 
 protected:
   bool
-  eval(const Resources & /* res ATS_UNUSED */)
+  eval(const Resources & /* res ATS_UNUSED */) override
   {
     TSDebug(PLUGIN_NAME, "Evaluating TRUE()");
     return true;
@@ -67,14 +66,14 @@ class ConditionFalse : public Condition
 public:
   ConditionFalse() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionFalse"); }
   void
-  append_value(std::string &s, const Resources & /* res ATS_UNUSED */)
+  append_value(std::string &s, const Resources & /* res ATS_UNUSED */) override
   {
     s += "FALSE";
   }
 
 protected:
   bool
-  eval(const Resources & /* res ATS_UNUSED */)
+  eval(const Resources & /* res ATS_UNUSED */) override
   {
     TSDebug(PLUGIN_NAME, "Evaluating FALSE()");
     return false;
@@ -91,12 +90,12 @@ class ConditionStatus : public Condition
 
 public:
   ConditionStatus() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionStatus"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
-  void initialize_hooks(); // Return status only valid in certain hooks
+  bool eval(const Resources &res) override;
+  void initialize_hooks() override; // Return status only valid in certain hooks
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionStatus);
@@ -109,11 +108,11 @@ class ConditionMethod : public Condition
 
 public:
   ConditionMethod() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionMethod"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionMethod);
@@ -126,11 +125,11 @@ class ConditionRandom : public Condition
 
 public:
   ConditionRandom() : _seed(0), _max(0) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionRandom"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionRandom);
@@ -144,11 +143,11 @@ class ConditionAccess : public Condition
 {
 public:
   ConditionAccess() : _next(0), _last(false) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionAccess"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionAccess);
@@ -164,11 +163,11 @@ class ConditionCookie : public Condition
 
 public:
   ConditionCookie() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionCookie"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionCookie);
@@ -181,7 +180,7 @@ private:
     const char *start, *last, *end;
 
     // Sanity
-    if (buf == NULL || name == NULL || value == NULL || value_len == NULL) {
+    if (buf == nullptr || name == nullptr || value == nullptr || value_len == nullptr) {
       return TS_ERROR;
     }
 
@@ -236,11 +235,11 @@ public:
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionHeader, client %d", client);
   }
 
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionHeader);
@@ -255,11 +254,11 @@ class ConditionPath : public Condition
 
 public:
   explicit ConditionPath() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionPath"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionPath);
@@ -272,11 +271,11 @@ class ConditionQuery : public Condition
 
 public:
   explicit ConditionQuery() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionQuery"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionQuery);
@@ -295,12 +294,12 @@ public:
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionUrl");
   }
 
-  void initialize(Parser &p);
-  void set_qualifier(const std::string &q);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionUrl);
@@ -323,7 +322,7 @@ public:
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionDBM");
   }
 
-  ~ConditionDBM()
+  ~ConditionDBM() override
   {
     // if (_dbm) {
     //   mdbm_close(_dbm);
@@ -331,11 +330,11 @@ public:
     // }
   }
 
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionDBM);
@@ -351,12 +350,30 @@ class ConditionInternalTxn : public Condition
 
 public:
   void
-  append_value(std::string & /* s ATS_UNUSED */, const Resources & /* res ATS_UNUSED */)
+  append_value(std::string & /* s ATS_UNUSED */, const Resources & /* res ATS_UNUSED */) override
   {
   }
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
+};
+
+class ConditionIp : public Condition
+{
+  typedef Matchers<std::string> MatcherType;
+
+public:
+  explicit ConditionIp() : _ip_qual(IP_QUAL_CLIENT) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionIp"); };
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
+
+protected:
+  bool eval(const Resources &res) override;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(ConditionIp);
+  IpQualifiers _ip_qual;
 };
 
 class ConditionClientIp : public Condition
@@ -364,11 +381,11 @@ class ConditionClientIp : public Condition
   typedef Matchers<std::string> MatcherType;
 
 public:
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 };
 
 class ConditionIncomingPort : public Condition
@@ -377,11 +394,11 @@ class ConditionIncomingPort : public Condition
 
 public:
   ConditionIncomingPort() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionIncomingPort"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionIncomingPort);
@@ -394,11 +411,11 @@ class ConditionTransactCount : public Condition
 
 public:
   ConditionTransactCount() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionTransactCount"); }
-  void initialize(Parser &p);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionTransactCount);
@@ -411,12 +428,12 @@ class ConditionNow : public Condition
 
 public:
   explicit ConditionNow() : _now_qual(NOW_QUAL_EPOCH) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionNow"); }
-  void initialize(Parser &p);
-  void set_qualifier(const std::string &q);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionNow);
@@ -434,9 +451,9 @@ public:
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionGeo");
   }
 
-  void initialize(Parser &p);
-  void set_qualifier(const std::string &q);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
 
   // Make sure we know if the type is an int-type or a string.
   bool
@@ -452,7 +469,7 @@ public:
   }
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionGeo);
@@ -468,16 +485,71 @@ class ConditionId : public Condition
 {
 public:
   explicit ConditionId() : _id_qual(ID_QUAL_UNIQUE) { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionId"); };
-  void initialize(Parser &p);
-  void set_qualifier(const std::string &q);
-  void append_value(std::string &s, const Resources &res);
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
 
 protected:
-  bool eval(const Resources &res);
+  bool eval(const Resources &res) override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ConditionId);
   IdQualifiers _id_qual;
 };
 
-#endif // __CONDITIONS_H
+// cidr: A CIDR masked string representation of the Client's IP.
+class ConditionCidr : public Condition
+{
+  using MatcherType = Matchers<std::string>;
+  using self        = ConditionCidr;
+
+public:
+  explicit ConditionCidr()
+  {
+    _create_masks(); // This must be called here, because we might not have parameters specified
+    TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionCidr");
+  };
+
+  ConditionCidr(self &) = delete;
+  self &operator=(self &) = delete;
+
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
+
+protected:
+  bool eval(const Resources &res) override;
+
+private:
+  void _create_masks();
+  int _v4_cidr = 24;
+  int _v6_cidr = 48;
+  struct in_addr _v4_mask; // We do a 32-bit & using this mask, for efficiency
+  unsigned char _v6_mask;  // Only need one byte here, since we memset the rest (see next)
+  int _v6_zero_bytes;      // How many initial bytes to memset to 0
+};
+
+/// Information about the inbound (client) session.
+class ConditionInbound : public Condition
+{
+  using MatcherType = Matchers<std::string>;
+  using self        = ConditionInbound;
+
+public:
+  explicit ConditionInbound() { TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for ConditionInbound"); };
+  ConditionInbound(self &) = delete;
+  self &operator=(self &) = delete;
+
+  void initialize(Parser &p) override;
+  void set_qualifier(const std::string &q) override;
+  void append_value(std::string &s, const Resources &res) override;
+  static void append_value(std::string &s, const Resources &res, NetworkSessionQualifiers qual);
+
+  static constexpr const char *TAG = "INBOUND";
+
+protected:
+  bool eval(const Resources &res) override;
+
+private:
+  NetworkSessionQualifiers _net_qual = NET_QUAL_STACK;
+};

@@ -21,10 +21,9 @@
   limitations under the License.
  */
 
-#if !defined(_ParseRules_h_)
-#define _ParseRules_h_
+#pragma once
 
-#include <string.h>
+#include <cstring>
 
 #include "ts/ink_defs.h"
 #include "ts/ink_apidefs.h"
@@ -161,9 +160,9 @@ public:
   static const char *memchr(const char *s, char c, int max_length);
   static const char *strchr(const char *s, char c);
 
-private:
-  ParseRules(const ParseRules &);
-  ParseRules &operator=(const ParseRules &);
+  // noncopyable
+  ParseRules(const ParseRules &) = delete;
+  ParseRules &operator=(const ParseRules &) = delete;
 };
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -781,7 +780,7 @@ ParseRules::strstr_eow(const char *s1, const char *s2)
       if (strncasecmp_eow(&s1[i1], &s2[0], s2_len))
         return (&s1[i1]);
 
-  return (0);
+  return (nullptr);
 }
 
 inline const char *
@@ -796,7 +795,7 @@ ParseRules::strcasestr(const char *s1, const char *s2)
       if (strncasecmp_eow(&s1[i1], &s2[0], (int)s2_len))
         return (&s1[i1]);
 
-  return (0);
+  return (nullptr);
 }
 
 inline const char *
@@ -805,7 +804,7 @@ ParseRules::memchr(const char *s, char c, int max_length)
   for (int i = 0; i < max_length; i++)
     if (s[i] == c)
       return (&s[i]);
-  return (0);
+  return (nullptr);
 }
 
 inline const char *
@@ -814,7 +813,7 @@ ParseRules::strchr(const char *s, char c)
   for (int i = 0; s[i] != '\0'; i++)
     if (s[i] == c)
       return (&s[i]);
-  return (0);
+  return (nullptr);
 }
 
 static inline int
@@ -866,5 +865,3 @@ ink_atoui(const char *str)
   else
     return static_cast<int>(val);
 }
-
-#endif /* #if !defined (_ParseRules_h_) */

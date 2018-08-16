@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _P_REC_UTILS_H_
-#define _P_REC_UTILS_H_
+#pragma once
 
 #include "ts/Diags.h"
 #include "ts/ink_atomic.h"
@@ -33,8 +32,7 @@
 // Macros
 //-------------------------------------------------------------------------
 
-#define REC_TYPE_IS_STAT(rec_type) \
-  (((rec_type) == RECT_PROCESS) || ((rec_type) == RECT_PLUGIN) || ((rec_type) == RECT_NODE) || ((rec_type) == RECT_CLUSTER))
+#define REC_TYPE_IS_STAT(rec_type) (((rec_type) == RECT_PROCESS) || ((rec_type) == RECT_PLUGIN) || ((rec_type) == RECT_NODE))
 
 #define REC_TYPE_IS_CONFIG(rec_type) (((rec_type) == RECT_CONFIG) || ((rec_type) == RECT_LOCAL))
 
@@ -78,5 +76,3 @@ void RecDebugOff();
 
 #define RecLog(level, fmt, ...) _RecLog(level, MakeSourceLocation(), fmt, ##__VA_ARGS__)
 #define RecDebug(level, fmt, ...) _RecDebug(level, MakeSourceLocation(), fmt, ##__VA_ARGS__)
-
-#endif

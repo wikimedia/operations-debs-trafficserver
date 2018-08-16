@@ -51,6 +51,7 @@
 #include "ts/ink_align.h"
 #include "ts/hugepages.h"
 #include "ts/Diags.h"
+#include "ts/JeAllocator.h"
 
 #define DEBUG_TAG "freelist"
 
@@ -64,6 +65,8 @@
 #define SANITY
 #define DEADBEEF
 #endif
+
+static auto jna = jearena::globalJemallocNodumpAllocator();
 
 struct ink_freelist_ops {
   void *(*fl_new)(InkFreeList *);
@@ -88,8 +91,10 @@ static const ink_freelist_ops malloc_ops   = {malloc_new, malloc_free, malloc_bu
 static const ink_freelist_ops freelist_ops = {freelist_new, freelist_free, freelist_bulkfree};
 static const ink_freelist_ops *default_ops = &freelist_ops;
 
-static ink_freelist_list *freelists                  = nullptr;
-static const ink_freelist_ops *freelist_freelist_ops = default_ops;
+const ink_freelist_ops *freelist_global_ops = default_ops;
+const ink_freelist_ops *freelist_class_ops  = default_ops;
+
+static ink_freelist_list *freelists = nullptr;
 
 const InkFreeListOps *
 ink_freelist_malloc_ops()
@@ -104,13 +109,15 @@ ink_freelist_freelist_ops()
 }
 
 void
-ink_freelist_init_ops(const InkFreeListOps *ops)
+ink_freelist_init_ops(int nofl_global, int nofl_class)
 {
   // This *MUST* only be called at startup before any freelists allocate anything. We will certainly crash if object
   // allocated from the freelist are freed by malloc.
-  ink_release_assert(freelist_freelist_ops == default_ops);
+  ink_release_assert(freelist_global_ops == default_ops);
+  ink_release_assert(freelist_class_ops == default_ops);
 
-  freelist_freelist_ops = ops;
+  freelist_global_ops = nofl_global ? ink_freelist_malloc_ops() : ink_freelist_freelist_ops();
+  freelist_class_ops  = nofl_class ? ink_freelist_malloc_ops() : ink_freelist_freelist_ops();
 }
 
 void
@@ -135,8 +142,9 @@ ink_freelist_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32
   // It is never useful to have alignment requirement looser than a page size
   // so clip it. This makes the item alignment checks in the actual allocator simpler.
   f->alignment = alignment;
-  if (f->alignment > ats_pagesize())
+  if (f->alignment > ats_pagesize()) {
     f->alignment = ats_pagesize();
+  }
   Debug(DEBUG_TAG "_init", "<%s> Alignment request/actual (%" PRIu32 "/%" PRIu32 ")", name, alignment, f->alignment);
   // Make sure we align *all* the objects in the allocation, not just the first one
   f->type_size = INK_ALIGN(type_size, f->alignment);
@@ -176,11 +184,12 @@ int fake_global_for_ink_queue = 0;
 #endif
 
 void *
-ink_freelist_new(InkFreeList *f)
+ink_freelist_new(InkFreeList *f, const InkFreeListOps *ops)
 {
+  ink_assert(ops != nullptr);
   void *ptr;
 
-  if (likely(ptr = freelist_freelist_ops->fl_new(f))) {
+  if (likely(ptr = ops->fl_new(f))) {
     ink_atomic_increment((int *)&f->used, 1);
   }
 
@@ -225,7 +234,7 @@ freelist_new(InkFreeList *f)
 #ifdef DEADBEEF
         const char str[4] = {(char)0xde, (char)0xad, (char)0xbe, (char)0xef};
         for (int j = 0; j < (int)f->type_size; j++)
-          a[j]     = str[j % 4];
+          a[j] = str[j % 4];
 #endif
         freelist_free(f, a);
       }
@@ -257,10 +266,7 @@ malloc_new(InkFreeList *f)
   void *newp = nullptr;
 
   if (f->alignment) {
-    newp = ats_memalign(f->alignment, f->type_size);
-    if (f->advice && (INK_ALIGN((uint64_t)newp, ats_pagesize()) == (uint64_t)newp)) {
-      ats_madvise((caddr_t)newp, INK_ALIGN(f->type_size, f->alignment), f->advice);
-    }
+    newp = jna.allocate(f);
   } else {
     newp = ats_malloc(f->type_size);
   }
@@ -269,11 +275,13 @@ malloc_new(InkFreeList *f)
 }
 
 void
-ink_freelist_free(InkFreeList *f, void *item)
+ink_freelist_free(InkFreeList *f, void *item, const InkFreeListOps *ops)
 {
+  ink_assert(ops != nullptr);
+
   if (likely(item != nullptr)) {
     ink_assert(f->used != 0);
-    freelist_freelist_ops->fl_free(f, item);
+    ops->fl_free(f, item);
     ink_atomic_decrement((int *)&f->used, 1);
   }
 }
@@ -281,19 +289,19 @@ ink_freelist_free(InkFreeList *f, void *item)
 static void
 freelist_free(InkFreeList *f, void *item)
 {
-  volatile void **adr_of_next = (volatile void **)ADDRESS_OF_NEXT(item, 0);
+  void **adr_of_next = (void **)ADDRESS_OF_NEXT(item, 0);
   head_p h;
   head_p item_pair;
   int result = 0;
 
-// ink_assert(!((long)item&(f->alignment-1))); XXX - why is this no longer working? -bcall
+  // ink_assert(!((long)item&(f->alignment-1))); XXX - why is this no longer working? -bcall
 
 #ifdef DEADBEEF
   {
     static const char str[4] = {(char)0xde, (char)0xad, (char)0xbe, (char)0xef};
 
     // set the entire item to DEADBEEF
-    for (int j          = 0; j < (int)f->type_size; j++)
+    for (int j = 0; j < (int)f->type_size; j++)
       ((char *)item)[j] = str[j % 4];
   }
 #endif /* DEADBEEF */
@@ -318,30 +326,32 @@ freelist_free(InkFreeList *f, void *item)
 static void
 malloc_free(InkFreeList *f, void *item)
 {
-  if (f->alignment)
-    ats_memalign_free(item);
-  else
+  if (f->alignment) {
+    jna.deallocate(f, item);
+  } else {
     ats_free(item);
+  }
 }
 
 void
-ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item)
+ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item, const InkFreeListOps *ops)
 {
+  ink_assert(ops != nullptr);
   ink_assert(f->used >= num_item);
 
-  freelist_freelist_ops->fl_bulkfree(f, head, tail, num_item);
+  ops->fl_bulkfree(f, head, tail, num_item);
   ink_atomic_decrement((int *)&f->used, num_item);
 }
 
 static void
 freelist_bulkfree(InkFreeList *f, void *head, void *tail, size_t num_item)
 {
-  volatile void **adr_of_next = (volatile void **)ADDRESS_OF_NEXT(tail, 0);
+  void **adr_of_next = (void **)ADDRESS_OF_NEXT(tail, 0);
   head_p h;
   head_p item_pair;
   int result = 0;
 
-// ink_assert(!((long)item&(f->alignment-1))); XXX - why is this no longer working? -bcall
+  // ink_assert(!((long)item&(f->alignment-1))); XXX - why is this no longer working? -bcall
 
 #ifdef DEADBEEF
   {
@@ -350,10 +360,10 @@ freelist_bulkfree(InkFreeList *f, void *head, void *tail, size_t num_item)
     // set the entire item to DEADBEEF;
     void *temp = head;
     for (size_t i = 0; i < num_item; i++) {
-      for (int j          = sizeof(void *); j < (int)f->type_size; j++)
+      for (int j = sizeof(void *); j < (int)f->type_size; j++)
         ((char *)temp)[j] = str[j % 4];
       *ADDRESS_OF_NEXT(temp, 0) = FROM_PTR(*ADDRESS_OF_NEXT(temp, 0));
-      temp = TO_PTR(*ADDRESS_OF_NEXT(temp, 0));
+      temp                      = TO_PTR(*ADDRESS_OF_NEXT(temp, 0));
     }
   }
 #endif /* DEADBEEF */
@@ -387,7 +397,7 @@ malloc_bulkfree(InkFreeList *f, void *head, void *tail, size_t num_item)
   if (f->alignment) {
     for (size_t i = 0; i < num_item && item; ++i, item = next) {
       next = *(void **)item; // find next item before freeing current item
-      ats_memalign_free(item);
+      jna.deallocate(f, item);
     }
   } else {
     for (size_t i = 0; i < num_item && item; ++i, item = next) {
@@ -413,8 +423,9 @@ void
 ink_freelists_dump_baselinerel(FILE *f)
 {
   ink_freelist_list *fll;
-  if (f == nullptr)
+  if (f == nullptr) {
     f = stderr;
+  }
 
   fprintf(f, "     allocated      |       in-use       |  count  | type size  |   free list name\n");
   fprintf(f, "  relative to base  |  relative to base  |         |            |                 \n");
@@ -438,8 +449,9 @@ void
 ink_freelists_dump(FILE *f)
 {
   ink_freelist_list *fll;
-  if (f == nullptr)
+  if (f == nullptr) {
     f = stderr;
+  }
 
   fprintf(f, "     Allocated      |        In-Use      | Type Size  |   Free List Name\n");
   fprintf(f, "--------------------|--------------------|------------|----------------------------------\n");
@@ -475,13 +487,14 @@ ink_atomiclist_pop(InkAtomicList *l)
   int result = 0;
   do {
     INK_QUEUE_LD(item, l->head);
-    if (TO_PTR(FREELIST_POINTER(item)) == nullptr)
+    if (TO_PTR(FREELIST_POINTER(item)) == nullptr) {
       return nullptr;
+    }
     SET_FREELIST_POINTER_VERSION(next, *ADDRESS_OF_NEXT(TO_PTR(FREELIST_POINTER(item)), l->offset), FREELIST_VERSION(item) + 1);
     result = ink_atomic_cas(&l->head.data, item.data, next.data);
   } while (result == 0);
   {
-    void *ret = TO_PTR(FREELIST_POINTER(item));
+    void *ret                        = TO_PTR(FREELIST_POINTER(item));
     *ADDRESS_OF_NEXT(ret, l->offset) = nullptr;
     return ret;
   }
@@ -495,8 +508,9 @@ ink_atomiclist_popall(InkAtomicList *l)
   int result = 0;
   do {
     INK_QUEUE_LD(item, l->head);
-    if (TO_PTR(FREELIST_POINTER(item)) == nullptr)
+    if (TO_PTR(FREELIST_POINTER(item)) == nullptr) {
       return nullptr;
+    }
     SET_FREELIST_POINTER_VERSION(next, FROM_PTR(nullptr), FREELIST_VERSION(item) + 1);
     result = ink_atomic_cas(&l->head.data, item.data, next.data);
   } while (result == 0);
@@ -505,9 +519,9 @@ ink_atomiclist_popall(InkAtomicList *l)
     void *e   = ret;
     /* fixup forward pointers */
     while (e) {
-      void *n = TO_PTR(*ADDRESS_OF_NEXT(e, l->offset));
+      void *n                        = TO_PTR(*ADDRESS_OF_NEXT(e, l->offset));
       *ADDRESS_OF_NEXT(e, l->offset) = n;
-      e = n;
+      e                              = n;
     }
     return ret;
   }
@@ -516,11 +530,11 @@ ink_atomiclist_popall(InkAtomicList *l)
 void *
 ink_atomiclist_push(InkAtomicList *l, void *item)
 {
-  volatile void **adr_of_next = (volatile void **)ADDRESS_OF_NEXT(item, l->offset);
+  void **adr_of_next = (void **)ADDRESS_OF_NEXT(item, l->offset);
   head_p head;
   head_p item_pair;
-  int result       = 0;
-  volatile void *h = nullptr;
+  int result = 0;
+  void *h    = nullptr;
   do {
     INK_QUEUE_LD(head, l->head);
     h            = FREELIST_POINTER(head);

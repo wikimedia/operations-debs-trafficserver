@@ -54,25 +54,29 @@ int
 CacheVC::scanVol(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
   Debug("cache_scan_truss", "inside %p:scanVol", this);
-  if (_action.cancelled)
+  if (_action.cancelled) {
     return free_CacheVC(this);
+  }
   CacheHostRecord *rec = &theCache->hosttable->gen_host_rec;
   if (host_len) {
     CacheHostResult res;
     theCache->hosttable->Match(hostname, host_len, &res);
-    if (res.record)
+    if (res.record) {
       rec = res.record;
+    }
   }
   if (!vol) {
-    if (!rec->num_vols)
+    if (!rec->num_vols) {
       goto Ldone;
+    }
     vol = rec->vols[0];
   } else {
-    for (int i = 0; i < rec->num_vols - 1; i++)
+    for (int i = 0; i < rec->num_vols - 1; i++) {
       if (vol == rec->vols[i]) {
         vol = rec->vols[i + 1];
         goto Lcont;
       }
+    }
     goto Ldone;
   }
 Lcont:
@@ -94,14 +98,16 @@ Ldone:
 static off_t
 next_in_map(Vol *d, char *vol_map, off_t offset)
 {
-  off_t start_offset = vol_offset_to_offset(d, 0);
+  off_t start_offset = d->vol_offset_to_offset(0);
   off_t new_off      = (offset - start_offset);
-  off_t vol_len      = vol_relative_length(d, start_offset);
+  off_t vol_len      = d->vol_relative_length(start_offset);
 
-  while (new_off < vol_len && !vol_map[new_off / SCAN_BUF_SIZE])
+  while (new_off < vol_len && !vol_map[new_off / SCAN_BUF_SIZE]) {
     new_off += SCAN_BUF_SIZE;
-  if (new_off >= vol_len)
+  }
+  if (new_off >= vol_len) {
     return vol_len + start_offset;
+  }
   return new_off + start_offset;
 }
 
@@ -118,8 +124,8 @@ static char *
 make_vol_map(Vol *d)
 {
   // Map will be one byte for each SCAN_BUF_SIZE bytes.
-  off_t start_offset = vol_offset_to_offset(d, 0);
-  off_t vol_len      = vol_relative_length(d, start_offset);
+  off_t start_offset = d->vol_offset_to_offset(0);
+  off_t vol_len      = d->vol_relative_length(start_offset);
   size_t map_len     = (vol_len + (SCAN_BUF_SIZE - 1)) / SCAN_BUF_SIZE;
   char *vol_map      = (char *)ats_malloc(map_len);
 
@@ -128,7 +134,7 @@ make_vol_map(Vol *d)
   // Scan directories.
   // Copied from dir_entries_used() and modified to fill in the map instead.
   for (int s = 0; s < d->segments; s++) {
-    Dir *seg = dir_segment(s, d);
+    Dir *seg = d->dir_segment(s);
     for (int b = 0; b < d->buckets; b++) {
       Dir *e = dir_bucket(b, seg);
       if (dir_bucket_loop_fix(e, s, d)) {
@@ -136,13 +142,15 @@ make_vol_map(Vol *d)
       }
       while (e) {
         if (dir_offset(e) && dir_valid(d, e) && dir_agg_valid(d, e) && dir_head(e)) {
-          off_t offset = vol_offset(d, e) - start_offset;
-          if (offset <= vol_len)
+          off_t offset = d->vol_offset(e) - start_offset;
+          if (offset <= vol_len) {
             vol_map[offset / SCAN_BUF_SIZE] = 1;
+          }
         }
         e = next_dir(e, seg);
-        if (!e)
+        if (!e) {
           break;
+        }
       }
     }
   }
@@ -156,18 +164,17 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 
   Doc *doc     = nullptr;
   void *result = nullptr;
-#ifdef HTTP_CACHE
-  int hlen = 0;
+  int hlen     = 0;
   char hname[500];
-  bool hostinfo_copied = false;
-#endif
+  bool hostinfo_copied         = false;
   off_t next_object_len        = 0;
   bool might_need_overlap_read = false;
 
   cancel_trigger();
   set_io_not_in_progress();
-  if (_action.cancelled)
+  if (_action.cancelled) {
     return free_CacheVC(this);
+  }
 
   CACHE_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
   if (!lock.is_locked()) {
@@ -179,9 +186,10 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
   if (!fragment) { // initialize for first read
     fragment            = 1;
     scan_vol_map        = make_vol_map(vol);
-    io.aiocb.aio_offset = next_in_map(vol, scan_vol_map, vol_offset_to_offset(vol, 0));
-    if (io.aiocb.aio_offset >= (off_t)(vol->skip + vol->len))
+    io.aiocb.aio_offset = next_in_map(vol, scan_vol_map, vol->vol_offset_to_offset(0));
+    if (io.aiocb.aio_offset >= (off_t)(vol->skip + vol->len)) {
       goto Lnext_vol;
+    }
     io.aiocb.aio_nbytes = SCAN_BUF_SIZE;
     io.aiocb.aio_buf    = buf->data();
     io.action           = this;
@@ -209,7 +217,6 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     might_need_overlap_read = false;
     doc                     = (Doc *)((char *)doc + next_object_len);
     next_object_len         = vol->round_to_approx_size(doc->len);
-#ifdef HTTP_CACHE
     int i;
     bool changed;
 
@@ -219,16 +226,19 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       continue;
     }
 
-    if (doc->doc_type != CACHE_FRAG_TYPE_HTTP || !doc->hlen)
+    if (doc->doc_type != CACHE_FRAG_TYPE_HTTP || !doc->hlen) {
       goto Lskip;
+    }
 
     last_collision = nullptr;
     while (true) {
-      if (!dir_probe(&doc->first_key, vol, &dir, &last_collision))
+      if (!dir_probe(&doc->first_key, vol, &dir, &last_collision)) {
         goto Lskip;
+      }
       if (!dir_agg_valid(vol, &dir) || !dir_head(&dir) ||
-          (vol_offset(vol, &dir) != io.aiocb.aio_offset + ((char *)doc - buf->data())))
+          (vol->vol_offset(&dir) != io.aiocb.aio_offset + ((char *)doc - buf->data()))) {
         continue;
+      }
       break;
     }
     if (doc->data() - buf->data() > (int)io.aiocb.aio_nbytes) {
@@ -248,13 +258,15 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
         tmp += r;
       }
     }
-    if (this->load_http_info(&vector, doc) != doc->hlen)
+    if (this->load_http_info(&vector, doc) != doc->hlen) {
       goto Lskip;
+    }
     changed         = false;
     hostinfo_copied = false;
     for (i = 0; i < vector.count(); i++) {
-      if (!vector.get(i)->valid())
+      if (!vector.get(i)->valid()) {
         goto Lskip;
+      }
       if (!hostinfo_copied) {
         memccpy(hname, vector.get(i)->request_get()->host_get(&hlen), 0, 500);
         hname[hlen] = 0;
@@ -266,8 +278,9 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       // verify that the earliest block exists, reducing 'false hit' callbacks
       if (!(key == doc->key)) {
         last_collision = nullptr;
-        if (!dir_probe(&key, vol, &earliest_dir, &last_collision))
+        if (!dir_probe(&key, vol, &earliest_dir, &last_collision)) {
           continue;
+        }
       }
       earliest_key = key;
       int result1  = _action.continuation->handleEvent(CACHE_EVENT_SCAN_OBJECT, vector.get(i));
@@ -287,8 +300,9 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
       case CACHE_SCAN_RESULT_UPDATE:
         ink_assert(alternate_index >= 0);
         vector.insert(&alternate, alternate_index);
-        if (!vector.get(alternate_index)->valid())
+        if (!vector.get(alternate_index)->valid()) {
           continue;
+        }
         changed = true;
         continue;
       case EVENT_DONE:
@@ -303,7 +317,7 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
         ink_assert(hostinfo_copied);
         SET_HANDLER(&CacheVC::scanRemoveDone);
         // force remove even if there is a writer
-        cacheProcessor.remove(this, &doc->first_key, true, CACHE_FRAG_TYPE_HTTP, hname, hlen);
+        cacheProcessor.remove(this, &doc->first_key, CACHE_FRAG_TYPE_HTTP, hname, hlen);
         return EVENT_CONT;
       } else {
         offset          = (char *)doc - buf->data();
@@ -321,11 +335,8 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     }
     continue;
   Lskip:;
-#endif
   }
-#ifdef HTTP_CACHE
   vector.clear();
-#endif
   // If we had an object that went past the end of the buffer, and it is small enough to fix,
   // fix it.
   if (might_need_overlap_read && ((off_t)((char *)doc - buf->data()) + next_object_len > (off_t)io.aiocb.aio_nbytes) &&
@@ -356,9 +367,10 @@ CacheVC::scanObject(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 
 Lread:
   io.aiocb.aio_fildes = vol->fd;
-  if ((off_t)(io.aiocb.aio_offset + io.aiocb.aio_nbytes) > (off_t)(vol->skip + vol->len))
+  if ((off_t)(io.aiocb.aio_offset + io.aiocb.aio_nbytes) > (off_t)(vol->skip + vol->len)) {
     io.aiocb.aio_nbytes = vol->skip + vol->len - io.aiocb.aio_offset;
-  offset                = 0;
+  }
+  offset = 0;
   ink_assert(ink_aio_read(&io) >= 0);
   Debug("cache_scan_truss", "read %p:scanObject %" PRId64 " %zu", this, (int64_t)io.aiocb.aio_offset, (size_t)io.aiocb.aio_nbytes);
   return EVENT_CONT;
@@ -366,9 +378,7 @@ Lread:
 Ldone:
   Debug("cache_scan_truss", "done %p:scanObject", this);
   _action.continuation->handleEvent(CACHE_EVENT_SCAN_DONE, result);
-#ifdef HTTP_CACHE
 Lcancel:
-#endif
   return free_CacheVC(this);
 }
 
@@ -377,9 +387,7 @@ CacheVC::scanRemoveDone(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
 {
   Debug("cache_scan_truss", "inside %p:scanRemoveDone", this);
   Debug("cache_scan", "remove done.");
-#ifdef HTTP_CACHE
   alternate.destroy();
-#endif
   SET_HANDLER(&CacheVC::scanObject);
   return handleEvent(EVENT_IMMEDIATE, nullptr);
 }
@@ -461,13 +469,15 @@ CacheVC::scanOpenWrite(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     // the document was not modified
     // we are safe from now on as we hold the
     // writer lock on the doc
-    if (f.evac_vector)
+    if (f.evac_vector) {
       header_len = write_vector->marshal_length();
+    }
     SET_HANDLER(&CacheVC::scanUpdateDone);
     ret = do_write_call();
   }
-  if (ret == EVENT_RETURN)
+  if (ret == EVENT_RETURN) {
     return handleEvent(AIO_EVENT_DONE, nullptr);
+  }
   return ret;
 }
 

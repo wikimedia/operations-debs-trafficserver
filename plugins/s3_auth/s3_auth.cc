@@ -23,11 +23,12 @@
 #include <ctime>
 #include <cstring>
 #include <getopt.h>
+#include <sys/time.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <climits>
 #include <cctype>
-#include <sys/time.h>
 
 #include <fstream> /* std::ifstream */
 #include <string>
@@ -363,6 +364,7 @@ public:
 
     /* Exclude headers that are meant to be changed */
     _v4excludeHeaders.insert("x-forwarded-for");
+    _v4excludeHeaders.insert("forwarded");
     _v4excludeHeaders.insert("via");
   }
 
@@ -395,7 +397,7 @@ private:
   bool _version_modified   = false;
   bool _virt_host_modified = false;
   TSCont _cont             = nullptr;
-  volatile int _ref_count  = 1;
+  int _ref_count           = 1;
   StringSet _v4includeHeaders;
   bool _v4includeHeaders_modified = false;
   StringSet _v4excludeHeaders;
@@ -872,7 +874,7 @@ event_handler(TSCont cont, TSEvent event, void *edata)
       TSDebug(PLUGIN_NAME, "Succesfully signed the AWS S3 URL");
     } else {
       TSDebug(PLUGIN_NAME, "Failed to sign the AWS S3 URL, status = %d", status);
-      TSHttpTxnSetHttpRetStatus(txnp, status);
+      TSHttpTxnStatusSet(txnp, status);
       enable_event = TS_EVENT_HTTP_ERROR;
     }
     break;
@@ -901,7 +903,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   }
 
   if (api_info->tsremap_version < TSREMAP_VERSION) {
-    snprintf(errbuf, errbuf_size - 1, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
              (api_info->tsremap_version & 0xffff));
     return TS_ERROR;
   }
@@ -1026,7 +1028,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo * /* rri */)
   } else {
     TSDebug(PLUGIN_NAME, "Remap context is invalid");
     TSError("[%s] No remap context available, check code / config", PLUGIN_NAME);
-    TSHttpTxnSetHttpRetStatus(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    TSHttpTxnStatusSet(txnp, TS_HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 
   // This plugin actually doesn't do anything with remapping. Ever.

@@ -29,6 +29,8 @@
 #include <ctime>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <limits>
+#include <getopt.h>
 
 #include "ts/ts.h"
 #include "ts/experimental.h"
@@ -43,17 +45,29 @@ using namespace std;
 using namespace EsiLib;
 
 #define DEBUG_TAG "combo_handler"
+#define FEAT_GATE_8_0
 
-#define MAX_FILE_COUNT 30
-#define MAX_QUERY_LENGTH 3000
+// Because STL vs. C library leads to ugly casting, fix it once.
+inline int
+length(std::string const &str)
+{
+  return static_cast<int>(str.size());
+}
+
+constexpr unsigned DEFAULT_MAX_FILE_COUNT = 100;
+constexpr int MAX_QUERY_LENGTH            = 4096;
+
+unsigned MaxFileCount = DEFAULT_MAX_FILE_COUNT;
+
+// We hardcode "immutable" here because it's not yet defined in the ATS API
+#define HTTP_IMMUTABLE "immutable"
 
 int arg_idx;
 static string SIG_KEY_NAME;
 static vector<string> HEADER_WHITELIST;
 
 #define DEFAULT_COMBO_HANDLER_PATH "admin/v1/combo"
-static string COMBO_HANDLER_PATH;
-static int COMBO_HANDLER_PATH_SIZE;
+static string COMBO_HANDLER_PATH{DEFAULT_COMBO_HANDLER_PATH};
 
 #define LOG_ERROR(fmt, args...)                                                               \
   do {                                                                                        \
@@ -136,6 +150,25 @@ struct InterceptData {
   ~InterceptData();
 };
 
+/*
+ * This class is responsible for keeping track of and processing the various
+ * Cache-Control values between all the requested documents
+ */
+struct CacheControlHeader {
+  enum Publicity { PRIVATE, PUBLIC, DEFAULT };
+
+  // Update the object with a document's Cache-Control header
+  void update(TSMBuffer bufp, TSMLoc hdr_loc);
+
+  // Return the Cache-Control for the combined document
+  string generate() const;
+
+  // Cache-Control values we're keeping track of
+  unsigned int _max_age = numeric_limits<unsigned int>::max();
+  Publicity _publicity  = Publicity::DEFAULT;
+  bool _immutable       = true;
+};
+
 bool
 InterceptData::init(TSVConn vconn)
 {
@@ -187,6 +220,87 @@ InterceptData::~InterceptData()
   }
 }
 
+void
+CacheControlHeader::update(TSMBuffer bufp, TSMLoc hdr_loc)
+{
+  bool found_immutable = false;
+  bool found_private   = false;
+
+  // Load each value from the Cache-Control header into the vector values
+  TSMLoc field_loc = TSMimeHdrFieldFind(bufp, hdr_loc, TS_MIME_FIELD_CACHE_CONTROL, TS_MIME_LEN_CACHE_CONTROL);
+  if (field_loc != TS_NULL_MLOC) {
+    int n_values = TSMimeHdrFieldValuesCount(bufp, hdr_loc, field_loc);
+    if ((n_values != TS_ERROR) && (n_values > 0)) {
+      for (int i = 0; i < n_values; i++) {
+        // Grab this current header value
+        int _val_len    = 0;
+        const char *val = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, i, &_val_len);
+
+        // Update max-age if necessary
+        if (strncasecmp(val, TS_HTTP_VALUE_MAX_AGE, TS_HTTP_LEN_MAX_AGE) == 0) {
+          unsigned int max_age = 0;
+          char *ptr            = const_cast<char *>(val);
+          ptr += TS_HTTP_LEN_MAX_AGE;
+          while ((*ptr == ' ') || (*ptr == '\t')) {
+            ptr++;
+          }
+          if (*ptr == '=') {
+            ptr++;
+            max_age = atoi(ptr);
+          }
+          if (max_age > 0 && max_age < _max_age) {
+            _max_age = max_age;
+          }
+          // If we find even a single occurrence of private, the whole response must be private
+        } else if (strncasecmp(val, TS_HTTP_VALUE_PRIVATE, TS_HTTP_LEN_PRIVATE) == 0) {
+          found_private = true;
+          // Every requested document must have immutable for the final response to be immutable
+        } else if (strncasecmp(val, HTTP_IMMUTABLE, strlen(HTTP_IMMUTABLE)) == 0) {
+          found_immutable = true;
+        }
+      }
+    }
+    TSHandleMLocRelease(bufp, hdr_loc, field_loc);
+  }
+
+  if (!found_immutable) {
+    LOG_DEBUG("Did not see an immutable cache control. The response will be not be immutable");
+    _immutable = false;
+  }
+
+  if (found_private) {
+    LOG_DEBUG("Saw a private cache control. The response will be private");
+    _publicity = Publicity::PRIVATE;
+  }
+}
+
+string
+CacheControlHeader::generate() const
+{
+  unsigned int max_age;
+  char line_buf[256];
+  const char *publicity;
+  const char *immutable;
+
+// TODO This feature gate should be removed for the 8.0 release. Previously, all combo_cache
+// documents were public. However, that's a bug. If any requested document is private the combo_cache
+// document should private as well.
+#ifndef FEAT_GATE_8_0
+  if (_publicity == Publicity::PUBLIC || _publicity == Publicity::DEFAULT) {
+    publicity = TS_HTTP_VALUE_PUBLIC;
+  } else {
+    publicity = TS_HTTP_VALUE_PRIVATE;
+  }
+#else
+  publicity = TS_HTTP_VALUE_PUBLIC;
+#endif
+  immutable = (_immutable ? ", " HTTP_IMMUTABLE : "");
+  max_age   = (_max_age == numeric_limits<unsigned int>::max() ? 315360000 : _max_age); // default is 10 years
+
+  sprintf(line_buf, "Cache-Control: max-age=%u, %s%s\r\n", max_age, publicity, immutable);
+  return string(line_buf);
+}
+
 // forward declarations
 static int handleReadRequestHeader(TSCont contp, TSEvent event, void *edata);
 static bool isComboHandlerRequest(TSMBuffer bufp, TSMLoc hdr_loc, TSMLoc url_loc);
@@ -201,7 +315,6 @@ static bool writeErrorResponse(InterceptData &int_data, int &n_bytes_written);
 static bool writeStandardHeaderFields(InterceptData &int_data, int &n_bytes_written);
 static void prepareResponse(InterceptData &int_data, ByteBlockList &body_blocks, string &resp_header_fields);
 static bool getContentType(TSMBuffer bufp, TSMLoc hdr_loc, string &resp_header_fields);
-static int getMaxAge(TSMBuffer bufp, TSMLoc hdr_loc);
 static bool getDefaultBucket(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc hdr_obj, ClientRequest &creq);
 
 // libesi TLS key.
@@ -216,12 +329,43 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = "dev@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[combo_handler][%s] plugin registration failed.", __FUNCTION__);
+    TSError("[combo_handler][%s] plugin registration failed", __FUNCTION__);
     return;
   }
 
-  if ((argc > 1) && (strcmp(argv[1], "-") != 0)) {
-    COMBO_HANDLER_PATH = argv[1];
+  if (argc > 1) {
+    int c;
+    static const struct option longopts[] = {
+      {"max-files", required_argument, nullptr, 'f'},
+      {nullptr, 0, nullptr, 0},
+    };
+
+    int longindex = 0;
+    optind        = 1; // Force restart to avoid problems with other plugins.
+    while ((c = getopt_long(argc, const_cast<char *const *>(argv), "f:", longopts, &longindex)) != -1) {
+      switch (c) {
+      case 'f': {
+        char *tmp = nullptr;
+        long n    = strtol(optarg, &tmp, 0);
+        if (tmp == optarg) {
+          TSError("[%s] %s requires a numeric argument", DEBUG_TAG, longopts[longindex].name);
+        } else if (n < 1) {
+          TSError("[%s] %s must be a positive number", DEBUG_TAG, longopts[longindex].name);
+        } else {
+          MaxFileCount = n;
+          TSDebug(DEBUG_TAG, "Max files set to %u", MaxFileCount);
+        }
+        break;
+      }
+      default:
+        TSError("[%s] Unrecognized option '%s'", DEBUG_TAG, argv[optind - 1]);
+        break;
+      }
+    }
+  }
+
+  if (argc >= optind && (argv[optind][0] != '-' || argv[optind][1])) {
+    COMBO_HANDLER_PATH = argv[optind];
     if (COMBO_HANDLER_PATH == "/") {
       COMBO_HANDLER_PATH.clear();
     } else {
@@ -232,22 +376,22 @@ TSPluginInit(int argc, const char *argv[])
         COMBO_HANDLER_PATH.erase(COMBO_HANDLER_PATH.size() - 1, 1);
       }
     }
-  } else {
-    COMBO_HANDLER_PATH = DEFAULT_COMBO_HANDLER_PATH;
   }
-  COMBO_HANDLER_PATH_SIZE = static_cast<int>(COMBO_HANDLER_PATH.size());
-  LOG_DEBUG("Combo handler path is [%s]", COMBO_HANDLER_PATH.c_str());
+  ++optind;
+  LOG_DEBUG("Combo handler path is [%.*s]", length(COMBO_HANDLER_PATH), COMBO_HANDLER_PATH.data());
 
-  SIG_KEY_NAME = ((argc > 2) && (strcmp(argv[2], "-") != 0)) ? argv[2] : "";
-  LOG_DEBUG("Signature key is [%s]", SIG_KEY_NAME.c_str());
+  SIG_KEY_NAME = (argc > optind && (argv[optind][0] != '-' || argv[optind][1])) ? argv[optind] : "";
+  ++optind;
+  LOG_DEBUG("Signature key is [%.*s]", length(SIG_KEY_NAME), SIG_KEY_NAME.data());
 
-  if ((argc > 3) && (strcmp(argv[3], "-") != 0)) {
-    stringstream strstream(argv[3]);
+  if (argc > optind && (argv[optind][0] != '-' || argv[optind][1])) {
+    stringstream strstream(argv[optind++]);
     string header;
     while (getline(strstream, header, ':')) {
       HEADER_WHITELIST.push_back(header);
     }
   }
+  ++optind;
 
   for (unsigned int i = 0; i < HEADER_WHITELIST.size(); i++) {
     LOG_DEBUG("WhiteList: %s", HEADER_WHITELIST[i].c_str());
@@ -263,11 +407,11 @@ TSPluginInit(int argc, const char *argv[])
 
   TSHttpHookAdd(TS_HTTP_OS_DNS_HOOK, rrh_contp);
 
-  if (TSHttpArgIndexReserve(DEBUG_TAG, "will save plugin-enable flag here", &arg_idx) != TS_SUCCESS) {
+  if (TSHttpTxnArgIndexReserve(DEBUG_TAG, "will save plugin-enable flag here", &arg_idx) != TS_SUCCESS) {
     LOG_ERROR("failed to reserve private data slot");
     return;
   } else {
-    LOG_DEBUG("arg_idx: %d", arg_idx);
+    LOG_DEBUG("txn_arg_idx: %d", arg_idx);
   }
 
   Utils::init(&TSDebug, &TSError);
@@ -301,7 +445,7 @@ handleReadRequestHeader(TSCont /* contp ATS_UNUSED */, TSEvent event, void *edat
   }
 
   LOG_DEBUG("combo is enabled for this channel");
-  LOG_DEBUG("handling TS_EVENT_HTTP_OS_DNS event...");
+  LOG_DEBUG("handling TS_EVENT_HTTP_OS_DNS event");
 
   TSEvent reenable_to_event = TS_EVENT_HTTP_CONTINUE;
   TSMBuffer bufp;
@@ -362,8 +506,8 @@ isComboHandlerRequest(TSMBuffer bufp, TSMLoc hdr_loc, TSMLoc url_loc)
         LOG_ERROR("Could not get path from request URL");
         retval = false;
       } else {
-        retval =
-          (path_len == COMBO_HANDLER_PATH_SIZE) && (strncasecmp(path, COMBO_HANDLER_PATH.c_str(), COMBO_HANDLER_PATH_SIZE) == 0);
+        retval = (path_len == length(COMBO_HANDLER_PATH)) &&
+                 (strncasecmp(path, COMBO_HANDLER_PATH.data(), COMBO_HANDLER_PATH.size()) == 0);
         LOG_DEBUG("Path [%.*s] is %s combo handler path", path_len, path, (retval ? "a" : "not a"));
       }
     }
@@ -382,7 +526,7 @@ getDefaultBucket(TSHttpTxn /* txnp ATS_UNUSED */, TSMBuffer bufp, TSMLoc hdr_obj
 
   field_loc = TSMimeHdrFieldFind(bufp, hdr_obj, TS_MIME_FIELD_HOST, -1);
   if (field_loc == TS_NULL_MLOC) {
-    LOG_ERROR("Host field not found.");
+    LOG_ERROR("Host field not found");
     return false;
   }
 
@@ -475,7 +619,7 @@ parseQueryParameters(const char *query, int query_len, ClientRequest &creq)
               LOG_DEBUG("Signature [%.*s] on query [%.*s] is invalid", param_len - 4, param + 4, param_start_pos, query);
             }
           } else {
-            LOG_DEBUG("Verification not configured; ignoring signature...");
+            LOG_DEBUG("Verification not configured, ignoring signature");
           }
           break; // nothing useful after the signature
         }
@@ -545,7 +689,7 @@ parseQueryParameters(const char *query, int query_len, ClientRequest &creq)
     creq.file_urls.clear();
   }
 
-  if (creq.file_urls.size() > MAX_FILE_COUNT) {
+  if (creq.file_urls.size() > MaxFileCount) {
     creq.status = TS_HTTP_STATUS_BAD_REQUEST;
     LOG_ERROR("too many files in url");
     creq.file_urls.clear();
@@ -649,7 +793,7 @@ handleServerEvent(TSCont contp, TSEvent event, void *edata)
   }
 
   if (int_data->read_complete && int_data->write_complete) {
-    LOG_DEBUG("Completed request processing. Shutting down...");
+    LOG_DEBUG("Completed request processing, shutting down");
     delete int_data;
     TSContDestroy(contp);
   }
@@ -792,12 +936,11 @@ prepareResponse(InterceptData &int_data, ByteBlockList &body_blocks, string &res
   if (int_data.creq.status == TS_HTTP_STATUS_OK) {
     HttpDataFetcherImpl::ResponseData resp_data;
     TSMLoc field_loc;
-    int max_age      = 0;
-    bool got_max_age = false;
     time_t expires_time;
     bool got_expires_time = false;
     int num_headers       = HEADER_WHITELIST.size();
     int flags_list[num_headers];
+    CacheControlHeader cch;
 
     for (int i = 0; i < num_headers; i++) {
       flags_list[i] = 0;
@@ -812,15 +955,8 @@ prepareResponse(InterceptData &int_data, ByteBlockList &body_blocks, string &res
           }
         }
 
-        int curr_field_max_age = getMaxAge(resp_data.bufp, resp_data.hdr_loc);
-        if (curr_field_max_age > 0) {
-          if (!got_max_age) {
-            max_age     = curr_field_max_age;
-            got_max_age = true;
-          } else if (curr_field_max_age < max_age) {
-            max_age = curr_field_max_age;
-          }
-        }
+        // Load this document's Cache-Control header into our managing object
+        cch.update(resp_data.bufp, resp_data.hdr_loc);
 
         field_loc = TSMimeHdrFieldFind(resp_data.bufp, resp_data.hdr_loc, TS_MIME_FIELD_EXPIRES, TS_MIME_LEN_EXPIRES);
         if (field_loc != TS_NULL_MLOC) {
@@ -878,14 +1014,9 @@ prepareResponse(InterceptData &int_data, ByteBlockList &body_blocks, string &res
       }
     }
     if (int_data.creq.status == TS_HTTP_STATUS_OK) {
+      // Add in Cache-Control header
       if (find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(), TS_MIME_FIELD_CACHE_CONTROL) == HEADER_WHITELIST.end()) {
-        if (got_max_age && max_age > 0) {
-          char line_buf[128];
-          int line_size = sprintf(line_buf, "Cache-Control: max-age=%d, public\r\n", max_age);
-          resp_header_fields.append(line_buf, line_size);
-        } else {
-          resp_header_fields.append("Cache-Control: max-age=315360000, public\r\n"); // set 10-years max-age
-        }
+        resp_header_fields.append(cch.generate());
       }
       if (find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(), TS_MIME_FIELD_EXPIRES) == HEADER_WHITELIST.end()) {
         if (got_expires_time) {
@@ -941,39 +1072,6 @@ getContentType(TSMBuffer bufp, TSMLoc hdr_loc, string &resp_header_fields)
     }
   }
   return retval;
-}
-
-static int
-getMaxAge(TSMBuffer bufp, TSMLoc hdr_loc)
-{
-  int max_age = 0;
-  const char *value, *ptr;
-  int value_len = 0;
-
-  TSMLoc field_loc = TSMimeHdrFieldFind(bufp, hdr_loc, TS_MIME_FIELD_CACHE_CONTROL, TS_MIME_LEN_CACHE_CONTROL);
-  if (field_loc != TS_NULL_MLOC) {
-    int n_values = TSMimeHdrFieldValuesCount(bufp, hdr_loc, field_loc);
-    if ((n_values != TS_ERROR) && (n_values > 0)) {
-      for (int i = 0; i < n_values; i++) {
-        value = TSMimeHdrFieldValueStringGet(bufp, hdr_loc, field_loc, i, &value_len);
-        ptr   = value;
-        if (strncmp(value, TS_HTTP_VALUE_MAX_AGE, TS_HTTP_LEN_MAX_AGE) == 0) {
-          ptr += TS_HTTP_LEN_MAX_AGE;
-          while ((*ptr == ' ') || (*ptr == '\t')) {
-            ptr++;
-          }
-          if (*ptr == '=') {
-            ptr++;
-            max_age = atoi(ptr);
-          }
-          break;
-        }
-      }
-    }
-    TSHandleMLocRelease(bufp, hdr_loc, field_loc);
-  }
-
-  return max_age;
 }
 
 static const char INVARIANT_FIELD_LINES[]    = {"Vary: Accept-Encoding\r\n"};

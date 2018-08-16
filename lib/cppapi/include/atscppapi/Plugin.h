@@ -24,9 +24,8 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_PLUGIN_H_
-#define ATSCPPAPI_PLUGIN_H_
 
+#include <atscppapi/Request.h>
 #include <atscppapi/Transaction.h>
 #include <atscppapi/noncopyable.h>
 
@@ -146,28 +145,28 @@ public:
   /**
    * This method must be implemented when you hook HOOK_SELECT_ALT
    */
-  virtual void
-  handleSelectAlt(Transaction &transaction)
-  {
-    transaction.resume();
-  };
+  virtual void handleSelectAlt(const Request &clientReq, const Request &cachedReq, const Response &cachedResp){};
 
   virtual ~Plugin(){};
 
 protected:
   /**
-  * \note This interface can never be implemented directly, it should be implemented
-  *   through extending GlobalPlugin, TransactionPlugin, or TransformationPlugin.
-  *
-  * @private
-  */
+   * \note This interface can never be implemented directly, it should be implemented
+   *   through extending GlobalPlugin, TransactionPlugin, or TransformationPlugin.
+   *
+   * @private
+   */
   Plugin(){};
 };
 
 /**< Human readable strings for each HookType, you can access them as HOOK_TYPE_STRINGS[HOOK_OS_DNS] for example. */
 extern const std::string HOOK_TYPE_STRINGS[];
-void RegisterGlobalPlugin(const std::string &name, const std::string &vendor, const std::string &email);
 
-} /* atscppapi */
+bool RegisterGlobalPlugin(const char *name, const char *vendor, const char *email);
+inline bool
+RegisterGlobalPlugin(std::string const &name, std::string const &vendor, std::string const &email)
+{
+  return RegisterGlobalPlugin(name.c_str(), vendor.c_str(), email.c_str());
+}
 
-#endif /* ATSCPPAPI_GLOBALPLUGIN_H_ */
+} // namespace atscppapi

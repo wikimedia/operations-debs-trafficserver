@@ -35,8 +35,8 @@
   I think I will stop here for now.
 
  ****************************************************************************/
-#ifndef __P_SSLNETPROCESSOR_H
-#define __P_SSLNETPROCESSOR_H
+
+#pragma once
 
 #include "ts/ink_platform.h"
 #include "P_Net.h"
@@ -54,25 +54,23 @@ struct NetAccept;
 //////////////////////////////////////////////////////////////////
 struct SSLNetProcessor : public UnixNetProcessor {
 public:
-  virtual int start(int, size_t stacksize);
+  int start(int, size_t stacksize) override;
 
   void cleanup(void);
 
   SSLNetProcessor();
-  virtual ~SSLNetProcessor();
+  ~SSLNetProcessor() override;
 
   //
   // Private
   //
 
-  virtual NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt);
-  virtual NetVConnection *allocate_vc(EThread *t);
+  NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt) override;
+  NetVConnection *allocate_vc(EThread *t) override;
 
-private:
-  SSLNetProcessor(const SSLNetProcessor &);
-  SSLNetProcessor &operator=(const SSLNetProcessor &);
+  // noncopyable
+  SSLNetProcessor(const SSLNetProcessor &) = delete;
+  SSLNetProcessor &operator=(const SSLNetProcessor &) = delete;
 };
 
 extern SSLNetProcessor ssl_NetProcessor;
-
-#endif

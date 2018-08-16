@@ -32,13 +32,9 @@
    This information is private to the Net module.   It is only here
    because of the the C++ compiler needs it to define NetVConnection.
 
-   Shared with Cluster.cc
-
-
 
  ****************************************************************************/
-#if !defined(_UnixNetState_h_)
-#define _UnixNetState_h_
+#pragma once
 
 #include "ts/List.h"
 #include "I_VIO.h"
@@ -47,7 +43,7 @@ class Event;
 class UnixNetVConnection;
 
 struct NetState {
-  volatile int enabled;
+  int enabled;
   VIO vio;
   Link<UnixNetVConnection> ready_link;
   SLink<UnixNetVConnection> enable_link;
@@ -56,5 +52,3 @@ struct NetState {
 
   NetState() : enabled(0), vio(VIO::NONE), in_enabled_list(0), triggered(0) {}
 };
-
-#endif

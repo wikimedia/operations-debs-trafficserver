@@ -55,7 +55,7 @@ enum {
 
 FieldListCacheElement fieldlist_cache[FIELDLIST_CACHE_SIZE];
 int fieldlist_cache_entries = 0;
-vint32 LogBuffer::M_ID      = 0;
+int32_t LogBuffer::M_ID;
 
 /*-------------------------------------------------------------------------
   The following LogBufferHeader routines are used to grab strings out from
@@ -112,14 +112,6 @@ LogBufferHeader::log_filename()
   return addr;
 }
 
-/*-------------------------------------------------------------------------
-  LogBuffer::LogBuffer
-
-  Initialize a LogBuffer object, which is just an AbstractBuffer object
-  with the addition of a pointer for keeping track of the LogObject object
-  that is allocating this buffer.
-  -------------------------------------------------------------------------*/
-
 LogBuffer::LogBuffer(LogObject *owner, size_t size, size_t buf_align, size_t write_align)
   : m_size(size), m_buf_align(buf_align), m_write_align(write_align), m_owner(owner), m_references(0)
 {
@@ -145,7 +137,7 @@ LogBuffer::LogBuffer(LogObject *owner, size_t size, size_t buf_align, size_t wri
   m_state.s.offset = hdr_size;
 
   // update the buffer id (m_id gets the old value)
-  m_id = (uint32_t)ink_atomic_increment((pvint32)&M_ID, 1);
+  m_id = (uint32_t)ink_atomic_increment((int32_t *)&M_ID, 1);
 
   m_expiration_time = LogUtils::timestamp() + Log::config->max_secs_per_buffer;
 
@@ -172,7 +164,7 @@ LogBuffer::LogBuffer(LogObject *owner, LogBufferHeader *header)
 
   // update the buffer id (m_id gets the old value)
   //
-  m_id = (uint32_t)ink_atomic_increment((pvint32)&M_ID, 1);
+  m_id = (uint32_t)ink_atomic_increment((int32_t *)&M_ID, 1);
 
   Debug("log-logbuffer", "[%p] Created repurposed buffer %u for %s at address %p", this_ethread(), m_id,
         m_owner->get_base_filename(), m_buffer);
@@ -227,7 +219,9 @@ LogBuffer::checkout_write(size_t *write_offset, size_t write_size)
 
   uint64_t retries = (uint64_t)-1;
   do {
-    new_s = old_s = m_state;
+    // we want sequence points between these two statements
+    old_s = m_state;
+    new_s = old_s;
 
     if (old_s.s.full) {
       // the buffer has already been set to full by somebody else
@@ -502,9 +496,11 @@ LogBuffer::resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char 
   // LogField object, obtained from the fieldlist.
   //
 
-  LogField *field   = fieldlist->first();
-  int printf_len    = (int)::strlen(printf_str); // OPTIMIZE
-  int bytes_written = 0;
+  LogField *field     = fieldlist->first();
+  LogField *lastField = nullptr;                                // For debug message.
+  int markCount       = 0;                                      // For debug message.
+  int printf_len      = static_cast<int>(::strlen(printf_str)); // OPTIMIZE
+  int bytes_written   = 0;
   int res, i;
 
   const char *buffer_size_exceeded_msg = "Traffic Server is skipping the current log entry because its size "
@@ -512,6 +508,7 @@ LogBuffer::resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char 
 
   for (i = 0; i < printf_len; i++) {
     if (printf_str[i] == LOG_FIELD_MARKER) {
+      ++markCount;
       if (field != nullptr) {
         char *to = &write_to[bytes_written];
         res      = field->unmarshal(&read_from, to, write_to_len - bytes_written);
@@ -523,10 +520,14 @@ LogBuffer::resolve_custom_entry(LogFieldList *fieldlist, char *printf_str, char 
         }
 
         bytes_written += res;
-        field = fieldlist->next(field);
+        lastField = field;
+        field     = fieldlist->next(field);
       } else {
         Note("There are more field markers than fields;"
-             " cannot process log entry");
+             " cannot process log entry '%.*s'. Last field = '%s' printf_str='%s' pos=%d/%d count=%d alt_printf_str='%s'",
+             bytes_written, write_to, lastField == nullptr ? "*" : lastField->symbol(),
+             printf_str == nullptr ? "*NULL*" : printf_str, i, printf_len, markCount,
+             alt_printf_str == nullptr ? "*NULL*" : alt_printf_str);
         bytes_written = 0;
         break;
       }
@@ -678,7 +679,7 @@ LogBuffer::to_ascii(LogEntryHeader *entry, LogFormatType type, char *buf, int bu
 LogBufferList::LogBufferList()
 {
   m_size = 0;
-  ink_mutex_init(&m_mutex, "LogBufferList");
+  ink_mutex_init(&m_mutex);
 }
 
 /*-------------------------------------------------------------------------

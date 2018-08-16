@@ -31,8 +31,7 @@
  *
  */
 
-#ifndef _BASE_MANAGER_H
-#define _BASE_MANAGER_H
+#pragma once
 
 #include "ts/ink_thread.h"
 #include "ts/ink_mutex.h"
@@ -61,7 +60,6 @@
 #define MGMT_EVENT_CLEAR_STATS 10004
 #define MGMT_EVENT_CONFIG_FILE_UPDATE 10005
 #define MGMT_EVENT_PLUGIN_CONFIG_UPDATE 10006
-#define MGMT_EVENT_HTTP_CLUSTER_DELTA 10007
 #define MGMT_EVENT_ROLL_LOG_FILES 10008
 #define MGMT_EVENT_LIBRECORDS 10009
 #define MGMT_EVENT_CONFIG_FILE_UPDATE_NO_INC_VERSION 10010
@@ -71,6 +69,9 @@
 // case statement.
 #define MGMT_EVENT_STORAGE_DEVICE_CMD_OFFLINE 10011
 #define MGMT_EVENT_LIFECYCLE_MESSAGE 10012
+#define MGMT_EVENT_DRAIN 10013
+#define MGMT_EVENT_HOST_STATUS_UP 10014
+#define MGMT_EVENT_HOST_STATUS_DOWN 10015
 
 /***********************************************************************
  *
@@ -98,8 +99,6 @@
 #define MGMT_SIGNAL_PLUGIN_SET_CONFIG 14
 #define MGMT_SIGNAL_LOG_FILES_ROLLED 15
 #define MGMT_SIGNAL_LIBRECORDS 16
-#define MGMT_SIGNAL_HTTP_CONGESTED_SERVER 20  /* Congestion control -- congested server */
-#define MGMT_SIGNAL_HTTP_ALLEVIATED_SERVER 21 /* Congestion control -- alleviated server */
 
 #define MGMT_SIGNAL_CONFIG_FILE_CHILD 22
 
@@ -122,10 +121,7 @@ public:
   BaseManager();
   ~BaseManager();
 
-  int registerMgmtCallback(int msg_id, MgmtCallback func, void *opaque_callback_data = NULL);
-
-  int signalMgmtEntity(int msg_id, char *data_str = NULL);
-  int signalMgmtEntity(int msg_id, char *data_raw, int data_len);
+  int registerMgmtCallback(int msg_id, MgmtCallback func, void *opaque_callback_data = nullptr);
 
   LLQ *mgmt_event_queue;
   InkHashTable *mgmt_callback_table;
@@ -135,5 +131,3 @@ protected:
 
 private:
 }; /* End class BaseManager */
-
-#endif /* _BASE_MANAGER_H */

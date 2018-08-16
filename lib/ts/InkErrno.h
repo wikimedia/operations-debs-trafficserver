@@ -27,15 +27,13 @@
 
 */
 
-#if !defined(_Errno_h_)
-#define _Errno_h_
-#include <errno.h>
+#pragma once
+#include <cerrno>
 
 #define INK_START_ERRNO 20000
 
 #define SOCK_ERRNO INK_START_ERRNO
 #define NET_ERRNO INK_START_ERRNO + 100
-#define CLUSTER_ERRNO INK_START_ERRNO + 200
 #define CACHE_ERRNO INK_START_ERRNO + 400
 #define HTTP_ERRNO INK_START_ERRNO + 600
 
@@ -46,15 +44,6 @@
 #define ESOCK_DENIED (SOCK_ERRNO + 0)
 #define ESOCK_TIMEOUT (SOCK_ERRNO + 1)
 #define ESOCK_NO_SOCK_SERVER_CONN (SOCK_ERRNO + 2)
-
-// Error codes for CLUSTER_EVENT_OPEN_FAILED
-#define ECLUSTER_NO_VC (CLUSTER_ERRNO + 0)
-#define ECLUSTER_NO_MACHINE (CLUSTER_ERRNO + 1)
-#define ECLUSTER_OP_TIMEOUT (CLUSTER_ERRNO + 2)
-#define ECLUSTER_ORB_DATA_READ (CLUSTER_ERRNO + 3)
-#define ECLUSTER_ORB_EIO (CLUSTER_ERRNO + 4)
-#define ECLUSTER_CHANNEL_INUSE (CLUSTER_ERRNO + 5)
-#define ECLUSTER_NOMORE_CHANNELS (CLUSTER_ERRNO + 6)
 
 #define ECACHE_NO_DOC (CACHE_ERRNO + 0)
 #define ECACHE_DOC_BUSY (CACHE_ERRNO + 1)
@@ -70,5 +59,3 @@
 #define EHTTP_ERROR (HTTP_ERRNO + 0)
 
 const char *InkStrerror(int ink_errno);
-
-#endif

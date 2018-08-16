@@ -32,8 +32,7 @@
  *
  ***************************************************************************/
 
-#ifndef _NETWORK_UTILS_REMOTE_H_
-#define _NETWORK_UTILS_REMOTE_H_
+#pragma once
 
 #include "mgmtapi.h"
 #include "NetworkMessage.h"
@@ -66,7 +65,12 @@ void *event_poll_thread_main(void *arg);
 
 struct mgmtapi_sender : public mgmt_message_sender {
   explicit mgmtapi_sender(int _fd) : fd(_fd) {}
-  virtual TSMgmtError send(void *msg, size_t msglen) const;
+  TSMgmtError send(void *msg, size_t msglen) const override;
+  bool
+  is_connected() const override
+  {
+    return fd != ts::NO_FD;
+  }
 
   int fd;
 };
@@ -87,5 +91,3 @@ TSMgmtError send_unregister_all_callbacks(int fd, CallbackTable *cb_table);
  * Un-marshalling (parse responses)
  *****************************************************************************/
 TSMgmtError parse_generic_response(OpType optype, int fd);
-
-#endif /* _NETWORK_UTILS_REMOTE_H_ */

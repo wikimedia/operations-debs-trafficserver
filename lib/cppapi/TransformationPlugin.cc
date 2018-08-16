@@ -49,6 +49,8 @@ struct atscppapi::TransformationPluginState : noncopyable {
   TSIOBuffer output_buffer_;
   TSIOBufferReader output_buffer_reader_;
   int64_t bytes_written_;
+  bool paused_;
+  TSCont resume_cont_;
 
   // We can only send a single WRITE_COMPLETE even though
   // we may receive an immediate event after we've sent a
@@ -69,6 +71,8 @@ struct atscppapi::TransformationPluginState : noncopyable {
       output_buffer_(nullptr),
       output_buffer_reader_(nullptr),
       bytes_written_(0),
+      paused_(false),
+      resume_cont_(nullptr),
       input_complete_dispatched_(false)
   {
     output_buffer_        = TSIOBufferCreate();
@@ -85,6 +89,11 @@ struct atscppapi::TransformationPluginState : noncopyable {
     if (output_buffer_) {
       TSIOBufferDestroy(output_buffer_);
       output_buffer_ = nullptr;
+    }
+
+    // Cleanup pending cont
+    if (resume_cont_) {
+      TSContDataSet(resume_cont_, nullptr);
     }
   }
 };
@@ -106,6 +115,11 @@ handleTransformationPluginRead(TSCont contp, TransformationPluginState *state)
   // is actually the vio we read from.
   TSVIO write_vio = TSVConnWriteVIOGet(contp);
   if (write_vio) {
+    if (state->paused_) {
+      LOG_DEBUG("Transformation contp=%p write_vio=%p, is paused", contp, write_vio);
+      return 0;
+    }
+
     int64_t to_read = TSVIONTodoGet(write_vio);
     LOG_DEBUG("Transformation contp=%p write_vio=%p, to_read=%" PRId64, contp, write_vio, to_read);
 
@@ -242,7 +256,7 @@ handleTransformationPluginEvents(TSCont contp, TSEvent event, void *edata)
 } /* anonymous namespace */
 
 TransformationPlugin::TransformationPlugin(Transaction &transaction, TransformationPlugin::Type type)
-  : TransactionPlugin(transaction)
+  : TransactionPlugin(transaction), state_(nullptr)
 {
   state_         = new TransformationPluginState(transaction, *this, type, static_cast<TSHttpTxn>(transaction.getAtsHandle()));
   state_->vconn_ = TSTransformCreate(handleTransformationPluginEvents, state_->txn_);
@@ -259,8 +273,36 @@ TransformationPlugin::~TransformationPlugin()
   delete state_;
 }
 
+TSCont
+TransformationPlugin::pause()
+{
+  if (state_->input_complete_dispatched_) {
+    LOG_ERROR("Can not pause transformation (transformation completed) TransformationPlugin=%p (vconn)contp=%p tshttptxn=%p", this,
+              state_->vconn_, state_->txn_);
+    return nullptr;
+  } else {
+    state_->paused_      = true;
+    state_->resume_cont_ = TSContCreate(&resumeCallback, TSContMutexGet(reinterpret_cast<TSCont>(state_->txn_)));
+    TSContDataSet(state_->resume_cont_, static_cast<void *>(state_));
+    return state_->resume_cont_;
+  }
+}
+
+int
+TransformationPlugin::resumeCallback(TSCont cont, TSEvent event, void *edata)
+{
+  auto state = static_cast<TransformationPluginState *>(TSContDataGet(cont));
+  if (state) {
+    state->paused_ = false;
+    handleTransformationPluginRead(state->vconn_, state);
+  }
+
+  TSContDestroy(cont);
+  return TS_SUCCESS;
+}
+
 size_t
-TransformationPlugin::doProduce(const std::string &data)
+TransformationPlugin::doProduce(std::string_view data)
 {
   LOG_DEBUG("TransformationPlugin=%p tshttptxn=%p producing output with length=%ld", this, state_->txn_, data.length());
   int64_t write_length = static_cast<int64_t>(data.length());
@@ -289,7 +331,7 @@ TransformationPlugin::doProduce(const std::string &data)
   }
 
   // Finally we can copy this data into the output_buffer
-  int64_t bytes_written = TSIOBufferWrite(state_->output_buffer_, data.c_str(), write_length);
+  int64_t bytes_written = TSIOBufferWrite(state_->output_buffer_, data.data(), write_length);
   state_->bytes_written_ += bytes_written; // So we can set BytesDone on outputComplete().
   LOG_DEBUG("TransformationPlugin=%p tshttptxn=%p write to TSIOBuffer %" PRId64 " bytes total bytes written %" PRId64, this,
             state_->txn_, bytes_written, state_->bytes_written_);
@@ -316,11 +358,15 @@ TransformationPlugin::doProduce(const std::string &data)
 }
 
 size_t
-TransformationPlugin::produce(const std::string &data)
+TransformationPlugin::produce(std::string_view data)
 {
   if (state_->type_ == REQUEST_TRANSFORMATION) {
-    state_->request_xform_output_.append(data);
+    state_->request_xform_output_.append(data.data(), data.length());
     return data.size();
+  } else if (state_->type_ == SINK_TRANSFORMATION) {
+    LOG_DEBUG("produce TransformationPlugin=%p tshttptxn=%p : This is a sink transform. Not producing any output", this,
+              state_->txn_);
+    return 0;
   } else {
     return doProduce(data);
   }
@@ -329,7 +375,13 @@ TransformationPlugin::produce(const std::string &data)
 size_t
 TransformationPlugin::setOutputComplete()
 {
-  if (state_->type_ == REQUEST_TRANSFORMATION) {
+  if (state_->type_ == SINK_TRANSFORMATION) {
+    // There's no output stream for a sink transform, so we do nothing
+    //
+    // Warning: don't try to shutdown the VConn, since the default implementation (DummyVConnection)
+    // has a stubbed out shutdown/close implementation
+    return 0;
+  } else if (state_->type_ == REQUEST_TRANSFORMATION) {
     doProduce(state_->request_xform_output_);
   }
 

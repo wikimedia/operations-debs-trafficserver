@@ -42,30 +42,41 @@ verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
   int depth;
   int err;
   SSL *ssl;
-  SSLNetVConnection *netvc;
 
   SSLDebug("Entered verify cb");
   depth = X509_STORE_CTX_get_error_depth(ctx);
   cert  = X509_STORE_CTX_get_current_cert(ctx);
   err   = X509_STORE_CTX_get_error(ctx);
 
+  /*
+   * Retrieve the pointer to the SSL of the connection currently treated
+   * and the application specific data stored into the SSL object.
+   */
+  ssl                      = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
+  SSLNetVConnection *netvc = SSLNetVCAccess(ssl);
   if (!preverify_ok) {
     // Don't bother to check the hostname if we failed openssl's verification
     SSLDebug("verify error:num=%d:%s:depth=%d", err, X509_verify_cert_error_string(err), depth);
+    if (netvc && netvc->options.clientVerificationFlag == 2) {
+      if (netvc->options.sni_servername) {
+        Warning("Hostname verification failed for (%s) but still continuing with the connection establishment",
+                netvc->options.sni_servername.get());
+      } else {
+        char buff[INET6_ADDRSTRLEN];
+        ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
+        Warning("Server certificate verification failed for %s but still continuing with the connection establishment", buff);
+      }
+      return 1;
+    }
     return preverify_ok;
   }
-
   if (depth != 0) {
     // Not server cert....
     return preverify_ok;
   }
 
-  // Retrieve the pointer to the SSL of the connection currently treated
-  // and the application specific data stored into the SSL object.
-  ssl   = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx()));
-  netvc = SSLNetVCAccess(ssl);
-
   if (netvc != nullptr) {
+    netvc->callHooks(TS_EVENT_SSL_SERVER_VERIFY_HOOK);
     // Match SNI if present
     if (netvc->options.sni_servername) {
       char *matched_name = nullptr;
@@ -74,7 +85,7 @@ verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
         ats_free(matched_name);
         return preverify_ok;
       }
-      SSLDebug("Hostname verification failed for (%s)", netvc->options.sni_servername.get());
+      Warning("Hostname verification failed for (%s)", netvc->options.sni_servername.get());
     }
     // Otherwise match by IP
     else {
@@ -84,7 +95,15 @@ verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
         SSLDebug("IP %s verified OK", buff);
         return preverify_ok;
       }
-      SSLDebug("IP verification failed for (%s)", buff);
+      Warning("IP verification failed for (%s)", buff);
+    }
+
+    if (netvc->options.clientVerificationFlag == 2) {
+      char buff[INET6_ADDRSTRLEN];
+      ats_ip_ntop(netvc->get_remote_addr(), buff, INET6_ADDRSTRLEN);
+      Warning("Server certificate verification failed but continuing with the connection establishment:%s:%s",
+              netvc->options.sni_servername.get(), buff);
+      return preverify_ok;
     }
     return 0;
   }
@@ -125,7 +144,7 @@ SSLInitClientContext(const SSLConfigParams *params)
     clientKeyPtr = params->clientCertPath;
   }
 
-  if (params->clientCertPath != nullptr) {
+  if (params->clientCertPath != nullptr && params->clientCertPath[0] != '\0') {
     if (!SSL_CTX_use_certificate_chain_file(client_ctx, params->clientCertPath)) {
       SSLError("failed to load client certificate from %s", params->clientCertPath);
       goto fail;
@@ -145,19 +164,17 @@ SSLInitClientContext(const SSLConfigParams *params)
   if (params->clientVerify) {
     SSL_CTX_set_verify(client_ctx, SSL_VERIFY_PEER, verify_callback);
     SSL_CTX_set_verify_depth(client_ctx, params->client_verify_depth);
+  }
 
-    if (params->clientCACertFilename != nullptr || params->clientCACertPath != nullptr) {
-      if (!SSL_CTX_load_verify_locations(client_ctx, params->clientCACertFilename, params->clientCACertPath)) {
-        SSLError("invalid client CA Certificate file (%s) or CA Certificate path (%s)", params->clientCACertFilename,
-                 params->clientCACertPath);
-        goto fail;
-      }
-    }
-
-    if (!SSL_CTX_set_default_verify_paths(client_ctx)) {
-      SSLError("failed to set the default verify paths");
+  if (params->clientCACertFilename != nullptr || params->clientCACertPath != nullptr) {
+    if (!SSL_CTX_load_verify_locations(client_ctx, params->clientCACertFilename, params->clientCACertPath)) {
+      SSLError("invalid client CA Certificate file (%s) or CA Certificate path (%s)", params->clientCACertFilename,
+               params->clientCACertPath);
       goto fail;
     }
+  } else if (!SSL_CTX_set_default_verify_paths(client_ctx)) {
+    SSLError("failed to set the default verify paths");
+    goto fail;
   }
 
   if (SSLConfigParams::init_ssl_ctx_cb) {

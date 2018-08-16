@@ -28,6 +28,7 @@
 #include "ts/Tokenizer.h"
 #include "ts/ink_defs.h"
 #include "ts/ink_string.h"
+#include "ts/runroot.h"
 
 #include "P_RecFile.h"
 #include "P_RecUtils.h"
@@ -46,7 +47,7 @@ ink_mutex g_rec_config_lock;
 void
 RecConfigFileInit()
 {
-  ink_mutex_init(&g_rec_config_lock, nullptr);
+  ink_mutex_init(&g_rec_config_lock);
   g_rec_config_contents_llq = create_queue();
   g_rec_config_contents_ht  = ink_hash_table_create(InkHashTableKeyType_String);
 }
@@ -83,6 +84,20 @@ RecFileImport_Xmalloc(const char *file, char **file_buf, int *file_size)
 }
 
 //-------------------------------------------------------------------------
+// RecConfigOverrideFromRunroot
+//-------------------------------------------------------------------------
+bool
+RecConfigOverrideFromRunroot(const char *name)
+{
+  if (!get_runroot().empty()) {
+    if (!strcmp(name, "proxy.config.bin_path") || !strcmp(name, "proxy.config.local_state_dir") ||
+        !strcmp(name, "proxy.config.log.logfile_dir") || !strcmp(name, "proxy.config.plugin.plugin_dir"))
+      return true;
+  }
+  return false;
+}
+
+//-------------------------------------------------------------------------
 // RecConfigOverrideFromEnvironment
 //-------------------------------------------------------------------------
 const char *
@@ -106,6 +121,8 @@ RecConfigOverrideFromEnvironment(const char *name, const char *value)
   envval = getenv((const char *)envname);
   if (envval) {
     return envval;
+  } else if (RecConfigOverrideFromRunroot(name)) {
+    return nullptr;
   }
 
   return value;
@@ -152,7 +169,7 @@ RecConfigFileParse(const char *path, RecConfigEntryCallback handler, bool inc_ve
   ink_hash_table_destroy(g_rec_config_contents_ht);
   g_rec_config_contents_ht = ink_hash_table_create(InkHashTableKeyType_String);
 
-  line_tok.Initialize(fbuf, SHARE_TOKS);
+  line_tok.Initialize(fbuf, SHARE_TOKS | ALLOW_EMPTY_TOKS);
   line     = line_tok.iterFirst(&line_tok_state);
   line_num = 1;
   while (line) {
@@ -215,8 +232,6 @@ RecConfigFileParse(const char *path, RecConfigEntryCallback handler, bool inc_ve
       rec_type = RECT_PROCESS;
     } else if (strcmp(rec_type_str, "NODE") == 0) {
       rec_type = RECT_NODE;
-    } else if (strcmp(rec_type_str, "CLUSTER") == 0) {
-      rec_type = RECT_CLUSTER;
     } else if (strcmp(rec_type_str, "LOCAL") == 0) {
       rec_type = RECT_LOCAL;
     } else {

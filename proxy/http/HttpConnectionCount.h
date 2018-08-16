@@ -27,12 +27,13 @@
 #include "ts/ink_mutex.h"
 #include "ts/Map.h"
 #include "ts/Diags.h"
-#include "ts/INK_MD5.h"
+#include "ts/CryptoHash.h"
 #include "ts/ink_config.h"
 #include "HttpProxyAPIEnums.h"
+#include "Show.h"
+#include <sstream>
 
-#ifndef _HTTP_CONNECTION_COUNT_H_
-#define _HTTP_CONNECTION_COUNT_H_
+#pragma once
 
 /**
  * Singleton class to keep track of the number of connections per host
@@ -56,7 +57,7 @@ public:
    * @return Number of connections
    */
   int
-  getCount(const IpEndpoint &addr, const INK_MD5 &hostname_hash, TSServerSessionSharingMatchType match_type)
+  getCount(const IpEndpoint &addr, const CryptoHash &hostname_hash, TSServerSessionSharingMatchType match_type)
   {
     if (TS_SERVER_SESSION_SHARING_MATCH_NONE == match_type) {
       return 0; // We can never match a node if match type is NONE
@@ -74,7 +75,7 @@ public:
    * @param delta Default is +1, can be set to negative to decrement
    */
   void
-  incrementCount(const IpEndpoint &addr, const INK_MD5 &hostname_hash, TSServerSessionSharingMatchType match_type,
+  incrementCount(const IpEndpoint &addr, const CryptoHash &hostname_hash, TSServerSessionSharingMatchType match_type,
                  const int delta = 1)
   {
     if (TS_SERVER_SESSION_SHARING_MATCH_NONE == match_type) {
@@ -87,10 +88,15 @@ public:
     _hostCount.put(caddr, count + delta);
     ink_mutex_release(&_mutex);
   }
+  /**
+   * dump to JSON for stat page.
+   * @return JSON string for _hostCount
+   */
+  std::string dumpToJSON();
 
   struct ConnAddr {
     IpEndpoint _addr;
-    INK_MD5 _hostname_hash;
+    CryptoHash _hostname_hash;
     TSServerSessionSharingMatchType _match_type;
 
     ConnAddr() : _match_type(TS_SERVER_SESSION_SHARING_MATCH_NONE)
@@ -106,7 +112,7 @@ public:
       ink_zero(_hostname_hash);
     }
 
-    ConnAddr(const IpEndpoint &addr, const INK_MD5 &hostname_hash, TSServerSessionSharingMatchType match_type)
+    ConnAddr(const IpEndpoint &addr, const CryptoHash &hostname_hash, TSServerSessionSharingMatchType match_type)
       : _addr(addr), _hostname_hash(hostname_hash), _match_type(match_type)
     {
     }
@@ -114,11 +120,30 @@ public:
     ConnAddr(const IpEndpoint &addr, const char *hostname, TSServerSessionSharingMatchType match_type)
       : _addr(addr), _match_type(match_type)
     {
-      MD5Context md5_ctx;
-      md5_ctx.hash_immediate(_hostname_hash, static_cast<const void *>(hostname), strlen(hostname));
+      CryptoContext().hash_immediate(_hostname_hash, static_cast<const void *>(hostname), strlen(hostname));
     }
 
     operator bool() { return ats_is_ip(&_addr); }
+    std::string
+    getIpStr()
+    {
+      std::string str;
+      if (*this) {
+        ip_text_buffer buf;
+        const char *ret = ats_ip_ntop(&_addr.sa, buf, sizeof(buf));
+        if (ret) {
+          str.assign(ret);
+        }
+      }
+      return str;
+    }
+
+    std::string
+    getHostnameHashStr()
+    {
+      char hashBuffer[CRYPTO_HEX_SIZE];
+      return std::string(_hostname_hash.toHexStr(hashBuffer));
+    }
   };
 
   class ConnAddrHashFns
@@ -143,12 +168,12 @@ public:
     {
       char addrbuf1[INET6_ADDRSTRLEN];
       char addrbuf2[INET6_ADDRSTRLEN];
-      char md5buf1[33];
-      char md5buf2[33];
-      ink_code_to_hex_str(md5buf1, a._hostname_hash.u8);
-      ink_code_to_hex_str(md5buf2, b._hostname_hash.u8);
-      Debug("conn_count", "Comparing hostname hash %s dest %s match method %d to hostname hash %s dest %s match method %d", md5buf1,
-            ats_ip_nptop(&a._addr.sa, addrbuf1, sizeof(addrbuf1)), a._match_type, md5buf2,
+      char crypto_hashbuf1[CRYPTO_HEX_SIZE];
+      char crypto_hashbuf2[CRYPTO_HEX_SIZE];
+      a._hostname_hash.toHexStr(crypto_hashbuf1);
+      b._hostname_hash.toHexStr(crypto_hashbuf2);
+      Debug("conn_count", "Comparing hostname hash %s dest %s match method %d to hostname hash %s dest %s match method %d",
+            crypto_hashbuf1, ats_ip_nptop(&a._addr.sa, addrbuf1, sizeof(addrbuf1)), a._match_type, crypto_hashbuf2,
             ats_ip_nptop(&b._addr.sa, addrbuf2, sizeof(addrbuf2)), b._match_type);
 
       if (a._match_type != b._match_type || a._match_type == TS_SERVER_SESSION_SHARING_MATCH_NONE) {
@@ -192,11 +217,24 @@ public:
 
 protected:
   // Hide the constructor and copy constructor
-  ConnectionCount() { ink_mutex_init(&_mutex, "ConnectionCountMutex"); }
+  ConnectionCount() { ink_mutex_init(&_mutex); }
   ConnectionCount(const ConnectionCount & /* x ATS_UNUSED */) {}
   static ConnectionCount _connectionCount;
   HashMap<ConnAddr, ConnAddrHashFns, int> _hostCount;
   ink_mutex _mutex;
+
+private:
+  void
+  appendJSONPair(std::ostringstream &oss, const std::string &key, const int value)
+  {
+    oss << '\"' << key << "\": " << value;
+  }
+
+  void
+  appendJSONPair(std::ostringstream &oss, const std::string &key, const std::string &value)
+  {
+    oss << '\"' << key << "\": \"" << value << '"';
+  }
 };
 
 class ConnectionCountQueue : public ConnectionCount
@@ -216,4 +254,4 @@ private:
   static ConnectionCountQueue _connectionCount;
 };
 
-#endif
+Action *register_ShowConnectionCount(Continuation *, HTTPHdr *);

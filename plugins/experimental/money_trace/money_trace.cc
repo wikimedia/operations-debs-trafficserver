@@ -88,10 +88,10 @@ mt_cache_lookup_check(TSCont contp, TSHttpTxn txnp, struct txndata *txn_data)
       }
       TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_REQUEST_HDR_HOOK, contp);
 
-    // fall through to the default as we always need to send the original
-    // money trace header received from the client back to the client in the
-    // response
-    // fallthrough
+      // fall through to the default as we always need to send the original
+      // money trace header received from the client back to the client in the
+      // response
+      // fallthrough
 
     default:
       TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
@@ -122,17 +122,13 @@ mt_check_request_header(TSHttpTxn txnp)
       if (!hdr_value || length <= 0) {
         LOG_DEBUG("ignoring, corrupt money trace header.");
       } else {
-        txn_data                                   = allocTransactionData();
-        txn_data->client_request_mt_header         = TSstrndup(hdr_value, length);
-        txn_data->client_request_mt_header[length] = '\0'; // workaround for bug in core.
-        LOG_DEBUG("found money trace header: %s, length: %d", txn_data->client_request_mt_header, length);
         if (nullptr == (contp = TSContCreate(transaction_handler, nullptr))) {
           LOG_ERROR("failed to create the transaction handler continuation");
-          if (nullptr != txn_data) {
-            TSfree(txn_data->client_request_mt_header);
-            TSfree(txn_data);
-          }
         } else {
+          txn_data                                   = allocTransactionData();
+          txn_data->client_request_mt_header         = TSstrndup(hdr_value, length);
+          txn_data->client_request_mt_header[length] = '\0'; // workaround for bug in core.
+          LOG_DEBUG("found money trace header: %s, length: %d", txn_data->client_request_mt_header, length);
           TSContDataSet(contp, txn_data);
           TSHttpTxnHookAdd(txnp, TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, contp);
           TSHttpTxnHookAdd(txnp, TS_HTTP_TXN_CLOSE_HOOK, contp);
@@ -232,7 +228,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   }
 
   if (api_info->tsremap_version < TSREMAP_VERSION) {
-    snprintf(errbuf, errbuf_size - 1, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
              (api_info->tsremap_version & 0xffff));
     return TS_ERROR;
   }

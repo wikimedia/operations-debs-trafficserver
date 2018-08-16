@@ -27,11 +27,11 @@
 
 #define STATE_ENTER(state_name, event)                                                       \
   do {                                                                                       \
-    DebugSsn(this, "http2_cs", "[%" PRId64 "] [%s, %s]", this->connection_id(), #state_name, \
+    SsnDebug(this, "http2_cs", "[%" PRId64 "] [%s, %s]", this->connection_id(), #state_name, \
              HttpDebugNames::get_event_name(event));                                         \
   } while (0)
 
-#define DebugHttp2Ssn(fmt, ...) DebugSsn(this, "http2_cs", "[%" PRId64 "] " fmt, this->connection_id(), ##__VA_ARGS__)
+#define Http2SsnDebug(fmt, ...) SsnDebug(this, "http2_cs", "[%" PRId64 "] " fmt, this->connection_id(), ##__VA_ARGS__)
 
 #define HTTP2_SET_SESSION_HANDLER(handler) \
   do {                                     \
@@ -58,26 +58,14 @@ send_connection_event(Continuation *cont, int event, void *edata)
   return cont->handleEvent(event, edata);
 }
 
-Http2ClientSession::Http2ClientSession()
-  : total_write_len(0),
-    client_vc(nullptr),
-    read_buffer(nullptr),
-    sm_reader(nullptr),
-    write_buffer(nullptr),
-    sm_writer(nullptr),
-    upgrade_context(),
-    kill_me(false),
-    half_close_local(false),
-    recursion(0)
-{
-}
+Http2ClientSession::Http2ClientSession() {}
 
 void
 Http2ClientSession::destroy()
 {
   if (!in_destroy) {
     in_destroy = true;
-    DebugHttp2Ssn("session destroy");
+    Http2SsnDebug("session destroy");
     // Let everyone know we are going down
     do_api_callout(TS_HTTP_SSN_CLOSE_HOOK);
   }
@@ -104,7 +92,7 @@ Http2ClientSession::free()
     return;
   }
 
-  DebugHttp2Ssn("session free");
+  Http2SsnDebug("session free");
 
   HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
 
@@ -187,7 +175,7 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
 
   this->connection_state.mutex = this->mutex;
 
-  DebugHttp2Ssn("session born, netvc %p", this->client_vc);
+  Http2SsnDebug("session born, netvc %p", this->client_vc);
 
   this->client_vc->set_tcp_congestion_control(CLIENT_SIDE);
 
@@ -226,7 +214,7 @@ Http2ClientSession::set_upgrade_context(HTTPHdr *h)
         // TODO ignore incoming invalid parameters and send suitable SETTINGS
         // frame.
       }
-      upgrade_context.client_settings.set((Http2SettingsIdentifier)param.id, param.value);
+      upgrade_context.client_settings.set(static_cast<Http2SettingsIdentifier>(param.id), param.value);
     }
   }
 
@@ -267,7 +255,7 @@ Http2ClientSession::do_io_shutdown(ShutdownHowTo_t howto)
 void
 Http2ClientSession::do_io_close(int alerrno)
 {
-  DebugHttp2Ssn("session closed");
+  Http2SsnDebug("session closed");
 
   ink_assert(this->mutex->thread_holding == this_ethread());
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_FINI, this);
@@ -275,6 +263,9 @@ Http2ClientSession::do_io_close(int alerrno)
   // Don't send the SSN_CLOSE_HOOK until we got rid of all the streams
   // And handled all the TXN_CLOSE_HOOK's
   if (client_vc) {
+    // Copy aside the client address before releasing the vc
+    cached_client_addr.assign(client_vc->get_remote_addr());
+    cached_local_addr.assign(client_vc->get_local_addr());
     this->release_netvc();
     client_vc->do_io_close();
     client_vc = nullptr;
@@ -296,7 +287,7 @@ void
 Http2ClientSession::set_half_close_local_flag(bool flag)
 {
   if (!half_close_local && flag) {
-    DebugHttp2Ssn("session half-close local");
+    Http2SsnDebug("session half-close local");
   }
   half_close_local = flag;
 }
@@ -316,9 +307,14 @@ Http2ClientSession::main_event_handler(int event, void *edata)
 
   switch (event) {
   case VC_EVENT_READ_COMPLETE:
-  case VC_EVENT_READ_READY:
-    retval = (this->*session_handler)(event, edata);
+  case VC_EVENT_READ_READY: {
+    bool is_zombie = connection_state.get_zombie_event() != nullptr;
+    retval         = (this->*session_handler)(event, edata);
+    if (is_zombie && connection_state.get_zombie_event() != nullptr) {
+      Warning("Processed read event for zombie session %" PRId64, connection_id());
+    }
     break;
+  }
 
   case HTTP2_SESSION_EVENT_XMIT: {
     Http2Frame *frame = (Http2Frame *)edata;
@@ -334,6 +330,7 @@ Http2ClientSession::main_event_handler(int event, void *edata)
   case VC_EVENT_INACTIVITY_TIMEOUT:
   case VC_EVENT_ERROR:
   case VC_EVENT_EOS:
+    this->set_dying_event(event);
     this->do_io_close();
     retval = 0;
     break;
@@ -348,11 +345,25 @@ Http2ClientSession::main_event_handler(int event, void *edata)
     break;
 
   default:
-    DebugHttp2Ssn("unexpected event=%d edata=%p", event, edata);
+    Http2SsnDebug("unexpected event=%d edata=%p", event, edata);
     ink_release_assert(0);
     retval = 0;
     break;
   }
+
+  if (!this->is_draining()) {
+    this->connection_state.set_shutdown_state(HTTP2_SHUTDOWN_NONE);
+  }
+
+  // For a case we already checked Connection header and it didn't exist
+  if (this->is_draining() && this->connection_state.get_shutdown_state() == HTTP2_SHUTDOWN_NONE) {
+    this->connection_state.set_shutdown_state(HTTP2_SHUTDOWN_NOT_INITIATED);
+  }
+
+  if (this->connection_state.get_shutdown_state() == HTTP2_SHUTDOWN_NOT_INITIATED) {
+    send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_SHUTDOWN_INIT, this);
+  }
+
   recursion--;
   if (!connection_state.is_recursing() && this->recursion == 0 && kill_me) {
     this->free();
@@ -376,12 +387,12 @@ Http2ClientSession::state_read_connection_preface(int event, void *edata)
     ink_release_assert(nbytes == HTTP2_CONNECTION_PREFACE_LEN);
 
     if (memcmp(HTTP2_CONNECTION_PREFACE, buf, nbytes) != 0) {
-      DebugHttp2Ssn("invalid connection preface");
+      Http2SsnDebug("invalid connection preface");
       this->do_io_close();
       return 0;
     }
 
-    DebugHttp2Ssn("received connection preface");
+    Http2SsnDebug("received connection preface");
     this->sm_reader->consume(nbytes);
     HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_start_frame_read);
 
@@ -424,16 +435,16 @@ Http2ClientSession::do_start_frame_read(Http2ErrorCode &ret_error)
   uint8_t buf[HTTP2_FRAME_HEADER_LEN];
   unsigned nbytes;
 
-  DebugHttp2Ssn("receiving frame header");
+  Http2SsnDebug("receiving frame header");
   nbytes = copy_from_buffer_reader(buf, this->sm_reader, sizeof(buf));
 
   if (!http2_parse_frame_header(make_iovec(buf), this->current_hdr)) {
-    DebugHttp2Ssn("frame header parse failure");
+    Http2SsnDebug("frame header parse failure");
     this->do_io_close();
     return -1;
   }
 
-  DebugHttp2Ssn("frame header length=%u, type=%u, flags=0x%x, streamid=%u", (unsigned)this->current_hdr.length,
+  Http2SsnDebug("frame header length=%u, type=%u, flags=0x%x, streamid=%u", (unsigned)this->current_hdr.length,
                 (unsigned)this->current_hdr.type, (unsigned)this->current_hdr.flags, this->current_hdr.streamid);
 
   this->sm_reader->consume(nbytes);
@@ -470,7 +481,7 @@ Http2ClientSession::state_complete_frame_read(int event, void *edata)
     vio->reenable();
     return 0;
   }
-  DebugHttp2Ssn("completed frame read, %" PRId64 " bytes available", this->sm_reader->read_avail());
+  Http2SsnDebug("completed frame read, %" PRId64 " bytes available", this->sm_reader->read_avail());
 
   return state_process_frame_read(event, vio, true);
 }

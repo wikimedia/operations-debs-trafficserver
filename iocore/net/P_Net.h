@@ -27,8 +27,7 @@
 
 
 **************************************************************************/
-#ifndef __P_NET_H__
-#define __P_NET_H__
+#pragma once
 
 // Net Stats
 
@@ -55,6 +54,7 @@ enum Net_Stats {
   default_inactivity_timeout_stat,
   net_fastopen_attempts_stat,
   net_fastopen_successes_stat,
+  net_tcp_accept_stat,
   net_connections_throttled_in_stat,
   net_connections_throttled_out_stat,
   Net_Stat_Count
@@ -124,5 +124,3 @@ extern RecRawStatBlock *net_rsb;
 /// Default amount of buffer space to use for the initial read on an incoming connection.
 /// This is an IOBufferBlock index, not the size in bytes.
 static size_t const CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX = BUFFER_SIZE_INDEX_4K;
-
-#endif

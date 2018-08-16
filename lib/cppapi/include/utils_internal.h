@@ -24,8 +24,6 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_ATSUTILS_H_
-#define ATSCPPAPI_ATSUTILS_H_
 
 #include <ts/ts.h>
 #include <string>
@@ -53,6 +51,7 @@ namespace utils
     static TSHttpHookID convertInternalTransformationTypeToTsHook(TransformationPlugin::Type type);
     static void invokePluginForEvent(TransactionPlugin *, TSHttpTxn, TSEvent);
     static void invokePluginForEvent(GlobalPlugin *, TSHttpTxn, TSEvent);
+    static void invokePluginForEvent(GlobalPlugin *, TSHttpAltInfo, TSEvent);
     static HttpVersion getHttpVersion(TSMBuffer hdr_buf, TSMLoc hdr_loc);
     static void initTransactionManagement();
     static std::string consumeFromTSIOBufferReader(TSIOBufferReader);
@@ -103,7 +102,5 @@ namespace utils
 
   }; /* internal */
 
-} /* utils */
-}
-
-#endif /* ATSCPPAPI_ATSUTILS_H_ */
+} // namespace utils
+} // namespace atscppapi

@@ -21,8 +21,7 @@
   limitations under the License.
 
  */
-#if !defined(_ink_cap_h_)
-#define _ink_cap_h_
+#pragma once
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -31,7 +30,7 @@
 
 /// Generate a debug message with the current capabilities for the process.
 extern void DebugCapabilities(const char *tag ///< Debug message tag.
-                              );
+);
 /// Set capabilities to persist across change of user id.
 /// @return true on success
 extern bool PreserveCapabilities();
@@ -51,12 +50,17 @@ extern int elevating_open(const char *path, unsigned int flags);
 /// Open a file, elevating privilege only if needed.
 extern FILE *elevating_fopen(const char *path, const char *mode);
 
+// chmod a file, elevating if necessary
+extern int elevating_chmod(const char *path, int perm);
+/// @c stat a file, evelating only if needed.
+extern int elevating_stat(const char *path, struct stat *buff);
+
 /** Control generate of core file on crash.
     @a flag sets whether core files are enabled on crash.
     @return true on success
  */
 extern bool EnableCoreFile(bool flag ///< New enable state.
-                           );
+);
 
 void EnableDeathSignal(int signum);
 
@@ -74,7 +78,9 @@ public:
   typedef enum {
     FILE_PRIVILEGE     = 0x1u, ///< Access filesystem objects with privilege
     TRACE_PRIVILEGE    = 0x2u, ///< Trace other processes with privilege
-    LOW_PORT_PRIVILEGE = 0x4u  ///< Bind to privilege ports.
+    LOW_PORT_PRIVILEGE = 0x4u, ///< Bind to privilege ports.
+    OWNER_PRIVILEGE    = 0x8u  ///< Bypass permission checks on operations that normally require
+                               ///  filesystem UID & process UID to match
   } privilege_level;
 
   ElevateAccess(unsigned level = FILE_PRIVILEGE);
@@ -98,5 +104,3 @@ private:
   void *cap_state; ///< Original capabilities state to restore.
 #endif
 };
-
-#endif

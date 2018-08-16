@@ -21,16 +21,13 @@
   limitations under the License.
  */
 
-#ifndef _P_CACHE_INTERNAL_H__
-#define _P_CACHE_INTERNAL_H__
+#pragma once
 
 #include "ts/ink_platform.h"
 #include "ts/InkErrno.h"
 
-#ifdef HTTP_CACHE
 #include "HTTP.h"
 #include "P_CacheHttp.h"
-#endif
 
 struct EvacuationBlock;
 
@@ -93,7 +90,7 @@ struct EvacuationBlock;
     writer_lock_retry++;                                                  \
     ink_hrtime _t = HRTIME_MSECONDS(cache_read_while_writer_retry_delay); \
     if (writer_lock_retry > 2)                                            \
-      _t    = HRTIME_MSECONDS(cache_read_while_writer_retry_delay) * 2;   \
+      _t = HRTIME_MSECONDS(cache_read_while_writer_retry_delay) * 2;      \
     trigger = mutex->thread_holding->schedule_in_local(this, _t);         \
     return EVENT_CONT;                                                    \
   } while (0)
@@ -168,23 +165,31 @@ extern RecRawStatBlock *cache_rsb;
 #define CACHE_SET_DYN_STAT(x, y) \
   RecSetGlobalRawStatSum(cache_rsb, (x), (y)) RecSetGlobalRawStatSum(vol->cache_vol->vol_rsb, (x), (y))
 
-#define CACHE_INCREMENT_DYN_STAT(x)                              \
-  RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), 1); \
-  RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), 1);
+#define CACHE_INCREMENT_DYN_STAT(x)                                              \
+  do {                                                                           \
+    RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), 1);               \
+    RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), 1); \
+  } while (0);
 
-#define CACHE_DECREMENT_DYN_STAT(x)                               \
-  RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), -1); \
-  RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), -1);
+#define CACHE_DECREMENT_DYN_STAT(x)                                               \
+  do {                                                                            \
+    RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), -1);               \
+    RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), -1); \
+  } while (0);
 
 #define CACHE_VOL_SUM_DYN_STAT(x, y) RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), (int64_t)y);
 
-#define CACHE_SUM_DYN_STAT(x, y)                                            \
-  RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), (int64_t)(y)); \
-  RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), (int64_t)(y));
+#define CACHE_SUM_DYN_STAT(x, y)                                                            \
+  do {                                                                                      \
+    RecIncrRawStat(cache_rsb, mutex->thread_holding, (int)(x), (int64_t)(y));               \
+    RecIncrRawStat(vol->cache_vol->vol_rsb, mutex->thread_holding, (int)(x), (int64_t)(y)); \
+  } while (0);
 
-#define CACHE_SUM_DYN_STAT_THREAD(x, y)                              \
-  RecIncrRawStat(cache_rsb, this_ethread(), (int)(x), (int64_t)(y)); \
-  RecIncrRawStat(vol->cache_vol->vol_rsb, this_ethread(), (int)(x), (int64_t)(y));
+#define CACHE_SUM_DYN_STAT_THREAD(x, y)                                              \
+  do {                                                                               \
+    RecIncrRawStat(cache_rsb, this_ethread(), (int)(x), (int64_t)(y));               \
+    RecIncrRawStat(vol->cache_vol->vol_rsb, this_ethread(), (int)(x), (int64_t)(y)); \
+  } while (0);
 
 #define GLOBAL_CACHE_SUM_GLOBAL_DYN_STAT(x, y) RecIncrGlobalRawStatSum(cache_rsb, (x), (y))
 
@@ -210,7 +215,6 @@ extern int cache_config_agg_write_backlog;
 extern int cache_config_enable_checksum;
 extern int cache_config_alt_rewrite_max_size;
 extern int cache_config_read_while_writer;
-extern int cache_clustering_enabled;
 extern int cache_config_agg_write_backlog;
 extern int cache_config_ram_cache_compress;
 extern int cache_config_ram_cache_compress_percent;
@@ -227,24 +231,24 @@ extern int cache_config_read_while_writer_max_retries;
 struct CacheVC : public CacheVConnection {
   CacheVC();
 
-  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf);
-  VIO *do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *buf, int64_t offset);
-  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false);
-  void do_io_close(int lerrno = -1);
-  void reenable(VIO *avio);
-  void reenable_re(VIO *avio);
-  bool get_data(int i, void *data);
-  bool set_data(int i, void *data);
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override;
+  VIO *do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *buf, int64_t offset) override;
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override;
+  void do_io_close(int lerrno = -1) override;
+  void reenable(VIO *avio) override;
+  void reenable_re(VIO *avio) override;
+  bool get_data(int i, void *data) override;
+  bool set_data(int i, void *data) override;
 
   bool
-  is_ram_cache_hit() const
+  is_ram_cache_hit() const override
   {
     ink_assert(vio.op == VIO::READ);
     return !f.not_from_ram_cache;
   }
 
   int
-  get_header(void **ptr, int *len)
+  get_header(void **ptr, int *len) override
   {
     if (first_buf) {
       Doc *doc = (Doc *)first_buf->data();
@@ -257,7 +261,7 @@ struct CacheVC : public CacheVConnection {
   }
 
   int
-  set_header(void *ptr, int len)
+  set_header(void *ptr, int len) override
   {
     header_to_write     = ptr;
     header_to_write_len = len;
@@ -265,7 +269,7 @@ struct CacheVC : public CacheVConnection {
   }
 
   int
-  get_single_data(void **ptr, int *len)
+  get_single_data(void **ptr, int *len) override
   {
     if (first_buf) {
       Doc *doc = (Doc *)first_buf->data();
@@ -280,7 +284,7 @@ struct CacheVC : public CacheVConnection {
   }
 
   int
-  get_volume_number() const
+  get_volume_number() const override
   {
     if (vol && vol->cache_vol) {
       return vol->cache_vol->vol_number;
@@ -290,7 +294,7 @@ struct CacheVC : public CacheVConnection {
   }
 
   bool
-  is_compressed_in_ram() const
+  is_compressed_in_ram() const override
   {
     ink_assert(vio.op == VIO::READ);
     return f.compressed_in_ram;
@@ -316,9 +320,7 @@ struct CacheVC : public CacheVConnection {
   int openReadReadDone(int event, Event *e);
   int openReadMain(int event, Event *e);
   int openReadStartEarliest(int event, Event *e);
-#ifdef HTTP_CACHE
   int openReadVecWrite(int event, Event *e);
-#endif
   int openReadStartHead(int event, Event *e);
   int openReadFromWriter(int event, Event *e);
   int openReadFromWriterMain(int event, Event *e);
@@ -371,10 +373,9 @@ struct CacheVC : public CacheVConnection {
   int evacuateReadHead(int event, Event *e);
 
   void cancel_trigger();
-  virtual int64_t get_object_size();
-#ifdef HTTP_CACHE
-  virtual void set_http_info(CacheHTTPInfo *info);
-  virtual void get_http_info(CacheHTTPInfo **info);
+  int64_t get_object_size() override;
+  void set_http_info(CacheHTTPInfo *info) override;
+  void get_http_info(CacheHTTPInfo **info) override;
   /** Get the fragment table.
       @return The address of the start of the fragment table,
       or @c nullptr if there is no fragment table.
@@ -384,12 +385,11 @@ struct CacheVC : public CacheVConnection {
       @return Length of header data used for alternates.
    */
   virtual uint32_t load_http_info(CacheHTTPInfoVector *info, struct Doc *doc, RefCountObj *block_ptr = nullptr);
-#endif
-  virtual bool is_pread_capable();
-  virtual bool set_pin_in_cache(time_t time_pin);
-  virtual time_t get_pin_in_cache();
-  virtual bool set_disk_io_priority(int priority);
-  virtual int get_disk_io_priority();
+  bool is_pread_capable() override;
+  bool set_pin_in_cache(time_t time_pin) override;
+  time_t get_pin_in_cache() override;
+  bool set_disk_io_priority(int priority) override;
+  int get_disk_io_priority() override;
 
 // offsets from the base stat
 #define CACHE_STAT_ACTIVE 0
@@ -415,9 +415,7 @@ struct CacheVC : public CacheVConnection {
   // CacheVC is freed. All these variables must be reset/cleared
   // in free_CacheVC.
   Action _action;
-#ifdef HTTP_CACHE
   CacheHTTPHdr request;
-#endif
   CacheHTTPInfoVector vector;
   CacheHTTPInfo alternate;
   Ptr<IOBufferData> buf;
@@ -446,9 +444,7 @@ struct CacheVC : public CacheVConnection {
   CacheFragType frag_type;
   CacheHTTPInfo *info;
   CacheHTTPInfoVector *write_vector;
-#ifdef HTTP_CACHE
-  CacheLookupHttpConfig *params;
-#endif
+  OverridableHttpConfigParams *params;
   int header_len;        // for communicating with agg_copy
   int frag_len;          // for communicating with agg_copy
   uint32_t write_len;    // for communicating with agg_copy
@@ -504,9 +500,7 @@ struct CacheVC : public CacheVConnection {
       unsigned int doc_from_ram_cache : 1;
       unsigned int hit_evacuate : 1;
       unsigned int compressed_in_ram : 1; // compressed state in ram cache
-#ifdef HTTP_CACHE
-      unsigned int allow_empty_doc : 1; // used for cache empty http document
-#endif
+      unsigned int allow_empty_doc : 1;   // used for cache empty http document
     } f;
   };
   // BTF optimization used to skip reading stuff in cache partition that doesn't contain any
@@ -542,10 +536,8 @@ extern ClassAllocator<CacheVC> cacheVConnectionAllocator;
 extern CacheKey zero_key;
 extern CacheSync *cacheDirSync;
 // Function Prototypes
-#ifdef HTTP_CACHE
 int cache_write(CacheVC *, CacheHTTPInfoVector *);
 int get_alternate_index(CacheHTTPInfoVector *cache_vector, CacheKey key);
-#endif
 CacheVC *new_DocEvacuator(int nbytes, Vol *d);
 
 // inline Functions
@@ -553,15 +545,13 @@ CacheVC *new_DocEvacuator(int nbytes, Vol *d);
 TS_INLINE CacheVC *
 new_CacheVC(Continuation *cont)
 {
-  EThread *t = cont->mutex->thread_holding;
-  CacheVC *c = THREAD_ALLOC(cacheVConnectionAllocator, t);
-#ifdef HTTP_CACHE
+  EThread *t          = cont->mutex->thread_holding;
+  CacheVC *c          = THREAD_ALLOC(cacheVConnectionAllocator, t);
   c->vector.data.data = &c->vector.data.fast_data[0];
-#endif
-  c->_action        = cont;
-  c->initial_thread = t->tt == DEDICATED ? nullptr : t;
-  c->mutex          = cont->mutex;
-  c->start_time     = Thread::get_hrtime();
+  c->_action          = cont;
+  c->initial_thread   = t->tt == DEDICATED ? nullptr : t;
+  c->mutex            = cont->mutex;
+  c->start_time       = Thread::get_hrtime();
   ink_assert(c->trigger == nullptr);
   Debug("cache_new", "new %p", c);
 #ifdef CACHE_STAT_PAGES
@@ -585,8 +575,9 @@ free_CacheVC(CacheVC *cont)
     } // else abort,cancel
   }
   ink_assert(mutex->thread_holding == this_ethread());
-  if (cont->trigger)
+  if (cont->trigger) {
     cont->trigger->cancel();
+  }
   ink_assert(!cont->is_io_in_progress());
   ink_assert(!cont->od);
   /* calling cont->io.action = nullptr causes compile problem on 2.6 solaris
@@ -598,18 +589,15 @@ free_CacheVC(CacheVC *cont)
   cont->io.aio_result        = 0;
   cont->io.aiocb.aio_nbytes  = 0;
   cont->io.aiocb.aio_reqprio = AIO_DEFAULT_PRIORITY;
-#ifdef HTTP_CACHE
   cont->request.reset();
   cont->vector.clear();
-#endif
   cont->vio.buffer.clear();
   cont->vio.mutex.clear();
-#ifdef HTTP_CACHE
-  if (cont->vio.op == VIO::WRITE && cont->alternate_index == CACHE_ALT_INDEX_DEFAULT)
+  if (cont->vio.op == VIO::WRITE && cont->alternate_index == CACHE_ALT_INDEX_DEFAULT) {
     cont->alternate.destroy();
-  else
+  } else {
     cont->alternate.clear();
-#endif
+  }
   cont->_action.cancelled = 0;
   cont->_action.mutex.clear();
   cont->mutex.clear();
@@ -618,8 +606,9 @@ free_CacheVC(CacheVC *cont)
   cont->blocks.clear();
   cont->writer_buf.clear();
   cont->alternate_index = CACHE_ALT_INDEX_DEFAULT;
-  if (cont->scan_vol_map)
+  if (cont->scan_vol_map) {
     ats_free(cont->scan_vol_map);
+  }
   memset((char *)&cont->vio, 0, cont->size_to_init);
 #ifdef CACHE_STAT_PAGES
   ink_assert(!cont->stat_link.next && !cont->stat_link.prev);
@@ -636,7 +625,7 @@ CacheVC::calluser(int event)
 {
   recursive++;
   ink_assert(!vol || this_ethread() != vol->mutex->thread_holding);
-  vio._cont->handleEvent(event, (void *)&vio);
+  vio.cont->handleEvent(event, (void *)&vio);
   recursive--;
   if (closed) {
     die();
@@ -652,10 +641,11 @@ CacheVC::callcont(int event)
   ink_assert(!vol || this_ethread() != vol->mutex->thread_holding);
   _action.continuation->handleEvent(event, this);
   recursive--;
-  if (closed)
+  if (closed) {
     die();
-  else if (vio.vc_server)
-    handleEvent(EVENT_IMMEDIATE, 0);
+  } else if (vio.vc_server) {
+    handleEvent(EVENT_IMMEDIATE, nullptr);
+  }
   return EVENT_DONE;
 }
 
@@ -666,14 +656,14 @@ CacheVC::do_read_call(CacheKey *akey)
   read_key            = akey;
   io.aiocb.aio_nbytes = dir_approx_size(&dir);
   PUSH_HANDLER(&CacheVC::handleRead);
-  return handleRead(EVENT_CALL, 0);
+  return handleRead(EVENT_CALL, nullptr);
 }
 
 TS_INLINE int
 CacheVC::do_write_call()
 {
   PUSH_HANDLER(&CacheVC::handleWrite);
-  return handleWrite(EVENT_CALL, 0);
+  return handleWrite(EVENT_CALL, nullptr);
 }
 
 TS_INLINE void
@@ -689,24 +679,24 @@ TS_INLINE int
 CacheVC::die()
 {
   if (vio.op == VIO::WRITE) {
-#ifdef HTTP_CACHE
     if (f.update && total_len) {
       alternate.object_key_set(earliest_key);
     }
-#endif
     if (!is_io_in_progress()) {
       SET_HANDLER(&CacheVC::openWriteClose);
-      if (!recursive)
+      if (!recursive) {
         openWriteClose(EVENT_NONE, nullptr);
+      }
     } // else catch it at the end of openWriteWriteDone
     return EVENT_CONT;
   } else {
-    if (is_io_in_progress())
+    if (is_io_in_progress()) {
       save_handler = (ContinuationHandler)&CacheVC::openReadClose;
-    else {
+    } else {
       SET_HANDLER(&CacheVC::openReadClose);
-      if (!recursive)
+      if (!recursive) {
         openReadClose(EVENT_NONE, nullptr);
+      }
     }
     return EVENT_CONT;
   }
@@ -726,8 +716,9 @@ CacheVC::handleWriteLock(int /* event ATS_UNUSED */, Event *e)
     }
     ret = handleWrite(EVENT_CALL, e);
   }
-  if (ret == EVENT_RETURN)
-    return handleEvent(AIO_EVENT_DONE, 0);
+  if (ret == EVENT_RETURN) {
+    return handleEvent(AIO_EVENT_DONE, nullptr);
+  }
   return EVENT_CONT;
 }
 
@@ -735,31 +726,34 @@ TS_INLINE int
 CacheVC::do_write_lock()
 {
   PUSH_HANDLER(&CacheVC::handleWriteLock);
-  return handleWriteLock(EVENT_NONE, 0);
+  return handleWriteLock(EVENT_NONE, nullptr);
 }
 
 TS_INLINE int
 CacheVC::do_write_lock_call()
 {
   PUSH_HANDLER(&CacheVC::handleWriteLock);
-  return handleWriteLock(EVENT_CALL, 0);
+  return handleWriteLock(EVENT_CALL, nullptr);
 }
 
 TS_INLINE bool
 CacheVC::writer_done()
 {
   OpenDirEntry *cod = od;
-  if (!cod)
-    cod      = vol->open_read(&first_key);
+  if (!cod) {
+    cod = vol->open_read(&first_key);
+  }
   CacheVC *w = (cod) ? cod->writers.head : nullptr;
   // If the write vc started after the reader, then its not the
   // original writer, since we never choose a writer that started
   // after the reader. The original writer was deallocated and then
   // reallocated for the same first_key
-  for (; w && (w != write_vc || w->start_time > start_time); w = (CacheVC *)w->opendir_link.next)
+  for (; w && (w != write_vc || w->start_time > start_time); w = (CacheVC *)w->opendir_link.next) {
     ;
-  if (!w)
+  }
+  if (!w) {
     return true;
+  }
   return false;
 }
 
@@ -806,8 +800,9 @@ Vol::close_write_lock(CacheVC *cont)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return close_write(cont);
 }
 
@@ -816,17 +811,19 @@ Vol::open_write_lock(CacheVC *cont, int allow_if_writers, int max_writers)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return open_write(cont, allow_if_writers, max_writers);
 }
 
 TS_INLINE OpenDirEntry *
-Vol::open_read_lock(INK_MD5 *key, EThread *t)
+Vol::open_read_lock(CryptoHash *key, EThread *t)
 {
   CACHE_TRY_LOCK(lock, mutex, t);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return nullptr;
+  }
   return open_dir.open_read(key);
 }
 
@@ -835,14 +832,16 @@ Vol::begin_read_lock(CacheVC *cont)
 {
 // no need for evacuation as the entire document is already in memory
 #ifndef CACHE_STAT_PAGES
-  if (cont->f.single_fragment)
+  if (cont->f.single_fragment) {
     return 0;
+  }
 #endif
   // VC is enqueued in stat_cache_vcs in the begin_read call
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return begin_read(cont);
 }
 
@@ -851,8 +850,9 @@ Vol::close_read_lock(CacheVC *cont)
 {
   EThread *t = cont->mutex->thread_holding;
   CACHE_TRY_LOCK(lock, mutex, t);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return close_read(cont);
 }
 
@@ -861,8 +861,9 @@ dir_delete_lock(CacheKey *key, Vol *d, ProxyMutex *m, Dir *del)
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return dir_delete(key, d, del);
 }
 
@@ -871,8 +872,9 @@ dir_insert_lock(CacheKey *key, Vol *d, Dir *to_part, ProxyMutex *m)
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return dir_insert(key, d, to_part);
 }
 
@@ -881,8 +883,9 @@ dir_overwrite_lock(CacheKey *key, Vol *d, Dir *to_part, ProxyMutex *m, Dir *over
 {
   EThread *thread = m->thread_holding;
   CACHE_TRY_LOCK(lock, d->mutex, thread);
-  if (!lock.is_locked())
+  if (!lock.is_locked()) {
     return -1;
+  }
   return dir_overwrite(key, d, to_part, overwrite, must_overwrite);
 }
 
@@ -900,8 +903,9 @@ next_CacheKey(CacheKey *next_key, CacheKey *key)
   uint8_t *b = (uint8_t *)next_key;
   uint8_t *k = (uint8_t *)key;
   b[0]       = CacheKey_next_table[k[0]];
-  for (int i = 1; i < 16; i++)
-    b[i]     = CacheKey_next_table[(b[i - 1] + k[i]) & 0xFF];
+  for (int i = 1; i < 16; i++) {
+    b[i] = CacheKey_next_table[(b[i - 1] + k[i]) & 0xFF];
+  }
 }
 extern uint8_t CacheKey_prev_table[];
 void TS_INLINE
@@ -909,9 +913,10 @@ prev_CacheKey(CacheKey *prev_key, CacheKey *key)
 {
   uint8_t *b = (uint8_t *)prev_key;
   uint8_t *k = (uint8_t *)key;
-  for (int i = 15; i > 0; i--)
-    b[i]     = 256 + CacheKey_prev_table[k[i]] - k[i - 1];
-  b[0]       = CacheKey_prev_table[k[0]];
+  for (int i = 15; i > 0; i--) {
+    b[i] = 256 + CacheKey_prev_table[k[i]] - k[i - 1];
+  }
+  b[0] = CacheKey_prev_table[k[0]];
 }
 
 TS_INLINE unsigned int
@@ -967,13 +972,13 @@ struct Vol;
 class CacheHostTable;
 
 struct Cache {
-  volatile int cache_read_done;
-  volatile int total_good_nvol;
-  volatile int total_nvol;
-  volatile int ready;
+  int cache_read_done;
+  int total_good_nvol;
+  int total_nvol;
+  int ready;
   int64_t cache_size; // in store block size
   CacheHostTable *hosttable;
-  volatile int total_initialized_vol;
+  int total_initialized_vol;
   CacheType scheme;
 
   int open(bool reconfigure, bool fix);
@@ -982,20 +987,18 @@ struct Cache {
   Action *lookup(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int host_len);
   inkcoreapi Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType type, const char *hostname, int len);
   inkcoreapi Action *open_write(Continuation *cont, const CacheKey *key, CacheFragType frag_type, int options = 0,
-                                time_t pin_in_cache = (time_t)0, const char *hostname = 0, int host_len = 0);
+                                time_t pin_in_cache = (time_t)0, const char *hostname = nullptr, int host_len = 0);
   inkcoreapi Action *remove(Continuation *cont, const CacheKey *key, CacheFragType type = CACHE_FRAG_TYPE_HTTP,
-                            const char *hostname = 0, int host_len = 0);
-  Action *scan(Continuation *cont, const char *hostname = 0, int host_len = 0, int KB_per_second = 2500);
+                            const char *hostname = nullptr, int host_len = 0);
+  Action *scan(Continuation *cont, const char *hostname = nullptr, int host_len = 0, int KB_per_second = 2500);
 
-#ifdef HTTP_CACHE
-  Action *open_read(Continuation *cont, const CacheKey *key, CacheHTTPHdr *request, CacheLookupHttpConfig *params,
+  Action *open_read(Continuation *cont, const CacheKey *key, CacheHTTPHdr *request, OverridableHttpConfigParams *params,
                     CacheFragType type, const char *hostname, int host_len);
   Action *open_write(Continuation *cont, const CacheKey *key, CacheHTTPInfo *old_info, time_t pin_in_cache = (time_t)0,
-                     const CacheKey *key1 = nullptr, CacheFragType type = CACHE_FRAG_TYPE_HTTP, const char *hostname = 0,
+                     const CacheKey *key1 = nullptr, CacheFragType type = CACHE_FRAG_TYPE_HTTP, const char *hostname = nullptr,
                      int host_len = 0);
-  static void generate_key(INK_MD5 *md5, CacheURL *url);
-  static void generate_key(HttpCacheKey *md5, CacheURL *url, cache_generation_t generation = -1);
-#endif
+  static void generate_key(CryptoHash *hash, CacheURL *url);
+  static void generate_key(HttpCacheKey *hash, CacheURL *url, cache_generation_t generation = -1);
 
   Action *link(Continuation *cont, const CacheKey *from, const CacheKey *to, CacheFragType type, const char *hostname,
                int host_len);
@@ -1021,15 +1024,12 @@ struct Cache {
 };
 
 extern Cache *theCache;
-extern Cache *theStreamCache;
 inkcoreapi extern Cache *caches[NUM_CACHE_FRAG_TYPES];
 
-#ifdef HTTP_CACHE
-
 TS_INLINE void
-Cache::generate_key(INK_MD5 *md5, CacheURL *url)
+Cache::generate_key(CryptoHash *hash, CacheURL *url)
 {
-  url->hash_get(md5);
+  url->hash_get(hash);
 }
 
 TS_INLINE void
@@ -1039,28 +1039,12 @@ Cache::generate_key(HttpCacheKey *key, CacheURL *url, cache_generation_t generat
   url->hash_get(&key->hash, generation);
 }
 
-#endif
-
 TS_INLINE unsigned int
-cache_hash(const INK_MD5 &md5)
+cache_hash(const CryptoHash &hash)
 {
-  uint64_t f         = md5.fold();
+  uint64_t f         = hash.fold();
   unsigned int mhash = (unsigned int)(f >> 32);
   return mhash;
 }
 
-#ifdef HTTP_CACHE
-#define CLUSTER_CACHE
-#endif
-
-#ifdef CLUSTER_CACHE
-#include "P_Net.h"
-#include "P_ClusterInternal.h"
-// Note: This include must occur here in order to avoid numerous forward
-//       reference problems.
-#include "P_ClusterInline.h"
-#endif
-
 LINK_DEFINITION(CacheVC, opendir_link)
-
-#endif /* _P_CACHE_INTERNAL_H__ */

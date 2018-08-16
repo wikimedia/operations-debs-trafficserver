@@ -29,10 +29,10 @@
  *
  ****************************************************************************/
 
-#ifndef _MATCHER_UTILS_H_
-#define _MATCHER_UTILS_H_
+#pragma once
 
 #include "ts/ParseRules.h"
+#include "ts/Result.h"
 #include "ts/ink_inet.h"
 
 // Look in MatcherUtils.cc for comments on function usage
@@ -50,14 +50,14 @@ const char *ExtractIpRange(char *match_str, sockaddr *min, sockaddr *max);
 const char *ExtractIpRange(char *match_str,
                            in_addr_t *addr1, ///< [in,out] Returned address in host order.
                            in_addr_t *addr2  ///< [in,out] Returned address in host order.
-                           );
+);
 
 /// Convenience overload for IPv6.
 inline const char *
 ExtractIpRange(char *match_str,
                sockaddr_in6 *addr1, ///< [in,out] Returned address in network order.
                sockaddr_in6 *addr2  ///< [in,out] Returned address in network order.
-               )
+)
 {
   return ExtractIpRange(match_str, ats_ip_sa_cast(addr1), ats_ip_sa_cast(addr2));
 }
@@ -102,8 +102,8 @@ struct matcher_tags {
   bool
   empty() const
   {
-    return this->match_host == nullptr && this->match_domain == NULL && this->match_ip == NULL && this->match_regex == NULL &&
-           this->match_url == nullptr && this->match_host_regex == NULL;
+    return this->match_host == nullptr && this->match_domain == nullptr && this->match_ip == nullptr &&
+           this->match_regex == nullptr && this->match_url == nullptr && this->match_host_regex == nullptr;
   }
 };
 
@@ -113,48 +113,6 @@ extern const matcher_tags ip_allow_dest_tags;
 extern const matcher_tags socks_server_tags;
 
 const char *parseConfigLine(char *line, matcher_line *p_line, const matcher_tags *tags);
-
-struct config_parse_error {
-  // Wrapper to make a syntactically nice success value.
-  static config_parse_error
-  ok()
-  {
-    return config_parse_error();
-  }
-
-  config_parse_error(const config_parse_error &rhs)
-  {
-    if (rhs.msg.get()) {
-      this->msg = ats_strdup(rhs.msg.get());
-    }
-  }
-
-  explicit config_parse_error(const char *fmt, ...) TS_NONNULL(2) TS_PRINTFLIKE(2, 3);
-
-  config_parse_error &
-  operator=(const config_parse_error &rhs)
-  {
-    if (rhs.msg.get()) {
-      this->msg = ats_strdup(rhs.msg.get());
-    } else {
-      this->msg = (char *)nullptr;
-    }
-
-    return *this;
-  }
-
-  const char *
-  get() const
-  {
-    return msg.get();
-  }
-
-  // A config error object evaluates to true if there is an error message.
-  operator bool() const { return msg.get() != nullptr; }
-private:
-  config_parse_error() {}
-  ats_scoped_str msg;
-};
 
 // inline void LowerCaseStr(char* str)
 //
@@ -171,5 +129,3 @@ LowerCaseStr(char *str)
     str++;
   }
 }
-
-#endif

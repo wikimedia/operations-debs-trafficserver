@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef LOG_SOCK_H
-#define LOG_SOCK_H
+#pragma once
 
 #include "ts/ink_platform.h"
 
@@ -37,8 +36,8 @@ class LogSock
 {
 public:
   enum Constant {
-    LS_CONST_PACKETSIZE           = 1024,
-    LS_CONST_CLUSTER_MAX_MACHINES = 256,
+    LS_CONST_PACKETSIZE = 1024,
+    LS_CONST_MAX_CONNS  = 256,
   };
 
   enum Err {
@@ -62,7 +61,6 @@ public:
     LS_N_STATES,
   };
 
-public:
   LogSock(int max_connects = 1);
   ~LogSock();
 
@@ -101,6 +99,10 @@ public:
   char *connected_host(int cid);
   int connected_port(int cid);
 
+  // noncopyable
+  LogSock(const LogSock &) = delete;
+  LogSock &operator=(const LogSock &) = delete;
+
 private:
   struct ConnectTable {
     char *host;  // hostname for this connection
@@ -113,22 +115,14 @@ private:
     int msg_bytes; // length of the following message
   };
 
-private:
   bool pending_data(int *cid, int timeout_msec, bool include_connects);
   int new_cid();
   void init_cid(int cid, char *host, int port, int sd, State state);
   int read_header(int sd, MsgHeader *header);
   int read_body(int sd, void *buf, int bytes);
 
-private:
   ConnectTable *ct; // list of all connections; index 0 is
   // the accept port.
   bool m_accept_connections; // do we accept new connections?
   int m_max_connections;     // max size of all tables
-
-private:
-  LogSock(const LogSock &);
-  LogSock &operator=(const LogSock &);
 };
-
-#endif

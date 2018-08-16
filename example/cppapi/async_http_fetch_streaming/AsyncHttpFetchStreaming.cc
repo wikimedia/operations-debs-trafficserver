@@ -79,7 +79,9 @@ public:
 void
 TSPluginInit(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
 {
-  RegisterGlobalPlugin("CPP_Example_AsyncHttpFetchStreaming", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_AsyncHttpFetchStreaming", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   plugin = new InterceptInstaller();
 }
 
@@ -122,10 +124,10 @@ Intercept::handleAsyncComplete(AsyncHttpFetch &async_http_fetch)
     oss << HTTP_VERSION_STRINGS[response.getVersion()] << ' ' << response.getStatusCode() << ' ' << response.getReasonPhrase()
         << "\r\n";
     Headers &response_headers = response.getHeaders();
-    for (Headers::iterator iter = response_headers.begin(), end = response_headers.end(); iter != end; ++iter) {
-      HeaderFieldName header_name = (*iter).name();
+    for (auto &&response_header : response_headers) {
+      HeaderFieldName header_name = response_header.name();
       if (header_name != "Transfer-Encoding") {
-        oss << header_name.str() << ": " << (*iter).values() << "\r\n";
+        oss << header_name.str() << ": " << response_header.values() << "\r\n";
       }
     }
     oss << "\r\n";

@@ -20,8 +20,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef _P_RefCountCache_h_
-#define _P_RefCountCache_h_
+#pragma once
 
 #include <I_EventSystem.h>
 #include <P_EventSystem.h> // TODO: less? just need ET_TASK
@@ -32,7 +31,6 @@
 #include <ts/List.h>
 #include <ts/ink_hrtime.h>
 
-#include <ts/Vec.h>
 #include <ts/I_Version.h>
 #include <unistd.h>
 
@@ -154,7 +152,7 @@ public:
   template <class Iterator> void dealloc_entry(Iterator ptr);
 
   size_t count() const;
-  void copy(Vec<RefCountCacheHashEntry *> &items);
+  void copy(std::vector<RefCountCacheHashEntry *> &items);
 
   typedef typename TSHashTable<RefCountCacheHashing>::iterator iterator_type;
   typedef typename TSHashTable<RefCountCacheHashing>::self hash_type;
@@ -339,7 +337,7 @@ RefCountCachePartition<C>::count() const
 
 template <class C>
 void
-RefCountCachePartition<C>::copy(Vec<RefCountCacheHashEntry *> &items)
+RefCountCachePartition<C>::copy(std::vector<RefCountCacheHashEntry *> &items)
 {
   for (RefCountCachePartition<C>::iterator_type i = this->item_map.begin(); i != this->item_map.end(); ++i) {
     RefCountCacheHashEntry *val = RefCountCacheHashEntry::alloc();
@@ -419,7 +417,7 @@ private:
   int max_size;  // Total size
   int max_items; // Total number of items allowed
   unsigned int num_partitions;
-  Vec<RefCountCachePartition<C> *> partitions;
+  std::vector<RefCountCachePartition<C> *> partitions;
   // Header
   RefCountCacheHeader header; // Our header
   RecRawStatBlock *rsb;
@@ -618,5 +616,3 @@ LoadRefCountCacheFromPath(RefCountCache<CacheEntryType> &cache, std::string dirn
   socketManager.close(fd);
   return 0;
 }
-
-#endif /* _P_RefCountCache_h_ */

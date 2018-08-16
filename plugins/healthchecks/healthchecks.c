@@ -43,11 +43,8 @@ static const char SEPARATORS[]  = " \t\n";
 #define MAX_BODY_LEN 16384
 #define FREELIST_TIMEOUT 300
 
-/* Some atomic stuff, from ATS core */
-typedef volatile void *vvoidp;
-
 static inline void *
-ink_atomic_swap_ptr(vvoidp mem, void *value)
+ink_atomic_swap_ptr(void *mem, void *value)
 {
   return __sync_lock_test_and_set((void **)mem, value);
 }
@@ -145,7 +142,7 @@ setup_watchers(int fd)
   while (conf) {
     conf->wd = inotify_add_watch(fd, conf->fname, IN_DELETE_SELF | IN_CLOSE_WRITE | IN_ATTRIB);
     TSDebug(PLUGIN_NAME, "Setting up a watcher for %s", conf->fname);
-    strncpy(fname, conf->fname, MAX_PATH_LEN - 1);
+    strncpy(fname, conf->fname, MAX_PATH_LEN);
     dname = dirname(fname);
     /* Make sure to only watch each directory once */
     if (!(dir = find_direntry(dname, head_dir))) {
@@ -189,9 +186,9 @@ hc_thread(void *data ATS_UNUSED)
   while (1) {
     HCFileData *fdata = fl_head, *fdata_prev = NULL;
 
+    gettimeofday(&now, NULL);
     /* Read the inotify events, blocking until we get something */
     len = read(fd, buffer, INOTIFY_BUFLEN);
-    gettimeofday(&now, NULL);
 
     /* The fl_head is a linked list of previously released data entries. They
        are ordered "by time", so once we find one that is scheduled for deletion,
@@ -226,9 +223,8 @@ hc_thread(void *data ATS_UNUSED)
         struct inotify_event *event = (struct inotify_event *)&buffer[i];
         HCFileInfo *finfo           = g_config;
 
-        while (
-          finfo &&
-          !((event->wd == finfo->wd) || ((event->wd == finfo->dir->wd) && !strncmp(event->name, finfo->basename, event->len)))) {
+        while (finfo && !((event->wd == finfo->wd) ||
+                          ((event->wd == finfo->dir->wd) && !strncmp(event->name, finfo->basename, event->len)))) {
           finfo = finfo->_next;
         }
         if (finfo) {
@@ -255,6 +251,7 @@ hc_thread(void *data ATS_UNUSED)
           old_data->_next  = fl_head;
           fl_head          = old_data;
         }
+        /* coverity[ -tainted_data_return] */
         i += sizeof(struct inotify_event) + event->len;
       }
     }
@@ -313,7 +310,7 @@ parse_configs(const char *fname)
   } else {
     char filename[PATH_MAX + 1];
 
-    snprintf(filename, sizeof(filename), "%s/%s", fname, TSConfigDirGet());
+    snprintf(filename, sizeof(filename), "%s/%s", TSConfigDirGet(), fname);
     fd = fopen(filename, "r");
   }
 
@@ -452,7 +449,7 @@ hc_process_write(TSCont contp, TSEvent event, HCState *my_state)
     char buf[48];
     int len;
 
-    len = snprintf(buf, sizeof(buf) - 1, "Content-Length: %d\r\n\r\n", my_state->data->b_len);
+    len = snprintf(buf, sizeof(buf), "Content-Length: %d\r\n\r\n", my_state->data->b_len);
     my_state->output_bytes += add_data_to_resp(buf, len, my_state);
     if (my_state->data->b_len > 0) {
       my_state->output_bytes += add_data_to_resp(my_state->data->body, my_state->data->b_len, my_state);
@@ -564,7 +561,7 @@ TSPluginInit(int argc, const char *argv[])
   TSPluginRegistrationInfo info;
 
   if (2 != argc) {
-    TSError("[healthchecks] Must specify a configuration file.");
+    TSError("[healthchecks] Must specify a configuration file");
     return;
   }
 
@@ -573,7 +570,7 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = "dev@trafficserver.apache.org";
 
   if (TS_SUCCESS != TSPluginRegister(&info)) {
-    TSError("[healthchecks] Plugin registration failed.");
+    TSError("[healthchecks] Plugin registration failed");
     return;
   }
 

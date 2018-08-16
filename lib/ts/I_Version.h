@@ -28,8 +28,7 @@
 
   **************************************************************************/
 
-#ifndef _Version_h
-#define _Version_h
+#pragma once
 
 struct VersionNumber {
   short int ink_major; // incompatible change
@@ -46,6 +45,12 @@ operator<(VersionNumber const &lhs, VersionNumber const &rhs)
 }
 
 inline bool
+operator>(VersionNumber const &lhs, VersionNumber const &rhs)
+{
+  return rhs < lhs;
+}
+
+inline bool
 operator==(VersionNumber const &lhs, VersionNumber const &rhs)
 {
   return lhs.ink_major == rhs.ink_major && lhs.ink_minor == rhs.ink_minor;
@@ -54,8 +59,6 @@ operator==(VersionNumber const &lhs, VersionNumber const &rhs)
 struct Version {
   VersionNumber cacheDB;
   VersionNumber cacheDir;
-  VersionNumber clustering;
-  VersionNumber clustering_min;
 };
 
 enum ModuleVersion {
@@ -110,5 +113,3 @@ public:
   void setup(const char *pkg_name, const char *app_name, const char *app_version, const char *build_date, const char *build_time,
              const char *build_machine, const char *build_person, const char *build_cflags);
 };
-
-#endif /*_Version_h*/

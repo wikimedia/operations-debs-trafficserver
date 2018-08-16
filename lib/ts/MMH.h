@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _MMH_h_
-#define _MMH_h_
+#pragma once
 
 #include "ts/ink_code.h"
 #include "ts/ink_defs.h"
@@ -49,7 +48,7 @@ int inkcoreapi ink_code_MMH(unsigned char *input, int len, unsigned char *sixtee
   cost.
 
 */
-class MMHContext : public CryptoContext
+class MMHContext : public ats::CryptoContextBase
 {
 protected:
   MMH_CTX _ctx;
@@ -57,9 +56,9 @@ protected:
 public:
   MMHContext();
   /// Update the hash with @a data of @a length bytes.
-  virtual bool update(void const *data, int length);
+  bool update(void const *data, int length) override;
   /// Finalize and extract the @a hash.
-  virtual bool finalize(CryptoHash &hash);
+  bool finalize(CryptoHash &hash) override;
 #if 0
   MMH & loadFromBuffer(char *MMH_buf)
   {
@@ -115,5 +114,3 @@ public:
   }
 #endif
 };
-
-#endif

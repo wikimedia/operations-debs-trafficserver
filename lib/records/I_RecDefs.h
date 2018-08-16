@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _I_REC_DEFS_H_
-#define _I_REC_DEFS_H_
+#pragma once
 
 #include "ts/ink_mutex.h"
 #include "ts/ink_rwlock.h"
@@ -56,7 +55,6 @@ enum RecT {
   RECT_CONFIG  = 0x01,
   RECT_PROCESS = 0x02,
   RECT_NODE    = 0x04,
-  RECT_CLUSTER = 0x08,
   RECT_LOCAL   = 0x10,
   RECT_PLUGIN  = 0x20,
   RECT_ALL     = 0x3F
@@ -99,8 +97,8 @@ namespace detail
   template <> struct is_valid_persistence<RECP_NON_PERSISTENT> {
     static const RecPersistT value = RECP_NON_PERSISTENT;
   };
-}
-}
+} // namespace detail
+} // namespace rec
 
 #define REC_PERSISTENCE_TYPE(P) rec::detail::is_valid_persistence<P>::value
 
@@ -109,7 +107,6 @@ enum RecUpdateT {
   RECU_DYNAMIC,    // config can be updated dynamically w/ "traffic_ctl config reload"
   RECU_RESTART_TS, // config requires TS to be restarted to take effect
   RECU_RESTART_TM, // config requires TM/TS to be restarted to take effect
-  RECU_RESTART_TC  // config requires TC/TM/TS to be restarted to take effect
 };
 
 enum RecCheckT {
@@ -126,7 +123,7 @@ enum RecSourceT {
   REC_SOURCE_NULL,     ///< No source / value not set.
   REC_SOURCE_DEFAULT,  ///< Built in default.
   REC_SOURCE_PLUGIN,   ///< Plugin supplied default.
-  REC_SOURCE_EXPLICIT, ///< Set by administrator (config file, external API, cluster, etc.)
+  REC_SOURCE_EXPLICIT, ///< Set by administrator (config file, external API, etc.)
   REC_SOURCE_ENV       ///< Process environment variable.
 };
 
@@ -183,5 +180,3 @@ struct RecRawStatBlock {
 typedef int (*RecConfigUpdateCb)(const char *name, RecDataT data_type, RecData data, void *cookie);
 typedef int (*RecStatUpdateFunc)(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id, void *cookie);
 typedef int (*RecRawStatSyncCb)(const char *name, RecDataT data_type, RecData *data, RecRawStatBlock *rsb, int id);
-
-#endif

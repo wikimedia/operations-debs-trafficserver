@@ -41,15 +41,12 @@ namespace wccp
 #endif
 
 // ------------------------------------------------------
-Impl::GroupData::GroupData() : m_generation(0), m_use_security_opt(false), m_use_security_key(false)
-{
-}
-
 Impl::GroupData &
 Impl::GroupData::setKey(const char *key)
 {
-  m_use_security_key = true;
-  strncpy(m_security_key, key, SecurityComp::KEY_SIZE);
+  if ((m_use_security_key = (key != nullptr))) {
+    ink_strlcpy(m_security_key, key, SecurityComp::KEY_SIZE);
+  }
   return *this;
 }
 
@@ -59,10 +56,6 @@ Impl::GroupData::setSecurity(SecurityOption style)
   m_use_security_opt = true;
   m_security_opt     = style;
   return *this;
-}
-
-Impl::Impl() : m_addr(INADDR_ANY), m_fd(ts::NO_FD)
-{
 }
 
 Impl::~Impl()
@@ -75,7 +68,7 @@ Impl::open(uint addr)
 {
   struct sockaddr saddr;
   sockaddr_in &in_addr = reinterpret_cast<sockaddr_in &>(saddr);
-  int fd;
+  ats_scoped_fd fd;
 
   if (ts::NO_FD != m_fd) {
     log(LVL_INFO, "Attempted to open already open WCCP Endpoint");
@@ -129,7 +122,7 @@ Impl::open(uint addr)
   }
 #endif
 
-  m_fd = fd;
+  m_fd = fd.release();
   return 0;
 }
 
@@ -215,6 +208,7 @@ Impl::handleMessage()
   recv_hdr.msg_iovlen     = 1;
   recv_hdr.msg_control    = anc_buffer;
   recv_hdr.msg_controllen = ANC_BUFFER_SIZE;
+  recv_hdr.msg_flags      = 0; // output only, make Coverity shut up.
 
   // coverity[uninit_use_in_call]
   n = recvmsg(m_fd, &recv_hdr, MSG_TRUNC);
@@ -283,9 +277,7 @@ Impl::handleRemovalQuery(IpHeader const &, ts::Buffer const & /* data ATS_UNUSED
   return log(LVL_INFO, "Unanticipated WCCP2_REMOVAL_QUERY message ignored.");
 }
 // ------------------------------------------------------
-CacheImpl::GroupData::GroupData() : m_proc_name(NULL), m_assignment_pending(false)
-{
-}
+CacheImpl::GroupData::GroupData() : m_proc_name(NULL), m_assignment_pending(false) {}
 
 CacheImpl::GroupData &
 CacheImpl::GroupData::seedRouter(uint32_t addr)
@@ -345,9 +337,7 @@ CacheImpl::GroupData::resizeCacheSources()
   }
 }
 
-inline CacheImpl::RouterData::RouterData() : m_addr(0), m_generation(0), m_rapid(0), m_assign(false), m_send_caps(false)
-{
-}
+inline CacheImpl::RouterData::RouterData() : m_addr(0), m_generation(0), m_rapid(0), m_assign(false), m_send_caps(false) {}
 
 inline CacheImpl::RouterData::RouterData(uint32_t addr)
   : m_addr(addr), m_generation(0), m_rapid(0), m_assign(false), m_send_caps(false)
@@ -383,7 +373,6 @@ CacheImpl::defineServiceGroup(ServiceGroup const &svc, ServiceGroup::Result *res
   if (spot == m_groups.end()) { // not defined
     group        = &(m_groups[svc_id]);
     group->m_svc = svc;
-    memset(&group->m_id, 0, sizeof(group->m_id));
     group->m_id.initDefaultHash(m_addr);
     zret = ServiceGroup::DEFINED;
   } else {
@@ -434,21 +423,19 @@ CacheImpl::GroupData::processUp()
     zret = true; // No process to track, always chatter
   } else {
     // Look for the pid file
-    int fd = open(proc_pid_path, O_RDONLY);
-    if (fd > 0) {
+    ats_scoped_fd fd{open(proc_pid_path, O_RDONLY)};
+    if (fd >= 0) {
       char buffer[256];
       ssize_t read_count = read(fd, buffer, sizeof(buffer) - 1);
-      close(fd);
       if (read_count > 0) {
         buffer[read_count] = '\0';
         int pid            = atoi(buffer);
         if (pid > 0) {
           // If the process is still running, it has an entry in the proc file system, (Linux only)
           sprintf(buffer, "/proc/%d/status", pid);
-          fd = open(buffer, O_RDONLY);
-          if (fd > 0) {
+          ats_scoped_fd fd2{open(buffer, O_RDONLY)};
+          if (fd2 >= 0) {
             zret = true;
-            close(fd);
           }
         }
       }
@@ -898,8 +885,9 @@ CacheImpl::handleRemovalQuery(IpHeader const & /* ip_hdr ATS_UNUSED */, ts::Buff
     }
   } else {
     // Not an error in the multi-cast case, so just log under debug.
-    logf(LVL_DEBUG, "WCCP2_REMOVAL_QUERY ignored -- target cache address " ATS_IP_PRINTF_CODE
-                    " did not match local address " ATS_IP_PRINTF_CODE "\n.",
+    logf(LVL_DEBUG,
+         "WCCP2_REMOVAL_QUERY ignored -- target cache address " ATS_IP_PRINTF_CODE
+         " did not match local address " ATS_IP_PRINTF_CODE "\n.",
          ATS_IP_OCTETS(target_addr), ATS_IP_OCTETS(m_addr));
   }
 
@@ -914,9 +902,7 @@ detail::router::CacheData::idAddr() const
   return m_id.getAddr();
 }
 
-RouterImpl::GroupData::GroupData()
-{
-}
+RouterImpl::GroupData::GroupData() {}
 
 RouterImpl::CacheBag::iterator
 RouterImpl::GroupData::findCache(uint32_t addr)
@@ -1113,17 +1099,11 @@ RouterImpl::isConfigured() const
   return false;
 }
 // ------------------------------------------------------
-EndPoint::EndPoint()
-{
-}
+EndPoint::EndPoint() {}
 
-EndPoint::~EndPoint()
-{
-}
+EndPoint::~EndPoint() {}
 
-EndPoint::EndPoint(self const &that) : m_ptr(that.m_ptr)
-{
-}
+EndPoint::EndPoint(self const &that) : m_ptr(that.m_ptr) {}
 
 inline EndPoint::ImplType *
 EndPoint::instance()
@@ -1178,18 +1158,14 @@ EndPoint::handleMessage()
                  ts::Rv<int>(-ENOTCONN, log(LVL_INFO, "EndPoint::handleMessage called on unconnected instance"));
 }
 // ------------------------------------------------------
-Cache::Cache()
-{
-}
+Cache::Cache() {}
 
-Cache::~Cache()
-{
-}
+Cache::~Cache() {}
 
 EndPoint::ImplType *
 Cache::make()
 {
-  m_ptr.assign(new ImplType);
+  m_ptr.reset(new ImplType);
   return m_ptr.get();
 }
 
@@ -1236,18 +1212,14 @@ Cache::loadServicesFromFile(const char *path)
   return this->instance()->loadServicesFromFile(path);
 }
 // ------------------------------------------------------
-Router::Router()
-{
-}
+Router::Router() {}
 
-Router::~Router()
-{
-}
+Router::~Router() {}
 
 EndPoint::ImplType *
 Router::make()
 {
-  m_ptr.assign(new ImplType);
+  m_ptr.reset(new ImplType);
   return m_ptr.get();
 }
 

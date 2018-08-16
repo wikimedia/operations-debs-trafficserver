@@ -20,11 +20,9 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_URL_H_
-#define ATSCPPAPI_URL_H_
 
 #include <string>
-#include <stdint.h>
+#include <cstdint>
 #include <atscppapi/noncopyable.h>
 
 namespace atscppapi
@@ -145,6 +143,4 @@ private:
   friend class ClientRequest;
   friend class RemapPlugin;
 };
-}
-
-#endif /* ATSCPPAPI_URL_H_ */
+} // namespace atscppapi

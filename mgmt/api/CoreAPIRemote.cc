@@ -42,10 +42,11 @@
 #include "ts/ink_string.h"
 #include "ts/I_Layout.h"
 #include "ts/ParseRules.h"
+#include "ts/ink_memory.h"
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
-#include "CfgContextUtils.h"
 #include "NetworkUtilsRemote.h"
+
 #include "EventCallback.h"
 #include "MgmtMarshall.h"
 
@@ -226,7 +227,7 @@ Init(const char *socket_path, TSInitOptionT options)
 
   // if connected, create event thread that listens for events from TM
   if (0 == (ts_init_options & TS_MGMT_OPT_NO_EVENTS)) {
-    ts_event_thread = ink_thread_create(event_poll_thread_main, &event_socket_fd, 0, 0, nullptr);
+    ink_thread_create(&ts_event_thread, event_poll_thread_main, &event_socket_fd, 0, 0, nullptr);
   } else {
     ts_event_thread = ink_thread_null();
   }
@@ -236,7 +237,7 @@ END:
   // create thread that periodically checks the socket connection
   // with TM alive - reconnects if not alive
   if (0 == (ts_init_options & TS_MGMT_OPT_NO_SOCK_TESTS)) {
-    ts_test_thread = ink_thread_create(socket_test_thread, nullptr, 0, 0, nullptr);
+    ink_thread_create(&ts_test_thread, socket_test_thread, nullptr, 0, 0, nullptr);
   } else {
     ts_test_thread = ink_thread_null();
   }
@@ -430,6 +431,40 @@ Bounce(unsigned options)
   ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, OpType::BOUNCE, &optype, &oval);
 
   return (ret == TS_ERR_OKAY) ? parse_generic_response(OpType::BOUNCE, main_socket_fd) : ret;
+}
+
+/*-------------------------------------------------------------------------
+ * Stop
+ *-------------------------------------------------------------------------
+ * Restart the traffic_server process(es) only.
+ */
+TSMgmtError
+Stop(unsigned options)
+{
+  TSMgmtError ret;
+  OpType optype        = OpType::STOP;
+  MgmtMarshallInt oval = options;
+
+  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, OpType::STOP, &optype, &oval);
+
+  return (ret == TS_ERR_OKAY) ? parse_generic_response(OpType::STOP, main_socket_fd) : ret;
+}
+
+/*-------------------------------------------------------------------------
+ * Drain
+ *-------------------------------------------------------------------------
+ * Drain requests of the traffic_server process(es) only.
+ */
+TSMgmtError
+Drain(unsigned options)
+{
+  TSMgmtError ret;
+  OpType optype        = OpType::DRAIN;
+  MgmtMarshallInt oval = options;
+
+  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, OpType::DRAIN, &optype, &oval);
+
+  return (ret == TS_ERR_OKAY) ? parse_generic_response(OpType::DRAIN, main_socket_fd) : ret;
 }
 
 /*-------------------------------------------------------------------------
@@ -824,92 +859,6 @@ MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT 
 }
 
 /***************************************************************************
- * File Operations
- ***************************************************************************/
-/*-------------------------------------------------------------------------
- * ReadFile
- *-------------------------------------------------------------------------
- * Purpose: returns copy of the most recent version of the file
- * Input:   file - the config file to read
- *          text - a buffer is allocated on the text char* pointer
- *          size - the size of the buffer is returned
- * Output:
- *
- * Marshals a read file request that can be sent over the unix domain socket.
- * Connects to the socket and sends request over. Parses the response from
- * Traffic Manager.
- */
-TSMgmtError
-ReadFile(TSFileNameT file, char **text, int *size, int *version)
-{
-  TSMgmtError ret;
-  OpType optype       = OpType::FILE_READ;
-  MgmtMarshallInt fid = file;
-
-  MgmtMarshallData reply = {nullptr, 0};
-  MgmtMarshallInt err;
-  MgmtMarshallInt vers;
-  MgmtMarshallData data = {nullptr, 0};
-
-  *text = nullptr;
-  *size = *version = 0;
-
-  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, OpType::FILE_READ, &optype, &fid);
-  if (ret != TS_ERR_OKAY) {
-    return ret;
-  }
-
-  ret = recv_mgmt_message(main_socket_fd, reply);
-  if (ret != TS_ERR_OKAY) {
-    return ret;
-  }
-
-  ret = recv_mgmt_response(reply.ptr, reply.len, OpType::FILE_READ, &err, &vers, &data);
-  ats_free(reply.ptr);
-
-  if (ret != TS_ERR_OKAY) {
-    return ret;
-  }
-
-  if (err != TS_ERR_OKAY) {
-    return (TSMgmtError)err;
-  }
-
-  *version = vers;
-  *text    = (char *)data.ptr;
-  *size    = (int)data.len;
-  return TS_ERR_OKAY;
-}
-
-/*-------------------------------------------------------------------------
- * WriteFile
- *-------------------------------------------------------------------------
- * Purpose: replaces the current file with the file passed in;
- *  does forceUpdate for Rollback and FileManager so correct file
- *  versioning is maintained
- * Input: file - the config file to write
- *        text - text buffer to write
- *        size - the size of the buffer to write
- *
- * Marshals a write file request that can be sent over the unix domain socket.
- * Connects to the socket and sends request over. Parses the response from
- * Traffic Manager.
- */
-TSMgmtError
-WriteFile(TSFileNameT file, const char *text, int size, int version)
-{
-  TSMgmtError ret;
-
-  OpType optype         = OpType::FILE_WRITE;
-  MgmtMarshallInt fid   = file;
-  MgmtMarshallInt vers  = version;
-  MgmtMarshallData data = {(void *)text, (size_t)size};
-
-  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, OpType::FILE_WRITE, &optype, &fid, &vers, &data);
-  return (ret == TS_ERR_OKAY) ? parse_generic_response(OpType::FILE_WRITE, main_socket_fd) : ret;
-}
-
-/***************************************************************************
  * Events
  ***************************************************************************/
 /*-------------------------------------------------------------------------
@@ -1083,57 +1032,35 @@ EventSignalCbUnregister(const char *event_name, TSEventSignalFunc func)
   return TS_ERR_OKAY;
 }
 
-/***************************************************************************
- * Snapshots
- ***************************************************************************/
-static TSMgmtError
-snapshot_message(OpType op, const char *snapshot_name)
+TSMgmtError
+HostStatusSetDown(const char *host_name, int down_time)
 {
-  TSMgmtError ret;
-  OpType optype           = op;
-  MgmtMarshallString name = const_cast<MgmtMarshallString>(snapshot_name);
+  fprintf(stderr, "%s:%s:%d - host_name: %s, down_time: %d\n", __FILE__, __func__, __LINE__, host_name, down_time);
+  TSMgmtError ret         = TS_ERR_PARAMS;
+  OpType op               = OpType::HOST_STATUS_DOWN;
+  MgmtMarshallString name = const_cast<MgmtMarshallString>(host_name);
+  MgmtMarshallInt dtime   = down_time;
 
-  if (!snapshot_name) {
-    return TS_ERR_PARAMS;
-  }
-
-  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, op, &optype, &name);
+  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, op, &op, &name, &dtime);
   return (ret == TS_ERR_OKAY) ? parse_generic_response(op, main_socket_fd) : ret;
 }
 
 TSMgmtError
-SnapshotTake(const char *snapshot_name)
+HostStatusSetUp(const char *host_name)
 {
-  return snapshot_message(OpType::SNAPSHOT_TAKE, snapshot_name);
+  TSMgmtError ret         = TS_ERR_PARAMS;
+  OpType op               = OpType::HOST_STATUS_UP;
+  MgmtMarshallString name = const_cast<MgmtMarshallString>(host_name);
+
+  ret = MGMTAPI_SEND_MESSAGE(main_socket_fd, op, &op, &name);
+  return (ret == TS_ERR_OKAY) ? parse_generic_response(op, main_socket_fd) : ret;
 }
 
 TSMgmtError
-SnapshotRestore(const char *snapshot_name)
-{
-  return snapshot_message(OpType::SNAPSHOT_RESTORE, snapshot_name);
-}
-
-TSMgmtError
-SnapshotRemove(const char *snapshot_name)
-{
-  return snapshot_message(OpType::SNAPSHOT_REMOVE, snapshot_name);
-}
-
-TSMgmtError
-SnapshotGetMlt(LLQ *snapshots)
-{
-  if (!snapshots) {
-    return TS_ERR_PARAMS;
-  }
-
-  return send_and_parse_list(OpType::SNAPSHOT_GET_MLT, snapshots);
-}
-
-TSMgmtError
-StatsReset(bool cluster, const char *stat_name)
+StatsReset(const char *stat_name)
 {
   TSMgmtError ret;
-  OpType op               = cluster ? OpType::STATS_RESET_CLUSTER : OpType::STATS_RESET_NODE;
+  OpType op               = OpType::STATS_RESET_NODE;
   OpType optype           = op;
   MgmtMarshallString name = const_cast<MgmtMarshallString>(stat_name);
 

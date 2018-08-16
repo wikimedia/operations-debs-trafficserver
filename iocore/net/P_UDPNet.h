@@ -28,11 +28,9 @@
 
  ****************************************************************************/
 
-#ifndef __P_UDPNET_H_
-#define __P_UDPNET_H_
+#pragma once
 
-extern EventType ET_UDP;
-
+#include "ts/ink_platform.h"
 #include "I_UDPNet.h"
 #include "P_UDPPacket.h"
 
@@ -42,10 +40,10 @@ static inline PollCont *get_UDPPollCont(EThread *);
 #include "P_UnixUDPConnection.h"
 #include "P_UDPIOEvent.h"
 
-struct UDPNetHandler;
+class UDPNetHandler;
 
 struct UDPNetProcessorInternal : public UDPNetProcessor {
-  virtual int start(int n_udp_threads, size_t stacksize);
+  int start(int n_udp_threads, size_t stacksize) override;
   void udp_read_from_net(UDPNetHandler *nh, UDPConnection *uc);
   int udp_callback(UDPNetHandler *nh, UDPConnection *uc, EThread *thread);
 
@@ -224,7 +222,7 @@ public:
     }
 
     if (s != now_slot)
-      Debug("udpnet-service", "Advancing by (%d slots): behind by %" PRId64 " ms", s - now_slot,
+      Debug("v_udpnet-service", "Advancing by (%d slots): behind by %" PRId64 " ms", s - now_slot,
             ink_hrtime_to_msec(t - delivery_time[now_slot]));
     now_slot = s;
   }
@@ -281,14 +279,15 @@ private:
 
 class UDPQueue
 {
-  PacketQueue pipeInfo;
-  ink_hrtime last_report;
-  ink_hrtime last_service;
-  int packets;
-  int added;
+  PacketQueue pipeInfo{};
+  ink_hrtime last_report  = 0;
+  ink_hrtime last_service = 0;
+  int packets             = 0;
+  int added               = 0;
 
 public:
-  InkAtomicList atomicQueue;
+  // Outgoing UDP Packet Queue
+  ASLL(UDPPacketInternal, alink) outQueue;
 
   void service(UDPNetHandler *);
 
@@ -304,21 +303,22 @@ public:
 
 void initialize_thread_for_udp_net(EThread *thread);
 
-struct UDPNetHandler : public Continuation {
+class UDPNetHandler : public Continuation
+{
 public:
-  // to be polled for read
-  Que(UnixUDPConnection, polling_link) udp_polling;
+  // engine for outgoing packets
+  UDPQueue udpOutQueue{};
+
+  // New UDPConnections
+  // to hold the newly created descriptors before scheduling them on the servicing buckets.
+  // atomically added to by a thread creating a new connection with UDPBind
+  ASLL(UnixUDPConnection, newconn_alink) newconn_list;
+  // All opened UDPConnections
+  Que(UnixUDPConnection, link) open_list;
   // to be called back with data
   Que(UnixUDPConnection, callback_link) udp_callbacks;
-  // outgoing packets
-  InkAtomicList udpAtomicQueue;
-  UDPQueue udpOutQueue;
-  // to hold the newly created descriptors before scheduling them on
-  // the servicing buckets.
-  // atomically added to by a thread creating a new connection with
-  // UDPBind
-  InkAtomicList udpNewConnections;
-  Event *trigger_event;
+
+  Event *trigger_event = nullptr;
   ink_hrtime nextCheck;
   ink_hrtime lastCheck;
 
@@ -340,5 +340,3 @@ get_UDPNetHandler(EThread *t)
 {
   return (UDPNetHandler *)ETHREAD_GET_PTR(t, udpNetInternal.udpNetHandler_offset);
 }
-
-#endif //__P_UDPNET_H_

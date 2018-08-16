@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _ink_queue_h_
-#define _ink_queue_h_
+#pragma once
 
 /***********************************************************************
 
@@ -83,7 +82,9 @@ void ink_queue_load_64(void *dst, void *src);
  */
 // Warning: head_p is read and written in multiple threads without a
 // lock, use INK_QUEUE_LD to read safely.
-typedef union {
+union head_p {
+  head_p() : data(){};
+
 #if (defined(__i386__) || defined(__arm__) || defined(__mips__)) && (SIZEOF_VOIDP == 4)
   typedef int32_t version_type;
   typedef int64_t data_type;
@@ -101,7 +102,7 @@ typedef union {
   } s;
 
   data_type data;
-} head_p;
+};
 
 /*
  * Why is version required? One scenario is described below
@@ -145,7 +146,7 @@ typedef union {
 #endif
 
 struct _InkFreeList {
-  volatile head_p head;
+  head_p head;
   const char *name;
   uint32_t type_size, chunk_size, used, allocated, alignment;
   uint32_t allocated_base, used_base;
@@ -155,9 +156,12 @@ struct _InkFreeList {
 typedef struct ink_freelist_ops InkFreeListOps;
 typedef struct _InkFreeList InkFreeList;
 
+extern const ink_freelist_ops *freelist_global_ops;
+extern const ink_freelist_ops *freelist_class_ops;
+
 const InkFreeListOps *ink_freelist_malloc_ops();
 const InkFreeListOps *ink_freelist_freelist_ops();
-void ink_freelist_init_ops(const InkFreeListOps *);
+void ink_freelist_init_ops(int nofl_global, int nofl_class);
 
 /*
  * alignment must be a power of 2
@@ -167,18 +171,19 @@ InkFreeList *ink_freelist_create(const char *name, uint32_t type_size, uint32_t 
 inkcoreapi void ink_freelist_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size, uint32_t alignment);
 inkcoreapi void ink_freelist_madvise_init(InkFreeList **fl, const char *name, uint32_t type_size, uint32_t chunk_size,
                                           uint32_t alignment, int advice);
-inkcoreapi void *ink_freelist_new(InkFreeList *f);
-inkcoreapi void ink_freelist_free(InkFreeList *f, void *item);
-inkcoreapi void ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item);
+inkcoreapi void *ink_freelist_new(InkFreeList *f, const InkFreeListOps *ops);
+inkcoreapi void ink_freelist_free(InkFreeList *f, void *item, const InkFreeListOps *ops);
+inkcoreapi void ink_freelist_free_bulk(InkFreeList *f, void *head, void *tail, size_t num_item, const InkFreeListOps *ops);
 void ink_freelists_dump(FILE *f);
 void ink_freelists_dump_baselinerel(FILE *f);
 void ink_freelists_snap_baseline();
 
-typedef struct {
-  volatile head_p head;
-  const char *name;
-  uint32_t offset;
-} InkAtomicList;
+struct InkAtomicList {
+  InkAtomicList() {}
+  head_p head{};
+  const char *name = nullptr;
+  uint32_t offset  = 0;
+};
 
 #if !defined(INK_QUEUE_NT)
 #define INK_ATOMICLIST_EMPTY(_x) (!(TO_PTR(FREELIST_POINTER((_x.head)))))
@@ -202,5 +207,3 @@ void *ink_atomiclist_remove(InkAtomicList *l, void *item);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-#endif /* _ink_queue_h_ */

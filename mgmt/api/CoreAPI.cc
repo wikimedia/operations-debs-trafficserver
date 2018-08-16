@@ -34,7 +34,6 @@
 #include "ts/ParseRules.h"
 #include "MgmtUtils.h"
 #include "LocalManager.h"
-#include "ClusterCom.h"
 #include "FileManager.h"
 #include "Rollback.h"
 #include "WebMgmtUtils.h"
@@ -45,10 +44,11 @@
 
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
-#include "CfgContextUtils.h"
 #include "EventCallback.h"
 #include "ts/I_Layout.h"
 #include "ts/ink_cap.h"
+
+#include <vector>
 
 // global variable
 static CallbackTable *local_event_callbacks;
@@ -183,7 +183,7 @@ ProxyStateSet(TSProxyStateT state, TSCacheClearT clear)
       ink_strlcat(tsArgs, " -k", sizeof(tsArgs));
     }
 
-    mgmt_log("[ProxyStateSet] Traffic Server Args: '%s %s'\n", lmgmt->proxy_options ? lmgmt->proxy_options : "", tsArgs);
+    mgmt_log("[ProxyStateSet] Traffic Server Args: '%s %s'\n", lmgmt->proxy_options.c_str(), tsArgs);
 
     lmgmt->run_proxy = true;
     lmgmt->listenForProxy();
@@ -210,13 +210,13 @@ Lerror:
 #include <sys/ptrace.h>
 #include <cxxabi.h>
 
-typedef Vec<pid_t> threadlist;
+typedef std::vector<pid_t> threadlist;
 
 static threadlist
 threads_for_process(pid_t proc)
 {
-  DIR *dir             = NULL;
-  struct dirent *entry = NULL;
+  DIR *dir             = nullptr;
+  struct dirent *entry = nullptr;
 
   char path[64];
   threadlist threads;
@@ -226,7 +226,7 @@ threads_for_process(pid_t proc)
   }
 
   dir = opendir(path);
-  if (dir == NULL) {
+  if (dir == nullptr) {
     goto done;
   }
 
@@ -237,7 +237,7 @@ threads_for_process(pid_t proc)
       continue;
     }
 
-    threadid = strtol(entry->d_name, NULL, 10);
+    threadid = strtol(entry->d_name, nullptr, 10);
     if (threadid > 0) {
       threads.push_back(threadid);
       Debug("backtrace", "found thread %ld", (long)threadid);
@@ -253,12 +253,12 @@ done:
 }
 
 static void
-backtrace_for_thread(pid_t threadid, textBuffer &text)
+backtrace_for_thread(pid_t threadid, TextBuffer &text)
 {
   int status;
-  unw_addr_space_t addr_space = NULL;
+  unw_addr_space_t addr_space = nullptr;
   unw_cursor_t cursor;
-  void *ap       = NULL;
+  void *ap       = nullptr;
   pid_t target   = -1;
   unsigned level = 0;
 
@@ -279,13 +279,13 @@ backtrace_for_thread(pid_t threadid, textBuffer &text)
 
   ap = _UPT_create(threadid);
   Debug("backtrace", "created UPT %p", ap);
-  if (ap == NULL) {
+  if (ap == nullptr) {
     goto done;
   }
 
   addr_space = unw_create_addr_space(&_UPT_accessors, 0 /* byteorder */);
   Debug("backtrace", "created address space %p", addr_space);
-  if (addr_space == NULL) {
+  if (addr_space == nullptr) {
     goto done;
   }
 
@@ -304,7 +304,7 @@ backtrace_for_thread(pid_t threadid, textBuffer &text)
 
     if (unw_get_proc_name(&cursor, buf, sizeof(buf), &offset) == 0) {
       int status;
-      char *name = abi::__cxa_demangle(buf, NULL, NULL, &status);
+      char *name = abi::__cxa_demangle(buf, nullptr, nullptr, &status);
       text.format("%-4u 0x%016llx %s + %p\n", level, (unsigned long long)ip, name ? name : buf, (void *)offset);
       free(name);
     } else {
@@ -330,18 +330,18 @@ done:
 TSMgmtError
 ServerBacktrace(unsigned /* options */, char **trace)
 {
-  *trace = NULL;
+  *trace = nullptr;
 
   // Unfortunately, we need to be privileged here. We either need to be root or to be holding
   // the CAP_SYS_PTRACE capability. Even though we are the parent traffic_manager, it is not
   // traceable without privilege because the process credentials do not match.
   ElevateAccess access(ElevateAccess::TRACE_PRIVILEGE);
   threadlist threads(threads_for_process(lmgmt->watched_process_pid));
-  textBuffer text(0);
+  TextBuffer text(0);
 
-  Debug("backtrace", "tracing %zd threads for traffic_server PID %ld", threads.count(), (long)lmgmt->watched_process_pid);
+  Debug("backtrace", "tracing %zd threads for traffic_server PID %ld", threads.size(), (long)lmgmt->watched_process_pid);
 
-  for_Vec (pid_t, threadid, threads) {
+  for (auto threadid : threads) {
     Debug("backtrace", "tracing thread %ld", (long)threadid);
     // Get the thread name using /proc/PID/comm
     ats_scoped_fd fd;
@@ -403,13 +403,8 @@ Reconfigure()
 TSMgmtError
 Restart(unsigned options)
 {
-  if (options & TS_RESTART_OPT_CLUSTER) {
-    // Enqueue an event to restart the proxies across the cluster
-    // this will kill TM completely;traffic_cop will restart TM/TS
-    lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_SHUTDOWN_MANAGER);
-  } else {
-    lmgmt->mgmt_shutdown_outstanding = (options & TS_RESTART_OPT_DRAIN) ? MGMT_PENDING_IDLE_RESTART : MGMT_PENDING_RESTART;
-  }
+  lmgmt->mgmt_shutdown_triggered_at = time(nullptr);
+  lmgmt->mgmt_shutdown_outstanding  = (options & TS_RESTART_OPT_DRAIN) ? MGMT_PENDING_IDLE_RESTART : MGMT_PENDING_RESTART;
 
   return TS_ERR_OKAY;
 }
@@ -422,12 +417,47 @@ Restart(unsigned options)
 TSMgmtError
 Bounce(unsigned options)
 {
-  if (options & TS_RESTART_OPT_CLUSTER) {
-    lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_BOUNCE_PROCESS);
-  } else {
-    lmgmt->mgmt_shutdown_outstanding = (options & TS_RESTART_OPT_DRAIN) ? MGMT_PENDING_IDLE_BOUNCE : MGMT_PENDING_BOUNCE;
-  }
+  lmgmt->mgmt_shutdown_triggered_at = time(nullptr);
+  lmgmt->mgmt_shutdown_outstanding  = (options & TS_RESTART_OPT_DRAIN) ? MGMT_PENDING_IDLE_BOUNCE : MGMT_PENDING_BOUNCE;
 
+  return TS_ERR_OKAY;
+}
+
+/*-------------------------------------------------------------------------
+ * Stop
+ *-------------------------------------------------------------------------
+ * Stops traffic_server process(es).
+ */
+TSMgmtError
+Stop(unsigned options)
+{
+  lmgmt->mgmt_shutdown_triggered_at = time(nullptr);
+  lmgmt->mgmt_shutdown_outstanding  = (options & TS_STOP_OPT_DRAIN) ? MGMT_PENDING_IDLE_STOP : MGMT_PENDING_STOP;
+
+  return TS_ERR_OKAY;
+}
+
+/*-------------------------------------------------------------------------
+ * Drain
+ *-------------------------------------------------------------------------
+ * Drain requests of traffic_server
+ */
+TSMgmtError
+Drain(unsigned options)
+{
+  switch (options) {
+  case TS_DRAIN_OPT_NONE:
+    lmgmt->mgmt_shutdown_outstanding = MGMT_PENDING_DRAIN;
+    break;
+  case TS_DRAIN_OPT_IDLE:
+    lmgmt->mgmt_shutdown_outstanding = MGMT_PENDING_IDLE_DRAIN;
+    break;
+  case TS_DRAIN_OPT_UNDO:
+    lmgmt->mgmt_shutdown_outstanding = MGMT_PENDING_UNDO_DRAIN;
+    break;
+  default:
+    ink_release_assert(!"Not expected to reach here");
+  }
   return TS_ERR_OKAY;
 }
 
@@ -704,118 +734,6 @@ MgmtRecordSetString(const char *rec_name, const char *string_val, TSActionNeedT 
 }
 
 /**************************************************************************
- * FILE OPERATIONS
- *************************************************************************/
-
-/*-------------------------------------------------------------------------
- * ReadFile (MgmtAPILocal::get_lines_from_file)
- *-------------------------------------------------------------------------
- * Purpose: returns copy of the most recent version of the file
- * Input:   file - the config file to read
- *          text - a buffer is allocated on the text char* pointer
- *          size - the size of the buffer is returned
- *          ver  - the version number of file being read
- * Note: CALLEE must DEALLOCATE text memory returned
- */
-TSMgmtError
-ReadFile(TSFileNameT file, char **text, int *size, int *version)
-{
-  const char *fname;
-  Rollback *file_rb;
-  int ret, old_file_len;
-  textBuffer *old_file_content;
-  char *old_file_lines;
-  version_t ver;
-
-  Debug("FileOp", "[get_lines_from_file] START");
-
-  fname = filename_to_string(file);
-  if (!fname) {
-    return TS_ERR_READ_FILE;
-  }
-
-  ret = configFiles->getRollbackObj(fname, &file_rb);
-  if (ret != true) {
-    Debug("FileOp", "[get_lines_from_file] Can't get Rollback for file: %s", fname);
-    return TS_ERR_READ_FILE;
-  }
-  ver = file_rb->getCurrentVersion();
-  file_rb->getVersion(ver, &old_file_content);
-  *version = ver;
-
-  // don't need to allocate memory b/c "getVersion" allocates memory
-  old_file_lines = old_file_content->bufPtr();
-  old_file_len   = strlen(old_file_lines);
-
-  *text = ats_strdup(old_file_lines); // make copy before deleting textBuffer
-  *size = old_file_len;
-
-  delete old_file_content; // delete textBuffer
-
-  return TS_ERR_OKAY;
-}
-
-/*-------------------------------------------------------------------------
- * WriteFile
- *-------------------------------------------------------------------------
- * Purpose: replaces the current file with the file passed in;
- *  does forceUpdate for Rollback and FileManager so correct file
- *  versioning is maintained
- * Input: file - the config file to write
- *        text - text buffer to write
- *        size - the size of the buffer to write
- *        version - the current version level; new file will have the
- *                  version number above this one
- */
-TSMgmtError
-WriteFile(TSFileNameT file, const char *text, int size, int version)
-{
-  const char *fname;
-  Rollback *file_rb;
-  textBuffer *file_content;
-  int ret;
-  version_t ver;
-
-  fname = filename_to_string(file);
-  if (!fname) {
-    return TS_ERR_WRITE_FILE;
-  }
-
-  // get rollback object for config file
-  mgmt_log("[CfgFileIO::WriteFile] %s\n", fname);
-  if (!(configFiles->getRollbackObj(fname, &file_rb))) {
-    mgmt_log("[CfgFileIO::WriteFile] ERROR getting rollback object\n");
-    // goto generate_error_msg;
-  }
-
-  // if version < 0 then, just use next version in sequence;
-  // otherwise check if trying to commit an old version
-  if (version >= 0) {
-    // check that the current version is equal to or less than the version
-    // that wants to be written
-    ver = file_rb->getCurrentVersion();
-    if (ver != version) { // trying to commit an old version
-      return TS_ERR_WRITE_FILE;
-    }
-  }
-  // use rollback object to update file with new content
-  file_content = new textBuffer(size + 1);
-  ret          = file_content->copyFrom(text, size);
-  if (ret < 0) {
-    delete file_content;
-    return TS_ERR_WRITE_FILE;
-  }
-
-  if ((file_rb->forceUpdate(file_content, -1)) != OK_ROLLBACK) {
-    delete file_content;
-    return TS_ERR_WRITE_FILE;
-  }
-
-  delete file_content;
-  return TS_ERR_OKAY;
-}
-
-/**************************************************************************
  * EVENTS
  *************************************************************************/
 /*-------------------------------------------------------------------------
@@ -962,88 +880,32 @@ EventSignalCbUnregister(const char *event_name, TSEventSignalFunc func)
   return cb_table_unregister(local_event_callbacks, event_name, func);
 }
 
-/***************************************************************************
- * Snapshots
- ***************************************************************************/
+/*-------------------------------------------------------------------------
+ * HostStatusSetDown
+ *-------------------------------------------------------------------------
+ * Sets the HOST status to Down
+ *
+ * 'marshalled_req' is marshalled here, (host_name and down_time).
+ * 'len' is the length of the 'req' marshaled data.
+ */
 TSMgmtError
-SnapshotTake(const char *snapshot_name)
+HostStatusSetDown(const char *marshalled_req, int len)
 {
-  ats_scoped_str snapdir;
-
-  if (!snapshot_name) {
-    return TS_ERR_PARAMS;
-  }
-
-  snapdir = RecConfigReadSnapshotDir();
-
-  SnapResult result = configFiles->takeSnap(snapshot_name, snapdir);
-  if (result != SNAP_OK) {
-    return TS_ERR_FAIL;
-  } else {
-    return TS_ERR_OKAY;
-  }
+  lmgmt->hostStatusSetDown(marshalled_req, len);
+  return TS_ERR_OKAY;
 }
 
+/*-------------------------------------------------------------------------
+ * HostStatusSetUp
+ *-------------------------------------------------------------------------
+ * Sets the HOST status to Up
+ *
+ * 'marshalled_req' is marshalled here, host_name.
+ */
 TSMgmtError
-SnapshotRestore(const char *snapshot_name)
+HostStatusSetUp(const char *marshalled_req)
 {
-  ats_scoped_str snapdir;
-
-  if (!snapshot_name) {
-    return TS_ERR_PARAMS;
-  }
-
-  snapdir = RecConfigReadSnapshotDir();
-
-  SnapResult result = configFiles->restoreSnap(snapshot_name, snapdir);
-  if (result != SNAP_OK) {
-    return TS_ERR_FAIL;
-  } else {
-    return TS_ERR_OKAY;
-  }
-}
-
-TSMgmtError
-SnapshotRemove(const char *snapshot_name)
-{
-  ats_scoped_str snapdir;
-
-  if (!snapshot_name) {
-    return TS_ERR_PARAMS;
-  }
-
-  snapdir = RecConfigReadSnapshotDir();
-
-  SnapResult result = configFiles->removeSnap(snapshot_name, snapdir);
-  if (result != SNAP_OK) {
-    return TS_ERR_FAIL;
-  } else {
-    return TS_ERR_OKAY;
-  }
-}
-
-/* based on FileManager.cc::displaySnapOption() */
-TSMgmtError
-SnapshotGetMlt(LLQ *snapshots)
-{
-  ExpandingArray snap_list(25, true);
-  SnapResult snap_result;
-  int num_snaps;
-  char *snap_name;
-
-  snap_result = configFiles->WalkSnaps(&snap_list);
-  if (snap_result != SNAP_OK) {
-    return TS_ERR_FAIL;
-  }
-
-  num_snaps = snap_list.getNumEntries();
-  for (int i = 0; i < num_snaps; i++) {
-    snap_name = (char *)(snap_list[i]);
-    if (snap_name) {
-      enqueue(snapshots, ats_strdup(snap_name));
-    }
-  }
-
+  lmgmt->hostStatusSetUp(marshalled_req);
   return TS_ERR_OKAY;
 }
 
@@ -1057,13 +919,9 @@ SnapshotGetMlt(LLQ *snapshots)
  * stats are set back to defaults successfully.
  */
 TSMgmtError
-StatsReset(bool cluster, const char *name)
+StatsReset(const char *name)
 {
-  if (cluster) {
-    lmgmt->ccom->sendClusterMessage(CLUSTER_MSG_CLEAR_STATS, name);
-  } else {
-    lmgmt->clearStats(name);
-  }
+  lmgmt->clearStats(name);
   return TS_ERR_OKAY;
 }
 

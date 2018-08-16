@@ -19,8 +19,7 @@
   limitations under the License.
  */
 
-#ifndef __P_SSLUTILS_H__
-#define __P_SSLUTILS_H__
+#pragma once
 
 #include "ts/ink_config.h"
 #include "ts/Diags.h"
@@ -74,6 +73,7 @@ enum SSL_Stats {
   ssl_total_tickets_renewed_stat,
   ssl_total_dyn_def_tls_record_count,
   ssl_total_dyn_max_tls_record_count,
+  ssl_total_dyn_redo_tls_record_count,
   ssl_session_cache_hit,
   ssl_session_cache_miss,
   ssl_session_cache_eviction,
@@ -125,6 +125,9 @@ SSL_CTX *SSLCreateServerContext(const SSLConfigParams *params);
 // Initialize the SSL library.
 void SSLInitializeLibrary();
 
+// Initialize SSL library based on configuration settings
+void SSLPostConfigInitialize();
+
 // Initialize SSL statistics.
 void SSLInitializeStatistics();
 
@@ -143,11 +146,11 @@ ssl_error_t SSLConnect(SSL *ssl);
 #define SSLErrorVC(vc, fmt, ...) SSLDiagnostic(MakeSourceLocation(), false, (vc), fmt, ##__VA_ARGS__)
 // Log a SSL diagnostic using the "ssl" diagnostic tag.
 #define SSLDebug(fmt, ...) SSLDiagnostic(MakeSourceLocation(), true, nullptr, fmt, ##__VA_ARGS__)
-#define SSLDebugVC(vc, fmt, ...) SSLDiagnostic(MakeSourceLocation(), true, (vc), fmt, ##__VA_ARGS__)
+#define SSLVCDebug(vc, fmt, ...) SSLDiagnostic(MakeSourceLocation(), true, (vc), fmt, ##__VA_ARGS__)
 
 #define SSL_CLR_ERR_INCR_DYN_STAT(vc, x, fmt, ...) \
   do {                                             \
-    SSLDebugVC((vc), fmt, ##__VA_ARGS__);          \
+    SSLVCDebug((vc), fmt, ##__VA_ARGS__);          \
     RecIncrRawStat(ssl_rsb, nullptr, (int)x, 1);   \
   } while (0)
 
@@ -170,6 +173,8 @@ void SSLNetVCDetach(SSL *ssl);
 
 // Return the SSLNetVConnection (if any) attached to this SSL session.
 SSLNetVConnection *SSLNetVCAccess(const SSL *ssl);
+
+void setClientCertLevel(SSL *ssl, uint8_t certLevel);
 
 namespace ssl
 {
@@ -212,10 +217,70 @@ namespace detail
       BIO_free(x);
     }
   };
-/* namespace ssl */ } /* namespace detail */
-}
+  /* namespace ssl */ // namespace detail
+} /* namespace detail */
+} // namespace ssl
+
+struct ats_wildcard_matcher {
+  ats_wildcard_matcher()
+  {
+    if (regex.compile("^\\*\\.[^\\*.]+") != 0) {
+      Fatal("failed to compile TLS wildcard matching regex");
+    }
+  }
+
+  ~ats_wildcard_matcher() {}
+  bool
+  match(const char *hostname) const
+  {
+    return regex.match(hostname) != -1;
+  }
+
+private:
+  DFA regex;
+};
+
+class TunnelHashMap
+{
+public:
+  struct HostStruct {
+    cchar *hostname;
+    int len;
+    int port;
+    HostStruct(cchar *name, int hostnamelen, int port_)
+    {
+      hostname = name;
+      len      = hostnamelen;
+      port     = port_;
+    }
+  };
+
+  typedef HashMap<cchar *, StringHashFns, const HostStruct *> Tunnel_hashMap;
+  Tunnel_hashMap TunnelhMap;
+
+  void
+  emplace(cchar *key, std::string &hostname)
+  {
+    std::string_view addr, port;
+    if (ats_ip_parse(std::string_view(hostname), &addr, &port) == 0) {
+      auto *hs = new HostStruct(ats_strdup(addr.data()), addr.length(), atoi(port.data()));
+      TunnelhMap.put(ats_strdup(key), hs);
+    }
+  }
+
+  void
+  emplace(cchar *key, cchar *name, int hostnamelen, int port_)
+  {
+    auto *hs = new HostStruct(ats_strdup(name), hostnamelen, port_);
+    TunnelhMap.put(ats_strdup(key), hs);
+  }
+
+  const HostStruct *
+  find(cchar *key)
+  {
+    return TunnelhMap.get(key);
+  }
+};
 
 typedef ats_scoped_resource<ssl::detail::SCOPED_X509_TRAITS> scoped_X509;
 typedef ats_scoped_resource<ssl::detail::SCOPED_BIO_TRAITS> scoped_BIO;
-
-#endif /* __P_SSLUTILS_H__ */

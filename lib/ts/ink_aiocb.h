@@ -29,8 +29,7 @@
 
  ****************************************************************************/
 
-#ifndef _ink_aiocb_h_
-#define _ink_aiocb_h_
+#pragma once
 
 #include "ts/ink_defs.h"
 
@@ -42,7 +41,7 @@
 struct ink_aiocb {
   int aio_fildes;
 #if defined(__STDC__)
-  volatile void *aio_buf; /* buffer location */
+  void *aio_buf; /* buffer location */
 #else
   void *aio_buf; /* buffer location */
 #endif
@@ -58,5 +57,3 @@ struct ink_aiocb {
   int aio_state;   /* state flag for List I/O */
   int aio__pad[1]; /* extension padding */
 };
-
-#endif

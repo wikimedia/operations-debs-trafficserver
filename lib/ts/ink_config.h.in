@@ -51,8 +51,6 @@
 #define BUILD_NUMBER "@build_number@"
 
 /* Libraries */
-#define TS_HAS_LIBZ @zlibh@
-#define TS_HAS_LZMA @lzmah@
 #define TS_HAS_JEMALLOC @jemalloch@
 #define TS_HAS_TCMALLOC @has_tcmalloc@
 
@@ -61,6 +59,7 @@
 #define TS_HAS_BACKTRACE @has_backtrace@
 #define TS_HAS_PROFILER @has_profiler@
 #define TS_USE_FAST_SDK @use_fast_sdk@
+#define TS_ENABLE_FIPS @enable_fips@
 #define TS_USE_DIAGS @use_diags@
 #define TS_USE_EPOLL @use_epoll@
 #define TS_USE_KQUEUE @use_kqueue@
@@ -72,7 +71,7 @@
 #define TS_USE_HWLOC @use_hwloc@
 #define TS_USE_TLS_NPN @use_tls_npn@
 #define TS_USE_TLS_ALPN @use_tls_alpn@
-#define TS_USE_TLS_SNI @use_tls_sni@
+#define TS_USE_TLS_ASYNC @use_tls_async@
 #define TS_USE_CERT_CB @use_cert_cb@
 #define TS_USE_SET_RBIO @use_set_rbio@
 #define TS_USE_GET_DH_2048_256 @use_dh_get_2048_256@
@@ -80,12 +79,11 @@
 #define TS_USE_LINUX_NATIVE_AIO @use_linux_native_aio@
 #define TS_USE_REMOTE_UNWINDING @use_remote_unwinding@
 #define TS_USE_SSLV3_CLIENT @use_sslv3_client@
+#define TS_USE_TLS_OCSP @use_tls_ocsp@
 
 #define TS_HAS_SO_PEERCRED @has_so_peercred@
 
 /* OS API definitions */
-#define GETHOSTBYNAME_R_GLIBC2 @gethostbyname_r_glibc2@
-#define SIZEOF_VOID_POINTER @ac_cv_sizeof_voidp@
 #define TS_IP_TRANSPARENT @ip_transparent@
 #define TS_HAS_128BIT_CAS @has_128bit_cas@
 
@@ -101,7 +99,6 @@
 #define TS_MAX_API_STATS @max_api_stats@
 
 #define SPLIT_DNS 1
-#define HTTP_CACHE 1
 
 /* Defaults for user / group */
 #define TS_PKGSYSUSER "@pkgsysuser@"
@@ -128,5 +125,7 @@
 
 #define TS_BUILD_DEFAULT_LOOPBACK_IFACE "@default_loopback_iface@"
 /* clang-format on */
+
+static const int DEFAULT_STACKSIZE = @default_stack_size@;
 
 #endif /* _ink_config_h */

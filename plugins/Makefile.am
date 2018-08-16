@@ -29,33 +29,38 @@ AM_LDFLAGS = $(TS_PLUGIN_LD_FLAGS)
 
 include authproxy/Makefile.inc
 include background_fetch/Makefile.inc
+include cachekey/Makefile.inc
+include cache_promote/Makefile.inc
 include conf_remap/Makefile.inc
+include escalate/Makefile.inc
 include esi/Makefile.inc
 include generator/Makefile.inc
-include gzip/Makefile.inc
+include compress/Makefile.inc
 include header_rewrite/Makefile.inc
 include healthchecks/Makefile.inc
 include libloader/Makefile.inc
+if HAS_LUAJIT
+include lua/Makefile.inc
+endif
 include regex_remap/Makefile.inc
 include regex_revalidate/Makefile.inc
 include s3_auth/Makefile.inc
 include stats_over_http/Makefile.inc
 include tcpinfo/Makefile.inc
 include xdebug/Makefile.inc
+include test_cppapi/Makefile.inc
 
 if BUILD_EXPERIMENTAL_PLUGINS
 
+include experimental/access_control/Makefile.inc
 include experimental/acme/Makefile.inc
 include experimental/balancer/Makefile.inc
 include experimental/buffer_upload/Makefile.inc
-include experimental/cache_promote/Makefile.inc
 include experimental/cache_range_requests/Makefile.inc
-include experimental/cachekey/Makefile.inc
 include experimental/collapsed_connection/Makefile.inc
 include experimental/collapsed_forwarding/Makefile.inc
 include experimental/custom_redirect/Makefile.inc
-include experimental/epic/Makefile.inc
-include experimental/escalate/Makefile.inc
+include experimental/fq_pacing/Makefile.inc
 include experimental/geoip_acl/Makefile.inc
 include experimental/header_freq/Makefile.inc
 include experimental/header_normalize/Makefile.inc
@@ -68,12 +73,19 @@ include experimental/money_trace/Makefile.inc
 include experimental/mp4/Makefile.inc
 include experimental/multiplexer/Makefile.inc
 include experimental/remap_purge/Makefile.inc
+include experimental/server_push_preload/Makefile.inc
 include experimental/ssl_cert_loader/Makefile.inc
 include experimental/sslheaders/Makefile.inc
 include experimental/stale_while_revalidate/Makefile.inc
 include experimental/stream_editor/Makefile.inc
-include experimental/ts_lua/Makefile.inc
+include experimental/system_stats/Makefile.inc
+include experimental/tls_bridge/Makefile.inc
 include experimental/url_sig/Makefile.inc
+include experimental/prefetch/Makefile.inc
+
+if BUILD_URI_SIGNING_PLUGIN
+include experimental/uri_signing/Makefile.inc
+endif
 
 if BUILD_MEMCACHED_REMAP_PLUGIN
 include experimental/memcached_remap/Makefile.inc
@@ -101,6 +113,6 @@ TESTS_ENVIRONMENT = LSAN_OPTIONS=suppressions=suppression.txt
 
 TESTS = $(check_PROGRAMS)
 
-tidy-local: $(DIST_SOURCES)
+clang-tidy-local: $(DIST_SOURCES)
 	$(CXX_Clang_Tidy)
 	$(CC_Clang_Tidy)

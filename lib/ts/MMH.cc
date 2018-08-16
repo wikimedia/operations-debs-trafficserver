@@ -236,11 +236,13 @@ ink_code_incr_MMH_update(MMH_CTX *ctx, const char *ainput, int input_length)
       memcpy(ctx->buffer + ctx->buffer_size, in, l);
       ctx->buffer_size = 0;
       in += l;
-      if (ctx->buffer_size & 0x0f)
+      if (ctx->buffer_size & 0x0f) {
         return 0;
+      }
       MMH_update(ctx, ctx->buffer);
-    } else
+    } else {
       goto Lstore;
+    }
   }
   {
     // check alignment
@@ -265,11 +267,12 @@ ink_code_incr_MMH_update(MMH_CTX *ctx, const char *ainput, int input_length)
             MMH_updateb2(ctx, in);
             in += 16;
           }
-        } else if (alignment == 3)
+        } else if (alignment == 3) {
           while (in + 16 <= end) {
             MMH_updateb3(ctx, in);
             in += 16;
           }
+        }
       } else {
         if (alignment == 1) {
           while (in + 16 <= end) {
@@ -281,11 +284,12 @@ ink_code_incr_MMH_update(MMH_CTX *ctx, const char *ainput, int input_length)
             MMH_updatel2(ctx, in);
             in += 16;
           }
-        } else if (alignment == 3)
+        } else if (alignment == 3) {
           while (in + 16 <= end) {
             MMH_updatel3(ctx, in);
             in += 16;
           }
+        }
       }
     } else {
       while (in + 16 <= end) {
@@ -317,7 +321,7 @@ _memset(unsigned char *b, int c, int len)
   int o = len & 0x3, i;
   for (i = 0; i < o; i++)
     b[i] = 0;
-  for (i                     = 0; i < (len - o) / 4; i++)
+  for (i = 0; i < (len - o) / 4; i++)
     ((uint32_t *)(b + o))[i] = 0;
 }
 #endif

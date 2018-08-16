@@ -39,9 +39,9 @@ ClassAllocator<MC> theMCAllocator("MC");
 static time_t base_day_time;
 
 // These should be persistent.
-volatile int32_t MC::verbosity     = 0;
-volatile ink_hrtime MC::last_flush = 0;
-volatile int64_t MC::next_cas      = 1;
+int32_t MC::verbosity     = 0;
+ink_hrtime MC::last_flush = 0;
+int64_t MC::next_cas      = 1;
 
 static void
 tsmemcache_constants()
@@ -471,16 +471,16 @@ int
 MC::get_item()
 {
   TS_PUSH_HANDLER(&MC::cache_read_event);
-  MD5Context().hash_immediate(cache_key, (void *)key, (int)header.nkey);
-  pending_action = cacheProcessor.open_read(this, &cache_key, true);
+  CryptoContext().hash_immediate(cache_key, (void *)key, (int)header.nkey);
+  pending_action = cacheProcessor.open_read(this, &cache_key);
   return EVENT_CONT;
 }
 
 int
 MC::set_item()
 {
-  MD5Context().hash_immediate(cache_key, (void *)key, (int)header.nkey);
-  pending_action = cacheProcessor.open_write(this, &cache_key, true, CACHE_FRAG_TYPE_NONE, header.nbytes,
+  CryptoContext().hash_immediate(cache_key, (void *)key, (int)header.nkey);
+  pending_action = cacheProcessor.open_write(this, &cache_key, CACHE_FRAG_TYPE_NONE, header.nbytes,
                                              CACHE_WRITE_OPT_OVERWRITE | TSMEMCACHE_WRITE_SYNC);
   return EVENT_CONT;
 }
@@ -488,7 +488,7 @@ MC::set_item()
 int
 MC::delete_item()
 {
-  MD5Context().hash_immediate(cache_key, (void *)key, (int)header.nkey);
+  CryptoContext().hash_immediate(cache_key, (void *)key, (int)header.nkey);
   pending_action = cacheProcessor.remove(this, &cache_key, CACHE_FRAG_TYPE_NONE);
   return EVENT_CONT;
 }

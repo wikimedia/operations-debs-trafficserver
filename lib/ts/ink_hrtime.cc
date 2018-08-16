@@ -37,6 +37,7 @@
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
+#include <string.h>
 #include <sys/time.h>
 
 char *
@@ -85,27 +86,29 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
     } else {
       out_buf++;
     }
-    if (req_width > buf_size)
-      req_width              = buf_size;
+    if (req_width > buf_size) {
+      req_width = buf_size;
+    }
     unsigned int num_padding = 0;
     if (req_width > num_chars) {
       num_padding = req_width - num_chars;
       switch (num_padding) {
       case 3:
         *--out_buf = pad_char;
-      // fallthrough
+        // fallthrough
 
       case 2:
         *--out_buf = pad_char;
-      // fallthrough
+        // fallthrough
 
       case 1:
         *--out_buf = pad_char;
         break;
 
       default:
-        for (unsigned int i = 0; i < num_padding; ++i, *--out_buf = pad_char)
+        for (unsigned int i = 0; i < num_padding; ++i, *--out_buf = pad_char) {
           ;
+        }
       }
       num_chars += num_padding;
     }
@@ -135,8 +138,9 @@ int64_to_str(char *buf, unsigned int buf_size, int64_t val, unsigned int *total_
     }
   }
 
-  if (total_chars)
+  if (total_chars) {
     *total_chars = num_chars;
+  }
   return out_buf;
 }
 

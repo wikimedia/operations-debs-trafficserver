@@ -22,8 +22,7 @@
 
  */
 
-#ifndef __NETVCONNECTION_H__
-#define __NETVCONNECTION_H__
+#pragma once
 
 #include "ts/ink_inet.h"
 #include "I_Action.h"
@@ -33,7 +32,7 @@
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
 #include <ts/apidefs.h>
-#include <ts/MemView.h>
+#include <string_view>
 
 #define CONNECT_SUCCESS 1
 #define CONNECT_FAILURE 0
@@ -202,7 +201,7 @@ struct NetVCOptions {
     IpEndpoint ip;
 
     // Literal IPv4 and IPv6 addresses are not permitted in "HostName".(rfc6066#section-3)
-    if (name && len && ats_ip_pton(ts::ConstBuffer(name, len), &ip) != 0) {
+    if (name && len && ats_ip_pton(std::string_view(name, len), &ip) != 0) {
       sni_servername = ats_strndup(name, len);
     } else {
       sni_servername = nullptr;
@@ -223,7 +222,7 @@ struct NetVCOptions {
     if (&that != this) {
       sni_servername    = nullptr; // release any current name.
       clientCertificate = nullptr;
-      memcpy(this, &that, sizeof(self));
+      memcpy(static_cast<void *>(this), &that, sizeof(self));
       if (that.sni_servername) {
         sni_servername.release(); // otherwise we'll free the source string.
         this->sni_servername = ats_strdup(that.sni_servername);
@@ -236,9 +235,9 @@ struct NetVCOptions {
     return *this;
   }
 
-  ts::StringView get_family_string() const;
+  std::string_view get_family_string() const;
 
-  ts::StringView get_proto_string() const;
+  std::string_view get_proto_string() const;
 
   /// @name Debugging
   //@{
@@ -246,8 +245,8 @@ struct NetVCOptions {
   static const char *toString(addr_bind_style s);
   //@}
 
-private:
-  NetVCOptions(const NetVCOptions &);
+  // noncopyable
+  NetVCOptions(const NetVCOptions &) = delete;
 };
 
 /**
@@ -258,7 +257,7 @@ private:
   stream IO to be done based on a single read or write call.
 
 */
-class NetVConnection : public VConnection
+class NetVConnection : public AnnotatedVConnection
 {
 public:
   // How many bytes have been queued to the OS for sending by haven't been sent yet
@@ -293,7 +292,7 @@ public:
     @return vio
 
   */
-  virtual VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) = 0;
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override = 0;
 
   /**
     Initiates write. Thread-safe, may be called when not handling
@@ -329,7 +328,7 @@ public:
     @return vio pointer
 
   */
-  virtual VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) = 0;
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override = 0;
 
   /**
     Closes the vconnection. A state machine MUST call do_io_close()
@@ -347,7 +346,7 @@ public:
     @param lerrno VIO:CLOSE for regular close or VIO::ABORT for aborts
 
   */
-  virtual void do_io_close(int lerrno = -1) = 0;
+  void do_io_close(int lerrno = -1) override = 0;
 
   /**
     Shuts down read side, write side, or both. do_io_shutdown() can
@@ -365,7 +364,7 @@ public:
     @param howto IO_SHUTDOWN_READ, IO_SHUTDOWN_WRITE, IO_SHUTDOWN_READWRITE
 
   */
-  virtual void do_io_shutdown(ShutdownHowTo_t howto) = 0;
+  void do_io_shutdown(ShutdownHowTo_t howto) override = 0;
 
   /**
     Sends out of band messages over the connection. This function
@@ -572,13 +571,13 @@ public:
   EThread *thread;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  virtual void reenable(VIO *vio) = 0;
+  void reenable(VIO *vio) override = 0;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  virtual void reenable_re(VIO *vio) = 0;
+  void reenable_re(VIO *vio) override = 0;
 
   /// PRIVATE
-  virtual ~NetVConnection() {}
+  ~NetVConnection() override {}
   /**
     PRIVATE: instances of NetVConnection cannot be created directly
     by the state machines. The objects are created by NetProcessor
@@ -629,20 +628,20 @@ public:
   }
 
   virtual int
-  populate_protocol(ts::StringView *results, int n) const
+  populate_protocol(std::string_view *results, int n) const
   {
     return 0;
   }
 
   virtual const char *
-  protocol_contains(ts::StringView prefix) const
+  protocol_contains(std::string_view prefix) const
   {
     return nullptr;
   }
 
-private:
-  NetVConnection(const NetVConnection &);
-  NetVConnection &operator=(const NetVConnection &);
+  // noncopyable
+  NetVConnection(const NetVConnection &) = delete;
+  NetVConnection &operator=(const NetVConnection &) = delete;
 
 protected:
   IpEndpoint local_addr;
@@ -661,11 +660,11 @@ protected:
 };
 
 inline NetVConnection::NetVConnection()
-  : VConnection(nullptr),
+  : AnnotatedVConnection(nullptr),
     attributes(0),
     thread(nullptr),
-    got_local_addr(0),
-    got_remote_addr(0),
+    got_local_addr(false),
+    got_remote_addr(false),
     is_internal_request(false),
     is_transparent(false),
     write_buffer_empty_event(0),
@@ -680,5 +679,3 @@ NetVConnection::trapWriteBufferEmpty(int event)
 {
   write_buffer_empty_event = event;
 }
-
-#endif

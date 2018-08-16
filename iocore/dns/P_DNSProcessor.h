@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#if !defined(_P_DNSProcessor_h_)
-#define _P_DNSProcessor_h_
+#pragma once
 
 /*
   #include "I_DNS.h"
@@ -137,24 +136,24 @@ extern RecRawStatBlock *dns_rsb;
 */
 struct DNSEntry : public Continuation {
   int id[MAX_DNS_RETRIES];
-  int qtype;                   ///< Type of query to send.
-  HostResStyle host_res_style; ///< Preferred IP address family.
-  int retries;
-  int which_ns;
-  ink_hrtime submit_time;
-  ink_hrtime send_time;
+  int qtype                   = 0;             ///< Type of query to send.
+  HostResStyle host_res_style = HOST_RES_NONE; ///< Preferred IP address family.
+  int retries                 = DEFAULT_DNS_RETRIES;
+  int which_ns                = NO_NAMESERVER_SELECTED;
+  ink_hrtime submit_time      = 0;
+  ink_hrtime send_time        = 0;
   char qname[MAXDNAME];
-  int qname_len;
-  int orig_qname_len;
-  char **domains;
-  EThread *submit_thread;
+  int qname_len          = 0;
+  int orig_qname_len     = 0;
+  char **domains         = nullptr;
+  EThread *submit_thread = nullptr;
   Action action;
-  Event *timeout;
+  Event *timeout = nullptr;
   Ptr<HostEnt> result_ent;
-  DNSHandler *dnsH;
-  bool written_flag;
-  bool once_written_flag;
-  bool last;
+  DNSHandler *dnsH       = nullptr;
+  bool written_flag      = false;
+  bool once_written_flag = false;
+  bool last              = false;
   LINK(DNSEntry, dup_link);
   Que(DNSEntry, dup_link) dups;
 
@@ -165,25 +164,9 @@ struct DNSEntry : public Continuation {
   void init(const char *x, int len, int qtype_arg, Continuation *acont, DNSProcessor::Options const &opt);
 
   DNSEntry()
-    : Continuation(nullptr),
-      qtype(0),
-      host_res_style(HOST_RES_NONE),
-      retries(DEFAULT_DNS_RETRIES),
-      which_ns(NO_NAMESERVER_SELECTED),
-      submit_time(0),
-      send_time(0),
-      qname_len(0),
-      orig_qname_len(0),
-      domains(0),
-      timeout(0),
-      result_ent(0),
-      dnsH(0),
-      written_flag(false),
-      once_written_flag(false),
-      last(false)
   {
-    for (int i = 0; i < MAX_DNS_RETRIES; i++)
-      id[i]    = -1;
+    for (int &i : id)
+      i = -1;
     memset(qname, 0, MAXDNAME);
   }
 };
@@ -204,7 +187,8 @@ struct DNSHandler : public Continuation {
   IpEndpoint local_ipv4; ///< Local V4 address if set.
   int ifd[MAX_NAMED];
   int n_con;
-  DNSConnection con[MAX_NAMED];
+  DNSConnection tcpcon[MAX_NAMED];
+  DNSConnection udpcon[MAX_NAMED];
   Queue<DNSEntry> entries;
   Queue<DNSConnection> triggered;
   int in_flight;
@@ -266,7 +250,8 @@ struct DNSHandler : public Continuation {
   int startEvent_sdns(int event, Event *e);
   int mainEvent(int event, Event *e);
 
-  void open_con(sockaddr const *addr, bool failed = false, int icon = 0);
+  void open_cons(sockaddr const *addr, bool failed = false, int icon = 0);
+  void open_con(sockaddr const *addr, bool failed = false, int icon = 0, bool over_tcp = false);
   void failover();
   void rr_failure(int ndx);
   void recover();
@@ -331,10 +316,10 @@ DNSHandler::DNSHandler()
     in_flight(0),
     name_server(0),
     in_write_dns(0),
-    hostent_cache(0),
+    hostent_cache(nullptr),
     last_primary_retry(0),
     last_primary_reopen(0),
-    m_res(0),
+    m_res(nullptr),
     txn_lookup_timeout(0),
     generator((uint32_t)((uintptr_t)time(nullptr) ^ (uintptr_t)this))
 {
@@ -345,7 +330,8 @@ DNSHandler::DNSHandler()
     failover_soon_number[i]    = 0;
     crossed_failover_number[i] = 0;
     ns_down[i]                 = 1;
-    con[i].handler             = this;
+    tcpcon[i].handler          = this;
+    udpcon[i].handler          = this;
   }
   memset(&qid_in_flight, 0, sizeof(qid_in_flight));
   SET_HANDLER(&DNSHandler::startEvent);
@@ -354,5 +340,3 @@ DNSHandler::DNSHandler()
 
 #define DOT_SEPARATED(_x) \
   ((unsigned char *)&(_x))[0], ((unsigned char *)&(_x))[1], ((unsigned char *)&(_x))[2], ((unsigned char *)&(_x))[3]
-
-#endif

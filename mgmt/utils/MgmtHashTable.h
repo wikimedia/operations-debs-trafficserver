@@ -30,8 +30,7 @@
  *
  */
 
-#ifndef _MGMT_HASH_TABLE_H
-#define _MGMT_HASH_TABLE_H
+#pragma once
 
 #include "ts/ink_memory.h"
 #include "ts/ink_hash_table.h"
@@ -40,9 +39,9 @@
 class MgmtHashTable
 {
 public:
-  MgmtHashTable(const char *name, bool free_on_delete, InkHashTableKeyType type)
+  MgmtHashTable(const char *, bool free_on_delete, InkHashTableKeyType type)
   {
-    ink_mutex_init(&mutex, name);
+    ink_mutex_init(&mutex);
     destroy_and_free = free_on_delete;
     ht               = ink_hash_table_create(type);
   }
@@ -188,5 +187,3 @@ private:
   ink_mutex mutex;
 
 }; /* End class MgmtHashTable */
-
-#endif /* _MGMT_HASH_TABLE_H */

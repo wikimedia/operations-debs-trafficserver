@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef LOG_OBJECT_H
-#define LOG_OBJECT_H
+#pragma once
 
 #include "ts/ink_platform.h"
 #include "Log.h"
@@ -33,7 +32,7 @@
 #include "LogBuffer.h"
 #include "LogAccess.h"
 #include "LogFilter.h"
-#include "ts/Vec.h"
+#include <vector>
 
 /*-------------------------------------------------------------------------
   LogObject
@@ -71,7 +70,7 @@ private:
 
 public:
   LogBufferManager() : _num_flush_buffers(0) {}
-  void
+  inline void
   add_to_flush_queue(LogBuffer *buffer)
   {
     write_list.push(buffer);
@@ -102,29 +101,29 @@ public:
             Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec = 0, int rolling_offset_hr = 0,
             int rolling_size_mb = 0, bool auto_created = false);
   LogObject(LogObject &);
-  virtual ~LogObject();
+  ~LogObject() override;
 
   void add_filter(LogFilter *filter, bool copy = true);
   void set_filter_list(const LogFilterList &list, bool copy = true);
   void add_loghost(LogHost *host, bool copy = true);
 
-  void
+  inline void
   set_remote_flag()
   {
     m_flags |= REMOTE_DATA;
   };
-  void
+  inline void
   set_fmt_timestamps()
   {
     m_flags |= LOG_OBJECT_FMT_TIMESTAMP;
   }
 
-  int log(LogAccess *lad, const char *text_entry = NULL);
+  int log(LogAccess *lad, const char *text_entry = nullptr);
   int va_log(LogAccess *lad, const char *fmt, va_list ap);
 
   unsigned roll_files(long time_now = 0);
 
-  int
+  inline int
   add_to_flush_queue(LogBuffer *buffer)
   {
     int idx = m_buffer_manager_idx++ % m_flush_threads;
@@ -134,13 +133,14 @@ public:
     return idx;
   }
 
-  size_t
+  inline size_t
   preproc_buffers(int idx = -1)
   {
     size_t nfb;
 
-    if (idx == -1)
+    if (idx == -1) {
       idx = m_buffer_manager_idx++ % m_flush_threads;
+    }
 
     if (m_logFile) {
       nfb = m_buffer_manager[idx].preproc_buffers(m_logFile.get());
@@ -155,17 +155,17 @@ public:
   void display(FILE *fd = stdout);
   static uint64_t compute_signature(LogFormat *format, char *filename, unsigned int flags);
 
-  const char *
+  inline const char *
   get_original_filename() const
   {
     return m_filename;
   }
-  const char *
+  inline const char *
   get_full_filename() const
   {
     return (m_alt_filename ? m_alt_filename : m_filename);
   }
-  const char *
+  inline const char *
   get_base_filename() const
   {
     return m_basename;
@@ -173,70 +173,70 @@ public:
 
   off_t get_file_size_bytes();
 
-  uint64_t
+  inline uint64_t
   get_signature() const
   {
     return m_signature;
   }
 
-  int
+  inline int
   get_rolling_interval() const
   {
     return m_rolling_interval_sec;
   }
 
-  void
+  inline void
   set_log_file_header(const char *header)
   {
     m_logFile->change_header(header);
   }
 
-  void
+  inline void
   set_rolling_enabled(Log::RollingEnabledValues rolling_enabled)
   {
     _setup_rolling(rolling_enabled, m_rolling_interval_sec, m_rolling_offset_hr, m_rolling_size_mb);
   }
 
-  void
+  inline void
   set_rolling_interval_sec(int rolling_interval_sec)
   {
     _setup_rolling(m_rolling_enabled, rolling_interval_sec, m_rolling_offset_hr, m_rolling_size_mb);
   }
 
-  void
+  inline void
   set_rolling_offset_hr(int rolling_offset_hr)
   {
     _setup_rolling(m_rolling_enabled, m_rolling_interval_sec, rolling_offset_hr, m_rolling_size_mb);
   }
 
-  void
+  inline void
   set_rolling_size_mb(int rolling_size_mb)
   {
     _setup_rolling(m_rolling_enabled, m_rolling_interval_sec, m_rolling_offset_hr, rolling_size_mb);
   }
 
-  bool
+  inline bool
   is_collation_client() const
   {
     return (m_logFile ? false : true);
   }
-  bool
+  inline bool
   receives_remote_data() const
   {
     return m_flags & REMOTE_DATA ? true : false;
   }
-  bool
+  inline bool
   writes_to_pipe() const
   {
     return m_flags & WRITES_TO_PIPE ? true : false;
   }
-  bool
+  inline bool
   writes_to_disk()
   {
     return (m_logFile && !(m_flags & WRITES_TO_PIPE) ? true : false);
   }
 
-  unsigned int
+  inline unsigned int
   get_flags() const
   {
     return m_flags;
@@ -244,26 +244,25 @@ public:
 
   void rename(char *new_name);
 
-  bool
+  inline bool
   has_alternate_name() const
   {
     return (m_alt_filename ? true : false);
   }
 
-  const char *
+  inline const char *
   get_format_string()
   {
     return (m_format ? m_format->format_string() : "<none>");
   }
 
-  void
+  inline void
   force_new_buffer()
   {
-    _checkout_write(NULL, 0);
+    _checkout_write(nullptr, 0);
   }
 
   bool operator==(LogObject &rhs);
-  int do_filesystem_checks();
 
 public:
   bool m_auto_created;
@@ -295,7 +294,7 @@ private:
   long m_last_roll_time;   // the last time this object rolled
   // its files
 
-  volatile head_p m_log_buffer; // current work buffer
+  head_p m_log_buffer; // current work buffer
   unsigned m_buffer_manager_idx;
   LogBufferManager *m_buffer_manager;
 
@@ -306,10 +305,13 @@ private:
 
   LogBuffer *_checkout_write(size_t *write_offset, size_t write_size);
 
+  // noncopyable
+  LogObject(const LogObject &) = delete;
+  LogObject &operator=(const LogObject &) = delete;
+
 private:
   // -- member functions not allowed --
   LogObject();
-  LogObject &operator=(const LogObject &);
 };
 
 /*-------------------------------------------------------------------------
@@ -350,7 +352,7 @@ public:
   };
 
 private:
-  typedef Vec<LogObject *> LogObjectList;
+  typedef std::vector<LogObject *> LogObjectList;
 
   LogObjectList _objects;    // array of configured objects
   LogObjectList _APIobjects; // array of API objects
@@ -406,12 +408,12 @@ public:
   bool
   has_api_objects() const
   {
-    return _APIobjects.length() > 0;
+    return _APIobjects.size() > 0;
   }
   unsigned
   get_num_objects() const
   {
-    return _objects.length();
+    return _objects.size();
   }
   unsigned get_num_collation_clients() const;
 };
@@ -443,12 +445,11 @@ LogObject::get_file_size_bytes()
       LogFile *orphan_logfile = host->get_orphan_logfile();
       if (orphan_logfile) {
         off_t s = orphan_logfile->get_size_bytes();
-        if (s > max_size)
+        if (s > max_size) {
           max_size = s;
+        }
       }
     }
     return max_size;
   }
 }
-
-#endif

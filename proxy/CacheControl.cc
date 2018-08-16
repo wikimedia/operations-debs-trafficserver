@@ -46,8 +46,15 @@ static const char modulePrefix[] = "[CacheControl]";
 #define TWEAK_CACHE_RESPONSES_TO_COOKIES "cache-responses-to-cookies"
 
 static const char *CC_directive_str[CC_NUM_TYPES] = {
-  "INVALID", "REVALIDATE_AFTER", "NEVER_CACHE", "STANDARD_CACHE", "IGNORE_NO_CACHE", "CLUSTER_CACHE_LOCAL",
-  "IGNORE_CLIENT_NO_CACHE", "IGNORE_SERVER_NO_CACHE", "PIN_IN_CACHE", "TTL_IN_CACHE"
+  "INVALID",
+  "REVALIDATE_AFTER",
+  "NEVER_CACHE",
+  "STANDARD_CACHE",
+  "IGNORE_NO_CACHE",
+  "IGNORE_CLIENT_NO_CACHE",
+  "IGNORE_SERVER_NO_CACHE",
+  "PIN_IN_CACHE",
+  "TTL_IN_CACHE"
   // "CACHE_AUTH_CONTENT"
 };
 
@@ -156,10 +163,6 @@ getCacheControl(CacheControlResult *result, HttpRequestData *rdata, OverridableH
   rdata->tag = tag;
   CacheControlTable->Match(rdata, result);
 
-  if (h_txn_conf->cache_cluster_cache_local) {
-    result->cluster_cache_local = true;
-  }
-
   if (h_txn_conf->cache_ignore_client_no_cache) {
     result->ignore_client_no_cache = true;
   }
@@ -173,21 +176,6 @@ getCacheControl(CacheControlResult *result, HttpRequestData *rdata, OverridableH
   }
 }
 
-bool
-getClusterCacheLocal(URL *url)
-{
-  HttpRequestData rdata;
-  CacheControlResult result;
-  HTTPHdr req_hdr;
-
-  req_hdr.create(HTTP_TYPE_REQUEST, nullptr);
-  req_hdr.url_set(url);
-  rdata.hdr = &req_hdr;
-  CacheControlTable->Match(&rdata, &result);
-  req_hdr.clear();
-  return result.cluster_cache_local;
-}
-
 //
 //   End API functions
 //
@@ -199,8 +187,8 @@ getClusterCacheLocal(URL *url)
 void
 CacheControlResult::Print()
 {
-  printf("\t reval: %d, never-cache: %d, pin: %d, cluster-cache-c: %d ignore-c: %d ignore-s: %d\n", revalidate_after, never_cache,
-         pin_in_cache_for, cluster_cache_local, ignore_client_no_cache, ignore_server_no_cache);
+  printf("\t reval: %d, never-cache: %d, pin: %d, ignore-c: %d ignore-s: %d\n", revalidate_after, never_cache, pin_in_cache_for,
+         ignore_client_no_cache, ignore_server_no_cache);
 }
 
 // void CacheControlRecord::Print()
@@ -220,7 +208,6 @@ CacheControlRecord::Print()
   case CC_TTL_IN_CACHE:
     printf("\t\tDirective: %s : %d\n", CC_directive_str[CC_TTL_IN_CACHE], this->time_arg);
     break;
-  case CC_CLUSTER_CACHE_LOCAL:
   case CC_IGNORE_CLIENT_NO_CACHE:
   case CC_IGNORE_SERVER_NO_CACHE:
   case CC_NEVER_CACHE:
@@ -239,7 +226,7 @@ CacheControlRecord::Print()
   ControlBase::Print();
 }
 
-// config_parse_error CacheControlRecord::Init(matcher_line* line_info)
+// Result CacheControlRecord::Init(matcher_line* line_info)
 //
 //    matcher_line* line_info - contains parsed label/value
 //      pairs of the current cache.config line
@@ -248,7 +235,7 @@ CacheControlRecord::Print()
 //      Otherwise, returns an error string that the caller MUST
 //        DEALLOCATE with free()
 //
-config_parse_error
+Result
 CacheControlRecord::Init(matcher_line *line_info)
 {
   int time_in;
@@ -272,7 +259,7 @@ CacheControlRecord::Init(matcher_line *line_info)
       char *ptr = nullptr;
       int v     = strtol(val, &ptr, 0);
       if (!ptr || v < 0 || v > 4) {
-        return config_parse_error("Value for " TWEAK_CACHE_RESPONSES_TO_COOKIES " must be an integer in the range 0..4");
+        return Result::failure("Value for " TWEAK_CACHE_RESPONSES_TO_COOKIES " must be an integer in the range 0..4");
       } else {
         cache_responses_to_cookies = v;
       }
@@ -305,10 +292,6 @@ CacheControlRecord::Init(matcher_line *line_info)
       } else if (strcasecmp(val, "ignore-no-cache") == 0) {
         directive = CC_IGNORE_NO_CACHE;
         d_found   = true;
-      } else if (strcasecmp(val, "cluster-cache-local") == 0) {
-        directive = CC_CLUSTER_CACHE_LOCAL;
-        ;
-        d_found = true;
       } else if (strcasecmp(val, "ignore-client-no-cache") == 0) {
         directive = CC_IGNORE_CLIENT_NO_CACHE;
         d_found   = true;
@@ -316,7 +299,7 @@ CacheControlRecord::Init(matcher_line *line_info)
         directive = CC_IGNORE_SERVER_NO_CACHE;
         d_found   = true;
       } else {
-        return config_parse_error("%s Invalid action at line %d in cache.config", modulePrefix, line_num);
+        return Result::failure("%s Invalid action at line %d in cache.config", modulePrefix, line_num);
       }
     } else {
       if (strcasecmp(label, "revalidate") == 0) {
@@ -336,7 +319,7 @@ CacheControlRecord::Init(matcher_line *line_info)
           this->time_arg = time_in;
 
         } else {
-          return config_parse_error("%s %s at line %d in cache.config", modulePrefix, tmp, line_num);
+          return Result::failure("%s %s at line %d in cache.config", modulePrefix, tmp, line_num);
         }
       }
     }
@@ -350,18 +333,18 @@ CacheControlRecord::Init(matcher_line *line_info)
   }
 
   if (d_found == false) {
-    return config_parse_error("%s No directive in cache.config at line %d", modulePrefix, line_num);
+    return Result::failure("%s No directive in cache.config at line %d", modulePrefix, line_num);
   }
   // Process any modifiers to the directive, if they exist
   if (line_info->num_el > 0) {
     tmp = ProcessModifiers(line_info);
 
     if (tmp != nullptr) {
-      return config_parse_error("%s %s at line %d in cache.config", modulePrefix, tmp, line_num);
+      return Result::failure("%s %s at line %d in cache.config", modulePrefix, tmp, line_num);
     }
   }
 
-  return config_parse_error::ok();
+  return Result::ok();
 }
 
 // void CacheControlRecord::UpdateMatch(CacheControlResult* result, RequestData* rdata)
@@ -416,13 +399,6 @@ CacheControlRecord::UpdateMatch(CacheControlResult *result, RequestData *rdata)
       result->ignore_server_no_cache = true;
       result->ignore_server_line     = this->line_num;
       match                          = true;
-    }
-    break;
-  case CC_CLUSTER_CACHE_LOCAL:
-    if (this->CheckForMatch(h_rdata, result->cluster_cache_local_line) == true) {
-      result->cluster_cache_local      = true;
-      result->cluster_cache_local_line = this->line_num;
-      match                            = true;
     }
     break;
   case CC_PIN_IN_CACHE:

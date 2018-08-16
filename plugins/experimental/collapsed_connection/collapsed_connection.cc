@@ -370,7 +370,7 @@ addOrCheckKeepPassRecords(uint32_t hash_key, int64_t timeout)
     if (keep_pass_list->empty()) {
       push_back = true;
     } else {
-      PassRecord &lastRecord = *(keep_pass_list->end());
+      PassRecord &lastRecord = *--(keep_pass_list->end());
 
       if (lastRecord.timeout <= passRecord.timeout) {
         push_back = true;
@@ -651,7 +651,7 @@ retryCacheUrlLock(TSCont contp, TSEvent /* event ATS_UNUSED */, void * /* edata 
 static void
 addMutexRetry(CcTxnData *txn_data, TSEvent event, TSHRTime timeout)
 {
-  TSCont contp      = TSContCreate(retryCacheUrlLock, nullptr);
+  TSCont contp      = TSContCreate(retryCacheUrlLock, TSMutexCreate());
   TryLockData *data = static_cast<TryLockData *>(TSmalloc(sizeof(TryLockData)));
 
   data->event    = event;
@@ -993,7 +993,7 @@ getCcPlugin()
     data->keep_pass_list        = new UsecList();
     data->seq_id                = 0;
     data->global_config         = nullptr;
-    TSHttpArgIndexReserve(PLUGIN_NAME, "reserve txn_data slot", &(data->txn_slot));
+    TSHttpTxnArgIndexReserve(PLUGIN_NAME, "reserve txn_data slot", &(data->txn_slot));
 
     if (TS_SUCCESS == TSMgmtIntGet("proxy.config.cache.enable_read_while_writer", &read_while_writer) && read_while_writer > 0) {
       data->read_while_writer = true;
@@ -1039,7 +1039,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
   }
 
   if (api_info->tsremap_version < TSREMAP_VERSION) {
-    snprintf(errbuf, errbuf_size - 1, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
+    snprintf(errbuf, errbuf_size, "[TSRemapInit] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
              (api_info->tsremap_version & 0xffff));
     return TS_ERROR;
   }

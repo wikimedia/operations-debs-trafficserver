@@ -104,11 +104,13 @@ static const char *_hdrtoken_strs[] = {
   "rtsp", "mmsu", "mmst", "mms", "wss", "ws",
 
   // HTTP methods
-  "CONNECT", "DELETE", "GET", "POST", "HEAD", "ICP_QUERY", "OPTIONS", "PURGE", "PUT", "TRACE", "PUSH",
+  "CONNECT", "DELETE", "GET", "POST", "HEAD", "OPTIONS", "PURGE", "PUT", "TRACE", "PUSH",
 
   // Header extensions
   "X-ID", "X-Forwarded-For", "TE", "Strict-Transport-Security", "100-continue",
-};
+
+  // RFC-2739
+  "Forwarded"};
 
 static HdrTokenTypeBinding _hdrtoken_strs_type_initializers[] = {
   {"file", HDRTOKEN_TYPE_SCHEME},
@@ -136,7 +138,6 @@ static HdrTokenTypeBinding _hdrtoken_strs_type_initializers[] = {
   {"DELETE", HDRTOKEN_TYPE_METHOD},
   {"GET", HDRTOKEN_TYPE_METHOD},
   {"HEAD", HDRTOKEN_TYPE_METHOD},
-  {"ICP_QUERY", HDRTOKEN_TYPE_METHOD},
   {"OPTIONS", HDRTOKEN_TYPE_METHOD},
   {"POST", HDRTOKEN_TYPE_METHOD},
   {"PURGE", HDRTOKEN_TYPE_METHOD},
@@ -234,6 +235,7 @@ static HdrTokenFieldInfo _hdrtoken_strs_field_initializers[] = {
   {"Xref", MIME_SLOTID_NONE, MIME_PRESENCE_XREF, HTIF_NONE},
   {"X-ID", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},
   {"X-Forwarded-For", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, (HTIF_COMMAS | HTIF_MULTVALS)},
+  {"Forwarded", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, (HTIF_COMMAS | HTIF_MULTVALS)},
   {"Sec-WebSocket-Key", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, HTIF_NONE},
   {"Sec-WebSocket-Version", MIME_SLOTID_NONE, MIME_PRESENCE_NONE, HTIF_NONE},
   {nullptr, 0, 0, 0},
@@ -260,7 +262,6 @@ DFA *hdrtoken_strs_dfa = nullptr;
  ***********************************************************************/
 
 #define HDRTOKEN_HASH_TABLE_SIZE 65536
-#define HDRTOKEN_HASH_TABLE_MASK HDRTOKEN_HASH_TABLE_SIZE - 1
 
 struct HdrTokenHashBucket {
   const char *wks;
@@ -292,6 +293,9 @@ hdrtoken_hash(const unsigned char *string, unsigned int length)
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
+// WARNING:  Indexes into this array are stored on disk for cached objects.  New strings must be added at the end of the array to
+// avoid changing the indexes of pre-existing entries, unless the cache format version number is increased.
+//
 static const char *_hdrtoken_commonly_tokenized_strs[] = {
   // MIME Field names
   "Accept-Charset", "Accept-Encoding", "Accept-Language", "Accept-Ranges", "Accept", "Age", "Allow",
@@ -349,11 +353,13 @@ static const char *_hdrtoken_commonly_tokenized_strs[] = {
   "rtsp", "mmsu", "mmst", "mms", "wss", "ws",
 
   // HTTP methods
-  "CONNECT", "DELETE", "GET", "POST", "HEAD", "ICP_QUERY", "OPTIONS", "PURGE", "PUT", "TRACE", "PUSH",
+  "CONNECT", "DELETE", "GET", "POST", "HEAD", "OPTIONS", "PURGE", "PUT", "TRACE", "PUSH",
 
   // Header extensions
   "X-ID", "X-Forwarded-For", "TE", "Strict-Transport-Security", "100-continue",
-};
+
+  // RFC-2739
+  "Forwarded"};
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -408,7 +414,7 @@ snap_up_to_multiple(unsigned int n, unsigned int unit)
 }
 
 /**
-*/
+ */
 void
 hdrtoken_init()
 {

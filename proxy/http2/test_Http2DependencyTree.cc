@@ -532,14 +532,14 @@ REGRESSION_TEST(Http2DependencyTree_exclusive_node)(RegressionTest *t, int /* at
 }
 
 /** test for reprioritize with active node
-*
-*     root                  root                   root
-*    /    \                /    \   (remove A)    /    \
-*   A      B   =======>   C      B   =======>    C      B
-*           \            /
-*            C          A
-*
-*/
+ *
+ *     root                  root                   root
+ *    /    \                /    \   (remove A)    /    \
+ *   A      B   =======>   C      B   =======>    C      B
+ *           \            /
+ *            C          A
+ *
+ */
 REGRESSION_TEST(Http2DependencyTree_reprioritize)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {
   TestBox box(t, pstatus);
@@ -657,22 +657,118 @@ REGRESSION_TEST(Http2DependencyTree_reprioritize_3)(RegressionTest *t, int /* at
   delete tree;
 }
 
+/**
+ * https://github.com/apache/trafficserver/issues/4057
+ * Reprioritization to root
+ *
+ *    x                x
+ *    |               / \
+ *    A              A   D
+ *   / \            / \  |
+ *  B   C     ==>  B   C F
+ *     / \             |
+ *    D   E            E
+ *    |
+ *    F
+ */
+REGRESSION_TEST(Http2DependencyTree_reprioritize_4)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  TestBox box(t, pstatus);
+  box = REGRESSION_TEST_PASSED;
+
+  Tree *tree = new Tree(100);
+  string a("A"), b("B"), c("C"), d("D"), e("E"), f("F");
+
+  tree->add(0, 1, 0, false, &a);
+  tree->add(1, 3, 0, false, &b);
+  tree->add(1, 5, 0, false, &c);
+  tree->add(5, 7, 0, false, &d);
+  tree->add(5, 9, 0, false, &e);
+  tree->add(7, 11, 0, false, &f);
+
+  Node *node_x = tree->find(0);
+  Node *node_a = tree->find(1);
+  Node *node_c = tree->find(5);
+  Node *node_d = tree->find(7);
+  Node *node_f = tree->find(11);
+
+  tree->activate(node_f);
+  tree->reprioritize(7, 0, false);
+
+  box.check(!node_a->queue->in(node_f->entry), "F should not be in A's queue");
+  box.check(node_d->queue->in(node_f->entry), "F should be in D's queue");
+  box.check(node_x->queue->in(node_d->entry), "D should be in x's queue");
+  box.check(!node_a->queue->in(node_c->entry), "C should not be in A's queue");
+  box.check(node_c->queue->empty(), "C's queue should be empty");
+
+  delete tree;
+}
+
+/**
+ * https://github.com/apache/trafficserver/issues/4057
+ * Reprioritization to unrelated node
+ *
+ *    x                x
+ *    |                |
+ *    A                A
+ *   / \              / \
+ *  B   C     ==>    B   C
+ *     / \           |   |
+ *    D   E          D   E
+ *    |              |
+ *    F              F
+ */
+REGRESSION_TEST(Http2DependencyTree_reprioritize_5)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
+{
+  TestBox box(t, pstatus);
+  box = REGRESSION_TEST_PASSED;
+
+  Tree *tree = new Tree(100);
+  string a("A"), b("B"), c("C"), d("D"), e("E"), f("F");
+
+  tree->add(0, 1, 0, false, &a);
+  tree->add(1, 3, 0, false, &b);
+  tree->add(1, 5, 0, false, &c);
+  tree->add(5, 7, 0, false, &d);
+  tree->add(5, 9, 0, false, &e);
+  tree->add(7, 11, 0, false, &f);
+
+  Node *node_x = tree->find(0);
+  Node *node_a = tree->find(1);
+  Node *node_b = tree->find(3);
+  Node *node_c = tree->find(5);
+  Node *node_d = tree->find(7);
+  Node *node_f = tree->find(11);
+
+  tree->activate(node_f);
+  tree->reprioritize(7, 3, false);
+
+  box.check(node_a->queue->in(node_b->entry), "B should be in A's queue");
+  box.check(node_b->queue->in(node_d->entry), "D should be in B's queue");
+  box.check(!node_c->queue->in(node_d->entry), "D should not be in C's queue");
+  box.check(node_x->queue->in(node_a->entry), "A should be in x's queue");
+  box.check(!node_a->queue->in(node_c->entry), "C should not be in A's queue");
+  box.check(node_c->queue->empty(), "C's queue should be empty");
+
+  delete tree;
+}
+
 /** test for https://github.com/apache/trafficserver/issues/2268
-*
-*    root            root                  root
-*    /     =====>   /    \     =======>   /    \
-*   A              A      shadow         A      shadow
-*                          \                    \
-*                           B                    B
-*                                                 \
-*                                                  C
-*
-*              root                      root
-*             /    \                    /
-*  ======>   A      shadow   =======>  A
-*                    \
-*                     C
-*/
+ *
+ *    root            root                  root
+ *    /     =====>   /    \     =======>   /    \
+ *   A              A      shadow         A      shadow
+ *                          \                    \
+ *                           B                    B
+ *                                                 \
+ *                                                  C
+ *
+ *              root                      root
+ *             /    \                    /
+ *  ======>   A      shadow   =======>  A
+ *                    \
+ *                     C
+ */
 REGRESSION_TEST(Http2DependencyTree_insert_with_empty_parent)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {
   TestBox box(t, pstatus);
@@ -702,13 +798,13 @@ REGRESSION_TEST(Http2DependencyTree_insert_with_empty_parent)(RegressionTest *t,
 }
 
 /** test for https://github.com/apache/trafficserver/issues/2268
-*
-*    root            root                  root                root
-*    /     =====>   /    \     =======>   /    \   =======>   /    \
-*   A              A      shadow         A      B            A      B
-*                          \                     \
-*                           B                     shadow
-*/
+ *
+ *    root            root                  root                root
+ *    /     =====>   /    \     =======>   /    \   =======>   /    \
+ *   A              A      shadow         A      B            A      B
+ *                          \                     \
+ *                           B                     shadow
+ */
 REGRESSION_TEST(Http2DependencyTree_shadow_reprioritize)(RegressionTest *t, int /* atype ATS_UNUSED */, int *pstatus)
 {
   TestBox box(t, pstatus);

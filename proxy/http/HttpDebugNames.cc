@@ -26,7 +26,6 @@
 #include "StatPages.h"
 #include "HttpTunnel.h"
 #include "Transform.h"
-#include "ICPevents.h"
 #include "HttpSM.h"
 #include "HttpUpdateSM.h"
 
@@ -55,12 +54,8 @@ HttpDebugNames::get_server_state_name(HttpTransact::ServerState_t state)
     return "PARSE_ERROR";
   case HttpTransact::TRANSACTION_COMPLETE:
     return "TRANSACTION_COMPLETE";
-  case HttpTransact::CONGEST_CONTROL_CONGESTED_ON_F:
-    return "CONGEST_CONTROL_CONGESTED_ON_F";
-  case HttpTransact::CONGEST_CONTROL_CONGESTED_ON_M:
-    return "CONGEST_CONTROL_CONGESTED_ON_M";
-  case HttpTransact::PARENT_ORIGIN_RETRY:
-    return "PARENT_ORIGIN_RETRY";
+  case HttpTransact::PARENT_RETRY:
+    return "PARENT_RETRY";
   }
 
   return ("unknown state name");
@@ -169,9 +164,9 @@ HttpDebugNames::get_event_name(int event)
   case DNS_EVENT_LOOKUP:
     return ("DNS_EVENT_LOOKUP");
 
-  ////////////////////
-  // CACHE   EVENTS //
-  ////////////////////
+    ////////////////////
+    // CACHE   EVENTS //
+    ////////////////////
 
   case CACHE_EVENT_LOOKUP:
     return ("CACHE_EVENT_LOOKUP");
@@ -211,22 +206,6 @@ HttpDebugNames::get_event_name(int event)
     return ("HTTP_TUNNEL_EVENT_PRECOMPLETE");
   case HTTP_TUNNEL_EVENT_CONSUMER_DETACH:
     return ("HTTP_TUNNEL_EVENT_CONSUMER_DETACH");
-
-  //////////////////////////
-  //  ICP Events
-  //////////////////////////
-  case ICP_LOOKUP_FOUND:
-    return ("ICP_LOOKUP_FOUND");
-  case ICP_LOOKUP_FAILED:
-    return ("ICP_LOOKUP_FAILED");
-
-  //////////////////////////////
-  //  CongestionControl Events
-  //////////////////////////////
-  case CONGESTION_EVENT_CONGESTED_ON_F:
-    return ("CONGESTION_EVENT_CONGESTED_ON_F");
-  case CONGESTION_EVENT_CONGESTED_ON_M:
-    return ("CONGESTION_EVENT_CONGESTED_ON_M");
 
   //////////////////////////////
   //  Plugin Events
@@ -282,9 +261,6 @@ HttpDebugNames::get_action_name(HttpTransact::StateMachineAction_t e)
 
   case HttpTransact::SM_ACTION_DNS_REVERSE_LOOKUP:
     return ("SM_ACTION_DNS_REVERSE_LOOKUP");
-
-  case HttpTransact::SM_ACTION_ICP_QUERY:
-    return ("SM_ACTION_ICP_QUERY");
 
   case HttpTransact::SM_ACTION_CACHE_PREPARE_UPDATE:
     return ("SM_ACTION_CACHE_PREPARE_UPDATE");
@@ -367,6 +343,11 @@ HttpDebugNames::get_action_name(HttpTransact::StateMachineAction_t e)
   case HttpTransact::SM_ACTION_TRANSFORM_READ:
     return ("SM_ACTION_TRANSFORM_READ");
 
+  case HttpTransact::SM_ACTION_WAIT_FOR_FULL_BODY:
+    return ("SM_ACTION_WAIT_FOR_FULL_BODY");
+
+  case HttpTransact::SM_ACTION_REQUEST_BUFFER_READ_COMPLETE:
+    return ("SM_ACTION_REQUEST_BUFFER_READ_COMPLETE");
   case HttpTransact::SM_ACTION_API_SM_START:
     return ("SM_ACTION_API_SM_START");
   case HttpTransact::SM_ACTION_REDIRECT_READ:
@@ -453,6 +434,8 @@ HttpDebugNames::get_api_hook_name(TSHttpHookID t)
     return "TS_HTTP_SEND_RESPONSE_HDR_HOOK";
   case TS_HTTP_REQUEST_TRANSFORM_HOOK:
     return "TS_HTTP_REQUEST_TRANSFORM_HOOK";
+  case TS_HTTP_REQUEST_BUFFER_READ_COMPLETE_HOOK:
+    return "TS_HTTP_REQUEST_BUFFER_READ_COMPLETE_HOOK";
   case TS_HTTP_RESPONSE_TRANSFORM_HOOK:
     return "TS_HTTP_RESPONSE_TRANSFORM_HOOK";
   case TS_HTTP_SELECT_ALT_HOOK:
@@ -473,12 +456,20 @@ HttpDebugNames::get_api_hook_name(TSHttpHookID t)
     return "TS_HTTP_RESPONSE_CLIENT_HOOK";
   case TS_HTTP_LAST_HOOK:
     return "TS_HTTP_LAST_HOOK";
-  case TS_VCONN_PRE_ACCEPT_HOOK:
-    return "TS_VCONN_PRE_ACCEPT_HOOK";
+  case TS_VCONN_START_HOOK:
+    return "TS_VCONN_START_HOOK";
+  case TS_VCONN_CLOSE_HOOK:
+    return "TS_VCONN_CLOSE_HOOK";
   case TS_SSL_CERT_HOOK:
     return "TS_SSL_CERT_HOOK";
   case TS_SSL_SERVERNAME_HOOK:
     return "TS_SSL_SERVERNAME_HOOK";
+  case TS_SSL_SERVER_VERIFY_HOOK:
+    return "TS_SSL_SERVER_VERIFY_HOOK";
+  case TS_SSL_VERIFY_CLIENT_HOOK:
+    return "TS_SSL_VERIFY_CLIENT_HOOK";
+  case TS_SSL_SESSION_HOOK:
+    return "TS_SSL_SESSION_HOOK";
   }
 
   return "unknown hook";

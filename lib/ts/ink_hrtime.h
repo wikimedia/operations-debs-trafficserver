@@ -28,14 +28,13 @@
   This file contains code supporting the Inktomi high-resolution timer.
 **************************************************************************/
 
-#if !defined(_ink_hrtime_h_)
-#define _ink_hrtime_h_
+#pragma once
 
 #include "ts/ink_config.h"
 #include "ts/ink_assert.h"
-#include <time.h>
+#include <ctime>
 #include <sys/time.h>
-#include <stdlib.h>
+#include <cstdlib>
 typedef int64_t ink_hrtime;
 
 int squid_timestamp_to_buf(char *buf, unsigned int buf_size, long timestamp_sec, long timestamp_usec);
@@ -274,5 +273,3 @@ ink_hrtime_sleep(ink_hrtime delay)
   struct timespec ts = ink_hrtime_to_timespec(delay);
   nanosleep(&ts, nullptr);
 }
-
-#endif /* _ink_hrtime_h_ */

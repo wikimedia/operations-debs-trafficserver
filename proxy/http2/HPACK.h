@@ -21,44 +21,44 @@
   limitations under the License.
  */
 
-#ifndef __HPACK_H__
-#define __HPACK_H__
+#pragma once
 
 #include "ts/ink_platform.h"
-#include "ts/Vec.h"
 #include "ts/Diags.h"
 #include "HTTP.h"
+
+#include <vector>
 
 // It means that any header field can be compressed/decompressed by ATS
 const static int HPACK_ERROR_COMPRESSION_ERROR   = -1;
 const static int HPACK_ERROR_SIZE_EXCEEDED_ERROR = -2;
 
-enum HpackFieldType {
-  HPACK_FIELD_INDEX,              // [RFC 7541] 6.1. Indexed Header Field Representation
-  HPACK_FIELD_INDEXED_LITERAL,    // [RFC 7541] 6.2.1. Literal Header Field with Incremental Indexing
-  HPACK_FIELD_NOINDEX_LITERAL,    // [RFC 7541] 6.2.2. Literal Header Field without Indexing
-  HPACK_FIELD_NEVERINDEX_LITERAL, // [RFC 7541] 6.2.3. Literal Header Field never Indexed
-  HPACK_FIELD_TABLESIZE_UPDATE,   // [RFC 7541] 6.3. Dynamic Table Size Update
+enum class HpackField {
+  INDEX,              // [RFC 7541] 6.1. Indexed Header Field Representation
+  INDEXED_LITERAL,    // [RFC 7541] 6.2.1. Literal Header Field with Incremental Indexing
+  NOINDEX_LITERAL,    // [RFC 7541] 6.2.2. Literal Header Field without Indexing
+  NEVERINDEX_LITERAL, // [RFC 7541] 6.2.3. Literal Header Field never Indexed
+  TABLESIZE_UPDATE,   // [RFC 7541] 6.3. Dynamic Table Size Update
 };
 
-enum HpackIndexType {
-  HPACK_INDEX_TYPE_NONE,
-  HPACK_INDEX_TYPE_STATIC,
-  HPACK_INDEX_TYPE_DYNAMIC,
+enum class HpackIndex {
+  NONE,
+  STATIC,
+  DYNAMIC,
 };
 
-enum HpackMatchType {
-  HPACK_NO_MATCH,
-  HPACK_NAME_MATCH,
-  HPACK_EXACT_MATCH,
+enum class HpackMatch {
+  NONE,
+  NAME,
+  EXACT,
 };
 
 // Result of looking for a header field in IndexingTable
 struct HpackLookupResult {
-  HpackLookupResult() : index(0), index_type(HPACK_INDEX_TYPE_NONE), match_type(HPACK_NO_MATCH) {}
+  HpackLookupResult() : index(0), index_type(HpackIndex::NONE), match_type(HpackMatch::NONE) {}
   int index;
-  HpackIndexType index_type;
-  HpackMatchType match_type;
+  HpackIndex index_type;
+  HpackMatch match_type;
 };
 
 class MIMEFieldWrapper
@@ -133,7 +133,7 @@ private:
   uint32_t _maximum_size;
 
   MIMEHdr *_mhdr;
-  Vec<MIMEField *> _headers;
+  std::vector<MIMEField *> _headers;
 };
 
 // [RFC 7541] 2.3. Indexing Table
@@ -162,9 +162,9 @@ int64_t encode_string(uint8_t *buf_start, const uint8_t *buf_end, const char *va
 int64_t decode_string(Arena &arena, char **str, uint32_t &str_length, const uint8_t *buf_start, const uint8_t *buf_end);
 int64_t encode_indexed_header_field(uint8_t *buf_start, const uint8_t *buf_end, uint32_t index);
 int64_t encode_literal_header_field_with_indexed_name(uint8_t *buf_start, const uint8_t *buf_end, const MIMEFieldWrapper &header,
-                                                      uint32_t index, HpackIndexingTable &indexing_table, HpackFieldType type);
+                                                      uint32_t index, HpackIndexingTable &indexing_table, HpackField type);
 int64_t encode_literal_header_field_with_new_name(uint8_t *buf_start, const uint8_t *buf_end, const MIMEFieldWrapper &header,
-                                                  HpackIndexingTable &indexing_table, HpackFieldType type);
+                                                  HpackIndexingTable &indexing_table, HpackField type);
 int64_t decode_indexed_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, const uint8_t *buf_end,
                                     HpackIndexingTable &indexing_table);
 int64_t decode_literal_header_field(MIMEFieldWrapper &header, const uint8_t *buf_start, const uint8_t *buf_end,
@@ -179,5 +179,3 @@ int64_t hpack_decode_header_block(HpackHandle &handle, HTTPHdr *hdr, const uint8
 int64_t hpack_encode_header_block(HpackHandle &handle, uint8_t *out_buf, const size_t out_buf_len, HTTPHdr *hdr,
                                   int32_t maximum_table_size = -1);
 int32_t hpack_get_maximum_table_size(HpackHandle &handle);
-
-#endif /* __HPACK_H__ */

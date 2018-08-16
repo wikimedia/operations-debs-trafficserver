@@ -28,17 +28,16 @@
  *
  ****************************************************************************/
 
-#ifndef _IP_ALLOW_H_
-#define _IP_ALLOW_H_
+#pragma once
 
 #include "Main.h"
 #include "hdrs/HTTP.h"
 #include "ts/IpMap.h"
-#include "ts/Vec.h"
 #include "ProxyConfig.h"
 
 #include <string>
 #include <set>
+#include <vector>
 
 // forward declare in name only so it can be a friend.
 struct IpAllowUpdate;
@@ -114,7 +113,7 @@ public:
   enum match_key_t { SRC_ADDR, DEST_ADDR };
 
   IpAllow(const char *config_var, const char *name, const char *action_val);
-  ~IpAllow();
+  ~IpAllow() override;
   void Print();
   AclRecord *match(IpEndpoint const *ip, match_key_t key) const;
   AclRecord *match(sockaddr const *ip, match_key_t key) const;
@@ -168,8 +167,8 @@ private:
   const char *action;
   IpMap _src_map;
   IpMap _dest_map;
-  Vec<AclRecord> _src_acls;
-  Vec<AclRecord> _dest_acls;
+  std::vector<AclRecord> _src_acls;
+  std::vector<AclRecord> _dest_acls;
 };
 
 inline AclRecord *
@@ -186,5 +185,3 @@ IpAllow::match(sockaddr const *ip, match_key_t key) const
   map.contains(ip, &raw);
   return static_cast<AclRecord *>(raw);
 }
-
-#endif

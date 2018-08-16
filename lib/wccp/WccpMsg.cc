@@ -23,7 +23,7 @@
 #include "WccpLocal.h"
 #include <errno.h>
 #include <openssl/md5.h>
-#include <TsException.h>
+#include "api/ts/TsException.h"
 #include "ts/ink_memory.h"
 #include "ts/ink_string.h"
 
@@ -78,10 +78,6 @@ CacheHashIdElt::setBuckets(bool state)
 {
   memset(m_buckets, state ? 0xFF : 0, sizeof(m_buckets));
   return *this;
-}
-
-CacheIdBox::CacheIdBox() : m_base(0), m_tail(0), m_size(0), m_cap(0)
-{
 }
 
 size_t
@@ -202,7 +198,7 @@ CapabilityElt::getCapType() const
 inline CapabilityElt &
 CapabilityElt::setCapType(Type cap)
 {
-  m_cap_type = htons(cap);
+  m_cap_type = static_cast<Type>(htons(cap));
   return *this;
 }
 
@@ -219,9 +215,7 @@ CapabilityElt::setCapData(uint32_t data)
   return *this;
 }
 
-CapabilityElt::CapabilityElt()
-{
-}
+CapabilityElt::CapabilityElt() {}
 
 CapabilityElt::CapabilityElt(Type cap, uint32_t data)
 {
@@ -449,14 +443,14 @@ SecurityComp &
 SecurityComp::setKey(char const *key)
 {
   m_local_key = true;
-  strncpy(m_key, key, KEY_SIZE);
+  ink_strlcpy(m_key, key, KEY_SIZE);
   return *this;
 }
 
 void
 SecurityComp::setDefaultKey(char const *key)
 {
-  strncpy(m_default_key, key, KEY_SIZE);
+  ink_strlcpy(m_default_key, key, KEY_SIZE);
 }
 
 SecurityComp &
@@ -783,12 +777,18 @@ RouterViewComp::setChangeNumber(uint32_t n)
   return *this;
 }
 
+// This is untainted because an overall size check is done when the packet is read. If any of the
+// counts are bogus, that size check will fail.
+// coverity[ -tainted_data_return]
 uint32_t
 RouterViewComp::getCacheCount() const
 {
   return ntohl(*m_cache_count);
 }
 
+// This is untainted because an overall size check is done when the packet is read. If any of the
+// counts are bogus, that size check will fail.
+// coverity[ -tainted_data_return]
 uint32_t
 RouterViewComp::getRouterCount() const
 {
@@ -1552,9 +1552,7 @@ AssignMapComp::parse(MsgBuffer &buffer)
   return zret;
 }
 // ------------------------------------------------------
-detail::Assignment::Assignment() : m_key(0, 0), m_active(false), m_router_list(0), m_hash_assign(0), m_mask_assign(0)
-{
-}
+detail::Assignment::Assignment() : m_key(0, 0), m_active(false), m_router_list(0), m_hash_assign(0), m_mask_assign(0) {}
 
 bool
 detail::Assignment::fill(cache::GroupData &group, uint32_t addr)
@@ -1752,7 +1750,7 @@ RedirectAssignMsg::fill(detail::cache::GroupData const &group, SecurityOption se
 void
 ISeeYouMsg::fill(detail::router::GroupData const &group, SecurityOption sec_opt, detail::Assignment & /* assign ATS_UNUSED */,
                  size_t to_caches, size_t n_routers, size_t n_caches, bool /* send_capabilities ATS_UNUSED */
-                 )
+)
 {
   m_header.fill(m_buffer, I_SEE_YOU);
   m_security.fill(m_buffer, sec_opt);

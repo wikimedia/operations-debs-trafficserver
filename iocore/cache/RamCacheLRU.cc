@@ -24,7 +24,7 @@
 #include "P_Cache.h"
 
 struct RamCacheLRUEntry {
-  INK_MD5 key;
+  CryptoHash key;
   uint32_t auxkey1;
   uint32_t auxkey2;
   LINK(RamCacheLRUEntry, lru_link);
@@ -35,30 +35,29 @@ struct RamCacheLRUEntry {
 #define ENTRY_OVERHEAD 128 // per-entry overhead to consider when computing sizes
 
 struct RamCacheLRU : public RamCache {
-  int64_t max_bytes;
-  int64_t bytes;
-  int64_t objects;
+  int64_t max_bytes = 0;
+  int64_t bytes     = 0;
+  int64_t objects   = 0;
 
   // returns 1 on found/stored, 0 on not found/stored, if provided auxkey1 and auxkey2 must match
-  int get(INK_MD5 *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0) override;
-  int put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool copy = false, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0) override;
-  int fixup(const INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2) override;
+  int get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1 = 0, uint32_t auxkey2 = 0) override;
+  int put(CryptoHash *key, IOBufferData *data, uint32_t len, bool copy = false, uint32_t auxkey1 = 0,
+          uint32_t auxkey2 = 0) override;
+  int fixup(const CryptoHash *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2) override;
   int64_t size() const override;
 
   void init(int64_t max_bytes, Vol *vol) override;
 
   // private
-  uint16_t *seen;
+  uint16_t *seen = nullptr;
   Que(RamCacheLRUEntry, lru_link) lru;
-  DList(RamCacheLRUEntry, hash_link) * bucket;
-  int nbuckets;
-  int ibuckets;
-  Vol *vol;
+  DList(RamCacheLRUEntry, hash_link) *bucket = nullptr;
+  int nbuckets                               = 0;
+  int ibuckets                               = 0;
+  Vol *vol                                   = nullptr;
 
   void resize_hashtable();
   RamCacheLRUEntry *remove(RamCacheLRUEntry *e);
-
-  RamCacheLRU() : bytes(0), objects(0), seen(nullptr), bucket(nullptr), nbuckets(0), ibuckets(0), vol(nullptr) {}
 };
 
 int64_t
@@ -85,14 +84,15 @@ RamCacheLRU::resize_hashtable()
 {
   int anbuckets = bucket_sizes[ibuckets];
   DDebug("ram_cache", "resize hashtable %d", anbuckets);
-  int64_t s = anbuckets * sizeof(DList(RamCacheLRUEntry, hash_link));
+  int64_t s                                      = anbuckets * sizeof(DList(RamCacheLRUEntry, hash_link));
   DList(RamCacheLRUEntry, hash_link) *new_bucket = (DList(RamCacheLRUEntry, hash_link) *)ats_malloc(s);
-  memset(new_bucket, 0, s);
+  memset(static_cast<void *>(new_bucket), 0, s);
   if (bucket) {
     for (int64_t i = 0; i < nbuckets; i++) {
       RamCacheLRUEntry *e = nullptr;
-      while ((e = bucket[i].pop()))
+      while ((e = bucket[i].pop())) {
         new_bucket[e->key.slice32(3) % anbuckets].push(e);
+      }
     }
     ats_free(bucket);
   }
@@ -112,16 +112,18 @@ RamCacheLRU::init(int64_t abytes, Vol *avol)
   vol       = avol;
   max_bytes = abytes;
   DDebug("ram_cache", "initializing ram_cache %" PRId64 " bytes", abytes);
-  if (!max_bytes)
+  if (!max_bytes) {
     return;
+  }
   resize_hashtable();
 }
 
 int
-RamCacheLRU::get(INK_MD5 *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1, uint32_t auxkey2)
+RamCacheLRU::get(CryptoHash *key, Ptr<IOBufferData> *ret_data, uint32_t auxkey1, uint32_t auxkey2)
 {
-  if (!max_bytes)
+  if (!max_bytes) {
     return 0;
+  }
   uint32_t i          = key->slice32(3) % nbuckets;
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {
@@ -158,10 +160,11 @@ RamCacheLRU::remove(RamCacheLRUEntry *e)
 
 // ignore 'copy' since we don't touch the data
 int
-RamCacheLRU::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool, uint32_t auxkey1, uint32_t auxkey2)
+RamCacheLRU::put(CryptoHash *key, IOBufferData *data, uint32_t len, bool, uint32_t auxkey1, uint32_t auxkey2)
 {
-  if (!max_bytes)
+  if (!max_bytes) {
     return 0;
+  }
   uint32_t i = key->slice32(3) % nbuckets;
   if (cache_config_ram_cache_use_seen_filter) {
     uint16_t k  = key->slice32(3) >> 16;
@@ -198,10 +201,11 @@ RamCacheLRU::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool, uint32_t 
   CACHE_SUM_DYN_STAT_THREAD(cache_ram_cache_bytes_stat, ENTRY_OVERHEAD + data->block_size());
   while (bytes > max_bytes) {
     RamCacheLRUEntry *ee = lru.dequeue();
-    if (ee)
+    if (ee) {
       remove(ee);
-    else
+    } else {
       break;
+    }
   }
   DDebug("ram_cache", "put %X %d %d INSERTED", key->slice32(3), auxkey1, auxkey2);
   if (objects > nbuckets) {
@@ -212,10 +216,11 @@ RamCacheLRU::put(INK_MD5 *key, IOBufferData *data, uint32_t len, bool, uint32_t 
 }
 
 int
-RamCacheLRU::fixup(const INK_MD5 *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2)
+RamCacheLRU::fixup(const CryptoHash *key, uint32_t old_auxkey1, uint32_t old_auxkey2, uint32_t new_auxkey1, uint32_t new_auxkey2)
 {
-  if (!max_bytes)
+  if (!max_bytes) {
     return 0;
+  }
   uint32_t i          = key->slice32(3) % nbuckets;
   RamCacheLRUEntry *e = bucket[i].head;
   while (e) {

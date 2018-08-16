@@ -30,18 +30,17 @@
 
  ****************************************************************************/
 
-#ifndef _HTTP_SERVER_SESSION_H_
-#define _HTTP_SERVER_SESSION_H_
+#pragma once
 /* Enable LAZY_BUF_ALLOC to delay allocation of buffers until they
-* are actually required.
-* Enabling LAZY_BUF_ALLOC, stop Http code from allocation space
-* for header buffer and tunnel buffer. The allocation is done by
-* the net code in read_from_net when data is actually written into
-* the buffer. By allocating memory only when it is required we can
-* reduce the memory consumed by TS process.
-*
-* IMPORTANT NOTE: enable/disable LAZY_BUF_ALLOC in HttpSM.h as well.
-*/
+ * are actually required.
+ * Enabling LAZY_BUF_ALLOC, stop Http code from allocation space
+ * for header buffer and tunnel buffer. The allocation is done by
+ * the net code in read_from_net when data is actually written into
+ * the buffer. By allocating memory only when it is required we can
+ * reduce the memory consumed by TS process.
+ *
+ * IMPORTANT NOTE: enable/disable LAZY_BUF_ALLOC in HttpSM.h as well.
+ */
 #define LAZY_BUF_ALLOC
 
 #include "P_Net.h"
@@ -69,7 +68,7 @@ class HttpServerSession : public VConnection
 {
 public:
   HttpServerSession()
-    : VConnection(NULL),
+    : VConnection(nullptr),
       hostname_hash(),
       con_id(0),
       transact_count(0),
@@ -80,11 +79,11 @@ public:
       sharing_match(TS_SERVER_SESSION_SHARING_MATCH_BOTH),
       sharing_pool(TS_SERVER_SESSION_SHARING_POOL_GLOBAL),
       enable_origin_connection_limiting(false),
-      connection_count(NULL),
-      read_buffer(NULL),
-      server_vc(NULL),
+      connection_count(nullptr),
+      read_buffer(nullptr),
+      server_vc(nullptr),
       magic(HTTP_SS_MAGIC_DEAD),
-      buf_reader(NULL)
+      buf_reader(nullptr)
   {
   }
 
@@ -95,9 +94,9 @@ public:
   reset_read_buffer(void)
   {
     ink_assert(read_buffer->_writer);
-    ink_assert(buf_reader != NULL);
+    ink_assert(buf_reader != nullptr);
     read_buffer->dealloc_all_readers();
-    read_buffer->_writer = NULL;
+    read_buffer->_writer = nullptr;
     buf_reader           = read_buffer->alloc_reader();
   }
 
@@ -107,14 +106,15 @@ public:
     return buf_reader;
   };
 
-  virtual VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0);
+  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
 
-  virtual VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false);
+  VIO *do_io_write(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, IOBufferReader *buf = nullptr,
+                   bool owner = false) override;
 
-  virtual void do_io_close(int lerrno = -1);
-  virtual void do_io_shutdown(ShutdownHowTo_t howto);
+  void do_io_close(int lerrno = -1) override;
+  void do_io_shutdown(ShutdownHowTo_t howto) override;
 
-  virtual void reenable(VIO *vio);
+  void reenable(VIO *vio) override;
 
   void release();
   void attach_hostname(const char *hostname);
@@ -133,11 +133,11 @@ public:
   IpEndpoint const &
   get_server_ip() const
   {
-    ink_release_assert(server_vc != NULL);
+    ink_release_assert(server_vc != nullptr);
     return server_vc->get_remote_endpoint();
   }
 
-  INK_MD5 hostname_hash;
+  CryptoHash hostname_hash;
 
   int64_t con_id;
   int transact_count;
@@ -181,14 +181,14 @@ public:
   MIOBuffer *read_buffer;
 
   virtual int
-  populate_protocol(ts::StringView *result, int size) const
+  populate_protocol(std::string_view *result, int size) const
   {
     auto vc = this->get_netvc();
     return vc ? vc->populate_protocol(result, size) : 0;
   }
 
   virtual const char *
-  protocol_contains(ts::StringView tag_prefix) const
+  protocol_contains(std::string_view tag_prefix) const
   {
     auto vc = this->get_netvc();
     return vc ? vc->protocol_contains(tag_prefix) : nullptr;
@@ -209,7 +209,6 @@ inline void
 HttpServerSession::attach_hostname(const char *hostname)
 {
   if (CRYPTO_HASH_ZERO == hostname_hash) {
-    ink_code_md5((unsigned char *)hostname, strlen(hostname), (unsigned char *)&hostname_hash);
+    CryptoContext().hash_immediate(hostname_hash, (unsigned char *)hostname, strlen(hostname));
   }
 }
-#endif

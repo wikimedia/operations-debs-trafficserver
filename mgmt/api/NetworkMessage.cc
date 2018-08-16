@@ -23,12 +23,12 @@
 
 #include "ts/ink_config.h"
 #include "ts/ink_defs.h"
+#include "ts/ink_error.h"
 #include "ts/ink_assert.h"
 #include "ts/ink_memory.h"
 #include "mgmtapi.h"
 #include "NetworkMessage.h"
 
-#define MAX_OPERATION_BUFSZ 1024
 #define MAX_OPERATION_FIELDS 16
 
 struct NetCmdOperation {
@@ -38,8 +38,6 @@ struct NetCmdOperation {
 
 // Requests always begin with a OpType, followed by aditional fields.
 static const struct NetCmdOperation requests[] = {
-  /* FILE_READ                  */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
-  /* FILE_WRITE                 */ {4, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_DATA}},
   /* RECORD_SET                 */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING}},
   /* RECORD_GET                 */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* PROXY_STATE_GET            */ {1, {MGMT_MARSHALL_INT}},
@@ -47,67 +45,60 @@ static const struct NetCmdOperation requests[] = {
   /* RECONFIGURE                */ {1, {MGMT_MARSHALL_INT}},
   /* RESTART                    */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* BOUNCE                     */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
+  /* STOP                       */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
+  /* DRAIN                      */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* EVENT_RESOLVE              */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* EVENT_GET_MLT              */ {1, {MGMT_MARSHALL_INT}},
   /* EVENT_ACTIVE               */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* EVENT_REG_CALLBACK         */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* EVENT_UNREG_CALLBACK       */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* EVENT_NOTIFY               */ {3,
-                                    {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING,
-                                     MGMT_MARSHALL_STRING}}, // only msg sent from TM to client
-  /* SNAPSHOT_TAKE              */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* SNAPSHOT_RESTORE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* SNAPSHOT_REMOVE            */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* SNAPSHOT_GET_MLT           */ {1, {MGMT_MARSHALL_INT}},
+  /* EVENT_NOTIFY               */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING}}, // only msg sent from TM to
+                                                                                                         // client
   /* STATS_RESET_NODE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* STATS_RESET_CLUSTER        */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* STORAGE_DEVICE_CMD_OFFLINE */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* RECORD_MATCH_GET           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* API_PING                   */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* SERVER_BACKTRACE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* RECORD_DESCRIBE_CONFIG     */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT}},
   /* LIFECYCLE_MESSAGE          */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_DATA}},
+  /* HOST_STATUS_HOST_UP        */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
+  /* HOST_STATUS_HOST_DOWN      */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT}},
 };
 
 // Responses always begin with a TSMgmtError code, followed by additional fields.
 static const struct NetCmdOperation responses[] = {
-  /* FILE_READ                  */ {3, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_DATA}},
-  /* FILE_WRITE                 */ {1, {MGMT_MARSHALL_INT}},
   /* RECORD_SET                 */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
-  /* RECORD_GET                 */ {5,
-                                    {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING,
-                                     MGMT_MARSHALL_DATA}},
+  /* RECORD_GET                 */
+  {5, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_DATA}},
   /* PROXY_STATE_GET            */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* PROXY_STATE_SET            */ {1, {MGMT_MARSHALL_INT}},
   /* RECONFIGURE                */ {1, {MGMT_MARSHALL_INT}},
   /* RESTART                    */ {1, {MGMT_MARSHALL_INT}},
   /* BOUNCE                     */ {1, {MGMT_MARSHALL_INT}},
+  /* STOP                       */ {1, {MGMT_MARSHALL_INT}},
+  /* DRAIN                      */ {1, {MGMT_MARSHALL_INT}},
   /* EVENT_RESOLVE              */ {1, {MGMT_MARSHALL_INT}},
   /* EVENT_GET_MLT              */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* EVENT_ACTIVE               */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT}},
   /* EVENT_REG_CALLBACK         */ {0, {}}, // no reply
   /* EVENT_UNREG_CALLBACK       */ {0, {}}, // no reply
   /* EVENT_NOTIFY               */ {0, {}}, // no reply
-  /* SNAPSHOT_TAKE              */ {1, {MGMT_MARSHALL_INT}},
-  /* SNAPSHOT_RESTORE           */ {1, {MGMT_MARSHALL_INT}},
-  /* SNAPSHOT_REMOVE            */ {1, {MGMT_MARSHALL_INT}},
-  /* SNAPSHOT_GET_MLT           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
   /* STATS_RESET_NODE           */ {1, {MGMT_MARSHALL_INT}},
-  /* STATS_RESET_CLUSTER        */ {1, {MGMT_MARSHALL_INT}},
   /* STORAGE_DEVICE_CMD_OFFLINE */ {1, {MGMT_MARSHALL_INT}},
-  /* RECORD_MATCH_GET           */ {5,
-                                    {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING,
-                                     MGMT_MARSHALL_DATA}},
+  /* RECORD_MATCH_GET           */
+  {5, {MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_DATA}},
   /* API_PING                   */ {0, {}}, // no reply
   /* SERVER_BACKTRACE           */ {2, {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING}},
-  /* RECORD_DESCRIBE_CONFIG     */ {15,
-                                    {MGMT_MARSHALL_INT /* status */, MGMT_MARSHALL_STRING /* name */,
-                                     MGMT_MARSHALL_DATA /* value */, MGMT_MARSHALL_DATA /* default */, MGMT_MARSHALL_INT /* type */,
-                                     MGMT_MARSHALL_INT /* class */, MGMT_MARSHALL_INT /* version */, MGMT_MARSHALL_INT /* rsb */,
-                                     MGMT_MARSHALL_INT /* order */, MGMT_MARSHALL_INT /* access */, MGMT_MARSHALL_INT /* update */,
-                                     MGMT_MARSHALL_INT /* updatetype */, MGMT_MARSHALL_INT /* checktype */,
-                                     MGMT_MARSHALL_INT /* source */, MGMT_MARSHALL_STRING /* checkexpr */}},
+  /* RECORD_DESCRIBE_CONFIG     */
+  {15,
+   {MGMT_MARSHALL_INT /* status */, MGMT_MARSHALL_STRING /* name */, MGMT_MARSHALL_DATA /* value */,
+    MGMT_MARSHALL_DATA /* default */, MGMT_MARSHALL_INT /* type */, MGMT_MARSHALL_INT /* class */, MGMT_MARSHALL_INT /* version */,
+    MGMT_MARSHALL_INT /* rsb */, MGMT_MARSHALL_INT /* order */, MGMT_MARSHALL_INT /* access */, MGMT_MARSHALL_INT /* update */,
+    MGMT_MARSHALL_INT /* updatetype */, MGMT_MARSHALL_INT /* checktype */, MGMT_MARSHALL_INT /* source */,
+    MGMT_MARSHALL_STRING /* checkexpr */}},
   /* LIFECYCLE_MESSAGE          */ {1, {MGMT_MARSHALL_INT}},
+  /* HOST_STATUS_UP             */ {1, {MGMT_MARSHALL_INT}},
+  /* HOST_STATUS_DOWN           */ {1, {MGMT_MARSHALL_INT}},
 };
 
 #define GETCMD(ops, optype, cmd)                           \
@@ -129,6 +120,10 @@ send_mgmt_request(const mgmt_message_sender &snd, OpType optype, ...)
   MgmtMarshallInt msglen;
   const MgmtMarshallType lenfield[] = {MGMT_MARSHALL_INT};
   const NetCmdOperation *cmd;
+
+  if (!snd.is_connected()) {
+    return TS_ERR_NET_ESTABLISH; // no connection.
+  }
 
   GETCMD(requests, optype, cmd);
 
@@ -183,6 +178,15 @@ send_mgmt_request(int fd, OpType optype, ...)
 
   va_end(ap);
 
+  MgmtMarshallInt op;
+  MgmtMarshallString name;
+  int down_time;
+  static const MgmtMarshallType fieldso[] = {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT};
+
+  if (mgmt_message_parse(static_cast<void *>(req.ptr), msglen, fieldso, countof(fieldso), &op, &name, &down_time) == -1) {
+    printf("Plugin message - RPC parsing error - message discarded.\n");
+  }
+
   // Send the response as the payload of a data object.
   if (mgmt_message_write(fd, fields, countof(fields), &req) == -1) {
     ats_free(req.ptr);
@@ -204,17 +208,16 @@ send_mgmt_error(int fd, OpType optype, TSMgmtError error)
   // Switch on operations, grouped by response format.
   switch (optype) {
   case OpType::BOUNCE:
+  case OpType::STOP:
+  case OpType::DRAIN:
   case OpType::EVENT_RESOLVE:
-  case OpType::FILE_WRITE:
   case OpType::LIFECYCLE_MESSAGE:
   case OpType::PROXY_STATE_SET:
   case OpType::RECONFIGURE:
   case OpType::RESTART:
-  case OpType::SNAPSHOT_REMOVE:
-  case OpType::SNAPSHOT_RESTORE:
-  case OpType::SNAPSHOT_TAKE:
-  case OpType::STATS_RESET_CLUSTER:
   case OpType::STATS_RESET_NODE:
+  case OpType::HOST_STATUS_UP:
+  case OpType::HOST_STATUS_DOWN:
   case OpType::STORAGE_DEVICE_CMD_OFFLINE:
     ink_release_assert(responses[static_cast<unsigned>(optype)].nfields == 1);
     return send_mgmt_response(fd, optype, &ecode);
@@ -226,14 +229,9 @@ send_mgmt_error(int fd, OpType optype, TSMgmtError error)
     return send_mgmt_response(fd, optype, &ecode, &intval);
 
   case OpType::EVENT_GET_MLT:
-  case OpType::SNAPSHOT_GET_MLT:
   case OpType::SERVER_BACKTRACE:
     ink_release_assert(responses[static_cast<unsigned>(optype)].nfields == 2);
     return send_mgmt_response(fd, optype, &ecode, &strval);
-
-  case OpType::FILE_READ:
-    ink_release_assert(responses[static_cast<unsigned>(optype)].nfields == 3);
-    return send_mgmt_response(fd, optype, &ecode, &intval, &dataval);
 
   case OpType::RECORD_GET:
   case OpType::RECORD_MATCH_GET:

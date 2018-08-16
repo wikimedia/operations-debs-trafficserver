@@ -37,17 +37,18 @@
 
  */
 
-#ifndef _Allocator_h_
-#define _Allocator_h_
+#pragma once
 
 #include <new>
-#include <stdlib.h>
+#include <cstdlib>
 #include "ts/ink_queue.h"
 #include "ts/ink_defs.h"
 #include "ts/ink_resource.h"
 #include <execinfo.h>
 
 #define RND16(_x) (((_x) + 15) & ~15)
+
+extern int cmd_disable_pfreelist;
 
 /** Allocator for fixed size memory blocks. */
 class Allocator
@@ -60,24 +61,35 @@ public:
   void *
   alloc_void()
   {
-    return ink_freelist_new(this->fl);
+    return ink_freelist_new(this->fl, freelist_class_ops);
   }
 
-  /** Deallocate a block of memory allocated by the Allocator. */
+  /**
+    Deallocate a block of memory allocated by the Allocator.
+
+    @param ptr pointer to be freed.
+  */
   void
   free_void(void *ptr)
   {
-    ink_freelist_free(this->fl, ptr);
+    ink_freelist_free(this->fl, ptr, freelist_class_ops);
   }
 
-  /** Deallocate blocks of memory allocated by the Allocator. */
+  /**
+    Deallocate blocks of memory allocated by the Allocator.
+
+    @param head pointer to be freed.
+    @param tail pointer to be freed.
+    @param num_item of blocks to be freed.
+  */
   void
   free_void_bulk(void *head, void *tail, size_t num_item)
   {
-    ink_freelist_free_bulk(this->fl, head, tail, num_item);
+    ink_freelist_free_bulk(this->fl, head, tail, num_item, freelist_class_ops);
   }
 
   Allocator() { fl = nullptr; }
+
   /**
     Creates a new allocator.
 
@@ -118,7 +130,7 @@ public:
   C *
   alloc()
   {
-    void *ptr = ink_freelist_new(this->fl);
+    void *ptr = ink_freelist_new(this->fl, freelist_class_ops);
 
     memcpy(ptr, (void *)&this->proto.typeObject, sizeof(C));
     return (C *)ptr;
@@ -132,20 +144,20 @@ public:
   void
   free(C *ptr)
   {
-    ink_freelist_free(this->fl, ptr);
+    ink_freelist_free(this->fl, ptr, freelist_class_ops);
   }
 
   /**
-     Deallocates objects of the templated type.
+    Deallocates objects of the templated type.
 
-     @param head pointer to be freed.
-     @param tail pointer to be freed.
-     @param count of blocks to be freed.
+    @param head pointer to be freed.
+    @param tail pointer to be freed.
+    @param num_item of blocks to be freed.
    */
   void
   free_bulk(C *head, C *tail, size_t num_item)
   {
-    ink_freelist_free_bulk(this->fl, head, tail, num_item);
+    ink_freelist_free_bulk(this->fl, head, tail, num_item, freelist_class_ops);
   }
 
   /**
@@ -171,13 +183,13 @@ public:
   }
 
   /**
-      Deallocate objects of the templated type via the inherited
-      interface using void pointers.
+    Deallocate objects of the templated type via the inherited
+    interface using void pointers.
 
-      @param head pointer to be freed.
-      @param tail pointer to be freed.
-      @param count of blocks
-    */
+    @param head pointer to be freed.
+    @param tail pointer to be freed.
+    @param num_item of blocks.
+  */
   void
   free_void_bulk(void *head, void *tail, size_t num_item)
   {
@@ -199,7 +211,7 @@ public:
 
   struct {
     uint8_t typeObject[sizeof(C)];
-    int64_t space_holder;
+    int64_t space_holder = 0;
   } proto;
 };
 
@@ -251,5 +263,3 @@ private:
   uint64_t allocations;
   ink_mutex trackerLock;
 };
-
-#endif // _Allocator_h_

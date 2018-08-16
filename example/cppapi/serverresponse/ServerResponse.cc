@@ -52,7 +52,7 @@ public:
       // Give this user an error page and don't make a request to an origin.
       cout << "Sending this request an error page" << endl;
       transaction.error("This is the error response, but the response code is 500."
-                        "In this example no request was made to the orgin.");
+                        "In this example no request was made to the origin.");
       // HTTP/1.1 500 INKApi Error
     } else {
       transaction.resume();
@@ -103,12 +103,11 @@ private:
   void
   printHeadersManual(Headers &headers)
   {
-    for (Headers::iterator header_iter = headers.begin(), header_end = headers.end(); header_iter != header_end; ++header_iter) {
-      cout << "Header " << (*header_iter).name() << ": " << endl;
+    for (auto &&header : headers) {
+      cout << "Header " << header.name() << ": " << endl;
 
-      for (HeaderField::iterator value_iter = (*header_iter).begin(), values_end = (*header_iter).end(); value_iter != values_end;
-           ++value_iter) {
-        cout << "\t" << *value_iter << endl;
+      for (auto &&value_iter : header) {
+        cout << "\t" << value_iter << endl;
       }
     }
 
@@ -119,6 +118,8 @@ private:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  RegisterGlobalPlugin("CPP_Example_ServerResponse", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_ServerResponse", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   plugin = new ServerResponsePlugin();
 }

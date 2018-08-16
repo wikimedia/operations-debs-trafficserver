@@ -20,11 +20,9 @@
  */
 
 #pragma once
-#ifndef ATSCPPAPI_TRANSACTION_H_
-#define ATSCPPAPI_TRANSACTION_H_
 
 #include <sys/socket.h>
-#include <stdint.h>
+#include <cstdint>
 #include <list>
 #include <memory>
 #include "atscppapi/Request.h"
@@ -412,6 +410,4 @@ private:
   friend class utils::internal;
 };
 
-} /* atscppapi */
-
-#endif /* ATSCPPAPI_TRANSACTION_H_ */
+} // namespace atscppapi

@@ -1,5 +1,15 @@
 /** @file
 
+  Statistics example plugin.
+
+  This plugin demonstrates the statistics API and also serves as a
+  regression test for TS-4840. If traffic_server is restarted, a
+  plugin ought to be able to safely reattach to its statistics.
+
+  This source is included as an example in the developers so if you
+  change it, you may have to update the line numbers on
+  doc/developer-guide/plugins/adding-statistics.en.rst
+
   @section license License
 
   Licensed to the Apache Software Foundation (ASF) under one
@@ -19,14 +29,6 @@
   limitations under the License.
  */
 
-// This plugin demonstrates the statistics API and also serves as a
-// regression test for TS-4840. If traffic_server is restarted, a
-// plugin ought to be able to safely reattach to its statistics.
-//
-// This source is included as an example in the developers so if you
-// change it, you may have to update the line numbers on
-// doc/developer-guide/plugins/adding-statistics.en.rst
-
 #include <ts/ts.h>
 #include <cinttypes>
 #include <ctime>
@@ -38,22 +40,22 @@ TSPluginInit(int /* argc */, const char * /* argv */ [])
 {
   TSPluginRegistrationInfo info;
 
-  info.plugin_name   = (char *)PLUGIN_NAME;
-  info.vendor_name   = (char *)"Apache Software Foundation";
-  info.support_email = (char *)"dev@trafficserver.apache.org";
+  info.plugin_name   = PLUGIN_NAME;
+  info.vendor_name   = "Apache Software Foundation";
+  info.support_email = "dev@trafficserver.apache.org";
 
   int id;
-  const char name[] = "example.statistic.now";
+  const char name[] = "plugin." PLUGIN_NAME ".now";
 
   if (TSStatFindName(name, &id) == TS_ERROR) {
     id = TSStatCreate(name, TS_RECORDDATATYPE_INT, TS_STAT_NON_PERSISTENT, TS_STAT_SYNC_SUM);
     if (id == TS_ERROR) {
-      TSError("%s: failed to register '%s'", PLUGIN_NAME, name);
+      TSError("[%s] failed to register '%s'", PLUGIN_NAME, name);
       return;
     }
   }
 
-  TSError("%s: %s registered with id %d", PLUGIN_NAME, name, id);
+  TSError("[%s] %s registered with id %d", PLUGIN_NAME, name, id);
 
 #if DEBUG
   TSReleaseAssert(id != TS_ERROR);

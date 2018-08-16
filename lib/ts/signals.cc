@@ -116,7 +116,7 @@ check_signal_thread(void *ptr)
 void
 signal_start_check_thread(signal_handler_t handler)
 {
-  ink_thread_create(check_signal_thread, (void *)handler, 0, 0, nullptr);
+  ink_thread_create(nullptr, check_signal_thread, (void *)handler, 0, 0, nullptr);
 }
 
 bool
@@ -181,6 +181,7 @@ signal_crash_handler(int signo, siginfo_t *, void *)
 
   // Make sure to drop a core for signals that normally would do so.
   signal_reset_default(signo);
+  raise(signo);
 }
 
 void

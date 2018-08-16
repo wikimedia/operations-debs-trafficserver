@@ -21,8 +21,7 @@
  *  limitations under the License.
  */
 
-#ifndef SOURCELOCATION_H_88F6E38C_ACBB_4EFE_8819_71FCB162AE9B
-#define SOURCELOCATION_H_88F6E38C_ACBB_4EFE_8819_71FCB162AE9B
+#pragma once
 
 // The SourceLocation class wraps up a source code location, including
 // file name, function name, and line number, and contains a method to
@@ -33,9 +32,14 @@
 class SourceLocation
 {
 public:
-  const char *file;
-  const char *func;
-  int line;
+  const char *file = nullptr;
+  const char *func = nullptr;
+  int line         = 0;
+
+  SourceLocation()                          = default;
+  SourceLocation(const SourceLocation &rhs) = default;
+
+  SourceLocation(const char *_file, const char *_func, int _line) : file(_file), func(_func), line(_line) {}
 
   bool
   valid() const
@@ -43,8 +47,6 @@ public:
     return file && line;
   }
 
-  SourceLocation(const SourceLocation &rhs) : file(rhs.file), func(rhs.func), line(rhs.line) {}
-  SourceLocation(const char *_file, const char *_func, int _line) : file(_file), func(_func), line(_line) {}
   SourceLocation &
   operator=(const SourceLocation &rhs)
   {
@@ -56,5 +58,3 @@ public:
 
   char *str(char *buf, int buflen) const;
 };
-
-#endif /* SOURCELOCATION_H_88F6E38C_ACBB_4EFE_8819_71FCB162AE9B */
