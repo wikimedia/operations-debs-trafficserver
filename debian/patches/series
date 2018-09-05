@@ -15,3 +15,4 @@
 0009-fix-doc-python3.patch
 0009-fix-doc-git.patch
 0010-Remove-custom-memory-barriers-from-header_rewrite-an.patch
+0011-logging-broken-pipe-no-spam.patch
