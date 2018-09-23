@@ -5,9 +5,11 @@ Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
 Last-Update: 2016-11-18
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/configure.ac
-+++ b/configure.ac
-@@ -144,9 +144,9 @@ AC_ARG_WITH([build-number],
+Index: trafficserver/configure.ac
+===================================================================
+--- trafficserver.orig/configure.ac	2018-09-23 10:57:46.758582777 +0200
++++ trafficserver/configure.ac	2018-09-23 10:57:46.754582753 +0200
+@@ -144,9 +144,9 @@
  #
  # Build environment
  #

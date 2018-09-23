@@ -5,9 +5,11 @@ Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
 Last-Update: 2016-11-18
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/lib/ts/ink_queue.h
-+++ b/lib/ts/ink_queue.h
-@@ -134,7 +134,7 @@ typedef union {
+Index: trafficserver/include/tscore/ink_queue.h
+===================================================================
+--- trafficserver.orig/include/tscore/ink_queue.h	2018-09-23 10:57:46.586581684 +0200
++++ trafficserver/include/tscore/ink_queue.h	2018-09-23 10:57:46.582581659 +0200
+@@ -136,7 +136,7 @@
  #define SET_FREELIST_POINTER_VERSION(_x, _p, _v) \
    (_x).s.pointer = _p;                           \
    (_x).s.version = _v

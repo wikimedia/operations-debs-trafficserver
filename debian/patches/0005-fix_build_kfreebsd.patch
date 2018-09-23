@@ -1,0 +1,45 @@
+Description: Fix kfreebsd build skipping malloc_np.h include
+Author: Jean Baptiste Favre <debiabn@jbfavre.org>
+Origin: other
+Last-Update: 2017-03-24
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: trafficserver/src/tscore/ink_memory.cc
+===================================================================
+--- trafficserver.orig/src/tscore/ink_memory.cc	2018-09-23 10:57:47.118585067 +0200
++++ trafficserver/src/tscore/ink_memory.cc	2018-09-23 10:57:47.114585041 +0200
+@@ -27,7 +27,7 @@
+ #include "tscore/Diags.h"
+ #include "tscore/ink_atomic.h"
+ 
+-#if defined(freebsd)
++#if !defined(kfreebsd) && defined(freebsd)
+ #include <malloc_np.h> // for malloc_usable_size
+ #endif
+ 
+Index: trafficserver/proxy/Plugin.cc
+===================================================================
+--- trafficserver.orig/proxy/Plugin.cc	2018-09-23 10:57:47.118585067 +0200
++++ trafficserver/proxy/Plugin.cc	2018-09-23 10:57:47.114585041 +0200
+@@ -126,7 +126,7 @@
+       return false; // this line won't get called since Fatal brings down ATS
+     }
+ 
+-#if defined(freebsd) || defined(darwin)
++#if (!defined(kfreebsd) && defined(freebsd)) || defined(darwin)
+     optreset = 1;
+ #endif
+ #if defined(__GLIBC__)
+Index: trafficserver/proxy/http/remap/RemapConfig.cc
+===================================================================
+--- trafficserver.orig/proxy/http/remap/RemapConfig.cc	2018-09-23 10:57:47.118585067 +0200
++++ trafficserver/proxy/http/remap/RemapConfig.cc	2018-09-23 10:57:47.114585041 +0200
+@@ -897,7 +897,7 @@
+   void *ih         = nullptr;
+   TSReturnCode res = TS_SUCCESS;
+   if (pi->fp_tsremap_new_instance) {
+-#if defined(freebsd) || defined(darwin)
++#if (!defined(kfreebsd) && defined(freebsd)) || defined(darwin)
+     optreset = 1;
+ #endif
+ #if defined(__GLIBC__)
