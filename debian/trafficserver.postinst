@@ -107,6 +107,13 @@ configure)
 
                fi
         fi
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/vaddrs.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/metrics.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/logging.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/log_hosts.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/congestion.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile /etc/trafficserver/cluster.config 8.0.0~ -- "$@"
+        dpkg-maintscript-helper rm_conffile '/etc/trafficserver/body_factory/default/congestion#retryAfter' 8.0.0~ -- "$@"
 ;;
 
 abort-upgrade|abort-remove|abort-deconfigure)
