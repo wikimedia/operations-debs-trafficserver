@@ -1,0 +1,53 @@
+stages:
+  - build
+  - lintian
+
+.build: &build
+  before_script:
+  - apt-get update
+  - apt-get -qy upgrade
+  - apt-get -qy install devscripts autoconf automake adduser fakeroot sudo
+  - mk-build-deps -t "apt-get -y -o Debug::pkgProblemResolver=yes --no-install-recommends" -i -r
+  - adduser --disabled-password --gecos "" builduser
+  - chown -R builduser:builduser .
+  - chown builduser:builduser ..
+  stage: build
+  artifacts:
+    paths:
+    - built
+  script:
+  - sudo -u builduser dpkg-buildpackage -b -rfakeroot
+  after_script:
+  - mkdir built
+  - dcmd mv ../*ges built/
+
+.lintian: &lintian
+  before_script:
+  - apt-get update
+  - apt-get -y install lintian
+  stage: lintian
+  script:
+  - echo "performing general and experimental lintian checks"
+  - lintian --color always -EviIL +pedantic built/*.changes || true
+  - echo "performing ftp-master-rejects lintian checks"
+  - lintian --color always -viF built/*.changes
+
+build:testing:
+  <<: *build
+  image: debian:testing
+
+build:unstable:
+  <<: *build
+  image: debian:sid
+
+lintian:testing:
+  <<: *lintian
+  dependencies:
+  - build:testing
+  image: debian:testing
+
+lintian:unstable:
+  <<: *lintian
+  dependencies:
+  - build:unstable
+  image: debian:sid
