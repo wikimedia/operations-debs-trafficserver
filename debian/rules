@@ -17,8 +17,7 @@ configure_flags = \
 	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
-	--enable-mime-sanity-check --enable-system-luajit \
-	--enable-docs \
+	--enable-mime-sanity-check --enable-docs \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
