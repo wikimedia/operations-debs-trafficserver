@@ -1,7 +1,10 @@
-From: Jean Baptiste Favre <debian@jbfavre.org>
-Date: Mon Apr 23 16:04:34 2018 +0200
-Subject: Make documentation build works outside of git repository
-Last-Update: 2018-04-23
+Description: Make documentation build works outside of git repository
+ Current documentation build requires git and curl to get some stuff from the internet
+ This patch aims to delete those dependencies, forcing git branch to master,
+ and using Debian provided plantuml instead of downloading it from apache mirror
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
+Last-Update: 2018-04-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/doc/ext/traffic-server.py

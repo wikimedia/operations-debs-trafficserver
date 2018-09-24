@@ -1,3 +1,9 @@
+Description: Force python3 usage
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
+Last-Update: 2018-09-24
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/tools/check-unused-dependencies
 ===================================================================
 --- trafficserver.orig/tools/check-unused-dependencies	2018-09-23 10:56:14.921989822 +0200

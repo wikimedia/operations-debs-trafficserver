@@ -1,6 +1,6 @@
-From: Jean Baptiste Favre <debian@jbfavre.org>
-Date: Fri Nov 25 17:49:34 2016 +0100
-Subject: Fix arm build
+Description: Fix arm build
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
 Last-Update: 2018-01-25
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
