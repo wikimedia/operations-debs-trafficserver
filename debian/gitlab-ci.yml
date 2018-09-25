@@ -1,6 +1,8 @@
 stages:
   - build
   - lintian
+  - piuparts
+  - reprotest
 
 .build: &build
   before_script:
@@ -40,14 +42,38 @@ build:unstable:
   <<: *build
   image: debian:sid
 
-lintian:testing:
-  <<: *lintian
-  dependencies:
-  - build:testing
-  image: debian:testing
-
 lintian:unstable:
   <<: *lintian
   dependencies:
   - build:unstable
   image: debian:sid
+
+piuparts:unstable:
+  stage: piupart
+  image: registry.salsa.debian.org/salsa-ci-team/images/piuparts
+  services:
+    - docker:dind
+  script:
+    - CHROOT_PATH=/tmp/debian-unstable
+    - CONTAINER_ID=$(docker run --rm -d debian:stable sleep infinity)
+    - docker exec ${CONTAINER_ID} bash -c "apt-get update && apt-get install eatmydata -y"
+    - mkdir -p ${CHROOT_PATH}
+    - docker export ${CONTAINER_ID} | tar -C ${CHROOT_PATH} -xf -
+    - mknod -m 666 ${CHROOT_PATH}/dev/urandom c 1 9
+    - piuparts --hard-link -e ${CHROOT_PATH} -d stretch -d stretch-backports -d buster -d sid built/*.changes
+
+reprotest:unstable:
+  stage: reprotest
+  image: registry.salsa.debian.org/salsa-ci-team/images/reprotest
+  before_script:
+    - apt-get update
+    - eatmydata apt-get build-dep -y .
+  artifacts:
+    name: "$CI_BUILD_NAME"
+    expire_in: 180 day
+    paths:
+      - ./reprotest.log
+    when: always
+  script:
+    - export DEB_BUILD_OPTIONS=nocheck
+    - eatmydata reprotest --no-diffoscope --min-cpus $(nproc --all) . -- null &> reprotest.log
