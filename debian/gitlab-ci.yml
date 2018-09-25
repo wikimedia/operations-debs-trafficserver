@@ -14,14 +14,8 @@ stages:
   - chown -R builduser:builduser .
   - chown builduser:builduser ..
   stage: build
-  artifacts:
-    paths:
-    - built
   script:
   - sudo -u builduser dpkg-buildpackage -b -rfakeroot
-  after_script:
-  - mkdir built
-  - dcmd mv ../*ges built/
 
 .lintian: &lintian
   before_script:
@@ -41,6 +35,12 @@ build:testing:
 build:unstable:
   <<: *build
   image: debian:sid
+  artifacts:
+    paths:
+    - built
+  after_script:
+  - mkdir built
+  - dcmd mv ../*ges built/
 
 lintian:unstable:
   <<: *lintian
@@ -49,24 +49,26 @@ lintian:unstable:
   image: debian:sid
 
 piuparts:unstable:
-  stage: piupart
+  stage: piuparts
   image: registry.salsa.debian.org/salsa-ci-team/images/piuparts
   services:
     - docker:dind
   script:
-    - CHROOT_PATH=/tmp/debian-unstable
-    - CONTAINER_ID=$(docker run --rm -d debian:stable sleep infinity)
-    - docker exec ${CONTAINER_ID} bash -c "apt-get update && apt-get install eatmydata -y"
+    - CHROOT_PATH=/tmp/trafficserver-debian-unstable
+    - CONTAINER_ID=$(docker run --rm -d debian:unstable sleep infinity)
+    - docker exec ${CONTAINER_ID} bash -c "apt-get update && apt-get -qy dist-upgrade && apt-get -qy install eatmydata"
     - mkdir -p ${CHROOT_PATH}
     - docker export ${CONTAINER_ID} | tar -C ${CHROOT_PATH} -xf -
     - mknod -m 666 ${CHROOT_PATH}/dev/urandom c 1 9
-    - piuparts --hard-link -e ${CHROOT_PATH} -d stretch -d stretch-backports -d buster -d sid built/*.changes
+    - ls -l /usr/bin/chage
+    - piuparts --hard-link -e ${CHROOT_PATH} built/*.changes
 
 reprotest:unstable:
   stage: reprotest
   image: registry.salsa.debian.org/salsa-ci-team/images/reprotest
   before_script:
     - apt-get update
+    - apt-get -qy dist-upgrade
     - eatmydata apt-get build-dep -y .
   artifacts:
     name: "$CI_BUILD_NAME"
