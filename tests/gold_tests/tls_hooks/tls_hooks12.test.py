@@ -56,7 +56,7 @@ ts.Disk.remap_config.AddLine(
     'map https://example.com:4443 http://127.0.0.1:{0}'.format(server.Variables.Port)
 )
 
-Test.prepare_plugin(os.path.join(Test.Variables.AtsTestToolsDir, 'plugins', 'ssl_hook_test.cc'), ts, '-p=2 -d=1')
+Test.PreparePlugin(os.path.join(Test.Variables.AtsTestToolsDir, 'plugins', 'ssl_hook_test.cc'), ts, '-p=2 -d=1')
 
 tr = Test.AddTestRun("Test combination of delayed and immediate preaccept hook2")
 tr.Processes.Default.StartBefore(server)
@@ -74,13 +74,13 @@ ts.Streams.stderr = "gold/ts-preaccept-delayed-1-immdate-2.gold"
 # sequence may appear on that probe.  Or it may not.  If we move away from the probe connection
 # we can check for the right number of each message.
 #preacceptstring0 = "Pre accept delay callback 0"
-#ts.Streams.All = Testers.ContainsExpression(
+# ts.Streams.All = Testers.ContainsExpression(
 #    "\A(?:(?!{0}).)*{0}.*({0})?(?!.*{0}).*\Z".format(preacceptstring0), "Pre accept message appears only once or twice", reflags=re.S | re.M)
 #preacceptstring1 = "Pre accept callback 0"
-#ts.Streams.All = Testers.ContainsExpression(
+# ts.Streams.All = Testers.ContainsExpression(
 #    "\A(?:(?!{0}).)*{0}.*({0})?(?!.*{0}).*\Z".format(preacceptstring1), "Pre accept message appears only once or twice", reflags=re.S | re.M)
 #preacceptstring2 = "Pre accept callback 1"
-#ts.Streams.All = Testers.ContainsExpression(
+# ts.Streams.All = Testers.ContainsExpression(
 #    "\A(?:(?!{0}).)*{0}.*({0})?(?!.*{0}).*\Z".format(preacceptstring2), "Pre accept message appears only once or twice", reflags=re.S | re.M)
 
 tr.Processes.Default.TimeOut = 5

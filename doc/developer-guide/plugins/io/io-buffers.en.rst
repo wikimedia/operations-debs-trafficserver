@@ -51,4 +51,6 @@ Additional information about IO buffer functions:
 
 -  Bytes that have already been read may not necessarily be freed within
    the ``TSIOBuffer``. To consume bytes that have been read, you must
-   call :code:`TSIOBufferConsume`.
+   call :c:func:`TSIOBufferReaderConsume`.
+
+

@@ -104,9 +104,9 @@ development tools and libraries installed:
 -  libtool
 -  gcc (>= 4.3 or clang > 3.0)
 -  GNU make
--  openssl
--  tcl
--  pcre
+-  openssl (libssl-dev for Ubuntu 16.04)
+-  tcl (tcl-8.6-dev for Ubuntu 16.04)
+-  pcre (libpcre3-dev for Ubuntu 16.04)
 -  libcap
 -  flex (for TPROXY)
 -  hwloc
@@ -119,6 +119,8 @@ If you're building from a git clone, you'll also need:
 -  git
 -  autoconf
 -  automake
+-  build-essential (for Ubuntu)
+-  libtool (for Ubuntu)
 
 .. _admin-layouts:
 
@@ -225,9 +227,8 @@ Stop Traffic Server
 
 To stop Traffic Server, always use the :program:`trafficserver` command,
 passing in the attribute ``stop``. This command stops all the Traffic
-Server processes (:program:`traffic_manager`, :program:`traffic_server`, and
-:program:`traffic_cop`). Do not manually stop processes, as this can lead to
-unpredictable results. ::
+Server processes (:program:`traffic_manager` and :program:`traffic_server`).
+Do not manually stop processes, as this can lead to unpredictable results. ::
 
     bin/trafficserver stop
 

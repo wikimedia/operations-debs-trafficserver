@@ -20,37 +20,38 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef CHUNK_DECODER_H
-#define CHUNK_DECODER_H
+
+#pragma once
 
 #include <ts/ts.h>
-#include <inttypes.h>
+#include <cinttypes>
 
+/** Class to handle state for decoding chunked data.
+ */
 class ChunkDecoder
 {
-  struct State {
-    enum STATES {
-      kUnknown,
+  /// Parse states.
+  enum State {
+    kInvalid, ///< Invalid state.
 
-      kInvalid,
+    kData,  ///< Expecting data.
+    kDataN, ///< Expecting LF after size.
+    kEnd,
+    kEndN,
+    kSize,  ///< Expecting chunk size.
+    kSizeN, ///< Expecting LF after data.
+    kSizeR, ///< Expecting CR after data.
 
-      kData,
-      kDataN,
-      kEnd,
-      kEndN,
-      kSize,
-      kSizeN,
-      kSizeR,
-
-      kUpperBound,
-    };
+    kUpperBound,
   };
 
-  State::STATES state_;
-  int64_t size_;
+  State state_  = kSize;
+  int64_t size_ = 0;
 
 public:
-  ChunkDecoder(void) : state_(State::kSize), size_(0) {}
+  /// Default Constructor. Construct to empty state of expected size 0.
+  ChunkDecoder() {}
+
   void parseSizeCharacter(const char);
   int parseSize(const char *, const int64_t);
   int decode(const TSIOBufferReader &);
@@ -62,5 +63,3 @@ public:
     return state_ == State::kEnd;
   }
 };
-
-#endif // CHUNK_DECODER_H

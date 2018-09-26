@@ -26,7 +26,7 @@
 #include "ReverseProxy.h"
 #include "UrlMappingPathIndex.h"
 #include "RemapConfig.h"
-#include "ts/I_Layout.h"
+#include "tscore/I_Layout.h"
 #include "HttpSM.h"
 
 #define modulePrefix "[ReverseProxy]"
@@ -56,7 +56,6 @@ SetHomePageRedirectFlag(url_mapping *new_mapping, URL &new_to_url)
 UrlRewrite::UrlRewrite()
   : nohost_rules(0),
     reverse_proxy(0),
-    mgmt_synthetic_port(0),
     ts_name(nullptr),
     http_default_redirect_url(nullptr),
     num_rules_forward(0),
@@ -95,7 +94,6 @@ UrlRewrite::UrlRewrite()
   }
 
   REC_ReadConfigInteger(reverse_proxy, "proxy.config.reverse_proxy.enabled");
-  REC_ReadConfigInteger(mgmt_synthetic_port, "proxy.config.admin.synthetic_port");
 
   if (0 == this->BuildTable(config_file_path)) {
     _valid = true;
@@ -281,10 +279,8 @@ url_rewrite_remap_request(const UrlMappingContainer &mapping_container, URL *req
     toPath      = map_to->path_get(&toPathLen);
     requestPath = request_url->path_get(&requestPathLen);
 
-    // Should be +3, little extra padding won't hurt. Use the stack allocation
-    // for better performance (bummer that arrays of variable length is not supported
-    // on Solaris CC.
-    char *newPath  = static_cast<char *>(alloca(sizeof(char) * ((requestPathLen - fromPathLen) + toPathLen + 8)));
+    // Should be +3, little extra padding won't hurt.
+    char newPath[(requestPathLen - fromPathLen) + toPathLen + 8];
     int newPathLen = 0;
 
     *newPath = 0;
@@ -303,11 +299,11 @@ url_rewrite_remap_request(const UrlMappingContainer &mapping_container, URL *req
     if (requestPath) {
       // avoid adding another trailing slash if the requestPath already had one and so does the toPath
       if (requestPathLen < fromPathLen) {
-        if (toPathLen && requestPath[requestPathLen - 1] == '/' && toPath[toPathLen - 1] == '/') {
+        if (toPath && requestPath[requestPathLen - 1] == '/' && toPath[toPathLen - 1] == '/') {
           fromPathLen++;
         }
       } else {
-        if (toPathLen && requestPath[fromPathLen] == '/' && toPath[toPathLen - 1] == '/') {
+        if (toPath && requestPath[fromPathLen] == '/' && toPath[toPathLen - 1] == '/') {
           fromPathLen++;
         }
       }
@@ -436,12 +432,12 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
         match = false;
         for (int j = 0; j < rp->in_ip_cnt && !match; j++) {
           IpEndpoint incoming_addr;
-          incoming_addr.assign(s->state_machine->ua_session->get_netvc()->get_local_addr());
+          incoming_addr.assign(s->state_machine->ua_txn->get_netvc()->get_local_addr());
           if (is_debug_tag_set("url_rewrite")) {
             char buf1[128], buf2[128], buf3[128];
             ats_ip_ntop(incoming_addr, buf1, sizeof(buf1));
-            ats_ip_ntop(rp->in_ip_array[j].start, buf2, sizeof(buf2));
-            ats_ip_ntop(rp->in_ip_array[j].end, buf3, sizeof(buf3));
+            rp->in_ip_array[j].start.toString(buf2, sizeof(buf2));
+            rp->in_ip_array[j].end.toString(buf3, sizeof(buf3));
             Debug("url_rewrite", "Trying to match incoming address %s in range %s - %s.", buf1, buf2, buf3);
           }
           bool in_range = rp->in_ip_array[j].contains(incoming_addr);
@@ -458,7 +454,7 @@ UrlRewrite::PerformACLFiltering(HttpTransact::State *s, url_mapping *map)
       }
 
       if (rp->internal) {
-        match = s->state_machine->ua_session->get_netvc()->get_is_internal_request();
+        match = s->state_machine->ua_txn->get_netvc()->get_is_internal_request();
         Debug("url_rewrite", "%s an internal request", match ? "matched" : "didn't match");
       }
 
@@ -893,8 +889,9 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
     }
 
     if (list_iter->url_map->fromURL.port_get() != request_port) {
-      Debug("url_rewrite_regex", "Skipping regex with rank %d as regex map port does not match request port. "
-                                 "regex map port: %d, request port %d",
+      Debug("url_rewrite_regex",
+            "Skipping regex with rank %d as regex map port does not match request port. "
+            "regex map port: %d, request port %d",
             reg_map_rank, list_iter->url_map->fromURL.port_get(), request_port);
       continue;
     }
@@ -910,8 +907,9 @@ UrlRewrite::_regexMappingLookup(RegexMappingList &regex_mappings, URL *request_u
     bool match_result = list_iter->regular_expression.exec(request_host, request_host_len, matches_info, countof(matches_info));
 
     if (match_result == true) {
-      Debug("url_rewrite_regex", "Request URL host [%.*s] matched regex in mapping of rank %d "
-                                 "with %d possible substitutions",
+      Debug("url_rewrite_regex",
+            "Request URL host [%.*s] matched regex in mapping of rank %d "
+            "with %d possible substitutions",
             request_host_len, request_host, reg_map_rank, match_result);
 
       mapping_container.set(list_iter->url_map);

@@ -425,7 +425,8 @@ in seconds, which |TS| will spend sending/receiving data with a client or
 origin server, respectively. If the data transfer has not completed within the
 time specified then the connection will be closed automatically. This may
 result in the lack of a cache update, or partial data transmitted to a client.
-Both timeouts are disabled (set to ``0``) by default.
+:ts:cv:`proxy.config.http.transaction_active_timeout_out` is disabled (set to ``0``) by default.
+:ts:cv:`proxy.config.http.transaction_active_timeout_in` is set to 900 seconds by default.
 
 In general, it's unlikely you will want to enable either of these timeouts
 globally, especially if your cache contains objects of varying sizes and deals
@@ -445,7 +446,7 @@ values prove somewhat more generally applicable.
 
 ::
 
-    CONFIG proxy.config.http.transaction_active_timeout_in INT 0
+    CONFIG proxy.config.http.transaction_active_timeout_in INT 900
     CONFIG proxy.config.http.transaction_active_timeout_out INT 0
     CONFIG proxy.config.http.transaction_no_activity_timeout_in INT 30
     CONFIG proxy.config.http.transaction_no_activity_timeout_out INT 30
@@ -496,10 +497,12 @@ client request to result in an origin request.
 
 This behavior is controlled by both enabling the feature via
 :ts:cv:`proxy.config.http.negative_caching_enabled` and setting the cache time
-(in seconds) with :ts:cv:`proxy.config.http.negative_caching_lifetime`. ::
+(in seconds) with :ts:cv:`proxy.config.http.negative_caching_lifetime`. Configured
+status code for negative caching can be set with :ts:cv:`proxy.config.http.negative_caching_list`. ::
 
     CONFIG proxy.config.http.negative_caching_enabled INT 1
     CONFIG proxy.config.http.negative_caching_lifetime INT 10
+    CONFIG proxy.config.http.negative_caching_list STRING 204 305 403 404 405 414 500 501 502 503 504
 
 SSL-Specific Options
 ~~~~~~~~~~~~~~~~~~~~

@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include "ts/HashSip.h"
+#include "tscore/HashSip.h"
 #include "ParentSelection.h"
 
 //
@@ -45,15 +45,22 @@ class ParentConsistentHash : public ParentSelectionStrategy
   pRecord *parents[2];
   bool foundParents[2][MAX_PARENTS];
   bool ignore_query;
+  int secondary_mode;
 
 public:
   static const int PRIMARY   = 0;
   static const int SECONDARY = 1;
   ParentConsistentHash(ParentRecord *_parent_record);
-  ~ParentConsistentHash();
+  ~ParentConsistentHash() override;
+  pRecord *
+  getParents(ParentResult *result) override
+  {
+    return parents[result->last_lookup];
+  }
   uint64_t getPathHash(HttpRequestData *hrdata, ATSHash64 *h);
-  void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold, unsigned int retry_time);
+  void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
+                    unsigned int retry_time) override;
   void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
-  uint32_t numParents(ParentResult *result) const;
+  uint32_t numParents(ParentResult *result) const override;
   void markParentUp(ParentResult *result);
 };

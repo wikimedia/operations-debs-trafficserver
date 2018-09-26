@@ -33,7 +33,7 @@
 #include "Main.h"
 #include "P_EventSystem.h"
 #include "ControlBase.h"
-#include "ts/MatcherUtils.h"
+#include "tscore/Result.h"
 
 struct RequestData;
 
@@ -51,7 +51,6 @@ enum CacheControlType {
   CC_NEVER_CACHE,
   CC_STANDARD_CACHE,
   CC_IGNORE_NO_CACHE,
-  CC_CLUSTER_CACHE_LOCAL,
   CC_IGNORE_CLIENT_NO_CACHE,
   CC_IGNORE_SERVER_NO_CACHE,
   CC_PIN_IN_CACHE,
@@ -75,7 +74,6 @@ public:
   int pin_in_cache_for;
   int ttl_in_cache;
   bool never_cache;
-  bool cluster_cache_local;
   bool ignore_client_no_cache;
   bool ignore_server_no_cache;
   bool ignore_client_cc_max_age;
@@ -93,7 +91,6 @@ public:
   int never_line;
   int pin_line;
   int ttl_line;
-  int cluster_cache_local_line;
   int ignore_client_line;
   int ignore_server_line;
 };
@@ -103,7 +100,6 @@ inline CacheControlResult::CacheControlResult()
     pin_in_cache_for(CC_UNSET_TIME),
     ttl_in_cache(CC_UNSET_TIME),
     never_cache(false),
-    cluster_cache_local(false),
     ignore_client_no_cache(false),
     ignore_server_no_cache(false),
     ignore_client_cc_max_age(true),
@@ -112,7 +108,6 @@ inline CacheControlResult::CacheControlResult()
     never_line(-1),
     pin_line(-1),
     ttl_line(-1),
-    cluster_cache_local_line(-1),
     ignore_client_line(-1),
     ignore_server_line(-1)
 {
@@ -125,7 +120,7 @@ public:
   CacheControlType directive;
   int time_arg;
   int cache_responses_to_cookies;
-  config_parse_error Init(matcher_line *line_info);
+  Result Init(matcher_line *line_info);
   inkcoreapi void UpdateMatch(CacheControlResult *result, RequestData *rdata);
   void Print();
 };
@@ -142,8 +137,7 @@ struct HttpConfigParams;
 struct OverridableHttpConfigParams;
 
 inkcoreapi void getCacheControl(CacheControlResult *result, HttpRequestData *rdata, OverridableHttpConfigParams *h_txn_conf,
-                                char *tag = NULL);
-inkcoreapi bool getClusterCacheLocal(URL *url);
+                                char *tag = nullptr);
 inkcoreapi bool host_rule_in_CacheControlTable();
 inkcoreapi bool ip_rule_in_CacheControlTable();
 

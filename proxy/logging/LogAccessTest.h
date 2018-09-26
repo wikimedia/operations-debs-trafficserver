@@ -46,9 +46,8 @@ public:
   //
   // client -> proxy fields
   //
-  virtual int marshal_client_host_ip(char *);        // INT
-  virtual int marshal_client_auth_user_name(char *); // STR
-  // marshal_client_req_timestamp_sec is non-virtual!
+  virtual int marshal_client_host_ip(char *);            // INT
+  virtual int marshal_client_auth_user_name(char *);     // STR
   virtual int marshal_client_req_text(char *);           // STR
   virtual int marshal_client_req_http_method(char *);    // INT
   virtual int marshal_client_req_url(char *);            // STR
@@ -61,6 +60,7 @@ public:
   // proxy -> client fields
   //
   virtual int marshal_proxy_resp_content_type(char *);  // STR
+  virtual int marshal_proxy_resp_reason_phrase(char *); // STR
   virtual int marshal_proxy_resp_squid_len(char *);     // INT
   virtual int marshal_proxy_resp_content_len(char *);   // INT
   virtual int marshal_proxy_resp_status_code(char *);   // INT
@@ -95,8 +95,8 @@ public:
   //
   virtual int marshal_http_header_field(char *header_symbol, char *field, char *buf);
 
-private:
+  // noncopyable
   // -- member functions that are not allowed --
-  LogAccessTest(const LogAccessTest &rhs);
-  LogAccessTest &operator=(LogAccessTest &rhs);
+  LogAccessTest(const LogAccessTest &rhs) = delete;
+  LogAccessTest &operator=(LogAccessTest &rhs) = delete;
 };

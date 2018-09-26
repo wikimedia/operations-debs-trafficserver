@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "records/I_RecHttp.h"
 #include "P_EventSystem.h"
 #include "HttpConfig.h"
@@ -169,7 +169,7 @@ HttpSessionAcceptOptions::setSessionProtocolPreference(SessionProtocolSet const 
   session_protocol_preference = sp_set;
   return *this;
 }
-}
+} // namespace detail
 
 /**
    The continuation mutex is NULL to allow parellel accepts in NT. No
@@ -197,17 +197,17 @@ public:
       initialization order issues. It is important to pick up data that is read
       from the config file and a static is initialized long before that point.
   */
-  HttpSessionAccept(Options const &opt = Options()) : SessionAccept(NULL), detail::HttpSessionAcceptOptions(opt) // copy these.
+  HttpSessionAccept(Options const &opt = Options()) : SessionAccept(nullptr), detail::HttpSessionAcceptOptions(opt) // copy these.
   {
     SET_HANDLER(&HttpSessionAccept::mainEvent);
     return;
   }
 
-  ~HttpSessionAccept() { return; }
-  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *);
-  int mainEvent(int event, void *netvc);
+  ~HttpSessionAccept() override { return; }
+  bool accept(NetVConnection *, MIOBuffer *, IOBufferReader *) override;
+  int mainEvent(int event, void *netvc) override;
 
-private:
-  HttpSessionAccept(const HttpSessionAccept &);
-  HttpSessionAccept &operator=(const HttpSessionAccept &);
+  // noncopyable
+  HttpSessionAccept(const HttpSessionAccept &) = delete;
+  HttpSessionAccept &operator=(const HttpSessionAccept &) = delete;
 };

@@ -32,7 +32,7 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "P_EventSystem.h"
 
 // Get rid of any previous definition first... /leif
@@ -65,14 +65,7 @@ struct HttpTunnelProducer;
 typedef int (HttpSM::*HttpProducerHandler)(int event, HttpTunnelProducer *p);
 typedef int (HttpSM::*HttpConsumerHandler)(int event, HttpTunnelConsumer *c);
 
-enum HttpTunnelType_t {
-  HT_HTTP_SERVER,
-  HT_HTTP_CLIENT,
-  HT_CACHE_READ,
-  HT_CACHE_WRITE,
-  HT_TRANSFORM,
-  HT_STATIC,
-};
+enum HttpTunnelType_t { HT_HTTP_SERVER, HT_HTTP_CLIENT, HT_CACHE_READ, HT_CACHE_WRITE, HT_TRANSFORM, HT_STATIC, HT_BUFFER_READ };
 
 enum TunnelChunkingAction_t {
   TCA_CHUNK_CONTENT,
@@ -228,7 +221,7 @@ struct HttpTunnelProducer {
       @return The actual backlog or a number at least @a limit.
    */
   uint64_t backlog(uint64_t limit = UINT64_MAX ///< More than this is irrelevant
-                   );
+  );
   /// Check if producer is original (to ATS) source of data.
   /// @return @c true if this producer is the source of bytes from outside ATS.
   bool is_source() const;
@@ -249,7 +242,7 @@ struct HttpTunnelProducer {
       @see unthrottle
   */
   void set_throttle_src(HttpTunnelProducer *srcp ///< Source producer of flow.
-                        );
+  );
 };
 
 class HttpTunnel : public Continuation
@@ -305,7 +298,7 @@ public:
   HttpTunnelProducer *get_producer(VConnection *vc);
   HttpTunnelConsumer *get_consumer(VConnection *vc);
   HttpTunnelProducer *get_producer(HttpTunnelType_t type);
-  void tunnel_run(HttpTunnelProducer *p = NULL);
+  void tunnel_run(HttpTunnelProducer *p = nullptr);
 
   int main_handler(int event, void *data);
   void consumer_reenable(HttpTunnelConsumer *c);
@@ -329,7 +322,7 @@ public:
   */
   void chain(HttpTunnelConsumer *c, ///< Flow goes in here
              HttpTunnelProducer *p  ///< Flow comes back out here
-             );
+  );
 
   void close_vc(HttpTunnelProducer *p);
   void close_vc(HttpTunnelConsumer *c);
@@ -402,15 +395,15 @@ HttpTunnel::is_tunnel_alive() const
 {
   bool tunnel_alive = false;
 
-  for (int i = 0; i < MAX_PRODUCERS; i++) {
-    if (producers[i].alive == true) {
+  for (const auto &producer : producers) {
+    if (producer.alive == true) {
       tunnel_alive = true;
       break;
     }
   }
   if (!tunnel_alive) {
-    for (int i = 0; i < MAX_CONSUMERS; i++) {
-      if (consumers[i].alive == true) {
+    for (const auto &consumer : consumers) {
+      if (consumer.alive == true) {
         tunnel_alive = true;
         break;
       }
@@ -428,7 +421,7 @@ HttpTunnel::get_producer(VConnection *vc)
       return producers + i;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 inline HttpTunnelProducer *
@@ -439,7 +432,7 @@ HttpTunnel::get_producer(HttpTunnelType_t type)
       return producers + i;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 inline HttpTunnelConsumer *
@@ -481,7 +474,7 @@ HttpTunnel::get_producer(VIO *vio)
       return producers + i;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 inline HttpTunnelConsumer *
@@ -494,14 +487,15 @@ HttpTunnel::get_consumer(VIO *vio)
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 inline void
 HttpTunnel::append_message_to_producer_buffer(HttpTunnelProducer *p, const char *msg, int64_t msg_len)
 {
-  if (p == NULL || p->read_buffer == NULL)
+  if (p == nullptr || p->read_buffer == nullptr) {
     return;
+  }
 
   p->read_buffer->write(msg, msg_len);
   p->nbytes += msg_len;
@@ -511,8 +505,8 @@ HttpTunnel::append_message_to_producer_buffer(HttpTunnelProducer *p, const char 
 inline bool
 HttpTunnel::has_cache_writer() const
 {
-  for (int i = 0; i < MAX_CONSUMERS; i++) {
-    if (consumers[i].vc_type == HT_CACHE_WRITE && consumers[i].vc != NULL) {
+  for (const auto &consumer : consumers) {
+    if (consumer.vc_type == HT_CACHE_WRITE && consumer.vc != nullptr) {
       return true;
     }
   }
@@ -525,13 +519,14 @@ HttpTunnelConsumer::is_downstream_from(VConnection *vc)
   HttpTunnelProducer *p = producer;
   HttpTunnelConsumer *c;
   while (p) {
-    if (p->vc == vc)
+    if (p->vc == vc) {
       return true;
+    }
     // The producer / consumer chain can contain a cycle in the case
     // of a blind tunnel so give up if we find ourself (the original
     // consumer).
     c = p->self_consumer;
-    p = (c && c != this) ? c->producer : 0;
+    p = (c && c != this) ? c->producer : nullptr;
   }
   return false;
 }
@@ -561,23 +556,23 @@ HttpTunnelProducer::update_state_if_not_set(int new_handler_state)
 inline bool
 HttpTunnelProducer::is_throttled() const
 {
-  return 0 != flow_control_source;
+  return nullptr != flow_control_source;
 }
 
 inline void
 HttpTunnelProducer::throttle()
 {
-  if (!this->is_throttled())
+  if (!this->is_throttled()) {
     this->set_throttle_src(this);
+  }
 }
 
 inline void
 HttpTunnelProducer::unthrottle()
 {
-  if (this->is_throttled())
-    this->set_throttle_src(0);
+  if (this->is_throttled()) {
+    this->set_throttle_src(nullptr);
+  }
 }
 
-inline HttpTunnel::FlowControl::FlowControl() : high_water(DEFAULT_WATER_MARK), low_water(DEFAULT_WATER_MARK), enabled_p(false)
-{
-}
+inline HttpTunnel::FlowControl::FlowControl() : high_water(DEFAULT_WATER_MARK), low_water(DEFAULT_WATER_MARK), enabled_p(false) {}

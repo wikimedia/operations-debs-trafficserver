@@ -27,44 +27,37 @@
 
  */
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include <dlfcn.h>
 #include "Main.h"
 #include "P_EventSystem.h"
 #include "P_Cache.h"
 #include "ProxyConfig.h"
 #include "ReverseProxy.h"
-#include "ts/MatcherUtils.h"
-#include "ts/Tokenizer.h"
-#include "api/ts/remap.h"
+#include "tscore/MatcherUtils.h"
+#include "tscore/Tokenizer.h"
+#include "ts/remap.h"
 #include "RemapPluginInfo.h"
 #include "RemapProcessor.h"
 #include "UrlRewrite.h"
 #include "UrlMapping.h"
 
-/** Time till we free the old stuff after a reconfiguration. */
-#define URL_REWRITE_TIMEOUT (HRTIME_SECOND * 60)
-
 // Global Ptrs
 static Ptr<ProxyMutex> reconfig_mutex;
-UrlRewrite *rewrite_table = nullptr;
-remap_plugin_info *remap_pi_list; // We never reload the remap plugins, just append to 'em.
+UrlRewrite *rewrite_table        = nullptr;
+remap_plugin_info *remap_pi_list = nullptr; // We never reload the remap plugins, just append to 'em.
 
 // Tokens for the Callback function
 #define FILE_CHANGED 0
 #define REVERSE_CHANGED 1
 #define TSNAME_CHANGED 2
-#define SYNTH_PORT_CHANGED 3
 #define TRANS_CHANGED 4
 #define URL_REMAP_MODE_CHANGED 8
 #define HTTP_DEFAULT_REDIRECT_CHANGED 9
 
-int url_remap_mode;
-
 //
 // Begin API Functions
 //
-
 int
 init_reverse_proxy()
 {
@@ -79,21 +72,12 @@ init_reverse_proxy()
   REC_RegisterConfigUpdateFunc("proxy.config.url_remap.filename", url_rewrite_CB, (void *)FILE_CHANGED);
   REC_RegisterConfigUpdateFunc("proxy.config.proxy_name", url_rewrite_CB, (void *)TSNAME_CHANGED);
   REC_RegisterConfigUpdateFunc("proxy.config.reverse_proxy.enabled", url_rewrite_CB, (void *)REVERSE_CHANGED);
-  REC_RegisterConfigUpdateFunc("proxy.config.admin.synthetic_port", url_rewrite_CB, (void *)SYNTH_PORT_CHANGED);
   REC_RegisterConfigUpdateFunc("proxy.config.http.referer_default_redirect", url_rewrite_CB, (void *)HTTP_DEFAULT_REDIRECT_CHANGED);
-  return 0;
-}
 
-// TODO: This function needs to be rewritten (or replaced) with something that uses the new
-// Remap Processor properly. Right now, we effectively don't support "remap" rules on a few
-// odd ball configs, for example if you use the "CONNECT" method, or if you set
-// set proxy.config.url_remap.url_remap_mode to "2" (which is a completely undocumented "feature").
-bool
-request_url_remap(HttpTransact::State * /* s ATS_UNUSED */, HTTPHdr * /* request_header ATS_UNUSED */,
-                  char ** /* redirect_url ATS_UNUSED */, unsigned int /* filter_mask ATS_UNUSED */)
-{
-  return false;
-  // return rewrite_table ? rewrite_table->Remap(s, request_header, redirect_url, orig_url, tag, filter_mask) : false;
+  // Hold at least one lease, until we reload the configuration
+  rewrite_table->acquire();
+
+  return 0;
 }
 
 /**
@@ -101,15 +85,15 @@ request_url_remap(HttpTransact::State * /* s ATS_UNUSED */, HTTPHdr * /* request
    according to the rules in remap.config.
 */
 mapping_type
-request_url_remap_redirect(HTTPHdr *request_header, URL *redirect_url)
+request_url_remap_redirect(HTTPHdr *request_header, URL *redirect_url, UrlRewrite *table)
 {
-  return rewrite_table ? rewrite_table->Remap_redirect(request_header, redirect_url) : NONE;
+  return table ? table->Remap_redirect(request_header, redirect_url) : NONE;
 }
 
 bool
-response_url_remap(HTTPHdr *response_header)
+response_url_remap(HTTPHdr *response_header, UrlRewrite *table)
 {
-  return rewrite_table ? rewrite_table->ReverseMap(response_header) : false;
+  return table ? table->ReverseMap(response_header) : false;
 }
 
 //
@@ -148,14 +132,18 @@ reloadUrlRewrite()
   Debug("url_rewrite", "remap.config updated, reloading...");
   newTable = new UrlRewrite();
   if (newTable->is_valid()) {
-    new_Deleter(rewrite_table, URL_REWRITE_TIMEOUT);
     static const char *msg = "remap.config done reloading!";
-    ink_atomic_swap(&rewrite_table, newTable);
+
+    // Hold at least one lease, until we reload the configuration
+    newTable->acquire();
+
+    ink_atomic_swap(&rewrite_table, newTable)->release(); // Swap configurations, and release the old one
     Debug("url_rewrite", "%s", msg);
     Note("%s", msg);
     return true;
   } else {
     static const char *msg = "failed to reload remap.config, not replacing!";
+
     delete newTable;
     Debug("url_rewrite", "%s", msg);
     Warning("%s", msg);
@@ -177,10 +165,6 @@ url_rewrite_CB(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UNU
   case FILE_CHANGED:
   case HTTP_DEFAULT_REDIRECT_CHANGED:
     eventProcessor.schedule_imm(new UR_UpdateContinuation(reconfig_mutex), ET_TASK);
-    break;
-
-  case SYNTH_PORT_CHANGED:
-    // The AutoConf port does not current change on manager except at restart
     break;
 
   case URL_REMAP_MODE_CHANGED:

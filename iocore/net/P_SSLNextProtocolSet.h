@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "ts/List.h"
+#include "tscore/List.h"
 #include "I_Net.h"
 
 class Continuation;
@@ -55,10 +55,11 @@ public:
     typedef DLL<NextProtocolEndpoint> list_type;
   };
 
-private:
-  SSLNextProtocolSet(const SSLNextProtocolSet &);            // disabled
-  SSLNextProtocolSet &operator=(const SSLNextProtocolSet &); // disabled
+  // noncopyable
+  SSLNextProtocolSet(const SSLNextProtocolSet &) = delete;            // disabled
+  SSLNextProtocolSet &operator=(const SSLNextProtocolSet &) = delete; // disabled
 
+private:
   mutable unsigned char *npn;
   mutable size_t npnsz;
 

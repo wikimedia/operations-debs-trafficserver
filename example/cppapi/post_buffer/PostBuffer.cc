@@ -17,10 +17,11 @@
  */
 
 #include <iostream>
-#include <atscppapi/GlobalPlugin.h>
-#include <atscppapi/TransactionPlugin.h>
-#include <atscppapi/TransformationPlugin.h>
-#include <atscppapi/PluginInit.h>
+#include <string_view>
+#include "tscpp/api/GlobalPlugin.h"
+#include "tscpp/api/TransactionPlugin.h"
+#include "tscpp/api/TransformationPlugin.h"
+#include "tscpp/api/PluginInit.h"
 
 using namespace atscppapi;
 using std::cerr;
@@ -43,9 +44,9 @@ public:
   }
 
   void
-  consume(const string &data) override
+  consume(std::string_view data) override
   {
-    buffer_.append(data);
+    buffer_.append(data.data(), data.length());
   }
 
   void
@@ -56,6 +57,7 @@ public:
   }
 
   ~PostBufferTransformationPlugin() override {}
+
 private:
   Transaction &transaction_;
   string buffer_;
@@ -82,6 +84,8 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  RegisterGlobalPlugin("CPP_Example_PostBuffer", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_PostBuffer", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   plugin = new GlobalHookPlugin();
 }

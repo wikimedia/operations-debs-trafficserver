@@ -60,7 +60,7 @@ struct SSLCertContext {
     OPT_TUNNEL ///< Just tunnel, don't terminate.
   };
 
-  SSLCertContext() : ctx(0), opt(OPT_NONE), keyblock(nullptr) {}
+  SSLCertContext() : ctx(nullptr), opt(OPT_NONE), keyblock(nullptr) {}
   explicit SSLCertContext(SSL_CTX *c) : ctx(c), opt(OPT_NONE), keyblock(nullptr) {}
   SSLCertContext(SSL_CTX *c, Option o) : ctx(c), opt(o), keyblock(nullptr) {}
   SSLCertContext(SSL_CTX *c, Option o, ssl_ticket_key_block *kb) : ctx(c), opt(o), keyblock(kb) {}
@@ -103,7 +103,7 @@ struct SSLCertLookup : public ConfigInfo {
   SSLCertContext *get(unsigned i) const;
 
   SSLCertLookup();
-  virtual ~SSLCertLookup();
+  ~SSLCertLookup() override;
 };
 
 void ticket_block_free(void *ptr);

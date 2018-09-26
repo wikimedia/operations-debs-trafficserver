@@ -33,17 +33,15 @@
 #include <getopt.h>
 #include "domain-tree.h"
 
-#include "ts/ink_inet.h"
-#include "ts/ink_config.h"
-#include "ts/IpMap.h"
+#include "tscore/ink_inet.h"
+#include "tscore/ink_config.h"
+#include "tscore/IpMap.h"
 
 using ts::config::Configuration;
 using ts::config::Value;
 
 #define PN "ssl-cert-loader"
 #define PCP "[" PN " Plugin] "
-
-#if TS_USE_TLS_SNI
 
 namespace
 {
@@ -83,18 +81,17 @@ using IpRangeQueue = std::deque<IpRange>;
 Configuration Config; // global configuration
 
 void
-Parse_Addr_String(ts::ConstBuffer const &text, IpRange &range)
+Parse_Addr_String(std::string_view const &text, IpRange &range)
 {
   IpAddr newAddr;
-  std::string textstr(text._ptr, text._size);
   // Is there a hyphen?
-  size_t hyphen_pos = textstr.find('-');
+  size_t hyphen_pos = text.find('-');
 
-  if (hyphen_pos != std::string::npos) {
-    std::string addr1 = textstr.substr(0, hyphen_pos);
-    std::string addr2 = textstr.substr(hyphen_pos + 1);
-    range.first.load(ts::ConstBuffer(addr1.c_str(), addr1.length()));
-    range.second.load(ts::ConstBuffer(addr2.c_str(), addr2.length()));
+  if (hyphen_pos != std::string_view::npos) {
+    std::string_view addr1 = text.substr(0, hyphen_pos);
+    std::string_view addr2 = text.substr(hyphen_pos + 1);
+    range.first.load(addr1);
+    range.second.load(addr2);
   } else { // Assume it is a single address
     newAddr.load(text);
     range.first  = newAddr;
@@ -268,8 +265,9 @@ Parse_Config(Value &parent, ParsedSslValues &orig_values)
   val = parent.find("server-ip");
   if (val) {
     IpRange ipRange;
+    auto txt = val.getText();
 
-    Parse_Addr_String(val.getText(), ipRange);
+    Parse_Addr_String(std::string_view(txt._ptr, txt._size), ipRange);
     cur_values.server_ips.push_back(ipRange);
   }
   val = parent.find("server-name");
@@ -296,25 +294,40 @@ Parse_Config(Value &parent, ParsedSslValues &orig_values)
     std::deque<std::string> cert_names;
     SslEntry *entry = Load_Certificate_Entry(cur_values, cert_names);
 
-    // Store in appropriate table
-    if (cur_values.server_name.length() > 0) {
-      Lookup.tree.insert(cur_values.server_name, entry, Parse_order++);
-    }
-    if (cur_values.server_ips.size() > 0) {
-      for (auto &server_ip : cur_values.server_ips) {
-        IpEndpoint first, second;
-        first.assign(server_ip.first);
-        second.assign(server_ip.second);
-        Lookup.ipmap.fill(&first, &second, entry);
-        char val1[256], val2[256];
-        server_ip.first.toString(val1, sizeof(val1));
-        server_ip.second.toString(val2, sizeof(val2));
+    if (entry) {
+      bool inserted = false;
+
+      // Store in appropriate table
+      if (cur_values.server_name.length() > 0) {
+        Lookup.tree.insert(cur_values.server_name, entry, Parse_order++);
+        inserted = true;
       }
-    }
-    if (entry != nullptr) {
-      for (const auto &cert_name : cert_names) {
-        Lookup.tree.insert(cert_name, entry, Parse_order++);
+      if (cur_values.server_ips.size() > 0) {
+        for (auto &server_ip : cur_values.server_ips) {
+          IpEndpoint first, second;
+          first.assign(server_ip.first);
+          second.assign(server_ip.second);
+          Lookup.ipmap.fill(&first, &second, entry);
+          char val1[256], val2[256];
+          server_ip.first.toString(val1, sizeof(val1));
+          server_ip.second.toString(val2, sizeof(val2));
+          inserted = true;
+        }
       }
+
+      if (cert_names.size() > 0) {
+        for (const auto &cert_name : cert_names) {
+          Lookup.tree.insert(cert_name, entry, Parse_order++);
+          inserted = true;
+        }
+      }
+
+      if (!inserted) {
+        delete entry;
+        TSError(PCP "cert_names is empty and entry not otherwise inserted!");
+      }
+    } else {
+      TSError(PCP "failed to load the certificate entry");
     }
   }
 }
@@ -378,7 +391,7 @@ CB_Pre_Accept(TSCont /*contp*/, TSEvent event, void *edata)
   char buff2[INET6_ADDRSTRLEN];
 
   TSDebug(PN, "Pre accept callback %p - event is %s, target address %s, client address %s", ssl_vc,
-          event == TS_EVENT_VCONN_PRE_ACCEPT ? "good" : "bad", ip.toString(buff, sizeof(buff)),
+          event == TS_EVENT_VCONN_START ? "good" : "bad", ip.toString(buff, sizeof(buff)),
           ip_client.toString(buff2, sizeof(buff2)));
 
   // Is there a cert already defined for this IP?
@@ -474,7 +487,7 @@ CB_servername(TSCont /*contp*/, TSEvent /*event*/, void *edata)
   return TS_SUCCESS;
 }
 
-} // Anon namespace
+} // namespace
 
 // Called by ATS as our initialization point
 void
@@ -486,7 +499,8 @@ TSPluginInit(int argc, const char *argv[])
   TSCont cb_lc                         = nullptr; // life cycle callback continuuation
   TSCont cb_sni                        = nullptr; // SNI callback continuuation
   static const struct option longopt[] = {
-    {const_cast<char *>("config"), required_argument, nullptr, 'c'}, {nullptr, no_argument, nullptr, '\0'},
+    {const_cast<char *>("config"), required_argument, nullptr, 'c'},
+    {nullptr, no_argument, nullptr, '\0'},
   };
 
   info.plugin_name   = const_cast<char *>("SSL Certificate Loader");
@@ -510,18 +524,18 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (TS_SUCCESS != TSPluginRegister(&info)) {
-    TSError(PCP "registration failed.");
+    TSError(PCP "registration failed");
   } else if (TSTrafficServerVersionGetMajor() < 5) {
-    TSError(PCP "requires Traffic Server 5.0 or later.");
+    TSError(PCP "requires Traffic Server 5.0 or later");
   } else if (nullptr == (cb_pa = TSContCreate(&CB_Pre_Accept, TSMutexCreate()))) {
-    TSError(PCP "Failed to pre-accept callback.");
+    TSError(PCP "Failed to pre-accept callback");
   } else if (nullptr == (cb_lc = TSContCreate(&CB_Life_Cycle, TSMutexCreate()))) {
-    TSError(PCP "Failed to lifecycle callback.");
+    TSError(PCP "Failed to lifecycle callback");
   } else if (nullptr == (cb_sni = TSContCreate(&CB_servername, TSMutexCreate()))) {
-    TSError(PCP "Failed to create SNI callback.");
+    TSError(PCP "Failed to create SNI callback");
   } else {
     TSLifecycleHookAdd(TS_LIFECYCLE_PORTS_INITIALIZED_HOOK, cb_lc);
-    TSHttpHookAdd(TS_VCONN_PRE_ACCEPT_HOOK, cb_pa);
+    TSHttpHookAdd(TS_VCONN_START_HOOK, cb_pa);
     TSHttpHookAdd(TS_SSL_SNI_HOOK, cb_sni);
     success = true;
   }
@@ -539,13 +553,3 @@ TSPluginInit(int argc, const char *argv[])
 
   return;
 }
-
-#else // ! TS_USE_TLS_SNI
-
-void
-TSPluginInit(int, const char *[])
-{
-  TSError(PCP "requires TLS SNI which is not available.");
-}
-
-#endif // TS_USE_TLS_SNI

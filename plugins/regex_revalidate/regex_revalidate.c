@@ -19,8 +19,8 @@
   limitations under the License.
  */
 
-#include "ts/ink_defs.h"
-#include "ts/ink_platform.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_platform.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -69,9 +69,9 @@ typedef struct invalidate_t {
 } invalidate_t;
 
 typedef struct {
-  invalidate_t *volatile invalidate_list;
+  invalidate_t *invalidate_list;
   char *config_file;
-  volatile time_t last_load;
+  time_t last_load;
   TSTextLogObject log;
 } plugin_state_t;
 
@@ -485,7 +485,7 @@ TSPluginInit(int argc, const char *argv[])
   invalidate_t *iptr        = NULL;
   bool disable_timed_reload = false;
 
-  TSDebug(LOG_PREFIX, "Starting plugin init.");
+  TSDebug(LOG_PREFIX, "Starting plugin init");
 
   pstate = (plugin_state_t *)TSmalloc(sizeof(plugin_state_t));
   init_plugin_state_t(pstate);
@@ -517,7 +517,7 @@ TSPluginInit(int argc, const char *argv[])
   }
 
   if (!pstate->config_file) {
-    TSError("[regex_revalidate] Plugin requires a --config option along with a config file name.");
+    TSError("[regex_revalidate] Plugin requires a --config option along with a config file name");
     free_plugin_state_t(pstate);
     return;
   }
@@ -534,12 +534,12 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = "dev@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[regex_revalidate] Plugin registration failed.");
+    TSError("[regex_revalidate] Plugin registration failed");
 
     free_plugin_state_t(pstate);
     return;
   } else {
-    TSDebug(LOG_PREFIX, "Plugin registration succeeded.");
+    TSDebug(LOG_PREFIX, "Plugin registration succeeded");
   }
 
   if (!check_ts_version()) {
@@ -564,5 +564,5 @@ TSPluginInit(int argc, const char *argv[])
     TSContSchedule(config_cont, CONFIG_TMOUT, TS_THREAD_POOL_TASK);
   }
 
-  TSDebug(LOG_PREFIX, "Plugin Init Complete.");
+  TSDebug(LOG_PREFIX, "Plugin Init Complete");
 }

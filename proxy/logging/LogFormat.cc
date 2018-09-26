@@ -26,15 +26,14 @@
 
 
  ***************************************************************************/
-#include "ts/ink_config.h"
+#include "tscore/ink_config.h"
 
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
 
-#include "ts/INK_MD5.h"
-
-#include "ts/SimpleTokenizer.h"
+#include "tscore/SimpleTokenizer.h"
+#include "tscore/CryptoHash.h"
 
 #include "LogUtils.h"
 #include "LogFile.h"
@@ -109,7 +108,7 @@ LogFormat::id_from_name(const char *name)
   int32_t id = 0;
   if (name) {
     CryptoHash hash;
-    MD5Context().hash_immediate(hash, name, static_cast<int>(strlen(name)));
+    CryptoContext().hash_immediate(hash, name, static_cast<int>(strlen(name)));
 #if defined(linux)
     /* Mask most signficant bit so that return value of this function
      * is not sign extended to be a negative number.
@@ -785,9 +784,7 @@ LogFormat::display(FILE *fd)
   LogFormatList
   -------------------------------------------------------------------------*/
 
-LogFormatList::LogFormatList()
-{
-}
+LogFormatList::LogFormatList() {}
 
 LogFormatList::~LogFormatList()
 {

@@ -23,15 +23,14 @@
 
 #pragma once
 
-#include "ts/Arena.h"
+#include "tscore/Arena.h"
 #include "HdrToken.h"
 #include "HdrHeap.h"
-#include "ts/INK_MD5.h"
-#include "ts/MMH.h"
+#include "tscore/CryptoHash.h"
 #include "MIME.h"
-#include "ts/TsBuffer.h"
+#include <string_view>
 
-#include "ts/ink_apidefs.h"
+#include "tscore/ink_apidefs.h"
 
 typedef int64_t cache_generation_t;
 
@@ -87,44 +86,7 @@ struct URLImpl : public HdrHeapObjImpl {
   void check_strings(HeapCheck *heaps, int num_heaps);
 };
 
-/// Crypto Hash context for URLs.
-/// @internal This just forwards on to another specific context but avoids
-/// putting that switch logic in multiple places. The working context is put
-/// in to class local storage (@a _obj) via placement @a new.
-class URLHashContext : public CryptoContext
-{
-public:
-  URLHashContext();
-  /// Update the hash with @a data of @a length bytes.
-  virtual bool update(void const *data, int length);
-  /// Finalize and extract the @a hash.
-  virtual bool finalize(CryptoHash &hash);
-
-  enum HashType {
-    UNSPECIFIED,
-    MD5,
-    MMH,
-  }; ///< What type of hash we really are.
-  static HashType Setting;
-
-  /// Size of storage for placement @c new of hashing context.
-  static size_t const OBJ_SIZE = 256;
-
-protected:
-  char _obj[OBJ_SIZE]; ///< Raw storage for instantiated context.
-};
-
-inline bool
-URLHashContext::update(void const *data, int length)
-{
-  return reinterpret_cast<CryptoContext *>(_obj)->update(data, length);
-}
-
-inline bool
-URLHashContext::finalize(CryptoHash &hash)
-{
-  return reinterpret_cast<CryptoContext *>(_obj)->finalize(hash);
-}
+using URLHashContext = CryptoContext;
 
 extern const char *URL_SCHEME_FILE;
 extern const char *URL_SCHEME_FTP;
@@ -193,7 +155,7 @@ extern int URL_LEN_MMST;
 void url_adjust(MarshalXlate *str_xlate, int num_xlate);
 
 /* Public */
-bool validate_host_name(ts::ConstBuffer addr);
+bool validate_host_name(std::string_view addr);
 void url_init();
 
 URLImpl *url_create(HdrHeap *heap);
@@ -215,8 +177,8 @@ void url_called_set(URLImpl *url);
 char *url_string_get_buf(URLImpl *url, char *dstbuf, int dstbuf_size, int *length);
 
 const char *url_scheme_get(URLImpl *url, int *length);
-void url_MD5_get(const URLImpl *url, CryptoHash *md5, cache_generation_t generation = -1);
-void url_host_MD5_get(URLImpl *url, CryptoHash *md5);
+void url_CryptoHash_get(const URLImpl *url, CryptoHash *hash, cache_generation_t generation = -1);
+void url_host_CryptoHash_get(URLImpl *url, CryptoHash *hash);
 const char *url_scheme_set(HdrHeap *heap, URLImpl *url, const char *value, int value_wks_idx, int length, bool copy_string);
 
 /* Internet specific */
@@ -283,11 +245,11 @@ public:
 
   int length_get();
   void clear_string_ref();
-  char *string_get(Arena *arena, int *length = NULL);
-  char *string_get_ref(int *length = NULL);
-  char *string_get_buf(char *dstbuf, int dsbuf_size, int *length = NULL);
-  void hash_get(CryptoHash *md5, cache_generation_t generation = -1) const;
-  void host_hash_get(CryptoHash *md5);
+  char *string_get(Arena *arena, int *length = nullptr);
+  char *string_get_ref(int *length = nullptr);
+  char *string_get_buf(char *dstbuf, int dsbuf_size, int *length = nullptr);
+  void hash_get(CryptoHash *hash, cache_generation_t generation = -1) const;
+  void host_hash_get(CryptoHash *hash);
 
   const char *scheme_get(int *length);
   int scheme_get_wksidx();
@@ -322,26 +284,20 @@ public:
 
 public:
   static char *unescapify(Arena *arena, const char *str, int length);
-
-private:
   // No gratuitous copies!
-  URL(const URL &u);
-  URL &operator=(const URL &u);
+  URL(const URL &u) = delete;
+  URL &operator=(const URL &u) = delete;
 };
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline URL::URL() : m_url_impl(nullptr)
-{
-}
+inline URL::URL() : m_url_impl(nullptr) {}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-inline URL::~URL()
-{
-}
+inline URL::~URL() {}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -373,7 +329,7 @@ URL::create(HdrHeap *heap)
 inline void
 URL::copy(const URL *url)
 {
-  ink_assert(url->valid());
+  ink_assert(url != nullptr && url->valid());
   url_copy_onto(url->m_url_impl, url->m_heap, m_url_impl, m_heap);
 }
 
@@ -394,14 +350,14 @@ URL::copy_shallow(const URL *url)
 inline void
 URL::clear()
 {
-  m_url_impl = NULL;
+  m_url_impl = nullptr;
   HdrHeapSDKHandle::clear();
 }
 
 inline void
 URL::reset()
 {
-  m_url_impl = NULL;
+  m_url_impl = nullptr;
 }
 
 /*-------------------------------------------------------------------------
@@ -472,20 +428,20 @@ URL::string_get_buf(char *dstbuf, int dsbuf_size, int *length)
   -------------------------------------------------------------------------*/
 
 inline void
-URL::hash_get(CryptoHash *md5, cache_generation_t generation) const
+URL::hash_get(CryptoHash *hash, cache_generation_t generation) const
 {
   ink_assert(valid());
-  url_MD5_get(m_url_impl, md5, generation);
+  url_CryptoHash_get(m_url_impl, hash, generation);
 }
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
 inline void
-URL::host_hash_get(CryptoHash *md5)
+URL::host_hash_get(CryptoHash *hash)
 {
   ink_assert(valid());
-  url_host_MD5_get(m_url_impl, md5);
+  url_host_CryptoHash_get(m_url_impl, hash);
 }
 
 /*-------------------------------------------------------------------------

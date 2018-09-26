@@ -18,7 +18,7 @@
 
 #include "ts/ts.h"
 #include "ts/remap.h"
-#include "ts/ink_defs.h"
+#include "tscore/ink_defs.h"
 
 #include <cstdio>
 #include <cstring>
@@ -173,7 +173,8 @@ RemapConfigs::parse_file(const char *filename)
     // Find the configuration name
     tok = strtok_r(nullptr, " \t", &ln);
     if (TSHttpTxnConfigFind(tok, -1, &name, &expected_type) != TS_SUCCESS) {
-      TSError("[%s] File %s, line %d: no records.config name given", PLUGIN_NAME, path.c_str(), line_num);
+      TSError("[%s] File %s, line %d: %s is not a configuration variable or cannot be overridden", PLUGIN_NAME, path.c_str(),
+              line_num, tok);
       continue;
     }
 

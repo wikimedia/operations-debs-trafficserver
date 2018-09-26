@@ -86,7 +86,7 @@ struct OneWayTunnel : public Continuation {
 
   static void SetupTwoWayTunnel(OneWayTunnel *east, OneWayTunnel *west);
   OneWayTunnel();
-  virtual ~OneWayTunnel();
+  ~OneWayTunnel() override;
 
   // Use One of the following init functions to start the tunnel.
   /**
@@ -205,7 +205,7 @@ struct OneWayTunnel : public Continuation {
   OneWayTunnel *tunnel_peer;
   bool free_vcs;
 
-private:
-  OneWayTunnel(const OneWayTunnel &);
-  OneWayTunnel &operator=(const OneWayTunnel &);
+  // noncopyable
+  OneWayTunnel(const OneWayTunnel &) = delete;
+  OneWayTunnel &operator=(const OneWayTunnel &) = delete;
 };

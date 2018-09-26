@@ -32,13 +32,13 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[7.1.4])
-m4_define([TS_VERSION_N],[7001004])
+m4_define([TS_VERSION_S],[8.0.0])
+m4_define([TS_VERSION_N],[8000000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
 AC_CONFIG_AUX_DIR([build/_aux])
-AC_CONFIG_SRCDIR([proxy/Main.cc])
+AC_CONFIG_SRCDIR([src/traffic_server/traffic_server.cc])
 AC_CONFIG_MACRO_DIR([build])
 
 # NOTE: we turn off portability warnings because the clang-tidy targets use
@@ -49,9 +49,9 @@ AM_INIT_AUTOMAKE([-Wall -Werror -Wno-portability tar-ustar foreign no-installinf
 AM_MAINTAINER_MODE([enable])
 
 # Enable a recursive "tidy" rule for clang-tidy.
-m4_ifdef([AM_EXTRA_RECURSIVE_TARGETS], [AM_EXTRA_RECURSIVE_TARGETS([tidy])])
+m4_ifdef([AM_EXTRA_RECURSIVE_TARGETS], [AM_EXTRA_RECURSIVE_TARGETS([clang-tidy])])
 
-AC_CONFIG_HEADERS([lib/ink_autoconf.h])
+AC_CONFIG_HEADERS([include/ink_autoconf.h])
 
 # Configure with --disable-silent-rules to get verbose output. For more info, see
 # http://www.gnu.org/software/automake/manual/html_node/Automake-silent_002drules-Option.html
@@ -264,6 +264,19 @@ AC_MSG_RESULT([$enable_diags])
 TS_ARG_ENABLE_VAR([use], [diags])
 
 #
+# FIPS
+#
+
+AC_MSG_CHECKING([whether to enable fips])
+AC_ARG_ENABLE([fips],
+  [AS_HELP_STRING([--enable-fips],[turn on FIPS compliance])],
+  [],
+  [enable_fips=no]
+)
+AC_MSG_RESULT([$enable_fips])
+TS_ARG_ENABLE_VAR([enable], [fips])
+
+#
 # Build regression tests?
 #
 
@@ -281,10 +294,21 @@ AM_CONDITIONAL([BUILD_TESTS], [test 0 -ne $has_tests])
 # Build documentation?
 #
 
+# Java needed only for documentation building, but making it conditional
+# makes the diagnostic output ugly and hard to follow.
+AC_ARG_VAR(JAVA, [path to java executor])
+AC_CHECK_PROG(JAVA, java, java)
 AC_MSG_CHECKING([whether to build documentation])
 AC_ARG_ENABLE([docs],
   [AS_HELP_STRING([--enable-docs],[enable documentation building])],
-  [enable_doc_build=yes],
+  [
+    enable_doc_build=yes
+    AS_IF([test -z "$JAVA"],
+      [
+        enable_doc_build=no
+        AC_ERROR([Doc building disabled, java required but not found])
+      ])
+  ],
   [enable_doc_build=no]
 )
 AC_MSG_RESULT([$enable_doc_build])
@@ -488,13 +512,13 @@ PKG_CHECK_MODULES([LIBMAGICKCPP],[Magick++], [
 AM_CONDITIONAL([BUILD_WEBP_TRANSFORM_PLUGIN], [test "x${enable_webp_transform_plugin}" = "xyes"])
 
 #
-# Example plugins. The example plugins are always built, but not always installed. Installing
+# Example plugins. The example plugins are only built and installed if this is enabled. Installing
 # them is useful for QA, but not useful for most users, so we default this to disabled.
 #
 
 AC_MSG_CHECKING([whether to install example plugins])
 AC_ARG_ENABLE([example-plugins],
-  [AS_HELP_STRING([--enable-example-plugins],[install example plugins])],
+  [AS_HELP_STRING([--enable-example-plugins],[build and install example plugins])],
   [],
   [enable_example_plugins=no]
 )
@@ -573,9 +597,8 @@ TS_SUBST([pkgdocdir])
 # Implementation note (toc)
 # 1) Get default compiler settings (case statement.)
 # 2) Check for over-rides of default compiler.
-# 3) Set standard CFLAGS, SHARED_CFLAGS, etc.
-# 4) (in first kludge mode block...) obtain any further CFLAG-type additions.
-# 5) Test compilers with all flags set.
+# 3) (in first kludge mode block...) obtain any further CFLAG-type additions.
+# 4) Test compilers with all flags set.
 
 # AC_PROG can sometimes mangle CFLAGS etc.
 # in particular, on Linux they insert -g -O2, here we preserve any user CFLAGS
@@ -600,7 +623,27 @@ CXXFLAGS="${_ts_saved_CXXFLAGS}"
 
 # All compilers we support have 'gnu99' as an available C standard
 TS_ADDTO(AM_CFLAGS, [-std=gnu99])
-TS_ADDTO(AM_CXXFLAGS, [-std=c++11])
+
+ac_save_CXX="$CXX"
+CXX="$CXX -std=c++17"
+AC_LANG_PUSH(C++)
+AC_MSG_CHECKING([checking whether $CXX supports -std=c++17])
+AC_COMPILE_IFELSE([
+    AC_LANG_PROGRAM([
+#if __cplusplus < 201703L
+#error "This is not C++17"
+#endif
+    ], []
+    )], [
+    AC_MSG_RESULT(yes)
+    ], [
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([*** A compiler with support for -std=c++17 is required.])
+])
+AC_LANG_POP
+CXX="$ac_save_CXX"
+
+TS_ADDTO(AM_CXXFLAGS, [-std=c++17])
 
 dnl AC_PROG_SED is only available from version 2.6 (released in 2003). CentosOS
 dnl 5.9 still has an ancient version, but we have macros that require
@@ -617,11 +660,9 @@ ifdef([AC_PROG_SED], [], [
 # Various OS specific setup. Note that on Solaris, 32-bit is always the
 # default, even on a box that with 64-bit architecture.
 # This also sets up a "normalized" variable and define $host_os_def.
-defer_accept=1
 case $host_os in
   linux*)
     host_os_def="linux"
-    defer_accept=45
     AM_LDFLAGS="-rdynamic"
     ;;
   darwin*)
@@ -630,12 +671,15 @@ case $host_os in
   freebsd*)
     host_os_def="freebsd"
     AM_LDFLAGS="-rdynamic"
-    TS_ADDTO(AM_CPPFLAGS, [-I/usr/local/include])
+    TS_ADDTO(TS_INCLUDES, [-I/usr/local/include])
+    TS_ADDTO(AM_CPPFLAGS, [-D_GLIBCXX_USE_C99])
+    TS_ADDTO(AM_CPPFLAGS, [-D_GLIBCXX_USE_C99_MATH])
+    TS_ADDTO(AM_CPPFLAGS, [-D_GLIBCXX_USE_C99_MATH_TR1])
     ;;
   kfreebsd*)
     host_os_def="freebsd"
     AM_LDFLAGS="-rdynamic"
-    TS_ADDTO(AM_CPPFLAGS, [-I/usr/local/include])
+    TS_ADDTO(TS_INCLUDES, [-I/usr/local/include])
     TS_ADDTO(AM_CPPFLAGS, [-Dkfreebsd])
     ;;
   openbsd*)
@@ -658,8 +702,6 @@ case $host_os in
 esac
 
 TS_ADDTO(AM_CPPFLAGS, [-D$host_os_def])
-AC_SUBST(defer_accept)
-
 
 dnl AM_PROG_AR is not always available, but it doesn't seem to be needed in older versions.
 ifdef([AM_PROG_AR],
@@ -805,7 +847,7 @@ case $host_os_def in
       #  #873 is "has no corresponding operator delete"
       #  #279 is "controlling expression is constant" (which is e.g. TSReleaseAssert(!"Unexpected Event");
       common_opt="-pipe -Wall -wd873 -wd279"
-      debug_opt="-ggdb3 $common_opt"
+      debug_opt="-g $common_opt"
       release_opt="-g $common_opt $optimization_flags -axsse4.2 -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
     ])
@@ -815,7 +857,6 @@ case $host_os_def in
       debug_opt="-ggdb3 $common_opt -Qunused-arguments"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing -Qunused-arguments"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -analyzer-disable-all-checks -Wno-varargs"
     ])
 
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
@@ -824,10 +865,12 @@ case $host_os_def in
       common_opt="-pipe -Wall -Wextra -Wno-ignored-qualifiers -Wno-unused-parameter -Wno-format-truncation -Wno-cast-function-type -Wno-stringop-overflow"
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimizing_flags -feliminate-unused-debug-symbols -fno-strict-aliasing"
-      cxx_opt="-Wno-invalid-offsetof"
+      cxx_opt="-Wno-invalid-offsetof -Wno-noexcept-type"
       # Special options for flex generated .c files
       flex_cflags="-Wno-unused-parameter"
     ])
+
+    TS_ADDTO([AM_LDFLAGS], [-Wl,--as-needed])
 
     ;; # linux)
 
@@ -837,14 +880,13 @@ case $host_os_def in
       debug_opt="-g $common_opt"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -Wno-varargs"
     ], [
       AC_MSG_WARN([clang is the only supported compiler on Darwin])
     ])
 
     # NOTE: This seems semi-kludgy, but useful for MacPorts I think.
     AS_IF([test -d /opt/local/include], [
-      TS_ADDTO(AM_CPPFLAGS, [-I/opt/local/include])
+      TS_ADDTO(TS_INCLUDES, [-I/opt/local/include])
     ])
     AS_IF([test -d /opt/local/lib], [
       TS_ADDTO(AM_LDFLAGS, [-L/opt/local/lib])
@@ -858,7 +900,6 @@ case $host_os_def in
       debug_opt="-ggdb3 $common_opt"
       release_opt="-g $common_opt $optimizing_flags -fno-strict-aliasing"
       cxx_opt="-Wno-invalid-offsetof"
-      luajit_cflags="-Wno-parentheses-equality -Wno-tautological-compare -Wno-varargs"
     ])
 
     AS_IF([test "x$ax_cv_c_compiler_vendor" = "xgnu"], [
@@ -927,11 +968,6 @@ cxx_oflag_dbg="$debug_opt $cxx_opt $cxx_dbg"
 # Special compiler flag hacks for various pieces of the code
 AC_SUBST([FLEX_CFLAGS], $flex_cflags)
 
-SHARED_CFLAGS=-fPIC
-SHARED_LDFLAGS=-shared
-SHARED_CXXFLAGS=-fPIC
-SHARED_CXXLINKFLAGS=-shared
-
 #
 # _Here_ is where we go ahead and add the _optimizations_ to already
 #  existing CFLAGS/CXXFLAGS if some special values had been set.
@@ -940,6 +976,9 @@ if test "x${enable_debug}" = "xyes"; then
   TS_ADDTO(AM_CFLAGS, [${cc_oflag_dbg}])
   TS_ADDTO(AM_CXXFLAGS, [${cxx_oflag_dbg}])
   TS_ADDTO(AM_CPPFLAGS, [-DDEBUG -D_DEBUG])
+  if test "x${enable_mime_sanity_check}" = "xyes"; then
+    TS_ADDTO(AM_CPPFLAGS, [-DENABLE_MIME_SANITY_CHECK])
+  fi
 else
   TS_ADDTO(AM_CFLAGS, [${cc_oflag_opt}])
   TS_ADDTO(AM_CXXFLAGS, [${cxx_oflag_opt}])
@@ -975,7 +1014,6 @@ AC_CHECK_SIZEOF([void*])
 if test "x$ac_cv_sizeof_voidp" == "x"; then
   AC_ERROR([Cannot determine size of void*])
 fi
-AC_SUBST(ac_cv_sizeof_voidp)
 
 # Right now, 32-bit platform is a build error, unless we've forced it with --enable-32bit-build
 if test "${ac_cv_sizeof_voidp}" = "4"; then
@@ -1080,12 +1118,9 @@ fi
 # -----------------------------------------------------------------------------
 # 4. CHECK FOR LIBRARIES
 
-AC_SEARCH_LIBS([exc_capture_context], [exc], [], [])
-AC_SEARCH_LIBS([MLD_demangle_string], [mld], [], [])
 AC_SEARCH_LIBS([socket], [socket], [], [])
 AC_SEARCH_LIBS([gethostbyname], [nsl], [], [])
-AC_SEARCH_LIBS([clock_gettime], [rt], [], [])
-AC_SEARCH_LIBS([clock_gettime], [posix4], [], [])
+AC_SEARCH_LIBS([clock_gettime], [rt posix4], [], [])
 
 dnl We check for dlsym here instead of e.g. dlopen() because ASAN hijacks the latter.
 AC_SEARCH_LIBS([dlsym], [dl], [], [])
@@ -1094,6 +1129,7 @@ dnl Linux has pthread symbol stubss in both libc and libpthread, so it's importa
 dnl specifically for pthread_yield() here. In addition, ASAN hijacks pthread_create() so
 dnl we can't use that anymore.
 AC_SEARCH_LIBS([pthread_yield], [pthread], [], [])
+AC_CHECK_FUNCS([pthread_mutexattr_settype])
 
 dnl XXX The following check incorrectly causes the build to succeed
 dnl on Darwin. We should be using AC_SEARCH_LIBS, but rest_init is
@@ -1109,8 +1145,20 @@ AC_CHECK_LIB([resolv],[__putlong],[AC_SUBST([LIBRESOLV],["-lresolv"])])
 # ncurses compile tests does not generate unused variable warnings.
 __saved_CFLAGS="$CFLAGS"
 TS_REMOVEFROM(CFLAGS, -Werror)
+
+dnl Red Hat 6 requires special flags for curses to work.
+if test -r /etc/system-release ; then
+  case `cat /etc/system-release` in
+    Red\ Hat*release\ 6.*)
+      TS_ADDTO(CFLAGS, [-Wl,--add-needed])
+      curses_ldflags="-Wl,--add-needed"
+    ;;
+  esac
+fi
+
 AX_WITH_CURSES
 CFLAGS="$__saved_CFLAGS"
+AC_SUBST([CURSES_LDFLAGS],[$curses_ldflags])
 
 #
 # Check for SSL presence and usability
@@ -1123,13 +1171,14 @@ TS_CHECK_CRYPTO_NEXTPROTONEG
 #
 # Check for ALPN TLS extension support.
 TS_CHECK_CRYPTO_ALPN
+
+#
+# Check for openssl ASYNC jobs
+TS_CHECK_CRYPTO_ASYNC
+
 #
 # Check for EC key support.
 TS_CHECK_CRYPTO_EC_KEYS
-
-#
-# Check for ServerNameIndication TLS extension support.
-TS_CHECK_CRYPTO_SNI
 
 #
 # Check for the presense of the certificate callback in the ssl library
@@ -1141,6 +1190,12 @@ TS_CHECK_CRYPTO_SET_RBIO
 
 # Check for DH_get_2048_256
 TS_CHECK_CRYPTO_DH_GET_2048_256
+
+# Check for OCSP
+TS_CHECK_CRYPTO_OCSP
+
+# Check for SSL_CTX_set_ciphersuites call
+TS_CHECK_CRYPTO_SET_CIPHERSUITES
 
 saved_LIBS="$LIBS"
 TS_ADDTO([LIBS], ["$OPENSSL_LIBS"])
@@ -1203,7 +1258,7 @@ AC_SUBST([LIBTCL],[$TCL_LIB_SPEC])
 
 
 if test "x${TCL_INCLUDE_SPEC}" != "x-I/usr/include"; then
-   TS_ADDTO(AM_CPPFLAGS, [$TCL_INCLUDE_SPEC])
+   TS_ADDTO(TS_INCLUDES, [$TCL_INCLUDE_SPEC])
 fi
 
 AC_CHECK_FUNCS([clock_gettime kqueue epoll_ctl posix_fadvise posix_madvise posix_fallocate inotify_init])
@@ -1242,6 +1297,43 @@ fi
 # Check for optional brotli library
 TS_CHECK_BROTLI
 
+# Check for optional luajit library
+TS_CHECK_LUAJIT
+
+#
+# Enable experimental/uri_singing plugin
+# This is here, instead of above, because it needs to know if PCRE is available.
+#
+AC_CHECK_HEADERS([jansson.h], [
+  AC_MSG_CHECKING([whether jansson is dynamic])
+  TS_LINK_WITH_FLAGS_IFELSE([-shared -fPIC -l:libjansson.a],[AC_LANG_PROGRAM(
+                            [#include <jansson.h>],
+                            [(void) json_object();])],
+                            [AC_MSG_RESULT([no]);  LIBJANSSON=-l:libjansson.a],
+                            [AC_MSG_RESULT([yes]); LIBJANSSON=-ljansson])
+  ],
+  [LIBJANSSON=])
+
+AC_CHECK_HEADERS([cjose/cjose.h], [
+  AC_MSG_CHECKING([whether cjose is dynamic])
+  TS_LINK_WITH_FLAGS_IFELSE([-shared -fPIC -l:libcjose.a],[AC_LANG_PROGRAM(
+                            [#include <cjose/cjose.h>],
+                            [(void) cjose_jws_import("", 0, NULL);])],
+                            [AC_MSG_RESULT([no]);  LIBCJOSE=-l:libcjose.a],
+                            [AC_MSG_RESULT([yes]); LIBCJOSE=-lcjose])
+  ],
+  [LIBCJOSE=])
+AC_CHECK_LIB([crypto],[HMAC],[has_libcrypto=1],[has_libcrypto=0])
+
+AM_CONDITIONAL([BUILD_URI_SIGNING_PLUGIN], [test ! -z "${LIBCJOSE}" -a ! -z "${LIBJANSSON}" -a "x${enable_pcre}" = "xyes" -a "x${has_libcrypto}" = "x1"])
+AC_SUBST([LIBCJOSE])
+AC_SUBST([LIBJANSSON])
+
+# Check for yaml-cpp library
+#
+TS_CHECK_YAML_CPP
+AM_CONDITIONAL([BUILD_YAML_CPP], [test x"$has_yaml_cpp" = x"no"])
+
 # Check for backtrace() support
 has_backtrace=0
 AC_CHECK_HEADERS([execinfo.h], [has_backtrace=1],[])
@@ -1251,16 +1343,38 @@ if test "${has_backtrace}" = "1"; then
 else
   AC_MSG_WARN([No backtrace() support found])
 fi
-AC_SUBST(execinfoh)
 AC_SUBST(has_backtrace)
 
-# Remote process unwinding is only implemented on Linux because it depends on various Linux-specific
-# features such as /proc filesystem nodes, ptrace(2) and waitpid(2) extensions.
-AS_IF([test "$host_os_def" = "linux"], [
-  PKG_CHECK_MODULES([LIBUNWIND], [libunwind-ptrace], [
-    enable_remote_unwinding=yes
+#
+# use unwind library when possible (can be disabled)
+#
+AC_MSG_CHECKING([whether to use unwind library])
+AC_ARG_ENABLE([unwind],
+  AS_HELP_STRING([--disable-unwind],[Don't use the unwind library]), [
   ], [
-    dnl no remote unwind support
+    enable_unwind="yes"
+    enable_unwind_default="yes"
+])
+AC_MSG_RESULT([$enable_unwind])
+
+AS_IF([test "x$enable_unwind" = "xyes"], [
+  # Remote process unwinding is only implemented on Linux because it depends on various Linux-specific
+  # features such as /proc filesystem nodes, ptrace(2) and waitpid(2) extensions.
+  AS_IF([test "$host_os_def" = "linux"], [
+    PKG_CHECK_MODULES([LIBUNWIND], [libunwind-ptrace], [
+      enable_remote_unwinding=yes
+    ], [
+      AS_IF([test "x$enable_unwind_default" = "xyes"], [
+        AC_MSG_WARN([unwind not found, try disabling it --disable-unwind])
+      ], [
+        AC_MSG_ERROR([unwind not found, try disabling it --disable-unwind])
+      ])
+    ])], [
+    AS_IF([test "x$enable_unwind_default" = "xyes"], [
+      AC_MSG_WARN([unwind only available on linux, try disabling it --disable-unwind])
+    ], [
+      AC_MSG_ERROR([unwind only available on linux, try disabling it --disable-unwind])
+    ])
   ])
 ])
 TS_ARG_ENABLE_VAR([use], [remote_unwinding])
@@ -1488,18 +1602,6 @@ TS_CHECK_TCMALLOC
 # Check for libreadline/libedit
 AX_LIB_READLINE
 
-# On Darwin LuaJIT requires magic link options, otherwise it will crash in luaL_openlibs() at startup. See
-# http://luajit.org/install.html.
-case $host_os_def in
-  darwin)
-    LUAJIT_LDFLAGS="-Wl,-pagezero_size,10000 -Wl,-image_base,100000000"
-    ;;
-esac
-
-# Flags for building and linking against our internal copy of LuaJIT.
-AC_SUBST([LUAJIT_LDFLAGS])
-AC_SUBST([LUAJIT_CPPFLAGS], ['-I$(abs_top_srcdir)/lib/luajit/src'])
-
 # We should be able to build http_load if epoll(2) is available.
 AM_CONDITIONAL([BUILD_HTTP_LOAD], [test x"$ac_cv_func_epoll_ctl" = x"yes"])
 
@@ -1536,7 +1638,7 @@ AC_CHECK_HEADERS([sys/types.h \
                   sys/pset.h \
                   sched.h \
                   pthread.h \
-                  pthread_np.h \
+                  sys/endian.h \
                   machine/endian.h \
                   endian.h \
                   sys/sysinfo.h \
@@ -1555,7 +1657,6 @@ AC_CHECK_HEADERS([sys/types.h \
                   ctype.h \
                   siginfo.h \
                   malloc.h \
-                  wait.h \
                   float.h \
                   libgen.h \
                   values.h \
@@ -1573,48 +1674,8 @@ AC_CHECK_HEADERS([sys/types.h \
                   editline/readline.h \
                   ucred.h ])
 
-AC_SUBST(sys_epollh)
-AC_SUBST(sys_eventh)
-AC_SUBST(machine_endianh)
-AC_SUBST(endianh)
-AC_SUBST(pthread_nph)
-AC_SUBST(sys_paramh)
-AC_SUBST(sys_cpuseth)
-AC_SUBST(sys_pseth)
-AC_SUBST(schedh)
-AC_SUBST(netinet_inh)
-AC_SUBST(netinet_in_systmh)
-AC_SUBST(netinet_tcph)
-AC_SUBST(sys_ioctlh)
-AC_SUBST(sys_byteorderh)
-AC_SUBST(sys_sockioh)
-AC_SUBST(sys_sysctlh)
-AC_SUBST(sys_sysinfoh)
-AC_SUBST(sys_systeminfoh)
-AC_SUBST(arpa_ineth)
-AC_SUBST(arpa_nameserh)
-AC_SUBST(arpa_nameser_compath)
-AC_SUBST(execinfoh)
-AC_SUBST(netdbh)
-AC_SUBST(ctypeh)
-
-AC_SUBST(siginfoh)
-AC_SUBST(malloch)
-AC_SUBST(waith)
-AC_SUBST(floath)
-AC_SUBST(libgenh)
-AC_SUBST(valuesh)
-AC_SUBST(allocah)
-AC_SUBST(cpioh)
-AC_SUBST(stroptsh)
-AC_SUBST(sys_mounth)
-AC_SUBST(sys_paramh)
-AC_SUBST(sys_sysmacrosh)
-AC_SUBST(mathh)
-AC_SUBST(net_ppp_defsh)
-AC_SUBST(ifaddrsh)
-AC_SUBST(readline_readlineh)
-
+# On OpenBSD, pthread.h must be included before pthread_np.h
+AC_CHECK_HEADERS([pthread_np.h], [], [], [#include <pthread.h>])
 AC_CHECK_HEADERS([sys/statfs.h sys/statvfs.h sys/disk.h sys/disklabel.h])
 AC_CHECK_HEADERS([linux/hdreg.h linux/fs.h linux/major.h])
 
@@ -1672,8 +1733,6 @@ AC_CHECK_HEADERS([netinet/ip_icmp.h], [], [],
                    #endif
                  ]])
 
-AC_SUBST(netinet_iph)
-AC_SUBST(netinet_ip_icmph)
 
 # Test for additional pthread interfaces.
 
@@ -1868,7 +1927,6 @@ AC_SUBST(has_ip_tos)
 AC_SUBST(has_so_peercred)
 
 TS_CHECK_LOOPBACK_IFACE
-TS_CHECK_GETHOSTBYNAME_R_STYLE
 TS_CHECK_MACRO_IN6_IS_ADDR_UNSPECIFIED
 
 AC_CHECK_TYPE([struct tcp_info],
@@ -1893,6 +1951,17 @@ AS_IF([test "x$enable_experimental_plugins" = "xyes"],
 AM_CONDITIONAL([BUILD_REMAP_STATS_PLUGIN],
   [ test "x$enable_experimental_plugins" = "xyes" -a "x$ac_cv_header_search_h" = "xyes" -a "x$ac_cv_type_struct_hsearch_data" = "xyes" -a "x$ac_cv_func_hcreate_r" = "xyes" -a "x$ac_cv_func_hsearch_r" = "xyes" ])
 
+AC_ARG_WITH([default-stack-size],
+  [AS_HELP_STRING([--with-default-stack-size],[specify the default stack size in bytes [default=1048576]])],
+  [
+  with_default_stack_size="$withval"
+  ],[
+  with_default_stack_size="1048576"
+  ]
+)
+
+AC_SUBST([default_stack_size], [$with_default_stack_size])
+
 #
 # use modular IOCORE
 #
@@ -1902,33 +1971,21 @@ iocore_include_dirs="\
 -I\$(abs_top_srcdir)/iocore/aio \
 -I\$(abs_top_srcdir)/iocore/hostdb \
 -I\$(abs_top_srcdir)/iocore/cache \
--I\$(abs_top_srcdir)/iocore/cluster \
 -I\$(abs_top_srcdir)/iocore/utils \
 -I\$(abs_top_srcdir)/iocore/dns"
-
-# Flags for buildit LuaJIT itself. We take the latest version
-# of the generic flags, plus any Lua-specific flags so that we
-# can strip the coverage flags from Lua while keeping them by
-# default everywhere else.
-TS_ADDTO(LUAJIT_CFLAGS, [$CFLAGS $luajit_cflags])
-AC_SUBST([LUAJIT_CFLAGS])
-
-TS_REMOVEFROM(LUAJIT_CFLAGS, "-fsanitize=address")
-TS_REMOVEFROM(LUAJIT_CFLAGS, "-fsanitize=thread")
-TS_REMOVEFROM(LUAJIT_CFLAGS, "-fsanitize=memory")
-TS_REMOVEFROM(LUAJIT_CFLAGS, "-fprofile-instr-generate")
-TS_REMOVEFROM(LUAJIT_CFLAGS, "-fcoverage-mapping")
-TS_REMOVEFROM(LUAJIT_CFLAGS, "--coverage")
 
 AC_SUBST([AM_CPPFLAGS])
 AC_SUBST([AM_CFLAGS])
 AC_SUBST([AM_CXXFLAGS])
 AC_SUBST([AM_LDFLAGS])
 AC_SUBST([iocore_include_dirs])
-AC_SUBST([SHARED_CFLAGS])
-AC_SUBST([SHARED_CXXFLAGS])
-AC_SUBST([SHARED_CXXLINKFLAGS])
-AC_SUBST([SHARED_LDFLAGS])
+
+# NOTE: All additions to the default include path must be added to
+# TS_INCLUDES *not* to AM_CPPFLAGS. If you add then to AM_CPPFLAGS
+# then they are always prepended to the local AM_CPPFLAGS which risks
+# name collisions with in-tree files. We always want the in-tree files
+# to have precendence.
+AC_SUBST([TS_INCLUDES])
 
 AS_IF([test "x$RPATH" != "x"], [
        TS_ADDTO_RPATH([$RPATH])
@@ -1939,51 +1996,44 @@ AS_IF([test "x$RPATH" != "x"], [
 
 AC_CONFIG_FILES([
   Makefile
-  cmd/Makefile
-  cmd/traffic_cop/Makefile
-  cmd/traffic_crashlog/Makefile
-  cmd/traffic_ctl/Makefile
-  cmd/traffic_layout/Makefile
-  cmd/traffic_manager/Makefile
-  cmd/traffic_top/Makefile
-  cmd/traffic_via/Makefile
-  cmd/traffic_wccp/Makefile
+  src/Makefile
+  configs/Makefile
+  configs/body_factory/Makefile
+  configs/body_factory/default/Makefile
+  configs/records.config.default
+  configs/storage.config.default
   doc/Makefile
+  doc/ext/local-config.py
+  doc/uml/Makefile
   example/Makefile
+  include/Makefile 
+  include/ts/Makefile 
+  include/tscpp/api/Makefile 
+  include/tscpp/util/Makefile
   iocore/Makefile
   iocore/aio/Makefile
   iocore/cache/Makefile
-  iocore/cluster/Makefile
   iocore/dns/Makefile
   iocore/eventsystem/Makefile
   iocore/hostdb/Makefile
   iocore/net/Makefile
   iocore/utils/Makefile
   lib/Makefile
-  lib/cppapi/Makefile
-  lib/bindings/Makefile
+  src/tscpp/api/Makefile
   lib/perl/Makefile
   lib/perl/lib/Apache/TS.pm
   lib/records/Makefile
-  lib/ts/Makefile
-  lib/ts/apidefs.h
-  lib/ts/ink_config.h
+  include/ts/apidefs.h
+  include/tscore/ink_config.h
   lib/tsconfig/Makefile
-  lib/wccp/Makefile
+  src/wccp/Makefile
+  lib/yamlcpp/Makefile
   mgmt/Makefile
   mgmt/api/Makefile
   mgmt/api/include/Makefile
-  mgmt/cluster/Makefile
   mgmt/utils/Makefile
   plugins/Makefile
   proxy/Makefile
-  proxy/api/ts/Makefile
-  proxy/config/Makefile
-  proxy/config/body_factory/Makefile
-  proxy/config/body_factory/default/Makefile
-  proxy/config/records.config.default
-  proxy/config/storage.config.default
-  proxy/congest/Makefile
   proxy/hdrs/Makefile
   proxy/http/Makefile
   proxy/http/remap/Makefile
@@ -1995,9 +2045,12 @@ AC_CONFIG_FILES([
   rc/trafficserver.conf
   rc/trafficserver.service
   rc/trafficserver.xml
+  src/tscpp/util/Makefile 
+  src/tscore/Makefile
   tools/Makefile
   tools/trafficserver.pc
   tools/tsxs
+  tests/unit_tests/Makefile
 ])
 
 # -----------------------------------------------------------------------------
@@ -2009,18 +2062,17 @@ AC_MSG_NOTICE([Build option summary:
     CC:                 $CC
     CXX:                $CXX
     CPP:                $CPP
+    CFLAGS:             $CFLAGS
+    CXXFLAGS:           $CXXFLAGS
     CPPFLAGS:           $CPPFLAGS
+    LDFLAGS:            $LDFLAGS
     AM@&t@_CFLAGS:          $AM_CFLAGS
     AM@&t@_CXXFLAGS:        $AM_CXXFLAGS
     AM@&t@_CPPFLAGS:        $AM_CPPFLAGS
     AM@&t@_LDFLAGS:         $AM_LDFLAGS
-    SHARED_CFLAGS:      $SHARED_CFLAGS
-    SHARED_CXXFLAGS:    $SHARED_CXXFLAGS
-    SHARED_CXXLINKFLAGS:$SHARED_LINKCXXFLAGS
-    SHARED_LDFLAGS:     $SHARED_LDFLAGS
+    TS_INCLUDES:        $TS_INCLUDES
     OPENSSL_LDFLAGS:    $OPENSSL_LDFLAGS
     OPENSSL_INCLUDES:   $OPENSSL_INCLUDES
-    LUAJIT_CFLAGS:      $LUAJIT_CFLAGS
-    LUAJIT_CPPFLAGS:    $LUAJIT_CPPFLAGS
-    LUAJIT_LDFLAGS:     $LUAJIT_LDFLAGS
+    YAMLCPP_LDFLAGS:    $YAMLCPP_LDFLAGS
+    YAMLCPP_INCLUDES:   $YAMLCPP_INCLUDES
 ])

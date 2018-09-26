@@ -31,8 +31,8 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/Vec.h"
+#include "tscore/ink_platform.h"
+#include "vector"
 
 class HttpRequestData;
 class Tokenizer;
@@ -87,7 +87,7 @@ protected:
   const char *getSchemeModText() const;
 
 private:
-  typedef Vec<Modifier *> Array;
+  typedef std::vector<Modifier *> Array;
   Array _mods;
   const char *ProcessSrcIp(char *val, void **opaque_ptr);
   const char *ProcessTimeOfDay(char *val, void **opaque_ptr);
@@ -97,9 +97,7 @@ private:
   void clear();
 };
 
-inline ControlBase::ControlBase() : line_num(0)
-{
-}
+inline ControlBase::ControlBase() : line_num(0) {}
 
 inline bool
 ControlBase::CheckForMatch(HttpRequestData *request_data, int last_number)

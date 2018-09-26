@@ -32,7 +32,7 @@
  class.
 
  ***************************************************************************/
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "Main.h"
 #include "P_EventSystem.h"
 #include "P_Net.h"
@@ -51,9 +51,9 @@
 #include "LogUtils.h"
 #include "Log.h"
 #include "LogSock.h"
-#include "ts/SimpleTokenizer.h"
+#include "tscore/SimpleTokenizer.h"
 
-#include "ts/ink_apidefs.h"
+#include "tscore/ink_apidefs.h"
 
 #define PERIODIC_TASKS_INTERVAL_FALLBACK 5
 
@@ -484,12 +484,6 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "puuid", field);
 
-  // TS-4765: This alias is deprecated to be removed in 8.0.
-  field = new LogField("client_req_body_len", "cqbl", LogField::sINT, &LogAccess::marshal_client_req_content_len,
-                       &LogAccess::unmarshal_int_to_str);
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "cqbl", field);
-
   field = new LogField("client_req_content_len", "cqcl", LogField::sINT, &LogAccess::marshal_client_req_content_len,
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
@@ -538,11 +532,26 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cruuid", field);
 
+  field = new LogField("client_rx_error_code", "crec", LogField::STRING, &LogAccess::marshal_client_rx_error_code,
+                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "crec", field);
+
+  field = new LogField("client_tx_error_code", "ctec", LogField::STRING, &LogAccess::marshal_client_tx_error_code,
+                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "ctec", field);
+
   // proxy -> client fields
   field = new LogField("proxy_resp_content_type", "psct", LogField::STRING, &LogAccess::marshal_proxy_resp_content_type,
                        (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "psct", field);
+
+  field = new LogField("proxy_resp_reason_phrase", "prrp", LogField::STRING, &LogAccess::marshal_proxy_resp_reason_phrase,
+                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "prrp", field);
 
   field = new LogField("proxy_resp_squid_len", "psql", LogField::sINT, &LogAccess::marshal_proxy_resp_squid_len,
                        &LogAccess::unmarshal_int_to_str);
@@ -576,7 +585,7 @@ Log::init_fields()
 
   Ptr<LogFieldAliasTable> cache_code_map = make_ptr(new LogFieldAliasTable);
   cache_code_map->init(
-    50, SQUID_LOG_EMPTY, "UNDEFINED", SQUID_LOG_TCP_HIT, "TCP_HIT", SQUID_LOG_TCP_DISK_HIT, "TCP_DISK_HIT", SQUID_LOG_TCP_MEM_HIT,
+    51, SQUID_LOG_EMPTY, "UNDEFINED", SQUID_LOG_TCP_HIT, "TCP_HIT", SQUID_LOG_TCP_DISK_HIT, "TCP_DISK_HIT", SQUID_LOG_TCP_MEM_HIT,
     "TCP_MEM_HIT", SQUID_LOG_TCP_MISS, "TCP_MISS", SQUID_LOG_TCP_EXPIRED_MISS, "TCP_EXPIRED_MISS", SQUID_LOG_TCP_REFRESH_HIT,
     "TCP_REFRESH_HIT", SQUID_LOG_TCP_REF_FAIL_HIT, "TCP_REFRESH_FAIL_HIT", SQUID_LOG_TCP_REFRESH_MISS, "TCP_REFRESH_MISS",
     SQUID_LOG_TCP_CLIENT_REFRESH, "TCP_CLIENT_REFRESH_MISS", SQUID_LOG_TCP_IMS_HIT, "TCP_IMS_HIT", SQUID_LOG_TCP_IMS_MISS,
@@ -588,32 +597,42 @@ Log::init_fields()
     "UDP_INVALID", SQUID_LOG_UDP_RELOADING, "UDP_RELOADING", SQUID_LOG_UDP_FUTURE_1, "UDP_FUTURE_1", SQUID_LOG_UDP_FUTURE_2,
     "UDP_FUTURE_2", SQUID_LOG_ERR_READ_TIMEOUT, "ERR_READ_TIMEOUT", SQUID_LOG_ERR_LIFETIME_EXP, "ERR_LIFETIME_EXP",
     SQUID_LOG_ERR_POST_ENTITY_TOO_LARGE, "ERR_POST_ENTITY_TOO_LARGE", SQUID_LOG_ERR_NO_CLIENTS_BIG_OBJ, "ERR_NO_CLIENTS_BIG_OBJ",
-    SQUID_LOG_ERR_READ_ERROR, "ERR_READ_ERROR", SQUID_LOG_ERR_CLIENT_ABORT, "ERR_CLIENT_ABORT", SQUID_LOG_ERR_CONNECT_FAIL,
-    "ERR_CONNECT_FAIL", SQUID_LOG_ERR_INVALID_REQ, "ERR_INVALID_REQ", SQUID_LOG_ERR_UNSUP_REQ, "ERR_UNSUP_REQ",
-    SQUID_LOG_ERR_INVALID_URL, "ERR_INVALID_URL", SQUID_LOG_ERR_NO_FDS, "ERR_NO_FDS", SQUID_LOG_ERR_DNS_FAIL, "ERR_DNS_FAIL",
-    SQUID_LOG_ERR_NOT_IMPLEMENTED, "ERR_NOT_IMPLEMENTED", SQUID_LOG_ERR_CANNOT_FETCH, "ERR_CANNOT_FETCH", SQUID_LOG_ERR_NO_RELAY,
-    "ERR_NO_RELAY", SQUID_LOG_ERR_DISK_IO, "ERR_DISK_IO", SQUID_LOG_ERR_ZERO_SIZE_OBJECT, "ERR_ZERO_SIZE_OBJECT",
-    SQUID_LOG_ERR_PROXY_DENIED, "ERR_PROXY_DENIED", SQUID_LOG_ERR_WEBFETCH_DETECTED, "ERR_WEBFETCH_DETECTED",
-    SQUID_LOG_ERR_FUTURE_1, "ERR_FUTURE_1", SQUID_LOG_ERR_UNKNOWN, "ERR_UNKNOWN");
+    SQUID_LOG_ERR_READ_ERROR, "ERR_READ_ERROR", SQUID_LOG_ERR_CLIENT_ABORT, "ERR_CLIENT_ABORT", SQUID_LOG_ERR_CLIENT_READ_ERROR,
+    "ERR_CLIENT_READ_ERROR", SQUID_LOG_ERR_CONNECT_FAIL, "ERR_CONNECT_FAIL", SQUID_LOG_ERR_INVALID_REQ, "ERR_INVALID_REQ",
+    SQUID_LOG_ERR_UNSUP_REQ, "ERR_UNSUP_REQ", SQUID_LOG_ERR_INVALID_URL, "ERR_INVALID_URL", SQUID_LOG_ERR_NO_FDS, "ERR_NO_FDS",
+    SQUID_LOG_ERR_DNS_FAIL, "ERR_DNS_FAIL", SQUID_LOG_ERR_NOT_IMPLEMENTED, "ERR_NOT_IMPLEMENTED", SQUID_LOG_ERR_CANNOT_FETCH,
+    "ERR_CANNOT_FETCH", SQUID_LOG_ERR_NO_RELAY, "ERR_NO_RELAY", SQUID_LOG_ERR_DISK_IO, "ERR_DISK_IO",
+    SQUID_LOG_ERR_ZERO_SIZE_OBJECT, "ERR_ZERO_SIZE_OBJECT", SQUID_LOG_ERR_PROXY_DENIED, "ERR_PROXY_DENIED",
+    SQUID_LOG_ERR_WEBFETCH_DETECTED, "ERR_WEBFETCH_DETECTED", SQUID_LOG_ERR_FUTURE_1, "ERR_FUTURE_1", SQUID_LOG_ERR_UNKNOWN,
+    "ERR_UNKNOWN");
+
+  Ptr<LogFieldAliasTable> cache_subcode_map = make_ptr(new LogFieldAliasTable);
+  cache_subcode_map->init(2, SQUID_SUBCODE_EMPTY, "NONE", SQUID_SUBCODE_NUM_REDIRECTIONS_EXCEEDED, "NUM_REDIRECTIONS_EXCEEDED");
 
   Ptr<LogFieldAliasTable> cache_hit_miss_map = make_ptr(new LogFieldAliasTable);
-  cache_hit_miss_map->init(23, SQUID_HIT_RESERVED, "HIT", SQUID_HIT_LEVEL_1, "HIT_RAM", // Also SQUID_HIT_RAM
+  cache_hit_miss_map->init(21, SQUID_HIT_RESERVED, "HIT", SQUID_HIT_LEVEL_1, "HIT_RAM", // Also SQUID_HIT_RAM
                            SQUID_HIT_LEVEL_2, "HIT_SSD",                                // Also SQUID_HIT_SSD
                            SQUID_HIT_LEVEL_3, "HIT_DISK",                               // Also SQUID_HIT_DISK
                            SQUID_HIT_LEVEL_4, "HIT_CLUSTER",                            // Also SQUID_HIT_CLUSTER
                            SQUID_HIT_LEVEL_5, "HIT_NET",                                // Also SQUID_HIT_NET
                            SQUID_HIT_LEVEL_6, "HIT_LEVEL_6", SQUID_HIT_LEVEL_7, "HIT_LEVEL_7", SQUID_HIT_LEVEL_8, "HIT_LEVEL_8",
-                           SQUID_HIT_LEVEl_9, "HIT_LEVEL_9", SQUID_MISS_NONE, "MISS", SQUID_MISS_ICP_AUTH, "MISS_ICP_AUTH",
-                           SQUID_MISS_HTTP_NON_CACHE, "MISS_HTTP_NON_CACHE", SQUID_MISS_ICP_STOPLIST, "MISS_ICP_STOPLIST",
-                           SQUID_MISS_HTTP_NO_DLE, "MISS_HTTP_NO_DLE", SQUID_MISS_HTTP_NO_LE, "MISS_HTTP_NO_LE",
-                           SQUID_MISS_HTTP_CONTENT, "MISS_HTTP_CONTENT", SQUID_MISS_PRAGMA_NOCACHE, "MISS_PRAGMA_NOCACHE",
-                           SQUID_MISS_PASS, "MISS_PASS", SQUID_MISS_PRE_EXPIRED, "MISS_PRE_EXPIRED", SQUID_MISS_ERROR, "MISS_ERROR",
-                           SQUID_MISS_CACHE_BYPASS, "MISS_CACHE_BYPASS", SQUID_HIT_MISS_INVALID_ASSIGNED_CODE, "INVALID_CODE");
+                           SQUID_HIT_LEVEl_9, "HIT_LEVEL_9", SQUID_MISS_NONE, "MISS", SQUID_MISS_HTTP_NON_CACHE,
+                           "MISS_HTTP_NON_CACHE", SQUID_MISS_HTTP_NO_DLE, "MISS_HTTP_NO_DLE", SQUID_MISS_HTTP_NO_LE,
+                           "MISS_HTTP_NO_LE", SQUID_MISS_HTTP_CONTENT, "MISS_HTTP_CONTENT", SQUID_MISS_PRAGMA_NOCACHE,
+                           "MISS_PRAGMA_NOCACHE", SQUID_MISS_PASS, "MISS_PASS", SQUID_MISS_PRE_EXPIRED, "MISS_PRE_EXPIRED",
+                           SQUID_MISS_ERROR, "MISS_ERROR", SQUID_MISS_CACHE_BYPASS, "MISS_CACHE_BYPASS",
+                           SQUID_HIT_MISS_INVALID_ASSIGNED_CODE, "INVALID_CODE");
 
   field = new LogField("cache_result_code", "crc", LogField::sINT, &LogAccess::marshal_cache_result_code,
                        &LogAccess::unmarshal_cache_code, make_alias_map(cache_code_map));
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "crc", field);
+
+  // Reuse the unmarshalling code from crc
+  field = new LogField("cache_result_subcode", "crsc", LogField::sINT, &LogAccess::marshal_cache_result_subcode,
+                       &LogAccess::unmarshal_cache_code, make_alias_map(cache_subcode_map));
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "crsc", field);
 
   field = new LogField("cache_hit_miss", "chm", LogField::sINT, &LogAccess::marshal_cache_hit_miss,
                        &LogAccess::unmarshal_cache_hit_miss, make_alias_map(cache_hit_miss_map));
@@ -631,21 +650,10 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "pqql", field);
 
-  // TS-4765: This alias is deprecated to be removed in 8.0.
-  field = new LogField("proxy_req_body_len", "pqbl", LogField::sINT, &LogAccess::marshal_proxy_req_content_len,
-                       &LogAccess::unmarshal_int_to_str);
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "pqbl", field);
-
   field = new LogField("proxy_req_content_len", "pqcl", LogField::sINT, &LogAccess::marshal_proxy_req_content_len,
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "pqcl", field);
-
-  field = new LogField("proxy_req_server_name", "pqsn", LogField::STRING, &LogAccess::marshal_proxy_req_server_name,
-                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "pqsn", field);
 
   field = new LogField("proxy_req_server_ip", "pqsi", LogField::IP, &LogAccess::marshal_proxy_req_server_ip,
                        &LogAccess::unmarshal_ip_to_str);
@@ -855,13 +863,6 @@ Log::init_fields()
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "ctid", field);
-
-  Ptr<LogFieldAliasTable> entry_type_map = make_ptr(new LogFieldAliasTable);
-  entry_type_map->init(N_LOG_ENTRY_TYPES, LOG_ENTRY_HTTP, "LOG_ENTRY_HTTP", LOG_ENTRY_ICP, "LOG_ENTRY_ICP");
-  field = new LogField("log_entry_type", "etype", LogField::sINT, &LogAccess::marshal_entry_type, &LogAccess::unmarshal_entry_type,
-                       make_alias_map(entry_type_map));
-  global_field_list.add(field, false);
-  ink_hash_table_insert(field_symbol_hash, "etype", field);
 
   init_status |= FIELDS_INITIALIZED;
 }
@@ -1204,10 +1205,9 @@ Log::trace_va(bool in, const sockaddr *peer_addr, uint16_t peer_port, const char
 /*-------------------------------------------------------------------------
   Log::preproc_thread_main
 
-  This function defines the functionality of the logging flush prepare
-  thread, whose purpose is to consume LogBuffer objects from the
-  global_buffer_full_list, do some prepare work(such as convert to ascii),
-  and then forward to flush thread.
+  This function defines the functionality of the logging flush preprocess
+  thread, whose purpose is to consume full LogBuffer objects, do some prepare
+  work (such as convert to ascii), and then forward to flush thread.
   -------------------------------------------------------------------------*/
 
 void *
@@ -1405,7 +1405,7 @@ Log::collate_thread_main(void * /* args ATS_UNUSED */)
     // host to account for a reconfiguration.
     //
     Debug("log-sock", "collation thread starting, creating LogSock");
-    sock = new LogSock(LogSock::LS_CONST_CLUSTER_MAX_MACHINES);
+    sock = new LogSock(LogSock::LS_CONST_MAX_CONNS);
     ink_assert(sock != nullptr);
 
     if (sock->listen(Log::config->collation_port) != 0) {

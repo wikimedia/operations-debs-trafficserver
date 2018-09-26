@@ -47,7 +47,7 @@ enum CondModifiers {
 class Condition : public Statement
 {
 public:
-  Condition() : _qualifier(""), _cond_op(MATCH_EQUAL), _matcher(NULL), _mods(COND_NONE)
+  Condition() : _qualifier(""), _cond_op(MATCH_EQUAL), _matcher(nullptr), _mods(COND_NONE)
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Condition");
   }
@@ -113,7 +113,7 @@ public:
   }
 
   // Virtual methods, has to be implemented by each conditional;
-  virtual void initialize(Parser &p);
+  void initialize(Parser &p) override;
   virtual void append_value(std::string &s, const Resources &res) = 0;
 
 protected:

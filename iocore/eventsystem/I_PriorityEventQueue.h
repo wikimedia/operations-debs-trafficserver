@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "I_Event.h"
 
 // <5ms, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120
@@ -111,8 +111,9 @@ struct PriorityEventQueue {
   earliest_timeout()
   {
     for (int i = 0; i < N_PQ_LIST; i++) {
-      if (after[i].head)
+      if (after[i].head) {
         return last_check_time + (PQ_BUCKET_TIME(i) / 2);
+      }
     }
     return last_check_time + HRTIME_FOREVER;
   }

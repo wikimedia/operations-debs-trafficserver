@@ -21,8 +21,8 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
-#include "ts/EventNotify.h"
+#include "tscore/ink_platform.h"
+#include "tscore/EventNotify.h"
 
 #include "I_Tasks.h"
 
@@ -60,7 +60,6 @@ i_am_the_record_owner(RecT rec_type)
       return true;
     case RECT_CONFIG:
     case RECT_NODE:
-    case RECT_CLUSTER:
     case RECT_LOCAL:
       return false;
     default:
@@ -72,7 +71,6 @@ i_am_the_record_owner(RecT rec_type)
     case RECT_CONFIG:
     case RECT_PROCESS:
     case RECT_NODE:
-    case RECT_CLUSTER:
     case RECT_LOCAL:
     case RECT_PLUGIN:
       return true;
@@ -171,12 +169,12 @@ struct config_update_cont : public Continuation {
 // sync_cont
 //-------------------------------------------------------------------------
 struct sync_cont : public Continuation {
-  textBuffer *m_tb;
+  TextBuffer *m_tb;
 
   sync_cont(ProxyMutex *m) : Continuation(m)
   {
     SET_HANDLER(&sync_cont::sync);
-    m_tb = new textBuffer(65536);
+    m_tb = new TextBuffer(65536);
   }
 
   ~sync_cont() override
@@ -223,25 +221,6 @@ RecProcessInit(RecModeT mode_type, Diags *_diags)
   if (RecCoreInit(mode_type, _diags) == REC_ERR_FAIL) {
     return REC_ERR_FAIL;
   }
-
-  /* -- defer RecMessageInit() until ProcessManager is initialized and
-   *    started
-   if (RecMessageInit(mode_type) == REC_ERR_FAIL) {
-   return REC_ERR_FAIL;
-   }
-
-   if (RecMessageRegisterRecvCb(recv_message_cb__process, nullptr)) {
-   return REC_ERR_FAIL;
-   }
-
-   ink_cond_init(&g_force_req_cond);
-   ink_mutex_init(&g_force_req_mutex, nullptr);
-   if (mode_type == RECM_CLIENT) {
-   send_pull_message(RECG_PULL_REQ);
-   ink_cond_wait(&g_force_req_cond, &g_force_req_mutex);
-   ink_mutex_release(&g_force_req_mutex);
-   }
-   */
 
   initialized_p = true;
 

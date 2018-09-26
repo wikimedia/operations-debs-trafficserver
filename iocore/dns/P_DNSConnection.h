@@ -31,11 +31,13 @@
 #pragma once
 
 #include "I_EventSystem.h"
+#include "I_DNSProcessor.h"
 
 //
 // Connection
 //
 struct DNSHandler;
+enum class DNS_CONN_MODE { UDP_ONLY, TCP_RETRY, TCP_ONLY };
 
 struct DNSConnection {
   /// Options for connecting.
@@ -74,10 +76,25 @@ struct DNSConnection {
   int fd;
   IpEndpoint ip;
   int num;
+  Options opt;
   LINK(DNSConnection, link);
   EventIO eio;
   InkRand generator;
   DNSHandler *handler;
+
+  /// TCPData structure is to track the reading progress of a TCP connection
+  struct TCPData {
+    Ptr<HostEnt> buf_ptr;
+    unsigned short total_length = 0;
+    unsigned short done_reading = 0;
+    void
+    reset()
+    {
+      buf_ptr.clear();
+      total_length = 0;
+      done_reading = 0;
+    }
+  } tcp_data;
 
   int connect(sockaddr const *addr, Options const &opt = DEFAULT_OPTIONS);
   /*
@@ -94,7 +111,12 @@ struct DNSConnection {
 };
 
 inline DNSConnection::Options::Options()
-  : _non_blocking_connect(true), _non_blocking_io(true), _use_tcp(false), _bind_random_port(true), _local_ipv6(0), _local_ipv4(0)
+  : _non_blocking_connect(true),
+    _non_blocking_io(true),
+    _use_tcp(false),
+    _bind_random_port(true),
+    _local_ipv6(nullptr),
+    _local_ipv4(nullptr)
 {
 }
 

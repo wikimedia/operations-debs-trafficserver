@@ -110,14 +110,16 @@ Cache key structure and related plugin parameters
 
 ::
 
-  Optional components      | ┌───────────────────┐
-                           | │ --include-headers │
-                           | ├───────────────────┤
-  Default values if no     | │ (empty)           |
-  optional components      | └───────────────────┘
+  Optional components      | ┌───────────────────┬────────────────────┐
+                           | │ --include-headers │  --capture-headers │
+                           | ├────────────────────────────────────────┤
+  Default values if no     | │ (empty)           |  (empty)           |
+  optional components      | └───────────────────┴────────────────────┘
   configured               |
 
-* ``--include-headers`` (default: empty list) - comma separated list of headers to be added to the cache key. The list of headers defined by ``--include-headers`` are always sorted before adding them to the cache  key.
+* ``--include-headers`` (default: empty list) - comma separated list of headers to be added to the cache key. The list of headers defined by ``--include-headers`` are always sorted before adding them to the cache key.
+
+* ``--capture-header=<headername>:<capture_definition>`` (default: empty) - captures elements from header <headername> using <capture_definition> and adds them to the cache key.
 
 "Cookies" section
 ^^^^^^^^^^^^^^^^^
@@ -139,7 +141,7 @@ Cache key structure and related plugin parameters
 ::
 
   Optional components      | ┌────────────────────┬────────────────┐
-  (included in this order) | │ --path-capture-uri | --path-capture │
+  (included in this order) | │ --capture-path-uri | --capture-path │
                            | ├────────────────────┴────────────────┤
   Default values if no     | │ URI path                            |
   optional components      | └─────────────────────────────────────┘
@@ -175,6 +177,46 @@ All parameters are optional, and if not used, their default values are as mentio
 Cache key elements separator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 * ``--separator=<string>`` - the cache key is constructed by extracting elements from HTTP URI and headers or by using the UA classifiers and they are appended during the key construction and separated by ``/`` (by default). This options allows to override the default separator to any string (including an empty string).
+
+
+How to run the plugin
+=====================
+
+The plugin can run as a global plugin (a single global instance configured using `plugin.config`) or as per-remap plugin (a separate instance configured per remap rule in `remap.config`).
+
+Global instance
+^^^^^^^^^^^^^^^
+
+::
+
+  $ cat plugin.config
+  cachekey.so \
+      --include-params=a,b,c \
+      --sort-params=true
+
+
+Per-remap instance
+^^^^^^^^^^^^^^^^^^
+
+::
+
+  $cat remap.config
+  map http://www.example.com http://www.origin.com \
+      @plugin=cachekey.so \
+          @pparam=--include-params=a,b,c \
+          @pparam=--sort-params=true
+
+
+If both global and per-remap instance are used the per-remap configuration would take precedence (per-remap configuration would be applied and the global configuration ignored).
+
+Because of the ATS core (remap) and the CacheKey plugin implementation there is a slight difference between the global and the per-remap functionality when ``--uri-type=remap`` is used.
+
+* The global instance always uses the URI **after** remap (at ``TS_HTTP_POST_REMAP_HOOK``).
+
+* The per-remap instance uses the URI **during** remap (after ``TS_HTTP_PRE_REMAP_HOOK`` and  before ``TS_HTTP_POST_REMAP_HOOK``) which leads to a different URI to be used depending on plugin order in the remap rule.
+
+    * If CacheKey plugin is the first plugin in the remap rule the URI used will be practically the same as the pristine URI.
+    * If the CacheKey plugin is the last plugin in the remap rule (which is right before ``TS_HTTP_POST_REMAP_HOOK``) the behavior will be simillar to the global instnance.
 
 
 Detailed examples and troubleshooting
@@ -360,6 +402,21 @@ The following headers ``HeaderA`` and ``HeaderB`` will be used when constructing
 
   @plugin=cachekey.so @pparam=--include-headers=HeaderA,HeaderB
 
+The following would capture from the ``Authorization`` header and will add the captured element to the cache key ::
+
+  @plugin=cachekey.so \
+      @pparam=--capture-header=Authorization:/AWS\s(?<clientID>[^:]+).*/clientID:$1/"
+
+If the request looks like the following::
+
+  http://example-cdn.com/path/file
+  Authorization: AWS MKIARYMOG51PT0DLD:DLiWQ2lyS49H4Zyx34kW0URtg6s=
+
+Cache key would be set to::
+
+  /example-cdn.com/80/clientID:MKIARYMOG51PTCKQ0DLD/path/file
+
+
 HTTP Cookies
 ^^^^^^^^^^^^
 
@@ -412,7 +469,7 @@ If the plugin is used with the following plugin parameters in the remap rule. ::
       @pparam=--capture-prefix=(test_prefix).*:([^\s\/$]*) \
       @pparam=--static-prefix=static_prefix
 
-the cache key will be prefixed with ``/static_prefix/test_prefix/80`` instead of ``test_prefix_371.example.com:80`` when neither ``--capture-prefix`` nor ``--static-prefix`` are used.
+the cache key will be prefixed with ``/static_prefix/test_prefix/80`` instead of ``test_prefix_371.example.com:80`` when either ``--capture-prefix`` nor ``--static-prefix`` are used.
 
 
 Path, capture and replace from the path or entire URI
@@ -430,7 +487,7 @@ and the request URI is the following ::
 
   http://test_path_123.example.com/path/to/object?a=1&b=2&c=3
 
-then the cache key will have ``/const_path_object`` in the path section of the cache key instead of ``/path/to/object`` when neither ``--capture-path`` nor ``--capture-path-uri`` are used.
+then the cache key will have ``/const_path_object`` in the path section of the cache key instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
 
 
 Capture and replace groups from whole URI for the "Path" section
@@ -445,7 +502,7 @@ and the request URI is the following ::
 
   http://test_path_123.example.com/path/to/object?a=1&b=2&c=3
 
-the the cache key will have ``/test_path_object`` in the path section of the cache key instead of ``/path/to/object`` when neither ``--capture-path`` nor ``--capture-path-uri`` are used.
+the the cache key will have ``/test_path_object`` in the path section of the cache key instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
 
 
 Combining path plugin parameters --capture-path and --capture-path-uri
@@ -461,7 +518,7 @@ and the request URI is the following ::
 
   http://test_path_123.example.com/path/to/object?a=1&b=2&c=3
 
-the the cache key will have ``/test_path_object/const_path_object`` in the path section of the cache key instead of ``/path/to/object`` when neither ``--capture-path`` nor ``--capture-path-uri`` are used.
+the the cache key will have ``/test_path_object/const_path_object`` in the path section of the cache key instead of ``/path/to/object`` when either ``--capture-path`` nor ``--capture-path-uri`` are used.
 
 User-Agent capturing, replacement and classification
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

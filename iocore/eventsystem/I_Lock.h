@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/Diags.h"
+#include "tscore/ink_platform.h"
+#include "tscore/Diags.h"
 #include "I_Thread.h"
 
 #define MAX_LOCK_TIME HRTIME_MSECONDS(200)
@@ -148,7 +148,6 @@
 
 class EThread;
 typedef EThread *EThreadPtr;
-typedef volatile EThreadPtr VolatileEThreadPtr;
 
 #if DEBUG
 inkcoreapi extern void lock_waiting(const SourceLocation &, const char *handler);
@@ -202,7 +201,7 @@ public:
     lock.  You must not modify or set this value directly.
 
   */
-  volatile EThreadPtr thread_holding;
+  EThreadPtr thread_holding;
 
   int nthread_holding;
 
@@ -220,7 +219,7 @@ public:
   void print_lock_stats(int flag);
 #endif // LOCK_CONTENTION_PROFILING
 #endif // DEBUG
-  void free();
+  void free() override;
 
   /**
     Constructor - use new_ProxyMutex() instead.
@@ -269,7 +268,7 @@ public:
   void
   init(const char *name = "UnnamedMutex")
   {
-    ink_mutex_init(&the_mutex, name);
+    ink_mutex_init(&the_mutex);
   }
 };
 
@@ -283,7 +282,7 @@ Mutex_trylock(
 #endif
   ProxyMutex *m, EThread *t)
 {
-  ink_assert(t != 0);
+  ink_assert(t != nullptr);
   ink_assert(t == (EThread *)this_thread());
   if (m->thread_holding != t) {
     if (!ink_mutex_try_acquire(&m->the_mutex)) {
@@ -341,12 +340,13 @@ Mutex_trylock_spin(
 #endif
   ProxyMutex *m, EThread *t, int spincnt = 1)
 {
-  ink_assert(t != 0);
+  ink_assert(t != nullptr);
   if (m->thread_holding != t) {
     int locked;
     do {
-      if ((locked = ink_mutex_try_acquire(&m->the_mutex)))
+      if ((locked = ink_mutex_try_acquire(&m->the_mutex))) {
         break;
+      }
     } while (--spincnt);
     if (!locked) {
 #ifdef DEBUG
@@ -404,7 +404,7 @@ Mutex_lock(
 #endif
   ProxyMutex *m, EThread *t)
 {
-  ink_assert(t != 0);
+  ink_assert(t != nullptr);
   if (m->thread_holding != t) {
     ink_mutex_acquire(&m->the_mutex);
     m->thread_holding = t;
@@ -461,7 +461,7 @@ Mutex_unlock(ProxyMutex *m, EThread *t)
       m->handler = nullptr;
 #endif // DEBUG
       ink_assert(m->thread_holding);
-      m->thread_holding = 0;
+      m->thread_holding = nullptr;
       ink_mutex_release(&m->the_mutex);
     }
   }
@@ -513,8 +513,9 @@ public:
   void
   release()
   {
-    if (locked_p)
+    if (locked_p) {
       Mutex_unlock(m, m->thread_holding);
+    }
     locked_p = false;
   }
 
@@ -588,8 +589,9 @@ public:
 
   ~MutexTryLock()
   {
-    if (lock_acquired)
+    if (lock_acquired) {
       Mutex_unlock(m.get(), m->thread_holding);
+    }
   }
 
   /** Spin till lock is acquired

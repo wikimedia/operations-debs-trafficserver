@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "tscore/IpMap.h"
 #include "I_EventSystem.h"
 #include "I_Socks.h"
 struct socks_conf_struct;
@@ -96,6 +97,9 @@ public:
     */
     bool f_inbound_transparent;
 
+    /// Proxy Protocol enabled
+    bool f_proxy_protocol;
+
     /// Default constructor.
     /// Instance is constructed with default values.
     AcceptOptions() { this->reset(); }
@@ -151,6 +155,7 @@ public:
 
   */
   virtual Action *main_accept(Continuation *cont, SOCKET listen_socket_in, AcceptOptions const &opt = DEFAULT_ACCEPT_OPTIONS);
+  virtual void stop_accept();
 
   /**
     Open a NetVConnection for connection oriented I/O. Connects
@@ -197,14 +202,10 @@ public:
   Action *connect_s(Continuation *cont, sockaddr const *addr, int timeout = NET_CONNECT_TIMEOUT, NetVCOptions *opts = nullptr);
 
   /**
-    Starts the Netprocessor. This has to be called before doing any
-    other net call.
-
-    @param number_of_net_threads is not used. The net processor
-      uses the Event Processor threads for its activity.
+    Initializes the net processor. This must be called before the event threads are started.
 
   */
-  virtual int start(int number_of_net_threads, size_t stacksize) = 0;
+  virtual void init() = 0;
 
   inkcoreapi virtual NetVConnection *allocate_vc(EThread *) = 0;
 
@@ -212,7 +213,7 @@ public:
   NetProcessor(){};
 
   /** Private destructor. */
-  virtual ~NetProcessor(){};
+  ~NetProcessor() override{};
 
   /** This is MSS for connections we accept (client connections). */
   static int accept_mss;
@@ -236,6 +237,10 @@ public:
   /// Default options instance.
   static AcceptOptions const DEFAULT_ACCEPT_OPTIONS;
 
+  // noncopyable
+  NetProcessor(const NetProcessor &) = delete;
+  NetProcessor &operator=(const NetProcessor &) = delete;
+
 private:
   /** @note Not implemented. */
   virtual int
@@ -244,9 +249,6 @@ private:
     ink_release_assert(!"NetProcessor::stop not implemented");
     return 1;
   }
-
-  NetProcessor(const NetProcessor &);
-  NetProcessor &operator=(const NetProcessor &);
 };
 
 /**

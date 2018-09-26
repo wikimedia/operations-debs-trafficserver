@@ -23,11 +23,11 @@
 
 #pragma once
 
-#include "ts/HashFNV.h"
-#include "ts/ink_time.h"
-#include "ts/INK_MD5.h"
-#include "ts/ink_align.h"
-#include "ts/ink_resolver.h"
+#include "tscore/HashFNV.h"
+#include "tscore/ink_time.h"
+#include "tscore/CryptoHash.h"
+#include "tscore/ink_align.h"
+#include "tscore/ink_resolver.h"
 #include "I_EventSystem.h"
 #include "SRV.h"
 #include "P_RefCountCache.h"
@@ -40,9 +40,6 @@
 #define EVENT_SRV_LOOKUP (SRV_EVENT_EVENTS_START + 0)
 #define EVENT_SRV_IP_REMOVED (SRV_EVENT_EVENTS_START + 1)
 #define EVENT_SRV_GET_RESPONSE (SRV_EVENT_EVENTS_START + 2)
-
-// TODO: make configurable
-#define HOST_DB_MAX_ROUND_ROBIN_INFO 16
 
 //
 // Data
@@ -63,6 +60,7 @@ extern unsigned int hostdb_ip_stale_interval;
 extern unsigned int hostdb_ip_timeout_interval;
 extern unsigned int hostdb_ip_fail_timeout_interval;
 extern unsigned int hostdb_serve_stale_but_revalidate;
+extern unsigned int hostdb_round_robin_max_count;
 
 static inline unsigned int
 makeHostHash(const char *string)
@@ -158,7 +156,7 @@ struct HostDBInfo : public RefCountObj {
   }
 
   void
-  free()
+  free() override
   {
     Debug("hostdb", "freeing %d bytes at [%p]", (1 << (7 + iobuffer_index)), this);
     ioBufAllocator[iobuffer_index].free_void((void *)(this));
@@ -312,12 +310,13 @@ struct HostDBInfo : public RefCountObj {
   void
   set_failed()
   {
-    if (is_srv)
+    if (is_srv) {
       data.srv.srv_offset = 0;
-    else if (reverse_dns)
+    } else if (reverse_dns) {
       data.hostname_offset = 0;
-    else
+    } else {
       ats_ip_invalidate(ip());
+    }
   }
 
   int iobuffer_index;
@@ -476,7 +475,7 @@ struct HostDBProcessor : public Processor {
   void
   setbyaddr_appinfo(sockaddr const *addr, HostDBApplicationInfo *app)
   {
-    this->setby(0, 0, addr, app);
+    this->setby(nullptr, 0, addr, app);
   }
 
   void
@@ -484,7 +483,7 @@ struct HostDBProcessor : public Processor {
   {
     sockaddr_in addr;
     ats_ip4_set(&addr, ip);
-    this->setby(0, 0, ats_ip_sa_cast(&addr), app);
+    this->setby(nullptr, 0, ats_ip_sa_cast(&addr), app);
   }
 
   /** Configuration. */
@@ -495,7 +494,7 @@ struct HostDBProcessor : public Processor {
   /* hostdb does not use any dedicated event threads
    * currently. Dont pass any value to start
    */
-  int start(int no_of_additional_event_threads = 0, size_t stacksize = DEFAULT_STACKSIZE);
+  int start(int no_of_additional_event_threads = 0, size_t stacksize = DEFAULT_STACKSIZE) override;
 
   // Private
   HostDBCache *cache();
@@ -514,7 +513,7 @@ public:
              int len,                   ///< Length of hostname.
              sockaddr const *aip,       ///< Address and/or port.
              HostDBApplicationInfo *app ///< I don't know.
-             );
+  );
 
   void setby_srv(const char *hostname, int len, const char *target, HostDBApplicationInfo *app);
 };

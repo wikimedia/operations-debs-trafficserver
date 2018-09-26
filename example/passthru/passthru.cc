@@ -113,7 +113,7 @@ struct PassthruIO {
     return consumed;
   }
 
-private:
+  // noncopyable
   PassthruIO(const PassthruIO &) = delete;
   PassthruIO &operator=(const PassthruIO &) = delete;
 };
@@ -157,7 +157,7 @@ struct PassthruSession {
     PassthruSessionDebug(this, "destroyed session");
   }
 
-private:
+  // noncopyable
   PassthruSession(const PassthruSession &) = delete;
   PassthruSession &operator=(const PassthruSession &) = delete;
 };
@@ -198,24 +198,22 @@ PassthruSessionEvent(TSCont cont, TSEvent event, void *edata)
       sp->server.writeio.write(sp->server.vconn, sp->contp);
     }
 
-    if (sp->server.vconn != nullptr) {
-      int64_t nbytes;
+    int64_t nbytes;
 
-      nbytes = sp->client.readio.transfer_to(sp->server.writeio);
-      PassthruSessionDebug(sp, "proxied %" PRId64 " bytes from client vconn=%p to server vconn=%p", nbytes, sp->client.vconn,
-                           sp->server.vconn);
-      if (nbytes) {
-        TSVIOReenable(sp->client.readio.vio);
-        TSVIOReenable(sp->server.writeio.vio);
-      }
+    nbytes = sp->client.readio.transfer_to(sp->server.writeio);
+    PassthruSessionDebug(sp, "proxied %" PRId64 " bytes from client vconn=%p to server vconn=%p", nbytes, sp->client.vconn,
+                         sp->server.vconn);
+    if (nbytes) {
+      TSVIOReenable(sp->client.readio.vio);
+      TSVIOReenable(sp->server.writeio.vio);
+    }
 
-      nbytes = sp->server.readio.transfer_to(sp->client.writeio);
-      PassthruSessionDebug(sp, "proxied %" PRId64 " bytes from server vconn=%p to client vconn=%p", nbytes, sp->server.vconn,
-                           sp->client.vconn);
-      if (nbytes) {
-        TSVIOReenable(sp->server.readio.vio);
-        TSVIOReenable(sp->client.writeio.vio);
-      }
+    nbytes = sp->server.readio.transfer_to(sp->client.writeio);
+    PassthruSessionDebug(sp, "proxied %" PRId64 " bytes from server vconn=%p to client vconn=%p", nbytes, sp->server.vconn,
+                         sp->client.vconn);
+    if (nbytes) {
+      TSVIOReenable(sp->server.readio.vio);
+      TSVIOReenable(sp->client.writeio.vio);
     }
 
     if (PassthruSessionIsFinished(sp)) {
@@ -267,7 +265,7 @@ PassthruSessionEvent(TSCont cont, TSEvent event, void *edata)
     return TS_EVENT_NONE;
   }
 
-  TSError("%s: unexpected event %s (%d) edata=%p", PLUGIN_NAME, TSHttpEventNameLookup(event), event, arg.edata);
+  TSError("[%s] unexpected event %s (%d) edata=%p", PLUGIN_NAME, TSHttpEventNameLookup(event), event, arg.edata);
 
   return TS_EVENT_ERROR;
 }
@@ -298,13 +296,13 @@ PassthruListen()
   TSCont cont                 = nullptr;
 
   if (TSMgmtStringGet("config.plugin.passthru.server_ports", &ports) == TS_ERROR) {
-    TSError("%s: missing config.plugin.passthru.server_ports configuration", PLUGIN_NAME);
+    TSError("[%s] missing config.plugin.passthru.server_ports configuration", PLUGIN_NAME);
     return TS_ERROR;
   }
 
   descriptor = TSPortDescriptorParse(ports);
   if (descriptor == nullptr) {
-    TSError("%s: failed to parse config.plugin.passthru.server_ports", PLUGIN_NAME);
+    TSError("[%s] failed to parse config.plugin.passthru.server_ports", PLUGIN_NAME);
     TSfree(ports);
     return TS_ERROR;
   }
@@ -319,13 +317,7 @@ PassthruListen()
 void
 TSPluginInit(int /* argc */, const char * /* argv */ [])
 {
-  // clang-format off
-    TSPluginRegistrationInfo info = {
-        const_cast<char*>(PLUGIN_NAME),
-        const_cast<char*>("Apache Software Foundation"),
-        const_cast<char*>("dev@trafficserver.apache.org"),
-    };
-  // clang-format on
+  TSPluginRegistrationInfo info = {PLUGIN_NAME, "Apache Software Foundation", "dev@trafficserver.apache.org"};
 
   TSReturnCode status;
 
@@ -336,7 +328,7 @@ TSPluginInit(int /* argc */, const char * /* argv */ [])
   status = PassthruListen();
   TSReleaseAssert(status == TS_SUCCESS);
 
-  // Now that succeded, we can register.
+  // Now that succeeded, we can register.
   status = TSPluginRegister(&info);
   TSReleaseAssert(status == TS_SUCCESS);
 }

@@ -18,7 +18,7 @@
 
 #include <ts/ts.h>
 #include <ts/remap.h>
-#include <string.h>
+#include <cstring>
 #include <list>
 #include <string>
 
@@ -67,12 +67,13 @@ struct SslHdrExpansion {
   ExpansionScope scope;
   ExpansionField field;
 
-private:
-  SslHdrExpansion &operator=(const SslHdrExpansion &);
+  // noncopyable
+  SslHdrExpansion(const SslHdrExpansion &) = delete;
+  SslHdrExpansion &operator=(const SslHdrExpansion &) = delete;
 };
 
 struct SslHdrInstance {
-  typedef std::list<SslHdrExpansion> expansion_list;
+  typedef std::list<SslHdrExpansion *> expansion_list;
 
   SslHdrInstance();
   ~SslHdrInstance();
@@ -83,9 +84,9 @@ struct SslHdrInstance {
 
   void register_hooks();
 
-private:
-  SslHdrInstance(const SslHdrInstance &);
-  SslHdrInstance &operator=(const SslHdrInstance &);
+  // noncopyable
+  SslHdrInstance(const SslHdrInstance &) = delete;
+  SslHdrInstance &operator=(const SslHdrInstance &) = delete;
 };
 
 bool SslHdrParseExpansion(const char *spec, SslHdrExpansion &exp);

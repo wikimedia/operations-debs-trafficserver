@@ -257,7 +257,7 @@ class match_t
 {
 public:
   virtual bool find(const char *, size_t, size_t &, size_t &, const char *, std::string &) const = 0;
-  virtual size_t cont_size() const = 0;
+  virtual size_t cont_size() const                                                               = 0;
   virtual ~match_t() {}
 };
 
@@ -370,7 +370,7 @@ public:
     if (!isspace(*(x - 1)))        \
       x = strcasestr(x + 1, str);  \
     else                           \
-  break
+      break
 
 class rule_t
 {
@@ -839,7 +839,7 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = (char *)"users@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[stream-editor] Plugin registration failed.");
+    TSError("[stream-editor] Plugin registration failed");
     return;
   }
 

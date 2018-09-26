@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 
 #include "HttpTransact.h"
 #include "HttpTransactHeaders.h"
@@ -29,11 +29,7 @@
 #include <ctime>
 #include "HTTP.h"
 #include "HttpCompat.h"
-#include "ts/InkErrno.h"
-
-ClassAllocator<CacheLookupHttpConfig> CacheLookupHttpConfigAllocator("CacheLookupHttpConfigAllocator");
-
-CacheLookupHttpConfig global_cache_lookup_config;
+#include "tscore/InkErrno.h"
 
 /**
   Find the pointer and length of an etag, after stripping off any leading
@@ -168,7 +164,7 @@ is_empty(char *s)
 */
 int
 HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector *cache_vector, HTTPHdr *client_request,
-                                        CacheLookupHttpConfig *http_config_params)
+                                        OverridableHttpConfigParams *http_config_params)
 {
   time_t current_age, best_age = CacheHighAgeWatermark;
   time_t t_now         = 0;
@@ -184,18 +180,9 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector *cache_vector, HTTPH
   Debug("http_match", "[SelectFromAlternates] # alternates = %d", alt_count);
   Debug("http_seq", "[SelectFromAlternates] %d alternates for this cached doc", alt_count);
   if (is_debug_tag_set("http_alts")) {
-    ACQUIRE_PRINT_LOCK()
     fprintf(stderr, "[alts] There are %d alternates for this request header.\n", alt_count);
-    RELEASE_PRINT_LOCK()
-  }
-  // used by ICP to bypass this function
-  if (http_config_params == &global_cache_lookup_config) {
-    return 0;
   }
 
-  if (!client_request->valid()) {
-    return 0;
-  }
   // so that plugins can make cache reads for http
   // docs to check if the doc exists in the cache
   if (!client_request->valid()) {
@@ -216,7 +203,7 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector *cache_vector, HTTPH
 
       if (alt_count > 1) {
         if (t_now == 0) {
-          t_now = ink_cluster_time();
+          t_now = ink_local_time();
         }
         current_age = HttpTransactHeaders::calculate_document_age(obj->request_sent_time_get(), obj->response_received_time_get(),
                                                                   cached_response, cached_response->get_date(), t_now);
@@ -264,9 +251,7 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector *cache_vector, HTTPH
   }
   Debug("http_seq", "[SelectFromAlternates] Chosen alternate # %d", best_index);
   if (is_debug_tag_set("http_alts")) {
-    ACQUIRE_PRINT_LOCK()
     fprintf(stderr, "[alts] and the winner is alternate number %d\n", best_index);
-    RELEASE_PRINT_LOCK()
   }
 
   if ((best_index != -1) && (best_Q > unacceptable_Q)) {
@@ -299,7 +284,7 @@ HttpTransactCache::SelectFromAlternates(CacheHTTPInfoVector *cache_vector, HTTPH
 
 */
 float
-HttpTransactCache::calculate_quality_of_match(CacheLookupHttpConfig *http_config_param, HTTPHdr *client_request,
+HttpTransactCache::calculate_quality_of_match(OverridableHttpConfigParams *http_config_param, HTTPHdr *client_request,
                                               HTTPHdr *obj_client_request, HTTPHdr *obj_origin_server_response)
 {
   // For PURGE requests, any alternate is good really.
@@ -757,14 +742,14 @@ does_encoding_match(char *enc1, const char *enc2)
   return false;
 }
 
-ContentEncoding
-HttpTransactCache::match_gzip(MIMEField *accept_field)
+bool
+HttpTransactCache::match_content_encoding(MIMEField *accept_field, const char *encoding_identifier)
 {
   Str *a_value;
   const char *a_raw;
   StrList a_values_list;
   if (!accept_field) {
-    return NO_GZIP;
+    return false;
   }
   // TODO: Should we check the return value (count) here?
   accept_field->value_get_comma_list(&a_values_list);
@@ -781,11 +766,11 @@ HttpTransactCache::match_gzip(MIMEField *accept_field)
     }
     float q;
     q = HttpCompat::find_Q_param_in_strlist(&a_param_list);
-    if (q != 0 && does_encoding_match(a_encoding, "gzip")) {
-      return GZIP;
+    if (q != 0 && does_encoding_match(a_encoding, encoding_identifier)) {
+      return true;
     }
   }
-  return NO_GZIP;
+  return false;
 }
 
 // TODO: This used to take a length for c_raw, but that was never used, so removed it from the prototype.
@@ -918,8 +903,8 @@ HttpTransactCache::calculate_quality_of_accept_encoding_match(MIMEField *accept_
   if (!content_field) {
     if (!match_accept_content_encoding("identity", accept_field, &wildcard_present, &wildcard_q, &q)) {
       // CE was not returned, and AE does not have identity
-      if (match_gzip(accept_field) == GZIP && match_gzip(cached_accept_field) == GZIP) {
-        return (float)1.0;
+      if (match_content_encoding(accept_field, "gzip") and match_content_encoding(cached_accept_field, "gzip")) {
+        return 1.0f;
       }
       goto encoding_wildcard;
     }
@@ -957,17 +942,17 @@ encoding_wildcard:
   // still okay, but otherwise, this is just not a match at all.         //
   /////////////////////////////////////////////////////////////////////////
   if ((q == -1.0) && is_identity_encoding) {
-    if (match_gzip(accept_field) == GZIP) {
-      if (match_gzip(cached_accept_field) == GZIP) {
-        return (float)1.0;
+    if (match_content_encoding(accept_field, "gzip")) {
+      if (match_content_encoding(cached_accept_field, "gzip")) {
+        return 1.0f;
       } else {
         // always try to fetch GZIP content if we have not tried sending AE before
-        return (float)-1.0;
+        return -1.0f;
       }
-    } else if (cached_accept_field && match_gzip(cached_accept_field) != GZIP) {
-      return (float)0.001;
+    } else if (cached_accept_field && !match_content_encoding(cached_accept_field, "gzip")) {
+      return 0.001f;
     } else {
-      return (float)-1.0;
+      return -1.0f;
     }
   }
   //      q = (float)-1.0;
@@ -1144,8 +1129,8 @@ language_wildcard:
 
 */
 Variability_t
-HttpTransactCache::CalcVariability(CacheLookupHttpConfig *http_config_params, HTTPHdr *client_request, HTTPHdr *obj_client_request,
-                                   HTTPHdr *obj_origin_server_response)
+HttpTransactCache::CalcVariability(OverridableHttpConfigParams *http_config_params, HTTPHdr *client_request,
+                                   HTTPHdr *obj_client_request, HTTPHdr *obj_origin_server_response)
 {
   ink_assert(http_config_params != nullptr);
   ink_assert(client_request != nullptr);
@@ -1223,7 +1208,7 @@ HttpTransactCache::CalcVariability(CacheLookupHttpConfig *http_config_params, HT
       // Special case: if 'proxy.config.http.global_user_agent_header' set                  //
       // we should ignore Vary: User-Agent.                                                 //
       ////////////////////////////////////////////////////////////////////////////////////////
-      if (http_config_params->cache_global_user_agent_header && !strcasecmp((char *)field->str, "User-Agent")) {
+      if (http_config_params->global_user_agent_header && !strcasecmp((char *)field->str, "User-Agent")) {
         continue;
       }
 
@@ -1466,96 +1451,4 @@ HttpTransactCache::match_response_to_request_conditionals(HTTPHdr *request, HTTP
   }
 
   return response->status_get();
-}
-
-/*---------------------------------------------------
- *        class CacheLookupHttpConfig
- *---------------------------------------------------*/
-int
-CacheLookupHttpConfig::marshal_length()
-{
-  int len = (int)sizeof(int32_t);
-  len += (cache_vary_default_text ? strlen(cache_vary_default_text) + 1 : 1);
-  len += (cache_vary_default_images ? strlen(cache_vary_default_images) + 1 : 1);
-  len += (cache_vary_default_other ? strlen(cache_vary_default_other) + 1 : 1);
-  return len;
-}
-
-int
-CacheLookupHttpConfig::marshal(char *buf, int length)
-{
-  int32_t i32_tmp;
-  char *p = buf;
-  int len;
-
-  if ((length -= sizeof(int32_t)) < 0) {
-    return -1;
-  }
-
-  i32_tmp = (int32_t)cache_enable_default_vary_headers;
-  memcpy(p, &i32_tmp, sizeof(int32_t));
-  p += sizeof(int32_t);
-
-  len = (cache_vary_default_text ? strlen(cache_vary_default_text) + 1 : 1);
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  ink_strlcpy(p, (cache_vary_default_text ? cache_vary_default_text : ""), length);
-  p += len;
-
-  len = (cache_vary_default_images ? strlen(cache_vary_default_images) + 1 : 1);
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  ink_strlcpy(p, (cache_vary_default_images ? cache_vary_default_images : ""), length);
-  p += len;
-
-  len = (cache_vary_default_other ? strlen(cache_vary_default_other) + 1 : 1);
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  ink_strlcpy(p, (cache_vary_default_other ? cache_vary_default_other : ""), length);
-  p += len;
-
-  return (p - buf);
-}
-
-int
-CacheLookupHttpConfig::unmarshal(Arena *arena, const char *buf, int buflen)
-{
-  const char *p = buf;
-  int length    = buflen;
-  int len;
-  int32_t i32_tmp;
-
-  if ((length -= sizeof(int32_t)) < 0) {
-    return -1;
-  }
-
-  memcpy(&i32_tmp, p, sizeof(int32_t));
-  cache_enable_default_vary_headers = (bool)i32_tmp;
-  p += sizeof(int32_t);
-
-  len = strlen(p) + 1;
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  cache_vary_default_text = arena->str_store(((len == 2) ? "" : p), len - 1);
-  p += len;
-
-  len = strlen(p) + 1;
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  cache_vary_default_images = arena->str_store(((len == 2) ? "" : p), len - 1);
-  p += len;
-
-  len = strlen(p) + 1;
-  if ((length -= len) < 0) {
-    return -1;
-  }
-  cache_vary_default_other = arena->str_store(((len == 2) ? "" : p), len - 1);
-  p += len;
-
-  return (p - buf);
 }

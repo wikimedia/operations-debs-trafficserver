@@ -21,10 +21,9 @@
   limitations under the License.
  */
 
-#ifndef _ESI_COMPONENT_BASE_H
-#define _ESI_COMPONENT_BASE_H
+#pragma once
 
-#include <stdio.h>
+#include <cstdio>
 #include <string>
 
 namespace EsiLib
@@ -50,6 +49,4 @@ protected:
 
   virtual ~ComponentBase(){};
 };
-};
-
-#endif // _ESI_COMPONENT_BASE_H
+}; // namespace EsiLib

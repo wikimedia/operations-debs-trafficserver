@@ -23,11 +23,11 @@
 
 #pragma once
 
-#include "ts/ink_defs.h"
-#include "ts/ink_memory.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_memory.h"
 #include "HPACK.h"
 #include "MIME.h"
-#include "P_RecDefs.h"
+#include "records/P_RecDefs.h"
 
 class HTTPHdr;
 
@@ -238,7 +238,7 @@ struct Http2FrameHeader {
 // [RFC 7540] 5.4. Error Handling
 struct Http2Error {
   Http2Error(const Http2ErrorClass error_class = Http2ErrorClass::HTTP2_ERROR_CLASS_NONE,
-             const Http2ErrorCode error_code = Http2ErrorCode::HTTP2_ERROR_NO_ERROR, const char *err_msg = NULL)
+             const Http2ErrorCode error_code = Http2ErrorCode::HTTP2_ERROR_NO_ERROR, const char *err_msg = nullptr)
   {
     cls  = error_class;
     code = error_code;
@@ -377,6 +377,7 @@ public:
   static uint32_t no_activity_timeout_in;
   static uint32_t active_timeout_in;
   static uint32_t push_diary_size;
+  static uint32_t zombie_timeout_in;
 
   static void init();
 };

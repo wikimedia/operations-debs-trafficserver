@@ -26,7 +26,7 @@
 
 
  ***************************************************************************/
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 
 #include "LogUtils.h"
 #include "LogFilter.h"
@@ -38,7 +38,7 @@
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "Log.h"
-#include "ts/SimpleTokenizer.h"
+#include "tscore/SimpleTokenizer.h"
 
 const char *LogFilter::OPERATOR_NAME[] = {"MATCH", "CASE_INSENSITIVE_MATCH", "CONTAIN", "CASE_INSENSITIVE_CONTAIN"};
 const char *LogFilter::ACTION_NAME[]   = {"REJECT", "ACCEPT", "WIPE_FIELD_VALUE"};
@@ -774,9 +774,7 @@ LogFilterIP::init()
   LogFilterIP::~LogFilterIP
   -------------------------------------------------------------------------*/
 
-LogFilterIP::~LogFilterIP()
-{
-}
+LogFilterIP::~LogFilterIP() {}
 
 /*-------------------------------------------------------------------------
   LogFilterIP::operator==
@@ -929,9 +927,7 @@ filters_are_equal(LogFilter *filt1, LogFilter *filt2)
   add() function is overloaded for each sub-type of LogFilter.
   -------------------------------------------------------------------------*/
 
-LogFilterList::LogFilterList() : m_does_conjunction(true)
-{
-}
+LogFilterList::LogFilterList() : m_does_conjunction(true) {}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
@@ -1049,7 +1045,7 @@ LogFilterList::toss_this_entry(LogAccess *lad)
   -------------------------------------------------------------------------*/
 
 LogFilter *
-LogFilterList::find_by_name(char *name)
+LogFilterList::find_by_name(const char *name)
 {
   for (LogFilter *f = first(); f; f = next(f)) {
     if (strcmp(f->name(), name) == 0) {
@@ -1082,7 +1078,7 @@ LogFilterList::display(FILE *fd)
 }
 
 #if TS_HAS_TESTS
-#include "ts/TestBox.h"
+#include "tscore/TestBox.h"
 
 REGRESSION_TEST(Log_FilterParse)(RegressionTest *t, int /* atype */, int *pstatus)
 {
@@ -1096,12 +1092,23 @@ REGRESSION_TEST(Log_FilterParse)(RegressionTest *t, int /* atype */, int *pstatu
   } while (0)
 
   *pstatus = REGRESSION_TEST_PASSED;
+  LogFilter *retfilter;
 
-  box.check(LogFilter::parse("t1", LogFilter::ACCEPT, "tok1 tok2") == nullptr, "At least 3 tokens are required");
-  box.check(LogFilter::parse("t2", LogFilter::ACCEPT, "%<sym operator value") == nullptr, "Unclosed symbol token");
-  box.check(LogFilter::parse("t3", LogFilter::ACCEPT, "%<{Age ssh> operator value") == nullptr, "Unclosed container field");
-  box.check(LogFilter::parse("t4", LogFilter::ACCEPT, "%<james> operator value") == nullptr, "Invalid log field");
-  box.check(LogFilter::parse("t5", LogFilter::ACCEPT, "%<chi> invalid value") == nullptr, "Invalid operator name");
+  retfilter = LogFilter::parse("t1", LogFilter::ACCEPT, "tok1 tok2");
+  box.check(retfilter == nullptr, "At least 3 tokens are required");
+  delete retfilter;
+  retfilter = LogFilter::parse("t2", LogFilter::ACCEPT, "%<sym operator value");
+  box.check(retfilter == nullptr, "Unclosed symbol token");
+  delete retfilter;
+  retfilter = LogFilter::parse("t3", LogFilter::ACCEPT, "%<{Age ssh> operator value");
+  box.check(retfilter == nullptr, "Unclosed container field");
+  delete retfilter;
+  retfilter = LogFilter::parse("t4", LogFilter::ACCEPT, "%<james> operator value");
+  box.check(retfilter == nullptr, "Invalid log field");
+  delete retfilter;
+  retfilter = LogFilter::parse("t5", LogFilter::ACCEPT, "%<chi> invalid value");
+  box.check(retfilter == nullptr, "Invalid operator name");
+  delete retfilter;
 
   CHECK_FORMAT_PARSE("pssc MATCH 200");
   CHECK_FORMAT_PARSE("shn CASE_INSENSITIVE_CONTAIN unwanted.com");

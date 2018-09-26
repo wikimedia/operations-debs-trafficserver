@@ -23,7 +23,7 @@
 #pragma once
 
 #include <string>
-#include <time.h>
+#include <ctime>
 #include <vector>
 
 #include "ts/ts.h"
@@ -71,10 +71,32 @@ enum IdQualifiers {
   ID_QUAL_UNIQUE,
 };
 
+// IP
+enum IpQualifiers {
+  IP_QUAL_CLIENT,
+  IP_QUAL_INBOUND,
+  // These two might not necessarily get populated, e.g. on a cache hit.
+  IP_QUAL_SERVER,
+  IP_QUAL_OUTBOUND,
+};
+
+enum NetworkSessionQualifiers {
+  NET_QUAL_LOCAL_ADDR,  ///< Local address.
+  NET_QUAL_LOCAL_PORT,  ///< Local port.
+  NET_QUAL_REMOTE_ADDR, ///< Remote address.
+  NET_QUAL_REMOTE_PORT, ///< Remote port.
+  NET_QUAL_TLS,         ///< TLS protocol
+  NET_QUAL_H2,          ///< 'h2' or not.
+  NET_QUAL_IPV4,        ///< 'ipv4' or not.
+  NET_QUAL_IPV6,        ///< 'ipv6' or not.
+  NET_QUAL_IP_FAMILY,   ///< IP protocol family.
+  NET_QUAL_STACK,       ///< Full protocol stack.
+};
+
 class Statement
 {
 public:
-  Statement() : _next(NULL), _pdata(NULL), _rsrc(RSRC_NONE), _initialized(false), _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK)
+  Statement() : _next(nullptr), _pdata(nullptr), _rsrc(RSRC_NONE), _initialized(false), _hook(TS_HTTP_READ_RESPONSE_HDR_HOOK)
   {
     TSDebug(PLUGIN_NAME_DBG, "Calling CTOR for Statement");
   }
@@ -102,7 +124,7 @@ public:
   free_pdata()
   {
     TSfree(_pdata);
-    _pdata = NULL;
+    _pdata = nullptr;
   }
 
   // Which hook are we adding this statement to?

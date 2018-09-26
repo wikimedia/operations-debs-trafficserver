@@ -60,9 +60,9 @@ struct BUILD_TABLE_INFO {
   // Clear the argument vector.
   void reset();
 
-private:
-  BUILD_TABLE_INFO(const BUILD_TABLE_INFO &);            // disabled
-  BUILD_TABLE_INFO &operator=(const BUILD_TABLE_INFO &); // disabled
+  // noncopyable
+  BUILD_TABLE_INFO(const BUILD_TABLE_INFO &) = delete;            // disabled
+  BUILD_TABLE_INFO &operator=(const BUILD_TABLE_INFO &) = delete; // disabled
 };
 
 const char *remap_parse_directive(BUILD_TABLE_INFO *bti, char *errbuf, size_t errbufsize);
@@ -70,7 +70,7 @@ const char *remap_parse_directive(BUILD_TABLE_INFO *bti, char *errbuf, size_t er
 const char *remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int argc, char *errStrBuf,
                                        size_t errStrBufSize);
 
-unsigned long remap_check_option(const char **argv, int argc, unsigned long findmode = 0, int *_ret_idx = NULL,
-                                 const char **argptr = NULL);
+unsigned long remap_check_option(const char **argv, int argc, unsigned long findmode = 0, int *_ret_idx = nullptr,
+                                 const char **argptr = nullptr);
 
 bool remap_parse_config(const char *path, UrlRewrite *rewrite);

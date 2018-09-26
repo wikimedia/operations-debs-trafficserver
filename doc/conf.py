@@ -29,6 +29,7 @@
 
 import sys
 import os
+from datetime import date
 from sphinx import version_info
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -54,8 +55,12 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
+    'sphinxcontrib.plantuml',
     'traffic-server',
 ]
+
+# Contains values that are dependent on configure.ac.
+execfile('ext/local-config.py')
 
 if version_info >= (1, 4):
     extensions.append('sphinx.ext.imgmath')
@@ -82,7 +87,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Apache Traffic Server'
-copyright = u'2016, dev@trafficserver.apache.org'
+copyright = u'{}, dev@trafficserver.apache.org'.format(date.today().year)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -164,7 +169,16 @@ pygments_style = 'sphinx'
 # A list of ignored prefixes for module index sorting.
 #modindex_common_prefix = []
 
-nitpicky = 1
+nitpicky = True
+nitpick_ignore = [ ('cpp:typeOrConcept', 'std')
+                 , ('cpp:typeOrConcept', 'std::shared_ptr')
+                 , ('cpp:typeOrConcept', 'std::ostream')
+                 , ('cpp:typeOrConcept', 'std::string')
+                 , ('cpp:typeOrConcept', 'std::string_view')
+                 , ('cpp:typeOrConcept', 'std::tuple')
+                 , ('cpp:typeOrConcept', 'V') # template arguments which should be matched but aren't.
+                 , ('cpp:typeOrConcept', 'Args')
+                 ]
 
 # Autolink issue references.
 # See Customizing the Parser in the docutils.parsers.rst module.
@@ -334,6 +348,11 @@ latex_elements = {
     #'preamble': '',
 }
 
+if tags.has('latex_a4'):
+    latex_elements['papersize'] = 'a4paper'
+elif tags.has('latex_paper'):
+    latex_elements['papersiize'] = 'letterpaper'
+
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
@@ -486,3 +505,8 @@ epub_copyright = u'2013, dev@trafficserver.apache.org'
 # Allow duplicate toc entries.
 #epub_tocdup = True
 mathjax_path = 'https://docs.trafficserver.apache.org/__RTD/MathJax.js'
+
+# Enabling marking bit fields as 'bitfield_N`.
+# Currently parameterized fields don't work. When they do, we should change to
+# 'bitfield(N)'.
+cpp_id_attributes = [ 'bitfield_1', 'bitfield_3', 'bitfield_24' ]
