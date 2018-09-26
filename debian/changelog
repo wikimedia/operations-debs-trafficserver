@@ -1,3 +1,71 @@
+trafficserver (8.0.0-1) unstable; urgency=medium
+
+  [ Aron Xu ]
+  * Remove .vscode directory
+  * systemd: After=network-online.target
+
+  [ Jean Baptiste Favre ]
+  * Update d/changelog for 8.0.0
+  * Update d/README.Debian to reflect configuration changes
+  * Add d/gitlab-ci.yml to use Salsa CI
+  * Update d/control
+      * Add build-deps against graphviz, python3-sphinxcontrib.plantuml
+        and plantuml to build documentation & manpages
+      * Add build-deps against libcrypto++-dev, libjansson-dev, libcjose-dev to
+        build uri_signing plugin
+      * Update Breaks to manage plugins transition from experimental to stable
+  * Update postinst maintainer script, add postrm & preinst scripts to remove
+    obsolete config files
+    - /etc/trafficserver/vaddrs.config,
+    - /etc/trafficserver/metrics.config,
+    - /etc/trafficserver/logging.config,
+    - /etc/trafficserver/log_hosts.config,
+    - /etc/trafficserver/congestion.config,
+    - /etc/trafficserver/cluster.config,
+    - /etc/trafficserver/body_factory/default/congestion#retryAfter
+  * Update d/trafficserver and d/trafficserver-experimental-plugins install
+    files
+    - Stable plugin gzip renamed to compress
+    - Promoted stable plugins:
+      - cachekey,
+      - cache_promote,
+      - escalate,
+      - test_cppapi,
+      - tslua
+    - Added new experimental plugins:
+      - access_control,
+      - fq_pacing,
+      - prefetch,
+      - server_push_preload,
+      - system_stats,
+      - tls_bridge,
+      - traffic_dump,
+      - uri_signing
+    - Remove deprecated plugins collapsed_connection, epic
+  * Remove obsolete config option --enable-system-luajit from d/rules
+  * Add --with-build-version option to d/rule to have a deterministic
+    build-version
+  * Update d/copyright to remove .vscode during import at repack stage
+  * Update patches for 8.0.0
+    - Refresh patches for 8.0.0
+    - Removed patches:
+      - 0004-force-use-luajit-system*, updated upstream
+      - 0005-fix_documentation_build_option, updated upstream
+      - 0008-fix_build_lua, updated upstream
+      - 0009-fix-doc-python3, update upstream
+      - 0010-Remove-custom-memory-barriers-from-header_rewrite-an patches,
+        updated upstream
+    - Renamed remaingin patches:
+      - 0006-fix_arm_build -> 0004-fix_arm_build,
+      - 0007-fix_build_kfreebsd -> 0005-fix_build_kfreebsd,
+      - 0009-fix-doc-git -> 0006-fix-doc-build
+    - Add patch to fix uri_signing experimental plugin build
+    - Add patch to fix check-unused-dependencies
+  * New upstream version 8.0.0
+  * UNRELEASED
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 26 Sep 2018 19:37:13 +0200
+
 trafficserver (7.1.4+ds-1) unstable; urgency=medium
 
   [ Aron Xu ]
