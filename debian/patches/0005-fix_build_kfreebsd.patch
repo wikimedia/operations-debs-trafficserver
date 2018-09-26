@@ -6,8 +6,8 @@ Last-Update: 2017-03-24
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/src/tscore/ink_memory.cc
 ===================================================================
---- trafficserver.orig/src/tscore/ink_memory.cc	2018-09-23 10:57:47.118585067 +0200
-+++ trafficserver/src/tscore/ink_memory.cc	2018-09-23 10:57:47.114585041 +0200
+--- trafficserver.orig/src/tscore/ink_memory.cc	2018-09-26 19:36:04.344399533 +0200
++++ trafficserver/src/tscore/ink_memory.cc	2018-09-26 19:36:04.340399503 +0200
 @@ -27,7 +27,7 @@
  #include "tscore/Diags.h"
  #include "tscore/ink_atomic.h"
@@ -19,8 +19,8 @@ Index: trafficserver/src/tscore/ink_memory.cc
  
 Index: trafficserver/proxy/Plugin.cc
 ===================================================================
---- trafficserver.orig/proxy/Plugin.cc	2018-09-23 10:57:47.118585067 +0200
-+++ trafficserver/proxy/Plugin.cc	2018-09-23 10:57:47.114585041 +0200
+--- trafficserver.orig/proxy/Plugin.cc	2018-09-26 19:36:04.344399533 +0200
++++ trafficserver/proxy/Plugin.cc	2018-09-26 19:36:04.340399503 +0200
 @@ -126,7 +126,7 @@
        return false; // this line won't get called since Fatal brings down ATS
      }
@@ -32,8 +32,8 @@ Index: trafficserver/proxy/Plugin.cc
  #if defined(__GLIBC__)
 Index: trafficserver/proxy/http/remap/RemapConfig.cc
 ===================================================================
---- trafficserver.orig/proxy/http/remap/RemapConfig.cc	2018-09-23 10:57:47.118585067 +0200
-+++ trafficserver/proxy/http/remap/RemapConfig.cc	2018-09-23 10:57:47.114585041 +0200
+--- trafficserver.orig/proxy/http/remap/RemapConfig.cc	2018-09-26 19:36:04.344399533 +0200
++++ trafficserver/proxy/http/remap/RemapConfig.cc	2018-09-26 19:36:04.340399503 +0200
 @@ -897,7 +897,7 @@
    void *ih         = nullptr;
    TSReturnCode res = TS_SUCCESS;

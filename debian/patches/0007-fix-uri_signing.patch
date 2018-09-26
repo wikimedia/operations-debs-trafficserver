@@ -11,8 +11,8 @@ Last-Update: 2018-09-24
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/configure.ac
 ===================================================================
---- trafficserver.orig/configure.ac	2018-09-23 10:57:47.522587634 +0200
-+++ trafficserver/configure.ac	2018-09-23 10:57:47.518587608 +0200
+--- trafficserver.orig/configure.ac	2018-09-26 19:36:04.768402746 +0200
++++ trafficserver/configure.ac	2018-09-26 19:36:04.764402715 +0200
 @@ -1306,21 +1306,21 @@
  #
  AC_CHECK_HEADERS([jansson.h], [

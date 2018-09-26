@@ -6,8 +6,8 @@ Last-Update: 2018-09-24
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/tools/check-unused-dependencies
 ===================================================================
---- trafficserver.orig/tools/check-unused-dependencies	2018-09-25 09:39:50.735305121 +0200
-+++ trafficserver/tools/check-unused-dependencies	2018-09-25 09:51:37.947887081 +0200
+--- trafficserver.orig/tools/check-unused-dependencies	2018-09-26 19:36:04.948404109 +0200
++++ trafficserver/tools/check-unused-dependencies	2018-09-26 19:36:04.948404109 +0200
 @@ -1,4 +1,4 @@
 -#!/usr/bin/env python
 +#!/usr/bin/env python3

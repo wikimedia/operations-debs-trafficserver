@@ -6,8 +6,8 @@ Last-Update: 2018-01-25
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/src/traffic_ctl/Makefile.inc
 ===================================================================
---- trafficserver.orig/src/traffic_ctl/Makefile.inc	2018-09-23 10:57:46.926583845 +0200
-+++ trafficserver/src/traffic_ctl/Makefile.inc	2018-09-23 10:57:46.926583845 +0200
+--- trafficserver.orig/src/traffic_ctl/Makefile.inc	2018-09-26 19:36:04.152398078 +0200
++++ trafficserver/src/traffic_ctl/Makefile.inc	2018-09-26 19:36:04.148398048 +0200
 @@ -41,8 +41,8 @@
  traffic_ctl_traffic_ctl_LDADD = \
  	$(top_builddir)/lib/records/librecords_p.a \
@@ -20,8 +20,8 @@ Index: trafficserver/src/traffic_ctl/Makefile.inc
  	$(top_builddir)/src/tscpp/util/libtscpputil.la \
 Index: trafficserver/src/traffic_top/Makefile.inc
 ===================================================================
---- trafficserver.orig/src/traffic_top/Makefile.inc	2018-09-23 10:57:46.926583845 +0200
-+++ trafficserver/src/traffic_top/Makefile.inc	2018-09-23 10:57:46.926583845 +0200
+--- trafficserver.orig/src/traffic_top/Makefile.inc	2018-09-26 19:36:04.152398078 +0200
++++ trafficserver/src/traffic_top/Makefile.inc	2018-09-26 19:36:04.148398048 +0200
 @@ -42,8 +42,8 @@
  traffic_top_traffic_top_LDADD = \
  	$(top_builddir)/lib/records/librecords_p.a \

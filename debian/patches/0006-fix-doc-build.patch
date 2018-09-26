@@ -9,8 +9,8 @@ Last-Update: 2018-04-24
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/doc/ext/traffic-server.py
 ===================================================================
---- trafficserver.orig/doc/ext/traffic-server.py	2018-09-23 10:57:47.314586312 +0200
-+++ trafficserver/doc/ext/traffic-server.py	2018-09-23 10:57:47.314586312 +0200
+--- trafficserver.orig/doc/ext/traffic-server.py	2018-09-26 19:36:04.560401169 +0200
++++ trafficserver/doc/ext/traffic-server.py	2018-09-26 19:36:04.560401169 +0200
 @@ -411,7 +411,7 @@
      autoconf_version = '.'.join(match.group(1).split('.', 2)[:2] + ['x'])
  
@@ -22,8 +22,8 @@ Index: trafficserver/doc/ext/traffic-server.py
  def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[]):
 Index: trafficserver/doc/Makefile.am
 ===================================================================
---- trafficserver.orig/doc/Makefile.am	2018-09-23 10:57:47.314586312 +0200
-+++ trafficserver/doc/Makefile.am	2018-09-23 10:57:47.314586312 +0200
+--- trafficserver.orig/doc/Makefile.am	2018-09-26 19:36:04.560401169 +0200
++++ trafficserver/doc/Makefile.am	2018-09-26 19:36:04.560401169 +0200
 @@ -61,7 +61,7 @@
  # The PAPER setting variables requires recursive make variable expansion, which automake
  # detects as non-portable. We bounce this through a shell script and do the expansion there.
@@ -35,8 +35,8 @@ Index: trafficserver/doc/Makefile.am
  	$(ALLSPHINXOPTS)
 Index: trafficserver/doc/uml/Makefile.am
 ===================================================================
---- trafficserver.orig/doc/uml/Makefile.am	2018-09-23 10:57:47.314586312 +0200
-+++ trafficserver/doc/uml/Makefile.am	2018-09-23 10:57:47.314586312 +0200
+--- trafficserver.orig/doc/uml/Makefile.am	2018-09-26 19:36:04.560401169 +0200
++++ trafficserver/doc/uml/Makefile.am	2018-09-26 19:36:04.560401169 +0200
 @@ -18,7 +18,7 @@
  
  if BUILD_DOCS

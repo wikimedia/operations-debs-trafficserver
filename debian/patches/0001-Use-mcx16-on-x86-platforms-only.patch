@@ -8,8 +8,8 @@ Subject: Use -mcx16 on x86 platforms only
 
 Index: trafficserver/configure.ac
 ===================================================================
---- trafficserver.orig/configure.ac	2018-09-23 10:57:46.398580488 +0200
-+++ trafficserver/configure.ac	2018-09-23 10:57:46.394580464 +0200
+--- trafficserver.orig/configure.ac	2018-09-26 19:36:03.592393836 +0200
++++ trafficserver/configure.ac	2018-09-26 19:36:03.592393836 +0200
 @@ -1484,12 +1484,15 @@
  AC_LANG_POP
  AC_SUBST(has_128bit_cas)
