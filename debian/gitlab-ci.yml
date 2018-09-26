@@ -2,7 +2,7 @@ stages:
   - build
   - lintian
   - piuparts
-  - reprotest
+#  - reprotest
 
 .build: &build
   before_script:
@@ -48,21 +48,21 @@ stages:
   script:
     - piuparts --hard-link -e ${CHROOT_PATH} -l piuparts.log built/*.changes
 
-.reprotest: &reprotest
-  stage: reprotest
-  before_script:
-    - apt-get update
-    - apt-get -qy dist-upgrade
-    - eatmydata apt-get build-dep -y .
-  artifacts:
-    name: "$CI_BUILD_NAME"
-    expire_in: 180 day
-    paths:
-      - ./reprotest.log
-    when: always
-  script:
-    - export DEB_BUILD_OPTIONS=nocheck
-    - eatmydata reprotest --min-cpus $(nproc --all) . -- null &> reprotest.log
+#.reprotest: &reprotest
+#  stage: reprotest
+#  before_script:
+#    - apt-get update
+#    - apt-get -qy dist-upgrade
+#    - eatmydata apt-get build-dep -y .
+#  artifacts:
+#    name: "$CI_BUILD_NAME"
+#    expire_in: 180 day
+#    paths:
+#      - ./reprotest.log
+#    when: always
+#  script:
+#    - export DEB_BUILD_OPTIONS=nocheck
+#    - eatmydata reprotest --min-cpus $(nproc --all) . -- null &> reprotest.log
 
 ### End of generic stage declaration
 
@@ -95,8 +95,8 @@ piuparts:unstable:
     - build:unstable
   image: registry.salsa.debian.org/salsa-ci-team/images/piuparts
 
-reprotest:unstable:
-  <<: *reprotest
-  dependencies:
-    - build:unstable
-  image: registry.salsa.debian.org/salsa-ci-team/images/reprotest
+#reprotest:unstable:
+#  <<: *reprotest
+#  dependencies:
+#    - build:unstable
+#  image: registry.salsa.debian.org/salsa-ci-team/images/reprotest
