@@ -24,10 +24,10 @@
 
 #pragma once
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "rules.h"
-#include "ts/ink_atomic.h"
+#include "tscore/ink_atomic.h"
 
 // Constants
 const char PLUGIN_NAME[] = "background_fetch";
@@ -38,7 +38,7 @@ const char PLUGIN_NAME[] = "background_fetch";
 class BgFetchConfig
 {
 public:
-  BgFetchConfig(TSCont cont) : _cont(cont), _rules(NULL), _ref_count(0) { TSContDataSet(cont, static_cast<void *>(this)); }
+  BgFetchConfig(TSCont cont) : _cont(cont), _rules(nullptr), _ref_count(0) { TSContDataSet(cont, static_cast<void *>(this)); }
   void
   acquire()
   {
@@ -83,5 +83,5 @@ private:
 
   TSCont _cont;
   BgFetchRule *_rules;
-  volatile int _ref_count;
+  int _ref_count;
 };

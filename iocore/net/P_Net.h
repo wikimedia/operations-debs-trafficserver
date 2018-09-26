@@ -54,6 +54,7 @@ enum Net_Stats {
   default_inactivity_timeout_stat,
   net_fastopen_attempts_stat,
   net_fastopen_successes_stat,
+  net_tcp_accept_stat,
   net_connections_throttled_in_stat,
   net_connections_throttled_out_stat,
   Net_Stat_Count
@@ -90,7 +91,7 @@ extern RecRawStatBlock *net_rsb;
 #define NET_SUM_GLOBAL_DYN_STAT(_x, _r) RecIncrGlobalRawStatSum(net_rsb, (_x), (_r))
 #define NET_READ_GLOBAL_DYN_SUM(_x, _sum) RecGetGlobalRawStatSum(net_rsb, _x, &_sum)
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "P_EventSystem.h"
 #include "I_Net.h"
 #include "P_NetVConnection.h"

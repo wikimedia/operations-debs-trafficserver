@@ -40,7 +40,7 @@ ts.addSSLfile("../remap/ssl/server.key")
 
 ts.Variables.ssl_port = 4443
 ts.Disk.records_config.update({
-    # 'proxy.config.diags.debug.enabled': '1',
+    # 'proxy.config.diags.debug.enabled': 1,
     'proxy.config.ssl.server.cert.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.ssl.server.private_key.path': '{0}'.format(ts.Variables.SSLDir),
     'proxy.config.http.server_ports': 'ipv4:{0} ipv4:{1}:proto=http2;http:ssl'.format(ts.Variables.port, ts.Variables.ssl_port)
@@ -58,15 +58,15 @@ ts.Disk.ssl_multicert_config.AddLine(
     'dest_ip=* ssl_cert_name=server.pem ssl_key_name=server.key'
 )
 
-ts.Disk.logging_config.AddLines(
-    '''custom = format {
-  Format = "%<ccid> %<ctid>"
-}
-
-log.ascii {
-  Format = custom,
-  Filename = 'test_ccid_ctid'
-}'''.split("\n")
+ts.Disk.logging_yaml.AddLines(
+    '''
+formats:
+  - name: custom
+    format: "%<ccid> %<ctid>"
+logs:
+  - filename: test_ccid_ctid
+    format: custom
+'''.split("\n")
 )
 
 tr = Test.AddTestRun()

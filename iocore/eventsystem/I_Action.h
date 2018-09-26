@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "I_Thread.h"
 #include "I_Continuation.h"
 
@@ -96,7 +96,7 @@ public:
     directly by the state machine.
 
   */
-  Continuation *continuation;
+  Continuation *continuation = nullptr;
 
   /**
     Reference to the Continuation's lock.
@@ -118,7 +118,7 @@ public:
     machine.
 
   */
-  volatile int cancelled;
+  int cancelled = false;
 
   /**
     Cancels the asynchronous operation represented by this action.
@@ -140,8 +140,9 @@ public:
     ink_assert(!cancelled);
     cancelled = true;
 #else
-    if (!cancelled)
+    if (!cancelled) {
       cancelled = true;
+    }
 #endif
   }
 
@@ -164,8 +165,9 @@ public:
     ink_assert(!cancelled);
     cancelled = true;
 #else
-    if (!cancelled)
+    if (!cancelled) {
       cancelled = true;
+    }
 #endif
   }
 
@@ -173,10 +175,11 @@ public:
   operator=(Continuation *acont)
   {
     continuation = acont;
-    if (acont)
+    if (acont) {
       mutex = acont->mutex;
-    else
-      mutex = 0;
+    } else {
+      mutex = nullptr;
+    }
     return acont;
   }
 
@@ -186,10 +189,8 @@ public:
     Continuation.
 
   */
-  Action() : continuation(nullptr), cancelled(false) {}
-#if defined(__GNUC__)
+  Action() {}
   virtual ~Action() {}
-#endif
 };
 
 #define ACTION_RESULT_NONE MAKE_ACTION_RESULT(0)

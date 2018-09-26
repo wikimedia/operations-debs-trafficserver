@@ -35,7 +35,7 @@ TS_INLINE
 ProtectedQueue::ProtectedQueue()
 {
   Event e;
-  ink_mutex_init(&lock, "ProtectedQueue");
+  ink_mutex_init(&lock);
   ink_atomiclist_init(&al, "ProtectedQueue", (char *)&e.link.next - (char *)&e);
   ink_cond_init(&might_have_data);
 }
@@ -75,8 +75,9 @@ TS_INLINE void
 ProtectedQueue::remove(Event *e)
 {
   ink_assert(e->in_the_prot_queue);
-  if (!ink_atomiclist_remove(&al, e))
+  if (!ink_atomiclist_remove(&al, e)) {
     localQueue.remove(e);
+  }
   e->in_the_prot_queue = 0;
 }
 

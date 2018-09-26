@@ -23,16 +23,20 @@
 
 #pragma once
 
-#include <stdarg.h> // for va_list
+#include <cstdarg> // for va_list
 
-#include "ts/ink_llqueue.h"
+#include "tscore/ink_llqueue.h"
 #include "MgmtDefs.h" // MgmtInt, MgmtFloat, etc
 
 #include "mgmtapi.h"
-#include "CfgContextDefs.h"
-#include "ts/Tokenizer.h"
+#include "tscore/Tokenizer.h"
 
-TSMgmtError Init(const char *socket_path = NULL, TSInitOptionT options = TS_MGMT_OPT_DEFAULTS);
+// for buffer used temporarily to parse incoming commands.
+#ifndef MAX_BUF_SIZE
+#define MAX_BUF_SIZE 4098
+#endif
+
+TSMgmtError Init(const char *socket_path = nullptr, TSInitOptionT options = TS_MGMT_OPT_DEFAULTS);
 TSMgmtError Terminate();
 
 /***************************************************************************
@@ -45,6 +49,8 @@ TSMgmtError ServerBacktrace(unsigned options, char **trace);
 TSMgmtError Reconfigure();                                                         // TS reread config files
 TSMgmtError Restart(unsigned options);                                             // restart TM
 TSMgmtError Bounce(unsigned options);                                              // restart traffic_server
+TSMgmtError Stop(unsigned options);                                                // stop traffic_server
+TSMgmtError Drain(unsigned options);                                               // drain requests of traffic_server
 TSMgmtError StorageDeviceCmdOffline(const char *dev);                              // Storage device operation.
 TSMgmtError LifecycleMessage(const char *tag, void const *data, size_t data_size); // Lifecycle alert to plugins.
 
@@ -66,12 +72,6 @@ TSMgmtError MgmtConfigRecordDescribe(const char *rec_name, unsigned flags, TSCon
 TSMgmtError MgmtConfigRecordDescribeMatching(const char *regex, unsigned flags, TSList rec_vals);
 
 /***************************************************************************
- * File Operations
- ***************************************************************************/
-TSMgmtError ReadFile(TSFileNameT file, char **text, int *size, int *version);
-TSMgmtError WriteFile(TSFileNameT file, const char *text, int size, int version);
-
-/***************************************************************************
  * Events
  ***************************************************************************/
 
@@ -82,12 +82,6 @@ TSMgmtError EventIsActive(const char *event_name, bool *is_current);
 TSMgmtError EventSignalCbRegister(const char *event_name, TSEventSignalFunc func, void *data);
 TSMgmtError EventSignalCbUnregister(const char *event_name, TSEventSignalFunc func);
 
-/***************************************************************************
- * Snapshots
- ***************************************************************************/
-TSMgmtError SnapshotTake(const char *snapshot_name);
-TSMgmtError SnapshotRestore(const char *snapshot_name);
-TSMgmtError SnapshotRemove(const char *snapshot_name);
-TSMgmtError SnapshotGetMlt(LLQ *snapshots);
-
-TSMgmtError StatsReset(bool cluster, const char *name = NULL);
+TSMgmtError HostStatusSetDown(const char *host_name, int down_time);
+TSMgmtError HostStatusSetUp(const char *host_name);
+TSMgmtError StatsReset(const char *name = nullptr);

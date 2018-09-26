@@ -21,14 +21,14 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
-#include "ts/ink_memory.h"
-#include "ts/ink_string.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_memory.h"
+#include "tscore/ink_string.h"
 
 #include "P_RecFile.h"
 #include "P_RecCore.h"
 #include "P_RecUtils.h"
-#include "ts/I_Layout.h"
+#include "tscore/I_Layout.h"
 
 static bool g_initialized = false;
 
@@ -204,15 +204,17 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
   if (!g_records_ht) {
     return REC_ERR_FAIL;
   }
+
   // read stats
   if ((mode_type == RECM_SERVER) || (mode_type == RECM_STAND_ALONE)) {
     RecReadStatsFile();
   }
+
   // read configs
   if ((mode_type == RECM_SERVER) || (mode_type == RECM_STAND_ALONE)) {
     bool file_exists = true;
 
-    ink_mutex_init(&g_rec_config_lock, "");
+    ink_mutex_init(&g_rec_config_lock);
 
     g_rec_config_fpath = ats_stringdup(RecConfigReadConfigPath(nullptr, REC_CONFIG_FILE REC_SHADOW_EXT));
     if (RecFileExists(g_rec_config_fpath) == REC_ERR_FAIL) {
@@ -223,6 +225,7 @@ RecCoreInit(RecModeT mode_type, Diags *_diags)
         file_exists = false;
       }
     }
+
     if (file_exists) {
       RecReadConfigFile(true);
     }
@@ -1124,10 +1127,14 @@ REC_readString(const char *name, bool *found, bool lock)
 std::string
 RecConfigReadConfigDir()
 {
-  char buf[PATH_NAME_MAX];
+  char buf[PATH_NAME_MAX] = {0};
 
-  buf[0] = '\0';
-  RecGetRecordString("proxy.config.config_dir", buf, PATH_NAME_MAX);
+  if (const char *env = getenv("PROXY_CONFIG_CONFIG_DIR")) {
+    ink_strlcpy(buf, env, sizeof(buf));
+  } else {
+    RecGetRecordString("proxy.config.config_dir", buf, sizeof(buf));
+  }
+
   if (strlen(buf) > 0) {
     return Layout::get()->relative(buf);
   } else {
@@ -1193,15 +1200,6 @@ std::string
 RecConfigReadPluginDir()
 {
   return RecConfigReadPrefixPath("proxy.config.plugin.plugin_dir");
-}
-
-//-------------------------------------------------------------------------
-// RecConfigReadSnapshotDir.
-//-------------------------------------------------------------------------
-std::string
-RecConfigReadSnapshotDir()
-{
-  return RecConfigReadConfigPath("proxy.config.snapshot_dir", "snapshots");
 }
 
 //-------------------------------------------------------------------------
@@ -1291,8 +1289,9 @@ RecConfigWarnIfUnregistered()
 {
   RecDumpRecords(RECT_CONFIG,
                  [](RecT, void *, int registered_p, const char *name, int, RecData *) -> void {
-                   if (!registered_p)
+                   if (!registered_p) {
                      Warning("Unrecognized configuration value '%s'", name);
+                   }
                  },
                  nullptr);
 }

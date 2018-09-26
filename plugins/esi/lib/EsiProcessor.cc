@@ -179,15 +179,20 @@ EsiProcessor::_getIncludeStatus(const DocNode &node)
               processed_url.data());
     return status;
   } else if (node.type == DocNode::TYPE_SPECIAL_INCLUDE) {
-    AttributeList::const_iterator attr_iter;
-    for (attr_iter = node.attr_list.begin(); attr_iter != node.attr_list.end(); ++attr_iter) {
+    int include_data_id            = 0;
+    SpecialIncludeHandler *handler = nullptr;
+    for (AttributeList::const_iterator attr_iter = node.attr_list.begin(); attr_iter != node.attr_list.end(); ++attr_iter) {
       if (attr_iter->name == INCLUDE_DATA_ID_ATTR) {
+        include_data_id = attr_iter->value_len;
+        handler         = reinterpret_cast<SpecialIncludeHandler *>(const_cast<char *>(attr_iter->value));
         break;
       }
     }
-    int include_data_id            = attr_iter->value_len;
-    SpecialIncludeHandler *handler = reinterpret_cast<SpecialIncludeHandler *>(const_cast<char *>(attr_iter->value));
-    DataStatus status              = handler->getIncludeStatus(include_data_id);
+    if (include_data_id == 0 || handler == nullptr) {
+      _errorLog("[%s] Fail to find the special include data id attribute", __FUNCTION__);
+      return STATUS_ERROR;
+    }
+    DataStatus status = handler->getIncludeStatus(include_data_id);
     _debugLog(_debug_tag, "[%s] Successfully got status for special include with id %d", __FUNCTION__, status, include_data_id);
 
     return status;
@@ -233,14 +238,20 @@ EsiProcessor::_getIncludeData(const DocNode &node, const char **content_ptr /* =
     _debugLog(_debug_tag, "[%s] Got content successfully for URL [%.*s]", __FUNCTION__, processed_url.size(), processed_url.data());
     return true;
   } else if (node.type == DocNode::TYPE_SPECIAL_INCLUDE) {
-    AttributeList::const_iterator attr_iter;
-    for (attr_iter = node.attr_list.begin(); attr_iter != node.attr_list.end(); ++attr_iter) {
+    int include_data_id            = 0;
+    SpecialIncludeHandler *handler = nullptr;
+    for (AttributeList::const_iterator attr_iter = node.attr_list.begin(); attr_iter != node.attr_list.end(); ++attr_iter) {
       if (attr_iter->name == INCLUDE_DATA_ID_ATTR) {
+        include_data_id = attr_iter->value_len;
+        handler         = reinterpret_cast<SpecialIncludeHandler *>(const_cast<char *>(attr_iter->value));
         break;
       }
     }
-    int include_data_id            = attr_iter->value_len;
-    SpecialIncludeHandler *handler = reinterpret_cast<SpecialIncludeHandler *>(const_cast<char *>(attr_iter->value));
+    if (include_data_id == 0 || handler == nullptr) {
+      _errorLog("[%s] Fail to find the special include data id attribute", __FUNCTION__);
+      Stats::increment(Stats::N_SPCL_INCLUDE_ERRS);
+      return false;
+    }
     bool result;
     if (content_ptr && content_len_ptr) {
       result = handler->getData(include_data_id, *content_ptr, *content_len_ptr);
@@ -343,8 +354,9 @@ EsiProcessor::process(const char *&data, int &data_len)
       }
       _node_list.splice(try_iter->pos, try_iter->except_nodes);
       if (_fetcher.getNumPendingRequests()) {
-        _debugLog(_debug_tag, "[%s] New fetch requests were triggered by except block; "
-                              "Returning NEED_MORE_DATA...",
+        _debugLog(_debug_tag,
+                  "[%s] New fetch requests were triggered by except block; "
+                  "Returning NEED_MORE_DATA...",
                   __FUNCTION__);
         return NEED_MORE_DATA;
       }
@@ -473,8 +485,9 @@ EsiProcessor::flush(string &data, int &overall_len)
       _n_prescanned_nodes = _n_prescanned_nodes + try_iter->except_nodes.size();
       _node_list.splice(try_iter->pos, try_iter->except_nodes);
       if (_fetcher.getNumPendingRequests()) {
-        _debugLog(_debug_tag, "[%s] New fetch requests were triggered by except block; "
-                              "Returning NEED_MORE_DATA...",
+        _debugLog(_debug_tag,
+                  "[%s] New fetch requests were triggered by except block; "
+                  "Returning NEED_MORE_DATA...",
                   __FUNCTION__);
       }
     }

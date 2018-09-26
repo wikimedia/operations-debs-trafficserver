@@ -23,6 +23,8 @@
 
 #pragma once
 #include "P_Cache.h"
+#include "tscore/MatcherUtils.h"
+#include "tscore/HostLookup.h"
 
 #define CACHE_MEM_FREE_TIMEOUT HRTIME_SECONDS(1)
 
@@ -46,8 +48,8 @@ struct CacheHostRecord {
 
   CacheType type;
   Vol **vols;
-  volatile int good_num_vols;
-  volatile int num_vols;
+  int good_num_vols;
+  int num_vols;
   int num_initialized;
   unsigned short *vol_hash_table;
   CacheVol **cp;
@@ -59,7 +61,7 @@ struct CacheHostRecord {
       good_num_vols(0),
       num_vols(0),
       num_initialized(0),
-      vol_hash_table(0),
+      vol_hash_table(nullptr),
       cp(nullptr),
       num_cachevols(0)
   {
@@ -141,15 +143,15 @@ public:
     REC_RegisterConfigUpdateFunc("proxy.config.cache.hosting_filename", CacheHostTable::config_callback, (void *)p);
   }
 
-  CacheType type;
-  Cache *cache;
-  int m_numEntries;
+  CacheType type   = CACHE_HTTP_TYPE;
+  Cache *cache     = nullptr;
+  int m_numEntries = 0;
   CacheHostRecord gen_host_rec;
 
 private:
-  CacheHostMatcher *hostMatch;
-  const matcher_tags *config_tags;
-  const char *matcher_name; // Used for Debug/Warning/Error messages
+  CacheHostMatcher *hostMatch    = nullptr;
+  const matcher_tags config_tags = {"hostname", "domain", nullptr, nullptr, nullptr, nullptr, false};
+  const char *matcher_name       = "unknown"; // Used for Debug/Warning/Error messages
 };
 
 struct CacheHostTableConfig;
@@ -187,7 +189,6 @@ struct ConfigVol {
 struct ConfigVolumes {
   int num_volumes;
   int num_http_volumes;
-  int num_stream_volumes;
   Queue<ConfigVol> cp_queue;
   void read_config_file();
   void BuildListFromString(char *config_file_path, char *file_buf);
@@ -200,8 +201,7 @@ struct ConfigVolumes {
       cp_queue.pop();
     }
     // reset count variables
-    num_volumes        = 0;
-    num_http_volumes   = 0;
-    num_stream_volumes = 0;
+    num_volumes      = 0;
+    num_http_volumes = 0;
   }
 };

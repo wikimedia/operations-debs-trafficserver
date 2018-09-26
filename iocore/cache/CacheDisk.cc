@@ -84,6 +84,8 @@ CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fil
 
   header = (DiskHeader *)ats_memalign(ats_pagesize(), header_len);
   memset(header, 0, header_len);
+
+  // traffic server was asked to clear the cache, i.e., auto clear cache flag is set
   if (clear) {
     if (read_only_p) {
       fprintf(stderr, "Could not read disk header for disk %s", path);
@@ -96,6 +98,7 @@ CacheDisk::open(char *s, off_t blocks, off_t askip, int ahw_sector_size, int fil
     }
   }
 
+  //
   SET_HANDLER(&CacheDisk::openStart);
   io.aiocb.aio_offset = skip;
   io.aiocb.aio_buf    = (char *)header;
@@ -245,14 +248,16 @@ CacheDisk::syncDone(int event, void * /* data ATS_UNUSED */)
 DiskVolBlock *
 CacheDisk::create_volume(int number, off_t size_in_blocks, int scheme)
 {
-  if (size_in_blocks == 0)
+  if (size_in_blocks == 0) {
     return nullptr;
+  }
 
   DiskVolBlockQueue *q             = free_blocks->dpb_queue.head;
   DiskVolBlockQueue *closest_match = q;
 
-  if (!q)
+  if (!q) {
     return nullptr;
+  }
 
   off_t max_blocks = MAX_VOL_SIZE >> STORE_BLOCK_SHIFT;
   size_in_blocks   = (size_in_blocks <= max_blocks) ? size_in_blocks : max_blocks;
@@ -266,13 +271,11 @@ CacheDisk::create_volume(int number, off_t size_in_blocks, int scheme)
       q->new_block = 1;
       break;
     } else {
-      if (closest_match->b->len < q->b->len)
+      if (closest_match->b->len < q->b->len) {
         closest_match = q;
+      }
     }
   }
-
-  if (!p && !closest_match)
-    return nullptr;
 
   if (!p && closest_match) {
     /* allocate from the closest match */
@@ -304,8 +307,9 @@ CacheDisk::create_volume(int number, off_t size_in_blocks, int scheme)
     free_blocks->size += dpb->len;
     free_space += dpb->len;
     header->num_diskvol_blks++;
-  } else
+  } else {
     header->num_free--;
+  }
 
   p->len    = size_in_blocks;
   p->free   = 0;

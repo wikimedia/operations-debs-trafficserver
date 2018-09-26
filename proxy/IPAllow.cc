@@ -28,13 +28,14 @@
  *
  ****************************************************************************/
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "Main.h"
 #include "IPAllow.h"
 #include "ProxyConfig.h"
 #include "P_EventSystem.h"
 #include "P_Cache.h"
 #include "hdrs/HdrToken.h"
+#include "ControlMatcher.h"
 
 #include <sstream>
 
@@ -104,9 +105,7 @@ IpAllow::IpAllow(const char *config_var, const char *name, const char *action_va
   ink_strlcpy(config_file_path, config_path, sizeof(config_file_path));
 }
 
-IpAllow::~IpAllow()
-{
-}
+IpAllow::~IpAllow() {}
 
 void
 IpAllow::PrintMap(IpMap *map)
@@ -173,8 +172,8 @@ IpAllow::BuildTable()
   char errBuf[1024];
   char *file_buf = nullptr;
   int line_num   = 0;
-  IpEndpoint addr1;
-  IpEndpoint addr2;
+  IpAddr addr1;
+  IpAddr addr2;
   matcher_line line_info;
   bool alarmAlready = false;
 
@@ -208,13 +207,7 @@ IpAllow::BuildTable()
       } else {
         ink_assert(line_info.type == MATCH_IP);
 
-        errPtr = ExtractIpRange(line_info.line[1][line_info.dest_entry], &addr1.sa, &addr2.sa);
-
-        if (errPtr != nullptr) {
-          snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s", module_name, config_file_path, line_num,
-                   errPtr);
-          SignalError(errBuf, alarmAlready);
-        } else {
+        if (0 == ats_ip_range_parse(line_info.line[1][line_info.dest_entry], addr1, addr2)) {
           // INKqa05845
           // Search for "action=ip_allow method=PURGE method=GET ..." or "action=ip_deny method=PURGE method=GET ...".
           char *label, *val;
@@ -283,16 +276,20 @@ IpAllow::BuildTable()
           }
 
           if (method_found) {
-            Vec<AclRecord> &acls = is_dest_ip ? _dest_acls : _src_acls;
-            IpMap &map           = is_dest_ip ? _dest_map : _src_map;
+            std::vector<AclRecord> &acls = is_dest_ip ? _dest_acls : _src_acls;
+            IpMap &map                   = is_dest_ip ? _dest_map : _src_map;
             acls.push_back(AclRecord(acl_method_mask, line_num, nonstandard_methods, deny_nonstandard_methods));
             // Color with index in acls because at this point the address is volatile.
-            map.fill(&addr1, &addr2, reinterpret_cast<void *>(acls.length() - 1));
+            map.fill(addr1, addr2, reinterpret_cast<void *>(acls.size() - 1));
           } else {
             snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s", module_name, config_file_path, line_num,
                      "Invalid action/method specified"); // changed by YTS Team, yamsat bug id -59022
             SignalError(errBuf, alarmAlready);
           }
+        } else {
+          snprintf(errBuf, sizeof(errBuf), "%s discarding %s entry at line %d : %s", module_name, config_file_path, line_num,
+                   "invalid IP range");
+          SignalError(errBuf, alarmAlready);
         }
       }
     }
@@ -304,10 +301,12 @@ IpAllow::BuildTable()
     Warning("%s No entries in %s. All IP Addresses will be blocked", module_name, config_file_path);
   } else {
     // convert the coloring from indices to pointers.
-    for (auto &item : _src_map)
+    for (auto &item : _src_map) {
       item.setData(&_src_acls[reinterpret_cast<size_t>(item.data())]);
-    for (auto &item : _dest_map)
+    }
+    for (auto &item : _dest_map) {
       item.setData(&_dest_acls[reinterpret_cast<size_t>(item.data())]);
+    }
   }
 
   if (is_debug_tag_set("ip-allow")) {

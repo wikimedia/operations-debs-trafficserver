@@ -23,9 +23,10 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
-#include "P_RecProcess.h"
+#include "tscore/ink_platform.h"
+#include "records/P_RecProcess.h"
 #include "ProxyConfig.h"
+#include "LogObject.h"
 
 /* Instead of enumerating the stats in DynamicStats.h, each module needs
    to enumerate its stats separately and register them with librecords
@@ -101,9 +102,9 @@ class LogConfig : public ConfigInfo
 {
 public:
   LogConfig();
-  ~LogConfig();
+  ~LogConfig() override;
 
-  void init(LogConfig *previous_config = 0);
+  void init(LogConfig *previous_config = nullptr);
   void display(FILE *fd = stdout);
   void setup_log_objects();
 
@@ -168,6 +169,9 @@ public:
 
   LogObjectManager log_object_manager;
 
+  LogFilterList filter_list;
+  LogFormatList format_list;
+
   int log_buffer_size;
   int max_secs_per_buffer;
   int max_space_mb_for_logs;
@@ -200,7 +204,6 @@ public:
 
 private:
   bool evaluate_config();
-  char **read_log_hosts_file(size_t *nhosts);
 
   void setup_default_values();
   void setup_collation(LogConfig *prev_config);
@@ -213,17 +216,16 @@ private:
 
   LogCollationAccept *m_log_collation_accept;
 
-  char *m_pDir;
   bool m_disk_full;
   bool m_disk_low;
   bool m_partition_full;
   bool m_partition_low;
   bool m_log_directory_inaccessible;
 
-private:
+  // noncopyable
   // -- member functions not allowed --
-  LogConfig(const LogConfig &);
-  LogConfig &operator=(const LogConfig &);
+  LogConfig(const LogConfig &) = delete;
+  LogConfig &operator=(const LogConfig &) = delete;
 };
 
 /*-------------------------------------------------------------------------

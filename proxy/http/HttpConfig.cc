@@ -21,16 +21,15 @@
   limitations under the License.
  */
 
-#include "ts/ink_config.h"
+#include "tscore/ink_config.h"
 #include <cctype>
 #include <cstring>
 #include "HttpConfig.h"
 #include "HTTP.h"
 #include "ProcessManager.h"
 #include "ProxyConfig.h"
-#include "ICPProcessor.h"
 #include "P_Net.h"
-#include "P_RecUtils.h"
+#include "records/P_RecUtils.h"
 #include <records/I_RecHttp.h>
 
 #define HttpEstablishStaticConfigStringAlloc(_ix, _n) \
@@ -102,6 +101,11 @@ http_config_enum_read(const char *name, const ConfigEnumPair<T> (&list)[N], Mgmt
   return false;
 }
 
+////////////////////////////////////////////////////////////////
+//
+//  static variables
+//
+////////////////////////////////////////////////////////////////
 /// Session sharing match types.
 static const ConfigEnumPair<TSServerSessionSharingMatchType> SessionSharingMatchStrings[] = {
   {TS_SERVER_SESSION_SHARING_MATCH_NONE, "none"},
@@ -113,15 +117,10 @@ static const ConfigEnumPair<TSServerSessionSharingPoolType> SessionSharingPoolSt
   {TS_SERVER_SESSION_SHARING_POOL_GLOBAL, "global"},
   {TS_SERVER_SESSION_SHARING_POOL_THREAD, "thread"}};
 
-////////////////////////////////////////////////////////////////
-//
-//  static variables
-//
-////////////////////////////////////////////////////////////////
 int HttpConfig::m_id = 0;
 HttpConfigParams HttpConfig::m_master;
 
-static volatile int http_config_changes = 1;
+static int http_config_changes          = 1;
 static HttpConfigCont *http_config_cont = nullptr;
 
 HttpConfigCont::HttpConfigCont() : Continuation(new_ProxyMutex())
@@ -170,6 +169,33 @@ http_server_session_sharing_cb(const char *name, RecDataT dtype, RecData data, v
     }
   } else {
     valid_p = false;
+  }
+
+  // Signal an update if valid value arrived.
+  if (valid_p) {
+    http_config_cb(name, dtype, data, cookie);
+  }
+
+  return REC_ERR_OKAY;
+}
+
+static int
+http_insert_forwarded_cb(const char *name, RecDataT dtype, RecData data, void *cookie)
+{
+  bool valid_p        = false;
+  HttpConfigParams *c = static_cast<HttpConfigParams *>(cookie);
+
+  if (0 == strcasecmp("proxy.config.http.insert_forwarded", name)) {
+    if (RECD_STRING == dtype) {
+      ts::LocalBufferWriter<1024> error;
+      HttpForwarded::OptionBitSet bs = HttpForwarded::optStrToBitset(std::string_view(data.rec_string), error);
+      if (!error.size()) {
+        c->oride.insert_forwarded = bs;
+        valid_p                   = true;
+      } else {
+        Error("HTTP %.*s", static_cast<int>(error.size()), error.data());
+      }
+    }
   }
 
   // Signal an update if valid value arrived.
@@ -577,6 +603,15 @@ register_stat_callbacks()
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.err_client_abort_origin_server_bytes_stat", RECD_INT,
                      RECP_PERSISTENT, (int)http_err_client_abort_origin_server_bytes_stat, RecRawStatSyncSum);
 
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.err_client_read_error_count_stat", RECD_COUNTER, RECP_PERSISTENT,
+                     (int)http_err_client_read_error_count_stat, RecRawStatSyncCount);
+
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.err_client_read_error_user_agent_bytes_stat", RECD_INT,
+                     RECP_PERSISTENT, (int)http_err_client_read_error_user_agent_bytes_stat, RecRawStatSyncSum);
+
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.err_client_read_error_origin_server_bytes_stat", RECD_INT,
+                     RECP_PERSISTENT, (int)http_err_client_read_error_origin_server_bytes_stat, RecRawStatSyncSum);
+
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.err_connect_fail_count_stat", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_err_connect_fail_count_stat, RecRawStatSyncCount);
 
@@ -664,6 +699,9 @@ register_stat_callbacks()
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.307_responses", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_response_status_307_count_stat, RecRawStatSyncCount);
+
+  RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.308_responses", RECD_COUNTER, RECP_PERSISTENT,
+                     (int)http_response_status_308_count_stat, RecRawStatSyncCount);
 
   RecRegisterRawStat(http_rsb, RECT_PROCESS, "proxy.process.http.3xx_responses", RECD_COUNTER, RECP_PERSISTENT,
                      (int)http_response_status_3xx_count_stat, RecRawStatSyncCount);
@@ -865,6 +903,56 @@ register_stat_callbacks()
                      (int)http_sm_finish_time_stat, RecRawStatSyncSum);
 }
 
+static bool
+set_negative_caching_list(const char *name, RecDataT dtype, RecData data, HttpConfigParams *c, bool update)
+{
+  bool ret = false;
+  HttpStatusBitset set;
+  // values from proxy.config.http.negative_caching_list
+  if (0 == strcasecmp("proxy.config.http.negative_caching_list", name) && RECD_STRING == dtype && data.rec_string) {
+    // parse the list of status code
+    ts::TextView status_list(data.rec_string, strlen(data.rec_string));
+    auto is_sep{[](char c) { return isspace(c) || ',' == c || ';' == c; }};
+    while (!status_list.ltrim_if(is_sep).empty()) {
+      ts::TextView span, token{status_list.take_prefix_if(is_sep)};
+      auto n = ts::svtoi(token, &span);
+      if (span.size() != token.size()) {
+        Error("Invalid status code '%.*s' for negative caching: not a number", static_cast<int>(token.size()), token.data());
+      } else if (n <= 0 || n >= HTTP_STATUS_NUMBER) {
+        Error("Invalid status code '%.*s' for negative caching: out of range", static_cast<int>(token.size()), token.data());
+      } else {
+        set[n] = 1;
+      }
+    }
+  }
+  // set the return value
+  if (set != c->negative_caching_list) {
+    c->negative_caching_list = set;
+    ret                      = ret || update;
+  }
+  return ret;
+}
+
+// Method of getting the status code bitset
+static int
+negative_caching_list_cb(const char *name, RecDataT dtype, RecData data, void *cookie)
+{
+  HttpConfigParams *c = static_cast<HttpConfigParams *>(cookie);
+  // Signal an update if valid value arrived.
+  if (set_negative_caching_list(name, dtype, data, c, true)) {
+    http_config_cb(name, dtype, data, cookie);
+  }
+  return REC_ERR_OKAY;
+}
+
+// Method of loading the negative caching config bitset
+void
+load_negative_caching_var(RecRecord const *r, void *cookie)
+{
+  HttpConfigParams *c = static_cast<HttpConfigParams *>(cookie);
+  set_negative_caching_list(r->name, r->data_type, r->data, c, false);
+}
+
 ////////////////////////////////////////////////////////////////
 //
 //  HttpConfig::startup()
@@ -873,6 +961,7 @@ register_stat_callbacks()
 void
 HttpConfig::startup()
 {
+  extern void SSLConfigInit(IpMap * map);
   http_rsb = RecAllocateRawStatBlock((int)http_stat_count);
   register_stat_callbacks();
 
@@ -890,6 +979,8 @@ HttpConfig::startup()
 
   RecHttpLoadIp("proxy.local.incoming_ip_to_bind", c.inbound_ip4, c.inbound_ip6);
   RecHttpLoadIp("proxy.local.outgoing_ip_to_bind", c.outbound_ip4, c.outbound_ip6);
+  RecHttpLoadIpMap("proxy.config.http.proxy_protocol_whitelist", c.config_proxy_protocol_ipmap);
+  SSLConfigInit(&c.config_proxy_protocol_ipmap);
 
   HttpEstablishStaticConfigLongLong(c.server_max_connections, "proxy.config.http.server_max_connections");
   HttpEstablishStaticConfigLongLong(c.max_websocket_connections, "proxy.config.http.websocket.max_number_of_connections");
@@ -898,7 +989,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.origin_max_connections_queue, "proxy.config.http.origin_max_connections_queue");
   HttpEstablishStaticConfigLongLong(c.origin_min_keep_alive_connections, "proxy.config.http.origin_min_keep_alive_connections");
   HttpEstablishStaticConfigByte(c.oride.attach_server_session_to_client, "proxy.config.http.attach_server_session_to_client");
-  HttpEstablishStaticConfigByte(c.oride.safe_requests_retryable, "proxy.config.http.safe_requests_retryable");
 
   HttpEstablishStaticConfigByte(c.disable_ssl_parenting, "proxy.local.http.parent_proxy.disable_connect_tunneling");
   HttpEstablishStaticConfigByte(c.oride.forward_connect_method, "proxy.config.http.forward_connect_method");
@@ -932,6 +1022,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.flow_high_water_mark, "proxy.config.http.flow_control.high_water");
   HttpEstablishStaticConfigLongLong(c.oride.flow_low_water_mark, "proxy.config.http.flow_control.low_water");
   HttpEstablishStaticConfigByte(c.oride.post_check_content_length_enabled, "proxy.config.http.post.check.content_length.enabled");
+  HttpEstablishStaticConfigByte(c.oride.request_buffer_enabled, "proxy.config.http.request_buffer_enabled");
   HttpEstablishStaticConfigByte(c.strict_uri_parsing, "proxy.config.http.strict_uri_parsing");
 
   // [amc] This is a bit of a mess, need to figure out to make this cleaner.
@@ -939,6 +1030,21 @@ HttpConfig::startup()
   http_config_enum_read("proxy.config.http.server_session_sharing.match", SessionSharingMatchStrings,
                         c.oride.server_session_sharing_match);
   http_config_enum_read("proxy.config.http.server_session_sharing.pool", SessionSharingPoolStrings, c.server_session_sharing_pool);
+
+  RecRegisterConfigUpdateCb("proxy.config.http.insert_forwarded", &http_insert_forwarded_cb, &c);
+  {
+    char str[512];
+
+    if (REC_ERR_OKAY == RecGetRecordString("proxy.config.http.insert_forwarded", str, sizeof(str))) {
+      ts::LocalBufferWriter<1024> error;
+      HttpForwarded::OptionBitSet bs = HttpForwarded::optStrToBitset(std::string_view(str), error);
+      if (!error.size()) {
+        c.oride.insert_forwarded = bs;
+      } else {
+        Error("HTTP %.*s", static_cast<int>(error.size()), error.data());
+      }
+    }
+  }
 
   HttpEstablishStaticConfigByte(c.oride.auth_server_session_private, "proxy.config.http.auth_server_session_private");
 
@@ -1005,10 +1111,7 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.oride.insert_age_in_response, "proxy.config.http.insert_age_in_response");
   HttpEstablishStaticConfigByte(c.enable_http_stats, "proxy.config.http.enable_http_stats");
-  HttpEstablishStaticConfigByte(c.oride.normalize_ae_gzip, "proxy.config.http.normalize_ae_gzip");
-
-  HttpEstablishStaticConfigByte(c.icp_enabled, "proxy.config.icp.enabled");
-  HttpEstablishStaticConfigByte(c.stale_icp_enabled, "proxy.config.icp.stale_icp_enabled");
+  HttpEstablishStaticConfigByte(c.oride.normalize_ae, "proxy.config.http.normalize_ae");
 
   HttpEstablishStaticConfigLongLong(c.oride.cache_heuristic_min_lifetime, "proxy.config.http.cache.heuristic_min_lifetime");
   HttpEstablishStaticConfigLongLong(c.oride.cache_heuristic_max_lifetime, "proxy.config.http.cache.heuristic_max_lifetime");
@@ -1020,13 +1123,11 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.cache_max_stale_age, "proxy.config.http.cache.max_stale_age");
   HttpEstablishStaticConfigByte(c.oride.srv_enabled, "proxy.config.srv_enabled");
 
-  HttpEstablishStaticConfigLongLong(c.oride.freshness_fuzz_time, "proxy.config.http.cache.fuzz.time");
-  HttpEstablishStaticConfigLongLong(c.oride.freshness_fuzz_min_time, "proxy.config.http.cache.fuzz.min_time");
-  HttpEstablishStaticConfigFloat(c.oride.freshness_fuzz_prob, "proxy.config.http.cache.fuzz.probability");
+  HttpEstablishStaticConfigByte(c.oride.allow_half_open, "proxy.config.http.allow_half_open");
 
-  HttpEstablishStaticConfigStringAlloc(c.cache_vary_default_text, "proxy.config.http.cache.vary_default_text");
-  HttpEstablishStaticConfigStringAlloc(c.cache_vary_default_images, "proxy.config.http.cache.vary_default_images");
-  HttpEstablishStaticConfigStringAlloc(c.cache_vary_default_other, "proxy.config.http.cache.vary_default_other");
+  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_text, "proxy.config.http.cache.vary_default_text");
+  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_images, "proxy.config.http.cache.vary_default_images");
+  HttpEstablishStaticConfigStringAlloc(c.oride.cache_vary_default_other, "proxy.config.http.cache.vary_default_other");
 
   // open read failure retries
   HttpEstablishStaticConfigLongLong(c.oride.max_cache_open_read_retries, "proxy.config.http.cache.max_open_read_retries");
@@ -1037,7 +1138,6 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.max_cache_open_write_retries, "proxy.config.http.cache.max_open_write_retries");
 
   HttpEstablishStaticConfigByte(c.oride.cache_http, "proxy.config.http.cache.http");
-  HttpEstablishStaticConfigByte(c.oride.cache_cluster_cache_local, "proxy.config.http.cache.cluster_cache_local");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_no_cache, "proxy.config.http.cache.ignore_client_no_cache");
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_client_cc_max_age, "proxy.config.http.cache.ignore_client_cc_max_age");
   HttpEstablishStaticConfigByte(c.oride.cache_ims_on_client_no_cache, "proxy.config.http.cache.ims_on_client_no_cache");
@@ -1046,13 +1146,13 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigByte(c.oride.cache_ignore_auth, "proxy.config.http.cache.ignore_authentication");
   HttpEstablishStaticConfigByte(c.oride.cache_urls_that_look_dynamic, "proxy.config.http.cache.cache_urls_that_look_dynamic");
-  HttpEstablishStaticConfigByte(c.cache_enable_default_vary_headers, "proxy.config.http.cache.enable_default_vary_headers");
+  HttpEstablishStaticConfigByte(c.oride.cache_enable_default_vary_headers, "proxy.config.http.cache.enable_default_vary_headers");
   HttpEstablishStaticConfigByte(c.cache_post_method, "proxy.config.http.cache.post_method");
 
-  HttpEstablishStaticConfigByte(c.ignore_accept_mismatch, "proxy.config.http.cache.ignore_accept_mismatch");
-  HttpEstablishStaticConfigByte(c.ignore_accept_language_mismatch, "proxy.config.http.cache.ignore_accept_language_mismatch");
-  HttpEstablishStaticConfigByte(c.ignore_accept_encoding_mismatch, "proxy.config.http.cache.ignore_accept_encoding_mismatch");
-  HttpEstablishStaticConfigByte(c.ignore_accept_charset_mismatch, "proxy.config.http.cache.ignore_accept_charset_mismatch");
+  HttpEstablishStaticConfigByte(c.oride.ignore_accept_mismatch, "proxy.config.http.cache.ignore_accept_mismatch");
+  HttpEstablishStaticConfigByte(c.oride.ignore_accept_language_mismatch, "proxy.config.http.cache.ignore_accept_language_mismatch");
+  HttpEstablishStaticConfigByte(c.oride.ignore_accept_encoding_mismatch, "proxy.config.http.cache.ignore_accept_encoding_mismatch");
+  HttpEstablishStaticConfigByte(c.oride.ignore_accept_charset_mismatch, "proxy.config.http.cache.ignore_accept_charset_mismatch");
 
   HttpEstablishStaticConfigByte(c.send_100_continue_response, "proxy.config.http.send_100_continue_response");
   HttpEstablishStaticConfigByte(c.disallow_post_100_continue, "proxy.config.http.disallow_post_100_continue");
@@ -1081,12 +1181,11 @@ HttpConfig::startup()
   c.reverse_proxy_no_host_redirect_len = -1;
   HttpEstablishStaticConfigStringAlloc(c.oride.body_factory_template_base, "proxy.config.body_factory.template_base");
   c.oride.body_factory_template_base_len = c.oride.body_factory_template_base ? strlen(c.oride.body_factory_template_base) : 0;
+  HttpEstablishStaticConfigLongLong(c.body_factory_response_max_size, "proxy.config.body_factory.response_max_size");
   HttpEstablishStaticConfigByte(c.errors_log_error_pages, "proxy.config.http.errors.log_error_pages");
 
   HttpEstablishStaticConfigLongLong(c.oride.slow_log_threshold, "proxy.config.http.slow.log.threshold");
   HttpEstablishStaticConfigByte(c.oride.ssl_client_verify_server, "proxy.config.ssl.client.verify.server");
-
-  HttpEstablishStaticConfigByte(c.record_cop_page, "proxy.config.http.record_heartbeat");
 
   HttpEstablishStaticConfigByte(c.oride.send_http11_requests, "proxy.config.http.send_http11_requests");
   HttpEstablishStaticConfigByte(c.oride.allow_multi_range, "proxy.config.http.allow_multi_range");
@@ -1103,6 +1202,8 @@ HttpConfig::startup()
   HttpEstablishStaticConfigLongLong(c.oride.negative_caching_lifetime, "proxy.config.http.negative_caching_lifetime");
   HttpEstablishStaticConfigByte(c.oride.negative_revalidating_enabled, "proxy.config.http.negative_revalidating_enabled");
   HttpEstablishStaticConfigLongLong(c.oride.negative_revalidating_lifetime, "proxy.config.http.negative_revalidating_lifetime");
+  RecRegisterConfigUpdateCb("proxy.config.http.negative_caching_list", &negative_caching_list_cb, &c);
+  RecLookupRecord("proxy.config.http.negative_caching_list", &load_negative_caching_var, &c, true);
 
   // Buffer size and watermark
   HttpEstablishStaticConfigLongLong(c.oride.default_buffer_size_index, "proxy.config.http.default_buffer_size");
@@ -1117,26 +1218,13 @@ HttpConfig::startup()
   //#
   //# Redirection
   //#
-  //# 1. redirection_enabled: if set to 1, redirection is enabled.
-  //# 2. redirect_use_orig_cache_key: if set to 1, use original request cache key.
-  //# 3. number_of_redirections: The maximum number of redirections YTS permits
-  //# 4. post_copy_size: The maximum POST data size YTS permits to copy
-  //# 5. redirection_host_no_port: do not include default port in host header during redirection
+  //# See RecordsConfig definition.
   //#
   //##############################################################################
-  HttpEstablishStaticConfigByte(c.oride.redirection_enabled, "proxy.config.http.redirection_enabled");
   HttpEstablishStaticConfigByte(c.oride.redirect_use_orig_cache_key, "proxy.config.http.redirect_use_orig_cache_key");
   HttpEstablishStaticConfigByte(c.redirection_host_no_port, "proxy.config.http.redirect_host_no_port");
   HttpEstablishStaticConfigLongLong(c.oride.number_of_redirections, "proxy.config.http.number_of_redirections");
   HttpEstablishStaticConfigLongLong(c.post_copy_size, "proxy.config.http.post_copy_size");
-
-  // Local Manager
-  HttpEstablishStaticConfigLongLong(c.synthetic_port, "proxy.config.admin.synthetic_port");
-
-  // Cluster time delta gets it own callback since it needs
-  //  to use ink_atomic_swap
-  c.cluster_time_delta = 0;
-  RegisterMgmtCallback(MGMT_EVENT_HTTP_CLUSTER_DELTA, cluster_delta_cb, nullptr);
 
   http_config_cont->handleEvent(EVENT_NONE, nullptr);
 
@@ -1181,14 +1269,13 @@ HttpConfig::reconfigure()
   params->oride.origin_max_connections       = m_master.oride.origin_max_connections;
   params->oride.origin_max_connections_queue = m_master.oride.origin_max_connections_queue;
   // if origin_max_connections_queue is set without max_connections, it is meaningless, so we'll warn
-  if (params->oride.origin_max_connections_queue >= 0 &&
+  if (params->oride.origin_max_connections_queue > 0 &&
       !(params->oride.origin_max_connections || params->origin_min_keep_alive_connections)) {
     Warning("origin_max_connections_queue is set, but neither origin_max_connections nor origin_min_keep_alive_connections are "
             "set, please correct your records.config");
   }
   params->origin_min_keep_alive_connections     = m_master.origin_min_keep_alive_connections;
   params->oride.attach_server_session_to_client = m_master.oride.attach_server_session_to_client;
-  params->oride.safe_requests_retryable         = m_master.oride.safe_requests_retryable;
 
   if (params->oride.origin_max_connections && params->oride.origin_max_connections < params->origin_min_keep_alive_connections) {
     Warning("origin_max_connections < origin_min_keep_alive_connections, setting min=max , please correct your records.config");
@@ -1212,6 +1299,8 @@ HttpConfig::reconfigure()
   params->oride.http_chunking_size = m_master.oride.http_chunking_size;
 
   params->oride.post_check_content_length_enabled = INT_TO_BOOL(m_master.oride.post_check_content_length_enabled);
+
+  params->oride.request_buffer_enabled = INT_TO_BOOL(m_master.oride.request_buffer_enabled);
 
   params->oride.flow_control_enabled = INT_TO_BOOL(m_master.oride.flow_control_enabled);
   params->oride.flow_high_water_mark = m_master.oride.flow_high_water_mark;
@@ -1283,7 +1372,7 @@ HttpConfig::reconfigure()
   params->oride.anonymize_remove_user_agent = INT_TO_BOOL(m_master.oride.anonymize_remove_user_agent);
   params->oride.anonymize_remove_cookie     = INT_TO_BOOL(m_master.oride.anonymize_remove_cookie);
   params->oride.anonymize_remove_client_ip  = INT_TO_BOOL(m_master.oride.anonymize_remove_client_ip);
-  params->oride.anonymize_insert_client_ip  = INT_TO_BOOL(m_master.oride.anonymize_insert_client_ip);
+  params->oride.anonymize_insert_client_ip  = m_master.oride.anonymize_insert_client_ip;
   params->anonymize_other_header_list       = ats_strdup(m_master.anonymize_other_header_list);
 
   params->oride.global_user_agent_header = ats_strdup(m_master.oride.global_user_agent_header);
@@ -1296,12 +1385,10 @@ HttpConfig::reconfigure()
   params->oride.proxy_response_server_enabled = m_master.oride.proxy_response_server_enabled;
 
   params->oride.insert_squid_x_forwarded_for = INT_TO_BOOL(m_master.oride.insert_squid_x_forwarded_for);
+  params->oride.insert_forwarded             = m_master.oride.insert_forwarded;
   params->oride.insert_age_in_response       = INT_TO_BOOL(m_master.oride.insert_age_in_response);
   params->enable_http_stats                  = INT_TO_BOOL(m_master.enable_http_stats);
-  params->oride.normalize_ae_gzip            = INT_TO_BOOL(m_master.oride.normalize_ae_gzip);
-
-  params->icp_enabled       = (m_master.icp_enabled == ICP_MODE_SEND_RECEIVE ? 1 : 0); // INT_TO_BOOL
-  params->stale_icp_enabled = INT_TO_BOOL(m_master.stale_icp_enabled);
+  params->oride.normalize_ae                 = m_master.oride.normalize_ae;
 
   params->oride.cache_heuristic_min_lifetime = m_master.oride.cache_heuristic_min_lifetime;
   params->oride.cache_heuristic_max_lifetime = m_master.oride.cache_heuristic_max_lifetime;
@@ -1310,16 +1397,15 @@ HttpConfig::reconfigure()
   params->oride.cache_guaranteed_min_lifetime = m_master.oride.cache_guaranteed_min_lifetime;
   params->oride.cache_guaranteed_max_lifetime = m_master.oride.cache_guaranteed_max_lifetime;
 
-  params->oride.cache_max_stale_age     = m_master.oride.cache_max_stale_age;
-  params->oride.freshness_fuzz_time     = m_master.oride.freshness_fuzz_time;
-  params->oride.freshness_fuzz_min_time = m_master.oride.freshness_fuzz_min_time;
-  params->oride.freshness_fuzz_prob     = m_master.oride.freshness_fuzz_prob;
+  params->oride.cache_max_stale_age = m_master.oride.cache_max_stale_age;
 
-  params->cache_vary_default_text   = ats_strdup(m_master.cache_vary_default_text);
-  params->cache_vary_default_images = ats_strdup(m_master.cache_vary_default_images);
-  params->cache_vary_default_other  = ats_strdup(m_master.cache_vary_default_other);
+  params->oride.cache_vary_default_text   = ats_strdup(m_master.oride.cache_vary_default_text);
+  params->oride.cache_vary_default_images = ats_strdup(m_master.oride.cache_vary_default_images);
+  params->oride.cache_vary_default_other  = ats_strdup(m_master.oride.cache_vary_default_other);
 
   params->oride.srv_enabled = m_master.oride.srv_enabled;
+
+  params->oride.allow_half_open = m_master.oride.allow_half_open;
 
   // open read failure retries
   params->oride.max_cache_open_read_retries = m_master.oride.max_cache_open_read_retries;
@@ -1329,22 +1415,21 @@ HttpConfig::reconfigure()
   // open write failure retries
   params->oride.max_cache_open_write_retries = m_master.oride.max_cache_open_write_retries;
 
-  params->oride.cache_http                     = INT_TO_BOOL(m_master.oride.cache_http);
-  params->oride.cache_cluster_cache_local      = INT_TO_BOOL(m_master.oride.cache_cluster_cache_local);
-  params->oride.cache_ignore_client_no_cache   = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
-  params->oride.cache_ignore_client_cc_max_age = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
-  params->oride.cache_ims_on_client_no_cache   = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
-  params->oride.cache_ignore_server_no_cache   = INT_TO_BOOL(m_master.oride.cache_ignore_server_no_cache);
-  params->oride.cache_responses_to_cookies     = m_master.oride.cache_responses_to_cookies;
-  params->oride.cache_ignore_auth              = INT_TO_BOOL(m_master.oride.cache_ignore_auth);
-  params->oride.cache_urls_that_look_dynamic   = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
-  params->cache_enable_default_vary_headers    = INT_TO_BOOL(m_master.cache_enable_default_vary_headers);
-  params->cache_post_method                    = INT_TO_BOOL(m_master.cache_post_method);
+  params->oride.cache_http                        = INT_TO_BOOL(m_master.oride.cache_http);
+  params->oride.cache_ignore_client_no_cache      = INT_TO_BOOL(m_master.oride.cache_ignore_client_no_cache);
+  params->oride.cache_ignore_client_cc_max_age    = INT_TO_BOOL(m_master.oride.cache_ignore_client_cc_max_age);
+  params->oride.cache_ims_on_client_no_cache      = INT_TO_BOOL(m_master.oride.cache_ims_on_client_no_cache);
+  params->oride.cache_ignore_server_no_cache      = INT_TO_BOOL(m_master.oride.cache_ignore_server_no_cache);
+  params->oride.cache_responses_to_cookies        = m_master.oride.cache_responses_to_cookies;
+  params->oride.cache_ignore_auth                 = INT_TO_BOOL(m_master.oride.cache_ignore_auth);
+  params->oride.cache_urls_that_look_dynamic      = INT_TO_BOOL(m_master.oride.cache_urls_that_look_dynamic);
+  params->oride.cache_enable_default_vary_headers = INT_TO_BOOL(m_master.oride.cache_enable_default_vary_headers);
+  params->cache_post_method                       = INT_TO_BOOL(m_master.cache_post_method);
 
-  params->ignore_accept_mismatch          = m_master.ignore_accept_mismatch;
-  params->ignore_accept_language_mismatch = m_master.ignore_accept_language_mismatch;
-  params->ignore_accept_encoding_mismatch = m_master.ignore_accept_encoding_mismatch;
-  params->ignore_accept_charset_mismatch  = m_master.ignore_accept_charset_mismatch;
+  params->oride.ignore_accept_mismatch          = m_master.oride.ignore_accept_mismatch;
+  params->oride.ignore_accept_language_mismatch = m_master.oride.ignore_accept_language_mismatch;
+  params->oride.ignore_accept_encoding_mismatch = m_master.oride.ignore_accept_encoding_mismatch;
+  params->oride.ignore_accept_charset_mismatch  = m_master.oride.ignore_accept_charset_mismatch;
 
   params->send_100_continue_response = INT_TO_BOOL(m_master.send_100_continue_response);
   params->disallow_post_100_continue = INT_TO_BOOL(m_master.disallow_post_100_continue);
@@ -1373,7 +1458,6 @@ HttpConfig::reconfigure()
   params->url_remap_required               = INT_TO_BOOL(m_master.url_remap_required);
   params->errors_log_error_pages           = INT_TO_BOOL(m_master.errors_log_error_pages);
   params->oride.slow_log_threshold         = m_master.oride.slow_log_threshold;
-  params->record_cop_page                  = INT_TO_BOOL(m_master.record_cop_page);
   params->oride.ssl_client_verify_server   = m_master.oride.ssl_client_verify_server;
   params->oride.send_http11_requests       = m_master.oride.send_http11_requests;
   params->oride.doc_in_cache_skip_dns      = INT_TO_BOOL(m_master.oride.doc_in_cache_skip_dns);
@@ -1383,6 +1467,7 @@ HttpConfig::reconfigure()
   params->oride.body_factory_template_base = ats_strdup(m_master.oride.body_factory_template_base);
   params->oride.body_factory_template_base_len =
     params->oride.body_factory_template_base ? strlen(params->oride.body_factory_template_base) : 0;
+  params->body_factory_response_max_size = m_master.body_factory_response_max_size;
   params->reverse_proxy_no_host_redirect = ats_strdup(m_master.reverse_proxy_no_host_redirect);
   params->reverse_proxy_no_host_redirect_len =
     params->reverse_proxy_no_host_redirect ? strlen(params->reverse_proxy_no_host_redirect) : 0;
@@ -1400,19 +1485,6 @@ HttpConfig::reconfigure()
   params->oride.negative_revalidating_enabled  = INT_TO_BOOL(m_master.oride.negative_revalidating_enabled);
   params->oride.negative_revalidating_lifetime = m_master.oride.negative_revalidating_lifetime;
 
-  //##############################################################################
-  //#
-  //# Redirection
-  //#
-  //# 1. redirection_enabled: if set to 1, redirection is enabled.
-  //# 2. redirect_use_orig_cache_key: if set to 1, use original request cache key.
-  //# 3. number_of_redirections: The maximum number of redirections YTS permits
-  //# 4. post_copy_size: The maximum POST data size YTS permits to copy
-  //# 5. redirection_host_no_port: do not include default port in host header during redirection
-  //#
-  //##############################################################################
-
-  params->oride.redirection_enabled         = INT_TO_BOOL(m_master.oride.redirection_enabled);
   params->oride.redirect_use_orig_cache_key = INT_TO_BOOL(m_master.oride.redirect_use_orig_cache_key);
   params->redirection_host_no_port          = INT_TO_BOOL(m_master.redirection_host_no_port);
   params->oride.number_of_redirections      = m_master.oride.number_of_redirections;
@@ -1420,8 +1492,7 @@ HttpConfig::reconfigure()
   params->oride.client_cert_filename        = ats_strdup(m_master.oride.client_cert_filename);
   params->oride.client_cert_filepath        = ats_strdup(m_master.oride.client_cert_filepath);
 
-  // Local Manager
-  params->synthetic_port = m_master.synthetic_port;
+  params->negative_caching_list = m_master.negative_caching_list;
 
   m_id = configProcessor.set(m_id, params);
 
@@ -1538,25 +1609,3 @@ HttpConfig::parse_ports_list(char *ports_string)
   }
   return (ports_list);
 }
-
-////////////////////////////////////////////////////////////////
-//
-//  HttpConfig::cluster_delta_cb
-//
-////////////////////////////////////////////////////////////////
-void *
-HttpConfig::cluster_delta_cb(void * /* opaque_token ATS_UNUSED */, char *data_raw, int /* data_len ATS_UNUSED */)
-{
-  int32_t delta32 = (int32_t)atoi(data_raw);
-  int32_t old;
-
-  // Using ink_atomic_swap is mostly paranoia since a thirty bit write
-  //  really ought to atomic.  However, any risk of bogus time is
-  //  too ugly for me to contemplate
-  old = ink_atomic_swap(&HttpConfig::m_master.cluster_time_delta, delta32);
-  Debug("http_trans", "Cluster time delta moving from %d to %d", old, delta32);
-
-  return nullptr;
-}
-
-volatile int32_t icp_dynamic_enabled;

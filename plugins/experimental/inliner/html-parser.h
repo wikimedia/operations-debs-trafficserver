@@ -20,8 +20,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef HTML_PARSER_H
-#define HTML_PARSER_H
+
+#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -137,11 +137,9 @@ namespace inliner
     virtual ~HtmlParser() {}
     bool parseTag(const char);
     size_t parse(const char *, size_t, size_t o = 0);
-    virtual void handleImage(const Attributes &) = 0;
+    virtual void handleImage(const Attributes &)      = 0;
     virtual size_t bypass(const size_t, const size_t) = 0;
   };
 
-} // end of inliner namespace
-} // end of ats namespace
-
-#endif // HTML_PARSER_H
+} // namespace inliner
+} // namespace ats

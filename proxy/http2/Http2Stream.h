@@ -38,34 +38,7 @@ class Http2Stream : public ProxyClientTransaction
 {
 public:
   typedef ProxyClientTransaction super; ///< Parent type.
-  Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size)
-    : client_rwnd(initial_rwnd),
-      server_rwnd(Http2::initial_window_size),
-      header_blocks(NULL),
-      header_blocks_length(0),
-      request_header_length(0),
-      recv_end_stream(false),
-      send_end_stream(false),
-      sent_request_header(false),
-      response_header_done(false),
-      request_sent(false),
-      is_first_transaction_flag(false),
-      response_reader(NULL),
-      request_reader(NULL),
-      request_buffer(CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX),
-      priority_node(NULL),
-      _start_time(0),
-      _thread(NULL),
-      _id(sid),
-      _state(Http2StreamState::HTTP2_STREAM_STATE_IDLE),
-      cross_thread_event(NULL),
-      active_timeout(0),
-      active_event(NULL),
-      inactive_timeout(0),
-      inactive_timeout_at(0),
-      inactive_event(NULL),
-      read_event(NULL),
-      write_event(NULL)
+  Http2Stream(Http2StreamId sid = 0, ssize_t initial_rwnd = Http2::initial_window_size) : client_rwnd(initial_rwnd), _id(sid)
   {
     SET_HANDLER(&Http2Stream::main_event_handler);
   }
@@ -181,30 +154,38 @@ public:
   void initiating_close();
   void terminate_if_possible();
   void do_io_shutdown(ShutdownHowTo_t) override {}
-  void update_read_request(int64_t read_len, bool send_update);
+  void update_read_request(int64_t read_len, bool send_update, bool check_eos = false);
   void update_write_request(IOBufferReader *buf_reader, int64_t write_len, bool send_update);
   void signal_write_event(bool call_update);
   void reenable(VIO *vio) override;
-  virtual void transaction_done() override;
+  void transaction_done() override;
+  bool
+  ignore_keep_alive() override
+  {
+    // If we return true here, Connection header will always be "close".
+    // It should be handled as the same as HTTP/1.1
+    return false;
+  }
 
   void restart_sending();
   void push_promise(URL &url, const MIMEField *accept_encoding);
 
   // Stream level window size
-  ssize_t client_rwnd, server_rwnd;
+  ssize_t client_rwnd;
+  ssize_t server_rwnd = Http2::initial_window_size;
 
-  uint8_t *header_blocks;
-  uint32_t header_blocks_length;  // total length of header blocks (not include
-                                  // Padding or other fields)
-  uint32_t request_header_length; // total length of payload (include Padding
-                                  // and other fields)
-  bool recv_end_stream;
-  bool send_end_stream;
+  uint8_t *header_blocks        = nullptr;
+  uint32_t header_blocks_length = 0;  // total length of header blocks (not include
+                                      // Padding or other fields)
+  uint32_t request_header_length = 0; // total length of payload (include Padding
+                                      // and other fields)
+  bool recv_end_stream = false;
+  bool send_end_stream = false;
 
-  bool sent_request_header;
-  bool response_header_done;
-  bool request_sent;
-  bool is_first_transaction_flag;
+  bool sent_request_header       = false;
+  bool response_header_done      = false;
+  bool request_sent              = false;
+  bool is_first_transaction_flag = false;
 
   HTTPHdr response_header;
   IOBufferReader *response_reader          = nullptr;
@@ -227,15 +208,15 @@ public:
 
   void release(IOBufferReader *r) override;
 
-  virtual bool
+  bool
   allow_half_open() const override
   {
     return false;
   }
 
-  virtual void set_active_timeout(ink_hrtime timeout_in) override;
-  virtual void set_inactivity_timeout(ink_hrtime timeout_in) override;
-  virtual void cancel_inactivity_timeout() override;
+  void set_active_timeout(ink_hrtime timeout_in) override;
+  void set_inactivity_timeout(ink_hrtime timeout_in) override;
+  void cancel_inactivity_timeout() override;
   void clear_inactive_timer();
   void clear_active_timer();
   void clear_timers();
@@ -268,10 +249,10 @@ private:
   void send_response_body(bool call_update);
 
   HTTPParser http_parser;
-  ink_hrtime _start_time;
-  EThread *_thread;
+  ink_hrtime _start_time = 0;
+  EThread *_thread       = nullptr;
   Http2StreamId _id;
-  Http2StreamState _state;
+  Http2StreamState _state = Http2StreamState::HTTP2_STREAM_STATE_IDLE;
 
   HTTPHdr _req_header;
   VIO read_vio;
@@ -312,15 +293,15 @@ private:
   Event *buffer_full_write_event = nullptr;
 
   // Support stream-specific timeouts
-  ink_hrtime active_timeout;
-  Event *active_event;
+  ink_hrtime active_timeout = 0;
+  Event *active_event       = nullptr;
 
-  ink_hrtime inactive_timeout;
-  ink_hrtime inactive_timeout_at;
-  Event *inactive_event;
+  ink_hrtime inactive_timeout    = 0;
+  ink_hrtime inactive_timeout_at = 0;
+  Event *inactive_event          = nullptr;
 
-  Event *read_event;
-  Event *write_event;
+  Event *read_event  = nullptr;
+  Event *write_event = nullptr;
 };
 
 extern ClassAllocator<Http2Stream> http2StreamAllocator;

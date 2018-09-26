@@ -23,19 +23,10 @@
 
 #pragma once
 
-#include "ts/ink_align.h"
+#include "tscore/ink_align.h"
 #include "I_EventProcessor.h"
 
 const int LOAD_BALANCE_INTERVAL = 1;
-
-TS_INLINE
-EventProcessor::EventProcessor() : n_ethreads(0), n_thread_groups(0), n_dthreads(0), thread_data_used(0)
-{
-  memset(all_ethreads, 0, sizeof(all_ethreads));
-  memset(all_dthreads, 0, sizeof(all_dthreads));
-  memset(n_threads_for_type, 0, sizeof(n_threads_for_type));
-  memset(next_thread_for_type, 0, sizeof(next_thread_for_type));
-}
 
 TS_INLINE off_t
 EventProcessor::allocate(int size)
@@ -47,8 +38,9 @@ EventProcessor::allocate(int size)
   int old;
   do {
     old = thread_data_used;
-    if (old + loss + size > PER_THREAD_DATA)
+    if (old + loss + size > PER_THREAD_DATA) {
       return -1;
+    }
   } while (!ink_atomic_cas(&thread_data_used, old, old + size));
 
   return (off_t)(old + start);
@@ -58,13 +50,15 @@ TS_INLINE EThread *
 EventProcessor::assign_thread(EventType etype)
 {
   int next;
+  ThreadGroupDescriptor *tg = &thread_group[etype];
 
   ink_assert(etype < MAX_EVENT_TYPES);
-  if (n_threads_for_type[etype] > 1)
-    next = next_thread_for_type[etype]++ % n_threads_for_type[etype];
-  else
+  if (tg->_count > 1) {
+    next = tg->_next_round_robin++ % tg->_count;
+  } else {
     next = 0;
-  return (eventthread[etype][next]);
+  }
+  return tg->_thread[next];
 }
 
 TS_INLINE Event *
@@ -72,10 +66,11 @@ EventProcessor::schedule(Event *e, EventType etype, bool fast_signal)
 {
   ink_assert(etype < MAX_EVENT_TYPES);
   e->ethread = assign_thread(etype);
-  if (e->continuation->mutex)
+  if (e->continuation->mutex) {
     e->mutex = e->continuation->mutex;
-  else
+  } else {
     e->mutex = e->continuation->mutex = e->ethread->mutex;
+  }
   e->ethread->EventQueueExternal.enqueue(e, fast_signal);
   return e;
 }
@@ -140,8 +135,9 @@ EventProcessor::schedule_every(Continuation *cont, ink_hrtime t, EventType et, i
   ink_assert(et < MAX_EVENT_TYPES);
   e->callback_event = callback_event;
   e->cookie         = cookie;
-  if (t < 0)
+  if (t < 0) {
     return schedule(e->init(cont, t, t), et);
-  else
+  } else {
     return schedule(e->init(cont, Thread::get_hrtime() + t, t), et);
+  }
 }

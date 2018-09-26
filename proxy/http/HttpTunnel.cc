@@ -30,12 +30,12 @@
 
 ****************************************************************************/
 
-#include "ts/ink_config.h"
+#include "tscore/ink_config.h"
 #include "HttpConfig.h"
 #include "HttpTunnel.h"
 #include "HttpSM.h"
 #include "HttpDebugNames.h"
-#include "ts/ParseRules.h"
+#include "tscore/ParseRules.h"
 
 static const int min_block_transfer_bytes = 256;
 static const char *const CHUNK_HEADER_FMT = "%" PRIx64 "\r\n";
@@ -43,32 +43,6 @@ static const char *const CHUNK_HEADER_FMT = "%" PRIx64 "\r\n";
 // header and trailer per chunk - the chunk body will be a reference to
 // a block in the input stream.
 static int const CHUNK_IOBUFFER_SIZE_INDEX = MIN_IOBUFFER_SIZE;
-
-char
-VcTypeCode(HttpTunnelType_t t)
-{
-  char zret = ' ';
-  switch (t) {
-  case HT_HTTP_CLIENT:
-    zret = 'U';
-    break;
-  case HT_HTTP_SERVER:
-    zret = 'S';
-    break;
-  case HT_TRANSFORM:
-    zret = 'T';
-    break;
-  case HT_CACHE_READ:
-    zret = 'R';
-    break;
-  case HT_CACHE_WRITE:
-    zret = 'W';
-    break;
-  default:
-    break;
-  }
-  return zret;
-}
 
 ChunkedHandler::ChunkedHandler()
   : action(ACTION_UNSET),
@@ -202,8 +176,8 @@ ChunkedHandler::read_size()
         if (ParseRules::is_lf(*tmp)) {
           Debug("http_chunk", "read chunk size of %d bytes", running_sum);
           bytes_left = (cur_chunk_size = running_sum);
-          state = (running_sum == 0) ? CHUNK_READ_TRAILER_BLANK : CHUNK_READ_CHUNK;
-          done  = true;
+          state      = (running_sum == 0) ? CHUNK_READ_TRAILER_BLANK : CHUNK_READ_CHUNK;
+          done       = true;
           break;
         }
       } else if (state == CHUNK_READ_SIZE_START) {
@@ -528,9 +502,7 @@ HttpTunnelConsumer::HttpTunnelConsumer()
 {
 }
 
-HttpTunnel::HttpTunnel() : Continuation(nullptr)
-{
-}
+HttpTunnel::HttpTunnel() : Continuation(nullptr) {}
 
 void
 HttpTunnel::init(HttpSM *sm_arg, Ptr<ProxyMutex> &amutex)
@@ -783,7 +755,6 @@ void
 HttpTunnel::tunnel_run(HttpTunnelProducer *p_arg)
 {
   Debug("http_tunnel", "tunnel_run started, p_arg is %s", p_arg ? "provided" : "NULL");
-
   if (p_arg) {
     producer_run(p_arg);
   } else {
@@ -868,7 +839,8 @@ HttpTunnel::producer_run(HttpTunnelProducer *p)
       // initialize a reader to chunked buffer start before writing to keep ref count
       chunked_buffer_start = p->chunked_handler.chunked_buffer->alloc_reader();
       p->chunked_handler.chunked_buffer->write(p->buffer_start, p->chunked_handler.skip_bytes);
-    } else if (p->do_dechunking) {
+    }
+    if (p->do_dechunking) {
       // bz57413
       Debug("http_tunnel", "[producer_run] do_dechunking p->chunked_handler.chunked_reader->read_avail() = %" PRId64 "",
             p->chunked_handler.chunked_reader->read_avail());
@@ -902,7 +874,6 @@ HttpTunnel::producer_run(HttpTunnelProducer *p)
   // Do the IO on the consumers first so
   //  data doesn't disappear out from
   //  under the tunnel
-  ink_release_assert(p->num_consumers > 0);
   for (c = p->consumer_list.head; c;) {
     // Create a reader for each consumer.  The reader allows
     // us to implement skip bytes
@@ -978,15 +949,20 @@ HttpTunnel::producer_run(HttpTunnelProducer *p)
   // YTS Team, yamsat Plugin
   // Allocate and copy partial POST data to buffers. Check for the various parameters
   // including the maximum configured post data size
-  if (p->alive && sm->t_state.method == HTTP_WKSIDX_POST && sm->enable_redirection && (p->vc_type == HT_HTTP_CLIENT)) {
+  if ((p->vc_type == HT_BUFFER_READ && sm->is_postbuf_valid()) ||
+      (p->alive && sm->t_state.method == HTTP_WKSIDX_POST && sm->enable_redirection && p->vc_type == HT_HTTP_CLIENT)) {
     Debug("http_redirect", "[HttpTunnel::producer_run] client post: %" PRId64 " max size: %" PRId64 "",
           p->buffer_start->read_avail(), HttpConfig::m_master.post_copy_size);
 
     // (note that since we are not dechunking POST, this is the chunked size if chunked)
     if (p->buffer_start->read_avail() > HttpConfig::m_master.post_copy_size) {
-      Debug("http_redirect", "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64 " limit=%" PRId64 "",
-            p->buffer_start->read_avail(), HttpConfig::m_master.post_copy_size);
+      Warning("http_redirect, [HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64 " limit=%" PRId64 "",
+              p->buffer_start->read_avail(), HttpConfig::m_master.post_copy_size);
       sm->disable_redirect();
+      if (p->vc_type == HT_BUFFER_READ) {
+        producer_handler(VC_EVENT_ERROR, p);
+        return;
+      }
     } else {
       sm->postbuf_copy_partial_data();
     }
@@ -1019,8 +995,7 @@ HttpTunnel::producer_run(HttpTunnelProducer *p)
     // p->chunked_handler.skip_bytes);
 
     producer_handler(VC_EVENT_READ_READY, p);
-    if (!p->chunked_handler.chunked_reader->read_avail() && sm->redirection_tries > 0 &&
-        p->vc_type == HT_HTTP_CLIENT) { // read_avail() == 0
+    if (sm->get_postbuf_done() && p->vc_type == HT_HTTP_CLIENT) { // read_avail() == 0
       // [bug 2579251]
       // Ugh, this is horrible but in the redirect case they are running a the tunnel again with the
       // now closed/empty producer to trigger PRECOMPLETE.  If the POST was chunked, producer_n is set
@@ -1073,8 +1048,15 @@ HttpTunnel::producer_handler_dechunked(int event, HttpTunnelProducer *p)
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
   case VC_EVENT_EOS:
     p->last_event = p->chunked_handler.last_server_event = event;
-    // TODO: Should we check the return code?
-    p->chunked_handler.generate_chunked_content();
+    if (p->chunked_handler.generate_chunked_content()) { // We are done, make sure the consumer is activated
+      HttpTunnelConsumer *c;
+      for (c = p->consumer_list.head; c; c = c->link.next) {
+        if (c->alive) {
+          c->write_vio->nbytes = p->chunked_handler.chunked_size;
+          // consumer_handler(VC_EVENT_WRITE_COMPLETE, c);
+        }
+      }
+    }
     break;
   };
   // Since we will consume all the data if the server is actually finished
@@ -1181,17 +1163,24 @@ HttpTunnel::producer_handler(int event, HttpTunnelProducer *p)
   // YTS Team, yamsat Plugin
   // Copy partial POST data to buffers. Check for the various parameters including
   // the maximum configured post data size
-  if (sm->t_state.method == HTTP_WKSIDX_POST && sm->enable_redirection &&
-      (event == VC_EVENT_READ_READY || event == VC_EVENT_READ_COMPLETE) && (p->vc_type == HT_HTTP_CLIENT)) {
+  if ((p->vc_type == HT_BUFFER_READ && sm->is_postbuf_valid()) ||
+      (sm->t_state.method == HTTP_WKSIDX_POST && sm->enable_redirection &&
+       (event == VC_EVENT_READ_READY || event == VC_EVENT_READ_COMPLETE) && p->vc_type == HT_HTTP_CLIENT)) {
     Debug("http_redirect", "[HttpTunnel::producer_handler] [%s %s]", p->name, HttpDebugNames::get_event_name(event));
 
     if ((sm->postbuf_buffer_avail() + sm->postbuf_reader_avail()) > HttpConfig::m_master.post_copy_size) {
-      Debug("http_redirect", "[HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64
-                             " reader_avail=%" PRId64 " limit=%" PRId64 "",
-            sm->postbuf_buffer_avail(), sm->postbuf_reader_avail(), HttpConfig::m_master.post_copy_size);
+      Warning("http_redirect, [HttpTunnel::producer_handler] post exceeds buffer limit, buffer_avail=%" PRId64
+              " reader_avail=%" PRId64 " limit=%" PRId64 "",
+              sm->postbuf_buffer_avail(), sm->postbuf_reader_avail(), HttpConfig::m_master.post_copy_size);
       sm->disable_redirect();
+      if (p->vc_type == HT_BUFFER_READ) {
+        event = VC_EVENT_ERROR;
+      }
     } else {
       sm->postbuf_copy_partial_data();
+      if (event == VC_EVENT_READ_COMPLETE || event == HTTP_TUNNEL_EVENT_PRECOMPLETE || event == VC_EVENT_EOS) {
+        sm->set_postbuf_done(true);
+      }
     }
   } // end of added logic for partial copy of POST
 
@@ -1209,9 +1198,9 @@ HttpTunnel::producer_handler(int event, HttpTunnelProducer *p)
     break;
 
   case HTTP_TUNNEL_EVENT_PRECOMPLETE:
-  // If the write completes on the stack (as it can for http2), then
-  // consumer could have called back by this point.  Must treat this as
-  // a regular read complete (falling through to the following cases).
+    // If the write completes on the stack (as it can for http2), then
+    // consumer could have called back by this point.  Must treat this as
+    // a regular read complete (falling through to the following cases).
 
   case VC_EVENT_READ_COMPLETE:
   case VC_EVENT_EOS:
@@ -1257,7 +1246,7 @@ HttpTunnel::producer_handler(int event, HttpTunnelProducer *p)
       p->bytes_read = p->read_vio->ndone;
       // Clear any outstanding reads so they don't
       // collide with future tunnel IO's
-      p->vc->do_io_read(nullptr, 0, 0);
+      p->vc->do_io_read(nullptr, 0, nullptr);
       // Interesting tunnel event, call SM
       jump_point = p->vc_handler;
       (sm->*jump_point)(event, p);
@@ -1287,7 +1276,7 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
 #ifndef LAZY_BUF_ALLOC
       && p->read_buffer->write_avail() > 0
 #endif
-      ) {
+  ) {
     // Only do flow control if enabled and the producer is an external
     // source.  Otherwise disable by making the backlog zero. Because
     // the backlog short cuts quit when the value is equal (or
@@ -1297,8 +1286,9 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
     HttpTunnelProducer *srcp = p->flow_control_source;
 
     if (backlog >= flow_state.high_water) {
-      if (is_debug_tag_set("http_tunnel"))
+      if (is_debug_tag_set("http_tunnel")) {
         Debug("http_tunnel", "Throttle   %p %" PRId64 " / %" PRId64, p, backlog, p->backlog());
+      }
       p->throttle(); // p becomes srcp for future calls to this method
     } else {
       if (srcp && srcp->alive && c->is_sink()) {
@@ -1311,8 +1301,9 @@ HttpTunnel::consumer_reenable(HttpTunnelConsumer *c)
           backlog = srcp->backlog(flow_state.low_water);
         }
         if (backlog < flow_state.low_water) {
-          if (is_debug_tag_set("http_tunnel"))
+          if (is_debug_tag_set("http_tunnel")) {
             Debug("http_tunnel", "Unthrottle %p %" PRId64 " / %" PRId64, p, backlog, p->backlog());
+          }
           srcp->unthrottle();
           if (srcp->read_vio) {
             srcp->read_vio->reenable();
@@ -1410,7 +1401,7 @@ HttpTunnel::consumer_handler(int event, HttpTunnelConsumer *c)
 #ifndef LAZY_BUF_ALLOC
         && p->read_buffer->write_avail() > 0
 #endif
-        ) {
+    ) {
       if (p->is_throttled()) {
         this->consumer_reenable(c);
       } else {
@@ -1419,8 +1410,9 @@ HttpTunnel::consumer_handler(int event, HttpTunnelConsumer *c)
     }
     // [amc] I don't think this happens but we'll leave a debug trap
     // here just in case.
-    if (p->is_throttled())
+    if (p->is_throttled()) {
       Debug("http_tunnel", "Special event %s on %p with flow control on", HttpDebugNames::get_event_name(event), p);
+    }
     break;
 
   case VC_EVENT_READ_READY:

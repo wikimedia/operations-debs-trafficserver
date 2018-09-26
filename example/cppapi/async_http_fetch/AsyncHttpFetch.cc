@@ -16,13 +16,13 @@
   limitations under the License.
  */
 
-#include <atscppapi/GlobalPlugin.h>
-#include <atscppapi/TransactionPlugin.h>
-#include <atscppapi/Logger.h>
-#include <atscppapi/Async.h>
-#include <atscppapi/AsyncHttpFetch.h>
-#include <atscppapi/AsyncTimer.h>
-#include <atscppapi/PluginInit.h>
+#include "tscpp/api/GlobalPlugin.h"
+#include "tscpp/api/TransactionPlugin.h"
+#include "tscpp/api/Logger.h"
+#include "tscpp/api/Async.h"
+#include "tscpp/api/AsyncHttpFetch.h"
+#include "tscpp/api/AsyncTimer.h"
+#include "tscpp/api/PluginInit.h"
 #include <cstring>
 #include <cassert>
 #include <utility>
@@ -75,6 +75,7 @@ public:
     return getDispatchController()->isEnabled();
   }
   ~DelayedAsyncHttpFetch() override { delete timer_; }
+
 private:
   std::shared_ptr<Mutex> mutex_;
   AsyncTimer *timer_;
@@ -172,7 +173,7 @@ private:
       TS_DEBUG(TAG, "Response version is [%s], status code %d, reason phrase [%s]",
                HTTP_VERSION_STRINGS[response.getVersion()].c_str(), response.getStatusCode(), response.getReasonPhrase().c_str());
 
-      TS_DEBUG(TAG, "Reponse Headers: \n%s\n", response.getHeaders().str().c_str());
+      TS_DEBUG(TAG, "Response Headers: \n%s\n", response.getHeaders().str().c_str());
 
       const void *body;
       size_t body_size;
@@ -217,6 +218,8 @@ void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
   TS_DEBUG(TAG, "Loaded async_http_fetch_example plugin");
-  RegisterGlobalPlugin("CPP_Example_AsyncHttpFetch", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_AsyncHttpFetch", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   plugin = new GlobalHookPlugin();
 }

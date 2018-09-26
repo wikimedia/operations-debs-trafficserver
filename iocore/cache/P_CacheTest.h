@@ -49,7 +49,7 @@ struct PinnedDocTable : public Continuation {
 
 struct CacheTestHost {
   char *name;
-  volatile unsigned int xlast_cachable_id;
+  unsigned int xlast_cachable_id;
   double xprev_host_prob;
   double xnext_host_prob;
 
@@ -62,33 +62,30 @@ struct CacheTestHeader {
 };
 
 struct CacheTestSM : public RegressionSM {
-  int start_memcpy_on_clone; // place all variables to be copied between these markers
+  int start_memcpy_on_clone = 0; // place all variables to be copied between these markers
 
   // Cache test instance name. This is a pointer to a string literal, so copying is safe.
-  const char *cache_test_name;
+  const char *cache_test_name = nullptr;
 
-  Action *timeout;
-  Action *cache_action;
-  ink_hrtime start_time;
-  CacheVConnection *cache_vc;
-  VIO *cvio;
-  MIOBuffer *buffer;
-  IOBufferReader *buffer_reader;
-#ifdef HTTP_CACHE
-  CacheLookupHttpConfig params;
+  Action *timeout               = nullptr;
+  Action *cache_action          = nullptr;
+  ink_hrtime start_time         = 0;
+  CacheVConnection *cache_vc    = nullptr;
+  VIO *cvio                     = nullptr;
+  MIOBuffer *buffer             = nullptr;
+  IOBufferReader *buffer_reader = nullptr;
   CacheHTTPInfo info;
   char urlstr[1024];
-#endif
-  int64_t total_size;
-  int64_t nbytes;
+  int64_t total_size = 0;
+  int64_t nbytes     = -1;
   CacheKey key;
-  int repeat_count;
-  int expect_event;
-  int expect_initial_event;
-  int initial_event;
-  uint64_t content_salt;
+  int repeat_count         = 0;
+  int expect_event         = EVENT_NONE;
+  int expect_initial_event = EVENT_NONE;
+  int initial_event        = EVENT_NONE;
+  uint64_t content_salt    = 0;
   CacheTestHeader header;
-  int end_memcpy_on_clone; // place all variables to be copied between these markers
+  int end_memcpy_on_clone = 0; // place all variables to be copied between these markers
 
   void fill_buffer();
   int check_buffer();
@@ -110,23 +107,23 @@ struct CacheTestSM : public RegressionSM {
   {
     if (timeout)
       timeout->cancel();
-    timeout = 0;
+    timeout = nullptr;
   }
 
   // RegressionSM API
   void
-  run()
+  run() override
   {
     rprintf(this->t, "running %s (%p)\n", this->cache_test_name, this);
     SCOPED_MUTEX_LOCK(lock, mutex, this_ethread());
     timeout = eventProcessor.schedule_imm(this);
   }
 
-  virtual RegressionSM *clone() = 0;
+  RegressionSM *clone() override = 0;
 
   CacheTestSM(RegressionTest *t, const char *name);
   CacheTestSM(const CacheTestSM &ao);
-  ~CacheTestSM();
+  ~CacheTestSM() override;
 };
 
 // It is 2010 and C++ STILL doesn't have closures, a technology of the 1950s, unbelievable

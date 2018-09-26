@@ -21,9 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _ESI_STATS_H
-
-#define _ESI_STATS_H
+#pragma once
 
 #include "Utils.h"
 
@@ -59,7 +57,5 @@ namespace Stats
   void init(StatSystem *system);
 
   void increment(STAT st, int step = 1);
-};
-};
-
-#endif
+}; // namespace Stats
+}; // namespace EsiLib

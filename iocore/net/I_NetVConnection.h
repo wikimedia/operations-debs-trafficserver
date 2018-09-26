@@ -24,15 +24,17 @@
 
 #pragma once
 
-#include "ts/ink_inet.h"
+#include "tscore/ink_inet.h"
 #include "I_Action.h"
 #include "I_VConnection.h"
 #include "I_Event.h"
-#include "ts/List.h"
+#include "tscore/List.h"
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
-#include <ts/apidefs.h>
-#include <ts/MemView.h>
+#include "ts/apidefs.h"
+#include <string_view>
+#include "tscpp/util/TextView.h"
+#include "tscore/IpMap.h"
 
 #define CONNECT_SUCCESS 1
 #define CONNECT_FAILURE 0
@@ -129,10 +131,12 @@ struct NetVCOptions {
       @see ip_family
   */
   IpAddr local_ip;
+
   /** Local port for connection.
       Set to 0 for "don't care" (default).
-   */
+  */
   uint16_t local_port;
+
   /// How to bind the local address.
   /// @note Default is @c ANY_ADDR.
   addr_bind_style addr_binding;
@@ -201,7 +205,7 @@ struct NetVCOptions {
     IpEndpoint ip;
 
     // Literal IPv4 and IPv6 addresses are not permitted in "HostName".(rfc6066#section-3)
-    if (name && len && ats_ip_pton(ts::ConstBuffer(name, len), &ip) != 0) {
+    if (name && len && ats_ip_pton(std::string_view(name, len), &ip) != 0) {
       sni_servername = ats_strndup(name, len);
     } else {
       sni_servername = nullptr;
@@ -235,9 +239,9 @@ struct NetVCOptions {
     return *this;
   }
 
-  ts::StringView get_family_string() const;
+  std::string_view get_family_string() const;
 
-  ts::StringView get_proto_string() const;
+  std::string_view get_proto_string() const;
 
   /// @name Debugging
   //@{
@@ -245,8 +249,8 @@ struct NetVCOptions {
   static const char *toString(addr_bind_style s);
   //@}
 
-private:
-  NetVCOptions(const NetVCOptions &);
+  // noncopyable
+  NetVCOptions(const NetVCOptions &) = delete;
 };
 
 /**
@@ -257,7 +261,7 @@ private:
   stream IO to be done based on a single read or write call.
 
 */
-class NetVConnection : public VConnection
+class NetVConnection : public AnnotatedVConnection
 {
 public:
   // How many bytes have been queued to the OS for sending by haven't been sent yet
@@ -292,7 +296,7 @@ public:
     @return vio
 
   */
-  virtual VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) = 0;
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override = 0;
 
   /**
     Initiates write. Thread-safe, may be called when not handling
@@ -328,7 +332,7 @@ public:
     @return vio pointer
 
   */
-  virtual VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) = 0;
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override = 0;
 
   /**
     Closes the vconnection. A state machine MUST call do_io_close()
@@ -346,7 +350,7 @@ public:
     @param lerrno VIO:CLOSE for regular close or VIO::ABORT for aborts
 
   */
-  virtual void do_io_close(int lerrno = -1) = 0;
+  void do_io_close(int lerrno = -1) override = 0;
 
   /**
     Shuts down read side, write side, or both. do_io_shutdown() can
@@ -364,7 +368,7 @@ public:
     @param howto IO_SHUTDOWN_READ, IO_SHUTDOWN_WRITE, IO_SHUTDOWN_READWRITE
 
   */
-  virtual void do_io_shutdown(ShutdownHowTo_t howto) = 0;
+  void do_io_shutdown(ShutdownHowTo_t howto) override = 0;
 
   /**
     Sends out of band messages over the connection. This function
@@ -571,13 +575,13 @@ public:
   EThread *thread;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  virtual void reenable(VIO *vio) = 0;
+  void reenable(VIO *vio) override = 0;
 
   /// PRIVATE: The public interface is VIO::reenable()
-  virtual void reenable_re(VIO *vio) = 0;
+  void reenable_re(VIO *vio) override = 0;
 
   /// PRIVATE
-  virtual ~NetVConnection() {}
+  ~NetVConnection() override {}
   /**
     PRIVATE: instances of NetVConnection cannot be created directly
     by the state machines. The objects are created by NetProcessor
@@ -600,6 +604,9 @@ public:
 
   /** Set remote sock addr struct. */
   virtual void set_remote_addr() = 0;
+
+  /** Set remote sock addr struct. */
+  virtual void set_remote_addr(const sockaddr *) = 0;
 
   // for InkAPI
   bool
@@ -627,21 +634,141 @@ public:
     is_transparent = state;
   }
 
+  /// Get the proxy protocol enabled flag
+  bool
+  get_is_proxy_protocol() const
+  {
+    return is_proxy_protocol;
+  }
+  /// Set the proxy protocol enabled flag on the port
+  void
+  set_is_proxy_protocol(bool state = true)
+  {
+    is_proxy_protocol = state;
+  }
+
   virtual int
-  populate_protocol(ts::StringView *results, int n) const
+  populate_protocol(std::string_view *results, int n) const
   {
     return 0;
   }
 
   virtual const char *
-  protocol_contains(ts::StringView prefix) const
+  protocol_contains(std::string_view prefix) const
   {
     return nullptr;
   }
 
-private:
-  NetVConnection(const NetVConnection &);
-  NetVConnection &operator=(const NetVConnection &);
+  // noncopyable
+  NetVConnection(const NetVConnection &) = delete;
+  NetVConnection &operator=(const NetVConnection &) = delete;
+
+  enum class ProxyProtocolVersion {
+    UNDEFINED,
+    V1,
+    V2,
+  };
+
+  enum class ProxyProtocolData {
+    UNDEFINED,
+    SRC,
+    DST,
+  };
+
+  int
+  set_proxy_protocol_addr(const ProxyProtocolData src_or_dst, ts::TextView &ip_addr_str)
+  {
+    int ret = -1;
+
+    if (src_or_dst == ProxyProtocolData::SRC) {
+      ret = ats_ip_pton(ip_addr_str, &pp_info.src_addr);
+    } else {
+      ret = ats_ip_pton(ip_addr_str, &pp_info.dst_addr);
+    }
+    return ret;
+  }
+
+  int
+  set_proxy_protocol_src_addr(ts::TextView src)
+  {
+    return set_proxy_protocol_addr(ProxyProtocolData::SRC, src);
+  }
+
+  int
+  set_proxy_protocol_dst_addr(ts::TextView src)
+  {
+    return set_proxy_protocol_addr(ProxyProtocolData::DST, src);
+  }
+
+  int
+  set_proxy_protocol_port(const ProxyProtocolData src_or_dst, in_port_t port)
+  {
+    if (src_or_dst == ProxyProtocolData::SRC) {
+      pp_info.src_addr.port() = htons(port);
+    } else {
+      pp_info.dst_addr.port() = htons(port);
+    }
+    return port;
+  }
+
+  int
+  set_proxy_protocol_src_port(in_port_t port)
+  {
+    return set_proxy_protocol_port(ProxyProtocolData::SRC, port);
+  }
+
+  int
+  set_proxy_protocol_dst_port(in_port_t port)
+  {
+    return set_proxy_protocol_port(ProxyProtocolData::DST, port);
+  }
+
+  void
+  set_proxy_protocol_version(const ProxyProtocolVersion ver)
+  {
+    pp_info.proxy_protocol_version = ver;
+  }
+
+  ProxyProtocolVersion
+  get_proxy_protocol_version()
+  {
+    return pp_info.proxy_protocol_version;
+  }
+
+  sockaddr const *get_proxy_protocol_addr(const ProxyProtocolData);
+
+  sockaddr const *
+  get_proxy_protocol_src_addr()
+  {
+    return get_proxy_protocol_addr(ProxyProtocolData::SRC);
+  }
+
+  uint16_t
+  get_proxy_protocol_src_port()
+  {
+    return ats_ip_port_host_order(this->get_proxy_protocol_addr(ProxyProtocolData::SRC));
+  }
+
+  sockaddr const *
+  get_proxy_protocol_dst_addr()
+  {
+    return get_proxy_protocol_addr(ProxyProtocolData::DST);
+  }
+
+  uint16_t
+  get_proxy_protocol_dst_port()
+  {
+    return ats_ip_port_host_order(this->get_proxy_protocol_addr(ProxyProtocolData::DST));
+  };
+
+  typedef struct _ProxyProtocol {
+    ProxyProtocolVersion proxy_protocol_version = ProxyProtocolVersion::UNDEFINED;
+    uint16_t ip_family;
+    IpEndpoint src_addr;
+    IpEndpoint dst_addr;
+  } ProxyProtocol;
+
+  ProxyProtocol pp_info;
 
 protected:
   IpEndpoint local_addr;
@@ -653,6 +780,8 @@ protected:
   bool is_internal_request;
   /// Set if this connection is transparent.
   bool is_transparent;
+  /// Set if proxy protocol is enabled
+  bool is_proxy_protocol;
   /// Set if the next write IO that empties the write buffer should generate an event.
   int write_buffer_empty_event;
   /// NetVConnection Context.
@@ -660,13 +789,14 @@ protected:
 };
 
 inline NetVConnection::NetVConnection()
-  : VConnection(nullptr),
+  : AnnotatedVConnection(nullptr),
     attributes(0),
     thread(nullptr),
-    got_local_addr(0),
-    got_remote_addr(0),
+    got_local_addr(false),
+    got_remote_addr(false),
     is_internal_request(false),
     is_transparent(false),
+    is_proxy_protocol(false),
     write_buffer_empty_event(0),
     netvc_context(NET_VCONNECTION_UNSET)
 {

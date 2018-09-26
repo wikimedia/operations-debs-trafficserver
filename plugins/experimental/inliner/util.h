@@ -20,15 +20,14 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef UTIL_H
-#define UTIL_H
+
+#pragma once
 
 #include <vector>
 
 #define DISALLOW_COPY_AND_ASSIGN(T) \
-private:                            \
-  T(const T &);                     \
-  void operator=(const T &)
+  T(const T &) = delete;            \
+  void operator=(const T &) = delete
 
 #define DISALLOW_IMPLICIT_CONSTRUCTORS(T) \
 private:                                  \
@@ -38,6 +37,4 @@ private:                                  \
 namespace util
 {
 typedef std::vector<char> Buffer;
-} // end of util namespace
-
-#endif // UTIL_H
+} // namespace util

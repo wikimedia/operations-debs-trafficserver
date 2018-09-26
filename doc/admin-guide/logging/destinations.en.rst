@@ -166,7 +166,7 @@ a named pipe output from |TS| instead, which is always in ASCII format, but
 doesn't have the potentially increased storage needs as there is no persistent
 storage of the log data involved (at least not by |TS| - the application
 ingesting the data is probably storing its own results somewhere). It also
-avoides unnecessary disk I/O operations if you only care about the final,
+avoids unnecessary disk I/O operations if you only care about the final,
 analyzed version of the log data and have no permanent use for the intermediate
 (and raw) output from |TS|.
 
@@ -202,19 +202,26 @@ such as Logstash, to accomplish this by having them handle the ingestion of
 Log Collation
 -------------
 
+.. note::
+
+   Log collation is a *deprecated* feature as of ATS v8.0.0, and  will be
+   removed in ATS v9.0.0. Our recommendation is to use one of the many existing
+   log collection tools, such as Kafka, LogStash, FileBeat, Fluentd or even
+   syslog / syslog-ng (see above).
+
 |TS| offers remote log shipping natively through the log collation feature,
 which allows one or more |TS| instances handling regular traffic to transmit
 their log data to one or more |TS| instances acting as collation servers.
 
 This allows you to centralize your |TS| logging for (potentially) easier
 analysis and reporting in environments with many |TS| instances. Collation
-servers may be members of a |TS| cluster or entirely independent servers
-running a stripped down configuration aimed at log collation only (and omitting
-any configuration for actual traffic proxying or caching).
+servers may be |TS| instance running a stripped down configuration aimed
+at log collation only (and omitting any configuration for actual traffic
+proxying or caching).
 
 When a |TS| node generates a buffer of event log entries, it first determines
 if it is the collation server or a collation client. The collation server node
-writes all log buffers to its local disk (as per its :file:`logging.config`
+writes all log buffers to its local disk (as per its :file:`logging.yaml`
 configuration), just as it would if log collation was not enabled. The
 collation client nodes prepare their log buffers for transfer across the
 network and send the buffers to the configured log collation server.
@@ -243,7 +250,7 @@ To configure a |TS| node to be a collation client, follow the steps below.
 
    -  :ts:cv:`proxy.local.log.collation_mode`: ``2`` to configure this node as
       log collation client and send standard formatted log entries to the
-      collation server. For custom log entries, see :file:`logging.config`.
+      collation server. For custom log entries, see :file:`logging.yaml`.
    -  :ts:cv:`proxy.config.log.collation_host`
    -  :ts:cv:`proxy.config.log.collation_port`
    -  :ts:cv:`proxy.config.log.collation_secret`
@@ -297,24 +304,24 @@ configuration adjustments in :file:`records.config`:
 Collating Custom Logs
 ~~~~~~~~~~~~~~~~~~~~~
 
-If you use custom event log files, then you must edit :file:`logging.config`,
+If you use custom event log files, then you must edit :file:`logging.yaml`,
 in addition to configuring a collation server and collation clients.
 
 To collate custom event log files:
 
-#. On each collation client, edit :file:`logging.config` and add the
+#. On each collation client, edit :file:`logging.yaml` and add the
    ``CollationHosts`` attribute to the relevant logs. For example, adding two
    collation hosts to an ASCII log that uses the Squid format would look like:
 
-   .. code:: lua
+   .. code:: yaml
 
-      log.ascii {
-        Format = squid,
-        Filename = 'squid',
-        CollationHosts = { '192.168.1.100:4567', '192.168.1.101:4567' }
-      }
+      logs:
+      - mode: ascii
+        format: squid
+        filename: squid
+        collationhosts:
+        - 192.168.1.100:4567
+        - 192.168.1.101:4567
 
-#. Run the command :option:`traffic_ctl config reload` to restart |TS| on the
-   local node or :option:`traffic_ctl config reload` to restart |TS| on all
-   the nodes in a cluster.
+#. Run the command :option:`traffic_ctl config reload` to restart |TS|.
 

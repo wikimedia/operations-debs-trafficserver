@@ -180,10 +180,6 @@ msgstr ""
 msgid ":ts:cv:`proxy.config.http.cache.http`"
 msgstr ""
 
-#: ../../../developer-guide/api/functions/TSHttpOverridableConfig.en.rst:89
-msgid ":ts:cv:`proxy.config.http.cache.cluster_cache_local`"
-msgstr ""
-
 #: ../../../developer-guide/api/functions/TSHttpOverridableConfig.en.rst:90
 msgid ":ts:cv:`proxy.config.http.cache.ignore_client_no_cache`"
 msgstr ":ts:cv:`proxy.config.http.cache.ignore_client_no_cache`"
@@ -424,11 +420,6 @@ msgstr ":ts:cv:`proxy.config.http.cache.when_to_revalidate`"
 #, fuzzy
 msgid ":ts:cv:`proxy.config.http.cache.open_write_fail_action`"
 msgstr ":ts:cv:`proxy.config.http.cache.when_to_revalidate`"
-
-#: ../../../developer-guide/api/functions/TSHttpOverridableConfig.en.rst:150
-#, fuzzy
-msgid ":ts:cv:`proxy.config.http.redirection_enabled`"
-msgstr ":ts:cv:`proxy.config.http.flow_control.enabled`"
 
 #: ../../../developer-guide/api/functions/TSHttpOverridableConfig.en.rst:151
 #, fuzzy

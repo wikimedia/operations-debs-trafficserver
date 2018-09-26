@@ -28,20 +28,19 @@
 
  ****************************************************************************/
 
-#include "ts/ink_platform.h"
-#include "ts/ink_sprintf.h"
-#include "ts/ink_file.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_sprintf.h"
+#include "tscore/ink_file.h"
 #include "HttpBodyFactory.h"
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "URL.h"
-#include <logging/Log.h>
-#include <logging/LogAccess.h>
-#include <logging/LogAccessHttp.h>
+#include "logging/Log.h"
+#include "logging/LogAccess.h"
 #include "HttpCompat.h"
-#include "ts/I_Layout.h"
+#include "tscore/I_Layout.h"
 
 //////////////////////////////////////////////////////////////////////
 // The HttpBodyFactory creates HTTP response page bodies, supported //
@@ -63,7 +62,7 @@ char *
 HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State *context, int64_t max_buffer_length,
                                         int64_t *resulting_buffer_length, char *content_language_out_buf,
                                         size_t content_language_buf_size, char *content_type_out_buf, size_t content_type_buf_size,
-                                        const char *format, va_list ap)
+                                        int format_size, const char *format)
 {
   char *buffer            = nullptr;
   const char *lang_ptr    = nullptr;
@@ -124,15 +123,11 @@ HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State *c
   ///////////////////////////////////////////
   // check if we don't need to format body //
   ///////////////////////////////////////////
-  if (format) {
-    // The length from ink_bvsprintf includes the trailing NUL, so adjust the final
-    // length accordingly.
-    int l = ink_bvsprintf(nullptr, format, ap);
-    if (l <= max_buffer_length) {
-      buffer                   = (char *)ats_malloc(l);
-      *resulting_buffer_length = ink_bvsprintf(buffer, format, ap) - 1;
-      plain_flag               = true;
-    }
+
+  buffer = (format == nullptr) ? nullptr : ats_strndup(format, format_size);
+  if (buffer != nullptr && format_size > 0) {
+    *resulting_buffer_length = format_size > max_buffer_length ? 0 : format_size;
+    plain_flag               = true;
   }
   /////////////////////////////////////////////////////////
   // try to fabricate the desired type of error response //
@@ -171,7 +166,6 @@ HttpBodyFactory::fabricate_with_old_api(const char *type, HttpTransact::State *c
   // handle return of instantiated template and generate the content //
   // language and content type return values                         //
   /////////////////////////////////////////////////////////////////////
-
   if (buffer) { // got an instantiated template
     if (!plain_flag) {
       snprintf(content_language_out_buf, content_language_buf_size, "%s", lang_ptr);
@@ -265,10 +259,8 @@ config_callback(const char * /* name ATS_UNUSED */, RecDataT /* data_type ATS_UN
 
 void
 HttpBodyFactory::reconfigure()
-//#endif
 {
   RecInt e;
-  RecString s = nullptr;
   bool all_found;
   int rec_err;
 
@@ -304,20 +296,14 @@ HttpBodyFactory::reconfigure()
   all_found                 = all_found && (rec_err == REC_ERR_OKAY);
   Debug("body_factory", "response_suppression_mode = %d (found = %" PRId64 ")", response_suppression_mode, e);
 
-  ats_scoped_str directory_of_template_sets;
+  ats_scoped_str directory_of_template_sets(RecConfigReadConfigPath("proxy.config.body_factory.template_sets_dir", "body_factory"));
 
-  rec_err   = RecGetRecordString_Xmalloc("proxy.config.body_factory.template_sets_dir", &s);
-  all_found = all_found && (rec_err == REC_ERR_OKAY);
-  if (rec_err == REC_ERR_OKAY) {
-    directory_of_template_sets = Layout::get()->relative(s);
-    if (access(directory_of_template_sets, R_OK) < 0) {
-      Warning("Unable to access() directory '%s': %d, %s", (const char *)directory_of_template_sets, errno, strerror(errno));
-      Warning(" Please set 'proxy.config.body_factory.template_sets_dir' ");
-    }
+  if (access(directory_of_template_sets, R_OK) < 0) {
+    Warning("Unable to access() directory '%s': %d, %s", (const char *)directory_of_template_sets, errno, strerror(errno));
+    Warning(" Please set 'proxy.config.body_factory.template_sets_dir' ");
   }
 
-  Debug("body_factory", "directory_of_template_sets = '%s' (found = %s)", (const char *)directory_of_template_sets, s);
-  ats_free(s);
+  Debug("body_factory", "directory_of_template_sets = '%s' ", (const char *)directory_of_template_sets);
 
   if (!all_found) {
     Warning("config changed, but can't fetch all proxy.config.body_factory values");
@@ -355,14 +341,7 @@ HttpBodyFactory::HttpBodyFactory()
   ////////////////////////////////////
   // initialize first-time defaults //
   ////////////////////////////////////
-
-  magic = HTTP_BODY_FACTORY_MAGIC;
-  ink_mutex_init(&mutex, "HttpBodyFactory::lock");
-
-  table_of_sets         = nullptr;
-  enable_customizations = 0;
-  enable_logging        = true;
-  callbacks_established = false;
+  ink_mutex_init(&mutex);
 
   //////////////////////////////////////////////////////
   // set up management configuration-change callbacks //
@@ -405,7 +384,7 @@ HttpBodyFactory::fabricate(StrList *acpt_language_list, StrList *acpt_charset_li
   char *buffer;
   const char *pType = context->txn_conf->body_factory_template_base;
   const char *set;
-  HttpBodyTemplate *t = NULL;
+  HttpBodyTemplate *t = nullptr;
   HttpBodySet *body_set;
   char template_base[PATH_NAME_MAX];
 
@@ -756,8 +735,9 @@ HttpBodyFactory::load_body_set_from_directory(char *set_name, char *tmpl_dir)
     ///////////////////////////////////////////////////////////////
 
     if (!(nullptr != strchr(dirEntry->d_name, '#') || (0 == strcmp(dirEntry->d_name, "default")) ||
-          (d_len >= sizeof(BASED_DEFAULT) && 0 == strcmp(dirEntry->d_name + d_len - (sizeof(BASED_DEFAULT) - 1), BASED_DEFAULT))))
+          (d_len >= sizeof(BASED_DEFAULT) && 0 == strcmp(dirEntry->d_name + d_len - (sizeof(BASED_DEFAULT) - 1), BASED_DEFAULT)))) {
       continue;
+    }
 
     snprintf(path, sizeof(path), "%s/%s", tmpl_dir, dirEntry->d_name);
     status = stat(path, &stat_buf);
@@ -1068,7 +1048,7 @@ HttpBodyTemplate::build_instantiated_buffer(HttpTransact::State *context, int64_
 
   Debug("body_factory_instantiation", "    before instantiation: [%s]", template_buffer);
 
-  LogAccessHttp la(context->state_machine);
+  LogAccess la(context->state_machine);
 
   buffer = resolve_logfield_string(&la, template_buffer);
 

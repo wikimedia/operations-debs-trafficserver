@@ -27,7 +27,7 @@
   Commonality across all platforms -- move out as required.
 
 **************************************************************************/
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 
 #include "P_Net.h"
 
@@ -74,8 +74,9 @@ Server::accept(Connection *c)
   socklen_t sz = sizeof(c->addr);
 
   res = socketManager.accept4(fd, &c->addr.sa, &sz, SOCK_NONBLOCK | SOCK_CLOEXEC);
-  if (res < 0)
+  if (res < 0) {
     return res;
+  }
   c->fd = res;
   if (is_debug_tag_set("iocore_net_server")) {
     ip_port_text_buffer ipb1, ipb2;
@@ -240,6 +241,10 @@ Server::setup_fd_for_listen(bool non_blocking, const NetProcessor::AcceptOptions
 #endif
   }
 
+  if (opt.f_proxy_protocol) {
+    Debug("proxyprotocol", "Proxy Protocol enabled.");
+  }
+
 #if defined(TCP_MAXSEG)
   if (NetProcessor::accept_mss > 0) {
     if ((res = safe_setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, (char *)&NetProcessor::accept_mss, sizeof(int))) < 0) {
@@ -262,7 +267,6 @@ Lerror:
   // coverity[check_after_sink]
   if (fd != NO_FD) {
     close();
-    fd = NO_FD;
   }
 
   return res;

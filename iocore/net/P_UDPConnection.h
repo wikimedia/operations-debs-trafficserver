@@ -36,7 +36,7 @@ class UDPConnectionInternal : public UDPConnection
 {
 public:
   UDPConnectionInternal();
-  virtual ~UDPConnectionInternal();
+  ~UDPConnectionInternal() override;
 
   Continuation *continuation;
   int recvActive; // interested in receiving
@@ -88,6 +88,16 @@ UDPConnection::setBinding(struct sockaddr const *s)
 {
   UDPConnectionInternal *p = (UDPConnectionInternal *)this;
   ats_ip_copy(&p->binding, s);
+  p->binding_valid = 1;
+}
+
+TS_INLINE void
+UDPConnection::setBinding(IpAddr const &ip, in_port_t port)
+{
+  UDPConnectionInternal *p = (UDPConnectionInternal *)this;
+  IpEndpoint addr;
+  addr.assign(ip, htons(port));
+  ats_ip_copy(&p->binding, addr);
   p->binding_valid = 1;
 }
 

@@ -27,15 +27,7 @@
 
 static int64_t next_cs_id = 0;
 
-ProxyClientSession::ProxyClientSession()
-  : VConnection(nullptr),
-    acl_record(nullptr),
-    host_res_style(HOST_RES_IPV4),
-    debug_on(false),
-    hooks_on(true),
-    in_destroy(false),
-    con_id(0),
-    m_active(false)
+ProxyClientSession::ProxyClientSession() : VConnection(nullptr)
 {
   ink_zero(this->user_args);
 }
@@ -214,7 +206,8 @@ ProxyClientSession::handle_api_return(int event)
     break;
   }
   default:
-    Fatal("received invalid session hook %s (%d)", HttpDebugNames::get_api_hook_name(hookid), hookid);
+    Error("received invalid session hook %s (%d)", HttpDebugNames::get_api_hook_name(hookid), hookid);
+    ink_release_assert(false);
     break;
   }
 }

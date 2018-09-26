@@ -23,8 +23,9 @@
 
 #pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/List.h"
+#include "tscore/ink_platform.h"
+#include "tscore/List.h"
+#include "tscore/TsBuffer.h"
 #include "LogFieldAliasMap.h"
 #include "Milestones.h"
 
@@ -116,12 +117,13 @@ public:
     N_AGGREGATES,
   };
 
-  LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFunc unmarshal, SetFunc _setFunc = NULL);
+  LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFunc unmarshal,
+           SetFunc _setFunc = nullptr);
 
   LogField(const char *name, const char *symbol, Type type, MarshalFunc marshal, UnmarshalFuncWithMap unmarshal,
-           const Ptr<LogFieldAliasMap> &map, SetFunc _setFunc = NULL);
+           const Ptr<LogFieldAliasMap> &map, SetFunc _setFunc = nullptr);
 
-  LogField(const char *field, Container container, SetFunc _setFunc = NULL);
+  LogField(const char *field, Container container, SetFunc _setFunc = nullptr);
   LogField(const LogField &rhs);
   ~LogField();
 
@@ -175,7 +177,7 @@ public:
   static void init_milestone_container(void);
   static Container valid_container_name(char *name);
   static Aggregate valid_aggregate_name(char *name);
-  static bool fieldlist_contains_aggregates(char *fieldlist);
+  static bool fieldlist_contains_aggregates(const char *fieldlist);
 
 private:
   char *m_name;
@@ -200,13 +202,14 @@ public:
   LINK(LogField, link);
   LogSlice m_slice;
 
+  // noncopyable
+  // -- member functions that are not allowed --
+  LogField &operator=(const LogField &rhs) = delete;
+
 private:
   // luis, check where this is used and what it does
   //    void init (char *name, char *symbol, Type type);
-
-  // -- member functions that are not allowed --
   LogField();
-  LogField &operator=(const LogField &rhs);
 };
 
 /*-------------------------------------------------------------------------
@@ -242,13 +245,14 @@ public:
   unsigned count();
   void display(FILE *fd = stdout);
 
+  // noncopyable
+  // -- member functions that are not allowed --
+  LogFieldList(const LogFieldList &rhs) = delete;
+  LogFieldList &operator=(const LogFieldList &rhs) = delete;
+
 private:
   unsigned m_marshal_len;
   Queue<LogField> m_field_list;
-
-  // -- member functions that are not allowed --
-  LogFieldList(const LogFieldList &rhs);
-  LogFieldList &operator=(const LogFieldList &rhs);
 };
 
 /** Base IP address data.

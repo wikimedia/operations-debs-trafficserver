@@ -23,11 +23,11 @@
 
 #pragma once
 
-#include "ts/ink_thread.h"
-#include "ts/ink_hash_table.h"
-#include "ts/ink_llqueue.h"
-#include "ts/ink_rwlock.h"
-#include "ts/TextBuffer.h"
+#include "tscore/ink_thread.h"
+#include "tscore/ink_hash_table.h"
+#include "tscore/ink_llqueue.h"
+#include "tscore/ink_rwlock.h"
+#include "tscore/TextBuffer.h"
 
 #include "I_RecCore.h"
 #include "P_RecDefs.h"
@@ -79,8 +79,8 @@ RecErrT RecGetRecord_Xmalloc(const char *name, RecDataT data_type, RecData *data
 RecErrT RecReadStatsFile();
 RecErrT RecSyncStatsFile();
 RecErrT RecReadConfigFile(bool inc_version);
-RecErrT RecWriteConfigFile(textBuffer *tb);
-RecErrT RecSyncConfigToTB(textBuffer *tb, bool *inc_version = nullptr);
+RecErrT RecWriteConfigFile(TextBuffer *tb);
+RecErrT RecSyncConfigToTB(TextBuffer *tb, bool *inc_version = nullptr);
 
 //-------------------------------------------------------------------------
 // Misc

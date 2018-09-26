@@ -24,7 +24,6 @@
 #pragma once
 
 #include "P_CacheArray.h"
-#ifdef HTTP_CACHE
 #include "HTTP.h"
 #include "URL.h"
 
@@ -38,12 +37,6 @@ enum {
   OWNER_CACHE = 1,
   OWNER_HTTP  = 2,
 };
-
-#else
-struct CacheHTTPInfo {
-};
-
-#endif // HTTP_CACHE
 
 struct vec_info {
   CacheHTTPInfo alternate;

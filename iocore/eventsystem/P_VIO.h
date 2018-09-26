@@ -25,9 +25,7 @@
 #include "I_VIO.h"
 
 TS_INLINE
-VIO::VIO(int aop) : _cont(nullptr), nbytes(0), ndone(0), op(aop), buffer(), vc_server(0), mutex(0)
-{
-}
+VIO::VIO(int aop) : cont(nullptr), nbytes(0), ndone(0), op(aop), buffer(), vc_server(nullptr), mutex(nullptr) {}
 
 /////////////////////////////////////////////////////////////
 //
@@ -35,14 +33,12 @@ VIO::VIO(int aop) : _cont(nullptr), nbytes(0), ndone(0), op(aop), buffer(), vc_s
 //
 /////////////////////////////////////////////////////////////
 TS_INLINE
-VIO::VIO() : _cont(0), nbytes(0), ndone(0), op(VIO::NONE), buffer(), vc_server(0), mutex(0)
-{
-}
+VIO::VIO() : cont(nullptr), nbytes(0), ndone(0), op(VIO::NONE), buffer(), vc_server(nullptr), mutex(nullptr) {}
 
 TS_INLINE Continuation *
 VIO::get_continuation()
 {
-  return _cont;
+  return cont;
 }
 TS_INLINE void
 VIO::set_writer(MIOBuffer *writer)
@@ -72,10 +68,11 @@ VIO::ntodo()
 TS_INLINE void
 VIO::done()
 {
-  if (buffer.reader())
+  if (buffer.reader()) {
     nbytes = ndone + buffer.reader()->read_avail();
-  else
+  } else {
     nbytes = ndone;
+  }
 }
 
 /////////////////////////////////////////////////////////////
@@ -86,14 +83,15 @@ VIO::done()
 TS_INLINE void
 VIO::set_continuation(Continuation *acont)
 {
-  if (vc_server)
+  if (vc_server) {
     vc_server->set_continuation(this, acont);
+  }
   if (acont) {
     mutex = acont->mutex;
-    _cont = acont;
+    cont  = acont;
   } else {
     mutex = nullptr;
-    _cont = nullptr;
+    cont  = nullptr;
   }
   return;
 }
@@ -106,8 +104,9 @@ VIO::set_continuation(Continuation *acont)
 TS_INLINE void
 VIO::reenable()
 {
-  if (vc_server)
+  if (vc_server) {
     vc_server->reenable(this);
+  }
 }
 
 /////////////////////////////////////////////////////////////
@@ -118,6 +117,7 @@ VIO::reenable()
 TS_INLINE void
 VIO::reenable_re()
 {
-  if (vc_server)
+  if (vc_server) {
     vc_server->reenable_re(this);
+  }
 }

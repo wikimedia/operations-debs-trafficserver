@@ -21,9 +21,9 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
-#include "ts/ink_memory.h"
-#include "ts/ParseRules.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_memory.h"
+#include "tscore/ParseRules.h"
 #include "P_RecUtils.h"
 #include "P_RecCore.h"
 
@@ -82,16 +82,10 @@ void
 RecDataSetMax(RecDataT type, RecData *data)
 {
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     data->rec_int = INT64_MAX; // Assumes rec_int is int64_t, which it currently is
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     data->rec_float = FLT_MAX;
     break;
@@ -104,16 +98,10 @@ void
 RecDataSetMin(RecDataT type, RecData *data)
 {
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     data->rec_int = INT64_MIN; // Assumes rec_int is int64_t, which it currently is
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     data->rec_float = FLT_MIN;
     break;
@@ -183,9 +171,6 @@ int
 RecDataCmp(RecDataT type, RecData left, RecData right)
 {
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     if (left.rec_int > right.rec_int) {
@@ -195,9 +180,6 @@ RecDataCmp(RecDataT type, RecData left, RecData right)
     } else {
       return -1;
     }
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     if (left.rec_float > right.rec_float) {
       return 1;
@@ -219,16 +201,10 @@ RecDataAdd(RecDataT type, RecData left, RecData right)
   memset(&val, 0, sizeof(val));
 
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     val.rec_int = left.rec_int + right.rec_int;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     val.rec_float = left.rec_float + right.rec_float;
     break;
@@ -246,16 +222,10 @@ RecDataSub(RecDataT type, RecData left, RecData right)
   memset(&val, 0, sizeof(val));
 
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     val.rec_int = left.rec_int - right.rec_int;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     val.rec_float = left.rec_float - right.rec_float;
     break;
@@ -273,16 +243,10 @@ RecDataMul(RecDataT type, RecData left, RecData right)
   memset(&val, 0, sizeof(val));
 
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     val.rec_int = left.rec_int * right.rec_int;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     val.rec_float = left.rec_float * right.rec_float;
     break;
@@ -300,16 +264,10 @@ RecDataDiv(RecDataT type, RecData left, RecData right)
   memset(&val, 0, sizeof(val));
 
   switch (type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
   case RECD_COUNTER:
     val.rec_int = left.rec_int / right.rec_int;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     val.rec_float = left.rec_float / right.rec_float;
     break;
@@ -321,41 +279,35 @@ RecDataDiv(RecDataT type, RecData left, RecData right)
 }
 
 //-------------------------------------------------------------------------
-// RecDataSetFromInk64
+// RecDataSetFromInt64
 //-------------------------------------------------------------------------
 bool
-RecDataSetFromInk64(RecDataT data_type, RecData *data_dst, int64_t data_int64)
+RecDataSetFromInt64(RecDataT data_type, RecData *data_dst, int64_t data_int64)
 {
+  RecData data_src;
+
   switch (data_type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
-    data_dst->rec_int = data_int64;
+    data_src.rec_int = data_int64;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
-    data_dst->rec_float = (float)(data_int64);
+    data_src.rec_float = (float)(data_int64);
     break;
   case RECD_STRING: {
     char buf[32 + 1];
-
-    ats_free(data_dst->rec_string);
     snprintf(buf, 32, "%" PRId64 "", data_int64);
-    data_dst->rec_string = ats_strdup(buf);
+    data_src.rec_string = ats_strdup(buf);
     break;
   }
   case RECD_COUNTER:
-    data_dst->rec_counter = data_int64;
+    data_src.rec_counter = data_int64;
     break;
   default:
     ink_assert(!"Unexpected RecD type");
     return false;
   }
 
-  return true;
+  return RecDataSet(data_type, data_dst, &data_src);
 }
 
 //-------------------------------------------------------------------------
@@ -364,36 +316,30 @@ RecDataSetFromInk64(RecDataT data_type, RecData *data_dst, int64_t data_int64)
 bool
 RecDataSetFromFloat(RecDataT data_type, RecData *data_dst, float data_float)
 {
+  RecData data_src;
+
   switch (data_type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
-    data_dst->rec_int = (RecInt)data_float;
+    data_src.rec_int = (RecInt)data_float;
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
-    data_dst->rec_float = (float)(data_float);
+    data_src.rec_float = (float)(data_float);
     break;
   case RECD_STRING: {
     char buf[32 + 1];
-
-    ats_free(data_dst->rec_string);
     snprintf(buf, 32, "%f", data_float);
-    data_dst->rec_string = ats_strdup(buf);
+    data_src.rec_string = ats_strdup(buf);
     break;
   }
   case RECD_COUNTER:
-    data_dst->rec_counter = (RecCounter)data_float;
+    data_src.rec_counter = (RecCounter)data_float;
     break;
   default:
     ink_assert(!"Unexpected RecD type");
     return false;
   }
 
-  return true;
+  return RecDataSet(data_type, data_dst, &data_src);
 }
 
 //-------------------------------------------------------------------------
@@ -402,19 +348,12 @@ RecDataSetFromFloat(RecDataT data_type, RecData *data_dst, float data_float)
 bool
 RecDataSetFromString(RecDataT data_type, RecData *data_dst, const char *data_string)
 {
-  bool rec_set;
   RecData data_src;
 
   switch (data_type) {
-#if defined(STAT_PROCESSOR)
-  case RECD_FX:
-#endif
   case RECD_INT:
     data_src.rec_int = ink_atoi64(data_string);
     break;
-#if defined(STAT_PROCESSOR)
-  case RECD_CONST:
-#endif
   case RECD_FLOAT:
     data_src.rec_float = atof(data_string);
     break;
@@ -433,7 +372,6 @@ RecDataSetFromString(RecDataT data_type, RecData *data_dst, const char *data_str
     ink_assert(!"Unexpected RecD type");
     return false;
   }
-  rec_set = RecDataSet(data_type, data_dst, &data_src);
 
-  return rec_set;
+  return RecDataSet(data_type, data_dst, &data_src);
 }

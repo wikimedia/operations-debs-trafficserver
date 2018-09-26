@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include "ts/ink_mutex.h"
-#include "ts/ink_thread.h"
+#include "tscore/ink_mutex.h"
+#include "tscore/ink_thread.h"
 
 /**
   A wrapper to ink_mutex class. It allows multiple acquire of mutex lock
@@ -37,7 +37,7 @@ struct RecMutex {
   ink_mutex the_mutex;
 };
 
-int rec_mutex_init(RecMutex *m, const char *name = nullptr);
-int rec_mutex_destroy(RecMutex *m);
-int rec_mutex_acquire(RecMutex *m);
-int rec_mutex_release(RecMutex *m);
+void rec_mutex_init(RecMutex *m, const char *name = nullptr);
+void rec_mutex_destroy(RecMutex *m);
+void rec_mutex_acquire(RecMutex *m);
+void rec_mutex_release(RecMutex *m);

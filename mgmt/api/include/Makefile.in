@@ -120,17 +120,19 @@ am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
 	$(top_srcdir)/build/ltoptions.m4 \
 	$(top_srcdir)/build/ltsugar.m4 \
 	$(top_srcdir)/build/ltversion.m4 \
-	$(top_srcdir)/build/lt~obsolete.m4 $(top_srcdir)/build/lzma.m4 \
+	$(top_srcdir)/build/lt~obsolete.m4 \
+	$(top_srcdir)/build/luajit.m4 $(top_srcdir)/build/lzma.m4 \
 	$(top_srcdir)/build/network.m4 $(top_srcdir)/build/pcre.m4 \
 	$(top_srcdir)/build/pkg.m4 $(top_srcdir)/build/tcl.m4 \
-	$(top_srcdir)/build/tcmalloc.m4 $(top_srcdir)/build/zlib.m4 \
+	$(top_srcdir)/build/tcmalloc.m4 \
+	$(top_srcdir)/build/yaml-cpp.m4 $(top_srcdir)/build/zlib.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(library_include_HEADERS) \
 	$(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = $(top_builddir)/lib/ink_autoconf.h
+CONFIG_HEADER = $(top_builddir)/include/ink_autoconf.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 AM_V_P = $(am__v_P_@AM_V@)
@@ -181,7 +183,7 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(library_includedir)"
 HEADERS = $(library_include_HEADERS)
-am__extra_recursive_targets = tidy-recursive
+am__extra_recursive_targets = clang-tidy-recursive
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -219,6 +221,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BROTLIENC_CFLAGS = @BROTLIENC_CFLAGS@
+BROTLIENC_LIB = @BROTLIENC_LIB@
 CC = @CC@
 CCACHE = @CCACHE@
 CCAS = @CCAS@
@@ -226,7 +230,6 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
-CFLAGS_BROTLIENC = @CFLAGS_BROTLIENC@
 CLANG_TIDY = @CLANG_TIDY@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
@@ -234,6 +237,7 @@ CURL_CFLAGS = @CURL_CFLAGS@
 CURL_CONFIG = @CURL_CONFIG@
 CURL_LIBS = @CURL_LIBS@
 CURSES_CFLAGS = @CURSES_CFLAGS@
+CURSES_LDFLAGS = @CURSES_LDFLAGS@
 CURSES_LIBS = @CURSES_LIBS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
@@ -263,13 +267,18 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+JAVA = @JAVA@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
+LIBBROTLIENC_CFLAGS = @LIBBROTLIENC_CFLAGS@
+LIBBROTLIENC_LIBS = @LIBBROTLIENC_LIBS@
 LIBCAP = @LIBCAP@
+LIBCJOSE = @LIBCJOSE@
 LIBCRYPT = @LIBCRYPT@
+LIBJANSSON = @LIBJANSSON@
 LIBLZMA = @LIBLZMA@
 LIBMAGICKCPP_CFLAGS = @LIBMAGICKCPP_CFLAGS@
 LIBMAGICKCPP_LIBS = @LIBMAGICKCPP_LIBS@
@@ -286,7 +295,6 @@ LIBTOOL = @LIBTOOL@
 LIBUNWIND_CFLAGS = @LIBUNWIND_CFLAGS@
 LIBUNWIND_LIBS = @LIBUNWIND_LIBS@
 LIBZ = @LIBZ@
-LIB_BROTLIENC = @LIB_BROTLIENC@
 LIB_KYOTOCABINET = @LIB_KYOTOCABINET@
 LIB_MYSQLCLIENT = @LIB_MYSQLCLIENT@
 LIPO = @LIPO@
@@ -295,7 +303,9 @@ LTLIBOBJS = @LTLIBOBJS@
 LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
 LUAJIT_CFLAGS = @LUAJIT_CFLAGS@
 LUAJIT_CPPFLAGS = @LUAJIT_CPPFLAGS@
+LUAJIT_DARWIN_LDFLAGS = @LUAJIT_DARWIN_LDFLAGS@
 LUAJIT_LDFLAGS = @LUAJIT_LDFLAGS@
+LUAJIT_LIBS = @LUAJIT_LIBS@
 MAINT = @MAINT@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -332,10 +342,6 @@ RM = @RM@
 RPATH = @RPATH@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
-SHARED_CFLAGS = @SHARED_CFLAGS@
-SHARED_CXXFLAGS = @SHARED_CXXFLAGS@
-SHARED_CXXLINKFLAGS = @SHARED_CXXLINKFLAGS@
-SHARED_LDFLAGS = @SHARED_LDFLAGS@
 SHELL = @SHELL@
 SPHINXBUILD = @SPHINXBUILD@
 SPHINXOPTS = @SPHINXOPTS@
@@ -350,6 +356,7 @@ TCL_STUB_LIB_FILE = @TCL_STUB_LIB_FILE@
 TCL_STUB_LIB_FLAG = @TCL_STUB_LIB_FLAG@
 TCL_STUB_LIB_SPEC = @TCL_STUB_LIB_SPEC@
 TCL_VERSION = @TCL_VERSION@
+TS_INCLUDES = @TS_INCLUDES@
 TS_LIBTOOL_VERSION = @TS_LIBTOOL_VERSION@
 TS_MAN1_MANPAGES = @TS_MAN1_MANPAGES@
 TS_MAN3_MANPAGES = @TS_MAN3_MANPAGES@
@@ -362,6 +369,9 @@ TS_VERSION_NUMBER = @TS_VERSION_NUMBER@
 TS_VERSION_STRING = @TS_VERSION_STRING@
 VERSION = @VERSION@
 YACC = @YACC@
+YAMLCPP_INCLUDES = @YAMLCPP_INCLUDES@
+YAMLCPP_LDFLAGS = @YAMLCPP_LDFLAGS@
+YAMLCPP_LIBS = @YAMLCPP_LIBS@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
@@ -370,16 +380,11 @@ ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
-ac_cv_sizeof_voidp = @ac_cv_sizeof_voidp@
-allocah = @allocah@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
-arpa_ineth = @arpa_ineth@
-arpa_nameser_compath = @arpa_nameser_compath@
-arpa_nameserh = @arpa_nameserh@
 bindir = @bindir@
 build = @build@
 build_alias = @build_alias@
@@ -392,18 +397,15 @@ build_person = @build_person@
 build_vendor = @build_vendor@
 builddir = @builddir@
 cachedir = @cachedir@
-cpioh = @cpioh@
-ctypeh = @ctypeh@
 datadir = @datadir@
 datarootdir = @datarootdir@
 default_loopback_iface = @default_loopback_iface@
-defer_accept = @defer_accept@
+default_stack_size = @default_stack_size@
 docdir = @docdir@
 dvidir = @dvidir@
+enable_fips = @enable_fips@
 enable_remote_cov_commit = @enable_remote_cov_commit@
-endianh = @endianh@
 exec_prefix = @exec_prefix@
-execinfoh = @execinfoh@
 exp_bindir = @exp_bindir@
 exp_cachedir = @exp_cachedir@
 exp_datadir = @exp_datadir@
@@ -421,13 +423,12 @@ exp_prefix = @exp_prefix@
 exp_runtimedir = @exp_runtimedir@
 exp_sbindir = @exp_sbindir@
 exp_sysconfdir = @exp_sysconfdir@
-floath = @floath@
-gethostbyname_r_glibc2 = @gethostbyname_r_glibc2@
 has_128bit_cas = @has_128bit_cas@
 has_backtrace = @has_backtrace@
 has_in6_is_addr_unspecified = @has_in6_is_addr_unspecified@
 has_ip_tos = @has_ip_tos@
 has_kyotocabinet = @has_kyotocabinet@
+has_luajit = @has_luajit@
 has_mysql = @has_mysql@
 has_profiler = @has_profiler@
 has_so_mark = @has_so_mark@
@@ -441,7 +442,6 @@ host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
 htmldir = @htmldir@
-ifaddrsh = @ifaddrsh@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
@@ -449,34 +449,18 @@ installbuilddir = @installbuilddir@
 iocore_include_dirs = @iocore_include_dirs@
 ip_transparent = @ip_transparent@
 jemalloch = @jemalloch@
-libbrotlienc_CFLAGS = @libbrotlienc_CFLAGS@
-libbrotlienc_LIBS = @libbrotlienc_LIBS@
 libdir = @libdir@
 libexecdir = @libexecdir@
-libgenh = @libgenh@
 localedir = @localedir@
 localstatedir = @localstatedir@
 logdir = @logdir@
-lzmah = @lzmah@
-machine_endianh = @machine_endianh@
-malloch = @malloch@
 mandir = @mandir@
-mathh = @mathh@
 max_api_stats = @max_api_stats@
 max_event_threads = @max_event_threads@
 max_host_name_len = @max_host_name_len@
 max_threads_per_type = @max_threads_per_type@
 mkdir_p = @mkdir_p@
-net_ppp_defsh = @net_ppp_defsh@
-netdbh = @netdbh@
-netinet_in_systmh = @netinet_in_systmh@
-netinet_inh = @netinet_inh@
-netinet_ip_icmph = @netinet_ip_icmph@
-netinet_iph = @netinet_iph@
-netinet_tcph = @netinet_tcph@
 oldincludedir = @oldincludedir@
-pcre_pcreh = @pcre_pcreh@
-pcreh = @pcreh@
 pdfdir = @pdfdir@
 pkgbindir = @pkgbindir@
 pkgcachedir = @pkgcachedir@
@@ -493,10 +477,8 @@ pkgsysuser = @pkgsysuser@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
 psdir = @psdir@
-pthread_nph = @pthread_nph@
 pyexecdir = @pyexecdir@
 pythondir = @pythondir@
-readline_readlineh = @readline_readlineh@
 rel_bindir = @rel_bindir@
 rel_cachedir = @rel_cachedir@
 rel_datadir = @rel_datadir@
@@ -516,24 +498,8 @@ rel_sbindir = @rel_sbindir@
 rel_sysconfdir = @rel_sysconfdir@
 runtimedir = @runtimedir@
 sbindir = @sbindir@
-schedh = @schedh@
 sharedstatedir = @sharedstatedir@
-siginfoh = @siginfoh@
 srcdir = @srcdir@
-stroptsh = @stroptsh@
-sys_byteorderh = @sys_byteorderh@
-sys_cpuseth = @sys_cpuseth@
-sys_epollh = @sys_epollh@
-sys_eventh = @sys_eventh@
-sys_ioctlh = @sys_ioctlh@
-sys_mounth = @sys_mounth@
-sys_paramh = @sys_paramh@
-sys_pseth = @sys_pseth@
-sys_sockioh = @sys_sockioh@
-sys_sysctlh = @sys_sysctlh@
-sys_sysinfoh = @sys_sysinfoh@
-sys_sysmacrosh = @sys_sysmacrosh@
-sys_systeminfoh = @sys_systeminfoh@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
@@ -553,16 +519,15 @@ use_remote_unwinding = @use_remote_unwinding@
 use_set_rbio = @use_set_rbio@
 use_sslv3_client = @use_sslv3_client@
 use_tls_alpn = @use_tls_alpn@
+use_tls_async = @use_tls_async@
 use_tls_eckey = @use_tls_eckey@
 use_tls_npn = @use_tls_npn@
-use_tls_sni = @use_tls_sni@
+use_tls_ocsp = @use_tls_ocsp@
+use_tls_set_ciphersuites = @use_tls_set_ciphersuites@
 use_tproxy = @use_tproxy@
-valuesh = @valuesh@
-waith = @waith@
-zlibh = @zlibh@
 library_includedir = $(includedir)/ts
 library_include_HEADERS = \
-  mgmtapi.h
+	mgmtapi.h
 
 all: all-am
 
@@ -623,7 +588,7 @@ uninstall-library_includeHEADERS:
 	@list='$(library_include_HEADERS)'; test -n "$(library_includedir)" || list=; \
 	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
 	dir='$(DESTDIR)$(library_includedir)'; $(am__uninstall_files_from_dir)
-tidy-local: 
+clang-tidy-local: 
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -744,6 +709,10 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+clang-tidy: clang-tidy-am
+
+clang-tidy-am: clang-tidy-local
+
 clean: clean-am
 
 clean-am: clean-generic clean-libtool mostlyclean-am
@@ -808,27 +777,24 @@ ps: ps-am
 
 ps-am:
 
-tidy: tidy-am
-
-tidy-am: tidy-local
-
 uninstall-am: uninstall-library_includeHEADERS
 
 .MAKE: install-am install-strip
 
-.PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
-	clean-libtool cscopelist-am ctags ctags-am distclean \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dvi install-dvi-am \
-	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-library_includeHEADERS \
-	install-man install-pdf install-pdf-am install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am tags tags-am tidy-am tidy-local uninstall \
-	uninstall-am uninstall-library_includeHEADERS
+.PHONY: CTAGS GTAGS TAGS all all-am check check-am clang-tidy-am \
+	clang-tidy-local clean clean-generic clean-libtool \
+	cscopelist-am ctags ctags-am distclean distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-library_includeHEADERS install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags tags-am uninstall uninstall-am \
+	uninstall-library_includeHEADERS
 
 .PRECIOUS: Makefile
 

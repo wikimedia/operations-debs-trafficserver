@@ -21,17 +21,16 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
-#include "ts/ink_string.h"
-#include "ts/ink_file.h"
-#include "ts/ink_time.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_string.h"
+#include "tscore/ink_file.h"
+#include "tscore/ink_time.h"
 #include "LocalManager.h"
-#include "ClusterCom.h"
 #include "MgmtUtils.h"
 #include "Alarms.h"
-#include "ts/Diags.h"
+#include "tscore/Diags.h"
 
-#include "P_RecCore.h"
+#include "records/P_RecCore.h"
 
 const char *alarmText[] = {
   "Unknown Alarm",
@@ -53,10 +52,6 @@ const char *alarmText[] = {
   "",
   "Add OEM Alarm",
   "",
-  "HTTP Origin Server is Congested",
-  "Congested HTTP Origin Server is now Alleviated",
-  "", /* congested server */
-  ""  /* alleviated server */
 };
 
 const int alarmTextNum = sizeof(alarmText) / sizeof(char *);
@@ -82,7 +77,7 @@ Alarms::Alarms()
   cblist        = ink_hash_table_create(InkHashTableKeyType_String);
   local_alarms  = ink_hash_table_create(InkHashTableKeyType_String);
   remote_alarms = ink_hash_table_create(InkHashTableKeyType_String);
-  ink_mutex_init(&mutex, "alarms-mutex");
+  ink_mutex_init(&mutex);
   alarmOEMcount = minOEMkey;
 } /* End Alarms::Alarms */
 
@@ -150,10 +145,6 @@ Alarms::resolveAlarm(alarm_t a, char *ip)
     char buf2[1024];
 
     snprintf(buf2, sizeof(buf2), "aresolv: %d\n", a);
-    if (!lmgmt->ccom->sendReliableMessage(inet_addr(ip), buf2, strlen(buf2))) {
-      ink_mutex_release(&mutex);
-      return;
-    }
     ink_hash_table_delete(remote_alarms, buf);
     ats_free(hash_value);
   }
@@ -200,9 +191,6 @@ Alarms::signalAlarm(alarm_t a, const char *desc, const char *ip)
   case MGMT_ALARM_ADD_ALARM:
     priority = 2;
     break;
-  case MGMT_ALARM_PROXY_HTTP_CONGESTED_SERVER:
-  case MGMT_ALARM_PROXY_HTTP_ALLEVIATED_SERVER:
-    return;
   default:
     priority = 2;
     break;
@@ -369,68 +357,6 @@ Alarms::clearUnSeen(char *ip)
   ink_mutex_release(&mutex);
   return;
 } /* End Alarms::clearUnSeen */
-
-/*
- * constructAlarmMessage(...)
- *   This functions builds a message buffer for passing to peers. It basically
- * takes the current list of local alarms and builds an alarm message.
- */
-void
-Alarms::constructAlarmMessage(const AppVersionInfo &version, char *ip, char *message, int max)
-{
-  int n = 0, bsum = 0;
-  char buf[4096];
-  InkHashTableEntry *entry;
-  InkHashTableIteratorState iterator_state;
-
-  if (!ip) {
-    return;
-  }
-  // Insert the standard mcast packet header
-  n = ClusterCom::constructSharedPacketHeader(version, message, ip, max);
-
-  ink_mutex_acquire(&mutex);
-  if (!((n + (int)strlen("type: alarm\n")) < max)) {
-    if (max >= 1) {
-      message[0] = '\0';
-    }
-    ink_mutex_release(&mutex);
-    return;
-  }
-
-  ink_strlcpy(&message[n], "type: alarm\n", max - n);
-  n += strlen("type: alarm\n");
-  bsum = n;
-  for (entry = ink_hash_table_iterator_first(local_alarms, &iterator_state); (entry != nullptr && n < max);
-       entry = ink_hash_table_iterator_next(local_alarms, &iterator_state)) {
-    Alarm *tmp = (Alarm *)ink_hash_table_entry_value(remote_alarms, entry);
-
-    if (tmp->description) {
-      snprintf(buf, sizeof(buf), "alarm: %d %s\n", tmp->type, tmp->description);
-    } else {
-      snprintf(buf, sizeof(buf), "alarm: %d No details available\n", tmp->type);
-    }
-
-    if (!((n + (int)strlen(buf)) < max)) {
-      break;
-    }
-    ink_strlcpy(&message[n], buf, max - n);
-    n += strlen(buf);
-  }
-
-  if (n == bsum) { /* No alarms */
-    if (!((n + (int)strlen("alarm: none\n")) < max)) {
-      if (max >= 1) {
-        message[0] = '\0';
-      }
-      ink_mutex_release(&mutex);
-      return;
-    }
-    ink_strlcpy(&message[n], "alarm: none\n", max - n);
-  }
-  ink_mutex_release(&mutex);
-  return;
-} /* End Alarms::constructAlarmMessage */
 
 /*
  * checkSystemNAlert(...)
