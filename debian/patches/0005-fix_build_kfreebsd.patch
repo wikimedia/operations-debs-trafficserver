@@ -1,6 +1,8 @@
 Description: Fix kfreebsd build skipping malloc_np.h include
 Author: Jean Baptiste Favre <debiabn@jbfavre.org>
 Origin: other
+Bug: https://github.com/apache/trafficserver/pull/4327
+Forwarded: https://github.com/apache/trafficserver/pull/4327
 Last-Update: 2017-03-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
