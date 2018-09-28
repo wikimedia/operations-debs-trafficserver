@@ -32,7 +32,7 @@ set -e
 
 case "$1" in
 upgrade|remove|purge)
-        CONFFILES="/etc/trafficserver/vaddrs.config /etc/trafficserver/metrics.config /etc/trafficserver/logging.config /etc/trafficserver/log_hosts.config /etc/trafficserver/congestion.config /etc/trafficserver/cluster.config /etc/trafficserver/body_factory/default/congestion#retryAfter"
+        CONFFILES="/etc/trafficserver/vaddrs.config /etc/trafficserver/metrics.config /etc/trafficserver/logging.config /etc/trafficserver/log_hosts.config /etc/trafficserver/congestion.config /etc/trafficserver/cluster.config /etc/trafficserver/body_factory/default/congestion#retryAfter /etc/trafficserver/icp.config /etc/trafficserver/snapshosts"
         for CONFFILE in ${CONFFILES};
         do
                 dpkg-maintscript-helper rm_conffile ${CONFFILE} 8.0.0~ -- "$@"
