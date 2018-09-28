@@ -56,8 +56,7 @@ override_dh_install:
 	#ln -s ssl_preaccept.config ssl_sni.config)
 
 override_dh_fixperms:
-	dh_fixperms -Xetc/trafficserver \
-		    -Xvar/lib/trafficserver \
+	dh_fixperms -Xvar/lib/trafficserver \
 		    -Xvar/log/trafficserver \
 		    -Xvar/cache/trafficserver \
 		    -Xvar/run/trafficserver
