@@ -74,7 +74,7 @@ TS_DAEMON_ARGS=""
 TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 
 # Exit if the package is not installed
-[ -x "$TC_DAEMON" ] || exit 0
+[ -x "$TM_DAEMON" ] || exit 0
 
 
 # Read configuration variable file if it is present
