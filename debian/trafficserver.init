@@ -55,19 +55,11 @@ TS_ROOT=${TS_ROOT:-$TS_PREFIX}
 # For standard installations TS_BASE will be empty
 eval TS_BASE="`echo $TS_ROOT | ${ESED} -e 's;/usr$;;'`"
 
-
 # Set some safe defaults. So not change values here, override them in
 # in /etc/default/trafficserver instead.
 # See there for a documentation as well 
 
 RUNDIR=${RUNDIR:-$TS_BASE/var/run/trafficserver}
-
-TC_START=${TC_START:-no}
-TC_NAME=${TC_NAME:-traffic_cop}
-TC_DAEMON=${TC_DAEMON:-$TS_BASE/usr/bin/traffic_cop}
-TC_DAEMON_ARGS=""
-TC_PIDFILE=${TC_PIDFILE:-$RUNDIR/cop.lock}
-
 
 TM_START=${TM_START:-no}
 TM_NAME=${TM_NAME:-traffic_manager}
@@ -81,7 +73,6 @@ TS_DAEMON=${TS_DAEMON:-$TS_BASE/usr/bin/traffic_server}
 TS_DAEMON_ARGS=""
 TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 
-
 # Exit if the package is not installed
 [ -x "$TC_DAEMON" ] || exit 0
 
@@ -94,7 +85,6 @@ TS_PIDFILE=${TS_PIDFILE:-$RUNDIR/server.lock}
 
 # Define LSB log_* functions.
 . /lib/lsb/init-functions
-
 
 # Check permissions of /etc/trafficserver.
 # Traffic Server needs write permissions, so warn the user if we suppose it
@@ -166,11 +156,6 @@ stop_cmd()
 	DAEMON=$2
 	PID=$3
 
-	#echo "\n\n"
-	#echo $NAME
-	#echo $DAEMON
-	#echo $PID
-
 	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PID --name $NAME
 	RETVAL="$?"
 	[ "$RETVAL" = 2 ] && return 2
@@ -188,19 +173,6 @@ stop_cmd()
 # at boot time.
 # It does not accept any arguments
 do_start() {
-
-	if [ "x$TC_START" != "xno" ]; then
-                [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TC_NAME"
-		start_cmd "$TC_DAEMON" "$TC_DAEMON_ARGS" "$TC_PIDFILE"
-		case "$?" in
-			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
-		esac
-	fi
-
-	## Starting TS and TM is usually not needed as TC takes care!
-	## Please see /etc/default/trafficserver
-
 	if [ "x$TM_START" != "xno" ]; then
                 [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TM_NAME"
 		start_cmd "$TM_DAEMON" "$TM_DAEMON_ARGS" "$TM_PIDFILE"
@@ -210,7 +182,6 @@ do_start() {
 		esac
 	fi
 
-
 	if [ "x$TS_START" != "xno" ]; then
                 [ "$VERBOSE" != no ] && log_daemon_msg "Starting $TS_NAME"
 		start_cmd "$TS_DAEMON" "$TS_DAEMON_ARGS" "$TS_PIDFILE"
@@ -218,10 +189,7 @@ do_start() {
 			0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
 			  2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
 		esac
-
 	fi
-
-
 }
 
 
@@ -229,22 +197,12 @@ do_start() {
 # This function does everything required to stop the service.
 # It does not accept any arguments
 do_stop() {
-        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TC_NAME"
-	stop_cmd "$TC_NAME" "$TC_DAEMON" "$TC_PIDFILE"
-	case "$?" in
-		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
-	esac
-
-
-
         [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TM_NAME"
 	stop_cmd "$TM_NAME" "$TM_DAEMON" "$TM_PIDFILE"
 	case "$?" in
 		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
 		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
 	esac
-
 
         [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $TS_NAME"
 	stop_cmd "$TS_NAME" "$TS_DAEMON" "$TS_PIDFILE"
@@ -256,7 +214,7 @@ do_stop() {
 
 case "$1" in
   start)
-	if [ "x$TC_START" = "xno" ] && [ "x$TM_START" = "xno" ] && [ "x$TS_START" = "xno" ]; then
+	if [ "x$TM_START" = "xno" ] && [ "x$TS_START" = "xno" ]; then
 		[ "$VERBOSE" != no ] && log_warning_msg "Not starting $DESC"
 	else
 		do_start
@@ -266,11 +224,10 @@ case "$1" in
 	do_stop
 	;;
   status)
-       if [ "x$TC_START" != "xno" ] ; then
-               status_of_proc "$TC_DAEMON" "$TC_NAME" -p "$TC_PIDFILE" && exit 0 || exit $?
+       if [ "x$TM_START" != "xno" ] ; then
+               status_of_proc "$TM_DAEMON" "$TM_NAME" -p "$TM_PIDFILE" && exit 0 || exit $?
        else
                status_of_proc "$TS_DAEMON" "$TS_NAME" -p "$TS_PIDFILE" || exit $?
-               status_of_proc "$TM_DAEMON" "$TM_NAME" -p "$TM_PIDFILE" || exit $?
        fi
        ;;
   restart|force-reload)
