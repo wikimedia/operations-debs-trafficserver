@@ -6,6 +6,7 @@ trafficserver (8.0.0-1) unstable; urgency=medium
 
   [ Jean Baptiste Favre ]
   * Update d/changelog for 8.0.0
+  * Update init and service file after traffic_cop removal
   * Update d/README.Debian to reflect configuration changes
   * Add d/gitlab-ci.yml to use Salsa CI
   * Update d/control
