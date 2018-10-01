@@ -1,7 +1,7 @@
 trafficserver for Debian
 ------------------------
 
-* ATS 8.0.0 comes with slightly changes in config files.
+* ATS 8.0.0 comes with slight changes in config files.
     Following ones has been removed:
     - /etc/trafficserver/vaddrs.config
     - /etc/trafficserver/metrics.config
@@ -16,7 +16,7 @@ trafficserver for Debian
     - /etc/trafficserver/logging.yaml
     - /etc/trafficserver/ssl_server_name.yaml
 
-* gzip pluging has been rename into compress.
+* gzip pluging has been renamed into compress.
     Existing configuration won't be updated
 
  -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 21 Sep 2018 09:04:07 +0200
