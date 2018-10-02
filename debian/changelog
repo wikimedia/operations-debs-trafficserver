@@ -56,7 +56,7 @@ trafficserver (8.0.0-1) unstable; urgency=medium
       - 0009-fix-doc-python3, update upstream
       - 0010-Remove-custom-memory-barriers-from-header_rewrite-an patches,
         updated upstream
-    - Renamed remaingin patches:
+    - Renamed remaining patches:
       - 0006-fix_arm_build -> 0004-fix_arm_build,
       - 0007-fix_build_kfreebsd -> 0005-fix_build_kfreebsd,
       - 0009-fix-doc-git -> 0006-fix-doc-build
