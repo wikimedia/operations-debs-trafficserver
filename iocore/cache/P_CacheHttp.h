@@ -21,11 +21,9 @@
   limitations under the License.
  */
 
-#ifndef __CACHE_HTTP_H__
-#define __CACHE_HTTP_H__
+#pragma once
 
 #include "P_CacheArray.h"
-#ifdef HTTP_CACHE
 #include "HTTP.h"
 #include "URL.h"
 
@@ -39,12 +37,6 @@ enum {
   OWNER_CACHE = 1,
   OWNER_HTTP  = 2,
 };
-
-#else
-struct CacheHTTPInfo {
-};
-
-#endif // HTTP_CACHE
 
 struct vec_info {
   CacheHTTPInfo alternate;
@@ -91,5 +83,3 @@ CacheHTTPInfoVector::get(int idx)
   ink_assert(idx < xcount);
   return &data[idx].alternate;
 }
-
-#endif /* __CACHE_HTTP_H__ */

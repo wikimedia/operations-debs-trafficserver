@@ -20,8 +20,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef INLINER_HANDLER_H
-#define INLINER_HANDLER_H
+
+#pragma once
 
 #include <string>
 #include <memory>
@@ -40,9 +40,9 @@ namespace inliner
     size_t counter_;
     bool abort_;
 
-    ~Handler()
+    ~Handler() override
     {
-      assert(reader_ != NULL);
+      assert(reader_ != nullptr);
       if (!abort_) {
         const int64_t available = TSIOBufferReaderAvail(reader_);
         if (available > 0) {
@@ -59,15 +59,13 @@ namespace inliner
 
     void parse(void);
 
-    size_t bypass(const size_t, const size_t);
-    void handleImage(const Attributes &);
+    size_t bypass(const size_t, const size_t) override;
+    void handleImage(const Attributes &) override;
 
     std::string generateId(void);
 
     void abort(void);
   };
 
-} // end of inliner namespace
-} // end of ats namespace
-
-#endif // INLINER_HANDLER_H
+} // namespace inliner
+} // namespace ats

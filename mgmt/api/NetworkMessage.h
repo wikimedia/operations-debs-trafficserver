@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _NETWORK_MESSAGE_H_
-#define _NETWORK_MESSAGE_H_
+#pragma once
 
 #include "MgmtMarshall.h"
 
@@ -33,8 +32,6 @@
 
 // the possible operations or msg types sent from remote client to TM
 enum class OpType : MgmtMarshallInt {
-  FILE_READ,
-  FILE_WRITE,
   RECORD_SET,
   RECORD_GET,
   PROXY_STATE_GET,
@@ -42,24 +39,23 @@ enum class OpType : MgmtMarshallInt {
   RECONFIGURE,
   RESTART,
   BOUNCE,
+  STOP,
+  DRAIN,
   EVENT_RESOLVE,
   EVENT_GET_MLT,
   EVENT_ACTIVE,
   EVENT_REG_CALLBACK,
   EVENT_UNREG_CALLBACK,
   EVENT_NOTIFY, /* only msg sent from TM to client */
-  SNAPSHOT_TAKE,
-  SNAPSHOT_RESTORE,
-  SNAPSHOT_REMOVE,
-  SNAPSHOT_GET_MLT,
   STATS_RESET_NODE,
-  STATS_RESET_CLUSTER,
   STORAGE_DEVICE_CMD_OFFLINE,
   RECORD_MATCH_GET,
   API_PING,
   SERVER_BACKTRACE,
   RECORD_DESCRIBE_CONFIG,
   LIFECYCLE_MESSAGE,
+  HOST_STATUS_UP,
+  HOST_STATUS_DOWN,
   UNDEFINED_OP /* This must be last */
 };
 
@@ -70,6 +66,9 @@ enum {
 struct mgmt_message_sender {
   virtual TSMgmtError send(void *msg, size_t msglen) const = 0;
   virtual ~mgmt_message_sender(){};
+
+  // Check if the sender is connected.
+  virtual bool is_connected() const = 0;
 };
 
 // Marshall and send a request, prefixing the message length as a MGMT_MARSHALL_INT.
@@ -93,5 +92,3 @@ TSMgmtError recv_mgmt_message(int fd, MgmtMarshallData &msg);
 
 // Extract the first MGMT_MARSHALL_INT from the buffered message. This is the OpType.
 OpType extract_mgmt_request_optype(void *msg, size_t msglen);
-
-#endif /* _NETWORK_MESSAGE_H_ */

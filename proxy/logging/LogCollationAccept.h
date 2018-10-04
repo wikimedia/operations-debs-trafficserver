@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef LOG_COLLATION_ACCEPT_H
-#define LOG_COLLATION_ACCEPT_H
+#pragma once
 
 #include "P_EventSystem.h"
 #include "P_Net.h"
@@ -30,16 +29,14 @@
 struct LogCollationAccept : public Continuation {
 public:
   LogCollationAccept(int port);
-  ~LogCollationAccept();
+  ~LogCollationAccept() override;
 
   int accept_event(int event, NetVConnection *net_vc);
 
 private:
   int m_port;
-  Action *m_accept_action;
-  Event *m_pending_event;
+  Action *m_accept_action = nullptr;
+  Event *m_pending_event  = nullptr;
 };
 
 typedef int (LogCollationAccept::*LogCollationAcceptHandler)(int, void *);
-
-#endif /* LOG_COLLATION_ACCEPT_H */

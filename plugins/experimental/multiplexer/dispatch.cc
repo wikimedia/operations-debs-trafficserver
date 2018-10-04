@@ -33,7 +33,7 @@
 
 extern Statistics statistics;
 
-extern size_t timeout;
+size_t timeout;
 
 Request::Request(const std::string &h, const TSMBuffer b, const TSMLoc l) : host(h), length(0), io(new ats::io::IO())
 {
@@ -48,16 +48,15 @@ Request::Request(const std::string &h, const TSMBuffer b, const TSMLoc l) : host
    * TSHttpHdrLengthGet returns the size with possible "internal" headers
    * which are not printed by TSHttpHdrPrint.
    * Therefore the greater than or equal comparisson
-  */
+   */
   assert(TSHttpHdrLengthGet(b, l) >= length);
 }
 
-Request::Request(const Request &r) : host(r.host), length(r.length), io(const_cast<Request &>(r).io.release())
+Request::Request(Request &&that) : host(std::move(that.host)), length(that.length), io(std::move(that.io))
 {
   assert(!host.empty());
   assert(length > 0);
   assert(io.get() != nullptr);
-  assert(r.io.get() != nullptr);
 }
 
 Request &

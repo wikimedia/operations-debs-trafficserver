@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef __UNIXNETPROCESSOR_H__
-#define __UNIXNETPROCESSOR_H__
+#pragma once
 #include "I_Net.h"
 #include "P_NetAccept.h"
 
@@ -41,9 +40,9 @@ public:
   Action *connect(Continuation *cont, UnixNetVConnection **vc, sockaddr const *target, NetVCOptions *opt = nullptr);
 
   virtual NetAccept *createNetAccept(const NetProcessor::AcceptOptions &opt);
-  virtual NetVConnection *allocate_vc(EThread *t);
+  NetVConnection *allocate_vc(EThread *t) override;
 
-  virtual int start(int number_of_net_threads, size_t stacksize);
+  void init() override;
 
   Event *accept_thread_event;
 
@@ -72,4 +71,3 @@ extern UnixNetProcessor unix_netProcessor;
 extern void initialize_thread_for_net(EThread *thread);
 
 //#include "UnixNet.h"
-#endif

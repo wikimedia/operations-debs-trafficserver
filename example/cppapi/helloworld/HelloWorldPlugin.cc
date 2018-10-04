@@ -17,8 +17,8 @@
  */
 
 #include <iostream>
-#include <atscppapi/GlobalPlugin.h>
-#include <atscppapi/PluginInit.h>
+#include "tscpp/api/GlobalPlugin.h"
+#include "tscpp/api/PluginInit.h"
 
 using namespace atscppapi;
 namespace
@@ -35,7 +35,9 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
+  if (!atscppapi::RegisterGlobalPlugin("CPP_Example_HelloWorld", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   std::cout << "Hello from " << argv[0] << std::endl;
-  atscppapi::RegisterGlobalPlugin("CPP_Example_HelloWorld", "apache", "dev@trafficserver.apache.org");
   plugin = new HelloWorldPlugin();
 }

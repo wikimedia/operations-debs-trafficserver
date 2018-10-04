@@ -21,10 +21,9 @@
   limitations under the License.
  */
 
-#ifndef _I_CACHE_H__
-#define _I_CACHE_H__
+#pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "I_EventSystem.h"
 #include "I_AIO.h"
 #include "I_CacheDefs.h"
@@ -53,8 +52,7 @@ enum { RAM_HIT_COMPRESS_NONE = 1, RAM_HIT_COMPRESS_FASTLZ, RAM_HIT_COMPRESS_LIBZ
 
 struct CacheVC;
 struct CacheDisk;
-#ifdef HTTP_CACHE
-class CacheLookupHttpConfig;
+struct OverridableHttpConfigParams;
 class URL;
 class HTTPHdr;
 class HTTPInfo;
@@ -62,51 +60,45 @@ class HTTPInfo;
 typedef HTTPHdr CacheHTTPHdr;
 typedef URL CacheURL;
 typedef HTTPInfo CacheHTTPInfo;
-#endif
 
 struct CacheProcessor : public Processor {
   CacheProcessor()
     : min_stripe_version(CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION),
       max_stripe_version(CACHE_DB_MAJOR_VERSION, CACHE_DB_MINOR_VERSION),
-      cb_after_init(0),
+      cb_after_init(nullptr),
       wait_for_cache(0)
   {
   }
 
-  virtual int start(int n_cache_threads = 0, size_t stacksize = DEFAULT_STACKSIZE);
+  int start(int n_cache_threads = 0, size_t stacksize = DEFAULT_STACKSIZE) override;
   virtual int start_internal(int flags = 0);
   void stop();
 
   int dir_check(bool fix);
   int db_check(bool fix);
 
-  inkcoreapi Action *lookup(Continuation *cont, const CacheKey *key, bool cluster_cache_local, bool local_only = false,
-                            CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, const char *hostname = 0, int host_len = 0);
-  inkcoreapi Action *open_read(Continuation *cont, const CacheKey *key, bool cluster_cache_local,
-                               CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, const char *hostname = 0, int host_len = 0);
-  inkcoreapi Action *open_write(Continuation *cont, CacheKey *key, bool cluster_cache_local,
-                                CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, int expected_size = CACHE_EXPECTED_SIZE,
-                                int options = 0, time_t pin_in_cache = (time_t)0, char *hostname = 0, int host_len = 0);
-  inkcoreapi Action *remove(Continuation *cont, const CacheKey *key, bool cluster_cache_local,
-                            CacheFragType frag_type = CACHE_FRAG_TYPE_NONE, const char *hostname = 0, int host_len = 0);
-  Action *scan(Continuation *cont, char *hostname = 0, int host_len = 0, int KB_per_second = SCAN_KB_PER_SECOND);
-#ifdef HTTP_CACHE
-  Action *lookup(Continuation *cont, const HttpCacheKey *key, bool cluster_cache_local, bool local_only = false,
-                 CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  inkcoreapi Action *open_read(Continuation *cont, const HttpCacheKey *key, bool cluster_cache_local, CacheHTTPHdr *request,
-                               CacheLookupHttpConfig *params, time_t pin_in_cache = (time_t)0,
+  inkcoreapi Action *lookup(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                            const char *hostname = nullptr, int host_len = 0);
+  inkcoreapi Action *open_read(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                               const char *hostname = nullptr, int host_len = 0);
+  inkcoreapi Action *open_write(Continuation *cont, CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                                int expected_size = CACHE_EXPECTED_SIZE, int options = 0, time_t pin_in_cache = (time_t)0,
+                                char *hostname = nullptr, int host_len = 0);
+  inkcoreapi Action *remove(Continuation *cont, const CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_NONE,
+                            const char *hostname = nullptr, int host_len = 0);
+  Action *scan(Continuation *cont, char *hostname = nullptr, int host_len = 0, int KB_per_second = SCAN_KB_PER_SECOND);
+  Action *lookup(Continuation *cont, const HttpCacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
+  inkcoreapi Action *open_read(Continuation *cont, const HttpCacheKey *key, CacheHTTPHdr *request,
+                               OverridableHttpConfigParams *params, time_t pin_in_cache = (time_t)0,
                                CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  Action *open_write(Continuation *cont, int expected_size, const HttpCacheKey *key, bool cluster_cache_local,
-                     CacheHTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache = (time_t)0,
-                     CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-  Action *remove(Continuation *cont, const HttpCacheKey *key, bool cluster_cache_local,
-                 CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
-#endif
-  Action *link(Continuation *cont, CacheKey *from, CacheKey *to, bool cluster_cache_local,
-               CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP, char *hostname = 0, int host_len = 0);
+  Action *open_write(Continuation *cont, int expected_size, const HttpCacheKey *key, CacheHTTPHdr *request, CacheHTTPInfo *old_info,
+                     time_t pin_in_cache = (time_t)0, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
+  Action *remove(Continuation *cont, const HttpCacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP);
+  Action *link(Continuation *cont, CacheKey *from, CacheKey *to, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP,
+               char *hostname = nullptr, int host_len = 0);
 
-  Action *deref(Continuation *cont, CacheKey *key, bool cluster_cache_local, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP,
-                char *hostname = 0, int host_len = 0);
+  Action *deref(Continuation *cont, CacheKey *key, CacheFragType frag_type = CACHE_FRAG_TYPE_HTTP, char *hostname = nullptr,
+                int host_len = 0);
 
   /** Mark physical disk/device/file as offline.
       All stripes for this device are disabled.
@@ -157,9 +149,9 @@ struct CacheProcessor : public Processor {
     return wait_for_cache;
   }
 
-  static volatile uint32_t cache_ready;
-  static volatile int initialized;
-  static volatile int start_done;
+  static uint32_t cache_ready;
+  static int initialized;
+  static int start_done;
   static bool clear;
   static bool fix;
   static bool check;
@@ -180,14 +172,14 @@ CacheProcessor::afterInitCallbackSet(CALLBACK_FUNC cb)
 }
 
 struct CacheVConnection : public VConnection {
-  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) = 0;
-  virtual VIO *do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *buf, int64_t offset) = 0;
-  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) = 0;
-  void do_io_close(int lerrno = -1) = 0;
-  void reenable(VIO *avio)          = 0;
-  void reenable_re(VIO *avio)       = 0;
+  VIO *do_io_read(Continuation *c, int64_t nbytes, MIOBuffer *buf) override                           = 0;
+  virtual VIO *do_io_pread(Continuation *c, int64_t nbytes, MIOBuffer *buf, int64_t offset)           = 0;
+  VIO *do_io_write(Continuation *c, int64_t nbytes, IOBufferReader *buf, bool owner = false) override = 0;
+  void do_io_close(int lerrno = -1) override                                                          = 0;
+  void reenable(VIO *avio) override                                                                   = 0;
+  void reenable_re(VIO *avio) override                                                                = 0;
   void
-  do_io_shutdown(ShutdownHowTo_t howto)
+  do_io_shutdown(ShutdownHowTo_t howto) override
   {
     (void)howto;
     ink_assert(!"CacheVConnection::do_io_shutdown unsupported");
@@ -197,10 +189,8 @@ struct CacheVConnection : public VConnection {
   virtual int set_header(void *ptr, int len)        = 0;
   virtual int get_single_data(void **ptr, int *len) = 0;
 
-#ifdef HTTP_CACHE
   virtual void set_http_info(CacheHTTPInfo *info)  = 0;
   virtual void get_http_info(CacheHTTPInfo **info) = 0;
-#endif
 
   virtual bool is_ram_cache_hit() const           = 0;
   virtual bool set_disk_io_priority(int priority) = 0;
@@ -231,5 +221,3 @@ struct CacheVConnection : public VConnection {
 void ink_cache_init(ModuleVersion version);
 extern inkcoreapi CacheProcessor cacheProcessor;
 extern Continuation *cacheRegexDeleteCont;
-
-#endif /* _I_CACHE_H__ */

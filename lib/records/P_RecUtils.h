@@ -21,11 +21,10 @@
   limitations under the License.
  */
 
-#ifndef _P_REC_UTILS_H_
-#define _P_REC_UTILS_H_
+#pragma once
 
-#include "ts/Diags.h"
-#include "ts/ink_atomic.h"
+#include "tscore/Diags.h"
+#include "tscore/ink_atomic.h"
 
 #include "P_RecDefs.h"
 
@@ -33,8 +32,7 @@
 // Macros
 //-------------------------------------------------------------------------
 
-#define REC_TYPE_IS_STAT(rec_type) \
-  (((rec_type) == RECT_PROCESS) || ((rec_type) == RECT_PLUGIN) || ((rec_type) == RECT_NODE) || ((rec_type) == RECT_CLUSTER))
+#define REC_TYPE_IS_STAT(rec_type) (((rec_type) == RECT_PROCESS) || ((rec_type) == RECT_PLUGIN) || ((rec_type) == RECT_NODE))
 
 #define REC_TYPE_IS_CONFIG(rec_type) (((rec_type) == RECT_CONFIG) || ((rec_type) == RECT_LOCAL))
 
@@ -55,7 +53,7 @@ void RecDataZero(RecDataT type, RecData *data);
 void RecDataSetMax(RecDataT type, RecData *data);
 void RecDataSetMin(RecDataT type, RecData *data);
 bool RecDataSet(RecDataT data_type, RecData *data_dst, RecData *data_src);
-bool RecDataSetFromInk64(RecDataT data_type, RecData *data_dst, int64_t data_int64);
+bool RecDataSetFromInt64(RecDataT data_type, RecData *data_dst, int64_t data_int64);
 bool RecDataSetFromFloat(RecDataT data_type, RecData *data_dst, float data_float);
 bool RecDataSetFromString(RecDataT data_type, RecData *data_dst, const char *data_string);
 int RecDataCmp(RecDataT type, RecData left, RecData right);
@@ -78,5 +76,3 @@ void RecDebugOff();
 
 #define RecLog(level, fmt, ...) _RecLog(level, MakeSourceLocation(), fmt, ##__VA_ARGS__)
 #define RecDebug(level, fmt, ...) _RecDebug(level, MakeSourceLocation(), fmt, ##__VA_ARGS__)
-
-#endif

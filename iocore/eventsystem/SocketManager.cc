@@ -25,11 +25,11 @@
 
   SocketManager.cc
  ****************************************************************************/
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "P_EventSystem.h"
 
-#include "ts/TextBuffer.h"
-#include "ts/TestBox.h"
+#include "tscore/TextBuffer.h"
+#include "tscore/TestBox.h"
 
 SocketManager socketManager;
 
@@ -78,9 +78,7 @@ SocketManager::accept4(int s, struct sockaddr *addr, socklen_t *addrlen, int fla
   return -errno;
 }
 
-SocketManager::SocketManager() : pagesize(ats_pagesize())
-{
-}
+SocketManager::SocketManager() : pagesize(ats_pagesize()) {}
 
 SocketManager::~SocketManager()
 {
@@ -99,15 +97,17 @@ SocketManager::close(int s)
 {
   int res;
 
-  if (s == 0)
+  if (s == 0) {
     return -EACCES;
-  else if (s < 0)
+  } else if (s < 0) {
     return -EINVAL;
+  }
 
   do {
     res = ::close(s);
-    if (res == -1)
+    if (res == -1) {
       res = -errno;
+    }
   } while (res == -EINTR);
   return res;
 }
@@ -121,7 +121,7 @@ SocketManager::fastopen_supported()
   int value = 0;
 
   if (fd) {
-    textBuffer buffer(16);
+    TextBuffer buffer(16);
 
     buffer.slurp(fd.get());
     value = atoi(buffer.bufPtr());

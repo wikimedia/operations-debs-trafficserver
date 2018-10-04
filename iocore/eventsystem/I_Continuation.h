@@ -33,13 +33,12 @@
 
  */
 
-#ifndef _I_Continuation_h_
-#define _I_Continuation_h_
+#pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/List.h"
+#include "tscore/ink_platform.h"
+#include "tscore/List.h"
 #include "I_Lock.h"
-#include "ts/ContFlags.h"
+#include "tscore/ContFlags.h"
 
 class Continuation;
 class ContinuationQueue;
@@ -98,15 +97,15 @@ public:
     The current continuation handler function.
 
     The current handler should not be set directly. In order to
-    change it, first aquire the Continuation's lock and then use
+    change it, first acquire the Continuation's lock and then use
     the SET_HANDLER macro which takes care of the type casting
     issues.
 
   */
-  ContinuationHandler handler;
+  ContinuationHandler handler = nullptr;
 
 #ifdef DEBUG
-  const char *handler_name;
+  const char *handler_name = nullptr;
 #endif
 
   /**
@@ -116,8 +115,16 @@ public:
     lock is initialized in the constructor and should not be set
     directly.
 
+    TODO:  make this private.
+
   */
   Ptr<ProxyMutex> mutex;
+
+  ProxyMutex *
+  getMutex() const
+  {
+    return mutex.get();
+  }
 
   /**
     Link to other continuations.
@@ -148,13 +155,14 @@ public:
 
   */
   int
-  handleEvent(int event = CONTINUATION_EVENT_NONE, void *data = 0)
+  handleEvent(int event = CONTINUATION_EVENT_NONE, void *data = nullptr)
   {
     return (this->*handler)(event, data);
   }
 
+protected:
   /**
-    Contructor of the Continuation object. It should not be used
+    Constructor of the Continuation object. It should not be used
     directly. Instead create an object of a derived type.
 
     @param amutex Lock to be set for this Continuation.
@@ -192,26 +200,14 @@ public:
 #define SET_CONTINUATION_HANDLER(_c, _h) (_c->handler = ((ContinuationHandler)_h))
 #endif
 
-inline Continuation::Continuation(Ptr<ProxyMutex> &amutex)
-  : handler(nullptr),
-#ifdef DEBUG
-    handler_name(nullptr),
-#endif
-    mutex(amutex)
+inline Continuation::Continuation(Ptr<ProxyMutex> &amutex) : mutex(amutex)
 {
   // Pick up the control flags from the creating thread
   this->control_flags.set_flags(get_cont_flags().get_flags());
 }
 
-inline Continuation::Continuation(ProxyMutex *amutex)
-  : handler(nullptr),
-#ifdef DEBUG
-    handler_name(nullptr),
-#endif
-    mutex(amutex)
+inline Continuation::Continuation(ProxyMutex *amutex) : mutex(amutex)
 {
   // Pick up the control flags from the creating thread
   this->control_flags.set_flags(get_cont_flags().get_flags());
 }
-
-#endif /*_Continuation_h_*/

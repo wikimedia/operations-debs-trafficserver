@@ -28,10 +28,10 @@
 
 
 **************************************************************************/
-#ifndef _P_EventSystem_h
+#pragma once
 #define _P_EventSystem_h
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 
 #include "I_EventSystem.h"
 
@@ -48,5 +48,3 @@
 #undef EVENT_SYSTEM_MODULE_VERSION
 #define EVENT_SYSTEM_MODULE_VERSION \
   makeModuleVersion(EVENT_SYSTEM_MODULE_MAJOR_VERSION, EVENT_SYSTEM_MODULE_MINOR_VERSION, PRIVATE_MODULE_HEADER)
-
-#endif

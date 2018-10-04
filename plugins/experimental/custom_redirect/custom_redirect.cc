@@ -138,7 +138,7 @@ TSPluginInit(int argc, const char *argv[])
    *OR:
    * 3. If nothing specified, plugin will assume the first case and use the default redirect-url
    *    header name "x-redirect-url"
-  */
+   */
   if (argc > 1) {
     if (isNumber(argv[1])) {
       return_code         = atoi(argv[1]);
@@ -152,9 +152,9 @@ TSPluginInit(int argc, const char *argv[])
     redirect_url_header_len = strlen(redirect_url_header);
   }
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[custom_redirect] Plugin registration failed.");
+    TSError("[custom_redirect] Plugin registration failed");
   }
-  TSError("[custom_redirect] Plugin registered successfully.");
+  TSError("[custom_redirect] Plugin registered successfully");
   TSCont mainCont = TSContCreate(plugin_main_handler, nullptr);
   TSHttpHookAdd(TS_HTTP_READ_RESPONSE_HDR_HOOK, mainCont);
 }

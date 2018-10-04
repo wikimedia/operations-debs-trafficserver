@@ -34,45 +34,42 @@
 
 struct AIOCallback;
 
-#define MAX_HEARTBEATS_MISSED 10
 #define NO_HEARTBEAT -1
 #define THREAD_MAX_HEARTBEAT_MSECONDS 60
-#define NO_ETHREAD_ID -1
 
-volatile bool shutdown_event_system = false;
+// !! THIS MUST BE IN THE ENUM ORDER !!
+char const *const EThread::STAT_NAME[] = {"proxy.process.eventloop.count",      "proxy.process.eventloop.events",
+                                          "proxy.process.eventloop.events.min", "proxy.process.eventloop.events.max",
+                                          "proxy.process.eventloop.wait",       "proxy.process.eventloop.time.min",
+                                          "proxy.process.eventloop.time.max"};
+
+int const EThread::SAMPLE_COUNT[N_EVENT_TIMESCALES] = {10, 100, 1000};
+
+bool shutdown_event_system = false;
+
+int thread_max_heartbeat_mseconds = THREAD_MAX_HEARTBEAT_MSECONDS;
 
 EThread::EThread()
-  : generator((uint64_t)Thread::get_hrtime_updated() ^ (uint64_t)(uintptr_t)this),
-    ethreads_to_be_signalled(nullptr),
-    n_ethreads_to_be_signalled(0),
-    id(NO_ETHREAD_ID),
-    event_types(0),
-    tt(REGULAR)
 {
   memset(thread_private, 0, PER_THREAD_DATA);
 }
 
-EThread::EThread(ThreadType att, int anid)
-  : generator((uint64_t)Thread::get_hrtime_updated() ^ (uint64_t)(uintptr_t)this),
-    ethreads_to_be_signalled(nullptr),
-    n_ethreads_to_be_signalled(0),
-    id(anid),
-    event_types(0),
-    tt(att),
-    server_session_pool(nullptr)
+EThread::EThread(ThreadType att, int anid) : id(anid), tt(att)
 {
   ethreads_to_be_signalled = (EThread **)ats_malloc(MAX_EVENT_THREADS * sizeof(EThread *));
-  memset((char *)ethreads_to_be_signalled, 0, MAX_EVENT_THREADS * sizeof(EThread *));
+  memset(ethreads_to_be_signalled, 0, MAX_EVENT_THREADS * sizeof(EThread *));
   memset(thread_private, 0, PER_THREAD_DATA);
 #if HAVE_EVENTFD
   evfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
   if (evfd < 0) {
     if (errno == EINVAL) { // flags invalid for kernel <= 2.6.26
       evfd = eventfd(0, 0);
-      if (evfd < 0)
+      if (evfd < 0) {
         Fatal("EThread::EThread: %d=eventfd(0,0),errno(%d)", evfd, errno);
-    } else
+      }
+    } else {
       Fatal("EThread::EThread: %d=eventfd(0,EFD_NONBLOCK | EFD_CLOEXEC),errno(%d)", evfd, errno);
+    }
   }
 #elif TS_USE_PORT
 /* Solaris ports requires no crutches to do cross thread signaling.
@@ -87,14 +84,7 @@ EThread::EThread(ThreadType att, int anid)
 #endif
 }
 
-EThread::EThread(ThreadType att, Event *e)
-  : generator((uint32_t)((uintptr_t)time(nullptr) ^ (uintptr_t)this)),
-    ethreads_to_be_signalled(nullptr),
-    n_ethreads_to_be_signalled(0),
-    id(NO_ETHREAD_ID),
-    event_types(0),
-    tt(att),
-    oneevent(e)
+EThread::EThread(ThreadType att, Event *e) : tt(att), start_event(e)
 {
   ink_assert(att == DEDICATED);
   memset(thread_private, 0, PER_THREAD_DATA);
@@ -104,8 +94,9 @@ EThread::EThread(ThreadType att, Event *e)
 // threads won't have to deal with EThread memory deallocation.
 EThread::~EThread()
 {
-  if (n_ethreads_to_be_signalled > 0)
+  if (n_ethreads_to_be_signalled > 0) {
     flush_signals(this);
+  }
   ats_free(ethreads_to_be_signalled);
   // TODO: This can't be deleted ....
   // delete[]l1_hash;
@@ -114,13 +105,13 @@ EThread::~EThread()
 bool
 EThread::is_event_type(EventType et)
 {
-  return !!(event_types & (1 << (int)et));
+  return (event_types & (1 << static_cast<int>(et))) != 0;
 }
 
 void
 EThread::set_event_type(EventType et)
 {
-  event_types |= (1 << (int)et);
+  event_types |= (1 << static_cast<int>(et));
 }
 
 void
@@ -143,22 +134,25 @@ EThread::process_event(Event *e, int calling_code)
     MUTEX_RELEASE(lock);
     if (e->period) {
       if (!e->in_the_prot_queue && !e->in_the_priority_queue) {
-        if (e->period < 0)
+        if (e->period < 0) {
           e->timeout_at = e->period;
-        else {
+        } else {
           this->get_hrtime_updated();
           e->timeout_at = cur_time + e->period;
-          if (e->timeout_at < cur_time)
+          if (e->timeout_at < cur_time) {
             e->timeout_at = cur_time;
+          }
         }
         EventQueueExternal.enqueue_local(e);
       }
-    } else if (!e->in_the_prot_queue && !e->in_the_priority_queue)
+    } else if (!e->in_the_prot_queue && !e->in_the_priority_queue) {
       free_event(e);
+    }
   }
 }
 
-void EThread::process_queue(Que(Event, link) * NegativeQueue)
+void
+EThread::process_queue(Que(Event, link) * NegativeQueue, int *ev_count, int *nq_count)
 {
   Event *e;
 
@@ -168,6 +162,7 @@ void EThread::process_queue(Que(Event, link) * NegativeQueue)
   // execute all the available external events that have
   // already been dequeued
   while ((e = EventQueueExternal.dequeue_local())) {
+    ++(*ev_count);
     if (e->cancelled) {
       free_event(e);
     } else if (!e->timeout_at) { // IMMEDIATE
@@ -188,6 +183,7 @@ void EThread::process_queue(Que(Event, link) * NegativeQueue)
         NegativeQueue->insert(e, p);
       }
     }
+    ++(*nq_count);
   }
 }
 
@@ -197,6 +193,18 @@ EThread::execute_regular()
   Event *e;
   Que(Event, link) NegativeQueue;
   ink_hrtime next_time = 0;
+  ink_hrtime delta     = 0;    // time spent in the event loop
+  ink_hrtime loop_start_time;  // Time the loop started.
+  ink_hrtime loop_finish_time; // Time at the end of the loop.
+
+  // Track this so we can update on boundary crossing.
+  EventMetrics *prev_metric = this->prev(metrics + (ink_get_hrtime_internal() / HRTIME_SECOND) % N_EVENT_METRICS);
+
+  int nq_count = 0;
+  int ev_count = 0;
+
+  // A statically initialized instance we can use as a prototype for initializing other instances.
+  static EventMetrics METRIC_INIT;
 
   // give priority to immediate events
   for (;;) {
@@ -204,7 +212,22 @@ EThread::execute_regular()
       return;
     }
 
-    process_queue(&NegativeQueue);
+    loop_start_time = Thread::get_hrtime_updated();
+    nq_count        = 0; // count # of elements put on negative queue.
+    ev_count        = 0; // # of events handled.
+
+    current_metric = metrics + (loop_start_time / HRTIME_SECOND) % N_EVENT_METRICS;
+    if (current_metric != prev_metric) {
+      // Mixed feelings - really this shouldn't be needed, but just in case more than one entry is
+      // skipped, clear them all.
+      do {
+        memcpy((prev_metric = this->next(prev_metric)), &METRIC_INIT, sizeof(METRIC_INIT));
+      } while (current_metric != prev_metric);
+      current_metric->_loop_time._start = loop_start_time;
+    }
+    ++(current_metric->_count);
+
+    process_queue(&NegativeQueue, &ev_count, &nq_count);
 
     bool done_one;
     do {
@@ -214,9 +237,9 @@ EThread::execute_regular()
       while ((e = EventQueue.dequeue_ready(cur_time))) {
         ink_assert(e);
         ink_assert(e->timeout_at > 0);
-        if (e->cancelled)
+        if (e->cancelled) {
           free_event(e);
-        else {
+        } else {
           done_one = true;
           process_event(e, e->callback_event);
         }
@@ -225,7 +248,7 @@ EThread::execute_regular()
 
     // execute any negative (poll) events
     if (NegativeQueue.head) {
-      process_queue(&NegativeQueue);
+      process_queue(&NegativeQueue, &ev_count, &nq_count);
 
       // execute poll events
       while ((e = NegativeQueue.dequeue())) {
@@ -236,7 +259,8 @@ EThread::execute_regular()
     next_time             = EventQueue.earliest_timeout();
     ink_hrtime sleep_time = next_time - Thread::get_hrtime_updated();
     if (sleep_time > 0) {
-      sleep_time = std::min(sleep_time, HRTIME_MSECONDS(THREAD_MAX_HEARTBEAT_MSECONDS));
+      sleep_time = std::min(sleep_time, HRTIME_MSECONDS(thread_max_heartbeat_mseconds));
+      ++(current_metric->_wait);
     } else {
       sleep_time = 0;
     }
@@ -246,6 +270,29 @@ EThread::execute_regular()
     }
 
     tail_cb->waitForActivity(sleep_time);
+
+    // loop cleanup
+    loop_finish_time = this->get_hrtime_updated();
+    delta            = loop_finish_time - loop_start_time;
+
+    // This can happen due to time of day adjustments (which apparently happen quite frequently). I
+    // tried using the monotonic clock to get around this but it was *very* stuttery (up to hundreds
+    // of milliseconds), far too much to be actually used.
+    if (delta > 0) {
+      if (delta > current_metric->_loop_time._max) {
+        current_metric->_loop_time._max = delta;
+      }
+      if (delta < current_metric->_loop_time._min) {
+        current_metric->_loop_time._min = delta;
+      }
+    }
+    if (ev_count < current_metric->_events._min) {
+      current_metric->_events._min = ev_count;
+    }
+    if (ev_count > current_metric->_events._max) {
+      current_metric->_events._max = ev_count;
+    }
+    current_metric->_events._total += ev_count;
   }
 }
 
@@ -278,19 +325,51 @@ EThread::execute()
     this->execute_regular();
     break;
   }
-
   case DEDICATED: {
-    // coverity[lock]
-    MUTEX_TAKE_LOCK_FOR(oneevent->mutex, this, oneevent->continuation);
-    oneevent->continuation->handleEvent(EVENT_IMMEDIATE, oneevent);
-    MUTEX_UNTAKE_LOCK(oneevent->mutex, this);
-    free_event(oneevent);
     break;
   }
-
   default:
     ink_assert(!"bad case value (execute)");
     break;
   } /* End switch */
   // coverity[missing_unlock]
+}
+
+EThread::EventMetrics &
+EThread::EventMetrics::operator+=(EventMetrics const &that)
+{
+  this->_events._max = std::max(this->_events._max, that._events._max);
+  this->_events._min = std::min(this->_events._min, that._events._min);
+  this->_events._total += that._events._total;
+  this->_loop_time._min = std::min(this->_loop_time._min, that._loop_time._min);
+  this->_loop_time._max = std::max(this->_loop_time._max, that._loop_time._max);
+  this->_count += that._count;
+  this->_wait += that._wait;
+  return *this;
+}
+
+void
+EThread::summarize_stats(EventMetrics summary[N_EVENT_TIMESCALES])
+{
+  // Accumulate in local first so each sample only needs to be processed once,
+  // not N_EVENT_TIMESCALES times.
+  EventMetrics sum;
+
+  // To avoid race conditions, we back up one from the current metric block. It's close enough
+  // and won't be updated during the time this method runs so it should be thread safe.
+  EventMetrics *m = this->prev(current_metric);
+
+  for (int t = 0; t < N_EVENT_TIMESCALES; ++t) {
+    int count = SAMPLE_COUNT[t];
+    if (t > 0) {
+      count -= SAMPLE_COUNT[t - 1];
+    }
+    while (--count >= 0) {
+      if (0 != m->_loop_time._start) {
+        sum += *m;
+      }
+      m = this->prev(m);
+    }
+    summary[t] += sum; // push out to return vector.
+  }
 }

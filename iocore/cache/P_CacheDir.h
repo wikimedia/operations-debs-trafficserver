@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _P_CACHE_DIR_H__
-#define _P_CACHE_DIR_H__
+#pragma once
 
 #include "P_CacheHttp.h"
 
@@ -86,13 +85,13 @@ struct CacheVC;
     dir_set_next(_e, next);             \
   } while (0)
 // entry is valid
-#define dir_valid(_d, _e) (_d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) : vol_out_of_phase_valid(_d, _e))
+#define dir_valid(_d, _e) (_d->header->phase == dir_phase(_e) ? _d->vol_in_phase_valid(_e) : _d->vol_out_of_phase_valid(_e))
 // entry is valid and outside of write aggregation region
-#define dir_agg_valid(_d, _e) (_d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) : vol_out_of_phase_agg_valid(_d, _e))
+#define dir_agg_valid(_d, _e) (_d->header->phase == dir_phase(_e) ? _d->vol_in_phase_valid(_e) : _d->vol_out_of_phase_agg_valid(_e))
 // entry may be valid or overwritten in the last aggregated write
 #define dir_write_valid(_d, _e) \
   (_d->header->phase == dir_phase(_e) ? vol_in_phase_valid(_d, _e) : vol_out_of_phase_write_valid(_d, _e))
-#define dir_agg_buf_valid(_d, _e) (_d->header->phase == dir_phase(_e) && vol_in_phase_agg_buf_valid(_d, _e))
+#define dir_agg_buf_valid(_d, _e) (_d->header->phase == dir_phase(_e) && _d->vol_in_phase_agg_buf_valid(_e))
 #define dir_is_empty(_e) (!dir_offset(_e))
 #define dir_clear(_e) \
   do {                \
@@ -103,7 +102,6 @@ struct CacheVC;
     (_e)->w[4] = 0;   \
   } while (0)
 #define dir_clean(_e) dir_set_offset(_e, 0)
-#define dir_segment(_s, _d) vol_dir_segment(_d, _s)
 
 // OpenDir
 
@@ -126,16 +124,16 @@ struct Dir {
   // USE MACROS TO PREVENT UNALIGNED LOADS
   // bits are numbered from lowest in u16 to highest
   // always index as u16 to avoid byte order issues
-  unsigned int offset : 24; // (0,1:0-7) 16M * 512 = 8GB
-  unsigned int big : 2;     // (1:8-9) 512 << (3 * big)
-  unsigned int size : 6;    // (1:10-15) 6**2 = 64, 64*512 = 32768 .. 64*256=16MB
-  unsigned int tag : 12;    // (2:0-11) 2048 / 8 entries/bucket = .4%
-  unsigned int phase : 1;   // (2:12)
-  unsigned int head : 1;    // (2:13) first segment in a document
-  unsigned int pinned : 1;  // (2:14)
-  unsigned int token : 1;   // (2:15)
-  unsigned int next : 16;   // (3)
-  inku16 offset_high;       // 8GB * 65k = 0.5PB (4)
+  unsigned int offset : 24;      // (0,1:0-7) 16M * 512 = 8GB
+  unsigned int big : 2;          // (1:8-9) 512 << (3 * big)
+  unsigned int size : 6;         // (1:10-15) 6**2 = 64, 64*512 = 32768 .. 64*256=16MB
+  unsigned int tag : 12;         // (2:0-11) 2048 / 8 entries/bucket = .4%
+  unsigned int phase : 1;        // (2:12)
+  unsigned int head : 1;         // (2:13) first segment in a document
+  unsigned int pinned : 1;       // (2:14)
+  unsigned int token : 1;        // (2:15)
+  unsigned int next : 16;        // (3)
+  unsigned int offset_high : 16; // 8GB * 65k = 0.5PB (4)
 #else
   uint16_t w[5];
   Dir() { dir_clear(this); }
@@ -150,9 +148,9 @@ struct FreeDir {
   // USE MACROS TO PREVENT UNALIGNED LOADS
   unsigned int offset : 24; // 0: empty
   unsigned int reserved : 8;
-  unsigned int prev : 16; // (2)
-  unsigned int next : 16; // (3)
-  inku16 offset_high;     // 0: empty
+  unsigned int prev : 16;        // (2)
+  unsigned int next : 16;        // (3)
+  unsigned int offset_high : 16; // 0: empty
 #else
   uint16_t w[5];
   FreeDir() { dir_clear(this); }
@@ -233,8 +231,8 @@ struct OpenDirEntry {
   uint16_t max_writers;                            // max number of simultaneous writers allowed
   bool dont_update_directory;                      // if set, the first_dir is not updated.
   bool move_resident_alt;                          // if set, single_doc_dir is inserted.
-  volatile bool reading_vec;                       // somebody is currently reading the vector
-  volatile bool writing_vec;                       // somebody is currently writing the vector
+  bool reading_vec;                                // somebody is currently reading the vector
+  bool writing_vec;                                // somebody is currently writing the vector
 
   LINK(OpenDirEntry, link);
 
@@ -272,7 +270,14 @@ struct CacheSync : public Continuation {
   void aio_write(int fd, char *b, int n, off_t o);
 
   CacheSync()
-    : Continuation(new_ProxyMutex()), vol_idx(0), buf(0), buflen(0), buf_huge(false), writepos(0), trigger(0), start_time(0)
+    : Continuation(new_ProxyMutex()),
+      vol_idx(0),
+      buf(nullptr),
+      buflen(0),
+      buf_huge(false),
+      writepos(0),
+      trigger(nullptr),
+      start_time(0)
   {
     SET_HANDLER(&CacheSync::mainEvent);
   }
@@ -296,8 +301,8 @@ void dir_sync_init();
 int check_dir(Vol *d);
 void dir_clean_vol(Vol *d);
 void dir_clear_range(off_t start, off_t end, Vol *d);
-int dir_segment_accounted(int s, Vol *d, int offby = 0, int *free = 0, int *used = 0, int *empty = 0, int *valid = 0,
-                          int *agg_valid = 0, int *avg_size = 0);
+int dir_segment_accounted(int s, Vol *d, int offby = 0, int *free = nullptr, int *used = nullptr, int *empty = nullptr,
+                          int *valid = nullptr, int *agg_valid = nullptr, int *avg_size = nullptr);
 uint64_t dir_entries_used(Vol *d);
 void sync_cache_dir_on_shutdown();
 
@@ -319,8 +324,9 @@ TS_INLINE Dir *
 dir_from_offset(int64_t i, Dir *seg)
 {
 #if DIR_DEPTH < 5
-  if (!i)
-    return 0;
+  if (!i) {
+    return nullptr;
+  }
   return dir_in_seg(seg, i);
 #else
   i = i + ((i - 1) / (DIR_DEPTH - 1));
@@ -354,5 +360,3 @@ dir_bucket_row(Dir *b, int64_t i)
 {
   return dir_in_seg(b, i);
 }
-
-#endif /* _P_CACHE_DIR_H__ */

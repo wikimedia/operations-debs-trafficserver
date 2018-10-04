@@ -30,7 +30,7 @@
 
  ****************************************************************************/
 
-#include <ts/ink_resolver.h>
+#include "tscore/ink_resolver.h"
 #include "Http1ClientSession.h"
 #include "Http1ClientTransaction.h"
 #include "HttpSM.h"
@@ -38,12 +38,12 @@
 #include "HttpServerSession.h"
 #include "Plugin.h"
 
-#define DebugHttpSsn(fmt, ...) DebugSsn(this, "http_cs", fmt, __VA_ARGS__)
+#define HttpSsnDebug(fmt, ...) SsnDebug(this, "http_cs", fmt, __VA_ARGS__)
 
 #define STATE_ENTER(state_name, event, vio)                                                             \
   do {                                                                                                  \
     /*ink_assert (magic == HTTP_SM_MAGIC_ALIVE);  REMEMBER (event, NULL, reentrancy_count); */          \
-    DebugHttpSsn("[%" PRId64 "] [%s, %s]", con_id, #state_name, HttpDebugNames::get_event_name(event)); \
+    HttpSsnDebug("[%" PRId64 "] [%s, %s]", con_id, #state_name, HttpDebugNames::get_event_name(event)); \
   } while (0)
 
 enum {
@@ -76,7 +76,6 @@ Http1ClientSession::Http1ClientSession()
     slave_ka_vio(nullptr),
     bound_ss(nullptr),
     released_transactions(0),
-    outbound_port(0),
     f_outbound_transparent(false),
     f_transparent_passthrough(false)
 {
@@ -91,7 +90,7 @@ Http1ClientSession::destroy()
   if (!in_destroy) {
     in_destroy = true;
 
-    DebugHttpSsn("[%" PRId64 "] session destroy", con_id);
+    HttpSsnDebug("[%" PRId64 "] session destroy", con_id);
     ink_release_assert(!client_vc);
     ink_assert(read_buffer);
     ink_release_assert(transact_count == released_transactions);
@@ -134,7 +133,7 @@ Http1ClientSession::free()
   this->do_io_write(nullptr, 0, nullptr);
 
   // Free the transaction resources
-  this->trans.super::destroy();
+  this->trans.super_type::destroy();
 
   super::free();
   THREAD_FREE(this, http1ClientSessionAllocator, this_thread());
@@ -197,7 +196,7 @@ Http1ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
   ink_mutex_release(&debug_cs_list_mutex);
 #endif
 
-  DebugHttpSsn("[%" PRId64 "] session born, netvc %p", con_id, new_vc);
+  HttpSsnDebug("[%" PRId64 "] session born, netvc %p", con_id, new_vc);
 
   client_vc->set_tcp_congestion_control(CLIENT_SIDE);
 
@@ -227,7 +226,7 @@ Http1ClientSession::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
 {
   /* conditionally set the tcp initial congestion window
      before our first write. */
-  DebugHttpSsn("tcp_init_cwnd_set %d", (int)tcp_init_cwnd_set);
+  HttpSsnDebug("tcp_init_cwnd_set %d", (int)tcp_init_cwnd_set);
   if (!tcp_init_cwnd_set) {
     tcp_init_cwnd_set = true;
     set_tcp_init_cwnd();
@@ -242,15 +241,16 @@ Http1ClientSession::do_io_write(Continuation *c, int64_t nbytes, IOBufferReader 
 void
 Http1ClientSession::set_tcp_init_cwnd()
 {
-  if (!trans.get_sm())
+  if (!trans.get_sm()) {
     return;
+  }
   int desired_tcp_init_cwnd = trans.get_sm()->t_state.txn_conf->server_tcp_init_cwnd;
-  DebugHttpSsn("desired TCP congestion window is %d", desired_tcp_init_cwnd);
+  HttpSsnDebug("desired TCP congestion window is %d", desired_tcp_init_cwnd);
   if (desired_tcp_init_cwnd == 0) {
     return;
   }
   if (get_netvc()->set_tcp_init_cwnd(desired_tcp_init_cwnd) != 0) {
-    DebugHttpSsn("set_tcp_init_cwnd(%d) failed", desired_tcp_init_cwnd);
+    HttpSsnDebug("set_tcp_init_cwnd(%d) failed", desired_tcp_init_cwnd);
   }
 }
 
@@ -263,8 +263,9 @@ Http1ClientSession::do_io_shutdown(ShutdownHowTo_t howto)
 void
 Http1ClientSession::do_io_close(int alerrno)
 {
-  if (read_state == HCS_CLOSED)
+  if (read_state == HCS_CLOSED) {
     return; // Don't double call session close
+  }
   if (read_state == HCS_ACTIVE_READER) {
     clear_session_active();
   }
@@ -286,7 +287,7 @@ Http1ClientSession::do_io_close(int alerrno)
   if (half_close && this->trans.get_sm()) {
     read_state = HCS_HALF_CLOSED;
     SET_HANDLER(&Http1ClientSession::state_wait_for_close);
-    DebugHttpSsn("[%" PRId64 "] session half close", con_id);
+    HttpSsnDebug("[%" PRId64 "] session half close", con_id);
 
     if (client_vc) {
       // We want the client to know that that we're finished
@@ -312,7 +313,7 @@ Http1ClientSession::do_io_close(int alerrno)
     sm_reader->consume(sm_reader->read_avail());
   } else {
     read_state = HCS_CLOSED;
-    DebugHttpSsn("[%" PRId64 "] session closed", con_id);
+    HttpSsnDebug("[%" PRId64 "] session closed", con_id);
     HTTP_SUM_DYN_STAT(http_transactions_per_client_con, transact_count);
     HTTP_DECREMENT_DYN_STAT(http_current_client_connections_stat);
     conn_decrease = false;
@@ -462,10 +463,10 @@ Http1ClientSession::release(ProxyClientTransaction *trans)
   if (more_to_read) {
     trans->destroy();
     trans->set_restart_immediate(true);
-    DebugHttpSsn("[%" PRId64 "] data already in buffer, starting new transaction", con_id);
+    HttpSsnDebug("[%" PRId64 "] data already in buffer, starting new transaction", con_id);
     new_transaction();
   } else {
-    DebugHttpSsn("[%" PRId64 "] initiating io for next header", con_id);
+    HttpSsnDebug("[%" PRId64 "] initiating io for next header", con_id);
     trans->set_restart_immediate(false);
     read_state = HCS_KEEP_ALIVE;
     SET_HANDLER(&Http1ClientSession::state_keep_alive);
@@ -509,7 +510,7 @@ Http1ClientSession::attach_server_session(HttpServerSession *ssession, bool tran
     ink_assert(bound_ss == nullptr);
     ssession->state = HSS_KA_CLIENT_SLAVE;
     bound_ss        = ssession;
-    DebugHttpSsn("[%" PRId64 "] attaching server session [%" PRId64 "] as slave", con_id, ssession->con_id);
+    HttpSsnDebug("[%" PRId64 "] attaching server session [%" PRId64 "] as slave", con_id, ssession->con_id);
     ink_assert(ssession->get_reader()->read_avail() == 0);
     ink_assert(ssession->get_netvc() != this->get_netvc());
 

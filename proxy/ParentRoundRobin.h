@@ -27,8 +27,7 @@
  *
  *****************************************************************************/
 
-#ifndef _PARENT_ROUND_ROBIN_H
-#define _PARENT_ROUND_ROBIN_H
+#pragma once
 
 #include "ParentSelection.h"
 
@@ -36,14 +35,18 @@ class ParentRoundRobin : public ParentSelectionStrategy
 {
   ParentRR_t round_robin_type;
   int latched_parent;
+  pRecord *parents;
+  int num_parents;
 
 public:
   ParentRoundRobin(ParentRecord *_parent_record, ParentRR_t _round_robin_type);
-  ~ParentRoundRobin();
-  void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold, unsigned int retry_time);
-  void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
-  uint32_t numParents(ParentResult *result) const;
-  void markParentUp(ParentResult *result);
+  ~ParentRoundRobin() override;
+  pRecord *
+  getParents(ParentResult *result) override
+  {
+    return parents;
+  }
+  void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
+                    unsigned int retry_time) override;
+  uint32_t numParents(ParentResult *result) const override;
 };
-
-#endif

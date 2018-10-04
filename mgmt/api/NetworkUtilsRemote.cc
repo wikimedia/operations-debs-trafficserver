@@ -21,12 +21,12 @@
   limitations under the License.
  */
 
-#include "ts/ink_config.h"
-#include "ts/ink_defs.h"
-#include "ts/ink_sock.h"
-#include "ts/ink_string.h"
-#include "ts/ink_memory.h"
-#include "ts/I_Layout.h"
+#include "tscore/ink_config.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_sock.h"
+#include "tscore/ink_string.h"
+#include "tscore/ink_memory.h"
+#include "tscore/I_Layout.h"
 #include "NetworkUtilsRemote.h"
 #include "CoreAPI.h"
 #include "CoreAPIShared.h"
@@ -114,7 +114,14 @@ ts_connect()
   if (!main_socket_path || !event_socket_path) {
     goto ERROR;
   }
-
+  // make sure the length of main_socket_path do not exceed the sizeof(sun_path)
+  if (strlen(main_socket_path) > sizeof(client_sock.sun_path) - 1) {
+    goto ERROR;
+  }
+  // make sure the length of event_socket_path do not exceed the sizeof(sun_path)
+  if (strlen(event_socket_path) > sizeof(client_event_sock.sun_path) - 1) {
+    goto ERROR;
+  }
   // create a socket
   main_socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
   if (main_socket_fd < 0) {
@@ -146,7 +153,7 @@ ts_connect()
   // setup Unix domain socket
   memset(&client_event_sock, 0, sizeof(sockaddr_un));
   client_event_sock.sun_family = AF_UNIX;
-  ink_strlcpy(client_event_sock.sun_path, event_socket_path, sizeof(client_sock.sun_path));
+  ink_strlcpy(client_event_sock.sun_path, event_socket_path, sizeof(client_event_sock.sun_path));
 #if defined(darwin) || defined(freebsd)
   sockaddr_len = sizeof(sockaddr_un);
 #else
@@ -231,7 +238,7 @@ reconnect()
 
   // relaunch a new event thread since socket_fd changed
   if (0 == (ts_init_options & TS_MGMT_OPT_NO_EVENTS)) {
-    ts_event_thread = ink_thread_create(event_poll_thread_main, &event_socket_fd, 0, 0, nullptr);
+    ink_thread_create(&ts_event_thread, event_poll_thread_main, &event_socket_fd, 0, 0, nullptr);
     // reregister the callbacks on the TM side for this new client connection
     if (remote_event_callbacks) {
       err = send_register_all_callbacks(event_socket_fd, remote_event_callbacks);
@@ -645,7 +652,7 @@ event_poll_thread_main(void *arg)
     event->description = desc;
 
     // got event notice; spawn new thread to handle the event's callback functions
-    ink_thread_create(event_callback_thread, (void *)event, 0, 0, nullptr);
+    ink_thread_create(nullptr, event_callback_thread, (void *)event, 0, 0, nullptr);
   }
 
   ink_thread_exit(nullptr);

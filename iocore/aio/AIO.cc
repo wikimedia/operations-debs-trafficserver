@@ -39,7 +39,7 @@ int ts_config_with_inkdiskio = 0;
 /* structure to hold information about each file descriptor */
 AIO_Reqs *aio_reqs[MAX_DISKS_POSSIBLE];
 /* number of unique file descriptors in the aio_reqs array */
-volatile int num_filedes = 1;
+int num_filedes = 1;
 
 // acquire this mutex before inserting a new entry in the aio_reqs array.
 // Don't need to acquire this for searching the array
@@ -158,7 +158,7 @@ ink_aio_init(ModuleVersion v)
                      (int)AIO_STAT_KB_WRITE_PER_SEC, aio_stats_cb);
 #if AIO_MODE != AIO_MODE_NATIVE
   memset(&aio_reqs, 0, MAX_DISKS_POSSIBLE * sizeof(AIO_Reqs *));
-  ink_mutex_init(&insert_mutex, nullptr);
+  ink_mutex_init(&insert_mutex);
 #endif
   REC_ReadConfigInteger(cache_config_threads_per_disk, "proxy.config.cache.threads_per_disk");
 #if TS_USE_LINUX_NATIVE_AIO
@@ -221,15 +221,12 @@ aio_init_fildes(int fildes, int fromAPI = 0)
 {
   char thr_name[MAX_THREAD_NAME_LENGTH];
   int i;
-  AIO_Reqs *request = (AIO_Reqs *)ats_malloc(sizeof(AIO_Reqs));
-
-  memset(request, 0, sizeof(AIO_Reqs));
+  AIO_Reqs *request = new AIO_Reqs;
 
   INK_WRITE_MEMORY_BARRIER;
 
   ink_cond_init(&request->aio_cond);
-  ink_mutex_init(&request->aio_mutex, nullptr);
-  ink_atomiclist_init(&request->aio_temp_list, "temp_list", (uintptr_t) & ((AIOCallback *)nullptr)->link);
+  ink_mutex_init(&request->aio_mutex);
 
   RecInt thread_num;
 
@@ -252,10 +249,11 @@ aio_init_fildes(int fildes, int fromAPI = 0)
 
   REC_ReadConfigInteger(stacksize, "proxy.config.thread.default.stacksize");
   for (i = 0; i < thread_num; i++) {
-    if (i == (thread_num - 1))
+    if (i == (thread_num - 1)) {
       thr_info = new AIOThreadInfo(request, 1);
-    else
+    } else {
       thr_info = new AIOThreadInfo(request, 0);
+    }
     snprintf(thr_name, MAX_THREAD_NAME_LENGTH, "[ET_AIO %d:%d]", i, fildes);
     ink_assert(eventProcessor.spawn_thread(thr_info, thr_name, stacksize));
   }
@@ -279,11 +277,7 @@ aio_insert(AIOCallback *op, AIO_Reqs *req)
 #endif
   if (op->aiocb.aio_reqprio == AIO_LOWEST_PRIORITY) // http request
   {
-    AIOCallback *cb = (AIOCallback *)req->http_aio_todo.tail;
-    if (!cb)
-      req->http_aio_todo.push(op);
-    else
-      req->http_aio_todo.insert(op, cb);
+    req->http_aio_todo.enqueue(op);
   } else {
     AIOCallback *cb = (AIOCallback *)req->aio_todo.tail;
 
@@ -303,22 +297,21 @@ aio_insert(AIOCallback *op, AIO_Reqs *req)
 static void
 aio_move(AIO_Reqs *req)
 {
-  AIOCallback *next = nullptr, *prev = nullptr, *cb = (AIOCallback *)ink_atomiclist_popall(&req->aio_temp_list);
-  /* flip the list */
-  if (!cb)
+  if (req->aio_temp_list.empty()) {
     return;
-  while (cb->link.next) {
-    next          = (AIOCallback *)cb->link.next;
-    cb->link.next = prev;
-    prev          = cb;
-    cb            = next;
   }
-  /* fix the last pointer */
-  cb->link.next = prev;
-  for (; cb; cb = next) {
-    next          = (AIOCallback *)cb->link.next;
-    cb->link.next = nullptr;
-    cb->link.prev = nullptr;
+
+  AIOCallbackInternal *cbi;
+  SList(AIOCallbackInternal, alink) aq(req->aio_temp_list.popall());
+
+  // flip the list
+  Queue<AIOCallback> cbq;
+  while ((cbi = aq.pop())) {
+    cbq.push(cbi);
+  }
+
+  AIOCallback *cb;
+  while ((cb = cbq.pop())) {
     aio_insert(cb, req);
   }
 }
@@ -359,8 +352,9 @@ aio_queue_req(AIOCallbackInternal *op, int fromAPI = 0)
             break;
           }
         }
-        if (!req)
+        if (!req) {
           req = aio_init_fildes(op->aiocb.aio_fildes);
+        }
       }
       ink_mutex_release(&insert_mutex);
     }
@@ -381,14 +375,13 @@ aio_queue_req(AIOCallbackInternal *op, int fromAPI = 0)
 #ifdef AIO_STATS
     ink_atomic_increment(&data->num_temp, 1);
 #endif
-    ink_atomiclist_push(&req->aio_temp_list, op);
+    req->aio_temp_list.push(op);
   } else {
 /* check if any pending requests on the atomic list */
 #ifdef AIO_STATS
     ink_atomic_increment(&data->num_queue, 1);
 #endif
-    if (!INK_ATOMICLIST_EMPTY(req->aio_temp_list))
-      aio_move(req);
+    aio_move(req);
     /* now put the new request */
     aio_insert(op, req);
     ink_cond_signal(&req->aio_cond);
@@ -399,17 +392,18 @@ aio_queue_req(AIOCallbackInternal *op, int fromAPI = 0)
 static inline int
 cache_op(AIOCallbackInternal *op)
 {
-  bool read = (op->aiocb.aio_lio_opcode == LIO_READ) ? true : false;
+  bool read = (op->aiocb.aio_lio_opcode == LIO_READ);
   for (; op; op = (AIOCallbackInternal *)op->then) {
-    ink_aiocb_t *a = &op->aiocb;
+    ink_aiocb *a = &op->aiocb;
     ssize_t err, res = 0;
 
     while (a->aio_nbytes - res > 0) {
       do {
-        if (read)
+        if (read) {
           err = pread(a->aio_fildes, ((char *)a->aio_buf) + res, a->aio_nbytes - res, a->aio_offset + res);
-        else
+        } else {
           err = pwrite(a->aio_fildes, ((char *)a->aio_buf) + res, a->aio_nbytes - res, a->aio_offset + res);
+        }
       } while ((err < 0) && (errno == EINTR || errno == ENOBUFS || errno == ENOMEM));
       if (err <= 0) {
         Warning("cache disk operation failed %s %zd %d\n", (a->aio_lio_opcode == LIO_READ) ? "READ" : "WRITE", err, errno);
@@ -469,10 +463,10 @@ aio_thread_main(void *arg)
       }
       current_req = my_aio_req;
       /* check if any pending requests on the atomic list */
-      if (!INK_ATOMICLIST_EMPTY(my_aio_req->aio_temp_list))
-        aio_move(my_aio_req);
-      if (!(op = my_aio_req->aio_todo.pop()) && !(op = my_aio_req->http_aio_todo.pop()))
+      aio_move(my_aio_req);
+      if (!(op = my_aio_req->aio_todo.pop()) && !(op = my_aio_req->http_aio_todo.pop())) {
         break;
+      }
 #ifdef AIO_STATS
       num_requests--;
       current_req->queued--;
@@ -487,16 +481,7 @@ aio_thread_main(void *arg)
         aio_bytes_read += op->aiocb.aio_nbytes;
       }
       ink_mutex_release(&current_req->aio_mutex);
-      if (cache_op((AIOCallbackInternal *)op) <= 0) {
-        if (aio_err_callbck) {
-          AIOCallback *callback_op          = new AIOCallbackInternal();
-          callback_op->aiocb.aio_fildes     = op->aiocb.aio_fildes;
-          callback_op->aiocb.aio_lio_opcode = op->aiocb.aio_lio_opcode;
-          callback_op->mutex                = aio_err_callbck->mutex;
-          callback_op->action               = aio_err_callbck;
-          eventProcessor.schedule_imm(callback_op);
-        }
-      }
+      cache_op((AIOCallbackInternal *)op);
       ink_atomic_increment((int *)&current_req->requests_queued, -1);
 #ifdef AIO_STATS
       ink_atomic_increment((int *)&current_req->pending, -1);
@@ -506,12 +491,12 @@ aio_thread_main(void *arg)
       op->mutex     = op->action.mutex;
       if (op->thread == AIO_CALLBACK_THREAD_AIO) {
         SCOPED_MUTEX_LOCK(lock, op->mutex, thr_info->mutex->thread_holding);
-        if (!op->action.cancelled)
-          op->action.continuation->handleEvent(AIO_EVENT_DONE, op);
-      } else if (op->thread == AIO_CALLBACK_THREAD_ANY)
+        op->handleEvent(EVENT_NONE, nullptr);
+      } else if (op->thread == AIO_CALLBACK_THREAD_ANY) {
         eventProcessor.schedule_imm_signal(op);
-      else
+      } else {
         op->thread->schedule_imm_signal(op);
+      }
       ink_mutex_acquire(&my_aio_req->aio_mutex);
     } while (true);
     timespec timedwait_msec = ink_hrtime_to_timespec(Thread::get_hrtime_updated() + HRTIME_MSECONDS(net_config_poll_timeout));
@@ -553,7 +538,7 @@ Lagain:
       Debug("aio", "io_getevents failed: %s (%d)", strerror(-ret), -ret);
   }
 
-  ink_aiocb_t *cbs[MAX_AIO_EVENTS];
+  ink_aiocb *cbs[MAX_AIO_EVENTS];
   int num = 0;
 
   for (; num < MAX_AIO_EVENTS && ((op = ready_list.dequeue()) != nullptr); ++num) {
@@ -577,7 +562,13 @@ Lagain:
   }
 
   while ((op = complete_list.dequeue()) != nullptr) {
-    op->handleEvent(event, e);
+    op->mutex = op->action.mutex;
+    MUTEX_TRY_LOCK(lock, op->mutex, trigger_event->ethread);
+    if (!lock.is_locked()) {
+      trigger_event->ethread->schedule_imm(op);
+    } else {
+      op->handleEvent(EVENT_NONE, nullptr);
+    }
   }
   return EVENT_CONT;
 }

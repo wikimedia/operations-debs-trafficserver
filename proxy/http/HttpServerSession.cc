@@ -28,8 +28,8 @@
    Description:
 
  ****************************************************************************/
-#include "ts/ink_config.h"
-#include "ts/Allocator.h"
+#include "tscore/ink_config.h"
+#include "tscore/Allocator.h"
 #include "HttpServerSession.h"
 #include "HttpSessionManager.h"
 #include "HttpSM.h"
@@ -169,6 +169,8 @@ HttpServerSession::release()
   Debug("http_ss", "Releasing session, private_session=%d, sharing_match=%d", private_session, sharing_match);
   // Set our state to KA for stat issues
   state = HSS_KA_SHARED;
+
+  server_vc->control_flags.set_flags(0);
 
   // Private sessions are never released back to the shared pool
   if (private_session || TS_SERVER_SESSION_SHARING_MATCH_NONE == sharing_match) {

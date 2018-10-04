@@ -24,6 +24,8 @@
 #include <arpa/inet.h>
 #include <cctype>
 #include <sstream>
+#include <array>
+#include <atomic>
 
 #include "ts/ts.h"
 
@@ -174,7 +176,7 @@ ConditionAccess::eval(const Resources & /* res ATS_UNUSED */)
     bool check = !access(_qualifier.c_str(), R_OK);
 
     tv.tv_sec += 2;
-    mb();
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     _next = tv.tv_sec; // I hope this is an atomic "set"...
     _last = check;     // This sure ought to be
   }
@@ -582,7 +584,7 @@ ConditionInternalTxn::eval(const Resources &res)
 }
 
 void
-ConditionClientIp::initialize(Parser &p)
+ConditionIp::initialize(Parser &p)
 {
   Condition::initialize(p);
 
@@ -592,23 +594,61 @@ ConditionClientIp::initialize(Parser &p)
   _matcher = match;
 }
 
+void
+ConditionIp::set_qualifier(const std::string &q)
+{
+  Condition::set_qualifier(q);
+
+  TSDebug(PLUGIN_NAME, "\tParsing %%{IP:%s} qualifier", q.c_str());
+
+  if (q == "CLIENT") {
+    _ip_qual = IP_QUAL_CLIENT;
+  } else if (q == "INBOUND") {
+    _ip_qual = IP_QUAL_INBOUND;
+  } else if (q == "SERVER") {
+    _ip_qual = IP_QUAL_SERVER;
+  } else if (q == "OUTBOUND") {
+    _ip_qual = IP_QUAL_OUTBOUND;
+  } else {
+    TSError("[%s] Unknown IP() qualifier: %s", PLUGIN_NAME, q.c_str());
+  }
+}
+
 bool
-ConditionClientIp::eval(const Resources &res)
+ConditionIp::eval(const Resources &res)
 {
   std::string s;
 
   append_value(s, res);
-  TSDebug(PLUGIN_NAME, "Evaluating CLIENT-IP()");
+  bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
 
-  return static_cast<MatcherType *>(_matcher)->test(s);
+  TSDebug(PLUGIN_NAME, "Evaluating IP(): %s - rval: %d", s.c_str(), rval);
+
+  return rval;
 }
 
 void
-ConditionClientIp::append_value(std::string &s, const Resources &res)
+ConditionIp::append_value(std::string &s, const Resources &res)
 {
+  bool ip_set = false;
   char ip[INET6_ADDRSTRLEN];
 
-  if (getIP(TSHttpTxnClientAddrGet(res.txnp), ip)) {
+  switch (_ip_qual) {
+  case IP_QUAL_CLIENT:
+    ip_set = (nullptr != getIP(TSHttpTxnClientAddrGet(res.txnp), ip));
+    break;
+  case IP_QUAL_INBOUND:
+    ip_set = (nullptr != getIP(TSHttpTxnIncomingAddrGet(res.txnp), ip));
+    break;
+  case IP_QUAL_SERVER:
+    ip_set = (nullptr != getIP(TSHttpTxnServerAddrGet(res.txnp), ip));
+    break;
+  case IP_QUAL_OUTBOUND:
+    ip_set = (nullptr != getIP(TSHttpTxnOutgoingAddrGet(res.txnp), ip));
+    break;
+  }
+
+  if (ip_set) {
     s += ip;
   }
 }
@@ -1109,5 +1149,227 @@ ConditionId::eval(const Resources &res)
 
     TSDebug(PLUGIN_NAME, "Evaluating ID(): %s - rval: %d", s.c_str(), rval);
     return rval;
+  }
+}
+
+void
+ConditionCidr::initialize(Parser &p)
+{
+  Condition::initialize(p);
+
+  MatcherType *match = new MatcherType(_cond_op);
+
+  match->set(p.get_arg());
+  _matcher = match;
+}
+
+void
+ConditionCidr::set_qualifier(const std::string &q)
+{
+  bool ok = true;
+  int cidr;
+  char *endp;
+
+  Condition::set_qualifier(q);
+
+  TSDebug(PLUGIN_NAME, "\tParsing %%{CIDR:%s} qualifier", q.c_str());
+  cidr = strtol(q.c_str(), &endp, 10);
+  if (cidr >= 0 && cidr <= 32) {
+    _v4_mask.s_addr = UINT32_MAX >> (32 - cidr);
+    _v4_cidr        = cidr;
+    if (endp && (*endp == ',' || *endp == '/' || *endp == ':')) {
+      cidr = strtol(endp + 1, nullptr, 10);
+      if (cidr >= 0 && cidr <= 128) {
+        _v6_cidr = cidr;
+      } else {
+        TSError("[%s] Bad CIDR mask for IPv6: %s", PLUGIN_NAME, q.c_str());
+        ok = false;
+      }
+    }
+  } else {
+    TSError("[%s] Bad CIDR mask for IPv4: %s", PLUGIN_NAME, q.c_str());
+    ok = false;
+  }
+
+  // Update the bit-masks
+  if (ok) {
+    _create_masks();
+  }
+}
+
+bool
+ConditionCidr::eval(const Resources &res)
+{
+  std::string s;
+
+  append_value(s, res);
+  TSDebug(PLUGIN_NAME, "Evaluating CIDR()");
+
+  return static_cast<MatcherType *>(_matcher)->test(s);
+}
+
+void
+ConditionCidr::append_value(std::string &s, const Resources &res)
+{
+  struct sockaddr const *addr = TSHttpTxnClientAddrGet(res.txnp);
+
+  switch (addr->sa_family) {
+  case AF_INET: {
+    char res[INET_ADDRSTRLEN];
+    struct in_addr ipv4 = reinterpret_cast<const struct sockaddr_in *>(addr)->sin_addr;
+
+    ipv4.s_addr &= _v4_mask.s_addr;
+    inet_ntop(AF_INET, &ipv4, res, INET_ADDRSTRLEN);
+    if (res[0]) {
+      s += res;
+    }
+  } break;
+  case AF_INET6: {
+    char res[INET6_ADDRSTRLEN];
+    struct in6_addr ipv6 = reinterpret_cast<const struct sockaddr_in6 *>(addr)->sin6_addr;
+
+    if (_v6_zero_bytes > 0) {
+      memset(&ipv6.s6_addr[16 - _v6_zero_bytes], 0, _v6_zero_bytes);
+    }
+    if (_v6_mask != 0xff) {
+      ipv6.s6_addr[16 - _v6_zero_bytes] &= _v6_mask;
+    }
+    inet_ntop(AF_INET6, &ipv6, res, INET6_ADDRSTRLEN);
+    if (res[0]) {
+      s += res;
+    }
+  } break;
+  }
+}
+
+// Little helper function, to create the masks
+void
+ConditionCidr::_create_masks()
+{
+  _v4_mask.s_addr = htonl(UINT32_MAX << (32 - _v4_cidr));
+  _v6_zero_bytes  = (128 - _v6_cidr) / 8;
+  _v6_mask        = 0xff >> ((128 - _v6_cidr) % 8);
+}
+
+void
+ConditionInbound::initialize(Parser &p)
+{
+  Condition::initialize(p);
+
+  MatcherType *match = new MatcherType(_cond_op);
+
+  match->set(p.get_arg());
+  _matcher = match;
+}
+
+void
+ConditionInbound::set_qualifier(const std::string &q)
+{
+  Condition::set_qualifier(q);
+
+  TSDebug(PLUGIN_NAME, "\tParsing %%{%s:%s} qualifier", TAG, q.c_str());
+
+  if (q == "LOCAL-ADDR") {
+    _net_qual = NET_QUAL_LOCAL_ADDR;
+  } else if (q == "LOCAL-PORT") {
+    _net_qual = NET_QUAL_LOCAL_PORT;
+  } else if (q == "REMOTE-ADDR") {
+    _net_qual = NET_QUAL_REMOTE_ADDR;
+  } else if (q == "REMOTE-PORT") {
+    _net_qual = NET_QUAL_REMOTE_PORT;
+  } else if (q == "TLS") {
+    _net_qual = NET_QUAL_TLS;
+  } else if (q == "H2") {
+    _net_qual = NET_QUAL_H2;
+  } else if (q == "IPV4") {
+    _net_qual = NET_QUAL_IPV4;
+  } else if (q == "IPV6") {
+    _net_qual = NET_QUAL_IPV6;
+  } else if (q == "IP-FAMILY") {
+    _net_qual = NET_QUAL_IP_FAMILY;
+  } else if (q == "STACK") {
+    _net_qual = NET_QUAL_STACK;
+  } else {
+    TSError("[%s] Unknown %s() qualifier: %s", PLUGIN_NAME, TAG, q.c_str());
+  }
+}
+
+bool
+ConditionInbound::eval(const Resources &res)
+{
+  std::string s;
+
+  append_value(s, res);
+  bool rval = static_cast<const Matchers<std::string> *>(_matcher)->test(s);
+
+  TSDebug(PLUGIN_NAME, "Evaluating %s(): %s - rval: %d", TAG, s.c_str(), rval);
+
+  return rval;
+}
+
+void
+ConditionInbound::append_value(std::string &s, const Resources &res)
+{
+  this->append_value(s, res, _net_qual);
+}
+
+void
+ConditionInbound::append_value(std::string &s, const Resources &res, NetworkSessionQualifiers qual)
+{
+  const char *zret = nullptr;
+  char text[INET6_ADDRSTRLEN];
+
+  switch (qual) {
+  case NET_QUAL_LOCAL_ADDR: {
+    zret = getIP(TSHttpTxnIncomingAddrGet(res.txnp), text);
+  } break;
+  case NET_QUAL_LOCAL_PORT: {
+    uint16_t port = getPort(TSHttpTxnIncomingAddrGet(res.txnp));
+    snprintf(text, sizeof(text), "%d", port);
+    zret = text;
+  } break;
+  case NET_QUAL_REMOTE_ADDR: {
+    zret = getIP(TSHttpTxnClientAddrGet(res.txnp), text);
+  } break;
+  case NET_QUAL_REMOTE_PORT: {
+    uint16_t port = getPort(TSHttpTxnClientAddrGet(res.txnp));
+    snprintf(text, sizeof(text), "%d", port);
+    zret = text;
+  } break;
+  case NET_QUAL_TLS:
+    zret = TSHttpTxnClientProtocolStackContains(res.txnp, "tls/");
+    break;
+  case NET_QUAL_H2:
+    zret = TSHttpTxnClientProtocolStackContains(res.txnp, "h2");
+    break;
+  case NET_QUAL_IPV4:
+    zret = TSHttpTxnClientProtocolStackContains(res.txnp, "ipv4");
+    break;
+  case NET_QUAL_IPV6:
+    zret = TSHttpTxnClientProtocolStackContains(res.txnp, "ipv6");
+    break;
+  case NET_QUAL_IP_FAMILY:
+    zret = TSHttpTxnClientProtocolStackContains(res.txnp, "ip");
+    break;
+  case NET_QUAL_STACK: {
+    std::array<char const *, 8> tags;
+    int count  = 0;
+    size_t len = 0;
+    TSHttpTxnClientProtocolStackGet(res.txnp, tags.size(), tags.data(), &count);
+    for (int i = 0; i < count; ++i) {
+      len += 1 + strlen(tags[i]);
+    }
+    s.reserve(len);
+    for (int i = 0; i < count; ++i) {
+      if (i) {
+        s += ',';
+      }
+      s += tags[i];
+    }
+  } break;
+  }
+
+  if (zret) {
+    s += zret;
   }
 }

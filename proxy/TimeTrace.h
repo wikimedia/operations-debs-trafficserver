@@ -28,8 +28,7 @@
 
  ****************************************************************************/
 
-#ifndef _TimeTrace_h_
-#define _TimeTrace_h_
+#pragma once
 
 // #define ENABLE_TIME_TRACE
 
@@ -60,9 +59,6 @@ extern int inmsg_events;
 
 extern int open_delay_time_dist[TIME_DIST_BUCKETS_SIZE];
 extern int open_delay_events;
-
-extern int cluster_send_time_dist[TIME_DIST_BUCKETS_SIZE];
-extern int cluster_send_events;
 #endif // ENABLE_TIME_TRACE
 
 #ifdef ENABLE_TIME_TRACE
@@ -79,7 +75,3 @@ extern int cluster_send_events;
 #else // !ENABLE_TIME_TRACE
 #define LOG_EVENT_TIME(_start_time, _time_dist, _time_cnt)
 #endif // !ENABLE_TIME_TRACE
-
-#endif // _TimeTrace_h_
-
-// End of TimeTrace.h

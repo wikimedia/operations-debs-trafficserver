@@ -34,16 +34,16 @@
  *
  ****************************************************************************/
 
-#include "ts/ink_hash_table.h"
-#include "ts/TextBuffer.h"
+#include "tscore/ink_hash_table.h"
+#include "tscore/TextBuffer.h"
 #include "ExpandingArray.h"
 
-#include "P_RecCore.h"
+#include "records/P_RecCore.h"
 
 // class MgmtData - stores information from local manager
 //    variables in its native type
 //
-#include "P_RecCore.h"
+#include "records/P_RecCore.h"
 class MgmtData
 {
 public:
@@ -112,9 +112,5 @@ bool recordRegexCheck(const char *pattern, const char *value);
 bool recordRangeCheck(const char *pattern, const char *value);
 bool recordIPCheck(const char *pattern, const char *value);
 bool recordRestartCheck(const char *varName);
-
-// file management
-int getFilesInDirectory(char *managedDir, ExpandingArray *fileList);
-char *newPathString(const char *s1, const char *s2);
 
 #endif

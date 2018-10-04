@@ -22,8 +22,7 @@
  * @see aws_auth_v4.cc
  */
 
-#ifndef PLUGINS_S3_AUTH_AWS_AUTH_V4_CC_
-#define PLUGINS_S3_AUTH_AWS_AUTH_V4_CC_
+#pragma once
 
 #include <algorithm> /* transform() */
 #include <cstddef>   /* soze_t */
@@ -53,7 +52,7 @@ public:
 };
 
 #ifdef AWS_AUTH_V4_UNIT_TEST
-#include "unit-tests/test_aws_auth_v4.h"
+#include "unit_tests/test_aws_auth_v4.h"
 #else
 #include "aws_auth_v4_wrap.h"
 #endif
@@ -109,4 +108,3 @@ private:
   const StringSet &_excludedHeaders;
   const StringMap &_regionMap;
 };
-#endif /* PLUGINS_S3_AUTH_AWS_AUTH_V4_CC_ */

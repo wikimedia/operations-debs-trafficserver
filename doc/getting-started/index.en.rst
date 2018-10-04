@@ -122,7 +122,7 @@ RHEL / CentOS
 |TS| is available through the EPEL repositories. If you do not have those
 configured on your machine yet, you must install them first with the following::
 
-    wget https://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+    wget https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     sudo rpm -Uvh epel-release-7*.rpm
 
 Ensuring that you replace the release number with a value that is appropriate
@@ -448,3 +448,4 @@ You may also want to learn more about :ref:`admin-monitoring`, or ensuring
 that your installation is properly secured by reading the :ref:`admin-security`
 section. Properly sizing your cache, both the on-disk cache and the companion
 memory cache, are important topics covered in :ref:`admin-configuration`.
+

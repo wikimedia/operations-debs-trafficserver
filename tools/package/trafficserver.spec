@@ -21,10 +21,13 @@
 %define _hardened_build 1
 %endif
 
+# This can be overriden via command line option, e.g.  --define “release 12"
+%{!?release: %define release 1}
+
 Summary:	Apache Traffi Server, a reverse, forward and transparent HTTP proxy cache
 Name:		trafficserver
-Version:	7.1.2
-Release:	3%{?dist}
+Version:	8.0.0
+Release:	%{release}%{?dist}
 License:	Apache Software License 2.0 (AL2)
 Group:		System Environment/Daemons
 URL:		https://trafficserver.apache.org/
@@ -98,9 +101,9 @@ make DESTDIR=%{buildroot} install
 mkdir -p %{buildroot}/lib/systemd/system
 cp rc/trafficserver.service %{buildroot}/lib/systemd/system
 %else
-mkdir -p %{buildroot}/etc/init.d  
-mv %{buildroot}%{_bindir}/trafficserver %{buildroot}/etc/init.d  
-%endif  
+mkdir -p %{buildroot}/etc/init.d
+mv %{buildroot}%{_bindir}/trafficserver %{buildroot}/etc/init.d
+%endif
 
 # Remove libtool archives and static libs
 find %{buildroot} -type f -name "*.la" -delete
@@ -122,7 +125,7 @@ mv %{buildroot}%{_libdir}/trafficserver/pkgconfig/trafficserver.pc %{buildroot}%
 /sbin/ldconfig
 %if %{?fedora}0 > 0 || %{?rhel}0 >= 70
 %systemd_post trafficserver.service
-%endif  
+%endif
 
 # These UID/GIDs are retained from the upstream Fedora .spec, not sure if there's a registry for these?
 %pre
@@ -132,39 +135,41 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 %preun
 %if %{?fedora}0 > 0 || %{?rhel}0 >= 70
 %systemd_preun trafficserver.service
-%endif  
+%endif
 
 %postun
 /sbin/ldconfig
 
 %if %{?fedora}0 > 0 || %{?rhel}0 >= 70
 %systemd_postun_with_restart trafficserver.service
-%endif  
+%endif
 
 %files
 %defattr(-, root, root, -)
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %doc README CHANGELOG* NOTICE STATUS
-%attr(0755, ats, ats) %dir /etc/trafficserver
 %config(noreplace) /etc/trafficserver/*
 %{_bindir}/traffic*
 %{_bindir}/tspush
 %dir %{_libdir}/trafficserver
 %dir %{_libdir}/trafficserver/plugins
 %{_libdir}/trafficserver/libts*.so*
-%{_libdir}/trafficserver/libats*.so*
 %{_libdir}/trafficserver/plugins/*.so
 
 %if %{?fedora}0 > 0 || %{?rhel}0 >= 70
 /lib/systemd/system/trafficserver.service
 %else
 %config(noreplace) /etc/init.d/trafficserver
-%endif  
+%endif
 
+# Change the default file and directory permissions
+%attr(0755, ats, ats) %dir /etc/trafficserver
 %attr(0755, ats, ats) %dir /var/log/trafficserver
 %attr(0755, ats, ats) %dir /run/trafficserver
 %attr(0755, ats, ats) %dir /var/cache/trafficserver
+%attr(0644, ats, ats) /etc/trafficserver/*.config
+%attr(0644, ats, ats) /etc/trafficserver/*.yaml
 
 %files perl
 %defattr(-,root,root,-)
@@ -175,10 +180,15 @@ getent passwd ats >/dev/null || useradd -r -u 176 -g ats -d / -s /sbin/nologin -
 %defattr(-,root,root,-)
 %{_bindir}/tsxs
 %{_includedir}/ts
-%{_includedir}/atscppapi
+%{_includedir}/tscpp
 %{_datadir}/pkgconfig/trafficserver.pc
 
 %changelog
+* Wed Sep 19 2018 Bryan Call <bcall@apache.org> - 8.0.0-1
+- Changed the owner ofthe configuration files to ats
+- Include files for the C++ APIs moved
+- C++ library name changed
+
 * Tue Dec 19 2017 Leif Hedstrom <zwoop@apache.org> - 7.1.2-1
 - Cleanup for 7.1.x, and various other changes. This needs more work
   upstream though, since I'm finding issues.

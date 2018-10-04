@@ -21,15 +21,14 @@
   limitations under the License.
  */
 
-#ifndef __HTTP2_CLIENT_SESSION_H__
-#define __HTTP2_CLIENT_SESSION_H__
+#pragma once
 
 #include "HTTP2.h"
 #include "Plugin.h"
 #include "ProxyClientSession.h"
 #include "Http2ConnectionState.h"
-#include <ts/MemView.h>
-#include <ts/ink_inet.h>
+#include <string_view>
+#include "tscore/ink_inet.h"
 
 // Name                       Edata                 Description
 // HTTP2_SESSION_EVENT_INIT   Http2ClientSession *  HTTP/2 session is born
@@ -41,12 +40,14 @@
 #define HTTP2_SESSION_EVENT_FINI (HTTP2_SESSION_EVENTS_START + 2)
 #define HTTP2_SESSION_EVENT_RECV (HTTP2_SESSION_EVENTS_START + 3)
 #define HTTP2_SESSION_EVENT_XMIT (HTTP2_SESSION_EVENTS_START + 4)
+#define HTTP2_SESSION_EVENT_SHUTDOWN_INIT (HTTP2_SESSION_EVENTS_START + 5)
+#define HTTP2_SESSION_EVENT_SHUTDOWN_CONT (HTTP2_SESSION_EVENTS_START + 6)
 
 size_t const HTTP2_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
 
 // To support Upgrade: h2c
 struct Http2UpgradeContext {
-  Http2UpgradeContext() : req_header(NULL) {}
+  Http2UpgradeContext() : req_header(nullptr) {}
   ~Http2UpgradeContext()
   {
     if (req_header) {
@@ -74,7 +75,7 @@ public:
   Http2Frame(Http2FrameType type, Http2StreamId streamid, uint8_t flags)
   {
     this->hdr      = {0, (uint8_t)type, flags, streamid};
-    this->ioreader = NULL;
+    this->ioreader = nullptr;
   }
 
   IOBufferReader *
@@ -141,10 +142,11 @@ public:
     }
   }
 
-private:
-  Http2Frame(Http2Frame &);                  // noncopyable
-  Http2Frame &operator=(const Http2Frame &); // noncopyable
+  // noncopyable
+  Http2Frame(Http2Frame &) = delete;
+  Http2Frame &operator=(const Http2Frame &) = delete;
 
+private:
   Http2FrameHeader hdr;       // frame header
   Ptr<IOBufferBlock> ioblock; // frame payload
   IOBufferReader *ioreader;
@@ -171,8 +173,9 @@ public:
   }
 
   // Implement VConnection interface.
-  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = 0) override;
-  VIO *do_io_write(Continuation *c = NULL, int64_t nbytes = INT64_MAX, IOBufferReader *buf = 0, bool owner = false) override;
+  VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
+  VIO *do_io_write(Continuation *c = nullptr, int64_t nbytes = INT64_MAX, IOBufferReader *buf = nullptr,
+                   bool owner = false) override;
   void do_io_close(int lerrno = -1) override;
   void do_io_shutdown(ShutdownHowTo_t howto) override;
   void reenable(VIO *vio) override;
@@ -188,16 +191,22 @@ public:
   {
     // Make sure the vio's are also released to avoid later surprises in inactivity timeout
     if (client_vc) {
-      client_vc->do_io_read(NULL, 0, NULL);
-      client_vc->do_io_write(NULL, 0, NULL);
-      client_vc->set_action(NULL);
+      client_vc->do_io_read(nullptr, 0, nullptr);
+      client_vc->do_io_write(nullptr, 0, nullptr);
+      client_vc->set_action(nullptr);
     }
   }
 
   sockaddr const *
-  get_client_addr()
+  get_client_addr() override
   {
-    return client_vc->get_remote_addr();
+    return client_vc ? client_vc->get_remote_addr() : &cached_client_addr.sa;
+  }
+
+  sockaddr const *
+  get_local_addr() override
+  {
+    return client_vc ? client_vc->get_local_addr() : &cached_local_addr.sa;
   }
 
   void
@@ -250,8 +259,8 @@ public:
     return "http/2";
   }
 
-  virtual int
-  populate_protocol(ts::StringView *result, int size) const override
+  int
+  populate_protocol(std::string_view *result, int size) const override
   {
     int retval = 0;
     if (size > retval) {
@@ -263,13 +272,13 @@ public:
     return retval;
   }
 
-  virtual const char *
-  protocol_contains(ts::StringView prefix) const override
+  const char *
+  protocol_contains(std::string_view prefix) const override
   {
     const char *retval = nullptr;
 
-    if (prefix.size() <= IP_PROTO_TAG_HTTP_2_0.size() && strncmp(IP_PROTO_TAG_HTTP_2_0.ptr(), prefix.ptr(), prefix.size()) == 0) {
-      retval = IP_PROTO_TAG_HTTP_2_0.ptr();
+    if (prefix.size() <= IP_PROTO_TAG_HTTP_2_0.size() && strncmp(IP_PROTO_TAG_HTTP_2_0.data(), prefix.data(), prefix.size()) == 0) {
+      retval = IP_PROTO_TAG_HTTP_2_0.data();
     } else {
       retval = super::protocol_contains(prefix);
     }
@@ -309,10 +318,11 @@ public:
     return write_buffer->max_read_avail();
   }
 
-private:
-  Http2ClientSession(Http2ClientSession &);                  // noncopyable
-  Http2ClientSession &operator=(const Http2ClientSession &); // noncopyable
+  // noncopyable
+  Http2ClientSession(Http2ClientSession &) = delete;
+  Http2ClientSession &operator=(const Http2ClientSession &) = delete;
 
+private:
   int main_event_handler(int, void *);
 
   int state_read_connection_preface(int, void *);
@@ -325,28 +335,29 @@ private:
   // if there are multiple frames ready on the wire
   int state_process_frame_read(int event, VIO *vio, bool inside_frame);
 
-  int64_t total_write_len;
-  SessionHandler session_handler;
-  NetVConnection *client_vc;
-  MIOBuffer *read_buffer;
-  IOBufferReader *sm_reader;
-  MIOBuffer *write_buffer;
-  IOBufferReader *sm_writer;
-  Http2FrameHeader current_hdr;
+  int64_t total_write_len        = 0;
+  SessionHandler session_handler = nullptr;
+  NetVConnection *client_vc      = nullptr;
+  MIOBuffer *read_buffer         = nullptr;
+  IOBufferReader *sm_reader      = nullptr;
+  MIOBuffer *write_buffer        = nullptr;
+  IOBufferReader *sm_writer      = nullptr;
+  Http2FrameHeader current_hdr   = {0, 0, 0, 0};
+
+  IpEndpoint cached_client_addr;
+  IpEndpoint cached_local_addr;
 
   // For Upgrade: h2c
   Http2UpgradeContext upgrade_context;
 
-  VIO *write_vio;
-  int dying_event;
-  bool kill_me;
-  bool half_close_local;
-  int recursion;
+  VIO *write_vio        = nullptr;
+  int dying_event       = 0;
+  bool kill_me          = false;
+  bool half_close_local = false;
+  int recursion         = 0;
 
   InkHashTable *h2_pushed_urls = nullptr;
   uint32_t h2_pushed_urls_size = 0;
 };
 
 extern ClassAllocator<Http2ClientSession> http2ClientSessionAllocator;
-
-#endif // __HTTP2_CLIENT_SESSION_H__

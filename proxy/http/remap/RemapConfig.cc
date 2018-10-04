@@ -24,14 +24,14 @@
 #include "RemapConfig.h"
 #include "UrlRewrite.h"
 #include "ReverseProxy.h"
-#include "ts/I_Layout.h"
+#include "tscore/I_Layout.h"
 #include "HTTP.h"
-#include "ts/ink_platform.h"
-#include "ts/List.h"
-#include "ts/ink_cap.h"
-#include "ts/ink_file.h"
-#include "ts/Tokenizer.h"
-#include "../../proxy/IPAllow.h"
+#include "tscore/ink_platform.h"
+#include "tscore/List.h"
+#include "tscore/ink_cap.h"
+#include "tscore/ink_file.h"
+#include "tscore/Tokenizer.h"
+#include "IPAllow.h"
 
 #define modulePrefix "[ReverseProxy]"
 
@@ -420,9 +420,8 @@ remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int arg
   acl_filter_rule *rule;
   unsigned long ul;
   const char *argptr;
-  char tmpbuf[1024];
   src_ip_info_t *ipi;
-  int i, j, m;
+  int i, j;
   bool new_rule_flg = false;
 
   if (!rule_pp) {
@@ -478,33 +477,10 @@ remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int arg
 
     if (ul & REMAP_OPTFLG_METHOD) { /* "method=" option */
       // Please remember that the order of hash idx creation is very important and it is defined
-      // in HTTP.cc file
-      m = -1;
-      if (!strcasecmp(argptr, "CONNECT")) {
-        m = HTTP_WKSIDX_CONNECT;
-      } else if (!strcasecmp(argptr, "DELETE")) {
-        m = HTTP_WKSIDX_DELETE;
-      } else if (!strcasecmp(argptr, "GET")) {
-        m = HTTP_WKSIDX_GET;
-      } else if (!strcasecmp(argptr, "HEAD")) {
-        m = HTTP_WKSIDX_HEAD;
-      } else if (!strcasecmp(argptr, "ICP_QUERY")) {
-        m = HTTP_WKSIDX_ICP_QUERY;
-      } else if (!strcasecmp(argptr, "OPTIONS")) {
-        m = HTTP_WKSIDX_OPTIONS;
-      } else if (!strcasecmp(argptr, "POST")) {
-        m = HTTP_WKSIDX_POST;
-      } else if (!strcasecmp(argptr, "PURGE")) {
-        m = HTTP_WKSIDX_PURGE;
-      } else if (!strcasecmp(argptr, "PUT")) {
-        m = HTTP_WKSIDX_PUT;
-      } else if (!strcasecmp(argptr, "TRACE")) {
-        m = HTTP_WKSIDX_TRACE;
-      } else if (!strcasecmp(argptr, "PUSH")) {
-        m = HTTP_WKSIDX_PUSH;
-      }
-      if (m != -1) {
-        m                               = m - HTTP_WKSIDX_CONNECT; // get method index
+      // in HTTP.cc file. 0 in our array is the first method, CONNECT
+      int m = hdrtoken_tokenize(argptr, strlen(argptr), nullptr) - HTTP_WKSIDX_CONNECT;
+
+      if (m >= 0 && m < HTTP_WKSIDX_METHODS_CNT) {
         rule->standard_method_lookup[m] = true;
       } else {
         Debug("url_rewrite", "[validate_filter_args] Using nonstandard method [%s]", argptr);
@@ -528,9 +504,7 @@ remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int arg
       if (ul & REMAP_OPTFLG_INVERT) {
         ipi->invert = true;
       }
-      ink_strlcpy(tmpbuf, argptr, sizeof(tmpbuf));
-      // important! use copy of argument
-      if (ExtractIpRange(tmpbuf, &ipi->start.sa, &ipi->end.sa) != nullptr) {
+      if (ats_ip_range_parse(argptr, ipi->start, ipi->end) != 0) {
         Debug("url_rewrite", "[validate_filter_args] Unable to parse IP value in %s", argv[i]);
         snprintf(errStrBuf, errStrBufSize, "Unable to parse IP value in %s", argv[i]);
         errStrBuf[errStrBufSize - 1] = 0;
@@ -568,9 +542,8 @@ remap_validate_filter_args(acl_filter_rule **rule_pp, const char **argv, int arg
       if (ul & REMAP_OPTFLG_INVERT) {
         ipi->invert = true;
       }
-      ink_strlcpy(tmpbuf, argptr, sizeof(tmpbuf));
       // important! use copy of argument
-      if (ExtractIpRange(tmpbuf, &ipi->start.sa, &ipi->end.sa) != nullptr) {
+      if (ats_ip_range_parse(argptr, ipi->start, ipi->end) != 0) {
         Debug("url_rewrite", "[validate_filter_args] Unable to parse IP value in %s", argv[i]);
         snprintf(errStrBuf, errStrBufSize, "Unable to parse IP value in %s", argv[i]);
         errStrBuf[errStrBufSize - 1] = 0;
@@ -778,7 +751,7 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
   }
 
   if (stat(c, &stat_buf) != 0) {
-    const char *plugin_default_path = TSPluginDirGet();
+    ats_scoped_str plugin_default_path(RecConfigReadPluginDir());
 
     // Try with the plugin path instead
     if (strlen(c) + strlen(plugin_default_path) > (PATH_NAME_MAX - 1)) {
@@ -786,7 +759,7 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
       return -3;
     }
 
-    snprintf(default_path, PATH_NAME_MAX, "%s/%s", plugin_default_path, c);
+    snprintf(default_path, PATH_NAME_MAX, "%s/%s", static_cast<char *>(plugin_default_path), c);
     Debug("remap_plugin", "attempting to stat default plugin path: %s", default_path);
 
     if (stat(default_path, &stat_buf) == 0) {
@@ -823,13 +796,17 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
         snprintf(errbuf, errbufsize, "Can't load plugin \"%s\" - %s", c, err ? err : "Unknown dlopen() error");
         return -4;
       }
-      pi->fp_tsremap_init         = (remap_plugin_info::_tsremap_init *)dlsym(pi->dlh, TSREMAP_FUNCNAME_INIT);
-      pi->fp_tsremap_done         = (remap_plugin_info::_tsremap_done *)dlsym(pi->dlh, TSREMAP_FUNCNAME_DONE);
-      pi->fp_tsremap_new_instance = (remap_plugin_info::_tsremap_new_instance *)dlsym(pi->dlh, TSREMAP_FUNCNAME_NEW_INSTANCE);
+      pi->fp_tsremap_init = reinterpret_cast<remap_plugin_info::_tsremap_init *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_INIT));
+      pi->fp_tsremap_config_reload =
+        reinterpret_cast<remap_plugin_info::_tsremap_config_reload *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_CONFIG_RELOAD));
+      pi->fp_tsremap_done = reinterpret_cast<remap_plugin_info::_tsremap_done *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_DONE));
+      pi->fp_tsremap_new_instance =
+        reinterpret_cast<remap_plugin_info::_tsremap_new_instance *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_NEW_INSTANCE));
       pi->fp_tsremap_delete_instance =
-        (remap_plugin_info::_tsremap_delete_instance *)dlsym(pi->dlh, TSREMAP_FUNCNAME_DELETE_INSTANCE);
-      pi->fp_tsremap_do_remap    = (remap_plugin_info::_tsremap_do_remap *)dlsym(pi->dlh, TSREMAP_FUNCNAME_DO_REMAP);
-      pi->fp_tsremap_os_response = (remap_plugin_info::_tsremap_os_response *)dlsym(pi->dlh, TSREMAP_FUNCNAME_OS_RESPONSE);
+        reinterpret_cast<remap_plugin_info::_tsremap_delete_instance *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_DELETE_INSTANCE));
+      pi->fp_tsremap_do_remap = reinterpret_cast<remap_plugin_info::_tsremap_do_remap *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_DO_REMAP));
+      pi->fp_tsremap_os_response =
+        reinterpret_cast<remap_plugin_info::_tsremap_os_response *>(dlsym(pi->dlh, TSREMAP_FUNCNAME_OS_RESPONSE));
 
       if (!pi->fp_tsremap_init) {
         snprintf(errbuf, errbufsize, R"(Can't find "%s" function in remap plugin "%s")", TSREMAP_FUNCNAME_INIT, c);
@@ -849,8 +826,9 @@ remap_load_plugin(const char **argv, int argc, url_mapping *mp, char *errbuf, in
         retcode = -13;
       }
       if (retcode) {
-        if (errbuf && errbufsize > 0)
+        if (errbuf && errbufsize > 0) {
           Debug("remap_plugin", "%s", errbuf);
+        }
         dlclose(pi->dlh);
         pi->dlh = nullptr;
         return retcode;
@@ -1123,7 +1101,7 @@ remap_parse_config_bti(const char *path, BUILD_TABLE_INFO *bti)
     // Check directive keywords (starting from '.')
     if (bti->paramv[0][0] == '.') {
       if ((errStr = remap_parse_directive(bti, errBuf, sizeof(errBuf))) != nullptr) {
-        snprintf(errStrBuf, sizeof(errStrBuf) - 1, "error on line %d - %s", cln + 1, errStr);
+        snprintf(errStrBuf, sizeof(errStrBuf), "error on line %d - %s", cln + 1, errStr);
         errStr = errStrBuf;
         goto MAP_ERROR;
       }
@@ -1157,7 +1135,7 @@ remap_parse_config_bti(const char *path, BUILD_TABLE_INFO *bti)
       Debug("url_rewrite", "[BuildTable] - FORWARD_MAP_WITH_RECV_PORT");
       maptype = FORWARD_MAP_WITH_RECV_PORT;
     } else {
-      snprintf(errStrBuf, sizeof(errStrBuf) - 1, "unknown mapping type at line %d", cln + 1);
+      snprintf(errStrBuf, sizeof(errStrBuf), "unknown mapping type at line %d", cln + 1);
       errStr = errStrBuf;
       goto MAP_ERROR;
     }
@@ -1358,7 +1336,7 @@ remap_parse_config_bti(const char *path, BUILD_TABLE_INFO *bti)
       ip_text_buffer ipb;   // buffer for address string conversion.
       if (0 == getaddrinfo(fromHost_lower, nullptr, nullptr, &ai_records)) {
         for (addrinfo *ai_spot = ai_records; ai_spot; ai_spot = ai_spot->ai_next) {
-          if (ats_is_ip(ai_spot->ai_addr) && !ats_is_ip_any(ai_spot->ai_addr)) {
+          if (ats_is_ip(ai_spot->ai_addr) && !ats_is_ip_any(ai_spot->ai_addr) && ai_spot->ai_protocol == IPPROTO_TCP) {
             url_mapping *u_mapping;
 
             ats_ip_ntop(ai_spot->ai_addr, ipb, sizeof ipb);
@@ -1444,6 +1422,11 @@ remap_parse_config(const char *path, UrlRewrite *rewrite)
 {
   BUILD_TABLE_INFO bti;
 
+  // If this happens to be a config reload, the list of loaded remap plugins is non-empty, and we
+  // can signal all these plugins that a reload has begun.
+  if (remap_pi_list) {
+    remap_pi_list->indicate_reload();
+  }
   bti.rewrite = rewrite;
   return remap_parse_config_bti(path, &bti);
 }

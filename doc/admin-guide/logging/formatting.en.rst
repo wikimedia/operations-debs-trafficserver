@@ -23,7 +23,7 @@ Formatting Log Files
 ********************
 
 This section covers the creation of logging formats. All but a few logging
-output related settings in |TS| are performed in :file:`logging.config` and
+output related settings in |TS| are performed in :file:`logging.yaml` and
 consulting the documentation for that file is recommended in addition to this
 section. Any configurations or settings performed outside that file will be
 clearly noted.
@@ -33,7 +33,7 @@ clearly noted.
 Defining Formats
 ================
 
-Logging formats in |TS| are defined by editing :file:`logging.config`
+Logging formats in |TS| are defined by editing :file:`logging.yaml`
 and adding new format entries for each format you wish to define. The syntax is
 fairly simple: every format must contain a ``Format`` attribute, which is the
 string defining the contents of each line in the log, and may also contain an
@@ -48,11 +48,12 @@ logging destinations.
 A very simple exampe, which contains only the timestamp of when the event began
 and the canonical URL of the request, would look like:
 
-.. code:: lua
+.. code:: yaml
 
-   myformat = format {
-     Format = "%<cqtq> %<cauc>"
-   }
+   formats:
+   - name: myformat
+     format: '%<cqtq> %<cauc>'
+
 
 You may include as many custom field codes as you wish. The full list of codes
 available can be found in :ref:`admin-logging-fields`. You may also include
@@ -61,15 +62,15 @@ the timestamp and canonical URL in our customer format above with a slash
 instead of a space, or even a slash surrounded by spaces, we could do so by
 just adding the desired characters to the format string:
 
-.. code:: lua
+.. code:: yaml
 
-   myformat = format {
-     Format = "%<cqtq> / %<cauc>"
-   }
+   formats:
+   - name: myformat
+     format: '%<cqtq> / %<cauc>'
 
 You may define as many custom formats as you wish. To apply changes to custom
 formats, you will need to run the command :option:`traffic_ctl config reload`
-after saving your changes to :file:`logging.config`.
+after saving your changes to :file:`logging.yaml`.
 
 .. _admin-logging-fields:
 
@@ -147,6 +148,7 @@ Cache Details
 
 .. _cluc:
 .. _crc:
+.. _crsc:
 .. _chm:
 .. _cwr:
 .. _cwtr:
@@ -162,6 +164,8 @@ cluc  Client Request Cache Lookup URL, also known as the :term:`cache key`,
                      URL.
 crc   Proxy Cache    Cache Result Code. The result of |TS| attempting to obtain
                      the object from cache; :ref:`admin-logging-cache-results`.
+crsc  Proxy Cache    Cache Result Sub-Code. More specific code to complement the
+                     Cache Result Code.
 chm   Proxy Cache    Cache Hit-Miss status. Specifies the level of cache from
                      which this request was served by |TS|. Currently supports
                      only RAM (``HIT_RAM``) vs disk (``HIT_DISK``).
@@ -217,6 +221,27 @@ Field Source                 Description
 psct  Origin Server Response Content type of the document obtained by |TS| from
                              the origin server response.
 ===== ====================== ==================================================
+
+.. _admin-logging-fields-error-code:
+
+Error Code
+~~~~~~~~~~
+
+.. _crec:
+.. _ctec:
+
+The log fields of error code which is triggered session close or
+transaction close. The first byte of this field indicates that the error
+code is session level (``S``) or transaction level (``T``).
+When no error code is received or transmitted, these fileds are ``-``.
+For HTTP/2, error code are described in RFC 7540 section 7.
+
+===== =============== =========================================================
+Field Source          Description
+===== =============== =========================================================
+crec  Client Request  Error code in hex which |TS| received
+ctec  Client Response Error code in hex which |TS| transmitted
+===== =============== =========================================================
 
 .. _admin-logging-fields-hierarchy:
 
@@ -407,6 +432,11 @@ phn   Proxy  Hostname of the |TS| node which generated the collated log entry.
 phi   Proxy  IP of the |TS| node which generated the collated log entry.
 ===== ====== ==================================================================
 
+.. note::
+
+   Log collation is a *deprecated* feature as of ATS v8.0.0, and  will be
+   removed in ATS v9.0.0.
+
 .. _admin-logging-fields-network:
 
 Network Addresses, Ports, and Interfaces
@@ -420,9 +450,10 @@ Network Addresses, Ports, and Interfaces
 .. _php:
 .. _pqsi:
 .. _pqsp:
-.. _pqsn:
 .. _shi:
 .. _shn:
+.. _nhi:
+.. _nhp:
 
 The following log fields are used to log details of the network (IP) addresses,
 incoming/outgoing ports, and network interfaces used during transactions.
@@ -442,13 +473,13 @@ pqsi  Proxy Request  IP address from which |TS| issued the proxy request to the
                      origin server. Cache hits will result in a value of ``0``.
 pqsp  Proxy Request  Port number from which |TS| issued the proxy request to
                      the origin server. Cache hits will yield a value of ``0``.
-pqsn  Proxy Request  Host name of the interface from which |TS| issues the
-                     proxy request to the origin server.
 shi   Origin Server  IP address resolved via DNS by |TS| for the origin server.
                      For hosts with multiple IP addresses, the address used by
                      |TS| for the connection will be reported. See note below
                      regarding misleading values from cached documents.
 shn   Origin Server  Host name of the origin server.
+nhi   Origin Server  Destination IP address of next hop
+nhp   Origin Server  Destination port of next hop
 ===== ============== ==========================================================
 
 .. note::
@@ -561,6 +592,7 @@ Status Codes
 .. _pfsc:
 .. _pssc:
 .. _sssc:
+.. _prrp:
 
 These log fields provide a variety of status codes, some numeric and some as
 strings, relating to client, proxy, and origin transactions.
@@ -577,6 +609,8 @@ pfsc  Proxy Request         Finish status code specifying whether the proxy
                             request from |TS| to the origin server was
                             successfully completed (``FIN``), interrupted
                             (``INTR``), or timed out (``TIMEOUT``).
+prrp  Proxy Response        HTTP response reason phrase sent by |TS| proxy to the
+                            client.
 pssc  Proxy Response        HTTP response status code sent by |TS| proxy to the
                             client.
 sssc  Origin Response       HTTP response status code sent by the origin server

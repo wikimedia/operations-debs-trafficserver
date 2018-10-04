@@ -16,16 +16,15 @@
   limitations under the License.
 */
 
-#ifndef _MP4_META_H
-#define _MP4_META_H
+#pragma once
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstddef>
 #include <unistd.h>
 #include <getopt.h>
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <ts/ts.h>
 
@@ -311,18 +310,18 @@ typedef struct {
 class BufferHandle
 {
 public:
-  BufferHandle() : buffer(NULL), reader(NULL){};
+  BufferHandle() : buffer(nullptr), reader(nullptr){};
 
   ~BufferHandle()
   {
     if (reader) {
       TSIOBufferReaderFree(reader);
-      reader = NULL;
+      reader = nullptr;
     }
 
     if (buffer) {
       TSIOBufferDestroy(buffer);
-      buffer = NULL;
+      buffer = nullptr;
     }
   }
 
@@ -360,6 +359,7 @@ public:
   }
 
   ~Mp4Trak() {}
+
 public:
   uint32_t timescale;
   int64_t duration;
@@ -425,12 +425,12 @@ public:
 
     if (meta_reader) {
       TSIOBufferReaderFree(meta_reader);
-      meta_reader = NULL;
+      meta_reader = nullptr;
     }
 
     if (meta_buffer) {
       TSIOBufferDestroy(meta_buffer);
-      meta_buffer = NULL;
+      meta_buffer = nullptr;
     }
   }
 
@@ -529,5 +529,3 @@ public:
   u_char mdat_atom_header[16];
   bool meta_complete;
 };
-
-#endif

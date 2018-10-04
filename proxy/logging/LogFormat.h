@@ -21,12 +21,11 @@
   limitations under the License.
  */
 
-#ifndef LOG_FORMAT_H
-#define LOG_FORMAT_H
+#pragma once
 
 #define LOG_FIELD_MARKER '\377'
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "LogField.h"
 
 enum LogFormatType {
@@ -57,7 +56,7 @@ public:
   LogFormat(const char *name, const char *fieldlist_str, const char *printf_str, unsigned interval_sec = 0);
   LogFormat(const LogFormat &rhs);
 
-  ~LogFormat();
+  ~LogFormat() override;
 
   void display(FILE *fd = stdout);
 
@@ -163,10 +162,12 @@ private:
 public:
   LINK(LogFormat, link);
 
+  // noncopyable
+  LogFormat &operator=(LogFormat &rhs) = delete;
+
 private:
   // -- member functions that are not allowed --
   LogFormat();
-  LogFormat &operator=(LogFormat &rhs);
 };
 
 // For text logs, there is no format string; we'll simply log the
@@ -175,7 +176,7 @@ private:
 static inline LogFormat *
 MakeTextLogFormat(const char *name = "text")
 {
-  return new LogFormat(name, NULL /* format_str */);
+  return new LogFormat(name, nullptr /* format_str */);
 }
 
 /*-------------------------------------------------------------------------
@@ -206,12 +207,11 @@ public:
   unsigned count();
   void display(FILE *fd = stdout);
 
+  // noncopyable
+  // -- member functions that are not allowed --
+  LogFormatList(const LogFormatList &rhs) = delete;
+  LogFormatList &operator=(const LogFormatList &rhs) = delete;
+
 private:
   Queue<LogFormat> m_format_list;
-
-  // -- member functions that are not allowed --
-  LogFormatList(const LogFormatList &rhs);
-  LogFormatList &operator=(const LogFormatList &rhs);
 };
-
-#endif

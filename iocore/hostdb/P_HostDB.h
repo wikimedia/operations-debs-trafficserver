@@ -28,14 +28,12 @@
 
  ****************************************************************************/
 
-#ifndef _P_HostDB_h_
-#define _P_HostDB_h_
+#pragma once
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 
 #ifdef SPLIT_DNS
 #include "P_SplitDNS.h"
-#include "P_Cluster.h"
 #endif
 
 #include "P_EventSystem.h"
@@ -49,7 +47,6 @@
 
 #undef HOSTDB_MODULE_VERSION
 #define HOSTDB_MODULE_VERSION makeModuleVersion(HOSTDB_MODULE_MAJOR_VERSION, HOSTDB_MODULE_MINOR_VERSION, PRIVATE_MODULE_HEADER)
-Ptr<HostDBInfo> probe(ProxyMutex *mutex, HostDBMD5 const &md5, bool ignore_timeout);
+Ptr<HostDBInfo> probe(ProxyMutex *mutex, CryptoHash const &hash, bool ignore_timeout);
 
-void make_md5(INK_MD5 &md5, const char *hostname, int len, int port, const char *pDNSServers, HostDBMark mark);
-#endif
+void make_crypto_hash(CryptoHash &hash, const char *hostname, int len, int port, const char *pDNSServers, HostDBMark mark);

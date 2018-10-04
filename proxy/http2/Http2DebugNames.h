@@ -21,10 +21,9 @@
   limitations under the License.
  */
 
-#ifndef __HTTP2_DEBUG_NAMES_H__
-#define __HTTP2_DEBUG_NAMES_H__
+#pragma once
 
-#include "ts/ink_defs.h"
+#include "tscore/ink_defs.h"
 
 enum class Http2StreamState;
 
@@ -34,5 +33,3 @@ public:
   static const char *get_settings_param_name(uint16_t id);
   static const char *get_state_name(Http2StreamState id);
 };
-
-#endif // __HTTP2_DEBUG_NAMES_H__
