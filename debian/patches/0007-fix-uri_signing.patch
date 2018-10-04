@@ -5,8 +5,8 @@ Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other
 Bug: https://github.com/apache/trafficserver/pull/4296
 Forwarded: https://github.com/apache/trafficserver/pull/4296
-Applied-Upstream: 8.0.1
-Last-Update: 2018-09-24
+Applied-Upstream: https://github.com/apache/trafficserver/commit/4028ea30b245b61b6086c671f11d6e5dfa119a32
+Last-Update: 2018-10-04
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/configure.ac

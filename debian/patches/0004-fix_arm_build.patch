@@ -3,7 +3,8 @@ Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other
 Bug: https://github.com/apache/trafficserver/pull/4330
 Forwarded: https://github.com/apache/trafficserver/pull/4330
-Last-Update: 2018-01-25
+Applied-Upstream: https://github.com/apache/trafficserver/commit/cb1caee2c40f3f11083f8144b2a565f164391777
+Last-Update: 2018-10-04
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/src/traffic_ctl/Makefile.inc

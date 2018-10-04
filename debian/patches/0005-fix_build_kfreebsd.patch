@@ -3,7 +3,8 @@ Author: Jean Baptiste Favre <debiabn@jbfavre.org>
 Origin: other
 Bug: https://github.com/apache/trafficserver/pull/4327
 Forwarded: https://github.com/apache/trafficserver/pull/4327
-Last-Update: 2017-03-24
+Applied-Upstream: https://github.com/apache/trafficserver/commit/b8d71fdec73d61b0bd5220f31ae4280a2c75fc49
+Last-Update: 2018-10-04
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 Index: trafficserver/src/tscore/ink_memory.cc
