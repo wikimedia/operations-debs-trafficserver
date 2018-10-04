@@ -4,13 +4,16 @@ Priority: optional
 Maintainer: Aron Xu <aron@debian.org>
 Uploaders: Jean Baptiste Favre <debian@jbfavre.org>, Emanuele Rocca <ema@wikimedia.org>
 Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
-  libpcre3-dev, libtool, libcap-dev [linux-any],
+  libpcre3-dev, libtool, libcap-dev [linux-any], graphviz,
   bison [linux-any], flex [linux-any], dpkg-dev (>= 1.16.1~), pkg-config, libgeoip-dev,
   libluajit-5.1-dev, libboost-dev, libhwloc-dev, default-libmysqlclient-dev,
-  python3-sphinx [!kfreebsd-any], python-sphinx [kfreebsd-any],
-  libxml2-dev, libunwind-dev [i386 amd64 ppc64el armhf arm64], libmagick++-dev,
-  libncurses-dev, libcurl4-openssl-dev, libkyotocabinet-dev, libmemcached-dev, libbrotli-dev
-Standards-Version: 4.1.4
+  python3-sphinx [!kfreebsd-any], python-sphinx [kfreebsd-any], plantuml,
+  python3-sphinxcontrib.plantuml [!kfreebsd-any], python-sphinxcontrib.plantuml [kfreebsd-any],
+  libxml2-dev, libmagick++-dev, libncurses-dev, libcurl4-openssl-dev,
+  libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
+  libcrypto++-dev, libjansson-dev, libcjose-dev,
+  libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips]
+Standards-Version: 4.2.0
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
@@ -21,10 +24,10 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, lsb-base (>= 3.2-14), adduser,
   ${perl:Depends}
 Provides: trafficserver-plugin-conf-remap
 Replaces: trafficserver-plugin-conf-remap (<< 3.2~),
- trafficserver-experimental-plugins (<< 7.0.0)
+ trafficserver-experimental-plugins (<< 8.0.0~)
 Suggests: trafficserver-experimental-plugins (= ${binary:Version})
 Breaks: trafficserver-plugin-conf-remap (<< 3.2~),
- trafficserver-experimental-plugins (<< 7.0.0~)
+ trafficserver-experimental-plugins (<< 8.0.0~)
 Description: fast, scalable and extensible HTTP/1.1 compliant caching proxy server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well. Apache Traffic Server
@@ -41,7 +44,7 @@ Package: trafficserver-experimental-plugins
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Pre-Depends: trafficserver (= ${binary:Version})
-Breaks: trafficserver (<< 7.0.0~)
+Breaks: trafficserver (<< 8.0.0~)
 Description: experimental plugins for Apache Traffic Server
  This package provides the Apache Traffic Server. A fast, scalable reverse
  proxy server which may operate as forward proxy as well.

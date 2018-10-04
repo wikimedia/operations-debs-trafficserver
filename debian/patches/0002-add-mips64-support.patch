@@ -1,13 +1,17 @@
 Description: Fix FTBFS for mips64el
 Author: Dejan Latinovic <Dejan.Latinovic@imgtec.com>
-Origin: other, https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=830856
+Origin: other
+Bug: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=830856
+Forwarded: https://github.com/apache/trafficserver/pull/4329
 Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
 Last-Update: 2016-11-18
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
---- a/lib/ts/ink_queue.h
-+++ b/lib/ts/ink_queue.h
-@@ -135,7 +135,7 @@ typedef union {
+Index: trafficserver/include/tscore/ink_queue.h
+===================================================================
+--- trafficserver.orig/include/tscore/ink_queue.h	2018-09-26 19:36:03.784395290 +0200
++++ trafficserver/include/tscore/ink_queue.h	2018-09-26 19:36:03.784395290 +0200
+@@ -136,7 +136,7 @@
  #define SET_FREELIST_POINTER_VERSION(_x, _p, _v) \
    (_x).s.pointer = _p;                           \
    (_x).s.version = _v

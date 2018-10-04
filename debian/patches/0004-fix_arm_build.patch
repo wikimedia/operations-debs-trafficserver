@@ -1,0 +1,36 @@
+Description: Fix arm build
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
+Bug: https://github.com/apache/trafficserver/pull/4330
+Forwarded: https://github.com/apache/trafficserver/pull/4330
+Last-Update: 2018-01-25
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: trafficserver/src/traffic_ctl/Makefile.inc
+===================================================================
+--- trafficserver.orig/src/traffic_ctl/Makefile.inc	2018-09-26 19:36:04.152398078 +0200
++++ trafficserver/src/traffic_ctl/Makefile.inc	2018-09-26 19:36:04.148398048 +0200
+@@ -41,8 +41,8 @@
+ traffic_ctl_traffic_ctl_LDADD = \
+ 	$(top_builddir)/lib/records/librecords_p.a \
+ 	$(top_builddir)/mgmt/libmgmt_p.la \
+-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
++	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/mgmt/api/libtsmgmt.la \
+ 	$(top_builddir)/src/tscore/libtscore.la \
+ 	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+Index: trafficserver/src/traffic_top/Makefile.inc
+===================================================================
+--- trafficserver.orig/src/traffic_top/Makefile.inc	2018-09-26 19:36:04.152398078 +0200
++++ trafficserver/src/traffic_top/Makefile.inc	2018-09-26 19:36:04.148398048 +0200
+@@ -42,8 +42,8 @@
+ traffic_top_traffic_top_LDADD = \
+ 	$(top_builddir)/lib/records/librecords_p.a \
+ 	$(top_builddir)/mgmt/libmgmt_p.la \
+-	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
++	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+ 	$(top_builddir)/mgmt/api/libtsmgmt.la \
+ 	$(top_builddir)/src/tscore/libtscore.la \
+ 	$(top_builddir)/src/tscpp/util/libtscpputil.la \

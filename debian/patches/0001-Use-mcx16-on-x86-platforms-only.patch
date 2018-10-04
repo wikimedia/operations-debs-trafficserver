@@ -6,9 +6,11 @@ Subject: Use -mcx16 on x86 platforms only
  configure.ac | 3 +++
  1 file changed, 3 insertions(+)
 
---- a/configure.ac
-+++ b/configure.ac
-@@ -1352,12 +1352,15 @@ CFLAGS="${__saved_CFLAGS}"
+Index: trafficserver/configure.ac
+===================================================================
+--- trafficserver.orig/configure.ac	2018-09-26 19:36:03.592393836 +0200
++++ trafficserver/configure.ac	2018-09-26 19:36:03.592393836 +0200
+@@ -1484,12 +1484,15 @@
  AC_LANG_POP
  AC_SUBST(has_128bit_cas)
  
