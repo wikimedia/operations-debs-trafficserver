@@ -21,11 +21,10 @@
   limitations under the License.
  */
 
-#if !defined(_RECORDS_CONFIG_H_)
-#define _RECORDS_CONFIG_H_
+#pragma once
 
 //#include "MgmtDefs.h"
-#include "P_RecCore.h"
+#include "records/P_RecCore.h"
 
 enum RecordRequiredType {
   RR_NULL,    // config is _not_ required to be defined in records.config
@@ -51,5 +50,3 @@ void RecordsConfigIterate(RecordElementCallback, void *);
 void LibRecordsConfigInit();                 // initializes RecordsConfigIndex
 void RecordsConfigOverrideFromEnvironment(); // Override records from the environment
 void test_librecords();
-
-#endif

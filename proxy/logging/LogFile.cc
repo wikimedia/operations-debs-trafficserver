@@ -27,9 +27,9 @@
 
  ***************************************************************************/
 
-#include "ts/ink_platform.h"
-#include "ts/SimpleTokenizer.h"
-#include "ts/ink_file.h"
+#include "tscore/ink_platform.h"
+#include "tscore/SimpleTokenizer.h"
+#include "tscore/ink_file.h"
 
 #include <cerrno>
 #include <sys/types.h>
@@ -40,7 +40,7 @@
 #include "I_Machine.h"
 #include "LogSock.h"
 
-#include "ts/BaseLogFile.h"
+#include "tscore/BaseLogFile.h"
 #include "LogField.h"
 #include "LogFilter.h"
 #include "LogFormat.h"
@@ -191,14 +191,6 @@ LogFile::open_file()
     } else {
       return LOG_FILE_COULD_NOT_OPEN_FILE;
     }
-  }
-
-  int e = do_filesystem_checks();
-  if (e != 0) {
-    m_fd = -1; // reset to error condition
-    delete m_log;
-    m_log = nullptr;
-    return LOG_FILE_FILESYSTEM_CHECKS_FAILED;
   }
 
   //
@@ -416,8 +408,9 @@ LogFile::write_ascii_logbuffer(LogBufferHeader *buffer_header, int fd, const cha
 int
 LogFile::write_ascii_logbuffer3(LogBufferHeader *buffer_header, const char *alt_format)
 {
-  Debug("log-file", "entering LogFile::write_ascii_logbuffer3 for %s "
-                    "(this=%p)",
+  Debug("log-file",
+        "entering LogFile::write_ascii_logbuffer3 for %s "
+        "(this=%p)",
         m_name, this);
   ink_assert(buffer_header != nullptr);
 

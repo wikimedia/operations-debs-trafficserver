@@ -27,8 +27,10 @@
 #include "ControlMatcher.h"
 #include "Main.h"
 #include "ProxyConfig.h"
+#include "HostStatus.h"
 #include "HTTP.h"
 #include "HttpTransact.h"
+#include "I_Machine.h"
 
 #define MAX_SIMPLE_RETRIES 5
 #define MAX_UNAVAILABLE_SERVER_RETRIES 5
@@ -38,6 +40,7 @@ typedef ControlMatcher<ParentRecord, ParentResult> P_table;
 // Global Vars for Parent Selection
 static const char modulePrefix[]                             = "[ParentSelection]";
 static ConfigUpdateHandler<ParentConfig> *parentConfigUpdate = nullptr;
+static int self_detect                                       = 2;
 
 // Config var names
 static const char *file_var      = "proxy.config.http.parent_proxy.file";
@@ -335,11 +338,62 @@ UnavailableServerResponseCodes::UnavailableServerResponseCodes(char *val)
   for (int i = 0; i < numTok; i++) {
     c = atoi(pTok[i]);
     if (c > 500 && c < 600) {
-      TSDebug("parent_select", "loading response code: %d", c);
+      Debug("parent_select", "loading response code: %d", c);
       codes.push_back(c);
     }
   }
   std::sort(codes.begin(), codes.end());
+}
+
+void
+ParentRecord::PreProcessParents(const char *val, const int line_num, char *buf, size_t len)
+{
+  char *_val                      = ats_strndup(val, strlen(val));
+  char fqdn[TS_MAX_HOST_NAME_LEN] = {0}, *nm, *token, *savePtr;
+  std::string str;
+  Machine *machine                   = Machine::instance();
+  constexpr char PARENT_DELIMITERS[] = ";, ";
+  HostStatus &hs                     = HostStatus::instance();
+
+  token = strtok_r(_val, PARENT_DELIMITERS, &savePtr);
+  while (token != nullptr) {
+    if ((nm = strchr(token, ':')) != nullptr) {
+      size_t len = (nm - token);
+      ink_assert(len < sizeof(fqdn));
+      memset(fqdn, 0, sizeof(fqdn));
+      strncpy(fqdn, token, len);
+      if (self_detect && machine->is_self(fqdn)) {
+        if (self_detect == 1) {
+          Debug("parent_select", "token: %s, matches this machine.  Removing self from parent list at line %d", fqdn, line_num);
+          token = strtok_r(nullptr, PARENT_DELIMITERS, &savePtr);
+          continue;
+        } else {
+          Debug("parent_select", "token: %s, matches this machine.  Marking down self from parent list at line %d", fqdn, line_num);
+          hs.createHostStat(fqdn);
+          hs.setHostStatus(fqdn, HostStatus_t::HOST_STATUS_DOWN, 0);
+        }
+      }
+    } else {
+      if (self_detect && machine->is_self(token)) {
+        if (self_detect == 1) {
+          Debug("parent_select", "token: %s, matches this machine.  Removing self from parent list at line %d", token, line_num);
+          token = strtok_r(nullptr, PARENT_DELIMITERS, &savePtr);
+          continue;
+        } else {
+          Debug("parent_select", "token: %s, matches this machine.  Marking down self from parent list at line %d", token,
+                line_num);
+          hs.createHostStat(token);
+          hs.setHostStatus(token, HostStatus_t::HOST_STATUS_DOWN, 0);
+        }
+      }
+    }
+
+    str += token;
+    str += ";";
+    token = strtok_r(nullptr, PARENT_DELIMITERS, &savePtr);
+  }
+  strncpy(buf, str.c_str(), len);
+  ats_free(_val);
 }
 
 // const char* ParentRecord::ProcessParents(char* val, bool isPrimary)
@@ -376,6 +430,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
   if (numTok == 0) {
     return "No parents specified";
   }
+  HostStatus &hs = HostStatus::instance();
   // Allocate the parents array
   if (isPrimary) {
     this->parents = (pRecord *)ats_malloc(sizeof(pRecord) * numTok);
@@ -451,6 +506,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->parents[i].name                    = this->parents[i].hostname;
       this->parents[i].available               = true;
       this->parents[i].weight                  = weight;
+      hs.createHostStat(this->parents[i].hostname);
     } else {
       memcpy(this->secondary_parents[i].hostname, current, tmp - current);
       this->secondary_parents[i].hostname[tmp - current] = '\0';
@@ -462,6 +518,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].name                    = this->secondary_parents[i].hostname;
       this->secondary_parents[i].available               = true;
       this->secondary_parents[i].weight                  = weight;
+      hs.createHostStat(this->secondary_parents[i].hostname);
     }
   }
 
@@ -474,8 +531,13 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
   return nullptr;
 
 MERROR:
-  ats_free(parents);
-  parents = nullptr;
+  if (isPrimary) {
+    ats_free(parents);
+    parents = nullptr;
+  } else {
+    ats_free(secondary_parents);
+    secondary_parents = nullptr;
+  }
 
   return errPtr;
 }
@@ -511,13 +573,13 @@ ParentRecord::DefaultInit(char *val)
     return false;
   } else {
     ParentRR_t round_robin = P_NO_ROUND_ROBIN;
-    TSDebug("parent_select", "allocating ParentRoundRobin() lookup strategy.");
+    Debug("parent_select", "allocating ParentRoundRobin() lookup strategy.");
     selection_strategy = new ParentRoundRobin(this, round_robin);
     return true;
   }
 }
 
-// config_parse_error ParentRecord::Init(matcher_line* line_info)
+// Result ParentRecord::Init(matcher_line* line_info)
 //
 //    matcher_line* line_info - contains parsed label/value
 //      pairs of the current cache.config line
@@ -526,19 +588,25 @@ ParentRecord::DefaultInit(char *val)
 //      Otherwise, returns an error string that the caller MUST
 //        DEALLOCATE with ats_free()
 //
-config_parse_error
+Result
 ParentRecord::Init(matcher_line *line_info)
 {
   const char *errPtr = nullptr;
   const char *tmp;
   char *label;
   char *val;
+  char parent_buf[16384] = {0};
   bool used              = false;
   ParentRR_t round_robin = P_NO_ROUND_ROBIN;
   char buf[128];
+  RecInt rec_self_detect = 2;
 
   this->line_num = line_info->line_num;
   this->scheme   = nullptr;
+
+  if (RecGetRecordInt("proxy.config.http.parent_proxy.self_detect", &rec_self_detect) == REC_ERR_OKAY) {
+    self_detect = static_cast<int>(rec_self_detect);
+  }
 
   for (int i = 0; i < MATCHER_MAX_TOKENS; i++) {
     used  = false;
@@ -566,10 +634,12 @@ ParentRecord::Init(matcher_line *line_info)
       }
       used = true;
     } else if (strcasecmp(label, "parent") == 0 || strcasecmp(label, "primary_parent") == 0) {
-      errPtr = ProcessParents(val, true);
+      PreProcessParents(val, line_num, parent_buf, sizeof(parent_buf) - 1);
+      errPtr = ProcessParents(parent_buf, true);
       used   = true;
     } else if (strcasecmp(label, "secondary_parent") == 0) {
-      errPtr = ProcessParents(val, false);
+      PreProcessParents(val, line_num, parent_buf, sizeof(parent_buf) - 1);
+      errPtr = ProcessParents(parent_buf, false);
       used   = true;
     } else if (strcasecmp(label, "go_direct") == 0) {
       if (strcasecmp(val, "false") == 0) {
@@ -631,10 +701,14 @@ ParentRecord::Init(matcher_line *line_info)
                  MAX_UNAVAILABLE_SERVER_RETRIES);
         errPtr = buf;
       }
+    } else if (strcasecmp(label, "secondary_mode") == 0) {
+      int v          = atoi(val);
+      secondary_mode = v;
+      used           = true;
     }
     // Report errors generated by ProcessParents();
     if (errPtr != nullptr) {
-      return config_parse_error("%s %s at line %d", modulePrefix, errPtr, line_num);
+      return Result::failure("%s %s at line %d", modulePrefix, errPtr, line_num);
     }
 
     if (used == true) {
@@ -644,39 +718,27 @@ ParentRecord::Init(matcher_line *line_info)
     }
   }
 
-  // parent_retry may only be enabled if the parents are origin servers, parent_is_proxy is false.
-  if (parent_is_proxy == true) {
-    if (parent_retry > 0) {
-      Warning("%s disabling parent_retry on line %d because parent_is_proxy is true", modulePrefix, line_num);
-      parent_retry = PARENT_RETRY_NONE;
-      if (unavailable_server_retry_responses != nullptr) {
-        delete unavailable_server_retry_responses;
-        unavailable_server_retry_responses = nullptr;
-      }
-    }
-  } else {
-    // delete unavailable_server_retry_responses if unavailable_server_retry is not enabled.
-    if (unavailable_server_retry_responses != nullptr && !(parent_retry & PARENT_RETRY_UNAVAILABLE_SERVER)) {
-      Warning("%s ignoring unavailable_server_retry_responses directive on line %d, as unavailable_server_retry is not enabled.",
-              modulePrefix, line_num);
-      delete unavailable_server_retry_responses;
-      unavailable_server_retry_responses = nullptr;
-    } else if (unavailable_server_retry_responses == nullptr && (parent_retry & PARENT_RETRY_UNAVAILABLE_SERVER)) {
-      // initialize UnavailableServerResponseCodes to the default value if unavailable_server_retry is enabled.
-      Warning("%s initializing UnavailableServerResponseCodes on line %d to 503 default.", modulePrefix, line_num);
-      unavailable_server_retry_responses = new UnavailableServerResponseCodes(nullptr);
-    }
+  // delete unavailable_server_retry_responses if unavailable_server_retry is not enabled.
+  if (unavailable_server_retry_responses != nullptr && !(parent_retry & PARENT_RETRY_UNAVAILABLE_SERVER)) {
+    Warning("%s ignoring unavailable_server_retry_responses directive on line %d, as unavailable_server_retry is not enabled.",
+            modulePrefix, line_num);
+    delete unavailable_server_retry_responses;
+    unavailable_server_retry_responses = nullptr;
+  } else if (unavailable_server_retry_responses == nullptr && (parent_retry & PARENT_RETRY_UNAVAILABLE_SERVER)) {
+    // initialize UnavailableServerResponseCodes to the default value if unavailable_server_retry is enabled.
+    Warning("%s initializing UnavailableServerResponseCodes on line %d to 503 default.", modulePrefix, line_num);
+    unavailable_server_retry_responses = new UnavailableServerResponseCodes(nullptr);
   }
 
   if (this->parents == nullptr && go_direct == false) {
-    return config_parse_error("%s No parent specified in parent.config at line %d", modulePrefix, line_num);
+    return Result::failure("%s No parent specified in parent.config at line %d", modulePrefix, line_num);
   }
   // Process any modifiers to the directive, if they exist
   if (line_info->num_el > 0) {
     tmp = ProcessModifiers(line_info);
 
     if (tmp != nullptr) {
-      return config_parse_error("%s %s at line %d in parent.config", modulePrefix, tmp, line_num);
+      return Result::failure("%s %s at line %d in parent.config", modulePrefix, tmp, line_num);
     }
     // record SCHEME modifier if present.
     // NULL if not present
@@ -699,18 +761,18 @@ ParentRecord::Init(matcher_line *line_info)
   case P_STRICT_ROUND_ROBIN:
   case P_HASH_ROUND_ROBIN:
   case P_LATCHED_ROUND_ROBIN:
-    TSDebug("parent_select", "allocating ParentRoundRobin() lookup strategy.");
+    Debug("parent_select", "allocating ParentRoundRobin() lookup strategy.");
     selection_strategy = new ParentRoundRobin(this, round_robin);
     break;
   case P_CONSISTENT_HASH:
-    TSDebug("parent_select", "allocating ParentConsistentHash() lookup strategy.");
+    Debug("parent_select", "allocating ParentConsistentHash() lookup strategy.");
     selection_strategy = new ParentConsistentHash(this);
     break;
   default:
     ink_release_assert(0);
   }
 
-  return config_parse_error::ok();
+  return Result::ok();
 }
 
 // void ParentRecord::UpdateMatch(ParentResult* result, RequestData* rdata);
@@ -1363,6 +1425,300 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   FP;
   sleep(1);
   RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 183);
+
+  // Test 184
+  // mark fuzzy down with HostStatus API.
+  HostStatus &_st = HostStatus::instance();
+  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0);
+
+  ST(184);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fluffy", 80), 184);
+
+  // Test 185
+  // mark fluffy down and expect furry to be chosen
+  _st.setHostStatus("fluffy", HOST_STATUS_DOWN, 0);
+
+  ST(185);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "furry", 80), 185);
+
+  // Test 186
+  // mark furry and frisky down, fuzzy up and expect fuzzy to be chosen
+  _st.setHostStatus("furry", HOST_STATUS_DOWN, 0);
+  _st.setHostStatus("frisky", HOST_STATUS_DOWN, 0);
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+
+  ST(186);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 186);
+
+  // Test 187
+  // test the HostStatus API with ParentConsistent Hash.
+  tbl[0] = '\0';
+  ST(187);
+  T("dest_domain=rabbit.net parent=fuzzy:80|1.0;fluffy:80|1.0;furry:80|1.0;frisky:80|1.0 "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD;
+
+  // mark all up.
+  _st.setHostStatus("furry", HOST_STATUS_UP, 0);
+  _st.setHostStatus("fluffy", HOST_STATUS_UP, 0);
+  _st.setHostStatus("frisky", HOST_STATUS_UP, 0);
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 187);
+
+  // Test 188
+  // mark fuzzy down and expect fluffy.
+  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0);
+
+  ST(188);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 188);
+
+  // Test 189
+  // mark fuzzy back up and expect fuzzy.
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+
+  ST(189);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 189);
+
+  // Test 190
+  // mark fuzzy back down and set the host status down
+  // then wait for fuzzy to become available.
+  // even though fuzzy becomes retryable we should not select it
+  // because the host status is set to down.
+  params->markParentDown(result, fail_threshold, retry_time);
+  // set host status down
+  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0);
+  // sleep long enough so that fuzzy is retryable
+  sleep(params->policy.ParentRetryTime + 1);
+  ST(190);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 190);
+
+  // now set the host staus on fuzzy to up and it should now
+  // be retried.
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+  ST(191);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 191);
+
+  // Test 192
+  tbl[0] = '\0';
+  ST(192);
+  T("dest_domain=rabbit.net parent=fuzzy:80,fluffy:80,furry:80,frisky:80 round_robin=false go_direct=true\n");
+  REBUILD;
+  // mark all up.
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+  _st.setHostStatus("fluffy", HOST_STATUS_UP, 0);
+  _st.setHostStatus("furry", HOST_STATUS_UP, 0);
+  _st.setHostStatus("frisky", HOST_STATUS_UP, 0);
+  // fuzzy should be chosen.
+  sleep(1);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 192);
+
+  // Test 193
+  // mark fuzzy down and wait for it to become retryable
+  ST(193);
+  params->markParentDown(result, fail_threshold, retry_time);
+  sleep(params->policy.ParentRetryTime + 1);
+  // since the host status is down even though fuzzy is
+  // retryable, fluffy should be chosen
+  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "fluffy", 80), 193);
+
+  // Test 194
+  // set the host status for fuzzy  back up and since its
+  // retryable fuzzy should be chosen
+  ST(194);
+  _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 194);
+
+  // Test 195
+  // secondary_mode=1 (default) is covered by tests cases 173-177 above
+  // secondary_mode=2 is tested here
+  // fuzzy { frisky furry } fluffy
+  tbl[0] = '\0';
+  ST(195);
+  T("dest_domain=rabbit.net parent=fuzzy:80|1.0;fluffy:80|1.0 secondary_parent=furry:80|1.0;frisky:80|1.0 "
+    "round_robin=consistent_hash go_direct=false secondary_mode=2\n");
+  REBUILD;
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 195);
+  params->markParentDown(result, fail_threshold, retry_time); // fuzzy is down.
+
+  // Test 196
+  ST(196);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fluffy", 80), 196);
+
+  params->markParentDown(result, fail_threshold, retry_time); // fluffy is down.
+
+  // Test 197
+  ST(197);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 197);
+
+  params->markParentDown(result, fail_threshold, retry_time); // frisky is down.
+
+  // Test 198
+  ST(198);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "furry", 80), 198);
+
+  params->markParentDown(result, fail_threshold, retry_time); // all are down now.
+
+  // Test 199
+  ST(199);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_FAIL, nullptr, 80), 199);
+
+  // Test 200
+  // secondary_mode=3 is tested here first-choice NOT marked down
+  // fuzzy { frisky furry } fluffy
+  tbl[0] = '\0';
+  ST(200);
+  T("dest_domain=rabbit.net parent=fuzzy:80|1.0;fluffy:80|1.0 secondary_parent=furry:80|1.0;frisky:80|1.0 "
+    "round_robin=consistent_hash go_direct=false secondary_mode=3\n");
+  REBUILD;
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fuzzy", 80), 200);
+  params->markParentDown(result, fail_threshold, retry_time); // fuzzy is down.
+
+  // Test 201
+  ST(201);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fluffy", 80), 201);
+
+  params->markParentDown(result, fail_threshold, retry_time); // fluffy is down.
+
+  // Test 202
+  ST(202);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 202);
+
+  params->markParentDown(result, fail_threshold, retry_time); // frisky is down.
+
+  // Test 203
+  ST(203);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "furry", 80), 203);
+
+  params->markParentDown(result, fail_threshold, retry_time); // all are down now.
+
+  // Test 204
+  ST(204);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_FAIL, nullptr, 80), 204);
+
+  // Test 205
+  // secondary_mode=3 is tested here first-choice marked down
+  // fuzzy { frisky furry } fluffy
+  tbl[0] = '\0';
+  ST(205);
+  T("dest_domain=rabbit.net parent=fuzzy:80|1.0;fluffy:80|1.0 secondary_parent=furry:80|1.0;frisky:80|1.0 "
+    "round_robin=consistent_hash go_direct=false secondary_mode=3\n");
+  REBUILD;
+  _st.setHostStatus("fuzzy", HOST_STATUS_DOWN, 0);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "frisky", 80), 205);
+  params->markParentDown(result, fail_threshold, retry_time); // frisky is down.
+
+  // Test 206
+  ST(206);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "furry", 80), 206);
+
+  params->markParentDown(result, fail_threshold, retry_time); // furry is down.
+
+  // Test 207
+  ST(207);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_SPECIFIED, "fluffy", 80), 207);
+
+  params->markParentDown(result, fail_threshold, retry_time); // all are down now.
+
+  // Test 208
+  ST(208);
+  REINIT;
+  br(request, "i.am.rabbit.net");
+  FP;
+  sleep(1);
+  RE(verify(result, PARENT_FAIL, nullptr, 80), 208);
 
   delete request;
   delete result;

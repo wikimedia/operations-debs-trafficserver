@@ -21,10 +21,10 @@
   limitations under the License.
  */
 
-#ifndef __DIAGSCONFIG_H__
-#define __DIAGSCONFIG_H__
-#include "ts/Diags.h"
-#include "ts/BaseLogFile.h"
+#pragma once
+
+#include "tscore/Diags.h"
+#include "tscore/BaseLogFile.h"
 
 struct DiagsConfig {
   void reconfigure_diags();
@@ -43,5 +43,3 @@ private:
 public:
   Diags *diags;
 };
-
-#endif

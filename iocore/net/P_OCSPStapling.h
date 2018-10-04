@@ -19,15 +19,16 @@
   limitations under the License.
  */
 
-#ifndef __P_OCSPSTAPLING_H__
-#define __P_OCSPSTAPLING_H__
+#pragma once
 
+#include "tscore/ink_config.h"
+
+#if TS_USE_TLS_OCSP
 #include <openssl/ssl.h>
+#include <openssl/ocsp.h>
 
-#define HAVE_OPENSSL_OCSP_STAPLING 1
 void ssl_stapling_ex_init();
 bool ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname);
 void ocsp_update();
 int ssl_callback_ocsp_stapling(SSL *);
-
-#endif /* __P_OCSPSTAPLING_H__ */
+#endif

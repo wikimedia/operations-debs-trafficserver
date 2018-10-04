@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-#include "ts/ink_defs.h"
+#include "tscore/ink_defs.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -97,7 +97,7 @@ struct ContData {
   };
   STATE curr_state;
   TSVIO input_vio;
-  TSIOBufferReader input_reader;
+  TSIOBufferReader input_reader = nullptr;
   TSVIO output_vio;
   TSIOBuffer output_buffer;
   TSIOBufferReader output_reader;
@@ -108,7 +108,7 @@ struct ContData {
   EsiGunzip *esi_gunzip;
   TSCont contp;
   TSHttpTxn txnp;
-  const struct OptionInfo *option_info;
+  const struct OptionInfo *option_info = nullptr;
   char *request_url;
   sockaddr const *client_addr;
   DataType input_type;
@@ -333,7 +333,7 @@ ContData::getClientState()
           if (n_values == 1) {
             value = TSMimeHdrFieldValueStringGet(req_bufp, req_hdr_loc, field_loc, 0, &value_len);
 
-            if (nullptr != value || value_len) {
+            if (nullptr != value && value_len) {
               if (Utils::areEqual(name, name_len, TS_MIME_FIELD_ACCEPT_ENCODING, TS_MIME_LEN_ACCEPT_ENCODING) &&
                   Utils::areEqual(value, value_len, TS_HTTP_VALUE_GZIP, TS_HTTP_LEN_GZIP)) {
                 gzip_output = true;
@@ -342,7 +342,7 @@ ContData::getClientState()
           } else {
             for (int i = 0; i < n_values; ++i) {
               value = TSMimeHdrFieldValueStringGet(req_bufp, req_hdr_loc, field_loc, i, &value_len);
-              if (nullptr != value || value_len) {
+              if (nullptr != value && value_len) {
                 if (Utils::areEqual(name, name_len, TS_MIME_FIELD_ACCEPT_ENCODING, TS_MIME_LEN_ACCEPT_ENCODING) &&
                     Utils::areEqual(value, value_len, TS_HTTP_VALUE_GZIP, TS_HTTP_LEN_GZIP)) {
                   gzip_output = true;
@@ -711,7 +711,7 @@ transformData(TSCont contp)
     }
   }
   if (process_input_complete) {
-    TSDebug(cont_data->debug_tag, "[%s] Completed reading input...", __FUNCTION__);
+    TSDebug(cont_data->debug_tag, "[%s] Completed reading input", __FUNCTION__);
     if (cont_data->input_type == DATA_TYPE_PACKED_ESI) {
       TSDebug(DEBUG_TAG, "[%s] Going to use packed node list of size %d", __FUNCTION__, (int)cont_data->packed_node_list.size());
       if (cont_data->esi_proc->usePackedNodeList(cont_data->packed_node_list) == EsiProcessor::UNPACK_FAILURE) {
@@ -751,8 +751,9 @@ transformData(TSCont contp)
       EsiProcessor::ReturnCode retval = cont_data->esi_proc->process(out_data, out_data_len);
       TSDebug(cont_data->debug_tag, "[%s] data length: %d, retval: %d", __FUNCTION__, out_data_len, retval);
       if (retval == EsiProcessor::NEED_MORE_DATA) {
-        TSDebug(cont_data->debug_tag, "[%s] ESI processor needs more data; "
-                                      "will wait for all data to be fetched",
+        TSDebug(cont_data->debug_tag,
+                "[%s] ESI processor needs more data; "
+                "will wait for all data to be fetched",
                 __FUNCTION__);
         return 1;
       }
@@ -919,7 +920,7 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
   is_fetch_event = cont_data->data_fetcher->isFetchEvent(event);
 
   if (cont_data->xform_closed) {
-    TSDebug(cont_debug_tag, "[%s] Transformation closed. Post-processing...", __FUNCTION__);
+    TSDebug(cont_debug_tag, "[%s] Transformation closed, post-processing", __FUNCTION__);
     if (cont_data->curr_state == ContData::PROCESSING_COMPLETE) {
       TSDebug(cont_debug_tag, "[%s] Processing is complete, not processing current event %d", __FUNCTION__, event);
       process_event = false;
@@ -975,13 +976,13 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
       break;
 
     case TS_EVENT_IMMEDIATE:
-      TSDebug(cont_debug_tag, "[%s] handling TS_EVENT_IMMEDIATE...", __FUNCTION__);
+      TSDebug(cont_debug_tag, "[%s] handling TS_EVENT_IMMEDIATE", __FUNCTION__);
       transformData(contp);
       break;
 
     default:
       if (is_fetch_event) {
-        TSDebug(cont_debug_tag, "[%s] Handling fetch event %d...", __FUNCTION__, event);
+        TSDebug(cont_debug_tag, "[%s] Handling fetch event %d", __FUNCTION__, event);
         if (cont_data->data_fetcher->handleFetchEvent(event, edata)) {
           if ((cont_data->curr_state == ContData::FETCHING_DATA) || (cont_data->curr_state == ContData::READING_ESI_DOC)) {
             // there's a small chance that fetcher is ready even before
@@ -1020,7 +1021,7 @@ transformHandler(TSCont contp, TSEvent event, void *edata)
   return 1;
 
 lShutdown:
-  TSDebug(cont_data->debug_tag, "[%s] transformation closed; cleaning up data...", __FUNCTION__);
+  TSDebug(cont_data->debug_tag, "[%s] transformation closed; cleaning up data", __FUNCTION__);
   delete cont_data;
   TSContDestroy(contp);
   return 1;
@@ -1128,9 +1129,8 @@ modifyResponseHeader(TSCont contp, TSEvent event, void *edata)
       }
       TSHandleMLocRelease(bufp, hdr_loc, field_loc);
     }
-    if (mod_data->gzip_encoding &&
-        !checkHeaderValue(bufp, hdr_loc, TS_MIME_FIELD_CONTENT_ENCODING, TS_MIME_LEN_CONTENT_ENCODING, TS_HTTP_VALUE_GZIP,
-                          TS_HTTP_LEN_GZIP)) {
+    if (mod_data->gzip_encoding && !checkHeaderValue(bufp, hdr_loc, TS_MIME_FIELD_CONTENT_ENCODING, TS_MIME_LEN_CONTENT_ENCODING,
+                                                     TS_HTTP_VALUE_GZIP, TS_HTTP_LEN_GZIP)) {
       addMimeHeaderField(bufp, hdr_loc, TS_MIME_FIELD_CONTENT_ENCODING, TS_MIME_LEN_CONTENT_ENCODING, TS_HTTP_VALUE_GZIP,
                          TS_HTTP_LEN_GZIP);
     }
@@ -1504,7 +1504,7 @@ globalHookHandler(TSCont contp, TSEvent event, void *edata)
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
-    TSDebug(DEBUG_TAG, "[%s] handling read request header event...", __FUNCTION__);
+    TSDebug(DEBUG_TAG, "[%s] handling read request header event", __FUNCTION__);
     if (intercept_req) {
       if (!setupServerIntercept(txnp)) {
         TSError("[esi][%s] Could not setup server intercept", __FUNCTION__);
@@ -1521,14 +1521,8 @@ globalHookHandler(TSCont contp, TSEvent event, void *edata)
     if (!intercept_req) {
       if (event == TS_EVENT_HTTP_READ_RESPONSE_HDR) {
         bool mask_cache_headers = false;
-        TSDebug(DEBUG_TAG, "[%s] handling read response header event...", __FUNCTION__);
-        if (isCacheObjTransformable(txnp, &intercept_header, &head_only)) {
-          // transformable cache object will definitely have a
-          // transformation already as cache_lookup_complete would
-          // have been processed before this
-          TSDebug(DEBUG_TAG, "[%s] xform should already have been added on cache lookup. Not adding now", __FUNCTION__);
-          mask_cache_headers = true;
-        } else if (isTxnTransformable(txnp, false, &intercept_header, &head_only)) {
+        TSDebug(DEBUG_TAG, "[%s] handling read response header event", __FUNCTION__);
+        if (isTxnTransformable(txnp, false, &intercept_header, &head_only)) {
           addTransform(txnp, true, intercept_header, head_only, pOptionInfo);
           Stats::increment(Stats::N_OS_DOCS);
           mask_cache_headers = true;
@@ -1540,7 +1534,7 @@ globalHookHandler(TSCont contp, TSEvent event, void *edata)
           maskOsCacheHeaders(txnp);
         }
       } else {
-        TSDebug(DEBUG_TAG, "[%s] handling cache lookup complete event...", __FUNCTION__);
+        TSDebug(DEBUG_TAG, "[%s] handling cache lookup complete event", __FUNCTION__);
         if (isCacheObjTransformable(txnp, &intercept_header, &head_only)) {
           // we make the assumption above that a transformable cache
           // object would already have a tranformation. We should revisit
@@ -1647,9 +1641,10 @@ esiPluginInit(int argc, const char *argv[], struct OptionInfo *pOptionInfo)
   }
 
   if (result == 0) {
-    TSDebug(DEBUG_TAG, "[%s] Plugin started%s, "
-                       "packed-node-support: %d, private-response: %d, "
-                       "disable-gzip-output: %d, first-byte-flush: %d ",
+    TSDebug(DEBUG_TAG,
+            "[%s] Plugin started%s, "
+            "packed-node-support: %d, private-response: %d, "
+            "disable-gzip-output: %d, first-byte-flush: %d ",
             __FUNCTION__, bKeySet ? " and key is set" : "", pOptionInfo->packed_node_support, pOptionInfo->private_response,
             pOptionInfo->disable_gzip_output, pOptionInfo->first_byte_flush);
   }
@@ -1666,7 +1661,7 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = (char *)"dev@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[esi][%s] plugin registration failed.", __FUNCTION__);
+    TSError("[esi][%s] plugin registration failed", __FUNCTION__);
     return;
   }
 
@@ -1719,8 +1714,9 @@ TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_size)
 {
   if (argc < 2) {
-    snprintf(errbuf, errbuf_size, "Unable to create remap instance, "
-                                  "argc: %d < 2",
+    snprintf(errbuf, errbuf_size,
+             "Unable to create remap instance, "
+             "argc: %d < 2",
              argc);
     TSError("[esi]Unable to create remap instance! argc: %d < 2", argc);
     return TS_ERROR;

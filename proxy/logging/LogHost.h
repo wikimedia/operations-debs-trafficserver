@@ -20,8 +20,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
  */
-#ifndef LOG_HOST_H
-#define LOG_HOST_H
+#pragma once
 
 class LogSock;
 class LogBuffer;
@@ -53,13 +52,13 @@ public:
   // preprocess the given buffer data before sent to target host
   // and try to delete it when its reference become zero.
   //
-  int preproc_and_try_delete(LogBuffer *lb);
+  bool preproc_and_try_delete(LogBuffer *&lb);
 
   //
   // write the given buffer data to orphan file and
   // try to delete it when its reference become zero.
   //
-  void orphan_write_and_try_delete(LogBuffer *lb);
+  void orphan_write_and_try_delete(LogBuffer *&lb);
 
   const char *
   name() const
@@ -99,13 +98,6 @@ public:
     return m_orphan_file.get();
   }
 
-  // check if we will be able to write orphan file
-  int
-  do_filesystem_checks()
-  {
-    return m_orphan_file->do_filesystem_checks();
-  }
-
 private:
   void clear();
   bool authenticated();
@@ -127,10 +119,12 @@ public:
   LINK(LogHost, link);
   SLINK(LogHost, failover_link);
 
+  // noncopyable
+  LogHost &operator=(const LogHost &) = delete;
+
 private:
   // -- member functions not allowed --
   LogHost();
-  LogHost &operator=(const LogHost &);
 };
 
 /*-------------------------------------------------------------------------
@@ -140,12 +134,12 @@ class LogHostList : public LogBufferSink
 {
 public:
   LogHostList();
-  ~LogHostList();
+  ~LogHostList() override;
 
   void add(LogHost *host, bool copy = true);
   unsigned count();
   void clear();
-  int preproc_and_try_delete(LogBuffer *lb);
+  int preproc_and_try_delete(LogBuffer *lb) override;
 
   LogHost *
   first()
@@ -161,14 +155,11 @@ public:
 
   void display(FILE *fd = stdout);
   bool operator==(LogHostList &rhs);
-  int do_filesystem_checks();
+
+  // -- member functions not allowed --
+  LogHostList(const LogHostList &) = delete;
+  LogHostList &operator=(const LogHostList &) = delete;
 
 private:
   Queue<LogHost> m_host_list;
-
-  // -- member functions not allowed --
-  LogHostList(const LogHostList &);
-  LogHostList &operator=(const LogHostList &);
 };
-
-#endif

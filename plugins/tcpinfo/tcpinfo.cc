@@ -23,6 +23,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <ts/ts.h>
 #include <unistd.h>
 #include <netinet/in.h>
@@ -37,7 +38,8 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 
-#include "ts/ink_defs.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ParseRules.h"
 
 #if defined(TCP_INFO) && defined(HAVE_STRUCT_TCP_INFO)
 #define TCPI_PLUGIN_SUPPORTED 1
@@ -53,16 +55,16 @@
 // carefully order the fields so the field ordering is compatible. This lets you change
 // the verbosity without breaking a perser that is moderately robust.
 static const char *tcpi_headers[] = {
-  "timestamp event client server rtt", "timestamp event client server rtt rttvar last_sent last_recv "
-                                       "snd_ssthresh rcv_ssthresh unacked sacked lost retrans fackets",
+  "timestamp event client server rtt",
+  "timestamp event client server rtt rttvar last_sent last_recv "
+  "snd_ssthresh rcv_ssthresh unacked sacked lost retrans fackets all_retrans",
 };
 
 struct Config {
-  int sample;
-  unsigned log_level;
-  TSTextLogObject log;
+  int sample             = 1000;
+  unsigned int log_level = 1;
+  TSTextLogObject log    = nullptr;
 
-  Config() : sample(1000), log_level(1), log(nullptr) {}
   ~Config()
   {
     if (log) {
@@ -135,15 +137,16 @@ log_tcp_info(Config *config, const char *event_name, TSHttpSsn ssnp)
 
   if (config->log_level == 2) {
 #if !defined(freebsd) || defined(__GLIBC__)
-    ret = TSTextLogObjectWrite(config->log, "%s %s %s %u %u %u %u %u %u %u %u %u %u %u %u", event_name, client_str, server_str,
+    ret = TSTextLogObjectWrite(config->log, "%s %s %s %u %u %u %u %u %u %u %u %u %u %u %u %u", event_name, client_str, server_str,
                                info.tcpi_rtt, info.tcpi_rttvar, info.tcpi_last_data_sent, info.tcpi_last_data_recv,
                                info.tcpi_snd_cwnd, info.tcpi_snd_ssthresh, info.tcpi_rcv_ssthresh, info.tcpi_unacked,
-                               info.tcpi_sacked, info.tcpi_lost, info.tcpi_retrans, info.tcpi_fackets);
+                               info.tcpi_sacked, info.tcpi_lost, info.tcpi_retrans, info.tcpi_fackets, info.tcpi_total_retrans);
 #else
-    ret = TSTextLogObjectWrite(config->log, "%s %s %s %u %u %u %u %u %u %u %u %u %u %u %u", event_name, client_str, server_str,
+    ret = TSTextLogObjectWrite(config->log, "%s %s %s %u %u %u %u %u %u %u %u %u %u %u %u %u", event_name, client_str, server_str,
                                info.tcpi_rtt, info.tcpi_rttvar, info.__tcpi_last_data_sent, info.tcpi_last_data_recv,
                                info.tcpi_snd_cwnd, info.tcpi_snd_ssthresh, info.__tcpi_rcv_ssthresh, info.__tcpi_unacked,
-                               info.__tcpi_sacked, info.__tcpi_lost, info.__tcpi_retrans, info.__tcpi_fackets);
+                               info.__tcpi_sacked, info.__tcpi_lost, info.__tcpi_retrans, info.__tcpi_fackets,
+                               info.tcpi_snd_rexmitpack);
 #endif
   } else {
     ret = TSTextLogObjectWrite(config->log, "%s %s %s %u", event_name, client_str, server_str, info.tcpi_rtt);
@@ -298,20 +301,32 @@ parse_hook_list(const char *hook_list)
 void
 TSPluginInit(int argc, const char *argv[])
 {
-  static const char usage[]             = "tcpinfo.so [--log-file=PATH] [--log-level=LEVEL] [--hooks=LIST] [--sample-rate=COUNT]";
+  static const char usage[] = "tcpinfo.so [--log-file=PATH] [--log-level=LEVEL] [--hooks=LIST] [--sample-rate=COUNT] "
+                              "[--rolling-enabled=VALUE] [--rolling-offset-hr=HOUR] [--rolling-interval-sec=SECONDS] "
+                              "[--rolling-size=MB]";
   static const struct option longopts[] = {
     {const_cast<char *>("sample-rate"), required_argument, nullptr, 'r'},
     {const_cast<char *>("log-file"), required_argument, nullptr, 'f'},
     {const_cast<char *>("log-level"), required_argument, nullptr, 'l'},
     {const_cast<char *>("hooks"), required_argument, nullptr, 'h'},
+    {const_cast<char *>("rolling-enabled"), required_argument, nullptr, 'e'},
+    {const_cast<char *>("rolling-offset-hr"), required_argument, nullptr, 'H'},
+    {const_cast<char *>("rolling-interval-sec"), required_argument, nullptr, 'S'},
+    {const_cast<char *>("rolling-size"), required_argument, nullptr, 'M'},
     {nullptr, 0, nullptr, 0},
   };
 
   TSPluginRegistrationInfo info;
-  Config *config       = new Config();
+  auto config          = std::make_unique<Config>();
   const char *filename = "tcpinfo";
   TSCont cont;
-  unsigned hooks = 0;
+  unsigned int hooks                = 0;
+  unsigned int rolling_enabled      = 1;
+  unsigned int rolling_interval_sec = 86400;
+  unsigned int rolling_offset_hr    = 0;
+  unsigned int rolling_size         = 1024;
+  unsigned int i                    = 0;
+  char *endptr;
 
   info.plugin_name   = (char *)"tcpinfo";
   info.vendor_name   = (char *)"Apache Software Foundation";
@@ -324,7 +339,7 @@ TSPluginInit(int argc, const char *argv[])
   for (;;) {
     unsigned long lval;
 
-    switch (getopt_long(argc, (char *const *)argv, "r:f:l:h:", longopts, nullptr)) {
+    switch (getopt_long(argc, (char *const *)argv, "r:f:l:h:e:H:S:M:", longopts, nullptr)) {
     case 'r':
       if (parse_unsigned(optarg, lval)) {
         config->sample = atoi(optarg);
@@ -344,6 +359,38 @@ TSPluginInit(int argc, const char *argv[])
       break;
     case 'h':
       hooks = parse_hook_list(optarg);
+      break;
+    case 'e':
+      i = strtoul(optarg, &endptr, 10);
+      if (*endptr != '\0' || i > 3) {
+        TSError("[tcpinfo] invalid rolling-enabled argument, '%s', using default of %d", optarg, rolling_enabled);
+      } else {
+        rolling_enabled = i;
+      }
+      break;
+    case 'H':
+      i = strtoul(optarg, &endptr, 10);
+      if (*endptr != '\0' || i > 23) {
+        TSError("[tcpinfo] invalid rolling-offset-hr argument, '%s', using default of %d", optarg, rolling_offset_hr);
+      } else {
+        rolling_offset_hr = i;
+      }
+      break;
+    case 'S':
+      i = strtoul(optarg, &endptr, 10);
+      if (*endptr != '\0' || i < 60 || i > 86400) {
+        TSError("[tcpinfo] invalid rolling-interval-sec argument, '%s', using default of %d", optarg, rolling_interval_sec);
+      } else {
+        rolling_interval_sec = i;
+      }
+      break;
+    case 'M':
+      i = ink_atoui(optarg);
+      if (i < 10) {
+        TSError("[tcpinfo] invalid rolling-size argument, '%s', using default of %d", optarg, rolling_size);
+      } else {
+        rolling_size = i;
+      }
       break;
     case -1:
       goto init;
@@ -365,14 +412,21 @@ init:
 
   if (TSTextLogObjectCreate(filename, TS_LOG_MODE_ADD_TIMESTAMP, &config->log) != TS_SUCCESS) {
     TSError("[tcpinfo] failed to create log file '%s'", filename);
-    delete config;
     return;
+  }
+  if (TSTextLogObjectRollingEnabledSet(config->log, rolling_enabled) != TS_SUCCESS) {
+    TSError("[tcpinfo] failed to enable log file rolling to: '%d'", rolling_enabled);
+    return;
+  } else {
+    TSTextLogObjectRollingIntervalSecSet(config->log, rolling_interval_sec);
+    TSTextLogObjectRollingOffsetHrSet(config->log, rolling_offset_hr);
+    TSTextLogObjectRollingSizeMbSet(config->log, rolling_size);
   }
 
   TSTextLogObjectHeaderSet(config->log, tcpi_headers[config->log_level - 1]);
 
   cont = TSContCreate(tcp_info_hook, nullptr);
-  TSContDataSet(cont, config);
+  TSContDataSet(cont, config.release());
 
   if (hooks & TCPI_HOOK_SSN_START) {
     TSHttpHookAdd(TS_HTTP_SSN_START_HOOK, cont);

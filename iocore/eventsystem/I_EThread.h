@@ -22,12 +22,11 @@
 
  */
 
-#ifndef _EThread_h_
-#define _EThread_h_
+#pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/ink_rand.h"
-#include "ts/I_Version.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_rand.h"
+#include "tscore/I_Version.h"
 #include "I_Thread.h"
 #include "I_PriorityEventQueue.h"
 #include "I_ProtectedQueue.h"
@@ -49,11 +48,10 @@ class Continuation;
 
 enum ThreadType {
   REGULAR = 0,
-  MONITOR,
   DEDICATED,
 };
 
-extern volatile bool shutdown_event_system;
+extern bool shutdown_event_system;
 
 /**
   Event System specific type of thread.
@@ -291,22 +289,18 @@ public:
 
   Event *schedule_local(Event *e);
 
-  InkRand generator;
-
-private:
-  // prevent unauthorized copies (Not implemented)
-  EThread(const EThread &);
-  EThread &operator=(const EThread &);
+  InkRand generator = static_cast<uint64_t>(Thread::get_hrtime_updated() ^ reinterpret_cast<uintptr_t>(this));
 
   /*-------------------------------------------------------*\
   |  UNIX Interface                                         |
   \*-------------------------------------------------------*/
 
-public:
   EThread();
   EThread(ThreadType att, int anid);
   EThread(ThreadType att, Event *e);
-  virtual ~EThread();
+  EThread(const EThread &) = delete;
+  EThread &operator=(const EThread &) = delete;
+  ~EThread() override;
 
   Event *schedule(Event *e, bool fast_signal = false);
 
@@ -314,7 +308,7 @@ public:
   char thread_private[PER_THREAD_DATA];
 
   /** Private Data for the Disk Processor. */
-  DiskHandler *diskHandler;
+  DiskHandler *diskHandler = nullptr;
 
   /** Private Data for AIO. */
   Que(Continuation, link) aio_ops;
@@ -322,34 +316,34 @@ public:
   ProtectedQueue EventQueueExternal;
   PriorityEventQueue EventQueue;
 
-  EThread **ethreads_to_be_signalled;
-  int n_ethreads_to_be_signalled;
+  EThread **ethreads_to_be_signalled = nullptr;
+  int n_ethreads_to_be_signalled     = 0;
 
-  int id;
-  unsigned int event_types;
+  static constexpr int NO_ETHREAD_ID = -1;
+  int id                             = NO_ETHREAD_ID;
+  unsigned int event_types           = 0;
   bool is_event_type(EventType et);
   void set_event_type(EventType et);
 
   // Private Interface
 
-  void execute();
+  void execute() override;
   void execute_regular();
-  void process_queue(Que(Event, link) * NegativeQueue);
+  void process_queue(Que(Event, link) * NegativeQueue, int *ev_count, int *nq_count);
   void process_event(Event *e, int calling_code);
   void free_event(Event *e);
   LoopTailHandler *tail_cb = &DEFAULT_TAIL_HANDLER;
 
 #if HAVE_EVENTFD
-  int evfd;
+  int evfd = ts::NO_FD;
 #else
   int evpipe[2];
 #endif
-  EventIO *ep;
+  EventIO *ep = nullptr;
 
-  ThreadType tt;
-  Event *oneevent; // For dedicated event thread
-
+  ThreadType tt = REGULAR;
   /** Initial event to call, before any scheduling.
+
       For dedicated threads this is the only event called.
       For regular threads this is called first before the event loop starts.
       @internal For regular threads this is used by the EventProcessor to get called back after
@@ -358,7 +352,7 @@ public:
   */
   Event *start_event = nullptr;
 
-  ServerSessionPool *server_session_pool;
+  ServerSessionPool *server_session_pool = nullptr;
 
   /** Default handler used until it is overridden.
 
@@ -367,14 +361,15 @@ public:
   class DefaultTailHandler : public LoopTailHandler
   {
     DefaultTailHandler(ProtectedQueue &q) : _q(q) {}
+
     int
-    waitForActivity(ink_hrtime timeout)
+    waitForActivity(ink_hrtime timeout) override
     {
       _q.wait(Thread::get_hrtime() + timeout);
       return 0;
     }
     void
-    signalActivity()
+    signalActivity() override
     {
       _q.signal();
     }
@@ -383,6 +378,82 @@ public:
 
     friend class EThread;
   } DEFAULT_TAIL_HANDLER = EventQueueExternal;
+
+  /// Statistics data for event dispatching.
+  struct EventMetrics {
+    /// Time the loop was active, not including wait time but including event dispatch time.
+    struct LoopTimes {
+      ink_hrtime _start; ///< The time of the first loop for this sample. Used to mark valid entries.
+      ink_hrtime _min;   ///< Shortest loop time.
+      ink_hrtime _max;   ///< Longest loop time.
+      LoopTimes() : _start(0), _min(INT64_MAX), _max(0) {}
+    } _loop_time;
+
+    struct Events {
+      int _min;
+      int _max;
+      int _total;
+      Events() : _min(INT_MAX), _max(0), _total(0) {}
+    } _events;
+
+    int _count; ///< # of times the loop executed.
+    int _wait;  ///< # of timed wait for events
+
+    /// Add @a that to @a this data.
+    /// This embodies the custom logic per member concerning whether each is a sum, min, or max.
+    EventMetrics &operator+=(EventMetrics const &that);
+
+    EventMetrics() : _count(0), _wait(0) {}
+  };
+
+  /** The number of metric blocks kept.
+      This is a circular buffer, with one block per second. We have a bit more than the required 1000
+      to provide sufficient slop for cross thread reading of the data (as only the current metric block
+      is being updated).
+  */
+  static int const N_EVENT_METRICS = 1024;
+
+  volatile EventMetrics *current_metric = nullptr; ///< The current element of @a metrics
+  EventMetrics metrics[N_EVENT_METRICS];
+
+  /** The various stats provided to the administrator.
+      THE ORDER IS VERY SENSITIVE.
+      More than one part of the code depends on this exact order. Be careful and thorough when changing.
+  */
+  enum STAT_ID {
+    STAT_LOOP_COUNT,      ///< # of event loops executed.
+    STAT_LOOP_EVENTS,     ///< # of events
+    STAT_LOOP_EVENTS_MIN, ///< min # of events dispatched in a loop
+    STAT_LOOP_EVENTS_MAX, ///< max # of events dispatched in a loop
+    STAT_LOOP_WAIT,       ///< # of loops that did a conditional wait.
+    STAT_LOOP_TIME_MIN,   ///< Shortest time spent in loop.
+    STAT_LOOP_TIME_MAX,   ///< Longest time spent in loop.
+    N_EVENT_STATS         ///< NOT A VALID STAT INDEX - # of different stat types.
+  };
+
+  static char const *const STAT_NAME[N_EVENT_STATS];
+
+  /** The number of time scales used in the event statistics.
+      Currently these are 10s, 100s, 1000s.
+  */
+  static int const N_EVENT_TIMESCALES = 3;
+  /// # of samples for each time scale.
+  static int const SAMPLE_COUNT[N_EVENT_TIMESCALES];
+
+  /// Process the last 1000s of data and write out the summaries to @a summary.
+  void summarize_stats(EventMetrics summary[N_EVENT_TIMESCALES]);
+  /// Back up the metric pointer, wrapping as needed.
+  EventMetrics *
+  prev(EventMetrics volatile *current)
+  {
+    return const_cast<EventMetrics *>(--current < metrics ? &metrics[N_EVENT_METRICS - 1] : current); // cast to remove volatile
+  }
+  /// Advance the metric pointer, wrapping as needed.
+  EventMetrics *
+  next(EventMetrics volatile *current)
+  {
+    return const_cast<EventMetrics *>(++current > &metrics[N_EVENT_METRICS - 1] ? metrics : current); // cast to remove volatile
+  }
 };
 
 /**
@@ -402,4 +473,5 @@ operator new(size_t, ink_dummy_for_new *p)
 #define ETHREAD_GET_PTR(thread, offset) ((void *)((char *)(thread) + (offset)))
 
 extern EThread *this_ethread();
-#endif /*_EThread_h_*/
+
+extern int thread_max_heartbeat_mseconds;

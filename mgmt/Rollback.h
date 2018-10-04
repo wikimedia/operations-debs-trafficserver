@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _ROLLBACK_H_
-#define _ROLLBACK_H_
+#pragma once
 
 /****************************************************************************
  *
@@ -32,11 +31,11 @@
  *
  ****************************************************************************/
 
-#include "ts/ink_platform.h"
-#include "ts/ink_mutex.h"
-#include "ts/ink_assert.h"
-#include "ts/TextBuffer.h"
-#include "ts/List.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_mutex.h"
+#include "tscore/ink_assert.h"
+#include "tscore/TextBuffer.h"
+#include "tscore/List.h"
 
 class FileManager;
 
@@ -92,17 +91,17 @@ struct versionInfo {
 //  revertToVersion(version_t) - rolls the active version to a new file
 //    The specified version of the file is copied to the active version
 //
-//  getVersion(version_t version, textBuffer** buffer, version_t) -
-//    creates a new textBuffer that contains the contents of the specified
+//  getVersion(version_t version, TextBuffer** buffer, version_t) -
+//    creates a new TextBuffer that contains the contents of the specified
 //    version.  CALLEE MUST DELETE the buffer
 //
-//  updateVersion(textBuffer* buf, version_t basedOn) - checks to
+//  updateVersion(TextBuffer* buf, version_t basedOn) - checks to
 //    if basedOn is the current version.  If it is not, the update
 //    rejected.  If it is current, the active file is versioned and
 //    the contents of buf become the new active file. newVersion tells us what
 //    the new version number should be.  -1 means the next in sequence
 //
-//  forceUpdate(textBuffer* buf, version_t) - Does not check is the new version
+//  forceUpdate(TextBuffer* buf, version_t) - Does not check is the new version
 //    is based on the current version, which can lead to data loss.  versions
 //    the active file and places the contents of buf into the active file
 //
@@ -149,7 +148,7 @@ struct versionInfo {
 //  createPathStr(version_t) - creates a string to the specified
 //    version of the file.  CALLEE DELETES storage
 //
-//  internalUpdate(textBuffer*, version_t) - does the really work of the
+//  internalUpdate(TextBuffer*, version_t) - does the really work of the
 //    public update functions.  newVersion tells us what the new
 //    version number should be.  -1 means the next in sequence
 
@@ -157,7 +156,7 @@ class Rollback
 {
 public:
   // fileName_ should be rooted or a base file name.
-  Rollback(const char *fileName_, bool root_access_needed, Rollback *parentRollback = NULL, unsigned flags = 0);
+  Rollback(const char *fileName_, bool root_access_needed, Rollback *parentRollback = nullptr, unsigned flags = 0);
   ~Rollback();
 
   // Manual take out of lock required
@@ -173,10 +172,10 @@ public:
   };
   RollBackCodes removeVersion_ml(version_t version);
   RollBackCodes revertToVersion_ml(version_t version);
-  RollBackCodes getVersion_ml(version_t version, textBuffer **buffer);
-  RollBackCodes updateVersion_ml(textBuffer *buf, version_t basedOn, version_t newVersion = -1, bool notifyChange = true,
+  RollBackCodes getVersion_ml(version_t version, TextBuffer **buffer);
+  RollBackCodes updateVersion_ml(TextBuffer *buf, version_t basedOn, version_t newVersion = -1, bool notifyChange = true,
                                  bool incVersion = true);
-  RollBackCodes forceUpdate_ml(textBuffer *buf, version_t newVersion = -1);
+  RollBackCodes forceUpdate_ml(TextBuffer *buf, version_t newVersion = -1);
   version_t findVersions_ml(ExpandingArray *listNames);
   version_t findVersions_ml(Queue<versionInfo> &q);
   time_t versionTimeStamp_ml(version_t version);
@@ -186,10 +185,10 @@ public:
   bool checkForUserUpdate(RollBackCheckType);
   RollBackCodes removeVersion(version_t version);
   RollBackCodes revertToVersion(version_t version);
-  RollBackCodes getVersion(version_t version, textBuffer **buffer);
-  RollBackCodes updateVersion(textBuffer *buf, version_t basedOn, version_t newVersion = -1, bool notifyChange = true,
+  RollBackCodes getVersion(version_t version, TextBuffer **buffer);
+  RollBackCodes updateVersion(TextBuffer *buf, version_t basedOn, version_t newVersion = -1, bool notifyChange = true,
                               bool incVersion = true);
-  RollBackCodes forceUpdate(textBuffer *buf, version_t newVersion = -1);
+  RollBackCodes forceUpdate(TextBuffer *buf, version_t newVersion = -1);
   version_t findVersions(ExpandingArray *);
   time_t versionTimeStamp(version_t version);
   int statVersion(version_t, struct stat *buf);
@@ -222,7 +221,7 @@ public:
   bool
   isChildRollback() const
   {
-    return parentRollback != NULL;
+    return parentRollback != nullptr;
   }
   Rollback *
   getParentRollback() const
@@ -237,13 +236,16 @@ public:
 
   FileManager *configFiles; // Manager to notify on an update.
 
+  // noncopyable
+  Rollback(const Rollback &) = delete;
+  Rollback &operator=(const Rollback &) = delete;
+
 private:
-  Rollback(const Rollback &);
-  int openFile(version_t version, int oflags, int *errnoPtr = NULL);
+  int openFile(version_t version, int oflags, int *errnoPtr = nullptr);
   int closeFile(int fd, bool callSync);
   int statFile(version_t version, struct stat *buf);
   char *createPathStr(version_t version);
-  RollBackCodes internalUpdate(textBuffer *buf, version_t newVersion, bool notifyChange = true, bool incVersion = true);
+  RollBackCodes internalUpdate(TextBuffer *buf, version_t newVersion, bool notifyChange = true, bool incVersion = true);
   ink_mutex fileAccessLock;
   char *fileName;
   char *fileBaseName;
@@ -260,4 +262,3 @@ private:
 // qSort comptable function to sort versionInfo*
 //   based on version number
 int versionCmp(const void *i1, const void *i2);
-#endif

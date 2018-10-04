@@ -16,10 +16,10 @@
   limitations under the License.
  */
 
-#include <atscppapi/GlobalPlugin.h>
-#include <atscppapi/Logger.h>
-#include <atscppapi/Stat.h>
-#include <atscppapi/PluginInit.h>
+#include "tscpp/api/GlobalPlugin.h"
+#include "tscpp/api/Logger.h"
+#include "tscpp/api/Stat.h"
+#include "tscpp/api/PluginInit.h"
 #include <cstring>
 
 using namespace atscppapi;
@@ -40,11 +40,11 @@ const string STAT_NAME = "stat_example";
 Stat stat;
 
 GlobalPlugin *plugin;
-}
+} // namespace
 
 /*
  * This is a simple plugin that will increment a counter
- * everytime a request comes in.
+ * every time a request comes in.
  */
 class GlobalHookPlugin : public GlobalPlugin
 {
@@ -68,7 +68,9 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  RegisterGlobalPlugin("CPP_Example_Stat", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_Stat", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   TS_DEBUG(TAG, "Loaded stat_example plugin");
 
   // Since this stat is not persistent it will be initialized to 0.

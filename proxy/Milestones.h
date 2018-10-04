@@ -21,13 +21,12 @@
   limitations under the License.
  */
 
-#if !defined(_Milestones_h_)
-#define _Milestones_h_
+#pragma once
 
-#include "ts/ink_platform.h"
-#include "ts/ink_hrtime.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_hrtime.h"
 #include "ts/apidefs.h"
-#include "../lib/ts/ink_hrtime.h"
+#include "tscore/ink_hrtime.h"
 
 /////////////////////////////////////////////////////////////
 //
@@ -76,5 +75,3 @@ public:
 private:
   ink_hrtime milestones[TS_MILESTONE_LAST_ENTRY];
 };
-
-#endif /* _Milestones_h_ */

@@ -23,7 +23,7 @@
     _a < _b ? _a : _b;      \
   })
 
-#include "ts/ink_defs.h"
+#include "tscore/ink_defs.h"
 #include "url_sig.h"
 
 #include <stdio.h>
@@ -65,7 +65,7 @@ struct config {
 static void
 free_cfg(struct config *cfg)
 {
-  TSError("[url_sig] Cleaning up...");
+  TSError("[url_sig] Cleaning up");
   TSfree(cfg->err_url);
   TSfree(cfg->sig_anchor);
 
@@ -146,7 +146,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
     }
     char *pos = strchr(line, '=');
     if (pos == NULL) {
-      TSError("[url_sig] Error parsing line %d of file %s (%s).", line_no, config_file, line);
+      TSError("[url_sig] Error parsing line %d of file %s (%s)", line_no, config_file, line);
       continue;
     }
     *pos        = '\0';
@@ -159,8 +159,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       *pos = '\0';
     }
     if (pos == NULL || strlen(value) >= MAX_KEY_LEN) {
-      snprintf(errbuf, errbuf_size - 1, "[TSRemapNewInstance] - Maximum key length (%d) exceeded on line %d.", MAX_KEY_LEN - 1,
-               line_no);
+      snprintf(errbuf, errbuf_size, "[TSRemapNewInstance] - Maximum key length (%d) exceeded on line %d", MAX_KEY_LEN - 1, line_no);
       fclose(file);
       free_cfg(cfg);
       return TS_ERROR;
@@ -210,7 +209,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
 
       cfg->regex = pcre_compile(value, options, &errptr, &erroffset, NULL);
       if (cfg->regex == NULL) {
-        TSDebug(PLUGIN_NAME, "Regex compilation failed with error (%s) at character %d.", errptr, erroffset);
+        TSDebug(PLUGIN_NAME, "Regex compilation failed with error (%s) at character %d", errptr, erroffset);
       } else {
 #ifdef PCRE_STUDY_JIT_COMPILE
         options = PCRE_STUDY_JIT_COMPILE;
@@ -219,7 +218,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
           cfg->regex, options, &errptr); // We do not need to check the error here because we can still run without the studying?
       }
     } else {
-      TSError("[url_sig] Error parsing line %d of file %s (%s).", line_no, config_file, line);
+      TSError("[url_sig] Error parsing line %d of file %s (%s)", line_no, config_file, line);
     }
   }
 
@@ -292,7 +291,7 @@ getAppQueryString(const char *query_string, int query_length)
     return NULL;
   }
   memset(buf, 0, sizeof(buf));
-  strncpy(buf, query_string, query_length);
+  memcpy(buf, query_string, query_length);
   p = buf;
 
   TSDebug(PLUGIN_NAME, "query_string: %s, query_length: %d", query_string, query_length);
@@ -393,7 +392,8 @@ urlParse(char *url, char *anchor, char *new_path_seg, int new_path_seg_len, char
       TSError("insuficient space to copy into new_path_seg buffer.");
       return NULL;
     } else {
-      strncat(new_path_seg, segment[i], l);
+      memcpy(new_path_seg, segment[i], l);
+      new_path_seg[l] = '\0';
       if (i != numtoks - 1) {
         strncat(new_path_seg, "/", 1);
       }
@@ -405,13 +405,13 @@ urlParse(char *url, char *anchor, char *new_path_seg, int new_path_seg_len, char
   // save the encoded signing parameter data
   if (sig_anchor != NULL) { // a signature anchor string was found.
     if (strlen(sig_anchor) < signed_seg_len) {
-      strncpy(signed_seg, sig_anchor, strlen(sig_anchor));
+      memcpy(signed_seg, sig_anchor, strlen(sig_anchor));
     } else {
       TSError("insuficient space to copy into new_path_seg buffer.");
     }
   } else { // no signature anchor string was found, assum it is in the last path segment.
     if (strlen(segment[numtoks - 2]) < signed_seg_len) {
-      strncpy(signed_seg, segment[numtoks - 2], strlen(segment[numtoks - 2]));
+      memcpy(signed_seg, segment[numtoks - 2], strlen(segment[numtoks - 2]));
     } else {
       TSError("insuficient space to copy into new_path_seg buffer.");
       return NULL;
@@ -437,16 +437,16 @@ urlParse(char *url, char *anchor, char *new_path_seg, int new_path_seg_len, char
   for (i = 0; i < numtoks; i++) {
     // cp the base64 decoded string.
     if (i == sig_anchor_seg && sig_anchor != NULL) {
-      strncat(new_url, segment[i], strlen(segment[i]));
-      strncat(new_url, (char *)decoded_string, strlen((char *)decoded_string));
+      memcpy(new_url, segment[i], strlen(segment[i]));
+      memcpy(new_url, (char *)decoded_string, strlen((char *)decoded_string));
       strncat(new_url, "/", 1);
       continue;
     } else if (i == numtoks - 2 && sig_anchor == NULL) {
-      strncat(new_url, (char *)decoded_string, strlen((char *)decoded_string));
+      memcpy(new_url, (char *)decoded_string, strlen((char *)decoded_string));
       strncat(new_url, "/", 1);
       continue;
     }
-    strncat(new_url, segment[i], strlen(segment[i]));
+    memcpy(new_url, segment[i], strlen(segment[i]));
     if (i < numtoks - 1) {
       strncat(new_url, "/", 1);
     }
@@ -515,8 +515,9 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
 
     /* Only search up to the first ? or # */
     const char *base_url_end = url;
-    while (*base_url_end && !(*base_url_end == '?' || *base_url_end == '#'))
+    while (*base_url_end && !(*base_url_end == '?' || *base_url_end == '#')) {
       ++base_url_end;
+    }
     const int len = base_url_end - url;
 
     if (pcre_exec(cfg->regex, cfg->regex_extra, url, len, offset, options, ovector, 30) >= 0) {
@@ -608,7 +609,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     }
     TSDebug(PLUGIN_NAME, "Exp: %" PRIu64, expiration);
   } else {
-    err_log(url, "Expiration query string not found.");
+    err_log(url, "Expiration query string not found");
     goto deny;
   }
   // Algorithm
@@ -619,7 +620,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     // The check for a valid algorithm is later.
     TSDebug(PLUGIN_NAME, "Algorithm: %d", algorithm);
   } else {
-    err_log(url, "Algorithm query string not found.");
+    err_log(url, "Algorithm query string not found");
     goto deny;
   }
   // Key index
@@ -628,12 +629,12 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     cp += strlen(KIN_QSTRING) + 1;
     keyindex = atoi(cp);
     if (keyindex < 0 || keyindex >= MAX_KEY_NUM || 0 == cfg->keys[keyindex][0]) {
-      err_log(url, "Invalid key index.");
+      err_log(url, "Invalid key index");
       goto deny;
     }
     TSDebug(PLUGIN_NAME, "Key Index: %d", keyindex);
   } else {
-    err_log(url, "KeyIndex query string not found.");
+    err_log(url, "KeyIndex query string not found");
     goto deny;
   }
   // Parts
@@ -649,7 +650,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
       TSDebug(PLUGIN_NAME, "Parts: %s", parts);
     }
   } else {
-    err_log(url, "PartsSigned query string not found.");
+    err_log(url, "PartsSigned query string not found");
     goto deny;
   }
   // And finally, the sig (has to be last)
@@ -660,11 +661,11 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     signature = cp;
     if ((algorithm == USIG_HMAC_SHA1 && strlen(signature) < SHA1_SIG_SIZE) ||
         (algorithm == USIG_HMAC_MD5 && strlen(signature) < MD5_SIG_SIZE)) {
-      err_log(url, "Signature query string too short (< 20).");
+      err_log(url, "Signature query string too short (< 20)");
       goto deny;
     }
   } else {
-    err_log(url, "Signature query string not found.");
+    err_log(url, "Signature query string not found");
     goto deny;
   }
 
@@ -725,7 +726,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     }
     break;
   default:
-    err_log(url, "Algorithm not supported.");
+    err_log(url, "Algorithm not supported");
     goto deny;
   }
 
@@ -738,10 +739,10 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   /* and compare to signature that was sent */
   cmp_res = strncmp(sig_string, signature, sig_len * 2);
   if (cmp_res != 0) {
-    err_log(url, "Signature check failed.");
+    err_log(url, "Signature check failed");
     goto deny;
   } else {
-    TSDebug(PLUGIN_NAME, "Signature check passed.");
+    TSDebug(PLUGIN_NAME, "Signature check passed");
     goto allow;
   }
 
@@ -768,7 +769,7 @@ deny:
     break;
   }
   /* Always set the return status */
-  TSHttpTxnSetHttpRetStatus(txnp, cfg->err_status);
+  TSHttpTxnStatusSet(txnp, cfg->err_status);
 
   return TSREMAP_DID_REMAP;
 
@@ -802,7 +803,7 @@ allow:
     rval = TSUrlHttpQuerySet(rri->requestBufp, rri->requestUrl, NULL, 0);
   }
   if (rval != TS_SUCCESS) {
-    TSError("[url_sig] Error setting the query string: %d.", rval);
+    TSError("[url_sig] Error setting the query string: %d", rval);
   }
 
   return TSREMAP_NO_REMAP;

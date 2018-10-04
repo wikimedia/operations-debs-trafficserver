@@ -29,18 +29,18 @@
 
 
  ****************************************************************************/
-#if !defined(_SSLNetVConnection_h_)
-#define _SSLNetVConnection_h_
+#pragma once
 
-#include "ts/ink_platform.h"
-#include "P_EventSystem.h"
-#include "P_UnixNetVConnection.h"
-#include "P_UnixNet.h"
+#include "tscore/ink_platform.h"
 #include "ts/apidefs.h"
-#include <ts/MemView.h>
+#include <string_view>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+
+#include "P_EventSystem.h"
+#include "P_UnixNetVConnection.h"
+#include "P_UnixNet.h"
 
 // These are included here because older OpenSSL libraries don't have them.
 // Don't copy these defines, or use their values directly, they are merely
@@ -90,6 +90,7 @@ class SSLNetVConnection : public UnixNetVConnection
 
 public:
   int sslStartHandShake(int event, int &err) override;
+  void clear() override;
   void free(EThread *t) override;
 
   virtual void
@@ -127,7 +128,7 @@ public:
   int sslClientHandShakeEvent(int &err);
   void net_read_io(NetHandler *nh, EThread *lthread) override;
   int64_t load_buffer_and_write(int64_t towrite, MIOBufferAccessor &buf, int64_t &total_written, int &needs) override;
-  void registerNextProtocolSet(const SSLNextProtocolSet *);
+  void registerNextProtocolSet(SSLNextProtocolSet *);
   void do_io_close(int lerrno = -1) override;
 
   ////////////////////////////////////////////////////////////
@@ -136,7 +137,7 @@ public:
   // The constructor is public just to avoid compile errors.//
   ////////////////////////////////////////////////////////////
   SSLNetVConnection();
-  virtual ~SSLNetVConnection() {}
+  ~SSLNetVConnection() override {}
   static int advertise_next_protocol(SSL *ssl, const unsigned char **out, unsigned *outlen, void *);
   static int select_next_protocol(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in,
                                   unsigned inlen, void *);
@@ -163,6 +164,12 @@ public:
   getTransparentPassThrough() const
   {
     return transparentPassThrough;
+  }
+
+  bool
+  GetSNIMapping()
+  {
+    return SNIMapping;
   }
 
   void
@@ -222,14 +229,14 @@ public:
     switch (this->sslHandshakeHookState) {
     case HANDSHAKE_HOOKS_PRE:
     case HANDSHAKE_HOOKS_PRE_INVOKE:
-      if (eventId == TS_EVENT_VCONN_PRE_ACCEPT) {
+      if (eventId == TS_EVENT_VCONN_START) {
         if (curHook) {
           retval = true;
         }
       }
       break;
     case HANDSHAKE_HOOKS_SNI:
-      if (eventId == TS_EVENT_VCONN_PRE_ACCEPT) {
+      if (eventId == TS_EVENT_VCONN_START) {
         retval = true;
       } else if (eventId == TS_EVENT_SSL_SERVERNAME) {
         if (curHook) {
@@ -239,7 +246,7 @@ public:
       break;
     case HANDSHAKE_HOOKS_CERT:
     case HANDSHAKE_HOOKS_CERT_INVOKE:
-      if (eventId == TS_EVENT_VCONN_PRE_ACCEPT || eventId == TS_EVENT_SSL_SERVERNAME) {
+      if (eventId == TS_EVENT_VCONN_START || eventId == TS_EVENT_SSL_SERVERNAME) {
         retval = true;
       } else if (eventId == TS_EVENT_SSL_CERT) {
         if (curHook) {
@@ -247,6 +254,13 @@ public:
         }
       }
       break;
+    case HANDSHAKE_HOOKS_CLIENT_CERT:
+    case HANDSHAKE_HOOKS_CLIENT_CERT_INVOKE:
+      if (eventId == TS_EVENT_SSL_VERIFY_CLIENT || eventId == TS_EVENT_VCONN_START) {
+        retval = true;
+      }
+      break;
+
     case HANDSHAKE_HOOKS_DONE:
       retval = true;
       break;
@@ -279,8 +293,8 @@ public:
     return ssl ? SSL_get_cipher_name(ssl) : nullptr;
   }
 
-  int populate_protocol(ts::StringView *results, int n) const override;
-  const char *protocol_contains(ts::StringView tag) const override;
+  int populate_protocol(std::string_view *results, int n) const override;
+  const char *protocol_contains(std::string_view tag) const override;
 
   /**
    * Populate the current object based on the socket information in in the
@@ -289,34 +303,37 @@ public:
    */
   int populate(Connection &con, Continuation *c, void *arg) override;
 
-  SSL *ssl;
-  ink_hrtime sslHandshakeBeginTime;
-  ink_hrtime sslLastWriteTime;
-  int64_t sslTotalBytesSent;
+  SSL *ssl                         = nullptr;
+  ink_hrtime sslHandshakeBeginTime = 0;
+  ink_hrtime sslHandshakeEndTime   = 0;
+  ink_hrtime sslLastWriteTime      = 0;
+  int64_t sslTotalBytesSent        = 0;
+  char *serverName                 = nullptr;
 
   /// Set by asynchronous hooks to request a specific operation.
-  SslVConnOp hookOpRequested;
+  SslVConnOp hookOpRequested = SSL_HOOK_OP_DEFAULT;
+
+  // noncopyable
+  SSLNetVConnection(const SSLNetVConnection &) = delete;
+  SSLNetVConnection &operator=(const SSLNetVConnection &) = delete;
 
 private:
-  SSLNetVConnection(const SSLNetVConnection &);
-  SSLNetVConnection &operator=(const SSLNetVConnection &);
-
-  ts::StringView map_tls_protocol_to_tag(const char *proto_string) const;
+  std::string_view map_tls_protocol_to_tag(const char *proto_string) const;
   bool update_rbio(bool move_to_socket);
 
-  bool sslHandShakeComplete;
-  bool sslClientRenegotiationAbort;
-  bool sslSessionCacheHit;
-  MIOBuffer *handShakeBuffer;
-  IOBufferReader *handShakeHolder;
-  IOBufferReader *handShakeReader;
-  int handShakeBioStored;
+  bool sslHandShakeComplete        = false;
+  bool sslClientRenegotiationAbort = false;
+  bool sslSessionCacheHit          = false;
+  MIOBuffer *handShakeBuffer       = nullptr;
+  IOBufferReader *handShakeHolder  = nullptr;
+  IOBufferReader *handShakeReader  = nullptr;
+  int handShakeBioStored           = 0;
 
-  bool transparentPassThrough;
+  bool transparentPassThrough = false;
 
   /// The current hook.
   /// @note For @C SSL_HOOKS_INVOKE, this is the hook to invoke.
-  class APIHook *curHook;
+  class APIHook *curHook = nullptr;
 
   enum SSLHandshakeHookState {
     HANDSHAKE_HOOKS_PRE,
@@ -324,17 +341,19 @@ private:
     HANDSHAKE_HOOKS_SNI,
     HANDSHAKE_HOOKS_CERT,
     HANDSHAKE_HOOKS_CERT_INVOKE,
+    HANDSHAKE_HOOKS_CLIENT_CERT,
+    HANDSHAKE_HOOKS_CLIENT_CERT_INVOKE,
     HANDSHAKE_HOOKS_DONE
-  } sslHandshakeHookState;
+  } sslHandshakeHookState = HANDSHAKE_HOOKS_PRE;
 
-  const SSLNextProtocolSet *npnSet;
-  Continuation *npnEndpoint;
-  SessionAccept *sessionAcceptPtr;
-  bool sslTrace;
+  const SSLNextProtocolSet *npnSet = nullptr;
+  Continuation *npnEndpoint        = nullptr;
+  SessionAccept *sessionAcceptPtr  = nullptr;
+  bool sslTrace                    = false;
+  bool SNIMapping                  = false;
+  int64_t redoWriteSize            = 0;
 };
 
 typedef int (SSLNetVConnection::*SSLNetVConnHandler)(int, void *);
 
 extern ClassAllocator<SSLNetVConnection> sslNetVCAllocator;
-
-#endif /* _SSLNetVConnection_h_ */

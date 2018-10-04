@@ -28,21 +28,22 @@
  *
  *
  ****************************************************************************/
-#include "ts/ink_platform.h"
-#include "ts/ink_defs.h"
-#include "ts/ink_time.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_time.h"
 
 #include "Main.h"
 #include "URL.h"
-#include "ts/Tokenizer.h"
+#include "tscore/Tokenizer.h"
 #include "ControlBase.h"
-#include "ts/MatcherUtils.h"
+#include "tscore/MatcherUtils.h"
 #include "HTTP.h"
 #include "ControlMatcher.h"
 #include "HdrUtils.h"
-#include "ts/Vec.h"
 
-#include <ts/TsBuffer.h>
+#include "tscore/TsBuffer.h"
+
+#include <vector>
 
 /** Used for printing IP address.
     @code
@@ -56,9 +57,7 @@
     reinterpret_cast<unsigned const char *>(&(x))[2], reinterpret_cast<unsigned char const *>(&(x))[3]
 
 // ----------
-ControlBase::Modifier::~Modifier()
-{
-}
+ControlBase::Modifier::~Modifier() {}
 ControlBase::Modifier::Type
 ControlBase::Modifier::type() const
 {
@@ -251,9 +250,7 @@ struct IPortMod : public ControlBase::Modifier {
 };
 
 const char *const IPortMod::NAME = "IPort";
-IPortMod::IPortMod(int port) : _port(port)
-{
-}
+IPortMod::IPortMod(int port) : _port(port) {}
 const char *
 IPortMod::name() const
 {
@@ -355,9 +352,7 @@ struct SchemeMod : public ControlBase::Modifier {
 
 const char *const SchemeMod::NAME = "Scheme";
 
-SchemeMod::SchemeMod(int scheme) : _scheme(scheme)
-{
-}
+SchemeMod::SchemeMod(int scheme) : _scheme(scheme) {}
 
 ControlBase::Modifier::Type
 SchemeMod::type() const
@@ -414,9 +409,7 @@ struct TextMod : public ControlBase::Modifier {
   void set(const char *value);
 };
 
-TextMod::TextMod() : text()
-{
-}
+TextMod::TextMod() : text() {}
 TextMod::~TextMod()
 {
   free(text.data());
@@ -436,7 +429,7 @@ TextMod::set(const char *value)
 }
 
 struct MultiTextMod : public ControlBase::Modifier {
-  Vec<ts::Buffer> text_vec;
+  std::vector<ts::Buffer> text_vec;
   MultiTextMod();
   ~MultiTextMod() override;
 
@@ -447,9 +440,7 @@ struct MultiTextMod : public ControlBase::Modifier {
   void print(FILE *f) const override;
 };
 
-MultiTextMod::MultiTextMod()
-{
-}
+MultiTextMod::MultiTextMod() {}
 MultiTextMod::~MultiTextMod()
 {
   text_vec.clear();
@@ -458,7 +449,7 @@ MultiTextMod::~MultiTextMod()
 void
 MultiTextMod::print(FILE *f) const
 {
-  for_Vec (ts::Buffer, text_iter, this->text_vec) {
+  for (auto text_iter : this->text_vec) {
     fprintf(f, "%s=%*s ", this->name(), static_cast<int>(text_iter.size()), text_iter.data());
   }
 }
@@ -585,12 +576,12 @@ SuffixMod::check(HttpRequestData *req) const
   int path_len;
   const char *path = req->hdr->url_get()->path_get(&path_len);
 
-  if (1 == static_cast<int>(this->text_vec.count()) && 1 == static_cast<int>(this->text_vec[0].size()) &&
+  if (1 == static_cast<int>(this->text_vec.size()) && 1 == static_cast<int>(this->text_vec[0].size()) &&
       0 == strcmp(this->text_vec[0].data(), "*")) {
     return true;
   }
 
-  for_Vec (ts::Buffer, text_iter, this->text_vec) {
+  for (auto text_iter : this->text_vec) {
     if (path_len >= static_cast<int>(text_iter.size()) &&
         0 == strncasecmp(path + path_len - text_iter.size(), text_iter.data(), text_iter.size())) {
       return true;
@@ -691,7 +682,7 @@ InternalMod::make(char *value, const char **error)
 }
 
 // ----------
-} // anon name space
+} // namespace
 // ------------------------------------------------
 ControlBase::~ControlBase()
 {
@@ -701,7 +692,7 @@ ControlBase::~ControlBase()
 void
 ControlBase::clear()
 {
-  _mods.delete_and_clear();
+  _mods.clear();
 }
 
 // static const modifier_el default_el = { MOD_INVALID, NULL };
@@ -709,7 +700,7 @@ ControlBase::clear()
 void
 ControlBase::Print()
 {
-  int n = _mods.length();
+  int n = _mods.size();
 
   if (0 >= n) {
     return;
@@ -754,7 +745,7 @@ ControlBase::CheckModifiers(HttpRequestData *request_data)
     return false;
   }
 
-  forv_Vec (Modifier, cur_mod, _mods) {
+  for (auto &cur_mod : _mods) {
     if (cur_mod && !cur_mod->check(request_data)) {
       return false;
     }
@@ -771,13 +762,16 @@ enum mod_errors {
 };
 
 static const char *errorFormats[] = {
-  "Unknown error parsing modifier", "Unable to parse modifier", "Unknown modifier", "Callee Generated",
+  "Unknown error parsing modifier",
+  "Unable to parse modifier",
+  "Unknown modifier",
+  "Callee Generated",
 };
 
 ControlBase::Modifier *
 ControlBase::findModOfType(Modifier::Type t) const
 {
-  forv_Vec (Modifier, m, _mods) {
+  for (auto &m : _mods) {
     if (m && t == m->type()) {
       return m;
     }

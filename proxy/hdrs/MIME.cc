@@ -21,10 +21,10 @@
   limitations under the License.
  */
 
-#include "ts/ink_defs.h"
-#include "ts/ink_platform.h"
-#include "ts/ink_memory.h"
-#include "ts/TsBuffer.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_memory.h"
+#include "tscore/TsBuffer.h"
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -148,6 +148,7 @@ const char *MIME_FIELD_XREF;
 const char *MIME_FIELD_ATS_INTERNAL;
 const char *MIME_FIELD_X_ID;
 const char *MIME_FIELD_X_FORWARDED_FOR;
+const char *MIME_FIELD_FORWARDED;
 const char *MIME_FIELD_SEC_WEBSOCKET_KEY;
 const char *MIME_FIELD_SEC_WEBSOCKET_VERSION;
 const char *MIME_FIELD_HTTP2_SETTINGS;
@@ -263,6 +264,7 @@ int MIME_LEN_XREF;
 int MIME_LEN_ATS_INTERNAL;
 int MIME_LEN_X_ID;
 int MIME_LEN_X_FORWARDED_FOR;
+int MIME_LEN_FORWARDED;
 int MIME_LEN_SEC_WEBSOCKET_KEY;
 int MIME_LEN_SEC_WEBSOCKET_VERSION;
 int MIME_LEN_HTTP2_SETTINGS;
@@ -341,6 +343,7 @@ int MIME_WKSIDX_XREF;
 int MIME_WKSIDX_ATS_INTERNAL;
 int MIME_WKSIDX_X_ID;
 int MIME_WKSIDX_X_FORWARDED_FOR;
+int MIME_WKSIDX_FORWARDED;
 int MIME_WKSIDX_SEC_WEBSOCKET_KEY;
 int MIME_WKSIDX_SEC_WEBSOCKET_VERSION;
 int MIME_WKSIDX_HTTP2_SETTINGS;
@@ -733,6 +736,7 @@ mime_init()
     MIME_FIELD_ATS_INTERNAL              = hdrtoken_string_to_wks("@Ats-Internal");
     MIME_FIELD_X_ID                      = hdrtoken_string_to_wks("X-ID");
     MIME_FIELD_X_FORWARDED_FOR           = hdrtoken_string_to_wks("X-Forwarded-For");
+    MIME_FIELD_FORWARDED                 = hdrtoken_string_to_wks("Forwarded");
 
     MIME_FIELD_SEC_WEBSOCKET_KEY     = hdrtoken_string_to_wks("Sec-WebSocket-Key");
     MIME_FIELD_SEC_WEBSOCKET_VERSION = hdrtoken_string_to_wks("Sec-WebSocket-Version");
@@ -813,6 +817,7 @@ mime_init()
     MIME_LEN_ATS_INTERNAL              = hdrtoken_wks_to_length(MIME_FIELD_ATS_INTERNAL);
     MIME_LEN_X_ID                      = hdrtoken_wks_to_length(MIME_FIELD_X_ID);
     MIME_LEN_X_FORWARDED_FOR           = hdrtoken_wks_to_length(MIME_FIELD_X_FORWARDED_FOR);
+    MIME_LEN_FORWARDED                 = hdrtoken_wks_to_length(MIME_FIELD_FORWARDED);
 
     MIME_LEN_SEC_WEBSOCKET_KEY     = hdrtoken_wks_to_length(MIME_FIELD_SEC_WEBSOCKET_KEY);
     MIME_LEN_SEC_WEBSOCKET_VERSION = hdrtoken_wks_to_length(MIME_FIELD_SEC_WEBSOCKET_VERSION);
@@ -892,6 +897,7 @@ mime_init()
     MIME_WKSIDX_XREF                      = hdrtoken_wks_to_index(MIME_FIELD_XREF);
     MIME_WKSIDX_X_ID                      = hdrtoken_wks_to_index(MIME_FIELD_X_ID);
     MIME_WKSIDX_X_FORWARDED_FOR           = hdrtoken_wks_to_index(MIME_FIELD_X_FORWARDED_FOR);
+    MIME_WKSIDX_FORWARDED                 = hdrtoken_wks_to_index(MIME_FIELD_FORWARDED);
     MIME_WKSIDX_SEC_WEBSOCKET_KEY         = hdrtoken_wks_to_index(MIME_FIELD_SEC_WEBSOCKET_KEY);
     MIME_WKSIDX_SEC_WEBSOCKET_VERSION     = hdrtoken_wks_to_index(MIME_FIELD_SEC_WEBSOCKET_VERSION);
     MIME_WKSIDX_HTTP2_SETTINGS            = hdrtoken_wks_to_index(MIME_FIELD_HTTP2_SETTINGS);
@@ -1157,7 +1163,7 @@ static inline MIMEField *
 rebase(MIMEField *dest_ptr, ///< Original pointer into @src_base memory.
        void *dest_base,     ///< New base pointer.
        void *src_base       ///< Original base pointer.
-       )
+)
 {
   return reinterpret_cast<MIMEField *>(reinterpret_cast<char *>(dest_ptr) +
                                        (static_cast<char *>(dest_base) - static_cast<char *>(src_base)));
@@ -1300,9 +1306,9 @@ mime_hdr_field_find(MIMEHdrImpl *mh, const char *field_name_str, int field_name_
 
   ink_assert(field_name_len >= 0);
 
-////////////////////////////////////////////
-// do presence check and slot accelerator //
-////////////////////////////////////////////
+  ////////////////////////////////////////////
+  // do presence check and slot accelerator //
+  ////////////////////////////////////////////
 
 #if TRACK_FIELD_FIND_CALLS
   Debug("http", "mime_hdr_field_find(hdr 0x%X, field %.*s): is_wks = %d", mh, field_name_len, field_name_str, is_wks);

@@ -19,8 +19,8 @@
   limitations under the License.
  */
 
-#include "ts/ink_config.h"
-#include "ts/ink_defs.h"
+#include "tscore/ink_config.h"
+#include "tscore/ink_defs.h"
 
 #include "ts/ts.h"
 #include <stdint.h>
@@ -249,11 +249,11 @@ TSPluginInit(int argc, const char *argv[])
   info.support_email = "dev@trafficserver.apache.org";
 
   if (TSPluginRegister(&info) != TS_SUCCESS) {
-    TSError("[remap_stats] Plugin registration failed.");
+    TSError("[remap_stats] Plugin registration failed");
 
     return;
   } else {
-    TSDebug(DEBUG_TAG, "Plugin registration succeeded.");
+    TSDebug(DEBUG_TAG, "Plugin registration succeeded");
   }
 
   config                      = TSmalloc(sizeof(config_t));
@@ -282,7 +282,7 @@ TSPluginInit(int argc, const char *argv[])
     }
   }
 
-  TSHttpArgIndexReserve(PLUGIN_NAME, "txn data", &(config->txn_slot));
+  TSHttpTxnArgIndexReserve(PLUGIN_NAME, "txn data", &(config->txn_slot));
 
   if (!config->post_remap_host) {
     pre_remap_cont = TSContCreate(handle_read_req_hdr, NULL);

@@ -32,17 +32,16 @@
 
  ****************************************************************************/
 
-#ifndef _HdrTest_H_
-#define _HdrTest_H_
+#pragma once
 
-#include "ts/Regression.h"
+#include "tscore/Regression.h"
 
 class HdrTest
 {
 public:
   RegressionTest *rtest;
 
-  HdrTest() : rtest(NULL){};
+  HdrTest() : rtest(nullptr){};
   ~HdrTest(){};
 
   int go(RegressionTest *t, int atype);
@@ -77,5 +76,3 @@ private:
   void bri_box(const char *s);
   int failures_to_status(const char *testname, int nfail);
 };
-
-#endif

@@ -29,10 +29,9 @@
 
  ****************************************************************************/
 
-#ifndef __P_UNIXNETVCONNECTION_H__
-#define __P_UNIXNETVCONNECTION_H__
+#pragma once
 
-#include "ts/ink_sock.h"
+#include "tscore/ink_sock.h"
 #include "I_NetVConnection.h"
 #include "P_UnixNetState.h"
 #include "P_Connection.h"
@@ -91,7 +90,7 @@ struct OOB_callback : public Continuation {
   int retry_OOB_send(int, Event *);
 
   OOB_callback(Ptr<ProxyMutex> &m, NetVConnection *vc, Continuation *cont, char *buf, int len)
-    : Continuation(m), data(buf), length(len), trigger(0)
+    : Continuation(m), data(buf), length(len), trigger(nullptr)
   {
     server_vc   = (UnixNetVConnection *)vc;
     server_cont = cont;
@@ -166,7 +165,7 @@ public:
 
   SOCKET get_socket() override;
 
-  virtual ~UnixNetVConnection();
+  ~UnixNetVConnection() override;
 
   /////////////////////////////////////////////////////////////////
   // instances of UnixNetVConnection should be allocated         //
@@ -175,39 +174,13 @@ public:
   /////////////////////////////////////////////////////////////////
   UnixNetVConnection();
 
-  int
-  populate_protocol(ts::StringView *results, int n) const override
-  {
-    int retval = 0;
-    if (n > retval) {
-      if (!(results[retval] = options.get_proto_string()).isEmpty())
-        ++retval;
-      if (n > retval) {
-        if (!(results[retval] = options.get_family_string()).isEmpty())
-          ++retval;
-      }
-    }
-    return retval;
-  }
+  int populate_protocol(std::string_view *results, int n) const override;
+  const char *protocol_contains(std::string_view tag) const override;
 
-  const char *
-  protocol_contains(ts::StringView tag) const override
-  {
-    ts::StringView retval = options.get_proto_string();
-    if (strncmp(tag.ptr(), retval.ptr(), tag.size()) != 0) {
-      retval = options.get_family_string();
-      if (strncmp(tag.ptr(), retval.ptr(), tag.size()) != 0) {
-        retval.clear();
-      }
-    }
-    return retval.ptr();
-  }
+  // noncopyable
+  UnixNetVConnection(const NetVConnection &) = delete;
+  UnixNetVConnection &operator=(const NetVConnection &) = delete;
 
-private:
-  UnixNetVConnection(const NetVConnection &);
-  UnixNetVConnection &operator=(const NetVConnection &);
-
-public:
   /////////////////////////
   // UNIX implementation //
   /////////////////////////
@@ -249,7 +222,7 @@ public:
   UnixNetVConnection *migrateToCurrentThread(Continuation *c, EThread *t);
 
   Action action_;
-  volatile int closed;
+  int closed;
   NetState read;
   NetState write;
 
@@ -263,13 +236,8 @@ public:
 
   ink_hrtime inactivity_timeout_in;
   ink_hrtime active_timeout_in;
-#ifdef INACTIVITY_TIMEOUT
-  Event *inactivity_timeout;
-  Event *activity_timeout;
-#else
   ink_hrtime next_inactivity_timeout_at;
   ink_hrtime next_activity_timeout_at;
-#endif
 
   EventIO ep;
   NetHandler *nh;
@@ -307,6 +275,7 @@ public:
    * This is logic is invoked when the NetVC object is created in a new thread context
    */
   virtual int populate(Connection &con, Continuation *c, void *arg);
+  virtual void clear();
   virtual void free(EThread *t);
 
   ink_hrtime get_inactivity_timeout() override;
@@ -314,6 +283,7 @@ public:
 
   void set_local_addr() override;
   void set_remote_addr() override;
+  void set_remote_addr(const sockaddr *) override;
   int set_tcp_init_cwnd(int init_cwnd) override;
   int set_tcp_congestion_control(int side) override;
   void apply_options() override;
@@ -347,6 +317,14 @@ TS_INLINE void
 UnixNetVConnection::set_remote_addr()
 {
   ats_ip_copy(&remote_addr, &con.addr);
+  this->control_flags.set_flag(ContFlags::DEBUG_OVERRIDE, diags->test_override_ip(remote_addr));
+}
+
+TS_INLINE void
+UnixNetVConnection::set_remote_addr(const sockaddr *new_sa)
+{
+  ats_ip_copy(&remote_addr, new_sa);
+  this->control_flags.set_flag(ContFlags::DEBUG_OVERRIDE, diags->test_override_ip(remote_addr));
 }
 
 TS_INLINE void
@@ -375,30 +353,8 @@ TS_INLINE void
 UnixNetVConnection::set_active_timeout(ink_hrtime timeout_in)
 {
   Debug("socket", "Set active timeout=%" PRId64 ", NetVC=%p", timeout_in, this);
-  active_timeout_in = timeout_in;
-#ifdef INACTIVITY_TIMEOUT
-  if (active_timeout)
-    active_timeout->cancel_action(this);
-  if (active_timeout_in) {
-    if (read.enabled) {
-      ink_assert(read.vio.mutex->thread_holding == this_ethread() && thread);
-      if (read.vio.mutex->thread_holding == thread)
-        active_timeout = thread->schedule_in_local(this, active_timeout_in);
-      else
-        active_timeout = thread->schedule_in(this, active_timeout_in);
-    } else if (write.enabled) {
-      ink_assert(write.vio.mutex->thread_holding == this_ethread() && thread);
-      if (write.vio.mutex->thread_holding == thread)
-        active_timeout = thread->schedule_in_local(this, active_timeout_in);
-      else
-        active_timeout = thread->schedule_in(this, active_timeout_in);
-    } else
-      active_timeout = 0;
-  } else
-    active_timeout = 0;
-#else
+  active_timeout_in        = timeout_in;
   next_activity_timeout_at = Thread::get_hrtime() + timeout_in;
-#endif
 }
 
 TS_INLINE void
@@ -406,31 +362,15 @@ UnixNetVConnection::cancel_inactivity_timeout()
 {
   Debug("socket", "Cancel inactive timeout for NetVC=%p", this);
   inactivity_timeout_in = 0;
-#ifdef INACTIVITY_TIMEOUT
-  if (inactivity_timeout) {
-    Debug("socket", "Cancel inactive timeout for NetVC=%p", this);
-    inactivity_timeout->cancel_action(this);
-    inactivity_timeout = nullptr;
-  }
-#else
   set_inactivity_timeout(0);
-#endif
 }
 
 TS_INLINE void
 UnixNetVConnection::cancel_active_timeout()
 {
   Debug("socket", "Cancel active timeout for NetVC=%p", this);
-  active_timeout_in = 0;
-#ifdef INACTIVITY_TIMEOUT
-  if (active_timeout) {
-    Debug("socket", "Cancel active timeout for NetVC=%p", this);
-    active_timeout->cancel_action(this);
-    active_timeout = nullptr;
-  }
-#else
+  active_timeout_in        = 0;
   next_activity_timeout_at = 0;
-#endif
 }
 
 TS_INLINE int
@@ -483,9 +423,7 @@ UnixNetVConnection::set_tcp_congestion_control(int side)
 #endif
 }
 
-TS_INLINE UnixNetVConnection::~UnixNetVConnection()
-{
-}
+TS_INLINE UnixNetVConnection::~UnixNetVConnection() {}
 
 TS_INLINE SOCKET
 UnixNetVConnection::get_socket()
@@ -501,8 +439,5 @@ UnixNetVConnection::set_action(Continuation *c)
 
 // declarations for local use (within the net module)
 
-void close_UnixNetVConnection(UnixNetVConnection *vc, EThread *t);
 void write_to_net(NetHandler *nh, UnixNetVConnection *vc, EThread *thread);
 void write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread);
-
-#endif

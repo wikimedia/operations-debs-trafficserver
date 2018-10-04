@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _I_REC_ALARMS_H_
-#define _I_REC_ALARMS_H_
+#pragma once
 
 // copy from mgmt/Alarms.h
 #define REC_ALARM_PROXY_PROCESS_DIED 1
@@ -44,7 +43,3 @@
 #define REC_ALARM_REC_CONFIG_ERROR 17
 #define REC_ALARM_ADD_ALARM 18
 #define REC_ALARM_PROXY_LOG_SPACE_ROLLED 19
-#define REC_ALARM_PROXY_HTTP_CONGESTED_SERVER 20
-#define REC_ALARM_PROXY_HTTP_ALLEVIATED_SERVER 21
-
-#endif

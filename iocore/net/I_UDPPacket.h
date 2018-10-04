@@ -29,8 +29,7 @@
 
  ****************************************************************************/
 
-#ifndef __I_UDPPACKET_H_
-#define __I_UDPPACKET_H_
+#pragma once
 
 #include "I_UDPConnection.h"
 /** @name UDPPacket
@@ -102,5 +101,10 @@ extern UDPPacket *new_UDPPacket();
 */
 extern UDPPacket *new_incoming_UDPPacket(struct sockaddr *from, char *buf, int len);
 
+/**
+   Create a new packet to be delivered to application.
+   Internal function only
+*/
+extern UDPPacket *new_incoming_UDPPacket(struct sockaddr *from, Ptr<IOBufferBlock> &block);
+
 //@}
-#endif //__I_UDPPACKET_H_

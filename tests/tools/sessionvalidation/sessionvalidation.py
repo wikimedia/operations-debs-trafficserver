@@ -23,7 +23,10 @@ import sessionvalidation.transaction as transaction
 import sessionvalidation.request as request
 import sessionvalidation.response as response
 
-valid_HTTP_request_methods = ['GET', 'POST', 'HEAD']
+# valid_HTTP_request_methods = ['GET', 'POST', 'HEAD']
+# custom_HTTP_request_methods = ['PULL']  # transaction monitor plugin for ATS may have custom methods
+allowed_HTTP_request_methods = ['GET', 'POST', 'HEAD', 'PULL']
+G_CUSTOM_METHODS = False
 G_VERBOSE_LOG = True
 
 
@@ -72,7 +75,6 @@ class SessionValidator(object):
                     session_version = sesh['version']
                     session_txns = list()
                     for txn in sesh['txns']:
-                        # print("PERSIA____________________________________________________________",txn)
                         # create transaction Request object
                         txn_request = txn['request']
 
@@ -85,12 +87,12 @@ class SessionValidator(object):
                         txn_response_body = ''
                         if 'body' in txn_response:
                             txn_response_body = txn_response['body']
-                        txn_response_obj = response.Response(txn_response['timestamp'], txn_response['headers'], txn_response_body)
+                        txn_response_obj = response.Response(txn_response['timestamp'], txn_response['headers'], txn_response_body,
+                                txn_response.get('options'))
 
                         # create Transaction object
                         txn_obj = transaction.Transaction(txn_request_obj, txn_response_obj, txn['uuid'])
                         session_txns.append(txn_obj)
-                        # print(txn_request['timestamp'])
                     session_obj = session.Session(fname, session_version, session_timestamp, session_txns)
 
                 except KeyError as e:
@@ -169,7 +171,7 @@ class SessionValidator(object):
             elif float(txn_req.getTimestamp()) <= 0:
                 _verbose_print("invalid transaction request timestamp")
                 retval = False
-            elif txn_req.getHeaders().split()[0] not in valid_HTTP_request_methods:
+            elif txn_req.getHeaders().split()[0] not in allowed_HTTP_request_methods:
                 _verbose_print("invalid HTTP method for transaction {0}".format(txn_req.getHeaders().split()[0]))
                 retval = False
             elif not txn_req.getHeaders().endswith("\r\n\r\n"):
@@ -192,11 +194,6 @@ class SessionValidator(object):
             if not found_host:
                 print("missing host", txn_req)
                 _verbose_print("transaction request Host header doesn't have specified host")
-                retval = False
-
-            # reject if the host is localhost (since ATS seems to ignore remap rules for localhost requests)
-            if "127.0.0.1" in txn_req.getHeaders() or "localhost" in txn_req.getHeaders():
-                _verbose_print("transaction request Host is localhost, we must reject because ATS ignores remap rules for localhost requests")
                 retval = False
 
             # now validate response
@@ -250,8 +247,10 @@ class SessionValidator(object):
         ''' Returns an iterator of bad session filenames (iterator of strings) '''
         return iter(self._bad_sessions)
 
-    def __init__(self, json_log_dir):
+    def __init__(self, json_log_dir, allow_custom=False):
         global valid_HTTP_request_methods
+        global G_CUSTOM_METHODS
+        G_CUSTOM_METHODS = allow_custom
         self._json_log_dir = json_log_dir
         self._bad_sessions = list()   # list of filenames
         self._sessions = list()       # list of _good_ session objects

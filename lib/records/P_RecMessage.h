@@ -21,8 +21,7 @@
   limitations under the License.
  */
 
-#ifndef _P_REC_MESSAGE_H_
-#define _P_REC_MESSAGE_H_
+#pragma once
 
 #include "P_RecDefs.h"
 
@@ -30,7 +29,6 @@
 // Initialization
 //-------------------------------------------------------------------------
 
-// int RecMessageInit();
 void RecMessageRegister();
 
 //-------------------------------------------------------------------------
@@ -50,5 +48,3 @@ void *RecMessageRecvThis(void *cookie, char *data_raw, int data_len);
 
 RecMessage *RecMessageReadFromDisk(const char *fpath);
 int RecMessageWriteToDisk(RecMessage *msg, const char *fpath);
-
-#endif

@@ -28,8 +28,7 @@
 
  ****************************************************************************/
 
-#ifndef _StatPages_h_
-#define _StatPages_h_
+#pragma once
 #include "P_EventSystem.h"
 
 #include "HTTP.h"
@@ -69,9 +68,9 @@ struct StatPageData {
   char *type;
   int length;
 
-  StatPageData() : data(NULL), type(NULL), length(0) {}
-  StatPageData(char *adata) : data(adata), type(NULL) { length = strlen(adata); }
-  StatPageData(char *adata, int alength) : data(adata), type(NULL), length(alength) {}
+  StatPageData() : data(nullptr), type(nullptr), length(0) {}
+  StatPageData(char *adata) : data(adata), type(nullptr) { length = strlen(adata); }
+  StatPageData(char *adata, int alength) : data(adata), type(nullptr), length(alength) {}
 };
 
 struct StatPagesManager {
@@ -84,6 +83,7 @@ struct StatPagesManager {
   bool is_stat_page(URL *url);
   bool is_cache_inspector_page(URL *url);
   int m_enabled;
+  ink_mutex stat_pages_mutex;
 };
 
 inkcoreapi extern StatPagesManager statPagesManager;
@@ -93,8 +93,9 @@ inkcoreapi extern StatPagesManager statPagesManager;
 class BaseStatPagesHandler : public Continuation
 {
 public:
-  BaseStatPagesHandler(ProxyMutex *amutex) : Continuation(amutex), response(NULL), response_size(0), response_length(0){};
-  ~BaseStatPagesHandler() { resp_clear(); };
+  BaseStatPagesHandler(ProxyMutex *amutex) : Continuation(amutex), response(nullptr), response_size(0), response_length(0){};
+  ~BaseStatPagesHandler() override { resp_clear(); };
+
 protected:
   inkcoreapi void resp_clear(void);
   inkcoreapi void resp_add(const char *fmt, ...);
@@ -111,12 +112,10 @@ protected:
   inkcoreapi void resp_end_table();
   inkcoreapi void resp_begin_row();
   inkcoreapi void resp_end_row();
-  inkcoreapi void resp_begin_column(int percent = -1, const char *align = NULL);
+  inkcoreapi void resp_begin_column(int percent = -1, const char *align = nullptr);
   inkcoreapi void resp_end_column();
 
   char *response;
   int response_size;
   int response_length;
 };
-
-#endif

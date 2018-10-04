@@ -25,7 +25,7 @@
 // include files
 //-------------------------------------------------------------------------
 
-#include "ts/ink_platform.h"
+#include "tscore/ink_platform.h"
 #include "P_EventSystem.h"
 
 #include "Log.h"
@@ -36,7 +36,7 @@
 // LogCollationAccept::LogCollationAccept
 //-------------------------------------------------------------------------
 
-LogCollationAccept::LogCollationAccept(int port) : Continuation(new_ProxyMutex()), m_port(port), m_pending_event(nullptr)
+LogCollationAccept::LogCollationAccept(int port) : Continuation(new_ProxyMutex()), m_port(port)
 {
   NetProcessor::AcceptOptions opt;
   SET_HANDLER((LogCollationAcceptHandler)&LogCollationAccept::accept_event);
@@ -65,8 +65,9 @@ LogCollationAccept::~LogCollationAccept()
     m_accept_action->cancel();
     m_accept_action = nullptr;
 
-    Debug("log-collation", "closing Log::collation_accept_file_descriptor "
-                           "(%d)",
+    Debug("log-collation",
+          "closing Log::collation_accept_file_descriptor "
+          "(%d)",
           Log::collation_accept_file_descriptor);
     if (::close(Log::collation_accept_file_descriptor) < 0) {
       Error("error closing collate listen file descriptor [%d]: %s", Log::collation_accept_file_descriptor, strerror(errno));

@@ -53,6 +53,7 @@ ProtectedQueue::enqueue(Event *e, bool fast_signal)
 
   if (was_empty) {
     EThread *inserting_thread = this_ethread();
+    // queue e->ethread in the list of threads to be signalled
     // inserting_thread == 0 means it is not a regular EThread
     if (inserting_thread != e_ethread) {
       e_ethread->tail_cb->signalActivity();
@@ -65,8 +66,9 @@ flush_signals(EThread *thr)
 {
   ink_assert(this_ethread() == thr);
   int n = thr->n_ethreads_to_be_signalled;
-  if (n > eventProcessor.n_ethreads)
+  if (n > eventProcessor.n_ethreads) {
     n = eventProcessor.n_ethreads; // MAX
+  }
   int i;
 
   for (i = 0; i < n; i++) {
@@ -95,13 +97,14 @@ ProtectedQueue::dequeue_external()
   // invert the list, to preserve order
   SLL<Event, Event::Link_link> l, t;
   t.head = e;
-  while ((e = t.pop()))
+  while ((e = t.pop())) {
     l.push(e);
+  }
   // insert into localQueue
   while ((e = l.pop())) {
-    if (!e->cancelled)
+    if (!e->cancelled) {
       localQueue.enqueue(e);
-    else {
+    } else {
       e->mutex = nullptr;
       eventAllocator.free(e);
     }

@@ -21,8 +21,8 @@
   limitations under the License.
  */
 
-#include "ts/ink_platform.h"
-#include "ts/I_Layout.h"
+#include "tscore/ink_platform.h"
+#include "tscore/I_Layout.h"
 
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
@@ -30,11 +30,11 @@
 
 #include <memory>
 
-#include "ts/ink_platform.h"
-#include "ts/ink_file.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_file.h"
 
 #include "Main.h"
-#include "ts/List.h"
+#include "tscore/List.h"
 
 #include "Log.h"
 #include "LogField.h"
@@ -46,10 +46,11 @@
 #include "LogObject.h"
 #include "LogConfig.h"
 #include "LogUtils.h"
-#include "LogBindings.h"
-#include "ts/SimpleTokenizer.h"
+#include "tscore/SimpleTokenizer.h"
 
 #include "LogCollationAccept.h"
+
+#include "YamlLogConfig.h"
 
 #define DISK_IS_CONFIG_FULL_MESSAGE                    \
   "Access logging to local log directory suspended - " \
@@ -61,7 +62,6 @@
   "Access logging to local log directory suspended - " \
   "configured space allocation almost exhausted."
 #define DISK_IS_ACTUAL_LOW_MESSAGE "Access logging to local log directory suspended - partition space is low."
-#define DUP_FORMAT_MESSAGE "Format named %s already exists; duplicate format names are not allowed."
 
 #define PARTITION_HEADROOM_MB 10
 
@@ -277,7 +277,6 @@ LogConfig::LogConfig()
     m_space_used(0),
     m_partition_space_left((int64_t)UINT_MAX),
     m_log_collation_accept(nullptr),
-    m_pDir(nullptr),
     m_disk_full(false),
     m_disk_low(false),
     m_partition_full(false),
@@ -333,6 +332,7 @@ LogConfig::setup_collation(LogConfig *prev_config)
       prev_config->m_log_collation_accept = nullptr;
     }
   } else {
+    Warning("Log collation is deprecated as of ATS v8.0.0!");
     if (!collation_port) {
       Note("Cannot activate log collation, %d is an invalid collation port", collation_port);
     } else if (collation_mode > Log::COLLATION_HOST && strcmp(collation_host, "none") == 0) {
@@ -355,8 +355,9 @@ LogConfig::setup_collation(LogConfig *prev_config)
         }
         Debug("log", "I am a collation host listening on port %d.", collation_port);
       } else {
-        Debug("log", "I am a collation client (%d)."
-                     " My collation host is %s:%d",
+        Debug("log",
+              "I am a collation client (%d)."
+              " My collation host is %s:%d",
               collation_mode, collation_host, collation_port);
       }
 
@@ -425,10 +426,10 @@ LogConfig::init(LogConfig *prev_config)
   // the specified space for collation is larger than that for local files
   //
   size_t num_collation_clients = log_object_manager.get_num_collation_clients();
-  use_orphan_log_space_value =
-    (num_collation_clients == 0 ? false : (log_object_manager.get_num_objects() == num_collation_clients ?
-                                             true :
-                                             max_space_mb_for_orphan_logs > max_space_mb_for_logs));
+  use_orphan_log_space_value   = (num_collation_clients == 0 ? false :
+                                                             (log_object_manager.get_num_objects() == num_collation_clients ?
+                                                                true :
+                                                                max_space_mb_for_orphan_logs > max_space_mb_for_logs));
 
   initialized = true;
 }
@@ -473,6 +474,12 @@ LogConfig::display(FILE *fd)
   fprintf(fd, "\n");
   fprintf(fd, "************ Log Objects (%u objects) ************\n", (unsigned int)log_object_manager.get_num_objects());
   log_object_manager.display(fd);
+
+  fprintf(fd, "************ Filter List (%u filters) ************\n", filter_list.count());
+  filter_list.display(fd);
+
+  fprintf(fd, "************ Format List (%u formats) ************\n", format_list.count());
+  format_list.display(fd);
 }
 
 //-----------------------------------------------------------------------------
@@ -489,7 +496,9 @@ LogConfig::setup_log_objects()
 {
   Debug("log", "creating objects...");
 
-  // Evaluate logging.config to construct the custome log objects.
+  filter_list.clear();
+
+  // Evaluate logging.yaml to construct the custom log objects.
   evaluate_config();
 
   // Open local pipes so readers can see them.
@@ -551,7 +560,6 @@ LogConfig::register_config_callbacks()
     "proxy.config.log.rolling_size_mb",
     "proxy.config.log.auto_delete_rolled_files",
     "proxy.config.log.config.filename",
-    "proxy.config.log.hosts_config_file",
     "proxy.config.log.sampling_frequency",
     "proxy.config.log.file_stat_frequency",
     "proxy.config.log.space_used_frequency",
@@ -668,8 +676,9 @@ LogConfig::space_to_write(int64_t bytes_to_write) const
 
   space = ((logical_space_used < config_space) && (physical_space_left > partition_headroom));
 
-  Debug("logspace", "logical space used %" PRId64 ", configured space %" PRId64 ", physical space left %" PRId64
-                    ", partition headroom %" PRId64 ", space %s available",
+  Debug("logspace",
+        "logical space used %" PRId64 ", configured space %" PRId64 ", physical space left %" PRId64 ", partition headroom %" PRId64
+        ", space %s available",
         logical_space_used, config_space, physical_space_left, partition_headroom, space ? "is" : "is not");
 
   return space;
@@ -825,8 +834,9 @@ LogConfig::update_space_used()
              "logfile %s: %s.",
              candidates[victim].name, strerror(errno));
       } else {
-        Debug("logspace", "The rolled logfile, %s, was auto-deleted; "
-                          "%" PRId64 " bytes were reclaimed.",
+        Debug("logspace",
+              "The rolled logfile, %s, was auto-deleted; "
+              "%" PRId64 " bytes were reclaimed.",
               candidates[victim].name, candidates[victim].size);
         m_space_used -= candidates[victim].size;
         m_partition_space_left += candidates[victim].size;
@@ -915,82 +925,22 @@ LogConfig::update_space_used()
 bool
 LogConfig::evaluate_config()
 {
-  BindingInstance binding;
-  ats_scoped_str path(RecConfigReadConfigPath("proxy.config.log.config.filename", "logging.config"));
-
-  if (!binding.construct()) {
-    Fatal("failed to initialize Lua runtime");
+  ats_scoped_str path(RecConfigReadConfigPath("proxy.config.log.config.filename", "logging.yaml"));
+  struct stat sbuf;
+  if (stat(path.get(), &sbuf) == -1 && errno == ENOENT) {
+    Warning("logging configuration '%s' doesn't exist", path.get());
+    return false;
   }
 
-  if (MakeLogBindings(binding, this)) {
-    return binding.require(path.get());
-  }
+  Note("loading logging.yaml");
+  YamlLogConfig y(this);
 
-  return false;
-}
-
-/*-------------------------------------------------------------------------
-  LogConfig::read_log_hosts_file
-
-  This routine will read the log_hosts.config file to build a set of
-  filters for splitting logs based on hostname fields that match the
-  entries in this file.
-  -------------------------------------------------------------------------*/
-
-char **
-LogConfig::read_log_hosts_file(size_t *num_hosts)
-{
-  ats_scoped_str config_path(RecConfigReadConfigPath("proxy.config.log.hosts_config_file", "log_hosts.config"));
-  char line[LOG_MAX_FORMAT_LINE];
-  char **hosts = nullptr;
-
-  Debug("log-config", "Reading log hosts from %s", (const char *)config_path);
-
-  size_t nhosts = 0;
-  int fd        = open(config_path, O_RDONLY);
-  if (fd < 0) {
-    Warning("Traffic Server can't open %s for reading log hosts for splitting: %s.", (const char *)config_path, strerror(errno));
+  bool zret = y.parse(path.get());
+  if (zret) {
+    Note("logging.yaml done reloading!");
   } else {
-    //
-    // First, count the number of hosts in the file
-    //
-    while (ink_file_fd_readline(fd, LOG_MAX_FORMAT_LINE, line) > 0) {
-      //
-      // Ignore blank Lines and lines that begin with a '#'.
-      //
-      if (*line == '\n' || *line == '#') {
-        continue;
-      }
-      ++nhosts;
-    }
-    //
-    // Now read the hosts from the file and set-up the array entries.
-    //
-    if (nhosts) {
-      if (lseek(fd, 0, SEEK_SET) != 0) {
-        Warning("lseek failed on file %s: %s", (const char *)config_path, strerror(errno));
-        nhosts = 0;
-      } else {
-        hosts = new char *[nhosts];
-        ink_assert(hosts != nullptr);
-
-        size_t i = 0;
-        while (ink_file_fd_readline(fd, LOG_MAX_FORMAT_LINE, line) > 0) {
-          //
-          // Ignore blank Lines and lines that begin with a '#'.
-          //
-          if (*line == '\n' || *line == '#') {
-            continue;
-          }
-          LogUtils::strip_trailing_newline(line);
-          hosts[i] = ats_strdup(line);
-          ++i;
-        }
-        ink_assert(i == nhosts);
-      }
-    }
-    close(fd);
+    Note("failed to reload logging.yaml");
   }
-  *num_hosts = nhosts;
-  return hosts;
+
+  return zret;
 }

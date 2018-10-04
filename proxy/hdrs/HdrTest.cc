@@ -32,14 +32,14 @@
 
  ****************************************************************************/
 
-#include "ts/ink_platform.h"
-#include "ts/ink_memory.h"
-#include "ts/ink_time.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_memory.h"
+#include "tscore/ink_time.h"
 
-#include "ts/Arena.h"
+#include "tscore/Arena.h"
 #include "HTTP.h"
 #include "MIME.h"
-#include "ts/Regex.h"
+#include "tscore/Regex.h"
 #include "URL.h"
 #include "HttpCompat.h"
 
@@ -527,7 +527,7 @@ HdrTest::test_mime()
 
   // Test the (new) continuation line folding to be correct. This should replace the
   // \r\n with two spaces (so a total of three between "part1" and "part2").
-  int length;
+  int length               = 0;
   const char *continuation = hdr.value_get("continuation", 12, &length);
 
   if ((13 != length)) {
@@ -1970,7 +1970,9 @@ HdrTest::test_comma_vals()
     {"foo, bar,", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}},
     {"foo, bar, ", 3, {{0, 3}, {5, 3}, {9, 0}, {-1, 0}}},
     {
-      ",foo,bar,", 4, {{0, 0}, {1, 3}, {5, 3}, {9, 0}},
+      ",foo,bar,",
+      4,
+      {{0, 0}, {1, 3}, {5, 3}, {9, 0}},
     },
   };
 
@@ -2194,7 +2196,7 @@ HdrTest::test_parse_comma_list()
   int i, j, failures, ntests, offset;
 
   failures = (offset = 0);
-  ntests = sizeof(tests) / sizeof(tests[0]);
+  ntests   = sizeof(tests) / sizeof(tests[0]);
 
   for (i = 0; i < ntests; i++) {
     StrList list(false);

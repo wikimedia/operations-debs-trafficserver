@@ -28,17 +28,17 @@
  *
  ****************************************************************************/
 
-#ifndef _PARENT_SELECTION_H_
-#define _PARENT_SELECTION_H_
+#pragma once
 
 #include "Main.h"
 #include "ProxyConfig.h"
 #include "ControlBase.h"
 #include "ControlMatcher.h"
-#include "P_RecProcess.h"
-#include "ts/ConsistentHash.h"
-#include "ts/Tokenizer.h"
-#include "ts/ink_apidefs.h"
+#include "records/P_RecProcess.h"
+#include "tscore/ConsistentHash.h"
+#include "tscore/Tokenizer.h"
+#include "tscore/ink_apidefs.h"
+#include "HostStatus.h"
 
 #include <algorithm>
 #include <vector>
@@ -115,33 +115,16 @@ typedef ControlMatcher<ParentRecord, ParentResult> P_table;
 class ParentRecord : public ControlBase
 {
 public:
-  ParentRecord()
-    : parents(NULL),
-      secondary_parents(NULL),
-      num_parents(0),
-      num_secondary_parents(0),
-      ignore_query(false),
-      rr_next(0),
-      go_direct(true),
-      parent_is_proxy(true),
-      selection_strategy(NULL),
-      unavailable_server_retry_responses(NULL),
-      parent_retry(PARENT_RETRY_NONE),
-      max_simple_retries(1),
-      max_unavailable_server_retries(1)
-  {
-  }
-
   ~ParentRecord();
 
-  config_parse_error Init(matcher_line *line_info);
+  Result Init(matcher_line *line_info);
   bool DefaultInit(char *val);
   void UpdateMatch(ParentResult *result, RequestData *rdata);
   void Print();
-  pRecord *parents;
-  pRecord *secondary_parents;
-  int num_parents;
-  int num_secondary_parents;
+  pRecord *parents           = nullptr;
+  pRecord *secondary_parents = nullptr;
+  int num_parents            = 0;
+  int num_secondary_parents  = 0;
 
   bool
   bypass_ok() const
@@ -149,18 +132,20 @@ public:
     return go_direct;
   }
 
-  const char *scheme;
+  const char *scheme = nullptr;
   // private:
+  void PreProcessParents(const char *val, const int line_num, char *buf, size_t len);
   const char *ProcessParents(char *val, bool isPrimary);
-  bool ignore_query;
-  volatile uint32_t rr_next;
-  bool go_direct;
-  bool parent_is_proxy;
-  ParentSelectionStrategy *selection_strategy;
-  UnavailableServerResponseCodes *unavailable_server_retry_responses;
-  ParentRetry_t parent_retry;
-  int max_simple_retries;
-  int max_unavailable_server_retries;
+  bool ignore_query                                                  = false;
+  uint32_t rr_next                                                   = 0;
+  bool go_direct                                                     = true;
+  bool parent_is_proxy                                               = true;
+  ParentSelectionStrategy *selection_strategy                        = nullptr;
+  UnavailableServerResponseCodes *unavailable_server_retry_responses = nullptr;
+  ParentRetry_t parent_retry                                         = PARENT_RETRY_NONE;
+  int max_simple_retries                                             = 1;
+  int max_unavailable_server_retries                                 = 1;
+  int secondary_mode                                                 = 1;
 };
 
 // If the parent was set by the external customer api,
@@ -176,6 +161,8 @@ struct ParentResult {
   const char *hostname;
   int port;
   bool retry;
+  bool chash_init[2]               = {false, false};
+  HostStatus_t first_choice_status = HostStatus_t::HOST_STATUS_INIT;
 
   void
   reset()
@@ -195,7 +182,7 @@ struct ParentResult {
   bool
   is_some() const
   {
-    if (rec == NULL) {
+    if (rec == nullptr) {
       // If we don't have a result, we either haven't done a parent
       // lookup yet (PARENT_UNDEFINED), or the lookup didn't match
       // anything (PARENT_DIRECT).
@@ -276,6 +263,7 @@ private:
   friend class ParentRoundRobin;
   friend class ParentConfigParams;
   friend class ParentRecord;
+  friend class ParentSelectionStrategy;
 };
 
 struct ParentSelectionPolicy {
@@ -290,6 +278,9 @@ struct ParentSelectionPolicy {
 class ParentSelectionStrategy
 {
 public:
+  //
+  // Return the pRecord.
+  virtual pRecord *getParents(ParentResult *result) = 0;
   // void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold, unsigned int
   // retry_time)
   //
@@ -298,24 +289,13 @@ public:
   virtual void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
                             unsigned int retry_time) = 0;
 
-  // void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time)
-  //
-  //    Marks the parent pointed to by result as down
-  //
-  virtual void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time) = 0;
-
   // uint32_t numParents(ParentResult *result);
   //
   // Returns the number of parent records in a strategy.
   //
   virtual uint32_t numParents(ParentResult *result) const = 0;
-
-  // void markParentUp
-  //
-  //    After a successful retry, http calls this function
-  //      to clear the bits indicating the parent is down
-  //
-  virtual void markParentUp(ParentResult *result) = 0;
+  void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
+  void markParentUp(ParentResult *result);
 
   // virtual destructor.
   virtual ~ParentSelectionStrategy(){};
@@ -325,7 +305,7 @@ class ParentConfigParams : public ConfigInfo
 {
 public:
   explicit ParentConfigParams(P_table *_parent_table);
-  ~ParentConfigParams();
+  ~ParentConfigParams() override;
 
   bool apiParentExists(HttpRequestData *rdata);
   void findParent(HttpRequestData *rdata, ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
@@ -337,7 +317,7 @@ public:
   selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold, unsigned int retry_time)
   {
     if (!result->is_api_result()) {
-      ink_release_assert(result->rec->selection_strategy != NULL);
+      ink_release_assert(result->rec->selection_strategy != nullptr);
       return result->rec->selection_strategy->selectParent(firstCall, result, rdata, fail_threshold, retry_time);
     }
   }
@@ -346,8 +326,17 @@ public:
   markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time)
   {
     if (!result->is_api_result()) {
-      ink_release_assert(result->rec->selection_strategy != NULL);
+      ink_release_assert(result->rec->selection_strategy != nullptr);
       result->rec->selection_strategy->markParentDown(result, fail_threshold, retry_time);
+    }
+  }
+
+  void
+  markParentUp(ParentResult *result)
+  {
+    if (!result->is_api_result()) {
+      ink_release_assert(result != nullptr);
+      result->rec->selection_strategy->markParentUp(result);
     }
   }
 
@@ -357,17 +346,8 @@ public:
     if (result->is_api_result()) {
       return 1;
     } else {
-      ink_release_assert(result->rec->selection_strategy != NULL);
+      ink_release_assert(result->rec->selection_strategy != nullptr);
       return result->rec->selection_strategy->numParents(result);
-    }
-  }
-
-  void
-  markParentUp(ParentResult *result)
-  {
-    if (!result->is_api_result()) {
-      ink_release_assert(result != NULL);
-      result->rec->selection_strategy->markParentUp(result);
     }
   }
 
@@ -408,7 +388,7 @@ int parentSelection_CB(const char *name, RecDataT data_type, RecData data, void 
 
 // Unit Test Functions
 void show_result(ParentResult *aParentResult);
-void br(HttpRequestData *h, const char *os_hostname, sockaddr const *dest_ip = NULL); // short for build request
+void br(HttpRequestData *h, const char *os_hostname, sockaddr const *dest_ip = nullptr); // short for build request
 int verify(ParentResult *r, ParentResultType e, const char *h, int p);
 
 /*
@@ -439,5 +419,3 @@ struct SocksServerConfig {
 
   static int m_id;
 };
-
-#endif

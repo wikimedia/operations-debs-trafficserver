@@ -32,9 +32,7 @@ Traffic Server uses the :file:`parent.config` file only when the parent
 caching option is enabled (refer to :ref:`configuring-traffic-server-to-use-a-parent-cache`).
 
 After you modify the :file:`parent.config` file, run the :option:`traffic_ctl config reload`
-command to apply your changes. When you apply the changes to one node in
-a cluster, Traffic Server automatically applies the changes to all other
-nodes in the cluster.
+command to apply your changes.
 
 Format
 ======
@@ -133,11 +131,45 @@ The following list shows the possible actions and their allowed values.
 .. _parent-config-format-secondary-parent:
 
 ``secondary_parent``
-    An optional ordered list of secondary parent servers.  This optional
-    list may only be used when ``round_robin`` is set to ``consistent_hash``.
-    If the request cannot be handled by a parent server from the ``parent``
-    list, then the request will be re-tried from a server found in this list
-    using a consistent hash of the url.
+    An optional ordered list of secondary parent servers.  This
+    optional list may only be used when ``round_robin`` is set to
+    ``consistent_hash``.  If the request cannot be handled by the
+    first parent server chosen from the ``parent`` list, then the
+    request will be re-tried from a server found in this list using a
+    consistent hash of the url. The parent servers in this list will
+    be exhausted before the selection function will revert to trying
+    alternative parents in the ``parent`` list.
+
+``secondary_mode``
+    One of the following values:
+
+    - ``1`` This is the default. The parent selection will first
+      attempt to choose a parent from the ``parent`` list. If the
+      chosen parent is not available or marked down then another
+      parent will be chosen from the ``secondary_parent`` list.
+      Choices in the ``secondary_parent`` list will be exhausted
+      before attempting to choose another parent from the ``parent``
+      list.
+
+    - ``2`` The parent selection will first attempt to choose a parent
+      from the ``parent`` list. If the chosen parent is not available
+      or marked down then another parent will be chosen from the
+      ``parent`` list.  Choices in the ``parent`` list will be
+      exhausted before attempting to choose another parent from the
+      ``secondary_parent`` list.
+
+    - ``3`` The parent selection will first attempt to choose a parent
+      from the ``parent`` list.
+
+      - If the chosen parent is marked down then another parent will
+        be chosen from the ``secondary_parent`` list. The
+        ``secondary_parent`` list will be exhausted before attempting
+        to choose another parent in the ``parent`` list.
+
+      - If the chosen parent is unavailable but not marked down then
+        another parent will be chosen from the ``parent`` list. The
+        ``parent`` list will be exhausted before attempting to choose
+        another parent in the ``secondary_parent`` list.
 
 .. _parent-config-format-parent-is-proxy:
 
@@ -154,9 +186,6 @@ The following list shows the possible actions and their allowed values.
 .. _parent-config-format-parent-retry:
 
 ``parent_retry``
-  If ``parent_is_proxy`` is false, then you may configure ``parent_retry`` for one
-  of the following values:
-
     - ``simple_retry`` - If the parent origin server returns a 404 response on a request
       a new parent is selected and the request is retried.  The number of retries is controlled
       by ``max_simple_retries`` which is set to 1 by default.
@@ -169,7 +198,7 @@ The following list shows the possible actions and their allowed values.
 .. _parent-config-format-unavailable-server-retry-responses:
 
 ``unavailable_server_retry_responses``
-  If ``parent_is_proxy`` is false and ``parent_retry`` is set to either ``unavailable_server_retry`` or
+  If ``parent_retry`` is set to either ``unavailable_server_retry`` or
   ``both``, this parameter is a comma separated list of http 5xx response codes that will invoke the
   ``unavailable_server_retry`` described in the ``parent_retry`` section.  By default, ``unavailable_server_retry_responses``
   is set to 503.
@@ -178,7 +207,7 @@ The following list shows the possible actions and their allowed values.
 
 ``max_simple_retries``
   By default the value for ``max_simple_retries`` is 1.  It may be set to any value in the range 1 to 5.
-  If ``parent_is_proxy`` is false and ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 reponse
+  If ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 reponse
   from a parent origin server will cause the request to be retried using a new parent at most 1 to 5
   times as configured by ``max_simple_retries``.
 
@@ -186,7 +215,7 @@ The following list shows the possible actions and their allowed values.
 
 ``max_unavailable_server_retries``
   By default the value for ``max_unavailable_server_retries`` is 1.  It may be set to any value in the range 1 to 5.
-  If ``parent_is_proxy`` is false and ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 reponse
+  If ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 reponse
   by default or any http 5xx response listed in the list ``unavailable_server_retry_responses`` from a parent origin server will
   cause the request to be retried using a new parent after first marking the current parent down.  The request
   will be retried at most 1 to 5 times as configured by ``max_unavailable_server_retries``.

@@ -22,15 +22,15 @@
  */
 
 #include <cstdio>
-#include "ts/ink_platform.h"
-#include "ts/ink_file.h"
-#include "ts/ParseRules.h"
-#include "I_RecCore.h"
-#include "ts/I_Layout.h"
+#include "tscore/ink_platform.h"
+#include "tscore/ink_file.h"
+#include "tscore/ParseRules.h"
+#include "records/I_RecCore.h"
+#include "tscore/I_Layout.h"
 #include "InkAPIInternal.h"
 #include "Main.h"
 #include "Plugin.h"
-#include "ts/ink_cap.h"
+#include "tscore/ink_cap.h"
 
 #define MAX_PLUGIN_ARGS 64
 
@@ -299,8 +299,12 @@ plugin_init(bool validateOnly)
         argv[i] = vars[i];
       }
     }
-    argv[argc] = nullptr;
 
+    if (argc < MAX_PLUGIN_ARGS) {
+      argv[argc] = nullptr;
+    } else {
+      argv[MAX_PLUGIN_ARGS - 1] = nullptr;
+    }
     retVal = plugin_load(argc, argv, validateOnly);
 
     for (i = 0; i < argc; i++) {

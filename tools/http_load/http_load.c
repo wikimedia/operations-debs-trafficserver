@@ -25,7 +25,7 @@
 ** SUCH DAMAGE.
 */
 
-#include "ts/ink_config.h"
+#include "tscore/ink_config.h"
 
 #include <sys/epoll.h>
 #include <unistd.h>
@@ -484,7 +484,7 @@ main(int argc, char **argv)
   /* Initialize the connections table. */
   if (start == START_PARALLEL)
     max_connections = start_parallel;
-  connections       = (connection *)malloc_check(max_connections * sizeof(connection));
+  connections = (connection *)malloc_check(max_connections * sizeof(connection));
   for (cnum = 0; cnum < max_connections; ++cnum) {
     connections[cnum].conn_state        = CNST_FREE;
     connections[cnum].reusable          = 0;
@@ -495,7 +495,7 @@ main(int argc, char **argv)
   num_connections = max_parallel = num_ka_conns = 0;
 
   /* Initialize the HTTP status-code histogram. */
-  for (i                  = 0; i < 1000; ++i)
+  for (i = 0; i < 1000; ++i)
     http_status_counts[i] = 0;
 
   /* Initialize the statistics. */
@@ -606,11 +606,12 @@ main(int argc, char **argv)
 static void
 usage(void)
 {
-  (void)fprintf(stderr, "usage:	%s [-checksum] [-throttle] [-sequential] [-proxy host:port]\n"
-                        "		[-verbose] [-timeout secs] [-sip sip_file] [-agent user_agent]\n"
-                        "		[-cookie http_cookie] [-accept_gzip] [-http_version version_str]\n"
-                        "		[-keep_alive num_reqs_per_conn] [-unique_id]\n"
-                        "		[-max_connect_failures N] [-ignore_bytes] [ [-header str] ... ]\n",
+  (void)fprintf(stderr,
+                "usage:	%s [-checksum] [-throttle] [-sequential] [-proxy host:port]\n"
+                "		[-verbose] [-timeout secs] [-sip sip_file] [-agent user_agent]\n"
+                "		[-cookie http_cookie] [-accept_gzip] [-http_version version_str]\n"
+                "		[-keep_alive num_reqs_per_conn] [-unique_id]\n"
+                "		[-max_connect_failures N] [-ignore_bytes] [ [-header str] ... ]\n",
                 argv0);
   (void)fprintf(stderr, "	[-cipher str]\n");
   (void)fprintf(stderr, "	-parallel N | -rate N [-jitter]\n");
@@ -929,7 +930,7 @@ start_connection(struct timeval *nowP)
         cycle_slot = 0;
       if (prev_cycle_slot == cycle_slot) {
         return;
-#if 0        
+#if 0
         /* Unused right now, not sure why */
         printf("Warning: cycling through all socket slots\n");
         tmr_run(nowP);
@@ -1179,7 +1180,7 @@ handle_connect(int cnum, struct timeval *nowP, int double_check)
     if (!RAND_status()) {
       unsigned char bytes[1024];
       for (size_t i = 0; i < sizeof(bytes); ++i)
-        bytes[i]    = random() % 0xff;
+        bytes[i] = random() % 0xff;
       RAND_seed(bytes, sizeof(bytes));
     }
     flags = fcntl(connections[cnum].conn_fd, F_GETFL, 0);

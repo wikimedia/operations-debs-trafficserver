@@ -21,14 +21,13 @@
   limitations under the License.
  */
 
-#ifndef __P_SOCKS_H__
-#define __P_SOCKS_H__
+#pragma once
 #include "P_EventSystem.h"
 #include "I_Socks.h"
 
 #ifdef SOCKS_WITH_TS
 #include "ParentSelection.h"
-#include <ts/IpMap.h>
+#include "tscore/IpMap.h"
 #endif
 
 enum {
@@ -108,31 +107,31 @@ class UnixNetVConnection;
 typedef UnixNetVConnection SocksNetVC;
 
 struct SocksEntry : public Continuation {
-  MIOBuffer *buf;
-  IOBufferReader *reader;
+  MIOBuffer *buf         = nullptr;
+  IOBufferReader *reader = nullptr;
 
-  SocksNetVC *netVConnection;
+  SocksNetVC *netVConnection = nullptr;
 
   // Changed from @a ip and @a port.
   IpEndpoint target_addr; ///< Original target address.
   // Changed from @a server_ip, @a server_port.
   IpEndpoint server_addr; ///< Origin server address.
 
-  int nattempts;
+  int nattempts = 0;
 
   Action action_;
-  int lerrno;
-  Event *timeout;
-  unsigned char version;
+  int lerrno            = 0;
+  Event *timeout        = nullptr;
+  unsigned char version = 5;
 
-  bool write_done;
+  bool write_done = false;
 
-  SocksAuthHandler auth_handler;
-  unsigned char socks_cmd;
+  SocksAuthHandler auth_handler = nullptr;
+  unsigned char socks_cmd       = NORMAL_SOCKS;
 
 #ifdef SOCKS_WITH_TS
   // socks server selection:
-  ParentConfigParams *server_params;
+  ParentConfigParams *server_params = nullptr;
   HttpRequestData req_data; // We dont use any http specific fields.
   ParentResult server_result;
 #endif
@@ -144,15 +143,6 @@ struct SocksEntry : public Continuation {
   void free();
 
   SocksEntry()
-    : Continuation(nullptr),
-      netVConnection(0),
-      nattempts(0),
-      lerrno(0),
-      timeout(0),
-      version(5),
-      write_done(false),
-      auth_handler(nullptr),
-      socks_cmd(NORMAL_SOCKS)
   {
     memset(&target_addr, 0, sizeof(target_addr));
     memset(&server_addr, 0, sizeof(server_addr));
@@ -170,8 +160,6 @@ SocksAddrType::reset()
     ats_free(addr.buf);
   }
 
-  addr.buf = 0;
+  addr.buf = nullptr;
   type     = SOCKS_ATYPE_NONE;
 }
-
-#endif

@@ -21,10 +21,11 @@
  *  limitations under the License.
  */
 
-#ifndef P_REFCOUNTCACHESERIALIZER_H_07545391_276D_4BD3_B0DD_EF6B0007071D
-#define P_REFCOUNTCACHESERIALIZER_H_07545391_276D_4BD3_B0DD_EF6B0007071D
+#pragma once
 
 #include "P_RefCountCache.h"
+
+#include <vector>
 
 // This continuation is responsible for persisting RefCountCache to disk
 // To avoid locking the partitions for a long time we'll do the following per-partition:
@@ -59,7 +60,7 @@ public:
   ~RefCountCacheSerializer();
 
 private:
-  Vec<RefCountCacheHashEntry *> partition_items;
+  std::vector<RefCountCacheHashEntry *> partition_items;
 
   int fd; // fd for the file we are writing to
 
@@ -107,7 +108,7 @@ template <class C> RefCountCacheSerializer<C>::~RefCountCacheSerializer()
     socketManager.close(fd);
   }
 
-  forv_Vec (RefCountCacheHashEntry, entry, this->partition_items) {
+  for (auto &entry : this->partition_items) {
     RefCountCacheHashEntry::free<C>(entry);
   }
   this->partition_items.clear();
@@ -116,7 +117,7 @@ template <class C> RefCountCacheSerializer<C>::~RefCountCacheSerializer()
 
   // Note that we have to do the unlink before we send the completion event, otherwise
   // we could unlink the sync file out from under another serializer.
-  cont->handleEvent(REFCOUNT_CACHE_EVENT_SYNC, 0);
+  cont->handleEvent(REFCOUNT_CACHE_EVENT_SYNC, nullptr);
 }
 
 template <class C>
@@ -157,7 +158,7 @@ RefCountCacheSerializer<C>::write_partition(int /* event */, Event *e)
   // for item in this->partitionItems
   // write to disk with headers per item
 
-  for (unsigned int i = 0; i < this->partition_items.length(); i++) {
+  for (unsigned int i = 0; i < this->partition_items.size(); i++) {
     RefCountCacheHashEntry *entry = this->partition_items[i];
 
     // check if the item has expired, if so don't persist it to disk
@@ -186,7 +187,7 @@ RefCountCacheSerializer<C>::write_partition(int /* event */, Event *e)
   }
 
   // Clear the copied partition for the next round.
-  forv_Vec (RefCountCacheHashEntry, entry, this->partition_items) {
+  for (auto &entry : this->partition_items) {
     RefCountCacheHashEntry::free<C>(entry);
   }
   this->partition_items.clear();
@@ -320,5 +321,3 @@ RefCountCacheSerializer<C>::write_to_disk(const void *ptr, size_t n_bytes)
   }
   return 0;
 }
-
-#endif /* P_REFCOUNTCACHESERIALIZER_H_07545391_276D_4BD3_B0DD_EF6B0007071D */

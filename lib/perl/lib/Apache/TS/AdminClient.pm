@@ -30,27 +30,27 @@ use Apache::TS;
 
 # Mgmt API command constants, should track ts/mgmtapi.h
 use constant {
-    TS_FILE_READ            => 0,
-    TS_FILE_WRITE           => 1,
-    TS_RECORD_SET           => 2,
-    TS_RECORD_GET           => 3,
-    TS_PROXY_STATE_GET      => 4,
-    TS_PROXY_STATE_SET      => 5,
-    TS_RECONFIGURE          => 6,
-    TS_RESTART              => 7,
-    TS_BOUNCE               => 8,
-    TS_EVENT_RESOLVE        => 9,
-    TS_EVENT_GET_MLT        => 10,
-    TS_EVENT_ACTIVE         => 11,
-    TS_EVENT_REG_CALLBACK   => 12,
-    TS_EVENT_UNREG_CALLBACK => 13,
-    TS_EVENT_NOTIFY         => 14,
-    TS_SNAPSHOT_TAKE        => 15,
-    TS_SNAPSHOT_RESTORE     => 16,
-    TS_SNAPSHOT_REMOVE      => 17,
-    TS_SNAPSHOT_GET_MLT     => 18,
-    TS_DIAGS                => 19,
-    TS_STATS_RESET          => 20
+    TS_RECORD_SET                 => 0,
+    TS_RECORD_GET                 => 1,
+    TS_PROXY_STATE_GET            => 2,
+    TS_PROXY_STATE_SET            => 3,
+    TS_RECONFIGURE                => 4,
+    TS_RESTART                    => 5,
+    TS_BOUNCE                     => 6,
+    TS_EVENT_RESOLVE              => 7,
+    TS_EVENT_GET_MLT              => 8,
+    TS_EVENT_ACTIVE               => 9,
+    TS_EVENT_REG_CALLBACK         => 10,
+    TS_EVENT_UNREG_CALLBACK       => 11,
+    TS_EVENT_NOTIFY               => 12,
+    TS_STATS_RESET_NODE           => 13,
+    TS_STORAGE_DEVICE_CMD_OFFLINE => 14,
+    TS_RECORD_MATCH_GET           => 15,
+    TS_API_PING                   => 16,
+    TS_SERVER_BACKTRACE           => 17,
+    TS_RECORD_DESCRIBE_CONFIG     => 18,
+    TS_LIFECYCLE_MESSAGE          => 19,
+    TS_UNDEFINED_OP               => 20
 };
 
 use constant {
@@ -254,7 +254,7 @@ sub get_stat {
 
 __END__
 
-#-=-=-=-=-=-=-=-= Give us some POD please =-=-=-=-=-=-=-=- 
+#-=-=-=-=-=-=-=-= Give us some POD please =-=-=-=-=-=-=-=-
 
 =head1 NAME:
 
@@ -272,17 +272,17 @@ Apache::TS::AdminClient - a perl interface to the statistics and configuration s
 
 =head1 DESCRIPTION:
 
-AdminClient opens a TCP connection to a unix domain socket on local disk.  When the connection is established, 
-AdminClient will write requests to the socket and wait for Apache Traffic Server to return a response.  Valid 
-request strings can be found in RecordsConfig.cc which is included with Apache Traffic Server source.  
+AdminClient opens a TCP connection to a unix domain socket on local disk.  When the connection is established,
+AdminClient will write requests to the socket and wait for Apache Traffic Server to return a response.  Valid
+request strings can be found in RecordsConfig.cc which is included with Apache Traffic Server source.
 A list of valid request strings are included with this documentation, but this included list may not be complete
-as future releases of Apache Traffic Server may include new request strings or remove existing ones.  
+as future releases of Apache Traffic Server may include new request strings or remove existing ones.
 
 =head1 CONSTRUCTOR
 
 When the object is created for this module, it assumes the 'Unix Domain Socket' is at the default location from
 the Apache Traffic Server installation. This can be changed when creating the object by setting B<'socket_path'>.
-For example: 
+For example:
 
 =over 4
 
@@ -310,8 +310,8 @@ This will return a (scalar) value for this metric or configuration.
 
 =head1 traffic_ctl
 
-There is a command line tool included with Apache Traffic Server called traffic_ctl which overlaps with this module.  traffic_ctl 
-can be used to read and write statistics or config settings that this module can.  Hence if you don't want to write a perl one-liner to 
+There is a command line tool included with Apache Traffic Server called traffic_ctl which overlaps with this module.  traffic_ctl
+can be used to read and write statistics or config settings that this module can.  Hence if you don't want to write a perl one-liner to
 get to this information, traffic_ctl is your tool.
 
 =head1 List of configurations
@@ -333,6 +333,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.bin_path
  proxy.config.body_factory.enable_customizations
  proxy.config.body_factory.enable_logging
+ proxy.config.body_factory.response_max_size
  proxy.config.body_factory.response_suppression_mode
  proxy.config.body_factory.template_sets_dir
  proxy.config.cache.agg_write_backlog
@@ -357,34 +358,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.cache.storage_filename
  proxy.config.cache.threads_per_disk
  proxy.config.cache.mutex_retry_delay
- proxy.config.cluster.cluster_configuration
- proxy.config.cluster.cluster_load_clear_duration
- proxy.config.cluster.cluster_load_exceed_duration
- proxy.config.cluster.cluster_port
- proxy.config.cluster.delta_thresh
- proxy.config.cluster.enable_monitor
- proxy.config.cluster.ethernet_interface
- proxy.config.cluster.load_compute_interval_msecs
- proxy.config.cluster.load_monitor_enabled
- proxy.config.cluster.log_bogus_mc_msgs
- proxy.config.cluster.mc_group_addr
- proxy.config.cluster.mcport
- proxy.config.cluster.mc_ttl
- proxy.config.cluster.monitor_interval_secs
- proxy.config.cluster.msecs_per_ping_response_bucket
- proxy.config.cluster.peer_timeout
- proxy.config.cluster.periodic_timer_interval_msecs
- proxy.config.cluster.ping_history_buf_length
- proxy.config.cluster.ping_latency_threshold_msecs
- proxy.config.cluster.ping_response_buckets
- proxy.config.cluster.ping_send_interval_msecs
- proxy.config.cluster.receive_buffer_size
- proxy.config.cluster.rpc_cache_cluster
- proxy.config.cluster.rsport
- proxy.config.cluster.send_buffer_size
- proxy.config.cluster.sock_option_flag
- proxy.config.cluster.startup_timeout
- proxy.config.cluster.threads
  proxy.config.config_dir
  proxy.config.cop.core_signal
  proxy.config.cop.linux_min_memfree_kb
@@ -422,8 +395,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.exec_thread.limit
  proxy.config.header.parse.no_host_url_redirect
  proxy.config.hostdb
- proxy.config.hostdb.cluster
- proxy.config.hostdb.cluster.round_robin
  proxy.config.hostdb.fail.timeout
  proxy.config.hostdb.filename
  proxy.config.hostdb.lookup_timeout
@@ -451,9 +422,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.cache.cache_responses_to_cookies
  proxy.config.http.cache.cache_urls_that_look_dynamic
  proxy.config.http.cache.enable_default_vary_headers
- proxy.config.http.cache.fuzz.min_time
- proxy.config.http.cache.fuzz.probability
- proxy.config.http.cache.fuzz.time
  proxy.config.http.cache.guaranteed_max_lifetime
  proxy.config.http.cache.guaranteed_min_lifetime
  proxy.config.http.cache.heuristic_lm_factor
@@ -466,7 +434,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.cache.ignore_accept_mismatch
  proxy.config.http.cache.ignore_authentication
  proxy.config.http.cache.ignore_client_cc_max_age
- proxy.config.http.cache.cluster_cache_local
  proxy.config.http.cache.ignore_client_no_cache
  proxy.config.http.cache.ignore_server_no_cache
  proxy.config.http.cache.ims_on_client_no_cache
@@ -482,21 +449,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.cache.vary_default_text
  proxy.config.http.cache.when_to_revalidate
  proxy.config.http.chunking_enabled
- proxy.config.http.congestion_control.default.client_wait_interval
- proxy.config.http.congestion_control.default.congestion_scheme
- proxy.config.http.congestion_control.default.dead_os_conn_retries
- proxy.config.http.congestion_control.default.dead_os_conn_timeout
- proxy.config.http.congestion_control.default.error_page
- proxy.config.http.congestion_control.default.fail_window
- proxy.config.http.congestion_control.default.live_os_conn_retries
- proxy.config.http.congestion_control.default.live_os_conn_timeout
- proxy.config.http.congestion_control.default.max_connection
- proxy.config.http.congestion_control.default.max_connection_failures
- proxy.config.http.congestion_control.default.proxy_retry_interval
- proxy.config.http.congestion_control.default.wait_interval_alpha
- proxy.config.http.congestion_control.enabled
- proxy.config.http.congestion_control.filename
- proxy.config.http.congestion_control.localtime
  proxy.config.http.connect_attempts_max_retries
  proxy.config.http.connect_attempts_max_retries_dead_server
  proxy.config.http.connect_attempts_rr_retries
@@ -523,6 +475,7 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.keep_alive_no_activity_timeout_out
  proxy.config.http.keep_alive_post_out
  proxy.config.http.negative_caching_enabled
+ proxy.config.http.negative_caching_list
  proxy.config.http.negative_caching_lifetime
  proxy.config.http.negative_revalidating_enabled
  proxy.config.http.negative_revalidating_lifetime
@@ -545,7 +498,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.push_method_enabled
  proxy.config.http.quick_filter.mask
  proxy.config.http.record_heartbeat
- proxy.config.http.redirection_enabled
  proxy.config.http.referer_default_redirect
  proxy.config.http.referer_filter
  proxy.config.http.referer_format_redirect
@@ -566,16 +518,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.http.transaction_no_activity_timeout_out
  proxy.config.http_ui_enabled
  proxy.config.http.uncacheable_requests_bypass_parent
- proxy.config.icp.default_reply_port
- proxy.config.icp.enabled
- proxy.config.icp.icp_configuration
- proxy.config.icp.icp_interface
- proxy.config.icp.icp_port
- proxy.config.icp.lookup_local
- proxy.config.icp.multicast_enabled
- proxy.config.icp.query_timeout
- proxy.config.icp.reply_to_unknown_peer
- proxy.config.icp.stale_icp_enabled
  proxy.config.io.max_buffer_size
  proxy.config.lm.pserver_timeout_msecs
  proxy.config.lm.pserver_timeout_secs
@@ -590,7 +532,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.log.collation_secret
  proxy.config.log.file_stat_frequency
  proxy.config.log.hostname
- proxy.config.log.hosts_config_file
  proxy.config.log.log_buffer_size
  proxy.config.log.logfile_dir
  proxy.config.log.logfile_perm
@@ -634,7 +575,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.res_track_memory
  proxy.config.reverse_proxy.enabled
  proxy.config.reverse_proxy.oldasxbehavior
- proxy.config.snapshot_dir
  proxy.config.socks.accept_enabled
  proxy.config.socks.accept_port
  proxy.config.socks.connection_attempts
@@ -682,9 +622,6 @@ The Apache Traffic Server Administration Manual will explain what these strings 
  proxy.config.url_remap.filename
  proxy.config.url_remap.pristine_host_hdr
  proxy.config.url_remap.remap_required
- proxy.config.vmap.addr_file
- proxy.config.vmap.down_up_timeout
- proxy.config.vmap.enabled
 
 =head1 LICENSE
 
@@ -707,4 +644,4 @@ The Apache Traffic Server Administration Manual will explain what these strings 
 
 =cut
 
-#-=-=-=-=-=-=-=-= No more POD for you =-=-=-=-=-=-=-=- 
+#-=-=-=-=-=-=-=-= No more POD for you =-=-=-=-=-=-=-=-

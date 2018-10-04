@@ -30,13 +30,12 @@
 
  ****************************************************************************/
 
-#ifndef _HDR_HEAP_H_
-#define _HDR_HEAP_H_
+#pragma once
 
-#include "ts/Ptr.h"
-#include "ts/ink_defs.h"
-#include "ts/ink_assert.h"
-#include "ts/Arena.h"
+#include "tscore/Ptr.h"
+#include "tscore/ink_defs.h"
+#include "tscore/ink_assert.h"
+#include "tscore/Arena.h"
 #include "HdrToken.h"
 
 // Objects in the heap must currently be aligned to 8 byte boundaries,
@@ -141,7 +140,7 @@ enum {
 class HdrStrHeap : public RefCountObj
 {
 public:
-  virtual void free();
+  void free() override;
 
   char *allocate(int nbytes);
   char *expand(char *ptr, int old_size, int new_size);
@@ -221,14 +220,14 @@ public:
     // The move is necessary because the rest of the code assumes
     // heaps are always allocated in order.
     for (int j = 0; j < i; j++) {
-      if (m_ronly_heap[j].m_heap_start == NULL) {
+      if (m_ronly_heap[j].m_heap_start == nullptr) {
         // move slot i to slot j
         m_ronly_heap[j].m_ref_count_ptr = m_ronly_heap[i].m_ref_count_ptr;
         m_ronly_heap[j].m_heap_start    = m_ronly_heap[i].m_heap_start;
         m_ronly_heap[j].m_heap_len      = m_ronly_heap[i].m_heap_len;
         m_ronly_heap[j].m_locked        = m_ronly_heap[i].m_locked;
-        m_ronly_heap[i].m_ref_count_ptr = NULL;
-        m_ronly_heap[i].m_heap_start    = NULL;
+        m_ronly_heap[i].m_ref_count_ptr = nullptr;
+        m_ronly_heap[i].m_heap_start    = nullptr;
         m_ronly_heap[i].m_heap_len      = 0;
         m_ronly_heap[i].m_locked        = false;
       }
@@ -280,9 +279,9 @@ public:
       if (heap->m_read_write_heap && heap->m_read_write_heap->contains(str)) {
         m_ptr = heap->m_read_write_heap.get();
       } else {
-        for (int i = 0; i < HDR_BUF_RONLY_HEAPS; ++i) {
-          if (heap->m_ronly_heap[i].contains(str)) {
-            m_ptr = heap->m_ronly_heap[i].m_ref_count_ptr;
+        for (auto &i : heap->m_ronly_heap) {
+          if (i.contains(str)) {
+            m_ptr = i.m_ref_count_ptr;
             break;
           }
         }
@@ -434,7 +433,7 @@ struct HeapCheck {
 //
 struct HdrHeapSDKHandle {
 public:
-  HdrHeapSDKHandle() : m_heap(NULL) {}
+  HdrHeapSDKHandle() : m_heap(nullptr) {}
   ~HdrHeapSDKHandle() { clear(); }
   // clear() only deallocates chained SDK return values
   //   The underlying MBuffer is left untouched
@@ -449,11 +448,10 @@ public:
 
   HdrHeap *m_heap;
 
-private:
   // In order to prevent gratitous refcounting,
   //  automatic C++ copies are disabled!
-  HdrHeapSDKHandle(const HdrHeapSDKHandle &r);
-  HdrHeapSDKHandle &operator=(const HdrHeapSDKHandle &r);
+  HdrHeapSDKHandle(const HdrHeapSDKHandle &r) = delete;
+  HdrHeapSDKHandle &operator=(const HdrHeapSDKHandle &r) = delete;
 };
 
 inline void
@@ -468,7 +466,7 @@ HdrHeapSDKHandle::destroy()
 inline void
 HdrHeapSDKHandle::clear()
 {
-  m_heap = NULL;
+  m_heap = nullptr;
 }
 
 inline void
@@ -478,7 +476,7 @@ HdrHeapSDKHandle::set(const HdrHeapSDKHandle *from)
   m_heap = from->m_heap;
 }
 
+HdrStrHeap *new_HdrStrHeap(int requested_size);
 inkcoreapi HdrHeap *new_HdrHeap(int size = HDR_HEAP_DEFAULT_SIZE);
 
 void hdr_heap_test();
-#endif

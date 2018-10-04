@@ -45,16 +45,12 @@
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-LogAccessTest::LogAccessTest()
-{
-}
+LogAccessTest::LogAccessTest() {}
 
 /*-------------------------------------------------------------------------
   -------------------------------------------------------------------------*/
 
-LogAccessTest::~LogAccessTest()
-{
-}
+LogAccessTest::~LogAccessTest() {}
 
 /*-------------------------------------------------------------------------
   The marshalling routines ...
@@ -185,6 +181,20 @@ int
 LogAccessTest::marshal_proxy_resp_content_type(char *buf)
 {
   static char const *str = "text/html";
+  int len                = LogAccess::strlen(str);
+  if (buf) {
+    marshal_str(buf, str, len);
+  }
+  return len;
+}
+
+/*-------------------------------------------------------------------------
+  -------------------------------------------------------------------------*/
+
+int
+LogAccessTest::marshal_proxy_resp_reason_phrase(char *buf)
+{
+  static char const *str = "Unknown reason";
   int len                = LogAccess::strlen(str);
   if (buf) {
     marshal_str(buf, str, len);

@@ -30,12 +30,11 @@
 
  ****************************************************************************/
 
-#ifndef _HTTP_SESSION_MANAGER_H_
-#define _HTTP_SESSION_MANAGER_H_
+#pragma once
 
 #include "P_EventSystem.h"
 #include "HttpServerSession.h"
-#include <ts/Map.h>
+#include "tscore/Map.h"
 
 class ProxyClientTransaction;
 class HttpSM;
@@ -95,7 +94,7 @@ protected:
   /// Interface class for FQDN map.
   struct HostHashing {
     typedef uint64_t ID;
-    typedef INK_MD5 const &Key;
+    typedef CryptoHash const &Key;
     typedef HttpServerSession Value;
     typedef DList(HttpServerSession, host_hash_link) ListHead;
 
@@ -122,7 +121,7 @@ protected:
 public:
   /** Check if a session matches address and host name.
    */
-  static bool match(HttpServerSession *ss, sockaddr const *addr, INK_MD5 const &host_hash,
+  static bool match(HttpServerSession *ss, sockaddr const *addr, CryptoHash const &host_hash,
                     TSServerSessionSharingMatchType match_style);
 
   /** Get a session from the pool.
@@ -132,7 +131,7 @@ public:
 
       @return A pointer to the session or @c NULL if not matching session was found.
   */
-  HSMresult_t acquireSession(sockaddr const *addr, INK_MD5 const &host_hash, TSServerSessionSharingMatchType match_style,
+  HSMresult_t acquireSession(sockaddr const *addr, CryptoHash const &host_hash, TSServerSessionSharingMatchType match_style,
                              HttpSM *sm, HttpServerSession *&server_session);
   /** Release a session to to pool.
    */
@@ -150,9 +149,9 @@ public:
 class HttpSessionManager
 {
 public:
-  HttpSessionManager() : m_g_pool(NULL) {}
+  HttpSessionManager() : m_g_pool(nullptr) {}
   ~HttpSessionManager() {}
-  HSMresult_t acquire_session(Continuation *cont, sockaddr const *addr, const char *hostname, ProxyClientTransaction *ua_session,
+  HSMresult_t acquire_session(Continuation *cont, sockaddr const *addr, const char *hostname, ProxyClientTransaction *ua_txn,
                               HttpSM *sm);
   HSMresult_t release_session(HttpServerSession *to_release);
   void purge_keepalives();
@@ -166,5 +165,3 @@ private:
 };
 
 extern HttpSessionManager httpSessionManager;
-
-#endif

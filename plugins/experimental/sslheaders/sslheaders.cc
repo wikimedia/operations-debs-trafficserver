@@ -17,7 +17,7 @@
  */
 
 #include "sslheaders.h"
-#include "ts/ink_memory.h"
+#include "tscore/ink_memory.h"
 
 #include <getopt.h>
 #include <openssl/ssl.h>
@@ -32,11 +32,11 @@ SslHdrExpandRequestHook(TSCont cont, TSEvent event, void *edata)
   TSHttpTxn txn;
   TSMBuffer mbuf;
   TSMLoc mhdr;
-  SSL *ssl;
 
-  txn = (TSHttpTxn)edata;
-  hdr = (const SslHdrInstance *)TSContDataGet(cont);
-  ssl = (SSL *)TSHttpSsnSSLConnectionGet(TSHttpTxnSsnGet(txn));
+  txn                 = (TSHttpTxn)edata;
+  hdr                 = (const SslHdrInstance *)TSContDataGet(cont);
+  TSVConn vconn       = TSHttpSsnClientVConnGet(TSHttpTxnSsnGet(txn));
+  TSSslConnection ssl = TSVConnSSLConnectionGet(vconn);
 
   switch (event) {
   case TS_EVENT_HTTP_READ_REQUEST_HDR:
@@ -61,7 +61,7 @@ SslHdrExpandRequestHook(TSCont cont, TSEvent event, void *edata)
     goto done;
   }
 
-  SslHdrExpand(ssl, hdr->expansions, mbuf, mhdr);
+  SslHdrExpand((SSL *)ssl, hdr->expansions, mbuf, mhdr);
   TSHandleMLocRelease(mbuf, TS_NULL_MLOC, mhdr);
 
 done:
@@ -124,14 +124,14 @@ SslHdrExpand(SSL *ssl, const SslHdrInstance::expansion_list &expansions, TSMBuff
 {
   if (ssl == nullptr) {
     for (const auto &expansion : expansions) {
-      SslHdrRemoveHeader(mbuf, mhdr, expansion.name);
+      SslHdrRemoveHeader(mbuf, mhdr, expansion->name);
     }
   } else {
     X509 *x509;
     BIO *exp = BIO_new(BIO_s_mem());
 
     for (const auto &expansion : expansions) {
-      switch (expansion.scope) {
+      switch (expansion->scope) {
       case SSL_HEADERS_SCOPE_CLIENT:
         x509 = SSL_get_peer_certificate(ssl);
         break;
@@ -146,15 +146,15 @@ SslHdrExpand(SSL *ssl, const SslHdrInstance::expansion_list &expansions, TSMBuff
         continue;
       }
 
-      SslHdrExpandX509Field(exp, x509, expansion.field);
+      SslHdrExpandX509Field(exp, x509, expansion->field);
       if (BIO_pending(exp)) {
-        SslHdrSetHeader(mbuf, mhdr, expansion.name, exp);
+        SslHdrSetHeader(mbuf, mhdr, expansion->name, exp);
       } else {
-        SslHdrRemoveHeader(mbuf, mhdr, expansion.name);
+        SslHdrRemoveHeader(mbuf, mhdr, expansion->name);
       }
 
       // Getting the peer certificate takes a reference count, but the server certificate doesn't.
-      if (x509 && expansion.scope == SSL_HEADERS_SCOPE_CLIENT) {
+      if (x509 && expansion->scope == SSL_HEADERS_SCOPE_CLIENT) {
         X509_free(x509);
       }
     }
@@ -167,7 +167,8 @@ static SslHdrInstance *
 SslHdrParseOptions(int argc, const char **argv)
 {
   static const struct option longopt[] = {
-    {const_cast<char *>("attach"), required_argument, nullptr, 'a'}, {nullptr, 0, nullptr, 0},
+    {const_cast<char *>("attach"), required_argument, nullptr, 'a'},
+    {nullptr, 0, nullptr, 0},
   };
 
   ats_scoped_obj<SslHdrInstance> hdr(new SslHdrInstance());
@@ -205,7 +206,7 @@ SslHdrParseOptions(int argc, const char **argv)
       return nullptr;
     }
 
-    hdr->expansions.push_back(exp);
+    hdr->expansions.push_back(&exp);
   }
 
   return hdr.release();

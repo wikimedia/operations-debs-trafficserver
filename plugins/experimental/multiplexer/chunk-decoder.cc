@@ -1,6 +1,6 @@
 /** @file
 
-  Multiplexes request to other origins.
+  Chunk decoding.
 
   @section license License
 
@@ -51,7 +51,6 @@ ChunkDecoder::parseSize(const char *p, const int64_t s)
   while (state_ != State::kData && *p != '\0' && length < s) {
     assert(state_ < State::kUpperBound); // VALID RANGE
     switch (state_) {
-    case State::kUnknown:
     case State::kData:
     case State::kInvalid:
     case State::kEnd:
@@ -108,7 +107,9 @@ ChunkDecoder::decode(const TSIOBufferReader &r)
 
   {
     const int l = TSIOBufferReaderAvail(r);
-    if (l < size_) {
+    if (l == 0) {
+      return 0;
+    } else if (l < size_) {
       size_ -= l;
       return l;
     }
@@ -117,6 +118,7 @@ ChunkDecoder::decode(const TSIOBufferReader &r)
   int64_t size;
   TSIOBufferBlock block = TSIOBufferReaderStart(r);
 
+  // Trying to parse a size.
   if (isSizeState()) {
     while (block != nullptr && size_ == 0) {
       const char *p = TSIOBufferBlockReadStart(block, r, &size);
@@ -141,7 +143,7 @@ ChunkDecoder::decode(const TSIOBufferReader &r)
     assert(size_ > 0);
     const char *p = TSIOBufferBlockReadStart(block, r, &size);
     if (p != nullptr) {
-      if (size > size_) {
+      if (size >= size_) {
         length += size_;
         size_  = 0;
         state_ = State::kSizeR;

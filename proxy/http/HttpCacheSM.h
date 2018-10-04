@@ -30,8 +30,7 @@
 
  ****************************************************************************/
 
-#ifndef _HTTP_CACHE_SM_H_
-#define _HTTP_CACHE_SM_H_
+#pragma once
 
 #include "P_Cache.h"
 #include "ProxyConfig.h"
@@ -41,11 +40,10 @@
 
 class HttpSM;
 class HttpCacheSM;
-class CacheLookupHttpConfig;
 
 struct HttpCacheAction : public Action {
   HttpCacheAction();
-  virtual void cancel(Continuation *c = NULL);
+  void cancel(Continuation *c = nullptr) override;
   void
   init(HttpCacheSM *sm_arg)
   {
@@ -67,7 +65,7 @@ public:
     captive_action.init(this);
   }
 
-  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, CacheLookupHttpConfig *params, time_t pin_in_cache);
+  Action *open_read(const HttpCacheKey *key, URL *url, HTTPHdr *hdr, OverridableHttpConfigParams *params, time_t pin_in_cache);
 
   Action *open_write(const HttpCacheKey *key, URL *url, HTTPHdr *request, CacheHTTPInfo *old_info, time_t pin_in_cache, bool retry,
                      bool allow_multiple);
@@ -100,13 +98,13 @@ public:
   bool
   is_ram_cache_hit()
   {
-    return cache_read_vc ? (cache_read_vc->is_ram_cache_hit()) : 0;
+    return cache_read_vc ? (cache_read_vc->is_ram_cache_hit()) : false;
   }
 
   bool
   is_compressed_in_ram()
   {
-    return cache_read_vc ? (cache_read_vc->is_compressed_in_ram()) : 0;
+    return cache_read_vc ? (cache_read_vc->is_compressed_in_ram()) : false;
   }
 
   inline void
@@ -144,8 +142,8 @@ public:
   {
     if (cache_read_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_read_vc->do_io(VIO::ABORT);
-      cache_read_vc = NULL;
+      cache_read_vc->do_io_close(0); // passing zero as aborting read is not an error
+      cache_read_vc = nullptr;
     }
   }
   inline void
@@ -153,8 +151,8 @@ public:
   {
     if (cache_write_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_write_vc->do_io(VIO::ABORT);
-      cache_write_vc = NULL;
+      cache_write_vc->do_io_close(0); // passing zero as aborting write is not an error
+      cache_write_vc = nullptr;
     }
   }
   inline void
@@ -162,8 +160,8 @@ public:
   {
     if (cache_write_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_write_vc->do_io(VIO::CLOSE);
-      cache_write_vc = NULL;
+      cache_write_vc->do_io_close();
+      cache_write_vc = nullptr;
     }
   }
   inline void
@@ -171,8 +169,8 @@ public:
   {
     if (cache_read_vc) {
       HTTP_DECREMENT_DYN_STAT(http_current_cache_connections_stat);
-      cache_read_vc->do_io(VIO::CLOSE);
-      cache_read_vc = NULL;
+      cache_read_vc->do_io_close();
+      cache_read_vc = nullptr;
     }
   }
   inline void
@@ -198,7 +196,7 @@ private:
   // Open read parameters
   int open_read_tries;
   HTTPHdr *read_request_hdr;
-  CacheLookupHttpConfig *read_config;
+  OverridableHttpConfigParams *http_params;
   time_t read_pin_in_cache;
 
   // Open write parameters
@@ -213,5 +211,3 @@ private:
   int lookup_max_recursive;
   int current_lookup_level;
 };
-
-#endif

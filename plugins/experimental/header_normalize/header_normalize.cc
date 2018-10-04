@@ -135,6 +135,7 @@ buildHdrMap()
   hdrMap["xref"]                      = "Xref";
   hdrMap["x-id"]                      = "X-ID";
   hdrMap["x-forwarded-for"]           = "X-Forwarded-For";
+  hdrMap["forwarded"]                 = "Forwarded";
   hdrMap["sec-websocket-key"]         = "Sec-WebSocket-Key";
   hdrMap["sec-websocket-version"]     = "Sec-WebSocket-Version";
 }
@@ -152,7 +153,7 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
     return TS_ERROR;
   }
   if (api_info->tsremap_version < TSREMAP_VERSION) {
-    snprintf(errbuf, errbuf_size - 1, "[tsremap_init] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
+    snprintf(errbuf, errbuf_size, "[tsremap_init] - Incorrect API version %ld.%ld", api_info->tsremap_version >> 16,
              (api_info->tsremap_version & 0xffff));
     return TS_ERROR;
   }
@@ -171,7 +172,7 @@ TSRemapNewInstance(int /* argc */, char * /* argv[] */, void ** /* ih */, char *
 }
 
 void
-TSRemapDelteInstance(void * /* ih */)
+TSRemapDeleteInstance(void * /* ih */)
 {
 }
 

@@ -23,7 +23,6 @@
 
 #include "P_Cache.h"
 
-#include "api/ts/ts.h"
 #include "Show.h"
 #include "I_Tasks.h"
 #include "CacheControl.h"
@@ -111,10 +110,11 @@ struct ShowCache : public ShowCont {
       if (p) {
         while ((p = strstr(p, "\n"))) {
           nstrings++;
-          if ((size_t)(p - query) >= strlen(query) - 1)
+          if ((size_t)(p - query) >= strlen(query) - 1) {
             break;
-          else
+          } else {
             p++;
+          }
         }
       }
       // initialize url array
@@ -126,13 +126,15 @@ struct ShowCache : public ShowCont {
       if (p) {
         p += 4; // 4 ==> strlen("url=")
         t = strchr(p, '&');
-        if (!t)
+        if (!t) {
           t = (char *)unescapedQuery + strlen(unescapedQuery);
+        }
         for (int s = 0; p < t; s++) {
           show_cache_urlstrs[s][0] = '\0';
           q                        = strstr(p, "%0D%0A" /* \r\n */); // we used this in the JS to separate urls
-          if (!q)
+          if (!q) {
             q = t;
+          }
           ink_strlcpy(show_cache_urlstrs[s], p, q - p + 1);
           p = q + 6; // +6 ==> strlen(%0D%0A)
         }
@@ -155,8 +157,9 @@ struct ShowCache : public ShowCont {
 
   ~ShowCache() override
   {
-    if (show_cache_urlstrs)
+    if (show_cache_urlstrs) {
       delete[] show_cache_urlstrs;
+    }
     url.destroy();
   }
 };
@@ -413,7 +416,7 @@ ShowCache::handleCacheEvent(int event, Event *e)
     }
     // open success but no vector, that is the Cluster open read, pass through
   }
-  // fallthrough
+    // fallthrough
 
   case VC_EVENT_READ_READY:
     if (!cvio) {
@@ -421,8 +424,9 @@ ShowCache::handleCacheEvent(int event, Event *e)
       buffer_reader  = buffer->alloc_reader();
       content_length = cache_vc->get_object_size();
       cvio           = cache_vc->do_io_read(this, content_length, buffer);
-    } else
+    } else {
       buffer_reader->consume(buffer_reader->read_avail());
+    }
     return EVENT_DONE;
   case CACHE_EVENT_OPEN_READ_FAILED:
     // something strange happen, or cache miss in cluster mode.
@@ -452,17 +456,18 @@ ShowCache::lookup_url(int event, Event *e)
   Cache::generate_key(&key, &url, generation);
 
   SET_HANDLER(&ShowCache::handleCacheEvent);
-  Action *lookup_result =
-    cacheProcessor.open_read(this, &key.hash, getClusterCacheLocal(&url), CACHE_FRAG_TYPE_HTTP, key.hostname, key.hostlen);
-  if (!lookup_result)
+  Action *lookup_result = cacheProcessor.open_read(this, &key.hash, CACHE_FRAG_TYPE_HTTP, key.hostname, key.hostlen);
+  if (!lookup_result) {
     lookup_result = ACTION_IO_ERROR;
-  if (lookup_result == ACTION_RESULT_DONE)
+  }
+  if (lookup_result == ACTION_RESULT_DONE) {
     return EVENT_DONE; // callback complete
-  else if (lookup_result == ACTION_IO_ERROR) {
+  } else if (lookup_result == ACTION_IO_ERROR) {
     handleEvent(CACHE_EVENT_OPEN_READ_FAILED, nullptr);
     return EVENT_DONE; // callback complete
-  } else
+  } else {
     return EVENT_CONT; // callback pending, will be a cluster read.
+  }
 }
 
 int
@@ -493,7 +498,7 @@ ShowCache::delete_url(int event, Event *e)
   HttpCacheKey key;
   Cache::generate_key(&key, &url); // XXX choose a cache generation number ...
 
-  cacheProcessor.remove(this, &key, getClusterCacheLocal(&url), CACHE_FRAG_TYPE_HTTP);
+  cacheProcessor.remove(this, &key, CACHE_FRAG_TYPE_HTTP);
   return EVENT_DONE;
 }
 
@@ -657,12 +662,13 @@ ShowCache::handleCacheScanCallback(int event, Event *e)
   }
   case CACHE_EVENT_SCAN_DONE:
     CHECK_SHOW(show("</TABLE></B>\n"));
-    if (scan_flag == 0)
+    if (scan_flag == 0) {
       if (linecount) {
         CHECK_SHOW(show("<P><INPUT TYPE=button value=\"Delete\" "
                         "onClick=\"setUrls(window.document.f)\"></P>"
                         "</FORM>\n"));
       }
+    }
     CHECK_SHOW(show("<H3>Done</H3>\n"));
     Debug("cache_inspector", "scan done");
     complete(event, e);

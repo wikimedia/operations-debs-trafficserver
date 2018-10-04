@@ -17,20 +17,20 @@
  */
 
 #include <iostream>
-#include <atscppapi/GlobalPlugin.h>
-#include <atscppapi/TransactionPlugin.h>
-#include <atscppapi/TransformationPlugin.h>
-#include <atscppapi/PluginInit.h>
-#include <atscppapi/Logger.h>
+#include <string_view>
+#include "tscpp/api/GlobalPlugin.h"
+#include "tscpp/api/TransactionPlugin.h"
+#include "tscpp/api/TransformationPlugin.h"
+#include "tscpp/api/PluginInit.h"
+#include "tscpp/api/Logger.h"
 
 using namespace atscppapi;
-using std::string;
 
 namespace
 {
 #define TAG "null_transformation"
 GlobalPlugin *plugin;
-}
+} // namespace
 
 class NullTransformationPlugin : public TransformationPlugin
 {
@@ -57,7 +57,7 @@ public:
   }
 
   void
-  consume(const string &data) override
+  consume(std::string_view data) override
   {
     produce(data);
   }
@@ -69,6 +69,7 @@ public:
   }
 
   ~NullTransformationPlugin() override {}
+
 private:
 };
 
@@ -99,7 +100,9 @@ public:
 void
 TSPluginInit(int argc ATSCPPAPI_UNUSED, const char *argv[] ATSCPPAPI_UNUSED)
 {
-  RegisterGlobalPlugin("CPP_Example_NullTransformation", "apache", "dev@trafficserver.apache.org");
+  if (!RegisterGlobalPlugin("CPP_Example_NullTransformation", "apache", "dev@trafficserver.apache.org")) {
+    return;
+  }
   TS_DEBUG(TAG, "TSPluginInit");
   plugin = new GlobalHookPlugin();
 }
