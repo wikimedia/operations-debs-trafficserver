@@ -1,3 +1,22 @@
+trafficserver (8.0.0-1wm1) stretch-wikimedia; urgency=medium
+
+  * Build against stretch-wikimedia. Bug: T204232
+  * Use Clang instead of GCC to build against stretch. Starting with version
+    8.0.0, ATS requires C++17, which no GCC version in Stretch supports. C++17
+    is however supported by Clang 5 and 6, and they are available in
+    stretch-backports. There is unfortunately no recent version of libc++
+    available in stretch-backports, but we have uploaded it to
+    stretch-wikimedia/main.
+  * Disable WCCP support as it makes the package FTBFS with the
+    stretch-backports Clang toolchain and we do not need it.
+    https://phabricator.wikimedia.org/P7637
+  * Stop shipping man pages. Building them requires Sphinx >= 1.5.1, not in
+    Stretch.
+  * Override lintian error about .vscode/c_cpp_properties.json being included
+    in the source tarball. We'll remove the file when 8.0.1 is released.
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Thu, 04 Oct 2018 14:38:06 +0200
+
 trafficserver (8.0.0-1) unstable; urgency=medium
 
   [ Aron Xu ]
