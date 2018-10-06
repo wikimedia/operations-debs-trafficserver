@@ -17,8 +17,8 @@ configure_flags = \
 	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
-	--enable-mime-sanity-check --enable-system-luajit \
-	--enable-docs \
+	--enable-mime-sanity-check --enable-docs \
+	--with-build-version=$(shell dpkg-parsechangelog --show-field Version) \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
@@ -56,8 +56,7 @@ override_dh_install:
 	#ln -s ssl_preaccept.config ssl_sni.config)
 
 override_dh_fixperms:
-	dh_fixperms -Xetc/trafficserver \
-		    -Xvar/lib/trafficserver \
+	dh_fixperms -Xvar/lib/trafficserver \
 		    -Xvar/log/trafficserver \
 		    -Xvar/cache/trafficserver \
 		    -Xvar/run/trafficserver

@@ -1,0 +1,102 @@
+stages:
+  - build
+  - lintian
+  - piuparts
+#  - reprotest
+
+.build: &build
+  before_script:
+    - apt-get update
+    - apt-get -qy upgrade
+    - apt-get -qy install devscripts autoconf automake adduser fakeroot sudo
+    - mk-build-deps -t "apt-get -y -o Debug::pkgProblemResolver=yes --no-install-recommends" -i -r
+    - adduser --disabled-password --gecos "" builduser
+    - chown -R builduser:builduser .
+    - chown builduser:builduser ..
+  stage: build
+  script:
+    - sudo -u builduser dpkg-buildpackage -b -rfakeroot
+
+.lintian: &lintian
+  before_script:
+    - apt-get update
+    - apt-get -y install lintian
+  stage: lintian
+  script:
+    - echo "performing general and experimental lintian checks"
+    - lintian --color always -EviIL +pedantic built/*.changes || true
+    - echo "performing ftp-master-rejects lintian checks"
+    - lintian --color always -viF built/*.changes
+
+.piuparts: &piuparts
+  stage: piuparts
+  services:
+    - docker:dind
+  before_script:
+    - export CHROOT_PATH=/tmp/debian-sid
+    - CONTAINER_ID=$(docker run --rm -d debian:sid sleep infinity)
+    - docker exec ${CONTAINER_ID} bash -c "apt-get update && apt-get -qy dist-upgrade && apt-get -qy install eatmydata"
+    - mkdir -p ${CHROOT_PATH}
+    - docker export ${CONTAINER_ID} | tar -C ${CHROOT_PATH} -xf -
+    - mknod -m 666 ${CHROOT_PATH}/dev/urandom c 1 9
+  artifacts:
+    name: "$CI_BUILD_NAME"
+    expire_in: 180 day
+    paths:
+      - ./piuparts.log
+    when: always
+  script:
+    - piuparts --hard-link -e ${CHROOT_PATH} -l piuparts.log built/*.changes
+
+#.reprotest: &reprotest
+#  stage: reprotest
+#  before_script:
+#    - apt-get update
+#    - apt-get -qy dist-upgrade
+#    - eatmydata apt-get build-dep -y .
+#  artifacts:
+#    name: "$CI_BUILD_NAME"
+#    expire_in: 180 day
+#    paths:
+#      - ./reprotest.log
+#    when: always
+#  script:
+#    - export DEB_BUILD_OPTIONS=nocheck
+#    - eatmydata reprotest --min-cpus $(nproc --all) . -- null &> reprotest.log
+
+### End of generic stage declaration
+
+build:testing:
+  <<: *build
+  image: debian:testing
+
+build:unstable:
+  <<: *build
+  image: debian:sid
+  artifacts:
+    name: "$CI_BUILD_NAME"
+    expire_in: 180 day
+    paths:
+      - built
+    when: always
+  after_script:
+    - mkdir built
+    - dcmd mv ../*.changes built/
+
+lintian:unstable:
+  <<: *lintian
+  dependencies:
+    - build:unstable
+  image: debian:sid
+
+piuparts:unstable:
+  <<: *piuparts
+  dependencies:
+    - build:unstable
+  image: registry.salsa.debian.org/salsa-ci-team/images/piuparts
+
+#reprotest:unstable:
+#  <<: *reprotest
+#  dependencies:
+#    - build:unstable
+#  image: registry.salsa.debian.org/salsa-ci-team/images/reprotest

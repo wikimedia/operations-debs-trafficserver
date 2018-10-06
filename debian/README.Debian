@@ -1,6 +1,28 @@
 trafficserver for Debian
 ------------------------
 
+* ATS 8.0.0 comes with slight changes in config files.
+    Following ones has been removed:
+    - /etc/trafficserver/vaddrs.config
+    - /etc/trafficserver/metrics.config
+    - /etc/trafficserver/logging.config
+    - /etc/trafficserver/log_hosts.config
+    - /etc/trafficserver/congestion.config
+    - /etc/trafficserver/cluster.config
+    - /etc/trafficserver/body_factory/default/congestion#retryAfter
+
+* New config files have been added and now use yaml format.
+    More files will be migrated in the future:
+    - /etc/trafficserver/logging.yaml
+    - /etc/trafficserver/ssl_server_name.yaml
+
+* gzip pluging has been renamed into compress.
+    Existing configuration won't be updated
+
+* traffic_cop has been removed. Now, init and systemd files use traffic_manager
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 21 Sep 2018 09:04:07 +0200
+
 * If you are using 32-bits package, please note that upstream has
     discontinued 32-bit support.
     32-bits Debian package will still be built, but is subject to removal

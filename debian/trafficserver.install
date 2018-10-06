@@ -4,11 +4,14 @@ etc/trafficserver/*
 usr/lib/trafficserver/lib*.so.*
 usr/lib/trafficserver/modules/authproxy.so
 usr/lib/trafficserver/modules/background_fetch.so
+usr/lib/trafficserver/modules/cachekey.so
+usr/lib/trafficserver/modules/cache_promote.so
 usr/lib/trafficserver/modules/combo_handler.so
+usr/lib/trafficserver/modules/compress.so
 usr/lib/trafficserver/modules/conf_remap.so
+usr/lib/trafficserver/modules/escalate.so
 usr/lib/trafficserver/modules/esi.so
 usr/lib/trafficserver/modules/generator.so
-usr/lib/trafficserver/modules/gzip.so
 usr/lib/trafficserver/modules/header_rewrite.so
 usr/lib/trafficserver/modules/healthchecks.so
 usr/lib/trafficserver/modules/libloader.so
@@ -17,5 +20,7 @@ usr/lib/trafficserver/modules/regex_revalidate.so
 usr/lib/trafficserver/modules/s3_auth.so
 usr/lib/trafficserver/modules/stats_over_http.so
 usr/lib/trafficserver/modules/tcpinfo.so
+usr/lib/trafficserver/modules/test_cppapi.so
+usr/lib/trafficserver/modules/tslua.so
 usr/lib/trafficserver/modules/xdebug.so
 usr/lib/perl5/* usr/share/perl5/
