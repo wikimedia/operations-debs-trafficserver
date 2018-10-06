@@ -5,6 +5,7 @@ Description: Fix build issue with MySQL 8
 Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other, https://bugs.launchpad.net/ubuntu/+source/trafficserver/+bug/1795362
 Forwarded: https://github.com/apache/trafficserver/pull/4360
+Applied-Upstream: https://github.com/apache/trafficserver/commit/05b30527974416768515506f69da338652c23260
 Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
 Last-Update: 2018-10-06
 ---
