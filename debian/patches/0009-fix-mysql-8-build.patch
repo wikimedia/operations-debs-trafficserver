@@ -1,0 +1,24 @@
+Description: Fix build issue with MySQL 8
+ The my_bool type is no longer used in MySQL source code.
+ Any third-party code that used this type to represent C
+ boolean variables should use the bool or int C type instead.
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other, https://bugs.launchpad.net/ubuntu/+source/trafficserver/+bug/1795362
+Forwarded: https://github.com/apache/trafficserver/pull/4360
+Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2018-10-06
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+Index: trafficserver/plugins/experimental/mysql_remap/mysql_remap.cc
+===================================================================
+--- trafficserver.orig/plugins/experimental/mysql_remap/mysql_remap.cc	2018-10-06 11:47:06.546914616 +0200
++++ trafficserver/plugins/experimental/mysql_remap/mysql_remap.cc	2018-10-06 13:59:39.374734525 +0200
+@@ -187,7 +187,7 @@
+   my_data *data = (my_data *)malloc(1 * sizeof(my_data));
+ 
+   TSPluginRegistrationInfo info;
+-  my_bool reconnect = 1;
++  bool reconnect = 1;
+ 
+   info.plugin_name   = const_cast<char *>(PLUGIN_NAME);
+   info.vendor_name   = const_cast<char *>("Apache Software Foundation");
