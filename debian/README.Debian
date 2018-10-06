@@ -19,6 +19,8 @@ trafficserver for Debian
 * gzip pluging has been renamed into compress.
     Existing configuration won't be updated
 
+* traffic_cop has been removed. Now, init and systemd files use traffic_manager
+
  -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 21 Sep 2018 09:04:07 +0200
 
 * If you are using 32-bits package, please note that upstream has
