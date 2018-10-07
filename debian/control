@@ -13,7 +13,7 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
   libcrypto++-dev, libjansson-dev, libcjose-dev,
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips]
-Standards-Version: 4.2.0
+Standards-Version: 4.2.1
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
