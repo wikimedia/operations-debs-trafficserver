@@ -1,0 +1,119 @@
+Description: Fix traffic_via problem with string length
+Author: Kit Chan <kichan@apache.org>
+Origin: upstream
+Applied-Upstream: https://github.com/apache/trafficserver/commit/0b944b3262d150e0108477b54d40b294afb3ee2f
+Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2018-10-17
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+diff --git a/src/traffic_via/tests/[u c s f p eS;tNc   p s ] b/src/traffic_via/tests/[u c s f p eS;tNc  p s ]
+similarity index 94%
+rename from src/traffic_via/tests/[u c s f p eS;tNc   p s ]
+rename to src/traffic_via/tests/[u c s f p eS;tNc  p s ]
+index f574eb27b..95cf7a7d9 100644
+--- a/src/traffic_via/tests/[u c s f p eS;tNc   p s ]	
++++ b/src/traffic_via/tests/[u c s f p eS;tNc  p s ]	
+@@ -1,4 +1,4 @@
+-Via header is [u c s f p eS;tNc   p s ], Length is 25
++Via header is [u c s f p eS;tNc  p s ], Length is 24
+ Via Header Details:
+ Request headers received from client                   :unknown
+ Result of Traffic Server cache lookup for URL          :no cache lookup
+diff --git a/src/traffic_via/tests/[uIcRs f p eN;t cCH p s ] b/src/traffic_via/tests/[uIcRs f p eN;t cCHp s ]
+similarity index 93%
+rename from src/traffic_via/tests/[uIcRs f p eN;t cCH p s ]
+rename to src/traffic_via/tests/[uIcRs f p eN;t cCHp s ]
+index e7b47996b..a5f3238c4 100644
+--- a/src/traffic_via/tests/[uIcRs f p eN;t cCH p s ]	
++++ b/src/traffic_via/tests/[uIcRs f p eN;t cCHp s ]	
+@@ -1,4 +1,4 @@
+-Via header is [uIcRs f p eN;t cCH p s ], Length is 25
++Via header is [uIcRs f p eN;t cCHp s ], Length is 24
+ Via Header Details:
+ Request headers received from client                   :IMS
+ Result of Traffic Server cache lookup for URL          :in cache, fresh Ram hit (a cache "HIT")
+diff --git a/src/traffic_via/tests/[uIcRs f p eN;t cCN p s ] b/src/traffic_via/tests/[uIcRs f p eN;t cCNp s ]
+similarity index 94%
+rename from src/traffic_via/tests/[uIcRs f p eN;t cCN p s ]
+rename to src/traffic_via/tests/[uIcRs f p eN;t cCNp s ]
+index d3d3860b2..6af0055ed 100644
+--- a/src/traffic_via/tests/[uIcRs f p eN;t cCN p s ]	
++++ b/src/traffic_via/tests/[uIcRs f p eN;t cCNp s ]	
+@@ -1,4 +1,4 @@
+-Via header is [uIcRs f p eN;t cCN p s ], Length is 25
++Via header is [uIcRs f p eN;t cCNp s ], Length is 24
+ Via Header Details:
+ Request headers received from client                   :IMS
+ Result of Traffic Server cache lookup for URL          :in cache, fresh Ram hit (a cache "HIT")
+diff --git a/src/traffic_via/tests/[uScMsSf pSeN;t cCM p sS] b/src/traffic_via/tests/[uScMsSf pSeN;t cCMp sS]
+similarity index 94%
+rename from src/traffic_via/tests/[uScMsSf pSeN;t cCM p sS]
+rename to src/traffic_via/tests/[uScMsSf pSeN;t cCMp sS]
+index e4bee7401..1e494c631 100644
+--- a/src/traffic_via/tests/[uScMsSf pSeN;t cCM p sS]	
++++ b/src/traffic_via/tests/[uScMsSf pSeN;t cCMp sS]	
+@@ -1,4 +1,4 @@
+-Via header is [uScMsSf pSeN;t cCM p sS], Length is 25
++Via header is [uScMsSf pSeN;t cCMp sS], Length is 24
+ Via Header Details:
+ Request headers received from client                   :simple request (not conditional)
+ Result of Traffic Server cache lookup for URL          :miss (a cache "MISS")
+diff --git a/src/traffic_via/tests/[uScRs f p eN;t cCH p s ] b/src/traffic_via/tests/[uScRs f p eN;t cCHp s ]
+similarity index 94%
+rename from src/traffic_via/tests/[uScRs f p eN;t cCH p s ]
+rename to src/traffic_via/tests/[uScRs f p eN;t cCHp s ]
+index e587c1a2e..d7d394c6e 100644
+--- a/src/traffic_via/tests/[uScRs f p eN;t cCH p s ]	
++++ b/src/traffic_via/tests/[uScRs f p eN;t cCHp s ]	
+@@ -1,4 +1,4 @@
+-Via header is [uScRs f p eN;t cCH p s ], Length is 25
++Via header is [uScRs f p eN;t cCHp s ], Length is 24
+ Via Header Details:
+ Request headers received from client                   :simple request (not conditional)
+ Result of Traffic Server cache lookup for URL          :in cache, fresh Ram hit (a cache "HIT")
+diff --git a/src/traffic_via/tests/long rubbish via code 2 b/src/traffic_via/tests/long rubbish via code2
+similarity index 83%
+rename from src/traffic_via/tests/long rubbish via code 2
+rename to src/traffic_via/tests/long rubbish via code2
+index b8f47efa3..d3abd3d95 100644
+--- a/src/traffic_via/tests/long rubbish via code 2	
++++ b/src/traffic_via/tests/long rubbish via code2	
+@@ -12,6 +12,6 @@ traffic_via: Invalid VIA header character: i
+ traffic_via: Invalid VIA header character: a
+ traffic_via: Invalid VIA header character: o
+ traffic_via: Invalid VIA header character: d
+-Via header is long rubbish via code 2, Length is 23
++Via header is long rubbish via code2, Length is 22
+ Via Header Details:
+-Error codes (if any)                                   :unknown
++Error codes (if any)                                   :Invalid sequence
+diff --git a/src/traffic_via/tests/rubbish b/src/traffic_via/tests/rubbish
+index 51066c115..348f372e6 100644
+--- a/src/traffic_via/tests/rubbish
++++ b/src/traffic_via/tests/rubbish
+@@ -1,4 +1,4 @@
+ Via header is rubbish, Length is 7
+ 
+-Invalid VIA header. VIA header length should be 6 or 23 characters
++Invalid VIA header. VIA header length should be 6 or 22 characters
+ Valid via header format is [u<client-stuff>c<cache-lookup-stuff>s<server-stuff>f<cache-fill-stuff>p<proxy-stuff>e<error-codes>:t<tunneling-info>c<cache type><cache-lookup-result>p<parent-proxy-conn-info>s<server-conn-info>]
+diff --git a/src/traffic_via/traffic_via.cc b/src/traffic_via/traffic_via.cc
+index db55da362..b755f2c69 100644
+--- a/src/traffic_via/traffic_via.cc
++++ b/src/traffic_via/traffic_via.cc
+@@ -238,13 +238,13 @@ decodeViaHeader(const char *str)
+     ++viaHdrLength;
+   }
+ 
+-  if (viaHdrLength == 23 || viaHdrLength == 6) {
++  if (viaHdrLength == 22 || viaHdrLength == 6) {
+     // Decode via header
+     printViaHeader(Via);
+     return TS_ERR_OKAY;
+   }
+   // Invalid header size, come out.
+-  printf("\nInvalid VIA header. VIA header length should be 6 or 23 characters\n");
++  printf("\nInvalid VIA header. VIA header length should be 6 or 22 characters\n");
+   printf("Valid via header format is "
+          "[u<client-stuff>c<cache-lookup-stuff>s<server-stuff>f<cache-fill-stuff>p<proxy-stuff>e<error-codes>:t<tunneling-info>c<"
+          "cache type><cache-lookup-result>p<parent-proxy-conn-info>s<server-conn-info>]\n");
