@@ -7,3 +7,4 @@
 0007-fix-uri_signing.patch
 0008-fix-python-check-unused-dependencies.patch
 0009-fix-mysql-8-build.patch
+0010-fix-32bits-build.patch
