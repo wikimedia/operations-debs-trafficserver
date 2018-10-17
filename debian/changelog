@@ -1,3 +1,14 @@
+trafficserver (8.0.0-2) unstable; urgency=medium
+
+  * Add a patch to fix FTBFS with MySQL 8 (LP: #1795362)
+  * Update 0009-fix-mysql-8-build.patch which has been merged upstream
+  * Bump Standards-Version in d/control
+  * Add patch to fix 32bits arm & mips arch build
+  * Backport upstream patch to fix segmentation fault
+  * Backport upstream patch to fix traffic_via
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 17 Oct 2018 20:40:51 +0200
+
 trafficserver (8.0.0-1) unstable; urgency=medium
 
   [ Aron Xu ]
