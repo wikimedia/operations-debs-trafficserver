@@ -2,8 +2,6 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Traffic Server
 Upstream-Contact: dev@trafficserver.apache.org
 Source: http://trafficserver.apache.org/
-Files-Excluded:
-    .vscode
 Comment:
     The upstream repository provides libraries which are also available
     in Debian. Because we'll use libraries packaged in Debian, we don't
