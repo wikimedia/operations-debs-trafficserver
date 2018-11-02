@@ -33,4 +33,3 @@ usr/lib/trafficserver/modules/tls_bridge.so
 usr/lib/trafficserver/modules/traffic_dump.so
 usr/lib/trafficserver/modules/uri_signing.so
 usr/lib/trafficserver/modules/url_sig.so
-usr/lib/trafficserver/modules/WebpTransform.so
