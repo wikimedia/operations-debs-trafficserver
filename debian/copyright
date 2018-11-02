@@ -34,11 +34,11 @@ License: Apache-2.0
    On Debian systems, the full text of the e Apache License, Version 2.0
    can be found in the file `/usr/share/common-licenses/Apache-2.0'.
 
-Files: lib/ts/ink_rand.*
+Files: include/tscore/ink_rand.*
 Copyright: 1997 - 2002, Makoto Matsumoto and Takuji Nishimura
 License: BSD-3-clause
 
-Files: lib/ts/ink_resolver.h lib/ts/ink_res_init.cc lib/ts/ink_res_mkquery.cc
+Files: include/tscore/ink_resolver.h src/tscore/ink_res_init.cc src/tscore/ink_res_mkquery.cc
 Copyright:  1983, 1987, 1989  The Regents of the University of California
 License: BSD-3-clause
 
@@ -89,7 +89,7 @@ License: BSD-3-clause
  ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
  SOFTWARE.
 
-Files: lib/ts/ink_string.cc
+Files: src/tscore/ink_string.cc
 Comment: For the strlcat, strlcpy in inktomi++/ink_string.cc
 Copyright:  1998 Todd C. Miller <Todd.Miller@courtesan.com>
 License: ISC
@@ -105,7 +105,7 @@ License: ISC
  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-Files: lib/ts/fastlz.*
+Files: include/tscore/fastlz.h src/tscore/fastlz.c
 Copyright: 2005-2007 Ariya Hidayat (ariya@kde.org)
 License: Expat
  Permission is hereby granted, free of charge, to any person obtaining a copy
