@@ -8,7 +8,9 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_CFLAGS_MAINT_APPEND = -O3
 export DEB_CXXFLAGS_MAINT_APPEND = -O3
 # mips & mipsel need explicit libatomic link
-export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed -latomic
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),mips mipsel))
+  export DEB_LDFLAGS_MAINT_APPEND += -latomic
+endif
 
 # Get build architecture. ./configure is different on Linux
 include /usr/share/dpkg/architecture.mk
