@@ -7,10 +7,8 @@ Applied-Upstream: https://github.com/apache/trafficserver/commit/b8d71fdec73d61b
 Last-Update: 2018-10-04
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
-Index: trafficserver/src/tscore/ink_memory.cc
-===================================================================
---- trafficserver.orig/src/tscore/ink_memory.cc	2018-09-26 19:36:04.344399533 +0200
-+++ trafficserver/src/tscore/ink_memory.cc	2018-09-26 19:36:04.340399503 +0200
+--- a/src/tscore/ink_memory.cc
++++ b/src/tscore/ink_memory.cc
 @@ -27,7 +27,7 @@
  #include "tscore/Diags.h"
  #include "tscore/ink_atomic.h"
@@ -20,11 +18,9 @@ Index: trafficserver/src/tscore/ink_memory.cc
  #include <malloc_np.h> // for malloc_usable_size
  #endif
  
-Index: trafficserver/proxy/Plugin.cc
-===================================================================
---- trafficserver.orig/proxy/Plugin.cc	2018-09-26 19:36:04.344399533 +0200
-+++ trafficserver/proxy/Plugin.cc	2018-09-26 19:36:04.340399503 +0200
-@@ -126,7 +126,7 @@
+--- a/proxy/Plugin.cc
++++ b/proxy/Plugin.cc
+@@ -126,7 +126,7 @@ plugin_load(int argc, char *argv[], bool
        return false; // this line won't get called since Fatal brings down ATS
      }
  
@@ -33,11 +29,9 @@ Index: trafficserver/proxy/Plugin.cc
      optreset = 1;
  #endif
  #if defined(__GLIBC__)
-Index: trafficserver/proxy/http/remap/RemapConfig.cc
-===================================================================
---- trafficserver.orig/proxy/http/remap/RemapConfig.cc	2018-09-26 19:36:04.344399533 +0200
-+++ trafficserver/proxy/http/remap/RemapConfig.cc	2018-09-26 19:36:04.340399503 +0200
-@@ -897,7 +897,7 @@
+--- a/proxy/http/remap/RemapConfig.cc
++++ b/proxy/http/remap/RemapConfig.cc
+@@ -897,7 +897,7 @@ remap_load_plugin(const char **argv, int
    void *ih         = nullptr;
    TSReturnCode res = TS_SUCCESS;
    if (pi->fp_tsremap_new_instance) {
@@ -46,3 +40,14 @@ Index: trafficserver/proxy/http/remap/RemapConfig.cc
      optreset = 1;
  #endif
  #if defined(__GLIBC__)
+--- a/plugins/tcpinfo/tcpinfo.cc
++++ b/plugins/tcpinfo/tcpinfo.cc
+@@ -136,7 +136,7 @@ log_tcp_info(Config *config, const char
+   TSReturnCode ret;
+ 
+   if (config->log_level == 2) {
+-#if !defined(freebsd) || defined(__GLIBC__)
++#if !(defined(kfreebsd) && defined(freebsd)) || defined(__GLIBC__)
+     ret = TSTextLogObjectWrite(config->log, "%s %s %s %u %u %u %u %u %u %u %u %u %u %u %u %u", event_name, client_str, server_str,
+                                info.tcpi_rtt, info.tcpi_rttvar, info.tcpi_last_data_sent, info.tcpi_last_data_recv,
+                                info.tcpi_snd_cwnd, info.tcpi_snd_ssthresh, info.tcpi_rcv_ssthresh, info.tcpi_unacked,
