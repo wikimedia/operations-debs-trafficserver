@@ -1,3 +1,14 @@
+trafficserver (8.0.0-3) unstable; urgency=medium
+
+  * Remove webptransform experimental plugin
+  * Update patch to fix kfreebsd FTBFS
+  * Update d/copyright to fix lintian error
+  * Update d/rules to fix FTBFS for mips & mipsel archs
+  * Update d/rules to spare call to dpkg-parsechangelog
+  * Update d/copyright after 8.0.0 file moves
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 02 Nov 2018 14:24:38 +0100
+
 trafficserver (8.0.0-2) unstable; urgency=medium
 
   * Add a patch to fix FTBFS with MySQL 8 (LP: #1795362)
