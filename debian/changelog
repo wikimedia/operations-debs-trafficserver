@@ -1,3 +1,13 @@
+trafficserver (8.0.0-4) unstable; urgency=medium
+
+  [ Emanuele Rocca ]
+  * Update descriptions in d/control
+
+  [ Jean Baptiste Favre ]
+  * Update patch to fix kfreebsd FTBFS
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 05 Nov 2018 10:13:03 +0100
+
 trafficserver (8.0.0-3) unstable; urgency=medium
 
   * Remove webptransform experimental plugin
