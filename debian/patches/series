@@ -6,4 +6,3 @@
 0006-fix-doc-build.patch
 0007-fix-uri_signing.patch
 0008-fix-python-check-unused-dependencies.patch
-0011-logging-broken-pipe-no-spam.patch
