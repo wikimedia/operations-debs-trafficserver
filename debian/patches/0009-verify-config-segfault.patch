@@ -1,0 +1,44 @@
+Description: do not segfault in verify_config
+Author: Emanuele Rocca <ema@wikimedia.org>
+Bug: https://github.com/apache/trafficserver/issues/4466
+Forwarded: https://github.com/apache/trafficserver/pull/4612
+---
+commit 086570189924461cc6e4cde5224179a9f6446b35
+Author: Emanuele Rocca <ema@wikimedia.org>
+Date:   Thu Nov 15 15:12:58 2018 +0100
+
+    reloadUrlRewrite(): release old config iff defined
+    
+    The changes introduced in 12d305b only work if rewrite_table is defined.
+    Release the old table in reloadUrlRewrite only if that is the case.
+    
+    This fixes issue #4466
+
+diff --git a/proxy/ReverseProxy.cc b/proxy/ReverseProxy.cc
+index 81f18a595..381e29b71 100644
+--- a/proxy/ReverseProxy.cc
++++ b/proxy/ReverseProxy.cc
+@@ -126,7 +126,7 @@ struct UR_UpdateContinuation : public Continuation {
+ bool
+ reloadUrlRewrite()
+ {
+-  UrlRewrite *newTable;
++  UrlRewrite *newTable, *oldTable;
+ 
+   Debug("url_rewrite", "remap.config updated, reloading...");
+   newTable = new UrlRewrite();
+@@ -136,7 +136,13 @@ reloadUrlRewrite()
+     // Hold at least one lease, until we reload the configuration
+     newTable->acquire();
+ 
+-    ink_atomic_swap(&rewrite_table, newTable)->release(); // Swap configurations, and release the old one
++    // Swap configurations
++    oldTable = ink_atomic_swap(&rewrite_table, newTable);
++    if (oldTable != nullptr) {
++      // release the old one
++      oldTable->release();
++    }
++
+     Debug("url_rewrite", "%s", msg);
+     Note("%s", msg);
+     return true;
