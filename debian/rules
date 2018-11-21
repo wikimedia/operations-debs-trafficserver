@@ -6,6 +6,8 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_CFLAGS_MAINT_APPEND = -O3
+# To get -dbgsym packages with LLVM
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--build-id
 export DEB_CXXFLAGS_MAINT_APPEND = -O3 -stdlib=libc++
 
 # Get build architecture. ./configure is different on Linux

@@ -1,3 +1,11 @@
+trafficserver (8.0.0-1wm3) stretch-wikimedia; urgency=medium
+
+  * Binaries need to have a BuildID in order for debhelper to build -dbgsym
+    packages. LLVM does not pass --build-id to the linker by default, so add
+    that to DEB_LDFLAGS_MAINT_APPEND.
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Wed, 21 Nov 2018 15:39:10 +0000
+
 trafficserver (8.0.0-1wm2) stretch-wikimedia; urgency=medium
 
   * Drop 0011-logging-broken-pipe-no-spam.patch. Bug: T204225
