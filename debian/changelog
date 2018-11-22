@@ -1,10 +1,12 @@
 trafficserver (8.0.0-1wm3) stretch-wikimedia; urgency=medium
 
+  * Add 0010-logs-to-pipe.patch to partially address
+    https://github.com/apache/trafficserver/issues/4635
   * Binaries need to have a BuildID in order for debhelper to build -dbgsym
     packages. LLVM does not pass --build-id to the linker by default, so add
     that to DEB_LDFLAGS_MAINT_APPEND.
 
- -- Emanuele Rocca <ema@wikimedia.org>  Wed, 21 Nov 2018 15:39:10 +0000
+ -- Emanuele Rocca <ema@wikimedia.org>  Thu, 22 Nov 2018 16:21:17 +0100
 
 trafficserver (8.0.0-1wm2) stretch-wikimedia; urgency=medium
 
