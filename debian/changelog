@@ -1,3 +1,12 @@
+trafficserver (8.0.0-1wm4) stretch-wikimedia; urgency=medium
+
+  * objhits plugin initial release.
+  * Re-add 0011-logging-broken-pipe-no-spam.patch. Flooding the logs on disk
+    in case fifo-log-demux fails is not optimal. We do have icinga checks in
+    place for that, just don't log errors if the pipe is broken.
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Wed, 28 Nov 2018 16:59:36 +0100
+
 trafficserver (8.0.0-1wm3) stretch-wikimedia; urgency=medium
 
   * Add 0010-logs-to-pipe.patch to partially address
