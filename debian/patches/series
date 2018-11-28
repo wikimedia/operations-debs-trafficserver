@@ -8,3 +8,4 @@
 0008-fix-python-check-unused-dependencies.patch
 0009-verify-config-segfault.patch
 0010-logs-to-pipe.patch
+0011-logging-broken-pipe-no-spam.patch
