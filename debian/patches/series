@@ -9,3 +9,4 @@
 0009-verify-config-segfault.patch
 0010-logs-to-pipe.patch
 0011-logging-broken-pipe-no-spam.patch
+0012-objhits-plugin.patch

@@ -1,0 +1,248 @@
+Description: objhits plugin
+Author: Emanuele Rocca <ema@wikimedia.org>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Last-Update: 2018-11-28
+
+--- trafficserver-8.0.0.orig/plugins/Makefile.am
++++ trafficserver-8.0.0/plugins/Makefile.am
+@@ -42,6 +42,7 @@ include libloader/Makefile.inc
+ if HAS_LUAJIT
+ include lua/Makefile.inc
+ endif
++include objhits/Makefile.inc
+ include regex_remap/Makefile.inc
+ include regex_revalidate/Makefile.inc
+ include s3_auth/Makefile.inc
+--- /dev/null
++++ trafficserver-8.0.0/plugins/objhits/Makefile.inc
+@@ -0,0 +1,19 @@
++#  Licensed to the Apache Software Foundation (ASF) under one
++#  or more contributor license agreements.  See the NOTICE file
++#  distributed with this work for additional information
++#  regarding copyright ownership.  The ASF licenses this file
++#  to you under the Apache License, Version 2.0 (the
++#  "License"); you may not use this file except in compliance
++#  with the License.  You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++#  Unless required by applicable law or agreed to in writing, software
++#  distributed under the License is distributed on an "AS IS" BASIS,
++#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++#  See the License for the specific language governing permissions and
++#  limitations under the License.
++
++pkglib_LTLIBRARIES += objhits/objhits.la
++objhits_objhits_la_SOURCES = \
++    objhits/objhits.cc
+--- /dev/null
++++ trafficserver-8.0.0/plugins/objhits/objhits.cc
+@@ -0,0 +1,202 @@
++/*
++ * Copyright 2018 Emanuele Rocca <ema@wikimedia.org>
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <unordered_map>
++#include <iostream>
++#include <cstring>
++
++#include "ts/ts.h"
++
++static const char *PLUGIN_NAME = "objhits";
++static const char *HEADER_NAME = "X-ObjHits";
++
++typedef std::unordered_map<std::string, int> ObjMap;
++
++char *
++get_request_url(TSHttpTxn txnp) {
++  char *url = nullptr;
++  int url_len = 0;
++  TSMBuffer request;
++  TSMLoc req_hdr;
++
++  // All this to get the request URL in url...
++  if (TS_SUCCESS == TSHttpTxnClientReqGet(txnp, &request, &req_hdr)) {
++    TSMLoc c_url = TS_NULL_MLOC;
++
++    if (TS_SUCCESS == TSUrlCreate(request, &c_url)) {
++      if (TS_SUCCESS == TSHttpTxnCacheLookupUrlGet(txnp, request, c_url)) {
++        url = TSUrlStringGet(request, c_url, &url_len);
++        TSHandleMLocRelease(request, TS_NULL_MLOC, c_url);
++      }
++    }
++    TSHandleMLocRelease(request, TS_NULL_MLOC, req_hdr);
++  }
++
++  if (!url) {
++    // This should not happen
++    TSError("[%s]: Couldn't get URL", PLUGIN_NAME);
++  }
++
++  return url;
++}
++
++void
++handle_response(TSHttpTxn txnp, TSCont contp) {
++  char *url = get_request_url(txnp);
++  ObjMap *m = static_cast<ObjMap *>(TSContDataGet(contp));
++
++  // The marshal buffer containing the HTTP response
++  TSMBuffer resp_bufp = nullptr;
++  // TSMLoc location pointer for the HTTP header
++  TSMLoc http_hdr_loc = nullptr;
++  // TSMLoc location pointers for the MIME field
++  TSMLoc new_field_loc = nullptr;
++
++  TSMutexLock(TSContMutexGet(contp));
++
++  if (m->find(url) == m->end()) {
++    // This should not happen
++    TSError("[%s]: No objhits for %s", PLUGIN_NAME, url);
++    goto cleanup;
++  }
++
++  if (TSHttpTxnClientRespGet(txnp, &resp_bufp, &http_hdr_loc) != TS_SUCCESS) {
++    TSError("[%s]: Could not retrieve response", PLUGIN_NAME);
++    goto cleanup;
++  }
++
++  if (TSMimeHdrFieldCreate(resp_bufp, http_hdr_loc, &new_field_loc) != TS_SUCCESS) {
++    TSError("[%s]: Could not create header field", PLUGIN_NAME);
++    goto cleanup;
++  }
++
++  // Set header name
++  if (TSMimeHdrFieldNameSet(resp_bufp, http_hdr_loc, new_field_loc, HEADER_NAME, strlen(HEADER_NAME)) != TS_SUCCESS) {
++    TSError("[%s]: Could not set header name", PLUGIN_NAME);
++    goto cleanup;
++  }
++
++  // Set header Value
++  if (TSMimeHdrFieldValueUintInsert(resp_bufp, http_hdr_loc, new_field_loc, -1, m->at(url)) != TS_SUCCESS) {
++    TSError("[%s]: Could not set field value", PLUGIN_NAME);
++    goto cleanup;
++  }
++
++  if (TSMimeHdrFieldAppend(resp_bufp, http_hdr_loc, new_field_loc) != TS_SUCCESS) {
++    TSError("[%s]: Could not append field", PLUGIN_NAME);
++    goto cleanup;
++  }
++    
++cleanup:
++  TSMutexUnlock(TSContMutexGet(contp));
++
++  if (resp_bufp) {
++    TSHandleMLocRelease(resp_bufp, http_hdr_loc, new_field_loc);
++    TSHandleMLocRelease(resp_bufp, TS_NULL_MLOC, http_hdr_loc);
++  }
++
++  TSfree(url);
++
++  // Reenable and continue with the state machine
++  TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
++}
++
++static void
++handle_cache_lookup(TSHttpTxn txnp, TSCont contp)
++{
++  int obj_status;
++  ObjMap *m = static_cast<ObjMap *>(TSContDataGet(contp));
++
++  if (TSHttpTxnIsInternal(txnp)) {
++    // Should we skip internal Traffic Server transactions? What are those
++    // exactly?
++    TSError("[%s]: TSHttpTxnIsInternal", PLUGIN_NAME);
++    goto done;
++  }
++
++  if (TSHttpTxnCacheLookupStatusGet(txnp, &obj_status) == TS_ERROR) {
++    TSError("[%s]: TSHttpTxnCacheLookupStatusGet", PLUGIN_NAME);
++    goto done;
++  }
++
++  if (obj_status == TS_CACHE_LOOKUP_HIT_FRESH) {
++    // Increment cache hit counter for this transaction
++    char *url = get_request_url(txnp);
++
++    TSMutexLock(TSContMutexGet(contp));
++
++    if (m->find(url) == m->end()) {
++      m->insert({url, 1});
++    } else {
++      m->insert({url, ++m->at(url)});
++    }
++    TSMutexUnlock(TSContMutexGet(contp));
++
++    TSfree(url);
++
++    // Get back to us whenever TS_EVENT_HTTP_SEND_RESPONSE_HDR happens
++    // Note that TSHttpTxnHookAdd != TSHttpHookAdd
++    TSHttpTxnHookAdd(txnp, TS_HTTP_SEND_RESPONSE_HDR_HOOK, contp);
++  }
++
++done:
++  // Reenable and continue with the state machine
++  TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
++}
++
++static int
++objhits_plugin(TSCont contp, TSEvent event, void *edata)
++{
++  TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
++
++  switch (event) {
++    case TS_EVENT_HTTP_CACHE_LOOKUP_COMPLETE:
++      handle_cache_lookup(txnp, contp);
++      return 0;
++
++    case TS_EVENT_HTTP_SEND_RESPONSE_HDR:
++      handle_response(txnp, contp);
++      return 0;
++    default:
++      TSDebug(PLUGIN_NAME, "Unhandled event %d", (int)event);
++      break;
++  }
++
++  return 0;
++}
++
++void
++TSPluginInit(int argc, const char *argv[])
++{
++  TSPluginRegistrationInfo info;
++  info.plugin_name   = PLUGIN_NAME;
++  info.vendor_name   = (char *)"Emanuele Rocca";
++  info.support_email = (char *)"ema@wikimedia.org";
++
++  if (TSPluginRegister(&info) != TS_SUCCESS) {
++    TSError("%s failed to register", PLUGIN_NAME);
++    exit(-1);
++  }
++
++  TSDebug(PLUGIN_NAME, "loaded");
++
++  ObjMap *m = new ObjMap;
++
++  TSCont contp = TSContCreate(objhits_plugin, TSMutexCreate());
++  TSContDataSet(contp, static_cast<void *>(m));
++
++  TSHttpHookAdd(TS_HTTP_CACHE_LOOKUP_COMPLETE_HOOK, contp);
++}
+\ No newline at end of file
