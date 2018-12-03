@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[8.0.0])
-m4_define([TS_VERSION_N],[8000000])
+m4_define([TS_VERSION_S],[8.0.1])
+m4_define([TS_VERSION_N],[8000001])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -308,6 +308,16 @@ AC_ARG_ENABLE([docs],
         enable_doc_build=no
         AC_ERROR([Doc building disabled, java required but not found])
       ])
+    AC_ARG_VAR(SPHINXBUILD, [the sphinx-build documentation generator])
+    AC_PATH_PROG([SPHINXBUILD], [sphinx-build], [])
+    AS_IF(["$srcdir/doc/checkvers.sh" "$SPHINXBUILD" "$srcdir/doc/checkvers.py"],
+      [
+        sphinx_version_check=yes
+      ],[
+        sphinx_version_check=no
+        enable_doc_build=no
+        AC_ERROR([Doc building disabled, check sphinx installation])
+      ])
   ],
   [enable_doc_build=no]
 )
@@ -499,17 +509,26 @@ AM_CONDITIONAL([BUILD_MEMCACHED_REMAP_PLUGIN], [test "x${have_libmemcached}" = "
 #
 # Check Magick++ is available. Enable experimental/webp_transform plugin
 #
-PKG_CHECK_MODULES([LIBMAGICKCPP],[Magick++], [
+PKG_CHECK_MODULES([LIBMAGICKCPP],[Magick++ >= 7], [
+  TS_ADDTO(LIBMAGICKCPP_CFLAGS, [-DMAGICK_VERSION=7])
   have_libmagickcpp=yes
   AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
-    enable_webp_transform_plugin=yes
+    enable_image_magick_plugins=yes
   ])
 ],
 [
-  have_libmagickcpp=no
-])
+  PKG_CHECK_MODULES([LIBMAGICKCPP],[Magick++ < 7], [
+    TS_ADDTO(LIBMAGICKCPP_CFLAGS, [-DMAGICK_VERSION=6])
+    have_libmagickcpp=yes
+    AS_IF([test "x$enable_experimental_plugins" = "xyes"], [
+      enable_image_magick_plugins=yes
+    ])
+  ],
+  [
+    have_libmagickcpp=no
+  ])])
 
-AM_CONDITIONAL([BUILD_WEBP_TRANSFORM_PLUGIN], [test "x${enable_webp_transform_plugin}" = "xyes"])
+AM_CONDITIONAL([BUILD_IMAGE_MAGICK_PLUGINS], [test "x${enable_image_magick_plugins}" = "xyes"])
 
 #
 # Example plugins. The example plugins are only built and installed if this is enabled. Installing
@@ -723,21 +742,13 @@ AM_PATH_PYTHON([2.4], [
   TS_MAN3_MANPAGES=`cd $srcdir/doc && $PYTHON manpages.py --section=3 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
   TS_MAN5_MANPAGES=`cd $srcdir/doc && $PYTHON manpages.py --section=5 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
   TS_MAN8_MANPAGES=`cd $srcdir/doc && $PYTHON manpages.py --section=8 | $AWK '{print "$(BUILDDIR)/man/" $0 }' | tr '\n' ' '`
-
-  # If we have python, check if the Sphinx version looks OK.
-  AS_IF(["$PYTHON" "$srcdir/doc/checkvers.py" --check-version], [
-    sphinx_version_check=yes
-  ])
-
 ], [
   dnl action-if-not-found
   :
 ])
 
 AC_ARG_VAR(RPATH, [path to be added to rpath])
-AC_ARG_VAR(SPHINXBUILD, [the sphinx-build documentation generator])
 AC_ARG_VAR(SPHINXOPTS, [additional sphinx-build options])
-AC_CHECK_PROG([SPHINXBUILD], [sphinx-build], [sphinx-build], [false])
 
 AC_ARG_VAR([CLANG_TIDY], [clang-tidy command])
 
@@ -1306,21 +1317,21 @@ TS_CHECK_LUAJIT
 #
 AC_CHECK_HEADERS([jansson.h], [
   AC_MSG_CHECKING([whether jansson is dynamic])
-  TS_LINK_WITH_FLAGS_IFELSE([-shared -fPIC -l:libjansson.a],[AC_LANG_PROGRAM(
+  TS_LINK_WITH_FLAGS_IFELSE([-fPIC -ljansson],[AC_LANG_PROGRAM(
                             [#include <jansson.h>],
                             [(void) json_object();])],
-                            [AC_MSG_RESULT([no]);  LIBJANSSON=-l:libjansson.a],
-                            [AC_MSG_RESULT([yes]); LIBJANSSON=-ljansson])
+                            [AC_MSG_RESULT([yes]); LIBJANSSON=-ljansson],
+                            [AC_MSG_RESULT([no]);  LIBJANSSON=-l:libjansson.a])
   ],
   [LIBJANSSON=])
 
 AC_CHECK_HEADERS([cjose/cjose.h], [
   AC_MSG_CHECKING([whether cjose is dynamic])
-  TS_LINK_WITH_FLAGS_IFELSE([-shared -fPIC -l:libcjose.a],[AC_LANG_PROGRAM(
+  TS_LINK_WITH_FLAGS_IFELSE([-fPIC -lcjose],[AC_LANG_PROGRAM(
                             [#include <cjose/cjose.h>],
                             [(void) cjose_jws_import("", 0, NULL);])],
-                            [AC_MSG_RESULT([no]);  LIBCJOSE=-l:libcjose.a],
-                            [AC_MSG_RESULT([yes]); LIBCJOSE=-lcjose])
+                            [AC_MSG_RESULT([yes]); LIBCJOSE=-lcjose],
+                            [AC_MSG_RESULT([no]);  LIBCJOSE=-l:libcjose.a])
   ],
   [LIBCJOSE=])
 AC_CHECK_LIB([crypto],[HMAC],[has_libcrypto=1],[has_libcrypto=0])
@@ -2006,9 +2017,9 @@ AC_CONFIG_FILES([
   doc/ext/local-config.py
   doc/uml/Makefile
   example/Makefile
-  include/Makefile 
-  include/ts/Makefile 
-  include/tscpp/api/Makefile 
+  include/Makefile
+  include/ts/Makefile
+  include/tscpp/api/Makefile
   include/tscpp/util/Makefile
   iocore/Makefile
   iocore/aio/Makefile
@@ -2045,7 +2056,7 @@ AC_CONFIG_FILES([
   rc/trafficserver.conf
   rc/trafficserver.service
   rc/trafficserver.xml
-  src/tscpp/util/Makefile 
+  src/tscpp/util/Makefile
   src/tscore/Makefile
   tools/Makefile
   tools/trafficserver.pc
