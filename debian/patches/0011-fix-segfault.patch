@@ -9,7 +9,7 @@ Last-Update: 2018-10-17
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/iocore/cache/CachePages.cc
 +++ b/iocore/cache/CachePages.cc
-@@ -337,6 +337,13 @@ ShowCache::handleCacheEvent(int event, Event *e)
+@@ -337,6 +337,13 @@ ShowCache::handleCacheEvent(int event, E
      CacheHTTPInfoVector *vec = &(cache_vc->vector);
      int alt_count            = vec->count();
      if (alt_count) {

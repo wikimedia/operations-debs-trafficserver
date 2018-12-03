@@ -1,12 +1,6 @@
 0001-Use-mcx16-on-x86-platforms-only.patch
-0002-add-mips64-support.patch
 0003-reproductible-build.patch
-0004-fix_arm_build.patch
-0005-fix_build_kfreebsd.patch
 0006-fix-doc-build.patch
-0007-fix-uri_signing.patch
 0008-fix-python-check-unused-dependencies.patch
 0009-fix-mysql-8-build.patch
-0010-fix-32bits-build.patch
 0011-fix-segfault.patch
-0012-fix-traffic_via.patch
