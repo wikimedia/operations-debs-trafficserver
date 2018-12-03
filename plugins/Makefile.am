@@ -57,6 +57,7 @@ include experimental/acme/Makefile.inc
 include experimental/balancer/Makefile.inc
 include experimental/buffer_upload/Makefile.inc
 include experimental/cache_range_requests/Makefile.inc
+include experimental/certifier/Makefile.inc
 include experimental/collapsed_forwarding/Makefile.inc
 include experimental/custom_redirect/Makefile.inc
 include experimental/fq_pacing/Makefile.inc
@@ -99,8 +100,9 @@ if HAS_KYOTOCABINET
 include experimental/cache_key_genid/Makefile.inc
 endif
 
-if BUILD_WEBP_TRANSFORM_PLUGIN
+if BUILD_IMAGE_MAGICK_PLUGINS
 include experimental/webp_transform/Makefile.inc
+include experimental/magick/Makefile.inc
 endif
 
 if HAS_MYSQL
