@@ -1,3 +1,18 @@
+trafficserver (8.0.1-1) unstable; urgency=medium
+
+  * New upstream version 8.0.1
+  * Patches refresh for 8.0.1
+  * Removed patches which have been merged upstream:
+    - 0002-add-mips64-support
+    - 0004-fix_arm_build
+    - 0005-fix_build_kfreebsd
+    - 0007-fix-uri_signing
+    - 0010-fix-32bits-build
+    - 0012-fix-traffic_via
+  * Fix lintian warning public-upstream-key-not-minimal
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 03 Dec 2018 14:15:07 +0100
+
 trafficserver (8.0.0-4) unstable; urgency=medium
 
   [ Emanuele Rocca ]
