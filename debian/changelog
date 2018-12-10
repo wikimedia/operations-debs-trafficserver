@@ -1,3 +1,50 @@
+trafficserver (8.0.1-1) unstable; urgency=medium
+
+  * New upstream version 8.0.1
+  * Patches refresh for 8.0.1
+  * Removed patches which have been merged upstream:
+    - 0002-add-mips64-support
+    - 0004-fix_arm_build
+    - 0005-fix_build_kfreebsd
+    - 0007-fix-uri_signing
+    - 0010-fix-32bits-build
+    - 0012-fix-traffic_via
+  * Fix lintian warning public-upstream-key-not-minimal
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 03 Dec 2018 14:15:07 +0100
+
+trafficserver (8.0.0-4) unstable; urgency=medium
+
+  [ Emanuele Rocca ]
+  * Update descriptions in d/control
+
+  [ Jean Baptiste Favre ]
+  * Update patch to fix kfreebsd FTBFS
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Mon, 05 Nov 2018 10:13:03 +0100
+
+trafficserver (8.0.0-3) unstable; urgency=medium
+
+  * Remove webptransform experimental plugin
+  * Update patch to fix kfreebsd FTBFS
+  * Update d/copyright to fix lintian error
+  * Update d/rules to fix FTBFS for mips & mipsel archs
+  * Update d/rules to spare call to dpkg-parsechangelog
+  * Update d/copyright after 8.0.0 file moves
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 02 Nov 2018 14:24:38 +0100
+
+trafficserver (8.0.0-2) unstable; urgency=medium
+
+  * Add a patch to fix FTBFS with MySQL 8 (LP: #1795362)
+  * Update 0009-fix-mysql-8-build.patch which has been merged upstream
+  * Bump Standards-Version in d/control
+  * Add patch to fix 32bits arm & mips arch build
+  * Backport upstream patch to fix segmentation fault
+  * Backport upstream patch to fix traffic_via
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 17 Oct 2018 20:40:51 +0200
+
 trafficserver (8.0.0-1wm4) stretch-wikimedia; urgency=medium
 
   * objhits plugin initial release.
@@ -101,16 +148,15 @@ trafficserver (8.0.0-1) unstable; urgency=medium
       - 0009-fix-doc-python3, update upstream
       - 0010-Remove-custom-memory-barriers-from-header_rewrite-an patches,
         updated upstream
-    - Renamed remaingin patches:
+    - Renamed remaining patches:
       - 0006-fix_arm_build -> 0004-fix_arm_build,
       - 0007-fix_build_kfreebsd -> 0005-fix_build_kfreebsd,
       - 0009-fix-doc-git -> 0006-fix-doc-build
     - Add patch to fix uri_signing experimental plugin build
     - Add patch to fix check-unused-dependencies
   * New upstream version 8.0.0
-  * UNRELEASED
 
- -- Jean Baptiste Favre <debian@jbfavre.org>  Wed, 26 Sep 2018 19:37:13 +0200
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Sat, 06 Oct 2018 12:43:13 +0200
 
 trafficserver (7.1.4+ds-1) unstable; urgency=medium
 

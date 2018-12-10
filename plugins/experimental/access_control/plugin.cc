@@ -32,6 +32,8 @@
 #include "utils.h"          /* cryptoBase64Decode.* functions */
 #include "headers.h"        /* getHeader, setHeader, removeHeader */
 
+static const std::string_view UNKNOWN{"unknown"};
+
 static const char *
 getEventName(TSEvent event)
 {
@@ -385,11 +387,11 @@ contHandleAccessControl(const TSCont contp, TSEvent event, void *edata)
                *            a secure channel, typically HTTP over Transport Layer Security (TLS)
                * HttpOnly - instructs the UA to omit the cookie when providing access to cookies via “non-HTTP” APIs such as a web
                *            browser API that exposes cookies to scripts */
-              cookieValue.append("Secure; HttpOnly");
+              cookieValue.append("path=/; Secure; HttpOnly");
 
               AccessControlDebug("%.*s: %s", TS_MIME_LEN_SET_COOKIE, TS_MIME_FIELD_SET_COOKIE, cookieValue.c_str());
               setHeader(clientRespBufp, clientRespHdrLoc, TS_MIME_FIELD_SET_COOKIE, TS_MIME_LEN_SET_COOKIE, cookieValue.c_str(),
-                        cookieValue.size());
+                        cookieValue.size(), /* duplicateOk = */ true);
 
               delete token;
             } else {
@@ -415,12 +417,18 @@ contHandleAccessControl(const TSCont contp, TSEvent event, void *edata)
 
           TSHandleMLocRelease(serverRespBufp, TS_NULL_MLOC, serverRespHdrLoc);
         } else {
-          AccessControlError("failed to retrieve server response header");
+          int len;
+          char *url = TSHttpTxnEffectiveUrlStringGet(txnp, &len);
+          AccessControlError("failed to retrieve server response header for request url:%.*s",
+                             (len ? len : static_cast<int>(UNKNOWN.size())), (url ? url : UNKNOWN.data()));
         }
 
         TSHandleMLocRelease(clientRespBufp, TS_NULL_MLOC, clientRespHdrLoc);
       } else {
-        AccessControlError("failed to retrieve client response header");
+        int len;
+        char *url = TSHttpTxnEffectiveUrlStringGet(txnp, &len);
+        AccessControlError("failed to retrieve client response header for request url:%.*s",
+                           (len ? len : static_cast<int>(UNKNOWN.size())), (url ? url : UNKNOWN.data()));
       }
     }
   } break;
@@ -583,7 +591,7 @@ TSRemapDoRemap(void *instance, TSHttpTxn txnp, TSRemapRequestInfo *rri)
         String pattern;
         if (config->_uriPathScope.empty()) {
           /* Scope match enforce access control */
-          AccessControlError("no plugin scope specified, enforcing access control");
+          AccessControlDebug("no plugin scope specified, enforcing access control");
           remapStatus = enforceAccessControl(txnp, rri, config);
         } else {
           if (true == config->_uriPathScope.matchAll(reqPath, filename, pattern)) {
@@ -592,13 +600,13 @@ TSRemapDoRemap(void *instance, TSHttpTxn txnp, TSRemapRequestInfo *rri)
             /* Scope match enforce access control */
             remapStatus = enforceAccessControl(txnp, rri, config);
           } else {
-            AccessControlError("not matching plugin scope (file: %s, pattern %s), skipping access control for path '%s'",
+            AccessControlDebug("not matching plugin scope (file: %s, pattern %s), skipping access control for path '%s'",
                                filename.c_str(), pattern.c_str(), reqPath.c_str());
           }
         }
       } else {
         TSHttpTxnStatusSet(txnp, config->_invalidRequest);
-        AccessControlError("https is the only allowed scheme (plugin should be used only with TLS)");
+        AccessControlDebug("https is the only allowed scheme (plugin should be used only with TLS)");
         remapStatus = TSREMAP_DID_REMAP;
       }
     } else {

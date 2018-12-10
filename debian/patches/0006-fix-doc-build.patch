@@ -7,11 +7,9 @@ Origin: other
 Last-Update: 2018-04-24
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
-Index: trafficserver/doc/ext/traffic-server.py
-===================================================================
---- trafficserver.orig/doc/ext/traffic-server.py	2018-09-26 19:36:04.560401169 +0200
-+++ trafficserver/doc/ext/traffic-server.py	2018-09-26 19:36:04.560401169 +0200
-@@ -411,7 +411,7 @@
+--- a/doc/ext/traffic-server.py
++++ b/doc/ext/traffic-server.py
+@@ -380,7 +380,7 @@ with open('../configure.ac', 'r') as f:
      autoconf_version = '.'.join(match.group(1).split('.', 2)[:2] + ['x'])
  
  # get the current branch the local repository is on
@@ -20,11 +18,9 @@ Index: trafficserver/doc/ext/traffic-server.py
  
  
  def make_github_link(name, rawtext, text, lineno, inliner, options={}, content=[]):
-Index: trafficserver/doc/Makefile.am
-===================================================================
---- trafficserver.orig/doc/Makefile.am	2018-09-26 19:36:04.560401169 +0200
-+++ trafficserver/doc/Makefile.am	2018-09-26 19:36:04.560401169 +0200
-@@ -61,7 +61,7 @@
+--- a/doc/Makefile.am
++++ b/doc/Makefile.am
+@@ -61,7 +61,7 @@ I18NSPHINXOPTS  = $(SPHINXOPTS)
  # The PAPER setting variables requires recursive make variable expansion, which automake
  # detects as non-portable. We bounce this through a shell script and do the expansion there.
  SBUILD = PAPEROPT_a4="$(PAPEROPT_a4)" PAPEROPT_letter="$(PAPEROPT_letter)" PAPER="$(PAPER)" \
@@ -33,10 +29,8 @@ Index: trafficserver/doc/Makefile.am
  	$(srcdir)/sbuild $(SPHINXBUILD) \
  	-c $(srcdir) \
  	$(ALLSPHINXOPTS)
-Index: trafficserver/doc/uml/Makefile.am
-===================================================================
---- trafficserver.orig/doc/uml/Makefile.am	2018-09-26 19:36:04.560401169 +0200
-+++ trafficserver/doc/uml/Makefile.am	2018-09-26 19:36:04.560401169 +0200
+--- a/doc/uml/Makefile.am
++++ b/doc/uml/Makefile.am
 @@ -18,7 +18,7 @@
  
  if BUILD_DOCS
@@ -46,7 +40,7 @@ Index: trafficserver/doc/uml/Makefile.am
  
  all-am: jar-check $(images)
  endif
-@@ -39,7 +39,7 @@
+@@ -39,7 +39,7 @@ latex: all-am
  man: all-am
  
  images/%.svg : %.uml

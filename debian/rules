@@ -12,6 +12,8 @@ export DEB_CXXFLAGS_MAINT_APPEND = -O3 -stdlib=libc++
 
 # Get build architecture. ./configure is different on Linux
 include /usr/share/dpkg/architecture.mk
+# Get rid f dpkg-parsechangelog
+include /usr/share/dpkg/pkg-info.mk
 
 configure_flags = \
 	--enable-layout=Debian \
@@ -20,7 +22,7 @@ configure_flags = \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
 	--enable-mime-sanity-check --enable-docs \
-	--with-build-version=$(shell dpkg-parsechangelog --show-field Version) \
+	--with-build-version=$(DEB_VERSION) \
         $(shell dpkg-buildflags --export=configure) CC=clang-6.0 CXX=clang++-6.0
 
 %:
