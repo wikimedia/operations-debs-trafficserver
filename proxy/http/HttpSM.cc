@@ -845,6 +845,7 @@ HttpSM::state_watch_for_client_abort(int event, void *data)
       ua_entry = nullptr;
       tunnel.kill_tunnel();
       terminate_sm = true; // Just die already, the requester is gone
+      set_ua_abort(HttpTransact::ABORTED, event);
     }
     break;
   }
@@ -4936,6 +4937,9 @@ HttpSM::do_http_server_open(bool raw)
     const char *host = t_state.hdr_info.server_request.host_get(&len);
     if (host && len > 0) {
       opt.set_sni_servername(host, len);
+    }
+    if (t_state.server_info.name) {
+      opt.set_ssl_servername(t_state.server_info.name);
     }
 
     SSLConfig::scoped_config params;

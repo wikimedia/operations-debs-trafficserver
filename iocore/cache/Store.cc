@@ -27,6 +27,7 @@
 #include "tscore/ink_file.h"
 #include "tscore/Tokenizer.h"
 #include "tscore/SimpleTokenizer.h"
+#include "tscore/runroot.h"
 
 #if HAVE_LINUX_MAJOR_H
 #include <linux/major.h>

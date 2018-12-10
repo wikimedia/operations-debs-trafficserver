@@ -2653,7 +2653,7 @@ Logging Configuration
    ``0``    Logging disabled.
    ``1``    Log errors only.
    ``2``    Log transactions only.
-   ``3``    Dull logging (errors and transactions).
+   ``3``    Dual logging (errors and transactions).
    ======== ===================================================================
 
    Refer to :ref:`admin-logging` for more information on event logging.
@@ -3097,6 +3097,30 @@ SSL Termination
    Configures the cipher_suites which |TS| will use for TLSv1.3
    connections to origin or next hop. This configuration works
    with OpenSSL v1.1.1 and above.
+
+.. ts:cv:: CONFIG proxy.config.ssl.server.groups_list STRING <See notes>
+
+   Configures the list of supported groups provided by OpenSSL which
+   |TS| will be used to determine the set of shared groups. The value
+   is a colon separated list of group NIDs or names, for example
+   "P-521:P-384:P-256". For instructions, see "Groups" section of
+   `TLS1.3 - OpenSSLWiki <https://wiki.openssl.org/index.php/TLS1.3#Groups>`_.
+
+   The current default value with OpenSSL is:
+
+   X25519:P-256:X448:P-521:P-384
+
+   This configuration works with OpenSSL v1.1.1 and above.
+
+.. ts:cv:: CONFIG proxy.config.ssl.client.groups_list STRING <See notes under proxy.config.ssl.server.groups_list.>
+
+   Configures the list of supported groups provided by OpenSSL which
+   |TS| will use for the "key_share" and "supported groups" extention
+   of TLSv1.3 connections. The value is a colon separated list of
+   group NIDs or names, for example "P-521:P-384:P-256". For
+   instructions, see "Groups" section of `TLS1.3 - OpenSSLWiki <https://wiki.openssl.org/index.php/TLS1.3#Groups>`_.
+
+   This configuration works with OpenSSL v1.1.1 and above.
 
 .. ts:cv:: CONFIG proxy.config.ssl.TLSv1 INT 1
 
