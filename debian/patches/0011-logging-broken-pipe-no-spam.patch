@@ -19,7 +19,7 @@ index 9e06443b..90d4fd0f 100644
          if (len < 0) {
 -          Error("Failed to write log to %s: [tried %d, wrote %d, %s]", logfile->get_name(), total_bytes - bytes_written,
 -                bytes_written, strerror(errno));
-+          if (!(logfile->m_file_format == LOG_FILE_PIPE && errno == EPIPE)) {
++          if (logfile->m_file_format != LOG_FILE_PIPE) {
 +            Error("Failed to write log to %s: [tried %d, wrote %d, %s]", logfile->get_name(), total_bytes - bytes_written,
 +                  bytes_written, strerror(errno));
 +          }

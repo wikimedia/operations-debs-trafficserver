@@ -21,7 +21,7 @@ configure_flags = \
 	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
-	--enable-mime-sanity-check --enable-docs \
+	--enable-mime-sanity-check \
 	--with-build-version=$(DEB_VERSION) \
         $(shell dpkg-buildflags --export=configure) CC=clang-6.0 CXX=clang++-6.0
 
