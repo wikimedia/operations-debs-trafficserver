@@ -4,7 +4,7 @@ Description: Make documentation build works outside of git repository
  and using Debian provided plantuml instead of downloading it from apache mirror
 Author: Jean Baptiste Favre <debian@jbfavre.org>
 Origin: other
-Last-Update: 2018-04-24
+Last-Update: 2019-01-03
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/doc/ext/traffic-server.py
@@ -49,3 +49,15 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
  
  clean-local:
  	rm -f images/*.svg
+--- a/doc/manpages.py
++++ b/doc/manpages.py
+@@ -33,6 +33,9 @@ man_pages = [
+     ('appendices/command-line/traffic_top.en', 'traffic_top', u'Display Traffic Server statistics', None, '1'),
+     ('appendices/command-line/tsxs.en', 'tsxs', u'Traffic Server plugin tool', None, '1'),
+     ('appendices/command-line/traffic_via.en', 'traffic_via', u'Traffic Server Via header decoder', None, '1'),
++    ('appendices/command-line/traffic_layout.en', 'traffic_layout', u'Traffic Server sandbox management tool', None, '1'),
++    ('appendices/command-line/traffic_cache_tool.en', 'traffic_cache_tool', u'Traffic Server cache management tool', None, '1'),
++    ('appendices/command-line/traffic_wccp.en', 'traffic_wccp', u'Traffic Server WCCP client', None, '1'),
+ 
+     ('admin-guide/files/cache.config.en', 'cache.config', u'Traffic Server cache configuration file', None, '5'),
+     ('admin-guide/files/hosting.config.en', 'hosting.config', u'Traffic Server domain hosting configuration file', None, '5'),
