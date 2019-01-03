@@ -13,7 +13,7 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
   libcrypto++-dev, libjansson-dev, libcjose-dev,
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips]
-Standards-Version: 4.2.1
+Standards-Version: 4.3.0
 Homepage: http://trafficserver.apache.org/
 Vcs-Git: https://salsa.debian.org/debian/trafficserver.git
 Vcs-Browser: https://salsa.debian.org/debian/trafficserver
@@ -28,7 +28,7 @@ Replaces: trafficserver-plugin-conf-remap (<< 3.2~),
 Suggests: trafficserver-experimental-plugins (= ${binary:Version})
 Breaks: trafficserver-plugin-conf-remap (<< 3.2~),
  trafficserver-experimental-plugins (<< 8.0.0~)
-Description: fast, scalable and extensible HTTP/1.1 and HTTP/2.0 compliant caching proxy server
+Description: fast, scalable and extensible HTTP/1.1 and HTTP/2.0 caching proxy server
  This package provides the Apache Traffic Server, a fast, scalable reverse
  proxy server which may operate as forward proxy as well. Apache Traffic Server
  supports:
