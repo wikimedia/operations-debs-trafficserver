@@ -51,6 +51,10 @@ Breaks: trafficserver (<< 8.0.0~)
 Description: experimental plugins for Apache Traffic Server
  This package provides the Apache Traffic Server plugins marked as
  experimental.
+ .
+ Please note that these plugins can be removed without priori notice, or
+ promoted as stable plugin. In the last case, they'll be moved from
+ trafficserver-experimental-plugins to trafficserver package.
 
 Package: trafficserver-dev
 Architecture: any
