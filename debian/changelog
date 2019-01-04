@@ -1,3 +1,17 @@
+trafficserver (8.0.1-2) unstable; urgency=medium
+
+  * Update Standards Version in d/control. No other changes needed
+  * Update trafficserver-experimental-plugins package descriptions
+    in d/control to fix lintian warnings
+  * Add patch 0012-fix-spelling-checks to fix spellings. Forwarded upstream
+  * Update patch 0006-fix-doc-build to include missing manpages
+  * Remove d/trafficserver.lintian-overrides
+  * Add patch 0013-fix-perl-interpreter-path. Fix lintian error which used
+    to be overridden in d/trafficserver.lintian-overrides
+  * Update d/trafficserver-dev.lintian-overrides
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Thu, 03 Jan 2019 10:52:44 +0100
+
 trafficserver (8.0.1-1) unstable; urgency=medium
 
   * New upstream version 8.0.1
