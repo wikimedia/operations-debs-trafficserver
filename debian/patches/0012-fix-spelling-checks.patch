@@ -1,0 +1,865 @@
+Description: Fix various speeling issues
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2019-01-03
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/doc/admin-guide/files/ip_allow.config.en.rst
++++ b/doc/admin-guide/files/ip_allow.config.en.rst
+@@ -55,7 +55,7 @@ range with the lower and upper values eq
+ The value of ``method`` is a string which must consist of either HTTP method names separated by the
+ character '|' or the keyword literal ``ALL``. This keyword may omitted in which case it is treated
+ as if it were ``method=ALL``. Methods can also be specified by having multiple instances of the
+-``method`` keyword, each specifiying a single method. E.g., ``method=GET|HEAD`` is the same as
++``method`` keyword, each specifying a single method. E.g., ``method=GET|HEAD`` is the same as
+ ``method=GET method=HEAD``. The method names are not validated which means non-standard method names
+ can be specified.
+ 
+@@ -104,7 +104,7 @@ If the entire subnet were to be denied,
+ 
+    src_ip=123.45.6.0/24 action=ip_deny
+ 
+-The following example allows to any upstream servers::
++The following example allows one to any upstream servers::
+ 
+    dest_ip=0.0.0.0-255.255.255.255 action=ip_allow
+ 
+--- a/doc/admin-guide/files/parent.config.en.rst
++++ b/doc/admin-guide/files/parent.config.en.rst
+@@ -189,7 +189,7 @@ The following list shows the possible ac
+     - ``simple_retry`` - If the parent origin server returns a 404 response on a request
+       a new parent is selected and the request is retried.  The number of retries is controlled
+       by ``max_simple_retries`` which is set to 1 by default.
+-    - ``unavailable_server_retry`` - If the parent returns a 503 response or if the reponse matches
++    - ``unavailable_server_retry`` - If the parent returns a 503 response or if the response matches
+       a list of http 5xx responses defined in ``unavailable_server_retry_responses``, the currently selected
+       parent is marked down and a new parent is selected to retry the request.  The number of
+       retries is controlled by ``max_unavailable_server_retries`` which is set to 1 by default.
+@@ -207,7 +207,7 @@ The following list shows the possible ac
+ 
+ ``max_simple_retries``
+   By default the value for ``max_simple_retries`` is 1.  It may be set to any value in the range 1 to 5.
+-  If ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 reponse
++  If ``parent_retry`` is set to ``simple_retry`` or ``both`` a 404 response
+   from a parent origin server will cause the request to be retried using a new parent at most 1 to 5
+   times as configured by ``max_simple_retries``.
+ 
+@@ -215,7 +215,7 @@ The following list shows the possible ac
+ 
+ ``max_unavailable_server_retries``
+   By default the value for ``max_unavailable_server_retries`` is 1.  It may be set to any value in the range 1 to 5.
+-  If ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 reponse
++  If ``parent_retry`` is set to ``unavailable_server_retries`` or ``both`` a 503 response
+   by default or any http 5xx response listed in the list ``unavailable_server_retry_responses`` from a parent origin server will
+   cause the request to be retried using a new parent after first marking the current parent down.  The request
+   will be retried at most 1 to 5 times as configured by ``max_unavailable_server_retries``.
+--- a/doc/admin-guide/files/records.config.en.rst
++++ b/doc/admin-guide/files/records.config.en.rst
+@@ -802,7 +802,7 @@ ip-resolve
+    ===== ======================================================================
+    Value Description
+    ===== ======================================================================
+-   ``0`` |TS| will buffer the request until the post body has been recieved and
++   ``0`` |TS| will buffer the request until the post body has been received and
+          then send the request to the origin server.
+    ``1`` Immediately return a ``100 Continue`` from |TS| without waiting for
+          the post body.
+@@ -1608,7 +1608,7 @@ Proxy User Variables
+    connection=full     Full user agent connection :ref:`protocol tags <protocol_tags>`
+    ==================  ===============================================================
+ 
+-   Each paramater in the list must be separated by ``|`` or ``:``.  For example, ``for|by=uuid|proto`` is
++   Each parameter in the list must be separated by ``|`` or ``:``.  For example, ``for|by=uuid|proto`` is
+    a valid value for this variable.  Note that the ``connection`` parameter is a non-standard extension to
+    RFC 7239.  Also note that, while Traffic Server allows multiple ``by`` parameters for the same proxy, this
+    is prohibited by RFC 7239. Currently, for the ``host`` parameter to provide the original host from the
+@@ -1636,7 +1636,7 @@ Proxy User Variables
+        information.
+        See :ts:cv:`proxy.config.http.server_ports` for information on how to enable Proxy Protocol on a port.
+ 
+-   See :ref:`proxy-protocol` for more discussion on how |TS| tranforms the `Forwarded: header.
++   See :ref:`proxy-protocol` for more discussion on how |TS| transforms the `Forwarded: header.
+ 
+ .. ts:cv:: CONFIG proxy.config.http.normalize_ae INT 1
+    :reloadable:
+@@ -2386,7 +2386,7 @@ DNS
+ 
+ .. ts:cv:: CONFIG proxy.config.dns.resolv_conf STRING /etc/resolv.conf
+ 
+-   Allows to specify which ``resolv.conf`` file to use for finding resolvers. While the format of this file must be the same as the
++   Allows one to specify which ``resolv.conf`` file to use for finding resolvers. While the format of this file must be the same as the
+    standard ``resolv.conf`` file, this option allows an administrator to manage the set of resolvers in an external configuration file,
+    without affecting how the rest of the operating system uses DNS.
+ 
+@@ -2404,7 +2404,7 @@ DNS
+    :reloadable:
+    :overridable:
+ 
+-   Indicates whether to use SRV records for orgin server lookup.
++   Indicates whether to use SRV records for origin server lookup.
+ 
+ .. ts:cv:: CONFIG proxy.config.dns.dedicated_thread INT 0
+ 
+@@ -2637,7 +2637,7 @@ HostDB
+    Set the frequency (in seconds) to sync hostdb to disk.
+ 
+    Note: hostdb is syncd to disk on a per-partition basis (of which there are 64).
+-   This means that the minumum time to sync all data to disk is :ts:cv:`proxy.config.cache.hostdb.sync_frequency` * 64
++   This means that the minimum time to sync all data to disk is :ts:cv:`proxy.config.cache.hostdb.sync_frequency` * 64
+ 
+ Logging Configuration
+ =====================
+@@ -2951,7 +2951,7 @@ Diagnostic Logging Configuration
+ 
+ .. ts:cv:: CONFIG proxy.config.diags.debug.tags STRING http|dns
+ 
+-   Each |TS| `diag` and `debug` level message is annotated with a subsytem tag.  This configuration
++   Each |TS| `diag` and `debug` level message is annotated with a subsystem tag.  This configuration
+    contains an anchored regular expression that filters the messages based on the tag. The
+    expressions are prefix matched which creates an implicit ``.*`` at the end. Therefore the default
+    value ``http|dns`` will match tags such as ``http``, ``http_hdrs``, ``dns``, and ``dns_recv``.
+@@ -2959,7 +2959,7 @@ Diagnostic Logging Configuration
+    Some commonly used debug tags are:
+ 
+    ============  =====================================================
+-   Tag           Subsytem usage
++   Tag           Subsystem usage
+    ============  =====================================================
+    dns           DNS query resolution
+    http_hdrs     Logs the headers for HTTP requests and responses
+@@ -3115,7 +3115,7 @@ SSL Termination
+ .. ts:cv:: CONFIG proxy.config.ssl.client.groups_list STRING <See notes under proxy.config.ssl.server.groups_list.>
+ 
+    Configures the list of supported groups provided by OpenSSL which
+-   |TS| will use for the "key_share" and "supported groups" extention
++   |TS| will use for the "key_share" and "supported groups" extension
+    of TLSv1.3 connections. The value is a colon separated list of
+    group NIDs or names, for example "P-521:P-384:P-256". For
+    instructions, see "Groups" section of `TLS1.3 - OpenSSLWiki <https://wiki.openssl.org/index.php/TLS1.3#Groups>`_.
+@@ -3254,7 +3254,7 @@ SSL Termination
+    ``0`` Disables the session cache entirely.
+    ``1`` Enables the session cache using OpenSSL's implementation.
+    ``2`` Default. Enables the session cache using |TS|'s implementation. This
+-         implentation should perform much better than the OpenSSL
++         implementation should perform much better than the OpenSSL
+          implementation.
+    ===== ======================================================================
+ 
+--- a/doc/admin-guide/files/remap.config.en.rst
++++ b/doc/admin-guide/files/remap.config.en.rst
+@@ -415,7 +415,7 @@ Acl Filters
+ 
+ Acl filters can be created to control access of specific remap lines. The markup
+ is very similar to that of :file:`ip_allow.config`, with slight changes to
+-accomodate remap markup
++accommodate remap markup
+ 
+ Examples
+ --------
+--- a/doc/admin-guide/files/storage.config.en.rst
++++ b/doc/admin-guide/files/storage.config.en.rst
+@@ -92,7 +92,7 @@ which will effectively clear most of the
+ reboot causes the path names to change.
+ 
+ The :arg:`id` option can be used to create a fixed string that an administrator can use to keep the
+-assignment table consistent by maintaing the mapping from physical device to base string even in the presence of hardware changes and failures.
++assignment table consistent by maintaining the mapping from physical device to base string even in the presence of hardware changes and failures.
+ 
+ Examples
+ ========
+--- a/doc/appendices/command-line/traffic_ctl.en.rst
++++ b/doc/appendices/command-line/traffic_ctl.en.rst
+@@ -255,7 +255,7 @@ traffic_ctl host
+ .. program:: traffic_ctl host
+ .. option:: status HOSTNAME [HOSTNAME ...]
+ 
+-    Get the current status of the hosts used in parent.config as a next hop in a multi-tiered cache heirarchy.  The value 0 or 1 is returned indicating that the host is marked as down '0' or marked as up '1'.  If a host is marked as down, it will not be used as the next hop parent, another host marked as up will be chosen.
++    Get the current status of the hosts used in parent.config as a next hop in a multi-tiered cache hierarchy.  The value 0 or 1 is returned indicating that the host is marked as down '0' or marked as up '1'.  If a host is marked as down, it will not be used as the next hop parent, another host marked as up will be chosen.
+ 
+ .. program:: traffic_ctl host
+ .. option:: down --time seconds HOSTNAME [HOSTNAME ...]
+--- a/doc/developer-guide/api/functions/TSCacheRemove.en.rst
++++ b/doc/developer-guide/api/functions/TSCacheRemove.en.rst
+@@ -41,4 +41,4 @@ the cache calls :arg:`contp` back with t
+ In both of these callbacks, the user (:arg:`contp`) does not have to do
+ anything.  The user does not get any vconnection from the cache, since
+ no data needs to be transferred.  When the cache calls :arg:`contp` back with
+-:data:`TS_EVENT_CACHE_REMOVE`, the remove has already been commited.
++:data:`TS_EVENT_CACHE_REMOVE`, the remove has already been committed.
+--- a/doc/developer-guide/api/functions/TSContSchedule.en.rst
++++ b/doc/developer-guide/api/functions/TSContSchedule.en.rst
+@@ -32,7 +32,7 @@ Description
+ ===========
+ 
+ Schedules :arg:`contp` to run :arg:`delay` milliseconds in the future. This is approximate. The delay
+-will be at least :arg:`delay` but possibly more. Resultions finer than roughly 5 milliseconds will
++will be at least :arg:`delay` but possibly more. Resolutions finer than roughly 5 milliseconds will
+ not be effective. :arg:`contp` is required to have a mutex, which is provided to
+ :func:`TSContCreate`.
+ 
+--- a/doc/developer-guide/api/functions/TSHttpConnectWithPluginId.en.rst
++++ b/doc/developer-guide/api/functions/TSHttpConnectWithPluginId.en.rst
+@@ -79,7 +79,7 @@ virtual connection.
+ 
+ The combination of :arg:`tag` and :arg:`id` is intended to enable correlation
+ in log post processing. The :arg:`tag` identifies the connection as related
+-to the plugin and the :arg:`id` can be used in conjuction with plugin
++to the plugin and the :arg:`id` can be used in conjunction with plugin
+ generated logs to correlate the log records.
+ 
+ Notes
+--- a/doc/developer-guide/api/functions/TSHttpOverridableConfig.en.rst
++++ b/doc/developer-guide/api/functions/TSHttpOverridableConfig.en.rst
+@@ -43,7 +43,7 @@ Description
+ 
+ Some of the values that are set in :file:`records.config` can be changed for a
+ specific transaction. It is important to note that these functions change the
+-configuration values stored for the transation, which is not quite the same as
++configuration values stored for the transaction, which is not quite the same as
+ changing the actual operating values of the transaction. The critical effect is
+ the value must be changed before it is used by the transaction - after that,
+ changes will not have any effect.
+--- a/doc/developer-guide/api/functions/TSHttpTxnErrorBodySet.en.rst
++++ b/doc/developer-guide/api/functions/TSHttpTxnErrorBodySet.en.rst
+@@ -36,4 +36,4 @@ Description
+ Note that both string arguments must be allocated with :c:func:`TSmalloc` or
+ :c:func:`TSstrdup`.  The :arg:`mimetype` is optional, and if not provided it
+ defaults to :literal:`text/html`. Sending an empty string would prevent setting
+-a content type header (but that is not adviced).
++a content type header (but that is not advised).
+--- a/doc/developer-guide/api/functions/TSHttpTxnMilestoneGet.en.rst
++++ b/doc/developer-guide/api/functions/TSHttpTxnMilestoneGet.en.rst
+@@ -138,7 +138,7 @@ is successful.
+ 
+ 	.. macro:: TS_MILESTONE_LAST_ENTRY
+ 
+-		A psuedo index which is set to be one more than the last valid index. This is useful for looping over the data.
++		A pseudo index which is set to be one more than the last valid index. This is useful for looping over the data.
+ 
+ 
+ *  The server connect times predate the transmission of the :literal:`SYN`
+--- a/doc/developer-guide/api/functions/TSHttpTxnServerIntercept.en.rst
++++ b/doc/developer-guide/api/functions/TSHttpTxnServerIntercept.en.rst
+@@ -53,7 +53,7 @@ The response from the plugin is cached s
+ caching rules. Should the plugin wish the response not be cached, the plugin
+ must use appropriate HTTP response headers to prevent caching. The primary
+ purpose of :func:`TSHttpTxnServerIntercept` is allow plugins to provide gateways
+-to other protocols or to allow to plugin to its own transport for the next hop
++to other protocols or to allow one to plugin to its own transport for the next hop
+ to the server. :func:`TSHttpTxnServerIntercept` overrides parent cache
+ configuration.
+ 
+--- a/doc/developer-guide/api/functions/TSIOBufferReader.en.rst
++++ b/doc/developer-guide/api/functions/TSIOBufferReader.en.rst
+@@ -59,7 +59,7 @@ has two very important consequences --
+ *  Conversely keeping a reader around unused will pin the buffer data in memory. This can be useful or harmful.
+ 
+ A buffer has a fixed amount of possible readers (currently 5) which is determined at compile
+-time. Reader allocation is fast and cheap until this maxium is reached at which point it fails.
++time. Reader allocation is fast and cheap until this maximum is reached at which point it fails.
+ 
+ :func:`TSIOBufferReaderAlloc` allocates a reader for the IO buffer :arg:`bufp`. This should only be
+       called on a newly allocated buffer. If not the location of the reader in the buffer will be
+--- a/doc/developer-guide/api/functions/TSSslContext.en.rst
++++ b/doc/developer-guide/api/functions/TSSslContext.en.rst
+@@ -36,11 +36,11 @@ Description
+ ===========
+ 
+ :func:`TSSslContextFindByName` searches for a SSL server context
+-created from :file:`ssl_multicert.config`, matching against the
++created from :file:`ssl_multicert.config`, matchingg against the
+ server :arg:`name`.
+ 
+ :func:`TSSslContextFindByAddr` searches for a SSL server context
+-created from :file:`ssl_multicert.config` matchin against the server
++created from :file:`ssl_multicert.config` matching against the server
+ :arg:`address`.
+ 
+ 
+--- a/doc/developer-guide/api/functions/TSSslSession.en.rst
++++ b/doc/developer-guide/api/functions/TSSslSession.en.rst
+@@ -46,7 +46,7 @@ The functions also work with the :type:`
+ 
+ These functions perform the appropriate locking on the session cache to avoid errors.
+ 
+-The :func:`TSSslSessionGet` and :func:`TSSslSessionGetBuffer` functions retreive the :type:`TSSslSession` object that is identifed by the
++The :func:`TSSslSessionGet` and :func:`TSSslSessionGetBuffer` functions retrieve the :type:`TSSslSession` object that is identifed by the
+ :type:`TSSslSessionID` object.  If there is no matching sesion object, :func:`TSSslSessionGet` returns NULL and :func:`TSSslSessionGetBuffer`
+ returns 0.
+ 
+--- a/doc/developer-guide/api/functions/TSStat.en.rst
++++ b/doc/developer-guide/api/functions/TSStat.en.rst
+@@ -46,9 +46,9 @@ Description
+ 
+ A plugin statistic is created by :func:`TSStatCreate`. The :arg:`name` must be globally unique and
+ should follow the standard dotted tag form. To avoid collisions and for easy of use the first tag
+-should be the plugin name or something easily derived from it. Currently only integers are suppored
++should be the plugin name or something easily derived from it. Currently only integers are supported
+ therefore :arg:`type` must be :macro:`TS_RECORDDATATYPE_INT`. The return value is the index of the
+-statistic. In general thsi should work but if it doesn't it will :code:`assert`. In particular,
++statistic. In general this should work but if it doesn't it will :code:`assert`. In particular,
+ creating the same statistic twice will fail in this way, which can happen if statistics are created
+ as part of or based on configuration files and |TS| is reloaded.
+ 
+--- a/doc/developer-guide/api/functions/TSVConnReenable.en.rst
++++ b/doc/developer-guide/api/functions/TSVConnReenable.en.rst
+@@ -32,7 +32,7 @@ Description
+ ===========
+ 
+ Reenable the SSL connection :arg:`svc`. If a plugin hook is called, ATS
+-processing on that connnection will not resume until this is invoked for that
++processing on that connection will not resume until this is invoked for that
+ connection.
+ 
+ If the server is running OpenSSL 1.0.1 with the appropraite patch installed or
+--- a/doc/developer-guide/api/functions/TSfwrite.en.rst
++++ b/doc/developer-guide/api/functions/TSfwrite.en.rst
+@@ -44,4 +44,4 @@ The behavior is undefined if length is g
+ Return Value
+ ============
+ 
+-Returns the number of bytes actually written, or -1 if an error occured.
++Returns the number of bytes actually written, or -1 if an error occurred.
+--- a/iocore/cache/CacheHosting.cc
++++ b/iocore/cache/CacheHosting.cc
+@@ -715,7 +715,7 @@ ConfigVolumes::BuildListFromString(char
+           // added by YTS Team, yamsat for bug id 59632
+           total += size;
+           if (size > 100 || total > 100) {
+-            err = "Total volume size added upto more than 100 percent, No volumes created";
++            err = "Total volume size added up to more than 100 percent, No volumes created";
+             break;
+           }
+           // ends here
+--- a/iocore/eventsystem/IOBuffer.cc
++++ b/iocore/eventsystem/IOBuffer.cc
+@@ -179,7 +179,7 @@ MIOBuffer::puts(char *s, int64_t len)
+     }
+     if (!*pb || *pb == '\n') {
+       int64_t n = (int64_t)(pb - s);
+-      memcpy(end(), s, n + 1); // Upto and including '\n'
++      memcpy(end(), s, n + 1); // Up to and including '\n'
+       end()[n + 1] = 0;
+       fill(n + 1);
+       return n + 1;
+--- a/plugins/esi/lib/EsiProcessor.cc
++++ b/plugins/esi/lib/EsiProcessor.cc
+@@ -305,7 +305,7 @@ EsiProcessor::process(const char *&data,
+ 
+     /* FAILURE CACHE */
+     FailureData *data = static_cast<FailureData *>(pthread_getspecific(threadKey));
+-    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specfic %p", __FUNCTION__, data);
++    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specific %p", __FUNCTION__, data);
+ 
+     for (iter = try_iter->attempt_nodes.begin(); iter != try_iter->attempt_nodes.end(); ++iter) {
+       if ((iter->type == DocNode::TYPE_INCLUDE) || iter->type == DocNode::TYPE_SPECIAL_INCLUDE) {
+@@ -342,7 +342,7 @@ EsiProcessor::process(const char *&data,
+       }
+     }
+     if (attempt_succeeded) {
+-      _debugLog(_debug_tag, "[%s] attempt section succeded; using attempt section", __FUNCTION__);
++      _debugLog(_debug_tag, "[%s] attempt section succeeded; using attempt section", __FUNCTION__);
+       _node_list.splice(try_iter->pos, try_iter->attempt_nodes);
+     } else {
+       _debugLog(_debug_tag, "[%s] attempt section errored; trying except section", __FUNCTION__);
+@@ -436,7 +436,7 @@ EsiProcessor::flush(string &data, int &o
+ 
+     /* FAILURE CACHE */
+     FailureData *fdata = static_cast<FailureData *>(pthread_getspecific(threadKey));
+-    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specfic %p", __FUNCTION__, fdata);
++    _debugLog("plugin_esi_failureInfo", "[%s]Fetched data related to thread specific %p", __FUNCTION__, fdata);
+ 
+     for (iter = try_iter->attempt_nodes.begin(); iter != try_iter->attempt_nodes.end(); ++iter) {
+       if ((iter->type == DocNode::TYPE_INCLUDE) || iter->type == DocNode::TYPE_SPECIAL_INCLUDE) {
+@@ -473,7 +473,7 @@ EsiProcessor::flush(string &data, int &o
+       }
+     }
+     if (attempt_succeeded) {
+-      _debugLog(_debug_tag, "[%s] attempt section succeded; using attempt section", __FUNCTION__);
++      _debugLog(_debug_tag, "[%s] attempt section succeeded; using attempt section", __FUNCTION__);
+       _n_prescanned_nodes = _n_prescanned_nodes + try_iter->attempt_nodes.size();
+       _node_list.splice(try_iter->pos, try_iter->attempt_nodes);
+     } else {
+--- a/plugins/esi/lib/Variables.cc
++++ b/plugins/esi/lib/Variables.cc
+@@ -437,18 +437,18 @@ Variables::_parseDictVariable(const std:
+   for (int i = 0; i < (var_size - 1); ++i) {
+     if (variable[i] == '{') {
+       if (paranth_index != -1) {
+-        _debugLog(_debug_tag, "[%s] Cannot have multiple paranthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
++        _debugLog(_debug_tag, "[%s] Cannot have multiple parenthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+         return false;
+       }
+       paranth_index = i;
+     }
+     if (variable[i] == '}') {
+-      _debugLog(_debug_tag, "[%s] Cannot have multiple paranthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
++      _debugLog(_debug_tag, "[%s] Cannot have multiple parenthesis in dict variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+       return false;
+     }
+   }
+   if (paranth_index == -1) {
+-    _debugLog(_debug_tag, "[%s] Could not find opening paranthesis in variable [%.*s]", __FUNCTION__, var_size, var_ptr);
++    _debugLog(_debug_tag, "[%s] Could not find opening parenthesis in variable [%.*s]", __FUNCTION__, var_size, var_ptr);
+     return false;
+   }
+   if (paranth_index == 0) {
+--- a/plugins/experimental/collapsed_forwarding/collapsed_forwarding.cc
++++ b/plugins/experimental/collapsed_forwarding/collapsed_forwarding.cc
+@@ -353,7 +353,7 @@ TSRemapInit(TSRemapInterface * /* api_in
+     TSError("Cannot initialize %s as both global and remap plugin", DEBUG_TAG);
+     return TS_ERROR;
+   } else {
+-    TSDebug(DEBUG_TAG, "plugin is succesfully initialized for remap");
++    TSDebug(DEBUG_TAG, "plugin is successfully initialized for remap");
+     return TS_SUCCESS;
+   }
+ }
+--- a/plugins/experimental/fq_pacing/fq_pacing.c
++++ b/plugins/experimental/fq_pacing/fq_pacing.c
+@@ -118,7 +118,7 @@ TSRemapInit(TSRemapInterface *api_info,
+     return TS_ERROR;
+   }
+ 
+-  TSDebug(PLUGIN_NAME, "plugin is succesfully initialized");
++  TSDebug(PLUGIN_NAME, "plugin is successfully initialized");
+   return TS_SUCCESS;
+ }
+ 
+--- a/plugins/experimental/header_normalize/header_normalize.cc
++++ b/plugins/experimental/header_normalize/header_normalize.cc
+@@ -158,7 +158,7 @@ TSRemapInit(TSRemapInterface *api_info,
+     return TS_ERROR;
+   }
+   buildHdrMap();
+-  TSDebug(PLUGIN_NAME, "plugin is succesfully initialized");
++  TSDebug(PLUGIN_NAME, "plugin is successfully initialized");
+   return TS_SUCCESS;
+ }
+ 
+--- a/plugins/experimental/prefetch/plugin.cc
++++ b/plugins/experimental/prefetch/plugin.cc
+@@ -202,7 +202,7 @@ evaluate(const String &v)
+   } else {
+     stmt.assign(v);
+   }
+-  PrefetchDebug("statement: '%s', formating length: %zu", stmt.c_str(), len);
++  PrefetchDebug("statement: '%s', formatting length: %zu", stmt.c_str(), len);
+ 
+   int result = 0;
+   pos        = stmt.find_first_of("+-");
+--- a/plugins/experimental/uri_signing/parse.c
++++ b/plugins/experimental/uri_signing/parse.c
+@@ -142,7 +142,7 @@ validate_jws(cjose_jws_t *jws, struct co
+     PluginDebug("Initial validation of JWT failed for %16p", jws);
+     goto jwt_fail;
+   }
+-  TimerDebug("inital validation of jwt");
++  TimerDebug("initial validation of jwt");
+ 
+   cjose_header_t *hdr = cjose_jws_get_protected(jws);
+   TimerDebug("getting header of jws");
+--- a/plugins/experimental/uri_signing/uri_signing.c
++++ b/plugins/experimental/uri_signing/uri_signing.c
+@@ -46,7 +46,7 @@ TSRemapInit(TSRemapInterface *api_info,
+     return TS_ERROR;
+   }
+ 
+-  TSDebug(PLUGIN_NAME, "plugin is succesfully initialized");
++  TSDebug(PLUGIN_NAME, "plugin is successfully initialized");
+   return TS_SUCCESS;
+ }
+ 
+--- a/plugins/experimental/url_sig/url_sig.c
++++ b/plugins/experimental/url_sig/url_sig.c
+@@ -98,7 +98,7 @@ TSRemapInit(TSRemapInterface *api_info,
+     return TS_ERROR;
+   }
+ 
+-  TSDebug(PLUGIN_NAME, "plugin is succesfully initialized");
++  TSDebug(PLUGIN_NAME, "plugin is successfully initialized");
+   return TS_SUCCESS;
+ }
+ 
+--- a/plugins/generator/generator.cc
++++ b/plugins/generator/generator.cc
+@@ -609,7 +609,7 @@ GeneratorTxnHook(TSCont contp, TSEvent e
+     TSReleaseAssert(TSHttpTxnCacheLookupStatusGet(arg.txn, &status) == TS_SUCCESS);
+     if (status != TS_CACHE_LOOKUP_HIT_FRESH) {
+       // This transaction is going to be a cache miss, so intercept it.
+-      VDEBUG("intercepting orgin server request for txn=%p", arg.txn);
++      VDEBUG("intercepting origin server request for txn=%p", arg.txn);
+       TSHttpTxnServerIntercept(TSContCreate(GeneratorInterceptionHook, TSMutexCreate()), arg.txn);
+     }
+ 
+--- a/plugins/header_rewrite/header_rewrite.cc
++++ b/plugins/header_rewrite/header_rewrite.cc
+@@ -330,7 +330,7 @@ TSPluginInit(int argc, const char *argv[
+     // just appended to the configurations.
+     TSDebug(PLUGIN_NAME, "Loading global configuration file %s", argv[i]);
+     if (conf->parse_config(argv[i], TS_HTTP_READ_RESPONSE_HDR_HOOK)) {
+-      TSDebug(PLUGIN_NAME, "Succesfully loaded global config file %s", argv[i]);
++      TSDebug(PLUGIN_NAME, "Successfully loaded global config file %s", argv[i]);
+       got_config = true;
+     } else {
+       TSError("[header_rewrite] failed to parse configuration file %s", argv[i]);
+@@ -401,7 +401,7 @@ TSRemapNewInstance(int argc, char *argv[
+       delete conf;
+       return TS_ERROR;
+     } else {
+-      TSDebug(PLUGIN_NAME, "Succesfully loaded remap config file %s", argv[i]);
++      TSDebug(PLUGIN_NAME, "Successfully loaded remap config file %s", argv[i]);
+     }
+   }
+ 
+@@ -470,6 +470,6 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, T
+     rule = rule->next;
+   }
+ 
+-  TSDebug(PLUGIN_NAME_DBG, "Returing from TSRemapDoRemap with status: %d", rval);
++  TSDebug(PLUGIN_NAME_DBG, "Returning from TSRemapDoRemap with status: %d", rval);
+   return rval;
+ }
+--- a/plugins/s3_auth/s3_auth.cc
++++ b/plugins/s3_auth/s3_auth.cc
+@@ -871,7 +871,7 @@ event_handler(TSCont cont, TSEvent event
+     }
+ 
+     if (TS_HTTP_STATUS_OK == status) {
+-      TSDebug(PLUGIN_NAME, "Succesfully signed the AWS S3 URL");
++      TSDebug(PLUGIN_NAME, "Successfully signed the AWS S3 URL");
+     } else {
+       TSDebug(PLUGIN_NAME, "Failed to sign the AWS S3 URL, status = %d", status);
+       TSHttpTxnStatusSet(txnp, status);
+--- a/src/traffic_cache_tool/CacheTool.cc
++++ b/src/traffic_cache_tool/CacheTool.cc
+@@ -867,7 +867,7 @@ Span::updateHeader()
+       zret.push(0, errno, "Failed to update span - ", strerror(errno));
+     }
+   } else {
+-    std::cout << "Writing not enabled, no updates perfomed" << std::endl;
++    std::cout << "Writing not enabled, no updates performed" << std::endl;
+   }
+   return zret;
+ }
+--- a/src/traffic_crashlog/traffic_crashlog.cc
++++ b/src/traffic_crashlog/traffic_crashlog.cc
+@@ -198,7 +198,7 @@ main(int /* argc ATS_UNUSED */, const ch
+   mgmterr = TSInit(nullptr, (TSInitOptionT)(TS_MGMT_OPT_NO_EVENTS | TS_MGMT_OPT_NO_SOCK_TESTS));
+   if (mgmterr != TS_ERR_OKAY) {
+     char *msg = TSGetErrorMessage(mgmterr);
+-    Warning("failed to intialize management API: %s", msg);
++    Warning("failed to initialize management API: %s", msg);
+     TSfree(msg);
+   }
+ 
+--- a/src/traffic_logstats/logstats.cc
++++ b/src/traffic_logstats/logstats.cc
+@@ -1828,7 +1828,7 @@ process_file(int in_fd, off_t offset, un
+     unsigned second_read_size = sizeof(LogBufferHeader) - first_read_size;
+     nread                     = read(in_fd, &buffer[first_read_size], second_read_size);
+     if (!nread || EOF == nread) {
+-      Debug("logstats", "Second read of header failed (attemped %d bytes at offset %d, got nothing), errno=%d.", second_read_size,
++      Debug("logstats", "Second read of header failed (attempted %d bytes at offset %d, got nothing), errno=%d.", second_read_size,
+             first_read_size, errno);
+       return 1;
+     }
+--- a/src/traffic_manager/traffic_manager.cc
++++ b/src/traffic_manager/traffic_manager.cc
+@@ -142,7 +142,7 @@ rotateLogs()
+     if (kill(tspid, SIGUSR2) != 0) {
+       mgmt_log("Could not send SIGUSR2 to TS: %s", strerror(errno));
+     } else {
+-      mgmt_log("Succesfully sent SIGUSR2 to TS!");
++      mgmt_log("Successfully sent SIGUSR2 to TS!");
+     }
+   }
+ }
+--- a/src/traffic_server/CoreUtils.h
++++ b/src/traffic_server/CoreUtils.h
+@@ -44,7 +44,7 @@
+ #define PC_REGNUM 12 /* Contains program counter EIP */
+ #define FP_REGNUM 5  /* Virtual frame pointer EBP */
+ #define NO_OF_ARGS                                             \
+-  10 /* The argument depth upto which we would be looking into \
++  10 /* The argument depth up to which we would be looking into \
+         the stack */
+ 
+ // contains local and in registers, frame pointer, and stack base
+@@ -63,7 +63,7 @@ struct core_stack_state {
+ #include <assert.h>
+ 
+ #define NO_OF_ARGS                                             \
+-  10 /* The argument depth upto which we would be looking into \
++  10 /* The argument depth up to which we would be looking into \
+         the stack */
+ 
+ // contains local and in registers, frame pointer, and stack base
+--- a/src/traffic_server/InkAPITest.cc
++++ b/src/traffic_server/InkAPITest.cc
+@@ -4225,7 +4225,7 @@ REGRESSION_TEST(SDK_API_TSHttpHdr)(Regre
+         SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlSet returns TS_ERROR");
+       } else {
+         if (TSHttpHdrUrlGet(bufp1, hdr_loc1, &url_loc_Get) != TS_SUCCESS) {
+-          SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlGet retuns TS_ERROR");
++          SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_FAIL, "TSHttpHdrUrlGet returns TS_ERROR");
+         } else {
+           if (url_loc == url_loc_Get) {
+             SDK_RPRINT(test, "TSHttpHdrUrlSet&Get", "TestCase1", TC_PASS, "ok");
+--- a/src/tscore/ArgParser.cc
++++ b/src/tscore/ArgParser.cc
+@@ -154,7 +154,7 @@ ArgParser::parse(const char **argv)
+   };
+   // if there is anything left, then output usage
+   if (!args.empty()) {
+-    std::string msg = "Unkown command, option or args:";
++    std::string msg = "Unknown command, option or args:";
+     for (auto it : args) {
+       msg = msg + " '" + it + "'";
+     }
+--- a/iocore/net/Socks.cc
++++ b/iocore/net/Socks.cc
+@@ -694,7 +694,7 @@ socks5PasswdAuthHandler(int event, unsig
+     // NEC thinks it is 5 RFC seems to indicate 1.
+     switch (p[1]) {
+     case 0:
+-      Debug("Socks", "Username/Passwd succeded");
++      Debug("Socks", "Username/Passwd succeeded");
+       *h_ptr = nullptr;
+       break;
+ 
+--- a/iocore/net/UnixUDPNet.cc
++++ b/iocore/net/UnixUDPNet.cc
+@@ -628,7 +628,7 @@ UDPNetProcessor::CreateUDPSocket(int *re
+     }
+ 
+     if ((res = safe_getsockname(fd, &local_addr.sa, &local_addr_len)) < 0) {
+-      Debug("udpnet", "CreateUdpsocket: getsockname didnt' work");
++      Debug("udpnet", "CreateUdpsocket: getsockname didn't work");
+       goto HardError;
+     }
+   }
+--- a/mgmt/Rollback.cc
++++ b/mgmt/Rollback.cc
+@@ -133,7 +133,7 @@ Rollback::Rollback(const char *fileName_
+           mgmt_log("[RollBack::Rollback] Automatic Rollback to prior version failed for %s : %s\n", fileName, strerror(errno));
+           needZeroLength = true;
+         } else {
+-          mgmt_log("[RollBack::Rollback] Automatic Rollback to version succeded for %s\n", fileName, strerror(errno));
++          mgmt_log("[RollBack::Rollback] Automatic Rollback to version succeeded for %s\n", fileName, strerror(errno));
+           needZeroLength = false;
+           highestSeen--;
+           // Since we've made the highestVersion active
+--- a/proxy/logging/LogBuffer.cc
++++ b/proxy/logging/LogBuffer.cc
+@@ -270,7 +270,7 @@ LogBuffer::checkout_write(size_t *write_
+       }
+ 
+       if (switch_state(old_s, new_s)) {
+-        // we succeded in setting the new state
++        // we succeeded in setting the new state
+         break;
+       }
+     }
+--- a/proxy/logging/LogObject.cc
++++ b/proxy/logging/LogObject.cc
+@@ -409,7 +409,7 @@ LogObject::_checkout_write(size_t *write
+ 
+     switch (result_code) {
+     case LogBuffer::LB_OK:
+-      // checkout succeded
++      // checkout succeeded
+       retry = false;
+       break;
+ 
+--- a/doc/admin-guide/plugins/header_rewrite.en.rst
++++ b/doc/admin-guide/plugins/header_rewrite.en.rst
+@@ -330,7 +330,7 @@ The data that can be checked is ::
+    %{INBOUND:REMOTE-PORT}     The client port for the connection.
+    %{INBOUND:TLS}             The TLS protocol if the connection is over TLS, otherwise the empty string.
+    %{INBOUND:H2}              The string "h2" if the connection is HTTP/2, otherwise the empty string.
+-   %{INBOUND:IPV4}            The string "ipv4" if the connection is IPv4, otherwise the emtpy string.
++   %{INBOUND:IPV4}            The string "ipv4" if the connection is IPv4, otherwise the empty string.
+    %{INBOUND:IPV6}            The string "ipv6" if the connection is IPv6, otherwise the empty string.
+    %{INBOUND:IP-FAMILY}       The IP family, either "ipv4" or "ipv6".
+    %{INBOUND:STACK}           The full protocol stack separated by ','.
+@@ -827,7 +827,7 @@ Variable                Description
+ %<INBOUND:TLS>          The TLS protocol for the inbound connection if it is over TLS, otherwise the
+                         empty string.
+ %<INBOUND:H2>           The string "h2" if the inbound connection is HTTP/2, otherwise the empty string.
+-%<INBOUND:IPV4>         The string "ipv4" if the inbound connection is IPv4, otherwise the emtpy string.
++%<INBOUND:IPV4>         The string "ipv4" if the inbound connection is IPv4, otherwise the empty string.
+ %<INBOUND:IPV6>         The string "ipv6" if the inbound connection is IPv6, otherwise the empty string.
+ %<INBOUND:IP-FAMILY>    The IP family of the inbound connection (either "ipv4" or "ipv6").
+ %<INBOUND:STACK>        The full protocol stack of the inbound connection separated by ','.
+--- a/iocore/dns/SplitDNS.cc
++++ b/iocore/dns/SplitDNS.cc
+@@ -341,7 +341,7 @@ SplitDNSRecord::ProcessDNSHosts(char *va
+       if (tmp - current > (MAXDNAME - 1)) {
+         return "DNS server name (ip) is too long";
+       } else if (tmp - current == 0) {
+-        return "server string is emtpy";
++        return "server string is empty";
+       }
+       *tmp = 0;
+     }
+--- a/lib/records/RecHttp.cc
++++ b/lib/records/RecHttp.cc
+@@ -410,7 +410,7 @@ HttpProxyPort::processOptions(const char
+     if (in_ip_set_p && m_family != m_inbound_ip.family()) {
+       std::string_view iname{ats_ip_family_name(m_inbound_ip.family())};
+       std::string_view fname{ats_ip_family_name(m_family)};
+-      Warning("Invalid port descriptor '%s' - the inbound adddress family [%.*s] is not the same type as the explicit family value "
++      Warning("Invalid port descriptor '%s' - the inbound address family [%.*s] is not the same type as the explicit family value "
+               "[%.*s]",
+               opts, static_cast<int>(iname.size()), iname.data(), static_cast<int>(fname.size()), fname.data());
+       zret = false;
+--- a/proxy/ParentSelection.cc
++++ b/proxy/ParentSelection.cc
+@@ -491,7 +491,7 @@ ParentRecord::ProcessParents(char *val,
+       errPtr = "Parent hostname is too long";
+       goto MERROR;
+     } else if (tmp - current == 0) {
+-      errPtr = "Parent string is emtpy";
++      errPtr = "Parent string is empty";
+       goto MERROR;
+     }
+     // Update the pRecords
+--- a/src/tscore/HostLookup.cc
++++ b/src/tscore/HostLookup.cc
+@@ -50,7 +50,7 @@ domaincmp(const char *hostname, const ch
+   const char *host_cur   = hostname + strlen(hostname);
+   const char *domain_cur = domain + strlen(domain);
+ 
+-  // Check to see if were passed emtpy stings for either
++  // Check to see if were passed empty stings for either
+   //  argument.  Empty strings do not match anything
+   //
+   if (domain_cur == domain || host_cur == hostname) {
+@@ -380,7 +380,7 @@ charIndex::Insert(const char *match_data
+ 
+     // Check to see if are at the level we supposed be at
+     if (*(match_data + 1) == '\0') {
+-      // The slot should always be emtpy, no duplicate
++      // The slot should always be empty, no duplicate
+       //   keys are allowed
+       ink_assert(cur->branch_array[index] == nullptr);
+       cur->branch_array[index] = toInsert;
+--- a/build/pkg.m4
++++ b/build/pkg.m4
+@@ -53,7 +53,7 @@ fi[]dnl
+ # to PKG_CHECK_MODULES(), but does not set variables or print errors.
+ #
+ # Please remember that m4 expands AC_REQUIRE([PKG_PROG_PKG_CONFIG])
+-# only at the first occurence in configure.ac, so if the first place
++# only at the first occurrence in configure.ac, so if the first place
+ # it's called might be skipped (such as if it is within an "if", you
+ # have to call PKG_CHECK_EXISTS manually
+ # --------------------------------------------------------------
+--- a/doc/admin-guide/files/logging.yaml.en.rst
++++ b/doc/admin-guide/files/logging.yaml.en.rst
+@@ -258,7 +258,7 @@ inconsequentially variable parameters th
+ reporting from log analyzers.
+ 
+ Multiple query parameters may be listed, separated by spaces, though only the
+-first occurence of each will be wiped from the query string if any individual
++first occurrence of each will be wiped from the query string if any individual
+ parameter appears more than once in the URL.
+ 
+ .. _admin-custom-logs-logs:
+--- a/include/tscpp/util/TextView.h
++++ b/include/tscpp/util/TextView.h
+@@ -264,7 +264,7 @@ public:
+   self_type prefix(size_t n) const;
+   /// Convenience overload to avoid ambiguity for literal numbers.
+   self_type prefix(int n) const;
+-  /** Get the prefix delimited by the first occurence of the character @a c.
++  /** Get the prefix delimited by the first occurrence of the character @a c.
+ 
+       If @a c is not found the entire view is returned.
+       The delimiter character is not included in the returned view.
+@@ -272,7 +272,7 @@ public:
+       @return A view of the prefix.
+   */
+   self_type prefix(char c) const;
+-  /** Get the prefix delimited by the first occurence of a character in @a delimiters.
++  /** Get the prefix delimited by the first occurrence of a character in @a delimiters.
+ 
+       If no such character is found the entire view is returned.
+       The delimiter character is not included in the returned view.
+--- a/iocore/cache/CacheVol.cc
++++ b/iocore/cache/CacheVol.cc
+@@ -400,7 +400,7 @@ CacheVC::scanOpenWrite(int /* event ATS_
+   // get volume lock
+   if (writer_lock_retry > SCAN_WRITER_LOCK_MAX_RETRY) {
+     int r = _action.continuation->handleEvent(CACHE_EVENT_SCAN_OPERATION_BLOCKED, nullptr);
+-    Debug("cache_scan", "still havent got the writer lock, asking user..");
++    Debug("cache_scan", "still haven't got the writer lock, asking user..");
+     switch (r) {
+     case CACHE_SCAN_RESULT_RETRY:
+       writer_lock_retry = 0;
+--- a/iocore/eventsystem/I_IOBuffer.h
++++ b/iocore/eventsystem/I_IOBuffer.h
+@@ -697,7 +697,7 @@ public:
+   /**
+     Perform a memchr() across the list of IOBufferBlocks. Returns the
+     offset from the current start point of the reader to the first
+-    occurence of character 'c' in the buffer.
++    occurrence of character 'c' in the buffer.
+ 
+     @param c character to look for.
+     @param len number of characters to check. If len exceeds the number
+--- a/iocore/net/OCSPStapling.cc
++++ b/iocore/net/OCSPStapling.cc
+@@ -89,7 +89,7 @@ stapling_get_issuer(SSL_CTX *ssl_ctx, X5
+ 
+ #ifdef SSL_CTX_select_current_cert
+   if (!SSL_CTX_select_current_cert(ssl_ctx, x)) {
+-    Warning("OCSP: could not select current certifcate chain %p", x);
++    Warning("OCSP: could not select current certificate chain %p", x);
+   }
+ #endif
+ 
+--- a/mgmt/Alarms.cc
++++ b/mgmt/Alarms.cc
+@@ -297,7 +297,7 @@ Alarms::signalAlarm(alarm_t a, const cha
+     (*(func))(a, ip, desc);
+   }
+ 
+-  /* Priority 2 alarms get signalled if they are the first unsolved occurence. */
++  /* Priority 2 alarms get signalled if they are the first unsolved occurrence. */
+   if (priority == 2 && !ip) {
+     execAlarmBin(desc);
+   }
+--- a/proxy/http/HttpSessionManager.cc
++++ b/proxy/http/HttpSessionManager.cc
+@@ -204,7 +204,7 @@ ServerSessionPool::eventHandler(int even
+         if (connection_count_below_min) {
+           Debug("http_ss",
+                 "[%" PRId64 "] [session_bucket] session received io notice [%s], "
+-                "reseting timeout to maintain minimum number of connections",
++                "resetting timeout to maintain minimum number of connections",
+                 s->con_id, HttpDebugNames::get_event_name(event));
+           s->get_netvc()->set_inactivity_timeout(s->get_netvc()->get_inactivity_timeout());
+           s->get_netvc()->set_active_timeout(s->get_netvc()->get_active_timeout());
+--- a/plugins/lua/ts_lua_transform.c
++++ b/plugins/lua/ts_lua_transform.c
+@@ -89,7 +89,7 @@ ts_lua_transform_handler(TSCont contp, t
+   empty_input = 0;
+   if (!TSVIOBufferGet(input_vio)) {
+     if (transform_ctx->output.vio) {
+-      TSDebug(TS_LUA_DEBUG_TAG, "[%s] reenabling ouput VIO after input VIO does not exist", __FUNCTION__);
++      TSDebug(TS_LUA_DEBUG_TAG, "[%s] reenabling output VIO after input VIO does not exist", __FUNCTION__);
+       TSVIONBytesSet(transform_ctx->output.vio, transform_ctx->total);
+       TSVIOReenable(transform_ctx->output.vio);
+       return 0;
+--- a/proxy/hdrs/HdrHeap.cc
++++ b/proxy/hdrs/HdrHeap.cc
+@@ -950,7 +950,7 @@ HdrHeap::unmarshal(int buf_length, int o
+       // Nothing to do
+       break;
+     default:
+-      fprintf(stderr, "WARNING: Unmarshal failed due to unknow obj type %d after %d bytes", (int)obj->m_type,
++      fprintf(stderr, "WARNING: Unmarshal failed due to unknown obj type %d after %d bytes", (int)obj->m_type,
+               (int)(obj_data - (char *)this));
+       dump_heap(unmarshal_size);
+       return -1;

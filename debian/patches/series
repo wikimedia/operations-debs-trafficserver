@@ -4,3 +4,4 @@
 0008-fix-python-check-unused-dependencies.patch
 0009-fix-mysql-8-build.patch
 0011-fix-segfault.patch
+0012-fix-spelling-checks.patch
