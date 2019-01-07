@@ -1,6 +1,7 @@
 Description: Fix various speeling issues
 Author: Jean Baptiste Favre <debian@jbfavre.org>
 Forwarded: https://github.com/apache/trafficserver/pull/4750
+Applied-Upstream: https://github.com/apache/trafficserver/commit/af0ad4a1880a21743e98331855bb78e15d5406ef
 Last-Update: 2019-01-03
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
