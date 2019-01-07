@@ -4,6 +4,7 @@ usr/lib/trafficserver/modules/balancer.so
 usr/lib/trafficserver/modules/buffer_upload.so
 usr/lib/trafficserver/modules/cache_key_genid.so
 usr/lib/trafficserver/modules/cache_range_requests.so
+usr/lib/trafficserver/modules/certifier.so
 usr/lib/trafficserver/modules/collapsed_forwarding.so
 usr/lib/trafficserver/modules/custom_redirect.so
 usr/lib/trafficserver/modules/fq_pacing.so
