@@ -1,0 +1,41 @@
+Index: trafficserver/CMakeLists.txt
+===================================================================
+--- trafficserver.orig/CMakeLists.txt	2019-01-11 18:43:26.529997168 +0100
++++ trafficserver/CMakeLists.txt	2019-01-11 18:43:26.525997598 +0100
+@@ -41,7 +41,6 @@
+         proxy/shared
+         lib/records
+         include/wccp
+-        lib/yamlcpp/include
+         iocore/eventsystem
+         iocore/net
+         iocore/dns
+Index: trafficserver/configure.ac
+===================================================================
+--- trafficserver.orig/configure.ac	2019-01-11 18:43:26.529997168 +0100
++++ trafficserver/configure.ac	2019-01-11 18:43:26.525997598 +0100
+@@ -2041,7 +2041,6 @@
+   include/tscore/ink_config.h
+   lib/tsconfig/Makefile
+   src/wccp/Makefile
+-  lib/yamlcpp/Makefile
+   mgmt/Makefile
+   mgmt/api/Makefile
+   mgmt/api/include/Makefile
+Index: trafficserver/lib/Makefile.am
+===================================================================
+--- trafficserver.orig/lib/Makefile.am	2019-01-11 18:43:26.529997168 +0100
++++ trafficserver/lib/Makefile.am	2019-01-11 18:43:26.525997598 +0100
+@@ -25,12 +25,6 @@
+ # to prevent Clang Analyzer warning
+ LOCAL =
+ 
+-if BUILD_YAML_CPP
+-LOCAL += yamlcpp
+-endif
+-
+ all-local:	$(LOCAL)
+-	$(MAKE) -C yamlcpp
+ 
+ clean-local:
+-	$(MAKE) -C yamlcpp clean

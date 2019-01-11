@@ -11,7 +11,7 @@ Build-Depends: debhelper (>= 11), libssl-dev, tcl-dev, libexpat1-dev,
   python3-sphinxcontrib.plantuml [!kfreebsd-any], python-sphinxcontrib.plantuml [kfreebsd-any],
   libxml2-dev, libncurses-dev, libcurl4-openssl-dev,
   libkyotocabinet-dev, libmemcached-dev, libbrotli-dev,
-  libcrypto++-dev, libjansson-dev, libcjose-dev,
+  libcrypto++-dev, libjansson-dev, libcjose-dev, libyaml-cpp-dev (>= 0.6.2~),
   libunwind-dev [i386 amd64 ppc64el armhf arm64 mipsel mips64el mips]
 Standards-Version: 4.3.0
 Homepage: http://trafficserver.apache.org/

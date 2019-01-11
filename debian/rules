@@ -25,6 +25,7 @@ configure_flags = \
 	--enable-experimental-plugins --enable-32bit-build \
 	--enable-mime-sanity-check --enable-docs \
 	--with-build-version=$(DEB_VERSION) \
+	--with-yaml-cpp=/usr \
         $(shell dpkg-buildflags --export=configure)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
