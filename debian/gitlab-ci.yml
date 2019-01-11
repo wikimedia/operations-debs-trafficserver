@@ -66,9 +66,9 @@ stages:
 
 ### End of generic stage declaration
 
-build:testing:
-  <<: *build
-  image: debian:testing
+#build:testing:
+#  <<: *build
+#  image: debian:testing
 
 build:unstable:
   <<: *build
