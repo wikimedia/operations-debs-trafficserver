@@ -1,3 +1,9 @@
+trafficserver (8.0.1-4) unstable; urgency=medium
+
+  * Add patch and update d/control, d/rules to use system provided yaml-cpp
+
+ -- Jean Baptiste Favre <debian@jbfavre.org>  Fri, 11 Jan 2019 19:07:28 +0100
+
 trafficserver (8.0.1-3) unstable; urgency=medium
 
   * Add missed experimental plugin certifier
