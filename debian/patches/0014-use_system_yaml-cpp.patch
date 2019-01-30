@@ -1,8 +1,6 @@
-Index: trafficserver/CMakeLists.txt
-===================================================================
---- trafficserver.orig/CMakeLists.txt	2019-01-11 18:43:26.529997168 +0100
-+++ trafficserver/CMakeLists.txt	2019-01-11 18:43:26.525997598 +0100
-@@ -41,7 +41,6 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -41,7 +41,6 @@ include_directories(lib
          proxy/shared
          lib/records
          include/wccp
@@ -10,11 +8,9 @@ Index: trafficserver/CMakeLists.txt
          iocore/eventsystem
          iocore/net
          iocore/dns
-Index: trafficserver/configure.ac
-===================================================================
---- trafficserver.orig/configure.ac	2019-01-11 18:43:26.529997168 +0100
-+++ trafficserver/configure.ac	2019-01-11 18:43:26.525997598 +0100
-@@ -2041,7 +2041,6 @@
+--- a/configure.ac
++++ b/configure.ac
+@@ -2041,7 +2041,6 @@ AC_CONFIG_FILES([
    include/tscore/ink_config.h
    lib/tsconfig/Makefile
    src/wccp/Makefile
@@ -22,11 +18,9 @@ Index: trafficserver/configure.ac
    mgmt/Makefile
    mgmt/api/Makefile
    mgmt/api/include/Makefile
-Index: trafficserver/lib/Makefile.am
-===================================================================
---- trafficserver.orig/lib/Makefile.am	2019-01-11 18:43:26.529997168 +0100
-+++ trafficserver/lib/Makefile.am	2019-01-11 18:43:26.525997598 +0100
-@@ -25,12 +25,6 @@
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -25,12 +25,6 @@ endif
  # to prevent Clang Analyzer warning
  LOCAL =
  
