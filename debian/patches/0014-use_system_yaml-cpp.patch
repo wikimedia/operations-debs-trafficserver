@@ -1,3 +1,10 @@
+Description: Update compilation chain after embedded libyamlcpp removal
+Author: Jean Baptiste Favre <debian@jbfavre.org>
+Origin: other
+Reviewed-by: Jean Baptiste Favre <debian@jbfavre.org>
+Last-Update: 2019-01-30
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -41,7 +41,6 @@ include_directories(lib

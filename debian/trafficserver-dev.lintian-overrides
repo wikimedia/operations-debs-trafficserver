@@ -1,5 +1,0 @@
-# changelog is already provided in trafficserver main package.
-# no need to duplicate it in each package
-no-upstream-changelog
-# package provides /usr/bin/tsxs which is arch dependent
-package-contains-no-arch-dependent-files
