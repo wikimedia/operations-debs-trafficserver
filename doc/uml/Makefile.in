@@ -475,7 +475,7 @@ use_tls_ocsp = @use_tls_ocsp@
 use_tls_set_ciphersuites = @use_tls_set_ciphersuites@
 use_tproxy = @use_tproxy@
 @BUILD_DOCS_TRUE@images := $(patsubst %.uml,images/%.svg,$(wildcard *.uml))
-@BUILD_DOCS_TRUE@PLANTUML_JAR := $(shell ../plantuml_fetch.sh | tail -1)
+@BUILD_DOCS_TRUE@PLANTUML_JAR := $(shell ../ext/plantuml_fetch.sh | tail -1)
 all: all-am
 
 .SUFFIXES:
