@@ -1,3 +1,9 @@
+trafficserver (8.0.3-1wm1) stretch-wikimedia; urgency=medium
+
+  * New upstream release.
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Mon, 25 Mar 2019 11:20:42 +0100
+
 trafficserver (8.0.2-1wm1) stretch-wikimedia; urgency=medium
 
   * New upstream release. Includes a fix for CVE-2018-11783:
