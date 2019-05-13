@@ -1,3 +1,9 @@
+trafficserver (8.0.3-1wm2) stretch-wikimedia; urgency=medium
+
+  * Add 0013-read-only-etc.patch
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Mon, 13 May 2019 16:29:57 +0200
+
 trafficserver (8.0.3-1wm1) stretch-wikimedia; urgency=medium
 
   * New upstream release.

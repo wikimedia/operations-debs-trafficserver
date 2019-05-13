@@ -1,0 +1,162 @@
+commit 84ca16577c8cb5d3885bffd0ea877598eed722d3
+Author: Randall Meyer <randallmeyer@yahoo.com>
+Date:   Fri Apr 6 11:19:35 2018 -0700
+
+    obey the option "proxy.config.disable_configuration_modification"
+    
+    This allows the operator to disable configuration backups
+    
+    Fixes issue #2505
+
+diff --git a/mgmt/FileManager.cc b/mgmt/FileManager.cc
+index bbb4cfb7a..4558bd249 100644
+--- a/mgmt/FileManager.cc
++++ b/mgmt/FileManager.cc
+@@ -190,7 +190,7 @@ FileManager::rereadConfig()
+   for (entry = ink_hash_table_iterator_first(bindings, &iterator_state); entry != nullptr;
+        entry = ink_hash_table_iterator_next(bindings, &iterator_state)) {
+     rb = (Rollback *)ink_hash_table_entry_value(bindings, entry);
+-    if (rb->checkForUserUpdate(rb->isVersioned() ? ROLLBACK_CHECK_AND_UPDATE : ROLLBACK_CHECK_ONLY)) {
++    if (rb->checkForUserUpdate(ROLLBACK_CHECK_AND_UPDATE)) {
+       changedFiles.push_back(rb);
+       if (rb->isChildRollback()) {
+         if (std::find(parentFileNeedChange.begin(), parentFileNeedChange.end(), rb->getParentRollback()) ==
+@@ -262,7 +262,6 @@ FileManager::isConfigStale()
+   ink_mutex_release(&accessLock);
+   return stale;
+ }
+-
+ // void configFileChild(const char *parent, const char *child)
+ //
+ // Add child to the bindings with parentRollback
+diff --git a/mgmt/Rollback.cc b/mgmt/Rollback.cc
+index dec9d6f49..760306be4 100644
+--- a/mgmt/Rollback.cc
++++ b/mgmt/Rollback.cc
+@@ -65,6 +65,7 @@ Rollback::Rollback(const char *fileName_, bool root_access_needed_, Rollback *pa
+   ExpandingArray existVer(25, true); // Exsisting versions
+   struct stat fileInfo;
+   MgmtInt numBak;
++  MgmtInt disableCfgMod;
+   char *alarmMsg;
+ 
+   // To Test, Read/Write access to the file
+@@ -98,15 +99,15 @@ Rollback::Rollback(const char *fileName_, bool root_access_needed_, Rollback *pa
+   ink_mutex_init(&fileAccessLock);
+ 
+   if (varIntFromName("proxy.config.admin.number_config_bak", &numBak) == true) {
+-    if (numBak > 1) {
+-      numberBackups = (int)numBak;
+-    } else {
+-      numberBackups = 1;
+-    }
++    numberBackups = (int)numBak;
+   } else {
+     numberBackups = DEFAULT_BACKUPS;
+   }
+ 
++  if (varIntFromName("proxy.config.disable_configuration_modification", &disableCfgMod) == true && disableCfgMod) {
++      numberBackups = 0;
++  }
++
+   // If we are not doing backups, bail early.
+   if ((numberBackups <= 0) || (flags & CONFIG_FLAG_UNVERSIONED)) {
+     currentVersion = 0;
+@@ -887,7 +888,7 @@ Rollback::setLastModifiedTime()
+ //    of creating a new timestamp
+ //
+ bool
+-Rollback::checkForUserUpdate(RollBackCheckType how)
++Rollback::checkForUserUpdate(RollBackCheckType checkType)
+ {
+   struct stat fileInfo;
+   bool result;
+@@ -896,7 +897,6 @@ Rollback::checkForUserUpdate(RollBackCheckType how)
+   version_t currentVersion_local;
+   TextBuffer *buf;
+   RollBackCodes r;
+-
+   ink_mutex_acquire(&fileAccessLock);
+ 
+   if (this->statFile(ACTIVE_VERSION, &fileInfo) < 0) {
+@@ -905,22 +905,29 @@ Rollback::checkForUserUpdate(RollBackCheckType how)
+   }
+ 
+   if (fileLastModified < TS_ARCHIVE_STAT_MTIME(fileInfo)) {
+-    if (how == ROLLBACK_CHECK_AND_UPDATE) {
+-      // We've been modified, Roll a new version
+-      currentVersion_local = this->getCurrentVersion();
+-      r                    = this->getVersion_ml(currentVersion_local, &buf);
+-      if (r == OK_ROLLBACK) {
+-        r = this->updateVersion_ml(buf, currentVersion_local);
+-        delete buf;
+-      }
+-      if (r != OK_ROLLBACK) {
+-        mgmt_log("[Rollback::checkForUserUpdate] Failed to roll changed user file %s: %s", fileName, RollbackStrings[r]);
+-      }
+-
+-      mgmt_log("User has changed config file %s\n", fileName);
+-    }
++      if (checkType == ROLLBACK_CHECK_AND_UPDATE) {
++          if (isVersioned()) {
++              // We've been modified, Roll a new version
++              currentVersion_local = this->getCurrentVersion();
++              r                    = this->getVersion_ml(currentVersion_local, &buf);
++              if (r == OK_ROLLBACK) {
++                  r = this->updateVersion_ml(buf, currentVersion_local);
++                  delete buf;
++              }
++              if (r != OK_ROLLBACK) {
++                  mgmt_log("[Rollback::checkForUserUpdate] Failed to roll changed user file %s: %s", fileName, RollbackStrings[r]);
++              }
++          } else {
++              // Post the change to the config file manager
++              if (configFiles) {
++                  setLastModifiedTime();
++                  configFiles->fileChanged(fileName, false);
++              }
++          }
+ 
+-    result = true;
++          mgmt_log("User has changed config file %s\n", fileName);
++      }
++      result = true;
+   } else {
+     result = false;
+   }
+diff --git a/mgmt/api/TSControlMain.cc b/mgmt/api/TSControlMain.cc
+index b7626bc02..adc34f007 100644
+--- a/mgmt/api/TSControlMain.cc
++++ b/mgmt/api/TSControlMain.cc
+@@ -48,8 +48,6 @@ static InkHashTable *accepted_con; // a list of all accepted client connections
+ 
+ static TSMgmtError handle_control_message(int fd, void *msg, size_t msglen);
+ 
+-static RecBool disable_modification = false;
+-
+ /*********************************************************************
+  * create_client
+  *
+@@ -172,8 +170,6 @@ ts_ctrl_main(void *arg)
+ 
+     // check if have any connections or requests
+     if (fds_ready > 0) {
+-      RecGetRecordBool("proxy.config.disable_configuration_modification", &disable_modification);
+-
+       // first check for connections!
+       if (con_socket_fd >= 0 && FD_ISSET(con_socket_fd, &selectFDs)) {
+         fds_ready--;
+diff --git a/src/traffic_manager/AddConfigFilesHere.cc b/src/traffic_manager/AddConfigFilesHere.cc
+index fd3b961ab..b422a15a9 100644
+--- a/src/traffic_manager/AddConfigFilesHere.cc
++++ b/src/traffic_manager/AddConfigFilesHere.cc
+@@ -30,8 +30,7 @@ extern FileManager *configFiles;
+ 
+ /****************************************************************************
+  *
+- *  AddConfigFilesHere.cc - Structs for config files and
+- *
++ *  AddConfigFilesHere.cc - Structs for config files
+  *
+  ****************************************************************************/
+ 

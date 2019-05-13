@@ -8,3 +8,4 @@
 0012-objhits-plugin.patch
 0009-fix-mysql-8-build.patch
 0011-fix-segfault.patch
+0013-read-only-etc.patch
