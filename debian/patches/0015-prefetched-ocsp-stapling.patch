@@ -1,0 +1,391 @@
+Adds support for prefetched OCSP stapling responses
+--- a/iocore/net/OCSPStapling.cc
++++ b/iocore/net/OCSPStapling.cc
+@@ -22,6 +22,7 @@
+ #include "P_OCSPStapling.h"
+ #ifdef TS_USE_TLS_OCSP
+ 
++#include <openssl/bio.h>
+ #include <openssl/ssl.h>
+ #include <openssl/ocsp.h>
+ #include "P_Net.h"
+@@ -42,6 +43,7 @@ struct certinfo {
+   ink_mutex stapling_mutex;
+   unsigned char resp_der[MAX_STAPLING_DER];
+   unsigned int resp_derlen;
++  bool is_prefetched;
+   bool is_expire;
+   time_t expire_time;
+ };
+@@ -140,11 +142,44 @@ end:
+   return issuer;
+ }
+ 
++static bool
++stapling_cache_response(OCSP_RESPONSE *rsp, certinfo *cinf)
++{
++  unsigned char resp_der[MAX_STAPLING_DER];
++  unsigned char *p;
++  unsigned int resp_derlen;
++
++  p           = resp_der;
++  resp_derlen = i2d_OCSP_RESPONSE(rsp, &p);
++
++  if (resp_derlen == 0) {
++    Error("stapling_cache_response: cannot decode OCSP response for %s", cinf->certname);
++    return false;
++  }
++
++  if (resp_derlen > MAX_STAPLING_DER) {
++    Error("stapling_cache_response: OCSP response too big (%u bytes) for %s", resp_derlen, cinf->certname);
++    return false;
++  }
++
++  ink_mutex_acquire(&cinf->stapling_mutex);
++  memcpy(cinf->resp_der, resp_der, resp_derlen);
++  cinf->resp_derlen = resp_derlen;
++  cinf->is_expire   = false;
++  cinf->expire_time = time(nullptr) + SSLConfigParams::ssl_ocsp_cache_timeout;
++  ink_mutex_release(&cinf->stapling_mutex);
++
++  Debug("ssl_ocsp", "stapling_cache_response: success to cache response");
++  return true;
++}
++
+ bool
+-ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname)
++ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname, const char *rsp_file)
+ {
+   scoped_X509 issuer;
+   STACK_OF(OPENSSL_STRING) *aia = nullptr;
++  BIO *rsp_bio                  = nullptr;
++  OCSP_RESPONSE *rsp            = nullptr;
+ 
+   if (!cert) {
+     Error("null cert passed in for %s", certname);
+@@ -173,8 +208,33 @@ ssl_stapling_init_cert(SSL_CTX *ctx, X50
+   cinf->certname    = ats_strdup(certname);
+   cinf->resp_derlen = 0;
+   ink_mutex_init(&cinf->stapling_mutex);
+-  cinf->is_expire   = true;
+-  cinf->expire_time = 0;
++  cinf->is_prefetched = rsp_file ? true : false;
++  cinf->is_expire     = true;
++  cinf->expire_time   = 0;
++
++  if (cinf->is_prefetched) {
++    Debug("ssl_ocsp", "using OCSP prefetched response file %s", rsp_file);
++    rsp_bio = BIO_new_file(rsp_file, "r");
++    if (rsp_bio) {
++      rsp = d2i_OCSP_RESPONSE_bio(rsp_bio, nullptr);
++    }
++
++    if (!rsp_bio || !rsp) {
++      Note("cannot get prefetched response for %s from %s", certname, rsp_file);
++      goto err;
++    }
++
++    if (!stapling_cache_response(rsp, cinf)) {
++      Error("stapling_refresh_response: can not cache response");
++      goto err;
++    } else {
++      Debug("ssl_ocsp", "stapling_refresh_response: successful refresh OCSP response");
++      OCSP_RESPONSE_free(rsp);
++      rsp = nullptr;
++      BIO_free(rsp_bio);
++      rsp_bio = nullptr;
++    }
++  }
+ 
+   issuer = stapling_get_issuer(ctx, cert);
+   if (issuer == nullptr) {
+@@ -221,6 +281,13 @@ err:
+   if (map) {
+     delete map;
+   }
++
++  if (rsp) {
++    OCSP_RESPONSE_free(rsp);
++  }
++  if (rsp_bio) {
++    BIO_free(rsp_bio);
++  }
+   return false;
+ }
+ 
+@@ -238,37 +305,6 @@ stapling_get_cert_info(SSL_CTX *ctx)
+   return nullptr;
+ }
+ 
+-static bool
+-stapling_cache_response(OCSP_RESPONSE *rsp, certinfo *cinf)
+-{
+-  unsigned char resp_der[MAX_STAPLING_DER];
+-  unsigned char *p;
+-  unsigned int resp_derlen;
+-
+-  p           = resp_der;
+-  resp_derlen = i2d_OCSP_RESPONSE(rsp, &p);
+-
+-  if (resp_derlen == 0) {
+-    Error("stapling_cache_response: cannot decode OCSP response for %s", cinf->certname);
+-    return false;
+-  }
+-
+-  if (resp_derlen > MAX_STAPLING_DER) {
+-    Error("stapling_cache_response: OCSP response too big (%u bytes) for %s", resp_derlen, cinf->certname);
+-    return false;
+-  }
+-
+-  ink_mutex_acquire(&cinf->stapling_mutex);
+-  memcpy(cinf->resp_der, resp_der, resp_derlen);
+-  cinf->resp_derlen = resp_derlen;
+-  cinf->is_expire   = false;
+-  cinf->expire_time = time(nullptr) + SSLConfigParams::ssl_ocsp_cache_timeout;
+-  ink_mutex_release(&cinf->stapling_mutex);
+-
+-  Debug("ssl_ocsp", "stapling_cache_response: success to cache response");
+-  return true;
+-}
+-
+ static int
+ stapling_check_response(certinfo *cinf, OCSP_RESPONSE *rsp)
+ {
+@@ -460,7 +496,7 @@ ocsp_update()
+           cinf = iter->second;
+           ink_mutex_acquire(&cinf->stapling_mutex);
+           current_time = time(nullptr);
+-          if (cinf->resp_derlen == 0 || cinf->is_expire || cinf->expire_time < current_time) {
++          if ((cinf->resp_derlen == 0 || cinf->is_expire || cinf->expire_time < current_time) && !cinf->is_prefetched) {
+             ink_mutex_release(&cinf->stapling_mutex);
+             if (stapling_refresh_response(cinf, &resp)) {
+               Debug("Successfully refreshed OCSP for %s certificate. url=%s", cinf->certname, cinf->uri);
+@@ -505,7 +541,7 @@ ssl_callback_ocsp_stapling(SSL *ssl)
+ 
+   ink_mutex_acquire(&cinf->stapling_mutex);
+   time_t current_time = time(nullptr);
+-  if (cinf->resp_derlen == 0 || cinf->is_expire || cinf->expire_time < current_time) {
++  if ((cinf->resp_derlen == 0 || cinf->is_expire) || (cinf->expire_time < current_time && !cinf->is_prefetched)) {
+     ink_mutex_release(&cinf->stapling_mutex);
+     Debug("ssl_ocsp", "ssl_callback_ocsp_stapling: failed to get certificate status for %s", cinf->certname);
+     return SSL_TLSEXT_ERR_NOACK;
+--- a/iocore/net/P_OCSPStapling.h
++++ b/iocore/net/P_OCSPStapling.h
+@@ -28,7 +28,7 @@
+ #include <openssl/ocsp.h>
+ 
+ void ssl_stapling_ex_init();
+-bool ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname);
++bool ssl_stapling_init_cert(SSL_CTX *ctx, X509 *cert, const char *certname, const char *rsp_file);
+ void ocsp_update();
+ int ssl_callback_ocsp_stapling(SSL *);
+ #endif
+--- a/iocore/net/P_SSLConfig.h
++++ b/iocore/net/P_SSLConfig.h
+@@ -101,6 +101,7 @@ struct SSLConfigParams : public ConfigIn
+   static int ssl_ocsp_request_timeout;
+   static int ssl_ocsp_update_period;
+   static int ssl_handshake_timeout_in;
++  char *ssl_ocsp_response_path_only;
+ 
+   static size_t session_cache_number_buckets;
+   static size_t session_cache_max_bucket_size;
+--- a/iocore/net/SSLUtils.cc
++++ b/iocore/net/SSLUtils.cc
+@@ -67,6 +67,7 @@
+ #define SSL_IP_TAG "dest_ip"
+ #define SSL_CERT_TAG "ssl_cert_name"
+ #define SSL_PRIVATE_KEY_TAG "ssl_key_name"
++#define SSL_OCSP_RESPONSE_TAG "ssl_ocsp_name"
+ #define SSL_CA_TAG "ssl_ca_name"
+ #define SSL_ACTION_TAG "action"
+ #define SSL_ACTION_TUNNEL_TAG "tunnel"
+@@ -114,6 +115,7 @@ struct ssl_user_config {
+   ats_scoped_str first_cert;
+   ats_scoped_str ca;
+   ats_scoped_str key;
++  ats_scoped_str ocsp_response;
+   ats_scoped_str dialog;
+   ats_scoped_str servername;
+   SSLCertContext::Option opt;
+@@ -1684,6 +1686,27 @@ SSLInitServerContext(const SSLConfigPara
+         }
+       }
+ 
++#if TS_USE_TLS_OCSP
++      if (SSLConfigParams::ssl_ocsp_enabled) {
++        Debug("ssl", "SSL OCSP Stapling is enabled");
++        SSL_CTX_set_tlsext_status_cb(ctx, ssl_callback_ocsp_stapling);
++      } else {
++        Debug("ssl", "SSL OCSP Stapling is disabled");
++      }
++      SimpleTokenizer ocsp_tok("", SSL_CERT_SEPARATE_DELIM);
++      if (sslMultCertSettings->ocsp_response) {
++        ocsp_tok.setString(sslMultCertSettings->ocsp_response);
++        if (cert_tok.getNumTokensRemaining() != ocsp_tok.getNumTokensRemaining()) {
++          Error("the number of certificates in ssl_cert_name and ssl_ocsp_name doesn't match");
++          goto fail;
++        }
++      }
++#else
++      if (SSLConfigParams::ssl_ocsp_enabled) {
++        Warning("failed to enable SSL OCSP Stapling; this version of OpenSSL does not support it");
++      }
++#endif /* TS_USE_TLS_OCSP */
++
+       for (const char *certname = cert_tok.getNext(); certname; certname = cert_tok.getNext()) {
+         std::string completeServerCertPath = Layout::relative_to(params->serverCertPathOnly, certname);
+         scoped_BIO bio(BIO_new_file(completeServerCertPath.c_str(), "r"));
+@@ -1745,6 +1768,21 @@ SSLInitServerContext(const SSLConfigPara
+             }
+           }
+         }
++#if TS_USE_TLS_OCSP
++        if (SSLConfigParams::ssl_ocsp_enabled) {
++          if (sslMultCertSettings->ocsp_response) {
++            const char *ocsp_response_name = ocsp_tok.getNext();
++            ats_scoped_str completeOCSPResponsePath(Layout::relative_to(params->ssl_ocsp_response_path_only, ocsp_response_name));
++            if (!ssl_stapling_init_cert(ctx, cert, certname, (const char *)completeOCSPResponsePath)) {
++              Warning("failed to configure SSL_CTX for OCSP Stapling info for certificate at %s", certname);
++            }
++          } else {
++            if (!ssl_stapling_init_cert(ctx, cert, certname, nullptr)) {
++              Warning("failed to configure SSL_CTX for OCSP Stapling info for certificate at %s", certname);
++            }
++          }
++        }
++#endif /* TS_USE_TLS_OCSP */
+       }
+     }
+ 
+@@ -1885,19 +1923,6 @@ SSLInitServerContext(const SSLConfigPara
+   SSL_CTX_set_alpn_select_cb(ctx, SSLNetVConnection::select_next_protocol, nullptr);
+ #endif /* TS_USE_TLS_ALPN */
+ 
+-#ifdef TS_USE_TLS_OCSP
+-  if (SSLConfigParams::ssl_ocsp_enabled) {
+-    Debug("ssl", "SSL OCSP Stapling is enabled");
+-    SSL_CTX_set_tlsext_status_cb(ctx, ssl_callback_ocsp_stapling);
+-  } else {
+-    Debug("ssl", "SSL OCSP Stapling is disabled");
+-  }
+-#else
+-  if (SSLConfigParams::ssl_ocsp_enabled) {
+-    Warning("failed to enable SSL OCSP Stapling; this version of OpenSSL does not support it");
+-  }
+-#endif /* TS_USE_TLS_OCSP */
+-
+   if (SSLConfigParams::init_ssl_ctx_cb) {
+     SSLConfigParams::init_ssl_ctx_cb(ctx, true);
+   }
+@@ -1991,24 +2016,6 @@ ssl_store_ssl_context(const SSLConfigPar
+   }
+ #endif
+ 
+-#ifdef TS_USE_TLS_OCSP
+-  if (SSLConfigParams::ssl_ocsp_enabled) {
+-    Debug("ssl", "SSL OCSP Stapling is enabled");
+-    SSL_CTX_set_tlsext_status_cb(ctx, ssl_callback_ocsp_stapling);
+-    for (auto cert : cert_list) {
+-      if (!ssl_stapling_init_cert(ctx, cert, certname)) {
+-        Warning("failed to configure SSL_CTX for OCSP Stapling info for certificate at %s", (const char *)certname);
+-      }
+-    }
+-  } else {
+-    Debug("ssl", "SSL OCSP Stapling is disabled");
+-  }
+-#else
+-  if (SSLConfigParams::ssl_ocsp_enabled) {
+-    Warning("failed to enable SSL OCSP Stapling; this version of OpenSSL does not support it");
+-  }
+-#endif /* TS_USE_TLS_OCSP */
+-
+   // Insert additional mappings. Note that this maps multiple keys to the same value, so when
+   // this code is updated to reconfigure the SSL certificates, it will need some sort of
+   // refcounting or alternate way of avoiding double frees.
+@@ -2067,6 +2074,10 @@ ssl_extract_certificate(const matcher_li
+       sslMultCertSettings.key = ats_strdup(value);
+     }
+ 
++    if (strcasecmp(label, SSL_OCSP_RESPONSE_TAG) == 0) {
++      sslMultCertSettings.ocsp_response = ats_strdup(value);
++    }
++
+     if (strcasecmp(label, SSL_SESSION_TICKET_ENABLED) == 0) {
+       sslMultCertSettings.session_ticket_enabled = atoi(value);
+     }
+--- a/mgmt/RecordsConfig.cc
++++ b/mgmt/RecordsConfig.cc
+@@ -1197,7 +1197,9 @@ static const RecordElement RecordsConfig
+   //        # Update period for stapling caches. 60s (1 min) by default.
+   {RECT_CONFIG, "proxy.config.ssl.ocsp.update_period", RECD_INT, "60", RECU_DYNAMIC, RR_NULL, RECC_NULL, "^[0-9]+$", RECA_NULL}
+   ,
+-
++  //        # Base path for OCSP prefetched responses
++  {RECT_CONFIG, "proxy.config.ssl.ocsp.response.path", RECD_STRING, TS_BUILD_SYSCONFDIR, RECU_RESTART_TS, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
++  ,
+   //##############################################################################
+   //#
+   //# Congifuration for TLSv1.3 and above
+--- a/src/traffic_server/InkAPITest.cc
++++ b/src/traffic_server/InkAPITest.cc
+@@ -9152,7 +9152,7 @@ REGRESSION_TEST(SDK_API_TSSslServerConte
+   TSSslContext ctx;
+ 
+   // See TS-4769: TSSslServerContextCreate always returns null.
+-  ctx = TSSslServerContextCreate(nullptr, nullptr);
++  ctx = TSSslServerContextCreate(nullptr, nullptr, nullptr);
+ 
+   *pstatus = ctx ? REGRESSION_TEST_PASSED : REGRESSION_TEST_FAILED;
+   TSSslContextDestroy(ctx);
+--- a/src/traffic_server/InkAPI.cc
++++ b/src/traffic_server/InkAPI.cc
+@@ -9196,7 +9196,7 @@ TSSslContextFindByAddr(struct sockaddr c
+ }
+ 
+ tsapi TSSslContext
+-TSSslServerContextCreate(TSSslX509 cert, const char *certname)
++TSSslServerContextCreate(TSSslX509 cert, const char *certname, const char *rsp_file)
+ {
+   TSSslContext ret        = nullptr;
+   SSLConfigParams *config = SSLConfig::acquire();
+@@ -9205,7 +9205,7 @@ TSSslServerContextCreate(TSSslX509 cert,
+ #ifdef TS_USE_TLS_OCSP
+     if (ret && SSLConfigParams::ssl_ocsp_enabled && cert && certname) {
+       if (SSL_CTX_set_tlsext_status_cb(reinterpret_cast<SSL_CTX *>(ret), ssl_callback_ocsp_stapling)) {
+-        if (!ssl_stapling_init_cert(reinterpret_cast<SSL_CTX *>(ret), reinterpret_cast<X509 *>(cert), certname)) {
++        if (!ssl_stapling_init_cert(reinterpret_cast<SSL_CTX *>(ret), reinterpret_cast<X509 *>(cert), certname, rsp_file)) {
+           Warning("failed to configure SSL_CTX for OCSP Stapling info for certificate at %s", (const char *)certname);
+         }
+       }
+--- a/include/ts/ts.h
++++ b/include/ts/ts.h
+@@ -1223,7 +1223,7 @@ tsapi TSSslConnection TSVConnSSLConnecti
+ tsapi TSSslContext TSSslContextFindByName(const char *name);
+ tsapi TSSslContext TSSslContextFindByAddr(struct sockaddr const *);
+ /*  Create a new SSL context based on the settings in records.config */
+-tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname);
++tsapi TSSslContext TSSslServerContextCreate(TSSslX509 cert, const char *certname, const char *rsp_file);
+ tsapi void TSSslContextDestroy(TSSslContext ctx);
+ tsapi void TSSslTicketKeyUpdate(char *ticketData, int ticketDataLen);
+ tsapi TSNextProtocolSet TSUnregisterProtocol(TSNextProtocolSet protoset, const char *protocol);
+--- a/iocore/net/SSLConfig.cc
++++ b/iocore/net/SSLConfig.cc
+@@ -186,6 +186,7 @@ SSLConfigParams::initialize()
+   char *clientCACertRelativePath        = nullptr;
+   char *ssl_server_ca_cert_filename     = nullptr;
+   char *ssl_client_ca_cert_filename     = nullptr;
++  char *ssl_ocsp_response_path          = nullptr;
+ 
+   cleanup();
+ 
+@@ -331,6 +332,9 @@ SSLConfigParams::initialize()
+   REC_EstablishStaticConfigInt32(ssl_ocsp_cache_timeout, "proxy.config.ssl.ocsp.cache_timeout");
+   REC_EstablishStaticConfigInt32(ssl_ocsp_request_timeout, "proxy.config.ssl.ocsp.request_timeout");
+   REC_EstablishStaticConfigInt32(ssl_ocsp_update_period, "proxy.config.ssl.ocsp.update_period");
++  REC_ReadConfigStringAlloc(ssl_ocsp_response_path, "proxy.config.ssl.ocsp.response.path");
++  set_paths_helper(ssl_ocsp_response_path, nullptr, &ssl_ocsp_response_path_only, nullptr);
++  ats_free(ssl_ocsp_response_path);
+ 
+   REC_ReadConfigInt32(async_handshake_enabled, "proxy.config.ssl.async.handshake.enabled");
+   REC_ReadConfigStringAlloc(engine_conf_file, "proxy.config.ssl.engine.conf_file");

@@ -9,3 +9,5 @@
 0009-fix-mysql-8-build.patch
 0011-fix-segfault.patch
 0013-read-only-etc.patch
+0014-fix-ocsp-dual-cert.patch
+0015-prefetched-ocsp-stapling.patch
