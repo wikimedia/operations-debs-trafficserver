@@ -1,3 +1,12 @@
+trafficserver (8.0.3-1wm3) stretch-wikimedia; urgency=medium
+
+  * Add 0014-fix-ocsp-dual-cert.patch
+  * Add 0015-prefetched-ocsp-stapling.patch
+  * Add 0016-enable-logging-elliptic-curve.patch
+  * Add 0017-expose-client-ssl-stats.patch
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Wed, 07 Aug 2019 15:28:01 +0700
+
 trafficserver (8.0.3-1wm2) stretch-wikimedia; urgency=medium
 
   * Add 0013-read-only-etc.patch

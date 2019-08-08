@@ -1,0 +1,99 @@
+--- a/iocore/net/P_SSLNetVConnection.h
++++ b/iocore/net/P_SSLNetVConnection.h
+@@ -37,6 +37,7 @@
+ 
+ #include <openssl/ssl.h>
+ #include <openssl/err.h>
++#include <openssl/objects.h>
+ 
+ #include "P_EventSystem.h"
+ #include "P_UnixNetVConnection.h"
+@@ -293,6 +294,21 @@ public:
+     return ssl ? SSL_get_cipher_name(ssl) : nullptr;
+   }
+ 
++  const char *
++  getSSLCurve() const
++  {
++    if (!ssl) {
++      return nullptr;
++    }
++
++    int curve_nid = SSL_get_shared_curve(ssl, 0);
++
++    if (curve_nid == NID_undef) {
++      return nullptr;
++    }
++    return OBJ_nid2sn(curve_nid);
++  }
++
+   int populate_protocol(std::string_view *results, int n) const override;
+   const char *protocol_contains(std::string_view tag) const override;
+ 
+--- a/proxy/http/HttpSM.cc
++++ b/proxy/http/HttpSM.cc
+@@ -450,6 +450,8 @@ HttpSM::attach_client_session(ProxyClien
+     client_sec_protocol      = protocol ? protocol : "-";
+     const char *cipher       = ssl_vc->getSSLCipherSuite();
+     client_cipher_suite      = cipher ? cipher : "-";
++    const char *curve        = ssl_vc->getSSLCurve();
++    client_curve             = curve ? curve : "-";
+     if (!client_tcp_reused) {
+       // Copy along the TLS handshake timings
+       milestones[TS_MILESTONE_TLS_HANDSHAKE_START] = ssl_vc->sslHandshakeBeginTime;
+--- a/proxy/http/HttpSM.h
++++ b/proxy/http/HttpSM.h
+@@ -546,6 +546,7 @@ public:
+   const char *client_protocol     = "-";
+   const char *client_sec_protocol = "-";
+   const char *client_cipher_suite = "-";
++  const char *client_curve        = "-";
+   int server_transact_count       = 0;
+   bool server_connection_is_ssl   = false;
+   bool is_waiting_for_full_body   = false;
+--- a/proxy/logging/Log.cc
++++ b/proxy/logging/Log.cc
+@@ -514,6 +514,11 @@ Log::init_fields()
+   global_field_list.add(field, false);
+   ink_hash_table_insert(field_symbol_hash, "cqssc", field);
+ 
++  field = new LogField("client_curve", "cqssu", LogField::STRING, &LogAccess::marshal_client_security_curve,
++                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
++  global_field_list.add(field, false);
++  ink_hash_table_insert(field_symbol_hash, "cqssu", field);
++
+   Ptr<LogFieldAliasTable> finish_status_map = make_ptr(new LogFieldAliasTable);
+   finish_status_map->init(N_LOG_FINISH_CODE_TYPES, LOG_FINISH_FIN, "FIN", LOG_FINISH_INTR, "INTR", LOG_FINISH_TIMEOUT, "TIMEOUT");
+ 
+--- a/proxy/logging/LogAccess.cc
++++ b/proxy/logging/LogAccess.cc
+@@ -1789,6 +1789,19 @@ LogAccess::marshal_client_security_ciphe
+   return round_len;
+ }
+ 
++int
++LogAccess::marshal_client_security_curve(char *buf)
++{
++  const char *curve = m_http_sm->client_curve;
++  int round_len     = LogAccess::strlen(curve);
++
++  if (buf) {
++    marshal_str(buf, curve, round_len);
++  }
++
++  return round_len;
++}
++
+ /*-------------------------------------------------------------------------
+   -------------------------------------------------------------------------*/
+ 
+--- a/proxy/logging/LogAccess.h
++++ b/proxy/logging/LogAccess.h
+@@ -151,6 +151,7 @@ public:
+   inkcoreapi int marshal_client_req_ssl_reused(char *);         // INT
+   inkcoreapi int marshal_client_security_protocol(char *);      // STR
+   inkcoreapi int marshal_client_security_cipher_suite(char *);  // STR
++  inkcoreapi int marshal_client_security_curve(char *);         // STR
+   inkcoreapi int marshal_client_finish_status_code(char *);     // INT
+   inkcoreapi int marshal_client_req_id(char *);                 // INT
+   inkcoreapi int marshal_client_req_uuid(char *);               // STR
