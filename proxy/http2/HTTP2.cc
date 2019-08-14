@@ -63,6 +63,7 @@ static const char *const HTTP2_STAT_SESSION_DIE_ACTIVE_NAME               = "pro
 static const char *const HTTP2_STAT_SESSION_DIE_INACTIVE_NAME             = "proxy.process.http2.session_die_inactive";
 static const char *const HTTP2_STAT_SESSION_DIE_EOS_NAME                  = "proxy.process.http2.session_die_eos";
 static const char *const HTTP2_STAT_SESSION_DIE_ERROR_NAME                = "proxy.process.http2.session_die_error";
+static const char *const HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE_NAME      = "proxy.process.http2.session_die_high_error_rate";
 
 union byte_pointer {
   byte_pointer(void *p) : ptr(p) {}
@@ -718,20 +719,27 @@ http2_decode_header_blocks(HTTPHdr *hdr, const uint8_t *buf_start, const uint32_
 }
 
 // Initialize this subsystem with librecords configs (for now)
-uint32_t Http2::max_concurrent_streams_in  = 100;
-uint32_t Http2::min_concurrent_streams_in  = 10;
-uint32_t Http2::max_active_streams_in      = 0;
-bool Http2::throttling                     = false;
-uint32_t Http2::stream_priority_enabled    = 0;
-uint32_t Http2::initial_window_size        = 1048576;
-uint32_t Http2::max_frame_size             = 16384;
-uint32_t Http2::header_table_size          = 4096;
-uint32_t Http2::max_header_list_size       = 4294967295;
-uint32_t Http2::accept_no_activity_timeout = 120;
-uint32_t Http2::no_activity_timeout_in     = 120;
-uint32_t Http2::active_timeout_in          = 0;
-uint32_t Http2::push_diary_size            = 256;
-uint32_t Http2::zombie_timeout_in          = 0;
+uint32_t Http2::max_concurrent_streams_in      = 100;
+uint32_t Http2::min_concurrent_streams_in      = 10;
+uint32_t Http2::max_active_streams_in          = 0;
+bool Http2::throttling                         = false;
+uint32_t Http2::stream_priority_enabled        = 0;
+uint32_t Http2::initial_window_size            = 1048576;
+uint32_t Http2::max_frame_size                 = 16384;
+uint32_t Http2::header_table_size              = 4096;
+uint32_t Http2::max_header_list_size           = 4294967295;
+uint32_t Http2::accept_no_activity_timeout     = 120;
+uint32_t Http2::no_activity_timeout_in         = 120;
+uint32_t Http2::active_timeout_in              = 0;
+uint32_t Http2::push_diary_size                = 256;
+uint32_t Http2::zombie_timeout_in              = 0;
+float Http2::stream_error_rate_threshold       = 0.1;
+uint32_t Http2::max_settings_per_frame         = 7;
+uint32_t Http2::max_settings_per_minute        = 14;
+uint32_t Http2::max_settings_frames_per_minute = 14;
+uint32_t Http2::max_ping_frames_per_minute     = 60;
+uint32_t Http2::max_priority_frames_per_minute = 120;
+float Http2::min_avg_window_update             = 2560.0;
 
 void
 Http2::init()
@@ -749,6 +757,13 @@ Http2::init()
   REC_EstablishStaticConfigInt32U(active_timeout_in, "proxy.config.http2.active_timeout_in");
   REC_EstablishStaticConfigInt32U(push_diary_size, "proxy.config.http2.push_diary_size");
   REC_EstablishStaticConfigInt32U(zombie_timeout_in, "proxy.config.http2.zombie_debug_timeout_in");
+  REC_EstablishStaticConfigFloat(stream_error_rate_threshold, "proxy.config.http2.stream_error_rate_threshold");
+  REC_EstablishStaticConfigInt32U(max_settings_per_frame, "proxy.config.http2.max_settings_per_frame");
+  REC_EstablishStaticConfigInt32U(max_settings_per_minute, "proxy.config.http2.max_settings_per_minute");
+  REC_EstablishStaticConfigInt32U(max_settings_frames_per_minute, "proxy.config.http2.max_settings_frames_per_minute");
+  REC_EstablishStaticConfigInt32U(max_ping_frames_per_minute, "proxy.config.http2.max_ping_frames_per_minute");
+  REC_EstablishStaticConfigInt32U(max_priority_frames_per_minute, "proxy.config.http2.max_priority_frames_per_minute");
+  REC_EstablishStaticConfigFloat(min_avg_window_update, "proxy.config.http2.min_avg_window_update");
 
   // If any settings is broken, ATS should not start
   ink_release_assert(http2_settings_parameter_is_valid({HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, max_concurrent_streams_in}));
@@ -799,6 +814,8 @@ Http2::init()
                      static_cast<int>(HTTP2_STAT_SESSION_DIE_INACTIVE), RecRawStatSyncSum);
   RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_SESSION_DIE_ERROR_NAME, RECD_INT, RECP_PERSISTENT,
                      static_cast<int>(HTTP2_STAT_SESSION_DIE_ERROR), RecRawStatSyncSum);
+  RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE_NAME, RECD_INT, RECP_PERSISTENT,
+                     static_cast<int>(HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE), RecRawStatSyncSum);
 }
 
 #if TS_HAS_TESTS
