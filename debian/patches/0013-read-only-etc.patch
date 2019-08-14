@@ -8,11 +8,9 @@ Date:   Fri Apr 6 11:19:35 2018 -0700
     
     Fixes issue #2505
 
-diff --git a/mgmt/FileManager.cc b/mgmt/FileManager.cc
-index bbb4cfb7a..4558bd249 100644
 --- a/mgmt/FileManager.cc
 +++ b/mgmt/FileManager.cc
-@@ -190,7 +190,7 @@ FileManager::rereadConfig()
+@@ -198,7 +198,7 @@ FileManager::rereadConfig()
    for (entry = ink_hash_table_iterator_first(bindings, &iterator_state); entry != nullptr;
         entry = ink_hash_table_iterator_next(bindings, &iterator_state)) {
      rb = (Rollback *)ink_hash_table_entry_value(bindings, entry);
@@ -21,7 +19,7 @@ index bbb4cfb7a..4558bd249 100644
        changedFiles.push_back(rb);
        if (rb->isChildRollback()) {
          if (std::find(parentFileNeedChange.begin(), parentFileNeedChange.end(), rb->getParentRollback()) ==
-@@ -262,7 +262,6 @@ FileManager::isConfigStale()
+@@ -270,7 +270,6 @@ FileManager::isConfigStale()
    ink_mutex_release(&accessLock);
    return stale;
  }
@@ -29,11 +27,9 @@ index bbb4cfb7a..4558bd249 100644
  // void configFileChild(const char *parent, const char *child)
  //
  // Add child to the bindings with parentRollback
-diff --git a/mgmt/Rollback.cc b/mgmt/Rollback.cc
-index dec9d6f49..760306be4 100644
 --- a/mgmt/Rollback.cc
 +++ b/mgmt/Rollback.cc
-@@ -65,6 +65,7 @@ Rollback::Rollback(const char *fileName_, bool root_access_needed_, Rollback *pa
+@@ -57,6 +57,7 @@ Rollback::Rollback(const char *fileName_
    ExpandingArray existVer(25, true); // Exsisting versions
    struct stat fileInfo;
    MgmtInt numBak;
@@ -41,7 +37,7 @@ index dec9d6f49..760306be4 100644
    char *alarmMsg;
  
    // To Test, Read/Write access to the file
-@@ -98,15 +99,15 @@ Rollback::Rollback(const char *fileName_, bool root_access_needed_, Rollback *pa
+@@ -90,15 +91,15 @@ Rollback::Rollback(const char *fileName_
    ink_mutex_init(&fileAccessLock);
  
    if (varIntFromName("proxy.config.admin.number_config_bak", &numBak) == true) {
@@ -62,7 +58,7 @@ index dec9d6f49..760306be4 100644
    // If we are not doing backups, bail early.
    if ((numberBackups <= 0) || (flags & CONFIG_FLAG_UNVERSIONED)) {
      currentVersion = 0;
-@@ -887,7 +888,7 @@ Rollback::setLastModifiedTime()
+@@ -879,7 +880,7 @@ Rollback::setLastModifiedTime()
  //    of creating a new timestamp
  //
  bool
@@ -71,7 +67,7 @@ index dec9d6f49..760306be4 100644
  {
    struct stat fileInfo;
    bool result;
-@@ -896,7 +897,6 @@ Rollback::checkForUserUpdate(RollBackCheckType how)
+@@ -888,7 +889,6 @@ Rollback::checkForUserUpdate(RollBackChe
    version_t currentVersion_local;
    TextBuffer *buf;
    RollBackCodes r;
@@ -79,7 +75,7 @@ index dec9d6f49..760306be4 100644
    ink_mutex_acquire(&fileAccessLock);
  
    if (this->statFile(ACTIVE_VERSION, &fileInfo) < 0) {
-@@ -905,22 +905,29 @@ Rollback::checkForUserUpdate(RollBackCheckType how)
+@@ -897,22 +897,29 @@ Rollback::checkForUserUpdate(RollBackChe
    }
  
    if (fileLastModified < TS_ARCHIVE_STAT_MTIME(fileInfo)) {
@@ -124,11 +120,9 @@ index dec9d6f49..760306be4 100644
    } else {
      result = false;
    }
-diff --git a/mgmt/api/TSControlMain.cc b/mgmt/api/TSControlMain.cc
-index b7626bc02..adc34f007 100644
 --- a/mgmt/api/TSControlMain.cc
 +++ b/mgmt/api/TSControlMain.cc
-@@ -48,8 +48,6 @@ static InkHashTable *accepted_con; // a list of all accepted client connections
+@@ -48,8 +48,6 @@ static InkHashTable *accepted_con; // a 
  
  static TSMgmtError handle_control_message(int fd, void *msg, size_t msglen);
  
@@ -146,8 +140,6 @@ index b7626bc02..adc34f007 100644
        // first check for connections!
        if (con_socket_fd >= 0 && FD_ISSET(con_socket_fd, &selectFDs)) {
          fds_ready--;
-diff --git a/src/traffic_manager/AddConfigFilesHere.cc b/src/traffic_manager/AddConfigFilesHere.cc
-index fd3b961ab..b422a15a9 100644
 --- a/src/traffic_manager/AddConfigFilesHere.cc
 +++ b/src/traffic_manager/AddConfigFilesHere.cc
 @@ -30,8 +30,7 @@ extern FileManager *configFiles;

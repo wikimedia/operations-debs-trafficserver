@@ -14,11 +14,9 @@ Date:   Thu Nov 15 15:12:58 2018 +0100
     
     This fixes issue #4466
 
-diff --git a/proxy/ReverseProxy.cc b/proxy/ReverseProxy.cc
-index 81f18a595..381e29b71 100644
 --- a/proxy/ReverseProxy.cc
 +++ b/proxy/ReverseProxy.cc
-@@ -126,7 +126,7 @@ struct UR_UpdateContinuation : public Continuation {
+@@ -127,7 +127,7 @@ struct UR_UpdateContinuation : public Co
  bool
  reloadUrlRewrite()
  {
@@ -27,7 +25,7 @@ index 81f18a595..381e29b71 100644
  
    Debug("url_rewrite", "remap.config updated, reloading...");
    newTable = new UrlRewrite();
-@@ -136,7 +136,13 @@ reloadUrlRewrite()
+@@ -137,7 +137,13 @@ reloadUrlRewrite()
      // Hold at least one lease, until we reload the configuration
      newTable->acquire();
  

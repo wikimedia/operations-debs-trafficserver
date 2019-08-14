@@ -1,8 +1,6 @@
-diff --git a/proxy/logging/Log.cc b/proxy/logging/Log.cc
-index 9e06443b..90d4fd0f 100644
 --- a/proxy/logging/Log.cc
 +++ b/proxy/logging/Log.cc
-@@ -1292,7 +1292,9 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
+@@ -1300,7 +1300,9 @@ Log::flush_thread_main(void * /* args AT
        // make sure we're open & ready to write
        logfile->check_fd();
        if (!logfile->is_open()) {
@@ -13,7 +11,7 @@ index 9e06443b..90d4fd0f 100644
  
          RecIncrRawStat(log_rsb, mutex->thread_holding, log_stat_bytes_lost_before_written_to_disk_stat, total_bytes);
          delete fdata;
-@@ -1318,8 +1320,10 @@ Log::flush_thread_main(void * /* args ATS_UNUSED */)
+@@ -1326,8 +1328,10 @@ Log::flush_thread_main(void * /* args AT
          len = ::write(logfilefd, &buf[bytes_written], total_bytes - bytes_written);
  
          if (len < 0) {

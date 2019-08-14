@@ -1,3 +1,13 @@
+trafficserver (8.0.4-1wm1) stretch-wikimedia; urgency=medium
+
+  * New upstream release.
+  * The following patches required a refresh:
+    * 0009-verify-config-segfault.patch
+    * 0011-logging-broken-pipe-no-spam.patch
+    * 0013-read-only-etc.patch
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Wed, 14 Aug 2019 16:25:55 +0700
+
 trafficserver (8.0.3-1wm3) stretch-wikimedia; urgency=medium
 
   * Add 0014-fix-ocsp-dual-cert.patch
