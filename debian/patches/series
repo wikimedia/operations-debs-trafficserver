@@ -13,3 +13,4 @@
 0015-prefetched-ocsp-stapling.patch
 0016-enable-logging-elliptic-curve.patch
 0017-expose-client-ssl-stats.patch
+0018-fix-privilege-acquisition-pr-4538.patch

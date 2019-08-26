@@ -1,3 +1,9 @@
+trafficserver (8.0.5-1wm2) stretch-wikimedia; urgency=medium
+
+  * Backport https://github.com/apache/trafficserver/pull/4538
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Mon, 26 Aug 2019 17:42:00 +0800
+
 trafficserver (8.0.5-1wm1) stretch-wikimedia; urgency=medium
 
   * New upstream release.
