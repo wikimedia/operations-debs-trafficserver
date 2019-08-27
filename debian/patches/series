@@ -15,3 +15,4 @@
 0017-expose-client-ssl-stats.patch
 0018-fix-privilege-acquisition-pr-4538.patch
 0019-fix-h2-counters-pr-5833.patch
+0020-disable-h2-priority-rate-limiting.patch

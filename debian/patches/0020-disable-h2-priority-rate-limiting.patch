@@ -1,0 +1,14 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/5888
+Description: Allow disabling HTTP/2 priority frames limit
+--- a/proxy/http2/Http2ConnectionState.cc
++++ b/proxy/http2/Http2ConnectionState.cc
+@@ -410,7 +410,8 @@ rcv_priority_frame(Http2ConnectionState 
+   // Update PRIORITY frame count per minute
+   cstate.increment_received_priority_frame_count();
+   // Close this conection if its priority frame count received exceeds a limit
+-  if (cstate.get_received_priority_frame_count() > Http2::max_priority_frames_per_minute) {
++  if (Http2::max_priority_frames_per_minute != 0 &&
++      cstate.get_received_priority_frame_count() > Http2::max_priority_frames_per_minute) {
+     Http2StreamDebug(cstate.ua_session, stream_id,
+                      "Observed too frequent priority changes: %u priority changes within a last minute",
+                      cstate.get_received_priority_frame_count());

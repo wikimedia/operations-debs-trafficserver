@@ -1,3 +1,11 @@
+trafficserver (8.0.5-1wm4) stretch-wikimedia; urgency=medium
+
+  * Allow disabling HTTP/2 priority frame rate limiting.
+  * Upgrade 0017-expose-client-ssl-stats.patch to bring the latest changes
+    on the upstream's PR recently merged.
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 27 Aug 2019 23:15:00 +0800
+
 trafficserver (8.0.5-1wm3) stretch-wikimedia; urgency=medium
 
   * Backport https://github.com/apache/trafficserver/pull/5833

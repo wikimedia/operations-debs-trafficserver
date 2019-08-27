@@ -4,31 +4,31 @@
  tsapi int64_t TSHttpTxnServerRespBodyBytesGet(TSHttpTxn txnp);
  tsapi int TSHttpTxnClientRespHdrBytesGet(TSHttpTxn txnp);
  tsapi int64_t TSHttpTxnClientRespBodyBytesGet(TSHttpTxn txnp);
-+tsapi int TSHttpTxnClientReqIsSslReused(TSHttpTxn txnp);
++tsapi int TSVConnIsSslReused(TSVConn sslp);
 +
 +/**
 +   Return the current (if set) SSL Cipher. This is still owned by the
 +   core, and must not be free'd.
-+   @param txnp the transaction pointer
++   sslp The connection pointer
 +   @return the SSL Cipher
 +*/
-+tsapi const char *TSHttpTxnClientReqSslCipherGet(TSHttpTxn txnp);
++tsapi const char *TSVConnSslCipherGet(TSVConn sslp);
 +
 +/**
 +   Return the current (if set) SSL Protocol. This is still owned by the
 +   core, and must not be free'd.
-+   @param txnp the transaction pointer
++   sslp The connection pointer
 +   @return the SSL Protocol
 +*/
-+tsapi const char *TSHttpTxnClientReqSslProtocolGet(TSHttpTxn txnp);
++tsapi const char *TSVConnSslProtocolGet(TSVConn sslp);
 +
 +/**
 +   Return the current (if set) SSL Curve. This is still owned by the
 +   core, and must not be free'd.
-+   @param txnp the transaction pointer
++   sslp The connection pointer
 +   @return the SSL Curve
 +*/
-+tsapi const char *TSHttpTxnClientReqSslCurveGet(TSHttpTxn txnp);
++tsapi const char *TSVConnSslCurveGet(TSVConn sslp);
  
  /* NetVC timeout APIs. */
  tsapi void TSVConnInactivityTimeoutSet(TSVConn connp, TSHRTime timeout);
@@ -61,7 +61,7 @@
  
    lua_setfield(L, -2, "client_request");
  }
-@@ -923,3 +936,88 @@ ts_lua_client_request_get_header_size(lu
+@@ -923,3 +936,115 @@ ts_lua_client_request_get_header_size(lu
  
    return 1;
  }
@@ -77,12 +77,18 @@
 +static int
 +ts_lua_client_request_get_ssl_reused(lua_State *L)
 +{
-+  int ssl_reused;
++  int ssl_reused = 0;
 +  ts_lua_http_ctx *http_ctx;
++  TSHttpSsn ssnp;
++  TSVConn client_conn;
 +
 +  GET_HTTP_CONTEXT(http_ctx, L);
++  ssnp        = TSHttpTxnSsnGet(http_ctx->txnp);
++  client_conn = TSHttpSsnClientVConnGet(ssnp);
 +
-+  ssl_reused = TSHttpTxnClientReqIsSslReused(http_ctx->txnp);
++  if (TSVConnIsSsl(client_conn)) {
++    ssl_reused = TSVConnIsSslReused(client_conn);
++  }
 +  lua_pushnumber(L, ssl_reused);
 +
 +  return 1;
@@ -98,12 +104,19 @@
 +static int
 +ts_lua_client_request_get_ssl_cipher(lua_State *L)
 +{
-+  const char *ssl_cipher;
++  const char *ssl_cipher = "-";
 +  ts_lua_http_ctx *http_ctx;
++  TSHttpSsn ssnp;
++  TSVConn client_conn;
 +
 +  GET_HTTP_CONTEXT(http_ctx, L);
++  ssnp        = TSHttpTxnSsnGet(http_ctx->txnp);
++  client_conn = TSHttpSsnClientVConnGet(ssnp);
 +
-+  ssl_cipher = TSHttpTxnClientReqSslCipherGet(http_ctx->txnp);
++  if (TSVConnIsSsl(client_conn)) {
++    ssl_cipher = TSVConnSslCipherGet(client_conn);
++  }
++
 +  lua_pushstring(L, ssl_cipher);
 +
 +  return 1;
@@ -119,12 +132,19 @@
 +static int
 +ts_lua_client_request_get_ssl_protocol(lua_State *L)
 +{
-+  const char *ssl_protocol;
++  const char *ssl_protocol = "-";
 +  ts_lua_http_ctx *http_ctx;
++  TSHttpSsn ssnp;
++  TSVConn client_conn;
 +
 +  GET_HTTP_CONTEXT(http_ctx, L);
++  ssnp        = TSHttpTxnSsnGet(http_ctx->txnp);
++  client_conn = TSHttpSsnClientVConnGet(ssnp);
 +
-+  ssl_protocol = TSHttpTxnClientReqSslProtocolGet(http_ctx->txnp);
++  if (TSVConnIsSsl(client_conn)) {
++    ssl_protocol = TSVConnSslProtocolGet(client_conn);
++  }
++
 +  lua_pushstring(L, ssl_protocol);
 +
 +  return 1;
@@ -140,12 +160,19 @@
 +static int
 +ts_lua_client_request_get_ssl_curve(lua_State *L)
 +{
-+  const char *ssl_curve;
++  const char *ssl_curve = "-";
 +  ts_lua_http_ctx *http_ctx;
++  TSHttpSsn ssnp;
++  TSVConn client_conn;
 +
 +  GET_HTTP_CONTEXT(http_ctx, L);
++  ssnp        = TSHttpTxnSsnGet(http_ctx->txnp);
++  client_conn = TSHttpSsnClientVConnGet(ssnp);
 +
-+  ssl_curve = TSHttpTxnClientReqSslCurveGet(http_ctx->txnp);
++  if (TSVConnIsSsl(client_conn)) {
++    ssl_curve = TSVConnSslCurveGet(client_conn);
++  }
++
 +  lua_pushstring(L, ssl_curve);
 +
 +  return 1;
@@ -156,39 +183,39 @@
  }
  
  int
-+TSHttpTxnClientReqIsSslReused(TSHttpTxn txnp)
++TSVConnIsSslReused(TSVConn sslp)
 +{
-+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
++  NetVConnection *vc        = reinterpret_cast<NetVConnection *>(sslp);
++  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
 +
-+  HttpSM *sm = (HttpSM *)txnp;
-+  return sm->client_ssl_reused;
++  return ssl_vc ? ssl_vc->getSSLSessionCacheHit() : 0;
 +}
 +
 +const char *
-+TSHttpTxnClientReqSslCipherGet(TSHttpTxn txnp)
++TSVConnSslCipherGet(TSVConn sslp)
 +{
-+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
++  NetVConnection *vc        = reinterpret_cast<NetVConnection *>(sslp);
++  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
 +
-+  HttpSM *sm = (HttpSM *)txnp;
-+  return sm->client_cipher_suite;
++  return ssl_vc ? ssl_vc->getSSLCipherSuite() : nullptr;
 +}
 +
 +const char *
-+TSHttpTxnClientReqSslProtocolGet(TSHttpTxn txnp)
++TSVConnSslProtocolGet(TSVConn sslp)
 +{
-+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
++  NetVConnection *vc        = reinterpret_cast<NetVConnection *>(sslp);
++  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
 +
-+  HttpSM *sm = (HttpSM *)txnp;
-+  return sm->client_sec_protocol;
++  return ssl_vc ? ssl_vc->getSSLProtocol() : nullptr;
 +}
 +
 +const char *
-+TSHttpTxnClientReqSslCurveGet(TSHttpTxn txnp)
++TSVConnSslCurveGet(TSVConn sslp)
 +{
-+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
++  NetVConnection *vc        = reinterpret_cast<NetVConnection *>(sslp);
++  SSLNetVConnection *ssl_vc = dynamic_cast<SSLNetVConnection *>(vc);
 +
-+  HttpSM *sm = (HttpSM *)txnp;
-+  return sm->client_curve;
++  return ssl_vc ? ssl_vc->getSSLCurve() : nullptr;
 +}
 +
 +int
