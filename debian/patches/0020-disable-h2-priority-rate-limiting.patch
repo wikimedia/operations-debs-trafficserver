@@ -2,7 +2,14 @@ Origin: upstream https://github.com/apache/trafficserver/pull/5888
 Description: Allow disabling HTTP/2 priority frames limit
 --- a/proxy/http2/Http2ConnectionState.cc
 +++ b/proxy/http2/Http2ConnectionState.cc
-@@ -410,7 +410,8 @@ rcv_priority_frame(Http2ConnectionState 
+@@ -407,10 +407,15 @@ rcv_priority_frame(Http2ConnectionState 
+                       "PRIORITY frame depends on itself");
+   }
+ 
++  if (!Http2::stream_priority_enabled) {
++    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_NONE);
++  }
++
    // Update PRIORITY frame count per minute
    cstate.increment_received_priority_frame_count();
    // Close this conection if its priority frame count received exceeds a limit
@@ -12,3 +19,14 @@ Description: Allow disabling HTTP/2 priority frames limit
      Http2StreamDebug(cstate.ua_session, stream_id,
                       "Observed too frequent priority changes: %u priority changes within a last minute",
                       cstate.get_received_priority_frame_count());
+@@ -418,10 +423,6 @@ rcv_priority_frame(Http2ConnectionState 
+                       "recv priority too frequent priority changes");
+   }
+ 
+-  if (!Http2::stream_priority_enabled) {
+-    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_NONE);
+-  }
+-
+   Http2StreamDebug(cstate.ua_session, stream_id, "PRIORITY - dep: %d, weight: %d, excl: %d, tree size: %d",
+                    priority.stream_dependency, priority.weight, priority.exclusive_flag, cstate.dependency_tree->size());
+ 

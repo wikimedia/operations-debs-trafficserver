@@ -16,3 +16,5 @@
 0018-fix-privilege-acquisition-pr-4538.patch
 0019-fix-h2-counters-pr-5833.patch
 0020-disable-h2-priority-rate-limiting.patch
+0021-fallback-curves-list.patch
+0022-h2-rate-limits-stats.patch

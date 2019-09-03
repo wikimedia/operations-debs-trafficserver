@@ -1,3 +1,12 @@
+trafficserver (8.0.5-1wm5) stretch-wikimedia; urgency=medium
+
+  * Backport https://github.com/apache/trafficserver/pull/5197
+  * Refresh 0020-disable-h2-priority-rate-limiting.patch with the latest
+    changes required by upstream
+  * Backport https://github.com/apache/trafficserver/pull/5889
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 03 Sep 2019 17:25:16 +0800
+
 trafficserver (8.0.5-1wm4) stretch-wikimedia; urgency=medium
 
   * Allow disabling HTTP/2 priority frame rate limiting.

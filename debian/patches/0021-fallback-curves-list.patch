@@ -1,0 +1,56 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/5197
+Description: fallback to curves list if available. This enables setting a list of allowed curves with OpenSSL <= 1.1
+--- a/doc/admin-guide/files/records.config.en.rst
++++ b/doc/admin-guide/files/records.config.en.rst
+@@ -3056,7 +3056,7 @@ SSL Termination
+ 
+    X25519:P-256:X448:P-521:P-384
+ 
+-   This configuration works with OpenSSL v1.1.1 and above.
++   This configuration works with OpenSSL v1.0.2 and above.
+ 
+ .. ts:cv:: CONFIG proxy.config.ssl.client.groups_list STRING <See notes under proxy.config.ssl.server.groups_list.>
+ 
+@@ -3066,7 +3066,7 @@ SSL Termination
+    group NIDs or names, for example "P-521:P-384:P-256". For
+    instructions, see "Groups" section of `TLS1.3 - OpenSSLWiki <https://wiki.openssl.org/index.php/TLS1.3#Groups>`_.
+ 
+-   This configuration works with OpenSSL v1.1.1 and above.
++   This configuration works with OpenSSL v1.0.2 and above.
+ 
+ .. ts:cv:: CONFIG proxy.config.ssl.TLSv1 INT 1
+ 
+--- a/iocore/net/SSLClientUtils.cc
++++ b/iocore/net/SSLClientUtils.cc
+@@ -142,9 +142,13 @@ SSLInitClientContext(const SSLConfigPara
+   }
+ #endif
+ 
+-#ifdef SSL_CTX_set1_groups_list
++#if defined(SSL_CTX_set1_groups_list) || defined(SSL_CTX_set1_curves_list)
+   if (params->client_groups_list != nullptr) {
++#ifdef SSL_CTX_set1_groups_list
+     if (!SSL_CTX_set1_groups_list(client_ctx, params->client_groups_list)) {
++#else
++    if (!SSL_CTX_set1_curves_list(client_ctx, params->client_groups_list)) {
++#endif
+       SSLError("invalid groups list for client in records.config");
+       goto fail;
+     }
+--- a/iocore/net/SSLUtils.cc
++++ b/iocore/net/SSLUtils.cc
+@@ -1891,9 +1891,13 @@ SSLInitServerContext(const SSLConfigPara
+   }
+ #endif
+ 
+-#ifdef SSL_CTX_set1_groups_list
++#if defined(SSL_CTX_set1_groups_list) || defined(SSL_CTX_set1_curves_list)
+   if (params->server_groups_list != nullptr) {
++#ifdef SSL_CTX_set1_groups_list
+     if (!SSL_CTX_set1_groups_list(ctx, params->server_groups_list)) {
++#else
++    if (!SSL_CTX_set1_curves_list(ctx, params->server_groups_list)) {
++#endif
+       SSLError("invalid groups list for server in records.config");
+       goto fail;
+     }
