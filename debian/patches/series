@@ -18,3 +18,6 @@
 0020-disable-h2-priority-rate-limiting.patch
 0021-fallback-curves-list.patch
 0022-h2-rate-limits-stats.patch
+0023-reverse-internal-order-of-hpack-dynamic-table-entries.patch
+0024-add-mimehdr-garbage-collection.patch
+0025-delete-unused-mimefieldblockimpl.patch

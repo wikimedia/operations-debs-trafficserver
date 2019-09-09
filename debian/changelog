@@ -1,3 +1,12 @@
+trafficserver (8.0.5-1wm6) stretch-wikimedia; urgency=medium
+
+  * Backport the following HTTP/2 HPACK related patches:
+    - https://github.com/apache/trafficserver/pull/5686
+    - https://github.com/apache/trafficserver/pull/5695 (fixes T232298)
+    - https://github.com/apache/trafficserver/pull/5293 (fixes a perf. regression)
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Mon, 09 Sep 2019 10:02:35 +0000
+
 trafficserver (8.0.5-1wm5) stretch-wikimedia; urgency=medium
 
   * Backport https://github.com/apache/trafficserver/pull/5197
