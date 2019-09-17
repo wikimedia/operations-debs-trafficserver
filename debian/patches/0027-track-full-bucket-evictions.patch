@@ -1,0 +1,14 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/5930
+Description: Track SSL session cache evictions performed due to full bucket
+--- a/iocore/net/SSLSessionCache.cc
++++ b/iocore/net/SSLSessionCache.cc
+@@ -140,6 +140,9 @@ SSLSessionBucket::insertSession(const SS
+ 
+   PRINT_BUCKET("insertSession before")
+   if (queue.size >= static_cast<int>(SSLConfigParams::session_cache_max_bucket_size)) {
++    if (ssl_rsb) {
++      SSL_INCREMENT_DYN_STAT(ssl_session_cache_eviction);
++    }
+     removeOldestSession();
+   }
+ 
