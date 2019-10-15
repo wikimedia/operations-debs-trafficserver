@@ -1,3 +1,11 @@
+trafficserver (8.0.5-1wm9) stretch-wikimedia; urgency=medium
+
+  * Backport the following patches:
+    - https://github.com/apache/trafficserver/pull/5153
+    - https://github.com/apache/trafficserver/pull/5992
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 15 Oct 2019 05:57:38 +0000
+
 trafficserver (8.0.5-1wm8) stretch-wikimedia; urgency=medium
 
   * Backport https://github.com/apache/trafficserver/pull/5930

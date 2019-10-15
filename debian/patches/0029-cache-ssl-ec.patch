@@ -1,0 +1,333 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/5992
+Description: Cache SSL EC explicitly
+--- a/iocore/net/P_SSLNetVConnection.h
++++ b/iocore/net/P_SSLNetVConnection.h
+@@ -42,6 +42,7 @@
+ #include "P_EventSystem.h"
+ #include "P_UnixNetVConnection.h"
+ #include "P_UnixNet.h"
++#include "P_SSLUtils.h"
+ 
+ // These are included here because older OpenSSL libraries don't have them.
+ // Don't copy these defines, or use their values directly, they are merely
+@@ -294,19 +295,36 @@ public:
+     return ssl ? SSL_get_cipher_name(ssl) : nullptr;
+   }
+ 
++  void
++  setSSLCurveNID(ssl_curve_id curve_nid)
++  {
++    sslCurveNID = curve_nid;
++  }
++
++  ssl_curve_id
++  getSSLCurveNID() const
++  {
++    return sslCurveNID;
++  }
++
+   const char *
+   getSSLCurve() const
+   {
+     if (!ssl) {
+       return nullptr;
+     }
+-
+-    int curve_nid = SSL_get_shared_curve(ssl, 0);
+-
+-    if (curve_nid == NID_undef) {
++    ssl_curve_id curve = getSSLCurveNID();
++#ifndef OPENSSL_IS_BORINGSSL
++    if (curve == NID_undef) {
+       return nullptr;
+     }
+-    return OBJ_nid2sn(curve_nid);
++    return OBJ_nid2sn(curve);
++#else
++    if (curve == 0) {
++      return nullptr;
++    }
++    return SSL_get_curve_name(curve);
++#endif
+   }
+ 
+   int populate_protocol(std::string_view *results, int n) const override;
+@@ -336,6 +354,7 @@ public:
+ private:
+   std::string_view map_tls_protocol_to_tag(const char *proto_string) const;
+   bool update_rbio(bool move_to_socket);
++  void fetch_ssl_curve();
+ 
+   bool sslHandShakeComplete        = false;
+   bool sslClientRenegotiationAbort = false;
+@@ -344,6 +363,7 @@ private:
+   IOBufferReader *handShakeHolder  = nullptr;
+   IOBufferReader *handShakeReader  = nullptr;
+   int handShakeBioStored           = 0;
++  int sslCurveNID                  = NID_undef;
+ 
+   bool transparentPassThrough = false;
+ 
+--- a/iocore/net/P_SSLUtils.h
++++ b/iocore/net/P_SSLUtils.h
+@@ -41,6 +41,15 @@ struct RecRawStatBlock;
+ 
+ typedef int ssl_error_t;
+ 
++#ifndef OPENSSL_IS_BORING
++typedef int ssl_curve_id;
++#else
++typedef uint16_t ssl_curve_id;
++#endif
++
++// Return the SSL Curve ID associated to the specified SSL connection
++ssl_curve_id SSLGetCurveNID(SSL *ssl);
++
+ enum SSL_Stats {
+   ssl_origin_server_expired_cert_stat,
+   ssl_user_agent_expired_cert_stat,
+--- a/iocore/net/SSLNetVConnection.cc
++++ b/iocore/net/SSLNetVConnection.cc
+@@ -1258,6 +1258,8 @@ SSLNetVConnection::sslServerHandShakeEve
+       const unsigned char *proto = nullptr;
+       unsigned len               = 0;
+ 
++      fetch_ssl_curve();
++
+       // If it's possible to negotiate both NPN and ALPN, then ALPN
+       // is preferred since it is the server's preference.  The server
+       // preference would not be meaningful if we let the client
+@@ -1773,6 +1775,14 @@ SSLNetVConnection::populate(Connection &
+   return EVENT_DONE;
+ }
+ 
++void
++SSLNetVConnection::fetch_ssl_curve()
++{
++  if (!getSSLSessionCacheHit()) {
++    setSSLCurveNID(SSLGetCurveNID(ssl));
++  }
++}
++
+ std::string_view
+ SSLNetVConnection::map_tls_protocol_to_tag(const char *proto_string) const
+ {
+--- a/iocore/net/SSLSessionCache.cc
++++ b/iocore/net/SSLSessionCache.cc
+@@ -58,7 +58,7 @@ SSLSessionCache::getSessionBuffer(const 
+ }
+ 
+ bool
+-SSLSessionCache::getSession(const SSLSessionID &sid, SSL_SESSION **sess) const
++SSLSessionCache::getSession(const SSLSessionID &sid, SSL_SESSION **sess, ssl_session_cache_exdata **data) const
+ {
+   uint64_t hash            = sid.hash();
+   uint64_t target_bucket   = hash % nbuckets;
+@@ -71,7 +71,7 @@ SSLSessionCache::getSession(const SSLSes
+           target_bucket, bucket, buf, hash);
+   }
+ 
+-  return bucket->getSession(sid, sess);
++  return bucket->getSession(sid, sess, data);
+ }
+ 
+ void
+@@ -95,7 +95,7 @@ SSLSessionCache::removeSession(const SSL
+ }
+ 
+ void
+-SSLSessionCache::insertSession(const SSLSessionID &sid, SSL_SESSION *sess)
++SSLSessionCache::insertSession(const SSLSessionID &sid, SSL_SESSION *sess, SSL *ssl)
+ {
+   uint64_t hash            = sid.hash();
+   uint64_t target_bucket   = hash % nbuckets;
+@@ -108,11 +108,11 @@ SSLSessionCache::insertSession(const SSL
+           target_bucket, bucket, buf, hash);
+   }
+ 
+-  bucket->insertSession(sid, sess);
++  bucket->insertSession(sid, sess, ssl);
+ }
+ 
+ void
+-SSLSessionBucket::insertSession(const SSLSessionID &id, SSL_SESSION *sess)
++SSLSessionBucket::insertSession(const SSLSessionID &id, SSL_SESSION *sess, SSL *ssl)
+ {
+   size_t len = i2d_SSL_SESSION(sess, nullptr); // make sure we're not going to need more than SSL_MAX_SESSION_SIZE bytes
+   /* do not cache a session that's too big. */
+@@ -156,12 +156,19 @@ SSLSessionBucket::insertSession(const SS
+   }
+ 
+   Ptr<IOBufferData> buf;
+-  buf = new_IOBufferData(buffer_size_to_index(len, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
++  Ptr<IOBufferData> buf_exdata;
++  size_t len_exdata = sizeof(ssl_session_cache_exdata);
++  buf               = new_IOBufferData(buffer_size_to_index(len, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
+   ink_release_assert(static_cast<size_t>(buf->block_size()) >= len);
+   unsigned char *loc = reinterpret_cast<unsigned char *>(buf->data());
+   i2d_SSL_SESSION(sess, &loc);
++  buf_exdata = new_IOBufferData(buffer_size_to_index(len, MAX_BUFFER_SIZE_INDEX), MEMALIGNED);
++  ink_release_assert(static_cast<size_t>(buf_exdata->block_size()) >= len_exdata);
++  ssl_session_cache_exdata *exdata = reinterpret_cast<ssl_session_cache_exdata *>(buf_exdata->data());
++  // This could be moved to a function in charge of populating exdata
++  exdata->curve = SSLGetCurveNID(ssl);
+ 
+-  ats_scoped_obj<SSLSession> ssl_session(new SSLSession(id, buf, len));
++  ats_scoped_obj<SSLSession> ssl_session(new SSLSession(id, buf, len, buf_exdata));
+ 
+   /* do the actual insert */
+   queue.enqueue(ssl_session.release());
+@@ -205,7 +212,7 @@ SSLSessionBucket::getSessionBuffer(const
+ }
+ 
+ bool
+-SSLSessionBucket::getSession(const SSLSessionID &id, SSL_SESSION **sess)
++SSLSessionBucket::getSession(const SSLSessionID &id, SSL_SESSION **sess, ssl_session_cache_exdata **data)
+ {
+   char buf[id.len * 2 + 1];
+   buf[0] = '\0'; // just to be safe.
+@@ -235,6 +242,10 @@ SSLSessionBucket::getSession(const SSLSe
+     if (node->session_id == id) {
+       const unsigned char *loc = reinterpret_cast<const unsigned char *>(node->asn1_data->data());
+       *sess                    = d2i_SSL_SESSION(nullptr, &loc, node->len_asn1_data);
++      if (data != nullptr) {
++        ssl_session_cache_exdata *exdata = reinterpret_cast<ssl_session_cache_exdata *>(node->extra_data->data());
++        *data                            = exdata;
++      }
+ 
+       return true;
+     }
+--- a/iocore/net/SSLSessionCache.h
++++ b/iocore/net/SSLSessionCache.h
+@@ -33,6 +33,10 @@
+ 
+ #define SSL_MAX_SESSION_SIZE 256
+ 
++struct ssl_session_cache_exdata {
++  ssl_curve_id curve;
++};
++
+ struct SSLSessionID : public TSSslSessionID {
+   SSLSessionID(const unsigned char *s, size_t l)
+   {
+@@ -116,9 +120,10 @@ public:
+   SSLSessionID session_id;
+   Ptr<IOBufferData> asn1_data; /* this is the ASN1 representation of the SSL_CTX */
+   size_t len_asn1_data;
++  Ptr<IOBufferData> extra_data;
+ 
+-  SSLSession(const SSLSessionID &id, Ptr<IOBufferData> ssl_asn1_data, size_t len_asn1)
+-    : session_id(id), asn1_data(ssl_asn1_data), len_asn1_data(len_asn1)
++  SSLSession(const SSLSessionID &id, const Ptr<IOBufferData> &ssl_asn1_data, size_t len_asn1, Ptr<IOBufferData> &exdata)
++    : session_id(id), asn1_data(ssl_asn1_data), len_asn1_data(len_asn1), extra_data(exdata)
+   {
+   }
+ 
+@@ -130,8 +135,8 @@ class SSLSessionBucket
+ public:
+   SSLSessionBucket();
+   ~SSLSessionBucket();
+-  void insertSession(const SSLSessionID &, SSL_SESSION *ctx);
+-  bool getSession(const SSLSessionID &, SSL_SESSION **ctx);
++  void insertSession(const SSLSessionID &, SSL_SESSION *ctx, SSL *ssl);
++  bool getSession(const SSLSessionID &, SSL_SESSION **ctx, ssl_session_cache_exdata **data);
+   int getSessionBuffer(const SSLSessionID &, char *buffer, int &len);
+   void removeSession(const SSLSessionID &);
+ 
+@@ -147,9 +152,9 @@ private:
+ class SSLSessionCache
+ {
+ public:
+-  bool getSession(const SSLSessionID &sid, SSL_SESSION **sess) const;
++  bool getSession(const SSLSessionID &sid, SSL_SESSION **sess, ssl_session_cache_exdata **data) const;
+   int getSessionBuffer(const SSLSessionID &sid, char *buffer, int &len) const;
+-  void insertSession(const SSLSessionID &sid, SSL_SESSION *sess);
++  void insertSession(const SSLSessionID &sid, SSL_SESSION *sess, SSL *ssl);
+   void removeSession(const SSLSessionID &sid);
+   SSLSessionCache();
+   ~SSLSessionCache();
+--- a/iocore/net/SSLUtils.cc
++++ b/iocore/net/SSLUtils.cc
+@@ -247,9 +247,11 @@ ssl_get_cached_session(SSL *ssl, const u
+     hook = hook->m_link.next;
+   }
+ 
+-  SSL_SESSION *session = nullptr;
+-  if (session_cache->getSession(sid, &session)) {
++  SSL_SESSION *session             = nullptr;
++  ssl_session_cache_exdata *exdata = nullptr;
++  if (session_cache->getSession(sid, &session, &exdata)) {
+     ink_assert(session);
++    ink_assert(exdata);
+ 
+     // Double check the timeout
+     if (ssl_session_timed_out(session)) {
+@@ -264,6 +266,7 @@ ssl_get_cached_session(SSL *ssl, const u
+       SSLNetVConnection *netvc = SSLNetVCAccess(ssl);
+       SSL_INCREMENT_DYN_STAT(ssl_session_cache_hit);
+       netvc->setSSLSessionCacheHit(true);
++      netvc->setSSLCurveNID(exdata->curve);
+     }
+   } else {
+     SSL_INCREMENT_DYN_STAT(ssl_session_cache_miss);
+@@ -276,6 +279,7 @@ ssl_new_cached_session(SSL *ssl, SSL_SES
+ {
+   unsigned int len        = 0;
+   const unsigned char *id = SSL_SESSION_get_id(sess, &len);
++
+   SSLSessionID sid(id, len);
+ 
+   if (diags->tag_activated("ssl.session_cache")) {
+@@ -286,7 +290,7 @@ ssl_new_cached_session(SSL *ssl, SSL_SES
+   }
+ 
+   SSL_INCREMENT_DYN_STAT(ssl_session_cache_new_session);
+-  session_cache->insertSession(sid, sess);
++  session_cache->insertSession(sid, sess, ssl);
+ 
+   // Call hook after new session is created
+   APIHook *hook = ssl_hooks->get(TS_SSL_SESSION_INTERNAL_HOOK);
+@@ -2390,3 +2394,13 @@ SSLConnect(SSL *ssl)
+ 
+   return ssl_error;
+ }
++
++ssl_curve_id
++SSLGetCurveNID(SSL *ssl)
++{
++#ifndef OPENSSL_IS_BORINGSSL
++  return SSL_get_shared_curve(ssl, 0);
++#else
++  return SSL_get_curve_id(ssl);
++#endif
++}
+--- a/src/traffic_server/InkAPI.cc
++++ b/src/traffic_server/InkAPI.cc
+@@ -9360,7 +9360,7 @@ TSSslSessionGet(const TSSslSessionID *se
+ {
+   SSL_SESSION *session = nullptr;
+   if (session_id && session_cache) {
+-    session_cache->getSession(reinterpret_cast<const SSLSessionID &>(*session_id), &session);
++    session_cache->getSession(reinterpret_cast<const SSLSessionID &>(*session_id), &session, nullptr);
+   }
+   return reinterpret_cast<TSSslSession>(session);
+ }
+@@ -9377,7 +9377,7 @@ TSSslSessionGetBuffer(const TSSslSession
+ }
+ 
+ TSReturnCode
+-TSSslSessionInsert(const TSSslSessionID *session_id, TSSslSession add_session)
++TSSslSessionInsert(const TSSslSessionID *session_id, TSSslSession add_session, TSSslConnection ssl_conn)
+ {
+   // Don't insert if there is no session id or the cache is not yet set up
+   if (session_id && session_cache) {
+@@ -9388,7 +9388,8 @@ TSSslSessionInsert(const TSSslSessionID 
+       Debug("ssl.session_cache.insert", "TSSslSessionInsert: Inserting session '%s' ", buf);
+     }
+     SSL_SESSION *session = reinterpret_cast<SSL_SESSION *>(add_session);
+-    session_cache->insertSession(reinterpret_cast<const SSLSessionID &>(*session_id), session);
++    SSL *ssl             = reinterpret_cast<SSL *>(ssl_conn);
++    session_cache->insertSession(reinterpret_cast<const SSLSessionID &>(*session_id), session, ssl);
+     // insertSession returns void, assume all went well
+     return TS_SUCCESS;
+   } else {

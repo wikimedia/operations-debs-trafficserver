@@ -23,3 +23,5 @@
 0025-delete-unused-mimefieldblockimpl.patch
 0026-perform-quiet-ssl-shutdown.patch
 0027-track-full-bucket-evictions.patch
+0028-separate-p_sslutil-include.patch
+0029-cache-ssl-ec.patch
