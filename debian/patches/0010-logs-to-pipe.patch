@@ -1,36 +1,59 @@
-Description: logs to FIFO bugfixes
-Author: Emanuele Rocca <ema@wikimedia.org>
-Last-Update: 2018-11-22
+Description: Address pipe reuse after configuration reload issues
+Author: bneradt <bneradt@verizonmedia.com>
+Origin: upstream
 Bug: https://github.com/apache/trafficserver/issues/4635
 ---
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
-diff --git a/proxy/logging/LogFile.cc b/proxy/logging/LogFile.cc
-index 7d70bbdde..7f1fa827b 100644
 --- a/proxy/logging/LogFile.cc
 +++ b/proxy/logging/LogFile.cc
-@@ -166,13 +166,13 @@ LogFile::open_file()
- 
-   if (m_file_format == LOG_FILE_PIPE) {
-     // setup pipe
--    if (mkfifo(m_name, S_IRUSR | S_IWUSR | S_IRGRP) < 0) {
--      if (errno != EEXIST) {
-+    if (!file_exists) {
-+      if (mkfifo(m_name, S_IRUSR | S_IWUSR | S_IRGRP) < 0) {
-         Error("Could not create named pipe %s for logging: %s", m_name, strerror(errno));
-         return LOG_FILE_COULD_NOT_CREATE_PIPE;
-+      } else {
-+        Debug("log-file", "Created named pipe %s for logging", m_name);
-       }
--    } else {
--      Debug("log-file", "Created named pipe %s for logging", m_name);
-     }
- 
-     // now open the pipe
-diff --git a/proxy/logging/LogObject.cc b/proxy/logging/LogObject.cc
-index c745bddb2..86597ebb4 100644
+@@ -118,6 +118,12 @@ LogFile::LogFile(const LogFile &copy)
+ LogFile::~LogFile()
+ {
+   Debug("log-file", "entering LogFile destructor, this=%p", this);
++
++  // close_file() checks whether a file is open before attempting to close, so
++  // this is safe to call even if a file had not been opened. Further, calling
++  // close_file() here ensures that we do not leak file descriptors.
++  close_file();
++
+   delete m_log;
+   ats_free(m_header);
+   ats_free(m_name);
 --- a/proxy/logging/LogObject.cc
 +++ b/proxy/logging/LogObject.cc
-@@ -1009,7 +1009,6 @@ LogObjectManager::_solve_filename_conflicts(LogObject *log_object, int maxConfli
+@@ -961,24 +961,20 @@ LogObjectManager::_solve_filename_conflicts(LogObject *log_object, int maxConfli
+         LogUtils::manager_alarm(LogUtils::LOG_ALARM_ERROR, msg, filename);
+         retVal = CANNOT_SOLVE_FILENAME_CONFLICTS;
+       } else {
+-        // either the meta file could not be read, or the new object's
+-        // signature and the metafile signature do not match ==>
+-        // roll old filename so the new object can use the filename
++        // Either the meta file could not be read, or the new object's
++        // signature and the metafile signature do not match.
++        // Roll the old filename so the new object can use the filename
+         // it requested (previously we used to rename the NEW file
+-        // but now we roll the OLD file), or if the log object writes
+-        // to a pipe, just remove the file if it was open as a pipe
++        // but now we roll the OLD file). However, if the log object writes to
++        // a pipe don't roll because rolling is not applicable to pipes.
+ 
+         bool roll_file = true;
+ 
+         if (log_object->writes_to_pipe()) {
+-          // determine if existing file is a pipe, and remove it if
+-          // that is the case so the right metadata for the new pipe
+-          // is created later
+-          //
++          // Verify whether the existing file is a pipe. If it is,
++          // disable the roll_file flag so we don't attempt rolling.
+           struct stat s;
+           if (stat(filename, &s) < 0) {
+-            // an error happened while trying to get file info
+-            //
+             const char *msg = "Cannot stat log file %s: %s";
+             char *se        = strerror(errno);
+ 
+@@ -988,7 +984,6 @@ LogObjectManager::_solve_filename_conflicts(LogObject *log_object, int maxConfli
              roll_file = false;
            } else {
              if (S_ISFIFO(s.st_mode)) {
