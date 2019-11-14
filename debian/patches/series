@@ -25,3 +25,4 @@
 0027-track-full-bucket-evictions.patch
 0028-separate-p_sslutil-include.patch
 0029-cache-ssl-ec.patch
+0030-ignore-unknown-h2-settings.patch

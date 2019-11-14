@@ -1,3 +1,9 @@
+trafficserver (8.0.5-1wm11) stretch-wikimedia; urgency=medium
+
+  * Backport https://github.com/apache/trafficserver/pull/5636
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Thu, 14 Nov 2019 10:05:02 +0000
+
 trafficserver (8.0.5-1wm10) stretch-wikimedia; urgency=medium
 
   * Use upstream patch to address #4635 instead of our own:
