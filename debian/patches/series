@@ -26,3 +26,5 @@
 0028-separate-p_sslutil-include.patch
 0029-cache-ssl-ec.patch
 0030-ignore-unknown-h2-settings.patch
+0031-split-connect-ttfb-timeouts.patch
+0032-fix-strict-round-robin.patch

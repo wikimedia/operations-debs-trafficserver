@@ -1,3 +1,10 @@
+trafficserver (8.0.5-1wm12) stretch-wikimedia; urgency=medium
+
+  * Backport https://github.com/apache/trafficserver/pull/4028
+  * Backport https://github.com/apache/trafficserver/pull/6323
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 14 Jan 2020 10:07:58 +0000
+
 trafficserver (8.0.5-1wm11) stretch-wikimedia; urgency=medium
 
   * Backport https://github.com/apache/trafficserver/pull/5636

@@ -1,0 +1,14 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6323
+Description: Fix strict round robin cur_index increment
+--- a/proxy/ParentRoundRobin.cc
++++ b/proxy/ParentRoundRobin.cc
+@@ -99,8 +99,7 @@ ParentRoundRobin::selectParent(bool firs
+         }
+         break;
+       case P_STRICT_ROUND_ROBIN:
+-        cur_index = ink_atomic_increment((int32_t *)&result->rec->rr_next, 1);
+-        cur_index = result->start_parent = cur_index % num_parents;
++        cur_index = result->start_parent = ink_atomic_increment((uint32_t *)&result->rec->rr_next, 1) % num_parents;
+         break;
+       case P_NO_ROUND_ROBIN:
+         cur_index = result->start_parent = 0;
