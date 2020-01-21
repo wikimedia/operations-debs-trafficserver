@@ -1,3 +1,12 @@
+trafficserver (8.0.5-1wm13) buster-wikimedia; urgency=medium
+
+  * Build against buster
+  * Added myself to uploaders
+  * Drop clang-6 build dependency
+  * Added missing libyaml-dev build dependency
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 21 Jan 2020 16:30:33 +0000
+
 trafficserver (8.0.5-1wm12) stretch-wikimedia; urgency=medium
 
   * Backport https://github.com/apache/trafficserver/pull/4028

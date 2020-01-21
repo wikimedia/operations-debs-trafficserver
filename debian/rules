@@ -8,7 +8,7 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 export DEB_CFLAGS_MAINT_APPEND = -O3
 # To get -dbgsym packages with LLVM
 export DEB_LDFLAGS_MAINT_APPEND = -Wl,--build-id
-export DEB_CXXFLAGS_MAINT_APPEND = -O3 -stdlib=libc++
+export DEB_CXXFLAGS_MAINT_APPEND = -O3
 
 # Get build architecture. ./configure is different on Linux
 include /usr/share/dpkg/architecture.mk
@@ -21,9 +21,10 @@ configure_flags = \
 	--libexecdir=/usr/lib/trafficserver/modules \
 	--with-user=root --with-group=root --disable-silent-rules \
 	--enable-experimental-plugins --enable-32bit-build \
-	--enable-mime-sanity-check \
+	--enable-mime-sanity-check  --enable-docs \
 	--with-build-version=$(DEB_VERSION) \
-        $(shell dpkg-buildflags --export=configure) CC=clang-6.0 CXX=clang++-6.0
+        $(shell dpkg-buildflags --export=configure)
+
 
 %:
 	dh $@ --with autoreconf
@@ -55,8 +56,6 @@ override_dh_install:
 	#(cd debian/trafficserver-dev/usr/share/doc/trafficserver-dev/examples/ssl-preaccept/; \
 	#ln -s ssl_preaccept.config ssl_sni.config)
 
-# sphinx >= 1.5.1 needed to build man pages. Skip that on stretch.
-override_dh_installman:
 
 override_dh_installinit:
 	dh_installinit --no-start
