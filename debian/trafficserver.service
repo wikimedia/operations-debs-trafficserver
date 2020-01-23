@@ -23,7 +23,7 @@ After=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/trafficserver
-PIDFile=/var/run/trafficserver/manager.lock
+PIDFile=/run/trafficserver/manager.lock
 ExecStart=/usr/bin/traffic_manager $TM_DAEMON_ARGS
 ExecReload=/usr/bin/traffic_ctl config reload
 
