@@ -1,3 +1,9 @@
+trafficserver (8.0.5-1wm15) buster-wikimedia; urgency=medium
+
+  * Backport https://github.com/apache/trafficserver/pull/6332 (T244538)
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Fri, 07 Feb 2020 14:59:45 +0000
+
 trafficserver (8.0.5-1wm14) buster-wikimedia; urgency=medium
 
   * Replace /var/run with /run

@@ -29,3 +29,4 @@
 0031-split-connect-ttfb-timeouts.patch
 0032-fix-strict-round-robin.patch
 0033-fix-runtimedir-path.patch
+0034-fix-double-findparent.patch

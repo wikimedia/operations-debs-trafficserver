@@ -1,0 +1,78 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6332/
+Description: Fix a double call on findParent() when proxy.config.http.no_dns_just_forward_to_parent is enabled.
+             This will help to mitigate some DNS induced delays. See T244538
+--- a/proxy/ParentSelection.cc
++++ b/proxy/ParentSelection.cc
+@@ -114,17 +114,12 @@ ParentConfigParams::findParent(HttpReque
+   ParentRecord *defaultPtr = DefaultParent;
+   ParentRecord *rec;
+ 
+-  Debug("parent_select", "In ParentConfigParams::findParent(): parent_table: %p.", parent_table);
+-  ink_assert(result->result == PARENT_UNDEFINED);
+-
+   // Check to see if we are enabled
+   Debug("parent_select", "policy.ParentEnable: %d", policy.ParentEnable);
+   if (policy.ParentEnable == 0) {
+     result->result = PARENT_DIRECT;
+     return;
+   }
+-  // Initialize the result structure
+-  result->reset();
+ 
+   // Check to see if the parent was set through the
+   //   api
+@@ -140,6 +135,9 @@ ParentConfigParams::findParent(HttpReque
+     return;
+   }
+ 
++  // Initialize the result structure
++  result->reset();
++
+   tablePtr->Match(rdata, result);
+   rec = result->rec;
+ 
+@@ -240,17 +238,38 @@ ParentConfigParams::nextParent(HttpReque
+ bool
+ ParentConfigParams::parentExists(HttpRequestData *rdata)
+ {
+-  unsigned int fail_threshold = policy.FailThreshold;
+-  unsigned int retry_time     = policy.ParentRetryTime;
++  P_table *tablePtr = parent_table;
++  ParentRecord *rec = nullptr;
+   ParentResult result;
+ 
+-  findParent(rdata, &result, fail_threshold, retry_time);
++  // Initialize the result structure;
++  result.reset();
+ 
+-  if (result.result == PARENT_SPECIFIED) {
+-    return true;
+-  } else {
++  tablePtr->Match(rdata, &result);
++  rec = result.rec;
++
++  if (rec == nullptr) {
++    Debug("parent_select", "No matching parent record was found for the request.");
+     return false;
+   }
++
++  if (rec->num_parents > 0) {
++    for (int ii = 0; ii < rec->num_parents; ii++) {
++      if (rec->parents[ii].available) {
++        Debug("parent_select", "found available parent: %s", rec->parents[ii].hostname);
++        return true;
++      }
++    }
++  }
++  if (rec->secondary_parents && rec->num_secondary_parents > 0) {
++    for (int ii = 0; ii < rec->num_secondary_parents; ii++) {
++      if (rec->secondary_parents[ii].available) {
++        Debug("parent_select", "found available parent: %s", rec->secondary_parents[ii].hostname);
++        return true;
++      }
++    }
++  }
++  return false;
+ }
+ 
+ int ParentConfig::m_id = 0;
