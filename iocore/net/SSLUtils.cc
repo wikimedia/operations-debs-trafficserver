@@ -955,7 +955,7 @@ SSLInitializeLibrary()
   }
 #endif
 
-#ifdef TS_USE_TLS_OCSP
+#if TS_USE_TLS_OCSP
   ssl_stapling_ex_init();
 #endif /* TS_USE_TLS_OCSP */
 
@@ -1345,12 +1345,17 @@ SSLDefaultServerContext()
 static bool
 SSLPrivateKeyHandler(SSL_CTX *ctx, const SSLConfigParams *params, const std::string &completeServerCertPath, const char *keyPath)
 {
+#ifndef OPENSSL_IS_BORINGSSL
   ENGINE *e = ENGINE_get_default_RSA();
   if (e != nullptr) {
     const char *argkey = (keyPath == nullptr || keyPath[0] == '\0') ? completeServerCertPath.c_str() : keyPath;
     if (!SSL_CTX_use_PrivateKey(ctx, ENGINE_load_private_key(e, argkey, nullptr, nullptr))) {
       SSLError("failed to load server private key from engine");
     }
+#else
+  ENGINE *e = nullptr;
+  if (false) {
+#endif
   } else if (!keyPath) {
     // assume private key is contained in cert obtained from multicert file.
     if (!SSL_CTX_use_PrivateKey_file(ctx, completeServerCertPath.c_str(), SSL_FILETYPE_PEM)) {
@@ -1885,7 +1890,7 @@ SSLInitServerContext(const SSLConfigParams *params, const ssl_user_config *sslMu
   SSL_CTX_set_alpn_select_cb(ctx, SSLNetVConnection::select_next_protocol, nullptr);
 #endif /* TS_USE_TLS_ALPN */
 
-#ifdef TS_USE_TLS_OCSP
+#if TS_USE_TLS_OCSP
   if (SSLConfigParams::ssl_ocsp_enabled) {
     Debug("ssl", "SSL OCSP Stapling is enabled");
     SSL_CTX_set_tlsext_status_cb(ctx, ssl_callback_ocsp_stapling);
