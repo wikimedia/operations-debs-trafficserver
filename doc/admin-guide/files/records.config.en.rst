@@ -867,12 +867,6 @@ ip-resolve
          origin server has previously returned HTTP/1.1.
    ===== ======================================================================
 
-.. note::
-
-   If HTTP/1.1 is used, then |TS| can use keep-alive connections to origin servers.
-
-   If HTTP/1.0 is used, then |TS| can use keep-alive connections to origin servers.
-
 .. ts:cv:: CONFIG proxy.config.http.chunking.size INT 4096
    :overridable:
 
@@ -1312,6 +1306,8 @@ HTTP Redirection
 
    This setting determines the maximum number of times Trafficserver does a redirect follow location on receiving a 3XX Redirect response
    for a given client request.
+
+   .. note:: In previous versions proxy.config.http.redirection_enabled had to be set to 1 before this setting was evaluated.  Now setting :ts:cv:`proxy.config.http.number_of_redirections` to a value greater than zero is sufficient to cause |TS| to follow redirects.
 
 .. ts:cv:: CONFIG proxy.config.http.redirect_host_no_port INT 1
 
@@ -2066,10 +2062,10 @@ RAM Cache
 
 .. ts:cv:: CONFIG proxy.config.cache.ram_cache.algorithm INT 1
 
-   Two distinct RAM caches are supported, the default (0) being the **CLFUS**
-   (*Clocked Least Frequently Used by Size*). As an alternative, a simpler
-   **LRU** (*Least Recently Used*) cache is also available, by changing this
-   configuration to 1.
+   Two distinct RAM caches are supported, the default (1) being the simpler
+   **LRU** (*Least Recently Used*) cache. As an alternative, the **CLFUS**
+   (*Clocked Least Frequently Used by Size*) is also available, by changing this
+   configuration to 0.
 
 .. ts:cv:: CONFIG proxy.config.cache.ram_cache.use_seen_filter INT 1
 
@@ -2350,7 +2346,14 @@ DNS
    :reloadable:
    :overridable:
 
-   Indicates whether to use SRV records for orgin server lookup.
+   Enables (``1``) or disables (``0``) the use of SRV records for origin server
+   lookup. |TS| will use weights found in the SRV record as a weighted round
+   robin in origin selection. Note that |TS| will lookup
+   ``_$scheme._$internet_protocol.$origin_name``. For instance, if the origin is
+   set to ``https://my.example.com``, |TS| would lookup ``_https._tcp.my.example.com``.
+   Also note that the port returned in the SRV record MUST match the port being
+   used for the origin (e.g. if the origin scheme is http and a default port, there
+   should be a SRV record with port 80).
 
 .. ts:cv:: CONFIG proxy.config.dns.dedicated_thread INT 0
 

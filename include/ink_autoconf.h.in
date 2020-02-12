@@ -317,6 +317,12 @@
 /* Define to 1 if you have the `psignal' function. */
 #undef HAVE_PSIGNAL
 
+/* Whether pthread_getname_np() is available */
+#undef HAVE_PTHREAD_GETNAME_NP
+
+/* Whether pthread_get_name_np() is available */
+#undef HAVE_PTHREAD_GET_NAME_NP
+
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
 
