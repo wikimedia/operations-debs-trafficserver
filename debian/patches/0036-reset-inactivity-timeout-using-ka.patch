@@ -1,0 +1,13 @@
+Description: Reset the inactivity timeout when reusing connections
+Origin: upstream https://github.com/apache/trafficserver/pull/4164
+--- a/proxy/http/HttpSM.cc
++++ b/proxy/http/HttpSM.cc
+@@ -5954,6 +5954,8 @@ HttpSM::attach_server_session(HttpServer
+ void
+ HttpSM::setup_server_send_request_api()
+ {
++  // Make sure the VC is on the correct timeout
++  server_session->get_netvc()->set_inactivity_timeout(HRTIME_SECONDS(t_state.txn_conf->transaction_no_activity_timeout_out));
+   t_state.api_next_action = HttpTransact::SM_ACTION_API_SEND_REQUEST_HDR;
+   do_api_callout();
+ }
