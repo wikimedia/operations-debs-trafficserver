@@ -2,7 +2,7 @@ Origin: upstream https://github.com/apache/trafficserver/pull/5197
 Description: fallback to curves list if available. This enables setting a list of allowed curves with OpenSSL <= 1.1
 --- a/doc/admin-guide/files/records.config.en.rst
 +++ b/doc/admin-guide/files/records.config.en.rst
-@@ -3056,7 +3056,7 @@ SSL Termination
+@@ -3059,7 +3059,7 @@ SSL Termination
  
     X25519:P-256:X448:P-521:P-384
  
@@ -11,7 +11,7 @@ Description: fallback to curves list if available. This enables setting a list o
  
  .. ts:cv:: CONFIG proxy.config.ssl.client.groups_list STRING <See notes under proxy.config.ssl.server.groups_list.>
  
-@@ -3066,7 +3066,7 @@ SSL Termination
+@@ -3069,7 +3069,7 @@ SSL Termination
     group NIDs or names, for example "P-521:P-384:P-256". For
     instructions, see "Groups" section of `TLS1.3 - OpenSSLWiki <https://wiki.openssl.org/index.php/TLS1.3#Groups>`_.
  
@@ -39,7 +39,7 @@ Description: fallback to curves list if available. This enables setting a list o
      }
 --- a/iocore/net/SSLUtils.cc
 +++ b/iocore/net/SSLUtils.cc
-@@ -1891,9 +1891,13 @@ SSLInitServerContext(const SSLConfigPara
+@@ -1896,9 +1896,13 @@ SSLInitServerContext(const SSLConfigPara
    }
  #endif
  

@@ -3,7 +3,7 @@ Adds support for prefetched OCSP stapling responses
 +++ b/iocore/net/OCSPStapling.cc
 @@ -22,6 +22,7 @@
  #include "P_OCSPStapling.h"
- #ifdef TS_USE_TLS_OCSP
+ #if TS_USE_TLS_OCSP
  
 +#include <openssl/bio.h>
  #include <openssl/ssl.h>
@@ -208,7 +208,7 @@ Adds support for prefetched OCSP stapling responses
    ats_scoped_str dialog;
    ats_scoped_str servername;
    SSLCertContext::Option opt;
-@@ -1684,6 +1686,27 @@ SSLInitServerContext(const SSLConfigPara
+@@ -1689,6 +1691,27 @@ SSLInitServerContext(const SSLConfigPara
          }
        }
  
@@ -236,7 +236,7 @@ Adds support for prefetched OCSP stapling responses
        for (const char *certname = cert_tok.getNext(); certname; certname = cert_tok.getNext()) {
          std::string completeServerCertPath = Layout::relative_to(params->serverCertPathOnly, certname);
          scoped_BIO bio(BIO_new_file(completeServerCertPath.c_str(), "r"));
-@@ -1745,6 +1768,21 @@ SSLInitServerContext(const SSLConfigPara
+@@ -1750,6 +1773,21 @@ SSLInitServerContext(const SSLConfigPara
              }
            }
          }
@@ -258,11 +258,11 @@ Adds support for prefetched OCSP stapling responses
        }
      }
  
-@@ -1885,19 +1923,6 @@ SSLInitServerContext(const SSLConfigPara
+@@ -1890,18 +1928,6 @@ SSLInitServerContext(const SSLConfigPara
    SSL_CTX_set_alpn_select_cb(ctx, SSLNetVConnection::select_next_protocol, nullptr);
  #endif /* TS_USE_TLS_ALPN */
  
--#ifdef TS_USE_TLS_OCSP
+-#if TS_USE_TLS_OCSP
 -  if (SSLConfigParams::ssl_ocsp_enabled) {
 -    Debug("ssl", "SSL OCSP Stapling is enabled");
 -    SSL_CTX_set_tlsext_status_cb(ctx, ssl_callback_ocsp_stapling);
@@ -274,11 +274,10 @@ Adds support for prefetched OCSP stapling responses
 -    Warning("failed to enable SSL OCSP Stapling; this version of OpenSSL does not support it");
 -  }
 -#endif /* TS_USE_TLS_OCSP */
--
+ 
    if (SSLConfigParams::init_ssl_ctx_cb) {
      SSLConfigParams::init_ssl_ctx_cb(ctx, true);
-   }
-@@ -1991,24 +2016,6 @@ ssl_store_ssl_context(const SSLConfigPar
+@@ -1996,24 +2022,6 @@ ssl_store_ssl_context(const SSLConfigPar
    }
  #endif
  
@@ -303,7 +302,7 @@ Adds support for prefetched OCSP stapling responses
    // Insert additional mappings. Note that this maps multiple keys to the same value, so when
    // this code is updated to reconfigure the SSL certificates, it will need some sort of
    // refcounting or alternate way of avoiding double frees.
-@@ -2067,6 +2074,10 @@ ssl_extract_certificate(const matcher_li
+@@ -2072,6 +2080,10 @@ ssl_extract_certificate(const matcher_li
        sslMultCertSettings.key = ats_strdup(value);
      }
  
@@ -350,7 +349,7 @@ Adds support for prefetched OCSP stapling responses
    TSSslContext ret        = nullptr;
    SSLConfigParams *config = SSLConfig::acquire();
 @@ -9205,7 +9205,7 @@ TSSslServerContextCreate(TSSslX509 cert,
- #ifdef TS_USE_TLS_OCSP
+ #if TS_USE_TLS_OCSP
      if (ret && SSLConfigParams::ssl_ocsp_enabled && cert && certname) {
        if (SSL_CTX_set_tlsext_status_cb(reinterpret_cast<SSL_CTX *>(ret), ssl_callback_ocsp_stapling)) {
 -        if (!ssl_stapling_init_cert(reinterpret_cast<SSL_CTX *>(ret), reinterpret_cast<X509 *>(cert), certname)) {

@@ -67,7 +67,7 @@ Description: Provide stats for HTTP/2 rate limits
  
  union byte_pointer {
    byte_pointer(void *p) : ptr(p) {}
-@@ -816,6 +825,18 @@ Http2::init()
+@@ -817,6 +826,18 @@ Http2::init()
                       static_cast<int>(HTTP2_STAT_SESSION_DIE_ERROR), RecRawStatSyncSum);
    RecRegisterRawStat(http2_rsb, RECT_PROCESS, HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE_NAME, RECD_INT, RECP_PERSISTENT,
                       static_cast<int>(HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE), RecRawStatSyncSum);

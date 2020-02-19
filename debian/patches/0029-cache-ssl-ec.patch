@@ -287,7 +287,7 @@ Description: Cache SSL EC explicitly
  
    // Call hook after new session is created
    APIHook *hook = ssl_hooks->get(TS_SSL_SESSION_INTERNAL_HOOK);
-@@ -2390,3 +2394,13 @@ SSLConnect(SSL *ssl)
+@@ -2396,3 +2400,13 @@ SSLConnect(SSL *ssl)
  
    return ssl_error;
  }
