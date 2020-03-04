@@ -6806,9 +6806,8 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
 
     // check that the client is HTTP 1.1 and the conf allows chunking or the client
     // protocol unchunks before returning to the user agent (i.e. is http/2)
-    if (s->client_info.http_version == HTTPVersion(1, 1) &&
-        (s->txn_conf->chunking_enabled == 1 ||
-         (s->state_machine->plugin_tag && (!strncmp(s->state_machine->plugin_tag, "http/2", 6)))) &&
+    if (s->client_info.http_version == HTTPVersion(1, 1) && s->txn_conf->chunking_enabled == 1 &&
+        s->state_machine->ua_txn->is_chunked_encoding_supported() &&
         // if we're not sending a body, don't set a chunked header regardless of server response
         !is_response_body_precluded(s->hdr_info.client_response.status_get(), s->method) &&
         // we do not need chunked encoding for internal error messages
@@ -6840,12 +6839,12 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     }
 
     // Close the connection if client_info is not keep-alive.
-    // Otherwise, if we cannot trust the content length, we will close the connection
+    // Otherwise, if we cannot trust the content length and the client process chunked encoding, we will close the connection
     // unless we are going to use chunked encoding or the client issued
     // a PUSH request
     if (s->client_info.keep_alive != HTTP_KEEPALIVE) {
       ka_action = KA_DISABLED;
-    } else if (s->hdr_info.trust_response_cl == false &&
+    } else if (s->hdr_info.trust_response_cl == false && s->state_machine->ua_txn->is_chunked_encoding_supported() &&
                !(s->client_info.receive_chunked_response == true ||
                  (s->method == HTTP_WKSIDX_PUSH && s->client_info.keep_alive == HTTP_KEEPALIVE))) {
       ka_action = KA_CLOSE;
@@ -7172,11 +7171,16 @@ HttpTransact::what_is_document_freshness(State *s, HTTPHdr *client_request, HTTP
   current_age = HttpTransactHeaders::calculate_document_age(s->request_sent_time, s->response_received_time, cached_obj_response,
                                                             response_date, s->current.now);
 
-  // Overflow ?
+  // First check overflow status
+  // Second if current_age is under the max, use the smaller value
+  // Finally we take the max of current age or guaranteed max, this ensures it will
+  // age out properly, otherwise a doc will never expire if guaranteed < document max-age
   if (current_age < 0) {
     current_age = s->txn_conf->cache_guaranteed_max_lifetime;
-  } else {
+  } else if (current_age < s->txn_conf->cache_guaranteed_max_lifetime) {
     current_age = std::min((time_t)s->txn_conf->cache_guaranteed_max_lifetime, current_age);
+  } else {
+    current_age = std::max((time_t)s->txn_conf->cache_guaranteed_max_lifetime, current_age);
   }
 
   TxnDebug("http_match", "[what_is_document_freshness] fresh_limit:  %d  current_age: %" PRId64, fresh_limit, (int64_t)current_age);

@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[8.0.5])
-m4_define([TS_VERSION_N],[8000005])
+m4_define([TS_VERSION_S],[8.0.6])
+m4_define([TS_VERSION_N],[8000006])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -1805,6 +1805,46 @@ AC_LINK_IFELSE([
     AC_MSG_RESULT([yes])
   ], [
     AC_MSG_RESULT([no])
+])
+
+# pthread_getname_np / pthread_get_name_np:
+AC_MSG_CHECKING([pthread_getname_np()])
+AC_LINK_IFELSE([
+    AC_LANG_PROGRAM([
+#if HAVE_PTHREAD_H
+#include <pthread.h>
+#endif
+#if PTHREAD_NP_H
+#include <pthread_np.h>
+#endif
+      ], [
+        char name[[32]];
+        pthread_getname_np(pthread_self(), name, sizeof(name));
+    ])
+  ], [
+    AC_DEFINE(HAVE_PTHREAD_GETNAME_NP, 1, [Whether pthread_getname_np() is available])
+    AC_MSG_RESULT([yes])
+  ], [
+    AC_MSG_RESULT([no])
+    AC_MSG_CHECKING([pthread_get_name_np()])
+    AC_LINK_IFELSE([
+        AC_LANG_PROGRAM([
+    #if HAVE_PTHREAD_H
+    #include <pthread.h>
+    #endif
+    #if PTHREAD_NP_H
+    #include <pthread_np.h>
+    #endif
+          ], [
+            char name[[32]];
+            pthread_get_name_np(pthread_self(), name, sizeof(name));
+        ])
+      ], [
+        AC_DEFINE(HAVE_PTHREAD_GET_NAME_NP, 1, [Whether pthread_get_name_np() is available])
+        AC_MSG_RESULT([yes])
+      ], [
+        AC_MSG_RESULT([no])
+    ])
 ])
 
 # BSD-derived systems populate the socket length in the structure itself. It's

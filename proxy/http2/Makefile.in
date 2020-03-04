@@ -123,9 +123,10 @@ host_triplet = @host@
 @BUILD_TESTS_TRUE@	RegressionHPACK.cc
 
 check_PROGRAMS = test_Huffmancode$(EXEEXT) \
-	test_Http2DependencyTree$(EXEEXT) test_HPACK$(EXEEXT)
+	test_Http2DependencyTree$(EXEEXT) \
+	test_Http2FrequencyCounter$(EXEEXT) test_HPACK$(EXEEXT)
 TESTS = test_Huffmancode$(EXEEXT) test_Http2DependencyTree$(EXEEXT) \
-	test_HPACK$(EXEEXT)
+	test_Http2FrequencyCounter$(EXEEXT) test_HPACK$(EXEEXT)
 subdir = proxy/http2
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/build/ax_check_openssl.m4 \
@@ -169,15 +170,16 @@ am__libhttp2_a_SOURCES_DIST = HPACK.cc HPACK.h HTTP2.cc HTTP2.h \
 	Http2ClientSession.cc Http2ClientSession.h \
 	Http2ConnectionState.cc Http2ConnectionState.h \
 	Http2DebugNames.cc Http2DebugNames.h Http2DependencyTree.h \
+	Http2FrequencyCounter.h Http2FrequencyCounter.cc \
 	Http2Stream.cc Http2Stream.h Http2SessionAccept.cc \
 	Http2SessionAccept.h HuffmanCodec.cc HuffmanCodec.h \
 	RegressionHPACK.cc
 @BUILD_TESTS_TRUE@am__objects_1 = RegressionHPACK.$(OBJEXT)
 am_libhttp2_a_OBJECTS = HPACK.$(OBJEXT) HTTP2.$(OBJEXT) \
 	Http2ClientSession.$(OBJEXT) Http2ConnectionState.$(OBJEXT) \
-	Http2DebugNames.$(OBJEXT) Http2Stream.$(OBJEXT) \
-	Http2SessionAccept.$(OBJEXT) HuffmanCodec.$(OBJEXT) \
-	$(am__objects_1)
+	Http2DebugNames.$(OBJEXT) Http2FrequencyCounter.$(OBJEXT) \
+	Http2Stream.$(OBJEXT) Http2SessionAccept.$(OBJEXT) \
+	HuffmanCodec.$(OBJEXT) $(am__objects_1)
 libhttp2_a_OBJECTS = $(am_libhttp2_a_OBJECTS)
 am_test_HPACK_OBJECTS = test_HPACK.$(OBJEXT) HuffmanCodec.$(OBJEXT) \
 	HPACK.$(OBJEXT)
@@ -198,6 +200,14 @@ am_test_Http2DependencyTree_OBJECTS = unit_tests/test_Http2DependencyTree-test_H
 test_Http2DependencyTree_OBJECTS =  \
 	$(am_test_Http2DependencyTree_OBJECTS)
 test_Http2DependencyTree_DEPENDENCIES =  \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
+am_test_Http2FrequencyCounter_OBJECTS = unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.$(OBJEXT) \
+	test_Http2FrequencyCounter-Http2FrequencyCounter.$(OBJEXT)
+test_Http2FrequencyCounter_OBJECTS =  \
+	$(am_test_Http2FrequencyCounter_OBJECTS)
+test_Http2FrequencyCounter_DEPENDENCIES =  \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
 	$(top_builddir)/src/tscore/libtscore.la \
 	$(top_builddir)/src/tscpp/util/libtscpputil.la
 am_test_Huffmancode_OBJECTS = test_Huffmancode.$(OBJEXT) \
@@ -225,10 +235,14 @@ am__depfiles_remade = ./$(DEPDIR)/HPACK.Po ./$(DEPDIR)/HTTP2.Po \
 	./$(DEPDIR)/Http2ClientSession.Po \
 	./$(DEPDIR)/Http2ConnectionState.Po \
 	./$(DEPDIR)/Http2DebugNames.Po \
+	./$(DEPDIR)/Http2FrequencyCounter.Po \
 	./$(DEPDIR)/Http2SessionAccept.Po ./$(DEPDIR)/Http2Stream.Po \
 	./$(DEPDIR)/HuffmanCodec.Po ./$(DEPDIR)/RegressionHPACK.Po \
-	./$(DEPDIR)/test_HPACK.Po ./$(DEPDIR)/test_Huffmancode.Po \
-	unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po
+	./$(DEPDIR)/test_HPACK.Po \
+	./$(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po \
+	./$(DEPDIR)/test_Huffmancode.Po \
+	unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po \
+	unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
@@ -268,9 +282,11 @@ am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(libhttp2_a_SOURCES) $(test_HPACK_SOURCES) \
 	$(test_Http2DependencyTree_SOURCES) \
+	$(test_Http2FrequencyCounter_SOURCES) \
 	$(test_Huffmancode_SOURCES)
 DIST_SOURCES = $(am__libhttp2_a_SOURCES_DIST) $(test_HPACK_SOURCES) \
 	$(test_Http2DependencyTree_SOURCES) \
+	$(test_Http2FrequencyCounter_SOURCES) \
 	$(test_Huffmancode_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -853,6 +869,7 @@ libhttp2_a_SOURCES = HPACK.cc HPACK.h HTTP2.cc HTTP2.h \
 	Http2ClientSession.cc Http2ClientSession.h \
 	Http2ConnectionState.cc Http2ConnectionState.h \
 	Http2DebugNames.cc Http2DebugNames.h Http2DependencyTree.h \
+	Http2FrequencyCounter.h Http2FrequencyCounter.cc \
 	Http2Stream.cc Http2Stream.h Http2SessionAccept.cc \
 	Http2SessionAccept.h HuffmanCodec.cc HuffmanCodec.h \
 	$(am__append_1)
@@ -875,6 +892,19 @@ test_Http2DependencyTree_CPPFLAGS = $(AM_CPPFLAGS)\
 test_Http2DependencyTree_SOURCES = \
 	unit_tests/test_Http2DependencyTree.cc \
 	Http2DependencyTree.h
+
+test_Http2FrequencyCounter_LDADD = \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/src/tscore/libtscore.la \
+	$(top_builddir)/src/tscpp/util/libtscpputil.la
+
+test_Http2FrequencyCounter_CPPFLAGS = $(AM_CPPFLAGS)\
+	-I$(abs_top_srcdir)/tests/include
+
+test_Http2FrequencyCounter_SOURCES = \
+	unit_tests/test_Http2FrequencyCounter.cc \
+	Http2FrequencyCounter.cc \
+	Http2FequencyCounter.h
 
 test_HPACK_LDADD = \
 	$(top_builddir)/proxy/hdrs/libhdrs.a \
@@ -962,6 +992,13 @@ unit_tests/test_Http2DependencyTree-test_Http2DependencyTree.$(OBJEXT):  \
 test_Http2DependencyTree$(EXEEXT): $(test_Http2DependencyTree_OBJECTS) $(test_Http2DependencyTree_DEPENDENCIES) $(EXTRA_test_Http2DependencyTree_DEPENDENCIES) 
 	@rm -f test_Http2DependencyTree$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(test_Http2DependencyTree_OBJECTS) $(test_Http2DependencyTree_LDADD) $(LIBS)
+unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.$(OBJEXT):  \
+	unit_tests/$(am__dirstamp) \
+	unit_tests/$(DEPDIR)/$(am__dirstamp)
+
+test_Http2FrequencyCounter$(EXEEXT): $(test_Http2FrequencyCounter_OBJECTS) $(test_Http2FrequencyCounter_DEPENDENCIES) $(EXTRA_test_Http2FrequencyCounter_DEPENDENCIES) 
+	@rm -f test_Http2FrequencyCounter$(EXEEXT)
+	$(AM_V_CXXLD)$(CXXLINK) $(test_Http2FrequencyCounter_OBJECTS) $(test_Http2FrequencyCounter_LDADD) $(LIBS)
 
 test_Huffmancode$(EXEEXT): $(test_Huffmancode_OBJECTS) $(test_Huffmancode_DEPENDENCIES) $(EXTRA_test_Huffmancode_DEPENDENCIES) 
 	@rm -f test_Huffmancode$(EXEEXT)
@@ -979,13 +1016,16 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2ClientSession.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2ConnectionState.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2DebugNames.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2FrequencyCounter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2SessionAccept.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/Http2Stream.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/HuffmanCodec.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/RegressionHPACK.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_HPACK.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_Huffmancode.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -1030,6 +1070,34 @@ unit_tests/test_Http2DependencyTree-test_Http2DependencyTree.obj: unit_tests/tes
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Http2DependencyTree.cc' object='unit_tests/test_Http2DependencyTree-test_Http2DependencyTree.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2DependencyTree_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_Http2DependencyTree-test_Http2DependencyTree.obj `if test -f 'unit_tests/test_Http2DependencyTree.cc'; then $(CYGPATH_W) 'unit_tests/test_Http2DependencyTree.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Http2DependencyTree.cc'; fi`
+
+unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.o: unit_tests/test_Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.o -MD -MP -MF unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Tpo -c -o unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.o `test -f 'unit_tests/test_Http2FrequencyCounter.cc' || echo '$(srcdir)/'`unit_tests/test_Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Tpo unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Http2FrequencyCounter.cc' object='unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.o `test -f 'unit_tests/test_Http2FrequencyCounter.cc' || echo '$(srcdir)/'`unit_tests/test_Http2FrequencyCounter.cc
+
+unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.obj: unit_tests/test_Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.obj -MD -MP -MF unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Tpo -c -o unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.obj `if test -f 'unit_tests/test_Http2FrequencyCounter.cc'; then $(CYGPATH_W) 'unit_tests/test_Http2FrequencyCounter.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Http2FrequencyCounter.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Tpo unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='unit_tests/test_Http2FrequencyCounter.cc' object='unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o unit_tests/test_Http2FrequencyCounter-test_Http2FrequencyCounter.obj `if test -f 'unit_tests/test_Http2FrequencyCounter.cc'; then $(CYGPATH_W) 'unit_tests/test_Http2FrequencyCounter.cc'; else $(CYGPATH_W) '$(srcdir)/unit_tests/test_Http2FrequencyCounter.cc'; fi`
+
+test_Http2FrequencyCounter-Http2FrequencyCounter.o: Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Http2FrequencyCounter-Http2FrequencyCounter.o -MD -MP -MF $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Tpo -c -o test_Http2FrequencyCounter-Http2FrequencyCounter.o `test -f 'Http2FrequencyCounter.cc' || echo '$(srcdir)/'`Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Tpo $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='Http2FrequencyCounter.cc' object='test_Http2FrequencyCounter-Http2FrequencyCounter.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Http2FrequencyCounter-Http2FrequencyCounter.o `test -f 'Http2FrequencyCounter.cc' || echo '$(srcdir)/'`Http2FrequencyCounter.cc
+
+test_Http2FrequencyCounter-Http2FrequencyCounter.obj: Http2FrequencyCounter.cc
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT test_Http2FrequencyCounter-Http2FrequencyCounter.obj -MD -MP -MF $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Tpo -c -o test_Http2FrequencyCounter-Http2FrequencyCounter.obj `if test -f 'Http2FrequencyCounter.cc'; then $(CYGPATH_W) 'Http2FrequencyCounter.cc'; else $(CYGPATH_W) '$(srcdir)/Http2FrequencyCounter.cc'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Tpo $(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='Http2FrequencyCounter.cc' object='test_Http2FrequencyCounter-Http2FrequencyCounter.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(test_Http2FrequencyCounter_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o test_Http2FrequencyCounter-Http2FrequencyCounter.obj `if test -f 'Http2FrequencyCounter.cc'; then $(CYGPATH_W) 'Http2FrequencyCounter.cc'; else $(CYGPATH_W) '$(srcdir)/Http2FrequencyCounter.cc'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -1245,6 +1313,13 @@ test_Http2DependencyTree.log: test_Http2DependencyTree$(EXEEXT)
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
 	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_Http2FrequencyCounter.log: test_Http2FrequencyCounter$(EXEEXT)
+	@p='test_Http2FrequencyCounter$(EXEEXT)'; \
+	b='test_Http2FrequencyCounter'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
 test_HPACK.log: test_HPACK$(EXEEXT)
 	@p='test_HPACK$(EXEEXT)'; \
 	b='test_HPACK'; \
@@ -1356,13 +1431,16 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/Http2ClientSession.Po
 	-rm -f ./$(DEPDIR)/Http2ConnectionState.Po
 	-rm -f ./$(DEPDIR)/Http2DebugNames.Po
+	-rm -f ./$(DEPDIR)/Http2FrequencyCounter.Po
 	-rm -f ./$(DEPDIR)/Http2SessionAccept.Po
 	-rm -f ./$(DEPDIR)/Http2Stream.Po
 	-rm -f ./$(DEPDIR)/HuffmanCodec.Po
 	-rm -f ./$(DEPDIR)/RegressionHPACK.Po
 	-rm -f ./$(DEPDIR)/test_HPACK.Po
+	-rm -f ./$(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po
 	-rm -f ./$(DEPDIR)/test_Huffmancode.Po
 	-rm -f unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po
+	-rm -f unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -1413,13 +1491,16 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/Http2ClientSession.Po
 	-rm -f ./$(DEPDIR)/Http2ConnectionState.Po
 	-rm -f ./$(DEPDIR)/Http2DebugNames.Po
+	-rm -f ./$(DEPDIR)/Http2FrequencyCounter.Po
 	-rm -f ./$(DEPDIR)/Http2SessionAccept.Po
 	-rm -f ./$(DEPDIR)/Http2Stream.Po
 	-rm -f ./$(DEPDIR)/HuffmanCodec.Po
 	-rm -f ./$(DEPDIR)/RegressionHPACK.Po
 	-rm -f ./$(DEPDIR)/test_HPACK.Po
+	-rm -f ./$(DEPDIR)/test_Http2FrequencyCounter-Http2FrequencyCounter.Po
 	-rm -f ./$(DEPDIR)/test_Huffmancode.Po
 	-rm -f unit_tests/$(DEPDIR)/test_Http2DependencyTree-test_Http2DependencyTree.Po
+	-rm -f unit_tests/$(DEPDIR)/test_Http2FrequencyCounter-test_Http2FrequencyCounter.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

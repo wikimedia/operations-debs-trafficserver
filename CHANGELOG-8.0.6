@@ -1,0 +1,43 @@
+Changes with Apache Traffic Server 8.0.6
+  #4042 - Fixed url_sig error when storing base64ed params in penultimate segment.
+  #4117 - Add transform TSIOBuffer watermark APIs.
+  #4215 - HostStatus debug logging segfault fix.
+  #4590 - Print thread name instead of thread id
+  #4840 - resolve stack-use-after-scope in YamlLogConfig.cc
+  #5078 - Fix directives for checking TS_USE_TLS_OCSP
+  #5105 - tscore/ink_hrtime: add missing cstdint import
+  #5241 - Changed how current age is determined to age out documents
+  #5316 - cppcheck: Removed problematic move operators for FixedBufferWriter.
+  #5331 - Off by 1 error in memcpy of redirect url
+  #5424 - Fix ContFlags for gcc 9.
+  #5427 - gcc9 - fix class Connection.
+  #5428 - gcc9 - fix CryptoHash.h
+  #5433 - gcc9 - Fix Errata.h, NumericType.h.
+  #5434 - gcc9 - Fix I_Store.h
+  #5435 - gcc9 - fix HTTPVersion.
+  #5462 - gcc9: fixed issue with always printing a null char*
+  #5489 - gcc9: set default value for printing debug message
+  #5497 - gcc9: sprintf and strncat fixes in plugins
+  #5516 - Make code compilable with BoringSSL
+  #5636 - HTTP/2: ignore unknown settings
+  #5823 - Avoid AWS auth v4 path/query param double encoding
+  #5833 - Fix H2 internal counters
+  #5887 - Fixed const issue with magick plugin
+  #5899 - Substitution string has changed
+  #5911 - Enable stdout logging on FreeBSD
+  #5930 - Track SSL session cache evictions performed due to full bucket
+  #5935 - Perform a SSL quiet shutdown when close-notify is not sent
+  #5989 - Concurrent SRV requests failure
+  #6047 - Change the ready checks for ats to use the actual ats port and not th…
+  #6068 - Fixes help message for traffic_top's sleep switch
+  #6088 - Local 8.0.x change for gcc9 - Map.h, MemSpan.h, ink_uuid.h
+  #6113 - Patch to fix autest issues
+  #6145 - Remove including sys/sysctl.h for Linux
+  #6158 - Fixed build issues with hwloc 2.x API changes
+  #6248 - Add support for the old lua formatted ease of use conventions and the numeric log rolling values
+  #6308 - Fix clang-format-github CI job for 8.0.x branch
+  #6312 - Set wrap after checking all the parents
+  #6389 - Fixed how we handle unknown schemes
+  #6390 - Change header validation
+  #6398 - Fix chunked processing
+  #6416 - Handle final delayed chunk size
