@@ -29,3 +29,4 @@
 0035-fix-no-activity-timeout-ka.patch
 0036-reset-inactivity-timeout-using-ka.patch
 0037-prioritize-chacha.patch
+0038-elevate-privileges-session-ticket-key.patch
