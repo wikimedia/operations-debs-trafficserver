@@ -1,0 +1,59 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6424
+Description: SSL: Introduce proxy.config.ssl.server.session_ticket.number
+--- a/mgmt/RecordsConfig.cc
++++ b/mgmt/RecordsConfig.cc
+@@ -1076,6 +1076,8 @@ static const RecordElement RecordsConfig
+   //##############################################################################
+   {RECT_CONFIG, "proxy.config.ssl.server.session_ticket.enable", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+   ,
++  {RECT_CONFIG, "proxy.config.ssl.server.session_ticket.number", RECD_INT, "2", RECU_DYNAMIC, RR_NULL, RECC_NULL, nullptr, RECA_NULL}
++  ,
+   {RECT_CONFIG, "proxy.config.ssl.TLSv1", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+   ,
+   {RECT_CONFIG, "proxy.config.ssl.TLSv1_1", RECD_INT, "1", RECU_RESTART_TS, RR_NULL, RECC_INT, "[0-1]", RECA_NULL}
+--- a/iocore/net/SSLUtils.cc
++++ b/iocore/net/SSLUtils.cc
+@@ -72,6 +72,7 @@
+ #define SSL_ACTION_TAG "action"
+ #define SSL_ACTION_TUNNEL_TAG "tunnel"
+ #define SSL_SESSION_TICKET_ENABLED "ssl_ticket_enabled"
++#define SSL_SESSION_TICKET_NUMBER "ssl_ticket_number"
+ #define SSL_KEY_DIALOG "ssl_key_dialog"
+ #define SSL_SERVERNAME "dest_fqdn"
+ #define SSL_CERT_SEPARATE_DELIM ','
+@@ -107,9 +108,11 @@ struct ssl_user_config {
+   ssl_user_config() : opt(SSLCertContext::OPT_NONE)
+   {
+     REC_ReadConfigInt32(session_ticket_enabled, "proxy.config.ssl.server.session_ticket.enable");
++    REC_ReadConfigInt32(session_ticket_number, "proxy.config.ssl.server.session_ticket.number");
+   }
+ 
+   int session_ticket_enabled;
++  int session_ticket_number;
+   ats_scoped_str addr;
+   ats_scoped_str cert;
+   ats_scoped_str first_cert;
+@@ -2029,6 +2032,12 @@ ssl_store_ssl_context(const SSLConfigPar
+     Debug("ssl", "ssl session ticket is disabled");
+   }
+ #endif
++#if OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)
++  if (!(params->ssl_ctx_options & SSL_OP_NO_TLSv1_3)) {
++    SSL_CTX_set_num_tickets(ctx, sslMultCertSettings->session_ticket_number);
++    Debug("ssl", "ssl session ticket number set to %d", sslMultCertSettings->session_ticket_number);
++  }
++#endif
+ 
+   // Insert additional mappings. Note that this maps multiple keys to the same value, so when
+   // this code is updated to reconfigure the SSL certificates, it will need some sort of
+@@ -2096,6 +2105,10 @@ ssl_extract_certificate(const matcher_li
+       sslMultCertSettings.session_ticket_enabled = atoi(value);
+     }
+ 
++    if (strcasecmp(label, SSL_SESSION_TICKET_NUMBER) == 0) {
++      sslMultCertSettings.session_ticket_number = atoi(value);
++    }
++
+     if (strcasecmp(label, SSL_KEY_DIALOG) == 0) {
+       sslMultCertSettings.dialog = ats_strdup(value);
+     }
