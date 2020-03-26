@@ -1,0 +1,16 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6573
+Description: Always renew TLS Session Tickets iff TLSv1.3 is being used
+--- a/iocore/net/SSLUtils.cc
++++ b/iocore/net/SSLUtils.cc
+@@ -2280,6 +2280,11 @@ ssl_callback_session_ticket(SSL *ssl, un
+         SSLNetVConnection *netvc = SSLNetVCAccess(ssl);
+         netvc->setSSLSessionCacheHit(true);
+         // When we decrypt with an "older" key, encrypt the ticket again with the most recent key.
++#ifdef TLS1_3_VERSION
++        if (SSL_version(ssl) >= TLS1_3_VERSION) {
++          return 2;
++        }
++#endif
+         return (i == 0) ? 1 : 2;
+       }
+     }

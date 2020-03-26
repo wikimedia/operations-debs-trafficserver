@@ -31,3 +31,4 @@
 0037-prioritize-chacha.patch
 0038-elevate-privileges-session-ticket-key.patch
 0039-ticket-number-tlsv13.patch
+0040-always-renew-tlsv13-tickets.patch

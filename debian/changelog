@@ -1,3 +1,9 @@
+trafficserver (8.0.6-1wm4) buster-wikimedia; urgency=medium
+
+  * Always renew TLS Session tickets if TLSv1.3 is being used (https://github.com/apache/trafficserver/pull/6573)
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Thu, 26 Mar 2020 18:03:53 +0000
+
 trafficserver (8.0.6-1wm3) buster-wikimedia; urgency=medium
 
   * The following patches have been backported:
