@@ -1,0 +1,53 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6403
+Description: Fix for lua plugin coredump problem during reload. This patch addresses T248938.
+--- a/plugins/lua/ts_lua.c
++++ b/plugins/lua/ts_lua.c
+@@ -119,7 +119,9 @@ TSRemapNewInstance(int argc, char *argv[
+     char script[TS_LUA_MAX_SCRIPT_FNAME_LENGTH];
+     snprintf(script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[optind]);
+     // we only need to check the first lua VM for script registration
++    TSMutexLock(ts_lua_main_ctx_array[0].mutexp);
+     conf = ts_lua_script_registered(ts_lua_main_ctx_array[0].lua, script);
++    TSMutexUnlock(ts_lua_main_ctx_array[0].mutexp);
+   }
+ 
+   if (!conf) {
+@@ -154,7 +156,9 @@ TSRemapNewInstance(int argc, char *argv[
+     // register the script only if it is from a file and has no __init__ function
+     if (fn && !conf->init_func) {
+       // we only need to register the script for the first lua VM
++      TSMutexLock(ts_lua_main_ctx_array[0].mutexp);
+       ts_lua_script_register(ts_lua_main_ctx_array[0].lua, conf->script, conf);
++      TSMutexUnlock(ts_lua_main_ctx_array[0].mutexp);
+     }
+   }
+ 
+--- a/plugins/lua/ts_lua_util.c
++++ b/plugins/lua/ts_lua_util.c
+@@ -264,8 +264,6 @@ ts_lua_add_module(ts_lua_instance_conf *
+     lua_newtable(L);
+     lua_replace(L, LUA_GLOBALSINDEX); /* L[GLOBAL] = EMPTY */
+ 
+-    lua_gc(L, LUA_GCCOLLECT, 0);
+-
+     TSMutexUnlock(arr[i].mutexp);
+   }
+ 
+@@ -306,8 +304,6 @@ ts_lua_del_module(ts_lua_instance_conf *
+     lua_newtable(L);
+     lua_replace(L, LUA_GLOBALSINDEX); /* L[GLOBAL] = EMPTY  */
+ 
+-    lua_gc(L, LUA_GCCOLLECT, 0);
+-
+     TSMutexUnlock(arr[i].mutexp);
+   }
+ 
+@@ -369,8 +365,6 @@ ts_lua_reload_module(ts_lua_instance_con
+     lua_newtable(L);
+     lua_replace(L, LUA_GLOBALSINDEX); /* L[GLOBAL] = EMPTY */
+ 
+-    lua_gc(L, LUA_GCCOLLECT, 0);
+-
+     TSMutexUnlock(arr[i].mutexp);
+   }
+ 

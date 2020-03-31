@@ -32,3 +32,5 @@
 0038-elevate-privileges-session-ticket-key.patch
 0039-ticket-number-tlsv13.patch
 0040-always-renew-tlsv13-tickets.patch
+0041-fix-lua-reload-coredump.patch
+0042-fix-tunnel-crash.patch
