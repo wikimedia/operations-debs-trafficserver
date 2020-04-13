@@ -1,0 +1,995 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6648
+Description: Backport MIOBuffer changes to 8.1.x. including the following PRs:
+    * https://github.com/apache/trafficserver/pull/5848 Convert check programs in iocore/eventsystem/ into Catch based unit tests
+    * https://github.com/apache/trafficserver/pull/5883 Add unit tests for MIOBuffer:write()
+    * https://github.com/apache/trafficserver/pull/5903 Reduce unnecesary IOBufferBlock allocation
+    * https://github.com/apache/trafficserver/pull/6118 Avoid IOBufferReader::read_avail() call from MIOBuffer::high_water()
+    * https://github.com/apache/trafficserver/pull/5893 Cleanup: Remove unused AllocType and unused functions
+--- a/iocore/eventsystem/IOBuffer.cc
++++ b/iocore/eventsystem/IOBuffer.cc
+@@ -62,6 +62,9 @@ init_buffer_allocators(int iobuffer_advi
+   }
+ }
+ 
++//
++// MIOBuffer
++//
+ int64_t
+ MIOBuffer::remove_append(IOBufferReader *r)
+ {
+@@ -190,6 +193,29 @@ MIOBuffer::puts(char *s, int64_t len)
+   return 0;
+ }
+ 
++bool
++MIOBuffer::is_max_read_avail_more_than(int64_t size)
++{
++  bool no_reader = true;
++  for (auto &reader : this->readers) {
++    if (reader.allocated()) {
++      if (reader.is_read_avail_more_than(size)) {
++        return true;
++      }
++      no_reader = false;
++    }
++  }
++
++  if (no_reader && this->_writer) {
++    return (this->_writer->read_avail() > size);
++  }
++
++  return false;
++}
++
++//
++// IOBufferReader
++//
+ int64_t
+ IOBufferReader::read(void *ab, int64_t len)
+ {
+@@ -279,7 +305,9 @@ IOBufferReader::memcpy(const void *ap, i
+   return p;
+ }
+ 
+-//-- MIOBufferWriter
++//
++// MIOBufferWriter
++//
+ MIOBufferWriter &
+ MIOBufferWriter::write(const void *data_, size_t length)
+ {
+--- a/iocore/eventsystem/I_IOBuffer.h
++++ b/iocore/eventsystem/I_IOBuffer.h
+@@ -65,11 +65,8 @@ extern int64_t default_large_iobuffer_si
+ 
+ enum AllocType {
+   NO_ALLOC,
+-  FAST_ALLOCATED,
+-  XMALLOCED,
+   MEMALIGNED,
+   DEFAULT_ALLOC,
+-  CONSTANT,
+ };
+ 
+ #define DEFAULT_BUFFER_NUMBER 128
+@@ -147,14 +144,6 @@ void init_buffer_allocators(int iobuffer
+       <td></td>
+     </tr>
+     <tr>
+-      <td>FAST_ALLOCATED</td>
+-      <td></td>
+-    </tr>
+-    <tr>
+-      <td>XMALLOCED</td>
+-      <td></td>
+-    </tr>
+-    <tr>
+       <td>MEMALIGNED</td>
+       <td></td>
+     </tr>
+@@ -162,10 +151,6 @@ void init_buffer_allocators(int iobuffer
+       <td>DEFAULT_ALLOC</td>
+       <td></td>
+     </tr>
+-    <tr>
+-      <td>CONSTANT</td>
+-      <td></td>
+-    </tr>
+   </table>
+ 
+  */
+@@ -477,8 +462,6 @@ public:
+   void realloc_set_internal(void *b, int64_t buf_size, int64_t asize_index);
+   void realloc(void *b, int64_t buf_size);
+   void realloc(int64_t i);
+-  void realloc_xmalloc(void *b, int64_t buf_size);
+-  void realloc_xmalloc(int64_t buf_size);
+ 
+   /**
+     Frees the IOBufferBlock object and its underlying memory.
+@@ -839,13 +822,16 @@ public:
+   void append_block(int64_t asize_index);
+ 
+   /**
+-    Adds new block to the end of block list using the block size for
+-    the buffer specified when the buffer was allocated.
+-
++    Adds a new block to the end of the block list. Note that this does nothing when the next block of the current writer exists.
++    The block size is the same as specified size when the buffer was allocated.
+   */
+   void add_block();
+ 
+   /**
++    Deprecated
++
++    TODO: remove this function. Because ats_xmalloc() doesn't exist anymore.
++
+     Adds by reference len bytes of data pointed to by b to the end
+     of the buffer.  b MUST be a pointer to the beginning of  block
+     allocated from the ats_xmalloc() routine. The data will be deallocated
+@@ -1004,7 +990,7 @@ public:
+   bool
+   high_water()
+   {
+-    return max_read_avail() > water_mark;
++    return is_max_read_avail_more_than(this->water_mark);
+   }
+ 
+   /**
+@@ -1074,9 +1060,7 @@ public:
+   void dealloc_all_readers();
+ 
+   void set(void *b, int64_t len);
+-  void set_xmalloced(void *b, int64_t len);
+   void alloc(int64_t i = default_large_iobuffer_size);
+-  void alloc_xmalloc(int64_t buf_size);
+   void append_block_internal(IOBufferBlock *b);
+   int64_t puts(char *buf, int64_t len);
+ 
+@@ -1087,8 +1071,25 @@ public:
+   {
+     return !_writer;
+   }
++
++  /**
++    Get the maximum amount of available data across all of the readers.
++    If there're no allocated reader, return available data size of current writer.
++
++    This calls IOBufferReader::read_avail() and it could be expensive when it has a ton of IOBufferBlock.
++    The `is_max_read_avail(int64_t size)` is preferred if possible.
++
++    @return maximum amount of available data
++   */
+   int64_t max_read_avail();
+ 
++  /**
++    Check if there is more than @a size bytes available to read.
++
++    @return @c true if more than @a size byte are available.
++  */
++  bool is_max_read_avail_more_than(int64_t size);
++
+   int max_block_count();
+   void check_add_block();
+ 
+@@ -1142,16 +1143,6 @@ public:
+   {
+     _writer->realloc(b, buf_size);
+   }
+-  void
+-  realloc_xmalloc(void *b, int64_t buf_size)
+-  {
+-    _writer->realloc_xmalloc(b, buf_size);
+-  }
+-  void
+-  realloc_xmalloc(int64_t buf_size)
+-  {
+-    _writer->realloc_xmalloc(buf_size);
+-  }
+ 
+   int64_t size_index;
+ 
+@@ -1348,12 +1339,6 @@ extern IOBufferData *new_xmalloc_IOBuffe
+ #endif
+   void *b, int64_t size);
+ 
+-extern IOBufferData *new_constant_IOBufferData_internal(
+-#ifdef TRACK_BUFFER_USER
+-  const char *locaction,
+-#endif
+-  void *b, int64_t size);
+-
+ #ifdef TRACK_BUFFER_USER
+ class IOBufferData_tracker
+ {
+@@ -1369,14 +1354,13 @@ public:
+ };
+ #endif
+ 
++// TODO: remove new_xmalloc_IOBufferData. Because ats_xmalloc() doesn't exist anymore.
+ #ifdef TRACK_BUFFER_USER
+ #define new_IOBufferData IOBufferData_tracker(RES_PATH("memory/IOBuffer/"))
+ #define new_xmalloc_IOBufferData(b, size) new_xmalloc_IOBufferData_internal(RES_PATH("memory/IOBuffer/"), (b), (size))
+-#define new_constant_IOBufferData(b, size) new_constant_IOBufferData_internal(RES_PATH("memory/IOBuffer/"), (b), (size))
+ #else
+ #define new_IOBufferData new_IOBufferData_internal
+ #define new_xmalloc_IOBufferData new_xmalloc_IOBufferData_internal
+-#define new_constant_IOBufferData new_constant_IOBufferData_internal
+ #endif
+ 
+ extern int64_t iobuffer_size_to_index(int64_t size, int64_t max = max_iobuffer_size);
+--- a/iocore/eventsystem/Makefile.am
++++ b/iocore/eventsystem/Makefile.am
+@@ -69,7 +69,8 @@ libinkevent_a_SOURCES = \
+ 	UnixEvent.cc \
+ 	UnixEventProcessor.cc
+ 
+-check_PROGRAMS = test_Buffer test_Event \
++check_PROGRAMS = test_IOBuffer \
++	test_EventSystem \
+ 	test_MIOBufferWriter
+ 
+ test_LD_FLAGS = \
+@@ -85,6 +86,7 @@ test_CPP_FLAGS = \
+ 	-I$(abs_top_srcdir)/proxy/logging \
+ 	-I$(abs_top_srcdir)/mgmt \
+ 	-I$(abs_top_srcdir)/mgmt/utils \
++	-I$(abs_top_srcdir)/tests/include \
+ 	@OPENSSL_INCLUDES@
+ 
+ test_LD_ADD = \
+@@ -92,37 +94,23 @@ test_LD_ADD = \
+ 	$(top_builddir)/lib/records/librecords_p.a \
+ 	$(top_builddir)/mgmt/libmgmt_p.la \
+ 	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+-	$(top_builddir)/src/tscore/libtscore.la $(top_builddir)/src/tscpp/util/libtscpputil.la \
++	$(top_builddir)/src/tscore/libtscore.la \
++	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+ 	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
+ 	@LIBTCL@ @HWLOC_LIBS@
+ 
+-test_Buffer_SOURCES = \
+-	test_Buffer.cc
+-
+-#test_UNUSED_SOURCES = \
+-#  test_I_Buffer.cc \
+-#  test_P_Buffer.cc
+-
+-test_Event_SOURCES = \
+-	test_Event.cc
+-
+-#test_UNUSED_SOURCES = \
+-#  test_I_Event.cc \
+-#  test_P_Event.cc
+-
+-test_Buffer_CPPFLAGS = $(test_CPP_FLAGS)
+-test_Event_CPPFLAGS = $(test_CPP_FLAGS)
+-
+-test_Buffer_LDFLAGS = $(test_LD_FLAGS)
+-test_Event_LDFLAGS = $(test_LD_FLAGS)
+-
+-test_Buffer_LDADD = $(test_LD_ADD)
+-test_Event_LDADD = $(test_LD_ADD)
+-
++test_EventSystem_SOURCES = unit_tests/test_EventSystem.cc
++test_EventSystem_CPPFLAGS = $(test_CPP_FLAGS)
++test_EventSystem_LDFLAGS = $(test_LD_FLAGS)
++test_EventSystem_LDADD = $(test_LD_ADD)
++
++test_IOBuffer_SOURCES = unit_tests/test_IOBuffer.cc
++test_IOBuffer_CPPFLAGS = $(test_CPP_FLAGS)
++test_IOBuffer_LDFLAGS = $(test_LD_FLAGS)
++test_IOBuffer_LDADD = $(test_LD_ADD)
+ 
+ test_MIOBufferWriter_SOURCES = unit_tests/test_MIOBufferWriter.cc
+-
+-test_MIOBufferWriter_CPPFLAGS = $(test_CPP_FLAGS) -I$(abs_top_srcdir)/tests/include
++test_MIOBufferWriter_CPPFLAGS = $(test_CPP_FLAGS)
+ test_MIOBufferWriter_LDFLAGS = $(test_LD_FLAGS)
+ test_MIOBufferWriter_LDADD = $(test_LD_ADD)
+ 
+--- a/iocore/eventsystem/P_IOBuffer.h
++++ b/iocore/eventsystem/P_IOBuffer.h
+@@ -217,20 +217,6 @@ new_IOBufferData_internal(
+ }
+ 
+ TS_INLINE IOBufferData *
+-new_constant_IOBufferData_internal(
+-#ifdef TRACK_BUFFER_USER
+-  const char *loc,
+-#endif
+-  void *b, int64_t size)
+-{
+-  return new_IOBufferData_internal(
+-#ifdef TRACK_BUFFER_USER
+-    loc,
+-#endif
+-    b, size, BUFFER_SIZE_INDEX_FOR_CONSTANT_SIZE(size));
+-}
+-
+-TS_INLINE IOBufferData *
+ new_xmalloc_IOBufferData_internal(
+ #ifdef TRACK_BUFFER_USER
+   const char *location,
+@@ -526,18 +512,6 @@ IOBufferBlock::realloc(void *b, int64_t 
+ }
+ 
+ TS_INLINE void
+-IOBufferBlock::realloc_xmalloc(void *b, int64_t buf_size)
+-{
+-  realloc_set_internal(b, buf_size, -buf_size);
+-}
+-
+-TS_INLINE void
+-IOBufferBlock::realloc_xmalloc(int64_t buf_size)
+-{
+-  realloc_set_internal(ats_malloc(buf_size), buf_size, -buf_size);
+-}
+-
+-TS_INLINE void
+ IOBufferBlock::realloc(int64_t i)
+ {
+   if ((i == data->_size_index) || (i >= (int64_t)countof(ioBufAllocator))) {
+@@ -987,7 +961,9 @@ MIOBuffer::append_block(int64_t asize_in
+ TS_INLINE void
+ MIOBuffer::add_block()
+ {
+-  append_block(size_index);
++  if (this->_writer == nullptr || this->_writer->next == nullptr) {
++    append_block(size_index);
++  }
+ }
+ 
+ TS_INLINE void
+@@ -1105,18 +1081,6 @@ MIOBuffer::set(void *b, int64_t len)
+ }
+ 
+ TS_INLINE void
+-MIOBuffer::set_xmalloced(void *b, int64_t len)
+-{
+-#ifdef TRACK_BUFFER_USER
+-  _writer = new_IOBufferBlock_internal(_location);
+-#else
+-  _writer          = new_IOBufferBlock_internal();
+-#endif
+-  _writer->set_internal(b, len, BUFFER_SIZE_INDEX_FOR_XMALLOC_SIZE(len));
+-  init_readers();
+-}
+-
+-TS_INLINE void
+ MIOBuffer::append_xmalloced(void *b, int64_t len)
+ {
+ #ifdef TRACK_BUFFER_USER
+@@ -1154,13 +1118,6 @@ MIOBuffer::alloc(int64_t i)
+ }
+ 
+ TS_INLINE void
+-MIOBuffer::alloc_xmalloc(int64_t buf_size)
+-{
+-  char *b = (char *)ats_malloc(buf_size);
+-  set_xmalloced(b, buf_size);
+-}
+-
+-TS_INLINE void
+ MIOBuffer::dealloc_reader(IOBufferReader *e)
+ {
+   if (e->accessor) {
+--- a/iocore/eventsystem/test_Buffer.cc
++++ /dev/null
+@@ -1,64 +0,0 @@
+-/** @file
+-
+-  A brief file description
+-
+-  @section license License
+-
+-  Licensed to the Apache Software Foundation (ASF) under one
+-  or more contributor license agreements.  See the NOTICE file
+-  distributed with this work for additional information
+-  regarding copyright ownership.  The ASF licenses this file
+-  to you under the Apache License, Version 2.0 (the
+-  "License"); you may not use this file except in compliance
+-  with the License.  You may obtain a copy of the License at
+-
+-      http://www.apache.org/licenses/LICENSE-2.0
+-
+-  Unless required by applicable law or agreed to in writing, software
+-  distributed under the License is distributed on an "AS IS" BASIS,
+-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-  See the License for the specific language governing permissions and
+-  limitations under the License.
+- */
+-
+-#include "I_EventSystem.h"
+-#include "tscore/I_Layout.h"
+-#include "tscore/ink_string.h"
+-
+-#include "diags.i"
+-
+-#define TEST_TIME_SECOND 60
+-#define TEST_THREADS 2
+-
+-int
+-main(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
+-{
+-  RecModeT mode_type = RECM_STAND_ALONE;
+-
+-  Layout::create();
+-  init_diags("", nullptr);
+-  RecProcessInit(mode_type);
+-
+-  ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
+-  eventProcessor.start(TEST_THREADS);
+-
+-  Thread *main_thread = new EThread;
+-  main_thread->set_specific();
+-
+-  for (unsigned i = 0; i < 100; ++i) {
+-    MIOBuffer *b1                       = new_MIOBuffer(default_large_iobuffer_size);
+-    IOBufferReader *b1reader ATS_UNUSED = b1->alloc_reader();
+-    b1->fill(b1->write_avail());
+-
+-    MIOBuffer *b2                       = new_MIOBuffer(default_large_iobuffer_size);
+-    IOBufferReader *b2reader ATS_UNUSED = b2->alloc_reader();
+-    b2->fill(b2->write_avail());
+-
+-    // b1->write(b2reader, 2*1024);
+-
+-    free_MIOBuffer(b2);
+-    free_MIOBuffer(b1);
+-  }
+-
+-  exit(0);
+-}
+--- a/iocore/eventsystem/test_Event.cc
++++ /dev/null
+@@ -1,82 +0,0 @@
+-/** @file
+-
+-  A brief file description
+-
+-  @section license License
+-
+-  Licensed to the Apache Software Foundation (ASF) under one
+-  or more contributor license agreements.  See the NOTICE file
+-  distributed with this work for additional information
+-  regarding copyright ownership.  The ASF licenses this file
+-  to you under the Apache License, Version 2.0 (the
+-  "License"); you may not use this file except in compliance
+-  with the License.  You may obtain a copy of the License at
+-
+-      http://www.apache.org/licenses/LICENSE-2.0
+-
+-  Unless required by applicable law or agreed to in writing, software
+-  distributed under the License is distributed on an "AS IS" BASIS,
+-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-  See the License for the specific language governing permissions and
+-  limitations under the License.
+- */
+-
+-#include "I_EventSystem.h"
+-#include "tscore/I_Layout.h"
+-
+-#include "diags.i"
+-
+-#define TEST_TIME_SECOND 60
+-#define TEST_THREADS 2
+-
+-static int count;
+-
+-struct alarm_printer : public Continuation {
+-  alarm_printer(ProxyMutex *m) : Continuation(m) { SET_HANDLER(&alarm_printer::dummy_function); }
+-  int
+-  dummy_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
+-  {
+-    ink_atomic_increment((int *)&count, 1);
+-    printf("Count = %d\n", count);
+-    return 0;
+-  }
+-};
+-struct process_killer : public Continuation {
+-  process_killer(ProxyMutex *m) : Continuation(m) { SET_HANDLER(&process_killer::kill_function); }
+-  int
+-  kill_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
+-  {
+-    printf("Count is %d \n", count);
+-    if (count <= 0) {
+-      exit(1);
+-    }
+-    if (count > TEST_TIME_SECOND * TEST_THREADS) {
+-      exit(1);
+-    }
+-    exit(0);
+-    return 0;
+-  }
+-};
+-
+-int
+-main(int /* argc ATS_UNUSED */, const char * /* argv ATS_UNUSED */ [])
+-{
+-  RecModeT mode_type = RECM_STAND_ALONE;
+-  count              = 0;
+-
+-  Layout::create();
+-  init_diags("", nullptr);
+-  RecProcessInit(mode_type);
+-
+-  ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
+-  eventProcessor.start(TEST_THREADS, 1048576); // Hardcoded stacksize at 1MB
+-
+-  alarm_printer *alrm    = new alarm_printer(new_ProxyMutex());
+-  process_killer *killer = new process_killer(new_ProxyMutex());
+-  eventProcessor.schedule_in(killer, HRTIME_SECONDS(10));
+-  eventProcessor.schedule_every(alrm, HRTIME_SECONDS(1));
+-  while (!shutdown_event_system) {
+-    sleep(1);
+-  }
+-  return 0;
+-}
+--- /dev/null
++++ b/iocore/eventsystem/unit_tests/test_EventSystem.cc
+@@ -0,0 +1,100 @@
++/** @file
++
++  Catch based unit tests for EventSystem
++
++  @section license License
++
++  Licensed to the Apache Software Foundation (ASF) under one
++  or more contributor license agreements.  See the NOTICE file
++  distributed with this work for additional information
++  regarding copyright ownership.  The ASF licenses this file
++  to you under the Apache License, Version 2.0 (the
++  "License"); you may not use this file except in compliance
++  with the License.  You may obtain a copy of the License at
++
++      http://www.apache.org/licenses/LICENSE-2.0
++
++  Unless required by applicable law or agreed to in writing, software
++  distributed under the License is distributed on an "AS IS" BASIS,
++  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  See the License for the specific language governing permissions and
++  limitations under the License.
++ */
++
++#define CATCH_CONFIG_MAIN
++#include "catch.hpp"
++
++#include "I_EventSystem.h"
++#include "tscore/I_Layout.h"
++
++#include "diags.i"
++
++#define TEST_TIME_SECOND 60
++#define TEST_THREADS 2
++
++TEST_CASE("EventSystem", "[iocore]")
++{
++  static int count;
++
++  struct alarm_printer : public Continuation {
++    alarm_printer(ProxyMutex *m) : Continuation(m) { SET_HANDLER(&alarm_printer::dummy_function); }
++
++    int
++    dummy_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
++    {
++      ink_atomic_increment((int *)&count, 1);
++
++      EThread *e = this_ethread();
++      printf("thread=%d (%p) count = %d\n", e->id, e, count);
++
++      return 0;
++    }
++  };
++
++  struct process_killer : public Continuation {
++    process_killer(ProxyMutex *m) : Continuation(m) { SET_HANDLER(&process_killer::kill_function); }
++
++    int
++    kill_function(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
++    {
++      EThread *e = this_ethread();
++      printf("thread=%d (%p) count is %d\n", e->id, e, count);
++
++      REQUIRE(count > 0);
++      REQUIRE(count <= TEST_TIME_SECOND * TEST_THREADS);
++
++      exit(0);
++
++      return 0;
++    }
++  };
++
++  alarm_printer *alrm    = new alarm_printer(new_ProxyMutex());
++  process_killer *killer = new process_killer(new_ProxyMutex());
++  eventProcessor.schedule_in(killer, HRTIME_SECONDS(10));
++  eventProcessor.schedule_every(alrm, HRTIME_SECONDS(1));
++
++  while (!shutdown_event_system) {
++    sleep(1);
++  }
++}
++
++struct EventProcessorListener : Catch::TestEventListenerBase {
++  using TestEventListenerBase::TestEventListenerBase;
++
++  void
++  testRunStarting(Catch::TestRunInfo const &testRunInfo) override
++  {
++    Layout::create();
++    init_diags("", nullptr);
++    RecProcessInit(RECM_STAND_ALONE);
++
++    ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
++    eventProcessor.start(TEST_THREADS, 1048576); // Hardcoded stacksize at 1MB
++
++    EThread *main_thread = new EThread;
++    main_thread->set_specific();
++  }
++};
++
++CATCH_REGISTER_LISTENER(EventProcessorListener);
+--- /dev/null
++++ b/iocore/eventsystem/unit_tests/test_IOBuffer.cc
+@@ -0,0 +1,361 @@
++/** @file
++
++  Catch based unit tests for IOBuffer
++
++  @section license License
++
++  Licensed to the Apache Software Foundation (ASF) under one
++  or more contributor license agreements.  See the NOTICE file
++  distributed with this work for additional information
++  regarding copyright ownership.  The ASF licenses this file
++  to you under the Apache License, Version 2.0 (the
++  "License"); you may not use this file except in compliance
++  with the License.  You may obtain a copy of the License at
++
++      http://www.apache.org/licenses/LICENSE-2.0
++
++  Unless required by applicable law or agreed to in writing, software
++  distributed under the License is distributed on an "AS IS" BASIS,
++  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  See the License for the specific language governing permissions and
++  limitations under the License.
++ */
++
++#define CATCH_CONFIG_MAIN
++#include "catch.hpp"
++
++#include "tscore/I_Layout.h"
++
++#include "I_EventSystem.h"
++#include "RecordsConfig.h"
++
++#include "diags.i"
++
++#define TEST_THREADS 1
++
++TEST_CASE("MIOBuffer", "[iocore]")
++{
++  // These value could be tweaked by `ink_event_system_init()` using `proxy.config.io.max_buffer_size`
++  REQUIRE(default_small_iobuffer_size == DEFAULT_SMALL_BUFFER_SIZE);
++  REQUIRE(default_large_iobuffer_size == DEFAULT_LARGE_BUFFER_SIZE);
++
++  REQUIRE(BUFFER_SIZE_FOR_INDEX(default_small_iobuffer_size) == 512);
++  REQUIRE(BUFFER_SIZE_FOR_INDEX(default_large_iobuffer_size) == 4096);
++
++  SECTION("new_MIOBuffer 100 times")
++  {
++    int64_t read_avail_len1 = 0;
++    int64_t read_avail_len2 = 0;
++
++    for (unsigned i = 0; i < 100; ++i) {
++      MIOBuffer *b1            = new_MIOBuffer(default_small_iobuffer_size);
++      int64_t len1             = b1->write_avail();
++      IOBufferReader *b1reader = b1->alloc_reader();
++      b1->fill(len1);
++      read_avail_len1 += b1reader->read_avail();
++
++      MIOBuffer *b2            = new_MIOBuffer(default_large_iobuffer_size);
++      int64_t len2             = b2->write_avail();
++      IOBufferReader *b2reader = b2->alloc_reader();
++      b2->fill(len2);
++      read_avail_len2 += b2reader->read_avail();
++
++      free_MIOBuffer(b2);
++      free_MIOBuffer(b1);
++    }
++
++    CHECK(read_avail_len1 == 100 * BUFFER_SIZE_FOR_INDEX(default_small_iobuffer_size));
++    CHECK(read_avail_len2 == 100 * BUFFER_SIZE_FOR_INDEX(default_large_iobuffer_size));
++  }
++
++  SECTION("write")
++  {
++    MIOBuffer *miob            = new_MIOBuffer();
++    IOBufferReader *miob_r     = miob->alloc_reader();
++    const IOBufferBlock *block = miob->first_write_block();
++
++    SECTION("initial state")
++    {
++      CHECK(miob->size_index == default_large_iobuffer_size);
++      CHECK(miob->water_mark == 0);
++      CHECK(miob->first_write_block() != nullptr);
++      CHECK(miob->block_size() == 4096);
++      CHECK(miob->block_write_avail() == 4096);
++      CHECK(miob->current_write_avail() == 4096);
++      CHECK(miob->write_avail() == 4096);
++
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob_r->read_avail() == 0);
++    }
++
++    SECTION("write(const void *rbuf, int64_t nbytes)")
++    {
++      SECTION("1K")
++      {
++        uint8_t buf[1024];
++        memset(buf, 0xAA, sizeof(buf));
++
++        int64_t written = miob->write(buf, sizeof(buf));
++
++        REQUIRE(written == sizeof(buf));
++
++        CHECK(miob->block_size() == 4096);
++        CHECK(miob->block_write_avail() == 3072);
++        CHECK(miob->current_write_avail() == 3072);
++        CHECK(miob->write_avail() == 3072);
++
++        CHECK(miob->first_write_block() == block);
++
++        CHECK(miob->max_read_avail() == sizeof(buf));
++        CHECK(miob_r->read_avail() == sizeof(buf));
++      }
++
++      SECTION("4K")
++      {
++        uint8_t buf[4096];
++        memset(buf, 0xAA, sizeof(buf));
++
++        int64_t written = miob->write(buf, sizeof(buf));
++
++        REQUIRE(written == sizeof(buf));
++
++        CHECK(miob->block_size() == 4096);
++        CHECK(miob->block_write_avail() == 0);
++        CHECK(miob->current_write_avail() == 0);
++        CHECK(miob->write_avail() == 0);
++
++        CHECK(miob->first_write_block() == block);
++
++        CHECK(miob->max_read_avail() == sizeof(buf));
++        CHECK(miob_r->read_avail() == sizeof(buf));
++      }
++
++      SECTION("5K")
++      {
++        uint8_t buf[5120];
++        memset(buf, 0xAA, sizeof(buf));
++
++        int64_t written = miob->write(buf, sizeof(buf));
++
++        REQUIRE(written == sizeof(buf));
++
++        CHECK(miob->block_size() == 4096);
++        CHECK(miob->block_write_avail() == 3072);
++        CHECK(miob->current_write_avail() == 3072);
++        CHECK(miob->write_avail() == 3072);
++
++        CHECK(miob->first_write_block() != block);
++
++        CHECK(miob->max_read_avail() == sizeof(buf));
++        CHECK(miob_r->read_avail() == sizeof(buf));
++      }
++
++      SECTION("8K")
++      {
++        uint8_t buf[8192];
++        memset(buf, 0xAA, sizeof(buf));
++
++        int64_t written = miob->write(buf, sizeof(buf));
++
++        REQUIRE(written == sizeof(buf));
++
++        CHECK(miob->block_size() == 4096);
++        CHECK(miob->block_write_avail() == 0);
++        CHECK(miob->current_write_avail() == 0);
++        CHECK(miob->write_avail() == 0);
++
++        CHECK(miob->first_write_block() != block);
++
++        CHECK(miob->max_read_avail() == sizeof(buf));
++        CHECK(miob_r->read_avail() == sizeof(buf));
++      }
++    }
++
++    free_MIOBuffer(miob);
++  }
++
++  SECTION("write_avail")
++  {
++    MIOBuffer *miob        = new_MIOBuffer();
++    IOBufferReader *miob_r = miob->alloc_reader();
++    uint8_t buf[8192];
++    memset(buf, 0xAA, sizeof(buf));
++
++    // initial state
++    CHECK(miob->block_size() == 4096);
++    CHECK(miob->current_write_avail() == 4096);
++    CHECK(miob->write_avail() == 4096);
++
++    SECTION("water_mark == 0 (default)")
++    {
++      REQUIRE(miob->water_mark == 0);
++
++      // fill half of the current buffer
++      miob->write(buf, 2048);
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 2048);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == false);
++      CHECK(miob->write_avail() == 2048); ///< should have no side effect
++
++      // fill all of the current buffer
++      miob->write(buf, 2048);
++      CHECK(miob->max_read_avail() == 4096);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 0); ///< should have no side effect
++
++      // consume half of the data
++      miob_r->consume(2048);
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 0); ///< should have no side effect
++
++      // consume all of the data
++      miob_r->consume(2048);
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 4096); ///< should have a side effect: add a new block
++
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob->current_write_avail() == 4096);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == false);
++      CHECK(miob->write_avail() == 4096); ///< should have no side effect
++    }
++
++    SECTION("water_mark == half of block size")
++    {
++      miob->water_mark = 2048;
++      REQUIRE(miob->water_mark * 2 == miob->block_size());
++
++      // fill half of the current buffer
++      miob->write(buf, 2048);
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 2048);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 6144); ///< should have a side effect: add a new block
++
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 6144);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == false);
++      CHECK(miob->write_avail() == 6144); ///< should have no side effect
++
++      // fill all of the current buffer
++      miob->write(buf, 6144);
++      CHECK(miob->max_read_avail() == 8192);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 0); ///< should have no side effect
++
++      // consume half of the data
++      miob_r->consume(4096);
++      CHECK(miob->max_read_avail() == 4096);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 0); ///< should have no side effect
++
++      // consume all of the data
++      miob_r->consume(4096);
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 4096); ///< should have a side effect: add a new block
++
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob->current_write_avail() == 4096);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == false);
++      CHECK(miob->write_avail() == 4096); ///< should have no side effect
++    }
++
++    SECTION("water_mark == block_size()")
++    {
++      miob->water_mark = 4096;
++      REQUIRE(miob->water_mark == miob->block_size());
++
++      // fill half of the current buffer
++      miob->write(buf, 2048);
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 2048);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 6144); ///< should have a side effect: add a new block
++
++      CHECK(miob->max_read_avail() == 2048);
++      CHECK(miob->current_write_avail() == 6144);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == false);
++      CHECK(miob->write_avail() == 6144); ///< should have no side effect
++
++      // fill all of the current buffer
++      miob->write(buf, 6144);
++      CHECK(miob->max_read_avail() == 8192);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == true);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 0); ///< should have no side effect
++
++      // consume half of the data
++      miob_r->consume(4096);
++      CHECK(miob->max_read_avail() == 4096);
++      CHECK(miob->current_write_avail() == 0);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 4096); ///< should have a side effect: add a new block
++      IOBufferBlock *tail = miob->_writer->next.get();
++      CHECK(tail != nullptr);
++
++      CHECK(miob->max_read_avail() == 4096);
++      CHECK(miob->current_write_avail() == 4096);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 4096);       ///< should have no side effect
++      CHECK(tail == miob->_writer->next.get()); ///< the tail block should not be changed
++
++      // consume all of the data
++      miob_r->consume(4096);
++      CHECK(miob->max_read_avail() == 0);
++      CHECK(miob->current_write_avail() == 4096);
++      CHECK(miob->high_water() == false);
++      CHECK(miob->current_low_water() == true);
++      CHECK(miob->write_avail() == 4096);       ///< should have no side effect
++      CHECK(tail == miob->_writer->next.get()); ///< the tail block should not be changed
++    }
++
++    free_MIOBuffer(miob);
++  }
++}
++
++struct EventProcessorListener : Catch::TestEventListenerBase {
++  using TestEventListenerBase::TestEventListenerBase;
++
++  void
++  testRunStarting(Catch::TestRunInfo const &testRunInfo) override
++  {
++    Layout::create();
++    init_diags("", nullptr);
++    RecProcessInit(RECM_STAND_ALONE);
++
++    // Initialize LibRecordsConfig for `proxy.config.io.max_buffer_size` (32K)
++    LibRecordsConfigInit();
++
++    ink_event_system_init(EVENT_SYSTEM_MODULE_VERSION);
++    eventProcessor.start(TEST_THREADS);
++
++    EThread *main_thread = new EThread;
++    main_thread->set_specific();
++  }
++};
++
++CATCH_REGISTER_LISTENER(EventProcessorListener);

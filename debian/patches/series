@@ -34,3 +34,7 @@
 0040-always-renew-tlsv13-tickets.patch
 0041-fix-lua-reload-coredump.patch
 0043-coalesce-empty-objects-hdrheap.patch
+0044-MIOBuffer-changes.patch
+0045-remove-read_avail.patch
+0046-cppcheck-Http2ConnectionState.patch
+0047-optimize-sending-h2-frame.patch

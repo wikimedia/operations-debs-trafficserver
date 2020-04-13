@@ -1,3 +1,13 @@
+trafficserver (8.0.7-rc0-1wm2) buster-wikimedia; urgency=medium
+
+  * Backports the following patches:
+    * https://github.com/apache/trafficserver/pull/6648
+    * https://github.com/apache/trafficserver/pull/4912
+    * https://github.com/apache/trafficserver/pull/5330
+    * https://github.com/apache/trafficserver/pull/6337
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Mon, 13 Apr 2020 13:05:44 +0000
+
 trafficserver (8.0.7-rc0-1wm1) buster-wikimedia; urgency=medium
 
   * New upstream release 8.0.7-rc0
