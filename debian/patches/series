@@ -33,5 +33,4 @@
 0039-ticket-number-tlsv13.patch
 0040-always-renew-tlsv13-tickets.patch
 0041-fix-lua-reload-coredump.patch
-0042-fix-tunnel-crash.patch
 0043-coalesce-empty-objects-hdrheap.patch

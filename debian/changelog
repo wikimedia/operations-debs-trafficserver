@@ -1,3 +1,11 @@
+trafficserver (8.0.7-rc0-1wm1) buster-wikimedia; urgency=medium
+
+  * New upstream release 8.0.7-rc0
+  * The following patches are no longer neccessary:
+    * 0042-fix-tunnel-crash.patch (https://github.com/apache/trafficserver/pull/6579)
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Mon, 13 Apr 2020 05:12:59 +0000
+
 trafficserver (8.0.6-1wm6) buster-wikimedia; urgency=medium
 
   * Backport the following patches:
