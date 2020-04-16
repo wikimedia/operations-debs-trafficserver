@@ -1,0 +1,12 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6665
+Description: Fix memory leak of HPACK
+--- a/proxy/http2/HPACK.cc
++++ b/proxy/http2/HPACK.cc
+@@ -467,6 +467,7 @@ HpackDynamicTable::_mime_hdr_gc()
+   } else {
+     if (this->_mhdr_old->fields_count() == 0) {
+       this->_mhdr_old->destroy();
++      delete this->_mhdr_old;
+       this->_mhdr_old = nullptr;
+     }
+   }

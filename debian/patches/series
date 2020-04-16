@@ -38,3 +38,4 @@
 0045-remove-read_avail.patch
 0046-cppcheck-Http2ConnectionState.patch
 0047-optimize-sending-h2-frame.patch
+0048-fix-memory-leak-introduced-by-0024.patch
