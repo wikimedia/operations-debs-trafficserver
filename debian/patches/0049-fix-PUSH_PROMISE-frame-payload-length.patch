@@ -1,0 +1,30 @@
+Origin: https://github.com/apache/trafficserver/pull/6568
+Description: Fix PUSH_PROMISE frame payload length
+--- a/proxy/http2/HTTP2.h
++++ b/proxy/http2/HTTP2.h
+@@ -305,9 +305,8 @@ struct Http2RstStream {
+ 
+ // [RFC 7540] 6.6 PUSH_PROMISE Format
+ struct Http2PushPromise {
+-  Http2PushPromise() : pad_length(0), promised_streamid(0) {}
+-  uint8_t pad_length;
+-  Http2StreamId promised_streamid;
++  uint8_t pad_length              = 0;
++  Http2StreamId promised_streamid = 0;
+ };
+ 
+ static inline bool
+--- a/proxy/http2/Http2Frame.h
++++ b/proxy/http2/Http2Frame.h
+@@ -168,7 +168,10 @@ class Http2PushPromiseFrame : public Htt
+ {
+ public:
+   Http2PushPromiseFrame(Http2StreamId stream_id, uint8_t flags, Http2PushPromise p, uint8_t *h, uint32_t l)
+-    : Http2TxFrame({l, HTTP2_FRAME_TYPE_PUSH_PROMISE, flags, stream_id}), _params(p), _hdr_block(h), _hdr_block_len(l)
++    : Http2TxFrame({l + static_cast<uint32_t>(sizeof(Http2StreamId)), HTTP2_FRAME_TYPE_PUSH_PROMISE, flags, stream_id}),
++      _params(p),
++      _hdr_block(h),
++      _hdr_block_len(l)
+   {
+   }
+ 

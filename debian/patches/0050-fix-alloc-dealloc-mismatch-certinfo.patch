@@ -1,0 +1,14 @@
+Origin: https://github.com/apache/trafficserver/pull/6557
+Description: Fixing an ASan reported alloc-dealloc-mismatch in which map was
+constructed with new but destructed with free instead of delete in certinfo_map_free
+--- a/iocore/net/OCSPStapling.cc
++++ b/iocore/net/OCSPStapling.cc
+@@ -73,7 +73,7 @@ certinfo_map_free(void * /*parent*/, voi
+     ink_mutex_destroy(&iter->second->stapling_mutex);
+     OPENSSL_free(iter->second);
+   }
+-  free(map);
++  delete map;
+ }
+ 
+ static int ssl_stapling_index = -1;

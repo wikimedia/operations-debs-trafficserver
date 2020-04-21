@@ -1,3 +1,15 @@
+trafficserver (8.0.7-1wm1) buster-wikimedia; urgency=medium
+
+  * New upstream release 8.0.7
+  * Backports the following patches:
+    * https://github.com/apache/trafficserver/pull/6568
+    * https://github.com/apache/trafficserver/pull/6557
+  * Remove the following configure options:
+    * --with-build-version (invalid option)
+    * --enable-mime-sanity-check (debug option, see https://github.com/apache/trafficserver/pull/1712 for details)
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Tue, 21 Apr 2020 07:10:52 +0000
+
 trafficserver (8.0.7-rc0-1wm3) buster-wikimedia; urgency=medium
 
   * Backports the following patches:
