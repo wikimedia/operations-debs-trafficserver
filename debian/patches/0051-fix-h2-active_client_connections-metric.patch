@@ -1,0 +1,25 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6729
+Description: Fix a bug that current_active_client_connections doesn't decrease
+
+From 93e0408110d17548346cc2c03a0b94327ac6c0d9 Mon Sep 17 00:00:00 2001
+From: Masakazu Kitajo <maskit@apache.org>
+Date: Fri, 1 May 2020 16:43:47 +0900
+Subject: [PATCH] Fix a bug that current_active_client_connections doesn't
+ decrease
+
+The metric was not decremented when a connection is closed by graceful
+shutdown (GOAWAY frame with stream ID 2^31-1).
+---
+ proxy/http2/Http2ConnectionState.cc | 1 +
+ 1 file changed, 1 insertion(+)
+
+--- a/proxy/http2/Http2ConnectionState.cc
++++ b/proxy/http2/Http2ConnectionState.cc
+@@ -1346,6 +1346,7 @@ Http2ConnectionState::release_stream(Htt
+         // or we can use a local variable to do it.
+         // ua_session = nullptr;
+       } else if (shutdown_state == HTTP2_SHUTDOWN_IN_PROGRESS && fini_event == nullptr) {
++        ua_session->clear_session_active();
+         fini_event = this_ethread()->schedule_imm_local((Continuation *)this, HTTP2_SESSION_EVENT_FINI);
+       } else if (ua_session->is_active()) {
+         // If the number of clients is 0, HTTP2_SESSION_EVENT_FINI is not received or sent, and ua_session is active,

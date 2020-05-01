@@ -1,3 +1,13 @@
+trafficserver (8.0.7-1wm2) buster-wikimedia; urgency=medium
+
+  * Backports the following patches:
+    * https://github.com/apache/trafficserver/pull/6729
+
+    The backported PR should help with the active HTTP2 client connections gauge
+    not being properly decreased.
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Fri, 01 May 2020 15:27:17 +0000
+
 trafficserver (8.0.7-1wm1) buster-wikimedia; urgency=medium
 
   * New upstream release 8.0.7
