@@ -149,6 +149,8 @@ public:
   inkcoreapi int marshal_client_req_tcp_reused(char *);         // INT
   inkcoreapi int marshal_client_req_is_ssl(char *);             // INT
   inkcoreapi int marshal_client_req_ssl_reused(char *);         // INT
+  inkcoreapi int marshal_client_req_is_internal(char *);        // INT
+  inkcoreapi int marshal_client_req_mptcp_state(char *);        // INT
   inkcoreapi int marshal_client_security_protocol(char *);      // STR
   inkcoreapi int marshal_client_security_cipher_suite(char *);  // STR
   inkcoreapi int marshal_client_finish_status_code(char *);     // INT
@@ -231,15 +233,18 @@ public:
 
   // other fields
   //
-  inkcoreapi int marshal_transfer_time_ms(char *);           // INT
-  inkcoreapi int marshal_transfer_time_s(char *);            // INT
-  inkcoreapi int marshal_file_size(char *);                  // INT
-  inkcoreapi int marshal_plugin_identity_id(char *);         // INT
-  inkcoreapi int marshal_plugin_identity_tag(char *);        // STR
-  inkcoreapi int marshal_process_uuid(char *);               // STR
-  inkcoreapi int marshal_client_http_connection_id(char *);  // INT
-  inkcoreapi int marshal_client_http_transaction_id(char *); // INT
-  inkcoreapi int marshal_cache_lookup_url_canon(char *);     // STR
+  inkcoreapi int marshal_transfer_time_ms(char *);                            // INT
+  inkcoreapi int marshal_transfer_time_s(char *);                             // INT
+  inkcoreapi int marshal_file_size(char *);                                   // INT
+  inkcoreapi int marshal_plugin_identity_id(char *);                          // INT
+  inkcoreapi int marshal_plugin_identity_tag(char *);                         // STR
+  inkcoreapi int marshal_process_uuid(char *);                                // STR
+  inkcoreapi int marshal_client_http_connection_id(char *);                   // INT
+  inkcoreapi int marshal_client_http_transaction_id(char *);                  // INT
+  inkcoreapi int marshal_client_http_transaction_priority_weight(char *);     // INT
+  inkcoreapi int marshal_client_http_transaction_priority_dependence(char *); // INT
+  inkcoreapi int marshal_cache_lookup_url_canon(char *);                      // STR
+  inkcoreapi int marshal_version_build_number(char *);                        // STR
 
   // named fields from within a http header
   //

@@ -196,12 +196,6 @@ public:
   {
   }
 
-  virtual bool
-  ignore_keep_alive()
-  {
-    return true;
-  }
-
   virtual void destroy();
 
   virtual void transaction_done() = 0;
@@ -235,6 +229,8 @@ public:
     return current_reader;
   }
 
+  virtual int get_transaction_priority_weight() const;
+  virtual int get_transaction_priority_dependence() const;
   virtual bool allow_half_open() const = 0;
 
   virtual const char *

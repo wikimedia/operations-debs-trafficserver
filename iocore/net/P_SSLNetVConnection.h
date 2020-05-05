@@ -101,6 +101,16 @@ public:
   }
 
   bool
+  trackFirstHandshake() override
+  {
+    bool retval = sslHandshakeBeginTime == 0;
+    if (retval) {
+      sslHandshakeBeginTime = Thread::get_hrtime();
+    }
+    return retval;
+  }
+
+  bool
   getSSLHandShakeComplete() const override
   {
     return sslHandShakeComplete;
@@ -308,7 +318,7 @@ public:
   ink_hrtime sslHandshakeEndTime   = 0;
   ink_hrtime sslLastWriteTime      = 0;
   int64_t sslTotalBytesSent        = 0;
-  char *serverName                 = nullptr;
+  const char *serverName           = nullptr;
 
   /// Set by asynchronous hooks to request a specific operation.
   SslVConnOp hookOpRequested = SSL_HOOK_OP_DEFAULT;
@@ -316,6 +326,9 @@ public:
   // noncopyable
   SSLNetVConnection(const SSLNetVConnection &) = delete;
   SSLNetVConnection &operator=(const SSLNetVConnection &) = delete;
+
+  bool protocol_mask_set = false;
+  unsigned long protocol_mask;
 
 private:
   std::string_view map_tls_protocol_to_tag(const char *proto_string) const;

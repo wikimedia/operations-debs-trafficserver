@@ -26,8 +26,9 @@
 #include "tscore/ink_platform.h"
 #include "tscore/Diags.h"
 #include "HTTP.h"
+#include "../hdrs/XPACK.h"
 
-#include <vector>
+#include <deque>
 
 // It means that any header field can be compressed/decompressed by ATS
 const static int HPACK_ERROR_COMPRESSION_ERROR   = -1;
@@ -111,13 +112,7 @@ public:
     _mhdr->create();
   }
 
-  ~HpackDynamicTable()
-  {
-    _headers.clear();
-    _mhdr->fields_clear();
-    _mhdr->destroy();
-    delete _mhdr;
-  }
+  ~HpackDynamicTable();
 
   const MIMEField *get_header_field(uint32_t index) const;
   void add_header_field(const MIMEField *field);
@@ -129,11 +124,15 @@ public:
   uint32_t length() const;
 
 private:
-  uint32_t _current_size;
-  uint32_t _maximum_size;
+  bool _evict_overflowed_entries();
+  void _mime_hdr_gc();
 
-  MIMEHdr *_mhdr;
-  std::vector<MIMEField *> _headers;
+  uint32_t _current_size = 0;
+  uint32_t _maximum_size = 0;
+
+  MIMEHdr *_mhdr     = nullptr;
+  MIMEHdr *_mhdr_old = nullptr;
+  std::deque<MIMEField *> _headers;
 };
 
 // [RFC 7541] 2.3. Indexing Table
@@ -156,10 +155,6 @@ private:
 };
 
 // Low level interfaces
-int64_t encode_integer(uint8_t *buf_start, const uint8_t *buf_end, uint32_t value, uint8_t n);
-int64_t decode_integer(uint32_t &dst, const uint8_t *buf_start, const uint8_t *buf_end, uint8_t n);
-int64_t encode_string(uint8_t *buf_start, const uint8_t *buf_end, const char *value, size_t value_len);
-int64_t decode_string(Arena &arena, char **str, uint32_t &str_length, const uint8_t *buf_start, const uint8_t *buf_end);
 int64_t encode_indexed_header_field(uint8_t *buf_start, const uint8_t *buf_end, uint32_t index);
 int64_t encode_literal_header_field_with_indexed_name(uint8_t *buf_start, const uint8_t *buf_end, const MIMEFieldWrapper &header,
                                                       uint32_t index, HpackIndexingTable &indexing_table, HpackField type);

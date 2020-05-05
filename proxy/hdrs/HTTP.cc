@@ -2002,7 +2002,6 @@ HTTPInfo::marshal_length()
   }
 
   if (m_alt->m_frag_offset_count > HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS) {
-    len -= sizeof(m_alt->m_integral_frag_offsets);
     len += sizeof(FragOffset) * m_alt->m_frag_offset_count;
   }
 
@@ -2017,23 +2016,11 @@ HTTPInfo::marshal(char *buf, int len)
   HTTPCacheAlt *marshal_alt = (HTTPCacheAlt *)buf;
   // non-zero only if the offsets are external. Otherwise they get
   // marshalled along with the alt struct.
-  int frag_len = (0 == m_alt->m_frag_offset_count || m_alt->m_frag_offsets == m_alt->m_integral_frag_offsets) ?
-                   0 :
-                   sizeof(HTTPCacheAlt::FragOffset) * m_alt->m_frag_offset_count;
-
   ink_assert(m_alt->m_magic == CACHE_ALT_MAGIC_ALIVE);
 
   // Make sure the buffer is aligned
   //    ink_assert(((intptr_t)buf) & 0x3 == 0);
 
-  // If we have external fragment offsets, copy the initial ones
-  // into the integral data.
-  if (frag_len) {
-    memcpy(m_alt->m_integral_frag_offsets, m_alt->m_frag_offsets, sizeof(m_alt->m_integral_frag_offsets));
-    frag_len -= sizeof(m_alt->m_integral_frag_offsets);
-    // frag_len should never be non-zero at this point, as the offsets
-    // should be external only if too big for the internal table.
-  }
   // Memcpy the whole object so that we can use it
   //   live later.  This involves copying a few
   //   extra bytes now but will save copying any
@@ -2046,11 +2033,11 @@ HTTPInfo::marshal(char *buf, int len)
   buf += HTTP_ALT_MARSHAL_SIZE;
   used += HTTP_ALT_MARSHAL_SIZE;
 
-  if (frag_len > 0) {
+  if (m_alt->m_frag_offset_count > HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS) {
     marshal_alt->m_frag_offsets = static_cast<FragOffset *>(reinterpret_cast<void *>(used));
-    memcpy(buf, m_alt->m_frag_offsets + HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS, frag_len);
-    buf += frag_len;
-    used += frag_len;
+    memcpy(buf, m_alt->m_frag_offsets, m_alt->m_frag_offset_count * sizeof(FragOffset));
+    buf += m_alt->m_frag_offset_count * sizeof(FragOffset);
+    used += m_alt->m_frag_offset_count * sizeof(FragOffset);
   } else {
     marshal_alt->m_frag_offsets = nullptr;
   }
@@ -2088,6 +2075,73 @@ HTTPInfo::marshal(char *buf, int len)
 
 int
 HTTPInfo::unmarshal(char *buf, int len, RefCountObj *block_ref)
+{
+  HTTPCacheAlt *alt = (HTTPCacheAlt *)buf;
+  int orig_len      = len;
+
+  if (alt->m_magic == CACHE_ALT_MAGIC_ALIVE) {
+    // Already unmarshaled, must be a ram cache
+    //  it
+    ink_assert(alt->m_unmarshal_len > 0);
+    ink_assert(alt->m_unmarshal_len <= len);
+    return alt->m_unmarshal_len;
+  } else if (alt->m_magic != CACHE_ALT_MAGIC_MARSHALED) {
+    ink_assert(!"HTTPInfo::unmarshal bad magic");
+    return -1;
+  }
+
+  ink_assert(alt->m_unmarshal_len < 0);
+  alt->m_magic = CACHE_ALT_MAGIC_ALIVE;
+  ink_assert(alt->m_writeable == 0);
+  len -= HTTP_ALT_MARSHAL_SIZE;
+
+  if (alt->m_frag_offset_count > HTTPCacheAlt::N_INTEGRAL_FRAG_OFFSETS) {
+    alt->m_frag_offsets = reinterpret_cast<FragOffset *>(buf + reinterpret_cast<intptr_t>(alt->m_frag_offsets));
+    len -= sizeof(FragOffset) * alt->m_frag_offset_count;
+    ink_assert(len >= 0);
+  } else if (alt->m_frag_offset_count > 0) {
+    alt->m_frag_offsets = alt->m_integral_frag_offsets;
+  } else {
+    alt->m_frag_offsets = nullptr; // should really already be zero.
+  }
+
+  HdrHeap *heap   = (HdrHeap *)(alt->m_request_hdr.m_heap ? (buf + (intptr_t)alt->m_request_hdr.m_heap) : nullptr);
+  HTTPHdrImpl *hh = nullptr;
+  int tmp;
+  if (heap != nullptr) {
+    tmp = heap->unmarshal(len, HDR_HEAP_OBJ_HTTP_HEADER, (HdrHeapObjImpl **)&hh, block_ref);
+    if (hh == nullptr || tmp < 0) {
+      ink_assert(!"HTTPInfo::request unmarshal failed");
+      return -1;
+    }
+    len -= tmp;
+    alt->m_request_hdr.m_heap              = heap;
+    alt->m_request_hdr.m_http              = hh;
+    alt->m_request_hdr.m_mime              = hh->m_fields_impl;
+    alt->m_request_hdr.m_url_cached.m_heap = heap;
+  }
+
+  heap = (HdrHeap *)(alt->m_response_hdr.m_heap ? (buf + (intptr_t)alt->m_response_hdr.m_heap) : nullptr);
+  if (heap != nullptr) {
+    tmp = heap->unmarshal(len, HDR_HEAP_OBJ_HTTP_HEADER, (HdrHeapObjImpl **)&hh, block_ref);
+    if (hh == nullptr || tmp < 0) {
+      ink_assert(!"HTTPInfo::response unmarshal failed");
+      return -1;
+    }
+    len -= tmp;
+
+    alt->m_response_hdr.m_heap = heap;
+    alt->m_response_hdr.m_http = hh;
+    alt->m_response_hdr.m_mime = hh->m_fields_impl;
+  }
+
+  alt->m_unmarshal_len = orig_len - len;
+
+  return alt->m_unmarshal_len;
+}
+
+int
+HTTPInfo::unmarshal_v24_1(char *buf, int len, RefCountObj *block_ref)
 {
   HTTPCacheAlt *alt = (HTTPCacheAlt *)buf;
   int orig_len      = len;

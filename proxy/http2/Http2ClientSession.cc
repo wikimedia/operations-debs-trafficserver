@@ -25,8 +25,14 @@
 #include "HttpDebugNames.h"
 #include "tscore/ink_base64.h"
 
+#define REMEMBER(e, r)                          \
+  {                                             \
+    this->remember(MakeSourceLocation(), e, r); \
+  }
+
 #define STATE_ENTER(state_name, event)                                                       \
   do {                                                                                       \
+    REMEMBER(event, this->recursion)                                                         \
     SsnDebug(this, "http2_cs", "[%" PRId64 "] [%s, %s]", this->connection_id(), #state_name, \
              HttpDebugNames::get_event_name(event));                                         \
   } while (0)
@@ -35,6 +41,7 @@
 
 #define HTTP2_SET_SESSION_HANDLER(handler) \
   do {                                     \
+    REMEMBER(NO_EVENT, this->recursion);   \
     this->session_handler = (handler);     \
   } while (0)
 
@@ -65,6 +72,7 @@ Http2ClientSession::destroy()
 {
   if (!in_destroy) {
     in_destroy = true;
+    REMEMBER(NO_EVENT, this->recursion)
     Http2SsnDebug("session destroy");
     // Let everyone know we are going down
     do_api_callout(TS_HTTP_SSN_CLOSE_HOOK);
@@ -96,7 +104,18 @@ Http2ClientSession::free()
     return;
   }
 
+  REMEMBER(NO_EVENT, this->recursion)
   Http2SsnDebug("session free");
+
+  this->_milestones.mark(Http2SsnMilestone::CLOSE);
+  ink_hrtime total_time = this->_milestones.elapsed(Http2SsnMilestone::OPEN, Http2SsnMilestone::CLOSE);
+
+  // Slow Log
+  if (Http2::con_slow_log_threshold != 0 && ink_hrtime_from_msec(Http2::con_slow_log_threshold) < total_time) {
+    Error("[%" PRIu64 "] Slow H2 Connection: open: %" PRIu64 " close: %.3f", this->con_id,
+          ink_hrtime_to_msec(this->_milestones[Http2SsnMilestone::OPEN]),
+          this->_milestones.difference_sec(Http2SsnMilestone::OPEN, Http2SsnMilestone::CLOSE));
+  }
 
   HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
 
@@ -150,25 +169,20 @@ Http2ClientSession::free()
 void
 Http2ClientSession::start()
 {
-  VIO *read_vio;
-
   SCOPED_MUTEX_LOCK(lock, this->mutex, this_ethread());
 
   SET_HANDLER(&Http2ClientSession::main_event_handler);
   HTTP2_SET_SESSION_HANDLER(&Http2ClientSession::state_read_connection_preface);
 
-  read_vio  = this->do_io_read(this, INT64_MAX, this->read_buffer);
-  write_vio = this->do_io_write(this, INT64_MAX, this->sm_writer);
-
-  // 3.5 HTTP/2 Connection Preface. Upon establishment of a TCP connection and
-  // determination that HTTP/2 will be used by both peers, each endpoint MUST
-  // send a connection preface as a final confirmation ...
-  // this->write_buffer->write(HTTP2_CONNECTION_PREFACE,
-  // HTTP2_CONNECTION_PREFACE_LEN);
+  VIO *read_vio = this->do_io_read(this, INT64_MAX, this->read_buffer);
+  write_vio     = this->do_io_write(this, INT64_MAX, this->sm_writer);
 
   this->connection_state.init();
   send_connection_event(&this->connection_state, HTTP2_SESSION_EVENT_INIT, this);
-  this->handleEvent(VC_EVENT_READ_READY, read_vio);
+
+  if (this->sm_reader->is_read_avail_more_than(0)) {
+    this->handleEvent(VC_EVENT_READ_READY, read_vio);
+  }
 }
 
 void
@@ -177,6 +191,7 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
   ink_assert(new_vc->mutex->thread_holding == this_ethread());
   HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, new_vc->mutex->thread_holding);
   HTTP2_INCREMENT_THREAD_DYN_STAT(HTTP2_STAT_TOTAL_CLIENT_CONNECTION_COUNT, new_vc->mutex->thread_holding);
+  this->_milestones.mark(Http2SsnMilestone::OPEN);
 
   // HTTP/2 for the backdoor connections? Let's not deal woth that yet.
   ink_release_assert(backdoor == false);
@@ -201,7 +216,8 @@ Http2ClientSession::new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOB
   this->h2_pushed_urls          = ink_hash_table_create(InkHashTableKeyType_String);
   this->h2_pushed_urls_size     = 0;
 
-  this->write_buffer = new_MIOBuffer(HTTP2_HEADER_BUFFER_SIZE_INDEX);
+  // Set write buffer size to max size of TLS record (16KB)
+  this->write_buffer = new_MIOBuffer(BUFFER_SIZE_INDEX_16K);
   this->sm_writer    = this->write_buffer->alloc_reader();
 
   do_api_callout(TS_HTTP_SSN_START_HOOK);
@@ -271,6 +287,7 @@ Http2ClientSession::do_io_shutdown(ShutdownHowTo_t howto)
 void
 Http2ClientSession::do_io_close(int alerrno)
 {
+  REMEMBER(NO_EVENT, this->recursion)
   Http2SsnDebug("session closed");
 
   ink_assert(this->mutex->thread_holding == this_ethread());
@@ -309,6 +326,19 @@ Http2ClientSession::set_half_close_local_flag(bool flag)
   half_close_local = flag;
 }
 
+int64_t
+Http2ClientSession::xmit(const Http2TxFrame &frame)
+{
+  int64_t len = frame.write_to(this->write_buffer);
+
+  if (len > 0) {
+    total_write_len += len;
+    write_reenable();
+  }
+
+  return len;
+}
+
 int
 Http2ClientSession::main_event_handler(int event, void *edata)
 {
@@ -330,16 +360,6 @@ Http2ClientSession::main_event_handler(int event, void *edata)
     if (is_zombie && connection_state.get_zombie_event() != nullptr) {
       Warning("Processed read event for zombie session %" PRId64, connection_id());
     }
-    break;
-  }
-
-  case HTTP2_SESSION_EVENT_XMIT: {
-    Http2Frame *frame = (Http2Frame *)edata;
-    total_write_len += frame->size();
-    write_vio->nbytes = total_write_len;
-    frame->xmit(this->write_buffer);
-    write_reenable();
-    retval = 0;
     break;
   }
 
@@ -366,6 +386,7 @@ Http2ClientSession::main_event_handler(int event, void *edata)
     retval = 0;
     break;
 
+  case HTTP2_SESSION_EVENT_XMIT:
   default:
     Http2SsnDebug("unexpected event=%d edata=%p", event, edata);
     ink_release_assert(0);
@@ -385,9 +406,9 @@ Http2ClientSession::main_event_handler(int event, void *edata)
                Http2::stream_error_rate_threshold) { // For a case many stream errors happened
       ip_port_text_buffer ipb;
       const char *client_ip = ats_ip_ntop(get_client_addr(), ipb, sizeof(ipb));
-      Error("HTTP/2 session error client_ip=%s session_id=%" PRId64
-            " closing a connection, because its stream error rate (%f) exceeded the threshold (%f)",
-            client_ip, connection_id(), this->connection_state.get_stream_error_rate(), Http2::stream_error_rate_threshold);
+      Warning("HTTP/2 session error client_ip=%s session_id=%" PRId64
+              " closing a connection, because its stream error rate (%f) exceeded the threshold (%f)",
+              client_ip, connection_id(), this->connection_state.get_stream_error_rate(), Http2::stream_error_rate_threshold);
       Http2SsnDebug("Preparing for graceful shutdown because of a high stream error rate");
       cause_of_death = Http2SessionCod::HIGH_ERROR_RATE;
       this->connection_state.set_shutdown_state(HTTP2_SHUTDOWN_NOT_INITIATED, Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM);
@@ -554,8 +575,9 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
   }
 
   while (this->sm_reader->read_avail() >= (int64_t)HTTP2_FRAME_HEADER_LEN) {
-    // Cancel reading if there was an error
-    if (connection_state.tx_error_code.code != static_cast<uint32_t>(Http2ErrorCode::HTTP2_ERROR_NO_ERROR)) {
+    // Cancel reading if there was an error or connection is closed
+    if (connection_state.tx_error_code.code != static_cast<uint32_t>(Http2ErrorCode::HTTP2_ERROR_NO_ERROR) ||
+        connection_state.is_state_closed()) {
       Http2SsnDebug("reading a frame has been canceled (%u)", connection_state.tx_error_code.code);
       break;
     }
@@ -564,9 +586,9 @@ Http2ClientSession::state_process_frame_read(int event, VIO *vio, bool inside_fr
     if (this->connection_state.get_stream_error_rate() > std::min(1.0, Http2::stream_error_rate_threshold * 2.0)) {
       ip_port_text_buffer ipb;
       const char *client_ip = ats_ip_ntop(get_client_addr(), ipb, sizeof(ipb));
-      Error("HTTP/2 session error client_ip=%s session_id=%" PRId64
-            " closing a connection, because its stream error rate (%f) is too high",
-            client_ip, connection_id(), this->connection_state.get_stream_error_rate());
+      Warning("HTTP/2 session error client_ip=%s session_id=%" PRId64
+              " closing a connection, because its stream error rate (%f) exceeded the threshold (%f)",
+              client_ip, connection_id(), this->connection_state.get_stream_error_rate(), Http2::stream_error_rate_threshold);
       err = Http2ErrorCode::HTTP2_ERROR_ENHANCE_YOUR_CALM;
     }
 
@@ -619,6 +641,12 @@ Http2ClientSession::decrement_current_active_client_connections_stat()
   HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_ACTIVE_CLIENT_CONNECTION_COUNT, this_ethread());
 }
 
+void
+Http2ClientSession::remember(const SourceLocation &location, int event, int reentrant)
+{
+  this->_history.push_back(location, event, reentrant);
+}
+
 bool
 Http2ClientSession::_should_do_something_else()
 {
@@ -630,4 +658,82 @@ int64_t
 Http2ClientSession::write_avail()
 {
   return this->write_buffer->write_avail();
+}
+
+NetVConnection *
+Http2ClientSession::get_netvc() const
+{
+  return client_vc;
+}
+
+sockaddr const *
+Http2ClientSession::get_client_addr()
+{
+  return client_vc ? client_vc->get_remote_addr() : &cached_client_addr.sa;
+}
+
+sockaddr const *
+Http2ClientSession::get_local_addr()
+{
+  return client_vc ? client_vc->get_local_addr() : &cached_local_addr.sa;
+}
+
+void
+Http2ClientSession::write_reenable()
+{
+  write_vio->reenable();
+}
+
+int
+Http2ClientSession::get_transact_count() const
+{
+  return connection_state.get_stream_requests();
+}
+
+void
+Http2ClientSession::release(ProxyClientTransaction *trans)
+{
+}
+
+const char *
+Http2ClientSession::get_protocol_string() const
+{
+  return "http/2";
+}
+
+int
+Http2ClientSession::populate_protocol(std::string_view *result, int size) const
+{
+  int retval = 0;
+  if (size > retval) {
+    result[retval++] = IP_PROTO_TAG_HTTP_2_0;
+    if (size > retval) {
+      retval += super::populate_protocol(result + retval, size - retval);
+    }
+  }
+  return retval;
+}
+
+const char *
+Http2ClientSession::protocol_contains(std::string_view prefix) const
+{
+  const char *retval = nullptr;
+
+  if (prefix.size() <= IP_PROTO_TAG_HTTP_2_0.size() && strncmp(IP_PROTO_TAG_HTTP_2_0.data(), prefix.data(), prefix.size()) == 0) {
+    retval = IP_PROTO_TAG_HTTP_2_0.data();
+  } else {
+    retval = super::protocol_contains(prefix);
+  }
+  return retval;
+}
+
+void
+Http2ClientSession::add_url_to_pushed_table(const char *url, int url_len)
+{
+  if (h2_pushed_urls_size < Http2::push_diary_size) {
+    char *dup_url = ats_strndup(url, url_len);
+    ink_hash_table_insert(h2_pushed_urls, dup_url, nullptr);
+    h2_pushed_urls_size++;
+    ats_free(dup_url);
+  }
 }

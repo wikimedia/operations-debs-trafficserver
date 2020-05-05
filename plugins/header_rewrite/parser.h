@@ -72,6 +72,7 @@ public:
   }
 
   bool cond_is_hook(TSHttpHookID &hook) const;
+  const std::vector<std::string> &get_tokens() const;
 
 private:
   void preprocess(std::vector<std::string> tokens);
@@ -83,6 +84,20 @@ private:
   std::string _op;
   std::string _arg;
   std::string _val;
+
+protected:
+  std::vector<std::string> _tokens;
+};
+
+class SimpleTokenizer
+{
+public:
+  explicit SimpleTokenizer(const std::string &line);
+
+  const std::vector<std::string> &get_tokens() const;
+
+private:
+  DISALLOW_COPY_AND_ASSIGN(SimpleTokenizer);
 
 protected:
   std::vector<std::string> _tokens;

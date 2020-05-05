@@ -277,6 +277,31 @@ System Variables
    Specifies at what size to roll the output log at.
 
 
+.. ts:cv:: CONFIG proxy.config.output.logfile.rolling_max_count INT 0
+   :reloadable:
+
+   Specifies the maximum count of rolled output logs to keep. This value will be used by the
+   auto-deletion (if enabled) to trim the number of rolled log files every time the log is rolled.
+   A default value of 0 means auto-deletion will not try to limit the number of output logs.
+   See :doc:`../logging/rotation.en` for an use-case for this option.
+
+.. ts:cv:: CONFIG proxy.config.output.logfile.rolling_allow_empty INT 0
+   :reloadable:
+
+   While rolling default behavior is to rename, close and re-open the log file *only* when/if there is
+   something to log to the log file. This option opens a new log file right after rolling even if there
+   is nothing to log (i.e. nothing to be logged due to lack of requests to the server)
+   which may lead to 0-sized log files while rollong. See :doc:`../logging/rotation.en` for an use-case
+   for this option.
+
+   ===== ======================================================================
+   Value Description
+   ===== ======================================================================
+   ``0`` No empty log files created and rolloed if there was nothing to log
+   ``1`` Allow empty log files to be created and  rolled even if there was nothing to log
+   ===== ======================================================================
+
+
 Thread Variables
 ----------------
 
@@ -614,6 +639,7 @@ HTTP Engine
    tr-in                       Inbound transparent.
    tr-out                      Outbound transparent.
    tr-pass                     Pass through enabled.
+   mptcp                       Multipath TCP.
    =========== =============== ========================================
 
 *number*
@@ -684,6 +710,11 @@ ip-resolve
    Set the :ts:cv:`host resolution style <proxy.config.hostdb.ip_resolve>` for transactions on this proxy port.
 
    Not compatible with: ``tr-out`` - this option requires a value of ``client;none`` which is forced and should not be explicitly specified.
+
+mptcp
+   Enable Multipath TCP on this proxy port.
+
+   Requires custom Linux kernel available at https://multipath-tcp.org.
 
 .. topic:: Example
 
@@ -1901,6 +1932,20 @@ Cache Control
 
    The maximum age allowed for a stale response before it cannot be cached.
 
+.. ts:cv:: CONFIG proxy.config.http.cache.guaranteed_min_lifetime INT 0
+   :reloadable:
+   :overridable:
+
+   Establishes a guaranteed minimum lifetime boundary for object freshness.
+   Setting this to ``0`` (default) disables the feature.
+
+.. ts:cv:: CONFIG proxy.config.http.cache.guaranteed_max_lifetime INT 31536000
+   :reloadable:
+   :overridable:
+
+   Establishes a guaranteed maximum lifetime boundary for object freshness.
+   Setting this to ``0`` disables the feature.
+
 .. ts:cv:: CONFIG proxy.config.http.cache.range.lookup INT 1
    :overridable:
 
@@ -2122,24 +2167,6 @@ Heuristic Expiration
    The aging factor for freshness computations. |TS| stores an object for this
    percentage of the time that elapsed since it last changed.
 
-.. ts:cv:: CONFIG proxy.config.http.cache.guaranteed_min_lifetime INT 0
-   :reloadable:
-   :overridable:
-
-   Establishes a guaranteed minimum lifetime boundary for freshness heuristics.
-   When heuristics are used, and the :ts:cv:`proxy.config.http.cache.heuristic_lm_factor`
-   aging factor is applied, the final minimum age calculated will never be
-   lower than the value in this variable.
-
-.. ts:cv:: CONFIG proxy.config.http.cache.guaranteed_max_lifetime INT 31536000
-   :reloadable:
-   :overridable:
-
-   Establishes a guaranteed maximum lifetime boundary for freshness heuristics.
-   When heuristics are used, and the :ts:cv:`proxy.config.http.cache.heuristic_lm_factor`
-   aging factor is applied, the final maximum age calculated will never be
-   higher than the value in this variable.
-
 Dynamic Content & Content Negotiation
 =====================================
 
@@ -2181,6 +2208,9 @@ all the different user-agent versions of documents it encounters.
 
     The number of times to attempt a cache open write upon failure to get a write lock.
 
+    This config is ignored when :ts:cv:`proxy.config.http.cache.open_write_fail_action` is
+    set to ``5``.
+
 .. ts:cv:: CONFIG proxy.config.http.cache.open_write_fail_action INT 0
    :reloadable:
    :overridable:
@@ -2203,6 +2233,12 @@ all the different user-agent versions of documents it encounters.
          :ts:cv:`proxy.config.http.cache.max_stale_age`. Otherwise, go to
          origin server.
    ``4`` Return a ``502`` error on either a cache miss or on a revalidation.
+   ``5`` Retry Cache Read on a Cache Write Lock failure. This option together
+         with `proxy.config.cache.enable_read_while_writer` configuration
+         allows to collapse concurrent requests without a need for any plugin.
+         Make sure to configure Read While Writer feature correctly following
+         the docs in Cache Basics section. Note that this option may result in
+         CACHE_LOOKUP_COMPLETE HOOK being called back more than once.
    ===== ======================================================================
 
 Customizable User Response Pages
@@ -2842,6 +2878,26 @@ Logging Configuration
    completion will cause its timing stats to be written to the :ts:cv:`debugging log file
    <proxy.config.output.logfile>`. This is identifying data about the transaction and all of the :c:type:`transaction milestones <TSMilestonesType>`.
 
+.. ts:cv:: CONFIG proxy.config.http2.connection.slow.log.threshold INT 0
+   :reloadable:
+   :units: milliseconds
+
+   If set to a non-zero value :arg:`N` then any HTTP/2 connection
+   that takes longer than :arg:`N` milliseconds from open to close will cause
+   its timing stats to be written to the :ts:cv:`debugging log file
+   <proxy.config.output.logfile>`. This is identifying data about the
+   transaction and all of the :c:type:`transaction milestones <TSMilestonesType>`.
+
+.. ts:cv:: CONFIG proxy.config.http2.stream.slow.log.threshold INT 0
+   :reloadable:
+   :units: milliseconds
+
+   If set to a non-zero value :arg:`N` then any HTTP/2 stream
+   that takes longer than :arg:`N` milliseconds from open to close will cause
+   its timing stats to be written to the :ts:cv:`debugging log file
+   <proxy.config.output.logfile>`. This is identifying data about the
+   transaction and all of the :c:type:`transaction milestones <TSMilestonesType>`.
+
 .. ts:cv:: CONFIG proxy.config.log.config.filename STRING logging.yaml
    :reloadable:
 
@@ -3313,14 +3369,16 @@ Client-Related Configuration
 
 .. ts:cv:: CONFIG proxy.config.ssl.client.verify.server INT 0
    :reloadable:
-   :overridable:
 
    Configures Traffic Server to verify the origin server certificate
    with the Certificate Authority (CA). This configuration takes a value between 0 to 2.
 
+   You can override this global setting on a per domain basis in the ssl_servername.yaml file using the :ref:`verify_origin_server attribute<override-verify-origin-server>`.
+
 :0: Server Certificate will not be verified
 :1: Certificate will be verified and the connection will not be established if verification fails.
 :2: The provided certificate will be verified and the connection will be established irrespective of the verification result. If verification fails the name of the server will be logged.
+
 
 .. ts:cv:: CONFIG proxy.config.ssl.client.cert.filename STRING NULL
    :overridable:
@@ -3465,7 +3523,15 @@ HTTP/2 Configuration
    :reloadable:
 
    The maximum size of the header compression table used to decode header
-   blocks.
+   blocks. This value will be advertised as SETTINGS_HEADER_TABLE_SIZE.
+
+.. ts:cv:: CONFIG proxy.config.http2.header_table_size_limit INT 65536
+   :reloadable:
+
+   The maximum size of the header compression table ATS actually use when ATS
+   encodes headers. Setting 0 means ATS doesn't insert headers into HPACK
+   Dynamic Table, however, headers still can be encoded as indexable
+   representations. The upper limit is 65536.
 
 .. ts:cv:: CONFIG proxy.config.http2.max_header_list_size INT 4294967295
    :reloadable:
@@ -3561,7 +3627,9 @@ HTTP/2 Configuration
 
    Specifies how many number of PRIORITY frames |TS| receives for a minute at maximum.
    Clients exceeded this limit will be immediately disconnected with an error
-   code of ENHANCE_YOUR_CALM.
+   code of ENHANCE_YOUR_CALM. If this is set to 0, the limit logic is disabled.
+   This limit only will be enforced if :ts:cv:`proxy.config.http2.stream_priority_enabled`
+   is set to 1.
 
 .. ts:cv:: CONFIG proxy.config.http2.min_avg_window_update FLOAT 2560.0
    :reloadable:

@@ -3836,7 +3836,7 @@ REGRESSION_TEST(SDK_API_TSUrl)(RegressionTest *test, int /* atype ATS_UNUSED */,
     SDK_RPRINT(test, "TSUrlPasswordSet", "TestCase1", TC_FAIL, "Returned TS_ERROR");
   } else {
     password_get = TSUrlPasswordGet(bufp1, url_loc1, &length);
-    if (((password_get == nullptr) && (password == nullptr)) || (strncmp(password_get, password, length) == 0)) {
+    if ((password_get == nullptr) || (strncmp(password_get, password, length) == 0)) {
       SDK_RPRINT(test, "TSUrlPasswordSet&Get", "TestCase1", TC_PASS, "ok");
       test_passed_password = true;
     } else {
@@ -6622,7 +6622,7 @@ typedef enum {
   ORIG_TS_VCONN_CLOSE_HOOK,
   ORIG_TS_SSL_SNI_HOOK,
   ORIG_TS_SSL_SERVERNAME_HOOK,
-  ORIG_TS_SSL_SERVER_VERIFY_HOOK,
+  ORIG_TS_SSL_VERIFY_SERVER_HOOK,
   ORIG_TS_SSL_VERIFY_CLIENT_HOOK,
   ORIG_TS_SSL_SESSION_HOOK,
   ORIG_TS_SSL_LAST_HOOK                          = ORIG_TS_SSL_SESSION_HOOK,
@@ -8670,7 +8670,6 @@ const char *SDK_Overridable_Configs[TS_CONFIG_LAST_ENTRY] = {"proxy.config.url_r
                                                              "proxy.config.ssl.client.cert.filename",
                                                              "proxy.config.ssl.client.cert.path",
                                                              "proxy.config.http.parent_proxy.mark_down_hostdb",
-                                                             "proxy.config.ssl.client.verify.server",
                                                              "proxy.config.http.cache.enable_default_vary_headers",
                                                              "proxy.config.http.cache.vary_default_text",
                                                              "proxy.config.http.cache.vary_default_images",

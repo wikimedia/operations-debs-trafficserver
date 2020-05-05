@@ -62,6 +62,9 @@ init_buffer_allocators(int iobuffer_advice)
   }
 }
 
+//
+// MIOBuffer
+//
 int64_t
 MIOBuffer::remove_append(IOBufferReader *r)
 {
@@ -190,6 +193,29 @@ MIOBuffer::puts(char *s, int64_t len)
   return 0;
 }
 
+bool
+MIOBuffer::is_max_read_avail_more_than(int64_t size)
+{
+  bool no_reader = true;
+  for (auto &reader : this->readers) {
+    if (reader.allocated()) {
+      if (reader.is_read_avail_more_than(size)) {
+        return true;
+      }
+      no_reader = false;
+    }
+  }
+
+  if (no_reader && this->_writer) {
+    return (this->_writer->read_avail() > size);
+  }
+
+  return false;
+}
+
+//
+// IOBufferReader
+//
 int64_t
 IOBufferReader::read(void *ab, int64_t len)
 {
@@ -279,7 +305,9 @@ IOBufferReader::memcpy(const void *ap, int64_t len, int64_t offset)
   return p;
 }
 
-//-- MIOBufferWriter
+//
+// MIOBufferWriter
+//
 MIOBufferWriter &
 MIOBufferWriter::write(const void *data_, size_t length)
 {

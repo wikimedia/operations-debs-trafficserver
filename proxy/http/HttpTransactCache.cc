@@ -1288,6 +1288,32 @@ HttpTransactCache::match_response_to_request_conditionals(HTTPHdr *request, HTTP
     return response->status_get();
   }
 
+  // If-None-Match: may match weakly //
+  if (request->presence(MIME_PRESENCE_IF_NONE_MATCH)) {
+    int raw_etags_len, comma_sep_tag_list_len;
+    const char *raw_etags          = response->value_get(MIME_FIELD_ETAG, MIME_LEN_ETAG, &raw_etags_len);
+    const char *comma_sep_tag_list = nullptr;
+
+    if (raw_etags) {
+      comma_sep_tag_list = request->value_get(MIME_FIELD_IF_NONE_MATCH, MIME_LEN_IF_NONE_MATCH, &comma_sep_tag_list_len);
+      if (!comma_sep_tag_list) {
+        comma_sep_tag_list     = "";
+        comma_sep_tag_list_len = 0;
+      }
+
+      ////////////////////////////////////////////////////////////////////////
+      // If we have an etag and a if-none-match, we are talking to someone  //
+      // who is doing a 1.1 revalidate. Since this is a GET request with no //
+      // sub-ranges, we can do a weak validation.                           //
+      ////////////////////////////////////////////////////////////////////////
+      if (do_strings_match_weakly(raw_etags, raw_etags_len, comma_sep_tag_list, comma_sep_tag_list_len)) {
+        return HTTP_STATUS_NOT_MODIFIED;
+      } else {
+        return response->status_get();
+      }
+    }
+  }
+
   // If-Modified-Since //
   if (request->presence(MIME_PRESENCE_IF_MODIFIED_SINCE)) {
     if (response->presence(MIME_PRESENCE_LAST_MODIFIED)) {
@@ -1316,62 +1342,12 @@ HttpTransactCache::match_response_to_request_conditionals(HTTPHdr *request, HTTP
 
       response_code = HTTP_STATUS_NOT_MODIFIED;
     }
-
-    // we cannot return NOT_MODIFIED yet, need to check If-none-match
-    if (!request->presence(MIME_PRESENCE_IF_NONE_MATCH)) {
-      return response_code;
-    }
-  }
-
-  // If-None-Match: may match weakly //
-  if (request->presence(MIME_PRESENCE_IF_NONE_MATCH)) {
-    int raw_etags_len, comma_sep_tag_list_len;
-    const char *raw_etags          = response->value_get(MIME_FIELD_ETAG, MIME_LEN_ETAG, &raw_etags_len);
-    const char *comma_sep_tag_list = nullptr;
-
-    if (raw_etags) {
-      comma_sep_tag_list = request->value_get(MIME_FIELD_IF_NONE_MATCH, MIME_LEN_IF_NONE_MATCH, &comma_sep_tag_list_len);
-      if (!comma_sep_tag_list) {
-        comma_sep_tag_list     = "";
-        comma_sep_tag_list_len = 0;
-      }
-
-      ////////////////////////////////////////////////////////////////////////
-      // If we have an etag and a if-none-match, we are talking to someone  //
-      // who is doing a 1.1 revalidate. Since this is a GET request with no //
-      // sub-ranges, we can do a weak validation.                           //
-      ////////////////////////////////////////////////////////////////////////
-      if (do_strings_match_weakly(raw_etags, raw_etags_len, comma_sep_tag_list, comma_sep_tag_list_len)) {
-        // the response already failed If-modified-since (if one exists)
-        return HTTP_STATUS_NOT_MODIFIED;
-      } else {
-        return response->status_get();
-      }
-    }
   }
 
   // There is no If-none-match, and If-modified-since failed,
   // so return NOT_MODIFIED
   if (response_code != HTTP_STATUS_NONE) {
     return response_code;
-  }
-
-  // return PRECONDITIONAL_FAILED if either If-unmodified-since
-  // or If-match fails
-  // BUT, return the original response code only if both pass
-
-  // If-Unmodified-Since //
-  if (request->presence(MIME_PRESENCE_IF_UNMODIFIED_SINCE)) {
-    // lm_value is zero if Last-modified not exists
-    ink_time_t lm_value = response->get_last_modified();
-
-    // Condition fails if Last-modified not exists
-    if ((request->get_if_unmodified_since() < lm_value) || (lm_value == 0)) {
-      return HTTP_STATUS_PRECONDITION_FAILED;
-    } else {
-      // we cannot return yet, need to check If-match
-      response_code = response->status_get();
-    }
   }
 
   // If-Match: must match strongly //
@@ -1395,13 +1371,25 @@ HttpTransactCache::match_response_to_request_conditionals(HTTPHdr *request, HTTP
     }
 
     if (do_strings_match_strongly(raw_etags, raw_etags_len, comma_sep_tag_list, comma_sep_tag_list_len)) {
-      // at the point, the response passed both If-unmodified-since
-      // and If-match, so we can return the original response code
       return response->status_get();
     } else {
       return HTTP_STATUS_PRECONDITION_FAILED;
     }
   }
+
+  // If-Unmodified-Since //
+  if (request->presence(MIME_PRESENCE_IF_UNMODIFIED_SINCE)) {
+    // lm_value is zero if Last-modified not exists
+    ink_time_t lm_value = response->get_last_modified();
+
+    // Condition fails if Last-modified not exists
+    if ((request->get_if_unmodified_since() < lm_value) || (lm_value == 0)) {
+      return HTTP_STATUS_PRECONDITION_FAILED;
+    } else {
+      response_code = response->status_get();
+    }
+  }
+
   // There is no If-match, and If-unmodified-since passed,
   // so return the original response code
   if (response_code != HTTP_STATUS_NONE) {
