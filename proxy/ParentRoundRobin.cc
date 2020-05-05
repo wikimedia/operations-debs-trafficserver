@@ -99,8 +99,8 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
         }
         break;
       case P_STRICT_ROUND_ROBIN:
-        cur_index = ink_atomic_increment((int32_t *)&result->rec->rr_next, 1);
-        cur_index = result->start_parent = cur_index % num_parents;
+        cur_index = result->start_parent =
+          ink_atomic_increment(reinterpret_cast<uint32_t *>(&result->rec->rr_next), 1) % num_parents;
         break;
       case P_NO_ROUND_ROBIN:
         cur_index = result->start_parent = 0;
@@ -136,7 +136,8 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
   // Loop through the array of parent seeing if any are up or
   //   should be retried
   do {
-    host_stat = pStatus.getHostStatus(parents[cur_index].hostname);
+    HostStatRec *hst = pStatus.getHostStatus(parents[cur_index].hostname);
+    host_stat        = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
     Debug("parent_select", "cur_index: %d, result->start_parent: %d", cur_index, result->start_parent);
     // DNS ParentOnly inhibits bypassing the parent so always return that t
     if ((parents[cur_index].failedAt == 0) || (parents[cur_index].failCount < static_cast<int>(fail_threshold))) {

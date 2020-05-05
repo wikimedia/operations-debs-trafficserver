@@ -504,6 +504,16 @@ Log::init_fields()
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "cqssr", field);
 
+  field = new LogField("client_req_is_internal", "cqint", LogField::sINT, &LogAccess::marshal_client_req_is_internal,
+                       &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "cqint", field);
+
+  field = new LogField("client_req_mptcp", "cqmpt", LogField::sINT, &LogAccess::marshal_client_req_mptcp_state,
+                       &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "cqmpt", field);
+
   field = new LogField("client_sec_protocol", "cqssv", LogField::STRING, &LogAccess::marshal_client_security_protocol,
                        (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
   global_field_list.add(field, false);
@@ -863,6 +873,21 @@ Log::init_fields()
                        &LogAccess::unmarshal_int_to_str);
   global_field_list.add(field, false);
   ink_hash_table_insert(field_symbol_hash, "ctid", field);
+
+  field = new LogField("client_transaction_priority_weight", "ctpw", LogField::sINT,
+                       &LogAccess::marshal_client_http_transaction_priority_weight, &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "ctpw", field);
+
+  field = new LogField("client_transaction_priority_dependence", "ctpd", LogField::sINT,
+                       &LogAccess::marshal_client_http_transaction_priority_dependence, &LogAccess::unmarshal_int_to_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "ctpd", field);
+
+  field = new LogField("version_build_number", "vbn", LogField::STRING, &LogAccess::marshal_version_build_number,
+                       (LogField::UnmarshalFunc)&LogAccess::unmarshal_str);
+  global_field_list.add(field, false);
+  ink_hash_table_insert(field_symbol_hash, "vbn", field);
 
   init_status |= FIELDS_INITIALIZED;
 }

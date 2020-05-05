@@ -32,8 +32,8 @@
 # Version number is calculated as MAJOR * 1000000 + MINOR * 1000 + MICRO
 # Version string is in the form of MAJOR.MINOR.MICRO[sufix]
 #
-m4_define([TS_VERSION_S],[8.0.7])
-m4_define([TS_VERSION_N],[8000007])
+m4_define([TS_VERSION_S],[8.1.0])
+m4_define([TS_VERSION_N],[8001000])
 
 AC_INIT([Apache Traffic Server], TS_VERSION_S(), [dev@trafficserver.apache.org], [trafficserver],[http://trafficserver.apache.org])
 AC_PREREQ([2.59])
@@ -721,6 +721,7 @@ case $host_os in
 esac
 
 TS_ADDTO(AM_CPPFLAGS, [-D$host_os_def])
+AM_CONDITIONAL([OS_LINUX], [test "x$host_os_def" = "xlinux"])
 
 dnl AM_PROG_AR is not always available, but it doesn't seem to be needed in older versions.
 ifdef([AM_PROG_AR],
@@ -1195,6 +1196,9 @@ TS_CHECK_CRYPTO_EC_KEYS
 # Check for the presense of the certificate callback in the ssl library
 TS_CHECK_CRYPTO_CERT_CB
 
+# Check for the client hello callback
+TS_CHECK_CRYPTO_HELLO_CB
+
 #
 # Check for SSL_set0_rbio call
 TS_CHECK_CRYPTO_SET_RBIO
@@ -1315,26 +1319,14 @@ TS_CHECK_LUAJIT
 # Enable experimental/uri_singing plugin
 # This is here, instead of above, because it needs to know if PCRE is available.
 #
-AC_CHECK_HEADERS([jansson.h], [
-  AC_MSG_CHECKING([whether jansson is dynamic])
-  TS_LINK_WITH_FLAGS_IFELSE([-fPIC -ljansson],[AC_LANG_PROGRAM(
-                            [#include <jansson.h>],
-                            [(void) json_object();])],
-                            [AC_MSG_RESULT([yes]); LIBJANSSON=-ljansson],
-                            [AC_MSG_RESULT([no]);  LIBJANSSON=-l:libjansson.a])
-  ],
-  [LIBJANSSON=])
 
-AC_CHECK_HEADERS([cjose/cjose.h], [
-  AC_MSG_CHECKING([whether cjose is dynamic])
-  TS_LINK_WITH_FLAGS_IFELSE([-fPIC -lcjose],[AC_LANG_PROGRAM(
-                            [#include <cjose/cjose.h>],
-                            [(void) cjose_jws_import("", 0, NULL);])],
-                            [AC_MSG_RESULT([yes]); LIBCJOSE=-lcjose],
-                            [AC_MSG_RESULT([no]);  LIBCJOSE=-l:libcjose.a])
-  ],
-  [LIBCJOSE=])
+#### Check for optional jansson library (uri_signing)
+TS_CHECK_JANSSON
+
 AC_CHECK_LIB([crypto],[HMAC],[has_libcrypto=1],[has_libcrypto=0])
+
+#### Check for optional cjose library (uri_signing)
+TS_CHECK_CJOSE
 
 AM_CONDITIONAL([BUILD_URI_SIGNING_PLUGIN], [test ! -z "${LIBCJOSE}" -a ! -z "${LIBJANSSON}" -a "x${enable_pcre}" = "xyes" -a "x${has_libcrypto}" = "x1"])
 AC_SUBST([LIBCJOSE])

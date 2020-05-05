@@ -38,6 +38,8 @@ libhttp2_a_SOURCES = \
 	HPACK.h \
 	HTTP2.cc \
 	HTTP2.h \
+	Http2Frame.cc \
+	Http2Frame.h \
 	Http2ClientSession.cc \
 	Http2ClientSession.h \
 	Http2ConnectionState.cc \
@@ -50,9 +52,7 @@ libhttp2_a_SOURCES = \
 	Http2Stream.cc \
 	Http2Stream.h \
 	Http2SessionAccept.cc \
-	Http2SessionAccept.h \
-	HuffmanCodec.cc \
-	HuffmanCodec.h
+	Http2SessionAccept.h
 
 if BUILD_TESTS
 libhttp2_a_SOURCES += \
@@ -60,25 +60,33 @@ libhttp2_a_SOURCES += \
 endif
 
 check_PROGRAMS = \
-	test_Huffmancode \
+	test_libhttp2 \
 	test_Http2DependencyTree \
 	test_Http2FrequencyCounter \
 	test_HPACK
 
-TESTS = \
-	test_Huffmancode \
-	test_Http2DependencyTree \
-	test_Http2FrequencyCounter \
-	test_HPACK
+TESTS = $(check_PROGRAMS)
 
-test_Huffmancode_LDADD = \
+# The order of libinkevent.a and libhdrs.a is sensitive for LLD on debug build.
+# Be careful if you change the order. Details in GitHub #6666
+test_libhttp2_LDADD = \
+	libhttp2.a \
+	$(top_builddir)/iocore/eventsystem/libinkevent.a \
+	$(top_builddir)/proxy/hdrs/libhdrs.a \
 	$(top_builddir)/src/tscore/libtscore.la \
-	$(top_builddir)/src/tscpp/util/libtscpputil.la
+	$(top_builddir)/src/tscpp/util/libtscpputil.la \
+	$(top_builddir)/lib/records/librecords_p.a \
+	$(top_builddir)/mgmt/libmgmt_p.la \
+	$(top_builddir)/proxy/shared/libUglyLogStubs.a \
+	@LIBTCL@ \
+	@HWLOC_LIBS@
 
-test_Huffmancode_SOURCES = \
-	test_Huffmancode.cc \
-	HuffmanCodec.cc \
-	HuffmanCodec.h
+test_libhttp2_CPPFLAGS = $(AM_CPPFLAGS)\
+	-I$(abs_top_srcdir)/tests/include
+
+test_libhttp2_SOURCES = \
+	unit_tests/test_Http2Frame.cc \
+	unit_tests/main.cc
 
 test_Http2DependencyTree_LDADD = \
 	$(top_builddir)/src/tscore/libtscore.la \
@@ -117,8 +125,6 @@ test_HPACK_LDADD = \
 
 test_HPACK_SOURCES = \
 	test_HPACK.cc \
-	HuffmanCodec.cc \
-	HuffmanCodec.h \
 	HPACK.cc \
 	HPACK.h
 

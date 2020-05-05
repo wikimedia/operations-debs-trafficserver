@@ -27,8 +27,11 @@
 #include "Plugin.h"
 #include "ProxyClientSession.h"
 #include "Http2ConnectionState.h"
+#include "Http2Frame.h"
 #include <string_view>
 #include "tscore/ink_inet.h"
+#include "tscore/History.h"
+#include "Milestones.h"
 
 // Name                       Edata                 Description
 // HTTP2_SESSION_EVENT_INIT   Http2ClientSession *  HTTP/2 session is born
@@ -47,6 +50,12 @@
 enum class Http2SessionCod : int {
   NOT_PROVIDED,
   HIGH_ERROR_RATE,
+};
+
+enum class Http2SsnMilestone {
+  OPEN = 0,
+  CLOSE,
+  LAST_ENTRY,
 };
 
 size_t const HTTP2_HEADER_BUFFER_SIZE_INDEX = CLIENT_CONNECTION_FIRST_READ_BUFFER_SIZE_INDEX;
@@ -69,114 +78,16 @@ struct Http2UpgradeContext {
   Http2ConnectionSettings client_settings;
 };
 
-class Http2Frame
-{
-public:
-  Http2Frame(const Http2FrameHeader &h, IOBufferReader *r)
-  {
-    this->hdr      = h;
-    this->ioreader = r;
-  }
-
-  Http2Frame(Http2FrameType type, Http2StreamId streamid, uint8_t flags)
-  {
-    this->hdr      = {0, (uint8_t)type, flags, streamid};
-    this->ioreader = nullptr;
-  }
-
-  IOBufferReader *
-  reader() const
-  {
-    return ioreader;
-  }
-
-  const Http2FrameHeader &
-  header() const
-  {
-    return this->hdr;
-  }
-
-  // Allocate an IOBufferBlock for payload of this frame.
-  void
-  alloc(int index)
-  {
-    this->ioblock = new_IOBufferBlock();
-    this->ioblock->alloc(index);
-  }
-
-  // Return the writeable buffer space for frame payload
-  IOVec
-  write()
-  {
-    return make_iovec(this->ioblock->end(), this->ioblock->write_avail());
-  }
-
-  // Once the frame has been serialized, update the payload length of frame header.
-  void
-  finalize(size_t nbytes)
-  {
-    if (this->ioblock) {
-      ink_assert((int64_t)nbytes <= this->ioblock->write_avail());
-      this->ioblock->fill(nbytes);
-
-      this->hdr.length = this->ioblock->size();
-    }
-  }
-
-  void
-  xmit(MIOBuffer *iobuffer)
-  {
-    // Write frame header
-    uint8_t buf[HTTP2_FRAME_HEADER_LEN];
-    http2_write_frame_header(hdr, make_iovec(buf));
-    iobuffer->write(buf, sizeof(buf));
-
-    // Write frame payload
-    // It could be empty (e.g. SETTINGS frame with ACK flag)
-    if (ioblock && ioblock->read_avail() > 0) {
-      iobuffer->append_block(this->ioblock.get());
-    }
-  }
-
-  int64_t
-  size()
-  {
-    if (ioblock) {
-      return HTTP2_FRAME_HEADER_LEN + ioblock->size();
-    } else {
-      return HTTP2_FRAME_HEADER_LEN;
-    }
-  }
-
-  // noncopyable
-  Http2Frame(Http2Frame &) = delete;
-  Http2Frame &operator=(const Http2Frame &) = delete;
-
-private:
-  Http2FrameHeader hdr;       // frame header
-  Ptr<IOBufferBlock> ioblock; // frame payload
-  IOBufferReader *ioreader;
-};
-
 class Http2ClientSession : public ProxyClientSession
 {
 public:
-  typedef ProxyClientSession super; ///< Parent type.
-  typedef int (Http2ClientSession::*SessionHandler)(int, void *);
+  using super          = ProxyClientSession; ///< Parent type.
+  using SessionHandler = int (Http2ClientSession::*)(int, void *);
 
   Http2ClientSession();
 
-  // Implement ProxyClientSession interface.
-  void start() override;
-  void destroy() override;
-  void free() override;
-  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
-
-  bool
-  ready_to_free() const
-  {
-    return kill_me;
-  }
+  /////////////////////
+  // Methods
 
   // Implement VConnection interface.
   VIO *do_io_read(Continuation *c, int64_t nbytes = INT64_MAX, MIOBuffer *buf = nullptr) override;
@@ -186,141 +97,52 @@ public:
   void do_io_shutdown(ShutdownHowTo_t howto) override;
   void reenable(VIO *vio) override;
 
-  NetVConnection *
-  get_netvc() const override
-  {
-    return client_vc;
-  }
+  // Implement ProxyClientSession interface.
+  void new_connection(NetVConnection *new_vc, MIOBuffer *iobuf, IOBufferReader *reader, bool backdoor) override;
+  void start() override;
+  void destroy() override;
+  void release(ProxyClientTransaction *trans) override;
+  void free() override;
 
-  sockaddr const *
-  get_client_addr() override
-  {
-    return client_vc ? client_vc->get_remote_addr() : &cached_client_addr.sa;
-  }
+  // more methods
+  void write_reenable();
+  int64_t xmit(const Http2TxFrame &frame);
 
-  sockaddr const *
-  get_local_addr() override
-  {
-    return client_vc ? client_vc->get_local_addr() : &cached_local_addr.sa;
-  }
-
-  void
-  write_reenable()
-  {
-    write_vio->reenable();
-  }
-
-  void set_upgrade_context(HTTPHdr *h);
-
-  const Http2UpgradeContext &
-  get_upgrade_context() const
-  {
-    return upgrade_context;
-  }
-
-  int
-  get_transact_count() const override
-  {
-    return connection_state.get_stream_requests();
-  }
-
-  void
-  release(ProxyClientTransaction *trans) override
-  {
-  }
-
-  Http2ConnectionState connection_state;
-  void
-  set_dying_event(int event)
-  {
-    dying_event = event;
-  }
-
-  int
-  get_dying_event() const
-  {
-    return dying_event;
-  }
-
-  bool
-  is_recursing() const
-  {
-    return recursion > 0;
-  }
-
-  const char *
-  get_protocol_string() const override
-  {
-    return "http/2";
-  }
-
-  int
-  populate_protocol(std::string_view *result, int size) const override
-  {
-    int retval = 0;
-    if (size > retval) {
-      result[retval++] = IP_PROTO_TAG_HTTP_2_0;
-      if (size > retval) {
-        retval += super::populate_protocol(result + retval, size - retval);
-      }
-    }
-    return retval;
-  }
-
-  const char *
-  protocol_contains(std::string_view prefix) const override
-  {
-    const char *retval = nullptr;
-
-    if (prefix.size() <= IP_PROTO_TAG_HTTP_2_0.size() && strncmp(IP_PROTO_TAG_HTTP_2_0.data(), prefix.data(), prefix.size()) == 0) {
-      retval = IP_PROTO_TAG_HTTP_2_0.data();
-    } else {
-      retval = super::protocol_contains(prefix);
-    }
-    return retval;
-  }
-
+  ////////////////////
+  // Accessors
+  NetVConnection *get_netvc() const override;
+  sockaddr const *get_client_addr() override;
+  sockaddr const *get_local_addr() override;
+  int get_transact_count() const override;
+  const char *get_protocol_string() const override;
+  int populate_protocol(std::string_view *result, int size) const override;
+  const char *protocol_contains(std::string_view prefix) const override;
   void increment_current_active_client_connections_stat() override;
   void decrement_current_active_client_connections_stat() override;
 
+  void set_upgrade_context(HTTPHdr *h);
+  const Http2UpgradeContext &get_upgrade_context() const;
+  void set_dying_event(int event);
+  int get_dying_event() const;
+  bool ready_to_free() const;
+  bool is_recursing() const;
   void set_half_close_local_flag(bool flag);
-  bool
-  get_half_close_local_flag() const
-  {
-    return half_close_local;
-  }
+  bool get_half_close_local_flag() const;
+  bool is_url_pushed(const char *url, int url_len);
+  void add_url_to_pushed_table(const char *url, int url_len);
 
-  bool
-  is_url_pushed(const char *url, int url_len)
-  {
-    char *dup_url            = ats_strndup(url, url_len);
-    InkHashTableEntry *entry = ink_hash_table_lookup_entry(h2_pushed_urls, dup_url);
-    ats_free(dup_url);
-    return entry != nullptr;
-  }
-
-  void
-  add_url_to_pushed_table(const char *url, int url_len)
-  {
-    if (h2_pushed_urls_size < Http2::push_diary_size) {
-      char *dup_url = ats_strndup(url, url_len);
-      ink_hash_table_insert(h2_pushed_urls, dup_url, nullptr);
-      h2_pushed_urls_size++;
-      ats_free(dup_url);
-    }
-  }
-
-  int64_t
-  write_buffer_size()
-  {
-    return write_buffer->max_read_avail();
-  }
+  // Record history from Http2ConnectionState
+  void remember(const SourceLocation &location, int event, int reentrant = NO_REENTRANT);
 
   int64_t write_avail();
 
   // noncopyable
   Http2ClientSession(Http2ClientSession &) = delete;
   Http2ClientSession &operator=(const Http2ClientSession &) = delete;
+
+  ///////////////////
+  // Variables
+  Http2ConnectionState connection_state;
 
 private:
   int main_event_handler(int, void *);
@@ -349,6 +171,9 @@ private:
   IpEndpoint cached_client_addr;
   IpEndpoint cached_local_addr;
 
+  History<HISTORY_DEFAULT_SIZE> _history;
+  Milestones<Http2SsnMilestone, static_cast<size_t>(Http2SsnMilestone::LAST_ENTRY)> _milestones;
+
   // For Upgrade: h2c
   Http2UpgradeContext upgrade_context;
 
@@ -367,3 +192,51 @@ private:
 };
 
 extern ClassAllocator<Http2ClientSession> http2ClientSessionAllocator;
+
+///////////////////////////////////////////////
+// INLINE
+
+inline const Http2UpgradeContext &
+Http2ClientSession::get_upgrade_context() const
+{
+  return upgrade_context;
+}
+
+inline bool
+Http2ClientSession::ready_to_free() const
+{
+  return kill_me;
+}
+
+inline void
+Http2ClientSession::set_dying_event(int event)
+{
+  dying_event = event;
+}
+
+inline int
+Http2ClientSession::get_dying_event() const
+{
+  return dying_event;
+}
+
+inline bool
+Http2ClientSession::is_recursing() const
+{
+  return recursion > 0;
+}
+
+inline bool
+Http2ClientSession::get_half_close_local_flag() const
+{
+  return half_close_local;
+}
+
+inline bool
+Http2ClientSession::is_url_pushed(const char *url, int url_len)
+{
+  char *dup_url            = ats_strndup(url, url_len);
+  InkHashTableEntry *entry = ink_hash_table_lookup_entry(h2_pushed_urls, dup_url);
+  ats_free(dup_url);
+  return entry != nullptr;
+}
