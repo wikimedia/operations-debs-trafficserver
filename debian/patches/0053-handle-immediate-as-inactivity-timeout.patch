@@ -1,0 +1,27 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6689
+Description: Handle immediate as inactivity timeout. This fixes a crash
+introduced on https://github.com/apache/trafficserver/pull/5824 that's
+been backported here as 0052-reactivate-active-timeout-enforcement.patch
+
+From 80b0add0bc112c4d2872d8a6a66a9b27001a9d22 Mon Sep 17 00:00:00 2001
+From: Susan Hinrichs <shinrich@verizonmedia.com>
+Date: Mon, 20 Apr 2020 17:44:50 +0000
+Subject: [PATCH] Handle immediate as inactivity timeout
+
+---
+ iocore/net/UnixNetVConnection.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+--- a/iocore/net/UnixNetVConnection.cc
++++ b/iocore/net/UnixNetVConnection.cc
+@@ -1169,6 +1169,10 @@ UnixNetVConnection::mainEvent(int event,
+   Event **signal_timeout        = &t;
+ 
+   switch (event) {
++  // Treating immediate as inactivity timeout for any
++  // stray remaining immediates. The previous code would have
++  // treated the immediate as inactivity timeout
++  case EVENT_IMMEDIATE:
+   case VC_EVENT_INACTIVITY_TIMEOUT:
+     signal_event      = VC_EVENT_INACTIVITY_TIMEOUT;
+     signal_timeout_at = &next_inactivity_timeout_at;

@@ -1,0 +1,50 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6726
+Description: Lua plugin: add ts.server_response.is_cacheable()
+
+commit 4f691315ca1a58bbf323989c82a8f604478de843
+Author: Emanuele Rocca <ema@wikimedia.org>
+Date:   Thu Apr 30 17:17:03 2020 +0200
+
+    Lua plugin: add ts.server_response.is_cacheable()
+
+diff --git a/plugins/lua/ts_lua_server_response.c b/plugins/lua/ts_lua_server_response.c
+index d99935b8b..1c0486672 100644
+--- a/plugins/lua/ts_lua_server_response.c
++++ b/plugins/lua/ts_lua_server_response.c
+@@ -43,6 +43,8 @@ static int ts_lua_server_response_set_status(lua_State *L);
+ static int ts_lua_server_response_get_version(lua_State *L);
+ static int ts_lua_server_response_set_version(lua_State *L);
+ 
++static int ts_lua_server_response_is_cacheable(lua_State *L);
++
+ void
+ ts_lua_inject_server_response_api(lua_State *L)
+ {
+@@ -150,6 +152,9 @@ ts_lua_inject_server_response_misc_api(lua_State *L)
+   lua_setfield(L, -2, "get_version");
+   lua_pushcfunction(L, ts_lua_server_response_set_version);
+   lua_setfield(L, -2, "set_version");
++
++  lua_pushcfunction(L, ts_lua_server_response_is_cacheable);
++  lua_setfield(L, -2, "is_cacheable");
+ }
+ 
+ static int
+@@ -362,3 +367,17 @@ ts_lua_server_response_set_version(lua_State *L)
+ 
+   return 0;
+ }
++
++static int
++ts_lua_server_response_is_cacheable(lua_State *L)
++{
++  ts_lua_http_ctx *http_ctx;
++
++  GET_HTTP_CONTEXT(http_ctx, L);
++
++  TS_LUA_CHECK_SERVER_RESPONSE_HDR(http_ctx);
++
++  lua_pushnumber(L, TSHttpTxnIsCacheable(http_ctx->txnp, NULL, http_ctx->server_response_bufp));
++
++  return 1;
++}
