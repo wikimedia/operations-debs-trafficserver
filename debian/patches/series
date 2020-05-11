@@ -42,3 +42,4 @@
 0049-fix-PUSH_PROMISE-frame-payload-length.patch
 0050-fix-alloc-dealloc-mismatch-certinfo.patch
 0051-fix-h2-active_client_connections-metric.patch
+0052-reactivate-active-timeout-enforcement.patch
