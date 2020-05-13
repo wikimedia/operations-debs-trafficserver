@@ -8,8 +8,8 @@ are templates for supplementary fields that you might want to add:
 
 Last-Update: 2018-11-28
 
---- trafficserver-8.0.0.orig/plugins/Makefile.am
-+++ trafficserver-8.0.0/plugins/Makefile.am
+--- a/plugins/Makefile.am
++++ b/plugins/Makefile.am
 @@ -42,6 +42,7 @@ include libloader/Makefile.inc
  if HAS_LUAJIT
  include lua/Makefile.inc
@@ -19,7 +19,7 @@ Last-Update: 2018-11-28
  include regex_revalidate/Makefile.inc
  include s3_auth/Makefile.inc
 --- /dev/null
-+++ trafficserver-8.0.0/plugins/objhits/Makefile.inc
++++ b/plugins/objhits/Makefile.inc
 @@ -0,0 +1,19 @@
 +#  Licensed to the Apache Software Foundation (ASF) under one
 +#  or more contributor license agreements.  See the NOTICE file
@@ -41,7 +41,7 @@ Last-Update: 2018-11-28
 +objhits_objhits_la_SOURCES = \
 +    objhits/objhits.cc
 --- /dev/null
-+++ trafficserver-8.0.0/plugins/objhits/objhits.cc
++++ b/plugins/objhits/objhits.cc
 @@ -0,0 +1,202 @@
 +/*
 + * Copyright 2018 Emanuele Rocca <ema@wikimedia.org>

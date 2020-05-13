@@ -1,0 +1,161 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6754
+Description: Enforce Active Connection limits
+--- a/doc/admin-guide/files/records.config.en.rst
++++ b/doc/admin-guide/files/records.config.en.rst
+@@ -398,6 +398,20 @@ Network
+    handled. This should be tuned according to your memory size, and expected
+    work load.  If this is set to 0, the throttling logic is disabled.
+ 
++.. ts:cv:: CONFIG proxy.config.net.max_connections_in INT 30000
++   The total number of client connections that the :program:`traffic_server`
++   can handle simultaneously. This should be tuned according to your memory size,
++   and expected work load (network, cpu etc). This limit includes both keepalive
++   and active client connections that :program:`traffic_server` can handle at
++   any given instant.
++
++.. ts:cv:: CONFIG proxy.config.net.max_active_connections_in INT 10000
++   The total number of active client connections that the |TS| can handle
++   simultaneously. This should be tuned according to your memory size,
++   and expected work load (network, cpu etc). If this is set to 0, active
++   connection tracking is disabled and active connections have no separate
++   limit and the total connections follow `proxy.config.net.connections_throttle`
++
+ .. ts:cv:: CONFIG proxy.config.net.default_inactivity_timeout INT 86400
+    :reloadable:
+ 
+--- a/doc/admin-guide/monitoring/statistics/core/network-io.en.rst
++++ b/doc/admin-guide/monitoring/statistics/core/network-io.en.rst
+@@ -25,6 +25,15 @@ Network I/O
+ .. ts:stat:: global proxy.process.net.accepts_currently_open integer
+    :type: counter
+ 
++.. ts:stat:: global proxy.process.net.connections_throttled_in integer
++   :type: counter
++
++.. ts:stat:: global proxy.process.net.connections_throttled_out integer
++   :type: counter
++
++.. ts:stat:: global proxy.process.net.max.active.connections_throttled_in integer
++   :type: counter
++
+ .. ts:stat:: global proxy.process.net.calls_to_readfromnet_afterpoll integer
+    :type: counter
+    :ungathered:
+--- a/iocore/net/Net.cc
++++ b/iocore/net/Net.cc
+@@ -135,6 +135,8 @@ register_net_stats()
+                      (int)net_connections_throttled_in_stat, RecRawStatSyncSum);
+   RecRegisterRawStat(net_rsb, RECT_PROCESS, "proxy.process.net.connections_throttled_out", RECD_INT, RECP_PERSISTENT,
+                      (int)net_connections_throttled_out_stat, RecRawStatSyncSum);
++  RecRegisterRawStat(net_rsb, RECT_PROCESS, "proxy.process.net.max.active.connections_throttled_in", RECD_INT, RECP_PERSISTENT,
++                     (int)net_connections_max_active_throttled_in_stat, RecRawStatSyncSum);
+ }
+ 
+ void
+--- a/iocore/net/P_Net.h
++++ b/iocore/net/P_Net.h
+@@ -57,6 +57,7 @@ enum Net_Stats {
+   net_tcp_accept_stat,
+   net_connections_throttled_in_stat,
+   net_connections_throttled_out_stat,
++  net_connections_max_active_throttled_in_stat,
+   Net_Stat_Count
+ };
+ 
+--- a/iocore/net/UnixNet.cc
++++ b/iocore/net/UnixNet.cc
+@@ -559,6 +559,11 @@ NetHandler::manage_active_queue(bool ign
+         max_connections_per_thread_in, max_connections_active_per_thread_in, total_connections_in, active_queue_size,
+         keep_alive_queue_size);
+ 
++  if (!max_connections_active_per_thread_in) {
++    // active queue has no max
++    return true;
++  }
++
+   if (ignore_queue_size == false && max_connections_active_per_thread_in > active_queue_size) {
+     return true;
+   }
+@@ -715,16 +720,22 @@ NetHandler::add_to_active_queue(UnixNetV
+   Debug("net_queue", "max_connections_per_thread_in: %d active_queue_size: %d keep_alive_queue_size: %d",
+         max_connections_per_thread_in, active_queue_size, keep_alive_queue_size);
+ 
++  bool active_queue_full = false;
++
+   // if active queue is over size then close inactive connections
+   if (manage_active_queue() == false) {
+-    // there is no room left in the queue
+-    return false;
++    active_queue_full = true;
+   }
+ 
+   if (active_queue.in(vc)) {
+     // already in the active queue, move the head
+     active_queue.remove(vc);
+   } else {
++    if (active_queue_full) {
++      // there is no room left in the queue
++      NET_SUM_DYN_STAT(net_connections_max_active_throttled_in_stat, 1);
++      return false;
++    }
+     // in the keep-alive queue or no queue, new to this queue
+     remove_from_keep_alive_queue(vc);
+     ++active_queue_size;
+--- a/proxy/PluginVC.cc
++++ b/proxy/PluginVC.cc
+@@ -904,7 +904,7 @@ bool
+ PluginVC::add_to_active_queue()
+ {
+   // do nothing
+-  return false;
++  return true;
+ }
+ 
+ SOCKET
+--- a/proxy/http/Http1ClientSession.cc
++++ b/proxy/http/Http1ClientSession.cc
+@@ -495,6 +495,12 @@ Http1ClientSession::new_transaction()
+     return;
+   }
+ 
++  if (!client_vc->add_to_active_queue()) {
++    // no room in the active queue close the connection
++    this->do_io_close();
++    return;
++  }
++
+   // Defensive programming, make sure nothing persists across
+   // connection re-use
+   half_close = false;
+@@ -504,7 +510,6 @@ Http1ClientSession::new_transaction()
+   trans.set_parent(this);
+   transact_count++;
+ 
+-  client_vc->add_to_active_queue();
+   trans.new_transaction();
+ }
+ 
+--- a/proxy/http2/Http2ConnectionState.cc
++++ b/proxy/http2/Http2ConnectionState.cc
+@@ -1086,6 +1086,13 @@ Http2ConnectionState::state_closed(int /
+ Http2Stream *
+ Http2ConnectionState::create_stream(Http2StreamId new_id, Http2Error &error)
+ {
++  // first check if we've hit the active connection limit
++  if (!ua_session->get_netvc()->add_to_active_queue()) {
++    error = Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_CONNECTION, Http2ErrorCode::HTTP2_ERROR_NO_ERROR,
++                       "refused to create new stream, maxed out active connections");
++    return nullptr;
++  }
++
+   // In half_close state, TS doesn't create new stream. Because GOAWAY frame is sent to client
+   if (ua_session->get_half_close_local_flag()) {
+     error = Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_STREAM, Http2ErrorCode::HTTP2_ERROR_REFUSED_STREAM,
+@@ -1159,7 +1166,6 @@ Http2ConnectionState::create_stream(Http
+   new_stream->mutex                     = new_ProxyMutex();
+   new_stream->is_first_transaction_flag = get_stream_requests() == 0;
+   increment_stream_requests();
+-  ua_session->get_netvc()->add_to_active_queue();
+ 
+   return new_stream;
+ }

@@ -1,3 +1,17 @@
+trafficserver (8.0.7-1wm6) buster-wikimedia; urgency=medium
+
+  * Backports the following patches:
+    * https://github.com/apache/trafficserver/pull/6754
+  * Refresh the following patches:
+    * 0012-objhits-plugin.patch
+    * 0020-disable-h2-priority-rate-limiting.patch
+    * 0022-h2-rate-limits-stats.patch
+    * 0054-tslua-add-iscacheable.patch
+    * 0055-tsapi-get_maxage.patch
+    * 0056-tslua-get_maxage.patch
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Wed, 13 May 2020 11:01:27 +0000
+
 trafficserver (8.0.7-1wm5) buster-wikimedia; urgency=medium
 
   * Backport the following patches to add ts.server_response.get_maxage() to

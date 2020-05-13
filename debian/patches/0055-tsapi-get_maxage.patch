@@ -12,10 +12,8 @@ Date:   Fri May 1 13:02:18 2020 +0200
     max_age depending on s-maxage and max-age. Expose the function as
     TSHttpTxnGetMaxAge.
 
-Index: trafficserver/include/ts/ts.h
-===================================================================
---- trafficserver.orig/include/ts/ts.h
-+++ trafficserver/include/ts/ts.h
+--- a/include/ts/ts.h
++++ b/include/ts/ts.h
 @@ -2444,6 +2444,18 @@ tsapi TSReturnCode TSClientRequestUuidGe
  tsapi TSUuid TSProcessUuidGet(void);
  
@@ -35,10 +33,8 @@ Index: trafficserver/include/ts/ts.h
     Returns the plugin_tag.
  */
  tsapi const char *TSHttpTxnPluginTagGet(TSHttpTxn txnp);
-Index: trafficserver/proxy/http/HttpTransact.cc
-===================================================================
---- trafficserver.orig/proxy/http/HttpTransact.cc
-+++ trafficserver/proxy/http/HttpTransact.cc
+--- a/proxy/http/HttpTransact.cc
++++ b/proxy/http/HttpTransact.cc
 @@ -6990,25 +6990,36 @@ HttpTransact::does_client_request_permit
  }
  
@@ -86,10 +82,8 @@ Index: trafficserver/proxy/http/HttpTransact.cc
    } else {
      date_set = last_modified_set = false;
  
-Index: trafficserver/proxy/http/HttpTransact.h
-===================================================================
---- trafficserver.orig/proxy/http/HttpTransact.h
-+++ trafficserver/proxy/http/HttpTransact.h
+--- a/proxy/http/HttpTransact.h
++++ b/proxy/http/HttpTransact.h
 @@ -1050,6 +1050,7 @@ public:
  
    static void handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
@@ -98,10 +92,8 @@ Index: trafficserver/proxy/http/HttpTransact.h
    static int calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic);
    static int calculate_freshness_fuzz(State *s, int fresh_limit);
    static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_response);
-Index: trafficserver/src/traffic_server/InkAPI.cc
-===================================================================
---- trafficserver.orig/src/traffic_server/InkAPI.cc
-+++ trafficserver/src/traffic_server/InkAPI.cc
+--- a/src/traffic_server/InkAPI.cc
++++ b/src/traffic_server/InkAPI.cc
 @@ -9133,6 +9133,30 @@ TSHttpTxnIsCacheable(TSHttpTxn txnp, TSM
    return (req->valid() && resp->valid() && HttpTransact::is_response_cacheable(&(sm->t_state), req, resp)) ? 1 : 0;
  }
