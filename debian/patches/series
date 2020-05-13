@@ -45,3 +45,5 @@
 0052-reactivate-active-timeout-enforcement.patch
 0053-handle-immediate-as-inactivity-timeout.patch
 0054-tslua-add-iscacheable.patch
+0055-tsapi-get_maxage.patch
+0056-tslua-get_maxage.patch

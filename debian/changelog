@@ -1,3 +1,12 @@
+trafficserver (8.0.7-1wm5) buster-wikimedia; urgency=medium
+
+  * Backport the following patches to add ts.server_response.get_maxage() to
+    tslua (Bug: T251537)
+    * https://github.com/apache/trafficserver/pull/6730
+    * https://github.com/apache/trafficserver/pull/6767
+
+ -- Emanuele Rocca <ema@wikimedia.org>  Wed, 13 May 2020 10:42:35 +0200
+
 trafficserver (8.0.7-1wm4) buster-wikimedia; urgency=medium
 
   * Backports the following patches:

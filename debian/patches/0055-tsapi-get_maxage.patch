@@ -1,0 +1,135 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6730
+Description: Add TSHttpTxnGetMaxAge to TS API (Bug: T251537)
+
+commit 4575058101fea8ff4d854415d7d580e05f58131b
+Author: Emanuele Rocca <ema@wikimedia.org>
+Date:   Fri May 1 13:02:18 2020 +0200
+
+    Add HttpTransact::get_max_age and TSHttpTxnGetMaxAge
+    
+    Add a new function called HttpTransact::get_max_age based on the logic
+    in HttpTransact::calculate_document_freshness_limit that extracts
+    max_age depending on s-maxage and max-age. Expose the function as
+    TSHttpTxnGetMaxAge.
+
+Index: trafficserver/include/ts/ts.h
+===================================================================
+--- trafficserver.orig/include/ts/ts.h
++++ trafficserver/include/ts/ts.h
+@@ -2444,6 +2444,18 @@ tsapi TSReturnCode TSClientRequestUuidGe
+ tsapi TSUuid TSProcessUuidGet(void);
+ 
+ /**
++  Get the maximum age in seconds as indicated by the origin server.
++  This would typically be used in TS_HTTP_READ_RESPONSE_HDR_HOOK, when you have
++  the server response ready.
++
++  @param txnp the transaction pointer
++  @param response the server response header. If NULL, use the transactions origin response.
++
++  @return the age in seconds if specified by Cache-Control, -1 otherwise
++*/
++tsapi int TSHttpTxnGetMaxAge(TSHttpTxn txnp, TSMBuffer response);
++
++/**
+    Returns the plugin_tag.
+ */
+ tsapi const char *TSHttpTxnPluginTagGet(TSHttpTxn txnp);
+Index: trafficserver/proxy/http/HttpTransact.cc
+===================================================================
+--- trafficserver.orig/proxy/http/HttpTransact.cc
++++ trafficserver/proxy/http/HttpTransact.cc
+@@ -6990,25 +6990,36 @@ HttpTransact::does_client_request_permit
+ }
+ 
+ int
++HttpTransact::get_max_age(HTTPHdr *response)
++{
++  int max_age      = -1;
++  uint32_t cc_mask = response->get_cooked_cc_mask();
++
++  if (cc_mask & MIME_COOKED_MASK_CC_S_MAXAGE) {
++    // Precedence to s-maxage
++    max_age = static_cast<int>(response->get_cooked_cc_s_maxage());
++  } else if (cc_mask & MIME_COOKED_MASK_CC_MAX_AGE) {
++    // If s-maxage isn't set, try max-age
++    max_age = static_cast<int>(response->get_cooked_cc_max_age());
++  }
++
++  return max_age;
++}
++
++int
+ HttpTransact::calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic)
+ {
+   bool expires_set, date_set, last_modified_set;
+   time_t date_value, expires_value, last_modified_value;
+   MgmtInt min_freshness_bounds, max_freshness_bounds;
+   int freshness_limit = 0;
+-  uint32_t cc_mask    = response->get_cooked_cc_mask();
++  int max_age         = get_max_age(response);
+ 
+   *heuristic = false;
+ 
+-  if (cc_mask & (MIME_COOKED_MASK_CC_S_MAXAGE | MIME_COOKED_MASK_CC_MAX_AGE)) {
+-    if (cc_mask & MIME_COOKED_MASK_CC_S_MAXAGE) {
+-      freshness_limit = (int)response->get_cooked_cc_s_maxage();
+-      TxnDebug("http_match", "calculate_document_freshness_limit --- s_max_age set, freshness_limit = %d", freshness_limit);
+-    } else if (cc_mask & MIME_COOKED_MASK_CC_MAX_AGE) {
+-      freshness_limit = (int)response->get_cooked_cc_max_age();
+-      TxnDebug("http_match", "calculate_document_freshness_limit --- max_age set, freshness_limit = %d", freshness_limit);
+-    }
+-    freshness_limit = std::min(std::max(0, freshness_limit), (int)s->txn_conf->cache_guaranteed_max_lifetime);
++  if (max_age >= 0) {
++    freshness_limit = std::min(std::max(0, max_age), static_cast<int>(s->txn_conf->cache_guaranteed_max_lifetime));
++    TxnDebug("http_match", "calculate_document_freshness_limit --- freshness_limit = %d", freshness_limit);
+   } else {
+     date_set = last_modified_set = false;
+ 
+Index: trafficserver/proxy/http/HttpTransact.h
+===================================================================
+--- trafficserver.orig/proxy/http/HttpTransact.h
++++ trafficserver/proxy/http/HttpTransact.h
+@@ -1050,6 +1050,7 @@ public:
+ 
+   static void handle_request_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
+   static void handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTPHdr *heads);
++  static int get_max_age(HTTPHdr *response);
+   static int calculate_document_freshness_limit(State *s, HTTPHdr *response, time_t response_date, bool *heuristic);
+   static int calculate_freshness_fuzz(State *s, int fresh_limit);
+   static Freshness_t what_is_document_freshness(State *s, HTTPHdr *client_request, HTTPHdr *cached_obj_response);
+Index: trafficserver/src/traffic_server/InkAPI.cc
+===================================================================
+--- trafficserver.orig/src/traffic_server/InkAPI.cc
++++ trafficserver/src/traffic_server/InkAPI.cc
+@@ -9133,6 +9133,30 @@ TSHttpTxnIsCacheable(TSHttpTxn txnp, TSM
+   return (req->valid() && resp->valid() && HttpTransact::is_response_cacheable(&(sm->t_state), req, resp)) ? 1 : 0;
+ }
+ 
++int
++TSHttpTxnGetMaxAge(TSHttpTxn txnp, TSMBuffer response)
++{
++  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
++  HttpSM *sm = (HttpSM *)txnp;
++  HTTPHdr *resp;
++
++  if (response) {
++    // Make sure the response we got as a parameter is valid
++    sdk_assert(sdk_sanity_check_mbuffer(response) == TS_SUCCESS);
++    resp = reinterpret_cast<HTTPHdr *>(response);
++  } else {
++    // Use the transactions origin response if the user passed NULL
++    resp = &(sm->t_state.hdr_info.server_response);
++  }
++
++  if (!resp || !resp->valid()) {
++    return -1;
++  }
++
++  // We have a valid response, return max_age
++  return HttpTransact::get_max_age(resp);
++}
++
+ // Lookup various debug names for common HTTP types.
+ const char *
+ TSHttpServerStateNameLookup(TSServerState state)
