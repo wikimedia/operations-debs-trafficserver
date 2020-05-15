@@ -1,5 +1,7 @@
 Origin: upstream https://github.com/apache/trafficserver/pull/6571
-Description: Lua plugin number of states configuration and stats printing
+Description: Lua plugin number of states configuration and stats printing.
+             To make this backport compatible with 8.x, we've replaced
+             TSContScheduleOnPool calls with TSContSchedule
 
 
 From 46f2cb07c49d376a76c531088dbbf21d9ded6977 Mon Sep 17 00:00:00 2001
@@ -26,9 +28,9 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 --- a/doc/admin-guide/plugins/lua.en.rst
 +++ b/doc/admin-guide/plugins/lua.en.rst
 @@ -127,6 +127,60 @@ If it is used as remap plugin, we can wr
- 
+
      map http://a.tbcdn.cn/ http://inner.tbcdn.cn/ @plugin=/XXX/tslua.so @pparam=--states=64 @pparam=/XXX/test_hdr.lua
- 
+
 +The maximum number of allowed states is set to 256 which is also the
 +default states value.  The default value can be globally changed by
 +adding a configuration option to records.config.
@@ -85,13 +87,13 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +
  TS API for Lua
  ==============
- 
+
 --- a/plugins/lua/ts_lua.c
 +++ b/plugins/lua/ts_lua.c
 @@ -25,38 +25,313 @@
- 
+
  #define TS_LUA_MAX_STATE_COUNT 256
- 
+
 +#define TS_LUA_STATS_TIMEOUT 5000   // 5s -- convert to configurable
 +#define TS_LUA_STATS_BUFFER_SIZE 10 // stats buffer
 +
@@ -102,12 +104,12 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +
  static uint64_t ts_lua_http_next_id   = 0;
  static uint64_t ts_lua_g_http_next_id = 0;
- 
+
 -static ts_lua_main_ctx *ts_lua_main_ctx_array;
 -static ts_lua_main_ctx *ts_lua_g_main_ctx_array;
 +static ts_lua_main_ctx *ts_lua_main_ctx_array   = NULL;
 +static ts_lua_main_ctx *ts_lua_g_main_ctx_array = NULL;
- 
+
 -TSReturnCode
 -TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
 +// records.config entry injected by plugin
@@ -151,7 +153,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 -  int ret;
 +  ts_lua_plugin_stats *const stats = TSmalloc(sizeof(ts_lua_plugin_stats));
 +  memset(stats, 0, sizeof(ts_lua_plugin_stats));
- 
+
 -  if (!api_info || api_info->size < sizeof(TSRemapInterface)) {
 -    strncpy(errbuf, "[TSRemapInit] - Incorrect size of TSRemapInterface structure", errbuf_size - 1);
 -    errbuf[errbuf_size - 1] = '\0';
@@ -203,7 +205,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +    }
 +    ts_mgt_int_inserted = true;
    }
- 
+
 -  if (ts_lua_main_ctx_array != NULL) {
 -    return TS_SUCCESS;
 +  if (0 == ts_lua_max_state_count) {
@@ -223,15 +225,15 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +      return NULL;
 +    }
    }
- 
+
 -  ts_lua_main_ctx_array = TSmalloc(sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
 -  memset(ts_lua_main_ctx_array, 0, sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
 +  ctx_array = TSmalloc(sizeof(ts_lua_main_ctx) * ts_lua_max_state_count);
 +  memset(ctx_array, 0, sizeof(ts_lua_main_ctx) * ts_lua_max_state_count);
- 
+
 -  ret = ts_lua_create_vm(ts_lua_main_ctx_array, TS_LUA_MAX_STATE_COUNT);
 +  int const ret = ts_lua_create_vm(ctx_array, ts_lua_max_state_count);
- 
+
    if (ret) {
 -    ts_lua_destroy_vm(ts_lua_main_ctx_array, TS_LUA_MAX_STATE_COUNT);
 -    TSfree(ts_lua_main_ctx_array);
@@ -297,7 +299,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +  collectStats(plugin_stats);
 +  publishStats(plugin_stats);
 +
-+  TSContScheduleOnPool(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
++  TSContSchedule(contp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
 +
 +  return TS_EVENT_NONE;
 +}
@@ -393,7 +395,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +    errbuf[errbuf_size - 1] = '\0';
      return TS_ERROR;
    }
- 
+
 +  if (NULL == ts_lua_main_ctx_array) {
 +    ts_lua_main_ctx_array = create_lua_vms();
 +    if (NULL != ts_lua_main_ctx_array) {
@@ -408,7 +410,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +        TSDebug(TS_LUA_DEBUG_TAG, "Starting up stats management continuation");
 +        TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
 +        TSContDataSet(scontp, plugin_stats);
-+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
++        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
 +      }
 +    } else {
 +      return TS_ERROR;
@@ -417,7 +419,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +
    return TS_SUCCESS;
  }
- 
+
 @@ -65,7 +340,7 @@ TSRemapNewInstance(int argc, char *argv[
  {
    int fn;
@@ -439,7 +441,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 @@ -91,9 +366,9 @@ TSRemapNewInstance(int argc, char *argv[
      }
    }
- 
+
 -  if (states > TS_LUA_MAX_STATE_COUNT || states < 1) {
 +  if (states < 1 || ts_lua_max_state_count < states) {
      snprintf(errbuf, errbuf_size, "[TSRemapNewInstance] - invalid state in option input. Must be between 1 and %d",
@@ -447,11 +449,11 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +             ts_lua_max_state_count);
      return TS_ERROR;
    }
- 
+
 @@ -448,19 +723,27 @@ TSPluginInit(int argc, const char *argv[
      TSError("[ts_lua] Plugin registration failed");
    }
- 
+
 -  int ret                 = 0;
 -  ts_lua_g_main_ctx_array = TSmalloc(sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
 -  memset(ts_lua_g_main_ctx_array, 0, sizeof(ts_lua_main_ctx) * TS_LUA_MAX_STATE_COUNT);
@@ -474,13 +476,13 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +      if (NULL != plugin_stats) {
 +        TSCont const scontp = TSContCreate(statsHandler, TSMutexCreate());
 +        TSContDataSet(scontp, plugin_stats);
-+        TSContScheduleOnPool(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
++        TSContSchedule(scontp, TS_LUA_STATS_TIMEOUT, TS_THREAD_POOL_TASK);
 +      }
 +    } else {
 +      return;
 +    }
    }
- 
+
 -  int states                           = TS_LUA_MAX_STATE_COUNT;
 +  int states = ts_lua_max_state_count;
 +
@@ -490,24 +492,24 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 @@ -488,8 +771,8 @@ TSPluginInit(int argc, const char *argv[
      }
    }
- 
+
 -  if (states > TS_LUA_MAX_STATE_COUNT || states < 1) {
 -    TSError("[ts_lua][%s] invalid # of states from option input. Must be between 1 and %d", __FUNCTION__, TS_LUA_MAX_STATE_COUNT);
 +  if (states < 1 || ts_lua_max_state_count < states) {
 +    TSError("[ts_lua][%s] invalid # of states from option input. Must be between 1 and %d", __FUNCTION__, ts_lua_max_state_count);
      return;
    }
- 
+
 @@ -517,8 +800,9 @@ TSPluginInit(int argc, const char *argv[
    ts_lua_init_instance(conf);
- 
+
    char errbuf[TS_LUA_MAX_STR_LENGTH];
 -  int errbuf_len = sizeof(errbuf);
 -  ret = ts_lua_add_module(conf, ts_lua_g_main_ctx_array, conf->states, argc - optind, (char **)&argv[optind], errbuf, errbuf_len);
 +  int const errbuf_len = sizeof(errbuf);
 +  int const ret =
 +    ts_lua_add_module(conf, ts_lua_g_main_ctx_array, conf->states, argc - optind, (char **)&argv[optind], errbuf, errbuf_len);
- 
+
    if (ret != 0) {
      TSError(errbuf, NULL);
 --- a/plugins/lua/ts_lua_coroutine.h
@@ -515,7 +517,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 @@ -28,11 +28,21 @@
  struct async_item;
  typedef int (*async_clean)(struct async_item *item);
- 
+
 +/* context stats */
 +typedef struct {
 +  TSMutex mutexp;  // mutex for the following stats
@@ -535,7 +537,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +  int gref;                // reference for lua vm self, in reg table
 +  ts_lua_ctx_stats *stats; // per vm stats
  } ts_lua_main_ctx;
- 
+
  /* coroutine */
 --- a/plugins/lua/ts_lua_util.c
 +++ b/plugins/lua/ts_lua_util.c
@@ -545,7 +547,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
  static void ts_lua_inject_ts_api(lua_State *L);
 +static ts_lua_ctx_stats *ts_lua_create_ctx_stats();
 +static void ts_lua_destroy_ctx_stats(ts_lua_ctx_stats *stats);
- 
+
  int
  ts_lua_create_vm(ts_lua_main_ctx *arr, int n)
 @@ -58,6 +60,7 @@ ts_lua_create_vm(ts_lua_main_ctx *arr, i
@@ -554,15 +556,15 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
      arr[i].mutexp = TSMutexCreate();
 +    arr[i].stats  = ts_lua_create_ctx_stats();
    }
- 
+
    return 0;
-@@ -68,11 +71,26 @@ ts_lua_destroy_vm(ts_lua_main_ctx *arr, 
+@@ -68,11 +71,26 @@ ts_lua_destroy_vm(ts_lua_main_ctx *arr,
  {
    int i;
    lua_State *L;
 +  TSMutex mutexp;
 +  ts_lua_ctx_stats *stats;
- 
+
    for (i = 0; i < n; i++) {
      L = arr[i].lua;
 -    if (L)
@@ -582,12 +584,12 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +      arr[i].stats = NULL;
 +    }
    }
- 
+
    return;
 @@ -98,6 +116,29 @@ ts_lua_new_state()
    return L;
  }
- 
+
 +ts_lua_ctx_stats *
 +ts_lua_create_ctx_stats()
 +{
@@ -617,7 +619,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 @@ -495,6 +536,17 @@ ts_lua_create_async_ctx(lua_State *L, ts
    crt->lua  = l;
    crt->ref  = luaL_ref(L, LUA_REGISTRYINDEX);
- 
+
 +  // update thread stats
 +  ts_lua_main_ctx *const main_ctx = crt->mctx;
 +  ts_lua_ctx_stats *const stats   = main_ctx->stats;
@@ -633,9 +635,9 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
    for (i = 2; i < n; i++) {
      lua_pushvalue(L, i + 1);
 @@ -512,6 +564,14 @@ ts_lua_destroy_async_ctx(ts_lua_http_ctx
- 
+
    ci = &http_ctx->cinfo;
- 
+
 +  // update thread stats
 +  ts_lua_main_ctx *const main_ctx = ci->routine.mctx;
 +  ts_lua_ctx_stats *const stats   = main_ctx->stats;
@@ -650,7 +652,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 @@ -574,6 +634,16 @@ ts_lua_create_http_ctx(ts_lua_main_ctx *
    crt->lua  = l;
    crt->mctx = main_ctx;
- 
+
 +  // update thread stats
 +  ts_lua_ctx_stats *const stats = main_ctx->stats;
 +
@@ -662,12 +664,12 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +  TSMutexUnlock(stats->mutexp);
 +
    http_ctx->instance_conf = conf;
- 
+
    ts_lua_set_http_ctx(l, http_ctx);
-@@ -617,6 +687,14 @@ ts_lua_destroy_http_ctx(ts_lua_http_ctx 
+@@ -617,6 +687,14 @@ ts_lua_destroy_http_ctx(ts_lua_http_ctx
      TSMBufferDestroy(http_ctx->cached_response_bufp);
    }
- 
+
 +  // update thread stats
 +  ts_lua_main_ctx *const main_ctx = ci->routine.mctx;
 +  ts_lua_ctx_stats *const stats   = main_ctx->stats;
@@ -681,21 +683,21 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
  }
 @@ -800,6 +878,7 @@ ts_lua_http_cont_handler(TSCont contp, T
    rc = ret = 0;
- 
+
    TSMutexLock(main_ctx->mutexp);
 +
    ts_lua_set_cont_info(L, ci);
- 
+
    switch (event) {
 @@ -945,8 +1024,23 @@ ts_lua_http_cont_handler(TSCont contp, T
      break;
    }
- 
+
 +  // current memory in use by this state
 +  int const gc_kb = lua_getgccount(L);
 +
    TSMutexUnlock(main_ctx->mutexp);
- 
+
 +  // collect state memory stats
 +  ts_lua_ctx_stats *const stats = main_ctx->stats;
 +
@@ -710,7 +712,7 @@ Subject: [PATCH] code and documentation for lua states configuration and stats
 +
    if (rc == 0) {
      TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
- 
+
 --- /dev/null
 +++ b/tests/gold_tests/pluginTest/lua/gold/lifecycle.stderr.gold
 @@ -0,0 +1,6 @@

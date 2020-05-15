@@ -1,3 +1,12 @@
+trafficserver (8.0.7-1wm8) buster-wikimedia; urgency=medium
+
+  * Fix 0059-tslua-states-and-stats.patch. This patch assumes that
+    TSContScheduleOnPool is available and that's been introduced
+    on https://github.com/apache/trafficserver/pull/6602. Replace
+    TSContScheduleOnPool calls with TSContSchedule()
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Fri, 15 May 2020 14:12:10 +0000
+
 trafficserver (8.0.7-1wm7) buster-wikimedia; urgency=medium
 
   * Backports the following patches:
