@@ -1,3 +1,11 @@
+trafficserver (8.0.7-1wm7) buster-wikimedia; urgency=medium
+
+  * Backports the following patches:
+    * https://github.com/apache/trafficserver/pull/6780
+    * https://github.com/apache/trafficserver/pull/6571
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Fri, 15 May 2020 08:55:30 +0000
+
 trafficserver (8.0.7-1wm6) buster-wikimedia; urgency=medium
 
   * Backports the following patches:
