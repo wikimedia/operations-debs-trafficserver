@@ -1,3 +1,12 @@
+trafficserver (8.0.7-1wm10) buster-wikimedia; urgency=medium
+
+  * Backport the following patches:
+    * https://github.com/apache/trafficserver/pull/4924
+    * https://github.com/apache/trafficserver/pull/6802
+    * https://github.com/apache/trafficserver/pull/6817
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Wed, 20 May 2020 14:03:59 +0000
+
 trafficserver (8.0.7-1wm9) buster-wikimedia; urgency=medium
 
   * Drop 0059-tslua-states-and-stats.patch.
