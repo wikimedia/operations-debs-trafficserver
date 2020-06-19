@@ -16,7 +16,5 @@
  * limitations under the License.
  */
 
-#pragma once
-
 #include <stddef.h>
 const char *get_cookie_value(const char **cookie, size_t *cookie_ct, const char *key, size_t *ct);

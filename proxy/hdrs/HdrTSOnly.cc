@@ -100,21 +100,13 @@ HTTPHdr::parse_resp(HTTPParser *parser, IOBufferReader *r, int *bytes_used, bool
 
   do {
     int64_t b_avail = r->block_read_avail();
-    tmp = start = r->start();
 
-    // No data currently available.
-    if (b_avail <= 0) {
-      if (eof == false) { // more data may arrive later, return CONTINUE state.
-        break;
-      } else if (nullptr == start) {
-        // EOF on empty MIOBuffer - that's a fail, don't bother with parsing.
-        // (otherwise will attempt to attach_block a non-existent block)
-        state = PARSE_RESULT_ERROR;
-        break;
-      }
+    if (b_avail <= 0 && eof == false) {
+      break;
     }
 
-    end = start + b_avail;
+    tmp = start = r->start();
+    end         = start + b_avail;
 
     int heap_slot = m_heap->attach_block(r->get_current_block(), start);
 

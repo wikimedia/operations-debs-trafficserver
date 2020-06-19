@@ -350,13 +350,6 @@ find_server_and_update_current_info(HttpTransact::State *s)
     return HttpTransact::HOST_NONE;
 
   case PARENT_DIRECT:
-    // if the configuration does not allow the origin to be dns'd
-    // we're unable to go direct to the origin.
-    if (s->http_config_param->no_dns_forward_to_parent) {
-      Warning("no available parents and the config proxy.config.http.no_dns_just_forward_to_parent, prevents origin lookups.");
-      s->parent_result.result = PARENT_FAIL;
-      return HttpTransact::HOST_NONE;
-    }
   /* fall through */
   default:
     update_current_info(&s->current, &s->server_info, HttpTransact::ORIGIN_SERVER, (s->current.attempts)++);
@@ -1280,12 +1273,12 @@ HttpTransact::HandleRequest(State *s)
     if (s->txn_conf->cache_http) {
       TRANSACT_RETURN(SM_ACTION_CACHE_LOOKUP, nullptr);
     } else {
-      return CallOSDNSLookup(s);
+      TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup); // effectively s->force_dns
     }
   }
 
   if (s->force_dns) {
-    return CallOSDNSLookup(s);
+    TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup); // After handling the request, DNS is done.
   } else {
     // After the requested is properly handled No need of requesting the DNS directly check the ACLs
     // if the request is authorized
@@ -1429,7 +1422,7 @@ HttpTransact::PPDNSLookup(State *s)
         TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, PPDNSLookup);
       } else if (s->parent_result.result == PARENT_DIRECT && s->http_config_param->no_dns_forward_to_parent != 1) {
         // We ran out of parents but parent configuration allows us to go to Origin Server directly
-        return CallOSDNSLookup(s);
+        TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
       } else {
         // We could be out of parents here if all the parents failed DNS lookup
         ink_assert(s->current.request_to == HOST_NONE);
@@ -1584,7 +1577,7 @@ HttpTransact::OSDNSLookup(State *s)
     case RETRY_EXPANDED_NAME:
       // expansion successful, do a dns lookup on expanded name
       HTTP_RELEASE_ASSERT(s->dns_info.attempts < max_dns_lookups);
-      return CallOSDNSLookup(s);
+      TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
       break;
     case EXPANSION_NOT_ALLOWED:
     case EXPANSION_FAILED:
@@ -2362,22 +2355,7 @@ HttpTransact::HandleCacheOpenReadHitFreshness(State *s)
 void
 HttpTransact::CallOSDNSLookup(State *s)
 {
-  TxnDebug("http", "[HttpTransact::callos] %s ", s->server_info.name);
-  HostStatus &pstatus = HostStatus::instance();
-  HostStatRec *hst    = pstatus.getHostStatus(s->server_info.name);
-  if (hst && hst->status == HostStatus_t::HOST_STATUS_DOWN) {
-    TxnDebug("http", "[HttpTransact::callos] %d ", s->cache_lookup_result);
-    s->current.state = OUTBOUND_CONGESTION;
-    if (s->cache_lookup_result == CACHE_LOOKUP_HIT_STALE || s->cache_lookup_result == CACHE_LOOKUP_HIT_WARNING ||
-        s->cache_lookup_result == CACHE_LOOKUP_HIT_FRESH) {
-      s->cache_info.action = CACHE_DO_SERVE;
-    } else {
-      s->cache_info.action = CACHE_DO_NO_ACTION;
-    }
-    handle_server_connection_not_open(s);
-  } else {
-    TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
-  }
+  TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2644,7 +2622,7 @@ HttpTransact::HandleCacheOpenReadHit(State *s)
 
             TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, PPDNSLookup);
           } else if (s->current.request_to == ORIGIN_SERVER) {
-            return CallOSDNSLookup(s);
+            TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
           } else {
             handle_parent_died(s);
             return;
@@ -2812,7 +2790,8 @@ HttpTransact::build_response_from_cache(State *s, HTTPWarningCode warning_code)
           if (s->force_dns) {
             HandleCacheOpenReadMiss(s); // DNS is already completed no need of doing DNS
           } else {
-            CallOSDNSLookup(s);
+            TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP,
+                            OSDNSLookup); // DNS not done before need to be done now as we are connecting to OS
           }
           return;
         }
@@ -2906,6 +2885,7 @@ HttpTransact::handle_cache_write_lock(State *s)
       }
 
       TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, nullptr);
+      return;
     default:
       s->cache_info.write_status = CACHE_WRITE_LOCK_MISS;
       remove_ims                 = true;
@@ -2913,25 +2893,14 @@ HttpTransact::handle_cache_write_lock(State *s)
     }
     break;
   case CACHE_WL_READ_RETRY:
-    s->request_sent_time      = UNDEFINED_TIME;
-    s->response_received_time = UNDEFINED_TIME;
-    s->cache_info.action      = CACHE_DO_LOOKUP;
-    if (!s->cache_info.object_read) {
-      //  Write failed and read retry triggered
-      //  Clean up server_request and re-initiate
-      //  Cache Lookup
-      ink_assert(s->cache_open_write_fail_action == HttpTransact::CACHE_WL_FAIL_ACTION_READ_RETRY);
-      s->cache_info.write_status = CACHE_WRITE_LOCK_MISS;
-      StateMachineAction_t next;
-      next           = SM_ACTION_CACHE_LOOKUP;
-      s->next_action = next;
-      s->hdr_info.server_request.destroy();
-      TRANSACT_RETURN(next, nullptr);
-    }
     //  Write failed but retried and got a vector to read
     //  We need to clean up our state so that transact does
     //  not assert later on.  Then handle the open read hit
-    remove_ims = true;
+    //
+    s->request_sent_time      = UNDEFINED_TIME;
+    s->response_received_time = UNDEFINED_TIME;
+    s->cache_info.action      = CACHE_DO_LOOKUP;
+    remove_ims                = true;
     SET_VIA_STRING(VIA_DETAIL_CACHE_TYPE, VIA_DETAIL_CACHE);
     break;
   case CACHE_WL_INIT:
@@ -3060,7 +3029,8 @@ HttpTransact::HandleCacheOpenReadMiss(State *s)
       ink_release_assert(s->parent_result.result == PARENT_DIRECT || s->current.request_to == PARENT_PROXY ||
                          s->http_config_param->no_dns_forward_to_parent != 0);
       if (s->parent_result.result == PARENT_DIRECT && s->http_config_param->no_dns_forward_to_parent != 1) {
-        return CallOSDNSLookup(s);
+        TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
+        return;
       }
       if (s->current.request_to == PARENT_PROXY) {
         TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, HttpTransact::PPDNSLookup);
@@ -3537,7 +3507,7 @@ HttpTransact::handle_response_from_server(State *s)
         // Because this is a transparent connection, we can't switch address
         // families - that is locked in by the client source address.
         s->state_machine->ua_txn->set_host_res_style(ats_host_res_match(&s->current.server->dst_addr.sa));
-        return CallOSDNSLookup(s);
+        TRANSACT_RETURN(SM_ACTION_DNS_LOOKUP, OSDNSLookup);
       } else if ((s->dns_info.srv_lookup_success || s->host_db_info.is_rr_elt()) &&
                  (s->txn_conf->connect_attempts_rr_retries > 0) &&
                  (s->current.attempts % s->txn_conf->connect_attempts_rr_retries == 0)) {
@@ -3686,7 +3656,6 @@ HttpTransact::handle_server_connection_not_open(State *s)
 
   switch (s->cache_info.action) {
   case CACHE_DO_UPDATE:
-  case CACHE_DO_SERVE:
     serve_from_cache = is_stale_cache_response_returnable(s);
     break;
 
@@ -3700,6 +3669,8 @@ HttpTransact::handle_server_connection_not_open(State *s)
     break;
 
   case CACHE_DO_LOOKUP:
+  /* fall through */
+  case CACHE_DO_SERVE:
     ink_assert(!("Why server response? Should have been a cache operation"));
     break;
 
@@ -3722,7 +3693,7 @@ HttpTransact::handle_server_connection_not_open(State *s)
 
   if (serve_from_cache) {
     ink_assert(s->cache_info.object_read != nullptr);
-    ink_assert(s->cache_info.action == CACHE_DO_UPDATE || s->cache_info.action == CACHE_DO_SERVE);
+    ink_assert(s->cache_info.action == CACHE_DO_UPDATE);
     ink_assert(s->internal_msg_buffer == nullptr);
 
     TxnDebug("http_trans", "[hscno] serving stale doc to client");
@@ -5480,7 +5451,7 @@ HttpTransact::initialize_state_variables_from_request(State *s, HTTPHdr *obsolet
   }
 
   // If this is an internal request, never keep alive
-  if (!s->txn_conf->keep_alive_enabled_in) {
+  if (!s->txn_conf->keep_alive_enabled_in || (s->state_machine->ua_txn && s->state_machine->ua_txn->ignore_keep_alive())) {
     s->client_info.keep_alive = HTTP_NO_KEEPALIVE;
   } else if (vc && vc->get_is_internal_request()) {
     // Following the trail of JIRAs back from TS-4960, there can be issues with
@@ -6833,10 +6804,10 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     // to the client to keep the connection alive.
     // Insert a Transfer-Encoding header in the response if necessary.
 
-    // check that the client protocol is HTTP/1.1 and the conf allows chunking or
-    // the client protocol doesn't support chunked transfer coding (i.e. HTTP/1.0, HTTP/2)
-    if (s->state_machine->ua_txn && s->state_machine->ua_txn->is_chunked_encoding_supported() &&
-        s->client_info.http_version == HTTPVersion(1, 1) && s->txn_conf->chunking_enabled == 1 &&
+    // check that the client is HTTP 1.1 and the conf allows chunking or the client
+    // protocol unchunks before returning to the user agent (i.e. is http/2)
+    if (s->client_info.http_version == HTTPVersion(1, 1) && s->txn_conf->chunking_enabled == 1 &&
+        s->state_machine->ua_txn->is_chunked_encoding_supported() &&
         // if we're not sending a body, don't set a chunked header regardless of server response
         !is_response_body_precluded(s->hdr_info.client_response.status_get(), s->method) &&
         // we do not need chunked encoding for internal error messages
@@ -6868,13 +6839,12 @@ HttpTransact::handle_response_keep_alive_headers(State *s, HTTPVersion ver, HTTP
     }
 
     // Close the connection if client_info is not keep-alive.
-    // Otherwise, if we cannot trust the content length, we will close the connection
-    // unless we are going to use chunked encoding on HTTP/1.1 or the client issued a PUSH request
+    // Otherwise, if we cannot trust the content length and the client process chunked encoding, we will close the connection
+    // unless we are going to use chunked encoding or the client issued
+    // a PUSH request
     if (s->client_info.keep_alive != HTTP_KEEPALIVE) {
       ka_action = KA_DISABLED;
-    } else if (s->state_machine->client_protocol && (strncmp(s->state_machine->client_protocol, "http/2", 6) == 0)) {
-      ka_action = KA_CONNECTION;
-    } else if (s->hdr_info.trust_response_cl == false &&
+    } else if (s->hdr_info.trust_response_cl == false && s->state_machine->ua_txn->is_chunked_encoding_supported() &&
                !(s->client_info.receive_chunked_response == true ||
                  (s->method == HTTP_WKSIDX_PUSH && s->client_info.keep_alive == HTTP_KEEPALIVE))) {
       ka_action = KA_CLOSE;

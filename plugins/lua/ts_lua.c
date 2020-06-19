@@ -63,14 +63,11 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
 TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_size)
 {
+  int fn;
   int ret;
-  char script[TS_LUA_MAX_SCRIPT_FNAME_LENGTH];
-  char *inline_script                  = "";
-  int fn                               = 0;
   int states                           = TS_LUA_MAX_STATE_COUNT;
   static const struct option longopt[] = {
     {"states", required_argument, 0, 's'},
-    {"inline", required_argument, 0, 'i'},
     {0, 0, 0, 0},
   };
 
@@ -87,8 +84,6 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       TSDebug(TS_LUA_DEBUG_TAG, "[%s] setting number of lua VM [%d]", __FUNCTION__, states);
       // set state
       break;
-    case 'i':
-      inline_script = optarg;
     }
 
     if (opt == -1) {
@@ -102,24 +97,17 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
     return TS_ERROR;
   }
 
-  if (argc - optind > 0) {
-    fn = 1;
-    if (argv[optind][0] == '/') {
-      snprintf(script, sizeof(script), "%s", argv[optind]);
-    } else {
-      snprintf(script, sizeof(script), "%s/%s", TSConfigDirGet(), argv[optind]);
-    }
-  }
-
-  if (strlen(inline_script) == 0 && argc - optind < 1) {
+  if (argc - optind < 1) {
     strncpy(errbuf, "[TSRemapNewInstance] - lua script file or string is required !!", errbuf_size - 1);
     errbuf[errbuf_size - 1] = '\0';
     return TS_ERROR;
   }
 
-  if (strlen(script) >= TS_LUA_MAX_SCRIPT_FNAME_LENGTH - 16) {
-    strncpy(errbuf, "[TSRemapNewInstance] - lua script file name too long !!", errbuf_size - 1);
-    errbuf[errbuf_size - 1] = '\0';
+  fn = 1;
+
+  if (argv[optind][0] != '/') {
+    fn = 0;
+  } else if (strlen(argv[optind]) >= TS_LUA_MAX_SCRIPT_FNAME_LENGTH - 16) {
     return TS_ERROR;
   }
 
@@ -128,11 +116,10 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
   // check to make sure it is a lua file and there is no parameter for the lua file
   if (fn && (argc - optind < 2)) {
     TSDebug(TS_LUA_DEBUG_TAG, "[%s] checking if script has been registered", __FUNCTION__);
-
+    char script[TS_LUA_MAX_SCRIPT_FNAME_LENGTH];
+    snprintf(script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[optind]);
     // we only need to check the first lua VM for script registration
-    TSMutexLock(ts_lua_main_ctx_array[0].mutexp);
     conf = ts_lua_script_registered(ts_lua_main_ctx_array[0].lua, script);
-    TSMutexUnlock(ts_lua_main_ctx_array[0].mutexp);
   }
 
   if (!conf) {
@@ -151,9 +138,9 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
     conf->init_func = 0;
 
     if (fn) {
-      snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", script);
+      snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[optind]);
     } else {
-      conf->content = inline_script;
+      conf->content = argv[optind];
     }
 
     ts_lua_init_instance(conf);
@@ -167,9 +154,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
     // register the script only if it is from a file and has no __init__ function
     if (fn && !conf->init_func) {
       // we only need to register the script for the first lua VM
-      TSMutexLock(ts_lua_main_ctx_array[0].mutexp);
       ts_lua_script_register(ts_lua_main_ctx_array[0].lua, conf->script, conf);
-      TSMutexUnlock(ts_lua_main_ctx_array[0].mutexp);
     }
   }
 
@@ -523,11 +508,7 @@ TSPluginInit(int argc, const char *argv[])
   conf->remap  = 0;
   conf->states = states;
 
-  if (argv[optind][0] == '/') {
-    snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[optind]);
-  } else {
-    snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s/%s", TSConfigDirGet(), argv[optind]);
-  }
+  snprintf(conf->script, TS_LUA_MAX_SCRIPT_FNAME_LENGTH, "%s", argv[optind]);
 
   ts_lua_init_instance(conf);
 

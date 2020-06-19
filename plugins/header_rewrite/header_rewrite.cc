@@ -17,7 +17,6 @@
 */
 #include <fstream>
 #include <string>
-#include <stdexcept>
 
 #include "ts/ts.h"
 #include "ts/remap.h"
@@ -221,22 +220,16 @@ RulesConfig::parse_config(const std::string &fname, TSHttpHookID default_hook)
       }
     }
 
-    // This is pretty ugly, but it turns out, some conditions / operators can fail (regexes), which didn't use to be the case.
-    // Long term, maybe we need to percolate all this up through add_condition() / add_operator() rather than this big ugly try.
-    try {
-      if (p.is_cond()) {
-        if (!rule->add_condition(p, filename.c_str(), lineno)) {
-          throw std::runtime_error("add_condition() failed");
-        }
-      } else {
-        if (!rule->add_operator(p, filename.c_str(), lineno)) {
-          throw std::runtime_error("add_operator() failed");
-        }
+    if (p.is_cond()) {
+      if (!rule->add_condition(p, filename.c_str(), lineno)) {
+        delete rule;
+        return false;
       }
-    } catch (std::runtime_error &e) {
-      TSError("[%s] header_rewrite configuration exception: %s", PLUGIN_NAME, e.what());
-      delete rule;
-      return false;
+    } else {
+      if (!rule->add_operator(p, filename.c_str(), lineno)) {
+        delete rule;
+        return false;
+      }
     }
   }
 
@@ -477,6 +470,6 @@ TSRemapDoRemap(void *ih, TSHttpTxn rh, TSRemapRequestInfo *rri)
     rule = rule->next;
   }
 
-  TSDebug(PLUGIN_NAME_DBG, "Returning from TSRemapDoRemap with status: %d", rval);
+  TSDebug(PLUGIN_NAME_DBG, "Returing from TSRemapDoRemap with status: %d", rval);
   return rval;
 }

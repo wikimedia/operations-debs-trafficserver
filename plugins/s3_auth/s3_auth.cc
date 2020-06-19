@@ -202,7 +202,9 @@ public:
       }
     } else {
       /* 4 == _version */
-      // NOTE: virtual host not used with AWS auth v4, parameter ignored
+      if (_virt_host_modified) {
+        TSError("[%s] virtual host not used with AWS auth v4, parameter ignored", PLUGIN_NAME);
+      }
     }
     return true;
   }

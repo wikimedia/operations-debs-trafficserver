@@ -21,10 +21,8 @@
   limitations under the License.
 
  */
-#pragma once
 
-#include <string_view>
-#include <optional>
+#pragma once
 
 #include "tscore/ink_inet.h"
 #include "I_Action.h"
@@ -34,7 +32,7 @@
 #include "I_IOBuffer.h"
 #include "I_Socks.h"
 #include "ts/apidefs.h"
-#include "YamlSNIConfig.h"
+#include <string_view>
 #include "tscpp/util/TextView.h"
 #include "tscore/IpMap.h"
 
@@ -639,9 +637,6 @@ public:
   /** Set remote sock addr struct. */
   virtual void set_remote_addr(const sockaddr *) = 0;
 
-  /** Set the MPTCP state for this connection */
-  virtual void set_mptcp_state() = 0;
-
   // for InkAPI
   bool
   get_is_internal_request() const
@@ -661,14 +656,6 @@ public:
   {
     return is_transparent;
   }
-
-  /// Get the MPTCP state of the VC.
-  std::optional<bool>
-  get_mptcp_state() const
-  {
-    return mptcp_state;
-  }
-
   /// Set the transparency state.
   void
   set_is_transparent(bool state = true)
@@ -824,8 +811,6 @@ protected:
   bool is_transparent;
   /// Set if proxy protocol is enabled
   bool is_proxy_protocol;
-  /// This is essentially a tri-state, we leave it undefined to mean no MPTCP support
-  std::optional<bool> mptcp_state;
   /// Set if the next write IO that empties the write buffer should generate an event.
   int write_buffer_empty_event;
   /// NetVConnection Context.

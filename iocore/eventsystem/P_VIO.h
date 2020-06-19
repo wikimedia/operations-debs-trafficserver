@@ -27,45 +27,44 @@
 TS_INLINE
 VIO::VIO(int aop) : cont(nullptr), nbytes(0), ndone(0), op(aop), buffer(), vc_server(nullptr), mutex(nullptr) {}
 
+/////////////////////////////////////////////////////////////
+//
+//  VIO::VIO()
+//
+/////////////////////////////////////////////////////////////
 TS_INLINE
 VIO::VIO() : cont(nullptr), nbytes(0), ndone(0), op(VIO::NONE), buffer(), vc_server(nullptr), mutex(nullptr) {}
 
 TS_INLINE Continuation *
-VIO::get_continuation() const
+VIO::get_continuation()
 {
   return cont;
 }
-
 TS_INLINE void
 VIO::set_writer(MIOBuffer *writer)
 {
   buffer.writer_for(writer);
 }
-
 TS_INLINE void
 VIO::set_reader(IOBufferReader *reader)
 {
   buffer.reader_for(reader);
 }
-
 TS_INLINE MIOBuffer *
-VIO::get_writer() const
+VIO::get_writer()
 {
   return buffer.writer();
 }
-
 TS_INLINE IOBufferReader *
-VIO::get_reader() const
+VIO::get_reader()
 {
   return (buffer.reader());
 }
-
 TS_INLINE int64_t
 VIO::ntodo() const
 {
   return nbytes - ndone;
 }
-
 TS_INLINE void
 VIO::done()
 {
@@ -76,6 +75,11 @@ VIO::done()
   }
 }
 
+/////////////////////////////////////////////////////////////
+//
+//  VIO::set_continuation()
+//
+/////////////////////////////////////////////////////////////
 TS_INLINE void
 VIO::set_continuation(Continuation *acont)
 {
@@ -92,6 +96,11 @@ VIO::set_continuation(Continuation *acont)
   return;
 }
 
+/////////////////////////////////////////////////////////////
+//
+//  VIO::reenable()
+//
+/////////////////////////////////////////////////////////////
 TS_INLINE void
 VIO::reenable()
 {
@@ -101,6 +110,11 @@ VIO::reenable()
   }
 }
 
+/////////////////////////////////////////////////////////////
+//
+//  VIO::reenable_re()
+//
+/////////////////////////////////////////////////////////////
 TS_INLINE void
 VIO::reenable_re()
 {
@@ -117,7 +131,7 @@ VIO::disable()
 }
 
 TS_INLINE bool
-VIO::is_disabled() const
+VIO::is_disabled()
 {
   return this->_disabled;
 }

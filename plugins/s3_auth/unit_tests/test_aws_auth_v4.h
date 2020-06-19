@@ -30,7 +30,7 @@
 class HeaderIterator
 {
 public:
-  HeaderIterator(const HeaderMultiMap::iterator &it) { _it = it; }
+  HeaderIterator(const StringMap::iterator &it) { _it = it; }
   HeaderIterator(const HeaderIterator &i) { _it = i._it; }
   ~HeaderIterator() {}
   HeaderIterator &
@@ -69,7 +69,7 @@ public:
     *len = _it->second.length();
     return _it->second.c_str();
   }
-  HeaderMultiMap::iterator _it;
+  StringMap::iterator _it;
 };
 
 /* Define a mock API to be used in unit-tests */
@@ -115,7 +115,7 @@ public:
   String _host;
   String _path;
   String _query;
-  HeaderMultiMap _headers;
+  StringMap _headers;
 };
 
 /* Expose the following methods only to the unit tests */

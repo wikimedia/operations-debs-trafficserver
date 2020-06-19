@@ -375,13 +375,6 @@ write_to_net_io(NetHandler *nh, UnixNetVConnection *vc, EThread *thread)
   // This function will always return true unless
   // vc is an SSLNetVConnection.
   if (!vc->getSSLHandShakeComplete()) {
-    if (vc->trackFirstHandshake()) {
-      // Send the write ready on up to the state machine
-      write_signal_and_update(VC_EVENT_WRITE_READY, vc);
-      vc->write.triggered = 0;
-      nh->write_ready_list.remove(vc);
-    }
-
     int err, ret;
 
     if (vc->get_context() == NET_VCONNECTION_OUT) {
@@ -1144,7 +1137,7 @@ UnixNetVConnection::acceptEvent(int event, Event *e)
 int
 UnixNetVConnection::mainEvent(int event, Event *e)
 {
-  ink_assert(event == VC_EVENT_ACTIVE_TIMEOUT || event == VC_EVENT_INACTIVITY_TIMEOUT);
+  ink_assert(event == EVENT_IMMEDIATE || event == EVENT_INTERVAL);
   ink_assert(thread == this_ethread());
 
   MUTEX_TRY_LOCK(hlock, get_NetHandler(thread)->mutex, e->ethread);
@@ -1168,18 +1161,18 @@ UnixNetVConnection::mainEvent(int event, Event *e)
   Event *t                      = nullptr;
   Event **signal_timeout        = &t;
 
-  switch (event) {
-  case VC_EVENT_INACTIVITY_TIMEOUT:
+  if (event == EVENT_IMMEDIATE) {
+    /* BZ 49408 */
+    // ink_assert(inactivity_timeout_in);
+    // ink_assert(next_inactivity_timeout_at < Thread::get_hrtime());
+    if (!inactivity_timeout_in || next_inactivity_timeout_at > Thread::get_hrtime()) {
+      return EVENT_CONT;
+    }
     signal_event      = VC_EVENT_INACTIVITY_TIMEOUT;
     signal_timeout_at = &next_inactivity_timeout_at;
-    break;
-  case VC_EVENT_ACTIVE_TIMEOUT:
+  } else {
     signal_event      = VC_EVENT_ACTIVE_TIMEOUT;
     signal_timeout_at = &next_activity_timeout_at;
-    break;
-  default:
-    ink_release_assert(!"BUG: unexpected event in UnixNetVConnection::mainEvent");
-    break;
   }
 
   *signal_timeout    = nullptr;
