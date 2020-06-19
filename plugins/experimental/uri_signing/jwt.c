@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-#include "common.h"
+#include "uri_signing.h"
 #include "jwt.h"
 #include "match.h"
-#include "normalize.h"
+#include "ts/ts.h"
 #include <jansson.h>
 #include <cjose/cjose.h>
 #include <math.h>
@@ -55,18 +55,14 @@ parse_jwt(json_t *raw)
   jwt->raw        = raw;
   jwt->iss        = json_string_value(json_object_get(raw, "iss"));
   jwt->sub        = json_string_value(json_object_get(raw, "sub"));
-  jwt->aud        = json_object_get(raw, "aud");
+  jwt->aud        = json_string_value(json_object_get(raw, "aud"));
   jwt->exp        = parse_number(json_object_get(raw, "exp"));
   jwt->nbf        = parse_number(json_object_get(raw, "nbf"));
   jwt->iat        = parse_number(json_object_get(raw, "iat"));
   jwt->jti        = json_string_value(json_object_get(raw, "jti"));
   jwt->cdniv      = parse_integer_default(json_object_get(raw, "cdniv"), 1);
-  jwt->cdnicrit   = json_string_value(json_object_get(raw, "cdnicrit"));
-  jwt->cdniip     = json_string_value(json_object_get(raw, "cdniip"));
-  jwt->cdniuc     = json_string_value(json_object_get(raw, "cdniuc"));
   jwt->cdniets    = json_integer_value(json_object_get(raw, "cdniets"));
   jwt->cdnistt    = json_integer_value(json_object_get(raw, "cdnistt"));
-  jwt->cdnistd    = parse_integer_default(json_object_get(raw, "cdnistd"), 0);
   return jwt;
 }
 
@@ -76,8 +72,6 @@ jwt_delete(struct jwt *jwt)
   if (!jwt) {
     return;
   }
-
-  json_decref(jwt->aud);
   json_decref(jwt->raw);
   free(jwt);
 }
@@ -99,6 +93,12 @@ unsupported_string_claim(const char *str)
 }
 
 bool
+unsupported_date_claim(double t)
+{
+  return isnan(t);
+}
+
+bool
 jwt_validate(struct jwt *jwt)
 {
   if (!jwt) {
@@ -111,18 +111,23 @@ jwt_validate(struct jwt *jwt)
     return false;
   }
 
+  if (!jwt->sub) { /* Mandatory claim. Will be validated after key verification. */
+    PluginDebug("Initial JWT Failure: missing sub");
+    return false;
+  }
+
+  if (!unsupported_string_claim(jwt->aud)) {
+    PluginDebug("Initial JWT Failure: missing sub");
+    return false;
+  }
+
   if (now() > jwt->exp) {
     PluginDebug("Initial JWT Failure: expired token");
     return false;
   }
 
-  if (now() < jwt->nbf) {
-    PluginDebug("Initial JWT Failure: nbf claim violated");
-    return false;
-  }
-
-  if (!unsupported_string_claim(jwt->cdniip)) {
-    PluginDebug("Initial JWT Failure: cdniip unsupported");
+  if (!unsupported_date_claim(jwt->nbf)) {
+    PluginDebug("Initial JWT Failure: nbf unsupported");
     return false;
   }
 
@@ -131,18 +136,8 @@ jwt_validate(struct jwt *jwt)
     return false;
   }
 
-  if (!unsupported_string_claim(jwt->cdnicrit)) {
-    PluginDebug("Initial JWT Failure: cdnicrit unsupported");
-    return false;
-  }
-
   if (jwt->cdnistt < 0 || jwt->cdnistt > 1) {
     PluginDebug("Initial JWT Failure: unsupported value for cdnistt: %d", jwt->cdnistt);
-    return false;
-  }
-
-  if (jwt->cdnistd != 0) {
-    PluginDebug("Initial JWT Failure: unsupported value for cdnistd: %d", jwt->cdnistd);
     return false;
   }
 
@@ -150,104 +145,48 @@ jwt_validate(struct jwt *jwt)
 }
 
 bool
-jwt_check_aud(json_t *aud, const char *id)
+jwt_check_uri(const char *sub, const char *uri)
 {
-  if (!aud) {
-    return true;
-  }
-  if (!id) {
-    return false;
-  }
-  /* If aud is a string, do a simple string comparison */
-  const char *aud_str = json_string_value(aud);
-  if (aud_str) {
-    PluginDebug("Checking aud %s agaisnt token aud string \"%s\"", id, aud_str);
-    /* Both strings will be null terminated per jansson docs */
-    if (strcmp(aud_str, id) == 0) {
-      return true;
-    }
-    return false;
-  }
-  PluginDebug("Checking aud %s agaisnt token aud array", id);
-  /* If aud is an array, check all items */
-  if (json_is_array(aud)) {
-    size_t index;
-    json_t *aud_item;
-    json_array_foreach(aud, index, aud_item)
-    {
-      aud_str = json_string_value(aud_item);
-      if (aud_str) {
-        if (strcmp(aud_str, id) == 0) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
+  static const char CONT_URI_STR[]         = "uri";
+  static const char CONT_URI_PATTERN_STR[] = "uri-pattern";
+  static const char CONT_URI_REGEX_STR[]   = "uri-regex";
 
-bool
-jwt_check_uri(const char *cdniuc, const char *uri)
-{
-  static const char CONT_URI_HASH_STR[]  = "hash";
-  static const char CONT_URI_REGEX_STR[] = "regex";
-
-  /* If cdniuc is not provided, skip uri check */
-  if (!cdniuc || !*cdniuc) {
-    return true;
-  }
-
-  if (!uri) {
+  if (!sub || !*sub || !uri) {
     return false;
   }
 
-  /* Normalize the URI */
-  int uri_ct  = strlen(uri);
-  int buff_ct = uri_ct + 2;
-  int err;
-  char *normal_uri = (char *)TSmalloc(buff_ct);
-  memset(normal_uri, 0, buff_ct);
-
-  err = normalize_uri(uri, uri_ct, normal_uri, buff_ct);
-
-  if (err) {
-    goto fail_jwt;
-  }
-
-  const char *kind = cdniuc, *container = cdniuc;
+  const char *kind = sub, *container = sub;
   while (*container && *container != ':') {
     ++container;
   }
   if (!*container) {
-    goto fail_jwt;
+    return false;
   }
   ++container;
 
   size_t len = container - kind;
-  bool status;
-  PluginDebug("Comparing with match kind \"%.*s\" on \"%s\" to normalized URI \"%s\"", (int)len - 1, kind, container, normal_uri);
+  PluginDebug("Comparing with match kind \"%.*s\" on \"%s\" to \"%s\"", (int)len - 1, kind, container, uri);
   switch (len) {
-  case sizeof CONT_URI_HASH_STR:
-    if (!strncmp(CONT_URI_HASH_STR, kind, len - 1)) {
-      status = match_hash(container, normal_uri);
-      TSfree(normal_uri);
-      return status;
+  case sizeof CONT_URI_STR:
+    if (!strncmp(CONT_URI_STR, kind, len - 1)) {
+      return !strcmp(container, uri);
     }
-    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_HASH_STR, (int)len - 1, kind);
+    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_STR, (int)len - 1, kind);
+    break;
+  case sizeof CONT_URI_PATTERN_STR:
+    if (!strncmp(CONT_URI_PATTERN_STR, kind, len - 1)) {
+      return match_glob(container, uri);
+    }
+    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_PATTERN_STR, (int)len - 1, kind);
     break;
   case sizeof CONT_URI_REGEX_STR:
     if (!strncmp(CONT_URI_REGEX_STR, kind, len - 1)) {
-      status = match_regex(container, normal_uri);
-      TSfree(normal_uri);
-      return status;
+      return match_regex(container, uri);
     }
     PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_REGEX_STR, (int)len - 1, kind);
     break;
   }
   PluginDebug("Unknown match kind \"%.*s\"", (int)len - 1, kind);
-
-fail_jwt:
-  TSfree(normal_uri);
   return false;
 }
 
@@ -256,14 +195,6 @@ renew_copy_string(json_t *new_json, const char *name, const char *old)
 {
   if (old) {
     json_object_set_new(new_json, name, json_string(old));
-  }
-}
-
-void
-renew_copy_raw(json_t *new_json, const char *name, json_t *old_json)
-{
-  if (old_json) {
-    json_object_set_new(new_json, name, old_json);
   }
 }
 
@@ -299,19 +230,16 @@ renew(struct jwt *jwt, const char *iss, cjose_jwk_t *jwk, const char *alg, const
   json_t *new_json = json_object();
   renew_copy_string(new_json, "iss", iss); /* use issuer of new signing key */
   renew_copy_string(new_json, "sub", jwt->sub);
-  renew_copy_raw(new_json, "aud", jwt->aud);
+  renew_copy_string(new_json, "aud", jwt->aud);
   renew_copy_real(new_json, "exp", now() + jwt->cdniets); /* expire ets seconds hence */
   renew_copy_real(new_json, "nbf", jwt->nbf);
   renew_copy_real(new_json, "iat", now()); /* issued now */
   renew_copy_string(new_json, "jti", jwt->jti);
-  renew_copy_string(new_json, "cdniuc", jwt->cdniuc);
   renew_copy_integer(new_json, "cdniv", jwt->cdniv);
   renew_copy_integer(new_json, "cdniets", jwt->cdniets);
   renew_copy_integer(new_json, "cdnistt", jwt->cdnistt);
-  renew_copy_integer(new_json, "cdnistd", jwt->cdnistd);
 
   char *pt = json_dumps(new_json, JSON_COMPACT);
-  json_decref(new_json);
 
   cjose_header_t *hdr = cjose_header_new(NULL);
   if (!hdr) {

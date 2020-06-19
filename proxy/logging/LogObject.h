@@ -99,7 +99,7 @@ public:
 
   LogObject(const LogFormat *format, const char *log_dir, const char *basename, LogFileFormat file_format, const char *header,
             Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec = 0, int rolling_offset_hr = 0,
-            int rolling_size_mb = 0, bool auto_created = false, int rolling_max_count = 0, bool reopen_after_rolling = false);
+            int rolling_size_mb = 0, bool auto_created = false);
   LogObject(LogObject &);
   ~LogObject() override;
 
@@ -289,11 +289,10 @@ private:
   int m_flush_threads;        // number of flush threads
   int m_rolling_interval_sec; // time interval between rolls
   // 0 means no rolling
-  int m_rolling_offset_hr;     //
-  int m_rolling_size_mb;       // size at which the log file rolls
-  long m_last_roll_time;       // the last time this object rolled its files
-  int m_max_rolled;            // maximum number of rolled logs to be kept, 0 no limit
-  bool m_reopen_after_rolling; // reopen log file after rolling (normally it is just renamed and closed)
+  int m_rolling_offset_hr; //
+  int m_rolling_size_mb;   // size at which the log file rolls
+  long m_last_roll_time;   // the last time this object rolled
+  // its files
 
   head_p m_log_buffer; // current work buffer
   unsigned m_buffer_manager_idx;
@@ -324,7 +323,7 @@ class TextLogObject : public LogObject
 public:
   inkcoreapi TextLogObject(const char *name, const char *log_dir, bool timestamps, const char *header,
                            Log::RollingEnabledValues rolling_enabled, int flush_threads, int rolling_interval_sec,
-                           int rolling_offset_hr, int rolling_size_mb, int max_rolled, bool reopen_after_rolling);
+                           int rolling_offset_hr, int rolling_size_mb);
 
   inkcoreapi int write(const char *format, ...) TS_PRINTFLIKE(2, 3);
   inkcoreapi int va_write(const char *format, va_list ap);
@@ -429,8 +428,7 @@ LogObject::operator==(LogObject &old)
                m_logFile && old.m_logFile && strcmp(m_logFile->get_name(), old.m_logFile->get_name()) == 0) &&
             (m_filter_list == old.m_filter_list) &&
             (m_rolling_interval_sec == old.m_rolling_interval_sec && m_rolling_offset_hr == old.m_rolling_offset_hr &&
-             m_rolling_size_mb == old.m_rolling_size_mb && m_reopen_after_rolling == old.m_reopen_after_rolling &&
-             m_max_rolled == old.m_max_rolled));
+             m_rolling_size_mb == old.m_rolling_size_mb));
   }
   return false;
 }

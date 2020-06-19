@@ -33,9 +33,6 @@ class HTTPHdr;
 
 typedef unsigned Http2StreamId;
 
-constexpr Http2StreamId HTTP2_CONNECTION_CONTROL_STRTEAM = 0;
-constexpr uint8_t HTTP2_FRAME_NO_FLAG                    = 0;
-
 // [RFC 7540] 6.9.2. Initial Flow Control Window Size
 // the flow control window can be come negative so we need to track it with a signed type.
 typedef int32_t Http2WindowSize;
@@ -87,12 +84,6 @@ enum {
   HTTP2_STAT_SESSION_DIE_EOS,
   HTTP2_STAT_SESSION_DIE_ERROR,
   HTTP2_STAT_SESSION_DIE_HIGH_ERROR_RATE,
-  HTTP2_STAT_MAX_SETTINGS_PER_FRAME_EXCEEDED,
-  HTTP2_STAT_MAX_SETTINGS_PER_MINUTE_EXCEEDED,
-  HTTP2_STAT_MAX_SETTINGS_FRAMES_PER_MINUTE_EXCEEDED,
-  HTTP2_STAT_MAX_PING_FRAMES_PER_MINUTE_EXCEEDED,
-  HTTP2_STAT_MAX_PRIORITY_FRAMES_PER_MINUTE_EXCEEDED,
-  HTTP2_STAT_INSUFFICIENT_AVG_WINDOW_UPDATE,
 
   HTTP2_N_STATS // Terminal counter, NOT A STAT INDEX.
 };
@@ -248,7 +239,7 @@ struct Http2FrameHeader {
 // [RFC 7540] 5.4. Error Handling
 struct Http2Error {
   Http2Error(const Http2ErrorClass error_class = Http2ErrorClass::HTTP2_ERROR_CLASS_NONE,
-             const Http2ErrorCode error_code = Http2ErrorCode::HTTP2_ERROR_NO_ERROR, const char *err_msg = "")
+             const Http2ErrorCode error_code = Http2ErrorCode::HTTP2_ERROR_NO_ERROR, const char *err_msg = nullptr)
   {
     cls  = error_class;
     code = error_code;
@@ -305,8 +296,9 @@ struct Http2RstStream {
 
 // [RFC 7540] 6.6 PUSH_PROMISE Format
 struct Http2PushPromise {
-  uint8_t pad_length              = 0;
-  Http2StreamId promised_streamid = 0;
+  Http2PushPromise() : pad_length(0), promised_streamid(0) {}
+  uint8_t pad_length;
+  Http2StreamId promised_streamid;
 };
 
 static inline bool
@@ -324,6 +316,10 @@ http2_is_server_streamid(Http2StreamId streamid)
 bool http2_parse_frame_header(IOVec, Http2FrameHeader &);
 
 bool http2_write_frame_header(const Http2FrameHeader &, IOVec);
+
+bool http2_write_data(const uint8_t *, size_t, const IOVec &);
+
+bool http2_write_headers(const uint8_t *, size_t, const IOVec &);
 
 bool http2_write_rst_stream(uint32_t, IOVec);
 
@@ -389,9 +385,6 @@ public:
   static uint32_t max_ping_frames_per_minute;
   static uint32_t max_priority_frames_per_minute;
   static float min_avg_window_update;
-  static uint32_t con_slow_log_threshold;
-  static uint32_t stream_slow_log_threshold;
-  static uint32_t header_table_size_limit;
 
   static void init();
 };

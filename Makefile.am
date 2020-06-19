@@ -96,9 +96,7 @@ if BUILD_DOCS
 	@cd doc && $(MAKE) $(AM_MAKEFLAGS) install-man
 endif
 
-if OS_LINUX
-    TESTS = tools/check-unused-dependencies
-endif
+TESTS = tools/check-unused-dependencies
 
 rat:
 	java -jar $(top_srcdir)/ci/apache-rat-0.13-SNAPSHOT.jar -E $(top_srcdir)/ci/rat-regex.txt  -d $(top_srcdir)
@@ -129,6 +127,7 @@ clang-format-iocore:
 
 clang-format-lib:
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/include
+	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/cppapi
 	@$(top_srcdir)/tools/clang-format.sh $(top_srcdir)/lib/records
 
 clang-format-mgmt:

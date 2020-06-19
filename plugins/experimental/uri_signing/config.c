@@ -16,10 +16,12 @@
  * limitations under the License.
  */
 
-#include "common.h"
+#include "uri_signing.h"
 #include "config.h"
 #include "timing.h"
 #include "jwt.h"
+
+#include <ts/ts.h>
 
 #include <cjose/cjose.h>
 #include <jansson.h>
@@ -43,8 +45,6 @@ struct config {
   char **issuer_names;
   struct signer signer;
   struct auth_directive *auth_directives;
-  char *id;
-  bool strip_token;
 };
 
 cjose_jwk_t **
@@ -80,18 +80,6 @@ find_key_by_kid(struct config *cfg, const char *issuer, const char *kid)
   return NULL;
 }
 
-const char *
-config_get_id(struct config *cfg)
-{
-  return cfg->id;
-}
-
-bool
-config_strip_token(struct config *cfg)
-{
-  return cfg->strip_token;
-}
-
 struct config *
 config_new(size_t n)
 {
@@ -117,9 +105,6 @@ config_new(size_t n)
   cfg->signer.alg    = NULL;
 
   cfg->auth_directives = NULL;
-  cfg->id              = NULL;
-
-  cfg->strip_token = false;
 
   PluginDebug("New config object created at %p", cfg);
   return cfg;
@@ -132,7 +117,6 @@ config_delete(struct config *cfg)
     return;
   }
   hdestroy_r(cfg->issuers);
-  free(cfg->issuers);
 
   for (cjose_jwk_t ***jwkis = cfg->jwkis; *jwkis; ++jwkis) {
     for (cjose_jwk_t **jwks = *jwkis; *jwks; ++jwks) {
@@ -141,10 +125,6 @@ config_delete(struct config *cfg)
     free(*jwkis);
   }
   free(cfg->jwkis);
-
-  if (cfg->id) {
-    free(cfg->id);
-  }
 
   for (char **name = cfg->issuer_names; *name; ++name) {
     free(*name);
@@ -279,26 +259,10 @@ read_config(const char *path)
       renewal_kid = json_string_value(renewal_kid_json);
     }
 
-    json_t *id_json = json_object_get(jwks, "id");
-    const char *id;
-    if (id_json) {
-      id = json_string_value(id_json);
-      if (id) {
-        cfg->id = malloc(strlen(id) + 1);
-        strcpy(cfg->id, id);
-        PluginDebug("Found Id in the config: %s", cfg->id);
-      }
-    }
-
-    json_t *strip_json = json_object_get(jwks, "strip_token");
-    if (strip_json) {
-      cfg->strip_token = json_boolean_value(strip_json);
-    }
-
     size_t jwks_ct     = json_array_size(key_ary);
     cjose_jwk_t **jwks = (*jwkis++ = malloc((jwks_ct + 1) * sizeof *jwks));
     PluginDebug("Created table with size %d", cfg->issuers->size);
-    if (!hsearch_r(((ENTRY){*issuer, jwks}), ENTER, &(ENTRY *){0}, cfg->issuers)) {
+    if (!hsearch_r(((ENTRY){(char *)*issuer, jwks}), ENTER, &(ENTRY *){0}, cfg->issuers)) {
       PluginDebug("Failed to store keys for issuer %s", *issuer);
     } else {
       PluginDebug("Stored keys for %s at %16p", *issuer, jwks);

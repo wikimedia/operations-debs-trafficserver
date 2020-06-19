@@ -26,12 +26,10 @@
  * requests.
  */
 
-#include "ts/ts.h"
-#include "ts/remap.h"
-
 #include <cstdio>
 #include <cstring>
-#include <getopt.h>
+#include "ts/ts.h"
+#include "ts/remap.h"
 
 #define PLUGIN_NAME "cache_range_requests"
 #define DEBUG_LOG(fmt, ...) TSDebug(PLUGIN_NAME, "[%s:%d] %s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
@@ -43,8 +41,7 @@ typedef enum parent_select_mode {
 } parent_select_mode_t;
 
 struct pluginconfig {
-  parent_select_mode_t ps_mode{PS_DEFAULT};
-  bool modify_cache_key{true};
+  parent_select_mode_t ps_mode;
 };
 
 struct txndata {
@@ -59,7 +56,7 @@ static void handle_server_read_response(TSHttpTxn, struct txndata *);
 static int remove_header(TSMBuffer, TSMLoc, const char *, int);
 static bool set_header(TSMBuffer, TSMLoc, const char *, int, const char *, int);
 static int transaction_handler(TSCont, TSEvent, void *);
-static struct pluginconfig *create_pluginconfig(int argc, char *const argv[]);
+static struct pluginconfig *create_pluginconfig(int argc, const char *argv[]);
 static void delete_pluginconfig(struct pluginconfig *);
 
 // pluginconfig struct (global plugin only)
@@ -71,50 +68,26 @@ static struct pluginconfig *gPluginConfig = nullptr;
  * Walk plugin argument list and updates config
  */
 static struct pluginconfig *
-create_pluginconfig(int argc, char *const argv[])
+create_pluginconfig(int argc, const char *argv[])
 {
-  struct pluginconfig *pc = new pluginconfig;
+  struct pluginconfig *pc = nullptr;
+
+  pc = (struct pluginconfig *)TSmalloc(sizeof(struct pluginconfig));
 
   if (nullptr == pc) {
     ERROR_LOG("Can't allocate pluginconfig");
     return nullptr;
   }
 
-  static const struct option longopts[] = {
-    {const_cast<char *>("ps-cachekey"), no_argument, nullptr, 'p'},
-    {const_cast<char *>("no-modify-cachekey"), no_argument, nullptr, 'n'},
-    {nullptr, 0, nullptr, 0},
-  };
+  // Plugin uses default ATS selection (hash of URL path)
+  pc->ps_mode = PS_DEFAULT;
 
-  // getopt assumes args start at '1'
-  ++argc;
-  --argv;
-
-  for (;;) {
-    int const opt = getopt_long(argc, argv, "", longopts, nullptr);
-    if (-1 == opt) {
+  // Walk through param list.
+  for (int c = 0; c < argc; c++) {
+    if (strcmp("ps_mode:cache_key_url", argv[c]) == 0) {
+      pc->ps_mode = PS_CACHEKEY_URL;
       break;
     }
-
-    switch (opt) {
-    case 'p': {
-      DEBUG_LOG("Plugin modifies parent selection key");
-      pc->ps_mode = PS_CACHEKEY_URL;
-    } break;
-    case 'n': {
-      DEBUG_LOG("Plugin doesn't modify cache key");
-      pc->modify_cache_key = false;
-    } break;
-    default: {
-      DEBUG_LOG("Unknown option: '%c'", opt);
-    } break;
-    }
-  }
-
-  // Backwards compatibility
-  if (optind < argc && 0 == strcmp("ps_mode:cache_key_url", argv[optind])) {
-    DEBUG_LOG("Plugin modifies parent selection key (deprecated)");
-    pc->ps_mode = PS_CACHEKEY_URL;
   }
 
   return pc;
@@ -128,7 +101,7 @@ delete_pluginconfig(struct pluginconfig *pc)
 {
   if (nullptr != pc) {
     DEBUG_LOG("Delete struct pluginconfig");
-    delete pc;
+    TSfree(pc);
     pc = nullptr;
   }
 }
@@ -192,29 +165,23 @@ range_header_check(TSHttpTxn txnp, struct pluginconfig *pc)
             TSfree(req_url);
           }
 
-          if (nullptr != pc) {
-            // set the cache key if configured to.
-            if (pc->modify_cache_key && TS_SUCCESS != TSCacheUrlSet(txnp, cache_key_url, cache_key_url_length)) {
-              ERROR_LOG("failed to change the cache url to %s.", cache_key_url);
-              ERROR_LOG("Disabling cache for this transaction to avoid cache poisoning.");
-              TSHttpTxnServerRespNoStoreSet(txnp, 1);
-              TSHttpTxnRespCacheableSet(txnp, 0);
-              TSHttpTxnReqCacheableSet(txnp, 0);
-            }
+          // set the cache key.
+          if (TS_SUCCESS != TSCacheUrlSet(txnp, cache_key_url, cache_key_url_length)) {
+            DEBUG_LOG("failed to change the cache url to %s.", cache_key_url);
+          }
 
-            // Optionally set the parent_selection_url to the cache_key url or path
-            if (PS_DEFAULT != pc->ps_mode) {
-              TSMLoc ps_loc = nullptr;
+          // Optionally set the parent_selection_url to the cache_key url or path
+          if (nullptr != pc && PS_DEFAULT != pc->ps_mode) {
+            TSMLoc ps_loc = nullptr;
 
-              if (PS_CACHEKEY_URL == pc->ps_mode) {
-                const char *start = cache_key_url;
-                const char *end   = cache_key_url + cache_key_url_length;
-                if (TS_SUCCESS == TSUrlCreate(hdr_bufp, &ps_loc) &&
-                    TS_PARSE_DONE == TSUrlParse(hdr_bufp, ps_loc, &start, end) && // This should always succeed.
-                    TS_SUCCESS == TSHttpTxnParentSelectionUrlSet(txnp, hdr_bufp, ps_loc)) {
-                  DEBUG_LOG("Set Parent Selection URL to cache_key_url: %s", cache_key_url);
-                  TSHandleMLocRelease(hdr_bufp, TS_NULL_MLOC, ps_loc);
-                }
+            if (PS_CACHEKEY_URL == pc->ps_mode) {
+              const char *start = cache_key_url;
+              const char *end   = cache_key_url + cache_key_url_length;
+              if (TS_SUCCESS == TSUrlCreate(hdr_bufp, &ps_loc) &&
+                  TS_PARSE_DONE == TSUrlParse(hdr_bufp, ps_loc, &start, end) && // This should always succeed.
+                  TS_SUCCESS == TSHttpTxnParentSelectionUrlSet(txnp, hdr_bufp, ps_loc)) {
+                DEBUG_LOG("Set Parent Selection URL to cache_key_url: %s", cache_key_url);
+                TSHandleMLocRelease(hdr_bufp, TS_NULL_MLOC, ps_loc);
               }
             }
           }
@@ -444,10 +411,11 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char * /*errbuf */, int /*
   }
 
   // Skip over the Remap params
-  char *const *plugin_argv = const_cast<char *const *>(argv);
+  const char **plugin_argv = const_cast<const char **>(argv + 2);
+  argc -= 2;
 
   // Parse the argument list.
-  *ih = (struct pluginconfig *)create_pluginconfig(argc - 2, plugin_argv + 2);
+  *ih = (struct pluginconfig *)create_pluginconfig(argc, plugin_argv);
 
   if (*ih == nullptr) {
     ERROR_LOG("Can't create pluginconfig");
@@ -504,8 +472,9 @@ TSPluginInit(int argc, const char *argv[])
   if (nullptr == gPluginConfig) {
     if (argc > 1) {
       // Skip ahead of first param (name of traffic server plugin shared object)
-      char *const *plugin_argv = const_cast<char *const *>(argv);
-      gPluginConfig            = create_pluginconfig(argc - 1, plugin_argv + 1);
+      const char **plugin_argv = const_cast<const char **>(argv + 1);
+      argc -= 1;
+      gPluginConfig = create_pluginconfig(argc, plugin_argv);
     }
   }
 

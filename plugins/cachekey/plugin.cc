@@ -38,38 +38,34 @@ Configs *globalConfig = nullptr;
 static void
 setCacheKey(TSHttpTxn txn, Configs *config, TSRemapRequestInfo *rri = nullptr)
 {
-  const CacheKeyKeyTypeSet &keyTypes = config->getKeyType();
+  /* Initial cache key facility from the requested URL. */
+  CacheKey cachekey(txn, config->getSeparator(), config->getUriType(), rri);
 
-  for (auto type : keyTypes) {
-    /* Initial cache key facility from the requested URL. */
-    CacheKey cachekey(txn, config->getSeparator(), config->getUriType(), type, rri);
-
-    /* Append custom prefix or the host:port */
-    if (!config->prefixToBeRemoved()) {
-      cachekey.appendPrefix(config->_prefix, config->_prefixCapture, config->_prefixCaptureUri, config->canonicalPrefix());
-    }
-    /* Classify User-Agent and append the class name to the cache key if matched. */
-    cachekey.appendUaClass(config->_classifier);
-
-    /* Capture from User-Agent header. */
-    cachekey.appendUaCaptures(config->_uaCapture);
-
-    /* Append headers to the cache key. */
-    cachekey.appendHeaders(config->_headers);
-
-    /* Append cookies to the cache key. */
-    cachekey.appendCookies(config->_cookies);
-
-    /* Append the path to the cache key. */
-    if (!config->pathToBeRemoved()) {
-      cachekey.appendPath(config->_pathCapture, config->_pathCaptureUri);
-    }
-    /* Append query parameters to the cache key. */
-    cachekey.appendQuery(config->_query);
-
-    /* Set the cache key */
-    cachekey.finalize();
+  /* Append custom prefix or the host:port */
+  if (!config->prefixToBeRemoved()) {
+    cachekey.appendPrefix(config->_prefix, config->_prefixCapture, config->_prefixCaptureUri);
   }
+  /* Classify User-Agent and append the class name to the cache key if matched. */
+  cachekey.appendUaClass(config->_classifier);
+
+  /* Capture from User-Agent header. */
+  cachekey.appendUaCaptures(config->_uaCapture);
+
+  /* Append headers to the cache key. */
+  cachekey.appendHeaders(config->_headers);
+
+  /* Append cookies to the cache key. */
+  cachekey.appendCookies(config->_cookies);
+
+  /* Append the path to the cache key. */
+  if (!config->pathToBeRemoved()) {
+    cachekey.appendPath(config->_pathCapture, config->_pathCaptureUri);
+  }
+  /* Append query parameters to the cache key. */
+  cachekey.appendQuery(config->_query);
+
+  /* Set the cache key */
+  cachekey.finalize();
 }
 
 static int
@@ -165,7 +161,7 @@ TSRemapNewInstance(int argc, char *argv[], void **instance, char *errBuf, int er
 void
 TSRemapDeleteInstance(void *instance)
 {
-  Configs *config = static_cast<Configs *>(instance);
+  Configs *config = (Configs *)instance;
   delete config;
 }
 
@@ -181,7 +177,7 @@ TSRemapDeleteInstance(void *instance)
 TSRemapStatus
 TSRemapDoRemap(void *instance, TSHttpTxn txn, TSRemapRequestInfo *rri)
 {
-  Configs *config = static_cast<Configs *>(instance);
+  Configs *config = (Configs *)instance;
 
   if (nullptr != config) {
     setCacheKey(txn, config, rri);

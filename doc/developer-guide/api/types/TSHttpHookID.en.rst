@@ -82,8 +82,6 @@ Enumeration Members
 
 .. c:macro:: TSHttpHookID TS_SSL_VERIFY_CLIENT_HOOK
 
-.. c:macro:: TSHttpHookID TS_SSL_VERIFY_SERVER_HOOK
-
 .. c:macro:: TSHttpHookID TS_SSL_LAST_HOOK
 
 .. c:macro:: TSHttpHookID TS_HTTP_LAST_HOOK

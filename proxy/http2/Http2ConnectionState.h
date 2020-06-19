@@ -135,9 +135,7 @@ public:
 
     local_hpack_handle  = new HpackHandle(HTTP2_HEADER_TABLE_SIZE);
     remote_hpack_handle = new HpackHandle(HTTP2_HEADER_TABLE_SIZE);
-    if (Http2::stream_priority_enabled) {
-      dependency_tree = new DependencyTree(Http2::max_concurrent_streams_in);
-    }
+    dependency_tree     = new DependencyTree(Http2::max_concurrent_streams_in);
   }
 
   void
@@ -145,7 +143,6 @@ public:
   {
     if (shutdown_cont_event) {
       shutdown_cont_event->cancel();
-      shutdown_cont_event = nullptr;
     }
     cleanup_streams();
 
@@ -178,6 +175,7 @@ public:
   bool delete_stream(Http2Stream *stream);
   void release_stream(Http2Stream *stream);
   void cleanup_streams();
+
   void restart_receiving(Http2Stream *stream);
   void update_initial_rwnd(Http2WindowSize new_size);
 
@@ -232,8 +230,7 @@ public:
   get_stream_error_rate() const
   {
     int total = get_stream_requests();
-
-    if (total >= (1 / Http2::stream_error_rate_threshold)) {
+    if (total > 0) {
       return (double)stream_error_count / (double)total;
     } else {
       return 0;

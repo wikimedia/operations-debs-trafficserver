@@ -25,12 +25,17 @@
 #pragma once
 #define I_VIO_h
 
+#include "tscore/ink_platform.h"
+#include "I_EventSystem.h"
 #if !defined(I_IOBuffer_h)
 #error "include I_IOBuffer.h"
+---include I_IOBuffer.h
 #endif
-
-class Continuation;
+#include "tscore/ink_apidefs.h"
+   class Continuation;
 class VConnection;
+class IOVConnection;
+class MIOBuffer;
 class ProxyMutex;
 
 /**
@@ -68,12 +73,9 @@ class ProxyMutex;
 class VIO
 {
 public:
-  explicit VIO(int aop);
-  VIO();
   ~VIO() {}
-
   /** Interface for the VConnection that owns this handle. */
-  Continuation *get_continuation() const;
+  Continuation *get_continuation();
   void set_continuation(Continuation *cont);
 
   /**
@@ -100,8 +102,8 @@ public:
   /////////////////////
   void set_writer(MIOBuffer *writer);
   void set_reader(IOBufferReader *reader);
-  MIOBuffer *get_writer() const;
-  IOBufferReader *get_reader() const;
+  MIOBuffer *get_writer();
+  IOBufferReader *get_reader();
 
   /**
     Reenable the IO operation.
@@ -138,7 +140,10 @@ public:
   inkcoreapi void reenable_re();
 
   void disable();
-  bool is_disabled() const;
+  bool is_disabled();
+
+  VIO(int aop);
+  VIO();
 
   enum {
     NONE = 0,
@@ -155,6 +160,7 @@ public:
     STAT,
   };
 
+public:
   /**
     Continuation to callback.
 
@@ -219,3 +225,5 @@ public:
 private:
   bool _disabled = false;
 };
+
+#include "I_VConnection.h"

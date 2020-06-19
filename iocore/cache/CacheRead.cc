@@ -719,8 +719,8 @@ CacheVC::openReadMain(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
     bytes     = doc->len - doc_pos;
     if (is_debug_tag_set("cache_seek")) {
       char target_key_str[CRYPTO_HEX_SIZE];
-      Debug("cache_seek", "Read # %d @ %" PRId64 "/%d for %" PRId64 " %s", fragment, doc_pos, doc->len, bytes,
-            key.toHexStr(target_key_str));
+      key.toHexStr(target_key_str);
+      Debug("cache_seek", "Read # %d @ %" PRId64 "/%d for %" PRId64, fragment, doc_pos, doc->len, bytes);
     }
 
     // This shouldn't happen for HTTP assets but it does
@@ -749,15 +749,6 @@ CacheVC::openReadMain(int /* event ATS_UNUSED */, Event * /* e ATS_UNUSED */)
               doc->key.toHexStr(xt), key.toHexStr(yt), f.single_fragment ? "single" : "multi", fragment, prev_frag_size, doc_pos,
               doc->len, bytes, doc->total_len, url_length, url_text);
 
-      doc->magic = DOC_CORRUPT;
-
-      CACHE_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
-      if (!lock.is_locked()) {
-        SET_HANDLER(&CacheVC::openReadDirDelete);
-        VC_SCHED_LOCK_RETRY();
-      }
-
-      dir_delete(&earliest_key, vol, &earliest_dir);
       goto Lerror;
     }
   }
@@ -1257,19 +1248,4 @@ Learliest:
   last_collision = nullptr;
   SET_HANDLER(&CacheVC::openReadStartEarliest);
   return openReadStartEarliest(event, e);
-}
-
-/*
-   Handle a directory delete event in case of some detected corruption.
-*/
-int
-CacheVC::openReadDirDelete(int event, Event *e)
-{
-  MUTEX_TRY_LOCK(lock, vol->mutex, mutex->thread_holding);
-  if (!lock.is_locked()) {
-    VC_SCHED_LOCK_RETRY();
-  }
-
-  dir_delete(&earliest_key, vol, &earliest_dir);
-  return calluser(VC_EVENT_ERROR);
 }

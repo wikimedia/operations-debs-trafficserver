@@ -36,7 +36,6 @@
 typedef std::string String;
 typedef std::set<std::string> StringSet;
 typedef std::map<std::string, std::string> StringMap;
-typedef std::multimap<std::string, std::string> HeaderMultiMap;
 
 class HeaderIterator;
 

@@ -40,6 +40,8 @@ public:
   }
 
   bool setRegexMatch(const std::string &s);
+  const std::string &getRegexString() const;
+  int getRegexCcount() const;
   int regexMatch(const char *, int, int ovector[]) const;
 
 private:
