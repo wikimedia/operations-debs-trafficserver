@@ -2,7 +2,7 @@ Origin: upstream https://github.com/apache/trafficserver/pull/4912
 Description: Address performance issue by removing use of read_avail
 --- a/proxy/http2/Http2ConnectionState.cc
 +++ b/proxy/http2/Http2ConnectionState.cc
-@@ -1444,7 +1444,6 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1451,7 +1451,6 @@ Http2ConnectionState::send_a_data_frame(
    const ssize_t window_size         = std::min(this->client_rwnd(), stream->client_rwnd());
    const size_t buf_len              = BUFFER_SIZE_FOR_INDEX(buffer_size_index[HTTP2_FRAME_TYPE_DATA]);
    const size_t write_available_size = std::min(buf_len, static_cast<size_t>(window_size));
@@ -10,7 +10,7 @@ Description: Address performance issue by removing use of read_avail
    payload_length                    = 0;
  
    uint8_t flags = 0x00;
-@@ -1453,9 +1452,7 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1460,9 +1459,7 @@ Http2ConnectionState::send_a_data_frame(
  
    SCOPED_MUTEX_LOCK(stream_lock, stream->mutex, this_ethread());
  
@@ -21,7 +21,7 @@ Description: Address performance issue by removing use of read_avail
      Http2StreamDebug(this->ua_session, stream->get_id(), "couldn't get data reader");
      return Http2SendDataFrameResult::ERROR;
    }
-@@ -1467,15 +1464,15 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1474,15 +1471,15 @@ Http2ConnectionState::send_a_data_frame(
    }
  
    // Select appropriate payload length
@@ -40,7 +40,7 @@ Description: Address performance issue by removing use of read_avail
    } else {
      payload_length = 0;
    }
-@@ -1488,7 +1485,7 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1495,7 +1492,7 @@ Http2ConnectionState::send_a_data_frame(
      return Http2SendDataFrameResult::NO_PAYLOAD;
    }
  
@@ -49,7 +49,7 @@ Description: Address performance issue by removing use of read_avail
      flags |= HTTP2_FLAGS_DATA_END_STREAM;
    }
  
-@@ -1506,7 +1503,6 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1513,7 +1510,6 @@ Http2ConnectionState::send_a_data_frame(
    data.finalize(payload_length);
  
    stream->update_sent_count(payload_length);

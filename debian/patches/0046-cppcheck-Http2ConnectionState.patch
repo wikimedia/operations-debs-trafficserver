@@ -2,7 +2,7 @@ Origin: https://github.com/apache/trafficserver/pull/5330
 Description: cppcheck: Fix various issues of Http2ConnectionState
 --- a/proxy/http2/Http2ConnectionState.cc
 +++ b/proxy/http2/Http2ConnectionState.cc
-@@ -932,7 +932,7 @@ Http2ConnectionState::main_event_handler
+@@ -939,7 +939,7 @@ Http2ConnectionState::main_event_handler
    // Initialize HTTP/2 Connection
    case HTTP2_SESSION_EVENT_INIT: {
      ink_assert(this->ua_session == nullptr);
@@ -11,7 +11,7 @@ Description: cppcheck: Fix various issues of Http2ConnectionState
  
      // [RFC 7540] 3.5. HTTP/2 Connection Preface. Upon establishment of a TCP connection and
      // determination that HTTP/2 will be used by both peers, each endpoint MUST
-@@ -974,7 +974,7 @@ Http2ConnectionState::main_event_handler
+@@ -981,7 +981,7 @@ Http2ConnectionState::main_event_handler
  
    // Parse received HTTP/2 frames
    case HTTP2_SESSION_EVENT_RECV: {
@@ -20,7 +20,7 @@ Description: cppcheck: Fix various issues of Http2ConnectionState
      const Http2StreamId stream_id = frame->header().streamid;
      Http2Error error;
  
-@@ -1178,14 +1178,14 @@ Http2ConnectionState::find_stream(Http2S
+@@ -1185,14 +1185,14 @@ Http2ConnectionState::find_stream(Http2S
  void
  Http2ConnectionState::restart_streams()
  {
@@ -42,7 +42,7 @@ Description: cppcheck: Fix various issues of Http2ConnectionState
      // Change the start point randomly
      for (int i = starting_point % total_client_streams_count; i >= 0; --i) {
        end = static_cast<Http2Stream *>(end->link.next ? end->link.next : stream_list.head);
-@@ -1623,14 +1623,14 @@ Http2ConnectionState::send_headers_frame
+@@ -1630,14 +1630,14 @@ Http2ConnectionState::send_headers_frame
      if (sent + payload_length == header_blocks_size) {
        flags |= HTTP2_FLAGS_CONTINUATION_END_HEADERS;
      }
@@ -63,7 +63,7 @@ Description: cppcheck: Fix various issues of Http2ConnectionState
      sent += payload_length;
    }
  
-@@ -1700,15 +1700,15 @@ Http2ConnectionState::send_push_promise_
+@@ -1707,15 +1707,15 @@ Http2ConnectionState::send_push_promise_
      payload_length =
        BUFFER_SIZE_FOR_INDEX(buffer_size_index[HTTP2_FRAME_TYPE_PUSH_PROMISE]) - sizeof(push_promise.promised_streamid);
    }
@@ -84,7 +84,7 @@ Description: cppcheck: Fix various issues of Http2ConnectionState
    sent += payload_length;
  
    // Send CONTINUATION frames
-@@ -1720,13 +1720,13 @@ Http2ConnectionState::send_push_promise_
+@@ -1727,13 +1727,13 @@ Http2ConnectionState::send_push_promise_
      if (sent + payload_length == header_blocks_size) {
        flags |= HTTP2_FLAGS_CONTINUATION_END_HEADERS;
      }

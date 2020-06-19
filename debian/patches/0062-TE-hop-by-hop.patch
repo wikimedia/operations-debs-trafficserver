@@ -1,0 +1,28 @@
+Origin: upstream https://github.com/apache/trafficserver/pull/6908
+Description: Handle Transfer-Encoding as a hop-by-hop header
+
+From f1930bf887985d23f8b596000a318eaaa5ac2571 Mon Sep 17 00:00:00 2001
+From: Emanuele Rocca <ema@wikimedia.org>
+Date: Wed, 17 Jun 2020 14:45:19 +0200
+Subject: [PATCH] Handle Transfer-Encoding as a hop-by-hop header (#6907)
+
+Transfer-Encoding is a hop-by-hop header according to RFC 2616:
+https://tools.ietf.org/html/rfc2616#section-13.5.1
+---
+ proxy/hdrs/HdrToken.cc | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/proxy/hdrs/HdrToken.cc b/proxy/hdrs/HdrToken.cc
+index fcfc5c656b6..3ebbcfb2496 100644
+--- a/proxy/hdrs/HdrToken.cc
++++ b/proxy/hdrs/HdrToken.cc
+@@ -228,7 +228,8 @@ static HdrTokenFieldInfo _hdrtoken_strs_field_initializers[] = {
+   {"Subject", MIME_SLOTID_NONE, MIME_PRESENCE_SUBJECT, HTIF_NONE},
+   {"Summary", MIME_SLOTID_NONE, MIME_PRESENCE_SUMMARY, HTIF_NONE},
+   {"TE", MIME_SLOTID_TE, MIME_PRESENCE_TE, (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},
+-  {"Transfer-Encoding", MIME_SLOTID_TRANSFER_ENCODING, MIME_PRESENCE_TRANSFER_ENCODING, (HTIF_COMMAS | HTIF_MULTVALS)},
++  {"Transfer-Encoding", MIME_SLOTID_TRANSFER_ENCODING, MIME_PRESENCE_TRANSFER_ENCODING,
++   (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},
+   {"Upgrade", MIME_SLOTID_NONE, MIME_PRESENCE_UPGRADE, (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},
+   {"User-Agent", MIME_SLOTID_USER_AGENT, MIME_PRESENCE_USER_AGENT, HTIF_NONE},
+   {"Vary", MIME_SLOTID_VARY, MIME_PRESENCE_VARY, (HTIF_COMMAS | HTIF_MULTVALS)},

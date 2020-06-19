@@ -249,7 +249,7 @@ Description: Perf: Optimize sending HTTP/2 frame
    BUFFER_SIZE_INDEX_16K, // HTTP2_FRAME_TYPE_CONTINUATION
  };
  
-@@ -609,8 +610,8 @@ rcv_settings_frame(Http2ConnectionState 
+@@ -617,8 +618,8 @@ rcv_settings_frame(Http2ConnectionState 
  
    // [RFC 7540] 6.5. Once all values have been applied, the recipient MUST
    // immediately emit a SETTINGS frame with the ACK flag set.
@@ -260,7 +260,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    return Http2Error(Http2ErrorClass::HTTP2_ERROR_CLASS_NONE);
  }
-@@ -1447,12 +1448,11 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1454,12 +1455,11 @@ Http2ConnectionState::send_a_data_frame(
    payload_length                    = 0;
  
    uint8_t flags = 0x00;
@@ -275,7 +275,7 @@ Description: Perf: Optimize sending HTTP/2 frame
      Http2StreamDebug(this->ua_session, stream->get_id(), "couldn't get data reader");
      return Http2SendDataFrameResult::ERROR;
    }
-@@ -1464,15 +1464,18 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1471,15 +1471,18 @@ Http2ConnectionState::send_a_data_frame(
    }
  
    // Select appropriate payload length
@@ -298,7 +298,7 @@ Description: Perf: Optimize sending HTTP/2 frame
    } else {
      payload_length = 0;
    }
-@@ -1485,7 +1488,7 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1492,7 +1495,7 @@ Http2ConnectionState::send_a_data_frame(
      return Http2SendDataFrameResult::NO_PAYLOAD;
    }
  
@@ -307,7 +307,7 @@ Description: Perf: Optimize sending HTTP/2 frame
      flags |= HTTP2_FLAGS_DATA_END_STREAM;
    }
  
-@@ -1497,21 +1500,16 @@ Http2ConnectionState::send_a_data_frame(
+@@ -1504,21 +1507,16 @@ Http2ConnectionState::send_a_data_frame(
    Http2StreamDebug(ua_session, stream->get_id(), "Send a DATA frame - client window con: %5zd stream: %5zd payload: %5zd",
                     _client_rwnd, stream->client_rwnd(), payload_length);
  
@@ -332,7 +332,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
      return Http2SendDataFrameResult::DONE;
    }
-@@ -1556,10 +1554,8 @@ Http2ConnectionState::send_headers_frame
+@@ -1563,10 +1561,8 @@ Http2ConnectionState::send_headers_frame
    uint32_t buf_len            = 0;
    uint32_t header_blocks_size = 0;
    int payload_length          = 0;
@@ -344,7 +344,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    Http2StreamDebug(ua_session, stream->get_id(), "Send HEADERS frame");
  
-@@ -1591,10 +1587,6 @@ Http2ConnectionState::send_headers_frame
+@@ -1598,10 +1594,6 @@ Http2ConnectionState::send_headers_frame
    } else {
      payload_length = BUFFER_SIZE_FOR_INDEX(buffer_size_index[HTTP2_FRAME_TYPE_HEADERS]);
    }
@@ -355,7 +355,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    // Change stream state
    if (!stream->change_state(HTTP2_FRAME_TYPE_HEADERS, flags)) {
-@@ -1609,10 +1601,9 @@ Http2ConnectionState::send_headers_frame
+@@ -1616,10 +1608,9 @@ Http2ConnectionState::send_headers_frame
      return;
    }
  
@@ -369,7 +369,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    // Send CONTINUATION frames
    flags = 0;
-@@ -1623,14 +1614,10 @@ Http2ConnectionState::send_headers_frame
+@@ -1630,14 +1621,10 @@ Http2ConnectionState::send_headers_frame
      if (sent + payload_length == header_blocks_size) {
        flags |= HTTP2_FLAGS_CONTINUATION_END_HEADERS;
      }
@@ -388,7 +388,7 @@ Description: Perf: Optimize sending HTTP/2 frame
      sent += payload_length;
    }
  
-@@ -1646,7 +1633,6 @@ Http2ConnectionState::send_push_promise_
+@@ -1653,7 +1640,6 @@ Http2ConnectionState::send_push_promise_
    uint32_t buf_len            = 0;
    uint32_t header_blocks_size = 0;
    int payload_length          = 0;
@@ -396,7 +396,7 @@ Description: Perf: Optimize sending HTTP/2 frame
    uint8_t flags               = 0x00;
  
    if (client_settings.get(HTTP2_SETTINGS_ENABLE_PUSH) == 0) {
-@@ -1700,16 +1686,11 @@ Http2ConnectionState::send_push_promise_
+@@ -1707,16 +1693,11 @@ Http2ConnectionState::send_push_promise_
      payload_length =
        BUFFER_SIZE_FOR_INDEX(buffer_size_index[HTTP2_FRAME_TYPE_PUSH_PROMISE]) - sizeof(push_promise.promised_streamid);
    }
@@ -416,7 +416,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    // Send CONTINUATION frames
    flags = 0;
-@@ -1720,13 +1701,8 @@ Http2ConnectionState::send_push_promise_
+@@ -1727,13 +1708,8 @@ Http2ConnectionState::send_push_promise_
      if (sent + payload_length == header_blocks_size) {
        flags |= HTTP2_FLAGS_CONTINUATION_END_HEADERS;
      }
@@ -432,7 +432,7 @@ Description: Perf: Optimize sending HTTP/2 frame
      sent += payload_length;
    }
    ats_free(buf);
-@@ -1770,12 +1746,6 @@ Http2ConnectionState::send_rst_stream_fr
+@@ -1777,12 +1753,6 @@ Http2ConnectionState::send_rst_stream_fr
      ++stream_error_count;
    }
  
@@ -445,7 +445,7 @@ Description: Perf: Optimize sending HTTP/2 frame
    // change state to closed
    Http2Stream *stream = find_stream(id);
    if (stream != nullptr) {
-@@ -1791,9 +1761,8 @@ Http2ConnectionState::send_rst_stream_fr
+@@ -1798,9 +1768,8 @@ Http2ConnectionState::send_rst_stream_fr
      }
    }
  
@@ -457,7 +457,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  }
  
  void
-@@ -1803,11 +1772,8 @@ Http2ConnectionState::send_settings_fram
+@@ -1810,11 +1779,8 @@ Http2ConnectionState::send_settings_fram
  
    Http2StreamDebug(ua_session, stream_id, "Send SETTINGS frame");
  
@@ -471,7 +471,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  
    for (int i = HTTP2_SETTINGS_HEADER_TABLE_SIZE; i < HTTP2_SETTINGS_MAX; ++i) {
      Http2SettingsIdentifier id = static_cast<Http2SettingsIdentifier>(i);
-@@ -1815,32 +1781,16 @@ Http2ConnectionState::send_settings_fram
+@@ -1822,32 +1788,16 @@ Http2ConnectionState::send_settings_fram
  
      // Send only difference
      if (settings_value != server_settings.get(id)) {
@@ -508,7 +508,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  }
  
  void
-@@ -1848,15 +1798,8 @@ Http2ConnectionState::send_ping_frame(Ht
+@@ -1855,15 +1805,8 @@ Http2ConnectionState::send_ping_frame(Ht
  {
    Http2StreamDebug(ua_session, id, "Send PING frame");
  
@@ -526,7 +526,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  }
  
  // As for gracefull shutdown, TS should process outstanding stream as long as possible.
-@@ -1864,29 +1807,22 @@ Http2ConnectionState::send_ping_frame(Ht
+@@ -1871,29 +1814,22 @@ Http2ConnectionState::send_ping_frame(Ht
  void
  Http2ConnectionState::send_goaway_frame(Http2StreamId id, Http2ErrorCode ec)
  {
@@ -562,7 +562,7 @@ Description: Perf: Optimize sending HTTP/2 frame
  }
  
  void
-@@ -1895,14 +1831,8 @@ Http2ConnectionState::send_window_update
+@@ -1902,14 +1838,8 @@ Http2ConnectionState::send_window_update
    Http2StreamDebug(ua_session, id, "Send WINDOW_UPDATE frame: size=%" PRIu32, size);
  
    // Create WINDOW_UPDATE frame

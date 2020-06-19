@@ -15,7 +15,7 @@ shutdown (GOAWAY frame with stream ID 2^31-1).
 
 --- a/proxy/http2/Http2ConnectionState.cc
 +++ b/proxy/http2/Http2ConnectionState.cc
-@@ -1346,6 +1346,7 @@ Http2ConnectionState::release_stream(Htt
+@@ -1353,6 +1353,7 @@ Http2ConnectionState::release_stream(Htt
          // or we can use a local variable to do it.
          // ua_session = nullptr;
        } else if (shutdown_state == HTTP2_SHUTDOWN_IN_PROGRESS && fini_event == nullptr) {
