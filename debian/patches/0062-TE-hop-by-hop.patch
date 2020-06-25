@@ -12,11 +12,9 @@ https://tools.ietf.org/html/rfc2616#section-13.5.1
  proxy/hdrs/HdrToken.cc | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
-diff --git a/proxy/hdrs/HdrToken.cc b/proxy/hdrs/HdrToken.cc
-index fcfc5c656b6..3ebbcfb2496 100644
 --- a/proxy/hdrs/HdrToken.cc
 +++ b/proxy/hdrs/HdrToken.cc
-@@ -228,7 +228,8 @@ static HdrTokenFieldInfo _hdrtoken_strs_field_initializers[] = {
+@@ -225,7 +225,8 @@ static HdrTokenFieldInfo _hdrtoken_strs_
    {"Subject", MIME_SLOTID_NONE, MIME_PRESENCE_SUBJECT, HTIF_NONE},
    {"Summary", MIME_SLOTID_NONE, MIME_PRESENCE_SUMMARY, HTIF_NONE},
    {"TE", MIME_SLOTID_TE, MIME_PRESENCE_TE, (HTIF_COMMAS | HTIF_MULTVALS | HTIF_HOPBYHOP)},

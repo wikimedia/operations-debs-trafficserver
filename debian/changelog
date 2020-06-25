@@ -1,3 +1,11 @@
+trafficserver (8.0.8-1wm1) buster-wikimedia; urgency=medium
+
+  * New upstream release 8.0.8
+  * The following patches have been refreshed:
+    * 0062-TE-hop-by-hop.patch
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Thu, 25 Jun 2020 12:19:38 +0000
+
 trafficserver (8.0.8~rc0-1wm1) buster-wikimedia; urgency=medium
 
   * New upstream release
