@@ -1,0 +1,36 @@
+Origin: https://github.com/apache/trafficserver/pull/6876
+Description: Make Http2ClientSession inactive on EOS event
+
+From c1a6f6126d1250694092a00a1bb5cfb7f74d33aa Mon Sep 17 00:00:00 2001
+From: Masaori Koshiba <masaori@apache.org>
+Date: Tue, 9 Jun 2020 16:04:16 +0900
+Subject: [PATCH] Make Http2ClientSession inactive on EOS event
+
+---
+ proxy/http2/Http2ClientSession.cc   | 3 +++
+ proxy/http2/Http2ConnectionState.cc | 2 ++
+ 2 files changed, 5 insertions(+)
+
+--- a/proxy/http2/Http2ClientSession.cc
++++ b/proxy/http2/Http2ClientSession.cc
+@@ -98,6 +98,9 @@ Http2ClientSession::free()
+ 
+   Http2SsnDebug("session free");
+ 
++  // Don't free active ProxySession
++   ink_release_assert(is_active() == false);
++
+   HTTP2_DECREMENT_THREAD_DYN_STAT(HTTP2_STAT_CURRENT_CLIENT_SESSION_COUNT, this->mutex->thread_holding);
+ 
+   // Update stats on how we died.  May want to eliminate this.  Was useful for
+--- a/proxy/http2/Http2ConnectionState.cc
++++ b/proxy/http2/Http2ConnectionState.cc
+@@ -1350,6 +1350,8 @@ Http2ConnectionState::release_stream(Htt
+ 
+     if (total_client_streams_count == 0) {
+       if (fini_received) {
++        ua_session->clear_session_active();
++
+         // We were shutting down, go ahead and terminate the session
+         // this is a member of Http2ConnectionState and will be freed
+         // when ua_session is destroyed
