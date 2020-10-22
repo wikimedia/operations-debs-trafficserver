@@ -1,0 +1,44 @@
+Description: Allow disabling SO_MARK and IP_TOS usage of socket options
+--- a/iocore/net/I_NetVConnection.h
++++ b/iocore/net/I_NetVConnection.h
+@@ -172,6 +172,10 @@ struct NetVCOptions {
+   static uint32_t const SOCK_OPT_LINGER_ON = 4;
+   /// Value for TCP Fast open @c sockopt_flags
+   static uint32_t const SOCK_OPT_TCP_FAST_OPEN = 8;
++  /// Value for SO_MARK @c sockopt_flags
++  static uint32_t const SOCK_OPT_PACKET_MARK = 16;
++  /// Value for IP_TOS @c sockopt_flags
++  static uint32_t const SOCK_OPT_PACKET_TOS = 32;
+ 
+   uint32_t packet_mark;
+   uint32_t packet_tos;
+--- a/iocore/net/UnixConnection.cc
++++ b/iocore/net/UnixConnection.cc
+@@ -412,16 +412,20 @@ Connection::apply_options(NetVCOptions c
+   }
+ 
+ #if TS_HAS_SO_MARK
+-  uint32_t mark = opt.packet_mark;
+-  safe_setsockopt(fd, SOL_SOCKET, SO_MARK, reinterpret_cast<char *>(&mark), sizeof(uint32_t));
++  if (opt.sockopt_flags & NetVCOptions::SOCK_OPT_PACKET_MARK) {
++    uint32_t mark = opt.packet_mark;
++    safe_setsockopt(fd, SOL_SOCKET, SO_MARK, reinterpret_cast<char *>(&mark), sizeof(uint32_t));
++  }
+ #endif
+ 
+ #if TS_HAS_IP_TOS
+-  uint32_t tos = opt.packet_tos;
+-  if (addr.isIp4()) {
+-    safe_setsockopt(fd, IPPROTO_IP, IP_TOS, reinterpret_cast<char *>(&tos), sizeof(uint32_t));
+-  } else if (addr.isIp6()) {
+-    safe_setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, reinterpret_cast<char *>(&tos), sizeof(uint32_t));
++  if (opt.sockopt_flags & NetVCOptions::SOCK_OPT_PACKET_TOS) {
++    uint32_t tos = opt.packet_tos;
++    if (addr.isIp4()) {
++      safe_setsockopt(fd, IPPROTO_IP, IP_TOS, reinterpret_cast<char *>(&tos), sizeof(uint32_t));
++    } else if (addr.isIp6()) {
++      safe_setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, reinterpret_cast<char *>(&tos), sizeof(uint32_t));
++    }
+   }
+ #endif
+ }

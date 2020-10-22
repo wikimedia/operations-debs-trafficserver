@@ -1,3 +1,9 @@
+trafficserver (8.0.8-1wm3) buster-wikimedia; urgency=medium
+
+  * Introduce a new patch that allows disabling SO_MARK and IP_TOS sockopts usage
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Thu, 22 Oct 2020 14:05:11 +0000
+
 trafficserver (8.0.8-1wm2) buster-wikimedia; urgency=medium
 
   * Backport of the following patches:
