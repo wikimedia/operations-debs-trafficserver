@@ -55,3 +55,7 @@
 0062-TE-hop-by-hop.patch
 0063-http2ClientSession-EOS.patch
 0064-allow-disabling-packet_mark_tos.patch
+0065-url-fragment-outgoing-requests.patch
+0066-content-length-only-digits.patch
+0067-schedule-H2-reenable-if-needed.patch
+0068-fix-dynamic-stack-overflow-cachekey-plugin.patch

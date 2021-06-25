@@ -1,0 +1,32 @@
+Origin: https://github.com/apache/trafficserver/commit/1c3f164dafe556463dfeff2c4373b10834ba89d7
+Description: String the url fragment for outgoing requests. Fixes CVE-2021-27577
+
+From 1c3f164dafe556463dfeff2c4373b10834ba89d7 Mon Sep 17 00:00:00 2001
+From: Bryan Call <bcall@apache.org>
+Date: Mon, 21 Jun 2021 15:43:32 -0700
+Subject: [PATCH] String the url fragment for outgoing requests (#7966)
+
+Co-authored-by: Susan Hinrichs <shinrich@verizonmedia.com>
+(cherry picked from commit 2b13eb33794574e62249997b4ba654d943a10f2d)
+---
+ proxy/http/HttpTransact.cc | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+Index: trafficserver/proxy/http/HttpTransact.cc
+===================================================================
+--- trafficserver.orig/proxy/http/HttpTransact.cc
++++ trafficserver/proxy/http/HttpTransact.cc
+@@ -7580,9 +7580,12 @@ HttpTransact::build_request(State *s, HT
+ 
+   // HttpTransactHeaders::convert_request(outgoing_version, outgoing_request); // commented out this idea
+ 
++  URL *url = outgoing_request->url_get();
++  // Remove fragment from upstream URL
++  url->fragment_set(NULL, 0);
++
+   // Check whether a Host header field is missing from a 1.0 or 1.1 request.
+   if (outgoing_version != HTTPVersion(0, 9) && !outgoing_request->presence(MIME_PRESENCE_HOST)) {
+-    URL *url = outgoing_request->url_get();
+     int host_len;
+     const char *host = url->host_get(&host_len);
+ 

@@ -1,0 +1,36 @@
+Origin: https://github.com/apache/trafficserver/commit/5691cfa3065e4d1d3e22782ed1bf45e5fa3965df
+Description: Ensure that the content-length value is only digits. Fixes CVE-2021-32565
+
+From 5691cfa3065e4d1d3e22782ed1bf45e5fa3965df Mon Sep 17 00:00:00 2001
+From: Bryan Call <bcall@apache.org>
+Date: Mon, 21 Jun 2021 15:43:42 -0700
+Subject: [PATCH] Ensure that the content-length value is only digits (#7964)
+
+Co-authored-by: Susan Hinrichs <shinrich@verizonmedia.com>
+(cherry picked from commit 668d0f8668fec1cd350b0ceba3f7f8e4020ae3ca)
+---
+ proxy/hdrs/HTTP.cc | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+Index: trafficserver/proxy/hdrs/HTTP.cc
+===================================================================
+--- trafficserver.orig/proxy/hdrs/HTTP.cc
++++ trafficserver/proxy/hdrs/HTTP.cc
+@@ -1202,6 +1202,17 @@ validate_hdr_content_length(HdrHeap *hea
+     int content_length_len         = 0;
+     const char *content_length_val = content_length_field->value_get(&content_length_len);
+ 
++    // RFC 7230 section 3.3.2
++    // Content-Length = 1*DIGIT
++    //
++    // If the content-length value contains a non-numeric value, the header is invalid
++    for (int i = 0; i < content_length_len; i++) {
++      if (!isdigit(content_length_val[i])) {
++        Debug("http", "Content-Length value contains non-digit, returning parse error");
++        return PARSE_RESULT_ERROR;
++      }
++    }
++
+     while (content_length_field->has_dups()) {
+       int content_length_len_2         = 0;
+       const char *content_length_val_2 = content_length_field->m_next_dup->value_get(&content_length_len_2);

@@ -1,0 +1,52 @@
+Origin: https://github.com/apache/trafficserver/commit/616f96069cba2bdb4a3767c13b3be29b0445fa87.patch and https://github.com/apache/trafficserver/pull/7965
+Description: Schedule H2 reenable event only if it's necessary. Fixes CVE-2021-32566 and CVE-2021-32567
+
+From 616f96069cba2bdb4a3767c13b3be29b0445fa87 Mon Sep 17 00:00:00 2001
+From: Masakazu Kitajo <maskit@apache.org>
+Date: Fri, 2 Apr 2021 13:13:20 +0900
+Subject: [PATCH] Schedule H2 reenable event only if it's necessary
+
+Co-authored-by: Katsutoshi Ikenoya <kikenoya@yahoo-corp.jp>
+---
+ proxy/http2/Http2ClientSession.cc | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+Index: trafficserver/proxy/http2/Http2ClientSession.cc
+===================================================================
+--- trafficserver.orig/proxy/http2/Http2ClientSession.cc
++++ trafficserver/proxy/http2/Http2ClientSession.cc
+@@ -74,11 +74,6 @@ Http2ClientSession::destroy()
+ void
+ Http2ClientSession::free()
+ {
+-  if (this->_reenable_event) {
+-    this->_reenable_event->cancel();
+-    this->_reenable_event = nullptr;
+-  }
+-
+   if (h2_pushed_urls) {
+     this->h2_pushed_urls = ink_hash_table_destroy(this->h2_pushed_urls);
+   }
+@@ -98,6 +93,11 @@ Http2ClientSession::free()
+ 
+   Http2SsnDebug("session free");
+ 
++  if (this->_reenable_event) {
++    this->_reenable_event->cancel();
++    this->_reenable_event = nullptr;
++  }
++
+   // Don't free active ProxySession
+    ink_release_assert(is_active() == false);
+ 
+@@ -630,8 +630,8 @@ Http2ClientSession::decrement_current_ac
+ bool
+ Http2ClientSession::_should_do_something_else()
+ {
+-  // Do something else every 128 incoming frames
+-  return (this->_n_frame_read & 0x7F) == 0;
++  // Do something else every 128 incoming frames if connection state isn't closed
++  return (this->_n_frame_read & 0x7F) == 0 && !connection_state.is_state_closed();
+ }
+ 
+ int64_t

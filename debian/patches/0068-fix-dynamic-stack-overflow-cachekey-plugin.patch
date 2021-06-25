@@ -1,0 +1,44 @@
+Origin: https://github.com/apache/trafficserver/pull/7971/commits/ebe0db406011f2d17de31ed34035fe9a3ff2ffed
+Description: Fix dynamic-stack-buffer-overflow of cachekey plugin. Fixes CVE-2021-35474
+
+From ebe0db406011f2d17de31ed34035fe9a3ff2ffed Mon Sep 17 00:00:00 2001
+From: Masaori Koshiba <masaori@apache.org>
+Date: Thu, 17 Jun 2021 08:55:13 +0900
+Subject: [PATCH] Fix dynamic-stack-buffer-overflow of cachekey plugin (#7945)
+
+* Fix dynamic-stack-buffer-overflow of cachekey plugin
+
+* Check dst_size include null termination
+
+(cherry picked from commit 5a9339d7bc65e1c2d8d2a0fc80bb051daf3cdb0b)
+---
+ plugins/cachekey/cachekey.cc | 2 +-
+ proxy/logging/LogUtils.cc    | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+Index: trafficserver/plugins/cachekey/cachekey.cc
+===================================================================
+--- trafficserver.orig/plugins/cachekey/cachekey.cc
++++ trafficserver/plugins/cachekey/cachekey.cc
+@@ -40,7 +40,7 @@ appendEncoded(String &target, const char
+     return;
+   }
+ 
+-  char tmp[len * 2];
++  char tmp[len * 3 + 1];
+   size_t written;
+ 
+   /* The default table does not encode the comma, so we need to use our own table here. */
+Index: trafficserver/proxy/logging/LogUtils.cc
+===================================================================
+--- trafficserver.orig/proxy/logging/LogUtils.cc
++++ trafficserver/proxy/logging/LogUtils.cc
+@@ -343,7 +343,7 @@ escapify_url_common(Arena *arena, char *
+   //
+   size_t out_len = len_in + 2 * count;
+ 
+-  if (dst && out_len > dst_size) {
++  if (dst && (out_len + 1) > dst_size) {
+     *len_out = 0;
+     return nullptr;
+   }

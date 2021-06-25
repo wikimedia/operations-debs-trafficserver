@@ -1,3 +1,11 @@
+trafficserver (8.0.8-1wm4) buster-wikimedia; urgency=medium
+
+  * Backport of the following patches (T285535):
+    * https://github.com/apache/trafficserver/pull/7971
+  * Drop deprecated no-upstream-changelog lintian override
+
+ -- Valentin Gutierrez <vgutierrez@wikimedia.org>  Fri, 25 Jun 2021 10:51:42 +0200
+
 trafficserver (8.0.8-1wm3) buster-wikimedia; urgency=medium
 
   * Introduce a new patch that allows disabling SO_MARK and IP_TOS sockopts usage
